@@ -1,0 +1,16 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Avalon.Server", "Avalon.Server\Avalon.Server.csproj", "{07E234B9-3094-443E-BBA5-F6676D58EFCA}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{07E234B9-3094-443E-BBA5-F6676D58EFCA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{07E234B9-3094-443E-BBA5-F6676D58EFCA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{07E234B9-3094-443E-BBA5-F6676D58EFCA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{07E234B9-3094-443E-BBA5-F6676D58EFCA}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal
