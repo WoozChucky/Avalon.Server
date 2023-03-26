@@ -6,11 +6,6 @@ namespace Avalon.Network.Tcp.Configuration;
 public class AvalonTcpServerConfiguration
 {
     /// <summary>
-    /// Indicates whether the server should use SSL.
-    /// </summary>
-    public bool Ssl { get; set; } = false;
-    
-    /// <summary>
     /// PFX certificate file path.
     /// </summary>
     public string? CertificatePath { get; set; }
@@ -23,5 +18,10 @@ public class AvalonTcpServerConfiguration
     /// <summary>
     /// The port where the server will listen on.
     /// </summary>
-    public uint ListenPort { get; set; } = 21000;
+    public int ListenPort { get; set; } = 21000;
+
+    /// <summary>
+    /// The backlog for the server.
+    /// </summary>
+    public int Backlog { get; set; }
 }

@@ -16,6 +16,8 @@
 
     <ItemGroup>
       <ProjectReference Include="..\Avalon.Network.Security.Udp\Avalon.Network.Security.Udp.csproj" />
+      <ProjectReference Include="..\Avalon.Network.Tcp\Avalon.Network.Tcp.csproj" />
+      <ProjectReference Include="..\Avalon.Network\Avalon.Network.csproj" />
     </ItemGroup>
 
     <ItemGroup>
