@@ -8,6 +8,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Avalon.Client", "Avalon.Cli
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Avalon.Network.Security.Udp", "Avalon.Network.Security.Udp\Avalon.Network.Security.Udp.csproj", "{00A3CABC-D53A-4F2B-955F-E850F8EBE349}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Avalon.Network.Tcp", "Avalon.Network.Tcp\Avalon.Network.Tcp.csproj", "{57067EF9-F924-4D61-A2DD-7C08D01ED961}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Avalon.Network", "Avalon.Network\Avalon.Network.csproj", "{66AF3C58-DC4E-42F3-BAA2-F3619D04F5CC}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -26,6 +30,14 @@ Global
 		{00A3CABC-D53A-4F2B-955F-E850F8EBE349}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{00A3CABC-D53A-4F2B-955F-E850F8EBE349}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{00A3CABC-D53A-4F2B-955F-E850F8EBE349}.Release|Any CPU.Build.0 = Release|Any CPU
+		{57067EF9-F924-4D61-A2DD-7C08D01ED961}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{57067EF9-F924-4D61-A2DD-7C08D01ED961}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{57067EF9-F924-4D61-A2DD-7C08D01ED961}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{57067EF9-F924-4D61-A2DD-7C08D01ED961}.Release|Any CPU.Build.0 = Release|Any CPU
+		{66AF3C58-DC4E-42F3-BAA2-F3619D04F5CC}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{66AF3C58-DC4E-42F3-BAA2-F3619D04F5CC}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{66AF3C58-DC4E-42F3-BAA2-F3619D04F5CC}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{66AF3C58-DC4E-42F3-BAA2-F3619D04F5CC}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{F43A05A8-8EF1-4E8E-BBAE-BE9099B7FD7C} = {17D4E556-1FED-4C7E-85D4-5A0F0A1D06A3}
