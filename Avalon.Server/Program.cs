@@ -14,8 +14,8 @@ namespace Avalon.Server
             
             var serverCertBytes = await File.ReadAllBytesAsync("cert.pfx");
             X509Certificate2 serverCertificate = new X509Certificate2(serverCertBytes, "avalon");
-            
-            FileStream fs = new FileStream("cert-server-udp.pem", FileMode.Open);
+
+            await using var fs = new FileStream("cert-server-udp.pem", FileMode.Open);
             
             
             
