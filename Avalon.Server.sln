@@ -2,6 +2,12 @@
 Microsoft Visual Studio Solution File, Format Version 12.00
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Avalon.Server", "Avalon.Server\Avalon.Server.csproj", "{07E234B9-3094-443E-BBA5-F6676D58EFCA}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Samples", "Samples", "{17D4E556-1FED-4C7E-85D4-5A0F0A1D06A3}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Avalon.Client", "Avalon.Client\Avalon.Client.csproj", "{F43A05A8-8EF1-4E8E-BBAE-BE9099B7FD7C}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Avalon.Network.Security.Udp", "Avalon.Network.Security.Udp\Avalon.Network.Security.Udp.csproj", "{00A3CABC-D53A-4F2B-955F-E850F8EBE349}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -12,5 +18,16 @@ Global
 		{07E234B9-3094-443E-BBA5-F6676D58EFCA}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{07E234B9-3094-443E-BBA5-F6676D58EFCA}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{07E234B9-3094-443E-BBA5-F6676D58EFCA}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F43A05A8-8EF1-4E8E-BBAE-BE9099B7FD7C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F43A05A8-8EF1-4E8E-BBAE-BE9099B7FD7C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F43A05A8-8EF1-4E8E-BBAE-BE9099B7FD7C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F43A05A8-8EF1-4E8E-BBAE-BE9099B7FD7C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{00A3CABC-D53A-4F2B-955F-E850F8EBE349}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{00A3CABC-D53A-4F2B-955F-E850F8EBE349}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{00A3CABC-D53A-4F2B-955F-E850F8EBE349}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{00A3CABC-D53A-4F2B-955F-E850F8EBE349}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{F43A05A8-8EF1-4E8E-BBAE-BE9099B7FD7C} = {17D4E556-1FED-4C7E-85D4-5A0F0A1D06A3}
 	EndGlobalSection
 EndGlobal
