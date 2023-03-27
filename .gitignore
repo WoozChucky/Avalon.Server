@@ -4,3 +4,7 @@ obj/
 riderModule.iml
 /_ReSharper.Caches/
 .idea/.idea.Avalon.Server/.idea/
+
+.vs/Avalon.Server/FileContentIndex/
+
+.vs/Avalon.Server/v17/
