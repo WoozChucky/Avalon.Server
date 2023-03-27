@@ -5,20 +5,25 @@ using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using Avalon.Network.Tcp.Configuration;
+using Microsoft.Extensions.Logging;
 
 namespace Avalon.Network.Tcp;
 
-public class AvalonTcpServer : IAvalonNetworkServer
+public class AvalonTcpServer : IAvalonTcpServer
 {
+    private readonly ILogger<AvalonTcpServer> _logger;
     private readonly AvalonTcpServerConfiguration _configuration;
     private readonly X509Certificate2 _certificate;
     private readonly Socket _socket;
     
     private volatile CancellationTokenSource _cts;
     private volatile bool _isRunning;
+    
+    public event ClientConnectedHandler ClientConnected;
 
-    public AvalonTcpServer(AvalonTcpServerConfiguration configuration)
+    public AvalonTcpServer(ILogger<AvalonTcpServer> logger, AvalonTcpServerConfiguration configuration)
     {
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
         _cts = new CancellationTokenSource();
         _isRunning = false;
@@ -48,13 +53,15 @@ public class AvalonTcpServer : IAvalonNetworkServer
         _socket.Listen(_configuration.Backlog);
         _isRunning = true;
         
+        _logger.LogInformation("Server started at {@EndPoint} using Blocking mode = {Blocking}", _socket.LocalEndPoint, blocking);
+        
         if (blocking)
         {
             await InternalServerLoop();
         }
         else
         {
-            await Task.Factory.StartNew(InternalServerLoop).ConfigureAwait(false);
+            await Task.Factory.StartNew(InternalServerLoop, _cts.Token, TaskCreationOptions.LongRunning, TaskScheduler.Default).ConfigureAwait(false);
         }
     }
 
@@ -70,6 +77,7 @@ public class AvalonTcpServer : IAvalonNetworkServer
 
         //TODO(Nuno): Close all connections.
         //TODO(Nuno): Send the connection disconnect packet to all clients.
+        _logger.LogInformation("Server stopped");
         
         return Task.CompletedTask;
     }
@@ -78,6 +86,7 @@ public class AvalonTcpServer : IAvalonNetworkServer
     {
         Dispose(true);
         GC.SuppressFinalize(this);
+        _logger.LogDebug("Disposed AvalonTcpServer");
     }
 
     private async Task InternalServerLoop()
@@ -90,9 +99,9 @@ public class AvalonTcpServer : IAvalonNetworkServer
                 await HandleNewConnection(client).ConfigureAwait(false);
             }
         }
-        catch (OperationCanceledException e)
+        catch (OperationCanceledException)
         {
-            //TODO: Gracefully exit the loop when cancellation is requested
+            _logger.LogWarning("Server loop cancelled");
         }
     }
 
@@ -102,36 +111,71 @@ public class AvalonTcpServer : IAvalonNetworkServer
         try
         {
             await sslStream.AuthenticateAsServerAsync(_certificate, true, SslProtocols.Tls12, true);
-
-            // Receive a response from the server
-            var buffer = new byte[1024];
-            var bytesRead = await sslStream.ReadAsync(buffer, _cts.Token);
-            if (bytesRead == 0)
-            {
-                // Remote client disconnected
-                return;
-            }
-
-            var response = Encoding.UTF8.GetString(buffer, 0, bytesRead);
-
-            Console.WriteLine(response);
+            
+            this.ClientConnected?.Invoke(this, new TcpClient(client, sslStream));
         }
         catch (AuthenticationException e)
         {
-            Console.WriteLine($"Failed to authenticate: {e.Message}");
+            _logger.LogWarning(e, "Failed to authenticate: {Message}", e.Message);
         }
         catch (Exception e)
         {
-            Console.WriteLine($"Failed to communicate: {e.Message}");
-        }
-        finally
-        {
-            await sslStream.DisposeAsync();
+            _logger.LogWarning(e, "Failed to handle new connection: {Message}", e.Message);
         }
     }
 
     private bool OnClientCertificateValidation(object sender, X509Certificate? certificate, X509Chain? chain, SslPolicyErrors sslpolicyerrors)
     {
+        
+        if (certificate == null)
+        {
+            _logger.LogWarning("Client certificate is null");
+            return false;
+        }
+        
+        var expiryDate = DateTime.Parse(certificate.GetExpirationDateString());
+        
+        if (expiryDate < DateTime.UtcNow)
+        {
+            _logger.LogWarning("Client certificate is expired");
+            return false;
+        }
+
+        if (!certificate.GetSerialNumberString().Equals(_certificate.GetSerialNumberString()))
+        {
+            _logger.LogWarning("Client certificate serial number does not match server certificate serial number");
+            return false;
+        }
+        
+        if (!certificate.Issuer.Equals(_certificate.Issuer))
+        {
+            _logger.LogWarning("Client certificate issuer does not match server certificate issuer");
+            return false;
+        }
+        
+        if (!certificate.Subject.Equals(_certificate.Subject))
+        {
+            _logger.LogWarning("Client certificate subject does not match server certificate subject");
+            return false;
+        }
+
+        //TODO(Nuno): Make this a configuration variable to enable or disable this checks.
+        if (false) {
+            // Check if the client certificate chain is valid
+            if (chain != null && chain.ChainStatus.Any(o => o.Status != X509ChainStatusFlags.UntrustedRoot))
+            {
+                _logger.LogWarning("Client certificate chain is invalid");
+                return false;
+            }
+
+            // Check if the SSL policy errors indicate a problem
+            if (sslpolicyerrors != SslPolicyErrors.None)
+            {
+                _logger.LogWarning("SSL policy errors encountered during client certificate validation: {SslPolicyErrors}", sslpolicyerrors);
+                return false;
+            }
+        }
+        
         return true;
     }
 
@@ -139,9 +183,12 @@ public class AvalonTcpServer : IAvalonNetworkServer
     {
         if (disposing)
         {
-            _certificate.Dispose();
-            _socket.Dispose();
             _cts.Dispose();
+            _logger.LogTrace("Disposed CancellationTokenSource");
+            _certificate.Dispose();
+            _logger.LogTrace("Disposed Certificate");
+            _socket.Dispose();
+            _logger.LogTrace("Disposed Socket");
         }
     }
 }
