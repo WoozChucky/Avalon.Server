@@ -4,6 +4,8 @@ using System.Net.Sockets;
 using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
+using Avalon.Network.Packets;
+using ProtoBuf;
 
 namespace Avalon.Client
 {
@@ -29,17 +31,24 @@ namespace Avalon.Client
                 true);
 
             // Send a message to the server
-            var message = "Hello, server!";
+            var message = "Hello, server!|exit";
             var buffer = Encoding.UTF8.GetBytes(message);
             await sslStream.WriteAsync(buffer, cts.Token);
             
             while (!cts.IsCancellationRequested)
             {
                 // Receive a response from the server
-                buffer = new byte[1024];
-                var bytesRead = await sslStream.ReadAsync(buffer, cts.Token);
-                var response = Encoding.UTF8.GetString(buffer, 0, bytesRead);
-                Console.WriteLine(response);
+                buffer = new byte[4096];
+                using var ms = new MemoryStream();
+                //var bytesRead = await sslStream.ReadAsync(buffer, cts.Token);
+                //await ms.WriteAsync(buffer, 0, bytesRead, cts.Token);
+                var obj = Serializer.DeserializeWithLengthPrefix<UserPacket>(sslStream, PrefixStyle.Base128);
+                if (obj is UserPacket)
+                {
+                    
+                }
+                //var response = Encoding.UTF8.GetString(buffer, 0, bytesRead);
+                //Console.WriteLine(response);
             }
             
             // Close the stream and socket

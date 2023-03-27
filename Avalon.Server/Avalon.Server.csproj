@@ -15,14 +15,16 @@
     </ItemGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\Avalon.Network.Security.Udp\Avalon.Network.Security.Udp.csproj" />
+      <ProjectReference Include="..\Avalon.Network.Packets\Avalon.Network.Packets.csproj" />
       <ProjectReference Include="..\Avalon.Network.Tcp\Avalon.Network.Tcp.csproj" />
+      <ProjectReference Include="..\Avalon.Network.Udp\Avalon.Network.Udp.csproj" />
       <ProjectReference Include="..\Avalon.Network\Avalon.Network.csproj" />
     </ItemGroup>
 
     <ItemGroup>
       <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="7.0.0" />
       <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="7.0.0" />
+      <PackageReference Include="protobuf-net" Version="3.2.16" />
     </ItemGroup>
 
 </Project>
