@@ -42,8 +42,8 @@ namespace Avalon.Client
                 using var ms = new MemoryStream();
                 //var bytesRead = await sslStream.ReadAsync(buffer, cts.Token);
                 //await ms.WriteAsync(buffer, 0, bytesRead, cts.Token);
-                var obj = Serializer.DeserializeWithLengthPrefix<UserPacket>(sslStream, PrefixStyle.Base128);
-                if (obj is UserPacket)
+                var obj = Serializer.DeserializeWithLengthPrefix<NetworkPacket>(sslStream, PrefixStyle.Base128);
+                if (obj is { Header: { Type: NetworkPacketType.ERROR } })
                 {
                     
                 }
