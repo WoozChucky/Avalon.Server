@@ -3,6 +3,7 @@ using System.Text;
 using Avalon.Network;
 using Avalon.Network.Packets;
 using Avalon.Network.Packets.Crypto;
+using Avalon.Network.Packets.Deserialization;
 using Microsoft.Extensions.Logging;
 using ProtoBuf;
 using TcpClient = Avalon.Network.TcpClient;
@@ -16,18 +17,21 @@ public class AvalonInfrastructure : IDisposable
     private readonly ILogger<AvalonInfrastructure> _logger;
     private readonly AvalonGame _game;
     private readonly IAvalonUdpServer _udpServer;
+    private readonly IPacketDeserializer _packetDeserializer;
     private readonly IAvalonTcpServer _tcpServer;
 
     public AvalonInfrastructure(
         ILogger<AvalonInfrastructure> logger,
         AvalonGame game,
         IAvalonTcpServer tcpServer, 
-        IAvalonUdpServer udpServer
+        IAvalonUdpServer udpServer,
+        IPacketDeserializer packetDeserializer
         )
     {
         _logger = logger;
         _game = game;
         _udpServer = udpServer;
+        _packetDeserializer = packetDeserializer;
         _tcpServer = tcpServer;
         _cts = new CancellationTokenSource();
         _tcpServer.ClientConnected += TcpServerOnClientConnected;
@@ -35,6 +39,7 @@ public class AvalonInfrastructure : IDisposable
 
     public async Task Run()
     {
+        _packetDeserializer.RegisterPacketDeserializers();
         Task.Run(_game.RunAsync, _cts.Token);
         await _udpServer.RunAsync(false).ConfigureAwait(false);
         await _tcpServer.RunAsync(true).ConfigureAwait(false);
@@ -63,7 +68,6 @@ public class AvalonInfrastructure : IDisposable
         await Task.Run(async () =>
         {
             // Receive a response from the server
-            var buffer = new byte[4096];
             var messageStream = new MemoryStream();
 
             try
@@ -74,12 +78,17 @@ public class AvalonInfrastructure : IDisposable
                     messageStream.SetLength(0);
                     messageStream.Position = 0;
 
-                    var packet = Serializer.DeserializeWithLengthPrefix<NetworkPacket>(client.Stream, PrefixStyle.Base128);
+                    //var packet = Serializer.DeserializeWithLengthPrefix<NetworkPacket>(client.Stream, PrefixStyle.Base128);
+                    var packet = await _packetDeserializer.DeserializeFromNetwork<NetworkPacket>(client.Stream);
 
                     switch (packet.Header.Type)
                     {
                         case NetworkPacketType.CMSG_REQUEST_ENCRYPTION_KEY:
-                            var encryptionKeyPacket = Serializer.Deserialize<CRequestCryptoKeyPacket>(new MemoryStream(packet.Payload));
+                            
+                            var encryptionKeyPacket = _packetDeserializer.Deserialize<CRequestCryptoKeyPacket>(
+                                NetworkPacketType.CMSG_REQUEST_ENCRYPTION_KEY, 
+                                packet.Payload
+                            );
                             //textBox1.Text = Encoding.UTF8.GetString(encryptionKeyPacket.Key);
                             if (encryptionKeyPacket != null)
                             {

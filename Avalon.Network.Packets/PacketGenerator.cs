@@ -19,12 +19,6 @@ public class PacketGenerator
         // Base Packet Serializers
         Serializer.PrepareSerializer<NetworkPacket>();
         Serializer.PrepareSerializer<NetworkPacketHeader>();
-        
-        // Server Packet Serializers
-        Serializer.PrepareSerializer<SCryptoKeyPacket>();
-        
-        // Client Packet Serializers
-        Serializer.PrepareSerializer<CRequestCryptoKeyPacket>();
     }
     
     public void RegisterPacketDeserializers()
@@ -35,13 +29,13 @@ public class PacketGenerator
                 type.GetFields(BindingFlags.Public | BindingFlags.Static)
                     .Any(field => field.FieldType == typeof(NetworkPacketType))
             );
+        
+        var serializerType = typeof(Serializer);
+        var genericPrepareSerializerMethod = serializerType.GetMethods()
+            .Single(m => m is { Name: "PrepareSerializer", IsGenericMethod: true } && m.GetParameters().Length == 0);
 
         foreach (var packetType in packetTypes)
         {
-            var serializerType = typeof(Serializer);
-            var genericPrepareSerializerMethod = serializerType.GetMethods()
-                .Single(m => m is { Name: "PrepareSerializer", IsGenericMethod: true } && m.GetParameters().Length == 0);
-
             var closedPrepareSerializerMethod = genericPrepareSerializerMethod.MakeGenericMethod(packetType);
             closedPrepareSerializerMethod.Invoke(null, null);
             
@@ -53,6 +47,12 @@ public class PacketGenerator
                 _packetDeserializerFactories.TryAdd(pType, InternalDeserialization);
             }
         }
+    }
+    
+    public void RegisterCustomPacketDeserializer<T>(NetworkPacketType packetType, Func<byte[], T> deserializer) where T : class
+    {
+        Serializer.PrepareSerializer<T>();
+        _packetDeserializerFactories.TryAdd(packetType, deserializer);
     }
 
     private object InternalDeserialization(byte[] arg)
