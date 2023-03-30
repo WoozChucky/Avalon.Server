@@ -15,16 +15,12 @@ public class NetworkPacketDeserializer : IPacketDeserializer
     {
         _packetDeserializerFactories = new ConcurrentDictionary<NetworkPacketType, Func<byte[], Type, object>>();
         _packetDeserializerMethods = new ConcurrentDictionary<Type, MethodInfo>();
-        
-        // Base Packet Serializers
-        Serializer.PrepareSerializer<NetworkPacket>();
-        Serializer.PrepareSerializer<NetworkPacketHeader>();
     }
     
     public T Deserialize<T>(NetworkPacketType packetType, byte[] data) where T : class
     {
         if (!_packetDeserializerFactories.ContainsKey(packetType))
-            throw new InvalidOperationException("Packet deserializer not found.");
+            throw new InvalidOperationException("Packet deserializer not registered.");
         
         return _packetDeserializerFactories[packetType](data, typeof(T)) as T ?? throw new InvalidOperationException("Packet deserialization failed.");
     }
@@ -36,7 +32,6 @@ public class NetworkPacketDeserializer : IPacketDeserializer
 
     public void RegisterCustomPacketDeserializer<T>(NetworkPacketType packetType, Func<byte[], Type, T> deserializer) where T : class
     {
-        Serializer.PrepareSerializer<T>();
         _packetDeserializerFactories.TryAdd(packetType, deserializer);
     }
     
@@ -47,17 +42,12 @@ public class NetworkPacketDeserializer : IPacketDeserializer
             : GetNetworkPacketTypes(assembly);
         
         var serializerType = typeof(Serializer);
-        var genericPrepareSerializerMethod = serializerType.GetMethods()
-            .Single(m => m is { Name: "PrepareSerializer", IsGenericMethod: true } && m.GetParameters().Length == 0);
-        
+
         var genericDeserializeMethod = serializerType.GetMethods()
             .Single(m => m is { Name: "Deserialize", IsGenericMethod: true } && m.GetParameters().Length == 1);
 
         foreach (var packetType in packetTypes)
         {
-            var closedPrepareSerializerMethod = genericPrepareSerializerMethod.MakeGenericMethod(packetType);
-            closedPrepareSerializerMethod.Invoke(null, null);
-            
             var packetTypeValue = packetType.GetField(PacketTypeFieldName, BindingFlags.Public | BindingFlags.Static)
                 ?.GetValue(null);
 
@@ -77,7 +67,6 @@ public class NetworkPacketDeserializer : IPacketDeserializer
         
         return _packetDeserializerMethods[type].Invoke(null, new object?[]{ms}) 
                ?? throw new InvalidOperationException("Packet deserialization failed.");
-        //return Serializer.Deserialize<object>(ms);
     }
 
     private IEnumerable<Type> GetNetworkPacketTypes(Assembly assembly)
