@@ -1,5 +1,7 @@
 ﻿using Avalon.Network;
+using Avalon.Network.Packets;
 using Avalon.Network.Packets.Deserialization;
+using Avalon.Network.Packets.Serialization;
 using Avalon.Network.Tcp;
 using Avalon.Network.Tcp.Configuration;
 using Avalon.Network.Udp;
@@ -77,6 +79,8 @@ namespace Avalon.Server
                 .AddSingleton<IAvalonTcpServer, AvalonTcpServer>()
                 .AddSingleton<IAvalonUdpServer, AvalonUdpServer>()
                 .AddSingleton<IPacketDeserializer, NetworkPacketDeserializer>()
+                .AddSingleton<IPacketSerializer, NetworkPacketSerializer>()
+                .AddSingleton<IPacketHandlerRegistry, PacketHandlerRegistry>()
                 .AddSingleton<AvalonGame>()
                 .AddSingleton<AvalonInfrastructure>()
                 .BuildServiceProvider();
