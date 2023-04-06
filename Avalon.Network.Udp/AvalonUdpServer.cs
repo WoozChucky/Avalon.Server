@@ -18,11 +18,12 @@ public class AvalonUdpServer : IAvalonUdpServer
     
     public AvalonUdpServer(
         ILogger<AvalonUdpServer> logger, 
-        AvalonUdpServerConfiguration configuration)
+        AvalonUdpServerConfiguration configuration,
+        CancellationTokenSource cts)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
-        _cts = new CancellationTokenSource();
+        _cts = cts ?? throw new ArgumentNullException(nameof(cts));
         _isRunning = false;
 
         using var fs = new FileStream(_configuration.CertificatePath ?? throw new ArgumentNullException(nameof(configuration.CertificatePath)), FileMode.Open);
@@ -47,24 +48,19 @@ public class AvalonUdpServer : IAvalonUdpServer
 
     public bool IsRunning => _isRunning;
     
-    public async Task RunAsync(bool blocking = true)
+    public async Task RunAsync()
     {
         if (_isRunning) throw new InvalidOperationException("Server is already running.");
         try
         {
-            _cts = _cts.Token.IsCancellationRequested ? new CancellationTokenSource() : _cts;
-            
             _server.Start();
             _isRunning = true;
             
             _logger.LogInformation("Server started at {@EndPoint}", _server.LocalEndPoint);
 
-            if (blocking)
+            while (!_cts.Token.IsCancellationRequested)
             {
-                while (!_cts.Token.IsCancellationRequested)
-                {
-                    await Task.Delay(50).ConfigureAwait(false);
-                }
+                
             }
         }
         catch (Exception e)
@@ -78,7 +74,6 @@ public class AvalonUdpServer : IAvalonUdpServer
     {
         if (!_isRunning) throw new InvalidOperationException("Server is not running.");
         
-        _cts.Cancel();
         _server.Stop();
         _isRunning = false;
         
@@ -98,7 +93,6 @@ public class AvalonUdpServer : IAvalonUdpServer
         if (disposing)
         {
             _server.Stop();
-            _cts.Dispose();
         }
     }
 }

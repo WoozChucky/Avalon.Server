@@ -3,7 +3,6 @@ using System.Net.Security;
 using System.Net.Sockets;
 using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
-using System.Text;
 using Avalon.Network.Tcp.Configuration;
 using Microsoft.Extensions.Logging;
 
@@ -13,19 +12,19 @@ public class AvalonTcpServer : IAvalonTcpServer
 {
     private readonly ILogger<AvalonTcpServer> _logger;
     private readonly AvalonTcpServerConfiguration _configuration;
+    private readonly CancellationTokenSource _cts;
     private readonly X509Certificate2 _certificate;
     private readonly Socket _socket;
     
-    private volatile CancellationTokenSource _cts;
     private volatile bool _isRunning;
     
     public event ClientConnectedHandler ClientConnected;
 
-    public AvalonTcpServer(ILogger<AvalonTcpServer> logger, AvalonTcpServerConfiguration configuration)
+    public AvalonTcpServer(ILogger<AvalonTcpServer> logger, AvalonTcpServerConfiguration configuration, CancellationTokenSource cts)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
-        _cts = new CancellationTokenSource();
+        _cts = cts ?? throw new ArgumentNullException(nameof(cts));
         _isRunning = false;
         _socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
         _socket.Bind(new IPEndPoint(IPAddress.Any, _configuration.ListenPort));
@@ -42,27 +41,21 @@ public class AvalonTcpServer : IAvalonTcpServer
     
     public bool IsRunning => _isRunning;
     
-    public async Task RunAsync(bool blocking = true)
+    public async Task RunAsync()
     {
         if (_isRunning)
         {
             throw new InvalidOperationException("Server is already running.");
         }
         
-        _cts = _cts.Token.IsCancellationRequested ? new CancellationTokenSource() : _cts;
         _socket.Listen(_configuration.Backlog);
         _isRunning = true;
         
-        _logger.LogInformation("Server started at {@EndPoint} using Blocking mode = {Blocking}", _socket.LocalEndPoint, blocking);
+        _logger.LogInformation("Server started at {@EndPoint}", _socket.LocalEndPoint);
         
-        if (blocking)
-        {
-            await InternalServerLoop();
-        }
-        else
-        {
-            await Task.Factory.StartNew(InternalServerLoop, _cts.Token, TaskCreationOptions.LongRunning, TaskScheduler.Default).ConfigureAwait(false);
-        }
+#pragma warning disable CS4014
+        Task.Factory.StartNew(InternalServerLoop, _cts.Token, TaskCreationOptions.LongRunning, TaskScheduler.Default);
+#pragma warning restore CS4014
     }
 
     public Task StopAsync()
@@ -73,7 +66,6 @@ public class AvalonTcpServer : IAvalonTcpServer
         }
 
         _isRunning = false;
-        _cts.Cancel();
 
         //TODO(Nuno): Close all connections.
         //TODO(Nuno): Send the connection disconnect packet to all clients.
@@ -112,7 +104,7 @@ public class AvalonTcpServer : IAvalonTcpServer
         {
             await sslStream.AuthenticateAsServerAsync(_certificate, true, SslProtocols.Tls12, true);
             
-            this.ClientConnected?.Invoke(this, new TcpClient(client, sslStream));
+            ClientConnected?.Invoke(this, new TcpClient(client, sslStream));
         }
         catch (AuthenticationException e)
         {
@@ -183,8 +175,6 @@ public class AvalonTcpServer : IAvalonTcpServer
     {
         if (disposing)
         {
-            _cts.Dispose();
-            _logger.LogTrace("Disposed CancellationTokenSource");
             _certificate.Dispose();
             _logger.LogTrace("Disposed Certificate");
             _socket.Dispose();

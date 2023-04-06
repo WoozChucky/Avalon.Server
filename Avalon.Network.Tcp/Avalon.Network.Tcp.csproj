@@ -7,6 +7,7 @@
     </PropertyGroup>
 
     <ItemGroup>
+      <ProjectReference Include="..\Avalon.Common\Avalon.Common.csproj" />
       <ProjectReference Include="..\Avalon.Network\Avalon.Network.csproj" />
     </ItemGroup>
 
