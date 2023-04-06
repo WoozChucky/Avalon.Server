@@ -1,4 +1,7 @@
-﻿using Avalon.Network;
+﻿using System.Diagnostics;
+using Avalon.Game;
+using Avalon.Infrastructure;
+using Avalon.Network;
 using Avalon.Network.Packets;
 using Avalon.Network.Packets.Deserialization;
 using Avalon.Network.Packets.Serialization;
@@ -15,8 +18,9 @@ namespace Avalon.Server
 {
     internal class Program
     {
+        private static CancellationTokenSource CancellationTokenSource { get; set; } = null!;
         private static IServiceProvider ServiceProvider { get; set; } = null!;
-        private static AvalonInfrastructure Infrastructure { get; set; } = null!;
+        private static IAvalonInfrastructure Infrastructure { get; set; } = null!;
         private static ILogger<Program> Logger { get; set; } = null!;
 
         private static async Task Main(string[] args)
@@ -24,24 +28,38 @@ namespace Avalon.Server
             AppDomain.CurrentDomain.UnhandledException += OnUnhandledExceptionOccurred;
             AppDomain.CurrentDomain.ProcessExit += OnProcessExit;
             Console.CancelKeyPress += ConsoleOnCancelKeyPress;
+            //AssemblyLoadContext.Default.Unloading += SigTermEventHandler;
+
+            Process.GetCurrentProcess().PriorityClass = ProcessPriorityClass.High;
             
             ConfigureDependencyInjection();
             
-            await Infrastructure.Run().ConfigureAwait(true);
+            await Infrastructure.StartAsync().ConfigureAwait(true);
+            
+            while (!CancellationTokenSource.IsCancellationRequested)
+            {
+                
+            }
+            
+            Logger.LogInformation("Stopping application...");
+            
+            await Infrastructure.StopAsync().ConfigureAwait(true);
+            Infrastructure.Dispose();
+            
+            Logger.LogInformation("Terminated successfully");
         }
 
-        private static async void ConsoleOnCancelKeyPress(object? sender, ConsoleCancelEventArgs e)
+        private static void ConsoleOnCancelKeyPress(object? sender, ConsoleCancelEventArgs e)
         {
             e.Cancel = true;
-            Logger.LogInformation("Cancelling...");
-            await Infrastructure.GracefulStop().ConfigureAwait(true);
-            Infrastructure.Dispose();
-            Logger.LogInformation("Cancelled");
+            Logger.LogWarning("[Ctrl+C] was caught, stopping application...");
+            CancellationTokenSource.Cancel();
         }
         
         private static void OnUnhandledExceptionOccurred(object sender, UnhandledExceptionEventArgs e)
         {
             Logger.LogError(e.ExceptionObject as Exception, "Unhandled exception");
+            CancellationTokenSource.Cancel();
         }
         
         private static void OnProcessExit(object? sender, EventArgs e)
@@ -82,11 +100,13 @@ namespace Avalon.Server
                 .AddSingleton<IPacketSerializer, NetworkPacketSerializer>()
                 .AddSingleton<IPacketHandlerRegistry, PacketHandlerRegistry>()
                 .AddSingleton<AvalonGame>()
-                .AddSingleton<AvalonInfrastructure>()
+                .AddSingleton<IAvalonInfrastructure, AvalonInfrastructure>()
+                .AddSingleton<CancellationTokenSource>(s => new CancellationTokenSource())
                 .BuildServiceProvider();
             
             Logger = ServiceProvider.GetService<ILogger<Program>>() ?? throw new InvalidOperationException();
-            Infrastructure = ServiceProvider.GetService<AvalonInfrastructure>() ?? throw new InvalidOperationException();
+            Infrastructure = ServiceProvider.GetService<IAvalonInfrastructure>() ?? throw new InvalidOperationException();
+            CancellationTokenSource = ServiceProvider.GetService<CancellationTokenSource>() ?? throw new InvalidOperationException();
         }
     }
 }

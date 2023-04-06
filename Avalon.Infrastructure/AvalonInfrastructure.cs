@@ -1,5 +1,6 @@
 ﻿using System.Net.Sockets;
 using System.Text;
+using Avalon.Game;
 using Avalon.Game.Handlers;
 using Avalon.Network;
 using Avalon.Network.Packets;
@@ -9,11 +10,16 @@ using Avalon.Network.Packets.Serialization;
 using Microsoft.Extensions.Logging;
 using TcpClient = Avalon.Network.TcpClient;
 
-namespace Avalon.Server;
+namespace Avalon.Infrastructure;
 
-public class AvalonInfrastructure : IDisposable
+public interface IAvalonInfrastructure : IDisposable
 {
-    
+    Task StartAsync();
+    Task StopAsync();
+}
+
+public class AvalonInfrastructure : IAvalonInfrastructure
+{
     private readonly CancellationTokenSource _cts;
     private readonly ILogger<AvalonInfrastructure> _logger;
     private readonly AvalonGame _game;
@@ -24,6 +30,7 @@ public class AvalonInfrastructure : IDisposable
     private readonly IAvalonTcpServer _tcpServer;
 
     public AvalonInfrastructure(
+        CancellationTokenSource cts,
         ILogger<AvalonInfrastructure> logger,
         AvalonGame game,
         IAvalonTcpServer tcpServer, 
@@ -33,6 +40,7 @@ public class AvalonInfrastructure : IDisposable
         IPacketHandlerRegistry packetHandlerRegistry
         )
     {
+        _cts = cts;
         _logger = logger;
         _game = game;
         _udpServer = udpServer;
@@ -40,11 +48,10 @@ public class AvalonInfrastructure : IDisposable
         _packetSerializer = packetSerializer;
         _packetHandlerRegistry = packetHandlerRegistry;
         _tcpServer = tcpServer;
-        _cts = new CancellationTokenSource();
         _tcpServer.ClientConnected += TcpServerOnClientConnected;
     }
 
-    public async Task Run()
+    public async Task StartAsync()
     {
         _packetSerializer.RegisterPacketSerializers();
         _packetDeserializer.RegisterPacketDeserializers();
@@ -53,9 +60,25 @@ public class AvalonInfrastructure : IDisposable
         _packetHandlerRegistry.RegisterHandler(NetworkPacketType.CMSG_JUMP, AvalonMovementManager.HandleJumpPacket);
         _packetHandlerRegistry.RegisterHandler(NetworkPacketType.CMSG_REQUEST_ENCRYPTION_KEY, Handler);
         
-        Task.Run(_game.RunAsync, _cts.Token);
-        await _udpServer.RunAsync(false).ConfigureAwait(false);
-        await _tcpServer.RunAsync(true).ConfigureAwait(false);
+#pragma warning disable CS4014
+        Task.Run(_game.RunAsync).ConfigureAwait(false);
+        Task.Run(_udpServer.RunAsync).ConfigureAwait(false);
+        Task.Run(_tcpServer.RunAsync).ConfigureAwait(false);
+#pragma warning restore CS4014
+
+        try
+        {
+            while (!_cts.IsCancellationRequested)
+            {
+            
+            }
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "");
+            throw;
+        }
+        
     }
 
     private async Task Handler(TcpClient client, NetworkPacket packet)
@@ -91,19 +114,19 @@ public class AvalonInfrastructure : IDisposable
         }
     }
 
-    public async Task GracefulStop()
+    public async Task StopAsync()
     {
-        _cts.Cancel();
         await _udpServer.StopAsync().ConfigureAwait(false);
         await _tcpServer.StopAsync().ConfigureAwait(false);
+        _cts.Cancel();
     }
 
     public void Dispose()
     {
         _logger.LogInformation("Disposing AvalonInfrastructure...");
-        _cts.Dispose();
         _udpServer.Dispose();
         _tcpServer.Dispose();
+        _cts.Dispose();
         GC.SuppressFinalize(this);
     }
 

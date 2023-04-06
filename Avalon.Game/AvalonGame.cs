@@ -1,19 +1,19 @@
 using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
 
-namespace Avalon.Server;
+namespace Avalon.Game;
 
 public class AvalonGame
 {
     private readonly ILogger<AvalonGame> _logger;
-    private readonly ConcurrentQueue<object> _messages;
     private readonly CancellationTokenSource _cts;
+    private readonly ConcurrentQueue<object> _messages;
 
-    public AvalonGame(ILogger<AvalonGame> logger)
+    public AvalonGame(ILogger<AvalonGame> logger, CancellationTokenSource cts)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _cts = cts ?? throw new ArgumentNullException(nameof(cts));
         _messages = new ConcurrentQueue<object>();
-        _cts = new CancellationTokenSource();
     }
     
     public void AddMessage(object message)
