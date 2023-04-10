@@ -11,6 +11,9 @@ using Avalon.Network.Udp;
 using Avalon.Network.Udp.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Serilog;
+using Serilog.Events;
+using Serilog.Sinks.SystemConsole.Themes;
 
 //using DtlsClient = Avalon.Network.Security.Udp.Client;
 
@@ -73,12 +76,20 @@ namespace Avalon.Server
                 .AddLogging(builder =>
                 {
                     builder
+                        /*
                         .AddSimpleConsole(options =>
                         {
                             options.IncludeScopes = true;
                             options.SingleLine = false;
                             options.TimestampFormat = "[yyyy-MM-dd HH:mm:ss] ";
                         })
+                        */
+                        .AddSerilog(new LoggerConfiguration()
+                            .MinimumLevel.Verbose()
+                            .Enrich.FromLogContext()
+                            .WriteTo.Console(LogEventLevel.Debug, outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level}] ({SourceContext}) -> {Message}{NewLine}{Exception}", theme: AnsiConsoleTheme.Sixteen)
+                            .CreateLogger()
+                        )
                         .SetMinimumLevel(LogLevel.Trace);
                 })
                 .AddSingleton<AvalonUdpServerConfiguration>(_ => new AvalonUdpServerConfiguration

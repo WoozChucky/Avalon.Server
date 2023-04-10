@@ -51,7 +51,7 @@ public class AvalonTcpServer : IAvalonTcpServer
         _socket.Listen(_configuration.Backlog);
         _isRunning = true;
         
-        _logger.LogInformation("Server started at {@EndPoint}", _socket.LocalEndPoint);
+        _logger.LogInformation("Server started at {EndPoint}", _socket.LocalEndPoint);
         
 #pragma warning disable CS4014
         Task.Factory.StartNew(InternalServerLoop, _cts.Token, TaskCreationOptions.LongRunning, TaskScheduler.Default);
