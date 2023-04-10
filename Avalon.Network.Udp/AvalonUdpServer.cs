@@ -56,7 +56,7 @@ public class AvalonUdpServer : IAvalonUdpServer
             _server.Start();
             _isRunning = true;
             
-            _logger.LogInformation("Server started at {@EndPoint}", _server.LocalEndPoint);
+            _logger.LogInformation("Server started at {EndPoint}", _server.LocalEndPoint);
 
             while (!_cts.Token.IsCancellationRequested)
             {
