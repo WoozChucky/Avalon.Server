@@ -10,7 +10,7 @@ using ProtoBuf;
 
 namespace Avalon.Client.Tester;
 
-public partial class Form1 : Form
+public partial class TcpForm : Form
 {
     private readonly CancellationTokenSource cts = new CancellationTokenSource();
     private readonly X509Certificate2 certificate;
@@ -18,7 +18,7 @@ public partial class Form1 : Form
     private SslStream sslStream;
 
 
-    public Form1()
+    public TcpForm()
     {
         InitializeComponent();
         this.FormClosing += Form1_FormClosing;
@@ -31,7 +31,7 @@ public partial class Form1 : Form
 
     private void Form1_Load(object sender, EventArgs e)
     {
-        
+
     }
 
     private async void Form1_FormClosing(object? sender, FormClosingEventArgs e)

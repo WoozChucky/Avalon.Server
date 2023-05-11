@@ -1,6 +1,6 @@
 ﻿namespace Avalon.Client.Tester;
 
-partial class Form1
+partial class TcpForm
 {
     /// <summary>
     ///  Required designer variable.
@@ -38,7 +38,7 @@ partial class Form1
         // 
         // textBox1
         // 
-        textBox1.Location = new Point(2, 299);
+        textBox1.Location = new Point(12, 288);
         textBox1.Multiline = true;
         textBox1.Name = "textBox1";
         textBox1.Size = new Size(426, 150);
@@ -46,7 +46,7 @@ partial class Form1
         // 
         // button1
         // 
-        button1.Location = new Point(12, 73);
+        button1.Location = new Point(22, 62);
         button1.Name = "button1";
         button1.Size = new Size(75, 23);
         button1.TabIndex = 1;
@@ -56,7 +56,7 @@ partial class Form1
         // 
         // button2
         // 
-        button2.Location = new Point(93, 73);
+        button2.Location = new Point(103, 62);
         button2.Name = "button2";
         button2.Size = new Size(75, 23);
         button2.TabIndex = 2;
@@ -66,7 +66,7 @@ partial class Form1
         // 
         // button3
         // 
-        button3.Location = new Point(174, 73);
+        button3.Location = new Point(184, 62);
         button3.Name = "button3";
         button3.Size = new Size(75, 23);
         button3.TabIndex = 3;
@@ -76,12 +76,12 @@ partial class Form1
         // 
         // textBox2
         // 
-        textBox2.Location = new Point(255, 74);
+        textBox2.Location = new Point(265, 63);
         textBox2.Name = "textBox2";
         textBox2.Size = new Size(173, 23);
         textBox2.TabIndex = 4;
         // 
-        // Form1
+        // TcpForm
         // 
         AutoScaleDimensions = new SizeF(7F, 15F);
         AutoScaleMode = AutoScaleMode.Font;
@@ -91,8 +91,8 @@ partial class Form1
         Controls.Add(button2);
         Controls.Add(button1);
         Controls.Add(textBox1);
-        Name = "Form1";
-        Text = "Form1";
+        Name = "TcpForm";
+        Text = "TcpForm";
         Load += Form1_Load;
         ResumeLayout(false);
         PerformLayout();

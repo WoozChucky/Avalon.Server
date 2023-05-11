@@ -6,6 +6,7 @@ using Avalon.Network;
 using Avalon.Network.Packets;
 using Avalon.Network.Packets.Crypto;
 using Avalon.Network.Packets.Deserialization;
+using Avalon.Network.Packets.Exceptions;
 using Avalon.Network.Packets.Serialization;
 using Microsoft.Extensions.Logging;
 using TcpClient = Avalon.Network.TcpClient;
@@ -43,12 +44,24 @@ public class AvalonInfrastructure : IAvalonInfrastructure
         _cts = cts;
         _logger = logger;
         _game = game;
-        _udpServer = udpServer;
+        
         _packetDeserializer = packetDeserializer;
         _packetSerializer = packetSerializer;
         _packetHandlerRegistry = packetHandlerRegistry;
+        
+        _udpServer = udpServer;
+        _udpServer.OnPacketReceived += UdpServerOnOnPacketReceived;
+        
         _tcpServer = tcpServer;
         _tcpServer.ClientConnected += TcpServerOnClientConnected;
+    }
+
+    private async void UdpServerOnOnPacketReceived(object? sender, UdpClientPacket clientPacket)
+    {
+        using var stream = new MemoryStream(clientPacket.Buffer);
+        var packet = await _packetDeserializer.DeserializeFromNetwork<NetworkPacket>(stream);
+        
+        await clientPacket.SendResponseAsync(clientPacket.Buffer);
     }
 
     public async Task StartAsync()
@@ -133,7 +146,7 @@ public class AvalonInfrastructure : IAvalonInfrastructure
     private async void TcpServerOnClientConnected(object? sender, TcpClient client)
     {
         _logger.LogInformation("Client connected from {@EndPoint}", client.Socket.RemoteEndPoint);
-
+        
         await Task.Run(async () =>
         {
             try
@@ -143,11 +156,15 @@ public class AvalonInfrastructure : IAvalonInfrastructure
                     
                     var packet = await _packetDeserializer.DeserializeFromNetwork<NetworkPacket>(client.Stream);
                     
-                    var handler = _packetHandlerRegistry.GetHandler(packet.Header.Type);
-
                     try
                     {
+                        var handler = _packetHandlerRegistry.GetHandler(packet.Header.Type);
+                        
                         await handler(client, packet).ConfigureAwait(false);
+                    }
+                    catch (PacketHandlerException e)
+                    {
+                        _logger.LogWarning(e, "Packet handler exception while handling packet {@Packet}", packet);
                     }
                     catch (Exception e)
                     {
@@ -175,5 +192,10 @@ public class AvalonInfrastructure : IAvalonInfrastructure
             await client.Stream.DisposeAsync();
 
         }).ConfigureAwait(false);
+    }
+
+    private void CallBack(object? state)
+    {
+        throw new NotImplementedException();
     }
 }
