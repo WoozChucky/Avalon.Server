@@ -1,3 +1,5 @@
+using Avalon.Network.Packets.Exceptions;
+
 namespace Avalon.Network.Packets;
 
 public class PacketHandlerRegistry : IPacketHandlerRegistry
@@ -13,7 +15,7 @@ public class PacketHandlerRegistry : IPacketHandlerRegistry
     {
         if (_packetHandlers.ContainsKey(packetType))
         {
-            throw new ApplicationException("Handler already registered for packet type: " + packetType + "");
+            throw new PacketHandlerException("Handler already registered for packet type: " + packetType + "");
         }
         
         _packetHandlers.Add(packetType, handler);
@@ -23,7 +25,7 @@ public class PacketHandlerRegistry : IPacketHandlerRegistry
     {
         if (!_packetHandlers.ContainsKey(type))
         {
-            throw new ApplicationException("No handler registered for packet type: " + type + "");
+            throw new PacketHandlerException("No handler registered for packet type: " + type + "");
         }
         return _packetHandlers[type];
     }

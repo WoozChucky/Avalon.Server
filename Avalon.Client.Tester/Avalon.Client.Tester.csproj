@@ -10,6 +10,7 @@
 
     <ItemGroup>
       <ProjectReference Include="..\Avalon.Network.Packets\Avalon.Network.Packets.csproj" />
+      <ProjectReference Include="..\Avalon.Network.Udp.Security\Avalon.Network.Udp.Security.csproj" />
     </ItemGroup>
 
 </Project>

@@ -18,7 +18,7 @@ public class AvalonTcpServer : IAvalonTcpServer
     
     private volatile bool _isRunning;
     
-    public event ClientConnectedHandler ClientConnected;
+    public event TcpClientConnectedHandler ClientConnected;
 
     public AvalonTcpServer(ILogger<AvalonTcpServer> logger, AvalonTcpServerConfiguration configuration, CancellationTokenSource cts)
     {
@@ -60,10 +60,7 @@ public class AvalonTcpServer : IAvalonTcpServer
 
     public Task StopAsync()
     {
-        if (!_isRunning)
-        {
-            throw new InvalidOperationException("Server is not running.");
-        }
+        if (!_isRunning) throw new InvalidOperationException("Server is not running.");
 
         _isRunning = false;
 

@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Reflection;
+using Avalon.Network.Packets.Exceptions;
 using ProtoBuf;
 
 namespace Avalon.Network.Packets.Deserialization;
@@ -20,9 +21,9 @@ public class NetworkPacketDeserializer : IPacketDeserializer
     public T Deserialize<T>(NetworkPacketType packetType, byte[] data) where T : class
     {
         if (!_packetDeserializerFactories.ContainsKey(packetType))
-            throw new InvalidOperationException("Packet deserializer not registered.");
+            throw new PacketDeserializationException($"Packet deserializer not registered for type ({packetType}).");
         
-        return _packetDeserializerFactories[packetType](data, typeof(T)) as T ?? throw new InvalidOperationException("Packet deserialization failed.");
+        return _packetDeserializerFactories[packetType](data, typeof(T)) as T ?? throw new PacketDeserializationException("Packet deserialization failed.");
     }
 
     public Task<T> DeserializeFromNetwork<T>(Stream source) where T : class
@@ -66,7 +67,7 @@ public class NetworkPacketDeserializer : IPacketDeserializer
         using var ms = new MemoryStream(arg);
         
         return _packetDeserializerMethods[type].Invoke(null, new object?[]{ms}) 
-               ?? throw new InvalidOperationException("Packet deserialization failed.");
+               ?? throw new PacketDeserializationException("Packet deserialization failed.");
     }
 
     private IEnumerable<Type> GetNetworkPacketTypes(Assembly assembly)

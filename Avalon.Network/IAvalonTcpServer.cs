@@ -1,8 +1,8 @@
 namespace Avalon.Network;
 
-public delegate void ClientConnectedHandler(object? sender, TcpClient client);
+public delegate void TcpClientConnectedHandler(object? sender, TcpClient client);
 
 public interface IAvalonTcpServer : IAvalonNetworkServer
 {
-    event ClientConnectedHandler ClientConnected;
+    event TcpClientConnectedHandler ClientConnected;
 }
