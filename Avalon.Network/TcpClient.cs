@@ -3,7 +3,7 @@ using System.Net.Sockets;
 
 namespace Avalon.Network;
 
-public class TcpClient
+public class TcpClient : IRemoteSource
 {
     public Socket Socket { get; }
     public SslStream Stream { get; }

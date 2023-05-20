@@ -11,6 +11,7 @@ using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using Avalon.Common.Extensions;
 using Avalon.Network.Packets;
 using Avalon.Network.Packets.Crypto;
 using ProtoBuf;
@@ -32,6 +33,41 @@ namespace Avalon.Client.Tester
 
         private async void UdpForm_Load(object sender, EventArgs e)
         {
+            
+            Task.Run(async () =>
+            {
+                try
+                {
+                    var localEndpoint = IPEndPoint.Parse("127.0.0.1");
+                    socket.Bind(localEndpoint);
+                    
+                    var readBuffer = new byte[1024];
+                    var endpoint = new IPEndPoint(IPAddress.Any, 0);
+                    
+                    while (!cts.IsCancellationRequested)
+                    {
+                        
+                        var result = await socket.ReceiveFromAsync(readBuffer, endpoint);
+                        var packetBuffer = new byte[result.ReceivedBytes];
+                
+                        Array.Copy(readBuffer, packetBuffer, result.ReceivedBytes);
+                        
+                        var packet = Serializer.DeserializeWithLengthPrefix<NetworkPacket>(packetBuffer.ToMemoryStream(), PrefixStyle.Base128);
+                        
+                        textBox1.Text += $"Received {packet.Header.Type} ({packetBuffer.Length} bytes) from {result.RemoteEndPoint}\r\n";
+                    }
+                }
+                catch (OperationCanceledException e)
+                {
+                    Console.WriteLine(e);
+                }
+                catch (Exception exception)
+                {
+                    Console.WriteLine(exception);
+                }
+            });
+
+
         }
 
         private void UdpForm_FormClosing(object sender, FormClosingEventArgs e)
@@ -54,8 +90,8 @@ namespace Avalon.Client.Tester
             {
                 Header = new NetworkPacketHeader
                 {
-                    Type = NetworkPacketType.CMSG_REQUEST_ENCRYPTION_KEY,
-                    Flags = NetworkPacketFlags.None,
+                    Type = NetworkPacketType.CMSG_JUMP,
+                    Flags = NetworkPacketFlags.ClearText,
                     Version = 0
                 },
                 Payload = ms.ToArray()

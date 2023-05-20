@@ -20,7 +20,9 @@ public class NetworkPacketHeader
 public enum NetworkPacketFlags
 {
     None = 0,
-    Encrypted = 1
+    ClearText = 1,
+    Handshake = 2,
+    Encrypted = 3
 }
 
 public enum NetworkPacketType

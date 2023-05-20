@@ -1,5 +1,6 @@
 ﻿using System.Diagnostics;
 using Avalon.Game;
+using Avalon.Game.Handlers;
 using Avalon.Infrastructure;
 using Avalon.Network;
 using Avalon.Network.Packets;
@@ -11,6 +12,9 @@ using Avalon.Network.Udp;
 using Avalon.Network.Udp.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using QuixStreams.Streaming;
+using QuixStreams.Streaming.Models;
+using QuixStreams.Telemetry.Models;
 using Serilog;
 using Serilog.Events;
 using Serilog.Sinks.SystemConsole.Themes;
@@ -32,6 +36,48 @@ namespace Avalon.Server
             AppDomain.CurrentDomain.ProcessExit += OnProcessExit;
             Console.CancelKeyPress += ConsoleOnCancelKeyPress;
             //AssemblyLoadContext.Default.Unloading += SigTermEventHandler;
+
+            var token = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IlpXeUJqWTgzcXotZW1pUlZDd1I4dyJ9.eyJodHRwczovL3F1aXguYWkvb3JnX2lkIjoiYmlsbGluZzEiLCJodHRwczovL3F1aXguYWkvb3duZXJfaWQiOiJhdXRoMHw5ZGMzYmJiZS0yODMyLTRiOGYtOTgxZC0wMzJjNzA4MmRjODUiLCJodHRwczovL3F1aXguYWkvdG9rZW5faWQiOiJiZDZiMDk3Ni05OTIxLTRkYTEtYjFhNC05ODIxM2Y2YWMyZjYiLCJodHRwczovL3F1aXguYWkvZXhwIjoiMTY4NTQ4NzYwMCIsImh0dHBzOi8vcXVpeC5haS9yb2xlcyI6ImFkbWluIiwiaXNzIjoiaHR0cHM6Ly9hdXRoLmRldi5xdWl4LmFpLyIsInN1YiI6InM2b3kyNGc2bmZJMjlnR0Y3VVMxOHpGTjlxdUc3ZmRCQGNsaWVudHMiLCJhdWQiOiJodHRwczovL3BvcnRhbC1hcGkuZGV2LnF1aXguYWkvIiwiaWF0IjoxNjg0NTI5OTQxLCJleHAiOjE2ODcxMjE5NDEsImF6cCI6InM2b3kyNGc2bmZJMjlnR0Y3VVMxOHpGTjlxdUc3ZmRCIiwiZ3R5IjoiY2xpZW50LWNyZWRlbnRpYWxzIiwicGVybWlzc2lvbnMiOltdfQ.QKKO_z5sbNwZuslAJnASPNLn9VBT9UVcXSDQfh2QR4b-MCozkugo8N7fL1NUibe1BDQc3xvsFWiFAAsRRoLdn_IECmzLKn9IjqykVPHeN_tIJQfXsvnovLPAj4DSoTNVLmC84qGLnX-42pwI3KKBgYWLGEbfIXh9aLZxLDMl_8caNcPqjokja4vehbZyVRR3QN32B4oWlptlMT9fhHUi79u-Zoe2eDk6fQpVWYB8lti9YXesYjj78moX2Jw_92rygCIBDNjfoTNUXqmnEtXmnzyOcpGLrcki6HFQ1UMABPoB-n93KY9rFnT3KVrL1cqnJD-QX6XkYqRlRcF9i9hdfQ";
+            
+            var quix = new QuixStreamingClient(token, true, null, false, null);
+            quix.ApiUrl = new Uri("https://portal-api.dev.quix.ai");
+            var producer = quix.GetTopicProducer("f1-data");
+            var streamProducer = producer.CreateStream();
+
+            var timeseriesData = new TimeseriesData();
+            timeseriesData.AddTimestamp(DateTime.UtcNow).AddValue("Id", 1).AddTag("IdTag", "IdTagValue");
+
+            var eventData = new EventData("MyEvent", DateTime.UtcNow, "EventValue1");
+            eventData.AddTag("TheTag1", "TheTagValue1");
+            
+            
+            
+            var consumer = quix.GetTopicConsumer("f1-data");
+            consumer.OnStreamReceived += (sender, streamConsumer) =>
+            {
+                streamConsumer.Events.OnDataReceived += (o, eventArgs) =>
+                {
+                    if (eventArgs != null)
+                    {
+                        
+                    }
+                };
+                
+                streamConsumer.Timeseries.OnDataReceived += (o, eventArgs) =>
+                {
+                    if (eventArgs != null)
+                    {
+                        
+                    }
+                };
+            };
+            consumer.Subscribe();
+            
+            streamProducer.Timeseries.Publish(timeseriesData);
+            streamProducer.Events.Publish(eventData);
+            
+            streamProducer.Close();
+            streamProducer.Dispose();
 
             Process.GetCurrentProcess().PriorityClass = ProcessPriorityClass.High;
             
@@ -76,14 +122,6 @@ namespace Avalon.Server
                 .AddLogging(builder =>
                 {
                     builder
-                        /*
-                        .AddSimpleConsole(options =>
-                        {
-                            options.IncludeScopes = true;
-                            options.SingleLine = false;
-                            options.TimestampFormat = "[yyyy-MM-dd HH:mm:ss] ";
-                        })
-                        */
                         .AddSerilog(new LoggerConfiguration()
                             .MinimumLevel.Verbose()
                             .Enrich.FromLogContext()
@@ -110,7 +148,7 @@ namespace Avalon.Server
                 .AddSingleton<IPacketDeserializer, NetworkPacketDeserializer>()
                 .AddSingleton<IPacketSerializer, NetworkPacketSerializer>()
                 .AddSingleton<IPacketHandlerRegistry, PacketHandlerRegistry>()
-                .AddSingleton<AvalonGame>()
+                .AddSingleton<IAvalonMovementManager, AvalonMovementManager>()
                 .AddSingleton<IAvalonInfrastructure, AvalonInfrastructure>()
                 .AddSingleton<CancellationTokenSource>(s => new CancellationTokenSource())
                 .BuildServiceProvider();

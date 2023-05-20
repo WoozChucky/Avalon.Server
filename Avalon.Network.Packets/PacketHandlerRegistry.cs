@@ -2,16 +2,18 @@ using Avalon.Network.Packets.Exceptions;
 
 namespace Avalon.Network.Packets;
 
+
+
 public class PacketHandlerRegistry : IPacketHandlerRegistry
 {
-    private readonly Dictionary<NetworkPacketType, Func<TcpClient, NetworkPacket, Task>> _packetHandlers;
-
+    private readonly Dictionary<NetworkPacketType, PacketHandler<IRemoteSource>> _packetHandlers;
+    
     public PacketHandlerRegistry()
     {
-        _packetHandlers = new Dictionary<NetworkPacketType, Func<TcpClient, NetworkPacket, Task>>();
+        _packetHandlers = new Dictionary<NetworkPacketType, PacketHandler<IRemoteSource>>();
     }
     
-    public void RegisterHandler(NetworkPacketType packetType, Func<TcpClient, NetworkPacket, Task> handler)
+    public void RegisterHandler(NetworkPacketType packetType, PacketHandler<IRemoteSource> handler)
     {
         if (_packetHandlers.ContainsKey(packetType))
         {
@@ -20,8 +22,8 @@ public class PacketHandlerRegistry : IPacketHandlerRegistry
         
         _packetHandlers.Add(packetType, handler);
     }
-    
-    public Func<TcpClient, NetworkPacket, Task> GetHandler(NetworkPacketType type)
+
+    public PacketHandler<IRemoteSource> GetHandler(NetworkPacketType type)
     {
         if (!_packetHandlers.ContainsKey(type))
         {
