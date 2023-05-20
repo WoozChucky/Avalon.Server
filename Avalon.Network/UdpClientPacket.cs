@@ -2,7 +2,7 @@ using System.Net;
 
 namespace Avalon.Network;
 
-public class UdpClientPacket
+public class UdpClientPacket : IRemoteSource
 {
     public EndPoint EndPoint { get; }
     public byte[] Buffer { get; }

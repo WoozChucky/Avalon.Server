@@ -3,7 +3,6 @@ using System.Net.Sockets;
 using System.Text;
 using Avalon.Network.Udp.Configuration;
 using Microsoft.Extensions.Logging;
-using DtlsServer = Avalon.Network.Udp.Security.Server;
 
 namespace Avalon.Network.Udp;
 
@@ -60,7 +59,7 @@ public class AvalonUdpServer : IAvalonUdpServer
         {
             _isRunning = true;
             
-            _logger.LogInformation("Server started at {EndPoint}", _socket.LocalEndPoint);
+            _logger.LogInformation("Listening at {EndPoint}", _socket.LocalEndPoint);
             
 #pragma warning disable CS4014
             Task.Factory.StartNew(InternalServerLoop, _cts.Token, TaskCreationOptions.LongRunning, TaskScheduler.Default);

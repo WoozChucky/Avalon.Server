@@ -23,32 +23,32 @@ public class AvalonInfrastructure : IAvalonInfrastructure
 {
     private readonly CancellationTokenSource _cts;
     private readonly ILogger<AvalonInfrastructure> _logger;
-    private readonly AvalonGame _game;
     private readonly IAvalonUdpServer _udpServer;
     private readonly IPacketDeserializer _packetDeserializer;
     private readonly IPacketSerializer _packetSerializer;
     private readonly IPacketHandlerRegistry _packetHandlerRegistry;
     private readonly IAvalonTcpServer _tcpServer;
+    private readonly IAvalonMovementManager _movementManager;
 
     public AvalonInfrastructure(
         CancellationTokenSource cts,
         ILogger<AvalonInfrastructure> logger,
-        AvalonGame game,
         IAvalonTcpServer tcpServer, 
         IAvalonUdpServer udpServer,
         IPacketDeserializer packetDeserializer,
         IPacketSerializer packetSerializer,
-        IPacketHandlerRegistry packetHandlerRegistry
+        IPacketHandlerRegistry packetHandlerRegistry,
+        IAvalonMovementManager movementManager
         )
     {
         _cts = cts;
         _logger = logger;
-        _game = game;
-        
+
         _packetDeserializer = packetDeserializer;
         _packetSerializer = packetSerializer;
         _packetHandlerRegistry = packetHandlerRegistry;
-        
+        _movementManager = movementManager;
+
         _udpServer = udpServer;
         _udpServer.OnPacketReceived += UdpServerOnOnPacketReceived;
         
@@ -56,25 +56,18 @@ public class AvalonInfrastructure : IAvalonInfrastructure
         _tcpServer.ClientConnected += TcpServerOnClientConnected;
     }
 
-    private async void UdpServerOnOnPacketReceived(object? sender, UdpClientPacket clientPacket)
-    {
-        using var stream = new MemoryStream(clientPacket.Buffer);
-        var packet = await _packetDeserializer.DeserializeFromNetwork<NetworkPacket>(stream);
-        
-        await clientPacket.SendResponseAsync(clientPacket.Buffer);
-    }
+    
 
     public async Task StartAsync()
     {
         _packetSerializer.RegisterPacketSerializers();
         _packetDeserializer.RegisterPacketDeserializers();
         
-        _packetHandlerRegistry.RegisterHandler(NetworkPacketType.CMSG_MOVEMENT, AvalonMovementManager.HandleMovePacket);
-        _packetHandlerRegistry.RegisterHandler(NetworkPacketType.CMSG_JUMP, AvalonMovementManager.HandleJumpPacket);
+        _packetHandlerRegistry.RegisterHandler(NetworkPacketType.CMSG_JUMP, _movementManager.HandleJumpPacket);
         _packetHandlerRegistry.RegisterHandler(NetworkPacketType.CMSG_REQUEST_ENCRYPTION_KEY, Handler);
         
 #pragma warning disable CS4014
-        Task.Run(_game.RunAsync).ConfigureAwait(false);
+        // Task.Run(_game.RunAsync).ConfigureAwait(false);
         Task.Run(_udpServer.RunAsync).ConfigureAwait(false);
         Task.Run(_tcpServer.RunAsync).ConfigureAwait(false);
 #pragma warning restore CS4014
@@ -94,10 +87,12 @@ public class AvalonInfrastructure : IAvalonInfrastructure
         
     }
 
-    private async Task Handler(TcpClient client, NetworkPacket packet)
+    private async Task Handler(IRemoteSource source, NetworkPacket packet)
     {
         // Receive a response from the server
         using var messageStream = new MemoryStream();
+        
+        var client = (TcpClient) source;
         
         var encryptionKeyPacket = _packetDeserializer.Deserialize<CRequestCryptoKeyPacket>(
             NetworkPacketType.CMSG_REQUEST_ENCRYPTION_KEY, 
@@ -147,7 +142,8 @@ public class AvalonInfrastructure : IAvalonInfrastructure
     {
         _logger.LogInformation("Client connected from {@EndPoint}", client.Socket.RemoteEndPoint);
         
-        await Task.Run(async () =>
+#pragma warning disable CS4014
+        Task.Run(async () =>
         {
             try
             {
@@ -192,10 +188,34 @@ public class AvalonInfrastructure : IAvalonInfrastructure
             await client.Stream.DisposeAsync();
 
         }).ConfigureAwait(false);
+#pragma warning restore CS4014
     }
-
-    private void CallBack(object? state)
+    
+    private async void UdpServerOnOnPacketReceived(object? sender, UdpClientPacket clientPacket)
     {
-        throw new NotImplementedException();
+#pragma warning disable CS4014
+        Task.Run(async () =>
+        {
+            await using var stream = new MemoryStream(clientPacket.Buffer);
+        
+            var packet = await _packetDeserializer.DeserializeFromNetwork<NetworkPacket>(stream);
+
+            try
+            {
+                var handler = _packetHandlerRegistry.GetHandler(packet.Header.Type);
+        
+                await handler(clientPacket, packet).ConfigureAwait(false);
+            }
+            catch (PacketHandlerException e)
+            {
+                _logger.LogWarning(e, "Packet handler exception while handling packet {@Packet}", packet);
+            }
+            catch (Exception e)
+            {
+                _logger.LogWarning(e, "Exception while handling packet {@Packet}", packet);
+            }
+
+        }).ConfigureAwait(false);
+#pragma warning restore CS4014
     }
 }
