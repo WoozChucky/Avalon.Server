@@ -14,6 +14,7 @@
       <ProjectReference Include="..\Avalon.Common\Avalon.Common.csproj" />
       <ProjectReference Include="..\Avalon.Game.Handlers\Avalon.Game.Handlers.csproj" />
       <ProjectReference Include="..\Avalon.Game\Avalon.Game.csproj" />
+      <ProjectReference Include="..\Avalon.Metrics\Avalon.Metrics.csproj" />
       <ProjectReference Include="..\Avalon.Network.Packets\Avalon.Network.Packets.csproj" />
       <ProjectReference Include="..\Avalon.Network\Avalon.Network.csproj" />
     </ItemGroup>

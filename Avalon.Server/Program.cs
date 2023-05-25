@@ -2,6 +2,7 @@
 using Avalon.Game;
 using Avalon.Game.Handlers;
 using Avalon.Infrastructure;
+using Avalon.Metrics;
 using Avalon.Network;
 using Avalon.Network.Packets;
 using Avalon.Network.Packets.Deserialization;
@@ -29,6 +30,8 @@ namespace Avalon.Server
         private static IServiceProvider ServiceProvider { get; set; } = null!;
         private static IAvalonInfrastructure Infrastructure { get; set; } = null!;
         private static ILogger<Program> Logger { get; set; } = null!;
+        
+        private static IMetricsManager MetricsManager { get; set; } = null!;
 
         private static async Task Main(string[] args)
         {
@@ -37,51 +40,22 @@ namespace Avalon.Server
             Console.CancelKeyPress += ConsoleOnCancelKeyPress;
             //AssemblyLoadContext.Default.Unloading += SigTermEventHandler;
 
-            var token = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IlpXeUJqWTgzcXotZW1pUlZDd1I4dyJ9.eyJodHRwczovL3F1aXguYWkvb3JnX2lkIjoiYmlsbGluZzEiLCJodHRwczovL3F1aXguYWkvb3duZXJfaWQiOiJhdXRoMHw5ZGMzYmJiZS0yODMyLTRiOGYtOTgxZC0wMzJjNzA4MmRjODUiLCJodHRwczovL3F1aXguYWkvdG9rZW5faWQiOiJiZDZiMDk3Ni05OTIxLTRkYTEtYjFhNC05ODIxM2Y2YWMyZjYiLCJodHRwczovL3F1aXguYWkvZXhwIjoiMTY4NTQ4NzYwMCIsImh0dHBzOi8vcXVpeC5haS9yb2xlcyI6ImFkbWluIiwiaXNzIjoiaHR0cHM6Ly9hdXRoLmRldi5xdWl4LmFpLyIsInN1YiI6InM2b3kyNGc2bmZJMjlnR0Y3VVMxOHpGTjlxdUc3ZmRCQGNsaWVudHMiLCJhdWQiOiJodHRwczovL3BvcnRhbC1hcGkuZGV2LnF1aXguYWkvIiwiaWF0IjoxNjg0NTI5OTQxLCJleHAiOjE2ODcxMjE5NDEsImF6cCI6InM2b3kyNGc2bmZJMjlnR0Y3VVMxOHpGTjlxdUc3ZmRCIiwiZ3R5IjoiY2xpZW50LWNyZWRlbnRpYWxzIiwicGVybWlzc2lvbnMiOltdfQ.QKKO_z5sbNwZuslAJnASPNLn9VBT9UVcXSDQfh2QR4b-MCozkugo8N7fL1NUibe1BDQc3xvsFWiFAAsRRoLdn_IECmzLKn9IjqykVPHeN_tIJQfXsvnovLPAj4DSoTNVLmC84qGLnX-42pwI3KKBgYWLGEbfIXh9aLZxLDMl_8caNcPqjokja4vehbZyVRR3QN32B4oWlptlMT9fhHUi79u-Zoe2eDk6fQpVWYB8lti9YXesYjj78moX2Jw_92rygCIBDNjfoTNUXqmnEtXmnzyOcpGLrcki6HFQ1UMABPoB-n93KY9rFnT3KVrL1cqnJD-QX6XkYqRlRcF9i9hdfQ";
-            
-            var quix = new QuixStreamingClient(token, true, null, false, null);
-            quix.ApiUrl = new Uri("https://portal-api.dev.quix.ai");
-            var producer = quix.GetTopicProducer("f1-data");
-            var streamProducer = producer.CreateStream();
-
-            var timeseriesData = new TimeseriesData();
-            timeseriesData.AddTimestamp(DateTime.UtcNow).AddValue("Id", 1).AddTag("IdTag", "IdTagValue");
-
-            var eventData = new EventData("MyEvent", DateTime.UtcNow, "EventValue1");
-            eventData.AddTag("TheTag1", "TheTagValue1");
-            
-            
-            
-            var consumer = quix.GetTopicConsumer("f1-data");
-            consumer.OnStreamReceived += (sender, streamConsumer) =>
-            {
-                streamConsumer.Events.OnDataReceived += (o, eventArgs) =>
-                {
-                    if (eventArgs != null)
-                    {
-                        
-                    }
-                };
-                
-                streamConsumer.Timeseries.OnDataReceived += (o, eventArgs) =>
-                {
-                    if (eventArgs != null)
-                    {
-                        
-                    }
-                };
-            };
-            consumer.Subscribe();
-            
-            streamProducer.Timeseries.Publish(timeseriesData);
-            streamProducer.Events.Publish(eventData);
-            
-            streamProducer.Close();
-            streamProducer.Dispose();
-
             Process.GetCurrentProcess().PriorityClass = ProcessPriorityClass.High;
             
             ConfigureDependencyInjection();
+            
+            MetricsManager.Start(new Dictionary<string, string>()
+            {
+                {"Host", Environment.MachineName},
+                {"OS", Environment.OSVersion.VersionString},
+                {"SystemPageSize", Environment.SystemPageSize.ToString()},
+                {"ProcessorCount", Environment.ProcessorCount.ToString()},
+                {"UserDomainName", Environment.UserDomainName},
+                {"UserName", Environment.UserName},
+                {"Version", Environment.Version.ToString()},
+                {"WorkingSet", Environment.WorkingSet.ToString()},
+                {"Application", "Avalon.Server"},
+            });
             
             await Infrastructure.StartAsync().ConfigureAwait(true);
             
@@ -143,6 +117,13 @@ namespace Avalon.Server
                     CertificatePath = "cert-tcp.pfx",
                     ListenPort = 21000
                 })
+                .AddSingleton<MetricsConfiguration>(_ => new MetricsConfiguration()
+                {
+                    ApiUrl = "https://portal-api.dev.quix.ai",
+                    ApiKey = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IlpXeUJqWTgzcXotZW1pUlZDd1I4dyJ9.eyJodHRwczovL3F1aXguYWkvb3JnX2lkIjoicXVpeGRldiIsImh0dHBzOi8vcXVpeC5haS9vd25lcl9pZCI6ImF1dGgwfDRiY2RlODU5LTA3OWUtNDE4Yi04NTQ3LTE2ZjFkMWYwZjYwNiIsImh0dHBzOi8vcXVpeC5haS90b2tlbl9pZCI6ImMyNGZjMzUyLWJmMDQtNGExOC1hZDBmLTcyNDEzYzA0NTFlNiIsImh0dHBzOi8vcXVpeC5haS9leHAiOiIyNDEwODE1NjAwIiwiaHR0cHM6Ly9xdWl4LmFpL3JvbGVzIjoiUXVpeEFkbWluIGFkbWluIiwiaXNzIjoiaHR0cHM6Ly9hdXRoLmRldi5xdWl4LmFpLyIsInN1YiI6IkFvcUJJVGFzeFhucHNWQ1BNY1FMUFk4OEJjZXd0d3g4QGNsaWVudHMiLCJhdWQiOiJodHRwczovL3BvcnRhbC1hcGkuZGV2LnF1aXguYWkvIiwiaWF0IjoxNjg0OTc0NTgwLCJleHAiOjE2ODc1NjY1ODAsImF6cCI6IkFvcUJJVGFzeFhucHNWQ1BNY1FMUFk4OEJjZXd0d3g4IiwiZ3R5IjoiY2xpZW50LWNyZWRlbnRpYWxzIiwicGVybWlzc2lvbnMiOltdfQ.Au2P2iklX3yFQ3ALNEA_Hqnjl2UoPm_usXkuTo3-D8s4nk3K0vP5_e6D4lcAhGc4iBLkVBxrZOblESxhjDqEnpYHv5u1OvLzsS57VVzTsxfy2YstxifttfLeC1lGhv04sa0HuOXmTwv94X_2RDpjSN5hHM6kSS6FYqvZqaygOsY2lM9cGCRlASwo0apTaV9B1vbU8M6bGLgTAWOu82jWqxCoA11Sj7B4TKsLMI7kHvDP42E6WMwCz0cWhaHtI1CWvTbD15henDDtG_Y0kXY8HHxUG27177xq3JYJ9cQsyqO13kncC3DHfF-RxGKBKoO2SbZgGe73TTw2VTw16QJJ8Q",
+                    Automatic = true
+                })
+                .AddSingleton<IMetricsManager, MetricsManager>()
                 .AddSingleton<IAvalonTcpServer, AvalonTcpServer>()
                 .AddSingleton<IAvalonUdpServer, AvalonUdpServer>()
                 .AddSingleton<IPacketDeserializer, NetworkPacketDeserializer>()
@@ -156,6 +137,7 @@ namespace Avalon.Server
             Logger = ServiceProvider.GetService<ILogger<Program>>() ?? throw new InvalidOperationException();
             Infrastructure = ServiceProvider.GetService<IAvalonInfrastructure>() ?? throw new InvalidOperationException();
             CancellationTokenSource = ServiceProvider.GetService<CancellationTokenSource>() ?? throw new InvalidOperationException();
+            MetricsManager = ServiceProvider.GetService<IMetricsManager>() ?? throw new InvalidOperationException();
         }
     }
 }
