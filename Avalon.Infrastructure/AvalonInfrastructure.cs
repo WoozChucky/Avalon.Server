@@ -2,6 +2,7 @@
 using System.Text;
 using Avalon.Game;
 using Avalon.Game.Handlers;
+using Avalon.Metrics;
 using Avalon.Network;
 using Avalon.Network.Packets;
 using Avalon.Network.Packets.Crypto;
@@ -29,6 +30,7 @@ public class AvalonInfrastructure : IAvalonInfrastructure
     private readonly IPacketHandlerRegistry _packetHandlerRegistry;
     private readonly IAvalonTcpServer _tcpServer;
     private readonly IAvalonMovementManager _movementManager;
+    private readonly IMetricsManager _metricsManager;
 
     public AvalonInfrastructure(
         CancellationTokenSource cts,
@@ -38,7 +40,8 @@ public class AvalonInfrastructure : IAvalonInfrastructure
         IPacketDeserializer packetDeserializer,
         IPacketSerializer packetSerializer,
         IPacketHandlerRegistry packetHandlerRegistry,
-        IAvalonMovementManager movementManager
+        IAvalonMovementManager movementManager,
+        IMetricsManager metricsManager
         )
     {
         _cts = cts;
@@ -48,6 +51,7 @@ public class AvalonInfrastructure : IAvalonInfrastructure
         _packetSerializer = packetSerializer;
         _packetHandlerRegistry = packetHandlerRegistry;
         _movementManager = movementManager;
+        _metricsManager = metricsManager;
 
         _udpServer = udpServer;
         _udpServer.OnPacketReceived += UdpServerOnOnPacketReceived;
@@ -62,6 +66,8 @@ public class AvalonInfrastructure : IAvalonInfrastructure
     {
         _packetSerializer.RegisterPacketSerializers();
         _packetDeserializer.RegisterPacketDeserializers();
+
+        _metricsManager.QueueEvent("AvalonInfrastructureStatus", "Online");
         
         _packetHandlerRegistry.RegisterHandler(NetworkPacketType.CMSG_JUMP, _movementManager.HandleJumpPacket);
         _packetHandlerRegistry.RegisterHandler(NetworkPacketType.CMSG_REQUEST_ENCRYPTION_KEY, Handler);
@@ -135,6 +141,7 @@ public class AvalonInfrastructure : IAvalonInfrastructure
         _udpServer.Dispose();
         _tcpServer.Dispose();
         _cts.Dispose();
+        _metricsManager.QueueEvent("AvalonInfrastructureStatus", "Offline");
         GC.SuppressFinalize(this);
     }
 
