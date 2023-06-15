@@ -16,8 +16,9 @@ namespace Avalon.Infrastructure;
 
 public interface IAvalonInfrastructure : IDisposable
 {
-    Task StartAsync();
-    Task StopAsync();
+    void Start();
+    void Stop();
+    void Loop(int waitTimeMs);
 }
 
 public class AvalonInfrastructure : IAvalonInfrastructure
@@ -60,9 +61,7 @@ public class AvalonInfrastructure : IAvalonInfrastructure
         _tcpServer.ClientConnected += TcpServerOnClientConnected;
     }
 
-    
-
-    public async Task StartAsync()
+    public void Start()
     {
         _packetSerializer.RegisterPacketSerializers();
         _packetDeserializer.RegisterPacketDeserializers();
@@ -72,27 +71,43 @@ public class AvalonInfrastructure : IAvalonInfrastructure
         _packetHandlerRegistry.RegisterHandler(NetworkPacketType.CMSG_JUMP, _movementManager.HandleJumpPacket);
         _packetHandlerRegistry.RegisterHandler(NetworkPacketType.CMSG_REQUEST_ENCRYPTION_KEY, Handler);
         
-#pragma warning disable CS4014
-        // Task.Run(_game.RunAsync).ConfigureAwait(false);
+
         Task.Run(_udpServer.RunAsync).ConfigureAwait(false);
         Task.Run(_tcpServer.RunAsync).ConfigureAwait(false);
-#pragma warning restore CS4014
+    }
 
+    public async void Stop()
+    {
+        _metricsManager.Stop();
+        await _udpServer.StopAsync().ConfigureAwait(false);
+        await _tcpServer.StopAsync().ConfigureAwait(false);
+        _cts.Cancel();
+    }
+
+    public void Loop(int waitTimeMs)
+    {
         try
         {
-            while (!_cts.IsCancellationRequested)
-            {
-            
-            }
+
+            Thread.Sleep(waitTimeMs);
         }
         catch (Exception e)
         {
             _logger.LogError(e, "");
             throw;
         }
-        
     }
 
+    public void Dispose()
+    {
+        _logger.LogInformation("Disposing AvalonInfrastructure...");
+        _udpServer.Dispose();
+        _tcpServer.Dispose();
+        _cts.Dispose();
+        _metricsManager.QueueEvent("AvalonInfrastructureStatus", "Offline");
+        GC.SuppressFinalize(this);
+    }
+    
     private async Task Handler(IRemoteSource source, NetworkPacket packet)
     {
         // Receive a response from the server
@@ -126,23 +141,6 @@ public class AvalonInfrastructure : IAvalonInfrastructure
             };
             await _packetSerializer.SerializeToNetwork(client.Stream, resultingPacket);
         }
-    }
-
-    public async Task StopAsync()
-    {
-        await _udpServer.StopAsync().ConfigureAwait(false);
-        await _tcpServer.StopAsync().ConfigureAwait(false);
-        _cts.Cancel();
-    }
-
-    public void Dispose()
-    {
-        _logger.LogInformation("Disposing AvalonInfrastructure...");
-        _udpServer.Dispose();
-        _tcpServer.Dispose();
-        _cts.Dispose();
-        _metricsManager.QueueEvent("AvalonInfrastructureStatus", "Offline");
-        GC.SuppressFinalize(this);
     }
 
     private async void TcpServerOnClientConnected(object? sender, TcpClient client)

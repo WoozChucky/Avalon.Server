@@ -23,7 +23,6 @@ namespace Avalon.Client.Tester
         private readonly CancellationTokenSource cts = new CancellationTokenSource();
         private readonly Socket socket;
 
-
         public UdpForm()
         {
             InitializeComponent();
@@ -31,9 +30,8 @@ namespace Avalon.Client.Tester
             socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
         }
 
-        private async void UdpForm_Load(object sender, EventArgs e)
+        private void UdpForm_Load(object sender, EventArgs e)
         {
-            
             Task.Run(async () =>
             {
                 try
@@ -66,8 +64,6 @@ namespace Avalon.Client.Tester
                     Console.WriteLine(exception);
                 }
             });
-
-
         }
 
         private void UdpForm_FormClosing(object sender, FormClosingEventArgs e)
@@ -76,6 +72,11 @@ namespace Avalon.Client.Tester
         }
 
         private async void button1_Click(object sender, EventArgs e)
+        {
+            SendUdpLegacy();
+        }
+
+        private async void SendUdpLegacy()
         {
             var endpoint = IPEndPoint.Parse("127.0.0.1");
             endpoint.Port = 21500;
