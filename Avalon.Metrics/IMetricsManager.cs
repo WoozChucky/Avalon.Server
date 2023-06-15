@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
 using QuixStreams.Streaming;
 using QuixStreams.Streaming.Models;
+using QuixStreams.Telemetry.Models;
 
 namespace Avalon.Metrics;
 
@@ -20,7 +21,7 @@ public interface IMetricsManager : IDisposable
 public class MetricsManager : IMetricsManager
 {
     
-    private ConcurrentDictionary<string, string> _defaultProperties;
+    private ConcurrentDictionary<string, string>? _defaultProperties;
     
     private readonly ConcurrentQueue<EventData> _unprocessedEvents;
     private readonly ConcurrentQueue<TimeseriesData> _unprocessedMetrics;
@@ -32,8 +33,8 @@ public class MetricsManager : IMetricsManager
     private readonly ILogger<MetricsManager> _logger;
     
     private readonly QuixStreamingClient _streamingClient;
-    private ITopicProducer _topicProducer;
-    private IStreamProducer _streamProducer;
+    private ITopicProducer? _topicProducer;
+    private IStreamProducer? _streamProducer;
 
     public MetricsManager(ILogger<MetricsManager> logger, MetricsConfiguration configuration)
     {
@@ -129,7 +130,7 @@ public class MetricsManager : IMetricsManager
                 {
                     while (_unprocessedEvents.TryDequeue(out var evt))
                     {
-                        _streamProducer.Events.Publish(evt);
+                        _streamProducer?.Events.Publish(evt);
                     }
                 }
 
@@ -137,7 +138,7 @@ public class MetricsManager : IMetricsManager
                 {
                     while (_unprocessedMetrics.TryDequeue(out var metric))
                     {
-                        _streamProducer.Timeseries.Publish(metric);
+                        _streamProducer?.Timeseries.Publish(metric);
                     }
                 }
             }
@@ -158,8 +159,9 @@ public class MetricsManager : IMetricsManager
 
     public void Dispose()
     {
-        _topicProducer.Dispose();
-        _streamProducer.Dispose();
+        _topicProducer?.Dispose();
+        _streamProducer?.Close(StreamEndType.Aborted);
+        _streamProducer?.Dispose();
         _cancellationTokenSource.Dispose();
     }
 }

@@ -1,5 +1,4 @@
 ﻿using System.Diagnostics;
-using Avalon.Game;
 using Avalon.Game.Handlers;
 using Avalon.Infrastructure;
 using Avalon.Metrics;
@@ -13,14 +12,9 @@ using Avalon.Network.Udp;
 using Avalon.Network.Udp.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using QuixStreams.Streaming;
-using QuixStreams.Streaming.Models;
-using QuixStreams.Telemetry.Models;
 using Serilog;
 using Serilog.Events;
 using Serilog.Sinks.SystemConsole.Themes;
-
-//using DtlsClient = Avalon.Network.Security.Udp.Client;
 
 namespace Avalon.Server
 {
@@ -57,16 +51,16 @@ namespace Avalon.Server
                 {"Application", "Avalon.Server"},
             });
             
-            await Infrastructure.StartAsync().ConfigureAwait(true);
+            Infrastructure.Start();
             
             while (!CancellationTokenSource.IsCancellationRequested)
             {
-                
+                Infrastructure.Loop(10);
             }
             
             Logger.LogInformation("Stopping application...");
             
-            await Infrastructure.StopAsync().ConfigureAwait(true);
+            Infrastructure.Stop();
             Infrastructure.Dispose();
             
             Logger.LogInformation("Terminated successfully");
