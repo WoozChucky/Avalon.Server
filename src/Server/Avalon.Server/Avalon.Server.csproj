@@ -1,0 +1,57 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <TargetFramework>net7.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
+        
+        <ApplicationIcon>App.ico</ApplicationIcon>
+
+        <Product>Avalon Game Server Executable</Product>
+        <ProductName>Avalon</ProductName>
+        <ProductVersion>0.1.0</ProductVersion>
+        
+        <Version>0.1.0</Version>
+        <Description>Avalon Game Server Executable</Description>
+        <Copyright>Private</Copyright>
+        
+        <Authors>Nuno Levezinho</Authors>
+        <Company>Nuno Levezinho's Games</Company>
+        
+        <AssemblyName>Avalon</AssemblyName>
+        <AssemblyVersion>0.1.0</AssemblyVersion>
+        
+        <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
+        
+        <LangVersion>latest</LangVersion>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <Content Include="..\.dockerignore">
+        <Link>.dockerignore</Link>
+      </Content>
+    </ItemGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\..\Shared\Avalon.Common\Avalon.Common.csproj" />
+      <ProjectReference Include="..\..\Shared\Avalon.Metrics\Avalon.Metrics.csproj" />
+      <ProjectReference Include="..\..\Shared\Avalon.Network.Packets\Avalon.Network.Packets.csproj" />
+      <ProjectReference Include="..\..\Shared\Avalon.Network.Tcp\Avalon.Network.Tcp.csproj" />
+      <ProjectReference Include="..\..\Shared\Avalon.Network.Udp\Avalon.Network.Udp.csproj" />
+      <ProjectReference Include="..\..\Shared\Avalon.Network\Avalon.Network.csproj" />
+      <ProjectReference Include="..\Avalon.Game.Handlers\Avalon.Game.Handlers.csproj" />
+      <ProjectReference Include="..\Avalon.Infrastructure\Avalon.Infrastructure.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="7.0.0" />
+      <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="7.0.0" />
+      <PackageReference Include="protobuf-net" Version="3.2.16" />
+      <PackageReference Include="QuixStreams.Streaming" Version="0.5.4" />
+      <PackageReference Include="Serilog.Extensions.Logging" Version="7.0.0" />
+      <PackageReference Include="Serilog.Sinks.Console" Version="4.1.0" />
+    </ItemGroup>
+
+</Project>
