@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>netstandard2.1</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <LangVersion>latest</LangVersion>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="7.0.0" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\..\Shared\Avalon.Common\Avalon.Common.csproj" />
+      <ProjectReference Include="..\..\Shared\Avalon.Metrics\Avalon.Metrics.csproj" />
+      <ProjectReference Include="..\..\Shared\Avalon.Network.Abstractions\Avalon.Network.Abstractions.csproj" />
+      <ProjectReference Include="..\..\Shared\Avalon.Network.Packets\Avalon.Network.Packets.csproj" />
+      <ProjectReference Include="..\..\Shared\Avalon.Network\Avalon.Network.csproj" />
+      <ProjectReference Include="..\Avalon.Game.Handlers\Avalon.Game.Handlers.csproj" />
+      <ProjectReference Include="..\Avalon.Game\Avalon.Game.csproj" />
+    </ItemGroup>
+
+</Project>

@@ -13,6 +13,5 @@ riderModule.iml
 
 .vs/Avalon.Server/DesignTimeBuild/
 
-certificates/billing1-billing1/
-
-certificates/quixdev-nuno/
+certificates/*
+certificates/
