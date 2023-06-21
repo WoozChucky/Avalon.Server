@@ -1,2 +1,4 @@
-﻿using var game = new Avalon.Client.AvalonGame();
+﻿using Avalon.Client;
+
+using var game = new AvalonGame();
 game.Run();

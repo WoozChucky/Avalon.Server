@@ -1,9 +1,22 @@
 ﻿using System;
+using System.Diagnostics;
+using System.IO;
+using System.Net;
+using System.Net.Security;
+using System.Net.Sockets;
+using System.Security.Authentication;
+using System.Security.Cryptography.X509Certificates;
+using System.Threading;
+using System.Threading.Tasks;
 using Avalon.Client.Managers;
 using Avalon.Client.Maps;
 using Avalon.Client.Models;
+using Avalon.Network.Packets;
+using Avalon.Network.Packets.Crypto;
+using Avalon.Network.Packets.Movement;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
+using ProtoBuf;
 
 namespace Avalon.Client.Scenes;
 
@@ -19,10 +32,19 @@ public class TutorialScene : Scene
     private int _fps;
     
     private SceneManager _sceneManager;
+    
+    private readonly CancellationTokenSource cts = new CancellationTokenSource();
+    private readonly X509Certificate2 certificate;
+    private readonly Socket socket;
+    private SslStream sslStream;
 
     public TutorialScene(SceneManager sceneManager) : base(sceneManager)
     {
         Globals.CameraPosition = Vector2.Zero;
+        
+        var clientCertBytes = File.ReadAllBytesAsync("cert-public.pem").ConfigureAwait(true).GetAwaiter().GetResult();
+        certificate = new X509Certificate2(clientCertBytes);
+        socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
     }
 
     public override void Load()
@@ -35,6 +57,113 @@ public class TutorialScene : Scene
             new Vector2(326, 1450)
         );
         _hero.SetBounds(_map.MapSize, new Point(_map.TileWidth, _map.TileHeight));
+        
+        ConnectToServer();
+    }
+
+    private async void ConnectToServer()
+    {
+        await socket.ConnectAsync(new IPEndPoint(IPAddress.Loopback, 21000));
+        sslStream = new SslStream(new NetworkStream(socket), false, UserCertificateValidationCallback);
+        await sslStream.AuthenticateAsClientAsync("localhost", new X509Certificate2Collection() { certificate }, SslProtocols.Tls12,
+            true);
+
+        Task.Run(HandleCommunications, cts.Token);
+        Task.Run(BroadcastMovementUpdates, cts.Token);
+
+        var reqPKeyPacket = new CRequestCryptoKeyPacket();
+        using var ms = new MemoryStream();
+
+        Serializer.Serialize(ms, reqPKeyPacket);
+
+        var packet = new NetworkPacket
+        {
+            Header = new NetworkPacketHeader
+            {
+                Type = NetworkPacketType.CMSG_REQUEST_ENCRYPTION_KEY,
+                Flags = NetworkPacketFlags.None,
+                Version = 0
+            },
+            Payload = ms.ToArray()
+        };
+
+        Serializer.SerializeWithLengthPrefix(sslStream, packet, PrefixStyle.Base128);
+    }
+
+    private async Task BroadcastMovementUpdates()
+    {
+        try
+        {
+            while (!cts.IsCancellationRequested)
+            {
+                await Task.Delay(1000 / 1, cts.Token);
+
+                var movementPacket = new CPlayerMovementPacket()
+                {
+                    ElapsedGameTime = Globals.Time,
+                    X = _hero.Position.X,
+                    Y = _hero.Position.Y
+                };
+                using var ms = new MemoryStream();
+
+                Serializer.Serialize(ms, movementPacket);
+
+                var packet = new NetworkPacket
+                {
+                    Header = new NetworkPacketHeader
+                    {
+                        Type = CPlayerMovementPacket.PacketType,
+                        Flags = NetworkPacketFlags.Encrypted,
+                        Version = 0
+                    },
+                    Payload = ms.ToArray()
+                };
+
+                Serializer.SerializeWithLengthPrefix(sslStream, packet, PrefixStyle.Base128);
+            }
+        }
+        catch (OperationCanceledException e)
+        {
+
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine(e);
+            throw;
+        }
+    }
+
+    private async Task HandleCommunications()
+    {
+        try
+        {
+            while (!cts.IsCancellationRequested)
+            {
+                var packet = Serializer.DeserializeWithLengthPrefix<NetworkPacket>(sslStream, PrefixStyle.Base128);
+
+                switch (packet.Header.Type)
+                {
+                    case NetworkPacketType.SMSG_ENCRYPTION_KEY:
+                        var encryptionKeyPacket = Serializer.Deserialize<SCryptoKeyPacket>(new MemoryStream(packet.Payload));
+                        Trace.WriteLine($"Received encryption key: {BitConverter.ToString(encryptionKeyPacket.Key)}");
+                        break;
+                }
+            }
+        }
+        catch (OperationCanceledException e)
+        {
+
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine(e);
+            throw;
+        }
+    }
+    
+    private bool UserCertificateValidationCallback(object sender, X509Certificate? x509Certificate, X509Chain? chain, SslPolicyErrors sslpolicyerrors)
+    {
+        return true;
     }
 
     public override void Unload()
@@ -87,8 +216,10 @@ public class TutorialScene : Scene
     {
         if (disposing)
         {
-            _map.Dispose();
-            _hero.Dispose();
+            sslStream?.Dispose();
+            socket?.Dispose();
+            _map?.Dispose();
+            _hero?.Dispose();
         }
     }
 
