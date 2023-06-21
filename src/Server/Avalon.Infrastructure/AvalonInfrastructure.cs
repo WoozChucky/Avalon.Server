@@ -71,6 +71,7 @@ public class AvalonInfrastructure : IAvalonInfrastructure
         
         _packetHandlerRegistry.RegisterHandler(NetworkPacketType.CMSG_JUMP, _movementManager.HandleJumpPacket);
         _packetHandlerRegistry.RegisterHandler(NetworkPacketType.CMSG_REQUEST_ENCRYPTION_KEY, Handler);
+        _packetHandlerRegistry.RegisterHandler(NetworkPacketType.CMSG_MOVEMENT, _movementManager.HandleMovementPacket);
         
 
         Task.Run(_udpServer.RunAsync).ConfigureAwait(false);
