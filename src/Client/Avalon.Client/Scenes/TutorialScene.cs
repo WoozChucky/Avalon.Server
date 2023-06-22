@@ -97,27 +97,8 @@ public class TutorialScene : Scene
             while (!cts.IsCancellationRequested)
             {
                 await Task.Delay(1000 / 1, cts.Token);
-
-                var movementPacket = new CPlayerMovementPacket()
-                {
-                    ElapsedGameTime = Globals.Time,
-                    X = _hero.Position.X,
-                    Y = _hero.Position.Y
-                };
-                using var ms = new MemoryStream();
-
-                Serializer.Serialize(ms, movementPacket);
-
-                var packet = new NetworkPacket
-                {
-                    Header = new NetworkPacketHeader
-                    {
-                        Type = CPlayerMovementPacket.PacketType,
-                        Flags = NetworkPacketFlags.Encrypted,
-                        Version = 0
-                    },
-                    Payload = ms.ToArray()
-                };
+                
+                var packet = CPlayerMovementPacket.Create(Globals.Time, _hero.Position.X, _hero.Position.Y);
 
                 Serializer.SerializeWithLengthPrefix(sslStream, packet, PrefixStyle.Base128);
             }

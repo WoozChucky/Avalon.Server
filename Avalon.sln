@@ -41,6 +41,10 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Network", "Network", "{0686
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Avalon.Server", "src\Server\Avalon.Server\Avalon.Server.csproj", "{99201A33-E8DD-4BA7-ADCC-569F39818ADA}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Database", "Database", "{0C56F203-0A21-4680-9F9D-987BA111B125}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Avalon.Database", "src\Server\Avalon.Database\Avalon.Database.csproj", "{4F64264D-2D50-43E3-B0DD-313BEA61CE5D}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -99,6 +103,10 @@ Global
 		{99201A33-E8DD-4BA7-ADCC-569F39818ADA}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{99201A33-E8DD-4BA7-ADCC-569F39818ADA}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{99201A33-E8DD-4BA7-ADCC-569F39818ADA}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4F64264D-2D50-43E3-B0DD-313BEA61CE5D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4F64264D-2D50-43E3-B0DD-313BEA61CE5D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4F64264D-2D50-43E3-B0DD-313BEA61CE5D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4F64264D-2D50-43E3-B0DD-313BEA61CE5D}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -120,6 +128,8 @@ Global
 		{ED8116ED-BBF8-448C-BE30-F51650B4A3E2} = {44F4FAA6-D875-4F06-8308-DD6990AF1E63}
 		{5036FDE8-6FB9-4D5C-A222-FE1027865B55} = {9F6C14A1-30AF-456A-A846-29885214DD7D}
 		{99201A33-E8DD-4BA7-ADCC-569F39818ADA} = {487F1AE2-1995-411B-8080-6434ACA40E86}
+		{0C56F203-0A21-4680-9F9D-987BA111B125} = {487F1AE2-1995-411B-8080-6434ACA40E86}
+		{4F64264D-2D50-43E3-B0DD-313BEA61CE5D} = {0C56F203-0A21-4680-9F9D-987BA111B125}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {20CD880E-2A9B-4B75-A2C1-3145230B285E}

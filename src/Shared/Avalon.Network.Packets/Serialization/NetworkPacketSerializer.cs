@@ -42,11 +42,6 @@ public class NetworkPacketSerializer : IPacketSerializer
         }
     }
 
-    public void RegisterPacketSerializer<T>() where T : class
-    {
-        Serializer.PrepareSerializer<T>();
-    }
-    
     private IEnumerable<Type> GetNetworkPacketTypes(Assembly assembly)
     {
         return assembly.GetTypes()
