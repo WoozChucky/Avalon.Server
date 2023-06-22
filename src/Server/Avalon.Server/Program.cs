@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics;
+using Avalon.Game;
 using Avalon.Game.Handlers;
 using Avalon.Infrastructure;
 using Avalon.Metrics;
@@ -124,6 +125,8 @@ namespace Avalon.Server
                 .AddSingleton<IPacketSerializer, NetworkPacketSerializer>()
                 .AddSingleton<IPacketHandlerRegistry, PacketHandlerRegistry>()
                 .AddSingleton<IAvalonMovementManager, AvalonMovementManager>()
+                .AddSingleton<IAvalonNetworkDaemon, AvalonNetworkDaemon>()
+                .AddSingleton<IAvalonGame, AvalonGame>()
                 .AddSingleton<IAvalonInfrastructure, AvalonInfrastructure>()
                 .AddSingleton<CancellationTokenSource>(s => new CancellationTokenSource())
                 .BuildServiceProvider();

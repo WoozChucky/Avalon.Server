@@ -38,7 +38,7 @@ public class AvalonGame : Game
         Globals.Content = Content;
         Globals.GraphicsDevice = GraphicsDevice;
         
-        _sceneManager.LoadScene(nameof(MainMenuScene));
+        _sceneManager.LoadScene(nameof(TutorialScene));
 
 
         base.Initialize();

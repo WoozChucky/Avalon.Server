@@ -1,4 +1,3 @@
-using Avalon.Network;
 using Avalon.Network.Abstractions;
 using Avalon.Network.Packets;
 using Avalon.Network.Packets.Deserialization;
@@ -42,7 +41,7 @@ public class AvalonMovementManager : IAvalonMovementManager
         _logger.LogDebug("Handling movement packet from {EndPoint}", client.Socket.RemoteEndPoint);
 
         var movementPacket = _packetDeserializer.Deserialize<CPlayerMovementPacket>(
-            NetworkPacketType.CMSG_REQUEST_ENCRYPTION_KEY, 
+            packet.Header.Type, 
             packet.Payload
         );
         
