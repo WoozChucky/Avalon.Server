@@ -53,6 +53,7 @@ public class TutorialScene : Scene
         TcpClient.Instance.PlayerConnected += OnPlayerConnected;
         TcpClient.Instance.PlayerDisconnected += OnPlayerDisconnected;
         TcpClient.Instance.PlayerMoved += OnPlayerMoved;
+        UdpClient.Instance.PlayerMoved += OnPlayerMoved;
     }
 
     public override void Load()
@@ -72,7 +73,7 @@ public class TutorialScene : Scene
         t.Elapsed += (sender, args) =>
         {
             //TcpClient.Instance.BroadcastMovementUpdates(Globals.Time, _hero.Position.X, _hero.Position.Y, InputManager.Direction.X, InputManager.Direction.Y);
-            UdpClient.Instance.BroadcastMovementUpdates(Globals.Time, _hero.Position.X, _hero.Position.Y, InputManager.Direction.X, InputManager.Direction.Y);
+            UdpClient.Instance.BroadcastMovementUpdates(Globals.Time, _hero.Position.X, _hero.Position.Y, InputManager.Direction.X, InputManager.Direction.Y).GetAwaiter().GetResult();
         };
         t.Start();
 
@@ -96,32 +97,6 @@ public class TutorialScene : Scene
         foreach (var (_, otherHero) in _otherPlayers)
         {
             otherHero.Update(deltaTime);
-        }
-        
-        // Update the interpolated player position for other players
-        foreach (var kvp in _interpolatedPlayerPositions)
-        {
-            var playerId = kvp.Key;
-            var interpolatedPosition = kvp.Value;
-            
-            interpolatedPosition.ElapsedTime += deltaTime;
-            
-            // Calculate the interpolation factor (0 to 1) based on elapsed time
-            var t = Math.Clamp(interpolatedPosition.ElapsedTime / interpolatedPosition.InterpolationTime, 0f, 1f);
-            
-            var p = _otherPlayers[playerId].GetInterpolatedPosition();
-            
-            var interpolatedX = MathHelper.Lerp(_interpolatedPlayerPositions[playerId].PreviousX, p.X, t);
-            var interpolatedY = MathHelper.Lerp(_interpolatedPlayerPositions[playerId].PreviousY, p.Y, t);
-            
-            // Update the player's position
-            _otherPlayers[playerId].Test(p);
-            
-            // Remove the player from the dictionary if the interpolation is complete
-            if (t >= 1f)
-            {
-                _interpolatedPlayerPositions.TryRemove(playerId, out _);
-            }
         }
 
         _hero.Update(_map.IsObjectColliding);
@@ -193,27 +168,8 @@ public class TutorialScene : Scene
     {
         if (_otherPlayers.TryGetValue(packet.ClientId, out var player))
         {
-            player.UpdatePosition(new Vector2(packet.PositionX, packet.PositionY));
             player.UpdateVelocity(new Vector2(packet.VelocityX, packet.VelocityY));
+            player.UpdatePosition(new Vector2(packet.PositionX, packet.PositionY), packet.Elapsed);
         }
-        
-        _interpolatedPlayerPositions.AddOrUpdate(packet.ClientId, guid => new InterpolatedPlayerPosition
-        {
-            PreviousX = packet.PositionX,
-            PreviousY = packet.PositionY,
-            X = packet.PositionX,
-            Y = packet.PositionY,
-            InterpolationTime = Globals.Time,
-            ElapsedTime = packet.Elapsed
-        }, (guid, existing) =>
-        {
-            existing.PreviousX = existing.X;
-            existing.PreviousY = existing.Y;
-            existing.X = packet.PositionX;
-            existing.Y = packet.PositionY;
-            existing.InterpolationTime = Globals.Time;
-            existing.ElapsedTime = packet.Elapsed;
-            return existing;
-        });
     }
 }

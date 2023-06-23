@@ -19,6 +19,8 @@ public class Player
     
     private Vector2 currentPosition;
     private Vector2 previousPosition;
+    private Vector2 predictedPosition;
+    
     private Vector2 nextPosition;
     private Vector2 velocity;
     private float interpolationTime;
@@ -42,11 +44,13 @@ public class Player
         _sprite.Position = pos;
     }
     
-    public void UpdatePosition(Vector2 newPosition)
+    public void UpdatePosition(Vector2 newPosition, float timeSinceLastUpdate)
     {
         previousPosition = currentPosition;
         currentPosition = newPosition;
         interpolationTime = 0f;
+        
+        predictedPosition = currentPosition + (velocity * timeSinceLastUpdate);
     }
 
     public void UpdateVelocity(Vector2 newVelocity)
@@ -57,9 +61,17 @@ public class Player
     public void Update(float deltaTime)
     {
         interpolationTime += deltaTime;
-        nextPosition = PredictPosition(currentPosition, velocity, predictionTime);
+        
+        // Interpolate between the previous and current positions, and between the current and predicted positions.
+        var interpolatedPosition = InterpolatePosition(previousPosition, currentPosition, interpolationTime);
+        _sprite.Position = InterpolatePosition(currentPosition, predictedPosition, interpolationTime);
 
         UpdateAnimation();
+    }
+    
+    private Vector2 InterpolatePosition(Vector2 startPosition, Vector2 endPosition, float alpha)
+    {
+        return startPosition + alpha * (endPosition - startPosition);
     }
 
     public Vector2 GetInterpolatedPosition()

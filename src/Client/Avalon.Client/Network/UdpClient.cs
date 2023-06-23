@@ -9,6 +9,7 @@ using System.Security.Cryptography.X509Certificates;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalon.Common.Extensions;
+using Avalon.Network;
 using Avalon.Network.Packets;
 using Avalon.Network.Packets.Auth;
 using Avalon.Network.Packets.Crypto;
@@ -20,8 +21,12 @@ namespace Avalon.Client.Network;
 public class UdpClient : IDisposable
 {
     private static UdpClient instance;
-    
     public static UdpClient Instance => instance ??= new UdpClient();
+    
+    
+    public event PlayerConnectedHandler PlayerConnected;
+    public event PlayerDisconnectedHandler PlayerDisconnected;
+    public event PlayerMovedHandler PlayerMoved;
     
     private readonly CancellationTokenSource cts = new CancellationTokenSource();
     private readonly Socket socket;
@@ -31,15 +36,13 @@ public class UdpClient : IDisposable
     public UdpClient()
     {
         socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+        serverEndpoint = new IPEndPoint(IPAddress.Parse("85.246.128.207"), 21500);
     }
 
     public async Task ConnectAsync()
     {
-        var localEndpoint = IPEndPoint.Parse("127.0.0.1");
+        var localEndpoint = new IPEndPoint(NetworkAdapters.GetLocalIpAddress(), 0); // 0 for random port
         socket.Bind(localEndpoint);
-        
-        serverEndpoint = IPEndPoint.Parse("127.0.0.1");
-        serverEndpoint.Port = 21500;
 
         await SendWelcomePacket();
 
@@ -80,13 +83,15 @@ public class UdpClient : IDisposable
     {
         try
         {
-            var readBuffer = new byte[1024];
+            
             var endpoint = new IPEndPoint(IPAddress.Any, 0);
                     
             while (!cts.IsCancellationRequested)
             {
                 try
                 {
+                    var readBuffer = new byte[1024];
+                    
                     var result = await socket.ReceiveFromAsync(readBuffer, SocketFlags.None, endpoint);
                     var packetBuffer = new byte[result.ReceivedBytes];
                 
@@ -94,14 +99,17 @@ public class UdpClient : IDisposable
                 
                     await using var ms = new MemoryStream(packetBuffer);
                         
-                    var packet = Serializer.DeserializeWithLengthPrefix<NetworkPacket>(ms, PrefixStyle.None);
+                    var packet = Serializer.DeserializeWithLengthPrefix<NetworkPacket>(ms, PrefixStyle.Base128);
+                    
+                    if (packet == null)
+                        continue;
 
                     switch (packet.Header.Type)
                     {
                         case NetworkPacketType.SMSG_PLAYER_POSITION_UPDATE:
                         {
-                            var movementPacket = Serializer.DeserializeWithLengthPrefix<SPlayerPositionUpdatePacket>(packet.Payload.ToMemoryStream(), PrefixStyle.Base128);
-                            Trace.WriteLine($"Received movement update from {movementPacket.ClientId} ({movementPacket.PositionX}, {movementPacket.PositionY})\r\n");
+                            var movementPacket = Serializer.Deserialize<SPlayerPositionUpdatePacket>(packet.Payload.ToMemoryStream());
+                            PlayerMoved?.Invoke(this, movementPacket);
                             break;
                         } 
                     }
