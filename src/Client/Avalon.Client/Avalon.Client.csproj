@@ -20,6 +20,7 @@
         <EmbeddedResource Include="Icon.bmp" />
     </ItemGroup>
     <ItemGroup>
+        <PackageReference Include="Mono.Nat" Version="3.0.4" />
         <PackageReference Include="MonoGame.Framework.DesktopGL" Version="3.8.1.303" />
         <PackageReference Include="MonoGame.Content.Builder.Task" Version="3.8.1.303" />
         <PackageReference Include="TiledCS" Version="3.3.3" />
@@ -32,5 +33,4 @@
         <Message Text="Restoring dotnet tools" Importance="High" />
         <Exec Command="dotnet tool restore" />
     </Target>
-    <Import Project="..\Avalon.Engine\Avalon.Engine.projitems" Label="Shared" />
 </Project>

@@ -138,9 +138,8 @@ public class AvalonMovementManager : IAvalonMovementManager
                 }
                 await Send(welcomePacket.ClientId, SPlayerConnectedPacket.Create(id));
             }
-
             
-            await BroadcastToOthers(welcomePacket.ClientId, SPlayerConnectedPacket.Create(welcomePacket.ClientId));
+            await BroadcastToOthers(true, welcomePacket.ClientId, SPlayerConnectedPacket.Create(welcomePacket.ClientId));
         }
     }
 
@@ -201,7 +200,7 @@ public class AvalonMovementManager : IAvalonMovementManager
         }
     }
     
-    private async Task BroadcastToOthers(Guid except, NetworkPacket packet)
+    private async Task BroadcastToOthers(bool tcp, Guid except, NetworkPacket packet)
     {
         foreach (var (id, client) in _clients)
         {
@@ -214,10 +213,29 @@ public class AvalonMovementManager : IAvalonMovementManager
             {
                 continue;
             }
-
+ 
             try
             {
-                await _packetSerializer.SerializeToNetwork(client.TcpConnection.Stream, packet);
+                if (tcp)
+                {
+                    if (client.TcpConnection == null)
+                    {
+                        continue;
+                    }
+                    
+                    await _packetSerializer.SerializeToNetwork(client.TcpConnection.Stream, packet);
+                }
+                else
+                {
+                    if (client.UdpConnection == null)
+                    {
+                        continue;
+                    }
+                
+                    var ms = new MemoryStream();
+                    await _packetSerializer.SerializeToNetwork(ms, packet);
+                    await client.UdpConnection.SendResponseAsync(ms.ToArray());
+                }
             }
             catch (Exception)
             {
@@ -245,7 +263,7 @@ public class AvalonMovementManager : IAvalonMovementManager
                         client.Character.ElapsedGameTime
                     );
                     
-                    await BroadcastToOthers(id, packet);
+                    await BroadcastToOthers(false, id, packet);
                 }
             }
         }
