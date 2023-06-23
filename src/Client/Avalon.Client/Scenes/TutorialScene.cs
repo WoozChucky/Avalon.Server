@@ -1,24 +1,30 @@
 ﻿using System;
-using System.Diagnostics;
-using System.IO;
-using System.Net;
-using System.Net.Security;
-using System.Net.Sockets;
-using System.Security.Authentication;
-using System.Security.Cryptography.X509Certificates;
-using System.Threading;
-using System.Threading.Tasks;
+using System.Collections.Concurrent;
 using Avalon.Client.Managers;
 using Avalon.Client.Maps;
 using Avalon.Client.Models;
-using Avalon.Network.Packets;
-using Avalon.Network.Packets.Crypto;
+using Avalon.Network.Packets.Auth;
 using Avalon.Network.Packets.Movement;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
-using ProtoBuf;
+using TcpClient = Avalon.Client.Network.TcpClient;
+using Timer = System.Timers.Timer;
 
 namespace Avalon.Client.Scenes;
+
+public struct InterpolatedPlayerPosition
+{
+    public float X { get; set; }
+    public float Y { get; set; }
+    public float InterpolationTime { get; set; }
+    public float ElapsedTime { get; set; }
+
+    public float PreviousX { get; set; }
+    public float PreviousY { get; set; }
+
+    public float VelocityX { get; set; }
+    public float VelocityY { get; set; }
+}
 
 public class TutorialScene : Scene
 {
@@ -26,25 +32,26 @@ public class TutorialScene : Scene
     private Hero _hero;
     private Matrix _translation;
     private SpriteFont _font;
-    
+
+    private readonly ConcurrentDictionary<Guid, Player> _otherPlayers;
+    private readonly ConcurrentDictionary<Guid, InterpolatedPlayerPosition> _interpolatedPlayerPositions;
+
     private float _elapsedTime;
     private int _frameCount;
     private int _fps;
     
     private SceneManager _sceneManager;
-    
-    private readonly CancellationTokenSource cts = new CancellationTokenSource();
-    private readonly X509Certificate2 certificate;
-    private readonly Socket socket;
-    private SslStream sslStream;
 
     public TutorialScene(SceneManager sceneManager) : base(sceneManager)
     {
+        _otherPlayers = new ConcurrentDictionary<Guid, Player>();
+        _interpolatedPlayerPositions = new ConcurrentDictionary<Guid, InterpolatedPlayerPosition>();
+        
         Globals.CameraPosition = Vector2.Zero;
         
-        var clientCertBytes = File.ReadAllBytesAsync("cert-public.pem").ConfigureAwait(true).GetAwaiter().GetResult();
-        certificate = new X509Certificate2(clientCertBytes);
-        socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+        TcpClient.Instance.PlayerConnected += OnPlayerConnected;
+        TcpClient.Instance.PlayerDisconnected += OnPlayerDisconnected;
+        TcpClient.Instance.PlayerMoved += OnPlayerMoved;
     }
 
     public override void Load()
@@ -57,94 +64,17 @@ public class TutorialScene : Scene
             new Vector2(326, 1450)
         );
         _hero.SetBounds(_map.MapSize, new Point(_map.TileWidth, _map.TileHeight));
-        
-        ConnectToServer();
-    }
 
-    private async void ConnectToServer()
-    {
-        await socket.ConnectAsync(new IPEndPoint(IPAddress.Loopback, 21000));
-        sslStream = new SslStream(new NetworkStream(socket), false, UserCertificateValidationCallback);
-        await sslStream.AuthenticateAsClientAsync("localhost", new X509Certificate2Collection() { certificate }, SslProtocols.Tls12,
-            true);
-
-        Task.Run(HandleCommunications, cts.Token);
-        Task.Run(BroadcastMovementUpdates, cts.Token);
-
-        var reqPKeyPacket = new CRequestCryptoKeyPacket();
-        using var ms = new MemoryStream();
-
-        Serializer.Serialize(ms, reqPKeyPacket);
-
-        var packet = new NetworkPacket
+        Timer t = new Timer();
+        t.Interval = 50; // 20 updates per second, could try 10 updates which would be 50 milliseconds
+        t.AutoReset = true;
+        t.Elapsed += (sender, args) =>
         {
-            Header = new NetworkPacketHeader
-            {
-                Type = NetworkPacketType.CMSG_REQUEST_ENCRYPTION_KEY,
-                Flags = NetworkPacketFlags.None,
-                Version = 0
-            },
-            Payload = ms.ToArray()
+            TcpClient.Instance.BroadcastMovementUpdates(Globals.Time, _hero.Position.X, _hero.Position.Y, InputManager.Direction.X, InputManager.Direction.Y);
+            //UdpClient.Instance.BroadcastMovementUpdates(Globals.Time, _hero.Position.X, _hero.Position.Y);
         };
+        t.Start();
 
-        Serializer.SerializeWithLengthPrefix(sslStream, packet, PrefixStyle.Base128);
-    }
-
-    private async Task BroadcastMovementUpdates()
-    {
-        try
-        {
-            while (!cts.IsCancellationRequested)
-            {
-                await Task.Delay(1000 / 1, cts.Token);
-                
-                var packet = CPlayerMovementPacket.Create(Globals.Time, _hero.Position.X, _hero.Position.Y);
-
-                Serializer.SerializeWithLengthPrefix(sslStream, packet, PrefixStyle.Base128);
-            }
-        }
-        catch (OperationCanceledException e)
-        {
-
-        }
-        catch (Exception e)
-        {
-            Console.WriteLine(e);
-            throw;
-        }
-    }
-
-    private async Task HandleCommunications()
-    {
-        try
-        {
-            while (!cts.IsCancellationRequested)
-            {
-                var packet = Serializer.DeserializeWithLengthPrefix<NetworkPacket>(sslStream, PrefixStyle.Base128);
-
-                switch (packet.Header.Type)
-                {
-                    case NetworkPacketType.SMSG_ENCRYPTION_KEY:
-                        var encryptionKeyPacket = Serializer.Deserialize<SCryptoKeyPacket>(new MemoryStream(packet.Payload));
-                        Trace.WriteLine($"Received encryption key: {BitConverter.ToString(encryptionKeyPacket.Key)}");
-                        break;
-                }
-            }
-        }
-        catch (OperationCanceledException e)
-        {
-
-        }
-        catch (Exception e)
-        {
-            Console.WriteLine(e);
-            throw;
-        }
-    }
-    
-    private bool UserCertificateValidationCallback(object sender, X509Certificate? x509Certificate, X509Chain? chain, SslPolicyErrors sslpolicyerrors)
-    {
-        return true;
     }
 
     public override void Unload()
@@ -155,11 +85,44 @@ public class TutorialScene : Scene
     public override void Update(GameTime gameTime)
     {
         var deltaTime = (float)gameTime.ElapsedGameTime.TotalSeconds;
+
         _elapsedTime += deltaTime;
         _frameCount++;
         
         // TODO: Update the scene's logic
         InputManager.Update();
+        
+        foreach (var (_, otherHero) in _otherPlayers)
+        {
+            otherHero.Update(deltaTime);
+        }
+        
+        // Update the interpolated player position for other players
+        foreach (var kvp in _interpolatedPlayerPositions)
+        {
+            var playerId = kvp.Key;
+            var interpolatedPosition = kvp.Value;
+            
+            interpolatedPosition.ElapsedTime += deltaTime;
+            
+            // Calculate the interpolation factor (0 to 1) based on elapsed time
+            var t = Math.Clamp(interpolatedPosition.ElapsedTime / interpolatedPosition.InterpolationTime, 0f, 1f);
+            
+            var p = _otherPlayers[playerId].GetInterpolatedPosition();
+            
+            var interpolatedX = MathHelper.Lerp(_interpolatedPlayerPositions[playerId].PreviousX, p.X, t);
+            var interpolatedY = MathHelper.Lerp(_interpolatedPlayerPositions[playerId].PreviousY, p.Y, t);
+            
+            // Update the player's position
+            _otherPlayers[playerId].Test(p);
+            
+            // Remove the player from the dictionary if the interpolation is complete
+            if (t >= 1f)
+            {
+                _interpolatedPlayerPositions.TryRemove(playerId, out _);
+            }
+        }
+
         _hero.Update(_map.IsObjectColliding);
         
 
@@ -188,6 +151,10 @@ public class TutorialScene : Scene
         spriteBatch.Begin(transformMatrix: _translation);
         _map.Draw(spriteBatch);
         _hero.Draw(spriteBatch);
+        foreach (var (id, otherHero) in _otherPlayers)
+        {
+            otherHero.Draw(spriteBatch);
+        }
         spriteBatch.DrawString(_font, $"X: {Math.Round(_hero.Position.X, 2)} Y: {Math.Round(_hero.Position.Y, 2)}", new Vector2(10, 10) + Globals.CameraPosition, Color.DarkBlue);
         spriteBatch.DrawString(_font, $"FPS: {_fps}", new Vector2(10, 36) + Globals.CameraPosition, Color.DarkBlue);
         spriteBatch.End();
@@ -197,8 +164,6 @@ public class TutorialScene : Scene
     {
         if (disposing)
         {
-            sslStream?.Dispose();
-            socket?.Dispose();
             _map?.Dispose();
             _hero?.Dispose();
         }
@@ -211,5 +176,43 @@ public class TutorialScene : Scene
         var dy = (Globals.WindowSize.Y / 2f) - _hero.Position.Y;
         dy = MathHelper.Clamp(dy, -_map.MapSize.Y + Globals.WindowSize.Y + (_map.TileHeight / 2), _map.TileHeight / 2f);
         _translation = Matrix.CreateTranslation(dx, dy, 0f);
+    }
+    
+    private void OnPlayerConnected(object sender, SPlayerConnectedPacket packet)
+    {
+        _otherPlayers.TryAdd(packet.ClientId, new Player(Globals.Content.Load<Texture2D>("Images/player"), new Vector2(0, 0)));
+    }
+    
+    private void OnPlayerDisconnected(object sender, SPlayerDisconnectedPacket packet)
+    {
+        _otherPlayers.TryRemove(packet.ClientId, out _);
+    }
+    
+    private void OnPlayerMoved(object sender, SPlayerPositionUpdatePacket packet)
+    {
+        if (_otherPlayers.TryGetValue(packet.ClientId, out var player))
+        {
+            player.UpdatePosition(new Vector2(packet.PositionX, packet.PositionY));
+            player.UpdateVelocity(new Vector2(packet.VelocityX, packet.VelocityY));
+        }
+        
+        _interpolatedPlayerPositions.AddOrUpdate(packet.ClientId, guid => new InterpolatedPlayerPosition
+        {
+            PreviousX = packet.PositionX,
+            PreviousY = packet.PositionY,
+            X = packet.PositionX,
+            Y = packet.PositionY,
+            InterpolationTime = Globals.Time,
+            ElapsedTime = packet.Elapsed
+        }, (guid, existing) =>
+        {
+            existing.PreviousX = existing.X;
+            existing.PreviousY = existing.Y;
+            existing.X = packet.PositionX;
+            existing.Y = packet.PositionY;
+            existing.InterpolationTime = Globals.Time;
+            existing.ElapsedTime = packet.Elapsed;
+            return existing;
+        });
     }
 }

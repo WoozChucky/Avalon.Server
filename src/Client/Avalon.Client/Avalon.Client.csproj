@@ -25,6 +25,7 @@
         <PackageReference Include="TiledCS" Version="3.3.3" />
     </ItemGroup>
     <ItemGroup>
+      <ProjectReference Include="..\..\Shared\Avalon.Common\Avalon.Common.csproj" />
       <ProjectReference Include="..\..\Shared\Avalon.Network.Packets\Avalon.Network.Packets.csproj" />
     </ItemGroup>
     <Target Name="RestoreDotnetTools" BeforeTargets="Restore">

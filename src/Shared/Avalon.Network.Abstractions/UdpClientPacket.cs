@@ -21,6 +21,15 @@ public class UdpClientPacket : IRemoteSource
     
     public async Task<int> SendResponseAsync(byte[] buffer)
     {
-        return await _responseTask.Invoke(buffer, SocketFlags.None, EndPoint);
+        try
+        {
+            return await _responseTask.Invoke(buffer, SocketFlags.None, EndPoint);
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine(e);
+            return 0;
+        }
+        
     }
 }

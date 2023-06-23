@@ -100,7 +100,7 @@ public class AvalonTcpServer : IAvalonTcpServer
         var sslStream = new SslStream(new NetworkStream(client), false, OnClientCertificateValidation);
         try
         {
-            await sslStream.AuthenticateAsServerAsync(_certificate, true, SslProtocols.Tls12, true);
+            await sslStream.AuthenticateAsServerAsync(_certificate, false, SslProtocols.Tls12, false);
             
             ClientConnected?.Invoke(this, new TcpClient(client, sslStream));
         }
@@ -116,7 +116,7 @@ public class AvalonTcpServer : IAvalonTcpServer
 
     private bool OnClientCertificateValidation(object sender, X509Certificate? certificate, X509Chain? chain, SslPolicyErrors sslpolicyerrors)
     {
-        
+        return true;
         if (certificate == null)
         {
             _logger.LogWarning("Client certificate is null");

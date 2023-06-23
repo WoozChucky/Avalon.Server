@@ -1,4 +1,6 @@
-﻿using Avalon.Client.Managers;
+﻿using System;
+using Avalon.Client.Managers;
+using Avalon.Client.Network;
 using Avalon.Client.Scenes;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -25,7 +27,7 @@ public class AvalonGame : Game
         _sceneManager.AddScene(nameof(TutorialScene), new TutorialScene(_sceneManager));
     }
 
-    protected override void Initialize()
+    protected override async void Initialize()
     {
         // 64 cols x 48 rows
         Globals.WindowSize = new Point(800, 600);
@@ -37,6 +39,10 @@ public class AvalonGame : Game
 
         Globals.Content = Content;
         Globals.GraphicsDevice = GraphicsDevice;
+        Globals.ClientId = Guid.NewGuid();
+
+        TcpClient.Instance.ConnectAsync().GetAwaiter().GetResult();
+        UdpClient.Instance.ConnectAsync().GetAwaiter().GetResult();
         
         _sceneManager.LoadScene(nameof(TutorialScene));
 

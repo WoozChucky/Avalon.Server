@@ -64,6 +64,7 @@ public class AvalonNetworkDaemon : IAvalonNetworkDaemon
         _packetSerializer.RegisterPacketSerializers();
         _packetDeserializer.RegisterPacketDeserializers();
         
+        _packetHandlerRegistry.RegisterHandler(NetworkPacketType.CMSG_WELCOME, _movementManager.HandleWelcomePacket);
         _packetHandlerRegistry.RegisterHandler(NetworkPacketType.CMSG_JUMP, _movementManager.HandleJumpPacket);
         _packetHandlerRegistry.RegisterHandler(NetworkPacketType.CMSG_REQUEST_ENCRYPTION_KEY, Handler);
         _packetHandlerRegistry.RegisterHandler(NetworkPacketType.CMSG_MOVEMENT, _movementManager.HandleMovementPacket);
@@ -153,6 +154,7 @@ public class AvalonNetworkDaemon : IAvalonNetworkDaemon
                 if (e.InnerException is SocketException && e.InnerException.Message.Contains("An existing connection was forcibly closed by the remote host"))
                 {
                     _logger.LogInformation("Client {@Endpoint} disconnected", client.Socket.RemoteEndPoint);
+                    _movementManager.RemovePlayer(client.Socket.RemoteEndPoint);
                 }
                 else
                 {
