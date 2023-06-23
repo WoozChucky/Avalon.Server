@@ -12,7 +12,7 @@ public class Hero : IDisposable
     private const int FrameCount = 3;
     private const float FrameTime = 0.2f;
     
-    private const float SPEED = 300f;
+    private const float SPEED = 100f;
     
     public Vector2 Position;
 
@@ -109,6 +109,12 @@ public class Hero : IDisposable
                 _elapsedTime = 0;
             }
         }
+    }
+    
+    public void SetPosition(Vector2 position)
+    {
+        Position = position;
+        _sprite.Position = position;
     }
 
     public void Dispose()
