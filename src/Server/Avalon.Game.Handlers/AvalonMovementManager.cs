@@ -232,7 +232,7 @@ public class AvalonMovementManager : IAvalonMovementManager
         {
             while (!_cts.IsCancellationRequested)
             {
-                await Task.Delay(100, _cts.Token);
+                await Task.Delay(50, _cts.Token);
 
                 foreach (var (id, client) in _clients)
                 {
