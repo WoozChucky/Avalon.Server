@@ -57,13 +57,13 @@ public class UdpClient : IDisposable
         await socket.SendToAsync(buffer.ToArray(), SocketFlags.None, serverEndpoint);
     }
 
-    public async Task BroadcastMovementUpdates(float time, float x, float y)
+    public async Task BroadcastMovementUpdates(float time, float x, float y, float velX, float velY)
     {
         try
         {
             using var buffer = new MemoryStream();
             
-            var packet = CPlayerMovementPacket.Create(Globals.ClientId, time, x, y, 0f, 0f);
+            var packet = CPlayerMovementPacket.Create(Globals.ClientId, time, x, y, velX, velY);
 
             Serializer.SerializeWithLengthPrefix(buffer, packet, PrefixStyle.Base128);
             

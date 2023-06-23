@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using Avalon.Client.Managers;
 using Avalon.Client.Maps;
 using Avalon.Client.Models;
+using Avalon.Client.Network;
 using Avalon.Network.Packets.Auth;
 using Avalon.Network.Packets.Movement;
 using Microsoft.Xna.Framework;
@@ -70,8 +71,8 @@ public class TutorialScene : Scene
         t.AutoReset = true;
         t.Elapsed += (sender, args) =>
         {
-            TcpClient.Instance.BroadcastMovementUpdates(Globals.Time, _hero.Position.X, _hero.Position.Y, InputManager.Direction.X, InputManager.Direction.Y);
-            //UdpClient.Instance.BroadcastMovementUpdates(Globals.Time, _hero.Position.X, _hero.Position.Y);
+            //TcpClient.Instance.BroadcastMovementUpdates(Globals.Time, _hero.Position.X, _hero.Position.Y, InputManager.Direction.X, InputManager.Direction.Y);
+            UdpClient.Instance.BroadcastMovementUpdates(Globals.Time, _hero.Position.X, _hero.Position.Y, InputManager.Direction.X, InputManager.Direction.Y);
         };
         t.Start();
 
