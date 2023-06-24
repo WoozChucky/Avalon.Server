@@ -14,7 +14,16 @@ public class NetworkPacketHeader
 {
     [ProtoMember(1)] public NetworkPacketType Type { get; set; }
     [ProtoMember(2)] public NetworkPacketFlags Flags { get; set; }
-    [ProtoMember(3)] public int Version { get; set; }
+    [ProtoMember(3)] public NetworkProtocol Protocol { get; set; }
+    [ProtoMember(4)] public int Version { get; set; }
+}
+
+public enum NetworkProtocol
+{
+    None = 0,
+    Tcp = 1,
+    Udp = 2,
+    Both = 3
 }
 
 public enum NetworkPacketFlags
@@ -38,10 +47,12 @@ public enum NetworkPacketType
     CMSG_REQUEST_LOBBY_LIST = 0x2003,
     CMSG_MOVEMENT = 0x2004,
     CMSG_PING = 0x2005,
+    CMSG_PONG = 0x2006,
 
     SMSG_PLAYER_DISCONNECTED = 0x3000,
     SMSG_PLAYER_CONNECTED = 0x3001,
     SMSG_PONG = 0x3006,
+    SMSG_PING = 0x3007,
     
     SMSG_SERVER_VERSION = 0x3002,
     SMSG_ENCRYPTION_KEY = 0x3003,

@@ -34,6 +34,7 @@ public class AvalonNetworkDaemon : IAvalonNetworkDaemon
     private readonly IPacketRegistry _packetRegistry;
     private readonly IAvalonGame _game;
     private readonly IAvalonMovementManager _movementManager;
+    private readonly IAvalonConnectionManager _connectionManager;
 
     public AvalonNetworkDaemon(
         ILogger<AvalonNetworkDaemon> logger, 
@@ -44,7 +45,8 @@ public class AvalonNetworkDaemon : IAvalonNetworkDaemon
         IPacketSerializer packetSerializer,
         IPacketRegistry packetRegistry,
         IAvalonGame game,
-        IAvalonMovementManager movementManager)
+        IAvalonMovementManager movementManager,
+        IAvalonConnectionManager connectionManager)
     {
         _logger = logger;
         _cts = cts;
@@ -54,6 +56,7 @@ public class AvalonNetworkDaemon : IAvalonNetworkDaemon
         _packetRegistry = packetRegistry;
         _game = game;
         _movementManager = movementManager;
+        _connectionManager = connectionManager;
 
         _udpServer = udpServer;
         _udpServer.OnPacketReceived += UdpServerOnOnPacketReceived;
@@ -69,10 +72,13 @@ public class AvalonNetworkDaemon : IAvalonNetworkDaemon
         
         _packetRegistry.RegisterHandler<CRequestServerVersionPacket>(NetworkPacketType.CMSG_REQUEST_SERVER_VERSION, _game.HandleServerVersionPacket);
         _packetRegistry.RegisterHandler<CPingPacket>(NetworkPacketType.CMSG_PING, _game.HandlePingPacket);
-        _packetRegistry.RegisterHandler<CWelcomePacket>(NetworkPacketType.CMSG_WELCOME, _movementManager.HandleWelcomePacket);
-        _packetRegistry.RegisterHandler<CPlayerMovementPacket>(NetworkPacketType.CMSG_MOVEMENT, _movementManager.HandleMovementPacket);
+        _packetRegistry.RegisterHandler<CWelcomePacket>(NetworkPacketType.CMSG_WELCOME, _connectionManager.AddConnection);
+        _packetRegistry.RegisterHandler<CPongPacket>(NetworkPacketType.CMSG_PONG, _connectionManager.HandlePongPacket);
+        _packetRegistry.RegisterHandler<CPlayerMovementPacket>(NetworkPacketType.CMSG_MOVEMENT, _game.HandleMovementPacket);
 
         _logger.LogInformation("Starting network daemon");
+        
+        _connectionManager.Start();
         
         Task.Run(_udpServer.RunAsync).ConfigureAwait(false);
         Task.Run(_tcpServer.RunAsync).ConfigureAwait(false);
@@ -81,6 +87,9 @@ public class AvalonNetworkDaemon : IAvalonNetworkDaemon
     public async void Stop()
     {
         _logger.LogInformation("Stopping network daemon");
+        
+        _connectionManager.Stop();
+        
         await _udpServer.StopAsync().ConfigureAwait(false);
         await _tcpServer.StopAsync().ConfigureAwait(false);
     }
@@ -124,7 +133,7 @@ public class AvalonNetworkDaemon : IAvalonNetworkDaemon
     
     private void TcpServerOnClientConnected(object? sender, TcpClient client)
     {
-        _logger.LogInformation("Client connected from {EndPoint}", client.Socket.RemoteEndPoint.ToString());
+        // _logger.LogInformation("Client connected from {EndPoint}", client.Socket.RemoteEndPoint.ToString());
         
         Task.Run(async () =>
         {
@@ -162,7 +171,7 @@ public class AvalonNetworkDaemon : IAvalonNetworkDaemon
                 if (e.InnerException is SocketException && e.InnerException.Message.Contains("An existing connection was forcibly closed by the remote host"))
                 {
                     _logger.LogInformation("Client {Endpoint} disconnected", client.Socket.RemoteEndPoint.ToString());
-                    _movementManager.RemovePlayer(client.Socket.RemoteEndPoint);
+                    //_movementManager.RemovePlayer(client.Socket.RemoteEndPoint);
                 }
                 else
                 {
@@ -212,12 +221,14 @@ public class AvalonNetworkDaemon : IAvalonNetworkDaemon
             NetworkPacketType.CMSG_REQUEST_SERVER_VERSION => _packetDeserializer.Deserialize<CRequestServerVersionPacket>(packet.Header.Type, packet.Payload),
             NetworkPacketType.CMSG_REQUEST_ENCRYPTION_KEY => _packetDeserializer.Deserialize<CRequestCryptoKeyPacket>(packet.Header.Type, packet.Payload),
             NetworkPacketType.CMSG_PING => _packetDeserializer.Deserialize<CPingPacket>(packet.Header.Type, packet.Payload),
+            NetworkPacketType.CMSG_PONG => _packetDeserializer.Deserialize<CPongPacket>(packet.Header.Type, packet.Payload),
             _ => throw new PacketHandlerException("Unknown packet type " + packet.Header.Type)
         };
     }
 
     public void Dispose()
     {
+        _connectionManager.Dispose();
         _tcpServer.Dispose();
         _udpServer.Dispose();
         

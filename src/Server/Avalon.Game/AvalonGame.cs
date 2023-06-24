@@ -1,7 +1,11 @@
+using System.Collections.Concurrent;
 using System.Reflection;
+using Avalon.Game.Handlers;
 using Avalon.Network.Abstractions;
+using Avalon.Network.Packets;
 using Avalon.Network.Packets.Auth;
 using Avalon.Network.Packets.Generic;
+using Avalon.Network.Packets.Movement;
 using Avalon.Network.Packets.Serialization;
 using Microsoft.Extensions.Logging;
 
@@ -13,6 +17,14 @@ public interface IAvalonGame
     void Stop();
     Task HandleServerVersionPacket(IRemoteSource source, CRequestServerVersionPacket packet);
     Task HandlePingPacket(IRemoteSource source, CPingPacket packet);
+    Task HandleMovementPacket(IRemoteSource source, CPlayerMovementPacket packet);
+}
+
+public class Player
+{
+    public Guid Id { get; set; }
+    public AvalonConnection Connection { get; set; }
+    public Character Character { get; set; }
 }
 
 public class AvalonGame : IAvalonGame
@@ -20,12 +32,26 @@ public class AvalonGame : IAvalonGame
     private readonly ILogger<AvalonGame> _logger;
     private readonly CancellationTokenSource _cts;
     private readonly IPacketSerializer _packetSerializer;
+    private readonly IAvalonConnectionManager _connectionManager;
+    private readonly IAvalonMovementManager _movementManager;
 
-    public AvalonGame(ILogger<AvalonGame> logger, IPacketSerializer packetSerializer)
+    private readonly ConcurrentDictionary<Guid, Player> _players;
+
+    public AvalonGame(ILogger<AvalonGame> logger, 
+        IPacketSerializer packetSerializer, 
+        IAvalonConnectionManager connectionManager,
+        IAvalonMovementManager movementManager)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _cts = new CancellationTokenSource();
         _packetSerializer = packetSerializer;
+        _connectionManager = connectionManager;
+        _movementManager = movementManager;
+        _players = new ConcurrentDictionary<Guid, Player>();
+        _connectionManager.PlayerConnected += OnPlayerConnected;
+        _connectionManager.PlayerDisconnected += OnPlayerDisconnected;
+        _connectionManager.PlayerReconnected += OnPlayerReconnected;
+        _connectionManager.PlayerTimedOut += OnPlayerTimedOut;
     }
 
     public async void Start()
@@ -55,6 +81,93 @@ public class AvalonGame : IAvalonGame
         }
     }
 
+    private async void OnPlayerConnected(object? sender, AvalonConnection connection)
+    {
+        if (_players.TryAdd(connection.Id, new Player
+        {
+            Id = connection.Id,
+            Connection = connection,
+            Character = new Character
+            {
+                X = 0,
+                Y = 0,
+                VelocityX = 0,
+                VelocityY = 0,
+                ElapsedGameTime = 0
+            }
+        }))
+        {
+            _logger.LogInformation("Player {PlayerId} connected", connection.Id);
+            
+            foreach (var (existingId, existingPlayer) in _players)
+            {
+                if (existingId == connection.Id)
+                {
+                    continue;
+                }
+                // Send to this player, that everyone else is connected
+                await connection.SendAsync(SPlayerConnectedPacket.Create(existingId));
+            }
+            // Send to everyone else, that this player is connected
+            await BroadcastToOthers(connection.Id, SPlayerConnectedPacket.Create(connection.Id));
+        }
+        else
+        {
+            _logger.LogError("Failed to add player {PlayerId}", connection.Id);
+        }
+    }
+    
+    private async void OnPlayerDisconnected(object? sender, AvalonConnection connection)
+    {
+        if (_players.TryRemove(connection.Id, out var player))
+        {
+            _logger.LogInformation("Player {PlayerId} disconnected", connection.Id);
+            
+            var packet = SPlayerDisconnectedPacket.Create(connection.Id);
+            
+            await BroadcastToOthers(connection.Id, packet);
+        }
+        else
+        {
+            _logger.LogError("Failed to remove player {PlayerId}", connection.Id);
+        }
+    }
+    
+    private void OnPlayerTimedOut(object? sender, AvalonConnection connection)
+    {
+        // TODO: Handle player timeout
+    }
+    
+    private void OnPlayerReconnected(object? sender, AvalonConnection connection)
+    {
+        // TODO: Handle player reconnection
+    }
+    
+    private async Task BroadcastToOthers(Guid except, NetworkPacket packet)
+    {
+        foreach (var (id, player) in _players)
+        {
+            if (id == except)
+            {
+                continue;
+            }
+            
+            if (player.Connection.Status != ConnectionStatus.Connected)
+            {
+                continue;
+            }
+ 
+            try
+            {
+                await player.Connection.SendAsync(packet);
+            }
+            catch (Exception)
+            {
+                // ignored
+            }
+        }
+    }
+
     public void Stop()
     {
         _logger.LogInformation("Stopping game loop");
@@ -68,7 +181,32 @@ public class AvalonGame : IAvalonGame
     
     private async Task BroadcastGameState()
     {
-        
+        // Broadcast player positions
+        foreach (var (id, player) in _players)
+        {
+            var packet = SPlayerPositionUpdatePacket.Create(
+                id, 
+                player.Character.X, 
+                player.Character.Y,
+                player.Character.VelocityX,
+                player.Character.VelocityY,
+                player.Character.ElapsedGameTime
+            );
+            await BroadcastToOthers(id, packet);
+        }
+    }
+    
+    public async Task HandleMovementPacket(IRemoteSource source, CPlayerMovementPacket packet)
+    {
+        if (_players.TryGetValue(packet.ClientId, out var player))
+        {
+            player.Character.X = packet.X;
+            player.Character.Y = packet.Y;
+            player.Character.VelocityX = packet.VelocityX;
+            player.Character.VelocityY = packet.VelocityY;
+            player.Character.ElapsedGameTime = packet.ElapsedGameTime;
+            // TODO: player.Character.LastUpdated = DateTime.UtcNow;
+        }
     }
 
     public async Task HandleServerVersionPacket(IRemoteSource source, CRequestServerVersionPacket packet)

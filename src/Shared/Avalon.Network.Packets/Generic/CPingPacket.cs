@@ -6,6 +6,7 @@ namespace Avalon.Network.Packets.Generic;
 public class CPingPacket : Packet
 {
     public static NetworkPacketType PacketType = NetworkPacketType.CMSG_PING;
+    public static NetworkProtocol Protocol = NetworkProtocol.Udp;
     
     [ProtoMember(1)] public long Ticks { get; set; }
     
@@ -26,6 +27,7 @@ public class CPingPacket : Packet
             {
                 Type = PacketType,
                 Flags = NetworkPacketFlags.None,
+                Protocol = Protocol,
                 Version = 0
             },
             Payload = memoryStream.ToArray()

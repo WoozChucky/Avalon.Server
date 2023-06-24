@@ -79,14 +79,22 @@ public class AvalonUdpServer : IAvalonUdpServer
         {
             while (!_cts.IsCancellationRequested)
             {
-                var readBuffer = new byte[1024];
-                var endpoint = new IPEndPoint(IPAddress.Any, 0);
-                var result = await _socket.ReceiveFromAsync(readBuffer, SocketFlags.None, endpoint);
+                try
+                {
+                    var readBuffer = new byte[1024];
+                    var endpoint = new IPEndPoint(IPAddress.Any, 0);
+                    var result = await _socket.ReceiveFromAsync(readBuffer, SocketFlags.None, endpoint);
 
-                var packetBuffer = new byte[result.ReceivedBytes];
-                Array.Copy(readBuffer, packetBuffer, result.ReceivedBytes);
+                    var packetBuffer = new byte[result.ReceivedBytes];
+                    Array.Copy(readBuffer, packetBuffer, result.ReceivedBytes);
 
-                OnPacketReceived?.Invoke(endpoint, new UdpClientPacket(result.RemoteEndPoint, packetBuffer, _socket.SendToAsync));
+                    OnPacketReceived?.Invoke(endpoint, new UdpClientPacket(result.RemoteEndPoint, packetBuffer, _socket.SendToAsync));
+                }
+                catch (Exception e)
+                {
+                    // _logger.LogError(e, "Error while receiving udp packet");
+                    // TODO: When a client disconnects, we get an exception here and it doesnt stop throwing, we should handle this ASAP
+                }
             }
         }
         catch (OperationCanceledException)
