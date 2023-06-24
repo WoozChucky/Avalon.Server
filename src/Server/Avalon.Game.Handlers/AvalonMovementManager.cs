@@ -16,7 +16,7 @@ public interface IAvalonMovementManager
     void RemovePlayer(EndPoint endpoint);
 }
 
-class Character
+public class Character
 {
     public float X { get; set; }
     public float Y { get; set; }
@@ -51,19 +51,7 @@ public class AvalonMovementManager : IAvalonMovementManager
 
         Task.Run(BroadcastPositions);
     }
-    
-    public async Task HandleJumpPacket(IRemoteSource source, NetworkPacket packet)
-    {
-        var client = source.AsUdpClient();
-        
-        _logger.LogDebug("Handling jump packet from {EndPoint}", client.EndPoint);
 
-        var bytesSent = await client.SendResponseAsync(client.Buffer);
-        
-        _logger.LogDebug("Sent {BytesSent} bytes to {EndPoint}", bytesSent, client.EndPoint);
-    }
-
-    
     public async Task HandleMovementPacket(IRemoteSource source, CPlayerMovementPacket packet)
     {
         if (_clients.TryGetValue(packet.ClientId, out var client))

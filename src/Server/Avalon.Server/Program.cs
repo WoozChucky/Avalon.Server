@@ -121,6 +121,7 @@ namespace Avalon.Server
                 .AddSingleton<IMetricsManager, MetricsManager>()
                 .AddSingleton<IAvalonTcpServer, AvalonTcpServer>()
                 .AddSingleton<IAvalonUdpServer, AvalonUdpServer>()
+                .AddSingleton<IAvalonConnectionManager, AvalonConnectionManager>()
                 .AddSingleton<IPacketDeserializer, NetworkPacketDeserializer>()
                 .AddSingleton<IPacketSerializer, NetworkPacketSerializer>()
                 .AddSingleton<IPacketRegistry, PacketRegistry>()

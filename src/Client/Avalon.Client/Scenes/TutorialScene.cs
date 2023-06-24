@@ -76,7 +76,7 @@ public class TutorialScene : Scene
         _hero.SetBounds(_map.MapSize, new Point(_map.TileWidth, _map.TileHeight));
 
         Timer t = new Timer();
-        t.Interval = 50; // 20 updates per second, could try 10 updates which would be 50 milliseconds
+        t.Interval = 50; // 20 updates per seconds which would be 50 milliseconds interval (1000/20 = 50)
         t.AutoReset = true;
         t.Elapsed += (sender, args) =>
         {

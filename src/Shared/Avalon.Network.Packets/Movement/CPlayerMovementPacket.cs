@@ -6,6 +6,7 @@ namespace Avalon.Network.Packets.Movement;
 public class CPlayerMovementPacket : Packet
 {
     public static NetworkPacketType PacketType = NetworkPacketType.CMSG_MOVEMENT;
+    public static NetworkProtocol Protocol = NetworkProtocol.Udp;
     
     [ProtoMember(1)] public Guid ClientId { get; set; }
     [ProtoMember(2)] public float ElapsedGameTime { get; set; }
@@ -36,6 +37,7 @@ public class CPlayerMovementPacket : Packet
             {
                 Type = PacketType,
                 Flags = NetworkPacketFlags.None,
+                Protocol = Protocol,
                 Version = 0
             },
             Payload = memoryStream.ToArray()

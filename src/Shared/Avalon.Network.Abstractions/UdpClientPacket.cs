@@ -1,10 +1,12 @@
 using System.Net;
 using System.Net.Sockets;
+using ProtoBuf;
 
 namespace Avalon.Network.Abstractions;
 
 public class UdpClientPacket : IRemoteSource
 {
+    public string RemoteAddress => EndPoint.ToString();
     public EndPoint EndPoint { get; }
     public byte[] Buffer { get; }
     public bool Authenticated { get; }
@@ -31,5 +33,16 @@ public class UdpClientPacket : IRemoteSource
             return 0;
         }
         
+    }
+
+    public async Task SendAsync<T>(T packet) where T : class
+    {
+        await using var stream = new MemoryStream();
+        Serializer.SerializeWithLengthPrefix(stream, packet, PrefixStyle.Base128);
+        await _responseTask.Invoke(stream.ToArray(), SocketFlags.None, EndPoint);
+    }
+
+    public void Dispose()
+    {
     }
 }

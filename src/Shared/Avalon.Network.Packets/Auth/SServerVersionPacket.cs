@@ -6,6 +6,8 @@ namespace Avalon.Network.Packets.Auth;
 public class SServerVersionPacket : Packet
 {
     public static NetworkPacketType PacketType = NetworkPacketType.SMSG_SERVER_VERSION;
+    public static NetworkProtocol Protocol = NetworkProtocol.Tcp;
+    
     [ProtoMember(1)] public int Major { get; set; }
     [ProtoMember(2)] public int Minor { get; set; }
     [ProtoMember(3)] public int Build { get; set; }
@@ -31,6 +33,7 @@ public class SServerVersionPacket : Packet
             {
                 Type = PacketType,
                 Flags = NetworkPacketFlags.None,
+                Protocol = Protocol,
                 Version = 0
             },
             Payload = memoryStream.ToArray()

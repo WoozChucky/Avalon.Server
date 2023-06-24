@@ -6,6 +6,7 @@ namespace Avalon.Network.Packets.Movement;
 public class SPlayerPositionUpdatePacket : Packet
 {
     public static NetworkPacketType PacketType = NetworkPacketType.SMSG_PLAYER_POSITION_UPDATE;
+    public static NetworkProtocol Protocol = NetworkProtocol.Udp;
     
     [ProtoMember(1)] public Guid ClientId { get; set; }
     [ProtoMember(2)] public float PositionX { get; set; }
@@ -36,6 +37,7 @@ public class SPlayerPositionUpdatePacket : Packet
             {
                 Type = PacketType,
                 Flags = NetworkPacketFlags.None,
+                Protocol = Protocol,
                 Version = 0
             },
             Payload = memoryStream.ToArray()

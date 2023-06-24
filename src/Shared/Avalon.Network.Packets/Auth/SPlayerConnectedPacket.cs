@@ -6,6 +6,7 @@ namespace Avalon.Network.Packets.Auth;
 public class SPlayerConnectedPacket : Packet
 {
     public static NetworkPacketType PacketType = NetworkPacketType.SMSG_PLAYER_CONNECTED;
+    private const NetworkProtocol Protocol = NetworkProtocol.Tcp;
     [ProtoMember(1)] public Guid ClientId { get; set; }
     
     public static NetworkPacket Create(Guid clientId)
@@ -25,6 +26,7 @@ public class SPlayerConnectedPacket : Packet
             {
                 Type = PacketType,
                 Flags = NetworkPacketFlags.None,
+                Protocol = Protocol,
                 Version = 0
             },
             Payload = memoryStream.ToArray()

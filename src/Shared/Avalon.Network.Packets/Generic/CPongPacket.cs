@@ -3,19 +3,23 @@ using ProtoBuf;
 namespace Avalon.Network.Packets.Generic;
 
 [ProtoContract]
-public class SPongPacket : Packet
+public class CPongPacket : Packet
 {
-    public static NetworkPacketType PacketType = NetworkPacketType.SMSG_PONG;
+    public static NetworkPacketType PacketType = NetworkPacketType.CMSG_PONG;
     public static NetworkProtocol Protocol = NetworkProtocol.Udp;
     
-    [ProtoMember(1)] public long Ticks { get; set; }
+    [ProtoMember(1)] public long SequenceNumber { get; set; }
+    [ProtoMember(2)] public Guid ClientId { get; set; }
+    [ProtoMember(3)] public long Ticks { get; set; }
     
-    public static NetworkPacket Create(long? ticks = null)
+    public static NetworkPacket Create(long sequenceNumber, Guid clientId, long? ticks = null)
     {
         using var memoryStream = new MemoryStream();
         
-        var pingPacket = new SPongPacket()
+        var pingPacket = new CPongPacket()
         {
+            SequenceNumber = sequenceNumber,
+            ClientId = clientId,
             Ticks = ticks ?? DateTime.UtcNow.Ticks
         };
         

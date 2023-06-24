@@ -6,4 +6,5 @@ namespace Avalon.Network.Packets.Crypto;
 public class CRequestCryptoKeyPacket : Packet
 {
     public static NetworkPacketType PacketType = NetworkPacketType.CMSG_REQUEST_ENCRYPTION_KEY;
+    public static NetworkProtocol Protocol = NetworkProtocol.Tcp;
 }

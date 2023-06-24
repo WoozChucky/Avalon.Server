@@ -165,6 +165,21 @@ public class UdpClient : IDisposable
                             LatencyUpdated?.Invoke(this, rtt);
                             break;
                         }
+                        case NetworkPacketType.SMSG_PING:
+                        {
+                            var pingPacket = _packetDeserializer.Deserialize<SPingPacket>(packet.Header.Type,
+                                packet.Payload);
+                            
+                            var responsePacket = CPongPacket.Create(pingPacket.SequenceNumber, Globals.ClientId, pingPacket.Ticks);
+                            
+                            await using var buffer = new MemoryStream();
+                            
+                            await _packetSerializer.SerializeToNetwork(buffer, responsePacket);
+            
+                            await socket.SendToAsync(buffer.ToArray(), SocketFlags.None, serverEndpoint);
+                            
+                            break;
+                        }
                     }
                 }
                 catch (Exception e)

@@ -1,8 +1,9 @@
 namespace Avalon.Network.Abstractions;
 
-public interface IRemoteSource
+public interface IRemoteSource : IDisposable
 {
-    
+    string RemoteAddress { get; }
+    Task SendAsync<T>(T packet) where T : class;
 }
 
 public static class Extensions
