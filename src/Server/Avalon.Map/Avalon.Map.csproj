@@ -9,4 +9,8 @@
       <PackageReference Include="TiledCS" Version="3.3.3" />
     </ItemGroup>
 
+    <ItemGroup>
+      <ProjectReference Include="..\..\Shared\Avalon.Common\Avalon.Common.csproj" />
+    </ItemGroup>
+
 </Project>
