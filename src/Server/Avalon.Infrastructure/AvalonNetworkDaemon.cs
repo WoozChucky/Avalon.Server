@@ -33,7 +33,6 @@ public class AvalonNetworkDaemon : IAvalonNetworkDaemon
     private readonly IPacketSerializer _packetSerializer;
     private readonly IPacketRegistry _packetRegistry;
     private readonly IAvalonGame _game;
-    private readonly IAvalonMovementManager _movementManager;
     private readonly IAvalonConnectionManager _connectionManager;
 
     public AvalonNetworkDaemon(
@@ -45,7 +44,6 @@ public class AvalonNetworkDaemon : IAvalonNetworkDaemon
         IPacketSerializer packetSerializer,
         IPacketRegistry packetRegistry,
         IAvalonGame game,
-        IAvalonMovementManager movementManager,
         IAvalonConnectionManager connectionManager)
     {
         _logger = logger;
@@ -55,7 +53,6 @@ public class AvalonNetworkDaemon : IAvalonNetworkDaemon
         _packetSerializer = packetSerializer;
         _packetRegistry = packetRegistry;
         _game = game;
-        _movementManager = movementManager;
         _connectionManager = connectionManager;
 
         _udpServer = udpServer;
@@ -94,47 +91,9 @@ public class AvalonNetworkDaemon : IAvalonNetworkDaemon
         await _tcpServer.StopAsync().ConfigureAwait(false);
     }
     
-    /*
-    private async Task Handler(IRemoteSource source, NetworkPacket packet)
-    {
-        // Receive a response from the server
-        using var messageStream = new MemoryStream();
-        
-        var client = (TcpClient) source;
-        
-        var encryptionKeyPacket = _packetDeserializer.Deserialize<CRequestCryptoKeyPacket>(
-            NetworkPacketType.CMSG_REQUEST_ENCRYPTION_KEY, 
-            packet.Payload
-        );
-        
-        if (encryptionKeyPacket != null)
-        {
-            var sCryptoKeyPacket = new SCryptoKeyPacket
-            {
-                Key = "123456789"u8.ToArray()
-            };
-
-            await _packetSerializer.Serialize(messageStream, sCryptoKeyPacket);
-                                
-            var resultingPacket = new NetworkPacket
-            {
-                Header = new NetworkPacketHeader
-                {
-                    Type = NetworkPacketType.SMSG_ENCRYPTION_KEY,
-                    Flags = NetworkPacketFlags.None,
-                    Version = 0
-                },
-                Payload = messageStream.ToArray()
-            };
-            await _packetSerializer.SerializeToNetwork(client.Stream, resultingPacket);
-        }
-    }
-    */
-    
     private void TcpServerOnClientConnected(object? sender, TcpClient client)
     {
-        // _logger.LogInformation("Client connected from {EndPoint}", client.Socket.RemoteEndPoint.ToString());
-        
+
         Task.Run(async () =>
         {
             try
