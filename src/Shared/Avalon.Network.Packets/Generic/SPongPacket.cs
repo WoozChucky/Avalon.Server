@@ -1,23 +1,24 @@
 using ProtoBuf;
 
-namespace Avalon.Network.Packets.Auth;
+namespace Avalon.Network.Packets.Generic;
 
 [ProtoContract]
-public class CWelcomePacket : Packet
+public class SPongPacket : Packet
 {
-    public static NetworkPacketType PacketType = NetworkPacketType.CMSG_WELCOME;
-    [ProtoMember(1)] public Guid ClientId { get; set; }
+    public static NetworkPacketType PacketType = NetworkPacketType.SMSG_PONG;
     
-    public static NetworkPacket Create(Guid clientId)
+    [ProtoMember(1)] public long Ticks { get; set; }
+    
+    public static NetworkPacket Create(long? ticks = null)
     {
         using var memoryStream = new MemoryStream();
         
-        var welcomePacket = new CWelcomePacket()
+        var pingPacket = new SPongPacket()
         {
-            ClientId = clientId
+            Ticks = ticks ?? DateTime.UtcNow.Ticks
         };
         
-        Serializer.Serialize(memoryStream, welcomePacket);
+        Serializer.Serialize(memoryStream, pingPacket);
         
         return new NetworkPacket
         {

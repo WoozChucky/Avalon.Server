@@ -91,7 +91,7 @@ namespace Avalon.Client.Tester
             {
                 Header = new NetworkPacketHeader
                 {
-                    Type = NetworkPacketType.CMSG_JUMP,
+                    Type = NetworkPacketType.CMSG_WELCOME,
                     Flags = NetworkPacketFlags.ClearText,
                     Version = 0
                 },

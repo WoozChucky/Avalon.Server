@@ -3,7 +3,7 @@ using ProtoBuf;
 namespace Avalon.Network.Packets.Auth;
 
 [ProtoContract]
-public class SPlayerConnectedPacket
+public class SPlayerConnectedPacket : Packet
 {
     public static NetworkPacketType PacketType = NetworkPacketType.SMSG_PLAYER_CONNECTED;
     [ProtoMember(1)] public Guid ClientId { get; set; }

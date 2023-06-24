@@ -3,7 +3,6 @@ using System.Net;
 using Avalon.Network.Abstractions;
 using Avalon.Network.Packets;
 using Avalon.Network.Packets.Auth;
-using Avalon.Network.Packets.Deserialization;
 using Avalon.Network.Packets.Movement;
 using Avalon.Network.Packets.Serialization;
 using Microsoft.Extensions.Logging;
@@ -12,9 +11,8 @@ namespace Avalon.Game.Handlers;
 
 public interface IAvalonMovementManager
 {
-    Task HandleJumpPacket(IRemoteSource source, NetworkPacket packet);
-    Task HandleMovementPacket(IRemoteSource source, NetworkPacket packet);
-    Task HandleWelcomePacket(IRemoteSource source, NetworkPacket packet);
+    Task HandleMovementPacket(IRemoteSource source, CPlayerMovementPacket packet);
+    Task HandleWelcomePacket(IRemoteSource source, CWelcomePacket packet);
     void RemovePlayer(EndPoint endpoint);
 }
 
@@ -39,18 +37,15 @@ public class AvalonMovementManager : IAvalonMovementManager
 {
     private readonly ILogger<AvalonMovementManager> _logger;
     private readonly CancellationTokenSource _cts;
-    private readonly IPacketDeserializer _packetDeserializer;
     private readonly IPacketSerializer _packetSerializer;
     private readonly ConcurrentDictionary<Guid, Client> _clients;
 
     public AvalonMovementManager(ILogger<AvalonMovementManager> logger, 
-                                 CancellationTokenSource cts, 
-                                 IPacketDeserializer packetDeserializer,
+                                 CancellationTokenSource cts,
                                  IPacketSerializer packetSerializer)
     {
         _logger = logger;
         _cts = cts;
-        _packetDeserializer = packetDeserializer;
         _packetSerializer = packetSerializer;
         _clients = new ConcurrentDictionary<Guid, Client>();
 
@@ -68,44 +63,29 @@ public class AvalonMovementManager : IAvalonMovementManager
         _logger.LogDebug("Sent {BytesSent} bytes to {EndPoint}", bytesSent, client.EndPoint);
     }
 
-    public async Task HandleMovementPacket(IRemoteSource source, NetworkPacket packet)
+    
+    public async Task HandleMovementPacket(IRemoteSource source, CPlayerMovementPacket packet)
     {
-        //var client = source.AsTcpClient();
-        
-        //_logger.LogDebug("Handling movement packet from {EndPoint}", client.Socket.RemoteEndPoint);
-
-        var movementPacket = _packetDeserializer.Deserialize<CPlayerMovementPacket>(
-            packet.Header.Type, 
-            packet.Payload
-        );
-
-        if (_clients.TryGetValue(movementPacket.ClientId, out var client))
+        if (_clients.TryGetValue(packet.ClientId, out var client))
         {
-            client.Character.X = movementPacket.X;
-            client.Character.Y = movementPacket.Y;
-            client.Character.VelocityX = movementPacket.VelocityX;
-            client.Character.VelocityY = movementPacket.VelocityY;
-            client.Character.ElapsedGameTime = movementPacket.ElapsedGameTime;
+            client.Character.X = packet.X;
+            client.Character.Y = packet.Y;
+            client.Character.VelocityX = packet.VelocityX;
+            client.Character.VelocityY = packet.VelocityY;
+            client.Character.ElapsedGameTime = packet.ElapsedGameTime;
         }
-        
-        //_logger.LogDebug("Movement packet: {@MovementPacket}", movementPacket);
     }
 
-    public async Task HandleWelcomePacket(IRemoteSource source, NetworkPacket packet)
+    public async Task HandleWelcomePacket(IRemoteSource source, CWelcomePacket packet)
     {
-        var welcomePacket = _packetDeserializer.Deserialize<CWelcomePacket>(
-            packet.Header.Type, 
-            packet.Payload
-        );
-        
         if (source is UdpClientPacket udpClient)
         {
             _logger.LogDebug("Handling welcome UDP packet from {EndPoint}", udpClient.EndPoint);
             
-            _clients.AddOrUpdate(welcomePacket.ClientId, guid => new Client
+            _clients.AddOrUpdate(packet.ClientId, guid => new Client
             {
                 Character = new Character(),
-                ClientId = welcomePacket.ClientId,
+                ClientId = packet.ClientId,
                 TcpConnection = null,
                 UdpConnection = udpClient
             }, (guid, existingClient) =>
@@ -118,10 +98,10 @@ public class AvalonMovementManager : IAvalonMovementManager
         {
             _logger.LogDebug("Handling welcome TCP packet from {EndPoint}", tcpClient.Socket.RemoteEndPoint);
             
-            _clients.AddOrUpdate(welcomePacket.ClientId, guid => new Client
+            _clients.AddOrUpdate(packet.ClientId, guid => new Client
             {
                 Character = new Character(),
-                ClientId = welcomePacket.ClientId,
+                ClientId = packet.ClientId,
                 TcpConnection = tcpClient,
                 UdpConnection = null
             }, (guid, existingClient) =>
@@ -132,14 +112,14 @@ public class AvalonMovementManager : IAvalonMovementManager
 
             foreach (var (id, client) in _clients)
             {
-                if (id == welcomePacket.ClientId)
+                if (id == packet.ClientId)
                 {
                     continue;
                 }
-                await Send(welcomePacket.ClientId, SPlayerConnectedPacket.Create(id));
+                await Send(packet.ClientId, SPlayerConnectedPacket.Create(id));
             }
             
-            await BroadcastToOthers(true, welcomePacket.ClientId, SPlayerConnectedPacket.Create(welcomePacket.ClientId));
+            await BroadcastToOthers(true, packet.ClientId, SPlayerConnectedPacket.Create(packet.ClientId));
         }
     }
 
@@ -232,7 +212,7 @@ public class AvalonMovementManager : IAvalonMovementManager
                         continue;
                     }
                 
-                    var ms = new MemoryStream();
+                    await using var ms = new MemoryStream();
                     await _packetSerializer.SerializeToNetwork(ms, packet);
                     await client.UdpConnection.SendResponseAsync(ms.ToArray());
                 }
@@ -267,9 +247,9 @@ public class AvalonMovementManager : IAvalonMovementManager
                 }
             }
         }
-        catch (OperationCanceledException e)
+        catch (OperationCanceledException)
         {
-            _logger.LogWarning(e, "Broadcasting positions cancelled", e);
+            // ignored
         }
         catch (Exception e)
         {

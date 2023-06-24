@@ -1,4 +1,5 @@
-﻿using Avalon.Metrics;
+﻿using Avalon.Game;
+using Avalon.Metrics;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.Infrastructure;
@@ -15,23 +16,26 @@ public class AvalonInfrastructure : IAvalonInfrastructure
     private readonly CancellationTokenSource _cts;
     private readonly ILogger<AvalonInfrastructure> _logger;
     private readonly IAvalonNetworkDaemon _networkDaemon;
+    private readonly IAvalonGame _gameServer;
     private readonly IMetricsManager _metricsManager;
 
     public AvalonInfrastructure(
         CancellationTokenSource cts,
         ILogger<AvalonInfrastructure> logger,
         IAvalonNetworkDaemon networkDaemon,
+        IAvalonGame gameServer,
         IMetricsManager metricsManager)
     {
         _cts = cts;
         _logger = logger;
         _networkDaemon = networkDaemon;
-        
+        _gameServer = gameServer;
         _metricsManager = metricsManager;
     }
 
     public void Start()
     {
+        _gameServer.Start();
         _networkDaemon.Start();
         
         _metricsManager.QueueEvent("AvalonInfrastructureStatus", "Online");
@@ -39,6 +43,7 @@ public class AvalonInfrastructure : IAvalonInfrastructure
 
     public void Stop()
     {
+        _gameServer.Stop();
         _networkDaemon.Stop();
         
         _metricsManager.Stop();

@@ -12,7 +12,7 @@ public class Hero : IDisposable
     private const int FrameCount = 3;
     private const float FrameTime = 0.2f;
     
-    private const float SPEED = 100f;
+    private const float SPEED = 80f;
     
     public Vector2 Position;
 

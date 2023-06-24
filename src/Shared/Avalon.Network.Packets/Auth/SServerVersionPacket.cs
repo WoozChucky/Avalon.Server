@@ -3,7 +3,7 @@ using ProtoBuf;
 namespace Avalon.Network.Packets.Auth;
 
 [ProtoContract]
-public class SServerVersionPacket
+public class SServerVersionPacket : Packet
 {
     public static NetworkPacketType PacketType = NetworkPacketType.SMSG_SERVER_VERSION;
     [ProtoMember(1)] public int Major { get; set; }
