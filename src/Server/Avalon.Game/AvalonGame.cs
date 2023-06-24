@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Reflection;
+using Avalon.Game.Entities;
 using Avalon.Game.Handlers;
 using Avalon.Network.Abstractions;
 using Avalon.Network.Packets;
@@ -20,11 +21,23 @@ public interface IAvalonGame
     Task HandleMovementPacket(IRemoteSource source, CPlayerMovementPacket packet);
 }
 
-public class Player
+public class Player : IEntity
 {
     public Guid Id { get; set; }
-    public AvalonConnection Connection { get; set; }
-    public Character Character { get; set; }
+    public AvalonConnection Connection { get; private set; }
+    public Character Character { get; private set; }
+    
+    public Player(AvalonConnection connection, Character character)
+    {
+        Id = connection.Id;
+        Connection = connection;
+        Character = character;
+    }
+    
+    public void Update(TimeSpan deltaTime)
+    {
+        
+    }
 }
 
 public class AvalonGame : IAvalonGame
@@ -36,6 +49,7 @@ public class AvalonGame : IAvalonGame
     private readonly IAvalonMovementManager _movementManager;
 
     private readonly ConcurrentDictionary<Guid, Player> _players;
+    private readonly ConcurrentDictionary<Guid, IEntity> _npcs;
 
     public AvalonGame(ILogger<AvalonGame> logger, 
         IPacketSerializer packetSerializer, 
@@ -48,6 +62,7 @@ public class AvalonGame : IAvalonGame
         _connectionManager = connectionManager;
         _movementManager = movementManager;
         _players = new ConcurrentDictionary<Guid, Player>();
+        _npcs = new ConcurrentDictionary<Guid, IEntity>();
         _connectionManager.PlayerConnected += OnPlayerConnected;
         _connectionManager.PlayerDisconnected += OnPlayerDisconnected;
         _connectionManager.PlayerReconnected += OnPlayerReconnected;
@@ -83,19 +98,14 @@ public class AvalonGame : IAvalonGame
 
     private async void OnPlayerConnected(object? sender, AvalonConnection connection)
     {
-        if (_players.TryAdd(connection.Id, new Player
-        {
-            Id = connection.Id,
-            Connection = connection,
-            Character = new Character
+        if (_players.TryAdd(connection.Id, new Player(connection, new Character
             {
                 X = 0,
                 Y = 0,
                 VelocityX = 0,
                 VelocityY = 0,
                 ElapsedGameTime = 0
-            }
-        }))
+            })))
         {
             _logger.LogInformation("Player {PlayerId} connected", connection.Id);
             
@@ -145,18 +155,12 @@ public class AvalonGame : IAvalonGame
     
     private async Task BroadcastToOthers(Guid except, NetworkPacket packet)
     {
-        foreach (var (id, player) in _players)
+        var availablePlayers = _players.Values.Where(
+            p => p.Id != except
+            && p.Connection.Status != ConnectionStatus.Connected).ToList();
+        
+        foreach (var player in availablePlayers)
         {
-            if (id == except)
-            {
-                continue;
-            }
-            
-            if (player.Connection.Status != ConnectionStatus.Connected)
-            {
-                continue;
-            }
- 
             try
             {
                 await player.Connection.SendAsync(packet);
@@ -176,7 +180,10 @@ public class AvalonGame : IAvalonGame
 
     private void Update(TimeSpan deltaTime)
     {
-        
+        foreach (var entity in _npcs.Values)
+        {
+            entity.Update(deltaTime);
+        }
     }
     
     private async Task BroadcastGameState()

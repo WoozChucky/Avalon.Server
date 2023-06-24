@@ -7,133 +7,16 @@ using Microsoft.Extensions.Logging;
 
 namespace Avalon.Game;
 
-public enum ConnectionStatus
-{
-    Disconnected,
-    Connecting,
-    Connected,
-    TimedOut,
-}
-
-public class AvalonConnection : IDisposable
-{
-    // Since this connection reference will be shared against multiple threads, we need to make sure
-    // that the properties are thread-safe. We can do this by making them read-only and setting them
-    // in the constructor. But also when we need to update them, we need to make sure that we are
-    // using the Interlocked class to update them or the Volatile methods. I think ??
-    
-    public Guid Id { get; private set; }
-    public IRemoteSource? Udp { get; private set; }
-    public IRemoteSource? Tcp { get; private set; }
-    public long RoundTripTime { get; set; } // in milliseconds
-    public ConnectionStatus Status { get; set; }
-    public DateTime LastUpdateAt { get; set; } = DateTime.UtcNow;
-
-    private readonly ConcurrentQueue<NetworkPacket> _packetQueue;
-    
-    private long _lastTicks;
-    
-    private long _sequenceNumber = 0;
-    
-    public AvalonConnection(Guid id)
-    {
-        Id = id;
-        _packetQueue = new ConcurrentQueue<NetworkPacket>();
-        Status = ConnectionStatus.Connecting;
-    }
-    
-    public async Task PingAsync()
-    {
-        _lastTicks = DateTime.UtcNow.Ticks;
-        var sequenceNumber = Interlocked.Increment(ref _sequenceNumber);
-        var packet = SPingPacket.Create(sequenceNumber, _lastTicks);
-        await SendAsync(packet);
-    }
-    
-    public void OnPong(long sequenceNumber, long ticks)
-    {
-        if (sequenceNumber == _sequenceNumber)
-        {
-            LastUpdateAt = DateTime.UtcNow;
-            var now = DateTime.UtcNow.Ticks;
-            RoundTripTime = (now - ticks) / TimeSpan.TicksPerMillisecond;
-            Console.WriteLine($"Round trip time: {RoundTripTime}ms");
-        }
-    }
-
-    public async Task SendAsync(NetworkPacket packet)
-    {
-        // We might have lost connection which means the SendAsync will throw,
-        // in this case, we should store the packet in a queue and then send it
-        // once we have reconnected (handled by ping/pong or if could not reconnect in time).
-        
-        try
-        {
-            switch (packet.Header.Protocol)
-            {
-                case NetworkProtocol.Tcp:
-                    Tcp?.SendAsync(packet);
-                    break;
-                case NetworkProtocol.Udp:
-                    Udp?.SendAsync(packet);
-                    break;
-                case NetworkProtocol.Both:
-                    Tcp?.SendAsync(packet);
-                    Udp?.SendAsync(packet);
-                    break;
-                default:
-                case NetworkProtocol.None:
-                    throw new InvalidOperationException("Cannot send a packet with no protocol specified.");
-            }
-        }
-        catch (IOException e)
-        {
-            _packetQueue.Enqueue(packet);
-        }
-    }
-    
-    public async Task SendQueuedPacketsAsync()
-    {
-        while (_packetQueue.Count > 0)
-        {
-            if (_packetQueue.TryDequeue(out var packet))
-            {
-                await SendAsync(packet);
-            }
-        }
-    }
-    
-    internal void SetUdp(UdpClientPacket udp)
-    {
-        Udp = udp;
-        if (Tcp != null)
-            Status = ConnectionStatus.Connected;
-    }
-    
-    internal void SetTcp(TcpClient tcp)
-    {
-        Tcp = tcp;
-        if (Udp != null)
-            Status = ConnectionStatus.Connected;
-    }
-
-    public void Dispose()
-    {
-        Tcp?.Dispose();
-        Udp?.Dispose();
-    }
-}
-
 public interface IAvalonConnectionManager : IDisposable
 {
     void Start();
     
     void Stop();
     
-    event PlayerConnectedHandler PlayerConnected;
-    event PlayerDisconnectedHandler PlayerDisconnected;
-    event PlayerTimedOutHandler PlayerTimedOut;
-    event PlayerReconnectedHandler PlayerReconnected;
+    event PlayerConnectedHandler? PlayerConnected;
+    event PlayerDisconnectedHandler? PlayerDisconnected;
+    event PlayerTimedOutHandler? PlayerTimedOut;
+    event PlayerReconnectedHandler? PlayerReconnected;
     
     Task AddConnection(IRemoteSource source, CWelcomePacket packet);
     Task HandlePongPacket(IRemoteSource source, CPongPacket packet);
@@ -146,14 +29,22 @@ public delegate void PlayerReconnectedHandler(object? sender, AvalonConnection c
 
 public class AvalonConnectionManager : IAvalonConnectionManager
 {
-    public event PlayerConnectedHandler PlayerConnected;
-    public event PlayerDisconnectedHandler PlayerDisconnected;
-    public event PlayerTimedOutHandler PlayerTimedOut;
-    public event PlayerReconnectedHandler PlayerReconnected;
+    public event PlayerConnectedHandler? PlayerConnected;
+    public event PlayerDisconnectedHandler? PlayerDisconnected;
+    public event PlayerTimedOutHandler? PlayerTimedOut;
+    public event PlayerReconnectedHandler? PlayerReconnected;
     
     private readonly ILogger<AvalonConnectionManager> _logger;
     private readonly ConcurrentDictionary<Guid, AvalonConnection> _connections;
     private readonly CancellationTokenSource _cancellationTokenSource;
+    
+    private const int MonitorInterval = 100;
+    private const int PingInterval = 2500;
+    private const int PingTimeoutThreshold = 10000;
+    private const int PingTimeoutThresholdInSec = PingTimeoutThreshold / 1000;
+    private const int PingDisconnectThreshold = 30000;
+    private const int PingDisconnectThresholdInSec = PingDisconnectThreshold / 1000;
+    
 
     public AvalonConnectionManager(ILogger<AvalonConnectionManager> logger)
     {
@@ -166,6 +57,8 @@ public class AvalonConnectionManager : IAvalonConnectionManager
     {
         Task.Run(StartMonitoringConnections);
         Task.Run(StartPingPongWorker);
+        
+        _logger.LogInformation("Connection manager started");
     }
 
     public void Stop()
@@ -180,40 +73,64 @@ public class AvalonConnectionManager : IAvalonConnectionManager
             while (!_cancellationTokenSource.IsCancellationRequested)
             {
                 // implement logic to check for timed out connections
-                await Task.Delay(100, _cancellationTokenSource.Token);
+                await Task.Delay(MonitorInterval, _cancellationTokenSource.Token);
                 
                 foreach (var connection in _connections.Values)
                 {
                     if (connection.Status == ConnectionStatus.Connected)
                     {
                         // check if the connection has timed out
-                        if (connection.RoundTripTime > 10000 || DateTime.UtcNow - connection.LastUpdateAt > TimeSpan.FromSeconds(10))
+                        if (connection.RoundTripTime > PingTimeoutThreshold || DateTime.UtcNow - connection.LastUpdateAt > TimeSpan.FromSeconds(PingTimeoutThresholdInSec))
                         {
                             _logger.LogInformation("Client {Id} has timed out", connection.Id);
                             connection.Status = ConnectionStatus.TimedOut;
                             connection.LastUpdateAt = DateTime.UtcNow;
-                            connection.RoundTripTime = 10000;
-                            PlayerTimedOut?.Invoke(this, connection);
+                            connection.RoundTripTime = PingTimeoutThreshold;
+                            try
+                            {
+                                PlayerTimedOut?.Invoke(this, connection);
+                            }
+                            catch (Exception e)
+                            {
+                                _logger.LogWarning(e,"Handler of PlayerTimedOut event for client {Id} threw.", connection.Id);
+                            }
                         }
                     }
                     else if (connection.Status == ConnectionStatus.TimedOut)
                     {
                         // check if the connection has reconnected
-                        if (connection.RoundTripTime < 10000 && DateTime.UtcNow - connection.LastUpdateAt < TimeSpan.FromSeconds(10))
+                        if (connection.RoundTripTime < PingTimeoutThreshold && DateTime.UtcNow - connection.LastUpdateAt < TimeSpan.FromSeconds(PingTimeoutThresholdInSec))
                         {
                             _logger.LogInformation("Client {Id} has reconnected", connection.Id);
                             connection.Status = ConnectionStatus.Connected;
                             connection.LastUpdateAt = DateTime.UtcNow;
-                            PlayerReconnected?.Invoke(this, connection);
                             
+                            try
+                            {
+                                PlayerReconnected?.Invoke(this, connection);
+                            }
+                            catch (Exception e)
+                            {
+                                _logger.LogWarning(e,"Handler of PlayerReconnected event for client {Id} threw.", connection.Id);
+                            }
+                            
+                            // Resend all queued packets
                             await connection.SendQueuedPacketsAsync();
                         }
-                        else if (connection.RoundTripTime > 30000 || DateTime.UtcNow - connection.LastUpdateAt > TimeSpan.FromSeconds(30))
+                        else if (connection.RoundTripTime > PingDisconnectThreshold || DateTime.UtcNow - connection.LastUpdateAt > TimeSpan.FromSeconds(PingDisconnectThresholdInSec))
                         {
                             _logger.LogInformation("Client {Id} has disconnected", connection.Id);
                             connection.Status = ConnectionStatus.Disconnected;
-                            PlayerDisconnected?.Invoke(this, connection);
                             
+                            try
+                            {
+                                PlayerDisconnected?.Invoke(this, connection);
+                            }
+                            catch (Exception e)
+                            {
+                                _logger.LogWarning(e,"Handler of PlayerDisconnected event for client {Id} threw.", connection.Id);
+                            }
+
                             //TODO: this might throw because we are iterating over the collection
                             _connections.TryRemove(connection.Id, out _); 
                         }
@@ -234,7 +151,7 @@ public class AvalonConnectionManager : IAvalonConnectionManager
             while (!_cancellationTokenSource.IsCancellationRequested)
             {
                 // implement logic send ping packets to all connected clients
-                await Task.Delay(2500, _cancellationTokenSource.Token);
+                await Task.Delay(PingInterval, _cancellationTokenSource.Token);
                 
                 foreach (var connection in _connections.Values)
                 {
@@ -247,7 +164,7 @@ public class AvalonConnectionManager : IAvalonConnectionManager
                         }
                         catch (Exception e)
                         {
-                            _logger.LogWarning("Failed to send ping packet to client {Id}", connection.Id);
+                            _logger.LogWarning(e, "Failed to send ping packet to client {Id}", connection.Id);
                         }
                     }
                 }
@@ -285,7 +202,14 @@ public class AvalonConnectionManager : IAvalonConnectionManager
             if (connection.Status == ConnectionStatus.Connected)
             {
                 _logger.LogInformation("Client {Id} has connected from {Ip}", connection.Id, connection.Tcp?.RemoteAddress);
-                PlayerConnected?.Invoke(this, connection);
+                try
+                {
+                    PlayerConnected?.Invoke(this, connection);
+                }
+                catch (Exception e)
+                {
+                    _logger.LogWarning(e,"Handler of PlayerConnected event for client {Id} threw.", connection.Id);
+                }
             }
         }
 
@@ -306,7 +230,7 @@ public class AvalonConnectionManager : IAvalonConnectionManager
 
     public void Dispose()
     {
-        _cancellationTokenSource?.Dispose();
+        _cancellationTokenSource.Dispose();
         foreach (var connection in _connections.Values)
         {
             connection.Dispose();
