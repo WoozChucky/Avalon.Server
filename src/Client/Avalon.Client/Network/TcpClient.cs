@@ -11,7 +11,9 @@ using System.Threading.Tasks;
 using Avalon.Network.Packets;
 using Avalon.Network.Packets.Auth;
 using Avalon.Network.Packets.Crypto;
+using Avalon.Network.Packets.Deserialization;
 using Avalon.Network.Packets.Movement;
+using Avalon.Network.Packets.Serialization;
 using ProtoBuf;
 
 namespace Avalon.Client.Network;
@@ -19,9 +21,13 @@ namespace Avalon.Client.Network;
 public delegate void PlayerConnectedHandler(object? sender, SPlayerConnectedPacket packet);
 public delegate void PlayerDisconnectedHandler(object? sender, SPlayerDisconnectedPacket packet);
 public delegate void PlayerMovedHandler(object? sender, SPlayerPositionUpdatePacket packet);
+public delegate void LatencyUpdated(object? sender, double latency);
 
 public class TcpClient : IDisposable
 {
+    private static TcpClient instance;
+    public static TcpClient Instance => instance ??= new TcpClient();
+    
     public event PlayerConnectedHandler PlayerConnected;
     public event PlayerDisconnectedHandler PlayerDisconnected;
     public event PlayerMovedHandler PlayerMoved;
@@ -31,15 +37,19 @@ public class TcpClient : IDisposable
     private readonly Socket socket;
     private SslStream stream;
 
-    private static TcpClient instance;
-    
-    public static TcpClient Instance => instance ??= new TcpClient();
+    private readonly IPacketDeserializer _packetDeserializer;
+    private readonly IPacketSerializer _packetSerializer;
     
     public TcpClient()
     {
+        _packetDeserializer = new NetworkPacketDeserializer();
+        _packetSerializer = new NetworkPacketSerializer();
         var clientCertBytes = File.ReadAllBytesAsync("cert-public.pem").ConfigureAwait(true).GetAwaiter().GetResult();
         certificate = new X509Certificate2(clientCertBytes);
         socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+        
+        _packetDeserializer.RegisterPacketDeserializers();
+        _packetSerializer.RegisterPacketSerializers();
     }
 
     public async Task ConnectAsync()
@@ -52,7 +62,7 @@ public class TcpClient : IDisposable
         await SendWelcomePacket();
         Task.Run(HandleCommunications);
     }
-    
+
     private bool UserCertificateValidationCallback(object sender, X509Certificate? x509Certificate, X509Chain? chain, SslPolicyErrors sslpolicyerrors)
     {
         return true;
@@ -73,7 +83,7 @@ public class TcpClient : IDisposable
         {
             var packet = CPlayerMovementPacket.Create(Globals.ClientId, time, x, y, velX, velY);
 
-            Serializer.SerializeWithLengthPrefix(stream, packet, PrefixStyle.Base128);
+            await _packetSerializer.SerializeToNetwork(stream, packet);
         }
         catch (Exception e)
         {

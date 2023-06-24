@@ -5,9 +5,12 @@ using Avalon.Game.Handlers;
 using Avalon.Network;
 using Avalon.Network.Abstractions;
 using Avalon.Network.Packets;
+using Avalon.Network.Packets.Auth;
 using Avalon.Network.Packets.Crypto;
 using Avalon.Network.Packets.Deserialization;
 using Avalon.Network.Packets.Exceptions;
+using Avalon.Network.Packets.Generic;
+using Avalon.Network.Packets.Movement;
 using Avalon.Network.Packets.Serialization;
 using Microsoft.Extensions.Logging;
 using TcpClient = Avalon.Network.Abstractions.TcpClient;
@@ -28,7 +31,7 @@ public class AvalonNetworkDaemon : IAvalonNetworkDaemon
     private readonly IAvalonUdpServer _udpServer;
     private readonly IPacketDeserializer _packetDeserializer;
     private readonly IPacketSerializer _packetSerializer;
-    private readonly IPacketHandlerRegistry _packetHandlerRegistry;
+    private readonly IPacketRegistry _packetRegistry;
     private readonly IAvalonGame _game;
     private readonly IAvalonMovementManager _movementManager;
 
@@ -39,7 +42,7 @@ public class AvalonNetworkDaemon : IAvalonNetworkDaemon
         IAvalonUdpServer udpServer,
         IPacketDeserializer packetDeserializer,
         IPacketSerializer packetSerializer,
-        IPacketHandlerRegistry packetHandlerRegistry,
+        IPacketRegistry packetRegistry,
         IAvalonGame game,
         IAvalonMovementManager movementManager)
     {
@@ -48,7 +51,7 @@ public class AvalonNetworkDaemon : IAvalonNetworkDaemon
 
         _packetDeserializer = packetDeserializer;
         _packetSerializer = packetSerializer;
-        _packetHandlerRegistry = packetHandlerRegistry;
+        _packetRegistry = packetRegistry;
         _game = game;
         _movementManager = movementManager;
 
@@ -64,11 +67,12 @@ public class AvalonNetworkDaemon : IAvalonNetworkDaemon
         _packetSerializer.RegisterPacketSerializers();
         _packetDeserializer.RegisterPacketDeserializers();
         
-        _packetHandlerRegistry.RegisterHandler(NetworkPacketType.CMSG_WELCOME, _movementManager.HandleWelcomePacket);
-        _packetHandlerRegistry.RegisterHandler(NetworkPacketType.CMSG_JUMP, _movementManager.HandleJumpPacket);
-        _packetHandlerRegistry.RegisterHandler(NetworkPacketType.CMSG_REQUEST_ENCRYPTION_KEY, Handler);
-        _packetHandlerRegistry.RegisterHandler(NetworkPacketType.CMSG_MOVEMENT, _movementManager.HandleMovementPacket);
-        _packetHandlerRegistry.RegisterHandler(NetworkPacketType.CMSG_REQUEST_SERVER_VERSION, _game.HandleServerVersionPacket);
+        _packetRegistry.RegisterHandler<CRequestServerVersionPacket>(NetworkPacketType.CMSG_REQUEST_SERVER_VERSION, _game.HandleServerVersionPacket);
+        _packetRegistry.RegisterHandler<CPingPacket>(NetworkPacketType.CMSG_PING, _game.HandlePingPacket);
+        _packetRegistry.RegisterHandler<CWelcomePacket>(NetworkPacketType.CMSG_WELCOME, _movementManager.HandleWelcomePacket);
+        _packetRegistry.RegisterHandler<CPlayerMovementPacket>(NetworkPacketType.CMSG_MOVEMENT, _movementManager.HandleMovementPacket);
+
+        _logger.LogInformation("Starting network daemon");
         
         Task.Run(_udpServer.RunAsync).ConfigureAwait(false);
         Task.Run(_tcpServer.RunAsync).ConfigureAwait(false);
@@ -76,10 +80,12 @@ public class AvalonNetworkDaemon : IAvalonNetworkDaemon
 
     public async void Stop()
     {
+        _logger.LogInformation("Stopping network daemon");
         await _udpServer.StopAsync().ConfigureAwait(false);
         await _tcpServer.StopAsync().ConfigureAwait(false);
     }
     
+    /*
     private async Task Handler(IRemoteSource source, NetworkPacket packet)
     {
         // Receive a response from the server
@@ -114,10 +120,11 @@ public class AvalonNetworkDaemon : IAvalonNetworkDaemon
             await _packetSerializer.SerializeToNetwork(client.Stream, resultingPacket);
         }
     }
+    */
     
     private void TcpServerOnClientConnected(object? sender, TcpClient client)
     {
-        _logger.LogInformation("Client connected from {@EndPoint}", client.Socket.RemoteEndPoint);
+        _logger.LogInformation("Client connected from {EndPoint}", client.Socket.RemoteEndPoint.ToString());
         
         Task.Run(async () =>
         {
@@ -125,14 +132,15 @@ public class AvalonNetworkDaemon : IAvalonNetworkDaemon
             {
                 while (!_cts.IsCancellationRequested)
                 {
-                    
                     var packet = await _packetDeserializer.DeserializeFromNetwork<NetworkPacket>(client.Stream);
                     
                     try
                     {
-                        var handler = _packetHandlerRegistry.GetHandler(packet.Header.Type);
+                        var deserializedPacket = GetInnerPacket(packet);
                         
-                        await handler(client, packet).ConfigureAwait(false);
+                        var handler = _packetRegistry.GetHandler(packet.Header.Type);
+
+                        await handler.Handle(client, deserializedPacket).ConfigureAwait(false);
                     }
                     catch (PacketHandlerException e)
                     {
@@ -153,7 +161,7 @@ public class AvalonNetworkDaemon : IAvalonNetworkDaemon
             {
                 if (e.InnerException is SocketException && e.InnerException.Message.Contains("An existing connection was forcibly closed by the remote host"))
                 {
-                    _logger.LogInformation("Client {@Endpoint} disconnected", client.Socket.RemoteEndPoint);
+                    _logger.LogInformation("Client {Endpoint} disconnected", client.Socket.RemoteEndPoint.ToString());
                     _movementManager.RemovePlayer(client.Socket.RemoteEndPoint);
                 }
                 else
@@ -177,9 +185,11 @@ public class AvalonNetworkDaemon : IAvalonNetworkDaemon
 
             try
             {
-                var handler = _packetHandlerRegistry.GetHandler(packet.Header.Type);
-        
-                await handler(clientPacket, packet).ConfigureAwait(false);
+                var handler = _packetRegistry.GetHandler(packet.Header.Type);
+                
+                var deserializedPacket = GetInnerPacket(packet);
+                
+                await handler.Handle(clientPacket, deserializedPacket).ConfigureAwait(false);
             }
             catch (PacketHandlerException e)
             {
@@ -191,6 +201,19 @@ public class AvalonNetworkDaemon : IAvalonNetworkDaemon
             }
 
         }).ConfigureAwait(false);
+    }
+    
+    private Packet GetInnerPacket(NetworkPacket packet)
+    {
+        return packet.Header.Type switch
+        {
+            NetworkPacketType.CMSG_WELCOME => _packetDeserializer.Deserialize<CWelcomePacket>(packet.Header.Type, packet.Payload),
+            NetworkPacketType.CMSG_MOVEMENT => _packetDeserializer.Deserialize<CPlayerMovementPacket>(packet.Header.Type, packet.Payload),
+            NetworkPacketType.CMSG_REQUEST_SERVER_VERSION => _packetDeserializer.Deserialize<CRequestServerVersionPacket>(packet.Header.Type, packet.Payload),
+            NetworkPacketType.CMSG_REQUEST_ENCRYPTION_KEY => _packetDeserializer.Deserialize<CRequestCryptoKeyPacket>(packet.Header.Type, packet.Payload),
+            NetworkPacketType.CMSG_PING => _packetDeserializer.Deserialize<CPingPacket>(packet.Header.Type, packet.Payload),
+            _ => throw new PacketHandlerException("Unknown packet type " + packet.Header.Type)
+        };
     }
 
     public void Dispose()

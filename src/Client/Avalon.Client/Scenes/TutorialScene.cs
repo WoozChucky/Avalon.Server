@@ -40,6 +40,7 @@ public class TutorialScene : Scene
     private float _elapsedTime;
     private int _frameCount;
     private int _fps;
+    private double _latency;
     
     private SceneManager _sceneManager;
 
@@ -52,8 +53,15 @@ public class TutorialScene : Scene
         
         TcpClient.Instance.PlayerConnected += OnPlayerConnected;
         TcpClient.Instance.PlayerDisconnected += OnPlayerDisconnected;
-        TcpClient.Instance.PlayerMoved += OnPlayerMoved;
+        //TcpClient.Instance.PlayerMoved += OnPlayerMoved;
+        
+        UdpClient.Instance.LatencyUpdated += OnLatencyUpdated;
         UdpClient.Instance.PlayerMoved += OnPlayerMoved;
+    }
+
+    private void OnLatencyUpdated(object sender, double latency)
+    {
+        _latency = latency;
     }
 
     public override void Load()
@@ -133,6 +141,7 @@ public class TutorialScene : Scene
         }
         spriteBatch.DrawString(_font, $"X: {Math.Round(_hero.Position.X, 2)} Y: {Math.Round(_hero.Position.Y, 2)}", new Vector2(10, 10) + Globals.CameraPosition, Color.DarkBlue);
         spriteBatch.DrawString(_font, $"FPS: {_fps}", new Vector2(10, 36) + Globals.CameraPosition, Color.DarkBlue);
+        spriteBatch.DrawString(_font, $"Latency: {_latency}ms", new Vector2(10, 62) + Globals.CameraPosition, Color.DarkBlue);
         spriteBatch.End();
     }
 

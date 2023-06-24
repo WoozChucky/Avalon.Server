@@ -123,7 +123,7 @@ namespace Avalon.Server
                 .AddSingleton<IAvalonUdpServer, AvalonUdpServer>()
                 .AddSingleton<IPacketDeserializer, NetworkPacketDeserializer>()
                 .AddSingleton<IPacketSerializer, NetworkPacketSerializer>()
-                .AddSingleton<IPacketHandlerRegistry, PacketHandlerRegistry>()
+                .AddSingleton<IPacketRegistry, PacketRegistry>()
                 .AddSingleton<IAvalonMovementManager, AvalonMovementManager>()
                 .AddSingleton<IAvalonNetworkDaemon, AvalonNetworkDaemon>()
                 .AddSingleton<IAvalonGame, AvalonGame>()

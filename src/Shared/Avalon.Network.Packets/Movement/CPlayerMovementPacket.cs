@@ -3,7 +3,7 @@ using ProtoBuf;
 namespace Avalon.Network.Packets.Movement;
 
 [ProtoContract]
-public class CPlayerMovementPacket
+public class CPlayerMovementPacket : Packet
 {
     public static NetworkPacketType PacketType = NetworkPacketType.CMSG_MOVEMENT;
     
@@ -13,8 +13,7 @@ public class CPlayerMovementPacket
     [ProtoMember(4)] public float Y { get; set; }
     [ProtoMember(5)] public float VelocityX { get; set; }
     [ProtoMember(6)] public float VelocityY { get; set; }
-    
-    
+
     public static NetworkPacket Create(Guid clientId, float time, float x, float y, float velX, float velY)
     {
         using var memoryStream = new MemoryStream();

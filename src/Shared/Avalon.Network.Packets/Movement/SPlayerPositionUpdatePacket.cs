@@ -3,14 +3,13 @@ using ProtoBuf;
 namespace Avalon.Network.Packets.Movement;
 
 [ProtoContract]
-public class SPlayerPositionUpdatePacket
+public class SPlayerPositionUpdatePacket : Packet
 {
     public static NetworkPacketType PacketType = NetworkPacketType.SMSG_PLAYER_POSITION_UPDATE;
     
     [ProtoMember(1)] public Guid ClientId { get; set; }
     [ProtoMember(2)] public float PositionX { get; set; }
     [ProtoMember(3)] public float PositionY { get; set; }
-    
     [ProtoMember(4)] public float VelocityX { get; set; }
     [ProtoMember(5)] public float VelocityY { get; set; }
     [ProtoMember(6)] public float Elapsed { get; set; }
