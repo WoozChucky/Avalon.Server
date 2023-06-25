@@ -103,7 +103,7 @@ namespace Avalon.Server
                 {
                     Backlog = 100,
                     CertificatePath = "cert-server-udp.pem",
-                    ListenPort = 21500
+                    ListenPort = 21000
                 })
                 .AddSingleton<AvalonTcpServerConfiguration>(_ => new AvalonTcpServerConfiguration
                 {

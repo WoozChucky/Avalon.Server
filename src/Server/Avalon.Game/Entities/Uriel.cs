@@ -15,7 +15,7 @@ public class Uriel : IEntity
 {
     public Guid Id { get; }
 
-    public Vector2 Position { get; set; } = new Vector2(80, 1150);
+    public Vector2 Position { get; set; } = new Vector2(80, 1152.4f);
     public Vector2 Velocity { get; set; } = new Vector2(1, 0);
     public Vector2 PreviousVelocity { get; set; } = new Vector2(0, 0);
     public Rectangle Bounds { get; set; }
