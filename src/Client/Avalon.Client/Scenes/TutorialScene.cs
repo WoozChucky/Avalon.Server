@@ -35,7 +35,7 @@ public class TutorialScene : Scene
     private SpriteFont _font;
 
     private readonly ConcurrentDictionary<Guid, Player> _otherPlayers;
-    private readonly ConcurrentDictionary<Guid, InterpolatedPlayerPosition> _interpolatedPlayerPositions;
+    private readonly ConcurrentDictionary<Guid, Player> _npcs;
 
     private float _elapsedTime;
     private int _frameCount;
@@ -47,7 +47,7 @@ public class TutorialScene : Scene
     public TutorialScene(SceneManager sceneManager) : base(sceneManager)
     {
         _otherPlayers = new ConcurrentDictionary<Guid, Player>();
-        _interpolatedPlayerPositions = new ConcurrentDictionary<Guid, InterpolatedPlayerPosition>();
+        _npcs = new ConcurrentDictionary<Guid, Player>();
         
         Globals.CameraPosition = Vector2.Zero;
         
@@ -57,6 +57,18 @@ public class TutorialScene : Scene
         
         UdpClient.Instance.LatencyUpdated += OnLatencyUpdated;
         UdpClient.Instance.PlayerMoved += OnPlayerMoved;
+        UdpClient.Instance.NpcUpdated += OnNpcUpdated;
+    }
+
+    private void OnNpcUpdated(object sender, SNpcUpdatePacket packet)
+    {
+        _npcs.AddOrUpdate(packet.Id, new Player(
+            Globals.Content.Load<Texture2D>("Images/player"), new Vector2(packet.PositionX, packet.PositionY)), (guid, player) =>
+        {
+            player.UpdateVelocity(new Vector2(packet.VelocityX, packet.VelocityY));
+            player.UpdatePosition(new Vector2(packet.PositionX, packet.PositionY), Globals.Time);
+            return player;
+        });
     }
 
     private void OnLatencyUpdated(object sender, double latency)
@@ -106,6 +118,11 @@ public class TutorialScene : Scene
         {
             otherHero.Update(deltaTime);
         }
+        
+        foreach (var (_, npc) in _npcs)
+        {
+            npc.Update(deltaTime);
+        }
 
         _hero.Update(_map.IsObjectColliding);
         
@@ -138,6 +155,10 @@ public class TutorialScene : Scene
         foreach (var (id, otherHero) in _otherPlayers)
         {
             otherHero.Draw(spriteBatch);
+        }
+        foreach (var (_, npc) in _npcs)
+        {
+            npc.Draw(spriteBatch);
         }
         spriteBatch.DrawString(_font, $"X: {Math.Round(_hero.Position.X, 2)} Y: {Math.Round(_hero.Position.Y, 2)}", new Vector2(10, 10) + Globals.CameraPosition, Color.DarkBlue);
         spriteBatch.DrawString(_font, $"FPS: {_fps}", new Vector2(10, 36) + Globals.CameraPosition, Color.DarkBlue);
@@ -179,6 +200,11 @@ public class TutorialScene : Scene
         {
             player.UpdateVelocity(new Vector2(packet.VelocityX, packet.VelocityY));
             player.UpdatePosition(new Vector2(packet.PositionX, packet.PositionY), packet.Elapsed);
+        }
+
+        if (packet.ClientId == Globals.ClientId)
+        {
+            _hero.UpdateVelocity(new Vector2(packet.VelocityX, packet.VelocityY));
         }
     }
 }

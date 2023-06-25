@@ -104,6 +104,12 @@ public class AvalonNetworkDaemon : IAvalonNetworkDaemon
                     
                     try
                     {
+                        if (packet == null)
+                        {
+                            _logger.LogWarning("Received null tcp packet from client {Endpoint}", client.RemoteAddress);
+                            continue;
+                        }
+                        
                         var deserializedPacket = GetInnerPacket(packet);
                         
                         var handler = _packetRegistry.GetHandler(packet.Header.Type);
@@ -153,6 +159,12 @@ public class AvalonNetworkDaemon : IAvalonNetworkDaemon
 
             try
             {
+                if (packet == null)
+                {
+                    _logger.LogWarning("Received null udp packet from client {Endpoint}", clientPacket.RemoteAddress);
+                    return;
+                }
+                
                 var handler = _packetRegistry.GetHandler(packet.Header.Type);
                 
                 var deserializedPacket = GetInnerPacket(packet);

@@ -15,6 +15,7 @@ public static class InputManager
 {
     public static Vector2 Direction;
     public static MovementDirection MovementDirection;
+    public static bool IsRunning = false;
 
     public static void Update()
     {
@@ -24,6 +25,8 @@ public static class InputManager
 
         if (keyboardState.GetPressedKeyCount() > 0)
         {
+            IsRunning = keyboardState.IsKeyDown(Keys.Space);
+            
             if (keyboardState.IsKeyDown(Keys.W) || keyboardState.IsKeyDown(Keys.Up))
             {
                 Direction.Y -= 1;

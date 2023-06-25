@@ -1,5 +1,7 @@
 using System.Collections.Concurrent;
+using System.Drawing;
 using System.Net;
+using System.Numerics;
 using Avalon.Network.Abstractions;
 using Avalon.Network.Packets;
 using Avalon.Network.Packets.Auth;
@@ -18,10 +20,10 @@ public interface IAvalonMovementManager
 
 public class Character
 {
-    public float X { get; set; }
-    public float Y { get; set; }
-    public float VelocityX { get; set; }
-    public float VelocityY { get; set; }
+    public Vector2 Position { get; set; }
+    public Vector2 Velocity { get; set; }
+
+    public Rectangle Bounds { get; set; }
     public float ElapsedGameTime { get; set; }
 }
 
@@ -56,10 +58,8 @@ public class AvalonMovementManager : IAvalonMovementManager
     {
         if (_clients.TryGetValue(packet.ClientId, out var client))
         {
-            client.Character.X = packet.X;
-            client.Character.Y = packet.Y;
-            client.Character.VelocityX = packet.VelocityX;
-            client.Character.VelocityY = packet.VelocityY;
+            client.Character.Position = new Vector2(packet.X, packet.Y);
+            client.Character.Velocity = new Vector2(packet.VelocityX, packet.VelocityY);
             client.Character.ElapsedGameTime = packet.ElapsedGameTime;
         }
     }
@@ -224,10 +224,10 @@ public class AvalonMovementManager : IAvalonMovementManager
                 {
                     var packet = SPlayerPositionUpdatePacket.Create(
                         id, 
-                        client.Character.X, 
-                        client.Character.Y,
-                        client.Character.VelocityX,
-                        client.Character.VelocityY,
+                        client.Character.Position.X,
+                        client.Character.Position.Y,
+                        client.Character.Velocity.X,
+                        client.Character.Velocity.Y,
                         client.Character.ElapsedGameTime
                     );
                     

@@ -26,9 +26,10 @@ public class NetworkPacketDeserializer : IPacketDeserializer
         return _packetDeserializerFactories[packetType](data, typeof(T)) as T ?? throw new PacketDeserializationException("Packet deserialization failed.");
     }
 
-    public Task<T> DeserializeFromNetwork<T>(Stream source) where T : class
+    public Task<T?> DeserializeFromNetwork<T>(Stream source) where T : class
     {
-        return Task.FromResult(Serializer.DeserializeWithLengthPrefix<T>(source, PrefixStyle.Base128));
+        var packet = Serializer.DeserializeWithLengthPrefix<T>(source, PrefixStyle.Base128);
+        return Task.FromResult(packet ?? null);
     }
 
     public void RegisterCustomPacketDeserializer<T>(NetworkPacketType packetType, Func<byte[], Type, T> deserializer) where T : class

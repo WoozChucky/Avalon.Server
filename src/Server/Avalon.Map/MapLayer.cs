@@ -6,6 +6,14 @@ namespace Avalon.Map
     {
         private readonly Tile[,] _tiles;
         
+        public MapLayer(Tile[,] tiles, bool collidable = false)
+        {
+            _tiles = tiles;
+            IsCollidable = collidable;
+        }
+        
+        public bool IsCollidable { get; private set; }
+        
         public Tile? this[int x, int y]
         {
             get
