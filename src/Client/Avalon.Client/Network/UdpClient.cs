@@ -46,7 +46,7 @@ public class UdpClient : IDisposable
         _packetDeserializer = new NetworkPacketDeserializer();
         _packetSerializer = new NetworkPacketSerializer();
         socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
-        serverEndpoint = new IPEndPoint(IPAddress.Parse("85.246.128.207"), 21500);
+        serverEndpoint = new IPEndPoint(IPAddress.Parse("85.246.128.207"), 21000);
         
         _packetDeserializer.RegisterPacketDeserializers();
         _packetSerializer.RegisterPacketSerializers();
