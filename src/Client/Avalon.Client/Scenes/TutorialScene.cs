@@ -4,6 +4,7 @@ using Avalon.Client.Managers;
 using Avalon.Client.Maps;
 using Avalon.Client.Models;
 using Avalon.Client.Network;
+using Avalon.Client.UI;
 using Avalon.Network.Packets.Auth;
 using Avalon.Network.Packets.Movement;
 using Microsoft.Xna.Framework;
@@ -33,6 +34,7 @@ public class TutorialScene : Scene
     private Hero _hero;
     private Matrix _translation;
     private SpriteFont _font;
+    private Banner _banner;
 
     private readonly ConcurrentDictionary<Guid, Player> _otherPlayers;
     private readonly ConcurrentDictionary<Guid, Player> _npcs;
@@ -97,11 +99,15 @@ public class TutorialScene : Scene
         };
         t.Start();
 
+        _banner = new Banner(new Vector2(5, 5), scale: 2f, alpha: 0.5f);
+        _banner.Load();
+
     }
 
     public override void Unload()
     {
         // TODO: Unload any content that was loaded for the scene
+        _banner.Unload();
     }
 
     public override void Update(GameTime gameTime)
@@ -124,12 +130,12 @@ public class TutorialScene : Scene
             npc.Update(deltaTime);
         }
 
-        _hero.Update(_map.IsObjectColliding);
+        _hero.Update(_map.IsObjectColliding, _npcs.Values, _otherPlayers.Values);
         
 
         // Update the camera position based on player movement or other logic
-        Globals.CameraPosition = _hero.Position - new Vector2(Globals.GraphicsDevice.Viewport.Width / 2,
-            Globals.GraphicsDevice.Viewport.Height / 2) + new Vector2(_map.TileWidth / 2f, _map.TileHeight / 2f);
+        Globals.CameraPosition = _hero.Position - new Vector2((float) Globals.GraphicsDevice.Viewport.Width / 2,
+            (float) Globals.GraphicsDevice.Viewport.Height / 2) + new Vector2(_map.TileWidth / 2f, _map.TileHeight / 2f);
         
         // Perform boundary checks to prevent the camera from going outside the game world
         Globals.CameraPosition = new Vector2(
@@ -149,6 +155,10 @@ public class TutorialScene : Scene
 
     public override void Draw(SpriteBatch spriteBatch)
     {
+        /*
+        var sortMode = SpriteSortMode.FrontToBack;
+        var blendState = BlendState.AlphaBlend;
+        */
         spriteBatch.Begin(transformMatrix: _translation);
         _map.Draw(spriteBatch);
         _hero.Draw(spriteBatch);
@@ -160,9 +170,14 @@ public class TutorialScene : Scene
         {
             npc.Draw(spriteBatch);
         }
-        spriteBatch.DrawString(_font, $"X: {Math.Round(_hero.Position.X, 2)} Y: {Math.Round(_hero.Position.Y, 2)}", new Vector2(10, 10) + Globals.CameraPosition, Color.DarkBlue);
-        spriteBatch.DrawString(_font, $"FPS: {_fps}", new Vector2(10, 36) + Globals.CameraPosition, Color.DarkBlue);
-        spriteBatch.DrawString(_font, $"Latency: {_latency}ms", new Vector2(10, 62) + Globals.CameraPosition, Color.DarkBlue);
+
+        if (InputManager.ShowingMetrics)
+        {
+            _banner.Draw(spriteBatch);
+            spriteBatch.DrawString(_font, $"X: {Math.Round(_hero.Position.X, 1)} Y: {Math.Round(_hero.Position.Y, 1)}", new Vector2(10, 10) + Globals.CameraPosition, Color.DarkBlue);
+            spriteBatch.DrawString(_font, $"FPS: {_fps}", new Vector2(10, 36) + Globals.CameraPosition, Color.DarkBlue);
+            spriteBatch.DrawString(_font, $"Latency: {_latency}ms", new Vector2(10, 62) + Globals.CameraPosition, Color.DarkBlue);
+        }
         spriteBatch.End();
     }
 

@@ -54,8 +54,12 @@ public class AvalonConnection : IDisposable
         {
             LastUpdateAt = DateTime.UtcNow;
             var now = DateTime.UtcNow.Ticks;
-            RoundTripTime = (now - ticks) / TimeSpan.TicksPerMillisecond;
-            Console.WriteLine($"Round trip time: {RoundTripTime}ms");
+            var newRtt = (now - ticks) / TimeSpan.TicksPerMillisecond;
+            if (RoundTripTime != newRtt)
+            {
+                Console.WriteLine($"Round trip time: {RoundTripTime}ms");
+            }
+            RoundTripTime = newRtt;
         }
     }
 
@@ -104,14 +108,14 @@ public class AvalonConnection : IDisposable
     internal void SetUdp(UdpClientPacket udp)
     {
         Udp = udp;
-        if (Tcp != null)
+        if (Tcp != null && Status == ConnectionStatus.Connecting)
             Status = ConnectionStatus.Connected;
     }
     
     internal void SetTcp(TcpClient tcp)
     {
         Tcp = tcp;
-        if (Udp != null)
+        if (Udp != null && Status == ConnectionStatus.Connecting)
             Status = ConnectionStatus.Connected;
     }
 

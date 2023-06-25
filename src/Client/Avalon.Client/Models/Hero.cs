@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using Avalon.Client.Managers;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -41,7 +42,8 @@ public class Hero : IDisposable
         _maxPos = new Vector2(mapSize.X - (tileSize.X / 2), mapSize.Y - (tileSize.X / 2));
     }
 
-    public void Update(Func<Rectangle, bool> collisionCheckingFunction)
+    public void Update(Func<Rectangle, bool> collisionCheckingFunction, ICollection<Player> npcs,
+        ICollection<Player> otherPlayers)
     {
         var previousPosition = Position;
         
@@ -55,6 +57,36 @@ public class Hero : IDisposable
             32,
             32
         );
+        
+        // Check for collisions with NPCs
+        foreach (var npc in npcs)
+        {
+            if (npc.CollisionRect.Intersects(_debugRect))
+            {
+                Position = previousPosition;
+                _debugRect = new Rectangle(
+                    (int)(Position.X),
+                    (int)(Position.Y),
+                    32,
+                    32
+                );
+            }
+        }
+        
+        // Check for collisions with other players
+        foreach (var player in otherPlayers)
+        {
+            if (player.CollisionRect.Intersects(_debugRect))
+            {
+                Position = previousPosition;
+                _debugRect = new Rectangle(
+                    (int)(Position.X),
+                    (int)(Position.Y),
+                    32,
+                    32
+                );
+            }
+        }
 
         if (collisionCheckingFunction(_debugRect))
         {

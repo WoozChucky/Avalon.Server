@@ -14,8 +14,9 @@ public class AvalonGame : Game
     private SpriteBatch _spriteBatch;
     private readonly SceneManager _sceneManager;
 
-    public AvalonGame()
+    public AvalonGame(Guid clientId)
     {
+        Globals.ClientId = clientId;
         _graphics = new GraphicsDeviceManager(this);
         Content.RootDirectory = "Content";
         
@@ -39,7 +40,6 @@ public class AvalonGame : Game
 
         Globals.Content = Content;
         Globals.GraphicsDevice = GraphicsDevice;
-        Globals.ClientId = Guid.NewGuid();
 
         TcpClient.Instance.ConnectAsync().GetAwaiter().GetResult();
         UdpClient.Instance.ConnectAsync().GetAwaiter().GetResult();

@@ -26,12 +26,26 @@ namespace Avalon.Client
 {
     internal class Program
     {
+        private static Guid ClientId;
+        
+        
         private static async Task Main(string[] args)
         {
             AppDomain.CurrentDomain.UnhandledException += CurrentDomainOnUnhandledException;
             AppDomain.CurrentDomain.ProcessExit += OnProcessExit;
+
+            if (File.Exists("av.bin"))
+            {
+                var text = await File.ReadAllTextAsync("av.bin");
+                ClientId = Guid.Parse(text);
+            }
+            else
+            {
+                ClientId = Guid.NewGuid();
+                await File.WriteAllTextAsync("av.bin", ClientId.ToString());
+            }
             
-            using var game = new AvalonGame();
+            using var game = new AvalonGame(ClientId);
             game.Run();
         }
 
