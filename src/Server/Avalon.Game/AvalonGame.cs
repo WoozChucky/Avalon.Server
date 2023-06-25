@@ -160,6 +160,10 @@ public class AvalonGame : IAvalonGame
         }
         else
         {
+            if (_players.ContainsKey(connection.Id))
+            {
+                OnPlayerReconnected(null, connection);
+            }
             _logger.LogError("Failed to add player {PlayerId}", connection.Id);
         }
     }
@@ -185,9 +189,19 @@ public class AvalonGame : IAvalonGame
         // TODO: Handle player timeout
     }
     
-    private void OnPlayerReconnected(object? sender, AvalonConnection connection)
+    private async void OnPlayerReconnected(object? sender, AvalonConnection connection)
     {
-        // TODO: Handle player reconnection
+        foreach (var (existingId, existingPlayer) in _players)
+        {
+            if (existingId == connection.Id)
+            {
+                continue;
+            }
+            // Send to this player, that everyone else is connected
+            await connection.SendAsync(SPlayerConnectedPacket.Create(existingId));
+        }
+        // Send to everyone else, that this player is connected
+        //await BroadcastToOthers(connection.Id, SPlayerConnectedPacket.Create(connection.Id));
     }
 
     #endregion

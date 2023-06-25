@@ -7,7 +7,8 @@ namespace Avalon.Client.Models;
 public class Player
 {
     public Guid Id { get; set; }
-    
+    public Rectangle CollisionRect { get; set; }
+
     private const int FrameWidth = 32;
     private const int FrameHeight = 32;
     private const int FrameCount = 3;
@@ -61,6 +62,13 @@ public class Player
     public void Update(float deltaTime)
     {
         interpolationTime += deltaTime;
+        
+        CollisionRect = new Rectangle(
+            (int)(currentPosition.X),
+            (int)(currentPosition.Y),
+            32,
+            32
+        );
         
         // Interpolate between the previous and current positions, and between the current and predicted positions.
         var interpolatedPosition = InterpolatePosition(previousPosition, currentPosition, interpolationTime);

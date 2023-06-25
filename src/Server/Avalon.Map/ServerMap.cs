@@ -125,8 +125,10 @@ namespace Avalon.Map
                         
                         var tileset = tilesets[mapTileset.firstgid];
 
+                        var tiles = tileset.Tiles.ToList();
+
                         var rect = map.GetSourceRect(mapTileset, tileset, gid);
-                        
+
                         var source = new Rectangle(rect.x, rect.y, rect.width, rect.height);
 
                         layerTiles[x, y] = new Tile(x, y, TileWidth, collidable);

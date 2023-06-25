@@ -1,4 +1,5 @@
-﻿using Microsoft.Xna.Framework;
+﻿using System.Linq;
+using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Input;
 
 namespace Avalon.Client.Managers;
@@ -16,6 +17,7 @@ public static class InputManager
     public static Vector2 Direction;
     public static MovementDirection MovementDirection;
     public static bool IsRunning = false;
+    public static bool ShowingMetrics { get; set; } = true;
 
     public static void Update()
     {
@@ -26,6 +28,11 @@ public static class InputManager
         if (keyboardState.GetPressedKeyCount() > 0)
         {
             IsRunning = keyboardState.IsKeyDown(Keys.Space);
+            
+            if (Keyboard.GetState().GetPressedKeys().Contains(Keys.F1))
+            {
+                ShowingMetrics = !ShowingMetrics;
+            }
             
             if (keyboardState.IsKeyDown(Keys.W) || keyboardState.IsKeyDown(Keys.Up))
             {
