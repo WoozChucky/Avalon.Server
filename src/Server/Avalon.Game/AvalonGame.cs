@@ -1,7 +1,10 @@
 using System.Collections.Concurrent;
+using System.Drawing;
+using System.Numerics;
 using System.Reflection;
 using Avalon.Game.Entities;
 using Avalon.Game.Handlers;
+using Avalon.Map;
 using Avalon.Network.Abstractions;
 using Avalon.Network.Packets;
 using Avalon.Network.Packets.Auth;
@@ -21,52 +24,35 @@ public interface IAvalonGame
     Task HandleMovementPacket(IRemoteSource source, CPlayerMovementPacket packet);
 }
 
-public class Player : IEntity
-{
-    public Guid Id { get; set; }
-    public AvalonConnection Connection { get; private set; }
-    public Character Character { get; private set; }
-    
-    public Player(AvalonConnection connection, Character character)
-    {
-        Id = connection.Id;
-        Connection = connection;
-        Character = character;
-    }
-    
-    public void Update(TimeSpan deltaTime)
-    {
-        
-    }
-}
-
 public class AvalonGame : IAvalonGame
 {
     private readonly ILogger<AvalonGame> _logger;
     private readonly CancellationTokenSource _cts;
     private readonly IPacketSerializer _packetSerializer;
     private readonly IAvalonConnectionManager _connectionManager;
-    private readonly IAvalonMovementManager _movementManager;
 
     private readonly ConcurrentDictionary<Guid, Player> _players;
-    private readonly ConcurrentDictionary<Guid, IEntity> _npcs;
+    private readonly ConcurrentDictionary<Guid, Uriel> _npcs;
+    private readonly ServerMap _map;
 
     public AvalonGame(ILogger<AvalonGame> logger, 
         IPacketSerializer packetSerializer, 
-        IAvalonConnectionManager connectionManager,
-        IAvalonMovementManager movementManager)
+        IAvalonConnectionManager connectionManager)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _cts = new CancellationTokenSource();
         _packetSerializer = packetSerializer;
         _connectionManager = connectionManager;
-        _movementManager = movementManager;
         _players = new ConcurrentDictionary<Guid, Player>();
-        _npcs = new ConcurrentDictionary<Guid, IEntity>();
+        _npcs = new ConcurrentDictionary<Guid, Uriel>();
         _connectionManager.PlayerConnected += OnPlayerConnected;
         _connectionManager.PlayerDisconnected += OnPlayerDisconnected;
         _connectionManager.PlayerReconnected += OnPlayerReconnected;
         _connectionManager.PlayerTimedOut += OnPlayerTimedOut;
+        
+        _map = new ServerMap("Tutorial", "Serene_Village_32x32");
+
+        _npcs.TryAdd(Guid.NewGuid(), new Uriel());
     }
 
     public async void Start()
@@ -96,14 +82,65 @@ public class AvalonGame : IAvalonGame
         }
     }
 
+    public void Stop()
+    {
+        _logger.LogInformation("Stopping game loop");
+        _cts.Cancel();
+    }
+
+    private void Update(TimeSpan deltaTime)
+    {
+        foreach (var (id, player) in _players)
+        {
+            if (_map.IsObjectColliding(player.Bounds))
+            {
+                player.InvertDirection();
+            }
+        }
+        
+        foreach (var (id, entity) in _npcs)
+        {
+            entity.Update(deltaTime);
+
+            foreach (var (_, player) in _players)
+            {
+                if (entity.Bounds.IntersectsWith(player.Bounds))
+                {
+                    if (entity.State != UrielState.Collided)
+                    {
+                        entity.State = UrielState.Collided;
+                        entity.PreviousVelocity = entity.Velocity;
+                        entity.Velocity = Vector2.Zero;
+                        break;
+                    }
+                }
+                else
+                {
+                    if (entity.State == UrielState.Collided)
+                    {
+                        entity.State = UrielState.Walking;
+                        entity.Velocity = entity.PreviousVelocity;
+                        entity.InvertDirection();
+                    }
+                }
+            }
+            
+            if (_map.IsObjectColliding(entity.Bounds))
+            {
+                entity.InvertDirection();
+            }
+        }
+    }
+
+    #region Player Events
+
     private async void OnPlayerConnected(object? sender, AvalonConnection connection)
     {
         if (_players.TryAdd(connection.Id, new Player(connection, new Character
             {
-                X = 0,
-                Y = 0,
-                VelocityX = 0,
-                VelocityY = 0,
+                Position = Vector2.Zero,
+                Velocity = Vector2.Zero,
+                Bounds = new Rectangle(0, 0, 32, 32),
                 ElapsedGameTime = 0
             })))
         {
@@ -152,12 +189,46 @@ public class AvalonGame : IAvalonGame
     {
         // TODO: Handle player reconnection
     }
+
+    #endregion
+
+    #region Broadcasts
+
+    private async Task BroadcastGameState()
+    {
+        // Broadcast player positions
+        foreach (var (id, player) in _players)
+        {
+            var packet = SPlayerPositionUpdatePacket.Create(
+                id, 
+                player.Position.X, 
+                player.Position.Y,
+                player.Velocity.X,
+                player.Velocity.Y,
+                player.Character.ElapsedGameTime
+            );
+            await BroadcastToOthers(Guid.Empty, packet);
+        }
+        
+        // Broadcast NPC positions
+        foreach (var (id, npc) in _npcs)
+        {
+            var packet = SNpcUpdatePacket.Create(
+                id, 
+                npc.Position.X, 
+                npc.Position.Y,
+                npc.Velocity.X,
+                npc.Velocity.Y
+            );
+            await BroadcastAll(packet);
+        }
+    }
     
     private async Task BroadcastToOthers(Guid except, NetworkPacket packet)
     {
         var availablePlayers = _players.Values.Where(
             p => p.Id != except
-            && p.Connection.Status != ConnectionStatus.Connected).ToList();
+                 && p.Connection.Status == ConnectionStatus.Connected).ToList();
         
         foreach (var player in availablePlayers)
         {
@@ -171,46 +242,31 @@ public class AvalonGame : IAvalonGame
             }
         }
     }
-
-    public void Stop()
+    
+    private async Task BroadcastAll(NetworkPacket packet)
     {
-        _logger.LogInformation("Stopping game loop");
-        _cts.Cancel();
-    }
-
-    private void Update(TimeSpan deltaTime)
-    {
-        foreach (var entity in _npcs.Values)
+        foreach (var (_, player) in _players)
         {
-            entity.Update(deltaTime);
+            await player.Connection.SendAsync(packet);
         }
     }
-    
-    private async Task BroadcastGameState()
-    {
-        // Broadcast player positions
-        foreach (var (id, player) in _players)
-        {
-            var packet = SPlayerPositionUpdatePacket.Create(
-                id, 
-                player.Character.X, 
-                player.Character.Y,
-                player.Character.VelocityX,
-                player.Character.VelocityY,
-                player.Character.ElapsedGameTime
-            );
-            await BroadcastToOthers(id, packet);
-        }
-    }
-    
+
+    #endregion
+
+    #region Packet Handlers
+
     public async Task HandleMovementPacket(IRemoteSource source, CPlayerMovementPacket packet)
     {
         if (_players.TryGetValue(packet.ClientId, out var player))
         {
-            player.Character.X = packet.X;
-            player.Character.Y = packet.Y;
-            player.Character.VelocityX = packet.VelocityX;
-            player.Character.VelocityY = packet.VelocityY;
+            player.Position = new Vector2(packet.X, packet.Y);
+            player.Velocity = new Vector2(packet.VelocityX, packet.VelocityY);
+            player.Bounds = new Rectangle(
+                (int) player.Position.X,
+                (int) player.Position.Y,
+                32,
+                32
+            );
             player.Character.ElapsedGameTime = packet.ElapsedGameTime;
             // TODO: player.Character.LastUpdated = DateTime.UtcNow;
         }
@@ -236,11 +292,13 @@ public class AvalonGame : IAvalonGame
     {
         var client = source.AsUdpClient();
 
-        var response = SPongPacket.Create(packet.Ticks);
+        var response = SPongPacket.Create(packet.SequenceNumber, packet.Ticks);
         
         await using var ms = new MemoryStream();
         await _packetSerializer.SerializeToNetwork(ms, response);
         
         await client.SendResponseAsync(ms.ToArray());
     }
+    
+    #endregion
 }

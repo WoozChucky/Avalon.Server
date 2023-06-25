@@ -21,7 +21,8 @@ namespace Avalon.Client.Network;
 public delegate void PlayerConnectedHandler(object? sender, SPlayerConnectedPacket packet);
 public delegate void PlayerDisconnectedHandler(object? sender, SPlayerDisconnectedPacket packet);
 public delegate void PlayerMovedHandler(object? sender, SPlayerPositionUpdatePacket packet);
-public delegate void LatencyUpdated(object? sender, double latency);
+public delegate void LatencyUpdatedHandler(object? sender, double latency);
+public delegate void NpcUpdatedHandler(object? sender, SNpcUpdatePacket packet);
 
 public class TcpClient : IDisposable
 {
@@ -31,6 +32,7 @@ public class TcpClient : IDisposable
     public event PlayerConnectedHandler PlayerConnected;
     public event PlayerDisconnectedHandler PlayerDisconnected;
     public event PlayerMovedHandler PlayerMoved;
+    public event NpcUpdatedHandler NpcUpdated;
 
     private readonly CancellationTokenSource cts = new CancellationTokenSource();
     private readonly X509Certificate2 certificate;
@@ -116,6 +118,10 @@ public class TcpClient : IDisposable
                     case NetworkPacketType.SMSG_PLAYER_POSITION_UPDATE:
                         var positionUpdatePacket = Serializer.Deserialize<SPlayerPositionUpdatePacket>(new MemoryStream(packet.Payload));
                         PlayerMoved?.Invoke(this, positionUpdatePacket);
+                        break;
+                    case NetworkPacketType.SMSG_NPC_UPDATE:
+                        var npcUpdatePacket = Serializer.Deserialize<SNpcUpdatePacket>(new MemoryStream(packet.Payload));
+                        NpcUpdated?.Invoke(this, npcUpdatePacket);
                         break;
                 }
             }

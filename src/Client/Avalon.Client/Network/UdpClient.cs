@@ -12,6 +12,7 @@ using Avalon.Network.Packets.Deserialization;
 using Avalon.Network.Packets.Generic;
 using Avalon.Network.Packets.Movement;
 using Avalon.Network.Packets.Serialization;
+using ProtoBuf;
 
 namespace Avalon.Client.Network;
 
@@ -25,7 +26,8 @@ public class UdpClient : IDisposable
     public event PlayerConnectedHandler PlayerConnected;
     public event PlayerDisconnectedHandler PlayerDisconnected;
     public event PlayerMovedHandler PlayerMoved;
-    public event LatencyUpdated LatencyUpdated;
+    public event LatencyUpdatedHandler LatencyUpdated;
+    public event NpcUpdatedHandler NpcUpdated;
     
     private readonly CancellationTokenSource cts = new CancellationTokenSource();
     private readonly Socket socket;
@@ -36,6 +38,7 @@ public class UdpClient : IDisposable
     private readonly IPacketSerializer _packetSerializer;
     
     private long lastTick;
+    private long lastSequenceNumber = 0;
     
     
     public UdpClient()
@@ -103,8 +106,9 @@ public class UdpClient : IDisposable
                     await using var buffer = new MemoryStream();
             
                     lastTick = DateTime.UtcNow.Ticks;
+                    var sequenceNumber = Interlocked.Increment(ref lastSequenceNumber);
 
-                    var packet = CPingPacket.Create(lastTick);
+                    var packet = CPingPacket.Create(sequenceNumber, lastTick);
             
                     await _packetSerializer.SerializeToNetwork(buffer, packet);
             
@@ -159,10 +163,15 @@ public class UdpClient : IDisposable
                         {
                             var pongPacket = _packetDeserializer.Deserialize<SPongPacket>(packet.Header.Type,
                                 packet.Payload);
+
+                            var sequenceNumber = Interlocked.Read(ref lastSequenceNumber);
+
+                            if (pongPacket.SequenceNumber == sequenceNumber)
+                            {
+                                var rtt = (DateTime.UtcNow.Ticks - pongPacket.Ticks) / 10000;
                             
-                            var rtt = (DateTime.UtcNow.Ticks - pongPacket.Ticks) / 10000;
-                            
-                            LatencyUpdated?.Invoke(this, rtt);
+                                LatencyUpdated?.Invoke(this, rtt);
+                            }
                             break;
                         }
                         case NetworkPacketType.SMSG_PING:
@@ -180,6 +189,13 @@ public class UdpClient : IDisposable
                             
                             break;
                         }
+                        case NetworkPacketType.SMSG_NPC_UPDATE:
+                        {
+                            var npcUpdatePacket = Serializer.Deserialize<SNpcUpdatePacket>(new MemoryStream(packet.Payload));
+                            NpcUpdated?.Invoke(this, npcUpdatePacket);
+                            break;
+                        }
+                            
                     }
                 }
                 catch (Exception e)

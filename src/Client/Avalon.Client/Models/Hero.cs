@@ -45,7 +45,7 @@ public class Hero : IDisposable
     {
         var previousPosition = Position;
         
-        Position += InputManager.Direction * Globals.Time * SPEED;
+        Position += InputManager.Direction * Globals.Time * SPEED * (InputManager.IsRunning ? 1.75f : 1);
         Position = Vector2.Clamp(Position, _minPos, _maxPos);
 
         // Calculate the rectangle that encompasses the sprite with the border
@@ -121,5 +121,10 @@ public class Hero : IDisposable
     {
         _debugTexture?.Dispose();
         _sprite?.Dispose();
+    }
+
+    public void UpdateVelocity(Vector2 vector2)
+    {
+        InputManager.Direction = vector2;
     }
 }
