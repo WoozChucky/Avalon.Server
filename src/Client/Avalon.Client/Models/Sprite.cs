@@ -47,12 +47,8 @@ public class Sprite : IDisposable
     {
         if (Debug)
         {
-            _outlineRect = new Rectangle(
-                (int)(Position.X - Origin.X * Scale) - 1,
-                (int)(Position.Y - Origin.Y * Scale) - 1,
-                (int)(Texture.Width * Scale) + 2,
-                (int)(Texture.Height * Scale) + 2
-            );
+            _outlineRect.X = (int)(Position.X - Origin.X * Scale) - 1;
+            _outlineRect.Y = (int)(Position.Y - Origin.Y * Scale) - 1;
         }
     }
 
