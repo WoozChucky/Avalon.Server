@@ -19,13 +19,12 @@ public class AvalonGame : Game
         Globals.ClientId = clientId;
         _graphics = new GraphicsDeviceManager(this);
         Content.RootDirectory = "Content";
+        this.Window.Title = "Avalon";
         
         IsMouseVisible = true;
         IsFixedTimeStep = false;
         
-        _sceneManager = new();
-        _sceneManager.AddScene(nameof(MainMenuScene), new MainMenuScene(_sceneManager));
-        _sceneManager.AddScene(nameof(TutorialScene), new TutorialScene(_sceneManager));
+        _sceneManager = new SceneManager();
     }
 
     protected override async void Initialize()
@@ -41,8 +40,11 @@ public class AvalonGame : Game
         Globals.Content = Content;
         Globals.GraphicsDevice = GraphicsDevice;
 
-        TcpClient.Instance.ConnectAsync().GetAwaiter().GetResult();
-        UdpClient.Instance.ConnectAsync().GetAwaiter().GetResult();
+        TcpClient.Instance.ConnectAsync().ConfigureAwait(true).GetAwaiter().GetResult();
+        UdpClient.Instance.ConnectAsync().ConfigureAwait(true).GetAwaiter().GetResult();
+
+        _sceneManager.AddScene(nameof(MainMenuScene), new MainMenuScene(_sceneManager));
+        _sceneManager.AddScene(nameof(TutorialScene), new TutorialScene(_sceneManager));
         
         _sceneManager.LoadScene(nameof(TutorialScene));
 

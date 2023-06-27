@@ -109,19 +109,38 @@ public class TcpClient : IDisposable
                         break;
                     case NetworkPacketType.SMSG_PLAYER_CONNECTED:
                         var connectPacket = Serializer.Deserialize<SPlayerConnectedPacket>(new MemoryStream(packet.Payload));
-                        PlayerConnected?.Invoke(this, connectPacket);
+                        try {
+                            PlayerConnected?.Invoke(this, connectPacket);
+                        } catch (Exception e) {
+                            Console.WriteLine(e);
+                        }
                         break;
                     case NetworkPacketType.SMSG_PLAYER_DISCONNECTED:
                         var disconnectPacket = Serializer.Deserialize<SPlayerDisconnectedPacket>(new MemoryStream(packet.Payload));
-                        PlayerDisconnected?.Invoke(this, disconnectPacket);
+                        
+                        try {
+                            PlayerDisconnected?.Invoke(this, disconnectPacket);
+                        } catch (Exception e) {
+                            Console.WriteLine(e);
+                        }
                         break;
                     case NetworkPacketType.SMSG_PLAYER_POSITION_UPDATE:
                         var positionUpdatePacket = Serializer.Deserialize<SPlayerPositionUpdatePacket>(new MemoryStream(packet.Payload));
-                        PlayerMoved?.Invoke(this, positionUpdatePacket);
+                        
+                        try {
+                            PlayerMoved?.Invoke(this, positionUpdatePacket);
+                        } catch (Exception e) {
+                            Console.WriteLine(e);
+                        }
                         break;
                     case NetworkPacketType.SMSG_NPC_UPDATE:
                         var npcUpdatePacket = Serializer.Deserialize<SNpcUpdatePacket>(new MemoryStream(packet.Payload));
-                        NpcUpdated?.Invoke(this, npcUpdatePacket);
+                        
+                        try {
+                            NpcUpdated?.Invoke(this, npcUpdatePacket);
+                        } catch (Exception e) {
+                            Console.WriteLine(e);
+                        }
                         break;
                 }
             }

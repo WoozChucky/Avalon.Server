@@ -8,7 +8,7 @@ namespace Avalon.Client.Maps;
 public class Tile : IDisposable
 {
     public readonly Rectangle Bounds;
-    protected readonly Sprite Sprite;
+    private readonly Sprite Sprite;
     private bool isColliding;
     private Texture2D _collidingTexture;
     
@@ -78,5 +78,10 @@ public class Tile : IDisposable
     {
         _collidingTexture?.Dispose();
         Sprite?.Dispose();
+    }
+
+    public void ToggleDebug(bool enabled)
+    {
+        Sprite.Debug = enabled;
     }
 }
