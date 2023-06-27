@@ -7,7 +7,7 @@ namespace Avalon.Client.Models;
 public class Player
 {
     public Guid Id { get; set; }
-    public Rectangle CollisionRect { get; set; }
+    public Rectangle BoundingBox;
 
     private const int FrameWidth = 32;
     private const int FrameHeight = 32;
@@ -25,24 +25,44 @@ public class Player
     private Vector2 nextPosition;
     private Vector2 velocity;
     private float interpolationTime;
-    private float smoothingWeight = 0.1f;
-    private float predictionTime = 0.25f;
+    private float predictionTime = 0.05f;
     
-    
+    private Texture2D _debugTexture;
+    private Rectangle _debugRect;
+
     private readonly Sprite _sprite;
     
-    public Player(Texture2D texture, Vector2 position)
+    public Player(Texture2D texture, Vector2 position, bool debug = false)
     {
         currentPosition = position;
         previousPosition = position;
         
-        _sprite = new Sprite(texture, position);
-        _sprite.Origin = new Vector2(32 / 2f, 32 / 2f);
+        _sprite = new Sprite(texture, position, debug: true);
+        _sprite.Origin = new Vector2(FrameWidth / 2f, FrameHeight / 2f);
+        _sprite.Debug = debug;
+
+        BoundingBox = new Rectangle(
+            (int)(currentPosition.X),
+            (int)(currentPosition.Y),
+            FrameWidth,
+            FrameHeight
+        );
+
+        CreateDebugBorder();
     }
 
-    public void Test(Vector2 pos)
+    private void CreateDebugBorder()
     {
-        _sprite.Position = pos;
+        _debugRect = new Rectangle(
+            (int)(currentPosition.X - _sprite.Origin.X),
+            (int)(currentPosition.Y - _sprite.Origin.Y),
+            FrameWidth,
+            FrameHeight
+        );
+
+        // Draw the border using a 1x1 pixel white texture
+        _debugTexture = new Texture2D(Globals.GraphicsDevice, 1, 1);
+        _debugTexture.SetData(new[] { Color.White });
     }
     
     public void UpdatePosition(Vector2 newPosition, float timeSinceLastUpdate)
@@ -51,7 +71,7 @@ public class Player
         currentPosition = newPosition;
         interpolationTime = 0f;
         
-        predictedPosition = currentPosition + (velocity * timeSinceLastUpdate);
+        predictedPosition = currentPosition + (velocity * predictionTime);
     }
 
     public void UpdateVelocity(Vector2 newVelocity)
@@ -63,16 +83,17 @@ public class Player
     {
         interpolationTime += deltaTime;
         
-        CollisionRect = new Rectangle(
-            (int)(currentPosition.X),
-            (int)(currentPosition.Y),
-            32,
-            32
-        );
+        BoundingBox.X = (int)(currentPosition.X);
+        BoundingBox.Y = (int)(currentPosition.Y);
+
+        _debugRect.X = (int)(currentPosition.X - _sprite.Origin.X);
+        _debugRect.Y = (int)(currentPosition.Y - _sprite.Origin.Y);
         
         // Interpolate between the previous and current positions, and between the current and predicted positions.
         var interpolatedPosition = InterpolatePosition(previousPosition, currentPosition, interpolationTime);
         _sprite.Position = InterpolatePosition(currentPosition, predictedPosition, interpolationTime);
+
+        _sprite.Update();
 
         UpdateAnimation();
     }
@@ -80,21 +101,6 @@ public class Player
     private Vector2 InterpolatePosition(Vector2 startPosition, Vector2 endPosition, float alpha)
     {
         return startPosition + alpha * (endPosition - startPosition);
-    }
-
-    public Vector2 GetInterpolatedPosition()
-    {
-        return SmoothInterpolation(previousPosition, currentPosition, nextPosition, smoothingWeight);
-    }
-
-    private Vector2 SmoothInterpolation(Vector2 previousPosition, Vector2 currentPosition, Vector2 nextPosition, float weight)
-    {
-        return (previousPosition * (1 - weight)) + (currentPosition * weight);
-    }
-
-    private Vector2 PredictPosition(Vector2 currentPosition, Vector2 velocity, float predictionTime)
-    {
-        return currentPosition + (velocity * predictionTime);
     }
 
     private void UpdateAnimation()
@@ -136,6 +142,11 @@ public class Player
         {
             // right
             direction = 2;
+        }
+
+        if (_sprite.Debug)
+        {
+            spriteBatch.Draw(_debugTexture, _debugRect, Color.Black);
         }
 
         var sourceRect = new Rectangle(_currentFrame * FrameWidth, direction * FrameHeight, FrameWidth, FrameHeight);

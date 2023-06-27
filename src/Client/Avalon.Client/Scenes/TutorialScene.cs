@@ -14,20 +14,6 @@ using Timer = System.Timers.Timer;
 
 namespace Avalon.Client.Scenes;
 
-public struct InterpolatedPlayerPosition
-{
-    public float X { get; set; }
-    public float Y { get; set; }
-    public float InterpolationTime { get; set; }
-    public float ElapsedTime { get; set; }
-
-    public float PreviousX { get; set; }
-    public float PreviousY { get; set; }
-
-    public float VelocityX { get; set; }
-    public float VelocityY { get; set; }
-}
-
 public class TutorialScene : Scene
 {
     private Map _map;
@@ -65,7 +51,7 @@ public class TutorialScene : Scene
     private void OnNpcUpdated(object sender, SNpcUpdatePacket packet)
     {
         _npcs.AddOrUpdate(packet.Id, new Player(
-            Globals.Content.Load<Texture2D>("Images/player"), new Vector2(packet.PositionX, packet.PositionY)), (guid, player) =>
+            Globals.Content.Load<Texture2D>("Images/player"), new Vector2(packet.PositionX, packet.PositionY), true), (guid, player) =>
         {
             player.UpdateVelocity(new Vector2(packet.VelocityX, packet.VelocityY));
             player.UpdatePosition(new Vector2(packet.PositionX, packet.PositionY), Globals.Time);
@@ -99,7 +85,7 @@ public class TutorialScene : Scene
         };
         t.Start();
 
-        _banner = new Banner(new Vector2(5, 5), scale: 2f, alpha: 0.5f);
+        _banner = new Banner(new Vector2(0, 0), size: new Vector2(280, 200), alpha: 0.5f);
         _banner.Load();
 
     }
@@ -120,6 +106,12 @@ public class TutorialScene : Scene
         // TODO: Update the scene's logic
         InputManager.Update();
         
+        if (InputManager.DebugGraphics != InputManager.PreviousDebugGraphics)
+        {
+            _map.ToggleDebug(InputManager.DebugGraphics);
+            InputManager.PreviousDebugGraphics = InputManager.DebugGraphics;
+        }
+        
         foreach (var (_, otherHero) in _otherPlayers)
         {
             otherHero.Update(deltaTime);
@@ -130,7 +122,7 @@ public class TutorialScene : Scene
             npc.Update(deltaTime);
         }
 
-        _hero.Update(_map.IsObjectColliding, _npcs.Values, _otherPlayers.Values);
+        _hero.Update(_map.IsObjectColliding, _npcs, _otherPlayers);
         
 
         // Update the camera position based on player movement or other logic
@@ -142,6 +134,8 @@ public class TutorialScene : Scene
             MathHelper.Clamp(Globals.CameraPosition.X, 0, _map.MapSize.X - Globals.GraphicsDevice.Viewport.Width),
             MathHelper.Clamp(Globals.CameraPosition.Y, 0, _map.MapSize.Y - Globals.GraphicsDevice.Viewport.Height)
         );
+
+        _banner.Update(gameTime);
         
         CalculateTranslation();
         
@@ -174,10 +168,11 @@ public class TutorialScene : Scene
         if (InputManager.ShowingMetrics)
         {
             _banner.Draw(spriteBatch);
-            spriteBatch.DrawString(_font, $"X: {Math.Round(_hero.Position.X, 1)} Y: {Math.Round(_hero.Position.Y, 1)}", new Vector2(10, 10) + Globals.CameraPosition, Color.DarkBlue);
-            spriteBatch.DrawString(_font, $"FPS: {_fps}", new Vector2(10, 36) + Globals.CameraPosition, Color.DarkBlue);
-            spriteBatch.DrawString(_font, $"Latency: {_latency}ms", new Vector2(10, 62) + Globals.CameraPosition, Color.DarkBlue);
+            spriteBatch.DrawString(_font, $"X: {Math.Round(_hero.Position.X, 1)} Y: {Math.Round(_hero.Position.Y, 1)}", new Vector2(3, 2) + Globals.CameraPosition, Color.DarkBlue);
+            spriteBatch.DrawString(_font, $"FPS: {_fps}", new Vector2(3, 36) + Globals.CameraPosition, Color.DarkBlue);
+            spriteBatch.DrawString(_font, $"Latency: {_latency}ms", new Vector2(3, 62) + Globals.CameraPosition, Color.DarkBlue);
         }
+
         spriteBatch.End();
     }
 
@@ -219,7 +214,10 @@ public class TutorialScene : Scene
 
         if (packet.ClientId == Globals.ClientId)
         {
-            _hero.UpdateVelocity(new Vector2(packet.VelocityX, packet.VelocityY));
+            if (_hero != null)
+            {
+                // _hero.UpdateVelocity(new Vector2(packet.VelocityX, packet.VelocityY));
+            }
         }
     }
 }

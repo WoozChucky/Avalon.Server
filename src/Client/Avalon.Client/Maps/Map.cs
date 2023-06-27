@@ -21,8 +21,7 @@ public class Map : IDisposable
     public int TileWidth { get; private set; }
     
     public int TileHeight { get; private set; }
-
-
+    
     public Map(string mapName, string spriteSheetName)
     {
         Load(new TiledMap($"Maps/{mapName}.tmx"), spriteSheetName);
@@ -161,6 +160,14 @@ public class Map : IDisposable
     }
 
     #endregion
+    
+    public void ToggleDebug(bool enabled)
+    {
+        foreach (var layer in _layers.Where(l => l.IsCollidable))
+        {
+            layer.ToggleDebug(enabled);
+        }
+    }
 
     public void Draw(SpriteBatch spriteBatch)
     {

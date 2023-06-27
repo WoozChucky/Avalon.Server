@@ -42,7 +42,7 @@ namespace Avalon.Client
             else
             {
                 ClientId = Guid.NewGuid();
-                await File.WriteAllTextAsync("av.bin", ClientId.ToString());
+                //await File.WriteAllTextAsync("av.bin", ClientId.ToString());
             }
             
             using var game = new AvalonGame(ClientId);

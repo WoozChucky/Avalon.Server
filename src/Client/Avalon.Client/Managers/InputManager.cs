@@ -18,22 +18,37 @@ public static class InputManager
     public static MovementDirection MovementDirection;
     public static bool IsRunning = false;
     public static bool ShowingMetrics { get; set; } = true;
+    public static bool PreviousDebugGraphics { get; set; } = false;
+    public static bool DebugGraphics { get; set; } = true;
+    
+    private static KeyboardState _previousKeyboardState;
 
     public static void Update()
     {
         Direction = Vector2.Zero;
+        
+        
+        var currentKeyboardState = Keyboard.GetState();
+
+        if (currentKeyboardState.IsKeyDown(Keys.F1) && _previousKeyboardState.IsKeyUp(Keys.F1))
+        {
+            ShowingMetrics = !ShowingMetrics;
+        }
+
+        if (currentKeyboardState.IsKeyDown(Keys.F3) && _previousKeyboardState.IsKeyUp(Keys.F3))
+        {
+            DebugGraphics = !DebugGraphics;
+        }
+            
+        _previousKeyboardState = currentKeyboardState;
+        
         
         var keyboardState = Keyboard.GetState();
 
         if (keyboardState.GetPressedKeyCount() > 0)
         {
             IsRunning = keyboardState.IsKeyDown(Keys.Space);
-            
-            if (Keyboard.GetState().GetPressedKeys().Contains(Keys.F1))
-            {
-                ShowingMetrics = !ShowingMetrics;
-            }
-            
+
             if (keyboardState.IsKeyDown(Keys.W) || keyboardState.IsKeyDown(Keys.Up))
             {
                 Direction.Y -= 1;

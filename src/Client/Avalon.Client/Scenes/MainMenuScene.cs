@@ -17,7 +17,7 @@ public class MainMenuScene : Scene
 
     public override void Load()
     {
-        _banner = new Banner(new Vector2(Globals.WindowSize.X / 2f, Globals.WindowSize.Y / 2f), "Nuno", 2f, 0.9f);
+        _banner = new Banner(new Vector2(Globals.WindowSize.X / 2f, Globals.WindowSize.Y / 2f), "Nuno", 2f, 0.1f);
         _banner.Load();
     }
 

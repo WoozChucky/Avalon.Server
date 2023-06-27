@@ -7,7 +7,7 @@ namespace Avalon.Client.Models;
 public class Sprite : IDisposable
 {
     public Texture2D Texture;
-    private readonly bool _debug;
+    public bool Debug { get; set; }
     
     private Texture2D _outlineTexture;
     private Rectangle _outlineRect;
@@ -20,15 +20,12 @@ public class Sprite : IDisposable
     public Sprite(Texture2D texture, Vector2 position, float scale = 1f, bool debug = false)
     {
         Texture = texture;
-        _debug = debug;
+        Debug = debug;
         Position = position;
         Origin = new Vector2(Texture.Width / 2f, Texture.Height / 2f);
         Scale = scale;
         
-        if (_debug)
-        {
-            CreateDebugBorder();
-        }
+        CreateDebugBorder();
     }
 
     private void CreateDebugBorder()
@@ -48,11 +45,20 @@ public class Sprite : IDisposable
     
     public virtual void Update()
     {
+        if (Debug)
+        {
+            _outlineRect = new Rectangle(
+                (int)(Position.X - Origin.X * Scale) - 1,
+                (int)(Position.Y - Origin.Y * Scale) - 1,
+                (int)(Texture.Width * Scale) + 2,
+                (int)(Texture.Height * Scale) + 2
+            );
+        }
     }
 
     public virtual void Draw(SpriteBatch spriteBatch)
     {
-        if (_debug)
+        if (Debug)
         {
             spriteBatch.Draw(_outlineTexture, _outlineRect, Color.Black);
         }

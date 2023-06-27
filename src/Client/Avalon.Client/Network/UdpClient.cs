@@ -156,7 +156,12 @@ public class UdpClient : IDisposable
                         {
                             var movementPacket = _packetDeserializer.Deserialize<SPlayerPositionUpdatePacket>(packet.Header.Type,
                                 packet.Payload);
-                            PlayerMoved?.Invoke(this, movementPacket);
+                            
+                            try {
+                                PlayerMoved?.Invoke(this, movementPacket);
+                            } catch (Exception e) {
+                                Console.WriteLine(e);
+                            }
                             break;
                         } 
                         case NetworkPacketType.SMSG_PONG:
@@ -170,7 +175,12 @@ public class UdpClient : IDisposable
                             {
                                 var rtt = (DateTime.UtcNow.Ticks - pongPacket.Ticks) / 10000;
                             
-                                LatencyUpdated?.Invoke(this, rtt);
+                                
+                                try {
+                                    LatencyUpdated?.Invoke(this, rtt);
+                                } catch (Exception e) {
+                                    Console.WriteLine(e);
+                                }
                             }
                             break;
                         }
@@ -192,7 +202,11 @@ public class UdpClient : IDisposable
                         case NetworkPacketType.SMSG_NPC_UPDATE:
                         {
                             var npcUpdatePacket = Serializer.Deserialize<SNpcUpdatePacket>(new MemoryStream(packet.Payload));
-                            NpcUpdated?.Invoke(this, npcUpdatePacket);
+                            try {
+                                NpcUpdated?.Invoke(this, npcUpdatePacket);
+                            } catch (Exception e) {
+                                Console.WriteLine(e);
+                            }
                             break;
                         }
                             

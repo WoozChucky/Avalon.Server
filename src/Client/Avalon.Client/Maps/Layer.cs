@@ -37,4 +37,12 @@ public class Layer : IDisposable
             }
         }
     }
+
+    public void ToggleDebug(bool enabled)
+    {
+        foreach (var tile in _tiles)
+        {
+            tile?.ToggleDebug(enabled);
+        }
+    }
 }
