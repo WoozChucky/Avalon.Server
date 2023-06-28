@@ -307,11 +307,8 @@ public class AvalonGame : IAvalonGame
         var client = source.AsUdpClient();
 
         var response = SPongPacket.Create(packet.SequenceNumber, packet.Ticks);
-        
-        await using var ms = new MemoryStream();
-        await _packetSerializer.SerializeToNetwork(ms, response);
-        
-        await client.SendResponseAsync(ms.ToArray());
+
+        await source.SendAsync(response);
     }
     
     #endregion

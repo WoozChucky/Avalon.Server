@@ -80,8 +80,8 @@ public class Tile : IDisposable
         Sprite?.Dispose();
     }
 
-    public void ToggleDebug(bool enabled)
+    public void ToggleDebug()
     {
-        Sprite.Debug = enabled;
+        Sprite.Debug = !Sprite.Debug;
     }
 }

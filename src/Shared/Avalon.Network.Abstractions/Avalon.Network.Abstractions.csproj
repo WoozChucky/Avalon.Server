@@ -8,6 +8,7 @@
     </PropertyGroup>
 
     <ItemGroup>
+        <PackageReference Include="ENet-CSharp" Version="2.4.8" />
         <PackageReference Include="protobuf-net" Version="3.2.16" />
     </ItemGroup>
     

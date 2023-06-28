@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
     <PropertyGroup>
-        <OutputType>WinExe</OutputType>
+        <OutputType>Exe</OutputType>
         <TargetFramework>net6.0</TargetFramework>
         <RollForward>Major</RollForward>
         <PublishReadyToRun>false</PublishReadyToRun>
@@ -20,6 +20,7 @@
         <EmbeddedResource Include="Icon.bmp" />
     </ItemGroup>
     <ItemGroup>
+        <PackageReference Include="ENet-CSharp" Version="2.4.8" />
         <PackageReference Include="Mono.Nat" Version="3.0.4" />
         <PackageReference Include="MonoGame.Framework.DesktopGL" Version="3.8.1.303" />
         <PackageReference Include="MonoGame.Content.Builder.Task" Version="3.8.1.303" />

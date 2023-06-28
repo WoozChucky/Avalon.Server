@@ -38,11 +38,11 @@ public class Layer : IDisposable
         }
     }
 
-    public void ToggleDebug(bool enabled)
+    public void ToggleDebug()
     {
         foreach (var tile in _tiles)
         {
-            tile?.ToggleDebug(enabled);
+            tile?.ToggleDebug();
         }
     }
 }

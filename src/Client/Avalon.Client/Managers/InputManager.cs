@@ -9,9 +9,47 @@ public enum MovementDirection
     Down,
     Left,
     Right,
-    Up
+    Up,
+    Idle
 }
 
+public class InputManager
+{
+    private KeyboardState _previousState;
+    private KeyboardState _currentState;
+    
+    private static InputManager _instance;
+    
+    public static InputManager Instance => _instance ??= new InputManager();
+
+    public void Update(float delta)
+    {
+        _previousState = _currentState;
+        _currentState = Keyboard.GetState();
+    }
+    
+    public bool KeyPressed(params Keys[] keys)
+    {
+        return keys.Any(key => _currentState.IsKeyDown(key) && _previousState.IsKeyUp(key));
+    }
+    
+    public bool KeyReleased(params Keys[] keys)
+    {
+        return keys.Any(key => _currentState.IsKeyUp(key) && _previousState.IsKeyDown(key));
+    }
+    
+    public bool KeyDown(params Keys[] keys)
+    {
+        return keys.Any(key => _currentState.IsKeyDown(key));
+    }
+
+    public Keys GetKeyPressed(params Keys[] keys)
+    {
+        return keys.FirstOrDefault(key => _currentState.IsKeyDown(key) && _previousState.IsKeyUp(key));
+    }
+}
+
+/*
 public static class InputManager
 {
     public static Vector2 Direction;
@@ -77,3 +115,4 @@ public static class InputManager
             Direction.Normalize();
     }
 }
+*/

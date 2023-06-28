@@ -88,7 +88,7 @@ public class AvalonUdpServer : IAvalonUdpServer
                     var packetBuffer = new byte[result.ReceivedBytes];
                     Array.Copy(readBuffer, packetBuffer, result.ReceivedBytes);
 
-                    OnPacketReceived?.Invoke(endpoint, new UdpClientPacket(result.RemoteEndPoint, packetBuffer, _socket.SendToAsync));
+                    //OnPacketReceived?.Invoke(endpoint, new UdpClientPacket(result.RemoteEndPoint, packetBuffer, _socket.SendToAsync));
                 }
                 catch (Exception e)
                 {
