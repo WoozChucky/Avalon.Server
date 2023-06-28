@@ -18,13 +18,21 @@ public class AvalonGame : Game
     {
         Globals.ClientId = clientId;
         _graphics = new GraphicsDeviceManager(this);
+        _graphics.SynchronizeWithVerticalRetrace = true;
         Content.RootDirectory = "Content";
-        this.Window.Title = "Avalon";
+
+
+        Window.Title = "Avalon";
         
+        TargetElapsedTime = TimeSpan.FromSeconds(1d / 60d);
+        MaxElapsedTime = TimeSpan.FromMilliseconds(500);
+        InactiveSleepTime = TimeSpan.Zero;
         IsMouseVisible = true;
-        IsFixedTimeStep = false;
+        IsFixedTimeStep = false;        
         
         _sceneManager = new SceneManager();
+        _sceneManager.AddScene(nameof(MainMenuScene), new MainMenuScene(_sceneManager));
+        _sceneManager.AddScene(nameof(TutorialScene), new TutorialScene(_sceneManager));
     }
 
     protected override async void Initialize()
@@ -40,11 +48,9 @@ public class AvalonGame : Game
         Globals.Content = Content;
         Globals.GraphicsDevice = GraphicsDevice;
 
-        TcpClient.Instance.ConnectAsync().ConfigureAwait(true).GetAwaiter().GetResult();
-        UdpClient.Instance.ConnectAsync().ConfigureAwait(true).GetAwaiter().GetResult();
-
-        _sceneManager.AddScene(nameof(MainMenuScene), new MainMenuScene(_sceneManager));
-        _sceneManager.AddScene(nameof(TutorialScene), new TutorialScene(_sceneManager));
+        TcpClient.Instance.ConnectAsync().GetAwaiter().GetResult();
+        // UdpClient.Instance.ConnectAsync().GetAwaiter().GetResult();
+        UdpEnetClient.Instance.ConnectAsync().GetAwaiter().GetResult();
         
         _sceneManager.LoadScene(nameof(TutorialScene));
 
@@ -61,7 +67,11 @@ public class AvalonGame : Game
     {
         if (GamePad.GetState(PlayerIndex.One).Buttons.Back == ButtonState.Pressed ||
             Keyboard.GetState().IsKeyDown(Keys.Escape))
+        {
+            UdpEnetClient.Instance.Disconnect();
             Exit();
+        }
+            
         
         Globals.Update(gameTime);
 

@@ -23,7 +23,7 @@ public class AvalonConnection : IDisposable
     public Guid Id { get; private set; }
     public IRemoteSource? Udp { get; private set; }
     public IRemoteSource? Tcp { get; private set; }
-    public long RoundTripTime { get; set; } // in milliseconds
+    public long RoundTripTime => Udp?.RoundTripTime ?? -1;
     public ConnectionStatus Status { get; set; }
     public DateTime LastUpdateAt { get; set; } = DateTime.UtcNow;
 
@@ -59,7 +59,7 @@ public class AvalonConnection : IDisposable
             {
                 Console.WriteLine($"Round trip time: {RoundTripTime}ms");
             }
-            RoundTripTime = newRtt;
+            // RoundTripTime = newRtt;
         }
     }
 

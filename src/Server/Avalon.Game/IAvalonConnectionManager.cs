@@ -56,7 +56,7 @@ public class AvalonConnectionManager : IAvalonConnectionManager
     public void Start()
     {
         Task.Run(StartMonitoringConnections);
-        Task.Run(StartPingPongWorker);
+        //Task.Run(StartPingPongWorker);
         
         _logger.LogInformation("Connection manager started");
     }
@@ -80,12 +80,11 @@ public class AvalonConnectionManager : IAvalonConnectionManager
                     if (connection.Status == ConnectionStatus.Connected)
                     {
                         // check if the connection has timed out
-                        if (connection.RoundTripTime > PingTimeoutThreshold || DateTime.UtcNow - connection.LastUpdateAt > TimeSpan.FromSeconds(PingTimeoutThresholdInSec))
+                        if (connection.RoundTripTime > PingTimeoutThreshold && DateTime.UtcNow - connection.LastUpdateAt > TimeSpan.FromSeconds(PingTimeoutThresholdInSec))
                         {
                             _logger.LogInformation("Client {Id} has timed out", connection.Id);
                             connection.Status = ConnectionStatus.TimedOut;
                             connection.LastUpdateAt = DateTime.UtcNow;
-                            connection.RoundTripTime = PingTimeoutThreshold;
                             try
                             {
                                 PlayerTimedOut?.Invoke(this, connection);

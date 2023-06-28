@@ -101,13 +101,13 @@ namespace Avalon.Server
                 })
                 .AddSingleton<AvalonUdpServerConfiguration>(_ => new AvalonUdpServerConfiguration
                 {
-                    Backlog = 100,
+                    Backlog = 32,
                     CertificatePath = "cert-server-udp.pem",
                     ListenPort = 21000
                 })
                 .AddSingleton<AvalonTcpServerConfiguration>(_ => new AvalonTcpServerConfiguration
                 {
-                    Backlog = 100,
+                    Backlog = 32,
                     CertificatePassword = "avalon",
                     CertificatePath = "cert-tcp.pfx",
                     ListenPort = 21000
@@ -120,12 +120,12 @@ namespace Avalon.Server
                 })
                 .AddSingleton<IMetricsManager, MetricsManager>()
                 .AddSingleton<IAvalonTcpServer, AvalonTcpServer>()
-                .AddSingleton<IAvalonUdpServer, AvalonUdpServer>()
+                // .AddSingleton<IAvalonUdpServer, AvalonUdpServer>()
+                .AddSingleton<IAvalonUdpServer, ENetUdpServer>()
                 .AddSingleton<IAvalonConnectionManager, AvalonConnectionManager>()
                 .AddSingleton<IPacketDeserializer, NetworkPacketDeserializer>()
                 .AddSingleton<IPacketSerializer, NetworkPacketSerializer>()
                 .AddSingleton<IPacketRegistry, PacketRegistry>()
-                .AddSingleton<IAvalonMovementManager, AvalonMovementManager>()
                 .AddSingleton<IAvalonNetworkDaemon, AvalonNetworkDaemon>()
                 .AddSingleton<IAvalonGame, AvalonGame>()
                 .AddSingleton<IAvalonInfrastructure, AvalonInfrastructure>()

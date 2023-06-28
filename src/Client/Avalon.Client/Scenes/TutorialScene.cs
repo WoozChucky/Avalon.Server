@@ -9,6 +9,7 @@ using Avalon.Network.Packets.Auth;
 using Avalon.Network.Packets.Movement;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
+using Microsoft.Xna.Framework.Input;
 using TcpClient = Avalon.Client.Network.TcpClient;
 using Timer = System.Timers.Timer;
 
@@ -17,13 +18,16 @@ namespace Avalon.Client.Scenes;
 public class TutorialScene : Scene
 {
     private Map _map;
-    private Hero _hero;
+    private Player _player;
     private Matrix _translation;
     private SpriteFont _font;
     private Banner _banner;
 
-    private readonly ConcurrentDictionary<Guid, Player> _otherPlayers;
-    private readonly ConcurrentDictionary<Guid, Player> _npcs;
+    private readonly ConcurrentDictionary<Guid, OtherPlayer> _otherPlayers;
+    private readonly ConcurrentDictionary<Guid, OtherPlayer> _npcs;
+
+    private Vector2 _lastSentPosition;
+    private Vector2 _lastSentVelocity;
 
     private float _elapsedTime;
     private int _frameCount;
@@ -34,8 +38,8 @@ public class TutorialScene : Scene
 
     public TutorialScene(SceneManager sceneManager) : base(sceneManager)
     {
-        _otherPlayers = new ConcurrentDictionary<Guid, Player>();
-        _npcs = new ConcurrentDictionary<Guid, Player>();
+        _otherPlayers = new ConcurrentDictionary<Guid, OtherPlayer>();
+        _npcs = new ConcurrentDictionary<Guid, OtherPlayer>();
         
         Globals.CameraPosition = Vector2.Zero;
         
@@ -43,46 +47,26 @@ public class TutorialScene : Scene
         TcpClient.Instance.PlayerDisconnected += OnPlayerDisconnected;
         //TcpClient.Instance.PlayerMoved += OnPlayerMoved;
         
-        UdpClient.Instance.LatencyUpdated += OnLatencyUpdated;
-        UdpClient.Instance.PlayerMoved += OnPlayerMoved;
-        UdpClient.Instance.NpcUpdated += OnNpcUpdated;
-    }
-
-    private void OnNpcUpdated(object sender, SNpcUpdatePacket packet)
-    {
-        _npcs.AddOrUpdate(packet.Id, new Player(
-            Globals.Content.Load<Texture2D>("Images/player"), new Vector2(packet.PositionX, packet.PositionY), true), (guid, player) =>
-        {
-            player.UpdateVelocity(new Vector2(packet.VelocityX, packet.VelocityY));
-            player.UpdatePosition(new Vector2(packet.PositionX, packet.PositionY), Globals.Time);
-            return player;
-        });
-    }
-
-    private void OnLatencyUpdated(object sender, double latency)
-    {
-        _latency = latency;
+        UdpEnetClient.Instance.LatencyUpdated += OnLatencyUpdated;
+        UdpEnetClient.Instance.PlayerMoved += OnPlayerMoved;
+        UdpEnetClient.Instance.NpcUpdated += OnNpcUpdated;
     }
 
     public override void Load()
     {
         _font = Globals.Content.Load<SpriteFont>("Fonts/Nintendo");
         _map = new Map("Tutorial", "Serene_Village_32x32");
-        _hero = new Hero(
+        _player = new Player(
             Globals.Content.Load<Texture2D>("Images/player"), 
             //new Vector2(Globals.WindowSize.X / 2f, Globals.WindowSize.Y / 2f),
             new Vector2(326, 1450)
         );
-        _hero.SetBounds(_map.MapSize, new Point(_map.TileWidth, _map.TileHeight));
+        _player.SetBounds(_map.MapSize, new Point(_map.TileWidth, _map.TileHeight));
 
         Timer t = new Timer();
-        t.Interval = 50; // 20 updates per seconds which would be 50 milliseconds interval (1000/20 = 50)
+        t.Interval = 30; // 20 updates per seconds which would be 50 milliseconds interval (1000/20 = 50)
         t.AutoReset = true;
-        t.Elapsed += (sender, args) =>
-        {
-            //TcpClient.Instance.BroadcastMovementUpdates(Globals.Time, _hero.Position.X, _hero.Position.Y, InputManager.Direction.X, InputManager.Direction.Y);
-            UdpClient.Instance.BroadcastMovementUpdates(Globals.Time, _hero.Position.X, _hero.Position.Y, InputManager.Direction.X, InputManager.Direction.Y).GetAwaiter().GetResult();
-        };
+        t.Elapsed += OnTimerElapsed;
         t.Start();
 
         _banner = new Banner(new Vector2(0, 0), size: new Vector2(280, 200), alpha: 0.5f);
@@ -103,13 +87,11 @@ public class TutorialScene : Scene
         _elapsedTime += deltaTime;
         _frameCount++;
         
-        // TODO: Update the scene's logic
-        InputManager.Update();
-        
-        if (InputManager.DebugGraphics != InputManager.PreviousDebugGraphics)
+        InputManager.Instance.Update(deltaTime);
+
+        if (InputManager.Instance.KeyReleased(Keys.F3))
         {
-            _map.ToggleDebug(InputManager.DebugGraphics);
-            InputManager.PreviousDebugGraphics = InputManager.DebugGraphics;
+            _map.ToggleDebug();
         }
         
         foreach (var (_, otherHero) in _otherPlayers)
@@ -122,11 +104,11 @@ public class TutorialScene : Scene
             npc.Update(deltaTime);
         }
 
-        _hero.Update(_map.IsObjectColliding, _npcs, _otherPlayers);
+        _player.Update(_map.IsObjectColliding, _npcs, _otherPlayers);
         
 
         // Update the camera position based on player movement or other logic
-        Globals.CameraPosition = _hero.Position - new Vector2((float) Globals.GraphicsDevice.Viewport.Width / 2,
+        Globals.CameraPosition = _player.Position - new Vector2((float) Globals.GraphicsDevice.Viewport.Width / 2,
             (float) Globals.GraphicsDevice.Viewport.Height / 2) + new Vector2(_map.TileWidth / 2f, _map.TileHeight / 2f);
         
         // Perform boundary checks to prevent the camera from going outside the game world
@@ -155,7 +137,7 @@ public class TutorialScene : Scene
         */
         spriteBatch.Begin(transformMatrix: _translation);
         _map.Draw(spriteBatch);
-        _hero.Draw(spriteBatch);
+        _player.Draw(spriteBatch);
         foreach (var (id, otherHero) in _otherPlayers)
         {
             otherHero.Draw(spriteBatch);
@@ -165,10 +147,10 @@ public class TutorialScene : Scene
             npc.Draw(spriteBatch);
         }
 
-        if (InputManager.ShowingMetrics)
+        if (true)
         {
             _banner.Draw(spriteBatch);
-            spriteBatch.DrawString(_font, $"X: {Math.Round(_hero.Position.X, 1)} Y: {Math.Round(_hero.Position.Y, 1)}", new Vector2(3, 2) + Globals.CameraPosition, Color.DarkBlue);
+            spriteBatch.DrawString(_font, $"X: {Math.Round(_player.Position.X, 1)} Y: {Math.Round(_player.Position.Y, 1)}", new Vector2(3, 2) + Globals.CameraPosition, Color.DarkBlue);
             spriteBatch.DrawString(_font, $"FPS: {_fps}", new Vector2(3, 36) + Globals.CameraPosition, Color.DarkBlue);
             spriteBatch.DrawString(_font, $"Latency: {_latency}ms", new Vector2(3, 62) + Globals.CameraPosition, Color.DarkBlue);
         }
@@ -181,22 +163,22 @@ public class TutorialScene : Scene
         if (disposing)
         {
             _map?.Dispose();
-            _hero?.Dispose();
+            _player?.Dispose();
         }
     }
 
     private void CalculateTranslation()
     {
-        var dx = (Globals.WindowSize.X / 2f) - _hero.Position.X;
+        var dx = (Globals.WindowSize.X / 2f) - _player.Position.X;
         dx = MathHelper.Clamp(dx, -_map.MapSize.X + Globals.WindowSize.X + (_map.TileWidth / 2), _map.TileWidth / 2f);
-        var dy = (Globals.WindowSize.Y / 2f) - _hero.Position.Y;
+        var dy = (Globals.WindowSize.Y / 2f) - _player.Position.Y;
         dy = MathHelper.Clamp(dy, -_map.MapSize.Y + Globals.WindowSize.Y + (_map.TileHeight / 2), _map.TileHeight / 2f);
         _translation = Matrix.CreateTranslation(dx, dy, 0f);
     }
     
     private void OnPlayerConnected(object sender, SPlayerConnectedPacket packet)
     {
-        _otherPlayers.TryAdd(packet.ClientId, new Player(Globals.Content.Load<Texture2D>("Images/player"), new Vector2(0, 0)));
+        _otherPlayers.TryAdd(packet.ClientId, new OtherPlayer(Globals.Content.Load<Texture2D>("Images/player"), new Vector2(0, 0)));
     }
     
     private void OnPlayerDisconnected(object sender, SPlayerDisconnectedPacket packet)
@@ -208,16 +190,42 @@ public class TutorialScene : Scene
     {
         if (_otherPlayers.TryGetValue(packet.ClientId, out var player))
         {
-            player.UpdateVelocity(new Vector2(packet.VelocityX, packet.VelocityY));
-            player.UpdatePosition(new Vector2(packet.PositionX, packet.PositionY), packet.Elapsed);
+            player.OnMovementReceived(new Vector2(packet.PositionX, packet.PositionY), new Vector2(packet.VelocityX, packet.VelocityY), _latency);
         }
 
         if (packet.ClientId == Globals.ClientId)
         {
-            if (_hero != null)
+            if (_player != null)
             {
                 // _hero.UpdateVelocity(new Vector2(packet.VelocityX, packet.VelocityY));
             }
         }
+    }
+    private void OnNpcUpdated(object sender, SNpcUpdatePacket packet)
+    {
+        _npcs.AddOrUpdate(packet.Id, new OtherPlayer(
+            Globals.Content.Load<Texture2D>("Images/player"), new Vector2(packet.PositionX, packet.PositionY), true), (guid, player) =>
+        {
+            player.OnMovementReceived(new Vector2(packet.PositionX, packet.PositionY), new Vector2(packet.VelocityX, packet.VelocityY), _latency);
+            return player;
+        });
+    }
+
+    private void OnLatencyUpdated(object sender, double latency)
+    {
+        _latency = latency;
+    }
+    
+    private async void OnTimerElapsed(object sender, EventArgs e)
+    {
+        
+        { // Send movement updates if the player has moved
+            if (_player.Position == _lastSentPosition && _player.Velocity == _lastSentVelocity) return;
+        
+            await UdpEnetClient.Instance.BroadcastMovementUpdates(Globals.Time, _player.Position.X, _player.Position.Y, _player.Velocity.X, _player.Velocity.Y);
+            _lastSentPosition = _player.Position;
+            _lastSentVelocity = _player.Velocity;
+        }
+        
     }
 }

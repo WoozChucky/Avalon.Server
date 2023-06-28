@@ -1,49 +1,52 @@
-using System;
+﻿using System;
+using System.Collections.Concurrent;
+using Avalon.Client.Managers;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
+using Microsoft.Xna.Framework.Input;
 
 namespace Avalon.Client.Models;
 
-public class Player
+public class Player : IDisposable
 {
-    public Guid Id { get; set; }
-    public Rectangle BoundingBox;
-
     private const int FrameWidth = 32;
     private const int FrameHeight = 32;
     private const int FrameCount = 3;
     private const float FrameTime = 0.2f;
+    
+    private const float SPEED = 80f;
+    
+    public Vector2 Position;
+    public Rectangle BoundingBox;
+    public Vector2 Velocity;
+
+    private Vector2 _minPos;
+    private Vector2 _maxPos;
+
     private int _currentFrame;
     private float _elapsedTime;
-
-    private int direction = 0;
-    
-    private Vector2 currentPosition;
-    private Vector2 previousPosition;
-    private Vector2 predictedPosition;
-    
-    private Vector2 nextPosition;
-    private Vector2 velocity;
-    private float interpolationTime;
-    private float predictionTime = 0.05f;
     
     private Texture2D _debugTexture;
     private Rectangle _debugRect;
-
     private readonly Sprite _sprite;
     
-    public Player(Texture2D texture, Vector2 position, bool debug = false)
+    private MovementDirection _movementDirection;
+
+    public Player(Texture2D texture, Vector2 position)
     {
-        currentPosition = position;
-        previousPosition = position;
         
-        _sprite = new Sprite(texture, position, debug: true);
+        Velocity = Vector2.Zero;
+        Position = position;
+        
+        _sprite = new Sprite(texture, position);
         _sprite.Origin = new Vector2(FrameWidth / 2f, FrameHeight / 2f);
-        _sprite.Debug = debug;
+        _sprite.Debug = true;
+
+        _movementDirection = MovementDirection.Idle;
 
         BoundingBox = new Rectangle(
-            (int)(currentPosition.X),
-            (int)(currentPosition.Y),
+            (int)(Position.X),
+            (int)(Position.Y),
             FrameWidth,
             FrameHeight
         );
@@ -54,8 +57,8 @@ public class Player
     private void CreateDebugBorder()
     {
         _debugRect = new Rectangle(
-            (int)(currentPosition.X - _sprite.Origin.X),
-            (int)(currentPosition.Y - _sprite.Origin.Y),
+            (int)(Position.X - _sprite.Origin.X),
+            (int)(Position.Y - _sprite.Origin.Y),
             FrameWidth,
             FrameHeight
         );
@@ -64,48 +67,112 @@ public class Player
         _debugTexture = new Texture2D(Globals.GraphicsDevice, 1, 1);
         _debugTexture.SetData(new[] { Color.White });
     }
-    
-    public void UpdatePosition(Vector2 newPosition, float timeSinceLastUpdate)
+
+    public void SetBounds(Point mapSize, Point tileSize)
     {
-        previousPosition = currentPosition;
-        currentPosition = newPosition;
-        interpolationTime = 0f;
-        
-        predictedPosition = currentPosition + (velocity * predictionTime);
+        _minPos = new Vector2((-tileSize.X / 2f), (-tileSize.Y / 2f));
+        _maxPos = new Vector2(mapSize.X - (tileSize.X / 2), mapSize.Y - (tileSize.X / 2));
     }
 
-    public void UpdateVelocity(Vector2 newVelocity)
+    public void Update(Func<Rectangle, bool> collisionCheckingFunction, ConcurrentDictionary<Guid, OtherPlayer> npcs,
+        ConcurrentDictionary<Guid, OtherPlayer> otherPlayers)
     {
-        velocity = newVelocity;
-    }
-
-    public void Update(float deltaTime)
-    {
-        interpolationTime += deltaTime;
+        UpdateMovement();
         
-        BoundingBox.X = (int)(currentPosition.X);
-        BoundingBox.Y = (int)(currentPosition.Y);
-
-        _debugRect.X = (int)(currentPosition.X - _sprite.Origin.X);
-        _debugRect.Y = (int)(currentPosition.Y - _sprite.Origin.Y);
+        var previousPosition = Position;
+        var previousBoundingBox = BoundingBox;
         
-        // Interpolate between the previous and current positions, and between the current and predicted positions.
-        var interpolatedPosition = InterpolatePosition(previousPosition, currentPosition, interpolationTime);
-        _sprite.Position = InterpolatePosition(currentPosition, predictedPosition, interpolationTime);
+        Position += Velocity * Globals.Time * SPEED * (InputManager.Instance.KeyDown(Keys.Space) ? 1.75f : 1);
+        Position = Vector2.Clamp(Position, _minPos, _maxPos);
 
-        _sprite.Update();
+        // Calculate the rectangle that encompasses the sprite with the border
+        BoundingBox.X = (int)(Position.X);
+        BoundingBox.Y = (int)(Position.Y);
 
+        _debugRect.X = (int)(Position.X - _sprite.Origin.X);
+        _debugRect.Y = (int)(Position.Y - _sprite.Origin.Y);
+        
+        
+        // Check for collisions with NPCs
+        foreach (var (id, npc) in npcs)
+        {
+            if (npc.BoundingBox.Intersects(BoundingBox))
+            {
+                //Position = previousPosition;
+                //BoundingBox = previousBoundingBox;
+            }
+        }
+        
+        // Check for collisions with other players
+        foreach (var (id, player) in otherPlayers)
+        {
+            if (player.BoundingBox.Intersects(BoundingBox))
+            {
+                //Position = previousPosition;
+                //BoundingBox = previousBoundingBox;
+            }
+        }
+
+        if (collisionCheckingFunction(BoundingBox))
+        {
+            Position = previousPosition;
+            BoundingBox = previousBoundingBox;
+        }
+
+        _sprite.Position = Position;
+        
         UpdateAnimation();
     }
-    
-    private Vector2 InterpolatePosition(Vector2 startPosition, Vector2 endPosition, float alpha)
+
+    public void Draw(SpriteBatch spriteBatch)
     {
-        return startPosition + alpha * (endPosition - startPosition);
+        if (false)
+        {
+            spriteBatch.Draw(_debugTexture, _debugRect, Color.Black);
+        }
+        
+        // Calculate the source rectangle based on the current frame and direction
+        var sourceRect = new Rectangle(_currentFrame * FrameWidth, (int)_movementDirection * FrameHeight, FrameWidth, FrameHeight);
+        
+        spriteBatch.Draw(_sprite.Texture, _sprite.Position, sourceRect, Color.White, 0f, _sprite.Origin, _sprite.Scale, SpriteEffects.None, 0);
+    }
+    
+    private void UpdateMovement()
+    {
+        Velocity = Vector2.Zero;
+
+        if (InputManager.Instance.KeyDown(Keys.W) || InputManager.Instance.KeyDown(Keys.Up))
+        {
+            Velocity.Y -= 1;
+            _movementDirection = MovementDirection.Up;
+        }
+        
+        if (InputManager.Instance.KeyDown(Keys.S) || InputManager.Instance.KeyDown(Keys.Down))
+        {
+            Velocity.Y += 1;
+            _movementDirection = MovementDirection.Down;
+        }
+
+        if (InputManager.Instance.KeyDown(Keys.A) || InputManager.Instance.KeyDown(Keys.Left))
+        {
+            Velocity.X -= 1;
+            _movementDirection = MovementDirection.Left;
+        }
+
+        if (InputManager.Instance.KeyDown(Keys.D) || InputManager.Instance.KeyDown(Keys.Right))
+        {
+            Velocity.X += 1;
+            _movementDirection = MovementDirection.Right;
+        }
+        
+        if (Velocity != Vector2.Zero)
+            Velocity.Normalize();
     }
 
     private void UpdateAnimation()
     {
-        if (velocity != Vector2.Zero)
+        // Only animate if we're moving
+        if (Velocity != Vector2.Zero)
         {
             _elapsedTime += Globals.Time;
         
@@ -121,36 +188,9 @@ public class Player
         }
     }
 
-    public void Draw(SpriteBatch spriteBatch)
+    public void Dispose()
     {
-        if (velocity.Y < 0)
-        {
-            // up
-            direction = 3;
-        }
-        else if (velocity.Y > 0)
-        {
-            // down
-            direction = 0;
-        }
-        else if (velocity.X < 0)
-        {
-            // left
-            direction = 1;
-        }
-        else if (velocity.X > 0)
-        {
-            // right
-            direction = 2;
-        }
-
-        if (_sprite.Debug)
-        {
-            spriteBatch.Draw(_debugTexture, _debugRect, Color.Black);
-        }
-
-        var sourceRect = new Rectangle(_currentFrame * FrameWidth, direction * FrameHeight, FrameWidth, FrameHeight);
-        
-        spriteBatch.Draw(_sprite.Texture, _sprite.Position, sourceRect, Color.White, 0f, _sprite.Origin, _sprite.Scale, SpriteEffects.None, 0);
+        _debugTexture?.Dispose();
+        _sprite?.Dispose();
     }
 }

@@ -161,11 +161,11 @@ public class Map : IDisposable
 
     #endregion
     
-    public void ToggleDebug(bool enabled)
+    public void ToggleDebug()
     {
         foreach (var layer in _layers.Where(l => l.IsCollidable))
         {
-            layer.ToggleDebug(enabled);
+            layer.ToggleDebug();
         }
     }
 

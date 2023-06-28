@@ -1,6 +1,5 @@
 using System.Drawing;
 using System.Numerics;
-using Avalon.Game.Handlers;
 
 namespace Avalon.Game.Entities;
 

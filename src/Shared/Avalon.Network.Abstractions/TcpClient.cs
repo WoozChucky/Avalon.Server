@@ -6,6 +6,7 @@ namespace Avalon.Network.Abstractions;
 
 public class TcpClient : IRemoteSource
 {
+    public long RoundTripTime => 0;
     public string RemoteAddress => Socket.RemoteEndPoint.ToString();
     public Socket Socket { get; }
     public SslStream Stream { get; }
