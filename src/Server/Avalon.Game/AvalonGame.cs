@@ -73,7 +73,7 @@ public class AvalonGame : IAvalonGame
                 
                 await BroadcastGameState();
             
-                await Task.Delay(50);
+                await Task.Delay(26);
             }
         }
         catch (OperationCanceledException e)
@@ -221,7 +221,7 @@ public class AvalonGame : IAvalonGame
                 player.Velocity.Y,
                 player.Character.ElapsedGameTime
             );
-            await BroadcastToOthers(Guid.Empty, packet);
+            await BroadcastAll(packet);
         }
         
         // Broadcast NPC positions

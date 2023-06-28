@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Collections.Concurrent;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
@@ -30,6 +32,10 @@ public class OtherPlayer
     private Texture2D _debugTexture;
     private Rectangle _debugRect;
 
+    // Store the last four positions received.
+    private ConcurrentQueue<Vector2> recentPositions = new ConcurrentQueue<Vector2>();
+    private float currentAngle = 0f; // represents the current direction as an angle
+    
     private readonly Sprite _sprite;
     
     public OtherPlayer(Texture2D texture, Vector2 position, bool debug = false)
@@ -77,6 +83,12 @@ public class OtherPlayer
         
         predictedPosition = currentPosition + (velocity * predictionTime);
 
+        //recentPositions.Enqueue(newPosition);
+        //if (recentPositions.Count > 4)
+        //{
+        //    recentPositions.TryDequeue(out _);
+        //}
+
         if (velocity.Y < 0)
         {
             // up
@@ -108,16 +120,34 @@ public class OtherPlayer
 
         _debugRect.X = (int)(currentPosition.X - _sprite.Origin.X);
         _debugRect.Y = (int)(currentPosition.Y - _sprite.Origin.Y);
+
+        // Linear Interpolation
+        {
+            // InterpolatePosition(currentPosition, predictedPosition, interpolationTime);
+        }
+
+        // Exponential Smoothing
+        {
+            // Exponential smoothing between the previous and current positions, and between the current and predicted positions.
+            float alpha = 0.5f;
+            // Higher values of alpha will make the player's movement react more quickly to changes in the predicted position.
+            // Lower values will make it smoother but also potentially more laggy.
+            currentPosition = ExponentialSmoothPosition(currentPosition, predictedPosition, alpha);
+            _sprite.Position = currentPosition;
+        }
+
+        // Cubic Interpolation
+        {
+            // Perform cubic interpolation if we have enough positions.
+            //if (recentPositions.Count == 4)
+            //{
+            //    Vector2[] positions = recentPositions.ToArray();
+            //    currentPosition = CubicInterpolate(positions[0], positions[1], positions[2], positions[3], interpolationTime);
+            //    _sprite.Position = currentPosition;
+            //}
+            //direction = (int)SmoothStep(direction, currentAngle, deltaTime * 0.1f);
+        }
         
-        // Exponential smoothing between the previous and current positions, and between the current and predicted positions.
-        float alpha = 0.5f;
-        // Higher values of alpha will make the player's movement react more quickly to changes in the predicted position.
-        // Lower values will make it smoother but also potentially more laggy.
-        currentPosition = ExponentialSmoothPosition(currentPosition, predictedPosition, alpha);
-        _sprite.Position = currentPosition;
-
-        // InterpolatePosition(currentPosition, predictedPosition, interpolationTime);
-
         _sprite.Update();
 
         UpdateAnimation();
@@ -129,11 +159,33 @@ public class OtherPlayer
         return alpha * currentPosition + (1 - alpha) * nextPosition;
     }
 
-
     // Old Linear Interpolation
     private Vector2 InterpolatePosition(Vector2 startPosition, Vector2 endPosition, float alpha)
     {
         return startPosition + alpha * (endPosition - startPosition);
+    }
+
+    // Cubic Interpolation (Hermite Interpolation)
+    private Vector2 CubicInterpolate(Vector2 y0, Vector2 y1, Vector2 y2, Vector2 y3, float mu)
+    {
+        Vector2 a0, a1, a2, a3, mu2;
+
+        mu2 = new Vector2(mu * mu);
+        a0 = y3 - y2 - y0 + y1;
+        a1 = y0 - y1 - a0;
+        a2 = y2 - y0;
+        a3 = y1;
+
+        return (a0 * mu * mu2 + a1 * mu2 + a2 * mu + a3);
+    }
+    
+    // Smoothstep function
+    private float SmoothStep(float v0, float v1, float t)
+    {
+        float t2 = t * t;
+        float t3 = t2 * t;
+
+        return v0 * (2f * t3 - 3f * t2 + 1f) + v1 * (-2f * t3 + 3f * t2);
     }
 
     private void UpdateAnimation()
