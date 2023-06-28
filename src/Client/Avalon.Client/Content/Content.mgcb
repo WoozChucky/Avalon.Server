@@ -18,10 +18,20 @@
 /processor:FontDescriptionProcessor
 /processorParam:PremultiplyAlpha=True
 /processorParam:TextureFormat=Compressed
-/build:Fonts/File.spritefont;Fonts/Nintendo.spritefont
+/build:Fonts/File.spritefont;
+
+#begin Fonts/Default.spritefont
+/importer:FontDescriptionImporter
+/processor:FontDescriptionProcessor
+/processorParam:PremultiplyAlpha=True
+/processorParam:TextureFormat=Compressed
+/build:Fonts/Default.spritefont;
 
 #begin Fonts/Nintendo.ttf
 /copy:Fonts/Nintendo.ttf
+/copy:Fonts/PokemonGb-RA.ttf
+/copy:Fonts/PokemonUnownGb.ttf
+/copy:Fonts/RobotoCondensed-Bold.ttf
 
 #begin Images/hero.png
 /importer:TextureImporter

@@ -20,6 +20,7 @@ public interface IAvalonConnectionManager : IDisposable
     
     Task AddConnection(IRemoteSource source, CWelcomePacket packet);
     Task HandlePongPacket(IRemoteSource source, CPongPacket packet);
+    void RemoveConnection(string clientPacketRemoteAddress);
 }
 
 public delegate void PlayerConnectedHandler(object? sender, AvalonConnection connection);
@@ -225,6 +226,27 @@ public class AvalonConnectionManager : IAvalonConnectionManager
 
         connection.OnPong(packet.SequenceNumber, packet.Ticks);
         return Task.CompletedTask;
+    }
+
+    public void RemoveConnection(string clientPacketRemoteAddress)
+    {
+        var connection = _connections.Values.FirstOrDefault(c => c.Udp?.RemoteAddress == clientPacketRemoteAddress);
+        if (connection == null)
+        {
+            _logger.LogWarning("Received disconnect packet from unknown client {Address}", clientPacketRemoteAddress);
+            return;
+        }
+
+        connection.Status = ConnectionStatus.Disconnected;
+        _logger.LogInformation("Client {Id} has disconnected", connection.Id);
+        try
+        {
+            PlayerDisconnected?.Invoke(this, connection);
+        }
+        catch (Exception e)
+        {
+            _logger.LogWarning(e,"Handler of PlayerDisconnected event for client {Id} threw", connection.Id);
+        }
     }
 
     public void Dispose()

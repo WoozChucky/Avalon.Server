@@ -7,4 +7,6 @@ public delegate void UdpClientPacketHandler(object? sender, UdpClientPacket clie
 public interface IAvalonUdpServer : IAvalonNetworkServer
 {
     event UdpClientPacketHandler OnPacketReceived;
+    event UdpClientPacketHandler OnClientDisconnected;
+    event UdpClientPacketHandler OnClientTimeout;
 }

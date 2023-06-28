@@ -5,6 +5,9 @@
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <LangVersion>latest</LangVersion>
+        <SignAssembly>true</SignAssembly>
+        <AssemblyOriginatorKeyFile>..\..\..\sgKey.snk</AssemblyOriginatorKeyFile>
+        <PublicSign>true</PublicSign>
     </PropertyGroup>
 
     <ItemGroup>
@@ -14,6 +17,12 @@
     <ItemGroup>
       <ProjectReference Include="..\Avalon.Network.Abstractions\Avalon.Network.Abstractions.csproj" />
       <ProjectReference Include="..\Avalon.Network\Avalon.Network.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <None Include="..\..\..\sgKey.snk">
+            <Link>sgKey.snk</Link>
+        </None>
     </ItemGroup>
 
 </Project>

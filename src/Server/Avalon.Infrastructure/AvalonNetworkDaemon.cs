@@ -57,11 +57,13 @@ public class AvalonNetworkDaemon : IAvalonNetworkDaemon
 
         _udpServer = udpServer;
         _udpServer.OnPacketReceived += UdpServerOnOnPacketReceived;
-        
+        _udpServer.OnClientDisconnected += UdpServerOnClientDisconnected;
+        _udpServer.OnClientTimeout += UdpServerOnClientTimeout;
+
         _tcpServer = tcpServer;
         _tcpServer.ClientConnected += TcpServerOnClientConnected;
     }
-    
+
     public void Start()
     {
         _packetSerializer.RegisterPacketSerializers();
@@ -135,7 +137,7 @@ public class AvalonNetworkDaemon : IAvalonNetworkDaemon
             {
                 if (e.InnerException is SocketException && e.InnerException.Message.Contains("An existing connection was forcibly closed by the remote host"))
                 {
-                    _logger.LogInformation("Client {Endpoint} disconnected", client.Socket.RemoteEndPoint.ToString());
+                    //_logger.LogInformation("Client {Endpoint} disconnected", client.Socket.RemoteEndPoint.ToString());
                     //_movementManager.RemovePlayer(client.Socket.RemoteEndPoint);
                 }
                 else
@@ -181,6 +183,16 @@ public class AvalonNetworkDaemon : IAvalonNetworkDaemon
             }
 
         }).ConfigureAwait(false);
+    }
+    
+    private void UdpServerOnClientTimeout(object? sender, UdpClientPacket clientPacket)
+    {
+        _connectionManager.RemoveConnection(clientPacket.RemoteAddress);
+    }
+
+    private void UdpServerOnClientDisconnected(object? sender, UdpClientPacket clientPacket)
+    {
+        _connectionManager.RemoveConnection(clientPacket.RemoteAddress);
     }
     
     private Packet GetInnerPacket(NetworkPacket packet)

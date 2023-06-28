@@ -17,6 +17,8 @@ public class AvalonUdpServer : IAvalonUdpServer
     private volatile bool _isRunning;
     
     public event UdpClientPacketHandler OnPacketReceived;
+    public event UdpClientPacketHandler? OnClientDisconnected;
+    public event UdpClientPacketHandler? OnClientTimeout;
 
     public AvalonUdpServer(
         ILogger<AvalonUdpServer> logger, 

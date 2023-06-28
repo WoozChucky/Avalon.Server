@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using Avalon.Network.Abstractions;
 using Avalon.Network.Udp.Configuration;
 using ENet;
@@ -17,6 +18,9 @@ public class ENetUdpServer : IAvalonUdpServer
     private readonly Address _address;
     
     public event UdpClientPacketHandler? OnPacketReceived;
+    public event UdpClientPacketHandler? OnClientDisconnected;
+    public event UdpClientPacketHandler? OnClientTimeout;
+    
     public bool IsRunning => _isRunning;
     
     public ENetUdpServer(ILogger<ENetUdpServer> logger, 
@@ -33,10 +37,15 @@ public class ENetUdpServer : IAvalonUdpServer
         {
             Port = (ushort) _configuration.ListenPort
         };
+        
+        Callbacks callbacks = new Callbacks(OnMemoryAllocate, OnMemoryFree, OnNoMemory);
+        Library.Initialize(callbacks);
     }
     
-    
-    
+    private AllocCallback OnMemoryAllocate = Marshal.AllocHGlobal;
+    private FreeCallback OnMemoryFree = Marshal.FreeHGlobal;
+    private NoMemoryCallback OnNoMemory = () => throw new OutOfMemoryException();
+
     public async Task RunAsync()
     {
         if (_isRunning) throw new InvalidOperationException("Server is already running.");
@@ -86,11 +95,13 @@ public class ENetUdpServer : IAvalonUdpServer
                             break;
                         
                         case EventType.Disconnect:
-                            _logger.LogInformation("Client disconnected - ID: {PeerId}, IP: {PeerIP}", netEvent.Peer.ID, netEvent.Peer.IP);
+                            // _logger.LogInformation("Client disconnected - ID: {PeerId}, IP: {PeerIP}", netEvent.Peer.ID, netEvent.Peer.IP);
+                            OnClientDisconnected?.Invoke(this, new UdpClientPacket(netEvent.Peer, Array.Empty<byte>()));
                             break;
                         
                         case EventType.Timeout:
-                            _logger.LogInformation("Client timeout - ID: {PeerId}, IP: {PeerIP}", netEvent.Peer.ID, netEvent.Peer.IP);
+                            // _logger.LogInformation("Client timeout - ID: {PeerId}, IP: {PeerIP}", netEvent.Peer.ID, netEvent.Peer.IP);
+                            OnClientTimeout?.Invoke(this, new UdpClientPacket(netEvent.Peer, Array.Empty<byte>()));
                             break;
                         
                         case EventType.Receive:
@@ -98,7 +109,7 @@ public class ENetUdpServer : IAvalonUdpServer
                             
                             var buffer = new byte[netEvent.Packet.Length];
                             netEvent.Packet.CopyTo(buffer);
-                            
+
                             OnPacketReceived?.Invoke(this, new UdpClientPacket(netEvent.Peer, buffer));
                             
                             netEvent.Packet.Dispose();
