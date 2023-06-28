@@ -3,6 +3,9 @@
     <PropertyGroup>
         <TargetFramework>netstandard2.1</TargetFramework>
         <Nullable>enable</Nullable>
+        <SignAssembly>true</SignAssembly>
+        <AssemblyOriginatorKeyFile>..\..\..\sgKey.snk</AssemblyOriginatorKeyFile>
+        <PublicSign>true</PublicSign>
     </PropertyGroup>
 
     <ItemGroup>
@@ -11,6 +14,12 @@
 
     <ItemGroup>
       <ProjectReference Include="..\..\Shared\Avalon.Common\Avalon.Common.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <None Include="..\..\..\sgKey.snk">
+            <Link>sgKey.snk</Link>
+        </None>
     </ItemGroup>
 
 </Project>
