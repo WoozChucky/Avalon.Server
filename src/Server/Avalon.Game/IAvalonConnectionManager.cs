@@ -1,7 +1,5 @@
 using System.Collections.Concurrent;
 using Avalon.Network;
-using Avalon.Network.Packets;
-using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Auth;
 using Avalon.Network.Packets.Generic;
 using ENet;
@@ -38,9 +36,8 @@ public class AvalonConnectionManager : IAvalonConnectionManager
     public event PlayerReconnectedHandler? PlayerReconnected;
     
     private readonly ILogger<AvalonConnectionManager> _logger;
-    private readonly IAvalonUdpServer _udpServer;
     private readonly ConcurrentDictionary<string, AvalonConnection> _connections;
-    private readonly CancellationTokenSource _cancellationTokenSource;
+    private readonly CancellationTokenSource _cts;
     
     private const int MonitorInterval = 100;
     private const int PingInterval = 2500;
@@ -48,14 +45,12 @@ public class AvalonConnectionManager : IAvalonConnectionManager
     private const int PingTimeoutThresholdInSec = PingTimeoutThreshold / 1000;
     private const int PingDisconnectThreshold = 30000;
     private const int PingDisconnectThresholdInSec = PingDisconnectThreshold / 1000;
-    
 
-    public AvalonConnectionManager(ILogger<AvalonConnectionManager> logger, IAvalonUdpServer udpServer)
+    public AvalonConnectionManager(ILogger<AvalonConnectionManager> logger)
     {
         _logger = logger;
-        _udpServer = udpServer;
         _connections = new ConcurrentDictionary<string, AvalonConnection>();
-        _cancellationTokenSource = new CancellationTokenSource();
+        _cts = new CancellationTokenSource();
     }
     
     public void Start()
@@ -68,17 +63,18 @@ public class AvalonConnectionManager : IAvalonConnectionManager
 
     public void Stop()
     {
-        _cancellationTokenSource?.Cancel();
+        _logger.LogInformation("Connection manager stopped");
+        _cts?.Cancel();
     }
     
     private async Task StartMonitoringConnections()
     {
         try
         {
-            while (!_cancellationTokenSource.IsCancellationRequested)
+            while (!_cts.IsCancellationRequested)
             {
                 // implement logic to check for timed out connections
-                await Task.Delay(MonitorInterval, _cancellationTokenSource.Token);
+                await Task.Delay(MonitorInterval, _cts.Token);
                 
                 foreach (var connection in _connections.Values)
                 {
@@ -175,10 +171,10 @@ public class AvalonConnectionManager : IAvalonConnectionManager
     {
         try
         {
-            while (!_cancellationTokenSource.IsCancellationRequested)
+            while (!_cts.IsCancellationRequested)
             {
                 // implement logic send ping packets to all connected clients
-                await Task.Delay(PingInterval, _cancellationTokenSource.Token);
+                await Task.Delay(PingInterval, _cts.Token);
                 
                 foreach (var connection in _connections.Values)
                 {
@@ -205,12 +201,8 @@ public class AvalonConnectionManager : IAvalonConnectionManager
     
     public Task AddConnection(IRemoteSource source, CWelcomePacket packet)
     {
-        var sourceType = source is TcpClient ? "TCP" : "UDP";
-        
-        _logger.LogInformation("Client {Id} {Type} has connected from {Ip}", packet.ClientId, sourceType, source.RemoteAddress);
         if (!_connections.TryGetValue(packet.ClientId, out var connection))
         {
-            _logger.LogInformation("Client {Id} is new", packet.ClientId);
             connection = new AvalonConnection(packet.ClientId);
             _connections.TryAdd(packet.ClientId, connection);
         }
@@ -236,7 +228,7 @@ public class AvalonConnectionManager : IAvalonConnectionManager
 
             if (connection.Status == ConnectionStatus.Connected)
             {
-                _logger.LogInformation("Client {Id} established connection", connection.Id);
+                _logger.LogInformation("Client {Id} established connection from {Address}", connection.Id, connection.Udp?.RemoteAddress);
                 try
                 {
                     PlayerConnected?.Invoke(this, connection);
@@ -260,15 +252,16 @@ public class AvalonConnectionManager : IAvalonConnectionManager
         }
 
         connection.OnPong(packet.SequenceNumber, packet.Ticks);
+        
         return Task.CompletedTask;
     }
 
-    public void RemoveConnection(string connectionId)
+    public void RemoveConnection(string remoteUdpAddress)
     {
-        var connection = _connections.Values.FirstOrDefault(c => c.Udp?.RemoteAddress == connectionId);
+        var connection = _connections.Values.FirstOrDefault(c => c.Udp?.RemoteAddress == remoteUdpAddress);
         if (connection == null)
         {
-            _logger.LogWarning("Received disconnect packet from unknown client {ConnectionId}", connectionId);
+            _logger.LogWarning("Received disconnect packet from unknown client {ConnectionId}", remoteUdpAddress);
             return;
         }
 
@@ -290,7 +283,7 @@ public class AvalonConnectionManager : IAvalonConnectionManager
 
     public void Dispose()
     {
-        _cancellationTokenSource.Dispose();
+        _cts.Dispose();
         foreach (var connection in _connections.Values)
         {
             connection.Dispose();

@@ -60,7 +60,9 @@ public class AvalonGame : IAvalonGame
     {
         _logger.LogInformation("Starting game loop");
 
+#pragma warning disable CS4014
         Task.Run(BroadcastLoop);
+#pragma warning restore CS4014
         
         var previousTime = DateTime.UtcNow;
 
@@ -77,9 +79,13 @@ public class AvalonGame : IAvalonGame
                 await Task.Delay(50);
             }
         }
-        catch (OperationCanceledException e)
+        catch (OperationCanceledException)
         {
             _logger.LogInformation("Game loop cancelled");
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Game loop exception");
         }
     }
 
@@ -94,9 +100,13 @@ public class AvalonGame : IAvalonGame
                 await Task.Delay(26);
             }
         }
-        catch (OperationCanceledException e)
+        catch (OperationCanceledException)
         {
-            
+            // ignore
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Broadcast loop exception");
         }
     }
 
@@ -137,8 +147,8 @@ public class AvalonGame : IAvalonGame
                     if (entity.State == UrielState.Collided)
                     {
                         entity.State = UrielState.Walking;
-                        entity.Velocity = entity.PreviousVelocity;
-                        entity.InvertDirection();
+                        entity.Velocity = new Vector2(0, 0);
+                        //entity.InvertDirection();
                     }
                 }
             }
@@ -287,7 +297,7 @@ public class AvalonGame : IAvalonGame
 
     #region Packet Handlers
 
-    public async Task HandleMovementPacket(IRemoteSource source, CPlayerMovementPacket packet)
+    public Task HandleMovementPacket(IRemoteSource source, CPlayerMovementPacket packet)
     {
         if (_players.TryGetValue(packet.ClientId, out var player))
         {
@@ -302,6 +312,7 @@ public class AvalonGame : IAvalonGame
             player.Character.ElapsedGameTime = packet.ElapsedGameTime;
             // TODO: player.Character.LastUpdated = DateTime.UtcNow;
         }
+        return Task.CompletedTask;
     }
 
     public async Task HandleServerVersionPacket(IRemoteSource source, CRequestServerVersionPacket packet)

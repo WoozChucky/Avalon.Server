@@ -25,6 +25,7 @@ public class Uriel : IEntity
 
     public Uriel()
     {
+        Id = "Uriel";
         Bounds = new Rectangle((int)Position.X, (int)Position.Y, 32, 32);
         State = UrielState.Walking;
     }
@@ -34,6 +35,11 @@ public class Uriel : IEntity
         if (State == UrielState.Collided)
         {
             return;
+        }
+
+        if (Velocity == Vector2.Zero)
+        {
+            Velocity = PreviousVelocity;
         }
         
         Position += Velocity * Speed * (float)deltaTime.TotalSeconds;

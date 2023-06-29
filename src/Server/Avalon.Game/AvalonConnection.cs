@@ -75,23 +75,39 @@ public class AvalonConnection : IDisposable
             switch (packet.Header.Protocol)
             {
                 case NetworkProtocol.Tcp:
-                    Tcp?.SendAsync(packet);
+                    if (Tcp != null)
+                    {
+                        await Tcp.SendAsync(packet);
+                    }
                     break;
                 case NetworkProtocol.Udp:
-                    Udp?.SendAsync(packet);
+                    if (Udp != null)
+                    {
+                        await Udp.SendAsync(packet);
+                    }
                     break;
                 case NetworkProtocol.Both:
-                    Tcp?.SendAsync(packet);
-                    Udp?.SendAsync(packet);
+                    if (Udp != null)
+                    {
+                        await Udp.SendAsync(packet);
+                    }
+                    if (Tcp != null)
+                    {
+                        await Tcp.SendAsync(packet);
+                    }
                     break;
                 default:
                 case NetworkProtocol.None:
                     throw new InvalidOperationException("Cannot send a packet with no protocol specified.");
             }
         }
-        catch (IOException e)
+        catch (IOException)
         {
             _packetQueue.Enqueue(packet);
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine(e);
         }
     }
     
