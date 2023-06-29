@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
@@ -7,6 +8,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Avalon.Network;
 using Avalon.Network.Packets;
+using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Auth;
 using Avalon.Network.Packets.Deserialization;
 using Avalon.Network.Packets.Generic;
@@ -67,16 +69,12 @@ public class UdpEnetClient : IDisposable
     {
         _serverPeer = _client.Connect(_address);
 
-        await Task.Delay(2000);
-        
         Task.Run(HandleCommunications);
-        
-        await SendWelcomePacket();
-        
+
         Task.Run(HandleLatency);
     }
 
-    private async Task SendWelcomePacket()
+    public async Task SendWelcomePacket()
     {
         using var buffer = new MemoryStream();
             
@@ -93,7 +91,7 @@ public class UdpEnetClient : IDisposable
 
             if (velX == 0 && velY == 0)
             {
-                Console.WriteLine("No movement detected, skipping...");
+                //Console.WriteLine("No movement detected, skipping...");
             }
             
             var packet = CPlayerMovementPacket.Create(Globals.ClientId, time, x, y, velX, velY);
@@ -113,8 +111,12 @@ public class UdpEnetClient : IDisposable
         {
             while (!cts.IsCancellationRequested)
             {
-                LatencyUpdated?.Invoke(this, _serverPeer.PacketsSent);
+                LatencyUpdated?.Invoke(this, _serverPeer.RoundTripTime);
                 
+                Console.WriteLine("Last Receive Time: " + DateTime.UtcNow.AddMilliseconds(_serverPeer.LastReceiveTime).ToString(CultureInfo.InvariantCulture));
+                Console.WriteLine("Packets Lost: " + _serverPeer.PacketsLost);
+                Console.WriteLine("Packet Sent: " + _serverPeer.PacketsSent);
+
                 await Task.Delay(1000);
             }
         }
@@ -251,10 +253,11 @@ public class UdpEnetClient : IDisposable
                     
         var p = new Packet();
         p.Create(buffer.ToArray(), PacketFlags.Reliable);
-        
+
         while (_serverPeer.State != PeerState.Connected)
         {
             await Task.Delay(100);
+            Console.WriteLine("Waiting for connection to server to be established...");
         }
                     
         if (!_serverPeer.Send(0, ref p))

@@ -1,3 +1,4 @@
+using Avalon.Network.Packets.Abstractions;
 using ProtoBuf;
 
 namespace Avalon.Network.Packets.Movement;
@@ -7,14 +8,15 @@ public class SNpcUpdatePacket : Packet
 {
     public static NetworkPacketType PacketType = NetworkPacketType.SMSG_NPC_UPDATE;
     public static NetworkProtocol Protocol = NetworkProtocol.Udp;
+    private const NetworkChannel Channel = NetworkChannel.NpcMovement;
     
-    [ProtoMember(1)] public Guid Id { get; set; }
+    [ProtoMember(1)] public string Id { get; set; }
     [ProtoMember(2)] public float PositionX { get; set; }
     [ProtoMember(3)] public float PositionY { get; set; }
     [ProtoMember(4)] public float VelocityX { get; set; }
     [ProtoMember(5)] public float VelocityY { get; set; }
     
-    public static NetworkPacket Create(Guid id, float x, float y, float velX, float velY)
+    public static NetworkPacket Create(string id, float x, float y, float velX, float velY)
     {
         using var memoryStream = new MemoryStream();
         
@@ -36,6 +38,7 @@ public class SNpcUpdatePacket : Packet
                 Type = PacketType,
                 Flags = NetworkPacketFlags.None,
                 Protocol = Protocol,
+                Channel = Channel,
                 Version = 0
             },
             Payload = memoryStream.ToArray()

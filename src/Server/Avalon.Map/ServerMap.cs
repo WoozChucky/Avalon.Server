@@ -21,10 +21,10 @@ namespace Avalon.Map
     
         public int TileHeight { get; private set; }
         
-        public ServerMap(string mapName, string spriteSheetName)
+        public ServerMap(string mapName)
         {
             _layers = new List<MapLayer>();
-            Load(new TiledMap($"Maps/{mapName}.tmx"), spriteSheetName);
+            Load(new TiledMap($"Maps/{mapName}.tmx"));
         }
 
         public Tile? this[int layer, int x, int y] => _layers.ElementAt(layer)[x, y];
@@ -84,7 +84,7 @@ namespace Avalon.Map
             return false; // No collision detected
         }
         
-        private void Load(TiledMap map, string spriteSheetName)
+        private void Load(TiledMap map)
         {
             // Load the map
             TileWidth = map.TileWidth;

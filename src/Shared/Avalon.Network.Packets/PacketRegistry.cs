@@ -1,4 +1,4 @@
-using Avalon.Network.Abstractions;
+using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Exceptions;
 
 namespace Avalon.Network.Packets;

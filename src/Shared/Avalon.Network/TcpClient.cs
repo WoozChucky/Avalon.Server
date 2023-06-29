@@ -1,13 +1,15 @@
 using System.Net.Security;
 using System.Net.Sockets;
+using Avalon.Network.Packets.Abstractions;
 using ProtoBuf;
 
-namespace Avalon.Network.Abstractions;
+namespace Avalon.Network;
 
 public class TcpClient : IRemoteSource
 {
     public long RoundTripTime => 0;
     public string RemoteAddress => Socket.RemoteEndPoint.ToString();
+
     public Socket Socket { get; }
     public SslStream Stream { get; }
 
@@ -20,8 +22,7 @@ public class TcpClient : IRemoteSource
         Authenticated = false;
     }
 
-    
-    public Task SendAsync<T>(T packet) where T : class
+    public Task SendAsync(NetworkPacket packet)
     {
         Serializer.SerializeWithLengthPrefix(Stream, packet, PrefixStyle.Base128);
         return Task.CompletedTask;

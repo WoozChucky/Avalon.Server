@@ -12,7 +12,6 @@
 
     <ItemGroup>
       <ProjectReference Include="..\Avalon.Common\Avalon.Common.csproj" />
-      <ProjectReference Include="..\Avalon.Network.Abstractions\Avalon.Network.Abstractions.csproj" />
       <ProjectReference Include="..\Avalon.Network\Avalon.Network.csproj" />
     </ItemGroup>
 

@@ -1,8 +1,10 @@
 using System.Collections.Concurrent;
-using Avalon.Network.Abstractions;
+using Avalon.Network;
 using Avalon.Network.Packets;
+using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Auth;
 using Avalon.Network.Packets.Generic;
+using ENet;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.Game;
@@ -20,7 +22,7 @@ public interface IAvalonConnectionManager : IDisposable
     
     Task AddConnection(IRemoteSource source, CWelcomePacket packet);
     Task HandlePongPacket(IRemoteSource source, CPongPacket packet);
-    void RemoveConnection(string clientPacketRemoteAddress);
+    void RemoveConnection(string connectionId);
 }
 
 public delegate void PlayerConnectedHandler(object? sender, AvalonConnection connection);
@@ -36,7 +38,8 @@ public class AvalonConnectionManager : IAvalonConnectionManager
     public event PlayerReconnectedHandler? PlayerReconnected;
     
     private readonly ILogger<AvalonConnectionManager> _logger;
-    private readonly ConcurrentDictionary<Guid, AvalonConnection> _connections;
+    private readonly IAvalonUdpServer _udpServer;
+    private readonly ConcurrentDictionary<string, AvalonConnection> _connections;
     private readonly CancellationTokenSource _cancellationTokenSource;
     
     private const int MonitorInterval = 100;
@@ -47,10 +50,11 @@ public class AvalonConnectionManager : IAvalonConnectionManager
     private const int PingDisconnectThresholdInSec = PingDisconnectThreshold / 1000;
     
 
-    public AvalonConnectionManager(ILogger<AvalonConnectionManager> logger)
+    public AvalonConnectionManager(ILogger<AvalonConnectionManager> logger, IAvalonUdpServer udpServer)
     {
         _logger = logger;
-        _connections = new ConcurrentDictionary<Guid, AvalonConnection>();
+        _udpServer = udpServer;
+        _connections = new ConcurrentDictionary<string, AvalonConnection>();
         _cancellationTokenSource = new CancellationTokenSource();
     }
     
@@ -78,6 +82,28 @@ public class AvalonConnectionManager : IAvalonConnectionManager
                 
                 foreach (var connection in _connections.Values)
                 {
+                    if (connection.Status == ConnectionStatus.Connected)
+                    {
+                        if (connection.Udp?.AsUdpClient().State == PeerState.Disconnected
+                            || connection.Udp?.AsUdpClient().State == PeerState.Disconnecting
+                            || connection.Udp?.AsUdpClient().State == PeerState.Zombie
+                            || connection.Udp?.AsUdpClient().State == PeerState.DisconnectLater)
+                        {
+                            _logger.LogInformation("Client {Id} has disconnected by monitoring", connection.Id);
+                            try
+                            {
+                                PlayerDisconnected?.Invoke(this, connection);
+                            }
+                            catch (Exception e)
+                            {
+                                _logger.LogWarning(e,"Handler of PlayerDisconnected event for client {Id} threw.", connection.Id);
+                            }
+
+                            //TODO: this might throw because we are iterating over the collection
+                            _connections.TryRemove(connection.Id, out _); 
+                        }
+                    }
+                    /*
                     if (connection.Status == ConnectionStatus.Connected)
                     {
                         // check if the connection has timed out
@@ -135,6 +161,7 @@ public class AvalonConnectionManager : IAvalonConnectionManager
                             _connections.TryRemove(connection.Id, out _); 
                         }
                     }
+                    */
                 }
             }
         }
@@ -178,10 +205,18 @@ public class AvalonConnectionManager : IAvalonConnectionManager
     
     public Task AddConnection(IRemoteSource source, CWelcomePacket packet)
     {
+        var sourceType = source is TcpClient ? "TCP" : "UDP";
+        
+        _logger.LogInformation("Client {Id} {Type} has connected from {Ip}", packet.ClientId, sourceType, source.RemoteAddress);
         if (!_connections.TryGetValue(packet.ClientId, out var connection))
         {
+            _logger.LogInformation("Client {Id} is new", packet.ClientId);
             connection = new AvalonConnection(packet.ClientId);
             _connections.TryAdd(packet.ClientId, connection);
+        }
+        else
+        {
+            _logger.LogWarning("Client {Id} already exists", packet.ClientId);
         }
 
         lock (connection)
@@ -201,14 +236,14 @@ public class AvalonConnectionManager : IAvalonConnectionManager
 
             if (connection.Status == ConnectionStatus.Connected)
             {
-                _logger.LogInformation("Client {Id} has connected from {Ip}", connection.Id, connection.Tcp?.RemoteAddress);
+                _logger.LogInformation("Client {Id} established connection", connection.Id);
                 try
                 {
                     PlayerConnected?.Invoke(this, connection);
                 }
                 catch (Exception e)
                 {
-                    _logger.LogWarning(e,"Handler of PlayerConnected event for client {Id} threw.", connection.Id);
+                    _logger.LogWarning(e,"Handler of PlayerConnected event for client {Id} threw", connection.Id);
                 }
             }
         }
@@ -228,17 +263,16 @@ public class AvalonConnectionManager : IAvalonConnectionManager
         return Task.CompletedTask;
     }
 
-    public void RemoveConnection(string clientPacketRemoteAddress)
+    public void RemoveConnection(string connectionId)
     {
-        var connection = _connections.Values.FirstOrDefault(c => c.Udp?.RemoteAddress == clientPacketRemoteAddress);
+        var connection = _connections.Values.FirstOrDefault(c => c.Udp?.RemoteAddress == connectionId);
         if (connection == null)
         {
-            _logger.LogWarning("Received disconnect packet from unknown client {Address}", clientPacketRemoteAddress);
+            _logger.LogWarning("Received disconnect packet from unknown client {ConnectionId}", connectionId);
             return;
         }
 
         connection.Status = ConnectionStatus.Disconnected;
-        _logger.LogInformation("Client {Id} has disconnected", connection.Id);
         try
         {
             PlayerDisconnected?.Invoke(this, connection);
@@ -246,6 +280,11 @@ public class AvalonConnectionManager : IAvalonConnectionManager
         catch (Exception e)
         {
             _logger.LogWarning(e,"Handler of PlayerDisconnected event for client {Id} threw", connection.Id);
+        }
+
+        if (_connections.TryRemove(connection.Id, out _))
+        {
+            _logger.LogInformation("Client {Id} has disconnected", connection.Id);
         }
     }
 

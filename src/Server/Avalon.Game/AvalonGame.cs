@@ -5,8 +5,9 @@ using System.Reflection;
 using Avalon.Game.Entities;
 using Avalon.Game.Handlers;
 using Avalon.Map;
-using Avalon.Network.Abstractions;
+using Avalon.Network;
 using Avalon.Network.Packets;
+using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Auth;
 using Avalon.Network.Packets.Generic;
 using Avalon.Network.Packets.Movement;
@@ -31,8 +32,8 @@ public class AvalonGame : IAvalonGame
     private readonly IPacketSerializer _packetSerializer;
     private readonly IAvalonConnectionManager _connectionManager;
 
-    private readonly ConcurrentDictionary<Guid, Player> _players;
-    private readonly ConcurrentDictionary<Guid, Uriel> _npcs;
+    private readonly ConcurrentDictionary<string, Player> _players;
+    private readonly ConcurrentDictionary<string, Uriel> _npcs;
     private readonly ServerMap _map;
 
     public AvalonGame(ILogger<AvalonGame> logger, 
@@ -43,21 +44,23 @@ public class AvalonGame : IAvalonGame
         _cts = new CancellationTokenSource();
         _packetSerializer = packetSerializer;
         _connectionManager = connectionManager;
-        _players = new ConcurrentDictionary<Guid, Player>();
-        _npcs = new ConcurrentDictionary<Guid, Uriel>();
+        _players = new ConcurrentDictionary<string, Player>();
+        _npcs = new ConcurrentDictionary<string, Uriel>();
         _connectionManager.PlayerConnected += OnPlayerConnected;
         _connectionManager.PlayerDisconnected += OnPlayerDisconnected;
         _connectionManager.PlayerReconnected += OnPlayerReconnected;
         _connectionManager.PlayerTimedOut += OnPlayerTimedOut;
         
-        _map = new ServerMap("Tutorial", "Serene_Village_32x32");
+        _map = new ServerMap("Tutorial");
 
-        _npcs.TryAdd(Guid.NewGuid(), new Uriel());
+        _npcs.TryAdd("Uriel", new Uriel());
     }
 
     public async void Start()
     {
         _logger.LogInformation("Starting game loop");
+
+        Task.Run(BroadcastLoop);
         
         var previousTime = DateTime.UtcNow;
 
@@ -70,7 +73,22 @@ public class AvalonGame : IAvalonGame
                 previousTime = currentTime;
         
                 Update(deltaTime);
-                
+
+                await Task.Delay(50);
+            }
+        }
+        catch (OperationCanceledException e)
+        {
+            _logger.LogInformation("Game loop cancelled");
+        }
+    }
+
+    private async Task BroadcastLoop()
+    {
+        try
+        {
+            while (!_cts.IsCancellationRequested)
+            {
                 await BroadcastGameState();
             
                 await Task.Delay(26);
@@ -78,7 +96,7 @@ public class AvalonGame : IAvalonGame
         }
         catch (OperationCanceledException e)
         {
-            _logger.LogInformation("Game loop cancelled");
+            
         }
     }
 
@@ -144,7 +162,7 @@ public class AvalonGame : IAvalonGame
                 ElapsedGameTime = 0
             })))
         {
-            _logger.LogInformation("Player {PlayerId} connected", connection.Id);
+            _logger.LogInformation("Player {PlayerId} joined the world", connection.Id);
             
             foreach (var (existingId, existingPlayer) in _players)
             {
@@ -172,7 +190,7 @@ public class AvalonGame : IAvalonGame
     {
         if (_players.TryRemove(connection.Id, out var player))
         {
-            _logger.LogInformation("Player {PlayerId} disconnected", connection.Id);
+            _logger.LogInformation("Player {PlayerId} disconnected from the world", connection.Id);
             
             var packet = SPlayerDisconnectedPacket.Create(connection.Id);
             
@@ -180,7 +198,7 @@ public class AvalonGame : IAvalonGame
         }
         else
         {
-            _logger.LogError("Failed to remove player {PlayerId}", connection.Id);
+            _logger.LogError("Failed to remove player {PlayerId} form the world", connection.Id);
         }
     }
     
@@ -238,7 +256,7 @@ public class AvalonGame : IAvalonGame
         }
     }
     
-    private async Task BroadcastToOthers(Guid except, NetworkPacket packet)
+    private async Task BroadcastToOthers(string except, NetworkPacket packet)
     {
         var availablePlayers = _players.Values.Where(
             p => p.Id != except

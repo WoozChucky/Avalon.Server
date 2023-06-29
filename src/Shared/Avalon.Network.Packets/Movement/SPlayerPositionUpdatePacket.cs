@@ -1,3 +1,4 @@
+using Avalon.Network.Packets.Abstractions;
 using ProtoBuf;
 
 namespace Avalon.Network.Packets.Movement;
@@ -7,15 +8,16 @@ public class SPlayerPositionUpdatePacket : Packet
 {
     public static NetworkPacketType PacketType = NetworkPacketType.SMSG_PLAYER_POSITION_UPDATE;
     public static NetworkProtocol Protocol = NetworkProtocol.Udp;
+    private const NetworkChannel Channel = NetworkChannel.PlayerMovement;
     
-    [ProtoMember(1)] public Guid ClientId { get; set; }
+    [ProtoMember(1)] public string ClientId { get; set; }
     [ProtoMember(2)] public float PositionX { get; set; }
     [ProtoMember(3)] public float PositionY { get; set; }
     [ProtoMember(4)] public float VelocityX { get; set; }
     [ProtoMember(5)] public float VelocityY { get; set; }
     [ProtoMember(6)] public float Elapsed { get; set; }
     
-    public static NetworkPacket Create(Guid clientId, float x, float y, float velX, float velY, float elapsed)
+    public static NetworkPacket Create(string clientId, float x, float y, float velX, float velY, float elapsed)
     {
         using var memoryStream = new MemoryStream();
         
@@ -38,6 +40,7 @@ public class SPlayerPositionUpdatePacket : Packet
                 Type = PacketType,
                 Flags = NetworkPacketFlags.None,
                 Protocol = Protocol,
+                Channel = Channel,
                 Version = 0
             },
             Payload = memoryStream.ToArray()

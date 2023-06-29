@@ -1,7 +1,7 @@
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
-using Avalon.Network.Abstractions;
+using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Udp.Configuration;
 using Microsoft.Extensions.Logging;
 
@@ -19,6 +19,10 @@ public class AvalonUdpServer : IAvalonUdpServer
     public event UdpClientPacketHandler OnPacketReceived;
     public event UdpClientPacketHandler? OnClientDisconnected;
     public event UdpClientPacketHandler? OnClientTimeout;
+    public Task BroadcastAsync(NetworkPacket packet)
+    {
+        throw new NotImplementedException();
+    }
 
     public AvalonUdpServer(
         ILogger<AvalonUdpServer> logger, 

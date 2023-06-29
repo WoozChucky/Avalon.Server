@@ -19,7 +19,8 @@ public class OtherPlayer
     private float _elapsedTime;
 
     private int direction = 0;
-    
+
+    private readonly string _id;
     private Vector2 currentPosition;
     private Vector2 previousPosition;
     private Vector2 predictedPosition;
@@ -37,9 +38,12 @@ public class OtherPlayer
     private float currentAngle = 0f; // represents the current direction as an angle
     
     private readonly Sprite _sprite;
+    private readonly SpriteFont _font;
     
-    public OtherPlayer(Texture2D texture, Vector2 position, bool debug = false)
+    public OtherPlayer(string id, Texture2D texture, Vector2 position, bool debug = false)
     {
+        _id = id;
+        _font = Globals.Content.Load<SpriteFont>("Fonts/Default");
         currentPosition = position;
         previousPosition = position;
         
@@ -212,6 +216,8 @@ public class OtherPlayer
         {
             spriteBatch.Draw(_debugTexture, _debugRect, Color.Black);
         }
+        
+        spriteBatch.DrawString(_font, _id, currentPosition + new Vector2(-(_font.MeasureString(_id).X / 2f), _font.MeasureString(_id).Y), Color.White);
 
         var sourceRect = new Rectangle(_currentFrame * FrameWidth, direction * FrameHeight, FrameWidth, FrameHeight);
         

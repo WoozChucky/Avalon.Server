@@ -16,7 +16,6 @@ public class AvalonGame : Game
 
     public AvalonGame(Guid clientId)
     {
-        Globals.ClientId = clientId;
         _graphics = new GraphicsDeviceManager(this);
         _graphics.SynchronizeWithVerticalRetrace = true;
         Content.RootDirectory = "Content";
@@ -49,10 +48,9 @@ public class AvalonGame : Game
         Globals.GraphicsDevice = GraphicsDevice;
 
         TcpClient.Instance.ConnectAsync().GetAwaiter().GetResult();
-        // UdpClient.Instance.ConnectAsync().GetAwaiter().GetResult();
         UdpEnetClient.Instance.ConnectAsync().GetAwaiter().GetResult();
         
-        _sceneManager.LoadScene(nameof(TutorialScene));
+        _sceneManager.LoadScene(nameof(MainMenuScene));
 
 
         base.Initialize();
@@ -82,7 +80,7 @@ public class AvalonGame : Game
 
     protected override void Draw(GameTime gameTime)
     {
-        GraphicsDevice.Clear(Color.Black);
+        GraphicsDevice.Clear(Color.CornflowerBlue);
 
         _sceneManager.Draw(_spriteBatch);
 

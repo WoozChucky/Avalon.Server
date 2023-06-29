@@ -1,10 +1,12 @@
-namespace Avalon.Network.Abstractions;
+using Avalon.Network.Packets.Abstractions;
+
+namespace Avalon.Network;
 
 public interface IRemoteSource : IDisposable
 {
     long RoundTripTime { get; }
     string RemoteAddress { get; }
-    Task SendAsync<T>(T packet) where T : class;
+    Task SendAsync(NetworkPacket packet);
 }
 
 public static class Extensions

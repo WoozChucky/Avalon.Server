@@ -1,8 +1,9 @@
 using System.Runtime.InteropServices;
-using Avalon.Network.Abstractions;
+using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Udp.Configuration;
 using ENet;
 using Microsoft.Extensions.Logging;
+using ProtoBuf;
 
 namespace Avalon.Network.Udp;
 
@@ -20,7 +21,6 @@ public class ENetUdpServer : IAvalonUdpServer
     public event UdpClientPacketHandler? OnPacketReceived;
     public event UdpClientPacketHandler? OnClientDisconnected;
     public event UdpClientPacketHandler? OnClientTimeout;
-    
     public bool IsRunning => _isRunning;
     
     public ENetUdpServer(ILogger<ENetUdpServer> logger, 
@@ -70,7 +70,7 @@ public class ENetUdpServer : IAvalonUdpServer
         try
         {
             _server.Create(_address, _configuration.Backlog);
-            
+
             Event netEvent;
             
             while (!_cts.IsCancellationRequested)
@@ -96,12 +96,12 @@ public class ENetUdpServer : IAvalonUdpServer
                         
                         case EventType.Disconnect:
                             // _logger.LogInformation("Client disconnected - ID: {PeerId}, IP: {PeerIP}", netEvent.Peer.ID, netEvent.Peer.IP);
-                            OnClientDisconnected?.Invoke(this, new UdpClientPacket(netEvent.Peer, Array.Empty<byte>()));
+                            OnClientDisconnected?.Invoke(this, new UdpClientPacket(netEvent.Peer, Array.Empty<byte>(), _server.Broadcast));
                             break;
                         
                         case EventType.Timeout:
                             // _logger.LogInformation("Client timeout - ID: {PeerId}, IP: {PeerIP}", netEvent.Peer.ID, netEvent.Peer.IP);
-                            OnClientTimeout?.Invoke(this, new UdpClientPacket(netEvent.Peer, Array.Empty<byte>()));
+                            OnClientTimeout?.Invoke(this, new UdpClientPacket(netEvent.Peer, Array.Empty<byte>(), _server.Broadcast));
                             break;
                         
                         case EventType.Receive:
@@ -110,7 +110,7 @@ public class ENetUdpServer : IAvalonUdpServer
                             var buffer = new byte[netEvent.Packet.Length];
                             netEvent.Packet.CopyTo(buffer);
 
-                            OnPacketReceived?.Invoke(this, new UdpClientPacket(netEvent.Peer, buffer));
+                            OnPacketReceived?.Invoke(this, new UdpClientPacket(netEvent.Peer, buffer, _server.Broadcast));
                             
                             netEvent.Packet.Dispose();
                             break;
@@ -124,6 +124,10 @@ public class ENetUdpServer : IAvalonUdpServer
         catch (OperationCanceledException)
         {
             _logger.LogWarning("Server loop cancelled");
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Server loop stopped unexpectedly");
         }
     }
 

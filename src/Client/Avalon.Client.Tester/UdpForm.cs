@@ -13,6 +13,7 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 using Avalon.Common.Extensions;
 using Avalon.Network.Packets;
+using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Crypto;
 using ProtoBuf;
 

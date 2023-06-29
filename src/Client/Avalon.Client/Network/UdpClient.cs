@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Avalon.Network;
 using Avalon.Network.Packets;
+using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Auth;
 using Avalon.Network.Packets.Deserialization;
 using Avalon.Network.Packets.Generic;
