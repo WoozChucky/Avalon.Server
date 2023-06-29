@@ -33,8 +33,6 @@ public class TutorialScene : Scene
     private int _frameCount;
     private int _fps;
     private double _latency;
-    
-    private SceneManager _sceneManager;
 
     public TutorialScene(SceneManager sceneManager) : base(sceneManager)
     {

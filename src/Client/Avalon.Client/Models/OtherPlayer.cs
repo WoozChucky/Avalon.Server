@@ -25,7 +25,6 @@ public class OtherPlayer
     private Vector2 previousPosition;
     private Vector2 predictedPosition;
     
-    private Vector2 nextPosition;
     private Vector2 velocity;
     private float interpolationTime;
     private float predictionTime = 0.05f;
@@ -34,8 +33,8 @@ public class OtherPlayer
     private Rectangle _debugRect;
 
     // Store the last four positions received.
-    private ConcurrentQueue<Vector2> recentPositions = new ConcurrentQueue<Vector2>();
-    private float currentAngle = 0f; // represents the current direction as an angle
+    private ConcurrentQueue<Vector2> recentPositions;
+    private float _currentAngle = 0f; // represents the current direction as an angle
     
     private readonly Sprite _sprite;
     private readonly SpriteFont _font;
@@ -43,6 +42,7 @@ public class OtherPlayer
     public OtherPlayer(string id, Texture2D texture, Vector2 position, bool debug = false)
     {
         _id = id;
+        recentPositions = new ConcurrentQueue<Vector2>();
         _font = Globals.Content.Load<SpriteFont>("Fonts/Default");
         currentPosition = position;
         previousPosition = position;
@@ -149,7 +149,7 @@ public class OtherPlayer
             //    currentPosition = CubicInterpolate(positions[0], positions[1], positions[2], positions[3], interpolationTime);
             //    _sprite.Position = currentPosition;
             //}
-            //direction = (int)SmoothStep(direction, currentAngle, deltaTime * 0.1f);
+            //direction = (int)SmoothStep(direction, _currentAngle, deltaTime * 0.1f);
         }
         
         _sprite.Update();

@@ -133,8 +133,11 @@ public class Player : IDisposable
     {
         if (false)
         {
+#pragma warning disable CS0162
             spriteBatch.Draw(_debugTexture, _debugRect, Color.Black);
+#pragma warning restore CS0162
         }
+
         
         spriteBatch.DrawString(_font, _id, Position + new Vector2(-(_font.MeasureString(_id).X / 2f), _font.MeasureString(_id).Y), Color.Chocolate);
         

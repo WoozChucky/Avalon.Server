@@ -6,7 +6,6 @@ using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalon.Network;
-using Avalon.Network.Packets;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Auth;
 using Avalon.Network.Packets.Deserialization;
@@ -20,53 +19,50 @@ namespace Avalon.Client.Network;
 public class UdpClient : IDisposable
 {
     
-    private static UdpClient instance;
-    public static UdpClient Instance => instance ??= new UdpClient();
+    private static UdpClient _instance;
+    public static UdpClient Instance => _instance ??= new UdpClient();
     
-    
-    public event PlayerConnectedHandler PlayerConnected;
-    public event PlayerDisconnectedHandler PlayerDisconnected;
     public event PlayerMovedHandler PlayerMoved;
     public event LatencyUpdatedHandler LatencyUpdated;
     public event NpcUpdatedHandler NpcUpdated;
     
-    private readonly CancellationTokenSource cts = new CancellationTokenSource();
-    private readonly Socket socket;
+    private readonly CancellationTokenSource _cts;
+    private readonly Socket _socket;
     
-    private IPEndPoint serverEndpoint;
+    private readonly IPEndPoint _serverEndpoint;
     
     private readonly IPacketDeserializer _packetDeserializer;
     private readonly IPacketSerializer _packetSerializer;
     
-    private long lastTick;
-    private long lastSequenceNumber = 0;
-    
-    
-    public UdpClient()
+    private long _lastTick;
+    private long _lastSequenceNumber;
+
+    private UdpClient()
     {
+        _cts = new CancellationTokenSource();
         _packetDeserializer = new NetworkPacketDeserializer();
         _packetSerializer = new NetworkPacketSerializer();
-        socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
-        serverEndpoint = new IPEndPoint(IPAddress.Parse("85.246.128.207"), 21000);
+        _socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+        _serverEndpoint = new IPEndPoint(IPAddress.Parse("85.246.128.207"), 21000);
         
         _packetDeserializer.RegisterPacketDeserializers();
         _packetSerializer.RegisterPacketSerializers();
         
-        lastTick = DateTime.UtcNow.Ticks;
+        _lastTick = DateTime.UtcNow.Ticks;
     }
 
-    public async Task ConnectAsync()
+    public Task ConnectAsync()
     {
         var localEndpoint = new IPEndPoint(NetworkAdapters.GetLocalIpAddress(), 0); // 0 for random port
-        socket.Bind(localEndpoint);
-
-        await SendWelcomePacket();
+        _socket.Bind(localEndpoint);
 
         Task.Run(HandleLatency);
         Task.Run(HandleCommunications);
+        
+        return Task.CompletedTask;
     }
 
-    private async Task SendWelcomePacket()
+    public async Task SendWelcomePacket()
     {
         using var buffer = new MemoryStream();
             
@@ -74,7 +70,7 @@ public class UdpClient : IDisposable
         
         await _packetSerializer.SerializeToNetwork(buffer, packet);
 
-        await socket.SendToAsync(buffer.ToArray(), SocketFlags.None, serverEndpoint);
+        await _socket.SendToAsync(buffer.ToArray(), SocketFlags.None, _serverEndpoint);
     }
 
     public async Task BroadcastMovementUpdates(float time, float x, float y, float velX, float velY)
@@ -87,7 +83,7 @@ public class UdpClient : IDisposable
             
             await _packetSerializer.SerializeToNetwork(buffer, packet);
             
-            await socket.SendToAsync(buffer.ToArray(), SocketFlags.None, serverEndpoint);
+            await _socket.SendToAsync(buffer.ToArray(), SocketFlags.None, _serverEndpoint);
         }
         catch (Exception e)
         {
@@ -100,26 +96,26 @@ public class UdpClient : IDisposable
     {
         try
         {
-            while (!cts.IsCancellationRequested)
+            while (!_cts.IsCancellationRequested)
             {
                 try
                 {
                     await using var buffer = new MemoryStream();
             
-                    lastTick = DateTime.UtcNow.Ticks;
-                    var sequenceNumber = Interlocked.Increment(ref lastSequenceNumber);
+                    _lastTick = DateTime.UtcNow.Ticks;
+                    var sequenceNumber = Interlocked.Increment(ref _lastSequenceNumber);
 
-                    var packet = CPingPacket.Create(sequenceNumber, lastTick);
+                    var packet = CPingPacket.Create(sequenceNumber, _lastTick);
             
                     await _packetSerializer.SerializeToNetwork(buffer, packet);
             
-                    await socket.SendToAsync(buffer.ToArray(), SocketFlags.None, serverEndpoint);
+                    await _socket.SendToAsync(buffer.ToArray(), SocketFlags.None, _serverEndpoint);
                 }
                 catch (Exception e)
                 {
-                   
+                    Console.WriteLine("Failed to send ping packet. " + e);
                 }
-                
+
                 await Task.Delay(1000);
             }
         }
@@ -136,13 +132,13 @@ public class UdpClient : IDisposable
             
             var endpoint = new IPEndPoint(IPAddress.Any, 0);
                     
-            while (!cts.IsCancellationRequested)
+            while (!_cts.IsCancellationRequested)
             {
                 try
                 {
                     var readBuffer = new byte[1024];
                     
-                    var result = await socket.ReceiveFromAsync(readBuffer, SocketFlags.None, endpoint);
+                    var result = await _socket.ReceiveFromAsync(readBuffer, SocketFlags.None, endpoint);
                     var packetBuffer = new byte[result.ReceivedBytes];
                 
                     Array.Copy(readBuffer, packetBuffer, result.ReceivedBytes);
@@ -170,7 +166,7 @@ public class UdpClient : IDisposable
                             var pongPacket = _packetDeserializer.Deserialize<SPongPacket>(packet.Header.Type,
                                 packet.Payload);
 
-                            var sequenceNumber = Interlocked.Read(ref lastSequenceNumber);
+                            var sequenceNumber = Interlocked.Read(ref _lastSequenceNumber);
 
                             if (pongPacket.SequenceNumber == sequenceNumber)
                             {
@@ -196,7 +192,7 @@ public class UdpClient : IDisposable
                             
                             await _packetSerializer.SerializeToNetwork(buffer, responsePacket);
             
-                            await socket.SendToAsync(buffer.ToArray(), SocketFlags.None, serverEndpoint);
+                            await _socket.SendToAsync(buffer.ToArray(), SocketFlags.None, _serverEndpoint);
                             
                             break;
                         }
@@ -215,7 +211,7 @@ public class UdpClient : IDisposable
                 }
                 catch (Exception e)
                 {
-                   
+                    Console.WriteLine(e);
                 }
             }
         }
@@ -227,7 +223,7 @@ public class UdpClient : IDisposable
     
     public void Dispose()
     {
-        cts?.Dispose();
-        socket?.Dispose();
+        _cts?.Dispose();
+        _socket?.Dispose();
     }
 }

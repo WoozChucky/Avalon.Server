@@ -19,11 +19,11 @@ using ProtoBuf;
 
 namespace Avalon.Client.Network;
 
-public delegate void PlayerConnectedHandler(object? sender, SPlayerConnectedPacket packet);
-public delegate void PlayerDisconnectedHandler(object? sender, SPlayerDisconnectedPacket packet);
-public delegate void PlayerMovedHandler(object? sender, SPlayerPositionUpdatePacket packet);
-public delegate void LatencyUpdatedHandler(object? sender, double latency);
-public delegate void NpcUpdatedHandler(object? sender, SNpcUpdatePacket packet);
+public delegate void PlayerConnectedHandler(object sender, SPlayerConnectedPacket packet);
+public delegate void PlayerDisconnectedHandler(object sender, SPlayerDisconnectedPacket packet);
+public delegate void PlayerMovedHandler(object sender, SPlayerPositionUpdatePacket packet);
+public delegate void LatencyUpdatedHandler(object sender, double latency);
+public delegate void NpcUpdatedHandler(object sender, SNpcUpdatePacket packet);
 
 public class TcpClient : IDisposable
 {
@@ -62,19 +62,23 @@ public class TcpClient : IDisposable
         await stream.AuthenticateAsClientAsync("85.246.128.207", new X509Certificate2Collection() { certificate }, SslProtocols.Tls12,
             true).ConfigureAwait(false);
         
+#pragma warning disable CS4014
         Task.Run(HandleCommunications);
+#pragma warning restore CS4014
     }
 
-    private bool UserCertificateValidationCallback(object sender, X509Certificate? x509Certificate, X509Chain? chain, SslPolicyErrors sslpolicyerrors)
+    private bool UserCertificateValidationCallback(object sender, X509Certificate x509Certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors)
     {
         return true;
     }
     
-    public async Task SendWelcomePacket()
+    public Task SendWelcomePacket()
     {
         var packet = CWelcomePacket.Create(Globals.ClientId);
 
         Serializer.SerializeWithLengthPrefix(stream, packet, PrefixStyle.Base128);
+        
+        return Task.CompletedTask;
     }
 
     public async Task BroadcastMovementUpdates(float time, float x, float y, float velX, float velY)
@@ -92,7 +96,7 @@ public class TcpClient : IDisposable
         }
     }
     
-    private async Task HandleCommunications()
+    private void HandleCommunications()
     {
         try
         {
@@ -145,34 +149,13 @@ public class TcpClient : IDisposable
         }
         catch (OperationCanceledException e)
         {
-
+            Console.WriteLine(e);
         }
         catch (Exception e)
         {
             Console.WriteLine(e);
             throw;
         }
-    }
-    
-    private async void ConnectToServer()
-    {
-        var reqPKeyPacket = new CRequestCryptoKeyPacket();
-        using var ms = new MemoryStream();
-
-        Serializer.Serialize(ms, reqPKeyPacket);
-
-        var packet = new NetworkPacket
-        {
-            Header = new NetworkPacketHeader
-            {
-                Type = NetworkPacketType.CMSG_REQUEST_ENCRYPTION_KEY,
-                Flags = NetworkPacketFlags.None,
-                Version = 0
-            },
-            Payload = ms.ToArray()
-        };
-
-        Serializer.SerializeWithLengthPrefix(stream, packet, PrefixStyle.Base128);
     }
 
     public void Dispose()
