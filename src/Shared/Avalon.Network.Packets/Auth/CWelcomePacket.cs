@@ -1,3 +1,4 @@
+using Avalon.Network.Packets.Abstractions;
 using ProtoBuf;
 
 namespace Avalon.Network.Packets.Auth;
@@ -8,9 +9,9 @@ public class CWelcomePacket : Packet
     public static NetworkPacketType PacketType = NetworkPacketType.CMSG_WELCOME;
     public static NetworkProtocol Protocol = NetworkProtocol.Both;
     
-    [ProtoMember(1)] public Guid ClientId { get; set; }
+    [ProtoMember(1)] public string ClientId { get; set; }
     
-    public static NetworkPacket Create(Guid clientId)
+    public static NetworkPacket Create(string clientId)
     {
         using var memoryStream = new MemoryStream();
         

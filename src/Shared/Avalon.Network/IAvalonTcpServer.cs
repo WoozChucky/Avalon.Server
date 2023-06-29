@@ -1,5 +1,3 @@
-using Avalon.Network.Abstractions;
-
 namespace Avalon.Network;
 
 public delegate void TcpClientConnectedHandler(object? sender, TcpClient client);

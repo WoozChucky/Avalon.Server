@@ -9,6 +9,7 @@ using System.Security.Cryptography.X509Certificates;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalon.Network.Packets;
+using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Auth;
 using Avalon.Network.Packets.Crypto;
 using Avalon.Network.Packets.Deserialization;
@@ -61,7 +62,6 @@ public class TcpClient : IDisposable
         await stream.AuthenticateAsClientAsync("85.246.128.207", new X509Certificate2Collection() { certificate }, SslProtocols.Tls12,
             true).ConfigureAwait(false);
         
-        await SendWelcomePacket();
         Task.Run(HandleCommunications);
     }
 
@@ -70,15 +70,13 @@ public class TcpClient : IDisposable
         return true;
     }
     
-    private async Task SendWelcomePacket()
+    public async Task SendWelcomePacket()
     {
         var packet = CWelcomePacket.Create(Globals.ClientId);
 
         Serializer.SerializeWithLengthPrefix(stream, packet, PrefixStyle.Base128);
     }
-    
-    
-    
+
     public async Task BroadcastMovementUpdates(float time, float x, float y, float velX, float velY)
     {
         try

@@ -11,17 +11,19 @@
     </PropertyGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\Avalon.Network.Abstractions\Avalon.Network.Abstractions.csproj" />
-    </ItemGroup>
-
-    <ItemGroup>
+      <PackageReference Include="ENet-CSharp" Version="2.4.8" />
       <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="7.0.0" />
+      <PackageReference Include="protobuf-net" Version="3.2.16" />
     </ItemGroup>
-
+    
     <ItemGroup>
         <None Include="..\..\..\sgKey.snk">
             <Link>sgKey.snk</Link>
         </None>
+    </ItemGroup>
+    
+    <ItemGroup>
+      <ProjectReference Include="..\Avalon.Network.Packets.Abstractions\Avalon.Network.Packets.Abstractions.csproj" />
     </ItemGroup>
 
 </Project>

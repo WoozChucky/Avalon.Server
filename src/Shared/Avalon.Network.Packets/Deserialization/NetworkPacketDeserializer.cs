@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Reflection;
+using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Exceptions;
 using ProtoBuf;
 

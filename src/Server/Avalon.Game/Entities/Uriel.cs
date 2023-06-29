@@ -13,7 +13,7 @@ public enum UrielState
 
 public class Uriel : IEntity
 {
-    public Guid Id { get; }
+    public string Id { get; }
 
     public Vector2 Position { get; set; } = new Vector2(80, 1152.4f);
     public Vector2 Velocity { get; set; } = new Vector2(1, 0);

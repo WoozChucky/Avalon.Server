@@ -1,26 +1,10 @@
 ﻿using System;
 using System.IO;
+using System.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
 using Avalon.Client;
 using Mono.Nat;
-
-/*
-NatUtility.DeviceFound += (sender, args) =>
-{
-    Console.WriteLine($"Found NAT device: {args.Device}");
-
-    var mappedPort = args.Device.CreatePortMap(new Mapping(Protocol.Udp, 8889, 8889, 0, "AvalonClient"));
-    if (mappedPort != null)
-        Console.WriteLine($"Mapped port {mappedPort.PublicPort} to {mappedPort.PrivatePort}.");
-    else
-        Console.WriteLine("Failed to map port.");
-    //args.Device.
-};
-NatUtility.StartDiscovery();
-*/
-
-
 
 namespace Avalon.Client
 {
@@ -44,6 +28,27 @@ namespace Avalon.Client
                 ClientId = Guid.NewGuid();
                 //await File.WriteAllTextAsync("av.bin", ClientId.ToString());
             }
+            
+            NatUtility.DeviceFound += async (sender, args) =>
+            {
+                Console.WriteLine($"Found NAT device: {args.Device}");
+
+                var existingMappings = await args.Device.GetAllMappingsAsync();
+                
+                if (existingMappings.Any(m => m.PrivatePort == 21000 && m.PublicPort == 21000))
+                {
+                    Console.WriteLine("Port already mapped.");
+                    return;
+                }
+
+                var mappedPort = args.Device.CreatePortMap(new Mapping(Protocol.Udp, 21000, 21000, 0, "AvalonClient"));
+                if (mappedPort != null)
+                    Console.WriteLine($"Mapped port {mappedPort.PublicPort} to {mappedPort.PrivatePort}.");
+                else
+                    Console.WriteLine("Failed to map port.");
+                //args.Device.
+            };
+            NatUtility.StartDiscovery();
             
             using var game = new AvalonGame(ClientId);
             game.Run();

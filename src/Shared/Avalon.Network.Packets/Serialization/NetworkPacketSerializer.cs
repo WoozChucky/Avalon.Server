@@ -1,4 +1,5 @@
 using System.Reflection;
+using Avalon.Network.Packets.Abstractions;
 using ProtoBuf;
 
 namespace Avalon.Network.Packets.Serialization;

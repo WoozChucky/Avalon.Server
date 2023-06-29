@@ -15,7 +15,8 @@ public class Player : IDisposable
     private const float FrameTime = 0.2f;
     
     private const float SPEED = 80f;
-    
+
+    private readonly string _id;
     public Vector2 Position;
     public Rectangle BoundingBox;
     public Vector2 Velocity;
@@ -29,14 +30,18 @@ public class Player : IDisposable
     private Texture2D _debugTexture;
     private Rectangle _debugRect;
     private readonly Sprite _sprite;
+    private readonly SpriteFont _font;
     
     private MovementDirection _movementDirection;
 
-    public Player(Texture2D texture, Vector2 position)
+    public Player(string id, Texture2D texture, Vector2 position)
     {
         
         Velocity = Vector2.Zero;
         Position = position;
+        
+        _id = id;
+        _font = Globals.Content.Load<SpriteFont>("Fonts/Default");
         
         _sprite = new Sprite(texture, position);
         _sprite.Origin = new Vector2(FrameWidth / 2f, FrameHeight / 2f);
@@ -74,8 +79,8 @@ public class Player : IDisposable
         _maxPos = new Vector2(mapSize.X - (tileSize.X / 2), mapSize.Y - (tileSize.X / 2));
     }
 
-    public void Update(Func<Rectangle, bool> collisionCheckingFunction, ConcurrentDictionary<Guid, OtherPlayer> npcs,
-        ConcurrentDictionary<Guid, OtherPlayer> otherPlayers)
+    public void Update(Func<Rectangle, bool> collisionCheckingFunction, ConcurrentDictionary<string, OtherPlayer> npcs,
+        ConcurrentDictionary<string, OtherPlayer> otherPlayers)
     {
         UpdateMovement();
         
@@ -130,6 +135,8 @@ public class Player : IDisposable
         {
             spriteBatch.Draw(_debugTexture, _debugRect, Color.Black);
         }
+        
+        spriteBatch.DrawString(_font, _id, Position + new Vector2(-(_font.MeasureString(_id).X / 2f), _font.MeasureString(_id).Y), Color.Chocolate);
         
         // Calculate the source rectangle based on the current frame and direction
         var sourceRect = new Rectangle(_currentFrame * FrameWidth, (int)_movementDirection * FrameHeight, FrameWidth, FrameHeight);

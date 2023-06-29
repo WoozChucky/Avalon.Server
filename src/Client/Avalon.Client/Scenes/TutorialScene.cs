@@ -23,8 +23,8 @@ public class TutorialScene : Scene
     private SpriteFont _font;
     private Banner _banner;
 
-    private readonly ConcurrentDictionary<Guid, OtherPlayer> _otherPlayers;
-    private readonly ConcurrentDictionary<Guid, OtherPlayer> _npcs;
+    private readonly ConcurrentDictionary<string, OtherPlayer> _otherPlayers;
+    private readonly ConcurrentDictionary<string, OtherPlayer> _npcs;
 
     private Vector2 _lastSentPosition;
     private Vector2 _lastSentVelocity;
@@ -38,8 +38,8 @@ public class TutorialScene : Scene
 
     public TutorialScene(SceneManager sceneManager) : base(sceneManager)
     {
-        _otherPlayers = new ConcurrentDictionary<Guid, OtherPlayer>();
-        _npcs = new ConcurrentDictionary<Guid, OtherPlayer>();
+        _otherPlayers = new ConcurrentDictionary<string, OtherPlayer>();
+        _npcs = new ConcurrentDictionary<string, OtherPlayer>();
         
         Globals.CameraPosition = Vector2.Zero;
         
@@ -57,14 +57,15 @@ public class TutorialScene : Scene
         _font = Globals.Content.Load<SpriteFont>("Fonts/Nintendo");
         _map = new Map("Tutorial", "Serene_Village_32x32");
         _player = new Player(
+            Globals.ClientId,
             Globals.Content.Load<Texture2D>("Images/player"), 
             //new Vector2(Globals.WindowSize.X / 2f, Globals.WindowSize.Y / 2f),
             new Vector2(326, 1450)
         );
         _player.SetBounds(_map.MapSize, new Point(_map.TileWidth, _map.TileHeight));
 
-        Timer t = new Timer();
-        t.Interval = 30; // 20 updates per seconds which would be 50 milliseconds interval (1000/20 = 50)
+        var t = new Timer();
+        t.Interval = 26; // 20 updates per seconds which would be 50 milliseconds interval (1000/20 = 50)
         t.AutoReset = true;
         t.Elapsed += OnTimerElapsed;
         t.Start();
@@ -178,7 +179,7 @@ public class TutorialScene : Scene
     
     private void OnPlayerConnected(object sender, SPlayerConnectedPacket packet)
     {
-        _otherPlayers.TryAdd(packet.ClientId, new OtherPlayer(Globals.Content.Load<Texture2D>("Images/player"), new Vector2(0, 0)));
+        _otherPlayers.TryAdd(packet.ClientId, new OtherPlayer(packet.ClientId,Globals.Content.Load<Texture2D>("Images/player"), new Vector2(0, 0)));
     }
     
     private void OnPlayerDisconnected(object sender, SPlayerDisconnectedPacket packet)
@@ -204,6 +205,7 @@ public class TutorialScene : Scene
     private void OnNpcUpdated(object sender, SNpcUpdatePacket packet)
     {
         _npcs.AddOrUpdate(packet.Id, new OtherPlayer(
+            packet.Id,
             Globals.Content.Load<Texture2D>("Images/player"), new Vector2(packet.PositionX, packet.PositionY), true), (guid, player) =>
         {
             player.OnMovementReceived(new Vector2(packet.PositionX, packet.PositionY), new Vector2(packet.VelocityX, packet.VelocityY), _latency);

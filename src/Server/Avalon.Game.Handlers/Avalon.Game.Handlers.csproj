@@ -11,7 +11,6 @@
     </PropertyGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\..\Shared\Avalon.Network.Abstractions\Avalon.Network.Abstractions.csproj" />
       <ProjectReference Include="..\..\Shared\Avalon.Network.Packets\Avalon.Network.Packets.csproj" />
       <ProjectReference Include="..\..\Shared\Avalon.Network\Avalon.Network.csproj" />
     </ItemGroup>

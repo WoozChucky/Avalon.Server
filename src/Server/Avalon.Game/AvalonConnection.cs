@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
-using Avalon.Network.Abstractions;
+using Avalon.Network;
 using Avalon.Network.Packets;
+using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Generic;
 
 namespace Avalon.Game;
@@ -20,7 +21,7 @@ public class AvalonConnection : IDisposable
     // in the constructor. But also when we need to update them, we need to make sure that we are
     // using the Interlocked class to update them or the Volatile methods. I think ??
     
-    public Guid Id { get; private set; }
+    public string Id { get; private set; }
     public IRemoteSource? Udp { get; private set; }
     public IRemoteSource? Tcp { get; private set; }
     public long RoundTripTime => Udp?.RoundTripTime ?? -1;
@@ -33,7 +34,7 @@ public class AvalonConnection : IDisposable
     
     private long _sequenceNumber = 0;
     
-    public AvalonConnection(Guid id)
+    public AvalonConnection(string id)
     {
         Id = id;
         _packetQueue = new ConcurrentQueue<NetworkPacket>();

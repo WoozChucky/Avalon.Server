@@ -5,7 +5,7 @@ using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
 using Avalon.Network.Tcp.Configuration;
 using Microsoft.Extensions.Logging;
-using TcpClient = Avalon.Network.Abstractions.TcpClient;
+using TcpClient = Avalon.Network.TcpClient;
 
 namespace Avalon.Network.Tcp;
 

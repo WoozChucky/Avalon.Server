@@ -5,7 +5,7 @@ namespace Avalon.Game.Entities;
 
 public class Player : IEntity
 {
-    public Guid Id { get; set; }
+    public string Id { get; set; }
 
     public Vector2 Position
     {
