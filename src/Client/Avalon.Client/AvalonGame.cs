@@ -34,7 +34,7 @@ public class AvalonGame : Game
         _sceneManager.AddScene(nameof(TutorialScene), new TutorialScene(_sceneManager));
     }
 
-    protected override async void Initialize()
+    protected override void Initialize()
     {
         // 64 cols x 48 rows
         Globals.WindowSize = new Point(800, 600);

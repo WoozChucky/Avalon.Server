@@ -2,12 +2,8 @@ using System;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
-using System.Net;
-using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
-using Avalon.Network;
-using Avalon.Network.Packets;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Auth;
 using Avalon.Network.Packets.Deserialization;
@@ -22,33 +18,25 @@ namespace Avalon.Client.Network;
 
 public class UdpEnetClient : IDisposable
 {
+    private static UdpEnetClient _instance;
+    public static UdpEnetClient Instance => _instance ??= new UdpEnetClient();
     
-    private static UdpEnetClient instance;
-    public static UdpEnetClient Instance => instance ??= new UdpEnetClient();
-    
-    
-    public event PlayerConnectedHandler PlayerConnected;
-    public event PlayerDisconnectedHandler PlayerDisconnected;
     public event PlayerMovedHandler PlayerMoved;
     public event LatencyUpdatedHandler LatencyUpdated;
     public event NpcUpdatedHandler NpcUpdated;
     
-    private readonly CancellationTokenSource cts = new CancellationTokenSource();
-
+    private readonly CancellationTokenSource _cts;
     private readonly IPacketDeserializer _packetDeserializer;
     private readonly IPacketSerializer _packetSerializer;
-    
-    private long lastTick;
-    private long lastSequenceNumber = 0;
-
     private readonly Host _client;
     private readonly Address _address;
     
     private Peer _serverPeer;
     
     
-    public UdpEnetClient()
+    private UdpEnetClient()
     {
+        _cts = new CancellationTokenSource();
         _packetDeserializer = new NetworkPacketDeserializer();
         _packetSerializer = new NetworkPacketSerializer();
         
@@ -57,26 +45,25 @@ public class UdpEnetClient : IDisposable
         _address.SetIP("85.246.128.207");
         _address.Port = 21000;
         
-        var clientAddress = new Address
-        {
-            Port = 21500
-        };
+        //var clientAddress = new Address
+        //{
+        //    Port = 21500
+        //};
         //_client.Create(clientAddress, 1, 1);
         _client.Create();
 
         _packetDeserializer.RegisterPacketDeserializers();
         _packetSerializer.RegisterPacketSerializers();
-        
-        lastTick = DateTime.UtcNow.Ticks;
     }
 
-    public async Task ConnectAsync()
+    public Task ConnectAsync()
     {
         _serverPeer = _client.Connect(_address);
-
+        
         Task.Run(HandleCommunications);
-
         Task.Run(HandleLatency);
+
+        return Task.CompletedTask;
     }
 
     public async Task SendWelcomePacket()
@@ -114,7 +101,7 @@ public class UdpEnetClient : IDisposable
     {
         try
         {
-            while (!cts.IsCancellationRequested)
+            while (!_cts.IsCancellationRequested)
             {
                 LatencyUpdated?.Invoke(this, _serverPeer.RoundTripTime);
                 
@@ -137,7 +124,7 @@ public class UdpEnetClient : IDisposable
         {
             Event netEvent;
                     
-            while (!cts.IsCancellationRequested)
+            while (!_cts.IsCancellationRequested)
             {
                 try
                 {
@@ -240,13 +227,13 @@ public class UdpEnetClient : IDisposable
                 }
                 catch (Exception e)
                 {
-                   
+                    Console.WriteLine(e);
                 }
             }
         }
         catch (OperationCanceledException e)
         {
-            Trace.WriteLine(e);
+            Console.WriteLine(e);
         }
     }
 
@@ -273,7 +260,7 @@ public class UdpEnetClient : IDisposable
     
     public void Dispose()
     {
-        cts?.Dispose();
+        _cts?.Dispose();
         _client?.Dispose();
     }
 
