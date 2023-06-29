@@ -15,6 +15,10 @@ public class MainMenuScene : Scene
     private TextInputComponent _textInputComponent;
     private ButtonComponent _buttonComponent;
     private Sprite _logo;
+    private Sprite _inputError;
+    private Sprite _inputOk;
+    private bool _isInputErrorVisible;
+    private bool _isInputOkVisible;
 
     public MainMenuScene(SceneManager sceneManager) : base(sceneManager)
     {
@@ -38,6 +42,17 @@ public class MainMenuScene : Scene
             IsFocused = true
         };
         
+        _inputError = new Sprite(
+            Globals.Content.Load<Texture2D>("Images/UI/checkbox_cross"), 
+            new Vector2(320, 180)
+        );
+        _inputOk = new Sprite(
+            Globals.Content.Load<Texture2D>("Images/UI/checkbox_ok"), 
+            new Vector2(320, 180)
+        );
+        _isInputErrorVisible = false;
+        _isInputOkVisible = false;
+        
         _buttonComponent = new ButtonComponent(
             Globals.Content.Load<Texture2D>("Images/Label"),
             new Vector2(100, 220),
@@ -46,6 +61,7 @@ public class MainMenuScene : Scene
         );
         
         _textInputComponent.OnPressedEnter += OnLoginButtonClicked;
+        _textInputComponent.OnTextChanged += OnLoginInputChanged;
         _buttonComponent.Clicked += OnLoginButtonClicked;
     }
 
@@ -69,6 +85,14 @@ public class MainMenuScene : Scene
         
         _logo.Draw(spriteBatch);
         _textInputComponent?.Draw(spriteBatch);
+        if (_isInputErrorVisible)
+        {
+            _inputError.Draw(spriteBatch);
+        }
+        if (_isInputOkVisible)
+        {
+            _inputOk.Draw(spriteBatch);
+        }
         _buttonComponent?.Draw(spriteBatch);
         spriteBatch.End();
     }
@@ -83,10 +107,33 @@ public class MainMenuScene : Scene
         }
     }
     
+    private void OnLoginInputChanged(string text)
+    {
+        if (string.IsNullOrEmpty(text) || text.Length < 3 || text.Length > 8)
+        {
+            _isInputErrorVisible = true;
+            _isInputOkVisible = false;
+            return;
+        }
+
+        _isInputErrorVisible = false;
+        _isInputOkVisible = true;
+    }
+    
     private async void OnLoginButtonClicked(object sender)
     {
         var username = _textInputComponent.Text;
+
+        if (string.IsNullOrEmpty(username) || username.Length < 3 || username.Length > 8)
+        {
+            _isInputErrorVisible = true;
+            _isInputOkVisible = false;
+            return;
+        }
         
+        _isInputOkVisible = true;
+        _isInputErrorVisible = false;
+
         Globals.ClientId = username;
         
         await UdpEnetClient.Instance.SendWelcomePacket();

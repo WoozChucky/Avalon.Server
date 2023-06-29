@@ -28,7 +28,7 @@ namespace Avalon.Server
         
         private static IMetricsManager MetricsManager { get; set; } = null!;
 
-        private static async Task Main(string[] args)
+        private static Task Main(string[] args)
         {
             AppDomain.CurrentDomain.UnhandledException += OnUnhandledExceptionOccurred;
             AppDomain.CurrentDomain.ProcessExit += OnProcessExit;
@@ -65,6 +65,8 @@ namespace Avalon.Server
             Infrastructure.Dispose();
             
             Logger.LogInformation("Terminated successfully");
+            
+            return Task.CompletedTask;
         }
 
         private static void ConsoleOnCancelKeyPress(object? sender, ConsoleCancelEventArgs e)

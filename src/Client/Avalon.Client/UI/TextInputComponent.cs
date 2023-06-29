@@ -6,6 +6,9 @@ using Microsoft.Xna.Framework.Input;
 
 namespace Avalon.Client.UI;
 
+public delegate void TextInputPressedEnter(TextInputComponent button);
+public delegate void TextInputChanged(string text);
+
 public class TextInputComponent : IDisposable
 {
     private SpriteFont font;
@@ -31,9 +34,10 @@ public class TextInputComponent : IDisposable
     private bool isCursorVisible;
     private int cursorIndex;
 
-    public delegate void TextInputPressedEnter(TextInputComponent button);
+    
 
     public event TextInputPressedEnter OnPressedEnter;
+    public event TextInputChanged OnTextChanged;
     
     public bool AllowNumeric { get; set; }
     public bool AllowAlphabetic { get; set; }
@@ -141,6 +145,7 @@ public class TextInputComponent : IDisposable
             currentText = currentText.Remove(cursorIndex - 1, 1);
             cursorIndex--;
             CalculateVerticalOffset();
+            OnTextChanged?.Invoke(currentText);
             return true;
         }
 
@@ -149,6 +154,7 @@ public class TextInputComponent : IDisposable
             // Delete the character after the cursor
             currentText = currentText.Remove(cursorIndex, 1);
             CalculateVerticalOffset();
+            OnTextChanged?.Invoke(currentText);
             return true;
         }
 
@@ -177,6 +183,8 @@ public class TextInputComponent : IDisposable
             currentText = currentText.Insert(cursorIndex, number.ToString());
             cursorIndex++;
             CalculateVerticalOffset();
+            
+            OnTextChanged?.Invoke(currentText);
             return true;
         }
 
@@ -192,6 +200,7 @@ public class TextInputComponent : IDisposable
             currentText = currentText.Insert(cursorIndex, keyRepresentation);
             cursorIndex++;
             CalculateVerticalOffset();
+            OnTextChanged?.Invoke(currentText);
         }
     }
     
