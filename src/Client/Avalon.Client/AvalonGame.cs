@@ -23,8 +23,8 @@ public class AvalonGame : Game
 
         Window.Title = "Avalon";
         
-        TargetElapsedTime = TimeSpan.FromSeconds(1d / 60d);
-        MaxElapsedTime = TimeSpan.FromMilliseconds(500);
+        //TargetElapsedTime = TimeSpan.FromSeconds(1d / 60d);
+        //MaxElapsedTime = TimeSpan.FromMilliseconds(500);
         InactiveSleepTime = TimeSpan.Zero;
         IsMouseVisible = true;
         IsFixedTimeStep = false;        
@@ -69,8 +69,7 @@ public class AvalonGame : Game
             UdpEnetClient.Instance.Disconnect();
             Exit();
         }
-            
-        
+
         Globals.Update(gameTime);
 
         _sceneManager.Update(gameTime);

@@ -57,6 +57,11 @@ public class UdpEnetClient : IDisposable
         _address.SetIP("85.246.128.207");
         _address.Port = 21000;
         
+        var clientAddress = new Address
+        {
+            Port = 21500
+        };
+        //_client.Create(clientAddress, 1, 1);
         _client.Create();
 
         _packetDeserializer.RegisterPacketDeserializers();
