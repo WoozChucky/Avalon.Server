@@ -35,13 +35,13 @@ namespace Avalon.Client
 
                 var existingMappings = await args.Device.GetAllMappingsAsync();
                 
-                if (existingMappings.Any(m => m.PrivatePort == 21000 && m.PublicPort == 21000))
+                if (existingMappings.Any(m => m.PrivatePort == 21500 && m.PublicPort == 21500))
                 {
                     Console.WriteLine("Port already mapped.");
                     return;
                 }
 
-                var mappedPort = args.Device.CreatePortMap(new Mapping(Protocol.Udp, 21000, 21000, 0, "AvalonClient"));
+                var mappedPort = args.Device.CreatePortMap(new Mapping(Protocol.Udp, 21500, 21500, 0, "AvalonClient"));
                 if (mappedPort != null)
                     Console.WriteLine($"Mapped port {mappedPort.PublicPort} to {mappedPort.PrivatePort}.");
                 else

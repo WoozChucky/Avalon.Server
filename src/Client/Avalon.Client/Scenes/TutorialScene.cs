@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Concurrent;
 using Avalon.Client.Managers;
 using Avalon.Client.Maps;
@@ -204,13 +204,19 @@ public class TutorialScene : Scene
     }
     private void OnNpcUpdated(object sender, SNpcUpdatePacket packet)
     {
-        _npcs.AddOrUpdate(packet.Id, new OtherPlayer(
-            packet.Id,
-            Globals.Content.Load<Texture2D>("Images/player"), new Vector2(packet.PositionX, packet.PositionY), true), (guid, player) =>
-        {
-            player.OnMovementReceived(new Vector2(packet.PositionX, packet.PositionY), new Vector2(packet.VelocityX, packet.VelocityY), _latency);
-            return player;
-        });
+        _npcs.AddOrUpdate(packet.Id, id =>
+            {
+                // If the NPC does not already exist in the dictionary, create a new OtherPlayer object and return it.
+                return new OtherPlayer(
+                    packet.Id,
+                    Globals.Content.Load<Texture2D>("Images/player"), new Vector2(packet.PositionX, packet.PositionY), true);
+            }, 
+            (guid, player) =>
+            {
+                // If the NPC already exists, just update its position and velocity and return it.
+                player.OnMovementReceived(new Vector2(packet.PositionX, packet.PositionY), new Vector2(packet.VelocityX, packet.VelocityY), _latency);
+                return player;
+            });
     }
 
     private void OnLatencyUpdated(object sender, double latency)
