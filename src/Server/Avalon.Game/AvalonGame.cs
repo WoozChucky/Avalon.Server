@@ -3,15 +3,14 @@ using System.Drawing;
 using System.Numerics;
 using System.Reflection;
 using Avalon.Game.Entities;
-using Avalon.Game.Handlers;
 using Avalon.Map;
 using Avalon.Network;
-using Avalon.Network.Packets;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Auth;
 using Avalon.Network.Packets.Generic;
 using Avalon.Network.Packets.Movement;
 using Avalon.Network.Packets.Serialization;
+using Avalon.Network.Packets.Social;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.Game;
@@ -23,6 +22,7 @@ public interface IAvalonGame
     Task HandleServerVersionPacket(IRemoteSource source, CRequestServerVersionPacket packet);
     Task HandlePingPacket(IRemoteSource source, CPingPacket packet);
     Task HandleMovementPacket(IRemoteSource source, CPlayerMovementPacket packet);
+    Task HandleChatMessagePacket(IRemoteSource source, CChatMessagePacket packet);
 }
 
 public class AvalonGame : IAvalonGame
@@ -156,6 +156,9 @@ public class AvalonGame : IAvalonGame
             if (_map.IsObjectColliding(entity.Bounds))
             {
                 entity.InvertDirection();
+                //entity.Position = entity.PreviousPosition;
+                //entity.Velocity = entity.PreviousVelocity;
+                //entity.RandomizeDirection();
             }
         }
     }
@@ -313,6 +316,13 @@ public class AvalonGame : IAvalonGame
             // TODO: player.Character.LastUpdated = DateTime.UtcNow;
         }
         return Task.CompletedTask;
+    }
+
+    public async Task HandleChatMessagePacket(IRemoteSource source, CChatMessagePacket packet)
+    {
+        var msgPacket = SChatMessagePacket.Create(packet.ClientId, packet.Message, packet.DateTime);
+        
+        await BroadcastToOthers(packet.ClientId, msgPacket);
     }
 
     public async Task HandleServerVersionPacket(IRemoteSource source, CRequestServerVersionPacket packet)

@@ -13,6 +13,7 @@ using Avalon.Network.Packets.Exceptions;
 using Avalon.Network.Packets.Generic;
 using Avalon.Network.Packets.Movement;
 using Avalon.Network.Packets.Serialization;
+using Avalon.Network.Packets.Social;
 using Microsoft.Extensions.Logging;
 using TcpClient = Avalon.Network.TcpClient;
 
@@ -86,6 +87,7 @@ public class AvalonNetworkDaemon : IAvalonNetworkDaemon
         _packetRegistry.RegisterHandler<CWelcomePacket>(NetworkPacketType.CMSG_WELCOME, _connectionManager.AddConnection);
         _packetRegistry.RegisterHandler<CPongPacket>(NetworkPacketType.CMSG_PONG, _connectionManager.HandlePongPacket);
         _packetRegistry.RegisterHandler<CPlayerMovementPacket>(NetworkPacketType.CMSG_MOVEMENT, _game.HandleMovementPacket);
+        _packetRegistry.RegisterHandler<CChatMessagePacket>(NetworkPacketType.CMSG_CHAT_MESSAGE, _game.HandleChatMessagePacket);
 
         _logger.LogInformation("Starting network daemon");
         
@@ -248,6 +250,7 @@ public class AvalonNetworkDaemon : IAvalonNetworkDaemon
             NetworkPacketType.CMSG_REQUEST_ENCRYPTION_KEY => _packetDeserializer.Deserialize<CRequestCryptoKeyPacket>(packet.Header.Type, packet.Payload),
             NetworkPacketType.CMSG_PING => _packetDeserializer.Deserialize<CPingPacket>(packet.Header.Type, packet.Payload),
             NetworkPacketType.CMSG_PONG => _packetDeserializer.Deserialize<CPongPacket>(packet.Header.Type, packet.Payload),
+            NetworkPacketType.CMSG_CHAT_MESSAGE => _packetDeserializer.Deserialize<CChatMessagePacket>(packet.Header.Type, packet.Payload),
             _ => throw new PacketHandlerException("Unknown packet type " + packet.Header.Type)
         };
     }

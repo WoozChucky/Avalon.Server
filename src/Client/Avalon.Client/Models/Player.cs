@@ -141,7 +141,6 @@ public class Player : IDisposable
 #pragma warning restore CS0162
         }
 
-        
         spriteBatch.DrawString(_font, _id, Position + new Vector2(-(_font.MeasureString(_id).X / 2f), _font.MeasureString(_id).Y), Color.Chocolate);
         
         // Calculate the source rectangle based on the current frame and direction
