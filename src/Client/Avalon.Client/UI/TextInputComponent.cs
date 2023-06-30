@@ -46,6 +46,7 @@ public class TextInputComponent : IDisposable
     
     public bool AllowNumeric { get; set; }
     public bool AllowAlphabetic { get; set; }
+    public bool AllowSpace { get; set; }
     public bool IsFocused { get; set; }
     public Rectangle BoundingBox { get; }
     public string Text => currentText;
@@ -121,6 +122,13 @@ public class TextInputComponent : IDisposable
         }
     }
     
+    public void Clear()
+    {
+        currentText = string.Empty;
+        cursorIndex = 0;
+        CalculateVerticalOffset();
+    }
+    
     private void HandleKeyboardInput()
     {
         var currentKeyboardState = Keyboard.GetState();
@@ -151,6 +159,17 @@ public class TextInputComponent : IDisposable
     
     private bool HandleSpecialKeys(Keys key)
     {
+        if (key == Keys.Space && AllowSpace)
+        {
+            currentText = currentText.Insert(cursorIndex, " ");
+            cursorIndex++;
+            CalculateVerticalOffset();
+            var valid = OnTextChanged?.Invoke(currentText);
+            _isInputErrorVisible = valid == false;
+            _isInputOkVisible = valid == true;
+            return true;
+        }
+        
         if (key == Keys.Enter && currentText.Length > 0)
         {
             // Handle Submit action event

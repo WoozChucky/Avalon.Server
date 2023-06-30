@@ -15,6 +15,7 @@ using Avalon.Network.Packets.Crypto;
 using Avalon.Network.Packets.Deserialization;
 using Avalon.Network.Packets.Movement;
 using Avalon.Network.Packets.Serialization;
+using Avalon.Network.Packets.Social;
 using ProtoBuf;
 
 namespace Avalon.Client.Network;
@@ -24,6 +25,7 @@ public delegate void PlayerDisconnectedHandler(object sender, SPlayerDisconnecte
 public delegate void PlayerMovedHandler(object sender, SPlayerPositionUpdatePacket packet);
 public delegate void LatencyUpdatedHandler(object sender, double latency);
 public delegate void NpcUpdatedHandler(object sender, SNpcUpdatePacket packet);
+public delegate void ChatMessageHandler(object sender, SChatMessagePacket packet);
 
 public class TcpClient : IDisposable
 {
@@ -32,8 +34,7 @@ public class TcpClient : IDisposable
     
     public event PlayerConnectedHandler PlayerConnected;
     public event PlayerDisconnectedHandler PlayerDisconnected;
-    public event PlayerMovedHandler PlayerMoved;
-    public event NpcUpdatedHandler NpcUpdated;
+    public event ChatMessageHandler ChatMessage;
 
     private readonly CancellationTokenSource cts = new CancellationTokenSource();
     private readonly X509Certificate2 certificate;
@@ -81,11 +82,11 @@ public class TcpClient : IDisposable
         return Task.CompletedTask;
     }
 
-    public async Task BroadcastMovementUpdates(float time, float x, float y, float velX, float velY)
+    public async Task SendChatMessage(string message)
     {
         try
         {
-            var packet = CPlayerMovementPacket.Create(Globals.ClientId, time, x, y, velX, velY);
+            var packet = CChatMessagePacket.Create(Globals.ClientId, message, DateTime.UtcNow);
 
             await _packetSerializer.SerializeToNetwork(stream, packet);
         }
@@ -126,20 +127,10 @@ public class TcpClient : IDisposable
                             Console.WriteLine(e);
                         }
                         break;
-                    case NetworkPacketType.SMSG_PLAYER_POSITION_UPDATE:
-                        var positionUpdatePacket = Serializer.Deserialize<SPlayerPositionUpdatePacket>(new MemoryStream(packet.Payload));
-                        
+                    case NetworkPacketType.SMSG_CHAT_MESSAGE:
+                        var messagePacket = Serializer.Deserialize<SChatMessagePacket>(new MemoryStream(packet.Payload));
                         try {
-                            PlayerMoved?.Invoke(this, positionUpdatePacket);
-                        } catch (Exception e) {
-                            Console.WriteLine(e);
-                        }
-                        break;
-                    case NetworkPacketType.SMSG_NPC_UPDATE:
-                        var npcUpdatePacket = Serializer.Deserialize<SNpcUpdatePacket>(new MemoryStream(packet.Payload));
-                        
-                        try {
-                            NpcUpdated?.Invoke(this, npcUpdatePacket);
+                            ChatMessage?.Invoke(this, messagePacket);
                         } catch (Exception e) {
                             Console.WriteLine(e);
                         }

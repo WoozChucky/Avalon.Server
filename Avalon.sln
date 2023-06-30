@@ -47,6 +47,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Avalon.Network.Packets.Abst
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Avalon.Client.Patcher", "src\Client\Avalon.Client.Patcher\Avalon.Client.Patcher.csproj", "{60BC35C8-64B9-42AE-9744-C610CC551C90}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Avalon.Client.PatchGenerator", "src\Client\Avalon.Client.PatchGenerator\Avalon.Client.PatchGenerator.csproj", "{E06A5173-5665-40C0-ABEB-2A7A24520039}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -113,6 +115,10 @@ Global
 		{60BC35C8-64B9-42AE-9744-C610CC551C90}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{60BC35C8-64B9-42AE-9744-C610CC551C90}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{60BC35C8-64B9-42AE-9744-C610CC551C90}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E06A5173-5665-40C0-ABEB-2A7A24520039}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E06A5173-5665-40C0-ABEB-2A7A24520039}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E06A5173-5665-40C0-ABEB-2A7A24520039}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E06A5173-5665-40C0-ABEB-2A7A24520039}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -137,6 +143,7 @@ Global
 		{0C24D6D1-FE5C-47DF-8A51-C59A6445FE22} = {C28EDB2B-FDA2-44DA-B255-F57E127EEF6C}
 		{6AA2B4FD-B63E-40BF-8A35-62CC0D6D3EE2} = {06868A4F-3DE6-415F-9A78-E2C07F300C19}
 		{60BC35C8-64B9-42AE-9744-C610CC551C90} = {9F6C14A1-30AF-456A-A846-29885214DD7D}
+		{E06A5173-5665-40C0-ABEB-2A7A24520039} = {9F6C14A1-30AF-456A-A846-29885214DD7D}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {20CD880E-2A9B-4B75-A2C1-3145230B285E}
