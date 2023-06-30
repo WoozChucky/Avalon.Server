@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Threading;
-using System.Threading.Tasks;
 using Avalon.Client.Managers;
 using Avalon.Client.Models;
 using Avalon.Client.Network;
@@ -15,10 +14,6 @@ public class MainMenuScene : Scene
     private TextInputComponent _textInputComponent;
     private ButtonComponent _buttonComponent;
     private Sprite _logo;
-    private Sprite _inputError;
-    private Sprite _inputOk;
-    private bool _isInputErrorVisible;
-    private bool _isInputOkVisible;
 
     public MainMenuScene(SceneManager sceneManager) : base(sceneManager)
     {
@@ -32,7 +27,7 @@ public class MainMenuScene : Scene
         );
         
         _textInputComponent = new TextInputComponent(
-            new Vector2(100, 160),
+            new Vector2(Globals.WindowSize.X / 2f - 200 /2f, Globals.WindowSize.Y / 2f + 0),
             new Vector2(200, 40),
             2,
             Globals.Content.Load<SpriteFont>("Fonts/Default")
@@ -41,21 +36,14 @@ public class MainMenuScene : Scene
             AllowAlphabetic = true,
             IsFocused = true
         };
-        
-        _inputError = new Sprite(
-            Globals.Content.Load<Texture2D>("Images/UI/checkbox_cross"), 
-            new Vector2(320, 180)
-        );
-        _inputOk = new Sprite(
-            Globals.Content.Load<Texture2D>("Images/UI/checkbox_ok"), 
-            new Vector2(320, 180)
-        );
-        _isInputErrorVisible = false;
-        _isInputOkVisible = false;
-        
+
+        var buttonTexture = Globals.Content.Load<Texture2D>("Images/Label");
+
         _buttonComponent = new ButtonComponent(
-            Globals.Content.Load<Texture2D>("Images/Label"),
-            new Vector2(100, 220),
+            buttonTexture,
+            new Vector2(Globals.WindowSize.X / 2f - (float) buttonTexture.Width / 2, Globals.WindowSize.Y / 2f + 100),
+            "Login",
+            Globals.Content.Load<SpriteFont>("Fonts/Default"),
             Color.Red,
             Color.Yellow
         );
@@ -72,27 +60,18 @@ public class MainMenuScene : Scene
 
     public override void Update(GameTime gameTime)
     {
-        MouseManager.Instance.Update();
+        var deltaTime = (float)gameTime.ElapsedGameTime.TotalSeconds;
 
-        _buttonComponent?.Update();
+        _textInputComponent?.Update(deltaTime);
         
-        _textInputComponent?.Update((float)gameTime.ElapsedGameTime.TotalSeconds);
+        _buttonComponent?.Update();
     }
 
     public override void Draw(SpriteBatch spriteBatch)
     {
-        spriteBatch.Begin(sortMode: SpriteSortMode.FrontToBack, blendState: BlendState.AlphaBlend);
-        
+        spriteBatch.Begin(blendState: BlendState.AlphaBlend);
         _logo.Draw(spriteBatch);
         _textInputComponent?.Draw(spriteBatch);
-        if (_isInputErrorVisible)
-        {
-            _inputError.Draw(spriteBatch);
-        }
-        if (_isInputOkVisible)
-        {
-            _inputOk.Draw(spriteBatch);
-        }
         _buttonComponent?.Draw(spriteBatch);
         spriteBatch.End();
     }
@@ -107,32 +86,23 @@ public class MainMenuScene : Scene
         }
     }
     
-    private void OnLoginInputChanged(string text)
+    private bool OnLoginInputChanged(string text)
     {
-        if (string.IsNullOrEmpty(text) || text.Length < 3 || text.Length > 8)
+        if (string.IsNullOrEmpty(text) || text.Length < 3 || text.Length > 16)
         {
-            _isInputErrorVisible = true;
-            _isInputOkVisible = false;
-            return;
+            return false;
         }
-
-        _isInputErrorVisible = false;
-        _isInputOkVisible = true;
+        return true;
     }
     
     private async void OnLoginButtonClicked(object sender)
     {
         var username = _textInputComponent.Text;
 
-        if (string.IsNullOrEmpty(username) || username.Length < 3 || username.Length > 8)
+        if (!OnLoginInputChanged(username))
         {
-            _isInputErrorVisible = true;
-            _isInputOkVisible = false;
             return;
         }
-        
-        _isInputOkVisible = true;
-        _isInputErrorVisible = false;
 
         Globals.ClientId = username;
         

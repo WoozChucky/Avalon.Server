@@ -39,6 +39,11 @@
 /copy:Fonts/PokemonGb-RA.ttf
 /copy:Fonts/PokemonUnownGb.ttf
 /copy:Fonts/RobotoCondensed-Bold.ttf
+/copy:Fonts/vcrmono.ttf
+/copy:Fonts/rainyhearts.ttf
+/copy:Fonts/Minecraft.ttf
+/copy:Fonts/dogica.ttf
+/copy:Fonts/Go-Mono-Bold.ttf
 
 #begin Images/hero.png
 /importer:TextureImporter
