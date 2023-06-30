@@ -47,7 +47,7 @@ public class Player : IDisposable
         _sprite.Origin = new Vector2(FrameWidth / 2f, FrameHeight / 2f);
         _sprite.Debug = true;
 
-        _movementDirection = MovementDirection.Idle;
+        _movementDirection = MovementDirection.Down;
 
         BoundingBox = new Rectangle(
             (int)(Position.X),
@@ -80,10 +80,13 @@ public class Player : IDisposable
     }
 
     public void Update(Func<Rectangle, bool> collisionCheckingFunction, ConcurrentDictionary<string, OtherPlayer> npcs,
-        ConcurrentDictionary<string, OtherPlayer> otherPlayers)
+        ConcurrentDictionary<string, OtherPlayer> otherPlayers, bool ignoreMovement)
     {
-        UpdateMovement();
-        
+        if (!ignoreMovement)
+        {
+            UpdateMovement();
+        }
+
         var previousPosition = Position;
         var previousBoundingBox = BoundingBox;
         

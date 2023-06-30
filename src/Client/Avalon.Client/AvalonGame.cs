@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics;
 using Avalon.Client.Managers;
 using Avalon.Client.Network;
 using Avalon.Client.Scenes;
@@ -14,8 +15,13 @@ public class AvalonGame : Game
     private SpriteBatch _spriteBatch;
     private readonly SceneManager _sceneManager;
 
+    private readonly Stopwatch _stopwatch;
+    
+    private volatile bool _showingMetrics = false;
+
     public AvalonGame(Guid clientId)
     {
+        this._stopwatch = Stopwatch.StartNew();
         _graphics = new GraphicsDeviceManager(this);
         _graphics.SynchronizeWithVerticalRetrace = true;
         Content.RootDirectory = "Content";
@@ -63,26 +69,48 @@ public class AvalonGame : Game
 
     protected override void Update(GameTime gameTime)
     {
+        _stopwatch.Restart();
+        
+        var deltaTime = (float)gameTime.ElapsedGameTime.TotalSeconds;
+        InputManager.Instance.Update(deltaTime);
+        MouseManager.Instance.Update();
+        
         if (GamePad.GetState(PlayerIndex.One).Buttons.Back == ButtonState.Pressed ||
-            Keyboard.GetState().IsKeyDown(Keys.Escape))
+            Keyboard.GetState().IsKeyDown(Keys.LeftAlt))
         {
             UdpEnetClient.Instance.Disconnect();
             Exit();
         }
 
         Globals.Update(gameTime);
+        
+        //if (InputManager.Instance.KeyPressed(Keys.F2))
+        //{
+        //    _showingMetrics = !_showingMetrics;
+        //}
 
         _sceneManager.Update(gameTime);
         
+        _stopwatch.Stop();
+        if (_showingMetrics)
+        {
+            Console.WriteLine($"Update took {_stopwatch.ElapsedTicks}ms");
+        }
         base.Update(gameTime);
     }
 
     protected override void Draw(GameTime gameTime)
     {
+        _stopwatch.Restart();
         GraphicsDevice.Clear(Color.CornflowerBlue);
 
         _sceneManager.Draw(_spriteBatch);
 
+        _stopwatch.Stop();
+        if (_showingMetrics)
+        {
+            Console.WriteLine($"Draw took {_stopwatch.ElapsedMilliseconds}ms");
+        }
         base.Draw(gameTime);
     }
 

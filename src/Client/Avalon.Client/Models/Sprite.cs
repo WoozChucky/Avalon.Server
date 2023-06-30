@@ -7,6 +7,7 @@ namespace Avalon.Client.Models;
 public class Sprite : IDisposable
 {
     public Texture2D Texture;
+    private readonly bool _useCameraPosition;
     public bool Debug { get; set; }
     
     private Texture2D _outlineTexture;
@@ -17,9 +18,10 @@ public class Sprite : IDisposable
     public float Scale { get; protected set; }
     
     
-    public Sprite(Texture2D texture, Vector2 position, float scale = 1f, bool debug = false)
+    public Sprite(Texture2D texture, Vector2 position, float scale = 1f, bool useCameraPosition = false, bool debug = false)
     {
         Texture = texture;
+        _useCameraPosition = useCameraPosition;
         Debug = debug;
         Position = position;
         Origin = new Vector2(Texture.Width / 2f, Texture.Height / 2f);
@@ -58,7 +60,7 @@ public class Sprite : IDisposable
         {
             spriteBatch.Draw(_outlineTexture, _outlineRect, Color.Black);
         }
-        spriteBatch.Draw(Texture, Position, null, Color.White, 0f, Origin, Scale, SpriteEffects.None, 0f);
+        spriteBatch.Draw(Texture, _useCameraPosition ? Position + Globals.CameraPosition : Position, null, Color.White, 0f, Origin, Scale, SpriteEffects.None, 0f);
     }
 
     public void Dispose()

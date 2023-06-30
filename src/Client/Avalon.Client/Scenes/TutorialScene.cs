@@ -22,6 +22,7 @@ public class TutorialScene : Scene
     private Matrix _translation;
     private SpriteFont _font;
     private Banner _banner;
+    private ChatGUI _chatGui;
 
     private readonly ConcurrentDictionary<string, OtherPlayer> _otherPlayers;
     private readonly ConcurrentDictionary<string, OtherPlayer> _npcs;
@@ -38,7 +39,7 @@ public class TutorialScene : Scene
     {
         _otherPlayers = new ConcurrentDictionary<string, OtherPlayer>();
         _npcs = new ConcurrentDictionary<string, OtherPlayer>();
-        
+
         Globals.CameraPosition = Vector2.Zero;
         
         TcpClient.Instance.PlayerConnected += OnPlayerConnected;
@@ -61,6 +62,8 @@ public class TutorialScene : Scene
             new Vector2(326, 1450)
         );
         _player.SetBounds(_map.MapSize, new Point(_map.TileWidth, _map.TileHeight));
+        
+        _chatGui = new ChatGUI();
 
         var t = new Timer();
         t.Interval = 26; // 20 updates per seconds which would be 50 milliseconds interval (1000/20 = 50)
@@ -68,9 +71,8 @@ public class TutorialScene : Scene
         t.Elapsed += OnTimerElapsed;
         t.Start();
 
-        _banner = new Banner(new Vector2(0, 0), size: new Vector2(280, 200), alpha: 0.5f);
+        _banner = new Banner(new Vector2(0, 0), new Vector2(280, 200), alpha: 0.5f);
         _banner.Load();
-
     }
 
     public override void Unload()
@@ -85,14 +87,7 @@ public class TutorialScene : Scene
 
         _elapsedTime += deltaTime;
         _frameCount++;
-        
-        InputManager.Instance.Update(deltaTime);
 
-        if (InputManager.Instance.KeyReleased(Keys.F3))
-        {
-            _map.ToggleDebug();
-        }
-        
         foreach (var (_, otherHero) in _otherPlayers)
         {
             otherHero.Update(deltaTime);
@@ -103,9 +98,8 @@ public class TutorialScene : Scene
             npc.Update(deltaTime);
         }
 
-        _player.Update(_map.IsObjectColliding, _npcs, _otherPlayers);
+        _player.Update(_map.IsObjectColliding, _npcs, _otherPlayers, _chatGui.IsTyping);
         
-
         // Update the camera position based on player movement or other logic
         Globals.CameraPosition = _player.Position - new Vector2((float) Globals.GraphicsDevice.Viewport.Width / 2,
             (float) Globals.GraphicsDevice.Viewport.Height / 2) + new Vector2(_map.TileWidth / 2f, _map.TileHeight / 2f);
@@ -115,6 +109,17 @@ public class TutorialScene : Scene
             MathHelper.Clamp(Globals.CameraPosition.X, 0, _map.MapSize.X - Globals.GraphicsDevice.Viewport.Width),
             MathHelper.Clamp(Globals.CameraPosition.Y, 0, _map.MapSize.Y - Globals.GraphicsDevice.Viewport.Height)
         );
+        
+        _chatGui?.Update(deltaTime);
+        if (_chatGui is { IsTyping: false } && InputManager.Instance.KeyReleased(Keys.T))
+        {
+            _chatGui?.Toggle();
+        }
+
+        if (InputManager.Instance.KeyReleased(Keys.F3))
+        {
+            _map.ToggleDebug();
+        }
 
         _banner.Update(gameTime);
         
@@ -145,6 +150,8 @@ public class TutorialScene : Scene
         {
             npc.Draw(spriteBatch);
         }
+        
+        _chatGui?.Draw(spriteBatch);
 
         if (true)
         {
@@ -163,6 +170,7 @@ public class TutorialScene : Scene
         {
             _map?.Dispose();
             _player?.Dispose();
+            _chatGui?.Dispose();
         }
     }
 

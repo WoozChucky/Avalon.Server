@@ -79,6 +79,7 @@ public class MetricsManager : IMetricsManager
 
     public void QueueEvent(string eventName, string eventValue, Dictionary<string, string>? properties = null)
     {
+        return;
         var eventData = new EventData(eventName, DateTime.UtcNow, eventValue);
         eventData.AddTags(properties != null ? properties : _defaultProperties);
         
@@ -87,6 +88,7 @@ public class MetricsManager : IMetricsManager
 
     public void QueueMetric(string metricName, string metricValue, Dictionary<string, string>? properties = null)
     {
+        return;
         var metricData = new TimeseriesData();
         metricData.AddTimestamp(DateTime.UtcNow)
             .AddValue(metricName, metricValue)
@@ -97,6 +99,7 @@ public class MetricsManager : IMetricsManager
 
     public void QueueMetric(string metricName, double metricValue, Dictionary<string, string>? properties = null)
     {
+        return;
         var metricData = new TimeseriesData();
         metricData.AddTimestamp(DateTime.UtcNow)
             .AddValue(metricName, metricValue)
@@ -107,6 +110,7 @@ public class MetricsManager : IMetricsManager
 
     public void QueueMetric(string metricName, byte[] metricValue, Dictionary<string, string>? properties = null)
     {
+        return;
         var metricData = new TimeseriesData();
         metricData.AddTimestamp(DateTime.UtcNow)
             .AddValue(metricName, metricValue)

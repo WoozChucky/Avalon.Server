@@ -1,5 +1,6 @@
 using System;
 using Avalon.Client.Managers;
+using Avalon.Client.Models;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
@@ -7,12 +8,13 @@ using Microsoft.Xna.Framework.Input;
 namespace Avalon.Client.UI;
 
 public delegate void TextInputPressedEnter(TextInputComponent button);
-public delegate void TextInputChanged(string text);
+public delegate bool TextInputChanged(string text);
 
 public class TextInputComponent : IDisposable
 {
     private SpriteFont font;
-    
+    private readonly bool useCameraPosition;
+
     private Vector2 position;
     private Vector2 size;
     
@@ -33,8 +35,11 @@ public class TextInputComponent : IDisposable
     private float cursorBlinkTimer;
     private bool isCursorVisible;
     private int cursorIndex;
-
     
+    private Sprite _inputError;
+    private Sprite _inputOk;
+    private bool _isInputErrorVisible;
+    private bool _isInputOkVisible;
 
     public event TextInputPressedEnter OnPressedEnter;
     public event TextInputChanged OnTextChanged;
@@ -45,20 +50,34 @@ public class TextInputComponent : IDisposable
     public Rectangle BoundingBox { get; }
     public string Text => currentText;
 
-    public TextInputComponent(Vector2 position, Vector2 size, int borderWidth, SpriteFont font)
+    public TextInputComponent(Vector2 position, Vector2 size, int borderWidth, SpriteFont font, bool useCameraPosition = false)
     {
         this.position = position;
         this.size = size;
         this.borderWidth = borderWidth;
         this.font = font;
-        
-        BoundingBox = new Rectangle((int)position.X, (int)position.Y, (int)size.X, (int)size.Y);
+        this.useCameraPosition = useCameraPosition;
+
+        BoundingBox = new Rectangle((int)position.X, (int)position.Y, (int)size.X, (int) size.Y);
         
         currentText = string.Empty;
         
         cursorIndex = 0;
         cursorBlinkTimer = 0f;
         isCursorVisible = true;
+        
+        _inputError = new Sprite(
+            Globals.Content.Load<Texture2D>("Images/UI/checkbox_cross"), 
+            new Vector2(position.X + size.X + 30, position.Y + size.Y / 2f),
+            useCameraPosition: useCameraPosition
+        );
+        _inputOk = new Sprite(
+            Globals.Content.Load<Texture2D>("Images/UI/checkbox_ok"), 
+            new Vector2(position.X + size.X + 30, position.Y + size.Y / 2f),
+            useCameraPosition: useCameraPosition
+        );
+        _isInputErrorVisible = false;
+        _isInputOkVisible = false;
         
         previousKeyboardState = Keyboard.GetState();
         
@@ -135,7 +154,11 @@ public class TextInputComponent : IDisposable
         if (key == Keys.Enter && currentText.Length > 0)
         {
             // Handle Submit action event
-            OnPressedEnter?.Invoke(this);
+            var valid = OnTextChanged?.Invoke(currentText);
+            if (valid is true)
+            {
+                OnPressedEnter?.Invoke(this);
+            }
             return true;
         }
         
@@ -145,7 +168,9 @@ public class TextInputComponent : IDisposable
             currentText = currentText.Remove(cursorIndex - 1, 1);
             cursorIndex--;
             CalculateVerticalOffset();
-            OnTextChanged?.Invoke(currentText);
+            var valid = OnTextChanged?.Invoke(currentText);
+            _isInputErrorVisible = valid == false;
+            _isInputOkVisible = valid == true;
             return true;
         }
 
@@ -154,7 +179,9 @@ public class TextInputComponent : IDisposable
             // Delete the character after the cursor
             currentText = currentText.Remove(cursorIndex, 1);
             CalculateVerticalOffset();
-            OnTextChanged?.Invoke(currentText);
+            var valid = OnTextChanged?.Invoke(currentText);
+            _isInputErrorVisible = valid == false;
+            _isInputOkVisible = valid == true;
             return true;
         }
 
@@ -183,8 +210,9 @@ public class TextInputComponent : IDisposable
             currentText = currentText.Insert(cursorIndex, number.ToString());
             cursorIndex++;
             CalculateVerticalOffset();
-            
-            OnTextChanged?.Invoke(currentText);
+            var valid = OnTextChanged?.Invoke(currentText);
+            _isInputErrorVisible = valid == false;
+            _isInputOkVisible = valid == true;
             return true;
         }
 
@@ -200,7 +228,9 @@ public class TextInputComponent : IDisposable
             currentText = currentText.Insert(cursorIndex, keyRepresentation);
             cursorIndex++;
             CalculateVerticalOffset();
-            OnTextChanged?.Invoke(currentText);
+            var valid = OnTextChanged?.Invoke(currentText);
+            _isInputErrorVisible = valid == false;
+            _isInputOkVisible = valid == true;
         }
     }
     
@@ -265,25 +295,58 @@ public class TextInputComponent : IDisposable
     public void Draw(SpriteBatch spriteBatch)
     {
         // Draw the background rectangle
-        spriteBatch.Draw(rectangleTexture, new Rectangle((int)position.X, (int)position.Y, (int)size.X, (int)size.Y), backgroundColor);
+        if (useCameraPosition)
+        {
+            spriteBatch.Draw(rectangleTexture, new Rectangle((int)position.X + (int)Globals.CameraPosition.X, (int)position.Y + (int)Globals.CameraPosition.Y, (int)size.X, (int)size.Y), backgroundColor);
+        }
+        else
+        {
+            spriteBatch.Draw(rectangleTexture, new Rectangle((int)position.X, (int)position.Y, (int)size.X, (int)size.Y), backgroundColor);
+        }
 
         // Draw the border
-        spriteBatch.Draw(borderTexture, new Rectangle((int)position.X, (int)position.Y, (int)size.X, borderWidth), borderColor); // Top border
-        spriteBatch.Draw(borderTexture, new Rectangle((int)position.X, (int)position.Y + (int)size.Y - borderWidth, (int)size.X, borderWidth), borderColor); // Bottom border
-        spriteBatch.Draw(borderTexture, new Rectangle((int)position.X, (int)position.Y, borderWidth, (int)size.Y), borderColor); // Left border
-        spriteBatch.Draw(borderTexture, new Rectangle((int)position.X + (int)size.X - borderWidth, (int)position.Y, borderWidth, (int)size.Y), borderColor); // Right border
+        if (useCameraPosition)
+        {
+            spriteBatch.Draw(borderTexture, new Rectangle((int)position.X + (int) Globals.CameraPosition.X, (int)position.Y + (int) Globals.CameraPosition.Y, (int)size.X, borderWidth), borderColor); // Top border
+            spriteBatch.Draw(borderTexture, new Rectangle((int)position.X + (int) Globals.CameraPosition.X, (int)position.Y + (int)size.Y - borderWidth + (int) Globals.CameraPosition.Y, (int)size.X, borderWidth), borderColor); // Bottom border
+            spriteBatch.Draw(borderTexture, new Rectangle((int)position.X + (int) Globals.CameraPosition.X, (int)position.Y + (int) Globals.CameraPosition.Y, borderWidth, (int)size.Y), borderColor); // Left border
+            spriteBatch.Draw(borderTexture, new Rectangle((int)position.X + (int) size.X - borderWidth + (int) Globals.CameraPosition.X, (int)position.Y + (int) Globals.CameraPosition.Y, borderWidth, (int)size.Y), borderColor); // Right border
+        }
+        else
+        {
+            spriteBatch.Draw(borderTexture, new Rectangle((int)position.X, (int)position.Y, (int)size.X, borderWidth), borderColor); // Top border
+            spriteBatch.Draw(borderTexture, new Rectangle((int)position.X, (int)position.Y + (int)size.Y - borderWidth, (int)size.X, borderWidth), borderColor); // Bottom border
+            spriteBatch.Draw(borderTexture, new Rectangle((int)position.X, (int)position.Y, borderWidth, (int)size.Y), borderColor); // Left border
+            spriteBatch.Draw(borderTexture, new Rectangle((int)position.X + (int)size.X - borderWidth, (int)position.Y, borderWidth, (int)size.Y), borderColor); // Right border
+        }
 
         // Draw the current text
         var textPosition = position + new Vector2(borderWidth, verticalOffset);
         textPosition.X += 5; // Add a small horizontal offset to center the text vertically
-        spriteBatch.DrawString(font, currentText, textPosition, Color.Black);
+
+        spriteBatch.DrawString(font, currentText, useCameraPosition ? textPosition + Globals.CameraPosition : textPosition, Color.Black);
 
         // Draw the cursor
         if (isCursorVisible && IsFocused)
         {
             Vector2 cursorPosition = position + new Vector2(borderWidth) + new Vector2(font.MeasureString(currentText.Substring(0, cursorIndex)).X, 0);
             cursorPosition.X += 5; // Add a small horizontal offset to center the cursor vertically
-            spriteBatch.Draw(borderTexture, new Rectangle((int)cursorPosition.X, (int)cursorPosition.Y, 1, (int)size.Y - borderWidth * 2), borderColor);
+
+            if (useCameraPosition)
+            {
+                cursorPosition.X += Globals.CameraPosition.X;
+                cursorPosition.Y += Globals.CameraPosition.Y;
+            }
+            spriteBatch.Draw(borderTexture, new Rectangle((int)cursorPosition.X, (int)cursorPosition.Y, 1, (int)size.Y - borderWidth), borderColor);
+        }
+        
+        if (_isInputErrorVisible)
+        {
+            _inputError.Draw(spriteBatch);
+        }
+        if (_isInputOkVisible)
+        {
+            _inputOk.Draw(spriteBatch);
         }
     }
 
@@ -299,6 +362,18 @@ public class TextInputComponent : IDisposable
         {
             borderTexture.Dispose();
             borderTexture = null;
+        }
+        
+        if (_inputError != null)
+        {
+            _inputError.Dispose();
+            _inputError = null;
+        }
+
+        if (_inputOk != null)
+        {
+            _inputOk.Dispose();
+            _inputOk = null;
         }
     }
 }

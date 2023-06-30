@@ -3,7 +3,7 @@ using System.ComponentModel;
 namespace Avalon.Common;
 
 /// <summary>
-/// Hides standard Object members to make fluent interfaces easier to read.
+/// Hides standard Object members to make fluent interfaces easier to read. 
 /// </summary>
 [EditorBrowsable(EditorBrowsableState.Never)]
 public interface IHideObjectMembers
