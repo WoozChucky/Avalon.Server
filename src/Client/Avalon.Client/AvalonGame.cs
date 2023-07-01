@@ -26,8 +26,12 @@ public class AvalonGame : Game
         _graphics.SynchronizeWithVerticalRetrace = true;
         Content.RootDirectory = "Content";
 
-
-        Window.Title = "Avalon";
+        Window.Title = "Avalon: The Beginning";
+        
+        UdpEnetClient.Instance.LatencyUpdated += ((sender, latency) =>
+        {
+            Window.Title = $"Avalon: The Beginning ({latency}ms)";
+        });
         
         //TargetElapsedTime = TimeSpan.FromSeconds(1d / 60d);
         //MaxElapsedTime = TimeSpan.FromMilliseconds(500);

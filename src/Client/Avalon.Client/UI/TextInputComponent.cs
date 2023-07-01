@@ -227,6 +227,17 @@ public class TextInputComponent : IDisposable
             
             return isShiftKeyDown;
         }
+        
+        if (key == Keys.OemComma && AllowPunctuation)
+        {
+            currentText = currentText.Insert(cursorIndex, ",");
+            cursorIndex++;
+            CalculateVerticalOffset();
+            var valid = OnTextChanged?.Invoke(currentText);
+            _isInputErrorVisible = valid == false;
+            _isInputOkVisible = valid == true;
+            return true;
+        }
 
         return false;
     }
@@ -243,7 +254,7 @@ public class TextInputComponent : IDisposable
             _isInputOkVisible = valid == true;
             return true;
         }
-        
+
         if (key == Keys.Enter && currentText.Length > 0)
         {
             // Handle Submit action event
