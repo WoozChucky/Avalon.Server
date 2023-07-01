@@ -105,9 +105,9 @@ public class UdpEnetClient : IDisposable
             {
                 LatencyUpdated?.Invoke(this, _serverPeer.RoundTripTime);
                 
-                Console.WriteLine("Last Receive Time: " + DateTime.UtcNow.AddMilliseconds(_serverPeer.LastReceiveTime).ToString(CultureInfo.InvariantCulture));
-                Console.WriteLine("Packets Lost: " + _serverPeer.PacketsLost);
-                Console.WriteLine("Packet Sent: " + _serverPeer.PacketsSent);
+                //Console.WriteLine("Last Receive Time: " + DateTime.UtcNow.AddMilliseconds(_serverPeer.LastReceiveTime).ToString(CultureInfo.InvariantCulture));
+                //Console.WriteLine("Packets Lost: " + _serverPeer.PacketsLost);
+                //Console.WriteLine("Packet Sent: " + _serverPeer.PacketsSent);
 
                 await Task.Delay(1000);
             }

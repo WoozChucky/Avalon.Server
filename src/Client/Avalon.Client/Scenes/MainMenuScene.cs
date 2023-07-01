@@ -88,7 +88,7 @@ public class MainMenuScene : Scene
     
     private bool OnLoginInputChanged(string text)
     {
-        if (string.IsNullOrEmpty(text) || text.Length < 3 || text.Length > 16)
+        if (string.IsNullOrEmpty(text) || text.Length < 3 || text.Length > 8)
         {
             return false;
         }

@@ -6,22 +6,19 @@ namespace Avalon.Client.Models;
 
 public class Sprite : IDisposable
 {
-    public Texture2D Texture;
-    private readonly bool _useCameraPosition;
+    protected Texture2D OutlineTexture;
+    protected Rectangle OutlineRect;
+    
     public bool Debug { get; set; }
-    
-    private Texture2D _outlineTexture;
-    private Rectangle _outlineRect;
-    
     public Vector2 Position { get; set; }
     public Vector2 Origin { get; set; }
     public float Scale { get; protected set; }
+    public Texture2D Texture { get; set; }
     
     
-    public Sprite(Texture2D texture, Vector2 position, float scale = 1f, bool useCameraPosition = false, bool debug = false)
+    public Sprite(Texture2D texture, Vector2 position, float scale = 1f, bool debug = false)
     {
         Texture = texture;
-        _useCameraPosition = useCameraPosition;
         Debug = debug;
         Position = position;
         Origin = new Vector2(Texture.Width / 2f, Texture.Height / 2f);
@@ -33,7 +30,7 @@ public class Sprite : IDisposable
     private void CreateDebugBorder()
     {
         // Calculate the rectangle that encompasses the sprite with the border
-        _outlineRect = new Rectangle(
+        OutlineRect = new Rectangle(
             (int)(Position.X - Origin.X * Scale) - 1,
             (int)(Position.Y - Origin.Y * Scale) - 1,
             (int)(Texture.Width * Scale) + 2,
@@ -41,16 +38,16 @@ public class Sprite : IDisposable
         );
 
         // Draw the border using a 1x1 pixel white texture
-        _outlineTexture = new Texture2D(Globals.GraphicsDevice, 1, 1);
-        _outlineTexture.SetData(new[] { Color.White });
+        OutlineTexture = new Texture2D(Globals.GraphicsDevice, 1, 1);
+        OutlineTexture.SetData(new[] { Color.White });
     }
     
-    public virtual void Update()
+    public virtual void Update(float deltaTime)
     {
         if (Debug)
         {
-            _outlineRect.X = (int)(Position.X - Origin.X * Scale) - 1;
-            _outlineRect.Y = (int)(Position.Y - Origin.Y * Scale) - 1;
+            OutlineRect.X = (int)(Position.X - Origin.X * Scale) - 1;
+            OutlineRect.Y = (int)(Position.Y - Origin.Y * Scale) - 1;
         }
     }
 
@@ -58,14 +55,14 @@ public class Sprite : IDisposable
     {
         if (Debug)
         {
-            spriteBatch.Draw(_outlineTexture, _outlineRect, Color.Black);
+            spriteBatch.Draw(OutlineTexture, OutlineRect, Color.Black);
         }
-        spriteBatch.Draw(Texture, _useCameraPosition ? Position + Globals.CameraPosition : Position, null, Color.White, 0f, Origin, Scale, SpriteEffects.None, 0f);
+        spriteBatch.Draw(Texture, Position, null, Color.White, 0f, Origin, Scale, SpriteEffects.None, 0f);
     }
 
-    public void Dispose()
+    public virtual void Dispose()
     {
         Texture?.Dispose();
-        _outlineTexture?.Dispose();
+        OutlineTexture?.Dispose();
     }
 }

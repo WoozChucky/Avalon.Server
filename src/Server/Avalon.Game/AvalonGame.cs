@@ -23,6 +23,8 @@ public interface IAvalonGame
     Task HandlePingPacket(IRemoteSource source, CPingPacket packet);
     Task HandleMovementPacket(IRemoteSource source, CPlayerMovementPacket packet);
     Task HandleChatMessagePacket(IRemoteSource source, CChatMessagePacket packet);
+    Task HandleOpenChatPacket(IRemoteSource source, COpenChatPacket packet);
+    Task HandleCloseChatPacket(IRemoteSource source, CCloseChatPacket packet);
 }
 
 public class AvalonGame : IAvalonGame
@@ -250,6 +252,7 @@ public class AvalonGame : IAvalonGame
                 player.Position.Y,
                 player.Velocity.X,
                 player.Velocity.Y,
+                player.Character.IsChatting,
                 player.Character.ElapsedGameTime
             );
             await BroadcastAll(packet);
@@ -323,6 +326,24 @@ public class AvalonGame : IAvalonGame
         var msgPacket = SChatMessagePacket.Create(packet.ClientId, packet.Message, packet.DateTime);
         
         await BroadcastToOthers(packet.ClientId, msgPacket);
+    }
+
+    public Task HandleOpenChatPacket(IRemoteSource source, COpenChatPacket packet)
+    {
+        if (_players.TryGetValue(packet.ClientId, out var player))
+        {
+            player.Character.IsChatting = true;
+        }
+        return Task.CompletedTask;
+    }
+
+    public Task HandleCloseChatPacket(IRemoteSource source, CCloseChatPacket packet)
+    {
+        if (_players.TryGetValue(packet.ClientId, out var player))
+        {
+            player.Character.IsChatting = false;
+        }
+        return Task.CompletedTask;
     }
 
     public async Task HandleServerVersionPacket(IRemoteSource source, CRequestServerVersionPacket packet)

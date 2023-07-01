@@ -198,6 +198,7 @@ public class TutorialScene : Scene
         if (_otherPlayers.TryGetValue(packet.ClientId, out var player))
         {
             player.OnMovementReceived(new Vector2(packet.PositionX, packet.PositionY), new Vector2(packet.VelocityX, packet.VelocityY), _latency);
+            player.OnChatChanged(packet.Chatting);
         }
 
         if (packet.ClientId == Globals.ClientId)
