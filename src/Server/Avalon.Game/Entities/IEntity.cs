@@ -23,4 +23,5 @@ public class Character //TODO: Move this to separate file
 
     public Rectangle Bounds { get; set; }
     public float ElapsedGameTime { get; set; }
+    public bool IsChatting { get; set; }
 }

@@ -37,19 +37,34 @@ public class OtherPlayer
     private float _currentAngle = 0f; // represents the current direction as an angle
     
     private readonly Sprite _sprite;
-    private readonly SpriteFont _font;
     
+    private readonly SpriteFont _font;
+    private Vector2 _fontPosition;
+    private Vector2 _fontShadowPosition;
+    
+    private readonly Sprite _socialSprite;
+
+    private volatile bool _chatting;
+
     public OtherPlayer(string id, Texture2D texture, Vector2 position, bool debug = false)
     {
         _id = id;
+        _chatting = false;
         recentPositions = new ConcurrentQueue<Vector2>();
+        
         _font = Globals.Content.Load<SpriteFont>("Fonts/Default");
+        _fontPosition = Vector2.Zero;
+        _fontShadowPosition = Vector2.Zero;
+        
         currentPosition = position;
         previousPosition = position;
         
         _sprite = new Sprite(texture, position, debug: true);
         _sprite.Origin = new Vector2(FrameWidth / 2f, FrameHeight / 2f);
         _sprite.Debug = debug;
+        
+        _socialSprite = new Sprite(Globals.Content.Load<Texture2D>("Images/Icons/Mail"), position);
+        _socialSprite.Position = new Vector2(position.X, position.Y - 40f);
 
         BoundingBox = new Rectangle(
             (int)(currentPosition.X),
@@ -114,6 +129,10 @@ public class OtherPlayer
             direction = 2;
         }
     }
+    public void OnChatChanged(bool chatting)
+    {
+        _chatting = chatting;
+    }
 
     public void Update(float deltaTime)
     {
@@ -124,6 +143,9 @@ public class OtherPlayer
 
         _debugRect.X = (int)(currentPosition.X - _sprite.Origin.X);
         _debugRect.Y = (int)(currentPosition.Y - _sprite.Origin.Y);
+        
+        _fontPosition = currentPosition + new Vector2(-(_font.MeasureString(_id).X / 2f), _font.MeasureString(_id).Y);
+        _fontShadowPosition = currentPosition + new Vector2(-(_font.MeasureString(_id).X / 2f), _font.MeasureString(_id).Y) + new Vector2(2, 2);
 
         // Linear Interpolation
         {
@@ -138,6 +160,7 @@ public class OtherPlayer
             // Lower values will make it smoother but also potentially more laggy.
             currentPosition = ExponentialSmoothPosition(currentPosition, predictedPosition, alpha);
             _sprite.Position = currentPosition;
+            _socialSprite.Position = new Vector2(currentPosition.X, currentPosition.Y - 40f);
         }
 
         // Cubic Interpolation
@@ -152,7 +175,8 @@ public class OtherPlayer
             //direction = (int)SmoothStep(direction, _currentAngle, deltaTime * 0.1f);
         }
         
-        _sprite.Update();
+        _sprite.Update(deltaTime);
+        _socialSprite.Update(deltaTime);
 
         UpdateAnimation();
     }
@@ -217,10 +241,18 @@ public class OtherPlayer
             spriteBatch.Draw(_debugTexture, _debugRect, Color.Black);
         }
         
-        spriteBatch.DrawString(_font, _id, currentPosition + new Vector2(-(_font.MeasureString(_id).X / 2f), _font.MeasureString(_id).Y), Color.White);
+        // Draw the player's social sprite
+        if (_chatting)
+        {
+            _socialSprite.Draw(spriteBatch);
+        }
 
+        // Draw the player's sprite
         var sourceRect = new Rectangle(_currentFrame * FrameWidth, direction * FrameHeight, FrameWidth, FrameHeight);
-        
         spriteBatch.Draw(_sprite.Texture, _sprite.Position, sourceRect, Color.White, 0f, _sprite.Origin, _sprite.Scale, SpriteEffects.None, 0);
+        
+        // Draw the player's name
+        spriteBatch.DrawString(_font, _id, _fontShadowPosition, Color.Black);
+        spriteBatch.DrawString(_font, _id, _fontPosition, Color.White);
     }
 }

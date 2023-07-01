@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Avalon.Client.Managers;
+using Avalon.Client.Models;
 using Avalon.Client.Network;
 using Avalon.Network.Packets.Social;
 using Microsoft.Xna.Framework;
@@ -17,6 +18,10 @@ public class ChatGUI : IDisposable
     private List<string> _chatMessages;
 
     private TextInputComponent _textInputComponent;
+    
+    private CameraFollowingSprite _closeButton;
+    private Rectangle _closeButtonBounds;
+    
     private Texture2D _backgroundTexture;
     private Vector2 _backgroundPosition;
     
@@ -40,8 +45,24 @@ public class ChatGUI : IDisposable
         _textInputComponent.AllowAlphabetic = true;
         _textInputComponent.AllowNumeric = true;
         _textInputComponent.AllowSpace = true;
+        _textInputComponent.AllowPunctuation = true;
         CreateBackgroundTexture();
         
+        _closeButton = new CameraFollowingSprite(
+            Globals.Content.Load<Texture2D>("Images/Icons/Cross"),
+            new Vector2(0, 0)
+        );
+        _closeButton.Position = new Vector2(
+            Globals.WindowSize.X - _closeButton.Texture.Width - 5,
+            (Globals.WindowSize.Y - _backgroundTexture.Height) + _closeButton.Texture.Height / 2f
+        );
+        _closeButtonBounds = new Rectangle(
+            (int) _closeButton.Position.X,
+            (int) _closeButton.Position.Y,
+            _closeButton.Texture.Width,
+            _closeButton.Texture.Height
+        );
+
         TcpClient.Instance.ChatMessage += OnChatMessageReceived;
     }
 
@@ -53,11 +74,16 @@ public class ChatGUI : IDisposable
     public void Update(float deltaTime)
     {
         _textInputComponent.Update(deltaTime);
+        _closeButton.Update(deltaTime);
 
         if (IsTyping && InputManager.Instance.KeyPressed(Keys.Escape))
         {
-            _textInputComponent.IsFocused = false;
-            _visible = false;
+            CloseChat();
+        }
+        
+        if (_visible && InputManager.Instance.IsLeftButtonClicked() && InputManager.Instance.IsMouseOverRectangle(_closeButtonBounds))
+        {
+            CloseChat();
         }
     }
 
@@ -68,13 +94,19 @@ public class ChatGUI : IDisposable
 
         // Draw chat background
         spriteBatch.Draw(_backgroundTexture, Globals.CameraPosition + _backgroundPosition, Color.White);
+        
+        // Draw close button
+        _closeButton.Draw(spriteBatch);
 
         // Draw chat messages
-        float messageY = Globals.CameraPosition.Y + (_backgroundPosition.Y) /* starting Y position for the messages */;
-        foreach (string message in _chatMessages)
+        var messageY = Globals.CameraPosition.Y + _backgroundPosition.Y + 5; /* starting Y position for the messages */;
+        var shadowPosition = new Vector2(Globals.CameraPosition.X + _backgroundPosition.X + 10, messageY) + new Vector2(2, 2);
+        foreach (var message in _chatMessages)
         {
-            spriteBatch.DrawString(_messageFont, message, new Vector2(Globals.CameraPosition.X + _backgroundPosition.X + 20, messageY), Color.Black);
+            spriteBatch.DrawString(_messageFont, message, shadowPosition, Color.Black);
+            spriteBatch.DrawString(_messageFont, message, new Vector2(Globals.CameraPosition.X + _backgroundPosition.X + 10, messageY), Color.White);
             messageY += _messageFont.MeasureString(message).Y + 2 /* vertical spacing between messages */;
+            shadowPosition = new Vector2(Globals.CameraPosition.X + _backgroundPosition.X + 10, messageY) + new Vector2(2, 2);
         }
 
         // Draw current message being typed
@@ -84,11 +116,12 @@ public class ChatGUI : IDisposable
         _textInputComponent.Draw(spriteBatch);
     }
     
-    public void Toggle()
+    public async void Toggle()
     {
         _visible = !_visible;
         if (_visible)
         {
+            await TcpClient.Instance.SendOpenChatPacket();
             _textInputComponent.IsFocused = true;
         }
     }
@@ -115,7 +148,7 @@ public class ChatGUI : IDisposable
     private void CreateBackgroundTexture()
     {
         const int width = 400;
-        const int height = 120;
+        const int height = 200;
         const int borderWidth = 2;
         
         _backgroundTexture = new Texture2D(Globals.GraphicsDevice, width, height);
@@ -124,7 +157,7 @@ public class ChatGUI : IDisposable
         // Fill the entire texture with a semi-transparent red color
         for (var i = 0; i < backgroundColor.Length; i++)
         {
-            backgroundColor[i] = new Color(180, 0, 0, 60);
+            backgroundColor[i] = new Color(128, 96, 0, 200);
         }
 
         // Set the top and bottom border pixels to black
@@ -134,8 +167,8 @@ public class ChatGUI : IDisposable
             {
                 var topIndex = y * width + x;
                 var bottomIndex = (height - 1 - y) * width + x;
-                //backgroundColor[topIndex] = Color.Black;
-                backgroundColor[bottomIndex] = Color.Black;
+                backgroundColor[topIndex] = new Color(204, 153, 0);
+                backgroundColor[bottomIndex] = new Color(204, 153, 0);
             }
         }
         
@@ -146,8 +179,8 @@ public class ChatGUI : IDisposable
             {
                 var leftIndex = y * width + x;
                 var rightIndex = y * width + (width - 1 - x);
-                backgroundColor[leftIndex] = Color.Black;
-                backgroundColor[rightIndex] = Color.Black;
+                backgroundColor[leftIndex] = new Color(204, 153, 0);
+                backgroundColor[rightIndex] = new Color(204, 153, 0);
             }
         }
         
@@ -164,5 +197,14 @@ public class ChatGUI : IDisposable
         _chatMessages.Add($"[{Globals.ClientId}]: {message}");
         _textInputComponent.Clear();
         await TcpClient.Instance.SendChatMessage(message);
+    }
+    
+    private async void CloseChat()
+    {
+        _textInputComponent.IsFocused = false;
+        _textInputComponent.Clear();
+        _visible = false;
+
+        await TcpClient.Instance.SendCloseChatPacket();
     }
 }

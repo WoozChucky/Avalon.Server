@@ -88,6 +88,8 @@ public class AvalonNetworkDaemon : IAvalonNetworkDaemon
         _packetRegistry.RegisterHandler<CPongPacket>(NetworkPacketType.CMSG_PONG, _connectionManager.HandlePongPacket);
         _packetRegistry.RegisterHandler<CPlayerMovementPacket>(NetworkPacketType.CMSG_MOVEMENT, _game.HandleMovementPacket);
         _packetRegistry.RegisterHandler<CChatMessagePacket>(NetworkPacketType.CMSG_CHAT_MESSAGE, _game.HandleChatMessagePacket);
+        _packetRegistry.RegisterHandler<COpenChatPacket>(NetworkPacketType.CMSG_CHAT_OPEN, _game.HandleOpenChatPacket);
+        _packetRegistry.RegisterHandler<CCloseChatPacket>(NetworkPacketType.CMSG_CHAT_CLOSE, _game.HandleCloseChatPacket);
 
         _logger.LogInformation("Starting network daemon");
         
@@ -251,6 +253,8 @@ public class AvalonNetworkDaemon : IAvalonNetworkDaemon
             NetworkPacketType.CMSG_PING => _packetDeserializer.Deserialize<CPingPacket>(packet.Header.Type, packet.Payload),
             NetworkPacketType.CMSG_PONG => _packetDeserializer.Deserialize<CPongPacket>(packet.Header.Type, packet.Payload),
             NetworkPacketType.CMSG_CHAT_MESSAGE => _packetDeserializer.Deserialize<CChatMessagePacket>(packet.Header.Type, packet.Payload),
+            NetworkPacketType.CMSG_CHAT_OPEN => _packetDeserializer.Deserialize<COpenChatPacket>(packet.Header.Type, packet.Payload),
+            NetworkPacketType.CMSG_CHAT_CLOSE => _packetDeserializer.Deserialize<CCloseChatPacket>(packet.Header.Type, packet.Payload),
             _ => throw new PacketHandlerException("Unknown packet type " + packet.Header.Type)
         };
     }

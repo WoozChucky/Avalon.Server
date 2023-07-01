@@ -47,6 +47,7 @@ public class TextInputComponent : IDisposable
     public bool AllowNumeric { get; set; }
     public bool AllowAlphabetic { get; set; }
     public bool AllowSpace { get; set; }
+    public bool AllowPunctuation { get; set; }
     public bool IsFocused { get; set; }
     public Rectangle BoundingBox { get; }
     public string Text => currentText;
@@ -66,17 +67,31 @@ public class TextInputComponent : IDisposable
         cursorIndex = 0;
         cursorBlinkTimer = 0f;
         isCursorVisible = true;
+
+        if (useCameraPosition)
+        {
+            _inputError = new CameraFollowingSprite(
+                Globals.Content.Load<Texture2D>("Images/UI/checkbox_cross"), 
+                new Vector2(position.X + size.X + 30, position.Y + size.Y / 2f)
+            );
+            _inputOk = new CameraFollowingSprite(
+                Globals.Content.Load<Texture2D>("Images/UI/checkbox_ok"), 
+                new Vector2(position.X + size.X + 30, position.Y + size.Y / 2f)
+            );
+        }
+        else
+        {
+            _inputError = new Sprite(
+                Globals.Content.Load<Texture2D>("Images/UI/checkbox_cross"), 
+                new Vector2(position.X + size.X + 30, position.Y + size.Y / 2f)
+            );
+            _inputOk = new Sprite(
+                Globals.Content.Load<Texture2D>("Images/UI/checkbox_ok"), 
+                new Vector2(position.X + size.X + 30, position.Y + size.Y / 2f)
+            );
+        }
         
-        _inputError = new Sprite(
-            Globals.Content.Load<Texture2D>("Images/UI/checkbox_cross"), 
-            new Vector2(position.X + size.X + 30, position.Y + size.Y / 2f),
-            useCameraPosition: useCameraPosition
-        );
-        _inputOk = new Sprite(
-            Globals.Content.Load<Texture2D>("Images/UI/checkbox_ok"), 
-            new Vector2(position.X + size.X + 30, position.Y + size.Y / 2f),
-            useCameraPosition: useCameraPosition
-        );
+        
         _isInputErrorVisible = false;
         _isInputOkVisible = false;
         
@@ -104,13 +119,13 @@ public class TextInputComponent : IDisposable
     
     public void Update(float deltaTime)
     {
-        var isHovered = MouseManager.Instance.IsMouseOverRectangle(BoundingBox);
+        var isHovered = InputManager.Instance.IsMouseOverRectangle(BoundingBox);
 
-        if (isHovered && MouseManager.Instance.IsLeftButtonClicked())
+        if (isHovered && InputManager.Instance.IsLeftButtonClicked())
         {
             IsFocused = true;
         }
-        else if (!isHovered && MouseManager.Instance.IsLeftButtonClicked())
+        else if (!isHovered && InputManager.Instance.IsLeftButtonClicked())
         {
             IsFocused = false;
         }
@@ -141,6 +156,12 @@ public class TextInputComponent : IDisposable
                 if (HandleSpecialKeys(key)) // Delete, Backspace, Left, Right
                     continue;
 
+                if (AllowPunctuation)
+                {
+                    if (HandlePunctuationKeys(key)) // ., -, etc.
+                        continue;
+                }
+
                 if (AllowNumeric)
                 {
                     if (HandleNumericKeys(key)) // 0-9
@@ -153,10 +174,63 @@ public class TextInputComponent : IDisposable
                 }
             }
         }
+        
+        if (font.MeasureString(currentText).X >= size.X - 10)
+        {
+            cursorIndex--;
+            currentText = currentText.Remove(cursorIndex, 1);
+        }
 
         previousKeyboardState = currentKeyboardState;
     }
-    
+
+    private bool HandlePunctuationKeys(Keys key)
+    {
+        if (key == Keys.D1)
+        {
+            bool isShiftKeyDown = Keyboard.GetState().IsKeyDown(Keys.LeftShift) || Keyboard.GetState().IsKeyDown(Keys.RightShift);
+            
+            currentText = currentText.Insert(cursorIndex, "!");
+            cursorIndex++;
+            CalculateVerticalOffset();
+            var valid = OnTextChanged?.Invoke(currentText);
+            _isInputErrorVisible = valid == false;
+            _isInputOkVisible = valid == true;
+            
+            return isShiftKeyDown;
+        }
+        
+        if (key == Keys.OemQuotes)
+        {
+            bool isShiftKeyDown = Keyboard.GetState().IsKeyDown(Keys.LeftShift) || Keyboard.GetState().IsKeyDown(Keys.RightShift);
+            
+            currentText = currentText.Insert(cursorIndex, "?");
+            cursorIndex++;
+            CalculateVerticalOffset();
+            var valid = OnTextChanged?.Invoke(currentText);
+            _isInputErrorVisible = valid == false;
+            _isInputOkVisible = valid == true;
+            
+            return isShiftKeyDown;
+        }
+        
+        if (key == Keys.D7)
+        {
+            bool isShiftKeyDown = Keyboard.GetState().IsKeyDown(Keys.LeftShift) || Keyboard.GetState().IsKeyDown(Keys.RightShift);
+            
+            currentText = currentText.Insert(cursorIndex, "/");
+            cursorIndex++;
+            CalculateVerticalOffset();
+            var valid = OnTextChanged?.Invoke(currentText);
+            _isInputErrorVisible = valid == false;
+            _isInputOkVisible = valid == true;
+            
+            return isShiftKeyDown;
+        }
+
+        return false;
+    }
+
     private bool HandleSpecialKeys(Keys key)
     {
         if (key == Keys.Space && AllowSpace)
@@ -180,7 +254,7 @@ public class TextInputComponent : IDisposable
             }
             return true;
         }
-        
+
         if (key == Keys.Back && currentText.Length > 0 && cursorIndex > 0)
         {
             // Delete the character before the cursor
@@ -342,7 +416,7 @@ public class TextInputComponent : IDisposable
         // Draw the current text
         var textPosition = position + new Vector2(borderWidth, verticalOffset);
         textPosition.X += 5; // Add a small horizontal offset to center the text vertically
-
+        
         spriteBatch.DrawString(font, currentText, useCameraPosition ? textPosition + Globals.CameraPosition : textPosition, Color.Black);
 
         // Draw the cursor
@@ -359,6 +433,7 @@ public class TextInputComponent : IDisposable
             spriteBatch.Draw(borderTexture, new Rectangle((int)cursorPosition.X, (int)cursorPosition.Y, 1, (int)size.Y - borderWidth), borderColor);
         }
         
+        // Draw the input error or input ok message
         if (_isInputErrorVisible)
         {
             _inputError.Draw(spriteBatch);

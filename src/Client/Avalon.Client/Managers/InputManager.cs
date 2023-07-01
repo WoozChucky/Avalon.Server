@@ -1,4 +1,5 @@
-﻿using System.Linq;
+﻿using System;
+using System.Linq;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Input;
 
@@ -17,15 +18,47 @@ public class InputManager
 {
     private KeyboardState _previousState;
     private KeyboardState _currentState;
+    private MouseState previousMouseState;
+    private bool isLeftButtonClicked;
+    private bool isRightButtonClicked;
     
     private static InputManager _instance;
     
     public static InputManager Instance => _instance ??= new InputManager();
 
+    private InputManager()
+    {
+        previousMouseState = Mouse.GetState();
+        isLeftButtonClicked = false;
+        isRightButtonClicked = false;
+    }
+
     public void Update(float delta)
     {
         _previousState = _currentState;
         _currentState = Keyboard.GetState();
+        
+        var currentMouseState = Mouse.GetState();
+
+        if (currentMouseState.LeftButton == ButtonState.Released && previousMouseState.LeftButton == ButtonState.Pressed)
+        {
+            isLeftButtonClicked = true;
+        }
+        else
+        {
+            isLeftButtonClicked = false;
+        }
+        
+        if (currentMouseState.RightButton == ButtonState.Released && previousMouseState.RightButton == ButtonState.Pressed)
+        {
+            isRightButtonClicked = true;
+        }
+        else
+        {
+            isRightButtonClicked = false;
+        }
+
+        previousMouseState = currentMouseState;
     }
     
     public bool KeyPressed(params Keys[] keys)
@@ -47,72 +80,30 @@ public class InputManager
     {
         return keys.FirstOrDefault(key => _currentState.IsKeyDown(key) && _previousState.IsKeyUp(key));
     }
-}
-
-/*
-public static class InputManager
-{
-    public static Vector2 Direction;
-    public static MovementDirection MovementDirection;
-    public static bool IsRunning = false;
-    public static bool ShowingMetrics { get; set; } = true;
-    public static bool PreviousDebugGraphics { get; set; } = false;
-    public static bool DebugGraphics { get; set; } = true;
     
-    private static KeyboardState _previousKeyboardState;
-
-    public static void Update()
+    public bool IsLeftButtonClicked()
     {
-        Direction = Vector2.Zero;
+        return isLeftButtonClicked;
+    }
+    
+    public bool IsRightButtonClicked()
+    {
+        return isLeftButtonClicked;
+    }
+
+    public bool IsMouseOverRectangle(Rectangle rectangle, bool useCamera = false)
+    {
+        var currentMouseState = Mouse.GetState();
+        var mousePosition = new Point(currentMouseState.X, currentMouseState.Y);
+
+        //if (useCamera)
+        //{
+        //    mousePosition.X += (int) Globals.CameraPosition.X;
+        //    mousePosition.Y += (int) Globals.CameraPosition.Y;
+        //}
         
+        //Console.WriteLine(mousePosition);
         
-        var currentKeyboardState = Keyboard.GetState();
-
-        if (currentKeyboardState.IsKeyDown(Keys.F1) && _previousKeyboardState.IsKeyUp(Keys.F1))
-        {
-            ShowingMetrics = !ShowingMetrics;
-        }
-
-        if (currentKeyboardState.IsKeyDown(Keys.F3) && _previousKeyboardState.IsKeyUp(Keys.F3))
-        {
-            DebugGraphics = !DebugGraphics;
-        }
-            
-        _previousKeyboardState = currentKeyboardState;
-        
-        
-        var keyboardState = Keyboard.GetState();
-
-        if (keyboardState.GetPressedKeyCount() > 0)
-        {
-            IsRunning = keyboardState.IsKeyDown(Keys.Space);
-
-            if (keyboardState.IsKeyDown(Keys.W) || keyboardState.IsKeyDown(Keys.Up))
-            {
-                Direction.Y -= 1;
-                MovementDirection = MovementDirection.Up;
-            }
-            if (keyboardState.IsKeyDown(Keys.S) || keyboardState.IsKeyDown(Keys.Down))
-            {
-                Direction.Y += 1;
-                MovementDirection = MovementDirection.Down;
-            }
-
-            if (keyboardState.IsKeyDown(Keys.A) || keyboardState.IsKeyDown(Keys.Left))
-            {
-                Direction.X -= 1;
-                MovementDirection = MovementDirection.Left;
-            }
-
-            if (keyboardState.IsKeyDown(Keys.D) || keyboardState.IsKeyDown(Keys.Right))
-            {
-                Direction.X += 1;
-                MovementDirection = MovementDirection.Right;
-            }
-        }
-        
-        if (Direction != Vector2.Zero)
-            Direction.Normalize();
+        return rectangle.Contains(mousePosition);
     }
 }
-*/

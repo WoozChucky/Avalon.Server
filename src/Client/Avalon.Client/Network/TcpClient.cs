@@ -97,6 +97,36 @@ public class TcpClient : IDisposable
         }
     }
     
+    public async Task SendOpenChatPacket()
+    {
+        try
+        {
+            var packet = COpenChatPacket.Create(Globals.ClientId);
+
+            await _packetSerializer.SerializeToNetwork(stream, packet);
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine(e);
+            throw;
+        }
+    }
+    
+    public async Task SendCloseChatPacket()
+    {
+        try
+        {
+            var packet = CCloseChatPacket.Create(Globals.ClientId);
+
+            await _packetSerializer.SerializeToNetwork(stream, packet);
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine(e);
+            throw;
+        }
+    }
+    
     private void HandleCommunications()
     {
         try

@@ -30,7 +30,10 @@ public class Player : IDisposable
     private Texture2D _debugTexture;
     private Rectangle _debugRect;
     private readonly Sprite _sprite;
+    
     private readonly SpriteFont _font;
+    private Vector2 _fontPosition;
+    private Vector2 _fontShadowPosition;
     
     private MovementDirection _movementDirection;
 
@@ -42,6 +45,8 @@ public class Player : IDisposable
         
         _id = id;
         _font = Globals.Content.Load<SpriteFont>("Fonts/Default");
+        _fontPosition = Vector2.Zero;
+        _fontShadowPosition = Vector2.Zero;
         
         _sprite = new Sprite(texture, position);
         _sprite.Origin = new Vector2(FrameWidth / 2f, FrameHeight / 2f);
@@ -99,6 +104,9 @@ public class Player : IDisposable
 
         _debugRect.X = (int)(Position.X - _sprite.Origin.X);
         _debugRect.Y = (int)(Position.Y - _sprite.Origin.Y);
+
+        _fontPosition = Position + new Vector2(-(_font.MeasureString(_id).X / 2f), _font.MeasureString(_id).Y);
+        _fontShadowPosition = Position + new Vector2(-(_font.MeasureString(_id).X / 2f), _font.MeasureString(_id).Y) + new Vector2(2, 2);
         
         
         // Check for collisions with NPCs
@@ -140,8 +148,9 @@ public class Player : IDisposable
             spriteBatch.Draw(_debugTexture, _debugRect, Color.Black);
 #pragma warning restore CS0162
         }
-
-        spriteBatch.DrawString(_font, _id, Position + new Vector2(-(_font.MeasureString(_id).X / 2f), _font.MeasureString(_id).Y), Color.Chocolate);
+        
+        spriteBatch.DrawString(_font, _id, _fontShadowPosition, Color.Black);
+        spriteBatch.DrawString(_font, _id, _fontPosition, Color.Yellow);
         
         // Calculate the source rectangle based on the current frame and direction
         var sourceRect = new Rectangle(_currentFrame * FrameWidth, (int)_movementDirection * FrameHeight, FrameWidth, FrameHeight);

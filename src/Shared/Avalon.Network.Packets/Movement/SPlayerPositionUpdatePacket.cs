@@ -15,9 +15,10 @@ public class SPlayerPositionUpdatePacket : Packet
     [ProtoMember(3)] public float PositionY { get; set; }
     [ProtoMember(4)] public float VelocityX { get; set; }
     [ProtoMember(5)] public float VelocityY { get; set; }
-    [ProtoMember(6)] public float Elapsed { get; set; }
+    [ProtoMember(6)] public bool Chatting { get; set; }
+    [ProtoMember(7)] public float Elapsed { get; set; }
     
-    public static NetworkPacket Create(string clientId, float x, float y, float velX, float velY, float elapsed)
+    public static NetworkPacket Create(string clientId, float x, float y, float velX, float velY, bool chatting, float elapsed)
     {
         using var memoryStream = new MemoryStream();
         
@@ -28,6 +29,7 @@ public class SPlayerPositionUpdatePacket : Packet
             PositionY = y,
             VelocityX = velX,
             VelocityY = velY,
+            Chatting = chatting,
             Elapsed = elapsed
         };
         

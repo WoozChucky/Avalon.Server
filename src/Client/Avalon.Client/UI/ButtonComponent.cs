@@ -40,9 +40,9 @@ public class ButtonComponent : IDisposable
 
     public void Update()
     {
-        isHovered = MouseManager.Instance.IsMouseOverRectangle(bounds);
+        isHovered = InputManager.Instance.IsMouseOverRectangle(bounds);
 
-        if (isHovered && MouseManager.Instance.IsLeftButtonClicked())
+        if (isHovered && InputManager.Instance.IsLeftButtonClicked())
         {
             isClicked = true;
             Clicked?.Invoke(this);
