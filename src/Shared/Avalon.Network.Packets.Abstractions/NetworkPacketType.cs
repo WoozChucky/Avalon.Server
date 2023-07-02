@@ -31,7 +31,5 @@ public enum NetworkPacketType
     SMSG_CHAT_MESSAGE = 0x3009,
     SMSG_CHAT_OPEN = 0x300A,
     SMSG_CHAT_CLOSE = 0x300B,
-    
-    SMSG_AUTH_SUCCESS = 0x3000,
-    SMSG_AUTH_FAILED = 0x3001,
+    SMSG_AUTH_RESULT = 0x300C,
 }

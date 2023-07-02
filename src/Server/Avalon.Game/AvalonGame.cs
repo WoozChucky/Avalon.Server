@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Drawing;
 using System.Numerics;
 using System.Reflection;
+using System.Security.Cryptography;
 using Avalon.Game.Entities;
 using Avalon.Map;
 using Avalon.Network;
@@ -25,6 +26,7 @@ public interface IAvalonGame
     Task HandleChatMessagePacket(IRemoteSource source, CChatMessagePacket packet);
     Task HandleOpenChatPacket(IRemoteSource source, COpenChatPacket packet);
     Task HandleCloseChatPacket(IRemoteSource source, CCloseChatPacket packet);
+    Task HandleAuthPacket(IRemoteSource source, CAuthPacket packet);
 }
 
 public class AvalonGame : IAvalonGame
@@ -344,6 +346,26 @@ public class AvalonGame : IAvalonGame
             player.Character.IsChatting = false;
         }
         return Task.CompletedTask;
+    }
+
+    public Task HandleAuthPacket(IRemoteSource source, CAuthPacket packet)
+    {
+        var client = (TcpClient) source;
+        
+        _logger.LogDebug("Handling auth packet from {EndPoint}", client.Socket.RemoteEndPoint);
+        
+        // TODO: Actual authentication logic
+
+        // Generate 256 bits private key for this client
+        var privateKey = new byte[32]; // 256 bits = 32 bytes
+        using (var rng = new RNGCryptoServiceProvider())
+        {
+            rng.GetBytes(privateKey);
+        }
+
+        var response = SAuthResultPacket.Create(packet.Username, true, "OK", privateKey);
+        
+        return _packetSerializer.SerializeToNetwork(client.Stream, response);
     }
 
     public async Task HandleServerVersionPacket(IRemoteSource source, CRequestServerVersionPacket packet)

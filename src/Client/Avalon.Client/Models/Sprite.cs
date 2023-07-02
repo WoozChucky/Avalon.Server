@@ -15,6 +15,9 @@ public class Sprite : IDisposable
     public float Scale { get; protected set; }
     public Texture2D Texture { get; set; }
     
+    protected float Alpha { get; set; }
+    protected Color Color { get; set; } = Color.White;
+    
     
     public Sprite(Texture2D texture, Vector2 position, float scale = 1f, bool debug = false)
     {
@@ -41,6 +44,12 @@ public class Sprite : IDisposable
         OutlineTexture = new Texture2D(Globals.GraphicsDevice, 1, 1);
         OutlineTexture.SetData(new[] { Color.White });
     }
+
+    public void SetAlpha(float alpha)
+    {
+        Alpha = Math.Clamp(alpha, 0f, 1f);
+        Color = new Color(Color, (byte)(alpha * 255));
+    }
     
     public virtual void Update(float deltaTime)
     {
@@ -57,7 +66,7 @@ public class Sprite : IDisposable
         {
             spriteBatch.Draw(OutlineTexture, OutlineRect, Color.Black);
         }
-        spriteBatch.Draw(Texture, Position, null, Color.White, 0f, Origin, Scale, SpriteEffects.None, 0f);
+        spriteBatch.Draw(Texture, Position, null, Color, 0f, Origin, Scale, SpriteEffects.None, 0f);
     }
 
     public virtual void Dispose()

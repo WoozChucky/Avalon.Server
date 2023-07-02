@@ -3,6 +3,7 @@ using System.Diagnostics;
 using Avalon.Client.Managers;
 using Avalon.Client.Network;
 using Avalon.Client.Scenes;
+using Avalon.Client.UI;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
@@ -36,8 +37,8 @@ public class AvalonGame : Game
         //TargetElapsedTime = TimeSpan.FromSeconds(1d / 60d);
         //MaxElapsedTime = TimeSpan.FromMilliseconds(500);
         InactiveSleepTime = TimeSpan.Zero;
-        IsMouseVisible = true;
-        IsFixedTimeStep = false;        
+        IsMouseVisible = false;
+        IsFixedTimeStep = false;
         
         _sceneManager = new SceneManager();
         _sceneManager.AddScene(nameof(MainMenuScene), new MainMenuScene(_sceneManager));
@@ -59,7 +60,7 @@ public class AvalonGame : Game
 
         TcpClient.Instance.ConnectAsync().GetAwaiter().GetResult();
         UdpEnetClient.Instance.ConnectAsync().GetAwaiter().GetResult();
-        
+
         _sceneManager.LoadScene(nameof(MainMenuScene));
 
 
@@ -82,11 +83,12 @@ public class AvalonGame : Game
             Keyboard.GetState().IsKeyDown(Keys.LeftAlt))
         {
             UdpEnetClient.Instance.Disconnect();
+            TcpClient.Instance.Disconnect();
             Exit();
         }
 
         Globals.Update(gameTime);
-        
+
         //if (InputManager.Instance.KeyPressed(Keys.F2))
         //{
         //    _showingMetrics = !_showingMetrics;

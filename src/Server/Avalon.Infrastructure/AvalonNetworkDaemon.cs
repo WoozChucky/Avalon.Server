@@ -82,6 +82,7 @@ public class AvalonNetworkDaemon : IAvalonNetworkDaemon
         _packetSerializer.RegisterPacketSerializers();
         _packetDeserializer.RegisterPacketDeserializers();
         
+        _packetRegistry.RegisterHandler<CAuthPacket>(NetworkPacketType.CMSG_AUTH, _game.HandleAuthPacket);
         _packetRegistry.RegisterHandler<CRequestServerVersionPacket>(NetworkPacketType.CMSG_REQUEST_SERVER_VERSION, _game.HandleServerVersionPacket);
         _packetRegistry.RegisterHandler<CPingPacket>(NetworkPacketType.CMSG_PING, _game.HandlePingPacket);
         _packetRegistry.RegisterHandler<CWelcomePacket>(NetworkPacketType.CMSG_WELCOME, _connectionManager.AddConnection);
@@ -142,7 +143,7 @@ public class AvalonNetworkDaemon : IAvalonNetworkDaemon
                         if (packet == null)
                         {
                             _logger.LogWarning("Received null tcp packet from client {Endpoint}", client.RemoteAddress);
-                            continue;
+                            break;
                         }
 
                         Interlocked.Increment(ref _tcpPacketsReceived);
@@ -246,6 +247,7 @@ public class AvalonNetworkDaemon : IAvalonNetworkDaemon
     {
         return packet.Header.Type switch
         {
+            NetworkPacketType.CMSG_AUTH => _packetDeserializer.Deserialize<CAuthPacket>(packet.Header.Type, packet.Payload),
             NetworkPacketType.CMSG_WELCOME => _packetDeserializer.Deserialize<CWelcomePacket>(packet.Header.Type, packet.Payload),
             NetworkPacketType.CMSG_MOVEMENT => _packetDeserializer.Deserialize<CPlayerMovementPacket>(packet.Header.Type, packet.Payload),
             NetworkPacketType.CMSG_REQUEST_SERVER_VERSION => _packetDeserializer.Deserialize<CRequestServerVersionPacket>(packet.Header.Type, packet.Payload),
