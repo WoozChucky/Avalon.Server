@@ -25,6 +25,7 @@ public class InputManager
     private static InputManager _instance;
     
     public static InputManager Instance => _instance ??= new InputManager();
+    public Vector2 MousePosition { get; private set; }
 
     private InputManager()
     {
@@ -39,6 +40,7 @@ public class InputManager
         _currentState = Keyboard.GetState();
         
         var currentMouseState = Mouse.GetState();
+        MousePosition = new Vector2(currentMouseState.X, currentMouseState.Y);
 
         if (currentMouseState.LeftButton == ButtonState.Released && previousMouseState.LeftButton == ButtonState.Pressed)
         {

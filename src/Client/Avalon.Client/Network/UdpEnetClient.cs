@@ -32,8 +32,9 @@ public class UdpEnetClient : IDisposable
     private readonly Address _address;
     
     private Peer _serverPeer;
-    
-    
+    private byte[] privateKey;
+
+
     private UdpEnetClient()
     {
         _cts = new CancellationTokenSource();
@@ -267,5 +268,10 @@ public class UdpEnetClient : IDisposable
     public void Disconnect()
     {
         _serverPeer.DisconnectNow(0);
+    }
+
+    public void SetPrivateKey(byte[] privateKey)
+    {
+        this.privateKey = privateKey;
     }
 }

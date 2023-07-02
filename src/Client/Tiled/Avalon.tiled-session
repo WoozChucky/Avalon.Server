@@ -18,10 +18,10 @@
         },
         "Tutorial.tmx": {
             "scale": 1,
-            "selectedLayer": 0,
+            "selectedLayer": 3,
             "viewCenter": {
-                "x": 642.5,
-                "y": 979
+                "x": 584,
+                "y": 1088
             }
         },
         "Village.tmx": {
@@ -40,17 +40,15 @@
     "map.tileWidth": 32,
     "map.width": 64,
     "openFiles": [
-        "SereneVillageTileset.tsx",
-        "Village.tmx",
         "SereneVillageTileset32.tsx",
         "Tutorial.tmx"
     ],
     "project": "Avalon.tiled-project",
     "property.type": "bool",
     "recentFiles": [
+        "SereneVillageTileset32.tsx",
         "Tutorial.tmx",
         "SereneVillageTileset.tsx",
-        "SereneVillageTileset32.tsx",
         "Village.tmx"
     ],
     "tileset.lastUsedFormat": "tsx",

@@ -4,6 +4,7 @@ using Avalon.Client.Managers;
 using Avalon.Client.Models;
 using Avalon.Client.Network;
 using Avalon.Client.UI;
+using Avalon.Client.UI.MainMenu;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
@@ -11,13 +12,20 @@ namespace Avalon.Client.Scenes;
 
 public class MainMenuScene : Scene
 {
-    private TextInputComponent _textInputComponent;
-    private ButtonComponent _buttonComponent;
     private Sprite _logo;
+    
+    private RegisterForm _registerForm;
+    private LoginForm _loginForm;
+    private Cursor _cursor;
+
+    private volatile bool _isLoggedIn;
 
     public MainMenuScene(SceneManager sceneManager) : base(sceneManager)
     {
+        _isLoggedIn = false;
     }
+
+    #region Lifecycle
 
     public override void Load()
     {
@@ -26,31 +34,14 @@ public class MainMenuScene : Scene
             new Vector2(Globals.WindowSize.X / 2f, 100)
         );
         
-        _textInputComponent = new TextInputComponent(
-            new Vector2(Globals.WindowSize.X / 2f - 200 /2f, Globals.WindowSize.Y / 2f + 0),
-            new Vector2(200, 40),
-            2,
-            Globals.Content.Load<SpriteFont>("Fonts/Default")
-        )
-        {
-            AllowAlphabetic = true,
-            IsFocused = true
-        };
-
-        var buttonTexture = Globals.Content.Load<Texture2D>("Images/Label");
-
-        _buttonComponent = new ButtonComponent(
-            buttonTexture,
-            new Vector2(Globals.WindowSize.X / 2f - (float) buttonTexture.Width / 2, Globals.WindowSize.Y / 2f + 100),
-            "Login",
-            Globals.Content.Load<SpriteFont>("Fonts/Default"),
-            Color.Red,
-            Color.Yellow
-        );
+        _cursor = new Cursor(Globals.Content.Load<Texture2D>("Images/Icons/Mouse"));
         
-        _textInputComponent.OnPressedEnter += OnLoginButtonClicked;
-        _textInputComponent.OnTextChanged += OnLoginInputChanged;
-        _buttonComponent.Clicked += OnLoginButtonClicked;
+        _loginForm = new LoginForm(true);
+        _loginForm.LoginSuccess += OnLoginSuccess;
+        _loginForm.LoginFailed += OnLoginFailed;
+        _loginForm.RegisterClicked += OnRegisterFormClicked;
+        
+        _registerForm = new RegisterForm();
     }
 
     public override void Unload()
@@ -58,21 +49,34 @@ public class MainMenuScene : Scene
         
     }
 
-    public override void Update(GameTime gameTime)
+    public override async void Update(GameTime gameTime)
     {
         var deltaTime = (float)gameTime.ElapsedGameTime.TotalSeconds;
 
-        _textInputComponent?.Update(deltaTime);
+        _cursor?.Update(deltaTime);
+        _loginForm?.Update(deltaTime);
+        _registerForm?.Update(deltaTime);
         
-        _buttonComponent?.Update();
+        if (_isLoggedIn)
+        {
+            _isLoggedIn = false;
+            await UdpEnetClient.Instance.SendWelcomePacket();
+            Thread.Sleep(200);
+            await TcpClient.Instance.SendWelcomePacket();
+        
+            SceneManager.LoadScene(nameof(TutorialScene));
+        
+            Console.WriteLine("Loaded tutorial scene. Name: " + Globals.ClientId);
+        }
     }
 
     public override void Draw(SpriteBatch spriteBatch)
     {
         spriteBatch.Begin(blendState: BlendState.AlphaBlend);
         _logo.Draw(spriteBatch);
-        _textInputComponent?.Draw(spriteBatch);
-        _buttonComponent?.Draw(spriteBatch);
+        _loginForm?.Draw(spriteBatch);
+        _registerForm?.Draw(spriteBatch);
+        _cursor?.Draw(spriteBatch);
         spriteBatch.End();
     }
 
@@ -81,37 +85,36 @@ public class MainMenuScene : Scene
         if (disposing)
         {
             _logo?.Dispose();
-            _textInputComponent?.Dispose();
-            _buttonComponent?.Dispose();
+            _loginForm?.Dispose();
+            _registerForm?.Dispose();
+            _cursor?.Dispose();
         }
     }
     
-    private bool OnLoginInputChanged(string text)
-    {
-        if (string.IsNullOrEmpty(text) || text.Length < 3 || text.Length > 8)
-        {
-            return false;
-        }
-        return true;
-    }
+    #endregion
+
+    #region Event Handlers
     
-    private async void OnLoginButtonClicked(object sender)
+    private void OnRegisterFormClicked()
     {
-        var username = _textInputComponent.Text;
+        _loginForm?.ToggleVisibility();
+        _registerForm?.ToggleVisibility();
+    }
 
-        if (!OnLoginInputChanged(username))
-        {
-            return;
-        }
+    private void OnLoginFailed(string message)
+    {
+        // Show dialog with message
+    }
 
+    private void OnLoginSuccess(string username)
+    {
+        _loginForm?.ToggleVisibility();
+        
         Globals.ClientId = username;
         
-        await UdpEnetClient.Instance.SendWelcomePacket();
-        Thread.Sleep(200);
-        await TcpClient.Instance.SendWelcomePacket();
-        
-        SceneManager.LoadScene(nameof(TutorialScene));
-        
-        Console.WriteLine("Loaded tutorial scene. Name: " + Globals.ClientId);
+        _isLoggedIn = true;
     }
+    
+    #endregion
+    
 }

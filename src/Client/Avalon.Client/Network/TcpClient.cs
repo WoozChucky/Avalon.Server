@@ -26,6 +26,7 @@ public delegate void PlayerMovedHandler(object sender, SPlayerPositionUpdatePack
 public delegate void LatencyUpdatedHandler(object sender, double latency);
 public delegate void NpcUpdatedHandler(object sender, SNpcUpdatePacket packet);
 public delegate void ChatMessageHandler(object sender, SChatMessagePacket packet);
+public delegate void AuthResultHandler(object sender, SAuthResultPacket packet);
 
 public class TcpClient : IDisposable
 {
@@ -35,6 +36,7 @@ public class TcpClient : IDisposable
     public event PlayerConnectedHandler PlayerConnected;
     public event PlayerDisconnectedHandler PlayerDisconnected;
     public event ChatMessageHandler ChatMessage;
+    public event AuthResultHandler AuthResult;
 
     private readonly CancellationTokenSource cts = new CancellationTokenSource();
     private readonly X509Certificate2 certificate;
@@ -165,6 +167,14 @@ public class TcpClient : IDisposable
                             Console.WriteLine(e);
                         }
                         break;
+                    case NetworkPacketType.SMSG_AUTH_RESULT:
+                        var authResultPacket = Serializer.Deserialize<SAuthResultPacket>(new MemoryStream(packet.Payload));
+                        try {
+                            AuthResult?.Invoke(this, authResultPacket);
+                        } catch (Exception e) {
+                            Console.WriteLine(e);
+                        }
+                        break;
                 }
             }
         }
@@ -178,6 +188,12 @@ public class TcpClient : IDisposable
             throw;
         }
     }
+    
+    public void Disconnect()
+    {
+        cts.Cancel();
+        socket.Disconnect(false);
+    }
 
     public void Dispose()
     {
@@ -185,5 +201,12 @@ public class TcpClient : IDisposable
         certificate?.Dispose();
         socket?.Dispose();
         stream?.Dispose();
+    }
+
+    public async Task SendAuthPacket(string username, string password)
+    {
+        var packet = CAuthPacket.Create(username, password);
+        
+        await _packetSerializer.SerializeToNetwork(stream, packet);
     }
 }

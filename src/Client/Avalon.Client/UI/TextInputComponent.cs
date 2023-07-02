@@ -9,6 +9,7 @@ namespace Avalon.Client.UI;
 
 public delegate void TextInputPressedEnter(TextInputComponent button);
 public delegate bool TextInputChanged(string text);
+public delegate void TabPressedHandler();
 
 public class TextInputComponent : IDisposable
 {
@@ -43,16 +44,19 @@ public class TextInputComponent : IDisposable
 
     public event TextInputPressedEnter OnPressedEnter;
     public event TextInputChanged OnTextChanged;
+    public event TabPressedHandler OnTabPressed;
     
     public bool AllowNumeric { get; set; }
     public bool AllowAlphabetic { get; set; }
     public bool AllowSpace { get; set; }
     public bool AllowPunctuation { get; set; }
+    public bool IsSecret { get; set; }
     public bool IsFocused { get; set; }
     public Rectangle BoundingBox { get; }
     public string Text => currentText;
+    
 
-    public TextInputComponent(Vector2 position, Vector2 size, int borderWidth, SpriteFont font, bool useCameraPosition = false)
+    public TextInputComponent(Vector2 position, Vector2 size, int borderWidth, SpriteFont font, string initialText = "", bool useCameraPosition = false)
     {
         this.position = position;
         this.size = size;
@@ -62,7 +66,7 @@ public class TextInputComponent : IDisposable
 
         BoundingBox = new Rectangle((int)position.X, (int)position.Y, (int)size.X, (int) size.Y);
         
-        currentText = string.Empty;
+        currentText = initialText;
         
         cursorIndex = 0;
         cursorBlinkTimer = 0f;
@@ -189,6 +193,8 @@ public class TextInputComponent : IDisposable
         if (key == Keys.D1)
         {
             bool isShiftKeyDown = Keyboard.GetState().IsKeyDown(Keys.LeftShift) || Keyboard.GetState().IsKeyDown(Keys.RightShift);
+
+            if (!isShiftKeyDown) return false;
             
             currentText = currentText.Insert(cursorIndex, "!");
             cursorIndex++;
@@ -196,13 +202,29 @@ public class TextInputComponent : IDisposable
             var valid = OnTextChanged?.Invoke(currentText);
             _isInputErrorVisible = valid == false;
             _isInputOkVisible = valid == true;
+            return true;
+        }
+        
+        if (key == Keys.D2)
+        {
+            bool isShiftKeyDown = Keyboard.GetState().IsKeyDown(Keys.LeftShift) || Keyboard.GetState().IsKeyDown(Keys.RightShift);
+
+            if (!isShiftKeyDown) return false;
             
-            return isShiftKeyDown;
+            currentText = currentText.Insert(cursorIndex, "@");
+            cursorIndex++;
+            CalculateVerticalOffset();
+            var valid = OnTextChanged?.Invoke(currentText);
+            _isInputErrorVisible = valid == false;
+            _isInputOkVisible = valid == true;
+            return true;
         }
         
         if (key == Keys.OemQuotes)
         {
             bool isShiftKeyDown = Keyboard.GetState().IsKeyDown(Keys.LeftShift) || Keyboard.GetState().IsKeyDown(Keys.RightShift);
+
+            if (!isShiftKeyDown) return false;
             
             currentText = currentText.Insert(cursorIndex, "?");
             cursorIndex++;
@@ -210,13 +232,14 @@ public class TextInputComponent : IDisposable
             var valid = OnTextChanged?.Invoke(currentText);
             _isInputErrorVisible = valid == false;
             _isInputOkVisible = valid == true;
-            
-            return isShiftKeyDown;
+            return true;
         }
         
         if (key == Keys.D7)
         {
             bool isShiftKeyDown = Keyboard.GetState().IsKeyDown(Keys.LeftShift) || Keyboard.GetState().IsKeyDown(Keys.RightShift);
+
+            if (!isShiftKeyDown) return false;
             
             currentText = currentText.Insert(cursorIndex, "/");
             cursorIndex++;
@@ -224,8 +247,7 @@ public class TextInputComponent : IDisposable
             var valid = OnTextChanged?.Invoke(currentText);
             _isInputErrorVisible = valid == false;
             _isInputOkVisible = valid == true;
-            
-            return isShiftKeyDown;
+            return true;
         }
         
         if (key == Keys.OemComma && AllowPunctuation)
@@ -263,6 +285,12 @@ public class TextInputComponent : IDisposable
             {
                 OnPressedEnter?.Invoke(this);
             }
+            return true;
+        }
+
+        if (key == Keys.Tab)
+        {
+            OnTabPressed?.Invoke();
             return true;
         }
 
@@ -427,8 +455,17 @@ public class TextInputComponent : IDisposable
         // Draw the current text
         var textPosition = position + new Vector2(borderWidth, verticalOffset);
         textPosition.X += 5; // Add a small horizontal offset to center the text vertically
+
+        if (IsSecret)
+        {
+            var secretText = new string('*', currentText.Length);
+            spriteBatch.DrawString(font, secretText, useCameraPosition ? textPosition + Globals.CameraPosition : textPosition, Color.Black);
+        }
+        else
+        {
+            spriteBatch.DrawString(font, currentText, useCameraPosition ? textPosition + Globals.CameraPosition : textPosition, Color.Black);
+        }
         
-        spriteBatch.DrawString(font, currentText, useCameraPosition ? textPosition + Globals.CameraPosition : textPosition, Color.Black);
 
         // Draw the cursor
         if (isCursorVisible && IsFocused)

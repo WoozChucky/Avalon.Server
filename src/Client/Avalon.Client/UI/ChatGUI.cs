@@ -39,7 +39,7 @@ public class ChatGUI : IDisposable
         );
         var inputSize = new Vector2(300, 40);
         
-        _textInputComponent = new TextInputComponent(inputPosition, inputSize, 2, Globals.Content.Load<SpriteFont>("Fonts/Default"), true);
+        _textInputComponent = new TextInputComponent(inputPosition, inputSize, 2, Globals.Content.Load<SpriteFont>("Fonts/Default"),string.Empty, true);
         _textInputComponent.OnTextChanged += OnTextChanged;
         _textInputComponent.OnPressedEnter += OnPressedEnter;
         _textInputComponent.AllowAlphabetic = true;

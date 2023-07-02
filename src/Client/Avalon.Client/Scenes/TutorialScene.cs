@@ -10,6 +10,7 @@ using Avalon.Network.Packets.Movement;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
+using Microsoft.Xna.Framework.Media;
 using TcpClient = Avalon.Client.Network.TcpClient;
 using Timer = System.Timers.Timer;
 
@@ -22,10 +23,15 @@ public class TutorialScene : Scene
     private Matrix _translation;
     private SpriteFont _font;
     private Banner _banner;
+    
     private ChatGUI _chatGui;
+    private InGameRightPanel _rightPanel;
+    private Cursor _cursor;
 
     private readonly ConcurrentDictionary<string, OtherPlayer> _otherPlayers;
     private readonly ConcurrentDictionary<string, OtherPlayer> _npcs;
+    
+    private Song _song;
 
     private Vector2 _lastSentPosition;
     private Vector2 _lastSentVelocity;
@@ -35,24 +41,21 @@ public class TutorialScene : Scene
     private int _fps;
     private double _latency;
 
+    private volatile bool _loaded = false;
+
     public TutorialScene(SceneManager sceneManager) : base(sceneManager)
     {
         _otherPlayers = new ConcurrentDictionary<string, OtherPlayer>();
         _npcs = new ConcurrentDictionary<string, OtherPlayer>();
 
         Globals.CameraPosition = Vector2.Zero;
-        
-        TcpClient.Instance.PlayerConnected += OnPlayerConnected;
-        TcpClient.Instance.PlayerDisconnected += OnPlayerDisconnected;
-        //TcpClient.Instance.PlayerMoved += OnPlayerMoved;
-        
-        UdpEnetClient.Instance.LatencyUpdated += OnLatencyUpdated;
-        UdpEnetClient.Instance.PlayerMoved += OnPlayerMoved;
-        UdpEnetClient.Instance.NpcUpdated += OnNpcUpdated;
     }
 
     public override void Load()
     {
+        _song = Globals.Content.Load<Song>("Music/CitySound");
+        MediaPlayer.Volume = 0.015f;
+        MediaPlayer.Play(_song);
         _font = Globals.Content.Load<SpriteFont>("Fonts/Nintendo");
         _map = new Map("Tutorial", "Serene_Village_32x32");
         _player = new Player(
@@ -64,6 +67,8 @@ public class TutorialScene : Scene
         _player.SetBounds(_map.MapSize, new Point(_map.TileWidth, _map.TileHeight));
         
         _chatGui = new ChatGUI();
+        _rightPanel = new InGameRightPanel();
+        _cursor = new Cursor(Globals.Content.Load<Texture2D>("Images/Icons/Mouse"));
 
         var t = new Timer();
         t.Interval = 26; // 20 updates per seconds which would be 50 milliseconds interval (1000/20 = 50)
@@ -73,6 +78,13 @@ public class TutorialScene : Scene
 
         _banner = new Banner(new Vector2(0, 0), new Vector2(280, 200), alpha: 0.5f);
         _banner.Load();
+        
+        TcpClient.Instance.PlayerConnected += OnPlayerConnected;
+        TcpClient.Instance.PlayerDisconnected += OnPlayerDisconnected;
+        
+        UdpEnetClient.Instance.LatencyUpdated += OnLatencyUpdated;
+        UdpEnetClient.Instance.PlayerMoved += OnPlayerMoved;
+        UdpEnetClient.Instance.NpcUpdated += OnNpcUpdated;
     }
 
     public override void Unload()
@@ -87,6 +99,8 @@ public class TutorialScene : Scene
 
         _elapsedTime += deltaTime;
         _frameCount++;
+        
+        _cursor?.Update(deltaTime);
 
         foreach (var (_, otherHero) in _otherPlayers)
         {
@@ -98,7 +112,7 @@ public class TutorialScene : Scene
             npc.Update(deltaTime);
         }
 
-        _player.Update(_map.IsObjectColliding, _npcs, _otherPlayers, _chatGui.IsTyping);
+        _player?.Update(_map.IsObjectColliding, _npcs, _otherPlayers, _chatGui.IsTyping);
         
         // Update the camera position based on player movement or other logic
         Globals.CameraPosition = _player.Position - new Vector2((float) Globals.GraphicsDevice.Viewport.Width / 2,
@@ -115,6 +129,8 @@ public class TutorialScene : Scene
         {
             _chatGui?.Toggle();
         }
+        
+        _rightPanel?.Update(deltaTime);
 
         if (InputManager.Instance.KeyReleased(Keys.F3))
         {
@@ -152,6 +168,7 @@ public class TutorialScene : Scene
         }
         
         _chatGui?.Draw(spriteBatch);
+        _rightPanel?.Draw(spriteBatch);
 
         if (true)
         {
@@ -160,6 +177,8 @@ public class TutorialScene : Scene
             spriteBatch.DrawString(_font, $"FPS: {_fps}", new Vector2(3, 36) + Globals.CameraPosition, Color.DarkBlue);
             spriteBatch.DrawString(_font, $"Latency: {_latency}ms", new Vector2(3, 62) + Globals.CameraPosition, Color.DarkBlue);
         }
+        
+        _cursor.Draw(spriteBatch);
 
         spriteBatch.End();
     }
@@ -168,9 +187,13 @@ public class TutorialScene : Scene
     {
         if (disposing)
         {
+            MediaPlayer.Stop();
             _map?.Dispose();
             _player?.Dispose();
             _chatGui?.Dispose();
+            _rightPanel?.Dispose();
+            _song?.Dispose();
+            _cursor?.Dispose();
         }
     }
 
@@ -214,9 +237,10 @@ public class TutorialScene : Scene
         _npcs.AddOrUpdate(packet.Id, id =>
             {
                 // If the NPC does not already exist in the dictionary, create a new OtherPlayer object and return it.
+                var texture = Globals.Content.Load<Texture2D>("Images/player");
                 return new OtherPlayer(
                     packet.Id,
-                    Globals.Content.Load<Texture2D>("Images/player"), new Vector2(packet.PositionX, packet.PositionY), true);
+                    texture, new Vector2(packet.PositionX, packet.PositionY), true);
             }, 
             (guid, player) =>
             {
