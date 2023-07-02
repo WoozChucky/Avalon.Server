@@ -131,6 +131,10 @@ public class TutorialScene : Scene
         }
         
         _rightPanel?.Update(deltaTime);
+        if (_rightPanel is not null && InputManager.Instance.KeyPressed(Keys.P))
+        {
+            _rightPanel?.ToggleVisibility();
+        }
 
         if (InputManager.Instance.KeyReleased(Keys.F3))
         {

@@ -35,8 +35,7 @@ public class LoginForm : IGameComponent
             new Vector2(Globals.WindowSize.X / 2f - 200 /2f, Globals.WindowSize.Y / 2f + 0),
             new Vector2(200, 40),
             2,
-            Globals.Content.Load<SpriteFont>("Fonts/Default"),
-            "Wooz"
+            Globals.Content.Load<SpriteFont>("Fonts/Default")
         )
         {
             AllowAlphabetic = true,
@@ -49,8 +48,7 @@ public class LoginForm : IGameComponent
             new Vector2(Globals.WindowSize.X / 2f - 200 /2f, Globals.WindowSize.Y / 2f + 50),
             new Vector2(200, 40),
             2,
-            Globals.Content.Load<SpriteFont>("Fonts/Default"),
-            "123"
+            Globals.Content.Load<SpriteFont>("Fonts/Default")
         )
         {
             AllowAlphabetic = true,
