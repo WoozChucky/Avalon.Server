@@ -25,12 +25,15 @@ public class Player : IEntity
 
     public AvalonConnection Connection { get; private set; }
     public Character Character { get; }
+
+    public PartyGroup Party { get; set; }
     
     public Player(AvalonConnection connection, Character character)
     {
         Id = connection.Id;
         Connection = connection;
         Character = character;
+        Party = new PartyGroup();
     }
     
     public void Update(TimeSpan deltaTime)
@@ -41,5 +44,17 @@ public class Player : IEntity
     public void InvertDirection()
     {
         Velocity = -Velocity;
+    }
+}
+
+public class PartyGroup
+{
+    public bool Active { get; set; }
+    public bool Leader { get; set; }
+    public List<string> Members { get; set; } = new();
+    
+    public PartyGroup()
+    {
+        
     }
 }

@@ -27,6 +27,8 @@ public delegate void LatencyUpdatedHandler(object sender, double latency);
 public delegate void NpcUpdatedHandler(object sender, SNpcUpdatePacket packet);
 public delegate void ChatMessageHandler(object sender, SChatMessagePacket packet);
 public delegate void AuthResultHandler(object sender, SAuthResultPacket packet);
+public delegate void GroupInviteHandler(object sender, SGroupInvitePacket packet);
+public delegate void GroupResultHandler(object sender, SGroupResultPacket packet);
 
 public class TcpClient : IDisposable
 {
@@ -37,6 +39,8 @@ public class TcpClient : IDisposable
     public event PlayerDisconnectedHandler PlayerDisconnected;
     public event ChatMessageHandler ChatMessage;
     public event AuthResultHandler AuthResult;
+    public event GroupInviteHandler GroupInvite;
+    public event GroupResultHandler GroupInviteResult;
 
     private readonly CancellationTokenSource cts = new CancellationTokenSource();
     private readonly X509Certificate2 certificate;
@@ -172,6 +176,28 @@ public class TcpClient : IDisposable
                         try {
                             AuthResult?.Invoke(this, authResultPacket);
                         } catch (Exception e) {
+                            Console.WriteLine(e);
+                        }
+                        break;
+                    case NetworkPacketType.SMSG_GROUP_INVITE:
+                        var groupInvitePacket = Serializer.Deserialize<SGroupInvitePacket>(new MemoryStream(packet.Payload));
+                        try
+                        {
+                            GroupInvite?.Invoke(this, groupInvitePacket);
+                        }
+                        catch (Exception e)
+                        {
+                            Console.WriteLine(e);
+                        }
+                        break;
+                    case NetworkPacketType.SMSG_GROUP_INVITE_RESULT:
+                        var groupResultPacket = Serializer.Deserialize<SGroupResultPacket>(new MemoryStream(packet.Payload));
+                        try
+                        {
+                            GroupInviteResult?.Invoke(this, groupResultPacket);
+                        }
+                        catch (Exception e)
+                        {
                             Console.WriteLine(e);
                         }
                         break;

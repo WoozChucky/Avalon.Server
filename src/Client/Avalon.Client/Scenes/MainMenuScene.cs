@@ -61,7 +61,6 @@ public class MainMenuScene : Scene
         {
             _isLoggedIn = false;
             await UdpEnetClient.Instance.SendWelcomePacket();
-            Thread.Sleep(200);
             await TcpClient.Instance.SendWelcomePacket();
         
             SceneManager.LoadScene(nameof(TutorialScene));

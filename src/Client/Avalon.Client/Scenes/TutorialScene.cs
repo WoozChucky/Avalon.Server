@@ -7,6 +7,7 @@ using Avalon.Client.Network;
 using Avalon.Client.UI;
 using Avalon.Network.Packets.Auth;
 using Avalon.Network.Packets.Movement;
+using Avalon.Network.Packets.Social;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
@@ -22,11 +23,12 @@ public class TutorialScene : Scene
     private Player _player;
     private Matrix _translation;
     private SpriteFont _font;
-    private Banner _banner;
-    
+
     private ChatGUI _chatGui;
     private InGameRightPanel _rightPanel;
     private Cursor _cursor;
+    
+    private PartyInviteDialog _partyInviteDialog;
 
     private readonly ConcurrentDictionary<string, OtherPlayer> _otherPlayers;
     private readonly ConcurrentDictionary<string, OtherPlayer> _npcs;
@@ -49,6 +51,10 @@ public class TutorialScene : Scene
         _npcs = new ConcurrentDictionary<string, OtherPlayer>();
 
         Globals.CameraPosition = Vector2.Zero;
+        
+        TcpClient.Instance.PlayerConnected += OnPlayerConnected;
+        TcpClient.Instance.PlayerDisconnected += OnPlayerDisconnected;
+        TcpClient.Instance.GroupInvite += OnPlayerGroupInvited;
     }
 
     public override void Load()
@@ -76,12 +82,6 @@ public class TutorialScene : Scene
         t.Elapsed += OnTimerElapsed;
         t.Start();
 
-        _banner = new Banner(new Vector2(0, 0), new Vector2(280, 200), alpha: 0.5f);
-        _banner.Load();
-        
-        TcpClient.Instance.PlayerConnected += OnPlayerConnected;
-        TcpClient.Instance.PlayerDisconnected += OnPlayerDisconnected;
-        
         UdpEnetClient.Instance.LatencyUpdated += OnLatencyUpdated;
         UdpEnetClient.Instance.PlayerMoved += OnPlayerMoved;
         UdpEnetClient.Instance.NpcUpdated += OnNpcUpdated;
@@ -90,7 +90,6 @@ public class TutorialScene : Scene
     public override void Unload()
     {
         // TODO: Unload any content that was loaded for the scene
-        _banner.Unload();
     }
 
     public override void Update(GameTime gameTime)
@@ -124,6 +123,8 @@ public class TutorialScene : Scene
             MathHelper.Clamp(Globals.CameraPosition.Y, 0, _map.MapSize.Y - Globals.GraphicsDevice.Viewport.Height)
         );
         
+        _partyInviteDialog?.Update(deltaTime);
+        
         _chatGui?.Update(deltaTime);
         if (_chatGui is { IsTyping: false } && InputManager.Instance.KeyReleased(Keys.T))
         {
@@ -141,8 +142,6 @@ public class TutorialScene : Scene
             _map.ToggleDebug();
         }
 
-        _banner.Update(gameTime);
-        
         CalculateTranslation();
         
         if (_elapsedTime >= 1f) // Calculate FPS every second
@@ -171,12 +170,13 @@ public class TutorialScene : Scene
             npc.Draw(spriteBatch);
         }
         
+        _partyInviteDialog?.Draw(spriteBatch);
+        
         _chatGui?.Draw(spriteBatch);
         _rightPanel?.Draw(spriteBatch);
 
         if (true)
         {
-            _banner.Draw(spriteBatch);
             spriteBatch.DrawString(_font, $"X: {Math.Round(_player.Position.X, 1)} Y: {Math.Round(_player.Position.Y, 1)}", new Vector2(3, 2) + Globals.CameraPosition, Color.DarkBlue);
             spriteBatch.DrawString(_font, $"FPS: {_fps}", new Vector2(3, 36) + Globals.CameraPosition, Color.DarkBlue);
             spriteBatch.DrawString(_font, $"Latency: {_latency}ms", new Vector2(3, 62) + Globals.CameraPosition, Color.DarkBlue);
@@ -236,6 +236,19 @@ public class TutorialScene : Scene
             }
         }
     }
+    
+    private void OnPlayerGroupInvited(object sender, SGroupInvitePacket packet)
+    {
+        _partyInviteDialog = new PartyInviteDialog(
+            Globals.Content.Load<SpriteFont>("Fonts/Default"),
+            Globals.Content.Load<SpriteFont>("Fonts/Default"),
+            new Vector2(175f, 150f),
+            "Party Invite",
+            $"You have been invited by {packet.InvitedById} to join a party."
+        );
+        _partyInviteDialog.Active = true;
+    }
+    
     private void OnNpcUpdated(object sender, SNpcUpdatePacket packet)
     {
         _npcs.AddOrUpdate(packet.Id, id =>

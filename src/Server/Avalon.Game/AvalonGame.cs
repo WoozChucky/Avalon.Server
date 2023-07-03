@@ -27,9 +27,10 @@ public interface IAvalonGame
     Task HandleOpenChatPacket(IRemoteSource source, COpenChatPacket packet);
     Task HandleCloseChatPacket(IRemoteSource source, CCloseChatPacket packet);
     Task HandleAuthPacket(IRemoteSource source, CAuthPacket packet);
+    Task HandleGroupInviteResultPacket(IRemoteSource source, CGroupInviteResultPacket packet);
 }
 
-public class AvalonGame : IAvalonGame
+public partial class AvalonGame : IAvalonGame
 {
     private readonly ILogger<AvalonGame> _logger;
     private readonly CancellationTokenSource _cts;
@@ -180,14 +181,13 @@ public class AvalonGame : IAvalonGame
             })))
         {
             _logger.LogInformation("Player {PlayerId} joined the world", connection.Id);
-            
+
             foreach (var (existingId, existingPlayer) in _players)
             {
                 if (existingId == connection.Id)
                 {
                     continue;
                 }
-                // Send to this player, that everyone else is connected
                 await connection.SendAsync(SPlayerConnectedPacket.Create(existingId));
             }
             // Send to everyone else, that this player is connected
@@ -319,31 +319,6 @@ public class AvalonGame : IAvalonGame
             );
             player.Character.ElapsedGameTime = packet.ElapsedGameTime;
             // TODO: player.Character.LastUpdated = DateTime.UtcNow;
-        }
-        return Task.CompletedTask;
-    }
-
-    public async Task HandleChatMessagePacket(IRemoteSource source, CChatMessagePacket packet)
-    {
-        var msgPacket = SChatMessagePacket.Create(packet.ClientId, packet.Message, packet.DateTime);
-        
-        await BroadcastToOthers(packet.ClientId, msgPacket);
-    }
-
-    public Task HandleOpenChatPacket(IRemoteSource source, COpenChatPacket packet)
-    {
-        if (_players.TryGetValue(packet.ClientId, out var player))
-        {
-            player.Character.IsChatting = true;
-        }
-        return Task.CompletedTask;
-    }
-
-    public Task HandleCloseChatPacket(IRemoteSource source, CCloseChatPacket packet)
-    {
-        if (_players.TryGetValue(packet.ClientId, out var player))
-        {
-            player.Character.IsChatting = false;
         }
         return Task.CompletedTask;
     }

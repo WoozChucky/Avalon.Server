@@ -17,19 +17,22 @@
             "scaleInEditor": 1
         },
         "Tutorial.tmx": {
+            "expandedObjectLayers": [
+                5
+            ],
             "scale": 1,
-            "selectedLayer": 3,
+            "selectedLayer": 7,
             "viewCenter": {
-                "x": 584,
-                "y": 1088
+                "x": 437,
+                "y": 945
             }
         },
         "Village.tmx": {
-            "scale": 3.1884375,
+            "scale": 1,
             "selectedLayer": 2,
             "viewCenter": {
-                "x": 239.14534940703714,
-                "y": 160.2665882583554
+                "x": 568,
+                "y": 401
             }
         }
     },
