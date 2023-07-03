@@ -28,6 +28,22 @@ public class AvalonGame : Game
         Content.RootDirectory = "Content";
 
         Window.Title = "Avalon: The Beginning";
+        Window.FileDrop += (sender, args) =>
+        {
+            var filePath = args.Files[0];
+            var fileName = System.IO.Path.GetFileName(filePath);
+            var fileExtension = System.IO.Path.GetExtension(filePath);
+            if (fileExtension == ".png")
+            {
+                var screenshot = Texture2D.FromFile(GraphicsDevice, filePath);
+                var screenshotPath = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), "Avalon", fileName);
+                System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(screenshotPath));
+                using (var stream = System.IO.File.OpenWrite(screenshotPath))
+                {
+                    screenshot.SaveAsPng(stream, screenshot.Width, screenshot.Height);
+                }
+            }
+        };
         
         UdpEnetClient.Instance.LatencyUpdated += ((sender, latency) =>
         {
