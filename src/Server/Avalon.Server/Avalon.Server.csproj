@@ -47,6 +47,7 @@
       <ProjectReference Include="..\..\Shared\Avalon.Network.Tcp\Avalon.Network.Tcp.csproj" />
       <ProjectReference Include="..\..\Shared\Avalon.Network.Udp\Avalon.Network.Udp.csproj" />
       <ProjectReference Include="..\..\Shared\Avalon.Network\Avalon.Network.csproj" />
+      <ProjectReference Include="..\Avalon.Database\Avalon.Database.csproj" />
       <ProjectReference Include="..\Avalon.Game.Handlers\Avalon.Game.Handlers.csproj" />
       <ProjectReference Include="..\Avalon.Infrastructure\Avalon.Infrastructure.csproj" />
     </ItemGroup>

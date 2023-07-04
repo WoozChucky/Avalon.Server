@@ -1,13 +1,13 @@
 using System.Collections.Concurrent;
-using System.Drawing;
 using System.Numerics;
 using System.Reflection;
-using System.Security.Cryptography;
+using Avalon.Database;
 using Avalon.Game.Entities;
 using Avalon.Map;
 using Avalon.Network;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Auth;
+using Avalon.Network.Packets.Character;
 using Avalon.Network.Packets.Generic;
 using Avalon.Network.Packets.Movement;
 using Avalon.Network.Packets.Serialization;
@@ -28,6 +28,8 @@ public interface IAvalonGame
     Task HandleCloseChatPacket(IRemoteSource source, CCloseChatPacket packet);
     Task HandleAuthPacket(IRemoteSource source, CAuthPacket packet);
     Task HandleGroupInviteResultPacket(IRemoteSource source, CGroupInviteResultPacket packet);
+    Task HandleAuthPatchPacket(IRemoteSource source, CAuthPatchPacket packet);
+    Task HandleCharacterSelectedPacket(IRemoteSource source, CCharacterSelectedPacket packet);
 }
 
 public partial class AvalonGame : IAvalonGame
@@ -36,29 +38,30 @@ public partial class AvalonGame : IAvalonGame
     private readonly CancellationTokenSource _cts;
     private readonly IPacketSerializer _packetSerializer;
     private readonly IAvalonConnectionManager _connectionManager;
-
-    private readonly ConcurrentDictionary<string, Player> _players;
-    private readonly ConcurrentDictionary<string, Uriel> _npcs;
+    private readonly IDatabaseManager _databaseManager;
+    
+    private readonly ConcurrentDictionary<int, Uriel> _npcs;
     private readonly ServerMap _map;
 
     public AvalonGame(ILogger<AvalonGame> logger, 
         IPacketSerializer packetSerializer, 
-        IAvalonConnectionManager connectionManager)
+        IAvalonConnectionManager connectionManager,
+        IDatabaseManager databaseManager)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _cts = new CancellationTokenSource();
         _packetSerializer = packetSerializer;
         _connectionManager = connectionManager;
-        _players = new ConcurrentDictionary<string, Player>();
-        _npcs = new ConcurrentDictionary<string, Uriel>();
-        _connectionManager.PlayerConnected += OnPlayerConnected;
-        _connectionManager.PlayerDisconnected += OnPlayerDisconnected;
-        _connectionManager.PlayerReconnected += OnPlayerReconnected;
-        _connectionManager.PlayerTimedOut += OnPlayerTimedOut;
+        _databaseManager = databaseManager;
+        _npcs = new ConcurrentDictionary<int, Uriel>();
+        
+        _connectionManager.SessionLost += OnSessionLost;
+        _connectionManager.SessionReconnected += OnPlayerReconnected;
+        _connectionManager.SessionTimedOut += OnPlayerTimedOut;
         
         _map = new ServerMap("Tutorial");
 
-        _npcs.TryAdd("Uriel", new Uriel());
+        _npcs.TryAdd(1, new Uriel());
     }
 
     public async void Start()
@@ -102,7 +105,7 @@ public partial class AvalonGame : IAvalonGame
             {
                 await BroadcastGameState();
             
-                await Task.Delay(26);
+                await Task.Delay(16);
             }
         }
         catch (OperationCanceledException)
@@ -123,18 +126,21 @@ public partial class AvalonGame : IAvalonGame
 
     private void Update(TimeSpan deltaTime)
     {
-        foreach (var (id, player) in _players)
+        foreach (var session in _connectionManager.GetSessions().Values.Where(s => s.InGame))
         {
+            /*
             if (_map.IsObjectColliding(player.Bounds))
             {
                 player.InvertDirection();
             }
+            */
         }
         
         foreach (var (id, entity) in _npcs)
         {
             entity.Update(deltaTime);
 
+            /*
             foreach (var (_, player) in _players)
             {
                 if (entity.Bounds.IntersectsWith(player.Bounds))
@@ -157,6 +163,7 @@ public partial class AvalonGame : IAvalonGame
                     }
                 }
             }
+            */
             
             if (_map.IsObjectColliding(entity.Bounds))
             {
@@ -170,73 +177,23 @@ public partial class AvalonGame : IAvalonGame
 
     #region Player Events
 
-    private async void OnPlayerConnected(object? sender, AvalonConnection connection)
+    private async void OnSessionLost(object? sender, AvalonSession session)
     {
-        if (_players.TryAdd(connection.Id, new Player(connection, new Character
-            {
-                Position = Vector2.Zero,
-                Velocity = Vector2.Zero,
-                Bounds = new Rectangle(0, 0, 32, 32),
-                ElapsedGameTime = 0
-            })))
-        {
-            _logger.LogInformation("Player {PlayerId} joined the world", connection.Id);
-
-            foreach (var (existingId, existingPlayer) in _players)
-            {
-                if (existingId == connection.Id)
-                {
-                    continue;
-                }
-                await connection.SendAsync(SPlayerConnectedPacket.Create(existingId));
-            }
-            // Send to everyone else, that this player is connected
-            await BroadcastToOthers(connection.Id, SPlayerConnectedPacket.Create(connection.Id));
-        }
-        else
-        {
-            if (_players.ContainsKey(connection.Id))
-            {
-                OnPlayerReconnected(null, connection);
-            }
-            _logger.LogError("Failed to add player {PlayerId}", connection.Id);
-        }
-    }
-    
-    private async void OnPlayerDisconnected(object? sender, AvalonConnection connection)
-    {
-        if (_players.TryRemove(connection.Id, out var player))
-        {
-            _logger.LogInformation("Player {PlayerId} disconnected from the world", connection.Id);
+        if (!session.InGame) return;
+        
+        var packet = SPlayerDisconnectedPacket.Create(session.AccountId, session.Character!.Id);
             
-            var packet = SPlayerDisconnectedPacket.Create(connection.Id);
-            
-            await BroadcastToOthers(connection.Id, packet);
-        }
-        else
-        {
-            _logger.LogError("Failed to remove player {PlayerId} form the world", connection.Id);
-        }
+        await BroadcastToOthers(session.AccountId, packet, true);
     }
     
-    private void OnPlayerTimedOut(object? sender, AvalonConnection connection)
+    private void OnPlayerTimedOut(object? sender, AvalonSession session)
     {
-        // TODO: Handle player timeout
+        _logger.LogWarning("TODO: Handle session timeout");
     }
     
-    private async void OnPlayerReconnected(object? sender, AvalonConnection connection)
+    private async void OnPlayerReconnected(object? sender, AvalonSession session)
     {
-        foreach (var (existingId, existingPlayer) in _players)
-        {
-            if (existingId == connection.Id)
-            {
-                continue;
-            }
-            // Send to this player, that everyone else is connected
-            await connection.SendAsync(SPlayerConnectedPacket.Create(existingId));
-        }
-        // Send to everyone else, that this player is connected
-        //await BroadcastToOthers(connection.Id, SPlayerConnectedPacket.Create(connection.Id));
+        _logger.LogWarning("TODO: Handle session reconnected");
     }
 
     #endregion
@@ -246,16 +203,18 @@ public partial class AvalonGame : IAvalonGame
     private async Task BroadcastGameState()
     {
         // Broadcast player positions
-        foreach (var (id, player) in _players)
+        foreach (var session in _connectionManager.GetInGameSessions())
         {
+            if (session.Character == null) continue;
             var packet = SPlayerPositionUpdatePacket.Create(
-                id, 
-                player.Position.X, 
-                player.Position.Y,
-                player.Velocity.X,
-                player.Velocity.Y,
-                player.Character.IsChatting,
-                player.Character.ElapsedGameTime
+                session.AccountId,
+                session.Character.Id,
+                session.Character.Movement.Position.X, 
+                session.Character.Movement.Position.Y,
+                session.Character.Movement.Velocity.X,
+                session.Character.Movement.Position.Y,
+                session.Character.IsChatting,
+                session.Character.ElapsedGameTime
             );
             await BroadcastAll(packet);
         }
@@ -264,7 +223,8 @@ public partial class AvalonGame : IAvalonGame
         foreach (var (id, npc) in _npcs)
         {
             var packet = SNpcUpdatePacket.Create(
-                id, 
+                id,
+                npc.Name,
                 npc.Position.X, 
                 npc.Position.Y,
                 npc.Velocity.X,
@@ -274,31 +234,32 @@ public partial class AvalonGame : IAvalonGame
         }
     }
     
-    private async Task BroadcastToOthers(string except, NetworkPacket packet)
+    private async Task BroadcastToOthers(int except, NetworkPacket packet, bool onlineOnly = false)
     {
-        var availablePlayers = _players.Values.Where(
-            p => p.Id != except
-                 && p.Connection.Status == ConnectionStatus.Connected).ToList();
-        
-        foreach (var player in availablePlayers)
+        if (onlineOnly)
         {
-            try
-            {
-                await player.Connection.SendAsync(packet);
-            }
-            catch (Exception)
-            {
-                // ignored
-            }
+            var availablePlayers = _connectionManager.GetSessions().Values.Where(
+                p => p.AccountId != except
+                     && p is { Status: ConnectionStatus.Connected, InGame: true }).Select(p => p.SendAsync(packet));
+        
+            await Task.WhenAll(availablePlayers);
+        }
+        else
+        {
+            var availablePlayers = _connectionManager.GetSessions().Values.Where(
+                p => p.AccountId != except
+                     && p is { Status: ConnectionStatus.Connected, InGame: false }).Select(p => p.SendAsync(packet));
+        
+            await Task.WhenAll(availablePlayers);
         }
     }
     
     private async Task BroadcastAll(NetworkPacket packet)
     {
-        foreach (var (_, player) in _players)
-        {
-            await player.Connection.SendAsync(packet);
-        }
+        var availablePlayers = _connectionManager.GetSessions().Values.Where(
+            p => p.Status == ConnectionStatus.Connected).Select(p => p.SendAsync(packet));
+
+        await Task.WhenAll(availablePlayers);
     }
 
     #endregion
@@ -307,40 +268,14 @@ public partial class AvalonGame : IAvalonGame
 
     public Task HandleMovementPacket(IRemoteSource source, CPlayerMovementPacket packet)
     {
-        if (_players.TryGetValue(packet.ClientId, out var player))
-        {
-            player.Position = new Vector2(packet.X, packet.Y);
-            player.Velocity = new Vector2(packet.VelocityX, packet.VelocityY);
-            player.Bounds = new Rectangle(
-                (int) player.Position.X,
-                (int) player.Position.Y,
-                32,
-                32
-            );
-            player.Character.ElapsedGameTime = packet.ElapsedGameTime;
-            // TODO: player.Character.LastUpdated = DateTime.UtcNow;
-        }
+        var session = _connectionManager.GetSession(packet.AccountId);
+        if (session == null || !session.InGame) return Task.CompletedTask;
+        
+        session.Character!.Movement.Position = new Vector2(packet.X, packet.Y);
+        session.Character!.Movement.Velocity = new Vector2(packet.VelocityX, packet.VelocityY);
+        session.Character!.ElapsedGameTime = packet.ElapsedGameTime;
+        
         return Task.CompletedTask;
-    }
-
-    public Task HandleAuthPacket(IRemoteSource source, CAuthPacket packet)
-    {
-        var client = (TcpClient) source;
-        
-        _logger.LogDebug("Handling auth packet from {EndPoint}", client.Socket.RemoteEndPoint);
-        
-        // TODO: Actual authentication logic
-
-        // Generate 256 bits private key for this client
-        var privateKey = new byte[32]; // 256 bits = 32 bytes
-        using (var rng = new RNGCryptoServiceProvider())
-        {
-            rng.GetBytes(privateKey);
-        }
-
-        var response = SAuthResultPacket.Create(packet.Username, true, "OK", privateKey);
-        
-        return _packetSerializer.SerializeToNetwork(client.Stream, response);
     }
 
     public async Task HandleServerVersionPacket(IRemoteSource source, CRequestServerVersionPacket packet)

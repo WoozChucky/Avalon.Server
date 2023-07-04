@@ -68,7 +68,7 @@ public class ChatGUI : IDisposable
 
     private void OnChatMessageReceived(object sender, SChatMessagePacket packet)
     {
-        _chatMessages.Add($"[{packet.ClientId}]: {packet.Message}");
+        _chatMessages.Add($"[{packet.CharacterName}]: {packet.Message}");
     }
 
     public void Update(float deltaTime)
@@ -194,7 +194,7 @@ public class ChatGUI : IDisposable
     
     private async void SendChatMessage(string message)
     {
-        _chatMessages.Add($"[{Globals.ClientId}]: {message}");
+        _chatMessages.Add($"[{Globals.AccountId}]: {message}");
         _textInputComponent.Clear();
         await TcpClient.Instance.SendChatMessage(message);
     }

@@ -9,7 +9,7 @@ using Microsoft.Xna.Framework.Graphics;
 namespace Avalon.Client.UI.MainMenu;
 
 public delegate void LoginFailedEventHandler(string message);
-public delegate void LoginSuccessEventHandler(string username);
+public delegate void LoginSuccessEventHandler(int accountId);
 public delegate void RegisterClickedEventHandler();
 
 public class LoginForm : IGameComponent
@@ -30,6 +30,7 @@ public class LoginForm : IGameComponent
         _isVisible = visible;
         
         TcpClient.Instance.AuthResult += OnAuthResult;
+        UdpEnetClient.Instance.AuthResult += OnAuthResult;
         
         _usernameComponent = new TextInputComponent(
             new Vector2(Globals.WindowSize.X / 2f - 200 /2f, Globals.WindowSize.Y / 2f + 0),
@@ -133,17 +134,21 @@ public class LoginForm : IGameComponent
     
     #endregion
     
-    private void OnAuthResult(object sender, SAuthResultPacket packet)
+    private async void OnAuthResult(object sender, SAuthResultPacket packet)
     {
-        if (packet.Success)
+        switch (packet.Result)
         {
-            //TODO: Also add private key from packet to udp client for data encryption
-            UdpEnetClient.Instance.SetPrivateKey(packet.PrivateKey);
-            LoginSuccess?.Invoke(_usernameComponent.Text);
-        }
-        else
-        {
-            LoginFailed?.Invoke(packet.Message);
+            case AuthResult.WRONG_KEY or AuthResult.INVALID_CREDENTIALS:
+                //TODO: Handle different auth results
+                LoginFailed?.Invoke("Invalid username or password");
+                break;
+            case AuthResult.PENDING_KEY:
+                UdpEnetClient.Instance.SetPrivateKey(packet.PrivateKey);
+                await UdpEnetClient.Instance.SendAuthPatchPacket(packet.AccountId);
+                break;
+            case AuthResult.SUCCESS:
+                LoginSuccess?.Invoke(packet.AccountId);
+                break;
         }
     }
     

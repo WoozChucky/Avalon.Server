@@ -9,17 +9,19 @@ public class CChatMessagePacket : Packet
     public static NetworkPacketType PacketType = NetworkPacketType.CMSG_CHAT_MESSAGE;
     public static NetworkProtocol Protocol = NetworkProtocol.Tcp;
     
-    [ProtoMember(1)] public string ClientId { get; set; }
-    [ProtoMember(2)] public string Message { get; set; }
-    [ProtoMember(3)] public DateTime DateTime { get; set; }
+    [ProtoMember(1)] public int AccountId { get; set; }
+    [ProtoMember(2)] public int PlayerId { get; set; }
+    [ProtoMember(3)] public string Message { get; set; }
+    [ProtoMember(4)] public DateTime DateTime { get; set; }
 
-    public static NetworkPacket Create(string clientId, string message, DateTime dateTime)
+    public static NetworkPacket Create(int accountId, int playerId, string message, DateTime dateTime)
     {
         using var memoryStream = new MemoryStream();
         
         var movementPacket = new CChatMessagePacket()
         {
-            ClientId = clientId,
+            AccountId = accountId,
+            PlayerId = playerId,
             Message = message,
             DateTime = dateTime
         };

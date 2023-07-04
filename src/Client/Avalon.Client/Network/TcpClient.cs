@@ -11,8 +11,10 @@ using System.Threading.Tasks;
 using Avalon.Network.Packets;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Auth;
+using Avalon.Network.Packets.Character;
 using Avalon.Network.Packets.Crypto;
 using Avalon.Network.Packets.Deserialization;
+using Avalon.Network.Packets.Generic;
 using Avalon.Network.Packets.Movement;
 using Avalon.Network.Packets.Serialization;
 using Avalon.Network.Packets.Social;
@@ -41,6 +43,8 @@ public class TcpClient : IDisposable
     public event AuthResultHandler AuthResult;
     public event GroupInviteHandler GroupInvite;
     public event GroupResultHandler GroupInviteResult;
+    public event NpcUpdatedHandler NpcUpdated;
+    public event PlayerMovedHandler PlayerMoved;
 
     private readonly CancellationTokenSource cts = new CancellationTokenSource();
     private readonly X509Certificate2 certificate;
@@ -78,21 +82,12 @@ public class TcpClient : IDisposable
     {
         return true;
     }
-    
-    public Task SendWelcomePacket()
-    {
-        var packet = CWelcomePacket.Create(Globals.ClientId);
-
-        Serializer.SerializeWithLengthPrefix(stream, packet, PrefixStyle.Base128);
-        
-        return Task.CompletedTask;
-    }
 
     public async Task SendChatMessage(string message)
     {
         try
         {
-            var packet = CChatMessagePacket.Create(Globals.ClientId, message, DateTime.UtcNow);
+            var packet = CChatMessagePacket.Create(Globals.AccountId, Globals.CharacterId, message, DateTime.UtcNow);
 
             await _packetSerializer.SerializeToNetwork(stream, packet);
         }
@@ -107,7 +102,7 @@ public class TcpClient : IDisposable
     {
         try
         {
-            var packet = COpenChatPacket.Create(Globals.ClientId);
+            var packet = COpenChatPacket.Create(Globals.AccountId, Globals.CharacterId);
 
             await _packetSerializer.SerializeToNetwork(stream, packet);
         }
@@ -122,7 +117,7 @@ public class TcpClient : IDisposable
     {
         try
         {
-            var packet = CCloseChatPacket.Create(Globals.ClientId);
+            var packet = CCloseChatPacket.Create(Globals.AccountId, Globals.CharacterId);
 
             await _packetSerializer.SerializeToNetwork(stream, packet);
         }
@@ -133,7 +128,7 @@ public class TcpClient : IDisposable
         }
     }
     
-    private void HandleCommunications()
+    private async void HandleCommunications()
     {
         try
         {
@@ -143,8 +138,22 @@ public class TcpClient : IDisposable
 
                 switch (packet.Header.Type)
                 {
-                    case NetworkPacketType.SMSG_ENCRYPTION_KEY:
-                        var encryptionKeyPacket = Serializer.Deserialize<SCryptoKeyPacket>(new MemoryStream(packet.Payload));
+                    case NetworkPacketType.SMSG_PLAYER_POSITION_UPDATE:
+                        var movementPacket = _packetDeserializer.Deserialize<SPlayerPositionUpdatePacket>(packet.Header.Type,
+                            packet.Payload);
+                        try {
+                            PlayerMoved?.Invoke(this, movementPacket);
+                        } catch (Exception e) {
+                            Console.WriteLine(e);
+                        }
+                        break;
+                    case NetworkPacketType.SMSG_NPC_UPDATE:
+                        var npcUpdatePacket = Serializer.Deserialize<SNpcUpdatePacket>(new MemoryStream(packet.Payload));
+                        try {
+                            NpcUpdated?.Invoke(this, npcUpdatePacket);
+                        } catch (Exception e) {
+                            Console.WriteLine(e);
+                        }
                         break;
                     case NetworkPacketType.SMSG_PLAYER_CONNECTED:
                         var connectPacket = Serializer.Deserialize<SPlayerConnectedPacket>(new MemoryStream(packet.Payload));
@@ -201,6 +210,16 @@ public class TcpClient : IDisposable
                             Console.WriteLine(e);
                         }
                         break;
+                    case NetworkPacketType.SMSG_PING:
+                        var pingPacket = _packetDeserializer.Deserialize<SPingPacket>(packet.Header.Type,
+                            packet.Payload);
+                                        
+                        var pongPacket = CPongPacket.Create(pingPacket.SequenceNumber, Globals.AccountId, pingPacket.Ticks);
+                                        
+                        await _packetSerializer.SerializeToNetwork(stream, pongPacket);
+                                        
+                        break;
+                    
                 }
             }
         }
@@ -227,6 +246,13 @@ public class TcpClient : IDisposable
         certificate?.Dispose();
         socket?.Dispose();
         stream?.Dispose();
+    }
+
+    public async Task SendCharacterSelectedPacket(int accountId, int characterId)
+    {
+        var packet = CCharacterSelectedPacket.Create(accountId, characterId);
+        
+        await _packetSerializer.SerializeToNetwork(stream, packet);
     }
 
     public async Task SendAuthPacket(string username, string password)

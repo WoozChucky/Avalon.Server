@@ -10,17 +10,17 @@ public class CPongPacket : Packet
     public static NetworkProtocol Protocol = NetworkProtocol.Udp;
     
     [ProtoMember(1)] public long SequenceNumber { get; set; }
-    [ProtoMember(2)] public string ClientId { get; set; }
+    [ProtoMember(2)] public int AccountId { get; set; }
     [ProtoMember(3)] public long Ticks { get; set; }
     
-    public static NetworkPacket Create(long sequenceNumber, string clientId, long? ticks = null)
+    public static NetworkPacket Create(long sequenceNumber, int accountId, long? ticks = null)
     {
         using var memoryStream = new MemoryStream();
         
         var pingPacket = new CPongPacket()
         {
             SequenceNumber = sequenceNumber,
-            ClientId = clientId,
+            AccountId = accountId,
             Ticks = ticks ?? DateTime.UtcNow.Ticks
         };
         

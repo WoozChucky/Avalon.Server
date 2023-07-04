@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics;
+using Avalon.Database;
 using Avalon.Game;
 using Avalon.Game.Handlers;
 using Avalon.Infrastructure;
@@ -28,7 +29,7 @@ namespace Avalon.Server
         
         private static IMetricsManager MetricsManager { get; set; } = null!;
 
-        private static Task Main(string[] args)
+        private static async Task Main(string[] args)
         {
             AppDomain.CurrentDomain.UnhandledException += OnUnhandledExceptionOccurred;
             AppDomain.CurrentDomain.ProcessExit += OnProcessExit;
@@ -38,7 +39,7 @@ namespace Avalon.Server
             Process.GetCurrentProcess().PriorityClass = ProcessPriorityClass.High;
             
             ConfigureDependencyInjection();
-            
+
             MetricsManager.Start(new Dictionary<string, string>()
             {
                 {"Host", Environment.MachineName},
@@ -51,7 +52,7 @@ namespace Avalon.Server
                 {"WorkingSet", Environment.WorkingSet.ToString()},
                 {"Application", "Avalon.Server"},
             });
-            
+
             Infrastructure.Start();
             
             while (!CancellationTokenSource.IsCancellationRequested)
@@ -65,8 +66,6 @@ namespace Avalon.Server
             Infrastructure.Dispose();
             
             Logger.LogInformation("Terminated successfully");
-            
-            return Task.CompletedTask;
         }
 
         private static void ConsoleOnCancelKeyPress(object? sender, ConsoleCancelEventArgs e)
@@ -120,6 +119,7 @@ namespace Avalon.Server
                     ApiKey = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IlpXeUJqWTgzcXotZW1pUlZDd1I4dyJ9.eyJodHRwczovL3F1aXguYWkvb3JnX2lkIjoicXVpeGRldiIsImh0dHBzOi8vcXVpeC5haS9vd25lcl9pZCI6ImF1dGgwfDRiY2RlODU5LTA3OWUtNDE4Yi04NTQ3LTE2ZjFkMWYwZjYwNiIsImh0dHBzOi8vcXVpeC5haS90b2tlbl9pZCI6ImMyNGZjMzUyLWJmMDQtNGExOC1hZDBmLTcyNDEzYzA0NTFlNiIsImh0dHBzOi8vcXVpeC5haS9leHAiOiIyNDEwODE1NjAwIiwiaHR0cHM6Ly9xdWl4LmFpL3JvbGVzIjoiUXVpeEFkbWluIGFkbWluIiwiaXNzIjoiaHR0cHM6Ly9hdXRoLmRldi5xdWl4LmFpLyIsInN1YiI6IkFvcUJJVGFzeFhucHNWQ1BNY1FMUFk4OEJjZXd0d3g4QGNsaWVudHMiLCJhdWQiOiJodHRwczovL3BvcnRhbC1hcGkuZGV2LnF1aXguYWkvIiwiaWF0IjoxNjg0OTc0NTgwLCJleHAiOjE2ODc1NjY1ODAsImF6cCI6IkFvcUJJVGFzeFhucHNWQ1BNY1FMUFk4OEJjZXd0d3g4IiwiZ3R5IjoiY2xpZW50LWNyZWRlbnRpYWxzIiwicGVybWlzc2lvbnMiOltdfQ.Au2P2iklX3yFQ3ALNEA_Hqnjl2UoPm_usXkuTo3-D8s4nk3K0vP5_e6D4lcAhGc4iBLkVBxrZOblESxhjDqEnpYHv5u1OvLzsS57VVzTsxfy2YstxifttfLeC1lGhv04sa0HuOXmTwv94X_2RDpjSN5hHM6kSS6FYqvZqaygOsY2lM9cGCRlASwo0apTaV9B1vbU8M6bGLgTAWOu82jWqxCoA11Sj7B4TKsLMI7kHvDP42E6WMwCz0cWhaHtI1CWvTbD15henDDtG_Y0kXY8HHxUG27177xq3JYJ9cQsyqO13kncC3DHfF-RxGKBKoO2SbZgGe73TTw2VTw16QJJ8Q",
                     Automatic = true
                 })
+                .AddSingleton<IDatabaseManager, DatabaseManager>()
                 .AddSingleton<IMetricsManager, MetricsManager>()
                 .AddSingleton<IAvalonTcpServer, AvalonTcpServer>()
                 // .AddSingleton<IAvalonUdpServer, AvalonUdpServer>()

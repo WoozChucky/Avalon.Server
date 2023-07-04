@@ -5,6 +5,7 @@ using Avalon.Client.Models;
 using Avalon.Client.Network;
 using Avalon.Client.UI;
 using Avalon.Client.UI.MainMenu;
+using Avalon.Network.Packets.Character;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
@@ -60,12 +61,9 @@ public class MainMenuScene : Scene
         if (_isLoggedIn)
         {
             _isLoggedIn = false;
-            await UdpEnetClient.Instance.SendWelcomePacket();
-            await TcpClient.Instance.SendWelcomePacket();
-        
             SceneManager.LoadScene(nameof(TutorialScene));
         
-            Console.WriteLine("Loaded tutorial scene. Name: " + Globals.ClientId);
+            Console.WriteLine("Loaded tutorial scene. Name: " + Globals.AccountId);
         }
     }
 
@@ -105,12 +103,18 @@ public class MainMenuScene : Scene
         // Show dialog with message
     }
 
-    private void OnLoginSuccess(string username)
+    private async void OnLoginSuccess(int accountId)
     {
         _loginForm?.ToggleVisibility();
         
-        Globals.ClientId = username;
+        Console.WriteLine("Logged in. Account ID: " + accountId);
         
+        Globals.AccountId = accountId;
+        
+        // TODO: Load character selection scene
+
+        await TcpClient.Instance.SendCharacterSelectedPacket(accountId, 0).ConfigureAwait(true);
+
         _isLoggedIn = true;
     }
     

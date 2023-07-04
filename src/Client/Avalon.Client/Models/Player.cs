@@ -16,7 +16,8 @@ public class Player : IDisposable
     
     private const float SPEED = 80f;
 
-    private readonly string _id;
+    private readonly int _id;
+    private readonly string _name;
     public Vector2 Position;
     public Rectangle BoundingBox;
     public Vector2 Velocity;
@@ -37,13 +38,14 @@ public class Player : IDisposable
     
     private MovementDirection _movementDirection;
 
-    public Player(string id, Texture2D texture, Vector2 position)
+    public Player(int id, string name, Texture2D texture, Vector2 position)
     {
         
         Velocity = Vector2.Zero;
         Position = position;
         
         _id = id;
+        _name = name;
         _font = Globals.Content.Load<SpriteFont>("Fonts/Default");
         _fontPosition = Vector2.Zero;
         _fontShadowPosition = Vector2.Zero;
@@ -84,8 +86,8 @@ public class Player : IDisposable
         _maxPos = new Vector2(mapSize.X - (tileSize.X / 2), mapSize.Y - (tileSize.X / 2));
     }
 
-    public void Update(Func<Rectangle, bool> collisionCheckingFunction, ConcurrentDictionary<string, OtherPlayer> npcs,
-        ConcurrentDictionary<string, OtherPlayer> otherPlayers, bool ignoreMovement)
+    public void Update(Func<Rectangle, bool> collisionCheckingFunction, ConcurrentDictionary<int, OtherPlayer> npcs,
+        ConcurrentDictionary<int, OtherPlayer> otherPlayers, bool ignoreMovement)
     {
         if (!ignoreMovement)
         {
@@ -105,8 +107,8 @@ public class Player : IDisposable
         _debugRect.X = (int)(Position.X - _sprite.Origin.X);
         _debugRect.Y = (int)(Position.Y - _sprite.Origin.Y);
 
-        _fontPosition = Position + new Vector2(-(_font.MeasureString(_id).X / 2f), _font.MeasureString(_id).Y);
-        _fontShadowPosition = Position + new Vector2(-(_font.MeasureString(_id).X / 2f), _font.MeasureString(_id).Y) + new Vector2(2, 2);
+        _fontPosition = Position + new Vector2(-(_font.MeasureString(_name).X / 2f), _font.MeasureString(_name).Y);
+        _fontShadowPosition = Position + new Vector2(-(_font.MeasureString(_name).X / 2f), _font.MeasureString(_name).Y) + new Vector2(2, 2);
         
         
         // Check for collisions with NPCs
@@ -149,8 +151,8 @@ public class Player : IDisposable
 #pragma warning restore CS0162
         }
         
-        spriteBatch.DrawString(_font, _id, _fontShadowPosition, Color.Black);
-        spriteBatch.DrawString(_font, _id, _fontPosition, Color.Yellow);
+        spriteBatch.DrawString(_font, _name, _fontShadowPosition, Color.Black);
+        spriteBatch.DrawString(_font, _name, _fontPosition, Color.Yellow);
         
         // Calculate the source rectangle based on the current frame and direction
         var sourceRect = new Rectangle(_currentFrame * FrameWidth, (int)_movementDirection * FrameHeight, FrameWidth, FrameHeight);

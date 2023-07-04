@@ -8,7 +8,12 @@ public partial class AvalonGame
 {
     public async Task HandleChatMessagePacket(IRemoteSource source, CChatMessagePacket packet)
     {
-        var msgPacket = SChatMessagePacket.Create(packet.ClientId, packet.Message, packet.DateTime);
+        var session = _connectionManager.GetSession(packet.AccountId);
+        if (session == null)
+        {
+            _logger.LogInformation("Invalid account {AccountId} for group invite", packet.AccountId);
+            return;
+        }
         
         var message = packet.Message.Trim();
 
@@ -27,36 +32,44 @@ public partial class AvalonGame
                     _logger.LogInformation("Invalid player name for group invite");
                     return;
                 }
-                var player = _players.Values.FirstOrDefault(p => p.Id == playerName);
-                if (player == null)
+                var invitedAccount = _connectionManager.GetSessions().Values.FirstOrDefault(p => p.InGame && p.Character.Name == playerName);
+                if (invitedAccount == null)
                 {
                     _logger.LogInformation("Player {PlayerName} not found for group invite", playerName);
                     return;
                 }
-                await player.Connection.SendAsync(SGroupInvitePacket.Create(player.Id, packet.ClientId));
+                await invitedAccount.SendAsync(SGroupInvitePacket.Create(invitedAccount.AccountId, session.AccountId, session.Character.Id, session.Character.Name));
             }
         }
         else
         {
-            await BroadcastToOthers(packet.ClientId, msgPacket);
+            var msgPacket = SChatMessagePacket.Create(packet.AccountId, session.Character.Id, session.Character.Name, packet.Message, packet.DateTime);
+            
+            await BroadcastToOthers(packet.AccountId, msgPacket);
         }
     }
     
     public Task HandleOpenChatPacket(IRemoteSource source, COpenChatPacket packet)
     {
-        if (_players.TryGetValue(packet.ClientId, out var player))
+        var session = _connectionManager.GetSession(packet.AccountId);
+        if (session == null)
         {
-            player.Character.IsChatting = true;
+            _logger.LogInformation("Invalid account {AccountId} for chat", packet.AccountId);
+            return Task.CompletedTask;
         }
+        session.Character.IsChatting = true;
         return Task.CompletedTask;
     }
 
     public Task HandleCloseChatPacket(IRemoteSource source, CCloseChatPacket packet)
     {
-        if (_players.TryGetValue(packet.ClientId, out var player))
+        var session = _connectionManager.GetSession(packet.AccountId);
+        if (session == null)
         {
-            player.Character.IsChatting = false;
+            _logger.LogInformation("Invalid account {AccountId} for chat", packet.AccountId);
+            return Task.CompletedTask;
         }
+        session.Character.IsChatting = false;
         return Task.CompletedTask;
     }
 }

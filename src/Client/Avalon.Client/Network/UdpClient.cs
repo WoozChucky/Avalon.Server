@@ -62,24 +62,13 @@ public class UdpClient : IDisposable
         return Task.CompletedTask;
     }
 
-    public async Task SendWelcomePacket()
-    {
-        using var buffer = new MemoryStream();
-            
-        var packet = CWelcomePacket.Create(Globals.ClientId);
-        
-        await _packetSerializer.SerializeToNetwork(buffer, packet);
-
-        await _socket.SendToAsync(buffer.ToArray(), SocketFlags.None, _serverEndpoint);
-    }
-
     public async Task BroadcastMovementUpdates(float time, float x, float y, float velX, float velY)
     {
         try
         {
             await using var buffer = new MemoryStream();
             
-            var packet = CPlayerMovementPacket.Create(Globals.ClientId, time, x, y, velX, velY);
+            var packet = CPlayerMovementPacket.Create(Globals.AccountId, Globals.CharacterId, time, x, y, velX, velY);
             
             await _packetSerializer.SerializeToNetwork(buffer, packet);
             
@@ -186,7 +175,7 @@ public class UdpClient : IDisposable
                             var pingPacket = _packetDeserializer.Deserialize<SPingPacket>(packet.Header.Type,
                                 packet.Payload);
                             
-                            var responsePacket = CPongPacket.Create(pingPacket.SequenceNumber, Globals.ClientId, pingPacket.Ticks);
+                            var responsePacket = CPongPacket.Create(pingPacket.SequenceNumber, Globals.AccountId, pingPacket.Ticks);
                             
                             await using var buffer = new MemoryStream();
                             

@@ -13,7 +13,8 @@ public enum UrielState
 
 public class Uriel : IEntity
 {
-    public string Id { get; }
+    public int AccountId { get; }
+    public string Name { get; set; }
 
     public Vector2 Position { get; set; } = new Vector2(80, 1152.4f);
     public Vector2 PreviousPosition { get; set; } = new Vector2(0, 0);
@@ -26,7 +27,8 @@ public class Uriel : IEntity
 
     public Uriel()
     {
-        Id = "Uriel";
+        AccountId = new Random().Next(1, 9999);
+        Name = $"Uriel#{AccountId}";
         Bounds = new Rectangle((int)Position.X, (int)Position.Y, 32, 32);
         State = UrielState.Walking;
     }

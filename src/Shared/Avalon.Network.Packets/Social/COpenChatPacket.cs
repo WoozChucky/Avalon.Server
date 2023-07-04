@@ -9,15 +9,17 @@ public class COpenChatPacket : Packet
     public static NetworkPacketType PacketType = NetworkPacketType.CMSG_CHAT_OPEN;
     public static NetworkProtocol Protocol = NetworkProtocol.Tcp;
     
-    [ProtoMember(1)] public string ClientId { get; set; }
+    [ProtoMember(1)] public int AccountId { get; set; }
+    [ProtoMember(2)] public int CharacterId { get; set; }
 
-    public static NetworkPacket Create(string clientId)
+    public static NetworkPacket Create(int accountId, int characterId)
     {
         using var memoryStream = new MemoryStream();
         
         var movementPacket = new COpenChatPacket()
         {
-            ClientId = clientId
+            AccountId = accountId,
+            CharacterId = characterId
         };
         
         Serializer.Serialize(memoryStream, movementPacket);

@@ -9,18 +9,22 @@ public class SGroupResultPacket : Packet
     public static NetworkPacketType PacketType = NetworkPacketType.SMSG_GROUP_INVITE_RESULT;
     public static NetworkProtocol Protocol = NetworkProtocol.Tcp;
     
-    [ProtoMember(1)] public string ClientId { get; set; }
-    [ProtoMember(2)] public string GroupClientId { get; set; }
-    [ProtoMember(3)] public bool Accepted { get; set; }
+    [ProtoMember(1)] public int AccountId { get; set; }
+    [ProtoMember(2)] public int CharacterId { get; set; }
+    [ProtoMember(3)] public int InviterAccountId { get; set; }
+    [ProtoMember(4)] public int InviterCharacterId { get; set; }
+    [ProtoMember(5)] public bool Accepted { get; set; }
 
-    public static NetworkPacket Create(string clientId, string groupClientId, bool accepted)
+    public static NetworkPacket Create(int accountId, int characterId, int inviterAccountId, int inviterCharacterId, bool accepted)
     {
         using var memoryStream = new MemoryStream();
         
         var movementPacket = new SGroupResultPacket()
         {
-            ClientId = clientId,
-            GroupClientId = groupClientId,
+            AccountId = accountId,
+            CharacterId = characterId,
+            InviterAccountId = inviterAccountId,
+            InviterCharacterId = inviterCharacterId,
             Accepted = accepted
         };
         

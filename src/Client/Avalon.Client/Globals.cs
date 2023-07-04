@@ -11,7 +11,9 @@ public static class Globals
     public static ContentManager Content { get; set; }
     public static GraphicsDevice GraphicsDevice { get; set; }
     
-    public static string ClientId { get; set; }
+    public static int AccountId { get; set; }
+    public static int CharacterId { get; set; }
+    public static string CharacterName { get; set; }
 
     public static Point WindowSize { get; set; }
     public static Vector2 CameraPosition { get; set; }

@@ -24,6 +24,7 @@ public class UdpEnetClient : IDisposable
     public event PlayerMovedHandler PlayerMoved;
     public event LatencyUpdatedHandler LatencyUpdated;
     public event NpcUpdatedHandler NpcUpdated;
+    public event AuthResultHandler AuthResult;
     
     private readonly CancellationTokenSource _cts;
     private readonly IPacketDeserializer _packetDeserializer;
@@ -67,15 +68,6 @@ public class UdpEnetClient : IDisposable
         return Task.CompletedTask;
     }
 
-    public async Task SendWelcomePacket()
-    {
-        using var buffer = new MemoryStream();
-            
-        var packet = CWelcomePacket.Create(Globals.ClientId);
-
-        await SendToServer(packet);
-    }
-
     public async Task BroadcastMovementUpdates(float time, float x, float y, float velX, float velY)
     {
         try
@@ -87,7 +79,7 @@ public class UdpEnetClient : IDisposable
                 //Console.WriteLine("No movement detected, skipping...");
             }
             
-            var packet = CPlayerMovementPacket.Create(Globals.ClientId, time, x, y, velX, velY);
+            var packet = CPlayerMovementPacket.Create(Globals.AccountId, Globals.CharacterId, time, x, y, velX, velY);
 
             await SendToServer(packet);
         }
@@ -201,7 +193,7 @@ public class UdpEnetClient : IDisposable
                                         var pingPacket = _packetDeserializer.Deserialize<SPingPacket>(packet.Header.Type,
                                             packet.Payload);
                                         
-                                        var responsePacket = CPongPacket.Create(pingPacket.SequenceNumber, Globals.ClientId, pingPacket.Ticks);
+                                        var responsePacket = CPongPacket.Create(pingPacket.SequenceNumber, Globals.AccountId, pingPacket.Ticks);
                                         
                                         await SendToServer(responsePacket);
                                         
@@ -217,6 +209,14 @@ public class UdpEnetClient : IDisposable
                                         }
                                         break;
                                     }
+                                    case NetworkPacketType.SMSG_AUTH_RESULT:
+                                        var authResultPacket = Serializer.Deserialize<SAuthResultPacket>(new MemoryStream(packet.Payload));
+                                        try {
+                                            AuthResult?.Invoke(this, authResultPacket);
+                                        } catch (Exception e) {
+                                            Console.WriteLine(e);
+                                        }
+                                        break;
                                         
                                 }
                                 
@@ -249,6 +249,7 @@ public class UdpEnetClient : IDisposable
 
         while (_serverPeer.State != PeerState.Connected)
         {
+            _serverPeer.Reset();
             await Task.Delay(100);
             Console.WriteLine("Waiting for connection to server to be established...");
         }
@@ -273,5 +274,10 @@ public class UdpEnetClient : IDisposable
     public void SetPrivateKey(byte[] privateKey)
     {
         this.privateKey = privateKey;
+    }
+
+    public async Task SendAuthPatchPacket(int accountId)
+    {
+        await SendToServer(CAuthPatchPacket.Create(accountId, privateKey));
     }
 }
