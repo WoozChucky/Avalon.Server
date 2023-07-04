@@ -9,43 +9,43 @@ public partial class AvalonGame
     
     public async Task HandleGroupInviteResultPacket(IRemoteSource source, CGroupInviteResultPacket packet)
     {
-        var invitedPlayer = _players.Values.FirstOrDefault(p => p.Id == packet.ClientId);
-        if (invitedPlayer == null)
+        var invitedSession = _connectionManager.GetSession(packet.AccountId);
+        if (invitedSession == null)
         {
-            _logger.LogInformation("Player {PlayerName} not found for group invite result", packet.ClientId);
+            _logger.LogInformation("Player {PlayerName} not found for group invite result", packet.AccountId);
             return;
         }
         
-        var invitedByPlayer = _players.Values.FirstOrDefault(p => p.Id == packet.InvitedById);
-        if (invitedByPlayer == null)
+        var inviterSession = _connectionManager.GetSession(packet.InviterAccountId);
+        if (inviterSession == null)
         {
-            _logger.LogInformation("Player {PlayerName} not found for group invite result", packet.InvitedById);
+            _logger.LogInformation("Player {PlayerName} not found for group invite result", packet.InviterAccountId);
             return;
         }
 
         if (!packet.Accepted)
         {
-            _logger.LogInformation("Player {PlayerName} declined group invite from {InvitedByPlayerName}", packet.ClientId, packet.InvitedById);
-            await invitedByPlayer.Connection.SendAsync(SGroupResultPacket.Create(invitedByPlayer.Id, invitedPlayer.Id, false));
+            _logger.LogInformation("Player {PlayerName} declined group invite from {InvitedByPlayerName}", packet.AccountId, packet.InviterAccountId);
+            //await inviterSession.SendAsync(SGroupResultPacket.Create(inviterSession.AccountId, invitedSession.AccountId, false));
             return;
         }
         
-        _logger.LogInformation("Player {PlayerName} accepted group invite from {InvitedByPlayerName}", packet.ClientId, packet.InvitedById);
+        _logger.LogInformation("Player {PlayerName} accepted group invite from {InvitedByPlayerName}", packet.AccountId, packet.InviterAccountId);
         
         // TODO: Check if player is already in a group
         // TODO: Check if player is already in this group
         
         // Create a new group and add both players to it
-        invitedByPlayer.Party.Active = true;
-        invitedByPlayer.Party.Members.Add(invitedPlayer.Id);
-        invitedByPlayer.Party.Leader = true;
+        inviterSession.Party.Active = true;
+        inviterSession.Party.Members.Add(invitedSession.Character.Id);
+        inviterSession.Party.Leader = true;
         
-        invitedPlayer.Party.Active = true;
-        invitedPlayer.Party.Members.Add(invitedByPlayer.Id);
-        invitedPlayer.Party.Leader = false;
+        invitedSession.Party.Active = true;
+        invitedSession.Party.Members.Add(inviterSession.Character.Id);
+        invitedSession.Party.Leader = false;
         
         // Send group result packets to both players
-        await invitedPlayer.Connection.SendAsync(SGroupResultPacket.Create(invitedPlayer.Id, invitedByPlayer.Id, true));
-        await invitedByPlayer.Connection.SendAsync(SGroupResultPacket.Create(invitedByPlayer.Id, invitedPlayer.Id, true));
+        //await invitedSession.SendAsync(SGroupResultPacket.Create(invitedSession.AccountId, inviterSession.AccountId, true));
+        //await inviterSession.SendAsync(SGroupResultPacket.Create(inviterSession.AccountId, invitedSession.AccountId, true));
     }
 }

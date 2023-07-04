@@ -1,8 +1,7 @@
+using System.Collections;
 using System.Collections.Concurrent;
 using Avalon.Network;
-using Avalon.Network.Packets.Auth;
 using Avalon.Network.Packets.Generic;
-using ENet;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.Game;
@@ -13,30 +12,32 @@ public interface IAvalonConnectionManager : IDisposable
     
     void Stop();
     
-    event PlayerConnectedHandler? PlayerConnected;
-    event PlayerDisconnectedHandler? PlayerDisconnected;
-    event PlayerTimedOutHandler? PlayerTimedOut;
-    event PlayerReconnectedHandler? PlayerReconnected;
+    event SessionLostHandler? SessionLost;
+    event SessionTimedOutHandler? SessionTimedOut;
+    event SessionReconnectedHandler? SessionReconnected;
     
-    Task AddConnection(IRemoteSource source, CWelcomePacket packet);
     Task HandlePongPacket(IRemoteSource source, CPongPacket packet);
     void RemoveConnection(string connectionId);
+    void AddSession(IRemoteSource source, int accountId, byte[] privateKey);
+    bool PatchSession(IRemoteSource source, int accountId, byte[] privateKey);
+    AvalonSession? GetSession(int accountId);
+    ConcurrentDictionary<int, AvalonSession> GetSessions();
+    ICollection<AvalonSession> GetInGameSessions();
 }
 
-public delegate void PlayerConnectedHandler(object? sender, AvalonConnection connection);
-public delegate void PlayerDisconnectedHandler(object? sender, AvalonConnection connection);
-public delegate void PlayerTimedOutHandler(object? sender, AvalonConnection connection);
-public delegate void PlayerReconnectedHandler(object? sender, AvalonConnection connection);
+public delegate void SessionConnectedHandler(object? sender, AvalonSession session);
+public delegate void SessionLostHandler(object? sender, AvalonSession session);
+public delegate void SessionTimedOutHandler(object? sender, AvalonSession session);
+public delegate void SessionReconnectedHandler(object? sender, AvalonSession session);
 
 public class AvalonConnectionManager : IAvalonConnectionManager
 {
-    public event PlayerConnectedHandler? PlayerConnected;
-    public event PlayerDisconnectedHandler? PlayerDisconnected;
-    public event PlayerTimedOutHandler? PlayerTimedOut;
-    public event PlayerReconnectedHandler? PlayerReconnected;
+    public event SessionLostHandler? SessionLost;
+    public event SessionTimedOutHandler? SessionTimedOut;
+    public event SessionReconnectedHandler? SessionReconnected;
     
     private readonly ILogger<AvalonConnectionManager> _logger;
-    private readonly ConcurrentDictionary<string, AvalonConnection> _connections;
+    private readonly ConcurrentDictionary<int, AvalonSession> _sessions;
     private readonly CancellationTokenSource _cts;
     
     private const int MonitorInterval = 100;
@@ -49,14 +50,14 @@ public class AvalonConnectionManager : IAvalonConnectionManager
     public AvalonConnectionManager(ILogger<AvalonConnectionManager> logger)
     {
         _logger = logger;
-        _connections = new ConcurrentDictionary<string, AvalonConnection>();
+        _sessions = new ConcurrentDictionary<int, AvalonSession>();
         _cts = new CancellationTokenSource();
     }
     
     public void Start()
     {
         Task.Run(StartMonitoringConnections);
-        //Task.Run(StartPingPongWorker);
+        Task.Run(StartPingPongWorker);
         
         _logger.LogInformation("Connection manager started");
     }
@@ -76,45 +77,23 @@ public class AvalonConnectionManager : IAvalonConnectionManager
                 // implement logic to check for timed out connections
                 await Task.Delay(MonitorInterval, _cts.Token);
                 
-                foreach (var connection in _connections.Values)
+                foreach (var connection in _sessions.Values)
                 {
-                    if (connection.Status == ConnectionStatus.Connected)
-                    {
-                        if (connection.Udp?.AsUdpClient().State == PeerState.Disconnected
-                            || connection.Udp?.AsUdpClient().State == PeerState.Disconnecting
-                            || connection.Udp?.AsUdpClient().State == PeerState.Zombie
-                            || connection.Udp?.AsUdpClient().State == PeerState.DisconnectLater)
-                        {
-                            _logger.LogInformation("Client {Id} has disconnected by monitoring", connection.Id);
-                            try
-                            {
-                                PlayerDisconnected?.Invoke(this, connection);
-                            }
-                            catch (Exception e)
-                            {
-                                _logger.LogWarning(e,"Handler of PlayerDisconnected event for client {Id} threw.", connection.Id);
-                            }
-
-                            //TODO: this might throw because we are iterating over the collection
-                            _connections.TryRemove(connection.Id, out _); 
-                        }
-                    }
-                    /*
                     if (connection.Status == ConnectionStatus.Connected)
                     {
                         // check if the connection has timed out
                         if (connection.RoundTripTime > PingTimeoutThreshold && DateTime.UtcNow - connection.LastUpdateAt > TimeSpan.FromSeconds(PingTimeoutThresholdInSec))
                         {
-                            _logger.LogInformation("Client {Id} has timed out", connection.Id);
+                            _logger.LogInformation("Account {Id} has timed out", connection.AccountId);
                             connection.Status = ConnectionStatus.TimedOut;
                             connection.LastUpdateAt = DateTime.UtcNow;
                             try
                             {
-                                PlayerTimedOut?.Invoke(this, connection);
+                                SessionTimedOut?.Invoke(this, connection);
                             }
                             catch (Exception e)
                             {
-                                _logger.LogWarning(e,"Handler of PlayerTimedOut event for client {Id} threw.", connection.Id);
+                                _logger.LogWarning(e,"Handler of SessionTimedOut event for Account {Id} threw", connection.AccountId);
                             }
                         }
                     }
@@ -123,41 +102,41 @@ public class AvalonConnectionManager : IAvalonConnectionManager
                         // check if the connection has reconnected
                         if (connection.RoundTripTime < PingTimeoutThreshold && DateTime.UtcNow - connection.LastUpdateAt < TimeSpan.FromSeconds(PingTimeoutThresholdInSec))
                         {
-                            _logger.LogInformation("Client {Id} has reconnected", connection.Id);
+                            _logger.LogInformation("Account {Id} has reconnected", connection.AccountId);
                             connection.Status = ConnectionStatus.Connected;
                             connection.LastUpdateAt = DateTime.UtcNow;
                             
                             try
                             {
-                                PlayerReconnected?.Invoke(this, connection);
+                                SessionReconnected?.Invoke(this, connection);
                             }
                             catch (Exception e)
                             {
-                                _logger.LogWarning(e,"Handler of PlayerReconnected event for client {Id} threw.", connection.Id);
+                                _logger.LogWarning(e,"Handler of SessionReconnected event for Account {Id} threw", connection.AccountId);
                             }
                             
                             // Resend all queued packets
-                            await connection.SendQueuedPacketsAsync();
+                            // await connection.SendQueuedPacketsAsync();
                         }
                         else if (connection.RoundTripTime > PingDisconnectThreshold || DateTime.UtcNow - connection.LastUpdateAt > TimeSpan.FromSeconds(PingDisconnectThresholdInSec))
                         {
-                            _logger.LogInformation("Client {Id} has disconnected", connection.Id);
+                            _logger.LogInformation("Client {Id} has disconnected", connection.AccountId);
                             connection.Status = ConnectionStatus.Disconnected;
                             
                             try
                             {
-                                PlayerDisconnected?.Invoke(this, connection);
+                                SessionLost?.Invoke(this, connection);
                             }
                             catch (Exception e)
                             {
-                                _logger.LogWarning(e,"Handler of PlayerDisconnected event for client {Id} threw.", connection.Id);
+                                _logger.LogWarning(e,"Handler of SessionLost event for client {Id} threw", connection.AccountId);
                             }
 
                             //TODO: this might throw because we are iterating over the collection
-                            _connections.TryRemove(connection.Id, out _); 
+                            _sessions.TryRemove(connection.AccountId, out _); 
                         }
                     }
-                    */
+                    
                 }
             }
         }
@@ -176,7 +155,7 @@ public class AvalonConnectionManager : IAvalonConnectionManager
                 // implement logic send ping packets to all connected clients
                 await Task.Delay(PingInterval, _cts.Token);
                 
-                foreach (var connection in _connections.Values)
+                foreach (var connection in _sessions.Values)
                 {
                     if (connection.Status is ConnectionStatus.Connected or ConnectionStatus.TimedOut)
                     {
@@ -187,7 +166,7 @@ public class AvalonConnectionManager : IAvalonConnectionManager
                         }
                         catch (Exception e)
                         {
-                            _logger.LogWarning(e, "Failed to send ping packet to client {Id}", connection.Id);
+                            _logger.LogWarning(e, "Failed to send ping packet to client {Id}", connection.AccountId);
                         }
                     }
                 }
@@ -199,66 +178,81 @@ public class AvalonConnectionManager : IAvalonConnectionManager
         }
     }
     
-    public Task AddConnection(IRemoteSource source, CWelcomePacket packet)
+    public void AddSession(IRemoteSource source, int accountId, byte[] privateKey)
     {
-        if (!_connections.TryGetValue(packet.ClientId, out var connection))
+        if (!_sessions.TryGetValue(accountId, out var session))
         {
-            connection = new AvalonConnection(packet.ClientId);
-            _connections.TryAdd(packet.ClientId, connection);
+            session = new AvalonSession(accountId, privateKey);
+            _sessions.TryAdd(accountId, session);
         }
         else
         {
-            _logger.LogWarning("Client {Id} already exists", packet.ClientId);
+            _logger.LogWarning("Account {Id} already connected", accountId);
         }
+        
+        session.SetTcp(source as TcpClient ?? throw new InvalidOperationException("Connection is not a TCP connection"));
+        session.Status = ConnectionStatus.PendingKey;
+    }
 
-        lock (connection)
+    public bool PatchSession(int accountId, byte[] privateKey)
+    {
+        throw new NotImplementedException();
+    }
+
+    public bool PatchSession(IRemoteSource source, int accountId, byte[] privateKey)
+    {
+        if (!_sessions.TryGetValue(accountId, out var session))
         {
-            switch (source)
-            {
-                case TcpClient tcp:
-                    connection.SetTcp(tcp);
-                    break;
-                case UdpClientPacket udp:
-                    connection.SetUdp(udp);
-                    break;
-                default:
-                    _logger.LogWarning("Unknown connection type {Type}", source.GetType());
-                    break;
-            }
-
-            if (connection.Status == ConnectionStatus.Connected)
-            {
-                _logger.LogInformation("Client {Id} established connection from {Address}", connection.Id, connection.Udp?.RemoteAddress);
-                try
-                {
-                    PlayerConnected?.Invoke(this, connection);
-                }
-                catch (Exception e)
-                {
-                    _logger.LogWarning(e,"Handler of PlayerConnected event for client {Id} threw", connection.Id);
-                }
-            }
+            _logger.LogWarning("Failed to patch session. Account {Id} not connected", accountId);
+            return false;
         }
 
-        return Task.CompletedTask;
+        // now we compare the private keys
+        if (!session.SessionKey.SequenceEqual(privateKey))
+        {
+            _logger.LogWarning("Failed to patch session. Account {Id} private key mismatch", accountId);
+            return false;
+        }
+        
+        session.SetUdp(source as UdpClientPacket ?? throw new InvalidOperationException("Connection is not a UDP connection"));
+        session.Status = ConnectionStatus.Connected;
+
+        return true;
+    }
+
+    public AvalonSession? GetSession(int accountId)
+    {
+        return _sessions.TryGetValue(accountId, out var session) ? session : null;
+    }
+
+    public ConcurrentDictionary<int, AvalonSession> GetSessions()
+    {
+        return _sessions;
+    }
+
+    public ICollection<AvalonSession> GetInGameSessions()
+    {
+        return _sessions.Where(s => s.Value.InGame).Select(s => s.Value).ToList();
     }
 
     public Task HandlePongPacket(IRemoteSource source, CPongPacket packet)
     {
-        if (!_connections.TryGetValue(packet.ClientId, out var connection))
+        /*
+        if (!_sessions.TryGetValue(packet.ClientId, out var connection))
         {
             _logger.LogWarning("Received pong packet from unknown client {Id}", packet.ClientId);
             return Task.CompletedTask;
         }
 
         connection.OnPong(packet.SequenceNumber, packet.Ticks);
+        */
         
         return Task.CompletedTask;
     }
 
     public void RemoveConnection(string remoteUdpAddress)
     {
-        var connection = _connections.Values.FirstOrDefault(c => c.Udp?.RemoteAddress == remoteUdpAddress);
+        var connection = _sessions.Values.FirstOrDefault(c => c.Udp?.RemoteAddress == remoteUdpAddress);
         if (connection == null)
         {
             _logger.LogWarning("Received disconnect packet from unknown client {ConnectionId}", remoteUdpAddress);
@@ -268,23 +262,23 @@ public class AvalonConnectionManager : IAvalonConnectionManager
         connection.Status = ConnectionStatus.Disconnected;
         try
         {
-            PlayerDisconnected?.Invoke(this, connection);
+            SessionLost?.Invoke(this, connection);
         }
         catch (Exception e)
         {
-            _logger.LogWarning(e,"Handler of PlayerDisconnected event for client {Id} threw", connection.Id);
+            _logger.LogWarning(e,"Handler of PlayerDisconnected event for client {Id} threw", connection.AccountId);
         }
 
-        if (_connections.TryRemove(connection.Id, out _))
+        if (_sessions.TryRemove(connection.AccountId, out _))
         {
-            _logger.LogInformation("Client {Id} has disconnected", connection.Id);
+            _logger.LogInformation("Client {Id} has disconnected", connection.AccountId);
         }
     }
 
     public void Dispose()
     {
         _cts.Dispose();
-        foreach (var connection in _connections.Values)
+        foreach (var connection in _sessions.Values)
         {
             connection.Dispose();
         }

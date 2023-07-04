@@ -6,18 +6,24 @@
         <SignAssembly>true</SignAssembly>
         <AssemblyOriginatorKeyFile>..\..\..\sgKey.snk</AssemblyOriginatorKeyFile>
         <PublicSign>true</PublicSign>
+        <LangVersion>latest</LangVersion>
     </PropertyGroup>
 
     <ItemGroup>
         <PackageReference Include="Dapper" Version="2.0.143" />
-        <PackageReference Include="Microsoft.Data.Sqlite" Version="7.0.7" />
         <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="7.0.0" />
+        <PackageReference Include="MySqlConnector" Version="2.2.6" />
     </ItemGroup>
 
     <ItemGroup>
       <None Include="..\..\..\sgKey.snk">
         <Link>sgKey.snk</Link>
       </None>
+    </ItemGroup>
+
+    <ItemGroup>
+      <Folder Include="Scripts\Base\World\" />
+      <Folder Include="Scripts\Create\" />
     </ItemGroup>
 
 </Project>

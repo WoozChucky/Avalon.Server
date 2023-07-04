@@ -30,8 +30,8 @@ public class TutorialScene : Scene
     
     private PartyInviteDialog _partyInviteDialog;
 
-    private readonly ConcurrentDictionary<string, OtherPlayer> _otherPlayers;
-    private readonly ConcurrentDictionary<string, OtherPlayer> _npcs;
+    private readonly ConcurrentDictionary<int, OtherPlayer> _otherPlayers;
+    private readonly ConcurrentDictionary<int, OtherPlayer> _npcs;
     
     private Song _song;
 
@@ -47,14 +47,19 @@ public class TutorialScene : Scene
 
     public TutorialScene(SceneManager sceneManager) : base(sceneManager)
     {
-        _otherPlayers = new ConcurrentDictionary<string, OtherPlayer>();
-        _npcs = new ConcurrentDictionary<string, OtherPlayer>();
+        _otherPlayers = new ConcurrentDictionary<int, OtherPlayer>();
+        _npcs = new ConcurrentDictionary<int, OtherPlayer>();
 
         Globals.CameraPosition = Vector2.Zero;
         
         TcpClient.Instance.PlayerConnected += OnPlayerConnected;
         TcpClient.Instance.PlayerDisconnected += OnPlayerDisconnected;
         TcpClient.Instance.GroupInvite += OnPlayerGroupInvited;
+        TcpClient.Instance.PlayerMoved += OnPlayerMoved;
+        TcpClient.Instance.NpcUpdated += OnNpcUpdated;
+        
+        UdpEnetClient.Instance.PlayerMoved += OnPlayerMoved;
+        UdpEnetClient.Instance.NpcUpdated += OnNpcUpdated;
     }
 
     public override void Load()
@@ -65,7 +70,9 @@ public class TutorialScene : Scene
         _font = Globals.Content.Load<SpriteFont>("Fonts/Nintendo");
         _map = new Map("Tutorial", "Serene_Village_32x32");
         _player = new Player(
-            Globals.ClientId,
+            Globals.AccountId,
+            "Nuno",
+            //Globals.CharacterName,
             Globals.Content.Load<Texture2D>("Images/player"), 
             //new Vector2(Globals.WindowSize.X / 2f, Globals.WindowSize.Y / 2f),
             new Vector2(326, 1450)
@@ -83,8 +90,8 @@ public class TutorialScene : Scene
         t.Start();
 
         UdpEnetClient.Instance.LatencyUpdated += OnLatencyUpdated;
-        UdpEnetClient.Instance.PlayerMoved += OnPlayerMoved;
-        UdpEnetClient.Instance.NpcUpdated += OnNpcUpdated;
+        //UdpEnetClient.Instance.PlayerMoved += OnPlayerMoved;
+        //UdpEnetClient.Instance.NpcUpdated += OnNpcUpdated;
     }
 
     public override void Unload()
@@ -212,23 +219,23 @@ public class TutorialScene : Scene
     
     private void OnPlayerConnected(object sender, SPlayerConnectedPacket packet)
     {
-        _otherPlayers.TryAdd(packet.ClientId, new OtherPlayer(packet.ClientId,Globals.Content.Load<Texture2D>("Images/player"), new Vector2(0, 0)));
+        _otherPlayers.TryAdd(packet.AccountId, new OtherPlayer(packet.AccountId, packet.CharacterId, packet.Name, Globals.Content.Load<Texture2D>("Images/player"), new Vector2(0, 0)));
     }
     
     private void OnPlayerDisconnected(object sender, SPlayerDisconnectedPacket packet)
     {
-        _otherPlayers.TryRemove(packet.ClientId, out _);
+        _otherPlayers.TryRemove(packet.AccountId, out _);
     }
     
     private void OnPlayerMoved(object sender, SPlayerPositionUpdatePacket packet)
     {
-        if (_otherPlayers.TryGetValue(packet.ClientId, out var player))
+        if (_otherPlayers.TryGetValue(packet.AccountId, out var player))
         {
             player.OnMovementReceived(new Vector2(packet.PositionX, packet.PositionY), new Vector2(packet.VelocityX, packet.VelocityY), _latency);
             player.OnChatChanged(packet.Chatting);
         }
 
-        if (packet.ClientId == Globals.ClientId)
+        if (packet.AccountId == Globals.AccountId)
         {
             if (_player != null)
             {
@@ -244,7 +251,7 @@ public class TutorialScene : Scene
             Globals.Content.Load<SpriteFont>("Fonts/Default"),
             new Vector2(175f, 150f),
             "Party Invite",
-            $"You have been invited by {packet.InvitedById} to join a party."
+            $"You have been invited by {packet.InviterName} to join a party."
         );
         _partyInviteDialog.Active = true;
     }
@@ -257,6 +264,8 @@ public class TutorialScene : Scene
                 var texture = Globals.Content.Load<Texture2D>("Images/player");
                 return new OtherPlayer(
                     packet.Id,
+                    packet.Id,
+                    packet.Name,
                     texture, new Vector2(packet.PositionX, packet.PositionY), true);
             }, 
             (guid, player) =>

@@ -8,15 +8,19 @@ public class SPlayerConnectedPacket : Packet
 {
     public static NetworkPacketType PacketType = NetworkPacketType.SMSG_PLAYER_CONNECTED;
     private const NetworkProtocol Protocol = NetworkProtocol.Tcp;
-    [ProtoMember(1)] public string ClientId { get; set; }
+    [ProtoMember(1)] public int AccountId { get; set; }
+    [ProtoMember(2)] public int CharacterId { get; set; }
+    [ProtoMember(3)] public string Name { get; set; }
     
-    public static NetworkPacket Create(string clientId)
+    public static NetworkPacket Create(int accountId, int characterId, string name)
     {
         using var memoryStream = new MemoryStream();
         
         var byePacket = new SPlayerConnectedPacket()
         {
-            ClientId = clientId
+            AccountId = accountId,
+            CharacterId = characterId,
+            Name = name
         };
         
         Serializer.Serialize(memoryStream, byePacket);

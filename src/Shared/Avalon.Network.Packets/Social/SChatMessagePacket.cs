@@ -9,17 +9,21 @@ public class SChatMessagePacket : Packet
     public static NetworkPacketType PacketType = NetworkPacketType.SMSG_CHAT_MESSAGE;
     public static NetworkProtocol Protocol = NetworkProtocol.Tcp;
     
-    [ProtoMember(1)] public string ClientId { get; set; }
-    [ProtoMember(2)] public string Message { get; set; }
-    [ProtoMember(3)] public DateTime DateTime { get; set; }
+    [ProtoMember(1)] public int AccountId { get; set; }
+    [ProtoMember(2)] public int CharacterId { get; set; }
+    [ProtoMember(3)] public string CharacterName { get; set; }
+    [ProtoMember(4)] public string Message { get; set; }
+    [ProtoMember(5)] public DateTime DateTime { get; set; }
 
-    public static NetworkPacket Create(string clientId, string message, DateTime dateTime)
+    public static NetworkPacket Create(int accountId, int characterId, string characterName, string message, DateTime dateTime)
     {
         using var memoryStream = new MemoryStream();
         
         var movementPacket = new SChatMessagePacket()
         {
-            ClientId = clientId,
+            AccountId = accountId,
+            CharacterId = characterId,
+            CharacterName = characterName,
             Message = message,
             DateTime = dateTime
         };

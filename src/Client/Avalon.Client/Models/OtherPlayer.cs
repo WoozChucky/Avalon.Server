@@ -20,7 +20,9 @@ public class OtherPlayer
 
     private int direction = 0;
 
-    private readonly string _id;
+    private readonly int _accountId;
+    private readonly int _characterId;
+    private readonly string _name;
     private Vector2 currentPosition;
     private Vector2 previousPosition;
     private Vector2 predictedPosition;
@@ -46,9 +48,11 @@ public class OtherPlayer
 
     private volatile bool _chatting;
 
-    public OtherPlayer(string id, Texture2D texture, Vector2 position, bool debug = false)
+    public OtherPlayer(int accountId, int characterId, string name, Texture2D texture, Vector2 position, bool debug = false)
     {
-        _id = id;
+        _accountId = accountId;
+        _characterId = characterId;
+        _name = name;
         _chatting = false;
         recentPositions = new ConcurrentQueue<Vector2>();
         
@@ -144,8 +148,8 @@ public class OtherPlayer
         _debugRect.X = (int)(currentPosition.X - _sprite.Origin.X);
         _debugRect.Y = (int)(currentPosition.Y - _sprite.Origin.Y);
         
-        _fontPosition = currentPosition + new Vector2(-(_font.MeasureString(_id).X / 2f), _font.MeasureString(_id).Y);
-        _fontShadowPosition = currentPosition + new Vector2(-(_font.MeasureString(_id).X / 2f), _font.MeasureString(_id).Y) + new Vector2(2, 2);
+        _fontPosition = currentPosition + new Vector2(-(_font.MeasureString(_name).X / 2f), _font.MeasureString(_name).Y);
+        _fontShadowPosition = currentPosition + new Vector2(-(_font.MeasureString(_name).X / 2f), _font.MeasureString(_name).Y) + new Vector2(2, 2);
 
         // Linear Interpolation
         {
@@ -252,7 +256,7 @@ public class OtherPlayer
         spriteBatch.Draw(_sprite.Texture, _sprite.Position, sourceRect, Color.White, 0f, _sprite.Origin, _sprite.Scale, SpriteEffects.None, 0);
         
         // Draw the player's name
-        spriteBatch.DrawString(_font, _id, _fontShadowPosition, Color.Black);
-        spriteBatch.DrawString(_font, _id, _fontPosition, Color.White);
+        spriteBatch.DrawString(_font, _name, _fontShadowPosition, Color.Black);
+        spriteBatch.DrawString(_font, _name, _fontPosition, Color.White);
     }
 }

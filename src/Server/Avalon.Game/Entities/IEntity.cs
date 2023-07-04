@@ -6,7 +6,7 @@ namespace Avalon.Game.Entities;
 
 public interface IEntity : IHideObjectMembers
 {
-    string Id { get; }
+    int AccountId { get; }
     
     public Vector2 Position { get; }
     public Vector2 Velocity { get; }

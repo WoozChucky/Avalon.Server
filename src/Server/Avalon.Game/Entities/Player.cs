@@ -5,7 +5,7 @@ namespace Avalon.Game.Entities;
 
 public class Player : IEntity
 {
-    public string Id { get; set; }
+    public int AccountId { get; set; }
 
     public Vector2 Position
     {
@@ -23,16 +23,15 @@ public class Player : IEntity
         set => Character.Bounds = value;
     }
 
-    public AvalonConnection Connection { get; private set; }
-    public Character Character { get; }
+    public AvalonSession Session { get; private set; }
+    public Character? Character { get; }
 
     public PartyGroup Party { get; set; }
     
-    public Player(AvalonConnection connection, Character character)
+    public Player(AvalonSession session)
     {
-        Id = connection.Id;
-        Connection = connection;
-        Character = character;
+        AccountId = session.AccountId;
+        Session = session;
         Party = new PartyGroup();
     }
     
@@ -51,7 +50,7 @@ public class PartyGroup
 {
     public bool Active { get; set; }
     public bool Leader { get; set; }
-    public List<string> Members { get; set; } = new();
+    public List<int> Members { get; set; } = new();
     
     public PartyGroup()
     {

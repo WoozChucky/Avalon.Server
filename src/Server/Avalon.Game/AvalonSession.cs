@@ -1,8 +1,10 @@
 using System.Collections.Concurrent;
+using Avalon.Game.Entities;
 using Avalon.Network;
 using Avalon.Network.Packets;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Generic;
+using Character = Avalon.Database.Characters.Character;
 
 namespace Avalon.Game;
 
@@ -12,32 +14,32 @@ public enum ConnectionStatus
     Connecting,
     Connected,
     TimedOut,
+    PendingKey
 }
 
-public class AvalonConnection : IDisposable
+public class AvalonSession : IDisposable
 {
-    // Since this connection reference will be shared against multiple threads, we need to make sure
-    // that the properties are thread-safe. We can do this by making them read-only and setting them
-    // in the constructor. But also when we need to update them, we need to make sure that we are
-    // using the Interlocked class to update them or the Volatile methods. I think ??
-    
-    public string Id { get; private set; }
+    public int AccountId { get; private set; }
+    public byte[] SessionKey { get; private set; }
+    public Character? Character { get; set; }
+    public PartyGroup Party { get; set; }
     public IRemoteSource? Udp { get; private set; }
     public IRemoteSource? Tcp { get; private set; }
-    public long RoundTripTime => Udp?.RoundTripTime ?? -1;
+    public long RoundTripTime { get; private set; }
+    public bool InGame => Character != null;
     public ConnectionStatus Status { get; set; }
     public DateTime LastUpdateAt { get; set; } = DateTime.UtcNow;
-
-    private readonly ConcurrentQueue<NetworkPacket> _packetQueue;
+    
     
     private long _lastTicks;
     
     private long _sequenceNumber = 0;
     
-    public AvalonConnection(string id)
+    public AvalonSession(int accountId, byte[] sessionKey)
     {
-        Id = id;
-        _packetQueue = new ConcurrentQueue<NetworkPacket>();
+        AccountId = accountId;
+        SessionKey = sessionKey;
+        Party = new PartyGroup();
         Status = ConnectionStatus.Connecting;
     }
     
@@ -60,7 +62,7 @@ public class AvalonConnection : IDisposable
             {
                 Console.WriteLine($"Round trip time: {RoundTripTime}ms");
             }
-            // RoundTripTime = newRtt;
+            RoundTripTime = newRtt;
         }
     }
 
@@ -101,39 +103,24 @@ public class AvalonConnection : IDisposable
                     throw new InvalidOperationException("Cannot send a packet with no protocol specified.");
             }
         }
-        catch (IOException)
+        catch (IOException e)
         {
-            _packetQueue.Enqueue(packet);
+            Console.WriteLine(e);
         }
         catch (Exception e)
         {
             Console.WriteLine(e);
         }
     }
-    
-    public async Task SendQueuedPacketsAsync()
-    {
-        while (_packetQueue.Count > 0)
-        {
-            if (_packetQueue.TryDequeue(out var packet))
-            {
-                await SendAsync(packet);
-            }
-        }
-    }
-    
+
     internal void SetUdp(UdpClientPacket udp)
     {
         Udp = udp;
-        if (Tcp != null && Status == ConnectionStatus.Connecting)
-            Status = ConnectionStatus.Connected;
     }
     
     internal void SetTcp(TcpClient tcp)
     {
         Tcp = tcp;
-        if (Udp != null && Status == ConnectionStatus.Connecting)
-            Status = ConnectionStatus.Connected;
     }
 
     public void Dispose()
