@@ -9,7 +9,7 @@ public class SceneManager
 {
     private readonly IDictionary<string, Scene> _scenes;
     
-    private Scene _currentScene;
+    private volatile Scene _currentScene;
     
     private bool _isTransitioning;
     private float _transitionTimer;
@@ -64,6 +64,7 @@ public class SceneManager
             if (_transitionTimer >= _transitionDuration)
             {
                 // Transition complete, load the next scene
+                _currentScene?.Unload();
                 _currentScene = _nextScene;
                 _currentScene.Load();
                 _isTransitioning = false;
@@ -96,6 +97,10 @@ public class SceneManager
 
     public void UnloadContent()
     {
-        _currentScene?.Dispose();
+        foreach (var scene in _scenes.Values)
+        {
+            scene.Unload();
+            scene.Dispose();
+        }
     }
 }

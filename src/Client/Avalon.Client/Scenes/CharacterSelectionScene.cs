@@ -80,7 +80,14 @@ public class CharacterSelectionScene : Scene
 
     public override void Unload()
     {
+        TcpClient.Instance.CharacterList -= OnCharacterListReceived;
+        TcpClient.Instance.CharacterSelected -= OnCharacterSelected;
+        TcpClient.Instance.CharacterCreated -= OnCharacterCreated;
+        TcpClient.Instance.CharacterDeleted -= OnCharacterDeleted;
         
+        _createButton.Clicked -= OnCreateButtonClicked;
+        _characterNameInput.OnPressedEnter -= OnCreateButtonClicked;
+        _characterNameInput.OnTextChanged -= OnCharacterNameValidation;
     }
 
     public override void Update(GameTime gameTime)
@@ -143,11 +150,6 @@ public class CharacterSelectionScene : Scene
     {
         if (disposing)
         {
-            TcpClient.Instance.CharacterList -= OnCharacterListReceived;
-            TcpClient.Instance.CharacterSelected -= OnCharacterSelected;
-            TcpClient.Instance.CharacterCreated -= OnCharacterCreated;
-            TcpClient.Instance.CharacterDeleted -= OnCharacterDeleted;
-
             _cursor?.Dispose();
             _createButton?.Dispose();
             _characterNameInput?.Dispose();
@@ -155,6 +157,8 @@ public class CharacterSelectionScene : Scene
             {
                 frame.Dispose();
             }
+            
+            Console.WriteLine("Character selection scene disposed");
         }
     }
 
@@ -192,10 +196,7 @@ public class CharacterSelectionScene : Scene
     private void OnCharacterListReceived(object sender, SCharacterListPacket packet)
     {
         Console.WriteLine("Received character list packet");
-        Console.WriteLine("Max characters: " + packet.MaxCharacterCount);
         Console.WriteLine($"Character count: {packet.CharacterCount}");
-        Console.WriteLine("Characters:");
-        Array.ForEach(packet.Characters, c => Console.WriteLine("[" +c.CharacterId + "] " + c.Name + " | Level " + c.Level));
 
         var framePosition = new Vector2(150, 100);
         

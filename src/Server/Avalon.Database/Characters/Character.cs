@@ -22,4 +22,9 @@ public class CharacterMovement
 {
     public Vector2 Position { get; set; }
     public Vector2 Velocity { get; set; }
+
+    public override string ToString()
+    {
+        return $"Position: X-{Position.X} Y-{Position.Y} Velocity: X-{Velocity.X} Y-{Velocity.Y}";
+    }
 }

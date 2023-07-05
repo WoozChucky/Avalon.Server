@@ -176,7 +176,24 @@ public class AvalonNetworkDaemon : IAvalonNetworkDaemon
     {
         while (!_cts.IsCancellationRequested)
         {
-            await Task.Delay(50, _cts.Token).ConfigureAwait(false);
+            await Task.Delay(1000, _cts.Token).ConfigureAwait(false);
+            
+            _logger.LogInformation("Updating network metrics");
+            
+            var MgBytesReceived = Interlocked.Read(ref _bytesReceived) / 1024 / 1024;
+            var MgBytesReceivedUdp = Interlocked.Read(ref _udpBytesReceived) / 1024 / 1024;
+            var MgBytesReceivedTcp = Interlocked.Read(ref _tcpBytesReceived) / 1024 / 1024;
+
+            _logger.LogInformation("Bytes received: {BytesReceived}Mb", MgBytesReceived);
+            _logger.LogInformation("Packets received: {PacketsReceived}", Interlocked.Read(ref _packetsReceived));
+
+            _logger.LogInformation("(UDP) Bytes: {BytesReceived}Mb", MgBytesReceivedUdp);
+            _logger.LogInformation("(UDP) Packets: {PacketsReceived}", Interlocked.Read(ref _udpPacketsReceived));
+            
+            _logger.LogInformation("(TCP) Bytes: {BytesReceived}Mb", MgBytesReceivedTcp);
+            _logger.LogInformation("(TCP) Packets: {PacketsReceived}", Interlocked.Read(ref _tcpPacketsReceived));
+            
+            _logger.LogInformation("---------------------------------");
 
             _metrics.QueueMetric("network.bytes_received", Interlocked.Read(ref _bytesReceived));
             _metrics.QueueMetric("network.bytes_received.udp", Interlocked.Read(ref _udpBytesReceived));
