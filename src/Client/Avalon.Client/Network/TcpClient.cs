@@ -351,4 +351,11 @@ public class TcpClient : IDisposable
         
         await _packetSerializer.SerializeToNetwork(stream, packet);
     }
+
+    public async Task SendCharacterLoadedPacket()
+    {
+        var packet = CCharacterLoadedPacket.Create(Globals.AccountId);
+        
+        await _packetSerializer.SerializeToNetwork(stream, packet);
+    }
 }

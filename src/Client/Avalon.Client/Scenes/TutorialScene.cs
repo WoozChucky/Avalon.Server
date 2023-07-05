@@ -53,19 +53,8 @@ public class TutorialScene : Scene
         
     }
 
-    public override void Load()
+    public override async void Load()
     {
-        TcpClient.Instance.PlayerConnected += OnPlayerConnected;
-        TcpClient.Instance.PlayerDisconnected += OnPlayerDisconnected;
-        TcpClient.Instance.GroupInvite += OnPlayerGroupInvited;
-        TcpClient.Instance.PlayerMoved += OnPlayerMoved;
-        TcpClient.Instance.NpcUpdated += OnNpcUpdated;
-        TcpClient.Instance.Logout += OnLogout;
-        
-        UdpEnetClient.Instance.PlayerMoved += OnPlayerMoved;
-        UdpEnetClient.Instance.NpcUpdated += OnNpcUpdated;
-        UdpEnetClient.Instance.LatencyUpdated += OnLatencyUpdated;
-        
         _otherPlayers = new ConcurrentDictionary<int, OtherPlayer>();
         _npcs = new ConcurrentDictionary<int, OtherPlayer>();
 
@@ -87,6 +76,17 @@ public class TutorialScene : Scene
         _chatGui = new ChatGUI();
         _rightPanel = new InGameRightPanel();
         _cursor = new Cursor(Globals.Content.Load<Texture2D>("Images/Icons/Mouse"), true);
+        
+        TcpClient.Instance.PlayerConnected += OnPlayerConnected;
+        TcpClient.Instance.PlayerDisconnected += OnPlayerDisconnected;
+        TcpClient.Instance.GroupInvite += OnPlayerGroupInvited;
+        TcpClient.Instance.PlayerMoved += OnPlayerMoved;
+        TcpClient.Instance.NpcUpdated += OnNpcUpdated;
+        TcpClient.Instance.Logout += OnLogout;
+        
+        UdpEnetClient.Instance.PlayerMoved += OnPlayerMoved;
+        UdpEnetClient.Instance.NpcUpdated += OnNpcUpdated;
+        UdpEnetClient.Instance.LatencyUpdated += OnLatencyUpdated;
 
         _timer = new Timer();
         _timer.Interval = 26; // 20 updates per seconds which would be 50 milliseconds interval (1000/20 = 50)
@@ -95,6 +95,8 @@ public class TutorialScene : Scene
         _timer.Start();
         
         _loaded = true;
+
+        await TcpClient.Instance.SendCharacterLoadedPacket();
     }
 
     public override void Unload()
