@@ -90,7 +90,7 @@ public class InputManager
     
     public bool IsRightButtonClicked()
     {
-        return isLeftButtonClicked;
+        return isRightButtonClicked;
     }
 
     public bool IsMouseOverRectangle(Rectangle rectangle, bool useCamera = false)

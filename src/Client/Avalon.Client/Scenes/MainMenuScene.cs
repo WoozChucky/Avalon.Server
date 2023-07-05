@@ -49,7 +49,7 @@ public class MainMenuScene : Scene
         _loginForm.RegisterClicked -= OnRegisterFormClicked;
     }
 
-    public override async void Update(GameTime gameTime)
+    public override void Update(GameTime gameTime)
     {
         var deltaTime = (float)gameTime.ElapsedGameTime.TotalSeconds;
         
@@ -105,7 +105,7 @@ public class MainMenuScene : Scene
         // Show dialog with message
     }
 
-    private async void OnLoginSuccess(int accountId)
+    private void OnLoginSuccess(int accountId)
     {
         _loginForm?.ToggleVisibility();
         
