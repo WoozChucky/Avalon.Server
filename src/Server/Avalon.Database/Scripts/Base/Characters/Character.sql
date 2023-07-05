@@ -1,6 +1,6 @@
 DROP TABLE IF EXISTS `Character`;
 CREATE TABLE IF NOT EXISTS `Character` (
-    `id` int unsigned NOT NULL DEFAULT '0' COMMENT 'Global Unique Identifier',
+    `id` int unsigned NOT NULL AUTO_INCREMENT COMMENT 'Global Unique Identifier',
     `account` int unsigned NOT NULL DEFAULT '0' COMMENT 'Account Identifier',
     `name` varchar(12) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
     

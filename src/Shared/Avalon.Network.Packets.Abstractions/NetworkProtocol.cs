@@ -1,6 +1,6 @@
 namespace Avalon.Network.Packets.Abstractions;
 
-public enum NetworkProtocol
+public enum NetworkProtocol : short
 {
     None = 0,
     Tcp = 1,

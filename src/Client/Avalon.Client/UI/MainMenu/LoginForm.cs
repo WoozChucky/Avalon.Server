@@ -69,9 +69,7 @@ public class LoginForm : IGameComponent
             loginButtonTexture,
             new Vector2(Globals.WindowSize.X / 2f - (float) loginButtonTexture.Width / 2, Globals.WindowSize.Y / 2f + 100),
             "Login",
-            Globals.Content.Load<SpriteFont>("Fonts/Default"),
-            Color.Red,
-            Color.Yellow
+            Globals.Content.Load<SpriteFont>("Fonts/Default")
         );
         
         _loginButton.Clicked += OnLoginButtonClicked;
@@ -82,9 +80,7 @@ public class LoginForm : IGameComponent
             registerButtonTexture,
             new Vector2(Globals.WindowSize.X / 2f - (float) registerButtonTexture.Width / 2, Globals.WindowSize.Y / 2f + 150),
             "Register New Acc",
-            Globals.Content.Load<SpriteFont>("Fonts/Default"),
-            Color.Red,
-            Color.Yellow
+            Globals.Content.Load<SpriteFont>("Fonts/Default")
         );
         
         _registerButton.Clicked += OnRegisterButtonClicked;

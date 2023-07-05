@@ -1,26 +1,26 @@
 using Avalon.Network.Packets.Abstractions;
 using ProtoBuf;
 
-namespace Avalon.Network.Packets.Auth;
+namespace Avalon.Network.Packets.Character;
 
 [ProtoContract]
-public class CWelcomePacket : Packet
+public class CCharacterListPacket : Packet
 {
-    public static NetworkPacketType PacketType = NetworkPacketType.CMSG_WELCOME;
-    public static NetworkProtocol Protocol = NetworkProtocol.Both;
+    public static NetworkPacketType PacketType = NetworkPacketType.CMSG_CHARACTER_LIST;
+    public static NetworkProtocol Protocol = NetworkProtocol.Tcp;
     
-    [ProtoMember(1)] public string ClientId { get; set; }
-    
-    public static NetworkPacket Create(string clientId)
+    [ProtoMember(1)] public int AccountId { get; set; }
+
+    public static NetworkPacket Create(int accountId)
     {
         using var memoryStream = new MemoryStream();
         
-        var welcomePacket = new CWelcomePacket()
+        var authPacket = new CCharacterListPacket()
         {
-            ClientId = clientId
+            AccountId = accountId,
         };
         
-        Serializer.Serialize(memoryStream, welcomePacket);
+        Serializer.Serialize(memoryStream, authPacket);
         
         return new NetworkPacket
         {

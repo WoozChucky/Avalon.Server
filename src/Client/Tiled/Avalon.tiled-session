@@ -21,18 +21,18 @@
                 5
             ],
             "scale": 1,
-            "selectedLayer": 7,
+            "selectedLayer": 3,
             "viewCenter": {
-                "x": 437,
-                "y": 945
+                "x": 476,
+                "y": 992
             }
         },
         "Village.tmx": {
             "scale": 1,
             "selectedLayer": 2,
             "viewCenter": {
-                "x": 568,
-                "y": 401
+                "x": 567,
+                "y": 400
             }
         }
     },
