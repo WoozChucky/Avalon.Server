@@ -137,21 +137,9 @@ public partial class AvalonGame
         session.Character = character;
         
         _logger.LogInformation("Character {CharacterId} logged in for account {AccountId} at {Position}", character.Name, packet.AccountId, character.Movement);
-        
-        var sessions = _connectionManager.GetSessions();
-        
+
         // Send to everyone else, that this player is connected
         await BroadcastToOthers(session.AccountId, SPlayerConnectedPacket.Create(session.AccountId, session.Character.Id, session.Character.Name), true);
-        
-        // Send to this player, that everyone else is connected
-        foreach (var otherSession in sessions.Values)
-        {
-            if (otherSession.AccountId == session.AccountId || !otherSession.InGame)
-            {
-                continue;
-            }
-            await session.SendAsync(SPlayerConnectedPacket.Create(otherSession.AccountId, otherSession.Character!.Id, otherSession.Character.Name));
-        }
     }
 
     public async Task HandleCharacterDeletePacket(IRemoteSource source, CCharacterDeletePacket packet)
@@ -187,5 +175,33 @@ public partial class AvalonGame
         
         _logger.LogInformation("Character {CharacterId} deleted for account {AccountId}", packet.CharacterId, packet.AccountId);
         await session.SendAsync(SCharacterDeletedPacket.Create(packet.AccountId, SCharacterDeletedResult.Success));
+    }
+
+    public async Task HandleCharacterLoadedPacket(IRemoteSource source, CCharacterLoadedPacket packet)
+    {
+        var session = _connectionManager.GetSession(packet.AccountId);
+        if (session == null)
+        {
+            _logger.LogWarning("Session not found for account {AccountId}", packet.AccountId);
+            return;
+        }
+        
+        if (!session.InGame)
+        {
+            _logger.LogWarning("Session {AccountId} is not in game", packet.AccountId);
+            return;
+        }
+        
+        var sessions = _connectionManager.GetSessions();
+        
+        // Send to this player, that everyone else is connected
+        foreach (var otherSession in sessions.Values)
+        {
+            if (otherSession.AccountId == session.AccountId || !otherSession.InGame)
+            {
+                continue;
+            }
+            await session.SendAsync(SPlayerConnectedPacket.Create(otherSession.AccountId, otherSession.Character!.Id, otherSession.Character.Name));
+        }
     }
 }

@@ -96,6 +96,7 @@ public class AvalonNetworkDaemon : IAvalonNetworkDaemon
         _packetRegistry.RegisterHandler<CCharacterSelectedPacket>(NetworkPacketType.CMSG_CHARACTER_SELECTED, _game.HandleCharacterSelectedPacket);
         _packetRegistry.RegisterHandler<CCharacterCreatePacket>(NetworkPacketType.CMSG_CHARACTER_CREATE, _game.HandleCharacterCreatePacket);
         _packetRegistry.RegisterHandler<CCharacterDeletePacket>(NetworkPacketType.CMSG_CHARACTER_DELETE, _game.HandleCharacterDeletePacket);
+        _packetRegistry.RegisterHandler<CCharacterLoadedPacket>(NetworkPacketType.CMSG_CHARACTER_LOADED, _game.HandleCharacterLoadedPacket);
         
         // Movement handlers
         _packetRegistry.RegisterHandler<CPlayerMovementPacket>(NetworkPacketType.CMSG_MOVEMENT, _game.HandleMovementPacket);
@@ -334,6 +335,7 @@ public class AvalonNetworkDaemon : IAvalonNetworkDaemon
             NetworkPacketType.CMSG_CHARACTER_SELECTED => _packetDeserializer.Deserialize<CCharacterSelectedPacket>(packet.Header.Type, packet.Payload),
             NetworkPacketType.CMSG_CHARACTER_CREATE => _packetDeserializer.Deserialize<CCharacterCreatePacket>(packet.Header.Type, packet.Payload),
             NetworkPacketType.CMSG_CHARACTER_DELETE => _packetDeserializer.Deserialize<CCharacterDeletePacket>(packet.Header.Type, packet.Payload),
+            NetworkPacketType.CMSG_CHARACTER_LOADED => _packetDeserializer.Deserialize<CCharacterLoadedPacket>(packet.Header.Type, packet.Payload),
             
             NetworkPacketType.CMSG_MOVEMENT => _packetDeserializer.Deserialize<CPlayerMovementPacket>(packet.Header.Type, packet.Payload),
             NetworkPacketType.CMSG_REQUEST_SERVER_VERSION => _packetDeserializer.Deserialize<CRequestServerVersionPacket>(packet.Header.Type, packet.Payload),

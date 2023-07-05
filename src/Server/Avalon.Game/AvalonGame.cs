@@ -33,7 +33,9 @@ public interface IAvalonGame
     Task HandleCharacterListPacket(IRemoteSource source, CCharacterListPacket packet);
     Task HandleCharacterCreatePacket(IRemoteSource source, CCharacterCreatePacket packet);
     Task HandleCharacterDeletePacket(IRemoteSource source, CCharacterDeletePacket packet);
+    Task HandleCharacterLoadedPacket(IRemoteSource source, CCharacterLoadedPacket packet);
     Task HandleLogoutPacket(IRemoteSource source, CLogoutPacket packet);
+    
 }
 
 public partial class AvalonGame : IAvalonGame
