@@ -14,6 +14,7 @@ public interface ICharacterTable
     Task<Character?> QueryByNameAsync(string name);
     Task<bool> InsertAsync(Character character);
     Task<bool> DeleteAsync(int characterId, int account);
+    Task<bool> UpdateAsync(Character character);
 }
 
 public sealed class CharacterTable : ICharacterTable
@@ -30,6 +31,7 @@ public sealed class CharacterTable : ICharacterTable
     private const string GetCharacterByNameQuery = $"SELECT {CharacterSelectors} FROM `Character` WHERE name = @Name";
     private const string InsertCharacterQuery = "INSERT INTO `Character` (`account`, `name`, `level`, `class`, `position_x`, `position_y`) VALUES (@Account, @Name, @Level, @Class, @PositionX, @PositionY)";
     private const string DeleteCharacterQuery = "DELETE FROM `Character` WHERE id = @Id AND `account` = @Account";
+    private const string UpdateCharacterQuery = "UPDATE `Character` SET `level` = @Level, `position_x` = @PositionX, `position_y` = @PositionY WHERE id = @Id AND `account` = @Account";
     
     public async Task<Character?> QueryByIdAsync(int id)
     {
@@ -82,6 +84,19 @@ public sealed class CharacterTable : ICharacterTable
         await connection.OpenAsync();
         
         var rows = await connection.ExecuteAsync(DeleteCharacterQuery, new { Id = characterId, Account = account });
+        
+        return rows == 1;
+    }
+
+    public async Task<bool> UpdateAsync(Character character)
+    {
+        await using var connection = new MySqlConnection(ConnectionString);
+        await connection.OpenAsync();
+        
+        var rows = await connection.ExecuteAsync(UpdateCharacterQuery, new
+        {
+            Id = character.Id, Account = character.Account, Level = character.Level, PositionX = character.Movement.Position.X, PositionY = character.Movement.Position.Y
+        });
         
         return rows == 1;
     }

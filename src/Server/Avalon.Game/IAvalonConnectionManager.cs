@@ -187,7 +187,8 @@ public class AvalonConnectionManager : IAvalonConnectionManager
         }
         else
         {
-            _logger.LogWarning("Account {Id} already connected", accountId);
+            _logger.LogWarning("Account {Id} already connected, updating server side private key", accountId);
+            session.SessionKey = privateKey;
         }
         
         session.SetTcp(source as TcpClient ?? throw new InvalidOperationException("Connection is not a TCP connection"));

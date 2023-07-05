@@ -78,6 +78,7 @@ public class AvalonGame : Game
         TcpClient.Instance.ConnectAsync().GetAwaiter().GetResult();
         UdpEnetClient.Instance.ConnectAsync().GetAwaiter().GetResult();
 
+        _sceneManager.Initialize();
         _sceneManager.LoadScene(nameof(MainMenuScene));
 
 

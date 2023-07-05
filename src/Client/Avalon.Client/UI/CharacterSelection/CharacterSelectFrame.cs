@@ -1,6 +1,5 @@
 
 using System;
-using Avalon.Client.Network;
 using Avalon.Network.Packets.Character;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -10,24 +9,24 @@ namespace Avalon.Client.UI.CharacterSelection;
 public delegate void CharacterSelectHandler(CharacterInfo info);
 public delegate void CharacterDeleteHandler(CharacterInfo info);
 
-public class CharacterSelectFrame
+public class CharacterSelectFrame : IDisposable
 {
-    private Vector2 _position;
-    private Vector2 _size;
+    private readonly Vector2 _position;
+    private readonly Vector2 _size;
     
-    private ButtonComponent _selectButton;
-    private ButtonComponent _deleteButton;
+    private readonly ButtonComponent _selectButton;
+    private readonly ButtonComponent _deleteButton;
     
-    private SpriteFont _nameFont;
-    private Vector2 _namePosition;
+    private readonly SpriteFont _nameFont;
+    private readonly Vector2 _namePosition;
     
-    private SpriteFont _levelFont;
-    private Vector2 _levelPosition;
-    private string _levelText;
+    private readonly SpriteFont _levelFont;
+    private readonly Vector2 _levelPosition;
+    private readonly string _levelText;
     
     private Texture2D _backgroundTexture;
     
-    private CharacterInfo _characterInfo;
+    private readonly CharacterInfo _characterInfo;
     
     public event CharacterSelectHandler Selected;
     public event CharacterDeleteHandler Deleted;
@@ -144,5 +143,12 @@ public class CharacterSelectFrame
         }
         
         _backgroundTexture.SetData(backgroundColor);
+    }
+
+    public void Dispose()
+    {
+        _selectButton?.Dispose();
+        _deleteButton?.Dispose();
+        _backgroundTexture?.Dispose();
     }
 }

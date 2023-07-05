@@ -1,5 +1,4 @@
 using System;
-using System.Diagnostics;
 using System.IO;
 using System.Net;
 using System.Net.Security;
@@ -8,11 +7,9 @@ using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
 using System.Threading;
 using System.Threading.Tasks;
-using Avalon.Network.Packets;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Auth;
 using Avalon.Network.Packets.Character;
-using Avalon.Network.Packets.Crypto;
 using Avalon.Network.Packets.Deserialization;
 using Avalon.Network.Packets.Generic;
 using Avalon.Network.Packets.Movement;
@@ -35,6 +32,7 @@ public delegate void CharacterListHandler(object sender, SCharacterListPacket pa
 public delegate void CharacterSelectedHandler(object sender, SCharacterSelectedPacket packet);
 public delegate void CharacterCreatedHandler(object sender, SCharacterCreatedPacket packet);
 public delegate void CharacterDeletedHandler(object sender, SCharacterDeletedPacket packet);
+public delegate void LogoutHandler(object sender, SLogoutPacket packet);
 
 public class TcpClient : IDisposable
 {
@@ -53,6 +51,7 @@ public class TcpClient : IDisposable
     public event CharacterSelectedHandler CharacterSelected;
     public event CharacterCreatedHandler CharacterCreated;
     public event CharacterDeletedHandler CharacterDeleted;
+    public event LogoutHandler Logout;
 
     private readonly CancellationTokenSource cts = new CancellationTokenSource();
     private readonly X509Certificate2 certificate;
@@ -262,6 +261,17 @@ public class TcpClient : IDisposable
                             Console.WriteLine(e);
                         }
                         break;
+                    case NetworkPacketType.SMSG_LOGOUT:
+                        var logoutPacket = Serializer.Deserialize<SLogoutPacket>(new MemoryStream(packet.Payload));
+                        try
+                        {
+                            Logout?.Invoke(this, logoutPacket);
+                        }
+                        catch (Exception e)
+                        {
+                            Console.WriteLine(e);
+                        }
+                        break;
                     case NetworkPacketType.SMSG_PING:
                         var pingPacket = _packetDeserializer.Deserialize<SPingPacket>(packet.Header.Type,
                             packet.Payload);
@@ -331,6 +341,13 @@ public class TcpClient : IDisposable
     public async Task SendCharacterCreatePacket(int accountId, string name, int @class)
     {
         var packet = CCharacterCreatePacket.Create(accountId, name, @class);
+        
+        await _packetSerializer.SerializeToNetwork(stream, packet);
+    }
+    
+    public async Task SendLogoutPacket(int accountId)
+    {
+        var packet = CLogoutPacket.Create(accountId);
         
         await _packetSerializer.SerializeToNetwork(stream, packet);
     }

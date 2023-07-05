@@ -74,4 +74,35 @@ public partial class AvalonGame
         
         await udpClient.SendAsync(SAuthResultPacket.Create(packet.AccountId, AuthResult.SUCCESS));
     }
+    
+    public async Task HandleLogoutPacket(IRemoteSource source, CLogoutPacket packet)
+    {
+        var session = _connectionManager.GetSession(packet.AccountId);
+        
+        if (session == null)
+        {
+            _logger.LogWarning("Session not found for account {AccountId}", packet.AccountId);
+            return;
+        }
+        
+        if (!session.InGame)
+        {
+            _logger.LogWarning("Session {AccountId} is not in game", packet.AccountId);
+            await session.SendAsync(SLogoutPacket.Create(session.AccountId, LogoutResult.NotInGame));
+            return;
+        }
+        
+        // Save character progress to the database
+        var character = session.Character;
+
+        if (!await _databaseManager.Characters.Character.UpdateAsync(character))
+        {
+            _logger.LogWarning("Failed to save character {CharacterId} progress to the database", character.Name);
+            await session.SendAsync(SLogoutPacket.Create(session.AccountId, LogoutResult.InternalError));
+        }
+        
+        session.Character = null;
+        
+        await session.SendAsync(SLogoutPacket.Create(session.AccountId, LogoutResult.Success));
+    }
 }

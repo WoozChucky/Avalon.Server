@@ -1,5 +1,5 @@
 using System;
-using System.Collections.Generic;
+using System.Collections.Concurrent;
 using Avalon.Client.Managers;
 using Avalon.Client.Network;
 using Avalon.Client.UI;
@@ -17,7 +17,7 @@ public class CharacterSelectionScene : Scene
     private Vector2 _titlePosition;
     private Vector2 _shadowOffset;
     
-    private readonly List<CharacterSelectFrame> _characterSelectFrames;
+    private ConcurrentBag<CharacterSelectFrame> _characterSelectFrames;
     
     private Cursor _cursor;
     private ButtonComponent _createButton;
@@ -25,20 +25,25 @@ public class CharacterSelectionScene : Scene
     
     private volatile bool _gotCharacterList;
     private volatile bool _characterSelected;
-    
+    private volatile bool _canCreateCharacter;
+
     public CharacterSelectionScene(SceneManager sceneManager) : base(sceneManager)
     {
-        _gotCharacterList = false;
-        _characterSelected = false;
-        _characterSelectFrames = new List<CharacterSelectFrame>();
-        TcpClient.Instance.CharacterList += OnCharacterListReceived;
-        TcpClient.Instance.CharacterSelected += OnCharacterSelected;
-        TcpClient.Instance.CharacterCreated += OnCharacterCreated;
-        TcpClient.Instance.CharacterDeleted += OnCharacterDeleted;
+        
     }
 
     public override async void Load()
     {
+        TcpClient.Instance.CharacterList += OnCharacterListReceived;
+        TcpClient.Instance.CharacterSelected += OnCharacterSelected;
+        TcpClient.Instance.CharacterCreated += OnCharacterCreated;
+        TcpClient.Instance.CharacterDeleted += OnCharacterDeleted;
+        
+        _gotCharacterList = false;
+        _characterSelected = false;
+        _canCreateCharacter = false;
+        _characterSelectFrames = new ConcurrentBag<CharacterSelectFrame>();
+        
         _titleFont = Globals.Content.Load<SpriteFont>("Fonts/BigTitle");
         _title = "Character Selection";
         _titlePosition = new Vector2(
@@ -78,7 +83,7 @@ public class CharacterSelectionScene : Scene
         
     }
 
-    public override async void Update(GameTime gameTime)
+    public override void Update(GameTime gameTime)
     {
         var deltaTime = (float)gameTime.ElapsedGameTime.TotalSeconds;
 
@@ -94,8 +99,12 @@ public class CharacterSelectionScene : Scene
             {
                 frame.Update(deltaTime);
             }
-            _characterNameInput.Update(deltaTime);
-            _createButton.Update();
+
+            if (_canCreateCharacter)
+            {
+                _characterNameInput.Update(deltaTime);
+                _createButton.Update();
+            }
         }
         
         _cursor?.Update(deltaTime);
@@ -117,8 +126,12 @@ public class CharacterSelectionScene : Scene
             {
                 frame.Draw(spriteBatch);
             }
-            _createButton.Draw(spriteBatch);
-            _characterNameInput.Draw(spriteBatch);
+            
+            if (_canCreateCharacter)
+            {
+                _createButton.Draw(spriteBatch);
+                _characterNameInput.Draw(spriteBatch);
+            }
         }
         
         _cursor?.Draw(spriteBatch);
@@ -128,7 +141,21 @@ public class CharacterSelectionScene : Scene
 
     protected override void Dispose(bool disposing)
     {
-        
+        if (disposing)
+        {
+            TcpClient.Instance.CharacterList -= OnCharacterListReceived;
+            TcpClient.Instance.CharacterSelected -= OnCharacterSelected;
+            TcpClient.Instance.CharacterCreated -= OnCharacterCreated;
+            TcpClient.Instance.CharacterDeleted -= OnCharacterDeleted;
+
+            _cursor?.Dispose();
+            _createButton?.Dispose();
+            _characterNameInput?.Dispose();
+            foreach (var frame in _characterSelectFrames)
+            {
+                frame.Dispose();
+            }
+        }
     }
 
     #region Character Server Events
@@ -155,6 +182,7 @@ public class CharacterSelectionScene : Scene
     
     private void OnCharacterSelected(object sender, SCharacterSelectedPacket packet)
     {
+        _gotCharacterList = false;
         Globals.CharacterId = packet.Character.CharacterId;
         Globals.CharacterName = packet.Character.Name;
         Globals.StartPosition = new Vector2(packet.Character.X, packet.Character.Y);
@@ -192,12 +220,11 @@ public class CharacterSelectionScene : Scene
         }
         
         _gotCharacterList = true;
+        _canCreateCharacter = packet.CharacterCount < packet.MaxCharacterCount;
     }
     
     #endregion
     
-    
-
     #region Create Character Events
 
     private bool OnCharacterNameValidation(string text)
@@ -224,8 +251,6 @@ public class CharacterSelectionScene : Scene
     }
 
     #endregion
-
-    
     
     #region Selection Frame Events
 
