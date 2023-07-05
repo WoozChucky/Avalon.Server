@@ -30,8 +30,10 @@ public class TutorialScene : Scene
     
     private PartyInviteDialog _partyInviteDialog;
 
-    private readonly ConcurrentDictionary<int, OtherPlayer> _otherPlayers;
-    private readonly ConcurrentDictionary<int, OtherPlayer> _npcs;
+    private ConcurrentDictionary<int, OtherPlayer> _otherPlayers;
+    private ConcurrentDictionary<int, OtherPlayer> _npcs;
+    
+    private Timer _timer;
     
     private Song _song;
 
@@ -48,11 +50,11 @@ public class TutorialScene : Scene
 
     public TutorialScene(SceneManager sceneManager) : base(sceneManager)
     {
-        _otherPlayers = new ConcurrentDictionary<int, OtherPlayer>();
-        _npcs = new ConcurrentDictionary<int, OtherPlayer>();
-
-        Globals.CameraPosition = Vector2.Zero;
         
+    }
+
+    public override void Load()
+    {
         TcpClient.Instance.PlayerConnected += OnPlayerConnected;
         TcpClient.Instance.PlayerDisconnected += OnPlayerDisconnected;
         TcpClient.Instance.GroupInvite += OnPlayerGroupInvited;
@@ -62,10 +64,13 @@ public class TutorialScene : Scene
         
         UdpEnetClient.Instance.PlayerMoved += OnPlayerMoved;
         UdpEnetClient.Instance.NpcUpdated += OnNpcUpdated;
-    }
+        UdpEnetClient.Instance.LatencyUpdated += OnLatencyUpdated;
+        
+        _otherPlayers = new ConcurrentDictionary<int, OtherPlayer>();
+        _npcs = new ConcurrentDictionary<int, OtherPlayer>();
 
-    public override void Load()
-    {
+        Globals.CameraPosition = Vector2.Zero;
+
         _song = Globals.Content.Load<Song>("Music/CitySound");
         MediaPlayer.Volume = 0.015f;
         // MediaPlayer.Play(_song);
@@ -83,20 +88,31 @@ public class TutorialScene : Scene
         _rightPanel = new InGameRightPanel();
         _cursor = new Cursor(Globals.Content.Load<Texture2D>("Images/Icons/Mouse"), true);
 
-        var t = new Timer();
-        t.Interval = 26; // 20 updates per seconds which would be 50 milliseconds interval (1000/20 = 50)
-        t.AutoReset = true;
-        t.Elapsed += OnTimerElapsed;
-        t.Start();
-
-        UdpEnetClient.Instance.LatencyUpdated += OnLatencyUpdated;
+        _timer = new Timer();
+        _timer.Interval = 26; // 20 updates per seconds which would be 50 milliseconds interval (1000/20 = 50)
+        _timer.AutoReset = true;
+        _timer.Elapsed += OnTimerElapsed;
+        _timer.Start();
         
         _loaded = true;
     }
 
     public override void Unload()
     {
-        // TODO: Unload any content that was loaded for the scene
+        MediaPlayer.Stop();
+        _timer.Stop();
+        _timer.Elapsed -= OnTimerElapsed;
+        _timer.Dispose();
+        TcpClient.Instance.PlayerConnected -= OnPlayerConnected;
+        TcpClient.Instance.PlayerDisconnected -= OnPlayerDisconnected;
+        TcpClient.Instance.GroupInvite -= OnPlayerGroupInvited;
+        TcpClient.Instance.PlayerMoved -= OnPlayerMoved;
+        TcpClient.Instance.NpcUpdated -= OnNpcUpdated;
+        TcpClient.Instance.Logout -= OnLogout;
+        
+        UdpEnetClient.Instance.PlayerMoved -= OnPlayerMoved;
+        UdpEnetClient.Instance.NpcUpdated -= OnNpcUpdated;
+        UdpEnetClient.Instance.LatencyUpdated -= OnLatencyUpdated;
     }
 
     public override async void Update(GameTime gameTime)
@@ -165,6 +181,7 @@ public class TutorialScene : Scene
         if (_chatGui is { IsTyping: false } && InputManager.Instance.KeyReleased(Keys.O))
         {
             await TcpClient.Instance.SendLogoutPacket(Globals.AccountId);
+            Console.WriteLine("Sent logout packet at position " + _lastSentPosition);
         }
 
         CalculateTranslation();
@@ -220,13 +237,14 @@ public class TutorialScene : Scene
     {
         if (disposing)
         {
-            MediaPlayer.Stop();
             _map?.Dispose();
             _player?.Dispose();
             _chatGui?.Dispose();
             _rightPanel?.Dispose();
             _song?.Dispose();
             _cursor?.Dispose();
+            
+            Console.WriteLine("TutorialScene disposed");
         }
     }
 
@@ -241,6 +259,7 @@ public class TutorialScene : Scene
     
     private void OnPlayerConnected(object sender, SPlayerConnectedPacket packet)
     {
+        if (!_loaded) return;
         _otherPlayers.TryAdd(packet.AccountId, new OtherPlayer(packet.AccountId, packet.CharacterId, packet.Name, Globals.Content.Load<Texture2D>("Images/player"), new Vector2(0, 0)));
     }
     
@@ -311,6 +330,8 @@ public class TutorialScene : Scene
     
     private async void OnTimerElapsed(object sender, EventArgs e)
     {
+        if (_loggedOut) return;
+        Console.WriteLine("Timer elapsed");
         
         {   
             // Send movement updates if the player has moved, or if he stopped moving.

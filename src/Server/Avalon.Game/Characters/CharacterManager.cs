@@ -136,7 +136,7 @@ public partial class AvalonGame
         
         session.Character = character;
         
-        _logger.LogInformation("Character {CharacterId} logged in for account {AccountId}", character.Name, packet.AccountId);
+        _logger.LogInformation("Character {CharacterId} logged in for account {AccountId} at {Position}", character.Name, packet.AccountId, character.Movement);
         
         var sessions = _connectionManager.GetSessions();
         

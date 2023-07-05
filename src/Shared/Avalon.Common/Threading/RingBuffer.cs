@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Diagnostics;
 
 namespace Avalon.Common.Threading;
 
@@ -18,10 +19,23 @@ public class RingBuffer<T>
 
     public void Enqueue(T item)
     {
+        Stopwatch stopwatch = null;
+
         while (_queue.Count >= _capacity)
         {
+            if (stopwatch == null)
+            {
+                stopwatch = Stopwatch.StartNew();
+            }
+
             if (_queue.TryDequeue(out _))
                 _signal.Wait();
+        }
+
+        if (stopwatch != null)
+        {
+            stopwatch.Stop();
+            Console.WriteLine($"Time spent waiting: {stopwatch.ElapsedMilliseconds}ms");
         }
 
         _queue.Enqueue(item);

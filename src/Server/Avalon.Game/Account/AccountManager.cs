@@ -101,6 +101,10 @@ public partial class AvalonGame
             await session.SendAsync(SLogoutPacket.Create(session.AccountId, LogoutResult.InternalError));
         }
         
+        _logger.LogInformation("Character {CharacterId} logged out at {Position}", character.Name, character.Movement);
+        
+        await BroadcastToOthers(session.AccountId, SPlayerDisconnectedPacket.Create(session.AccountId, session.Character!.Id), true);
+        
         session.Character = null;
         
         await session.SendAsync(SLogoutPacket.Create(session.AccountId, LogoutResult.Success));

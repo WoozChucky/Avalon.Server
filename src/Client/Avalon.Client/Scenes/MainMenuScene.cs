@@ -44,7 +44,9 @@ public class MainMenuScene : Scene
 
     public override void Unload()
     {
-        
+        _loginForm.LoginSuccess -= OnLoginSuccess;
+        _loginForm.LoginFailed -= OnLoginFailed;
+        _loginForm.RegisterClicked -= OnRegisterFormClicked;
     }
 
     public override async void Update(GameTime gameTime)
@@ -83,6 +85,8 @@ public class MainMenuScene : Scene
             _loginForm?.Dispose();
             _registerForm?.Dispose();
             _cursor?.Dispose();
+            
+            Console.WriteLine("MainMenuScene disposed");
         }
     }
     
