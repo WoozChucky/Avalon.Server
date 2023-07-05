@@ -31,6 +31,10 @@ public delegate void ChatMessageHandler(object sender, SChatMessagePacket packet
 public delegate void AuthResultHandler(object sender, SAuthResultPacket packet);
 public delegate void GroupInviteHandler(object sender, SGroupInvitePacket packet);
 public delegate void GroupResultHandler(object sender, SGroupResultPacket packet);
+public delegate void CharacterListHandler(object sender, SCharacterListPacket packet);
+public delegate void CharacterSelectedHandler(object sender, SCharacterSelectedPacket packet);
+public delegate void CharacterCreatedHandler(object sender, SCharacterCreatedPacket packet);
+public delegate void CharacterDeletedHandler(object sender, SCharacterDeletedPacket packet);
 
 public class TcpClient : IDisposable
 {
@@ -45,6 +49,10 @@ public class TcpClient : IDisposable
     public event GroupResultHandler GroupInviteResult;
     public event NpcUpdatedHandler NpcUpdated;
     public event PlayerMovedHandler PlayerMoved;
+    public event CharacterListHandler CharacterList;
+    public event CharacterSelectedHandler CharacterSelected;
+    public event CharacterCreatedHandler CharacterCreated;
+    public event CharacterDeletedHandler CharacterDeleted;
 
     private readonly CancellationTokenSource cts = new CancellationTokenSource();
     private readonly X509Certificate2 certificate;
@@ -210,6 +218,50 @@ public class TcpClient : IDisposable
                             Console.WriteLine(e);
                         }
                         break;
+                    case NetworkPacketType.SMSG_CHARACTER_LIST:
+                        var characterListPacket = Serializer.Deserialize<SCharacterListPacket>(new MemoryStream(packet.Payload));
+                        try
+                        {
+                            CharacterList?.Invoke(this, characterListPacket);
+                        }
+                        catch (Exception e)
+                        {
+                            Console.WriteLine(e);
+                        }
+                        break;
+                    case NetworkPacketType.SMSG_CHARACTER_SELECTED:
+                        var characterSelectedPacket = Serializer.Deserialize<SCharacterSelectedPacket>(new MemoryStream(packet.Payload));
+                        try
+                        {
+                            CharacterSelected?.Invoke(this, characterSelectedPacket);
+                        }
+                        catch (Exception e)
+                        {
+                            Console.WriteLine(e);
+                        }
+                        break;
+                    case NetworkPacketType.SMSG_CHARACTER_CREATED:
+                        var characterCreatedPacket = Serializer.Deserialize<SCharacterCreatedPacket>(new MemoryStream(packet.Payload));
+                        try
+                        {
+                            CharacterCreated?.Invoke(this, characterCreatedPacket);
+                        }
+                        catch (Exception e)
+                        {
+                            Console.WriteLine(e);
+                        }
+                        break;
+                    case NetworkPacketType.SMSG_CHARACTER_DELETED:
+                        var characterDeletedPacket = Serializer.Deserialize<SCharacterDeletedPacket>(new MemoryStream(packet.Payload));
+                        try
+                        {
+                            CharacterDeleted?.Invoke(this, characterDeletedPacket);
+                        }
+                        catch (Exception e)
+                        {
+                            Console.WriteLine(e);
+                        }
+                        break;
                     case NetworkPacketType.SMSG_PING:
                         var pingPacket = _packetDeserializer.Deserialize<SPingPacket>(packet.Header.Type,
                             packet.Payload);
@@ -258,6 +310,27 @@ public class TcpClient : IDisposable
     public async Task SendAuthPacket(string username, string password)
     {
         var packet = CAuthPacket.Create(username, password);
+        
+        await _packetSerializer.SerializeToNetwork(stream, packet);
+    }
+
+    public async Task SendCharacterListPacket(int accountId)
+    {
+        var packet = CCharacterListPacket.Create(accountId);
+        
+        await _packetSerializer.SerializeToNetwork(stream, packet);
+    }
+
+    public async Task SendCharacterDeletePacket(int accountId, int characterId)
+    {
+        var packet = CCharacterDeletePacket.Create(accountId, characterId);
+        
+        await _packetSerializer.SerializeToNetwork(stream, packet);
+    }
+
+    public async Task SendCharacterCreatePacket(int accountId, string name, int @class)
+    {
+        var packet = CCharacterCreatePacket.Create(accountId, name, @class);
         
         await _packetSerializer.SerializeToNetwork(stream, packet);
     }

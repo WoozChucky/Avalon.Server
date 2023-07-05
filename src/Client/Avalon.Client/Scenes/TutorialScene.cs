@@ -71,17 +71,15 @@ public class TutorialScene : Scene
         _map = new Map("Tutorial", "Serene_Village_32x32");
         _player = new Player(
             Globals.AccountId,
-            "Nuno",
-            //Globals.CharacterName,
-            Globals.Content.Load<Texture2D>("Images/player"), 
-            //new Vector2(Globals.WindowSize.X / 2f, Globals.WindowSize.Y / 2f),
-            new Vector2(326, 1450)
+            Globals.CharacterName,
+            Globals.Content.Load<Texture2D>("Images/player"),
+            new Vector2(Globals.StartPosition.X, Globals.StartPosition.Y)
         );
         _player.SetBounds(_map.MapSize, new Point(_map.TileWidth, _map.TileHeight));
         
         _chatGui = new ChatGUI();
         _rightPanel = new InGameRightPanel();
-        _cursor = new Cursor(Globals.Content.Load<Texture2D>("Images/Icons/Mouse"));
+        _cursor = new Cursor(Globals.Content.Load<Texture2D>("Images/Icons/Mouse"), true);
 
         var t = new Timer();
         t.Interval = 26; // 20 updates per seconds which would be 50 milliseconds interval (1000/20 = 50)
@@ -90,8 +88,8 @@ public class TutorialScene : Scene
         t.Start();
 
         UdpEnetClient.Instance.LatencyUpdated += OnLatencyUpdated;
-        //UdpEnetClient.Instance.PlayerMoved += OnPlayerMoved;
-        //UdpEnetClient.Instance.NpcUpdated += OnNpcUpdated;
+        
+        _loaded = true;
     }
 
     public override void Unload()
@@ -102,6 +100,11 @@ public class TutorialScene : Scene
     public override void Update(GameTime gameTime)
     {
         var deltaTime = (float)gameTime.ElapsedGameTime.TotalSeconds;
+        
+        if (!_loaded)
+        {
+            return;
+        }
 
         _elapsedTime += deltaTime;
         _frameCount++;
@@ -161,6 +164,10 @@ public class TutorialScene : Scene
 
     public override void Draw(SpriteBatch spriteBatch)
     {
+        if (!_loaded)
+        {
+            return;
+        }
         /*
         var sortMode = SpriteSortMode.FrontToBack;
         var blendState = BlendState.AlphaBlend;

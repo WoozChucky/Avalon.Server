@@ -1,9 +1,12 @@
+using System;
+
 namespace Avalon.Network.Packets.Abstractions;
 
-public enum NetworkPacketFlags
+[Flags]
+public enum NetworkPacketFlags : short
 {
     None = 0,
     ClearText = 1,
     Handshake = 2,
-    Encrypted = 3
+    Encrypted = 4
 }

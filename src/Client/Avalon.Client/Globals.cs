@@ -17,6 +17,8 @@ public static class Globals
 
     public static Point WindowSize { get; set; }
     public static Vector2 CameraPosition { get; set; }
+    
+    public static Vector2 StartPosition { get; set; }
 
     public static void Update(GameTime gt)
     {

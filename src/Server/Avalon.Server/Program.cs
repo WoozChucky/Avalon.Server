@@ -6,6 +6,7 @@ using Avalon.Infrastructure;
 using Avalon.Metrics;
 using Avalon.Network;
 using Avalon.Network.Packets;
+using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Deserialization;
 using Avalon.Network.Packets.Serialization;
 using Avalon.Network.Tcp;

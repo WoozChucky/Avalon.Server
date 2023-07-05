@@ -1,5 +1,6 @@
 using System;
 using Avalon.Client.Managers;
+using Avalon.Client.Models;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
@@ -7,35 +8,42 @@ namespace Avalon.Client.UI;
 
 public class ButtonComponent : IDisposable
 {
-    private Texture2D texture;
+    private Sprite defaultSprite;
+    private Sprite hoverSprite;
+    private Sprite currentSprite;
+    
     private Rectangle bounds;
-    private Color defaultColor;
-    private Color hoverColor;
-    private Color currentColor;
     private SpriteFont font;
     private string text;
 
     private bool isHovered;
-    private bool isClicked;
     private Vector2 textPosition;
 
     public delegate void ButtonClickHandler(ButtonComponent button);
 
     public event ButtonClickHandler Clicked;
 
-    public ButtonComponent(Texture2D texture, Vector2 position, string text, SpriteFont font, Color defaultColor, Color hoverColor)
+    public ButtonComponent(Texture2D defaultTexture, Vector2 position, string text, SpriteFont font, Texture2D hoverTexture = null)
     {
-        this.texture = texture;
-        this.bounds = new Rectangle(position.ToPoint(), texture.Bounds.Size);
-        this.defaultColor = defaultColor;
-        this.hoverColor = hoverColor;
+        this.defaultSprite = new Sprite(defaultTexture, position);
+        this.defaultSprite.Origin = Vector2.Zero;
+        if (hoverTexture != null)
+        {
+            this.hoverSprite = new Sprite(hoverTexture, position);
+            this.hoverSprite.Origin = Vector2.Zero;
+        }
+        
+        this.bounds = new Rectangle(position.ToPoint(), defaultTexture.Bounds.Size);
         this.text = text;
         this.font = font;
-        currentColor = defaultColor;
         isHovered = false;
-        isClicked = false;
+
+        if (!string.IsNullOrEmpty(this.text))
+        {
+            this.textPosition = bounds.Center.ToVector2() - (font.MeasureString(text) / 2f);
+        }
         
-        this.textPosition = bounds.Center.ToVector2() - (font.MeasureString(text) / 2f);
+        this.currentSprite = defaultSprite;
     }
 
     public void Update()
@@ -44,20 +52,17 @@ public class ButtonComponent : IDisposable
 
         if (isHovered && InputManager.Instance.IsLeftButtonClicked())
         {
-            isClicked = true;
             Clicked?.Invoke(this);
         }
-        else
-        {
-            isClicked = false;
-        }
 
-        currentColor = isHovered ? hoverColor : defaultColor;
+        currentSprite = isHovered && hoverSprite != null 
+            ? hoverSprite 
+            : defaultSprite;
     }
 
     public void Draw(SpriteBatch spriteBatch)
     {
-        spriteBatch.Draw(texture, bounds, currentColor);
+        currentSprite.Draw(spriteBatch);
         
         if (!string.IsNullOrEmpty(text) && font != null)
         {
@@ -67,6 +72,7 @@ public class ButtonComponent : IDisposable
 
     public void Dispose()
     {
-        texture.Dispose();
+        defaultSprite.Dispose();
+        hoverSprite?.Dispose();
     }
 }

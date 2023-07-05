@@ -17,7 +17,7 @@ public interface IAvalonConnectionManager : IDisposable
     event SessionReconnectedHandler? SessionReconnected;
     
     Task HandlePongPacket(IRemoteSource source, CPongPacket packet);
-    void RemoveConnection(string connectionId);
+    void RemoveConnection(IRemoteSource source);
     void AddSession(IRemoteSource source, int accountId, byte[] privateKey);
     bool PatchSession(IRemoteSource source, int accountId, byte[] privateKey);
     AvalonSession? GetSession(int accountId);
@@ -194,11 +194,6 @@ public class AvalonConnectionManager : IAvalonConnectionManager
         session.Status = ConnectionStatus.PendingKey;
     }
 
-    public bool PatchSession(int accountId, byte[] privateKey)
-    {
-        throw new NotImplementedException();
-    }
-
     public bool PatchSession(IRemoteSource source, int accountId, byte[] privateKey)
     {
         if (!_sessions.TryGetValue(accountId, out var session))
@@ -250,28 +245,38 @@ public class AvalonConnectionManager : IAvalonConnectionManager
         return Task.CompletedTask;
     }
 
-    public void RemoveConnection(string remoteUdpAddress)
+    public void RemoveConnection(IRemoteSource source)
     {
-        var connection = _sessions.Values.FirstOrDefault(c => c.Udp?.RemoteAddress == remoteUdpAddress);
-        if (connection == null)
+        AvalonSession? session = null;
+        
+        if (source is TcpClient tcp)
         {
-            _logger.LogWarning("Received disconnect packet from unknown client {ConnectionId}", remoteUdpAddress);
+            session = _sessions.Values.FirstOrDefault(c => c.Tcp?.RemoteAddress == source.RemoteAddress);
+        }
+        else if (source is UdpClientPacket udp)
+        {
+            session = _sessions.Values.FirstOrDefault(c => c.Udp?.RemoteAddress == source.RemoteAddress);
+        }
+        
+        if (session == null)
+        {
+            _logger.LogWarning("Received disconnect packet from unknown client {ConnectionId}", session?.AccountId);
             return;
         }
 
-        connection.Status = ConnectionStatus.Disconnected;
+        session.Status = ConnectionStatus.Disconnected;
         try
         {
-            SessionLost?.Invoke(this, connection);
+            SessionLost?.Invoke(this, session);
         }
         catch (Exception e)
         {
-            _logger.LogWarning(e,"Handler of PlayerDisconnected event for client {Id} threw", connection.AccountId);
+            _logger.LogWarning(e,"Handler of PlayerDisconnected event for client {Id} threw", session.AccountId);
         }
 
-        if (_sessions.TryRemove(connection.AccountId, out _))
+        if (_sessions.TryRemove(session.AccountId, out _))
         {
-            _logger.LogInformation("Client {Id} has disconnected", connection.AccountId);
+            _logger.LogInformation("Client {Id} has disconnected", session.AccountId);
         }
     }
 

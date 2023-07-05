@@ -58,6 +58,7 @@ public class AvalonGame : Game
         
         _sceneManager = new SceneManager();
         _sceneManager.AddScene(nameof(MainMenuScene), new MainMenuScene(_sceneManager));
+        _sceneManager.AddScene(nameof(CharacterSelectionScene), new CharacterSelectionScene(_sceneManager));
         _sceneManager.AddScene(nameof(TutorialScene), new TutorialScene(_sceneManager));
     }
 

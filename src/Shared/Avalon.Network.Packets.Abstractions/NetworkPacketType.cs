@@ -1,11 +1,9 @@
 namespace Avalon.Network.Packets.Abstractions;
 
-public enum NetworkPacketType
+public enum NetworkPacketType : short
 {
     ERROR = -1,
     UNKNOWN = 0,
-    
-    CMSG_WELCOME = 0x1000,
 
     /**************************************************************************
      * Client Packets
@@ -42,7 +40,12 @@ public enum NetworkPacketType
     
     SMSG_AUTH_RESULT = 0x3000,
 
+    // Character
     
+    SMSG_CHARACTER_LIST = 0x3010,
+    SMSG_CHARACTER_CREATED = 0x3011,
+    SMSG_CHARACTER_DELETED = 0x3012,
+    SMSG_CHARACTER_SELECTED = 0x3013,
     
     SMSG_PLAYER_DISCONNECTED = 0x3400,
     SMSG_PLAYER_CONNECTED = 0x3001,

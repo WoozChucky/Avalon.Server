@@ -30,6 +30,9 @@ public interface IAvalonGame
     Task HandleGroupInviteResultPacket(IRemoteSource source, CGroupInviteResultPacket packet);
     Task HandleAuthPatchPacket(IRemoteSource source, CAuthPatchPacket packet);
     Task HandleCharacterSelectedPacket(IRemoteSource source, CCharacterSelectedPacket packet);
+    Task HandleCharacterListPacket(IRemoteSource source, CCharacterListPacket packet);
+    Task HandleCharacterCreatePacket(IRemoteSource source, CCharacterCreatePacket packet);
+    Task HandleCharacterDeletePacket(IRemoteSource source, CCharacterDeletePacket packet);
 }
 
 public partial class AvalonGame : IAvalonGame

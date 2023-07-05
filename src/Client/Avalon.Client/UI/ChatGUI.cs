@@ -31,7 +31,7 @@ public class ChatGUI : IDisposable
     {
         _visible = false;
         _chatMessages = new List<string>();
-        _messageFont = Globals.Content.Load<SpriteFont>("Fonts/File");
+        _messageFont = Globals.Content.Load<SpriteFont>("Fonts/ArialSmall");
         
         var inputPosition = new Vector2(
             Globals.WindowSize.X - 400, 

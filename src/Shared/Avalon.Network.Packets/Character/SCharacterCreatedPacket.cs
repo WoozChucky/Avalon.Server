@@ -1,0 +1,51 @@
+using Avalon.Network.Packets.Abstractions;
+using ProtoBuf;
+
+namespace Avalon.Network.Packets.Character;
+
+[ProtoContract]
+public class SCharacterCreatedPacket : Packet
+{
+    public static NetworkPacketType PacketType = NetworkPacketType.SMSG_CHARACTER_CREATED;
+    public static NetworkProtocol Protocol = NetworkProtocol.Tcp;
+    
+    [ProtoMember(1)] public int AccountId { get; set; }
+    [ProtoMember(2)] public SCharacterCreateResult Result { get; set; }
+
+    public static NetworkPacket Create(int accountId, SCharacterCreateResult result)
+    {
+        using var memoryStream = new MemoryStream();
+        
+        var authPacket = new SCharacterCreatedPacket()
+        {
+            AccountId = accountId,
+            Result = result
+        };
+        
+        Serializer.Serialize(memoryStream, authPacket);
+        
+        return new NetworkPacket
+        {
+            Header = new NetworkPacketHeader
+            {
+                Type = PacketType,
+                Flags = NetworkPacketFlags.None,
+                Protocol = Protocol,
+                Version = 0
+            },
+            Payload = memoryStream.ToArray()
+        };
+    }
+}
+
+public enum SCharacterCreateResult
+{
+    Success,
+    NameAlreadyExists,
+    NameTooShort,
+    NameTooLong,
+    InvalidClass,
+    MaxCharactersReached,
+    AlreadyInGame,
+    InternalDatabaseError
+}

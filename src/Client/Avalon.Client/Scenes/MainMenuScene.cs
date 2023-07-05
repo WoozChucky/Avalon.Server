@@ -35,7 +35,7 @@ public class MainMenuScene : Scene
             new Vector2(Globals.WindowSize.X / 2f, 100)
         );
         
-        _cursor = new Cursor(Globals.Content.Load<Texture2D>("Images/Icons/Mouse"));
+        _cursor = new Cursor(Globals.Content.Load<Texture2D>("Images/Icons/Mouse"), false);
         
         _loginForm = new LoginForm(true);
         _loginForm.LoginSuccess += OnLoginSuccess;
@@ -53,18 +53,19 @@ public class MainMenuScene : Scene
     public override async void Update(GameTime gameTime)
     {
         var deltaTime = (float)gameTime.ElapsedGameTime.TotalSeconds;
-
-        _cursor?.Update(deltaTime);
-        _loginForm?.Update(deltaTime);
-        _registerForm?.Update(deltaTime);
         
         if (_isLoggedIn)
         {
             _isLoggedIn = false;
-            SceneManager.LoadScene(nameof(TutorialScene));
+            SceneManager.LoadScene(nameof(CharacterSelectionScene));
         
-            Console.WriteLine("Loaded tutorial scene. Name: " + Globals.AccountId);
+            Console.WriteLine("Loaded char selection scene");
+            return;
         }
+
+        _cursor?.Update(deltaTime);
+        _loginForm?.Update(deltaTime);
+        _registerForm?.Update(deltaTime);
     }
 
     public override void Draw(SpriteBatch spriteBatch)
@@ -110,10 +111,6 @@ public class MainMenuScene : Scene
         Console.WriteLine("Logged in. Account ID: " + accountId);
         
         Globals.AccountId = accountId;
-        
-        // TODO: Load character selection scene
-
-        await TcpClient.Instance.SendCharacterSelectedPacket(accountId, 0).ConfigureAwait(true);
 
         _isLoggedIn = true;
     }
