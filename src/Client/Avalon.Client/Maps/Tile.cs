@@ -1,5 +1,4 @@
 ﻿using System;
-using Avalon.Client.Models;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
@@ -7,34 +6,83 @@ namespace Avalon.Client.Maps;
 
 public class Tile : IDisposable
 {
-    public readonly Rectangle Bounds;
-    private readonly Sprite Sprite;
+    
+    public Rectangle Bounds => _destinationRectangle;
+    
     private bool isColliding;
     private Texture2D _collidingTexture;
     
+    private readonly Rectangle _sourceRectangle;
+    private readonly Rectangle _destinationRectangle;
+    private readonly Vector2 _origin;
 
-    public Tile(Sprite sprite, int x, int y, int width, int height, int xPx, int xPy, bool collidable = false)
-    {
-        Sprite = sprite;
-        IsCollidable = collidable;
-        Bounds = new Rectangle(xPx, xPy, width, height);
-    }
+    private bool _debug;
     
-    public int X => Bounds.X;
-    public int Y => Bounds.Y;
-    public int Width => Bounds.Width;
-    public int Height => Bounds.Height;
+    public int Row { get; set; }
+    public int Column { get; set; }
+    
+    public int Width { get; set; }
+    public int Height { get; set; }
 
-    public bool IsVisible => Globals.GraphicsDevice.Viewport.Bounds.Intersects(Texture.Bounds);
+    public bool IsVisible
+    {
+        get
+        {
+            // You need to adjust this based on how you're handling the camera/view in your game.
+            var cameraBounds = new Rectangle(
+                (int) Globals.CameraPosition.X, 
+                (int) Globals.CameraPosition.Y, 
+                Globals.GraphicsDevice.Viewport.Width, 
+                Globals.GraphicsDevice.Viewport.Height);
+
+            return cameraBounds.Intersects(_destinationRectangle);
+        }
+    }
+
     public bool IsCollidable { get; protected set; }
     
-    public Texture2D Texture => Sprite.Texture;
+    private Rectangle OutlineRect { get; set; }
+    private Texture2D OutlineTexture { get; set; }
+    
 
-    public void Draw(SpriteBatch spriteBatch)
+    public Tile(int x, int y, int width, int height, Rectangle sourceRectangle, Rectangle destinationRectangle, bool collidable = false)
     {
-        //Texture2D textureToDraw = isColliding ? _collidingTexture : Texture;
-        //Sprite.Texture = textureToDraw;
-        Sprite.Draw(spriteBatch);
+        Column = x;
+        Row = y;
+        Width = width;
+        Height = height;
+
+        _sourceRectangle = sourceRectangle;
+        _destinationRectangle = destinationRectangle;
+        _origin = new Vector2(_destinationRectangle.Width / 2f, _destinationRectangle.Height / 2f);
+        IsCollidable = collidable;
+
+        CreateDebugBorder();
+    }
+    
+    private void CreateDebugBorder()
+    {
+        var Scale = 1.0f;
+        // Calculate the rectangle that encompasses the sprite with the border
+        OutlineRect = new Rectangle(
+            (int)(_destinationRectangle.X - _origin.X * Scale) - 1,
+            (int)(_destinationRectangle.Y - _origin.Y * Scale) - 1,
+            (int)(Width * Scale) + 2,
+            (int)(Height * Scale) + 2
+        );
+
+        // Draw the border using a 1x1 pixel white texture
+        OutlineTexture = new Texture2D(Globals.GraphicsDevice, 1, 1);
+        OutlineTexture.SetData(new[] { Color.White });
+    }
+    
+    public void Draw(SpriteBatch spriteBatch, Texture2D atlas)
+    {
+        if (_debug)
+        {
+            spriteBatch.Draw(OutlineTexture, OutlineRect, Color.Black);
+        }
+        spriteBatch.Draw(atlas, _destinationRectangle, _sourceRectangle, Color.White, 0f, _origin, SpriteEffects.None, 0f);
     }
     
     public void MarkAsCollided(bool collided)
@@ -44,44 +92,21 @@ public class Tile : IDisposable
         // Generate a colored version of the tile's texture
         if (isColliding)
         {
-            _collidingTexture = CreateColoredTileTexture(Texture, Color.Red);
+            //_collidingTexture = CreateColoredTileTexture(Texture, Color.Red);
         }
         else
         {
             _collidingTexture = null;
         }
     }
-    
-    private static Texture2D CreateColoredTileTexture(Texture2D originalTexture, Color color)
-    {
-        Color[] data = new Color[originalTexture.Width * originalTexture.Height];
-        originalTexture.GetData(data);
-
-        // Create a new texture with the same dimensions as the original
-        Texture2D coloredTexture = new Texture2D(originalTexture.GraphicsDevice, originalTexture.Width, originalTexture.Height);
-
-        // Set the color of each pixel in the new texture
-        for (int i = 0; i < data.Length; i++)
-        {
-            // Skip transparent pixels
-            if (data[i].A > 0)
-            {
-                data[i] = color;
-            }
-        }
-
-        coloredTexture.SetData(data);
-        return coloredTexture;
-    }
 
     public void Dispose()
     {
         _collidingTexture?.Dispose();
-        Sprite?.Dispose();
     }
 
     public void ToggleDebug()
     {
-        Sprite.Debug = !Sprite.Debug;
+        _debug = !_debug;
     }
 }

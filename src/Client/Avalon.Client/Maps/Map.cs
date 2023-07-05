@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
-using Avalon.Client.Models;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using TiledCS;
@@ -12,8 +11,12 @@ namespace Avalon.Client.Maps;
 public class Map : IDisposable
 {
     private List<Layer> _layers;
+    private List<Layer> _collidableLayers;
+    
     private List<MapEvent> _events;
-
+    
+    private Texture2D _mapAtlas;
+    
     public Point MapSize { get; private set; }
 
     public int Columns { get; private set; }
@@ -71,9 +74,7 @@ public class Map : IDisposable
             }
         }
 
-        var spriteSheetTexture = Globals.Content.Load<Texture2D>($"Images/{spriteSheetName}");
-        
-        var loadedTextures = new Dictionary<int,Texture2D>();
+        _mapAtlas = Globals.Content.Load<Texture2D>($"Images/{spriteSheetName}");
 
         foreach (var layer in tileLayers)
         {
@@ -100,30 +101,15 @@ public class Map : IDisposable
                     var rect = map.GetSourceRect(mapTileset, tileset, gid);
                     
                     var source = new Rectangle(rect.x, rect.y, rect.width, rect.height);
-
-                    if (loadedTextures.TryGetValue(gid, out var texture))
-                    {
-                        var sprite = new Sprite(texture, new Vector2(tileX, tileY), debug: false);
-                        layerTiles[x, y] = new Tile(sprite, x, y, TileWidth, TileHeight, tileX, tileY, collidable);
-                    }
-                    else
-                    {
-                        var tileData = new Color[TileWidth * TileHeight];
-                        spriteSheetTexture.GetData(0, source, tileData, 0, TileWidth * TileHeight);
+                    var destination = new Rectangle(tileX, tileY, TileWidth, TileHeight);
                     
-                        var tileTexture = new Texture2D(Globals.GraphicsDevice, TileWidth, TileHeight);
-                        tileTexture.SetData(tileData);
-                    
-                        var sprite = new Sprite(tileTexture, new Vector2(tileX, tileY), debug: false);
-                        layerTiles[x, y] = new Tile(sprite, x, y, TileWidth, TileHeight, tileX, tileY, collidable);
-                        
-                        loadedTextures.Add(gid, tileTexture);
-                    }
+                    layerTiles[x, y] = new Tile(x, y, TileWidth, TileHeight, source, destination, collidable);
                 }
             }
             
             _layers.Add(new Layer(layerTiles, collidable));
         }
+        _collidableLayers = _layers.Where(l => l.IsCollidable).ToList();
     }
 
     #region Collision Detection
@@ -131,7 +117,7 @@ public class Map : IDisposable
     public bool IsTileCollidable(int tileX, int tileY, Rectangle boundingBox)
     {
         // Check if the specified tile is collidable
-        foreach (var layer in _layers.Where(l => l.IsCollidable))
+        foreach (var layer in _collidableLayers)
         {
             var tile = layer[tileX, tileY];
 
@@ -141,7 +127,6 @@ public class Map : IDisposable
                 {
                     if (boundingBox.Intersects(tile.Bounds))
                     {
-                        Trace.WriteLine($"Intersected rectangle: {{X={tile.Bounds.X}, Y={tile.Bounds.Y}}}. Hero rectangle: {{X={boundingBox.X}, Y={boundingBox.Y}}}");
                         tile.MarkAsCollided(true);
                         return true;
                     }
@@ -163,8 +148,6 @@ public class Map : IDisposable
         var rightTile = (int)Math.Ceiling((float)boundingBox.Right / TileWidth);
         var topTile = (int)Math.Floor((float)boundingBox.Top / TileHeight);
         var bottomTile = (int)Math.Ceiling((float)boundingBox.Bottom / TileHeight);
-        
-        
 
         // Iterate over the tiles within the bounding box and check for collision
         for (var y = topTile; y <= bottomTile; y++)
@@ -194,7 +177,7 @@ public class Map : IDisposable
 
     public void Draw(SpriteBatch spriteBatch)
     {
-        //NOTE: Instead of Drawing all the tiles to the screen, we check if the tile is visible first
+        // Instead of Drawing all the tiles to the screen, we check if the tile is visible first
         
         // Get the start and end indices of the visible tiles
         var startX = Math.Max(Globals.GraphicsDevice.Viewport.X / TileWidth + (int)(Globals.CameraPosition.X / TileWidth), 0);
@@ -218,13 +201,17 @@ public class Map : IDisposable
                     if (x >= 0 && x < Columns && y >= 0 && y < Rows)
                     {
                         var tile = layer[x, y];
-                        if (tile is not { IsVisible: true }) continue;
-                        tile.Draw(spriteBatch);
+
+                        if (tile is not { IsVisible: true })
+                        {
+                            continue;
+                        }
+                        tile.Draw(spriteBatch, _mapAtlas);
                     }
                 }
             }
         }
-        
+
         // Draw the map events
         foreach (var mapEvent in _events)
         {
@@ -254,6 +241,7 @@ public class Map : IDisposable
                 _events.Clear();
                 _events = null;
             }
+            _mapAtlas?.Dispose();
         }
     }
 
@@ -261,61 +249,5 @@ public class Map : IDisposable
     {
         Dispose(true);
         GC.SuppressFinalize(this);
-    }
-}
-
-internal class MapEvent
-{
-    public readonly Rectangle Bounds;
-    
-    private readonly string _name;
-    private readonly int _x;
-    private readonly int _y;
-    private readonly int _width;
-    private readonly int _height;
-    private readonly Dictionary<string, string> _properties;
-    private readonly Texture2D _texture;
-    private readonly Vector2 _origin;
-    private readonly Vector2 _position;
-
-    public MapEvent(string name, float x, float y, float width, float height, Dictionary<string,string> properties)
-    {
-        _name = name;
-        _x = (int) x;
-        _y = (int) y;
-        _width = (int) width;
-        _height = (int) height;
-        _properties = properties;
-        Bounds = new Rectangle((int)x, (int)y, (int)width, (int)height);
-        _texture = CreateColoredTileTexture(Color.Black);
-        _origin = new Vector2(_width / 2f, _height / 2f);
-        _position = new Vector2(_x, _y);
-    }
-    
-    private Texture2D CreateColoredTileTexture(Color color)
-    {
-        Color[] data = new Color[_width * _height];
-
-        // Create a new texture with the same dimensions as the original
-        var coloredTexture = new Texture2D(Globals.GraphicsDevice, _width, _height);
-
-        // Set the color of each pixel in the new texture
-        for (var i = 0; i < data.Length; i++)
-        {
-            data[i] = color;
-        }
-
-        coloredTexture.SetData(data);
-        return coloredTexture;
-    }
-    
-    public void Draw(SpriteBatch spriteBatch)
-    {
-        spriteBatch.Draw(_texture, _position, null, Color.White, 0f, _origin, 1f, SpriteEffects.None, 0f);
-    }
-    
-    public void Dispose()
-    {
-        _texture?.Dispose();
     }
 }

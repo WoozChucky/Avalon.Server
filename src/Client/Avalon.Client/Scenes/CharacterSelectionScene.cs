@@ -84,10 +84,16 @@ public class CharacterSelectionScene : Scene
         TcpClient.Instance.CharacterSelected -= OnCharacterSelected;
         TcpClient.Instance.CharacterCreated -= OnCharacterCreated;
         TcpClient.Instance.CharacterDeleted -= OnCharacterDeleted;
-        
-        _createButton.Clicked -= OnCreateButtonClicked;
-        _characterNameInput.OnPressedEnter -= OnCreateButtonClicked;
-        _characterNameInput.OnTextChanged -= OnCharacterNameValidation;
+
+        if (_createButton != null)
+        {
+            _createButton.Clicked -= OnCreateButtonClicked;
+        }
+        if (_characterNameInput != null)
+        {
+            _characterNameInput.OnPressedEnter -= OnCreateButtonClicked;
+            _characterNameInput.OnTextChanged -= OnCharacterNameValidation;
+        }
     }
 
     public override void Update(GameTime gameTime)
@@ -153,9 +159,12 @@ public class CharacterSelectionScene : Scene
             _cursor?.Dispose();
             _createButton?.Dispose();
             _characterNameInput?.Dispose();
-            foreach (var frame in _characterSelectFrames)
+            if (_characterSelectFrames != null)
             {
-                frame.Dispose();
+                foreach (var frame in _characterSelectFrames)
+                {
+                    frame?.Dispose();
+                }
             }
             
             Console.WriteLine("Character selection scene disposed");
