@@ -38,10 +38,8 @@ public class AvalonGame : Game
                 var screenshot = Texture2D.FromFile(GraphicsDevice, filePath);
                 var screenshotPath = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), "Avalon", fileName);
                 System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(screenshotPath));
-                using (var stream = System.IO.File.OpenWrite(screenshotPath))
-                {
-                    screenshot.SaveAsPng(stream, screenshot.Width, screenshot.Height);
-                }
+                using var stream = System.IO.File.OpenWrite(screenshotPath);
+                screenshot.SaveAsPng(stream, screenshot.Width, screenshot.Height);
             }
         };
         

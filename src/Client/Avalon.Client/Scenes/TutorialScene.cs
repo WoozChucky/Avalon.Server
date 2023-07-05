@@ -21,7 +21,6 @@ public class TutorialScene : Scene
 {
     private Map _map;
     private Player _player;
-    private Matrix _translation;
     private SpriteFont _font;
 
     private ChatGUI _chatGui;
@@ -102,9 +101,12 @@ public class TutorialScene : Scene
     public override void Unload()
     {
         MediaPlayer.Stop();
-        _timer.Stop();
-        _timer.Elapsed -= OnTimerElapsed;
-        _timer.Dispose();
+        if (_timer != null)
+        {
+            _timer.Stop();
+            _timer.Elapsed -= OnTimerElapsed;
+            _timer.Dispose();
+        }
         TcpClient.Instance.PlayerConnected -= OnPlayerConnected;
         TcpClient.Instance.PlayerDisconnected -= OnPlayerDisconnected;
         TcpClient.Instance.GroupInvite -= OnPlayerGroupInvited;
@@ -150,17 +152,7 @@ public class TutorialScene : Scene
         }
 
         _player?.Update(_map.IsObjectColliding, _npcs, _otherPlayers, _chatGui.IsTyping);
-        
-        // Update the camera position based on player movement or other logic
-        Globals.CameraPosition = _player.Position - new Vector2((float) Globals.GraphicsDevice.Viewport.Width / 2,
-            (float) Globals.GraphicsDevice.Viewport.Height / 2) + new Vector2(_map.TileWidth / 2f, _map.TileHeight / 2f);
-        
-        // Perform boundary checks to prevent the camera from going outside the game world
-        Globals.CameraPosition = new Vector2(
-            MathHelper.Clamp(Globals.CameraPosition.X, 0, _map.MapSize.X - Globals.GraphicsDevice.Viewport.Width),
-            MathHelper.Clamp(Globals.CameraPosition.Y, 0, _map.MapSize.Y - Globals.GraphicsDevice.Viewport.Height)
-        );
-        
+
         _partyInviteDialog?.Update(deltaTime);
         
         _chatGui?.Update(deltaTime);
@@ -185,6 +177,16 @@ public class TutorialScene : Scene
             await TcpClient.Instance.SendLogoutPacket(Globals.AccountId);
             Console.WriteLine("Sent logout packet at position " + _lastSentPosition);
         }
+        
+        // Update the camera position based on player movement or other logic
+        Globals.CameraPosition = _player.Position - new Vector2((float) Globals.GraphicsDevice.Viewport.Width / 2,
+            (float) Globals.GraphicsDevice.Viewport.Height / 2) + new Vector2(_map.TileWidth / 2f, _map.TileHeight / 2f);
+        
+        // Perform boundary checks to prevent the camera from going outside the game world
+        Globals.CameraPosition = new Vector2(
+            MathHelper.Clamp(Globals.CameraPosition.X, 0, _map.MapSize.X - Globals.GraphicsDevice.Viewport.Width),
+            MathHelper.Clamp(Globals.CameraPosition.Y, 0, _map.MapSize.Y - Globals.GraphicsDevice.Viewport.Height)
+        );
 
         CalculateTranslation();
         
@@ -206,7 +208,7 @@ public class TutorialScene : Scene
         var sortMode = SpriteSortMode.FrontToBack;
         var blendState = BlendState.AlphaBlend;
         */
-        spriteBatch.Begin(transformMatrix: _translation);
+        spriteBatch.Begin(transformMatrix: Globals.CameraViewMatrix);
         _map.Draw(spriteBatch);
         _player.Draw(spriteBatch);
         foreach (var (id, otherHero) in _otherPlayers)
@@ -256,7 +258,7 @@ public class TutorialScene : Scene
         dx = MathHelper.Clamp(dx, -_map.MapSize.X + Globals.WindowSize.X + (_map.TileWidth / 2), _map.TileWidth / 2f);
         var dy = (Globals.WindowSize.Y / 2f) - _player.Position.Y;
         dy = MathHelper.Clamp(dy, -_map.MapSize.Y + Globals.WindowSize.Y + (_map.TileHeight / 2), _map.TileHeight / 2f);
-        _translation = Matrix.CreateTranslation(dx, dy, 0f);
+        Globals.CameraViewMatrix = Matrix.CreateTranslation(dx, dy, 0f);
     }
     
     private void OnPlayerConnected(object sender, SPlayerConnectedPacket packet)
