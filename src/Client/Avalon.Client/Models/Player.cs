@@ -28,15 +28,21 @@ public class Player : IDisposable
     private int _currentFrame;
     private float _elapsedTime;
     
+    // Debug stuff
     private Texture2D _debugTexture;
     private Rectangle _debugRect;
+    
+    // Player sprite
     private readonly Sprite _sprite;
     
+    // Player name
     private readonly SpriteFont _font;
     private Vector2 _fontPosition;
     private Vector2 _fontShadowPosition;
     
     private MovementDirection _movementDirection;
+    private Texture2D _movementDirectionTexture;
+    private Rectangle _movementDirectionRect;
 
     public Player(int id, string name, Texture2D texture, Vector2 position)
     {
@@ -64,6 +70,33 @@ public class Player : IDisposable
         );
 
         CreateDebugBorder();
+        CreateMovementDirectionTexture(FrameHeight, 2, Color.Red);
+    }
+    
+    private void CreateMovementDirectionTexture(int size, int borderWidth, Color borderColor)
+    {
+        _movementDirectionTexture = new Texture2D(Globals.GraphicsDevice, size, size);
+
+        Color[] data = new Color[size * size];
+
+        for (int y = 0; y < size; y++)
+        {
+            for (int x = 0; x < size; x++)
+            {
+                if (x < borderWidth || x >= size - borderWidth || y < borderWidth || y >= size - borderWidth)
+                {
+                    // This pixel is part of the border
+                    data[y * size + x] = borderColor;
+                }
+                else
+                {
+                    // This pixel is in the middle
+                    data[y * size + x] = Color.Transparent;
+                }
+            }
+        }
+        _movementDirectionTexture.SetData(data);
+        _movementDirectionRect = new Rectangle(0, 0, size, size);
     }
 
     private void CreateDebugBorder()
@@ -99,6 +132,27 @@ public class Player : IDisposable
         
         Position += Velocity * Globals.Time * SPEED * (InputManager.Instance.KeyDown(Keys.Space) ? 1.75f : 1);
         Position = Vector2.Clamp(Position, _minPos, _maxPos);
+        
+        // Update the movement direction rect position depending on the current movement direction
+        switch (_movementDirection)
+        {
+            case MovementDirection.Up:
+                _movementDirectionRect.X = (int)Position.X;
+                _movementDirectionRect.Y = (int)Position.Y - FrameHeight;
+                break;
+            case MovementDirection.Down:
+                _movementDirectionRect.X = (int)Position.X;
+                _movementDirectionRect.Y = (int)Position.Y + FrameHeight;
+                break;
+            case MovementDirection.Left:
+                _movementDirectionRect.X = (int)Position.X - FrameWidth;
+                _movementDirectionRect.Y = (int)Position.Y;
+                break;
+            case MovementDirection.Right:
+                _movementDirectionRect.X = (int)Position.X + FrameWidth;
+                _movementDirectionRect.Y = (int)Position.Y;
+                break;
+        }
 
         // Calculate the rectangle that encompasses the sprite with the border
         BoundingBox.X = (int)(Position.X);
@@ -151,13 +205,16 @@ public class Player : IDisposable
 #pragma warning restore CS0162
         }
         
+        // Draw player name
         spriteBatch.DrawString(_font, _name, _fontShadowPosition, Color.Black);
         spriteBatch.DrawString(_font, _name, _fontPosition, Color.Yellow);
         
         // Calculate the source rectangle based on the current frame and direction
         var sourceRect = new Rectangle(_currentFrame * FrameWidth, (int)_movementDirection * FrameHeight, FrameWidth, FrameHeight);
-        
         spriteBatch.Draw(_sprite.Texture, _sprite.Position, sourceRect, Color.White, 0f, _sprite.Origin, _sprite.Scale, SpriteEffects.None, 0);
+        
+        // Draw the movement direction texture
+        spriteBatch.Draw(_movementDirectionTexture, _movementDirectionRect, null, Color.White, 0f, _sprite.Origin, SpriteEffects.None, 0f);
     }
     
     private void UpdateMovement()
