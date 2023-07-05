@@ -33,6 +33,7 @@ public interface IAvalonGame
     Task HandleCharacterListPacket(IRemoteSource source, CCharacterListPacket packet);
     Task HandleCharacterCreatePacket(IRemoteSource source, CCharacterCreatePacket packet);
     Task HandleCharacterDeletePacket(IRemoteSource source, CCharacterDeletePacket packet);
+    Task HandleLogoutPacket(IRemoteSource source, CLogoutPacket packet);
 }
 
 public partial class AvalonGame : IAvalonGame
@@ -215,7 +216,7 @@ public partial class AvalonGame : IAvalonGame
                 session.Character.Movement.Position.X, 
                 session.Character.Movement.Position.Y,
                 session.Character.Movement.Velocity.X,
-                session.Character.Movement.Position.Y,
+                session.Character.Movement.Velocity.Y,
                 session.Character.IsChatting,
                 session.Character.ElapsedGameTime
             );
@@ -274,8 +275,19 @@ public partial class AvalonGame : IAvalonGame
         var session = _connectionManager.GetSession(packet.AccountId);
         if (session == null || !session.InGame) return Task.CompletedTask;
         
+        Vector2 velocity;
+        
+        if (float.IsNaN(packet.VelocityX) && float.IsNaN(packet.VelocityY))
+        {
+            velocity = Vector2.Zero;
+        }
+        else
+        {
+            velocity = new Vector2(packet.VelocityX, packet.VelocityY);
+        }
+        
         session.Character!.Movement.Position = new Vector2(packet.X, packet.Y);
-        session.Character!.Movement.Velocity = new Vector2(packet.VelocityX, packet.VelocityY);
+        session.Character!.Movement.Velocity = velocity;
         session.Character!.ElapsedGameTime = packet.ElapsedGameTime;
         
         return Task.CompletedTask;

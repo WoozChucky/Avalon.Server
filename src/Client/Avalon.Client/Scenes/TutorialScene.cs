@@ -44,6 +44,7 @@ public class TutorialScene : Scene
     private double _latency;
 
     private volatile bool _loaded = false;
+    private volatile bool _loggedOut = false;
 
     public TutorialScene(SceneManager sceneManager) : base(sceneManager)
     {
@@ -57,6 +58,7 @@ public class TutorialScene : Scene
         TcpClient.Instance.GroupInvite += OnPlayerGroupInvited;
         TcpClient.Instance.PlayerMoved += OnPlayerMoved;
         TcpClient.Instance.NpcUpdated += OnNpcUpdated;
+        TcpClient.Instance.Logout += OnLogout;
         
         UdpEnetClient.Instance.PlayerMoved += OnPlayerMoved;
         UdpEnetClient.Instance.NpcUpdated += OnNpcUpdated;
@@ -66,7 +68,7 @@ public class TutorialScene : Scene
     {
         _song = Globals.Content.Load<Song>("Music/CitySound");
         MediaPlayer.Volume = 0.015f;
-        MediaPlayer.Play(_song);
+        // MediaPlayer.Play(_song);
         _font = Globals.Content.Load<SpriteFont>("Fonts/Nintendo");
         _map = new Map("Tutorial", "Serene_Village_32x32");
         _player = new Player(
@@ -97,12 +99,20 @@ public class TutorialScene : Scene
         // TODO: Unload any content that was loaded for the scene
     }
 
-    public override void Update(GameTime gameTime)
+    public override async void Update(GameTime gameTime)
     {
         var deltaTime = (float)gameTime.ElapsedGameTime.TotalSeconds;
         
         if (!_loaded)
         {
+            return;
+        }
+        
+        if (_loggedOut)
+        {
+            _loaded = false;
+            SceneManager.LoadScene(nameof(CharacterSelectionScene));
+            _loggedOut = false;
             return;
         }
 
@@ -150,6 +160,11 @@ public class TutorialScene : Scene
         if (InputManager.Instance.KeyReleased(Keys.F3))
         {
             _map.ToggleDebug();
+        }
+
+        if (_chatGui is { IsTyping: false } && InputManager.Instance.KeyReleased(Keys.O))
+        {
+            await TcpClient.Instance.SendLogoutPacket(Globals.AccountId);
         }
 
         CalculateTranslation();
@@ -238,6 +253,7 @@ public class TutorialScene : Scene
     {
         if (_otherPlayers.TryGetValue(packet.AccountId, out var player))
         {
+            //Console.WriteLine("Received velocity: " + packet.VelocityX + ", " + packet.VelocityY);
             player.OnMovementReceived(new Vector2(packet.PositionX, packet.PositionY), new Vector2(packet.VelocityX, packet.VelocityY), _latency);
             player.OnChatChanged(packet.Chatting);
         }
@@ -288,15 +304,32 @@ public class TutorialScene : Scene
         _latency = latency;
     }
     
+    private void OnLogout(object sender, SLogoutPacket packet)
+    {
+        _loggedOut = true;
+    }
+    
     private async void OnTimerElapsed(object sender, EventArgs e)
     {
         
-        { // Send movement updates if the player has moved
-            if (_player.Position == _lastSentPosition && _player.Velocity == _lastSentVelocity) return;
-        
-            await UdpEnetClient.Instance.BroadcastMovementUpdates(Globals.Time, _player.Position.X, _player.Position.Y, _player.Velocity.X, _player.Velocity.Y);
-            _lastSentPosition = _player.Position;
-            _lastSentVelocity = _player.Velocity;
+        {   
+            // Send movement updates if the player has moved, or if he stopped moving.
+            // If position and velocity haven't changed, we don't send an update
+
+            var vel = new Vector2(_player.Velocity.X, _player.Velocity.Y);
+            var pos = new Vector2(_player.Position.X, _player.Position.Y);
+            
+            if ((float.IsNaN(vel.X) && float.IsNaN(vel.Y)) || vel is { X: 0.0f, Y: 0.0f })
+            {
+                vel = new Vector2(0.0f, 0.0f);
+            }
+            
+            if (pos == _lastSentPosition && vel == _lastSentVelocity)
+                return;
+
+            await UdpEnetClient.Instance.BroadcastMovementUpdates(Globals.Time, pos.X, pos.Y, vel.X, vel.Y);
+            _lastSentPosition = pos;
+            _lastSentVelocity = vel;
         }
         
     }

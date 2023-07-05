@@ -20,7 +20,7 @@ public enum ConnectionStatus
 public class AvalonSession : IDisposable
 {
     public int AccountId { get; private set; }
-    public byte[] SessionKey { get; private set; }
+    public byte[] SessionKey { get; set; }
     public Character? Character { get; set; }
     public PartyGroup Party { get; set; }
     public IRemoteSource? Udp { get; private set; }

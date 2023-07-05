@@ -169,7 +169,7 @@ public class Player : IDisposable
             Velocity.Y -= 1;
             _movementDirection = MovementDirection.Up;
         }
-        
+    
         if (InputManager.Instance.KeyDown(Keys.S) || InputManager.Instance.KeyDown(Keys.Down))
         {
             Velocity.Y += 1;
@@ -187,7 +187,7 @@ public class Player : IDisposable
             Velocity.X += 1;
             _movementDirection = MovementDirection.Right;
         }
-        
+    
         if (Velocity != Vector2.Zero)
             Velocity.Normalize();
     }

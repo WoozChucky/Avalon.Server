@@ -1,11 +1,8 @@
 ﻿using System;
-using System.Threading;
 using Avalon.Client.Managers;
 using Avalon.Client.Models;
-using Avalon.Client.Network;
 using Avalon.Client.UI;
 using Avalon.Client.UI.MainMenu;
-using Avalon.Network.Packets.Character;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 

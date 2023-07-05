@@ -13,6 +13,7 @@ public enum NetworkPacketType : short
     
     CMSG_AUTH = 0x2000,
     CMSG_AUTH_PATCH = 0x2001,
+    CMSG_LOGOUT = 0x2002,
     
     // Character
     
@@ -22,7 +23,6 @@ public enum NetworkPacketType : short
     CMSG_CHARACTER_SELECTED = 0x2013,
     
     CMSG_REQUEST_SERVER_VERSION = 0x2021,
-    CMSG_REQUEST_ENCRYPTION_KEY = 0x2002,
     CMSG_REQUEST_LOBBY_LIST = 0x2003,
     CMSG_MOVEMENT = 0x2004,
     CMSG_PING = 0x2005,
@@ -39,6 +39,7 @@ public enum NetworkPacketType : short
     // Authentication
     
     SMSG_AUTH_RESULT = 0x3000,
+    SMSG_LOGOUT = 0x3003,
 
     // Character
     
@@ -53,8 +54,6 @@ public enum NetworkPacketType : short
     SMSG_PING = 0x3007,
     
     SMSG_SERVER_VERSION = 0x3002,
-    SMSG_ENCRYPTION_KEY = 0x3003,
-    SMSG_LOBBY_LIST = 0x3004,
     SMSG_PLAYER_POSITION_UPDATE = 0x3005,
     SMSG_NPC_UPDATE = 0x3008,
     SMSG_CHAT_MESSAGE = 0x3009,
