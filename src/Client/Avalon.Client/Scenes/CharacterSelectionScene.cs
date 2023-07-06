@@ -198,6 +198,7 @@ public class CharacterSelectionScene : Scene
         _gotCharacterList = false;
         Globals.CharacterId = packet.Character.CharacterId;
         Globals.CharacterName = packet.Character.Name;
+        Globals.MapInfo = packet.Map;
         Globals.StartPosition = new Vector2(packet.Character.X, packet.Character.Y);
         _characterSelected = true;
     }
@@ -213,22 +214,25 @@ public class CharacterSelectionScene : Scene
 
         var currentIdx = 0;
         const int switchIdx = 2;
-        
-        foreach (var character in packet.Characters)
+
+        if (packet.Characters != null)
         {
-            var frame = new CharacterSelectFrame(framePosition, character);
-            frame.Selected += OnCharacterSelectedFrame;
-            frame.Deleted += OnCharacterDeletedFrame;
-            _characterSelectFrames.Add(frame);
-            framePosition.Y += 120;
-            if (currentIdx == switchIdx)
+            foreach (var character in packet.Characters)
             {
-                framePosition.X = 450;
-                framePosition.Y = 100;
+                var frame = new CharacterSelectFrame(framePosition, character);
+                frame.Selected += OnCharacterSelectedFrame;
+                frame.Deleted += OnCharacterDeletedFrame;
+                _characterSelectFrames.Add(frame);
+                framePosition.Y += 120;
+                if (currentIdx == switchIdx)
+                {
+                    framePosition.X = 450;
+                    framePosition.Y = 100;
+                }
+                currentIdx++;
             }
-            currentIdx++;
         }
-        
+
         _gotCharacterList = true;
         _canCreateCharacter = packet.CharacterCount < packet.MaxCharacterCount;
     }

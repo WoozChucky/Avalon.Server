@@ -1,4 +1,5 @@
 ﻿using System;
+using Avalon.Network.Packets.Character;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Content;
 using Microsoft.Xna.Framework.Graphics;
@@ -20,6 +21,7 @@ public static class Globals
     public static Matrix CameraViewMatrix { get; set; }
     
     public static Vector2 StartPosition { get; set; }
+    public static MapInfo MapInfo { get; set; }
 
     public static void Update(GameTime gt)
     {

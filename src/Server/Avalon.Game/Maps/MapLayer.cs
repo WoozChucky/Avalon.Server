@@ -1,6 +1,4 @@
-using System.Collections.Generic;
-
-namespace Avalon.Map
+namespace Avalon.Game.Maps
 {
     public class MapLayer
     {

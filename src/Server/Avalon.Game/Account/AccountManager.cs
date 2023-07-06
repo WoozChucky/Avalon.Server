@@ -103,7 +103,7 @@ public partial class AvalonGame
         
         _logger.LogInformation("Character {CharacterId} logged out at {Position}", character.Name, character.Movement);
         
-        await BroadcastToOthers(session.AccountId, SPlayerDisconnectedPacket.Create(session.AccountId, session.Character!.Id), true);
+        await BroadcastToOthersInInstance(session.AccountId, SPlayerDisconnectedPacket.Create(session.AccountId, session.Character!.Id), session.Character.InstanceId);
         
         session.Character = null;
         

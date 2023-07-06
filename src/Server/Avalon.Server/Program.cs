@@ -2,6 +2,7 @@
 using Avalon.Database;
 using Avalon.Game;
 using Avalon.Game.Handlers;
+using Avalon.Game.Maps;
 using Avalon.Infrastructure;
 using Avalon.Metrics;
 using Avalon.Network;
@@ -130,6 +131,7 @@ namespace Avalon.Server
                 .AddSingleton<IPacketSerializer, NetworkPacketSerializer>()
                 .AddSingleton<IPacketRegistry, PacketRegistry>()
                 .AddSingleton<IAvalonNetworkDaemon, AvalonNetworkDaemon>()
+                .AddSingleton<IAvalonMapManager, AvalonMapManager>()
                 .AddSingleton<IAvalonGame, AvalonGame>()
                 .AddSingleton<IAvalonInfrastructure, AvalonInfrastructure>()
                 .AddSingleton<CancellationTokenSource>(s => new CancellationTokenSource())

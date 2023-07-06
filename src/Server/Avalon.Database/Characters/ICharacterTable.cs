@@ -25,13 +25,13 @@ public sealed class CharacterTable : ICharacterTable
     
     private const string CharacterSelectors = "id as Id, account as Account, name as Name, level as Level, class as Class, position_x as PositionX, position_y as PositionY";
     
-    private const string GetCharacterByIdQuery = $"SELECT {CharacterSelectors} FROM `Character` WHERE id = @Id";
-    private const string GetCharacterByIdAndAccountQuery = $"SELECT {CharacterSelectors} FROM `Character` WHERE id = @Id AND `account` = @Account";
-    private const string GetCharactersByAccountQuery = $"SELECT {CharacterSelectors} FROM `Character` WHERE `account` = @Account";
-    private const string GetCharacterByNameQuery = $"SELECT {CharacterSelectors} FROM `Character` WHERE name = @Name";
+    private const string GetCharacterByIdQuery = $"SELECT * FROM `Character` WHERE id = @Id";
+    private const string GetCharacterByIdAndAccountQuery = $"SELECT * FROM `Character` WHERE id = @Id AND `account` = @Account";
+    private const string GetCharactersByAccountQuery = $"SELECT * FROM `Character` WHERE `account` = @Account";
+    private const string GetCharacterByNameQuery = $"SELECT * FROM `Character` WHERE name = @Name";
     private const string InsertCharacterQuery = "INSERT INTO `Character` (`account`, `name`, `level`, `class`, `position_x`, `position_y`) VALUES (@Account, @Name, @Level, @Class, @PositionX, @PositionY)";
     private const string DeleteCharacterQuery = "DELETE FROM `Character` WHERE id = @Id AND `account` = @Account";
-    private const string UpdateCharacterQuery = "UPDATE `Character` SET `level` = @Level, `position_x` = @PositionX, `position_y` = @PositionY WHERE id = @Id AND `account` = @Account";
+    private const string UpdateCharacterQuery = "UPDATE `Character` SET `level` = @Level, `position_x` = @PositionX, `position_y` = @PositionY, `instance_id` = @InstanceId, `map` = @Map, `online` = @Online WHERE id = @Id AND `account` = @Account";
     
     public async Task<Character?> QueryByIdAsync(int id)
     {
@@ -95,7 +95,7 @@ public sealed class CharacterTable : ICharacterTable
         
         var rows = await connection.ExecuteAsync(UpdateCharacterQuery, new
         {
-            Id = character.Id, Account = character.Account, Level = character.Level, PositionX = character.Movement.Position.X, PositionY = character.Movement.Position.Y
+            Id = character.Id, Account = character.Account, Level = character.Level, PositionX = character.Movement.Position.X, PositionY = character.Movement.Position.Y, InstanceId = character.InstanceId, Map = character.Map, Online = character.Online
         });
         
         return rows == 1;
