@@ -1,10 +1,7 @@
-using System.Collections.Concurrent;
-using Avalon.Game.Entities;
+using Avalon.Database.Characters;
 using Avalon.Network;
-using Avalon.Network.Packets;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Generic;
-using Character = Avalon.Database.Characters.Character;
 
 namespace Avalon.Game;
 
@@ -15,6 +12,18 @@ public enum ConnectionStatus
     Connected,
     TimedOut,
     PendingKey
+}
+
+public class PartyGroup
+{
+    public bool Active { get; set; }
+    public bool Leader { get; set; }
+    public List<int> Members { get; set; } = new();
+    
+    public PartyGroup()
+    {
+        
+    }
 }
 
 public class AvalonSession : IDisposable

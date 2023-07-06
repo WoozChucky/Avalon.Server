@@ -109,10 +109,6 @@ public class ChatGUI : IDisposable
             shadowPosition = new Vector2(Globals.CameraPosition.X + _backgroundPosition.X + 10, messageY) + new Vector2(2, 2);
         }
 
-        // Draw current message being typed
-        //string promptText = "Type your message...";
-        //spriteBatch.DrawString(/* font */, promptText, new Vector2(/* messageX */, /* messageY for current message */), Color.Gray);
-        //spriteBatch.DrawString(/* font */, _currentMessage, new Vector2(/* messageX */, /* messageY for current message */), Color.White);
         _textInputComponent.Draw(spriteBatch);
     }
     
@@ -194,7 +190,7 @@ public class ChatGUI : IDisposable
     
     private async void SendChatMessage(string message)
     {
-        _chatMessages.Add($"[{Globals.AccountId}]: {message}");
+        _chatMessages.Add($"[{Globals.CharacterName}]: {message}");
         _textInputComponent.Clear();
         await TcpClient.Instance.SendChatMessage(message);
     }
