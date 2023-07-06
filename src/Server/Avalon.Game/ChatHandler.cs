@@ -45,7 +45,7 @@ public partial class AvalonGame
         {
             var msgPacket = SChatMessagePacket.Create(packet.AccountId, session.Character.Id, session.Character.Name, packet.Message, packet.DateTime);
             
-            await BroadcastToOthers(packet.AccountId, msgPacket);
+            await BroadcastToOthers(packet.AccountId, msgPacket, true);
         }
     }
     
