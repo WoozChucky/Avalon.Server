@@ -1,12 +1,8 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Drawing;
-using System.Linq;
-using System.Numerics;
 using TiledCS;
 
-namespace Avalon.Map
+namespace Avalon.Game.Maps
 {
     public class ServerMap
     {
@@ -21,10 +17,10 @@ namespace Avalon.Map
     
         public int TileHeight { get; private set; }
         
-        public ServerMap(string mapName)
+        public ServerMap(string name, string directory)
         {
             _layers = new List<MapLayer>();
-            Load(new TiledMap($"Maps/{mapName}.tmx"));
+            Load(new TiledMap($"{directory}{name}"));
         }
 
         public Tile? this[int layer, int x, int y] => _layers.ElementAt(layer)[x, y];

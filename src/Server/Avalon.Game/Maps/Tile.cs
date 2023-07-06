@@ -1,8 +1,7 @@
 using System.Drawing;
 using System.Numerics;
-using Avalon.Common.Extensions;
 
-namespace Avalon.Map
+namespace Avalon.Game.Maps
 {
     public class Tile
     {

@@ -26,9 +26,9 @@ public class Map : IDisposable
     
     public int TileHeight { get; private set; }
     
-    public Map(string mapName, string spriteSheetName)
+    public Map(string mapName, string directory, string spriteSheetName)
     {
-        Load(new TiledMap($"Maps/{mapName}.tmx"), spriteSheetName);
+        Load(new TiledMap($"{directory}{mapName}"), spriteSheetName);
     }
     
     private void Load(TiledMap map, string spriteSheetName)

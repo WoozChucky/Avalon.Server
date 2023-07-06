@@ -3,7 +3,7 @@ using System.Numerics;
 using System.Reflection;
 using Avalon.Database;
 using Avalon.Game.Entities;
-using Avalon.Map;
+using Avalon.Game.Maps;
 using Avalon.Network;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Auth;
@@ -45,33 +45,38 @@ public partial class AvalonGame : IAvalonGame
     private readonly IPacketSerializer _packetSerializer;
     private readonly IAvalonConnectionManager _connectionManager;
     private readonly IDatabaseManager _databaseManager;
-    
+    private readonly IAvalonMapManager _avalonMapManager;
+
     private readonly ConcurrentDictionary<int, Uriel> _npcs;
     private readonly ServerMap _map;
 
     public AvalonGame(ILogger<AvalonGame> logger, 
         IPacketSerializer packetSerializer, 
         IAvalonConnectionManager connectionManager,
-        IDatabaseManager databaseManager)
+        IDatabaseManager databaseManager,
+        IAvalonMapManager avalonMapManager)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _cts = new CancellationTokenSource();
         _packetSerializer = packetSerializer;
         _connectionManager = connectionManager;
         _databaseManager = databaseManager;
+        _avalonMapManager = avalonMapManager;
         _npcs = new ConcurrentDictionary<int, Uriel>();
         
         _connectionManager.SessionLost += OnSessionLost;
         _connectionManager.SessionReconnected += OnPlayerReconnected;
         _connectionManager.SessionTimedOut += OnPlayerTimedOut;
         
-        _map = new ServerMap("Tutorial");
+        _map = new ServerMap("Tutorial.tmx", "Maps/");
 
         _npcs.TryAdd(1, new Uriel());
     }
 
     public async void Start()
     {
+        await _avalonMapManager.LoadMaps();
+        
         _logger.LogInformation("Starting game loop");
 
 #pragma warning disable CS4014
@@ -87,8 +92,9 @@ public partial class AvalonGame : IAvalonGame
                 var currentTime = DateTime.UtcNow;
                 var deltaTime = currentTime - previousTime;
                 previousTime = currentTime;
-        
+                
                 Update(deltaTime);
+                _avalonMapManager.Update(deltaTime);
 
                 await Task.Delay(50);
             }
@@ -111,7 +117,7 @@ public partial class AvalonGame : IAvalonGame
             {
                 await BroadcastGameState();
             
-                await Task.Delay(16);
+                await Task.Delay(26);
             }
         }
         catch (OperationCanceledException)
@@ -212,6 +218,7 @@ public partial class AvalonGame : IAvalonGame
         foreach (var session in _connectionManager.GetInGameSessions())
         {
             if (session.Character == null) continue;
+            
             var packet = SPlayerPositionUpdatePacket.Create(
                 session.AccountId,
                 session.Character.Id,
@@ -222,7 +229,8 @@ public partial class AvalonGame : IAvalonGame
                 session.Character.IsChatting,
                 session.Character.ElapsedGameTime
             );
-            await BroadcastAll(packet);
+            
+            await BroadcastToInstance(packet, session.Character.InstanceId);
         }
         
         // Broadcast NPC positions
@@ -264,6 +272,24 @@ public partial class AvalonGame : IAvalonGame
     {
         var availablePlayers = _connectionManager.GetSessions().Values.Where(
             p => p.Status == ConnectionStatus.Connected).Select(p => p.SendAsync(packet));
+
+        await Task.WhenAll(availablePlayers);
+    }
+    
+    private async Task BroadcastToInstance(NetworkPacket packet, string instanceId)
+    {
+        var availablePlayers = _connectionManager.GetSessions().Values.Where(
+            p => p.Status == ConnectionStatus.Connected
+            && p.Character != null && p.Character.InstanceId == instanceId).Select(p => p.SendAsync(packet));
+
+        await Task.WhenAll(availablePlayers);
+    }
+    
+    private async Task BroadcastToOthersInInstance(int except, NetworkPacket packet, string instanceId)
+    {
+        var availablePlayers = _connectionManager.GetSessions().Values.Where(
+            p =>  p.AccountId != except && p.Status == ConnectionStatus.Connected
+                  && p.Character != null && p.Character.InstanceId == instanceId).Select(p => p.SendAsync(packet));
 
         await Task.WhenAll(availablePlayers);
     }

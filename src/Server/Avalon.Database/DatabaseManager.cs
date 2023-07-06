@@ -1,4 +1,7 @@
-﻿using Avalon.Database.Auth;
+﻿using System;
+using System.Linq;
+using System.Reflection;
+using Avalon.Database.Auth;
 using Avalon.Database.Characters;
 using Avalon.Database.World;
 
@@ -26,5 +29,36 @@ public class DatabaseManager : IDatabaseManager
         Auth = new AuthDatabase();
         Characters = new CharactersDatabase();
         World = new WorldDatabase();
+        
+        RegisterMappings();
+    }
+    
+    private void RegisterMappings()
+    {
+        Dapper.SqlMapper.SetTypeMap(typeof(Account), new Dapper.CustomPropertyTypeMap(typeof(Account), 
+            (type, columnName) => type
+                .GetProperties()
+                .FirstOrDefault(prop => GetDescriptionFromAttribute(prop) == columnName.ToLower()))
+        );
+        
+        Dapper.SqlMapper.SetTypeMap(typeof(Character), new Dapper.CustomPropertyTypeMap(typeof(Character), 
+            (type, columnName) => type
+                .GetProperties()
+                .FirstOrDefault(prop => GetDescriptionFromAttribute(prop) == columnName.ToLower()))
+        );
+        
+        Dapper.SqlMapper.SetTypeMap(typeof(Map), new Dapper.CustomPropertyTypeMap(typeof(Map), 
+            (type, columnName) => type
+                .GetProperties()
+                .FirstOrDefault(prop => GetDescriptionFromAttribute(prop) == columnName.ToLower()))
+        );
+    }
+
+    private static string? GetDescriptionFromAttribute(MemberInfo? member)
+    {
+        if (member == null) return null;
+
+        var attrib = (Column)Attribute.GetCustomAttribute(member, typeof(Column), false);
+        return (attrib?.Name ?? member.Name).ToLower();
     }
 }

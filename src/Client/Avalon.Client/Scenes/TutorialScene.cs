@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Concurrent;
+using System.Threading.Tasks;
 using Avalon.Client.Managers;
 using Avalon.Client.Maps;
 using Avalon.Client.Models;
@@ -52,8 +53,10 @@ public class TutorialScene : Scene
         
     }
 
-    public override async void Load()
+    private async Task Load(string mapName, string directory, string atlas)
     {
+        _loaded = false;
+        
         _otherPlayers = new ConcurrentDictionary<int, OtherPlayer>();
         _npcs = new ConcurrentDictionary<int, OtherPlayer>();
 
@@ -63,7 +66,7 @@ public class TutorialScene : Scene
         MediaPlayer.Volume = 0.015f;
         // MediaPlayer.Play(_song);
         _font = Globals.Content.Load<SpriteFont>("Fonts/Nintendo");
-        _map = new Map("Tutorial", "Serene_Village_32x32");
+        _map = new Map(mapName, directory, atlas);
         _player = new Player(
             Globals.AccountId,
             Globals.CharacterName,
@@ -96,6 +99,12 @@ public class TutorialScene : Scene
         _loaded = true;
 
         await TcpClient.Instance.SendCharacterLoadedPacket();
+    }
+
+    public override async void Load()
+    {
+        Console.WriteLine(Globals.MapInfo);
+        await Load(Globals.MapInfo.Name, Globals.MapInfo.Directory, Globals.MapInfo.Atlas);
     }
 
     public override void Unload()
@@ -176,6 +185,12 @@ public class TutorialScene : Scene
         {
             await TcpClient.Instance.SendLogoutPacket(Globals.AccountId);
             Console.WriteLine("Sent logout packet at position " + _lastSentPosition);
+        }
+        
+        if (_chatGui is { IsTyping: false } && InputManager.Instance.KeyReleased(Keys.I))
+        {
+            await Load("Village", "Maps/", "Serene_Village_32x32");
+            return;
         }
         
         // Update the camera position based on player movement or other logic
@@ -335,7 +350,6 @@ public class TutorialScene : Scene
     private async void OnTimerElapsed(object sender, EventArgs e)
     {
         if (_loggedOut) return;
-        Console.WriteLine("Timer elapsed");
         
         {   
             // Send movement updates if the player has moved, or if he stopped moving.

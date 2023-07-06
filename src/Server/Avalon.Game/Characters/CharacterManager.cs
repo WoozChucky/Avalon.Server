@@ -117,12 +117,31 @@ public partial class AvalonGame
             _logger.LogWarning("Character {CharacterId} not found for account {AccountId}", packet.CharacterId, packet.AccountId);
             return;
         }
+        
+        // Try to find the map instance for this character
+        var mapInstance = _avalonMapManager.GetInstance(character.Map, Guid.Parse(character.InstanceId));
+        if (mapInstance == null)
+        {
+            // Specific map instance not found, try to find a other instance of the same map
+            mapInstance = _avalonMapManager.GetInstance(character.Map, character.Id);
+            if (mapInstance == null)
+            {
+                // No instance found, create a new one and add the character to it
+                mapInstance = _avalonMapManager.GenerateInstance(character.Map);
+                mapInstance.AddCharacter(character.Id);
+            }
+        }
+        
+        // Update the current map instance
+        character.InstanceId = mapInstance.InstanceId.ToString();
 
         character.Movement = new CharacterMovement
         {
             Position = new Vector2(character.PositionX, character.PositionY),
             Velocity = Vector2.Zero
         };
+        
+        character.Online = true;
 
         await session.SendAsync(SCharacterSelectedPacket.Create(packet.AccountId, new CharacterInfo
         {
@@ -132,14 +151,25 @@ public partial class AvalonGame
             Class = character.Class,
             X = character.PositionX,
             Y = character.PositionY
+        },
+        new MapInfo
+        {
+            MapId = mapInstance.MapId,
+            InstanceId = mapInstance.InstanceId,
+            Name = mapInstance.Name,
+            Atlas = mapInstance.Atlas,
+            Directory = mapInstance.Directory,
         }));
-        
+
+        // save the character to the database
+        await _databaseManager.Characters.Character.UpdateAsync(character);
+
         session.Character = character;
         
         _logger.LogInformation("Character {CharacterId} logged in for account {AccountId} at {Position}", character.Name, packet.AccountId, character.Movement);
 
         // Send to everyone else, that this player is connected
-        await BroadcastToOthers(session.AccountId, SPlayerConnectedPacket.Create(session.AccountId, session.Character.Id, session.Character.Name), true);
+        await BroadcastToOthersInInstance(session.AccountId, SPlayerConnectedPacket.Create(session.AccountId, session.Character.Id, session.Character.Name), mapInstance.InstanceId.ToString());
     }
 
     public async Task HandleCharacterDeletePacket(IRemoteSource source, CCharacterDeletePacket packet)
@@ -197,10 +227,11 @@ public partial class AvalonGame
         // Send to this player, that everyone else is connected
         foreach (var otherSession in sessions.Values)
         {
-            if (otherSession.AccountId == session.AccountId || !otherSession.InGame)
+            if (otherSession.AccountId == session.AccountId || !otherSession.InGame || otherSession.Character!.InstanceId != session.Character!.InstanceId)
             {
                 continue;
             }
+            
             await session.SendAsync(SPlayerConnectedPacket.Create(otherSession.AccountId, otherSession.Character!.Id, otherSession.Character.Name));
         }
     }

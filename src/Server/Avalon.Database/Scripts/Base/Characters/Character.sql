@@ -12,8 +12,8 @@ CREATE TABLE IF NOT EXISTS `Character` (
     
     `position_x` float NOT NULL DEFAULT '0',
     `position_y` float NOT NULL DEFAULT '0',
-    `map` smallint unsigned NOT NULL DEFAULT '0' COMMENT 'Map Identifier',
-    `instance_id` int unsigned NOT NULL DEFAULT '0',
+    `map` smallint unsigned NOT NULL DEFAULT '1' COMMENT 'Map Identifier',
+    `instance_id` varchar(36) NOT NULL DEFAULT '00000000-0000-0000-0000-000000000000',
 
     `online` tinyint unsigned NOT NULL DEFAULT '0',
     `total_time` int unsigned NOT NULL DEFAULT '0',

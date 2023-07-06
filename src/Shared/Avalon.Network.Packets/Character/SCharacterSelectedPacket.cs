@@ -11,15 +11,17 @@ public class SCharacterSelectedPacket : Packet
     
     [ProtoMember(1)] public int AccountId { get; set; }
     [ProtoMember(2)] public CharacterInfo Character { get; set; }
+    [ProtoMember(3)] public MapInfo Map { get; set; }
 
-    public static NetworkPacket Create(int accountId, CharacterInfo character)
+    public static NetworkPacket Create(int accountId, CharacterInfo character, MapInfo map)
     {
         using var memoryStream = new MemoryStream();
         
         var authPacket = new SCharacterSelectedPacket()
         {
             AccountId = accountId,
-            Character = character
+            Character = character,
+            Map = map
         };
         
         Serializer.Serialize(memoryStream, authPacket);
@@ -35,5 +37,20 @@ public class SCharacterSelectedPacket : Packet
             },
             Payload = memoryStream.ToArray()
         };
+    }
+}
+
+[ProtoContract]
+public class MapInfo
+{
+    [ProtoMember(1)] public int MapId { get; set; }
+    [ProtoMember(2)] public Guid InstanceId { get; set; }
+    [ProtoMember(3)] public string Name { get; set; }
+    [ProtoMember(4)] public string Atlas { get; set; }
+    [ProtoMember(5)] public string Directory { get; set; }
+
+    public override string ToString()
+    {
+        return $"MapId: {MapId}, InstanceId: {InstanceId}, Name: {Name}, Atlas: {Atlas}, Directory: {Directory}";
     }
 }
