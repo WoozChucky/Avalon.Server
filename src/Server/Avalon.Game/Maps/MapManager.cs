@@ -77,11 +77,24 @@ public class AvalonMapManager : IAvalonMapManager
     {
         if (!_instancedMaps.TryGetValue(mapId, out var mapInstances))
         {
-            _logger.LogWarning("Map {MapId} not found", mapId);
-            throw new ArgumentException($"Map {mapId} not found");
+            var newInstance = new MapInstance(_mapTemplates!.First(map => map.Id == mapId));
+        
+            _logger.LogInformation("Map {MapId} '{MapName}' instanced {InstanceId}", newInstance.MapId, newInstance.Name, newInstance.InstanceId);
+            
+            _instancedMaps.TryAdd(mapId, new ConcurrentDictionary<Guid, MapInstance>() { [newInstance.InstanceId] = newInstance});
+
+            return newInstance;
+        }
+        
+        if (_villageMaps.Contains(mapId))
+        {
+            // do not generate a new instance for village maps
+            return mapInstances.First().Value;
         }
 
         var mapInstance = new MapInstance(_mapTemplates!.First(map => map.Id == mapId));
+        
+        _logger.LogInformation("Map {MapId} '{MapName}' instanced {InstanceId}", mapInstance.MapId, mapInstance.Name, mapInstance.InstanceId);
         
         mapInstances.TryAdd(mapInstance.InstanceId, mapInstance);
 
@@ -114,6 +127,11 @@ public class AvalonMapManager : IAvalonMapManager
     {
         var mapInstances = GetMapInstances(mapId);
         if (mapInstances == null) return null;
+        
+        if (_villageMaps.Contains(mapId))
+        {
+            return mapInstances.First().Value;
+        }
 
         mapInstances.TryGetValue(instanceId, out var instance);
         return instance;
@@ -151,7 +169,10 @@ public class AvalonMapManager : IAvalonMapManager
                 if (!instance.ContainsCharacter(characterId)) continue;
             
                 instance.RemoveCharacter(characterId);
-                if (instance.IsEmptyCharacters())
+                
+                _logger.LogInformation("Removed character {CharacterId} from map {MapId}, instance {InstanceId}", characterId, mapId, instance.InstanceId);
+                
+                if (instance.IsEmptyCharacters() && !_villageMaps.Contains(mapId))
                 {
                     foundId = id;
                 }
@@ -161,6 +182,7 @@ public class AvalonMapManager : IAvalonMapManager
             if (foundId.HasValue)
             {
                 mapInstances.TryRemove(foundId.Value, out _);
+                _logger.LogInformation("Removed empty instance {InstanceId} from map {MapId} since all characters left", foundId.Value, mapId);
             }
         }
 

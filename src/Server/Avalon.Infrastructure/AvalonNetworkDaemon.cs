@@ -10,6 +10,7 @@ using Avalon.Network.Packets.Character;
 using Avalon.Network.Packets.Deserialization;
 using Avalon.Network.Packets.Exceptions;
 using Avalon.Network.Packets.Generic;
+using Avalon.Network.Packets.Map;
 using Avalon.Network.Packets.Movement;
 using Avalon.Network.Packets.Serialization;
 using Avalon.Network.Packets.Social;
@@ -97,6 +98,9 @@ public class AvalonNetworkDaemon : IAvalonNetworkDaemon
         _packetRegistry.RegisterHandler<CCharacterCreatePacket>(NetworkPacketType.CMSG_CHARACTER_CREATE, _game.HandleCharacterCreatePacket);
         _packetRegistry.RegisterHandler<CCharacterDeletePacket>(NetworkPacketType.CMSG_CHARACTER_DELETE, _game.HandleCharacterDeletePacket);
         _packetRegistry.RegisterHandler<CCharacterLoadedPacket>(NetworkPacketType.CMSG_CHARACTER_LOADED, _game.HandleCharacterLoadedPacket);
+        
+        // Map handlers
+        _packetRegistry.RegisterHandler<CMapTeleportPacket>(NetworkPacketType.CMSG_MAP_TELEPORT, _game.HandleMapTeleportPacket);
         
         // Movement handlers
         _packetRegistry.RegisterHandler<CPlayerMovementPacket>(NetworkPacketType.CMSG_MOVEMENT, _game.HandleMovementPacket);
@@ -339,6 +343,8 @@ public class AvalonNetworkDaemon : IAvalonNetworkDaemon
             NetworkPacketType.CMSG_CHARACTER_CREATE => _packetDeserializer.Deserialize<CCharacterCreatePacket>(packet.Header.Type, packet.Payload),
             NetworkPacketType.CMSG_CHARACTER_DELETE => _packetDeserializer.Deserialize<CCharacterDeletePacket>(packet.Header.Type, packet.Payload),
             NetworkPacketType.CMSG_CHARACTER_LOADED => _packetDeserializer.Deserialize<CCharacterLoadedPacket>(packet.Header.Type, packet.Payload),
+            
+            NetworkPacketType.CMSG_MAP_TELEPORT => _packetDeserializer.Deserialize<CMapTeleportPacket>(packet.Header.Type, packet.Payload),
             
             NetworkPacketType.CMSG_MOVEMENT => _packetDeserializer.Deserialize<CPlayerMovementPacket>(packet.Header.Type, packet.Payload),
             NetworkPacketType.CMSG_REQUEST_SERVER_VERSION => _packetDeserializer.Deserialize<CRequestServerVersionPacket>(packet.Header.Type, packet.Payload),

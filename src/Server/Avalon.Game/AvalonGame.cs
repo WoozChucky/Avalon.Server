@@ -9,6 +9,7 @@ using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Auth;
 using Avalon.Network.Packets.Character;
 using Avalon.Network.Packets.Generic;
+using Avalon.Network.Packets.Map;
 using Avalon.Network.Packets.Movement;
 using Avalon.Network.Packets.Serialization;
 using Avalon.Network.Packets.Social;
@@ -35,7 +36,8 @@ public interface IAvalonGame
     Task HandleCharacterDeletePacket(IRemoteSource source, CCharacterDeletePacket packet);
     Task HandleCharacterLoadedPacket(IRemoteSource source, CCharacterLoadedPacket packet);
     Task HandleLogoutPacket(IRemoteSource source, CLogoutPacket packet);
-    
+
+    Task HandleMapTeleportPacket(IRemoteSource source, CMapTeleportPacket packet);
 }
 
 public partial class AvalonGame : IAvalonGame
@@ -319,6 +321,72 @@ public partial class AvalonGame : IAvalonGame
         session.Character!.ElapsedGameTime = packet.ElapsedGameTime;
         
         return Task.CompletedTask;
+    }
+
+    public async Task HandleMapTeleportPacket(IRemoteSource source, CMapTeleportPacket packet)
+    {
+        var session = _connectionManager.GetSession(packet.AccountId);
+        if (session == null || session.Character == null) return;
+
+        if (packet.MapId == session.Character.Map)
+        {
+            _logger.LogWarning("Character {CharacterId} tried to teleport to the same map", packet.CharacterId);
+            return;
+        }
+
+        var currentMapInstance = _avalonMapManager.GetInstance(session.Character.Map, session.Character.Id);
+        if (currentMapInstance == null)
+        {
+            _logger.LogWarning("Character {CharacterId} tried to teleport, and is coming from a map that doesn't exist", packet.CharacterId);
+            return;
+        }
+
+        if (!_avalonMapManager.RemoveCharacterFromMap(session.Character.Map, session.Character.Id))
+        {
+            _logger.LogWarning("Character {CharacterId} tried to teleport, and is coming from a map that doesn't exist", packet.CharacterId);
+            return;
+        }
+
+        var newInstance = _avalonMapManager.GenerateInstance(packet.MapId);
+        newInstance.AddCharacter(session.Character.Id);
+        
+        float x;
+        float y;
+
+        if (packet.MapId == 1) // TODO: Hardcoded starting coordinates
+        {
+            x = 31;
+            y = 801;
+        }
+        else
+        {
+            x = 903;
+            y = 552;
+        }
+
+        // Teleport the player
+        await session.SendAsync(SMapTeleportPacket.Create(session.AccountId, packet.CharacterId, new MapInfo
+        {
+            InstanceId = newInstance.InstanceId,
+            Atlas = newInstance.Atlas,
+            Directory = newInstance.Directory,
+            MapId = packet.MapId,
+            Name = newInstance.Name
+        }, x, y));
+        
+        // Warn about other players, that the player left the old instance
+        await BroadcastToOthersInInstance(session.AccountId, SPlayerDisconnectedPacket.Create(session.AccountId, packet.CharacterId), session.Character.InstanceId);
+        
+        // Warn player in the new instance, that a new player has joined
+        await BroadcastToOthersInInstance(session.AccountId, SPlayerConnectedPacket.Create(session.AccountId, packet.CharacterId, session.Character.Name), newInstance.InstanceId.ToString());
+        
+        session.Character.Map = packet.MapId;
+        session.Character.InstanceId = newInstance.InstanceId.ToString();
+        session.Character.Movement.Position = new Vector2(x, y);
+        session.Character.PositionX = x;
+        session.Character.PositionY = y;
+
+        await _databaseManager.Characters.Character.UpdateAsync(session.Character);
     }
 
     public async Task HandleServerVersionPacket(IRemoteSource source, CRequestServerVersionPacket packet)

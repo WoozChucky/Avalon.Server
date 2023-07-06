@@ -12,6 +12,7 @@ using Avalon.Network.Packets.Auth;
 using Avalon.Network.Packets.Character;
 using Avalon.Network.Packets.Deserialization;
 using Avalon.Network.Packets.Generic;
+using Avalon.Network.Packets.Map;
 using Avalon.Network.Packets.Movement;
 using Avalon.Network.Packets.Serialization;
 using Avalon.Network.Packets.Social;
@@ -33,6 +34,7 @@ public delegate void CharacterSelectedHandler(object sender, SCharacterSelectedP
 public delegate void CharacterCreatedHandler(object sender, SCharacterCreatedPacket packet);
 public delegate void CharacterDeletedHandler(object sender, SCharacterDeletedPacket packet);
 public delegate void LogoutHandler(object sender, SLogoutPacket packet);
+public delegate void MapTeleportHandler(object sender, SMapTeleportPacket packet);
 
 public class TcpClient : IDisposable
 {
@@ -52,6 +54,7 @@ public class TcpClient : IDisposable
     public event CharacterCreatedHandler CharacterCreated;
     public event CharacterDeletedHandler CharacterDeleted;
     public event LogoutHandler Logout;
+    public event MapTeleportHandler MapTeleport;
 
     private readonly CancellationTokenSource cts = new CancellationTokenSource();
     private readonly X509Certificate2 certificate;
@@ -272,6 +275,17 @@ public class TcpClient : IDisposable
                             Console.WriteLine(e);
                         }
                         break;
+                    case NetworkPacketType.SMSG_MAP_TELEPORT:
+                        var teleportPacket = Serializer.Deserialize<SMapTeleportPacket>(new MemoryStream(packet.Payload));
+                        try
+                        {
+                            MapTeleport?.Invoke(this, teleportPacket);
+                        }
+                        catch (Exception e)
+                        {
+                            Console.WriteLine(e);
+                        }
+                        break;
                     case NetworkPacketType.SMSG_PING:
                         var pingPacket = _packetDeserializer.Deserialize<SPingPacket>(packet.Header.Type,
                             packet.Payload);
@@ -355,6 +369,13 @@ public class TcpClient : IDisposable
     public async Task SendCharacterLoadedPacket()
     {
         var packet = CCharacterLoadedPacket.Create(Globals.AccountId);
+        
+        await _packetSerializer.SerializeToNetwork(stream, packet);
+    }
+
+    public async Task SendMapTeleportPacket(int mapId)
+    {
+        var packet = CMapTeleportPacket.Create(Globals.AccountId, Globals.CharacterId, mapId);
         
         await _packetSerializer.SerializeToNetwork(stream, packet);
     }

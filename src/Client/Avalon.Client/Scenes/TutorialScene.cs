@@ -7,6 +7,7 @@ using Avalon.Client.Models;
 using Avalon.Client.Network;
 using Avalon.Client.UI;
 using Avalon.Network.Packets.Auth;
+using Avalon.Network.Packets.Map;
 using Avalon.Network.Packets.Movement;
 using Avalon.Network.Packets.Social;
 using Microsoft.Xna.Framework;
@@ -47,6 +48,7 @@ public class TutorialScene : Scene
 
     private volatile bool _loaded = false;
     private volatile bool _loggedOut = false;
+    private volatile bool _reloadRequired = false;
 
     public TutorialScene(SceneManager sceneManager) : base(sceneManager)
     {
@@ -85,6 +87,7 @@ public class TutorialScene : Scene
         TcpClient.Instance.PlayerMoved += OnPlayerMoved;
         TcpClient.Instance.NpcUpdated += OnNpcUpdated;
         TcpClient.Instance.Logout += OnLogout;
+        TcpClient.Instance.MapTeleport += OnMapTeleport;
         
         UdpEnetClient.Instance.PlayerMoved += OnPlayerMoved;
         UdpEnetClient.Instance.NpcUpdated += OnNpcUpdated;
@@ -122,6 +125,7 @@ public class TutorialScene : Scene
         TcpClient.Instance.PlayerMoved -= OnPlayerMoved;
         TcpClient.Instance.NpcUpdated -= OnNpcUpdated;
         TcpClient.Instance.Logout -= OnLogout;
+        TcpClient.Instance.MapTeleport -= OnMapTeleport;
         
         UdpEnetClient.Instance.PlayerMoved -= OnPlayerMoved;
         UdpEnetClient.Instance.NpcUpdated -= OnNpcUpdated;
@@ -142,6 +146,15 @@ public class TutorialScene : Scene
             _loaded = false;
             SceneManager.LoadScene(nameof(CharacterSelectionScene));
             _loggedOut = false;
+            return;
+        }
+
+        if (_reloadRequired)
+        {
+            Console.WriteLine("Reloading map...");
+            _reloadRequired = false;
+            await Load(Globals.MapInfo.Name, Globals.MapInfo.Directory, Globals.MapInfo.Atlas);
+            Console.WriteLine("Map reloaded!");
             return;
         }
 
@@ -189,7 +202,8 @@ public class TutorialScene : Scene
         
         if (_chatGui is { IsTyping: false } && InputManager.Instance.KeyReleased(Keys.I))
         {
-            await Load("Village", "Maps/", "Serene_Village_32x32");
+            //await Load("Village.tmx", "Maps/", "Serene_Village_32x32");
+            await TcpClient.Instance.SendMapTeleportPacket(Globals.MapInfo.MapId == 1 ? 2 : 1);
             return;
         }
         
@@ -345,6 +359,16 @@ public class TutorialScene : Scene
     private void OnLogout(object sender, SLogoutPacket packet)
     {
         _loggedOut = true;
+    }
+    
+    private void OnMapTeleport(object sender, SMapTeleportPacket packet)
+    {
+        Globals.MapInfo = packet.Map;
+        Globals.StartPosition = new Vector2(packet.X, packet.Y);
+        
+        Console.WriteLine(Globals.MapInfo);
+
+        _reloadRequired = true;
     }
     
     private async void OnTimerElapsed(object sender, EventArgs e)
