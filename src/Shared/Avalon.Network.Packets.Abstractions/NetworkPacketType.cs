@@ -52,6 +52,9 @@ public enum NetworkPacketType : short
     SMSG_CHARACTER_DELETED = 0x3012,
     SMSG_CHARACTER_SELECTED = 0x3013,
     
+    // Map
+    SMSG_MAP_TELEPORT = 0x3020,
+    
     SMSG_PLAYER_DISCONNECTED = 0x3400,
     SMSG_PLAYER_CONNECTED = 0x3001,
     SMSG_PONG = 0x3006,
