@@ -119,7 +119,7 @@ public class Player : IDisposable
         _maxPos = new Vector2(mapSize.X - (tileSize.X / 2), mapSize.Y - (tileSize.X / 2));
     }
 
-    public void Update(Func<Rectangle, bool> collisionCheckingFunction, ConcurrentDictionary<int, OtherPlayer> npcs,
+    public void Update(Func<Rectangle, bool> collisionCheckingFunction, ConcurrentDictionary<Guid, GameCreature> npcs,
         ConcurrentDictionary<int, OtherPlayer> otherPlayers, bool ignoreMovement)
     {
         if (!ignoreMovement)

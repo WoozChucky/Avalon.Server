@@ -2,9 +2,12 @@ using System.Collections.Concurrent;
 using System.Numerics;
 using System.Reflection;
 using Avalon.Database;
+using Avalon.Game.Creatures;
 using Avalon.Game.Entities;
 using Avalon.Game.Maps;
-using Avalon.Game.Npc;
+using Avalon.Game.Maps.Virtual;
+using Avalon.Game.Pools;
+using Avalon.Game.Scripts;
 using Avalon.Network;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Auth;
@@ -49,19 +52,21 @@ public partial class AvalonGame : IAvalonGame
     private readonly IAvalonConnectionManager _connectionManager;
     private readonly IDatabaseManager _databaseManager;
     private readonly IAvalonMapManager _mapManager;
-    private readonly INpcSpawner _npcSpawner;
+    private readonly ICreatureSpawner _creatureSpawner;
     private readonly IAIController _aiController;
+    private readonly IPoolManager _poolManager;
 
     private readonly ConcurrentDictionary<int, Uriel> _npcs;
-    private readonly ServerMap _map;
+    private readonly VirtualMap _map;
 
     public AvalonGame(ILogger<AvalonGame> logger, 
         IPacketSerializer packetSerializer, 
         IAvalonConnectionManager connectionManager,
         IDatabaseManager databaseManager,
         IAvalonMapManager mapManager,
-        INpcSpawner npcSpawner,
-        IAIController aiController)
+        ICreatureSpawner creatureSpawner,
+        IAIController aiController,
+        IPoolManager poolManager)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _cts = new CancellationTokenSource();
@@ -69,22 +74,23 @@ public partial class AvalonGame : IAvalonGame
         _connectionManager = connectionManager;
         _databaseManager = databaseManager;
         _mapManager = mapManager;
-        _npcSpawner = npcSpawner;
+        _creatureSpawner = creatureSpawner;
         _aiController = aiController;
+        _poolManager = poolManager;
         _npcs = new ConcurrentDictionary<int, Uriel>();
         
         _connectionManager.SessionLost += OnSessionLost;
         _connectionManager.SessionReconnected += OnPlayerReconnected;
         _connectionManager.SessionTimedOut += OnPlayerTimedOut;
         
-        _map = new ServerMap("Tutorial.tmx", "Maps/");
+        _map = new VirtualMap(1, "Tutorial.tmx", "Maps/");
 
         _npcs.TryAdd(1, new Uriel());
     }
 
     public async void Start()
     {
-        await _npcSpawner.LoadNpcs();
+        await _creatureSpawner.LoadCreaturesAsync();
         await _aiController.LoadScripts();
         await _mapManager.LoadMaps();
 
@@ -175,7 +181,12 @@ public partial class AvalonGame : IAvalonGame
         {
             foreach (var (_, mapInstance) in mapInstances)
             {
-                _npcSpawner.Update(mapInstance, deltaTime);
+                // I don't like the ideia of NpcSpawner, it seems a bit too specific
+                // I would rather have a PoolManager that would handle all the pools (groups of npcs, items, quests, game objects, in an instanced map)
+                // and those pools would be loaded from the database, and would know how to spawn themselves.
+                // The thing that I don't know, is that if for a village map, for example, I would have a pool of npcs, or other
+                // other class that simply places them in the map. Because I see a pool to handle something like groups of entities, and not just a single entity here and there.
+                _poolManager.Update(deltaTime, mapInstance);
                 _aiController.Update(mapInstance, deltaTime);
                 mapInstance.Update(deltaTime);
             }
@@ -278,17 +289,21 @@ public partial class AvalonGame : IAvalonGame
         }
         
         // Broadcast NPC positions
-        foreach (var (id, npc) in _npcs)
+        foreach (var map in _mapManager.GetInstances().Values.Select(v => v.Values).SelectMany(v => v))
         {
-            var packet = SNpcUpdatePacket.Create(
-                id,
-                npc.Name,
-                npc.Position.X, 
-                npc.Position.Y,
-                npc.Velocity.X,
-                npc.Velocity.Y
-            );
-            await BroadcastAll(packet);
+            foreach (var (id, creature) in map.Creatures)
+            {
+                _logger.LogDebug($"Broadcasting creature {id} position");
+                var packet = SNpcUpdatePacket.Create(
+                    creature.Id,
+                    creature.Name,
+                    creature.Position.X, 
+                    creature.Position.Y,
+                    creature.Velocity.X,
+                    creature.Velocity.Y
+                );
+                await BroadcastAll(packet);
+            }
         }
     }
     

@@ -47,7 +47,7 @@
         "Tutorial.tmx"
     ],
     "project": "Avalon.tiled-project",
-    "property.type": "bool",
+    "property.type": "file",
     "recentFiles": [
         "SereneVillageTileset32.tsx",
         "Tutorial.tmx",

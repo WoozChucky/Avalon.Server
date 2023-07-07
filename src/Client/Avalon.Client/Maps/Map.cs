@@ -215,7 +215,7 @@ public class Map : IDisposable
         // Draw the map events
         foreach (var mapEvent in _events)
         {
-            mapEvent.Draw(spriteBatch);
+            //mapEvent.Draw(spriteBatch);
         }
     }
 

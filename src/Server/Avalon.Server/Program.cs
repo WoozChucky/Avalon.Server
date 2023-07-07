@@ -1,9 +1,11 @@
 ﻿using System.Diagnostics;
 using Avalon.Database;
 using Avalon.Game;
+using Avalon.Game.Creatures;
 using Avalon.Game.Handlers;
 using Avalon.Game.Maps;
-using Avalon.Game.Npc;
+using Avalon.Game.Pools;
+using Avalon.Game.Scripts;
 using Avalon.Infrastructure;
 using Avalon.Metrics;
 using Avalon.Network;
@@ -32,7 +34,7 @@ namespace Avalon.Server
         
         private static IMetricsManager MetricsManager { get; set; } = null!;
 
-        private static async Task Main(string[] args)
+        private static Task Main(string[] args)
         {
             AppDomain.CurrentDomain.UnhandledException += OnUnhandledExceptionOccurred;
             AppDomain.CurrentDomain.ProcessExit += OnProcessExit;
@@ -70,6 +72,8 @@ namespace Avalon.Server
             Infrastructure.Dispose();
             
             Logger.LogInformation("Terminated successfully");
+            
+            return Task.CompletedTask;
         }
 
         private static void ConsoleOnCancelKeyPress(object? sender, ConsoleCancelEventArgs e)
@@ -133,7 +137,8 @@ namespace Avalon.Server
                 .AddSingleton<IPacketRegistry, PacketRegistry>()
                 .AddSingleton<IAvalonNetworkDaemon, AvalonNetworkDaemon>()
                 .AddSingleton<IAvalonMapManager, AvalonMapManager>()
-                .AddSingleton<INpcSpawner, NpcSpawner>()
+                .AddSingleton<ICreatureSpawner, CreatureSpawner>()
+                .AddSingleton<IPoolManager, PoolManager>()
                 .AddSingleton<IAIController, AIController>()
                 .AddSingleton<IAvalonGame, AvalonGame>()
                 .AddSingleton<IAvalonInfrastructure, AvalonInfrastructure>()
