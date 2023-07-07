@@ -90,8 +90,8 @@ public partial class AvalonGame : IAvalonGame
 
     public async void Start()
     {
+        _aiController.LoadScripts();
         await _creatureSpawner.LoadCreaturesAsync();
-        await _aiController.LoadScripts();
         await _mapManager.LoadMaps();
 
         _logger.LogInformation("Starting game loop");
@@ -181,11 +181,6 @@ public partial class AvalonGame : IAvalonGame
         {
             foreach (var (_, mapInstance) in mapInstances)
             {
-                // I don't like the ideia of NpcSpawner, it seems a bit too specific
-                // I would rather have a PoolManager that would handle all the pools (groups of npcs, items, quests, game objects, in an instanced map)
-                // and those pools would be loaded from the database, and would know how to spawn themselves.
-                // The thing that I don't know, is that if for a village map, for example, I would have a pool of npcs, or other
-                // other class that simply places them in the map. Because I see a pool to handle something like groups of entities, and not just a single entity here and there.
                 _poolManager.Update(deltaTime, mapInstance);
                 _aiController.Update(mapInstance, deltaTime);
                 mapInstance.Update(deltaTime);
@@ -293,7 +288,7 @@ public partial class AvalonGame : IAvalonGame
         {
             foreach (var (id, creature) in map.Creatures)
             {
-                _logger.LogDebug($"Broadcasting creature {id} position");
+                // _logger.LogDebug("Broadcasting creature {id} position {Position}", id, creature.Position);
                 var packet = SNpcUpdatePacket.Create(
                     creature.Id,
                     creature.Name,

@@ -183,11 +183,11 @@ public class AvalonNetworkDaemon : IAvalonNetworkDaemon
         while (!_cts.IsCancellationRequested)
         {
             await Task.Delay(1000, _cts.Token).ConfigureAwait(false);
-
-            _logger.LogInformation("Threads: {Threads}", Process.GetCurrentProcess().Threads.Count);
             
             if (false)
             {
+                _logger.LogInformation("Threads: {Threads}", Process.GetCurrentProcess().Threads.Count);
+                
                 _logger.LogInformation("Updating network metrics");
                 
                 var MgBytesReceived = Interlocked.Read(ref _bytesReceived) / 1024 / 1024;
