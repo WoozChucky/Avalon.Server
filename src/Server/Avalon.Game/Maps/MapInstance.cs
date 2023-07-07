@@ -1,5 +1,7 @@
 using System.Collections.Concurrent;
 using Avalon.Database.World;
+using Avalon.Game.Creatures;
+using Avalon.Game.Maps.Virtual;
 
 namespace Avalon.Game.Maps;
 
@@ -10,11 +12,13 @@ public class MapInstance
     public string Name => _template.Name;
     public string Atlas => _template.Atlas;
     public string Directory => _template.Directory;
-
-    // Map tiles virtual representation
-    // Contains all the layers (tiles, objects, events) information and their properties
-    private readonly ServerMap _map;
     
+    // Map tiles virtual representation
+    // Contains all the layers (tiles, creatures, objects, events) information
+    public VirtualMap VirtualizedMap { get; }
+
+    public ConcurrentDictionary<Guid, Creature> Creatures { get; }
+
     // Map configuration from database
     private readonly Map _template;
 
@@ -23,12 +27,13 @@ public class MapInstance
     // (even though the character manager will be the one to create the character object and is accessed in a thread safe way)
     private ConcurrentDictionary<int, bool> _characters;
     
-    public MapInstance(Map template)
+    public MapInstance(Map template, VirtualMap virtualizedMap)
     {
         InstanceId = Guid.NewGuid();
+        Creatures = new ConcurrentDictionary<Guid, Creature>();
         _characters = new ConcurrentDictionary<int, bool>();
         _template = template;
-        _map = new ServerMap(template.Name, template.Directory);
+        VirtualizedMap = virtualizedMap;
     }
     
     public void AddCharacter(int characterId)
@@ -54,5 +59,10 @@ public class MapInstance
     public void Update(TimeSpan deltaTime)
     {
         
+    }
+
+    public void AddCreature(Creature creature)
+    {
+        Creatures.TryAdd(creature.Id, creature);
     }
 }

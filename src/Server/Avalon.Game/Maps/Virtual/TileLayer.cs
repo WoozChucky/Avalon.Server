@@ -1,10 +1,10 @@
-namespace Avalon.Game.Maps
+namespace Avalon.Game.Maps.Virtual
 {
-    public class MapLayer
+    public class TileLayer
     {
-        private readonly Tile[,] _tiles;
+        private readonly MapTile[,] _tiles;
         
-        public MapLayer(Tile[,] tiles, bool collidable = false)
+        public TileLayer(MapTile[,] tiles, bool collidable = false)
         {
             _tiles = tiles;
             IsCollidable = collidable;
@@ -12,7 +12,7 @@ namespace Avalon.Game.Maps
         
         public bool IsCollidable { get; private set; }
         
-        public Tile? this[int x, int y]
+        public MapTile? this[int x, int y]
         {
             get
             {

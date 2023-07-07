@@ -32,7 +32,7 @@ public class TutorialScene : Scene
     private PartyInviteDialog _partyInviteDialog;
 
     private ConcurrentDictionary<int, OtherPlayer> _otherPlayers;
-    private ConcurrentDictionary<int, OtherPlayer> _npcs;
+    private ConcurrentDictionary<Guid, GameCreature> _npcs;
     
     private Timer _timer;
     
@@ -60,7 +60,7 @@ public class TutorialScene : Scene
         _loaded = false;
         
         _otherPlayers = new ConcurrentDictionary<int, OtherPlayer>();
-        _npcs = new ConcurrentDictionary<int, OtherPlayer>();
+        _npcs = new ConcurrentDictionary<Guid, GameCreature>();
 
         Globals.CameraPosition = Vector2.Zero;
 
@@ -337,9 +337,9 @@ public class TutorialScene : Scene
             {
                 // If the NPC does not already exist in the dictionary, create a new OtherPlayer object and return it.
                 var texture = Globals.Content.Load<Texture2D>("Images/player");
-                return new OtherPlayer(
+                return new GameCreature(
                     packet.Id,
-                    packet.Id,
+                    0,
                     packet.Name,
                     texture, new Vector2(packet.PositionX, packet.PositionY), true);
             }, 

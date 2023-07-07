@@ -1,17 +1,16 @@
 using Avalon.Game.Maps;
 
-namespace Avalon.Game.Npc;
+namespace Avalon.Game.Scripts;
 
-public interface INpcSpawner
+public interface IAIController
 {
-    Task LoadNpcs();
-    
+    Task LoadScripts();
     Task Update(MapInstance instance, TimeSpan deltaTime);
 }
 
-public class NpcSpawner : INpcSpawner
+public class AIController : IAIController
 {
-    public async Task LoadNpcs()
+    public async Task LoadScripts()
     {
         
     }
