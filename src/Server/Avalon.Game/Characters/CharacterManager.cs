@@ -119,15 +119,15 @@ public partial class AvalonGame
         }
         
         // Try to find the map instance for this character
-        var mapInstance = _avalonMapManager.GetInstance(character.Map, Guid.Parse(character.InstanceId));
+        var mapInstance = _mapManager.GetInstance(character.Map, Guid.Parse(character.InstanceId));
         if (mapInstance == null)
         {
             // Specific map instance not found, try to find a other instance of the same map
-            mapInstance = _avalonMapManager.GetInstance(character.Map, character.Id);
+            mapInstance = _mapManager.GetInstance(character.Map, character.Id);
             if (mapInstance == null)
             {
                 // No instance found, create a new one and add the character to it
-                mapInstance = _avalonMapManager.GenerateInstance(character.Map);
+                mapInstance = _mapManager.GenerateInstance(character.Map);
                 mapInstance.AddCharacter(character.Id);
             }
         }

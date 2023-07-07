@@ -8,11 +8,11 @@ namespace Avalon.Game.Maps;
 public interface IAvalonMapManager
 {
     Task LoadMaps();
-    void Update(TimeSpan deltaTime);
-
+    
     MapInstance GenerateInstance(int mapId);
     MapInstance? GetInstance(int mapId, Guid instanceId);
     MapInstance? GetInstance(int mapId, int characterId);
+    ConcurrentDictionary<int, ConcurrentDictionary<Guid, MapInstance>> GetInstances();
     void AddCharacterToMap(int mapId, int characterId);
     bool RemoveCharacterFromMap(int mapId, int characterId);
 }
@@ -62,17 +62,6 @@ public class AvalonMapManager : IAvalonMapManager
         }
     }
 
-    public void Update(TimeSpan deltaTime)
-    {
-        foreach (var (mapId, mapInstances) in _instancedMaps)
-        {
-            foreach (var (instanceId, mapInstance) in mapInstances)
-            {
-                mapInstance.Update(deltaTime);
-            }
-        }
-    }
-    
     public MapInstance GenerateInstance(int mapId)
     {
         if (!_instancedMaps.TryGetValue(mapId, out var mapInstances))
@@ -121,6 +110,11 @@ public class AvalonMapManager : IAvalonMapManager
         }
     
         return null;
+    }
+
+    public ConcurrentDictionary<int, ConcurrentDictionary<Guid, MapInstance>> GetInstances()
+    {
+        return _instancedMaps;
     }
 
     public MapInstance? GetInstance(int mapId, Guid instanceId)

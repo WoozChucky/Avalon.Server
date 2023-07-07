@@ -3,6 +3,7 @@ using Avalon.Database;
 using Avalon.Game;
 using Avalon.Game.Handlers;
 using Avalon.Game.Maps;
+using Avalon.Game.Npc;
 using Avalon.Infrastructure;
 using Avalon.Metrics;
 using Avalon.Network;
@@ -38,7 +39,8 @@ namespace Avalon.Server
             Console.CancelKeyPress += ConsoleOnCancelKeyPress;
             //AssemblyLoadContext.Default.Unloading += SigTermEventHandler;
 
-            Process.GetCurrentProcess().PriorityClass = ProcessPriorityClass.High;
+            Process.GetCurrentProcess().PriorityClass = ProcessPriorityClass.RealTime;
+            Process.GetCurrentProcess().PriorityBoostEnabled = true;
             
             ConfigureDependencyInjection();
 
@@ -124,7 +126,6 @@ namespace Avalon.Server
                 .AddSingleton<IDatabaseManager, DatabaseManager>()
                 .AddSingleton<IMetricsManager, MetricsManager>()
                 .AddSingleton<IAvalonTcpServer, AvalonTcpServer>()
-                // .AddSingleton<IAvalonUdpServer, AvalonUdpServer>()
                 .AddSingleton<IAvalonUdpServer, ENetUdpServer>()
                 .AddSingleton<IAvalonConnectionManager, AvalonConnectionManager>()
                 .AddSingleton<IPacketDeserializer, NetworkPacketDeserializer>()
@@ -132,6 +133,8 @@ namespace Avalon.Server
                 .AddSingleton<IPacketRegistry, PacketRegistry>()
                 .AddSingleton<IAvalonNetworkDaemon, AvalonNetworkDaemon>()
                 .AddSingleton<IAvalonMapManager, AvalonMapManager>()
+                .AddSingleton<INpcSpawner, NpcSpawner>()
+                .AddSingleton<IAIController, AIController>()
                 .AddSingleton<IAvalonGame, AvalonGame>()
                 .AddSingleton<IAvalonInfrastructure, AvalonInfrastructure>()
                 .AddSingleton<CancellationTokenSource>(s => new CancellationTokenSource())

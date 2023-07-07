@@ -94,6 +94,10 @@ public partial class AvalonGame
         
         // Save character progress to the database
         var character = session.Character;
+        
+        // TODO: Calculate play time
+        
+        character!.Online = false;
 
         if (!await _databaseManager.Characters.Character.UpdateAsync(character))
         {
