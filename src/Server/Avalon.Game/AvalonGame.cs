@@ -4,6 +4,7 @@ using System.Reflection;
 using Avalon.Database;
 using Avalon.Game.Entities;
 using Avalon.Game.Maps;
+using Avalon.Game.Npc;
 using Avalon.Network;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Auth;
@@ -47,7 +48,9 @@ public partial class AvalonGame : IAvalonGame
     private readonly IPacketSerializer _packetSerializer;
     private readonly IAvalonConnectionManager _connectionManager;
     private readonly IDatabaseManager _databaseManager;
-    private readonly IAvalonMapManager _avalonMapManager;
+    private readonly IAvalonMapManager _mapManager;
+    private readonly INpcSpawner _npcSpawner;
+    private readonly IAIController _aiController;
 
     private readonly ConcurrentDictionary<int, Uriel> _npcs;
     private readonly ServerMap _map;
@@ -56,14 +59,18 @@ public partial class AvalonGame : IAvalonGame
         IPacketSerializer packetSerializer, 
         IAvalonConnectionManager connectionManager,
         IDatabaseManager databaseManager,
-        IAvalonMapManager avalonMapManager)
+        IAvalonMapManager mapManager,
+        INpcSpawner npcSpawner,
+        IAIController aiController)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _cts = new CancellationTokenSource();
         _packetSerializer = packetSerializer;
         _connectionManager = connectionManager;
         _databaseManager = databaseManager;
-        _avalonMapManager = avalonMapManager;
+        _mapManager = mapManager;
+        _npcSpawner = npcSpawner;
+        _aiController = aiController;
         _npcs = new ConcurrentDictionary<int, Uriel>();
         
         _connectionManager.SessionLost += OnSessionLost;
@@ -77,14 +84,21 @@ public partial class AvalonGame : IAvalonGame
 
     public async void Start()
     {
-        await _avalonMapManager.LoadMaps();
-        
+        await _npcSpawner.LoadNpcs();
+        await _aiController.LoadScripts();
+        await _mapManager.LoadMaps();
+
         _logger.LogInformation("Starting game loop");
 
 #pragma warning disable CS4014
         Task.Run(BroadcastLoop);
 #pragma warning restore CS4014
         
+        const int updatesPerSecond = 60;
+        const int maxFrameTimeMs = 100;
+
+        var desiredFrameTime = TimeSpan.FromMilliseconds(1000.0 / updatesPerSecond);
+        var accumulatedTime = TimeSpan.Zero;
         var previousTime = DateTime.UtcNow;
 
         try
@@ -92,13 +106,28 @@ public partial class AvalonGame : IAvalonGame
             while (!_cts.IsCancellationRequested)
             {
                 var currentTime = DateTime.UtcNow;
-                var deltaTime = currentTime - previousTime;
+                var elapsedTime = currentTime - previousTime;
                 previousTime = currentTime;
                 
-                Update(deltaTime);
-                _avalonMapManager.Update(deltaTime);
-
-                await Task.Delay(50);
+                if (elapsedTime > TimeSpan.FromMilliseconds(maxFrameTimeMs))
+                {
+                    _logger.LogWarning("Exceeded max frame time");
+                    elapsedTime = TimeSpan.FromMilliseconds(maxFrameTimeMs);
+                }
+                
+                accumulatedTime += elapsedTime;
+        
+                while (accumulatedTime >= desiredFrameTime)
+                {
+                    accumulatedTime -= desiredFrameTime;
+                    Update(desiredFrameTime);
+                }
+        
+                var sleepTime = desiredFrameTime - accumulatedTime;
+                if (sleepTime > TimeSpan.Zero)
+                {
+                    await Task.Delay(sleepTime);
+                }
             }
         }
         catch (OperationCanceledException)
@@ -140,6 +169,19 @@ public partial class AvalonGame : IAvalonGame
 
     private void Update(TimeSpan deltaTime)
     {
+
+        // Update all maps, including spawns, AI, etc.
+        foreach (var (_, mapInstances) in _mapManager.GetInstances())
+        {
+            foreach (var (_, mapInstance) in mapInstances)
+            {
+                _npcSpawner.Update(mapInstance, deltaTime);
+                _aiController.Update(mapInstance, deltaTime);
+                mapInstance.Update(deltaTime);
+            }
+        }
+        
+        
         foreach (var session in _connectionManager.GetSessions().Values.Where(s => s.InGame))
         {
             /*
@@ -334,20 +376,20 @@ public partial class AvalonGame : IAvalonGame
             return;
         }
 
-        var currentMapInstance = _avalonMapManager.GetInstance(session.Character.Map, session.Character.Id);
+        var currentMapInstance = _mapManager.GetInstance(session.Character.Map, session.Character.Id);
         if (currentMapInstance == null)
         {
             _logger.LogWarning("Character {CharacterId} tried to teleport, and is coming from a map that doesn't exist", packet.CharacterId);
             return;
         }
 
-        if (!_avalonMapManager.RemoveCharacterFromMap(session.Character.Map, session.Character.Id))
+        if (!_mapManager.RemoveCharacterFromMap(session.Character.Map, session.Character.Id))
         {
             _logger.LogWarning("Character {CharacterId} tried to teleport, and is coming from a map that doesn't exist", packet.CharacterId);
             return;
         }
 
-        var newInstance = _avalonMapManager.GenerateInstance(packet.MapId);
+        var newInstance = _mapManager.GenerateInstance(packet.MapId);
         newInstance.AddCharacter(session.Character.Id);
         
         float x;

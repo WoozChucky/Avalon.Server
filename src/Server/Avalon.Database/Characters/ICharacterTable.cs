@@ -36,15 +36,13 @@ public sealed class CharacterTable : ICharacterTable
     public async Task<Character?> QueryByIdAsync(int id)
     {
         await using var connection = new MySqlConnection(ConnectionString);
-        await connection.OpenAsync();
-            
+
         return await connection.QueryFirstOrDefaultAsync<Character>(GetCharacterByIdQuery, new { Id = id });
     }
 
     public async Task<Character?> QueryByIdAndAccountAsync(int id, int account)
     {
         await using var connection = new MySqlConnection(ConnectionString);
-        await connection.OpenAsync();
 
         return await connection.QueryFirstOrDefaultAsync<Character>(GetCharacterByIdAndAccountQuery, new { Id = id, Account = account });
     }
@@ -52,24 +50,21 @@ public sealed class CharacterTable : ICharacterTable
     public async Task<IEnumerable<Character>> QueryByAccountAsync(int account)
     {
         await using var connection = new MySqlConnection(ConnectionString);
-        await connection.OpenAsync();
-        
+
         return await connection.QueryAsync<Character>(GetCharactersByAccountQuery, new { Account = account });
     }
 
     public async Task<Character?> QueryByNameAsync(string name)
     {
         await using var connection = new MySqlConnection(ConnectionString);
-        await connection.OpenAsync();
-        
+
         return await connection.QueryFirstOrDefaultAsync<Character>(GetCharacterByNameQuery, new { Name = name });
     }
 
     public async Task<bool> InsertAsync(Character character)
     {
         await using var connection = new MySqlConnection(ConnectionString);
-        await connection.OpenAsync();
-        
+
         var rows = await connection.ExecuteAsync(InsertCharacterQuery, new
         {
             Account = character.Account, Name = character.Name, Level = character.Level, Class = character.Class, PositionX = character.PositionX, PositionY = character.PositionY
@@ -81,8 +76,7 @@ public sealed class CharacterTable : ICharacterTable
     public async Task<bool> DeleteAsync(int characterId, int account)
     {
         await using var connection = new MySqlConnection(ConnectionString);
-        await connection.OpenAsync();
-        
+
         var rows = await connection.ExecuteAsync(DeleteCharacterQuery, new { Id = characterId, Account = account });
         
         return rows == 1;
@@ -91,8 +85,7 @@ public sealed class CharacterTable : ICharacterTable
     public async Task<bool> UpdateAsync(Character character)
     {
         await using var connection = new MySqlConnection(ConnectionString);
-        await connection.OpenAsync();
-        
+
         var rows = await connection.ExecuteAsync(UpdateCharacterQuery, new
         {
             Id = character.Id, Account = character.Account, Level = character.Level, PositionX = character.Movement.Position.X, PositionY = character.Movement.Position.Y, InstanceId = character.InstanceId, Map = character.Map, Online = character.Online

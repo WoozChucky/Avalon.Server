@@ -11,10 +11,17 @@ public class MapInstance
     public string Atlas => _template.Atlas;
     public string Directory => _template.Directory;
 
+    // Map tiles virtual representation
+    // Contains all the layers (tiles, objects, events) information and their properties
     private readonly ServerMap _map;
+    
+    // Map configuration from database
     private readonly Map _template;
 
-    private ConcurrentDictionary<int, bool> _characters; // contains character ids that are in the map
+    // contains character ids that are in the map, in the future the bool will be replaced with a character object probably
+    // still not sure if this is the best way to do it, since i'll be sharing references to the character object between the map and the character manager
+    // (even though the character manager will be the one to create the character object and is accessed in a thread safe way)
+    private ConcurrentDictionary<int, bool> _characters;
     
     public MapInstance(Map template)
     {

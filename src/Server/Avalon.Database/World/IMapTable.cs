@@ -19,12 +19,10 @@ public class MapTable : IMapTable
     
     private const string GetAllQuery = $"SELECT * FROM `Map`";
     private const string GetByIdQuery = $"SELECT * FROM `Map` WHERE id = @Id";
-   
     
     public async Task<IEnumerable<Map>> QueryAllAsync()
     {
         await using var connection = new MySqlConnection(ConnectionString);
-        await connection.OpenAsync();
         
         return await connection.QueryAsync<Map>(GetAllQuery);
     }

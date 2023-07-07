@@ -22,16 +22,14 @@ namespace Avalon.Database.Auth
         public async Task<Account?> QueryByIdAsync(int id)
         {
             await using var connection = new MySqlConnection(ConnectionString);
-            await connection.OpenAsync();
-            
+
             return await connection.QueryFirstOrDefaultAsync<Account>(GetAccountByIdQuery, new { Id = id });
         }
         
         public async Task<Account?> QueryByUsernameAsync(string username)
         {
             await using var connection = new MySqlConnection(ConnectionString);
-            await connection.OpenAsync();
-            
+
             return await connection.QueryFirstOrDefaultAsync<Account>(GetAccountByUsernameQuery, new { Username = username });
         }
         
