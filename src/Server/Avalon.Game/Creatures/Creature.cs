@@ -1,5 +1,6 @@
 using System.Drawing;
 using System.Numerics;
+using Avalon.Game.Scripts;
 
 namespace Avalon.Game.Creatures;
 
@@ -15,4 +16,8 @@ public class Creature
     
     public Rectangle Bounds { get; set; }
     public float Speed { get; set; }
+
+    public string ScriptName { get; set; }
+
+    public AIScript? Script { get; set; }
 }

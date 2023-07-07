@@ -70,7 +70,8 @@ public class CreatureSpawner : ICreatureSpawner
             Bounds = new Rectangle(0, 0, 0, 0),
             Position = new Vector2(0, 0),
             Speed = template.SpeedWalk,
-            Velocity = new Vector2(0, 0)
+            Velocity = new Vector2(0, 0),
+            ScriptName = template.ScriptName
         };
         
         return creature;

@@ -52,6 +52,12 @@ public class DatabaseManager : IDatabaseManager
                 .GetProperties()
                 .FirstOrDefault(prop => GetDescriptionFromAttribute(prop) == columnName.ToLower()))
         );
+        
+        Dapper.SqlMapper.SetTypeMap(typeof(CreatureTemplate), new Dapper.CustomPropertyTypeMap(typeof(CreatureTemplate), 
+            (type, columnName) => type
+                .GetProperties()
+                .FirstOrDefault(prop => GetDescriptionFromAttribute(prop) == columnName.ToLower()))
+        );
     }
 
     private static string? GetDescriptionFromAttribute(MemberInfo? member)
