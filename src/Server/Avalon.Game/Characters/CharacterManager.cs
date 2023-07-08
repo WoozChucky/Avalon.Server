@@ -124,7 +124,12 @@ public partial class AvalonGame
         {
             // Specific map instance not found, try to find a other instance of the same map
             // If no instance found, (internally will create a new one) add the character to it
-            mapInstance = _mapManager.GetInstance(character.Map, character.Id) ?? _mapManager.AddCharacterToMap(character.Map, character.Id);
+            mapInstance = _mapManager.GetInstance(character.Map, character.Id);
+
+            if (mapInstance == null)
+            {
+                mapInstance = _mapManager.AddCharacterToMap(character.Map, character.Id);
+            }
         }
         
         // Update the current map instance
