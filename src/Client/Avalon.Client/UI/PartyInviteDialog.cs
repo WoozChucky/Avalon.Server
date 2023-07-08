@@ -13,16 +13,11 @@ public class PartyInviteDialog : IDisposable
     private SpriteFont titleFont;
     private SpriteFont contentFont;
     private Texture2D backgroundTexture;
-    private Texture2D buttonTexture;
     private Vector2 position;
     private string title;
     private string content;
-    private Rectangle acceptButtonRect;
-    private Rectangle cancelButtonRect;
-    private bool isHoveringAcceptButton;
-    private bool isHoveringCancelButton;
-    private bool isAcceptButtonPressed;
-    private bool isCancelButtonPressed;
+    private ButtonComponent acceptButton;
+    private ButtonComponent cancelButton;
     private int padding = 10;
 
     public PartyInviteDialog(
@@ -40,18 +35,16 @@ public class PartyInviteDialog : IDisposable
         this.content = content;
         
         CreateBackgroundTexture();
-        CreateButtonTexture();
 
-        int buttonWidth = buttonTexture.Width;
-        int buttonHeight = buttonTexture.Height;
-        int buttonSpacing = 10;
-        int buttonAreaWidth = 2 * buttonWidth + buttonSpacing;
-        int buttonAreaHeight = buttonHeight;
-        int buttonAreaX = (int)position.X + (backgroundTexture.Width - buttonAreaWidth) / 2;
-        int buttonAreaY = (int)position.Y + backgroundTexture.Height - buttonAreaHeight - 20;
-
-        acceptButtonRect = new Rectangle(buttonAreaX, buttonAreaY, buttonWidth, buttonHeight);
-        cancelButtonRect = new Rectangle(buttonAreaX + buttonWidth + buttonSpacing, buttonAreaY, buttonWidth, buttonHeight);
+        acceptButton = new ButtonComponent(
+            Globals.Content.Load<Texture2D>("Images/Icons/Check1"),
+            new Vector2(backgroundTexture.Bounds.X + backgroundTexture.Width, backgroundTexture.Bounds.Y + backgroundTexture.Height),
+            null,
+            null,
+            true,
+            Globals.Content.Load<Texture2D>("Images/Icons/Check")
+        );
+        //acceptButton.Clicked += OnAcceptClicked;
     }
     
     public void Update(float deltaTime)
@@ -61,30 +54,7 @@ public class PartyInviteDialog : IDisposable
             return;
         }
 
-        acceptButtonRect.X = (int) (acceptButtonRect.X + Globals.CameraPosition.X);
-        acceptButtonRect.Y = (int) (acceptButtonRect.Y + Globals.CameraPosition.Y);
-        
-        cancelButtonRect.X = (int) (cancelButtonRect.X + Globals.CameraPosition.X);
-        cancelButtonRect.Y = (int) (cancelButtonRect.Y + Globals.CameraPosition.Y);
-        
-        var mousePosition = InputManager.Instance.MousePosition;
-
-        isHoveringAcceptButton = acceptButtonRect.Contains(mousePosition);
-        isHoveringCancelButton = cancelButtonRect.Contains(mousePosition);
-
-        if (isHoveringAcceptButton && InputManager.Instance.IsLeftButtonClicked())
-        {
-            isAcceptButtonPressed = true;
-        }
-        else if (isHoveringCancelButton && InputManager.Instance.IsLeftButtonClicked())
-        {
-            isCancelButtonPressed = true;
-        }
-        else
-        {
-            isAcceptButtonPressed = false;
-            isCancelButtonPressed = false;
-        }
+        acceptButton.Update();
     }
     
     public void Draw(SpriteBatch spriteBatch)
@@ -106,66 +76,18 @@ public class PartyInviteDialog : IDisposable
         spriteBatch.DrawString(contentFont, content, contentPosition + Globals.CameraPosition, Color.White);
 
         // Draw the accept button
-        spriteBatch.Draw(buttonTexture, acceptButtonRect, isAcceptButtonPressed ? Color.Gray : Color.White);
+        acceptButton.Draw(spriteBatch);
         
         // Draw the cancel button
-        spriteBatch.Draw(buttonTexture, cancelButtonRect, isCancelButtonPressed ? Color.Gray : Color.White);
+        //spriteBatch.Draw(buttonTexture, cancelButtonRect, isCancelButtonPressed ? Color.Gray : Color.White);
     }
 
     public void Dispose()
     {
         backgroundTexture?.Dispose();
-        buttonTexture?.Dispose();
+        acceptButton?.Dispose();
     }
-    
-    private void CreateButtonTexture()
-    {
-        var width = 80;
-        var height = 40;
-        
-        const int borderWidth = 2;
-        
-        buttonTexture = new Texture2D(Globals.GraphicsDevice, width, height);
-        var backgroundColor = new Color[width * height];
-        
-        var bgColor = new Color(195, 172, 144, 255);
-        var borderColor = new Color(181, 117, 77);
-        
-        // Fill the entire texture with a semi-transparent red color
-        for (var i = 0; i < backgroundColor.Length; i++)
-        {
-            backgroundColor[i] = bgColor;
-        }
 
-        // Set the top and bottom border pixels to black
-        for (var x = 0; x < width; x++)
-        {
-            for (var y = 0; y < borderWidth; y++)
-            {
-                var topIndex = y * width + x;
-                var bottomIndex = (height - 1 - y) * width + x;
-                backgroundColor[topIndex] = borderColor;
-                backgroundColor[bottomIndex] = borderColor;
-            }
-        }
-        
-        // Set the left and right border pixels to black
-        for (var y = borderWidth; y < height - borderWidth; y++)
-        {
-            for (var x = 0; x < borderWidth; x++)
-            {
-                var leftIndex = y * width + x;
-                var rightIndex = y * width + (width - 1 - x);
-                backgroundColor[leftIndex] = borderColor;
-                backgroundColor[rightIndex] = borderColor;
-            }
-        }
-        
-        buttonTexture.SetData(backgroundColor);
-        
-        //_backgroundPosition = Vector2.Zero;
-    }
-    
     private void CreateBackgroundTexture()
     {
         var titleTextSize = titleFont.MeasureString(title);

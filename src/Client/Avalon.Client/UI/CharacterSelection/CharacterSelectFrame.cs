@@ -57,6 +57,7 @@ public class CharacterSelectFrame : IDisposable
             new Vector2(_position.X + 10, _position.Y + 60),
             null,
             null,
+            false,
             Globals.Content.Load<Texture2D>("Images/Icons/Check")
         );
         _selectButton.Clicked += OnSelectButtonClicked;
@@ -66,6 +67,7 @@ public class CharacterSelectFrame : IDisposable
             new Vector2(_position.X + 110, _position.Y + 60),
             null,
             null,
+            false,
             Globals.Content.Load<Texture2D>("Images/Icons/Trash")
         );
         _deleteButton.Clicked += OnDeleteButtonClicked;

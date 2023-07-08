@@ -14,6 +14,7 @@ public class ButtonComponent : IDisposable
     
     private Rectangle bounds;
     private SpriteFont font;
+    private readonly bool _followCamera;
     private string text;
 
     private bool isHovered;
@@ -23,19 +24,33 @@ public class ButtonComponent : IDisposable
 
     public event ButtonClickHandler Clicked;
 
-    public ButtonComponent(Texture2D defaultTexture, Vector2 position, string text, SpriteFont font, Texture2D hoverTexture = null)
+    public ButtonComponent(Texture2D defaultTexture, Vector2 position, string text, SpriteFont font, bool followCamera = false, Texture2D hoverTexture = null)
     {
-        this.defaultSprite = new Sprite(defaultTexture, position);
-        this.defaultSprite.Origin = Vector2.Zero;
-        if (hoverTexture != null)
+        if (followCamera)
         {
-            this.hoverSprite = new Sprite(hoverTexture, position);
-            this.hoverSprite.Origin = Vector2.Zero;
+            this.defaultSprite = new CameraFollowingSprite(defaultTexture, position);
+            this.defaultSprite.Origin = Vector2.Zero;
+            if (hoverTexture != null)
+            {
+                this.hoverSprite = new CameraFollowingSprite(hoverTexture, position);
+                this.hoverSprite.Origin = Vector2.Zero;
+            }
+        }
+        else
+        {
+            this.defaultSprite = new Sprite(defaultTexture, position);
+            this.defaultSprite.Origin = Vector2.Zero;
+            if (hoverTexture != null)
+            {
+                this.hoverSprite = new Sprite(hoverTexture, position);
+                this.hoverSprite.Origin = Vector2.Zero;
+            }
         }
         
         this.bounds = new Rectangle(position.ToPoint(), defaultTexture.Bounds.Size);
         this.text = text;
         this.font = font;
+        _followCamera = followCamera;
         isHovered = false;
 
         if (!string.IsNullOrEmpty(this.text))
@@ -58,6 +73,11 @@ public class ButtonComponent : IDisposable
         currentSprite = isHovered && hoverSprite != null 
             ? hoverSprite 
             : defaultSprite;
+
+        if (_followCamera)
+        {
+            bounds = new Rectangle( (int) currentSprite.Position.X, (int) currentSprite.Position.Y, bounds.Width, bounds.Height);
+        }
     }
 
     public void Draw(SpriteBatch spriteBatch)

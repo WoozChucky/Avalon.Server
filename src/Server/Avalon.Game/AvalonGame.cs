@@ -175,7 +175,7 @@ public partial class AvalonGame : IAvalonGame
 
     private void Update(TimeSpan deltaTime)
     {
-
+        
         // Update all maps, including spawns, AI, etc.
         foreach (var (_, mapInstances) in _mapManager.GetInstances())
         {
@@ -184,55 +184,6 @@ public partial class AvalonGame : IAvalonGame
                 _poolManager.Update(deltaTime, mapInstance);
                 _aiController.Update(mapInstance, deltaTime);
                 mapInstance.Update(deltaTime);
-            }
-        }
-        
-        
-        foreach (var session in _connectionManager.GetSessions().Values.Where(s => s.InGame))
-        {
-            /*
-            if (_map.IsObjectColliding(player.Bounds))
-            {
-                player.InvertDirection();
-            }
-            */
-        }
-        
-        foreach (var (id, entity) in _npcs)
-        {
-            entity.Update(deltaTime);
-
-            /*
-            foreach (var (_, player) in _players)
-            {
-                if (entity.Bounds.IntersectsWith(player.Bounds))
-                {
-                    if (entity.State != UrielState.Collided)
-                    {
-                        entity.State = UrielState.Collided;
-                        entity.PreviousVelocity = entity.Velocity;
-                        entity.Velocity = Vector2.Zero;
-                        break;
-                    }
-                }
-                else
-                {
-                    if (entity.State == UrielState.Collided)
-                    {
-                        entity.State = UrielState.Walking;
-                        entity.Velocity = new Vector2(0, 0);
-                        //entity.InvertDirection();
-                    }
-                }
-            }
-            */
-            
-            if (_map.IsObjectColliding(entity.Bounds))
-            {
-                entity.InvertDirection();
-                //entity.Position = entity.PreviousPosition;
-                //entity.Velocity = entity.PreviousVelocity;
-                //entity.RandomizeDirection();
             }
         }
     }
@@ -280,10 +231,25 @@ public partial class AvalonGame : IAvalonGame
                 session.Character.ElapsedGameTime
             );
             
+            foreach (var creature in _mapManager.GetInstance(session.Character.Map, Guid.Parse(session.Character.InstanceId))!.Creatures.Values)
+            {
+                var creaturePacket = SNpcUpdatePacket.Create(
+                    creature.Id,
+                    creature.Name,
+                    creature.Position.X, 
+                    creature.Position.Y,
+                    creature.Velocity.X,
+                    creature.Velocity.Y
+                );
+                
+                await BroadcastToInstance(creaturePacket, session.Character.InstanceId);
+            }
+            
             await BroadcastToInstance(packet, session.Character.InstanceId);
         }
         
-        // Broadcast NPC positions
+        // Broadcast creature positions
+        /*
         foreach (var map in _mapManager.GetInstances().Values.Select(v => v.Values).SelectMany(v => v))
         {
             foreach (var (id, creature) in map.Creatures)
@@ -300,6 +266,7 @@ public partial class AvalonGame : IAvalonGame
                 await BroadcastAll(packet);
             }
         }
+        */
     }
     
     private async Task BroadcastToOthers(int except, NetworkPacket packet, bool onlineOnly = false)

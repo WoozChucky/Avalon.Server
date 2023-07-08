@@ -46,7 +46,7 @@ public class AvalonMapManager : IAvalonMapManager
         _logger = logger;
         _databaseManager = databaseManager;
         _poolManager = poolManager;
-        _lock = new ReaderWriterLockSlim();
+        _lock = new ReaderWriterLockSlim(LockRecursionPolicy.SupportsRecursion);
     }
     
     public async Task LoadMaps()

@@ -18,21 +18,25 @@
         },
         "Tutorial.tmx": {
             "expandedObjectLayers": [
-                5
+                5,
+                10
             ],
-            "scale": 1,
-            "selectedLayer": 3,
+            "scale": 1.5,
+            "selectedLayer": 8,
             "viewCenter": {
-                "x": 476,
-                "y": 992
+                "x": 463.99999999999994,
+                "y": 1069.3333333333333
             }
         },
         "Village.tmx": {
-            "scale": 1,
-            "selectedLayer": 2,
+            "expandedObjectLayers": [
+                9
+            ],
+            "scale": 1.5,
+            "selectedLayer": 4,
             "viewCenter": {
-                "x": 567,
-                "y": 400
+                "x": 528,
+                "y": 370.6666666666667
             }
         }
     },
@@ -47,7 +51,7 @@
         "Tutorial.tmx"
     ],
     "project": "Avalon.tiled-project",
-    "property.type": "file",
+    "property.type": "int",
     "recentFiles": [
         "SereneVillageTileset32.tsx",
         "Tutorial.tmx",

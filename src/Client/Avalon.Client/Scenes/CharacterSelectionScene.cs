@@ -57,6 +57,7 @@ public class CharacterSelectionScene : Scene
             new Vector2(Globals.WindowSize.X - 150, Globals.WindowSize.Y - 95),
             null,
             null,
+            false,
             Globals.Content.Load<Texture2D>("Images/Icons/Plus")
         );
         _createButton.Clicked += OnCreateButtonClicked;

@@ -38,6 +38,15 @@ public partial class AvalonGame
                     _logger.LogInformation("Player {PlayerName} not found for group invite", playerName);
                     return;
                 }
+                
+                /*
+                if (invitedAccount.AccountId == session.AccountId)
+                {
+                    _logger.LogInformation("Player {PlayerName} tried to invite themselves to a group", playerName);
+                    return;
+                }
+                */
+                
                 await invitedAccount.SendAsync(SGroupInvitePacket.Create(invitedAccount.AccountId, session.AccountId, session.Character.Id, session.Character.Name));
             }
         }
