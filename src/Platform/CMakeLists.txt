@@ -10,7 +10,7 @@ add_subdirectory(game_layer)
 
 include_directories(${CMAKE_SOURCE_DIR}/platform_layer/include)
 
-add_executable(Game main.cpp)
+add_executable(Game main.cpp platform_layer/include/PlatformWindow.h)
 
 add_dependencies(Game PlatformLayer GameLayer)
 
