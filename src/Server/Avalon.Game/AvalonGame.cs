@@ -56,9 +56,6 @@ public partial class AvalonGame : IAvalonGame
     private readonly IAIController _aiController;
     private readonly IPoolManager _poolManager;
 
-    private readonly ConcurrentDictionary<int, Uriel> _npcs;
-    private readonly VirtualMap _map;
-
     public AvalonGame(ILogger<AvalonGame> logger, 
         IPacketSerializer packetSerializer, 
         IAvalonConnectionManager connectionManager,
@@ -77,22 +74,17 @@ public partial class AvalonGame : IAvalonGame
         _creatureSpawner = creatureSpawner;
         _aiController = aiController;
         _poolManager = poolManager;
-        _npcs = new ConcurrentDictionary<int, Uriel>();
         
         _connectionManager.SessionLost += OnSessionLost;
         _connectionManager.SessionReconnected += OnPlayerReconnected;
         _connectionManager.SessionTimedOut += OnPlayerTimedOut;
-        
-        _map = new VirtualMap(1, "Tutorial.tmx", "Maps/");
-
-        _npcs.TryAdd(1, new Uriel());
     }
 
     public async void Start()
     {
         _aiController.LoadScripts();
         await _creatureSpawner.LoadCreaturesAsync();
-        await _mapManager.LoadMaps();
+        await _mapManager.LoadMapsAsync();
 
         _logger.LogInformation("Starting game loop");
 
@@ -247,26 +239,6 @@ public partial class AvalonGame : IAvalonGame
             
             await BroadcastToInstance(packet, session.Character.InstanceId);
         }
-        
-        // Broadcast creature positions
-        /*
-        foreach (var map in _mapManager.GetInstances().Values.Select(v => v.Values).SelectMany(v => v))
-        {
-            foreach (var (id, creature) in map.Creatures)
-            {
-                // _logger.LogDebug("Broadcasting creature {id} position {Position}", id, creature.Position);
-                var packet = SNpcUpdatePacket.Create(
-                    creature.Id,
-                    creature.Name,
-                    creature.Position.X, 
-                    creature.Position.Y,
-                    creature.Velocity.X,
-                    creature.Velocity.Y
-                );
-                await BroadcastAll(packet);
-            }
-        }
-        */
     }
     
     private async Task BroadcastToOthers(int except, NetworkPacket packet, bool onlineOnly = false)

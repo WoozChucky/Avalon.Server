@@ -10,12 +10,12 @@ namespace Avalon.Game.Maps;
 
 public interface IAvalonMapManager
 {
-    Task LoadMaps();
+    Task LoadMapsAsync();
     
     MapInstance GenerateInstance(int mapId);
     MapInstance? GetInstance(int mapId, Guid instanceId);
     MapInstance? GetInstance(int mapId, int characterId);
-    IReadOnlyDictionary<int, IReadOnlyDictionary<Guid, MapInstance>> GetInstances();
+    ConcurrentDictionary<int, ConcurrentDictionary<Guid, MapInstance>> GetInstances();
     MapInstance AddCharacterToMap(int mapId, int characterId);
     bool RemoveCharacterFromMap(int mapId, int characterId);
 }
@@ -49,7 +49,7 @@ public class AvalonMapManager : IAvalonMapManager
         _lock = new ReaderWriterLockSlim(LockRecursionPolicy.SupportsRecursion);
     }
     
-    public async Task LoadMaps()
+    public async Task LoadMapsAsync()
     {
         _logger.LogInformation("Loading maps...");
 
@@ -156,14 +156,12 @@ public class AvalonMapManager : IAvalonMapManager
         }
     }
 
-    public IReadOnlyDictionary<int, IReadOnlyDictionary<Guid, MapInstance>> GetInstances()
+    public ConcurrentDictionary<int, ConcurrentDictionary<Guid, MapInstance>> GetInstances()
     {
         _lock.EnterReadLock();
         try
         {
-            return _instancedMaps.ToDictionary(
-                kvp => kvp.Key,
-                kvp => (IReadOnlyDictionary<Guid, MapInstance>)new ReadOnlyDictionary<Guid, MapInstance>(kvp.Value));
+            return _instancedMaps;
         }
         finally
         {

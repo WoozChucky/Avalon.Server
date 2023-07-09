@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics;
+using System.Diagnostics.Tracing;
 using Avalon.Database;
 using Avalon.Game;
 using Avalon.Game.Creatures;
@@ -33,6 +34,42 @@ namespace Avalon.Server
         private static ILogger<Program> Logger { get; set; } = null!;
         
         private static IMetricsManager MetricsManager { get; set; } = null!;
+        
+        sealed class GcFinalizersEventListener : EventListener
+        {
+            // from https://docs.microsoft.com/en-us/dotnet/framework/performance/garbage-collection-etw-events
+            private const int GC_KEYWORD =                 0x0000001;
+            private const int TYPE_KEYWORD =               0x0080000;
+            private const int GCHEAPANDTYPENAMES_KEYWORD = 0x1000000;
+
+            protected override void OnEventSourceCreated(EventSource eventSource)
+            {
+                Console.WriteLine($"{eventSource.Guid} | {eventSource.Name}");
+
+                // look for .NET Garbage Collection events
+                if (eventSource.Name.Equals("Microsoft-Windows-DotNETRuntime"))
+                {
+                    EnableEvents(
+                        eventSource, 
+                        EventLevel.Verbose, 
+                        (EventKeywords) (GC_KEYWORD | GCHEAPANDTYPENAMES_KEYWORD | TYPE_KEYWORD)
+                    );
+                }
+            }
+            
+            // Called whenever an event is written.
+            protected override void OnEventWritten(EventWrittenEventArgs eventData)
+            {
+                // Write the contents of the event to the console.
+                Console.WriteLine($"ThreadID = {eventData.OSThreadId} ID = {eventData.EventId} Name = {eventData.EventName}");
+                for (int i = 0; i < eventData.Payload.Count; i++)
+                {
+                    string payloadString = eventData.Payload[i] != null ? eventData.Payload[i].ToString() : string.Empty;
+                    Console.WriteLine($"    Name = \"{eventData.PayloadNames[i]}\" Value = \"{payloadString}\"");
+                }
+                Console.WriteLine("\n");
+            }
+        }
 
         private static Task Main(string[] args)
         {
@@ -44,6 +81,8 @@ namespace Avalon.Server
             Process.GetCurrentProcess().PriorityClass = ProcessPriorityClass.RealTime;
             Process.GetCurrentProcess().PriorityBoostEnabled = true;
             
+            // new GcFinalizersEventListener();
+
             ConfigureDependencyInjection();
 
             MetricsManager.Start(new Dictionary<string, string>()
@@ -103,7 +142,9 @@ namespace Avalon.Server
                         .AddSerilog(new LoggerConfiguration()
                             .MinimumLevel.Verbose()
                             .Enrich.FromLogContext()
-                            .WriteTo.Console(LogEventLevel.Debug, outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level}] ({SourceContext}) -> {Message}{NewLine}{Exception}", theme: AnsiConsoleTheme.Sixteen)
+                            .Enrich.WithThreadId()
+                            .Enrich.WithThreadName()
+                            .WriteTo.Console(LogEventLevel.Debug, outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level}] [{ThreadId}] ({SourceContext}) -> {Message}{NewLine}{Exception}", theme: AnsiConsoleTheme.Sixteen)
                             .CreateLogger()
                         )
                         .SetMinimumLevel(LogLevel.Trace);

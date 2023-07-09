@@ -63,11 +63,12 @@ public class AvalonGame : Game
     protected override void Initialize()
     {
         // 64 cols x 48 rows
-        Globals.WindowSize = new Point(800, 600);
+        //Globals.WindowSize = new Point(800, 600);
+        Globals.WindowSize = new Point(1024, 768);
         _graphics.PreferredBackBufferWidth = Globals.WindowSize.X;
         _graphics.PreferredBackBufferHeight = Globals.WindowSize.Y;
         _graphics.GraphicsDevice.Viewport = new Viewport(0, 0, Globals.WindowSize.X, Globals.WindowSize.Y);
-
+        
         _graphics.ApplyChanges();
 
         Globals.Content = Content;
