@@ -1,9 +1,5 @@
-using System;
 using System.Diagnostics;
-using System.Globalization;
-using System.IO;
-using System.Threading;
-using System.Threading.Tasks;
+using Avalon.Network.Packets;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Auth;
 using Avalon.Network.Packets.Deserialization;
@@ -14,12 +10,12 @@ using ENet;
 using ProtoBuf;
 using Packet = ENet.Packet;
 
-namespace Avalon.Client.Network;
+namespace Avalon.Network.Udp;
 
-public class UdpEnetClient : IDisposable
+public class AvalonUdpClient : IDisposable
 {
-    private static UdpEnetClient _instance;
-    public static UdpEnetClient Instance => _instance ??= new UdpEnetClient();
+    private static AvalonUdpClient _instance;
+    public static AvalonUdpClient Instance => _instance ??= new AvalonUdpClient();
     
     public event PlayerMovedHandler PlayerMoved;
     public event LatencyUpdatedHandler LatencyUpdated;
@@ -33,10 +29,12 @@ public class UdpEnetClient : IDisposable
     private readonly Address _address;
     
     private Peer _serverPeer;
-    private byte[] privateKey;
+    private byte[] _privateKey;
 
-
-    private UdpEnetClient()
+    public int AccountId { get; set; }
+    public int CharacterId { get; set; }
+    
+    private AvalonUdpClient()
     {
         _cts = new CancellationTokenSource();
         _packetDeserializer = new NetworkPacketDeserializer();
@@ -79,7 +77,7 @@ public class UdpEnetClient : IDisposable
                 //Console.WriteLine("No movement detected, skipping...");
             }
             
-            var packet = CPlayerMovementPacket.Create(Globals.AccountId, Globals.CharacterId, time, x, y, velX, velY);
+            var packet = CPlayerMovementPacket.Create(AccountId, CharacterId, time, x, y, velX, velY);
 
             await SendToServer(packet);
         }
@@ -148,9 +146,6 @@ public class UdpEnetClient : IDisposable
                                 break;
                             case EventType.Receive:
                             {
-                                //Console.WriteLine("Packet received from server - Channel ID: " + netEvent.ChannelID +
-                                //                  ", Data length: " + netEvent.Packet.Length);
-
                                 var buffer = new byte[netEvent.Packet.Length];
                                 netEvent.Packet.CopyTo(buffer);
                                 
@@ -193,7 +188,7 @@ public class UdpEnetClient : IDisposable
                                         var pingPacket = _packetDeserializer.Deserialize<SPingPacket>(packet.Header.Type,
                                             packet.Payload);
                                         
-                                        var responsePacket = CPongPacket.Create(pingPacket.SequenceNumber, Globals.AccountId, pingPacket.Ticks);
+                                        var responsePacket = CPongPacket.Create(pingPacket.SequenceNumber, AccountId, pingPacket.Ticks);
                                         
                                         await SendToServer(responsePacket);
                                         
@@ -273,11 +268,11 @@ public class UdpEnetClient : IDisposable
 
     public void SetPrivateKey(byte[] privateKey)
     {
-        this.privateKey = privateKey;
+        this._privateKey = privateKey;
     }
 
     public async Task SendAuthPatchPacket(int accountId)
     {
-        await SendToServer(CAuthPatchPacket.Create(accountId, privateKey));
+        await SendToServer(CAuthPatchPacket.Create(accountId, _privateKey));
     }
 }

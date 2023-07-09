@@ -1,0 +1,3 @@
+[submodule "vendor/hazel-networking"]
+	path = vendor/hazel-networking
+	url = https://github.com/willardf/Hazel-Networking

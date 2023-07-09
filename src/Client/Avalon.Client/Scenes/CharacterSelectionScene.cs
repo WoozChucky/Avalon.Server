@@ -1,10 +1,11 @@
 using System;
 using System.Collections.Concurrent;
 using Avalon.Client.Managers;
-using Avalon.Client.Network;
 using Avalon.Client.UI;
 using Avalon.Client.UI.CharacterSelection;
 using Avalon.Network.Packets.Character;
+using Avalon.Network.Tcp;
+using Avalon.Network.Udp;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
@@ -34,10 +35,10 @@ public class CharacterSelectionScene : Scene
 
     public override async void Load()
     {
-        TcpClient.Instance.CharacterList += OnCharacterListReceived;
-        TcpClient.Instance.CharacterSelected += OnCharacterSelected;
-        TcpClient.Instance.CharacterCreated += OnCharacterCreated;
-        TcpClient.Instance.CharacterDeleted += OnCharacterDeleted;
+        AvalonTcpClient.Instance.CharacterList += OnCharacterListReceived;
+        AvalonTcpClient.Instance.CharacterSelected += OnCharacterSelected;
+        AvalonTcpClient.Instance.CharacterCreated += OnCharacterCreated;
+        AvalonTcpClient.Instance.CharacterDeleted += OnCharacterDeleted;
         
         _gotCharacterList = false;
         _characterSelected = false;
@@ -76,15 +77,15 @@ public class CharacterSelectionScene : Scene
         
         _cursor = new Cursor(Globals.Content.Load<Texture2D>("Images/Icons/Mouse"), false);
         
-        await TcpClient.Instance.SendCharacterListPacket(Globals.AccountId);
+        await AvalonTcpClient.Instance.SendCharacterListPacket(Globals.AccountId);
     }
 
     public override void Unload()
     {
-        TcpClient.Instance.CharacterList -= OnCharacterListReceived;
-        TcpClient.Instance.CharacterSelected -= OnCharacterSelected;
-        TcpClient.Instance.CharacterCreated -= OnCharacterCreated;
-        TcpClient.Instance.CharacterDeleted -= OnCharacterDeleted;
+        AvalonTcpClient.Instance.CharacterList -= OnCharacterListReceived;
+        AvalonTcpClient.Instance.CharacterSelected -= OnCharacterSelected;
+        AvalonTcpClient.Instance.CharacterCreated -= OnCharacterCreated;
+        AvalonTcpClient.Instance.CharacterDeleted -= OnCharacterDeleted;
 
         if (_createButton != null)
         {
@@ -179,7 +180,7 @@ public class CharacterSelectionScene : Scene
         if (packet.Result == SCharacterCreateResult.Success)
         {
             _gotCharacterList = false;
-            await TcpClient.Instance.SendCharacterListPacket(Globals.AccountId);    
+            await AvalonTcpClient.Instance.SendCharacterListPacket(Globals.AccountId);    
         }
         else
         {
@@ -191,7 +192,7 @@ public class CharacterSelectionScene : Scene
     {
         _gotCharacterList = false;
         _characterSelected = false;
-        await TcpClient.Instance.SendCharacterListPacket(Globals.AccountId);
+        await AvalonTcpClient.Instance.SendCharacterListPacket(Globals.AccountId);
     }
     
     private void OnCharacterSelected(object sender, SCharacterSelectedPacket packet)
@@ -201,6 +202,8 @@ public class CharacterSelectionScene : Scene
         Globals.CharacterName = packet.Character.Name;
         Globals.MapInfo = packet.Map;
         Globals.StartPosition = new Vector2(packet.Character.X, packet.Character.Y);
+        AvalonTcpClient.Instance.CharacterId = packet.Character.CharacterId;
+        AvalonUdpClient.Instance.CharacterId = packet.Character.CharacterId;
         _characterSelected = true;
     }
     
@@ -262,7 +265,7 @@ public class CharacterSelectionScene : Scene
         }
         
         var @class = 1;
-        await TcpClient.Instance.SendCharacterCreatePacket(Globals.AccountId, name, @class);
+        await AvalonTcpClient.Instance.SendCharacterCreatePacket(Globals.AccountId, name, @class);
     }
 
     #endregion
@@ -272,13 +275,13 @@ public class CharacterSelectionScene : Scene
     private async void OnCharacterSelectedFrame(CharacterInfo charInfo)
     {
         Console.WriteLine($"Selected character {charInfo.Name}");
-        await TcpClient.Instance.SendCharacterSelectedPacket(Globals.AccountId, charInfo.CharacterId);
+        await AvalonTcpClient.Instance.SendCharacterSelectedPacket(Globals.AccountId, charInfo.CharacterId);
     }
     
     private async void OnCharacterDeletedFrame(CharacterInfo charInfo)
     {
         Console.WriteLine($"Deleted character {charInfo.Name}");
-        await TcpClient.Instance.SendCharacterDeletePacket(Globals.AccountId, charInfo.CharacterId);
+        await AvalonTcpClient.Instance.SendCharacterDeletePacket(Globals.AccountId, charInfo.CharacterId);
         _gotCharacterList = false;
     }
     
