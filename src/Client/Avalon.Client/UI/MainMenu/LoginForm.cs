@@ -1,8 +1,6 @@
-using System;
-using System.Threading;
-using Avalon.Client.Managers;
-using Avalon.Client.Network;
 using Avalon.Network.Packets.Auth;
+using Avalon.Network.Tcp;
+using Avalon.Network.Udp;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
@@ -29,8 +27,8 @@ public class LoginForm : IGameComponent
     {
         _isVisible = visible;
         
-        TcpClient.Instance.AuthResult += OnAuthResult;
-        UdpEnetClient.Instance.AuthResult += OnAuthResult;
+        AvalonTcpClient.Instance.AuthResult += OnAuthResult;
+        AvalonUdpClient.Instance.AuthResult += OnAuthResult;
         
         _usernameComponent = new TextInputComponent(
             new Vector2(Globals.WindowSize.X / 2f - 200 /2f, Globals.WindowSize.Y / 2f + 0),
@@ -139,8 +137,8 @@ public class LoginForm : IGameComponent
                 LoginFailed?.Invoke("Invalid username or password");
                 break;
             case AuthResult.PENDING_KEY:
-                UdpEnetClient.Instance.SetPrivateKey(packet.PrivateKey);
-                await UdpEnetClient.Instance.SendAuthPatchPacket(packet.AccountId);
+                AvalonUdpClient.Instance.SetPrivateKey(packet.PrivateKey);
+                await AvalonUdpClient.Instance.SendAuthPatchPacket(packet.AccountId);
                 break;
             case AuthResult.SUCCESS:
                 LoginSuccess?.Invoke(packet.AccountId);
@@ -193,7 +191,7 @@ public class LoginForm : IGameComponent
         }
 
         // Send tcp packet to server with login information
-        await TcpClient.Instance.SendAuthPacket(username, password);
+        await AvalonTcpClient.Instance.SendAuthPacket(username, password);
     }
     
     

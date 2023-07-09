@@ -50,7 +50,7 @@ namespace Avalon.Client
             };
             NatUtility.StartDiscovery();
             
-            using var game = new AvalonGame(ClientId);
+            using var game = new AvalonGame();
             game.Run();
         }
 

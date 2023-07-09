@@ -1,9 +1,9 @@
 ﻿using System;
 using System.Diagnostics;
 using Avalon.Client.Managers;
-using Avalon.Client.Network;
 using Avalon.Client.Scenes;
-using Avalon.Client.UI;
+using Avalon.Network.Tcp;
+using Avalon.Network.Udp;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
@@ -20,7 +20,7 @@ public class AvalonGame : Game
     
     private volatile bool _showingMetrics = false;
 
-    public AvalonGame(Guid clientId)
+    public AvalonGame()
     {
         this._stopwatch = Stopwatch.StartNew();
         _graphics = new GraphicsDeviceManager(this);
@@ -43,7 +43,7 @@ public class AvalonGame : Game
             }
         };
         
-        UdpEnetClient.Instance.LatencyUpdated += ((sender, latency) =>
+        AvalonUdpClient.Instance.LatencyUpdated += ((sender, latency) =>
         {
             Window.Title = $"Avalon: The Beginning ({latency}ms)";
         });
@@ -74,8 +74,8 @@ public class AvalonGame : Game
         Globals.Content = Content;
         Globals.GraphicsDevice = GraphicsDevice;
 
-        TcpClient.Instance.ConnectAsync().GetAwaiter().GetResult();
-        UdpEnetClient.Instance.ConnectAsync().GetAwaiter().GetResult();
+        AvalonTcpClient.Instance.ConnectAsync().GetAwaiter().GetResult();
+        AvalonUdpClient.Instance.ConnectAsync().GetAwaiter().GetResult();
 
         _sceneManager.Initialize();
         _sceneManager.LoadScene(nameof(MainMenuScene));
@@ -99,8 +99,8 @@ public class AvalonGame : Game
         if (GamePad.GetState(PlayerIndex.One).Buttons.Back == ButtonState.Pressed ||
             Keyboard.GetState().IsKeyDown(Keys.LeftAlt))
         {
-            UdpEnetClient.Instance.Disconnect();
-            TcpClient.Instance.Disconnect();
+            AvalonUdpClient.Instance.Disconnect();
+            AvalonTcpClient.Instance.Disconnect();
             Exit();
         }
 

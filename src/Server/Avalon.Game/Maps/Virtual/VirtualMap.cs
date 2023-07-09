@@ -23,6 +23,9 @@ namespace Avalon.Game.Maps.Virtual
     
         public int TileHeight { get; private set; }
         
+        public byte[] TmxData { get; private set; }
+        public byte[] TsxData { get; private set; }
+        
         public VirtualMap(int id, string name, string directory)
         {
             Id = id;

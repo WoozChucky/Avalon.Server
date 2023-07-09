@@ -1,12 +1,9 @@
-using System;
-using System.IO;
 using System.Net;
 using System.Net.Security;
 using System.Net.Sockets;
 using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
-using System.Threading;
-using System.Threading.Tasks;
+using Avalon.Network.Packets;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Auth;
 using Avalon.Network.Packets.Character;
@@ -18,28 +15,14 @@ using Avalon.Network.Packets.Serialization;
 using Avalon.Network.Packets.Social;
 using ProtoBuf;
 
-namespace Avalon.Client.Network;
+namespace Avalon.Network.Tcp;
+    
 
-public delegate void PlayerConnectedHandler(object sender, SPlayerConnectedPacket packet);
-public delegate void PlayerDisconnectedHandler(object sender, SPlayerDisconnectedPacket packet);
-public delegate void PlayerMovedHandler(object sender, SPlayerPositionUpdatePacket packet);
-public delegate void LatencyUpdatedHandler(object sender, double latency);
-public delegate void NpcUpdatedHandler(object sender, SNpcUpdatePacket packet);
-public delegate void ChatMessageHandler(object sender, SChatMessagePacket packet);
-public delegate void AuthResultHandler(object sender, SAuthResultPacket packet);
-public delegate void GroupInviteHandler(object sender, SGroupInvitePacket packet);
-public delegate void GroupResultHandler(object sender, SGroupResultPacket packet);
-public delegate void CharacterListHandler(object sender, SCharacterListPacket packet);
-public delegate void CharacterSelectedHandler(object sender, SCharacterSelectedPacket packet);
-public delegate void CharacterCreatedHandler(object sender, SCharacterCreatedPacket packet);
-public delegate void CharacterDeletedHandler(object sender, SCharacterDeletedPacket packet);
-public delegate void LogoutHandler(object sender, SLogoutPacket packet);
-public delegate void MapTeleportHandler(object sender, SMapTeleportPacket packet);
 
-public class TcpClient : IDisposable
+public class AvalonTcpClient : IDisposable
 {
-    private static TcpClient instance;
-    public static TcpClient Instance => instance ??= new TcpClient();
+    private static AvalonTcpClient instance;
+    public static AvalonTcpClient Instance => instance ??= new AvalonTcpClient();
     
     public event PlayerConnectedHandler PlayerConnected;
     public event PlayerDisconnectedHandler PlayerDisconnected;
@@ -56,31 +39,34 @@ public class TcpClient : IDisposable
     public event LogoutHandler Logout;
     public event MapTeleportHandler MapTeleport;
 
-    private readonly CancellationTokenSource cts = new CancellationTokenSource();
-    private readonly X509Certificate2 certificate;
-    private readonly Socket socket;
-    private SslStream stream;
+    private readonly CancellationTokenSource _cts;
+    private readonly X509Certificate2 _certificate;
+    private readonly Socket _socket;
+    private SslStream _stream;
 
     private readonly IPacketDeserializer _packetDeserializer;
     private readonly IPacketSerializer _packetSerializer;
+
+    public int AccountId { get; set; }
+    public int CharacterId { get; set; }
     
-    public TcpClient()
+    public AvalonTcpClient()
     {
         _packetDeserializer = new NetworkPacketDeserializer();
         _packetSerializer = new NetworkPacketSerializer();
         var clientCertBytes = File.ReadAllBytesAsync("cert-public.pem").ConfigureAwait(true).GetAwaiter().GetResult();
-        certificate = new X509Certificate2(clientCertBytes);
-        socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-        
+        _certificate = new X509Certificate2(clientCertBytes);
+        _socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+        _cts = new CancellationTokenSource();
         _packetDeserializer.RegisterPacketDeserializers();
         _packetSerializer.RegisterPacketSerializers();
     }
 
     public async Task ConnectAsync()
     {
-        await socket.ConnectAsync(new IPEndPoint(IPAddress.Parse("85.246.128.207"), 21000)).ConfigureAwait(true);
-        stream = new SslStream(new NetworkStream(socket), false, UserCertificateValidationCallback);
-        await stream.AuthenticateAsClientAsync("85.246.128.207", new X509Certificate2Collection() { certificate }, SslProtocols.Tls12,
+        await _socket.ConnectAsync(new IPEndPoint(IPAddress.Parse("85.246.128.207"), 21000)).ConfigureAwait(true);
+        _stream = new SslStream(new NetworkStream(_socket), false, UserCertificateValidationCallback);
+        await _stream.AuthenticateAsClientAsync("85.246.128.207", new X509Certificate2Collection() { _certificate }, SslProtocols.Tls12,
             true).ConfigureAwait(false);
         
 #pragma warning disable CS4014
@@ -92,59 +78,14 @@ public class TcpClient : IDisposable
     {
         return true;
     }
-
-    public async Task SendChatMessage(string message)
-    {
-        try
-        {
-            var packet = CChatMessagePacket.Create(Globals.AccountId, Globals.CharacterId, message, DateTime.UtcNow);
-
-            await _packetSerializer.SerializeToNetwork(stream, packet);
-        }
-        catch (Exception e)
-        {
-            Console.WriteLine(e);
-            throw;
-        }
-    }
-    
-    public async Task SendOpenChatPacket()
-    {
-        try
-        {
-            var packet = COpenChatPacket.Create(Globals.AccountId, Globals.CharacterId);
-
-            await _packetSerializer.SerializeToNetwork(stream, packet);
-        }
-        catch (Exception e)
-        {
-            Console.WriteLine(e);
-            throw;
-        }
-    }
-    
-    public async Task SendCloseChatPacket()
-    {
-        try
-        {
-            var packet = CCloseChatPacket.Create(Globals.AccountId, Globals.CharacterId);
-
-            await _packetSerializer.SerializeToNetwork(stream, packet);
-        }
-        catch (Exception e)
-        {
-            Console.WriteLine(e);
-            throw;
-        }
-    }
     
     private async void HandleCommunications()
     {
         try
         {
-            while (!cts.IsCancellationRequested)
+            while (!_cts.IsCancellationRequested)
             {
-                var packet = Serializer.DeserializeWithLengthPrefix<NetworkPacket>(stream, PrefixStyle.Base128);
+                var packet = Serializer.DeserializeWithLengthPrefix<NetworkPacket>(_stream, PrefixStyle.Base128);
 
                 switch (packet.Header.Type)
                 {
@@ -290,9 +231,9 @@ public class TcpClient : IDisposable
                         var pingPacket = _packetDeserializer.Deserialize<SPingPacket>(packet.Header.Type,
                             packet.Payload);
                                         
-                        var pongPacket = CPongPacket.Create(pingPacket.SequenceNumber, Globals.AccountId, pingPacket.Ticks);
+                        var pongPacket = CPongPacket.Create(pingPacket.SequenceNumber, AccountId, pingPacket.Ticks);
                                         
-                        await _packetSerializer.SerializeToNetwork(stream, pongPacket);
+                        await _packetSerializer.SerializeToNetwork(_stream, pongPacket);
                                         
                         break;
                     
@@ -312,71 +253,116 @@ public class TcpClient : IDisposable
     
     public void Disconnect()
     {
-        cts.Cancel();
-        socket.Disconnect(false);
+        _cts.Cancel();
+        _socket.Disconnect(false);
     }
 
     public void Dispose()
     {
-        cts?.Dispose();
-        certificate?.Dispose();
-        socket?.Dispose();
-        stream?.Dispose();
+        _cts?.Dispose();
+        _certificate?.Dispose();
+        _socket?.Dispose();
+        _stream?.Dispose();
+    }
+
+    public async Task SendChatMessage(string message)
+    {
+        try
+        {
+            var packet = CChatMessagePacket.Create(AccountId, CharacterId, message, DateTime.UtcNow);
+
+            await _packetSerializer.SerializeToNetwork(_stream, packet);
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine(e);
+            throw;
+        }
+    }
+    
+    public async Task SendOpenChatPacket()
+    {
+        try
+        {
+            var packet = COpenChatPacket.Create(AccountId, CharacterId);
+
+            await _packetSerializer.SerializeToNetwork(_stream, packet);
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine(e);
+            throw;
+        }
+    }
+    
+    public async Task SendCloseChatPacket()
+    {
+        try
+        {
+            var packet = CCloseChatPacket.Create(AccountId, CharacterId);
+
+            await _packetSerializer.SerializeToNetwork(_stream, packet);
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine(e);
+            throw;
+        }
     }
 
     public async Task SendCharacterSelectedPacket(int accountId, int characterId)
     {
         var packet = CCharacterSelectedPacket.Create(accountId, characterId);
         
-        await _packetSerializer.SerializeToNetwork(stream, packet);
+        await _packetSerializer.SerializeToNetwork(_stream, packet);
     }
 
     public async Task SendAuthPacket(string username, string password)
     {
         var packet = CAuthPacket.Create(username, password);
         
-        await _packetSerializer.SerializeToNetwork(stream, packet);
+        await _packetSerializer.SerializeToNetwork(_stream, packet);
     }
 
     public async Task SendCharacterListPacket(int accountId)
     {
         var packet = CCharacterListPacket.Create(accountId);
         
-        await _packetSerializer.SerializeToNetwork(stream, packet);
+        await _packetSerializer.SerializeToNetwork(_stream, packet);
     }
 
     public async Task SendCharacterDeletePacket(int accountId, int characterId)
     {
         var packet = CCharacterDeletePacket.Create(accountId, characterId);
         
-        await _packetSerializer.SerializeToNetwork(stream, packet);
+        await _packetSerializer.SerializeToNetwork(_stream, packet);
     }
 
     public async Task SendCharacterCreatePacket(int accountId, string name, int @class)
     {
         var packet = CCharacterCreatePacket.Create(accountId, name, @class);
         
-        await _packetSerializer.SerializeToNetwork(stream, packet);
+        await _packetSerializer.SerializeToNetwork(_stream, packet);
     }
     
     public async Task SendLogoutPacket(int accountId)
     {
         var packet = CLogoutPacket.Create(accountId);
         
-        await _packetSerializer.SerializeToNetwork(stream, packet);
+        await _packetSerializer.SerializeToNetwork(_stream, packet);
     }
 
     public async Task SendCharacterLoadedPacket()
     {
-        var packet = CCharacterLoadedPacket.Create(Globals.AccountId);
+        var packet = CCharacterLoadedPacket.Create(AccountId);
         
-        await _packetSerializer.SerializeToNetwork(stream, packet);
+        await _packetSerializer.SerializeToNetwork(_stream, packet);
     }
 
     public async Task SendMapTeleportPacket(int mapId)
     {
-        var packet = CMapTeleportPacket.Create(Globals.AccountId, Globals.CharacterId, mapId);
+        var packet = CMapTeleportPacket.Create(AccountId, CharacterId, mapId);
         
-        await _packetSerializer.SerializeToNetwork(stream, packet);
+        await _packetSerializer.SerializeToNetwork(_stream, packet);
     }
 }
