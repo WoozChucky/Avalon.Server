@@ -362,7 +362,9 @@ public partial class AvalonGame : IAvalonGame
             Atlas = newInstance.Atlas,
             Directory = newInstance.Directory,
             MapId = packet.MapId,
-            Name = newInstance.Name
+            Name = newInstance.Name,
+            Data = newInstance.VirtualizedMap.TmxData,
+            TilesetsData = newInstance.VirtualizedMap.TsxData,
         }, x, y));
         
         // Warn about other players, that the player left the old instance

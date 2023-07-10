@@ -159,6 +159,8 @@ public partial class AvalonGame
             Name = mapInstance.Name,
             Atlas = mapInstance.Atlas,
             Directory = mapInstance.Directory,
+            Data = mapInstance.VirtualizedMap.TmxData,
+            TilesetsData = mapInstance.VirtualizedMap.TsxData
         }));
 
         // save the character to the database

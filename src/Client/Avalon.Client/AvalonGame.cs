@@ -43,8 +43,18 @@ public class AvalonGame : Game
             }
         };
         
-        Globals.Tcp = new AvalonTcpClient();
-        Globals.Udp = new AvalonUdpClient();
+        Globals.Tcp = new AvalonTcpClient(new AvalonTcpClientSettings
+        {
+            Host = "127.0.0.1",
+            Port = 21000,
+            CertificatePath = "cert-public.pem"
+        });
+        
+        Globals.Udp = new AvalonUdpClient(new AvalonUdpClientSettings
+        {
+            Host = "127.0.0.1",
+            Port = 21000,
+        });
         
         Globals.Udp.LatencyUpdated += ((sender, latency) =>
         {

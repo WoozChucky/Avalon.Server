@@ -15,7 +15,7 @@ public class MapInstance
     
     // Map tiles virtual representation
     // Contains all the layers (tiles, creatures, objects, events) information
-    public VirtualMap VirtualizedMap { get; }
+    public VirtualizedMap VirtualizedMap { get; }
 
     public ConcurrentDictionary<Guid, Creature> Creatures { get; }
 
@@ -27,7 +27,7 @@ public class MapInstance
     // (even though the character manager will be the one to create the character object and is accessed in a thread safe way)
     private ConcurrentDictionary<int, bool> _characters;
     
-    public MapInstance(Map template, VirtualMap virtualizedMap)
+    public MapInstance(Map template, Virtual.VirtualizedMap virtualizedMap)
     {
         InstanceId = Guid.NewGuid();
         Creatures = new ConcurrentDictionary<Guid, Creature>();

@@ -38,7 +38,7 @@ public class AvalonMapManager : IAvalonMapManager
     private List<Map>? _mapTemplates;
     
     // Virtual map templates, these are loaded from the map templates and are used to create map instances
-    private readonly Dictionary<int, VirtualMap> _virtualTemplates = new();
+    private readonly Dictionary<int, VirtualizedMap> _virtualTemplates = new();
 
     public AvalonMapManager(ILogger<AvalonMapManager> logger, IDatabaseManager databaseManager,
         IPoolManager poolManager)
@@ -63,7 +63,7 @@ public class AvalonMapManager : IAvalonMapManager
         {
             // Preload the virtual map templates
             _logger.LogInformation("PreLoading virtual map {MapId} - {MapName} - {MapDescription}", mapTemplate.Id, mapTemplate.Name, mapTemplate.Description);
-            _virtualTemplates.Add(mapTemplate.Id, new VirtualMap(mapTemplate.Id, mapTemplate.Name, mapTemplate.Directory));
+            _virtualTemplates.Add(mapTemplate.Id, new VirtualizedMap(mapTemplate.Id, mapTemplate.Name, mapTemplate.Directory));
         }
         
         foreach (var map in villageMaps)

@@ -1,11 +1,14 @@
 using System;
 using System.Collections.Concurrent;
+using System.Linq;
 using System.Threading.Tasks;
 using Avalon.Client.Managers;
 using Avalon.Client.Maps;
 using Avalon.Client.Models;
 using Avalon.Client.UI;
+using Avalon.Common.Extensions;
 using Avalon.Network.Packets.Auth;
+using Avalon.Network.Packets.Character;
 using Avalon.Network.Packets.Map;
 using Avalon.Network.Packets.Movement;
 using Avalon.Network.Packets.Social;
@@ -53,7 +56,7 @@ public class TutorialScene : Scene
         
     }
 
-    private async Task Load(string mapName, string directory, string atlas)
+    private async Task Load(MapInfo map)
     {
         _loaded = false;
         
@@ -66,7 +69,8 @@ public class TutorialScene : Scene
         MediaPlayer.Volume = 0.015f;
         // MediaPlayer.Play(_song);
         _font = Globals.Content.Load<SpriteFont>("Fonts/Nintendo");
-        _map = new Map(mapName, directory, atlas);
+        //_map = new Map(mapName, directory, atlas);
+        _map = new Map(map.Data.ToMemoryStream(), map.TilesetsData.Select(m => m.ToMemoryStream()).ToArray(), map.Atlas);
         _player = new Player(
             Globals.AccountId,
             Globals.CharacterName,
@@ -106,7 +110,7 @@ public class TutorialScene : Scene
     public override async void Load()
     {
         Console.WriteLine(Globals.MapInfo);
-        await Load(Globals.MapInfo.Name, Globals.MapInfo.Directory, Globals.MapInfo.Atlas);
+        await Load(Globals.MapInfo);
     }
 
     public override void Unload()
@@ -152,7 +156,7 @@ public class TutorialScene : Scene
         {
             Console.WriteLine("Reloading map...");
             _reloadRequired = false;
-            await Load(Globals.MapInfo.Name, Globals.MapInfo.Directory, Globals.MapInfo.Atlas);
+            await Load(Globals.MapInfo);
             Console.WriteLine("Map reloaded!");
             return;
         }

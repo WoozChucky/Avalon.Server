@@ -46,8 +46,17 @@ namespace Avalon.Client.Simulator
             {
                 _username = username;
                 _password = password;
-                _tcp = new AvalonTcpClient();
-                _udp = new AvalonUdpClient();
+                _tcp = new AvalonTcpClient(new AvalonTcpClientSettings
+                {
+                    Host = "85.246.140.89",
+                    Port = 21000,
+                    CertificatePath = "cert-public.pem"
+                });
+                _udp = new AvalonUdpClient(new AvalonUdpClientSettings
+                {
+                    Host = "85.246.140.89",
+                    Port = 21000,
+                });
                 
                 _tcp.AuthResult += OnAuthResult;
                 _tcp.CharacterList += OnCharacterList;

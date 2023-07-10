@@ -12,8 +12,15 @@ using Packet = ENet.Packet;
 
 namespace Avalon.Network.Udp;
 
+public class AvalonUdpClientSettings
+{
+    public string Host { get; set; }
+    public int Port { get; set; }
+}
+
 public class AvalonUdpClient : IDisposable
 {
+    private readonly AvalonUdpClientSettings _settings;
     public event PlayerMovedHandler PlayerMoved;
     public event LatencyUpdatedHandler LatencyUpdated;
     public event NpcUpdatedHandler NpcUpdated;
@@ -31,16 +38,17 @@ public class AvalonUdpClient : IDisposable
     public int AccountId { get; set; }
     public int CharacterId { get; set; }
     
-    public AvalonUdpClient()
+    public AvalonUdpClient(AvalonUdpClientSettings settings)
     {
+        _settings = settings;
         _cts = new CancellationTokenSource();
         _packetDeserializer = new NetworkPacketDeserializer();
         _packetSerializer = new NetworkPacketSerializer();
         
         _client = new Host();
         _address = new Address();
-        _address.SetIP("85.246.128.207");
-        _address.Port = 21000;
+        _address.SetIP(_settings.Host);
+        _address.Port = (ushort)_settings.Port;
         
         //var clientAddress = new Address
         //{

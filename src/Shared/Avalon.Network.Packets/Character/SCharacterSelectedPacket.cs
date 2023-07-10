@@ -48,6 +48,8 @@ public class MapInfo
     [ProtoMember(3)] public string Name { get; set; }
     [ProtoMember(4)] public string Atlas { get; set; }
     [ProtoMember(5)] public string Directory { get; set; }
+    [ProtoMember(6)] public byte[] Data { get; set; }
+    [ProtoMember(7)] public byte[][] TilesetsData { get; set; }
 
     public override string ToString()
     {

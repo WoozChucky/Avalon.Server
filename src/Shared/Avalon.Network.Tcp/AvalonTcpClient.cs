@@ -17,8 +17,16 @@ using ProtoBuf;
 
 namespace Avalon.Network.Tcp;
 
+public class AvalonTcpClientSettings
+{
+    public string Host { get; set; }
+    public string CertificatePath { get; set; }
+    public int Port { get; set; }
+}
+
 public class AvalonTcpClient : IDisposable
 {
+    private readonly AvalonTcpClientSettings _settings;
     public event PlayerConnectedHandler PlayerConnected;
     public event PlayerDisconnectedHandler PlayerDisconnected;
     public event ChatMessageHandler ChatMessage;
@@ -45,11 +53,12 @@ public class AvalonTcpClient : IDisposable
     public int AccountId { get; set; }
     public int CharacterId { get; set; }
     
-    public AvalonTcpClient()
+    public AvalonTcpClient(AvalonTcpClientSettings settings)
     {
+        _settings = settings;
         _packetDeserializer = new NetworkPacketDeserializer();
         _packetSerializer = new NetworkPacketSerializer();
-        var clientCertBytes = File.ReadAllBytesAsync("cert-public.pem").ConfigureAwait(true).GetAwaiter().GetResult();
+        var clientCertBytes = File.ReadAllBytesAsync(_settings.CertificatePath).ConfigureAwait(true).GetAwaiter().GetResult();
         _certificate = new X509Certificate2(clientCertBytes);
         _socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
         _cts = new CancellationTokenSource();
@@ -59,9 +68,9 @@ public class AvalonTcpClient : IDisposable
 
     public async Task ConnectAsync()
     {
-        await _socket.ConnectAsync(new IPEndPoint(IPAddress.Parse("85.246.128.207"), 21000)).ConfigureAwait(true);
+        await _socket.ConnectAsync(new IPEndPoint(IPAddress.Parse(_settings.Host), _settings.Port)).ConfigureAwait(true);
         _stream = new SslStream(new NetworkStream(_socket), false, UserCertificateValidationCallback);
-        await _stream.AuthenticateAsClientAsync("85.246.128.207", new X509Certificate2Collection() { _certificate }, SslProtocols.Tls12,
+        await _stream.AuthenticateAsClientAsync(_settings.Host, new X509Certificate2Collection() { _certificate }, SslProtocols.Tls12,
             true).ConfigureAwait(false);
         
 #pragma warning disable CS4014
