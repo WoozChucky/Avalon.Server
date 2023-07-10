@@ -27,8 +27,8 @@ public class LoginForm : IGameComponent
     {
         _isVisible = visible;
         
-        AvalonTcpClient.Instance.AuthResult += OnAuthResult;
-        AvalonUdpClient.Instance.AuthResult += OnAuthResult;
+        Globals.Tcp.AuthResult += OnAuthResult;
+        Globals.Udp.AuthResult += OnAuthResult;
         
         _usernameComponent = new TextInputComponent(
             new Vector2(Globals.WindowSize.X / 2f - 200 /2f, Globals.WindowSize.Y / 2f + 0),
@@ -137,8 +137,8 @@ public class LoginForm : IGameComponent
                 LoginFailed?.Invoke("Invalid username or password");
                 break;
             case AuthResult.PENDING_KEY:
-                AvalonUdpClient.Instance.SetPrivateKey(packet.PrivateKey);
-                await AvalonUdpClient.Instance.SendAuthPatchPacket(packet.AccountId);
+                Globals.Udp.SetPrivateKey(packet.PrivateKey);
+                await Globals.Udp.SendAuthPatchPacket(packet.AccountId);
                 break;
             case AuthResult.SUCCESS:
                 LoginSuccess?.Invoke(packet.AccountId);
@@ -191,7 +191,7 @@ public class LoginForm : IGameComponent
         }
 
         // Send tcp packet to server with login information
-        await AvalonTcpClient.Instance.SendAuthPacket(username, password);
+        await Globals.Tcp.SendAuthPacket(username, password);
     }
     
     

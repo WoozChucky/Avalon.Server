@@ -14,9 +14,6 @@ namespace Avalon.Network.Udp;
 
 public class AvalonUdpClient : IDisposable
 {
-    private static AvalonUdpClient _instance;
-    public static AvalonUdpClient Instance => _instance ??= new AvalonUdpClient();
-    
     public event PlayerMovedHandler PlayerMoved;
     public event LatencyUpdatedHandler LatencyUpdated;
     public event NpcUpdatedHandler NpcUpdated;
@@ -34,7 +31,7 @@ public class AvalonUdpClient : IDisposable
     public int AccountId { get; set; }
     public int CharacterId { get; set; }
     
-    private AvalonUdpClient()
+    public AvalonUdpClient()
     {
         _cts = new CancellationTokenSource();
         _packetDeserializer = new NetworkPacketDeserializer();

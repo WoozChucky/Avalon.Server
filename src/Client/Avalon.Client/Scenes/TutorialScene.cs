@@ -9,8 +9,6 @@ using Avalon.Network.Packets.Auth;
 using Avalon.Network.Packets.Map;
 using Avalon.Network.Packets.Movement;
 using Avalon.Network.Packets.Social;
-using Avalon.Network.Tcp;
-using Avalon.Network.Udp;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
@@ -81,17 +79,17 @@ public class TutorialScene : Scene
         _rightPanel = new InGameRightPanel();
         _cursor = new Cursor(Globals.Content.Load<Texture2D>("Images/Icons/Mouse"), true);
         
-        AvalonTcpClient.Instance.PlayerConnected += OnPlayerConnected;
-        AvalonTcpClient.Instance.PlayerDisconnected += OnPlayerDisconnected;
-        AvalonTcpClient.Instance.GroupInvite += OnPlayerGroupInvited;
-        AvalonTcpClient.Instance.PlayerMoved += OnPlayerMoved;
-        AvalonTcpClient.Instance.NpcUpdated += OnNpcUpdated;
-        AvalonTcpClient.Instance.Logout += OnLogout;
-        AvalonTcpClient.Instance.MapTeleport += OnMapTeleport;
+        Globals.Tcp.PlayerConnected += OnPlayerConnected;
+        Globals.Tcp.PlayerDisconnected += OnPlayerDisconnected;
+        Globals.Tcp.GroupInvite += OnPlayerGroupInvited;
+        Globals.Tcp.PlayerMoved += OnPlayerMoved;
+        Globals.Tcp.NpcUpdated += OnNpcUpdated;
+        Globals.Tcp.Logout += OnLogout;
+        Globals.Tcp.MapTeleport += OnMapTeleport;
         
-        AvalonUdpClient.Instance.PlayerMoved += OnPlayerMoved;
-        AvalonUdpClient.Instance.NpcUpdated += OnNpcUpdated;
-        AvalonUdpClient.Instance.LatencyUpdated += OnLatencyUpdated;
+        Globals.Udp.PlayerMoved += OnPlayerMoved;
+        Globals.Udp.NpcUpdated += OnNpcUpdated;
+        Globals.Udp.LatencyUpdated += OnLatencyUpdated;
 
         _timer = new Timer();
         _timer.Interval = 26; // 20 updates per seconds which would be 50 milliseconds interval (1000/20 = 50)
@@ -101,7 +99,8 @@ public class TutorialScene : Scene
         
         _loaded = true;
 
-        await AvalonTcpClient.Instance.SendCharacterLoadedPacket();
+        await Globals.Tcp.SendCharacterLoadedPacket();
+        //TODO: Maybe also send a map loaded packet?
     }
 
     public override async void Load()
@@ -119,17 +118,17 @@ public class TutorialScene : Scene
             _timer.Elapsed -= OnTimerElapsed;
             _timer.Dispose();
         }
-        AvalonTcpClient.Instance.PlayerConnected -= OnPlayerConnected;
-        AvalonTcpClient.Instance.PlayerDisconnected -= OnPlayerDisconnected;
-        AvalonTcpClient.Instance.GroupInvite -= OnPlayerGroupInvited;
-        AvalonTcpClient.Instance.PlayerMoved -= OnPlayerMoved;
-        AvalonTcpClient.Instance.NpcUpdated -= OnNpcUpdated;
-        AvalonTcpClient.Instance.Logout -= OnLogout;
-        AvalonTcpClient.Instance.MapTeleport -= OnMapTeleport;
+        Globals.Tcp.PlayerConnected -= OnPlayerConnected;
+        Globals.Tcp.PlayerDisconnected -= OnPlayerDisconnected;
+        Globals.Tcp.GroupInvite -= OnPlayerGroupInvited;
+        Globals.Tcp.PlayerMoved -= OnPlayerMoved;
+        Globals.Tcp.NpcUpdated -= OnNpcUpdated;
+        Globals.Tcp.Logout -= OnLogout;
+        Globals.Tcp.MapTeleport -= OnMapTeleport;
         
-        AvalonUdpClient.Instance.PlayerMoved -= OnPlayerMoved;
-        AvalonUdpClient.Instance.NpcUpdated -= OnNpcUpdated;
-        AvalonUdpClient.Instance.LatencyUpdated -= OnLatencyUpdated;
+        Globals.Udp.PlayerMoved -= OnPlayerMoved;
+        Globals.Udp.NpcUpdated -= OnNpcUpdated;
+        Globals.Udp.LatencyUpdated -= OnLatencyUpdated;
     }
 
     public override async void Update(GameTime gameTime)
@@ -196,14 +195,14 @@ public class TutorialScene : Scene
 
         if (_chatGui is { IsTyping: false } && InputManager.Instance.KeyReleased(Keys.O))
         {
-            await AvalonTcpClient.Instance.SendLogoutPacket(Globals.AccountId);
+            await Globals.Tcp.SendLogoutPacket(Globals.AccountId);
             Console.WriteLine("Sent logout packet at position " + _lastSentPosition);
         }
         
         if (_chatGui is { IsTyping: false } && InputManager.Instance.KeyReleased(Keys.I))
         {
             //await Load("Village.tmx", "Maps/", "Serene_Village_32x32");
-            await AvalonTcpClient.Instance.SendMapTeleportPacket(Globals.MapInfo.MapId == 1 ? 2 : 1);
+            await Globals.Tcp.SendMapTeleportPacket(Globals.MapInfo.MapId == 1 ? 2 : 1);
             return;
         }
         
@@ -390,7 +389,7 @@ public class TutorialScene : Scene
             if (pos == _lastSentPosition && vel == _lastSentVelocity)
                 return;
 
-            await AvalonUdpClient.Instance.BroadcastMovementUpdates(Globals.Time, pos.X, pos.Y, vel.X, vel.Y);
+            await Globals.Udp.BroadcastMovementUpdates(Globals.Time, pos.X, pos.Y, vel.X, vel.Y);
             _lastSentPosition = pos;
             _lastSentVelocity = vel;
         }
