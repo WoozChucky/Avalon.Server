@@ -1,10 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
+using Avalon.VirtualMap;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
-using TiledCS;
 
 namespace Avalon.Client.Maps;
 
@@ -31,6 +32,11 @@ public class Map : IDisposable
         Load(new TiledMap($"{directory}{mapName}"), spriteSheetName);
     }
     
+    public Map(Stream data, Stream[] tilesets, string spriteSheetName)
+    {
+        Load(new TiledMap(data, tilesets), spriteSheetName);
+    }
+    
     private void Load(TiledMap map, string spriteSheetName)
     {
         // Load the map
@@ -44,7 +50,7 @@ public class Map : IDisposable
         _layers = new List<Layer>();
         _events = new List<MapEvent>();
         
-        var tilesets = map.GetTiledTilesets("Maps/");
+        var tilesets = map.GetTiledTilesets();
         
         var tileLayers = map.Layers
             .Where(x => x.type == TiledLayerType.TileLayer)
