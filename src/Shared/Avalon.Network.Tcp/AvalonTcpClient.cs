@@ -16,14 +16,9 @@ using Avalon.Network.Packets.Social;
 using ProtoBuf;
 
 namespace Avalon.Network.Tcp;
-    
-
 
 public class AvalonTcpClient : IDisposable
 {
-    private static AvalonTcpClient instance;
-    public static AvalonTcpClient Instance => instance ??= new AvalonTcpClient();
-    
     public event PlayerConnectedHandler PlayerConnected;
     public event PlayerDisconnectedHandler PlayerDisconnected;
     public event ChatMessageHandler ChatMessage;

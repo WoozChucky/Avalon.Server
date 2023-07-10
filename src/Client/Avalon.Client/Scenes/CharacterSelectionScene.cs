@@ -35,10 +35,10 @@ public class CharacterSelectionScene : Scene
 
     public override async void Load()
     {
-        AvalonTcpClient.Instance.CharacterList += OnCharacterListReceived;
-        AvalonTcpClient.Instance.CharacterSelected += OnCharacterSelected;
-        AvalonTcpClient.Instance.CharacterCreated += OnCharacterCreated;
-        AvalonTcpClient.Instance.CharacterDeleted += OnCharacterDeleted;
+        Globals.Tcp.CharacterList += OnCharacterListReceived;
+        Globals.Tcp.CharacterSelected += OnCharacterSelected;
+        Globals.Tcp.CharacterCreated += OnCharacterCreated;
+        Globals.Tcp.CharacterDeleted += OnCharacterDeleted;
         
         _gotCharacterList = false;
         _characterSelected = false;
@@ -77,15 +77,15 @@ public class CharacterSelectionScene : Scene
         
         _cursor = new Cursor(Globals.Content.Load<Texture2D>("Images/Icons/Mouse"), false);
         
-        await AvalonTcpClient.Instance.SendCharacterListPacket(Globals.AccountId);
+        await Globals.Tcp.SendCharacterListPacket(Globals.AccountId);
     }
 
     public override void Unload()
     {
-        AvalonTcpClient.Instance.CharacterList -= OnCharacterListReceived;
-        AvalonTcpClient.Instance.CharacterSelected -= OnCharacterSelected;
-        AvalonTcpClient.Instance.CharacterCreated -= OnCharacterCreated;
-        AvalonTcpClient.Instance.CharacterDeleted -= OnCharacterDeleted;
+        Globals.Tcp.CharacterList -= OnCharacterListReceived;
+        Globals.Tcp.CharacterSelected -= OnCharacterSelected;
+        Globals.Tcp.CharacterCreated -= OnCharacterCreated;
+        Globals.Tcp.CharacterDeleted -= OnCharacterDeleted;
 
         if (_createButton != null)
         {
@@ -180,7 +180,7 @@ public class CharacterSelectionScene : Scene
         if (packet.Result == SCharacterCreateResult.Success)
         {
             _gotCharacterList = false;
-            await AvalonTcpClient.Instance.SendCharacterListPacket(Globals.AccountId);    
+            await Globals.Tcp.SendCharacterListPacket(Globals.AccountId);    
         }
         else
         {
@@ -192,7 +192,7 @@ public class CharacterSelectionScene : Scene
     {
         _gotCharacterList = false;
         _characterSelected = false;
-        await AvalonTcpClient.Instance.SendCharacterListPacket(Globals.AccountId);
+        await Globals.Tcp.SendCharacterListPacket(Globals.AccountId);
     }
     
     private void OnCharacterSelected(object sender, SCharacterSelectedPacket packet)
@@ -202,8 +202,8 @@ public class CharacterSelectionScene : Scene
         Globals.CharacterName = packet.Character.Name;
         Globals.MapInfo = packet.Map;
         Globals.StartPosition = new Vector2(packet.Character.X, packet.Character.Y);
-        AvalonTcpClient.Instance.CharacterId = packet.Character.CharacterId;
-        AvalonUdpClient.Instance.CharacterId = packet.Character.CharacterId;
+        Globals.Tcp.CharacterId = packet.Character.CharacterId;
+        Globals.Udp.CharacterId = packet.Character.CharacterId;
         _characterSelected = true;
     }
     
@@ -265,7 +265,7 @@ public class CharacterSelectionScene : Scene
         }
         
         var @class = 1;
-        await AvalonTcpClient.Instance.SendCharacterCreatePacket(Globals.AccountId, name, @class);
+        await Globals.Tcp.SendCharacterCreatePacket(Globals.AccountId, name, @class);
     }
 
     #endregion
@@ -275,13 +275,13 @@ public class CharacterSelectionScene : Scene
     private async void OnCharacterSelectedFrame(CharacterInfo charInfo)
     {
         Console.WriteLine($"Selected character {charInfo.Name}");
-        await AvalonTcpClient.Instance.SendCharacterSelectedPacket(Globals.AccountId, charInfo.CharacterId);
+        await Globals.Tcp.SendCharacterSelectedPacket(Globals.AccountId, charInfo.CharacterId);
     }
     
     private async void OnCharacterDeletedFrame(CharacterInfo charInfo)
     {
         Console.WriteLine($"Deleted character {charInfo.Name}");
-        await AvalonTcpClient.Instance.SendCharacterDeletePacket(Globals.AccountId, charInfo.CharacterId);
+        await Globals.Tcp.SendCharacterDeletePacket(Globals.AccountId, charInfo.CharacterId);
         _gotCharacterList = false;
     }
     

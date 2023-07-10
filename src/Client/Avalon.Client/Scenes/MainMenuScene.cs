@@ -114,8 +114,8 @@ public class MainMenuScene : Scene
         Console.WriteLine("Logged in. Account ID: " + accountId);
         
         Globals.AccountId = accountId;
-        AvalonTcpClient.Instance.AccountId = accountId;
-        AvalonUdpClient.Instance.AccountId = accountId;
+        Globals.Tcp.AccountId = accountId;
+        Globals.Udp.AccountId = accountId;
 
         _isLoggedIn = true;
     }

@@ -43,7 +43,10 @@ public class AvalonGame : Game
             }
         };
         
-        AvalonUdpClient.Instance.LatencyUpdated += ((sender, latency) =>
+        Globals.Tcp = new AvalonTcpClient();
+        Globals.Udp = new AvalonUdpClient();
+        
+        Globals.Udp.LatencyUpdated += ((sender, latency) =>
         {
             Window.Title = $"Avalon: The Beginning ({latency}ms)";
         });
@@ -74,8 +77,8 @@ public class AvalonGame : Game
         Globals.Content = Content;
         Globals.GraphicsDevice = GraphicsDevice;
 
-        AvalonTcpClient.Instance.ConnectAsync().GetAwaiter().GetResult();
-        AvalonUdpClient.Instance.ConnectAsync().GetAwaiter().GetResult();
+        Globals.Tcp.ConnectAsync().GetAwaiter().GetResult();
+        Globals.Udp.ConnectAsync().GetAwaiter().GetResult();
 
         _sceneManager.Initialize();
         _sceneManager.LoadScene(nameof(MainMenuScene));
@@ -99,8 +102,8 @@ public class AvalonGame : Game
         if (GamePad.GetState(PlayerIndex.One).Buttons.Back == ButtonState.Pressed ||
             Keyboard.GetState().IsKeyDown(Keys.LeftAlt))
         {
-            AvalonUdpClient.Instance.Disconnect();
-            AvalonTcpClient.Instance.Disconnect();
+            Globals.Udp.Disconnect();
+            Globals.Tcp.Disconnect();
             Exit();
         }
 

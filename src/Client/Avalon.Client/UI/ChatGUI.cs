@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using Avalon.Client.Managers;
 using Avalon.Client.Models;
 using Avalon.Network.Packets.Social;
-using Avalon.Network.Tcp;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
@@ -63,7 +62,7 @@ public class ChatGUI : IDisposable
             _closeButton.Texture.Height
         );
 
-        AvalonTcpClient.Instance.ChatMessage += OnChatMessageReceived;
+        Globals.Tcp.ChatMessage += OnChatMessageReceived;
     }
 
     private void OnChatMessageReceived(object sender, SChatMessagePacket packet)
@@ -117,7 +116,7 @@ public class ChatGUI : IDisposable
         _visible = !_visible;
         if (_visible)
         {
-            await AvalonTcpClient.Instance.SendOpenChatPacket();
+            await Globals.Tcp.SendOpenChatPacket();
             _textInputComponent.IsFocused = true;
         }
     }
@@ -192,7 +191,7 @@ public class ChatGUI : IDisposable
     {
         _chatMessages.Add($"[{Globals.CharacterName}]: {message}");
         _textInputComponent.Clear();
-        await AvalonTcpClient.Instance.SendChatMessage(message);
+        await Globals.Tcp.SendChatMessage(message);
     }
     
     private async void CloseChat()
@@ -201,6 +200,6 @@ public class ChatGUI : IDisposable
         _textInputComponent.Clear();
         _visible = false;
 
-        await AvalonTcpClient.Instance.SendCloseChatPacket();
+        await Globals.Tcp.SendCloseChatPacket();
     }
 }
