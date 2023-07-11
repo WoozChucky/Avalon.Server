@@ -1,3 +1,6 @@
 [submodule "vendor/hazel-networking"]
 	path = vendor/hazel-networking
 	url = https://github.com/willardf/Hazel-Networking
+[submodule "vendor/Facepunch.Steamworks"]
+	path = vendor/Facepunch.Steamworks
+	url = https://github.com/Facepunch/Facepunch.Steamworks
