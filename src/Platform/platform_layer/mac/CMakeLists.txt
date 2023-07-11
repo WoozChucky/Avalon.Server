@@ -1,7 +1,8 @@
-file(GLOB_RECURSE SOURCES "src/*.cpp" "src/*.h")
+file(GLOB_RECURSE SOURCES "src/*.cpp" "src/*.h" "src/*.hpp")
 
 include_directories(${CMAKE_SOURCE_DIR}/platform_layer/include)
 include_directories(${CMAKE_SOURCE_DIR}/platform_layer/mac/vendor/metal-cpp)
+include_directories(${CMAKE_SOURCE_DIR}/platform_layer/mac/vendor/metal-cpp-extensions)
 include_directories(${CMAKE_SOURCE_DIR}/game_layer/include)
 
 add_library(PlatformLayer STATIC ${SOURCES})
