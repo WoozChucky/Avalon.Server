@@ -47,6 +47,7 @@ public class AvalonTcpClient : IDisposable
 
     private readonly CancellationTokenSource _cts;
     private readonly X509Certificate2 _certificate;
+    private readonly IPAddress _ipAddress;
     private readonly Socket _socket;
     private readonly SemaphoreSlim _sendLock;
     private readonly RingBuffer<Packet> _receivedPacketBuffer;
@@ -70,13 +71,19 @@ public class AvalonTcpClient : IDisposable
         _cts = new CancellationTokenSource();
         _sendLock = new SemaphoreSlim(1, 1);
         _receivedPacketBuffer = new RingBuffer<Packet>(100);
+
+        _ipAddress =
+            Dns.GetHostAddresses(_settings.Host).ToList()
+                .FirstOrDefault(ip => ip.AddressFamily == AddressFamily.InterNetwork) ??
+            throw new Exception("Unable to resolve host: " + _settings.Host + "");
+        
         _packetDeserializer.RegisterPacketDeserializers();
         _packetSerializer.RegisterPacketSerializers();
     }
 
     public async Task ConnectAsync()
     {
-        await _socket.ConnectAsync(new IPEndPoint(IPAddress.Parse(_settings.Host), _settings.Port)).ConfigureAwait(true);
+        await _socket.ConnectAsync(new IPEndPoint(_ipAddress, _settings.Port)).ConfigureAwait(true);
         _stream = new SslStream(new NetworkStream(_socket), false, UserCertificateValidationCallback);
         await _stream.AuthenticateAsClientAsync(_settings.Host, new X509Certificate2Collection() { _certificate }, SslProtocols.Tls12,
             true).ConfigureAwait(false);

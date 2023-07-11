@@ -89,10 +89,10 @@ public class Tile : IDisposable
         spriteBatch.Draw(atlas, _destinationRectangle, _sourceRectangle, Color.White, 0f, _origin, SpriteEffects.None, 0f);
         
         // Draw the x and y position of the tile in the center
-        var text = $"{Column}|{Row}";
+        //var text = $"{Column}|{Row}";
         //var textSize = _font.MeasureString(text);
-        var textPosition = new Vector2(_destinationRectangle.X - _destinationRectangle.Width / 2f, _destinationRectangle.Y);
-        spriteBatch.DrawString(_font, text, textPosition, Color.Black);
+        //var textPosition = new Vector2(_destinationRectangle.X - _destinationRectangle.Width / 2f, _destinationRectangle.Y);
+        //spriteBatch.DrawString(_font, text, textPosition, Color.Black);
     }
     
     public void MarkAsCollided(bool collided)

@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using System.Net;
+using System.Net.Sockets;
 using Avalon.Common.Threading;
 using Avalon.Network.Packets;
 using Avalon.Network.Packets.Abstractions;
@@ -52,12 +54,13 @@ public class AvalonUdpClient : IDisposable
         
         _client = new Host();
         _address = new Address();
-        _address.SetIP(settings.Host);
+        _address.SetIP(Dns.GetHostAddresses(settings.Host).ToList()
+            .FirstOrDefault(ip => ip.AddressFamily == AddressFamily.InterNetwork)!.ToString());
         _address.Port = (ushort)settings.Port;
         
-        //var clientAddress = new Address
+        //var clientAddress = new Address 2499460
         //{
-        //    Port = 21500
+        //    Port = 21500 
         //};
         //_client.Create(clientAddress, 1, 1);
         _client.Create();
