@@ -1,34 +1,37 @@
 using System.Diagnostics;
+using Avalon.Common.Threading;
 using Avalon.Network.Packets;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Auth;
 using Avalon.Network.Packets.Generic;
 using Avalon.Network.Packets.Internal.Deserialization;
+using Avalon.Network.Packets.Internal.Exceptions;
 using Avalon.Network.Packets.Movement;
 using Avalon.Network.Packets.Serialization;
 using ENet;
-using ProtoBuf;
 using Packet = ENet.Packet;
+using APacket = Avalon.Network.Packets.Packet;
 
 namespace Avalon.Network.Udp;
 
 public class AvalonUdpClientSettings
 {
-    public string Host { get; set; }
+    public string Host { get; set; } = string.Empty;
     public int Port { get; set; }
 }
 
 public class AvalonUdpClient : IDisposable
 {
-    private readonly AvalonUdpClientSettings _settings;
-    public event PlayerMovedHandler PlayerMoved;
-    public event LatencyUpdatedHandler LatencyUpdated;
-    public event NpcUpdatedHandler NpcUpdated;
-    public event AuthResultHandler AuthResult;
+    public event PlayerMovedHandler? PlayerMoved;
+    public event LatencyUpdatedHandler? LatencyUpdated;
+    public event NpcUpdatedHandler? NpcUpdated;
+    public event AuthResultHandler? AuthResult;
     
     private readonly CancellationTokenSource _cts;
     private readonly IPacketDeserializer _packetDeserializer;
     private readonly IPacketSerializer _packetSerializer;
+    private readonly SemaphoreSlim _sendLock;
+    private readonly RingBuffer<APacket> _receivedPacketBuffer;
     private readonly Host _client;
     private readonly Address _address;
     
@@ -40,15 +43,17 @@ public class AvalonUdpClient : IDisposable
     
     public AvalonUdpClient(AvalonUdpClientSettings settings)
     {
-        _settings = settings;
         _cts = new CancellationTokenSource();
         _packetDeserializer = new NetworkPacketDeserializer();
         _packetSerializer = new NetworkPacketSerializer();
         
+        _sendLock = new SemaphoreSlim(1, 1);
+        _receivedPacketBuffer = new RingBuffer<APacket>(100);
+        
         _client = new Host();
         _address = new Address();
-        _address.SetIP(_settings.Host);
-        _address.Port = (ushort)_settings.Port;
+        _address.SetIP(settings.Host);
+        _address.Port = (ushort)settings.Port;
         
         //var clientAddress = new Address
         //{
@@ -65,55 +70,102 @@ public class AvalonUdpClient : IDisposable
     {
         _serverPeer = _client.Connect(_address);
         
-        Task.Run(HandleCommunications);
         Task.Run(HandleLatency);
+        Task.Run(ProcessReceivedPackets);
+        Task.Run(HandleCommunications);
+        
 
         return Task.CompletedTask;
     }
+    
+    public void Disconnect()
+    {
+        _serverPeer.DisconnectNow(0);
+    }
 
+    public void SetPrivateKey(byte[] privateKey)
+    {
+        this._privateKey = privateKey;
+    }
+
+    public async Task SendAuthPatchPacket(int accountId)
+    {
+        await SendToServer(CAuthPatchPacket.Create(accountId, _privateKey));
+    }
+    
     public async Task BroadcastMovementUpdates(float time, float x, float y, float velX, float velY)
+    {
+        if (velX == 0 && velY == 0)
+        {
+            Console.WriteLine("No movement detected, skipping...");
+        }
+
+        await SendToServer(CPlayerMovementPacket.Create(AccountId, CharacterId, time, x, y, velX, velY));
+    }
+    
+    private async void ProcessReceivedPackets()
     {
         try
         {
-            await using var buffer = new MemoryStream();
-
-            if (velX == 0 && velY == 0)
+            async void Send(Action action)
             {
-                //Console.WriteLine("No movement detected, skipping...");
+                await Task.Run(() =>
+                {
+                    try
+                    {
+                        action();
+                    }
+                    catch (Exception e)
+                    {
+                        Console.WriteLine(e);
+                    }
+                });
             }
             
-            var packet = CPlayerMovementPacket.Create(AccountId, CharacterId, time, x, y, velX, velY);
+            while (!_cts.IsCancellationRequested)
+            {
+                var packet = await _receivedPacketBuffer.DequeueAsync(_cts.Token);
 
-            await SendToServer(packet);
+                if (packet is null)
+                {
+                    Console.WriteLine("Received null packet in packet processor thread");
+                    continue;
+                }
+
+                switch (packet)
+                {
+                    case SPlayerPositionUpdatePacket p:
+                        Send(() => PlayerMoved?.Invoke(this, p));
+                        break;
+                    case SNpcUpdatePacket p:
+                        Send(() => NpcUpdated?.Invoke(this, p));
+                        break;
+                    case SAuthResultPacket p:
+                        Send(() => AuthResult?.Invoke(this, p));
+                        break;
+                    case SPingPacket p:
+                        Send(() =>
+                        {
+                            var pongPacket = CPongPacket.Create(p.SequenceNumber, AccountId, p.Ticks);
+                            
+                            SendToServer(pongPacket);
+                        });
+                        break;
+                    
+                }
+                
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // ignored
         }
         catch (Exception e)
         {
             Console.WriteLine(e);
-            throw;
         }
     }
-    
-    private async Task HandleLatency()
-    {
-        try
-        {
-            while (!_cts.IsCancellationRequested)
-            {
-                LatencyUpdated?.Invoke(this, _serverPeer.RoundTripTime);
-                
-                //Console.WriteLine("Last Receive Time: " + DateTime.UtcNow.AddMilliseconds(_serverPeer.LastReceiveTime).ToString(CultureInfo.InvariantCulture));
-                //Console.WriteLine("Packets Lost: " + _serverPeer.PacketsLost);
-                //Console.WriteLine("Packet Sent: " + _serverPeer.PacketsSent);
 
-                await Task.Delay(1000);
-            }
-        }
-        catch (OperationCanceledException e)
-        {
-            Trace.WriteLine(e);
-        }
-    }
-    
     private async Task HandleCommunications()
     {
         try
@@ -157,68 +209,16 @@ public class AvalonUdpClient : IDisposable
                                 await using var ms = new MemoryStream(buffer);
                         
                                 var packet = await _packetDeserializer.DeserializeFromNetwork<NetworkPacket>(ms);
-                                
-                                switch (packet.Header.Type)
+
+                                if (packet == null)
                                 {
-                                    case NetworkPacketType.SMSG_PLAYER_POSITION_UPDATE:
-                                    {
-                                        var movementPacket = _packetDeserializer.Deserialize<SPlayerPositionUpdatePacket>(packet.Header.Type,
-                                            packet.Payload);
-                                        
-                                        try {
-                                            PlayerMoved?.Invoke(this, movementPacket);
-                                        } catch (Exception e) {
-                                            Console.WriteLine(e);
-                                        }
-                                        break;
-                                    } 
-                                    case NetworkPacketType.SMSG_PONG:
-                                    {
-                                        var pongPacket = _packetDeserializer.Deserialize<SPongPacket>(packet.Header.Type,
-                                            packet.Payload);
-
-                                        // var sequenceNumber = Interlocked.Read(ref lastSequenceNumber);
-
-                                        var rtt = (DateTime.UtcNow.Ticks - pongPacket.Ticks) / 10000;
-                                            
-                                        try {
-                                            LatencyUpdated?.Invoke(this, rtt);
-                                        } catch (Exception e) {
-                                            Console.WriteLine(e);
-                                        }
-                                        break;
-                                    }
-                                    case NetworkPacketType.SMSG_PING:
-                                    {
-                                        var pingPacket = _packetDeserializer.Deserialize<SPingPacket>(packet.Header.Type,
-                                            packet.Payload);
-                                        
-                                        var responsePacket = CPongPacket.Create(pingPacket.SequenceNumber, AccountId, pingPacket.Ticks);
-                                        
-                                        await SendToServer(responsePacket);
-                                        
-                                        break;
-                                    }
-                                    case NetworkPacketType.SMSG_NPC_UPDATE:
-                                    {
-                                        var npcUpdatePacket = Serializer.Deserialize<SNpcUpdatePacket>(new MemoryStream(packet.Payload));
-                                        try {
-                                            NpcUpdated?.Invoke(this, npcUpdatePacket);
-                                        } catch (Exception e) {
-                                            Console.WriteLine(e);
-                                        }
-                                        break;
-                                    }
-                                    case NetworkPacketType.SMSG_AUTH_RESULT:
-                                        var authResultPacket = Serializer.Deserialize<SAuthResultPacket>(new MemoryStream(packet.Payload));
-                                        try {
-                                            AuthResult?.Invoke(this, authResultPacket);
-                                        } catch (Exception e) {
-                                            Console.WriteLine(e);
-                                        }
-                                        break;
-                                        
+                                    Console.WriteLine("Received null packet in network thread");
+                                    continue;
                                 }
+                                
+                                var innerPacket = GetInnerPacket(packet);
+                                
+                                _receivedPacketBuffer.Enqueue(innerPacket);
                                 
                                 netEvent.Packet.Dispose();
                                 break;
@@ -237,6 +237,47 @@ public class AvalonUdpClient : IDisposable
             Console.WriteLine(e);
         }
     }
+    
+    private APacket GetInnerPacket(NetworkPacket packet)
+    {
+        return packet.Header.Type switch
+        {
+            // Auth
+            NetworkPacketType.SMSG_AUTH_RESULT => _packetDeserializer.Deserialize<SAuthResultPacket>(packet.Header.Type, packet.Payload),
+            
+            // Account
+            NetworkPacketType.SMSG_PLAYER_POSITION_UPDATE => _packetDeserializer.Deserialize<SPlayerPositionUpdatePacket>(packet.Header.Type, packet.Payload),
+            
+            // TODO: Refactor this packet type and packet name
+            NetworkPacketType.SMSG_NPC_UPDATE => _packetDeserializer.Deserialize<SNpcUpdatePacket>(packet.Header.Type, packet.Payload),
+
+            // Generic
+            NetworkPacketType.SMSG_PING => _packetDeserializer.Deserialize<SPingPacket>(packet.Header.Type, packet.Payload),
+            
+            _ => throw new PacketHandlerException("Unknown packet type " + packet.Header.Type)
+        };
+    }
+    
+    private async Task HandleLatency()
+    {
+        try
+        {
+            while (!_cts.IsCancellationRequested)
+            {
+                LatencyUpdated?.Invoke(this, _serverPeer.RoundTripTime);
+                
+                //Console.WriteLine("Last Receive Time: " + DateTime.UtcNow.AddMilliseconds(_serverPeer.LastReceiveTime).ToString(CultureInfo.InvariantCulture));
+                //Console.WriteLine("Packets Lost: " + _serverPeer.PacketsLost);
+                //Console.WriteLine("Packet Sent: " + _serverPeer.PacketsSent);
+
+                await Task.Delay(1000);
+            }
+        }
+        catch (OperationCanceledException e)
+        {
+            Trace.WriteLine(e);
+        }
+    }
 
     private async Task SendToServer(NetworkPacket packet)
     {
@@ -249,14 +290,22 @@ public class AvalonUdpClient : IDisposable
 
         while (_serverPeer.State != PeerState.Connected)
         {
-            _serverPeer.Reset();
-            await Task.Delay(100);
             Console.WriteLine("Waiting for connection to server to be established...");
+            _serverPeer = _client.Connect(_address);
+            await Task.Delay(100);
         }
-                    
-        if (!_serverPeer.Send(0, ref p))
+        await _sendLock.WaitAsync();
+
+        try
         {
-            Console.WriteLine("Failed to send packet");
+            if (!_serverPeer.Send(0, ref p))
+            {
+                Console.WriteLine("Failed to send packet");
+            }
+        }
+        finally
+        {
+            _sendLock.Release();
         }
     }
     
@@ -264,20 +313,5 @@ public class AvalonUdpClient : IDisposable
     {
         _cts?.Dispose();
         _client?.Dispose();
-    }
-
-    public void Disconnect()
-    {
-        _serverPeer.DisconnectNow(0);
-    }
-
-    public void SetPrivateKey(byte[] privateKey)
-    {
-        this._privateKey = privateKey;
-    }
-
-    public async Task SendAuthPatchPacket(int accountId)
-    {
-        await SendToServer(CAuthPatchPacket.Create(accountId, _privateKey));
     }
 }
