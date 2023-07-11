@@ -45,14 +45,14 @@ public class AvalonGame : Game
         
         Globals.Tcp = new AvalonTcpClient(new AvalonTcpClientSettings
         {
-            Host = "127.0.0.1",
+            Host = "nunolevezinho.xyz",
             Port = 21000,
             CertificatePath = "cert-public.pem"
         });
         
         Globals.Udp = new AvalonUdpClient(new AvalonUdpClientSettings
         {
-            Host = "127.0.0.1",
+            Host = "nunolevezinho.xyz",
             Port = 21000,
         });
         
