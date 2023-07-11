@@ -39,15 +39,16 @@ public class CreatureSpawner : ICreatureSpawner
     {
         var creature = Spawn(virtualCreature.TemplateId);
 
+        creature.Position = new Vector2(
+            virtualCreature.Position.X, 
+            virtualCreature.Position.Y
+        );
+
         creature.Bounds = new Rectangle(
             virtualCreature.Bounds.X, 
             virtualCreature.Bounds.Y,
             virtualCreature.Bounds.Width, 
             virtualCreature.Bounds.Height
-        );
-        creature.Position = new Vector2(
-            virtualCreature.Position.X, 
-            virtualCreature.Position.Y
         );
         
         return creature;

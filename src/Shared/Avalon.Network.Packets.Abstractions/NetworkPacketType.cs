@@ -26,6 +26,9 @@ public enum NetworkPacketType : short
     // Map
     CMSG_MAP_TELEPORT = 0x2020,
     
+    // World
+    CMSG_INTERACT = 0x2030,
+    
     CMSG_REQUEST_SERVER_VERSION = 0x2021,
     CMSG_REQUEST_LOBBY_LIST = 0x2003,
     CMSG_MOVEMENT = 0x2004,

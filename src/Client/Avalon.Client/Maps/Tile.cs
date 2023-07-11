@@ -15,6 +15,7 @@ public class Tile : IDisposable
     private readonly Rectangle _sourceRectangle;
     private readonly Rectangle _destinationRectangle;
     private readonly Vector2 _origin;
+    private readonly SpriteFont _font;
 
     private bool _debug;
     
@@ -58,6 +59,8 @@ public class Tile : IDisposable
         IsCollidable = collidable;
 
         CreateDebugBorder();
+        
+        _font = Globals.Content.Load<SpriteFont>("Fonts/ArialVerySmall");
     }
     
     private void CreateDebugBorder()
@@ -82,7 +85,14 @@ public class Tile : IDisposable
         {
             spriteBatch.Draw(OutlineTexture, OutlineRect, Color.Black);
         }
+
         spriteBatch.Draw(atlas, _destinationRectangle, _sourceRectangle, Color.White, 0f, _origin, SpriteEffects.None, 0f);
+        
+        // Draw the x and y position of the tile in the center
+        var text = $"{Column}|{Row}";
+        //var textSize = _font.MeasureString(text);
+        var textPosition = new Vector2(_destinationRectangle.X - _destinationRectangle.Width / 2f, _destinationRectangle.Y);
+        spriteBatch.DrawString(_font, text, textPosition, Color.Black);
     }
     
     public void MarkAsCollided(bool collided)

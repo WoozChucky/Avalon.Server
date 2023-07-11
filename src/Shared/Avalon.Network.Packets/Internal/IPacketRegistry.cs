@@ -1,6 +1,6 @@
 using Avalon.Network.Packets.Abstractions;
 
-namespace Avalon.Network.Packets;
+namespace Avalon.Network.Packets.Internal;
 
 public delegate Task PacketHandler<in T1, in T2>(T1 source, T2 packet) where T2 : Packet;
 

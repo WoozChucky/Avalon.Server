@@ -13,7 +13,8 @@ public class VirtualizedMap
     private readonly ICollection<MapCreature> _creatures;
     private readonly ICollection<MapObject> _objects;
     private readonly ICollection<MapEvent> _events;
-    
+    private List<TileLayer> _collidableLayers;
+
     public Point Size { get; private set; }
 
     public int Id { get; private set; }
@@ -76,11 +77,13 @@ public class VirtualizedMap
     }
     
     public ICollection<MapCreature> Creatures => _creatures;
+    
+    public ICollection<MapEvent> Events => _events;
 
     public bool IsTileCollidable(int tileX, int tileY, Rectangle boundingBox)
     {
         // Check if the specified tile is collidable
-        foreach (var layer in _layers.Where(l => l.IsCollidable))
+        foreach (var layer in _collidableLayers)
         {
             var tile = layer[tileX, tileY];
 
@@ -88,7 +91,7 @@ public class VirtualizedMap
             {
                 if (boundingBox.IntersectsWith(tile.Bounds))
                 {
-                    Trace.WriteLine($"Intersected rectangle: {{X={tile.Bounds.X}, Y={tile.Bounds.Y}}}. Hero rectangle: {{X={boundingBox.X}, Y={boundingBox.Y}}}");
+                    Console.WriteLine($"Intersected rectangle: {{X={tile.Bounds.X}, Y={tile.Bounds.Y}}}. Hero rectangle: {{X={boundingBox.X}, Y={boundingBox.Y}}}");
                     return true;
                 }
             }
@@ -112,7 +115,7 @@ public class VirtualizedMap
             {
                 if (IsTileCollidable(x, y, boundingBox))
                 {
-                    Trace.WriteLine("Collistion detected at: " + x + ", " + y + "");
+                    Console.WriteLine("Collision detected at: " + x + ", " + y + "");
                     return true;
                 }
             }
@@ -169,7 +172,17 @@ public class VirtualizedMap
 
             if (eventLayer != null)
             {
-                //TODO: Load events
+                foreach (var mapEvent in eventLayer.objects)
+                {
+                    var properties = new Dictionary<string, string>();
+                    
+                    foreach (var objectProperties in mapEvent.properties)
+                    {
+                        properties.Add(objectProperties.name, objectProperties.value);
+                    }
+
+                    _events.Add(new MapEvent(mapEvent.id, mapEvent.name, mapEvent.@class, (int) mapEvent.x, (int) mapEvent.y, (int) mapEvent.width, (int) mapEvent.height));
+                }
             }
         }
 
@@ -196,12 +209,16 @@ public class VirtualizedMap
 
                         // Gid 0 is used to tell there is no tile set
                         if (gid == 0) continue;
+                        
+                        var tileX = x * TileWidth;
+                        var tileY = y * TileHeight;
 
-                        layerTiles[x, y] = new MapTile(x, y, TileWidth, collidable);
+                        layerTiles[x, y] = new MapTile(x, y, tileX, tileY, TileWidth, collidable);
                     }
                 }
                 _layers.Add(new TileLayer(layerTiles, collidable));
             }
+            _collidableLayers = _layers.Where(l => l.IsCollidable).ToList();
         }
     }
 }

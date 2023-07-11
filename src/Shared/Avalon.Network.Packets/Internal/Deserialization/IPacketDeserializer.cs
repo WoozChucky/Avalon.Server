@@ -1,7 +1,7 @@
 using System.Reflection;
 using Avalon.Network.Packets.Abstractions;
 
-namespace Avalon.Network.Packets.Deserialization;
+namespace Avalon.Network.Packets.Internal.Deserialization;
 
 public interface IPacketDeserializer
 {

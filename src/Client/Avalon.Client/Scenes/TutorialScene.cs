@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Concurrent;
+using System.Drawing;
 using System.Linq;
 using System.Threading.Tasks;
 using Avalon.Client.Managers;
@@ -16,6 +17,8 @@ using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using Microsoft.Xna.Framework.Media;
+using Color = Microsoft.Xna.Framework.Color;
+using Point = Microsoft.Xna.Framework.Point;
 using Timer = System.Timers.Timer;
 
 namespace Avalon.Client.Scenes;
@@ -205,9 +208,18 @@ public class TutorialScene : Scene
         
         if (_chatGui is { IsTyping: false } && InputManager.Instance.KeyReleased(Keys.I))
         {
-            //await Load("Village.tmx", "Maps/", "Serene_Village_32x32");
             await Globals.Tcp.SendMapTeleportPacket(Globals.MapInfo.MapId == 1 ? 2 : 1);
             return;
+        }
+        
+        if (_chatGui is { IsTyping: false } && InputManager.Instance.KeyReleased(Keys.E)) // Interact key
+        {
+            await Globals.Tcp.SendInteractPacket(new System.Drawing.Rectangle(
+                _player.InteractBoundingBox.X, 
+                _player.InteractBoundingBox.Y, 
+                _player.InteractBoundingBox.Width, 
+                _player.InteractBoundingBox.Height)
+            );
         }
         
         // Update the camera position based on player movement or other logic
@@ -236,21 +248,18 @@ public class TutorialScene : Scene
         {
             return;
         }
-        /*
-        var sortMode = SpriteSortMode.FrontToBack;
-        var blendState = BlendState.AlphaBlend;
-        */
+        
         spriteBatch.Begin(transformMatrix: Globals.CameraViewMatrix);
         _map.Draw(spriteBatch);
-        _player.Draw(spriteBatch);
-        foreach (var (id, otherHero) in _otherPlayers)
-        {
-            otherHero.Draw(spriteBatch);
-        }
         foreach (var (_, npc) in _npcs)
         {
             npc.Draw(spriteBatch);
         }
+        foreach (var (id, otherHero) in _otherPlayers)
+        {
+            otherHero.Draw(spriteBatch);
+        }
+        _player.Draw(spriteBatch);
         
         _partyInviteDialog?.Draw(spriteBatch);
         
@@ -287,9 +296,9 @@ public class TutorialScene : Scene
     private void CalculateTranslation()
     {
         var dx = (Globals.WindowSize.X / 2f) - _player.Position.X;
-        dx = MathHelper.Clamp(dx, -_map.MapSize.X + Globals.WindowSize.X + (_map.TileWidth / 2), _map.TileWidth / 2f);
+        dx = MathHelper.Clamp(dx, -_map.MapSize.X + Globals.WindowSize.X + (_map.TileWidth / 2f), _map.TileWidth / 2f);
         var dy = (Globals.WindowSize.Y / 2f) - _player.Position.Y;
-        dy = MathHelper.Clamp(dy, -_map.MapSize.Y + Globals.WindowSize.Y + (_map.TileHeight / 2), _map.TileHeight / 2f);
+        dy = MathHelper.Clamp(dy, -_map.MapSize.Y + Globals.WindowSize.Y + (_map.TileHeight / 2f), _map.TileHeight / 2f);
         Globals.CameraViewMatrix = Matrix.CreateTranslation(dx, dy, 0f);
     }
     

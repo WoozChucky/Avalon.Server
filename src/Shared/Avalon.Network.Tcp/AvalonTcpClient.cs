@@ -1,3 +1,4 @@
+using System.Drawing;
 using System.Net;
 using System.Net.Security;
 using System.Net.Sockets;
@@ -7,12 +8,13 @@ using Avalon.Network.Packets;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Auth;
 using Avalon.Network.Packets.Character;
-using Avalon.Network.Packets.Deserialization;
 using Avalon.Network.Packets.Generic;
+using Avalon.Network.Packets.Internal.Deserialization;
 using Avalon.Network.Packets.Map;
 using Avalon.Network.Packets.Movement;
 using Avalon.Network.Packets.Serialization;
 using Avalon.Network.Packets.Social;
+using Avalon.Network.Packets.World;
 using ProtoBuf;
 
 namespace Avalon.Network.Tcp;
@@ -366,6 +368,13 @@ public class AvalonTcpClient : IDisposable
     public async Task SendMapTeleportPacket(int mapId)
     {
         var packet = CMapTeleportPacket.Create(AccountId, CharacterId, mapId);
+        
+        await _packetSerializer.SerializeToNetwork(_stream, packet);
+    }
+    
+    public async Task SendInteractPacket(Rectangle targetArea)
+    {
+        var packet = CInteractPacket.Create(AccountId, CharacterId, targetArea.X, targetArea.Y, targetArea.Width, targetArea.Height);
         
         await _packetSerializer.SerializeToNetwork(_stream, packet);
     }

@@ -1,3 +1,4 @@
+using Avalon.Database.Characters;
 using Avalon.Game.Creatures;
 using Avalon.Game.Maps;
 
@@ -28,6 +29,11 @@ public abstract class AIScript {
         {
             script.Update(deltaTime);
         }
+    }
+    
+    public virtual void OnCharacterInteraction(Character character)
+    {
+        
     }
 
 }
