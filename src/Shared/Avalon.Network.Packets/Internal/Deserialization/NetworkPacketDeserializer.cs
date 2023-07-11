@@ -1,10 +1,10 @@
 using System.Collections.Concurrent;
 using System.Reflection;
 using Avalon.Network.Packets.Abstractions;
-using Avalon.Network.Packets.Exceptions;
+using Avalon.Network.Packets.Internal.Exceptions;
 using ProtoBuf;
 
-namespace Avalon.Network.Packets.Deserialization;
+namespace Avalon.Network.Packets.Internal.Deserialization;
 
 public class NetworkPacketDeserializer : IPacketDeserializer
 {

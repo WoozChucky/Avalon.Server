@@ -1,4 +1,4 @@
-namespace Avalon.Network.Packets.Exceptions;
+namespace Avalon.Network.Packets.Internal.Exceptions;
 
 public class PacketDeserializationException : Exception
 {

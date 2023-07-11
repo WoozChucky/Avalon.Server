@@ -20,6 +20,7 @@ public class Player : IDisposable
     private readonly string _name;
     public Vector2 Position;
     public Rectangle BoundingBox;
+    public Rectangle InteractBoundingBox => _movementDirectionRect;
     public Vector2 Velocity;
 
     private Vector2 _minPos;

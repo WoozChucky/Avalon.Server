@@ -9,4 +9,12 @@ public static class ShapesExtensions
     {
         return new Point((int)vector.X, (int)vector.Y);
     }
+    
+    public static Vector2 Normalized(this Vector2 vector)
+    {
+        float num = 1f / MathF.Sqrt((float) ((double) vector.X * (double) vector.X + (double) vector.Y * (double) vector.Y));
+        vector.X *= num;
+        vector.Y *= num;
+        return vector;
+    }
 }

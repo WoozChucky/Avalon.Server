@@ -17,6 +17,7 @@ using Avalon.Network.Packets.Map;
 using Avalon.Network.Packets.Movement;
 using Avalon.Network.Packets.Serialization;
 using Avalon.Network.Packets.Social;
+using Avalon.Network.Packets.World;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.Game;
@@ -42,6 +43,7 @@ public interface IAvalonGame
     Task HandleLogoutPacket(IRemoteSource source, CLogoutPacket packet);
 
     Task HandleMapTeleportPacket(IRemoteSource source, CMapTeleportPacket packet);
+    Task HandleInteractPacket(IRemoteSource source, CInteractPacket packet);
 }
 
 public partial class AvalonGame : IAvalonGame

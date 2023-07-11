@@ -1,7 +1,7 @@
 using Avalon.Network.Packets.Abstractions;
-using Avalon.Network.Packets.Exceptions;
+using Avalon.Network.Packets.Internal.Exceptions;
 
-namespace Avalon.Network.Packets;
+namespace Avalon.Network.Packets.Internal;
 
 public class PacketRegistry : IPacketRegistry
 {

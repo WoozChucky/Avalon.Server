@@ -8,13 +8,15 @@ using Avalon.Network.Packets;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Auth;
 using Avalon.Network.Packets.Character;
-using Avalon.Network.Packets.Deserialization;
-using Avalon.Network.Packets.Exceptions;
 using Avalon.Network.Packets.Generic;
+using Avalon.Network.Packets.Internal;
+using Avalon.Network.Packets.Internal.Deserialization;
+using Avalon.Network.Packets.Internal.Exceptions;
 using Avalon.Network.Packets.Map;
 using Avalon.Network.Packets.Movement;
 using Avalon.Network.Packets.Serialization;
 using Avalon.Network.Packets.Social;
+using Avalon.Network.Packets.World;
 using Microsoft.Extensions.Logging;
 using TcpClient = Avalon.Network.TcpClient;
 
@@ -103,6 +105,9 @@ public class AvalonNetworkDaemon : IAvalonNetworkDaemon
         // Map handlers
         _packetRegistry.RegisterHandler<CMapTeleportPacket>(NetworkPacketType.CMSG_MAP_TELEPORT, _game.HandleMapTeleportPacket);
         
+        // World handlers
+        _packetRegistry.RegisterHandler<CInteractPacket>(NetworkPacketType.CMSG_INTERACT, _game.HandleInteractPacket);
+        
         // Movement handlers
         _packetRegistry.RegisterHandler<CPlayerMovementPacket>(NetworkPacketType.CMSG_MOVEMENT, _game.HandleMovementPacket);
         
@@ -151,7 +156,7 @@ public class AvalonNetworkDaemon : IAvalonNetworkDaemon
                 {
                     try
                     {
-                        var watch = System.Diagnostics.Stopwatch.StartNew();
+                        var watch = Stopwatch.StartNew();
                         
                         await handler.Handle(client, deserializedPacket).ConfigureAwait(false);
                         
@@ -348,6 +353,8 @@ public class AvalonNetworkDaemon : IAvalonNetworkDaemon
             NetworkPacketType.CMSG_CHARACTER_LOADED => _packetDeserializer.Deserialize<CCharacterLoadedPacket>(packet.Header.Type, packet.Payload),
             
             NetworkPacketType.CMSG_MAP_TELEPORT => _packetDeserializer.Deserialize<CMapTeleportPacket>(packet.Header.Type, packet.Payload),
+            
+            NetworkPacketType.CMSG_INTERACT => _packetDeserializer.Deserialize<CInteractPacket>(packet.Header.Type, packet.Payload),
             
             NetworkPacketType.CMSG_MOVEMENT => _packetDeserializer.Deserialize<CPlayerMovementPacket>(packet.Header.Type, packet.Payload),
             NetworkPacketType.CMSG_REQUEST_SERVER_VERSION => _packetDeserializer.Deserialize<CRequestServerVersionPacket>(packet.Header.Type, packet.Payload),
