@@ -12,6 +12,7 @@ public class MapInstance
     public string Name => _template.Name;
     public string Atlas => _template.Atlas;
     public string Directory => _template.Directory;
+    public string Description => _template.Description;
     
     // Map tiles virtual representation
     // Contains all the layers (tiles, creatures, objects, events) information
