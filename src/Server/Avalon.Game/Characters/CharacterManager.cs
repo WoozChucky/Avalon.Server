@@ -157,6 +157,7 @@ public partial class AvalonGame
             MapId = mapInstance.MapId,
             InstanceId = mapInstance.InstanceId,
             Name = mapInstance.Name,
+            Description = mapInstance.Description,
             Atlas = mapInstance.Atlas,
             Directory = mapInstance.Directory,
             Data = mapInstance.VirtualizedMap.TmxData,

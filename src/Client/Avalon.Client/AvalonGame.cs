@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using Avalon.Client.Managers;
 using Avalon.Client.Scenes;
 using Avalon.Network.Tcp;
@@ -7,6 +8,7 @@ using Avalon.Network.Udp;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
+using Steamworks;
 
 namespace Avalon.Client;
 
@@ -19,6 +21,28 @@ public class AvalonGame : Game
     private readonly Stopwatch _stopwatch;
     
     private volatile bool _showingMetrics = false;
+    
+    private float _elapsedTime;
+    private int _frameCount;
+    private int _fps;
+
+    protected override void OnExiting(object sender, EventArgs args)
+    {
+        Console.WriteLine("Exiting...");
+        base.OnExiting(sender, args);
+    }
+    
+    protected override void OnActivated(object sender, EventArgs args)
+    {
+        Console.WriteLine("Activated...");
+        base.OnActivated(sender, args);
+    }
+
+    protected override void OnDeactivated(object sender, EventArgs args)
+    {
+        Console.WriteLine("Deactivated...");
+        base.OnDeactivated(sender, args);
+    }
 
     public AvalonGame()
     {
@@ -26,6 +50,8 @@ public class AvalonGame : Game
         _graphics = new GraphicsDeviceManager(this);
         _graphics.SynchronizeWithVerticalRetrace = true;
         Content.RootDirectory = "Content";
+
+        Window.AllowAltF4 = false;
 
         Window.Title = "Avalon: The Beginning";
         Window.FileDrop += (sender, args) =>
@@ -58,7 +84,7 @@ public class AvalonGame : Game
         
         Globals.Udp.LatencyUpdated += ((sender, latency) =>
         {
-            Window.Title = $"Avalon: The Beginning ({latency}ms)";
+            Window.Title = $"Avalon: The Beginning ({latency}ms) ({_fps}fps)";
         });
         
         //TargetElapsedTime = TimeSpan.FromSeconds(1d / 60d);
@@ -76,7 +102,6 @@ public class AvalonGame : Game
     protected override void Initialize()
     {
         // 64 cols x 48 rows
-        //Globals.WindowSize = new Point(800, 600);
         Globals.WindowSize = new Point(1024, 768);
         _graphics.PreferredBackBufferWidth = Globals.WindowSize.X;
         _graphics.PreferredBackBufferHeight = Globals.WindowSize.Y;
@@ -105,13 +130,18 @@ public class AvalonGame : Game
     protected override void Update(GameTime gameTime)
     {
         _stopwatch.Restart();
-        
+
         var deltaTime = (float)gameTime.ElapsedGameTime.TotalSeconds;
+        
+        _elapsedTime += deltaTime;
+        _frameCount++;
+        
         InputManager.Instance.Update(deltaTime);
 
         if (GamePad.GetState(PlayerIndex.One).Buttons.Back == ButtonState.Pressed ||
-            Keyboard.GetState().IsKeyDown(Keys.LeftAlt))
+            Keyboard.GetState().IsKeyDown(Keys.F10))
         {
+            SteamClient.Shutdown();
             Globals.Udp.Disconnect();
             Globals.Tcp.Disconnect();
             Exit();
@@ -119,12 +149,14 @@ public class AvalonGame : Game
 
         Globals.Update(gameTime);
 
-        //if (InputManager.Instance.KeyPressed(Keys.F2))
-        //{
-        //    _showingMetrics = !_showingMetrics;
-        //}
-
         _sceneManager.Update(gameTime);
+        
+        if (_elapsedTime >= 1f) // Calculate FPS every second
+        {
+            _fps = _frameCount;
+            _frameCount = 0;
+            _elapsedTime = 0;
+        }
         
         _stopwatch.Stop();
         if (_showingMetrics)

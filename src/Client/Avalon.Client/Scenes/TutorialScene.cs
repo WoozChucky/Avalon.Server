@@ -17,6 +17,7 @@ using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using Microsoft.Xna.Framework.Media;
+using Steamworks;
 using Color = Microsoft.Xna.Framework.Color;
 using Point = Microsoft.Xna.Framework.Point;
 using Timer = System.Timers.Timer;
@@ -44,10 +45,7 @@ public class TutorialScene : Scene
 
     private Vector2 _lastSentPosition;
     private Vector2 _lastSentVelocity;
-
-    private float _elapsedTime;
-    private int _frameCount;
-    private int _fps;
+    
     private double _latency;
 
     private volatile bool _loaded = false;
@@ -108,6 +106,8 @@ public class TutorialScene : Scene
 
         await Globals.Tcp.SendCharacterLoadedPacket();
         //TODO: Maybe also send a map loaded packet?
+        
+        SteamFriends.SetRichPresence("status", $"In-Game ({Globals.MapInfo.Description}) (Character: {Globals.CharacterName})");
     }
 
     public override async void Load()
@@ -164,9 +164,6 @@ public class TutorialScene : Scene
             return;
         }
 
-        _elapsedTime += deltaTime;
-        _frameCount++;
-        
         _cursor?.Update(deltaTime);
 
         foreach (var (_, otherHero) in _otherPlayers)
@@ -233,13 +230,6 @@ public class TutorialScene : Scene
         );
 
         CalculateTranslation();
-        
-        if (_elapsedTime >= 1f) // Calculate FPS every second
-        {
-            _fps = _frameCount;
-            _frameCount = 0;
-            _elapsedTime = 0;
-        }
     }
 
     public override void Draw(SpriteBatch spriteBatch)
@@ -269,7 +259,6 @@ public class TutorialScene : Scene
         if (true)
         {
             spriteBatch.DrawString(_font, $"X: {Math.Round(_player.Position.X, 1)} Y: {Math.Round(_player.Position.Y, 1)}", new Vector2(3, 2) + Globals.CameraPosition, Color.DarkBlue);
-            spriteBatch.DrawString(_font, $"FPS: {_fps}", new Vector2(3, 36) + Globals.CameraPosition, Color.DarkBlue);
             spriteBatch.DrawString(_font, $"Latency: {_latency}ms", new Vector2(3, 62) + Globals.CameraPosition, Color.DarkBlue);
         }
         

@@ -68,7 +68,7 @@
 #begin Fonts/vcrmono.ttf
 /copy:Fonts/vcrmono.ttf
 
-#begin Images/hero.png
+#begin Images/LoginBackground.png
 /importer:TextureImporter
 /processor:TextureProcessor
 /processorParam:ColorKeyColor=255,0,255,255
@@ -78,7 +78,7 @@
 /processorParam:ResizeToPowerOfTwo=False
 /processorParam:MakeSquare=False
 /processorParam:TextureFormat=Color
-/build:Images/hero.png
+/build:Images/LoginBackground.png
 
 #begin Images/Icons/Check.png
 /importer:TextureImporter

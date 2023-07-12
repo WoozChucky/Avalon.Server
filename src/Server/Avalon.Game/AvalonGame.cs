@@ -365,6 +365,7 @@ public partial class AvalonGame : IAvalonGame
             Directory = newInstance.Directory,
             MapId = packet.MapId,
             Name = newInstance.Name,
+            Description = newInstance.Description,
             Data = newInstance.VirtualizedMap.TmxData,
             TilesetsData = newInstance.VirtualizedMap.TsxData,
         }, x, y));
