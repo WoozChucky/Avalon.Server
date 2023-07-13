@@ -1,0 +1,16 @@
+DROP TABLE IF EXISTS CharacterQuest;
+
+CREATE TABLE IF NOT EXISTS CharacterQuest
+(
+    
+    CharacterId INT UNSIGNED NOT NULL REFERENCES `Character`(Id),
+    QuestId INT UNSIGNED NOT NULL,
+    IsCompleted BOOLEAN NOT NULL DEFAULT FALSE,
+    StartedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    LastCompletedAt TIMESTAMP DEFAULT NULL,
+    RepeatCount INT UNSIGNED NOT NULL DEFAULT 0,
+    PRIMARY KEY(CharacterId, QuestId)
+
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+DELETE FROM CharacterQuest WHERE CharacterId >= 0;
