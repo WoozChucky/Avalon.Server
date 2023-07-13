@@ -23,6 +23,7 @@ public interface IAvalonMapManager
 public class AvalonMapManager : IAvalonMapManager
 {
     private readonly ILogger<AvalonMapManager> _logger;
+    private readonly ILoggerFactory _loggerFactory;
     private readonly IDatabaseManager _databaseManager;
     private readonly IPoolManager _poolManager;
 
@@ -40,10 +41,11 @@ public class AvalonMapManager : IAvalonMapManager
     // Virtual map templates, these are loaded from the map templates and are used to create map instances
     private readonly Dictionary<int, VirtualizedMap> _virtualTemplates = new();
 
-    public AvalonMapManager(ILogger<AvalonMapManager> logger, IDatabaseManager databaseManager,
+    public AvalonMapManager(ILoggerFactory loggerFactory, IDatabaseManager databaseManager,
         IPoolManager poolManager)
     {
-        _logger = logger;
+        _logger = loggerFactory.CreateLogger<AvalonMapManager>();
+        _loggerFactory = loggerFactory;
         _databaseManager = databaseManager;
         _poolManager = poolManager;
         _lock = new ReaderWriterLockSlim(LockRecursionPolicy.SupportsRecursion);
@@ -63,7 +65,7 @@ public class AvalonMapManager : IAvalonMapManager
         {
             // Preload the virtual map templates
             _logger.LogInformation("PreLoading virtual map {MapId} - {MapName} - {MapDescription}", mapTemplate.Id, mapTemplate.Name, mapTemplate.Description);
-            _virtualTemplates.Add(mapTemplate.Id, new VirtualizedMap(mapTemplate.Id, mapTemplate.Name, mapTemplate.Directory));
+            _virtualTemplates.Add(mapTemplate.Id, new VirtualizedMap(_loggerFactory, mapTemplate.Id, mapTemplate.Name, mapTemplate.Directory));
         }
         
         foreach (var map in villageMaps)
