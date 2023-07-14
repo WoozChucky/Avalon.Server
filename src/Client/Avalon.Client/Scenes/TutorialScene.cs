@@ -195,6 +195,10 @@ public class TutorialScene : Scene
         }
         
         _minimap?.Update(deltaTime);
+        if (_chatGui is { IsTyping: false } && InputManager.Instance.KeyPressed(Keys.M))
+        {
+            _minimap?.ToggleVisibility();
+        }
 
         _partyInviteDialog?.Update(deltaTime);
         

@@ -12,6 +12,8 @@ public class Minimap
     private Vector2 _borderPosition;
     private Rectangle _borderRectangle;
     
+    private volatile bool _isVisible;
+    
     private Map _map;
     
     private const int MinimapWidth = 200;
@@ -32,7 +34,7 @@ public class Minimap
     public void Load(Map map)
     {
         _map = map;
-        
+        _isVisible = false;
         _renderTarget = new RenderTarget2D(Globals.GraphicsDevice, MinimapWidth, MinimapHeight);
     }
 
@@ -89,6 +91,8 @@ public class Minimap
     
     public void Draw(SpriteBatch spriteBatch)
     {
+        if (!_isVisible) return;
+        
         spriteBatch.Draw(_minimapTexture, Globals.CameraPosition + new Vector2(730, 16), Color.White);
         
         // Draw the border rectangle with a black color
@@ -117,5 +121,10 @@ public class Minimap
         _renderTarget?.Dispose();
         _minimapTexture?.Dispose();
         _spriteBatch?.Dispose();
+    }
+
+    public void ToggleVisibility()
+    {
+        _isVisible = !_isVisible;
     }
 }
