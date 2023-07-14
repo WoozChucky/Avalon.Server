@@ -95,6 +95,20 @@ public class Tile : IDisposable
         //spriteBatch.DrawString(_font, text, textPosition, Color.Black);
     }
     
+    public void DrawOnMinimap(SpriteBatch spriteBatch, Texture2D atlas, float minimapScaleX, float minimapScaleY, int x, int y)
+    {
+        var minimapPosition = new Vector2(x * minimapScaleX, y * minimapScaleY);
+        
+        var scaledDestinationRectangle = new Rectangle(
+            (int) minimapPosition.X,
+            (int) minimapPosition.Y,
+            (int) (Width/ minimapScaleX),
+            (int) (Height / minimapScaleY)
+        );
+        
+        spriteBatch.Draw(atlas, scaledDestinationRectangle, _sourceRectangle, Color.White, 0f, _origin, SpriteEffects.None, 0f);
+    }
+    
     public void MarkAsCollided(bool collided)
     {
         isColliding = collided;
