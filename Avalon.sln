@@ -57,6 +57,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Facepunch.Steamworks.Win64"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Steam", "Steam", "{0B02B0A3-58F9-47C0-8CB2-4DC691FEB797}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Tests", "Tests", "{659A24EA-5C28-4F62-A67A-5E1564EFA7C3}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Avalon.Server.IntegrationTests", "tests\Avalon.Server.IntegrationTests\Avalon.Server.IntegrationTests.csproj", "{60C6291A-0BB7-43F2-8C8A-956BE12201C2}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -135,6 +139,10 @@ Global
 		{DEA66C30-213E-4027-BCE4-F93384F86C15}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{DEA66C30-213E-4027-BCE4-F93384F86C15}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{DEA66C30-213E-4027-BCE4-F93384F86C15}.Release|Any CPU.Build.0 = Release|Any CPU
+		{60C6291A-0BB7-43F2-8C8A-956BE12201C2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{60C6291A-0BB7-43F2-8C8A-956BE12201C2}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{60C6291A-0BB7-43F2-8C8A-956BE12201C2}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{60C6291A-0BB7-43F2-8C8A-956BE12201C2}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -163,6 +171,7 @@ Global
 		{779EB64D-06EE-4E20-98EE-5DBFB9DDE0BA} = {44F4FAA6-D875-4F06-8308-DD6990AF1E63}
 		{0B02B0A3-58F9-47C0-8CB2-4DC691FEB797} = {239CE5E2-D8E0-4A35-A2EF-498451DA02CB}
 		{DEA66C30-213E-4027-BCE4-F93384F86C15} = {0B02B0A3-58F9-47C0-8CB2-4DC691FEB797}
+		{60C6291A-0BB7-43F2-8C8A-956BE12201C2} = {659A24EA-5C28-4F62-A67A-5E1564EFA7C3}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {20CD880E-2A9B-4B75-A2C1-3145230B285E}

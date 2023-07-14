@@ -1,5 +1,4 @@
 ﻿using System.Diagnostics;
-using System.Diagnostics.Tracing;
 using Avalon.Database;
 using Avalon.Game;
 using Avalon.Game.Creatures;
@@ -9,8 +8,6 @@ using Avalon.Game.Scripts;
 using Avalon.Infrastructure;
 using Avalon.Metrics;
 using Avalon.Network;
-using Avalon.Network.Packets;
-using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Internal;
 using Avalon.Network.Packets.Internal.Deserialization;
 using Avalon.Network.Packets.Serialization;
@@ -21,7 +18,6 @@ using Avalon.Network.Udp.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Serilog;
-using Serilog.Core;
 using Serilog.Events;
 using Serilog.Sinks.SystemConsole.Themes;
 
@@ -46,8 +42,6 @@ namespace Avalon.Server
 
             Process.GetCurrentProcess().PriorityClass = ProcessPriorityClass.RealTime;
             Process.GetCurrentProcess().PriorityBoostEnabled = true;
-            
-            // new GcFinalizersEventListener();
 
             ConfigureDependencyInjection();
             
@@ -70,6 +64,7 @@ namespace Avalon.Server
             
             while (!CancellationTokenSource.IsCancellationRequested)
             {
+                Logger.LogInformation("Running...");
                 Infrastructure.Loop(10);
             }
             

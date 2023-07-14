@@ -40,6 +40,12 @@
       </Content>
     </ItemGroup>
 
+    <!--
+	<ItemGroup>
+		<FlatSharpSchema Include="Monster.fbs" />
+	</ItemGroup>
+	-->
+    
     <ItemGroup>
       <ProjectReference Include="..\..\Shared\Avalon.Common\Avalon.Common.csproj" />
       <ProjectReference Include="..\..\Shared\Avalon.Metrics\Avalon.Metrics.csproj" />
@@ -54,7 +60,7 @@
     <ItemGroup>
       <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="7.0.0" />
       <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="7.0.0" />
-      <PackageReference Include="protobuf-net" Version="3.2.16" />
+      <PackageReference Include="protobuf-net" Version="3.2.26" />
       <PackageReference Include="QuixStreams.Streaming" Version="0.5.4" />
       <PackageReference Include="Serilog.Extensions.Logging" Version="7.0.0" />
       <PackageReference Include="Serilog.Sinks.Console" Version="4.1.0" />
