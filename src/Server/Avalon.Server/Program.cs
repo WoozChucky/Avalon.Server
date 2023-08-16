@@ -64,7 +64,6 @@ namespace Avalon.Server
             
             while (!CancellationTokenSource.IsCancellationRequested)
             {
-                Logger.LogInformation("Running...");
                 Infrastructure.Loop(10);
             }
             
