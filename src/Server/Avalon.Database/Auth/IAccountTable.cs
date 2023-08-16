@@ -8,6 +8,8 @@ namespace Avalon.Database.Auth
     {
         Task<Account?> QueryByIdAsync(int id);
         Task<Account?> QueryByUsernameAsync(string username);
+
+        Task<bool> InsertAccountAsync(string username, byte[] salt, byte[] verifier);
     }
     
     public sealed class AccountTable : IAccountTable
@@ -18,6 +20,7 @@ namespace Avalon.Database.Auth
         
         private const string GetAccountByUsernameQuery = "SELECT * FROM Account WHERE username = @Username";
         private const string GetAccountByIdQuery = "SELECT * FROM Account WHERE id = @Id";
+        private const string InsertAccountQuery = "INSERT INTO Account (username, salt, verifier) VALUES (@Username, @Salt, @Verifier)";
 
         public async Task<Account?> QueryByIdAsync(int id)
         {
@@ -32,7 +35,14 @@ namespace Avalon.Database.Auth
 
             return await connection.QueryFirstOrDefaultAsync<Account>(GetAccountByUsernameQuery, new { Username = username });
         }
-        
-        
+
+        public async Task<bool> InsertAccountAsync(string username, byte[] salt, byte[] verifier)
+        {
+            await using var connection = new MySqlConnection(ConnectionString);
+
+            var rows = await connection.ExecuteAsync(InsertAccountQuery, new { Username = username, Salt = salt, Verifier = verifier });
+
+            return rows >= 1;
+        }
     }
 }
