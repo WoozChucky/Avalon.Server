@@ -25,7 +25,7 @@ public class AccountController : BaseController
     }
     
     [AllowAnonymous]
-    [HttpPost("authenticate", Name = "Authenticate")]
+    [HttpPost("Authenticate", Name = "Authenticate")]
     public async Task<IActionResult> Authenticate([FromBody] AuthenticateRequest model)
     {
         var jwt = await _accountService.Authenticate(model, IpAddress, CancellationToken);
@@ -35,7 +35,7 @@ public class AccountController : BaseController
     }
     
     [AllowAnonymous]
-    [HttpPost("register", Name = "Register")]
+    [HttpPost("Register", Name = "Register")]
     public async Task<IActionResult> Register([FromBody] RegisterRequest model)
     {
         var jwt = await _accountService.Register(model, IpAddress, CancellationToken);
