@@ -21,12 +21,12 @@ public class JwtUtils : IJwtUtils
         var tokenDescriptor = new SecurityTokenDescriptor
         {
             Subject = new ClaimsIdentity(new[]
-                {
-                    new Claim(ClaimTypes.Sid, account.Id.ToString()), 
-                    new Claim(ClaimTypes.Name, account.Username),
-                    new Claim(ClaimTypes.Email, account.Email),
-                }
-            ),
+            {
+                new Claim(ClaimTypes.Sid, account.Id.ToString()), 
+                new Claim(ClaimTypes.Name, account.Username),
+                new Claim(ClaimTypes.Email, account.Email),
+            },
+            "Bearer"),
             Expires = DateTime.UtcNow.AddHours(1),
             SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature)
         };
