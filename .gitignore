@@ -29,3 +29,5 @@ Avalon.sln.DotSettings.user
 .vs/Avalon/DesignTimeBuild/
 
 .idea/.idea.Avalon/.idea/kubernetes-settings.xml
+
+src/Web/dashboard/.idea/
