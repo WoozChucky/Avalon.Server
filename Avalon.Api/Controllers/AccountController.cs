@@ -1,8 +1,11 @@
+using System.Security.Claims;
+using Avalon.Api.Authentication;
 using Avalon.Api.Contract;
 using Avalon.Api.Services;
 using Avalon.Database.Auth;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using OtpNet;
 
 namespace Avalon.Api.Controllers;
 
@@ -11,17 +14,20 @@ namespace Avalon.Api.Controllers;
 public class AccountController : BaseController
 {
     private readonly IAccountService _accountService;
-    
-    public AccountController(IAccountService accountService)
+    private readonly IAuthContext _authContext;
+
+    public AccountController(IAccountService accountService, IAuthContext authContext)
     {
         _accountService = accountService;
+        _authContext = authContext;
     }
     
-    [Authentication.Authorize]
+    //[Authentication.Authorize]
+    [Authorize]
     [HttpGet(Name = "GetAccount")]
     public async Task<Account> Get()
     {
-        return Account ?? throw new UnauthorizedAccessException();
+        return _authContext.Account ?? throw new Exception("Account not loaded");
     }
     
     [AllowAnonymous]
@@ -40,5 +46,18 @@ public class AccountController : BaseController
     {
         var jwt = await _accountService.Register(model, IpAddress, CancellationToken);
         return Ok(jwt);
+    }
+    
+    [AllowAnonymous]
+    [HttpGet("Test", Name = "Test")]
+    public async Task<IActionResult> Test()
+    {
+        var totp = new Totp("base32secret3232"u8.ToArray());
+        var uriString = new OtpUri(OtpType.Totp, "base32secret3232", "alice@google.com", "Avalon").ToString();        
+        return Ok(new
+        {
+            code = totp.ComputeTotp(),
+            uri = uriString
+        });
     }
 }

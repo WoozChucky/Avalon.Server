@@ -1,7 +1,9 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
+using Avalon.Api.Config;
 using Avalon.Database.Auth;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 
 namespace Avalon.Api.Authentication;
@@ -14,49 +16,63 @@ public interface IJwtUtils
 
 public class JwtUtils : IJwtUtils
 {
+    private readonly JwtSecurityTokenHandler _tokenHandler;
+    private readonly AuthenticationConfig _authenticationConfig;
+    private readonly SymmetricSecurityKey _key;
+
+    public JwtUtils(AuthenticationConfig authenticationConfig)
+    {
+        _authenticationConfig = authenticationConfig;
+        _tokenHandler = new JwtSecurityTokenHandler();
+        _key = new SymmetricSecurityKey(Encoding.ASCII.GetBytes(_authenticationConfig.IssuerSigningKey));
+    }
+
     public string GenerateJwtToken(Account account)
     {
-        var tokenHandler = new JwtSecurityTokenHandler();
-        var key = Encoding.ASCII.GetBytes("mysupersecretkey");
         var tokenDescriptor = new SecurityTokenDescriptor
         {
             Subject = new ClaimsIdentity(new[]
             {
-                new Claim(ClaimTypes.Sid, account.Id.ToString()), 
-                new Claim(ClaimTypes.Name, account.Username),
-                new Claim(ClaimTypes.Email, account.Email),
+                new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()), 
+                new Claim(ClaimTypes.NameIdentifier, account.Id.ToString()), 
+                new Claim(JwtRegisteredClaimNames.Name, account.Username),
+                new Claim(JwtRegisteredClaimNames.Email, account.Email),
             },
-            "Bearer"),
+                JwtBearerDefaults.AuthenticationScheme),
             Expires = DateTime.UtcNow.AddHours(1),
-            SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature)
+            SigningCredentials = new SigningCredentials(_key, SecurityAlgorithms.HmacSha256Signature),
+            Issuer = _authenticationConfig.Issuer,
+            Audience = _authenticationConfig.Audience,
+            IssuedAt = DateTime.UtcNow
         };
-        var token = tokenHandler.CreateToken(tokenDescriptor);
-        return tokenHandler.WriteToken(token);
+        
+        var token = _tokenHandler.CreateToken(tokenDescriptor);
+        return _tokenHandler.WriteToken(token);
     }
 
     public int? ValidateJwtToken(string? token)
     {
         if (token == null)
             return null;
-
-        var tokenHandler = new JwtSecurityTokenHandler();
-        var key = Encoding.ASCII.GetBytes("mysupersecretkey");
+        
         try
         {
-            tokenHandler.ValidateToken(token, new TokenValidationParameters
+            _tokenHandler.ValidateToken(token, new TokenValidationParameters
             {
-                ValidateIssuerSigningKey = true,
-                IssuerSigningKey = new SymmetricSecurityKey(key),
-                ValidateIssuer = false,
-                ValidateAudience = false,
-                // set clockskew to zero so tokens expire exactly at token expiration time (instead of 5 minutes later)
-                ClockSkew = TimeSpan.Zero
-            }, out SecurityToken validatedToken);
+                ValidIssuer = _authenticationConfig.Issuer,
+                ValidateIssuer = _authenticationConfig.ValidateIssuer,
+                IssuerSigningKey = _key,
+                ValidateIssuerSigningKey = _authenticationConfig.ValidateIssuerKey,
+                ValidAudience = _authenticationConfig.Audience,
+                ValidateAudience = _authenticationConfig.ValidateAudience,
+                ValidateLifetime = true,
+                ClockSkew = TimeSpan.FromMinutes(1)
+            }, out var validatedToken);
 
-            var jwtToken = (JwtSecurityToken)validatedToken;
-            var accountId = int.Parse(jwtToken.Claims.First(x => x.Type == ClaimTypes.Sid).Value);
+            var jwtToken = (JwtSecurityToken) validatedToken;
+            var accountId = int.Parse(jwtToken.Claims.First(x => x.Type == JwtRegisteredClaimNames.Sub).Value);
 
-            // return user id from JWT token if validation successful
+            // return account id from JWT token if validation successful
             return accountId;
         }
         catch
