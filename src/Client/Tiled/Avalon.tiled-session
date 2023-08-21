@@ -18,14 +18,14 @@
         },
         "Tutorial.tmx": {
             "expandedObjectLayers": [
-                5,
-                10
+                10,
+                5
             ],
             "scale": 1.5,
-            "selectedLayer": 8,
+            "selectedLayer": 10,
             "viewCenter": {
-                "x": 463.99999999999994,
-                "y": 1069.3333333333333
+                "x": 437.99999999999994,
+                "y": 990.6666666666665
             }
         },
         "Village.tmx": {

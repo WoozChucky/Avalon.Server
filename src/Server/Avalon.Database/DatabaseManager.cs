@@ -33,7 +33,7 @@ public class DatabaseManager : IDatabaseManager
         RegisterMappings();
     }
     
-    private void RegisterMappings()
+    public static void RegisterMappings()
     {
         Dapper.SqlMapper.SetTypeMap(typeof(Account), new Dapper.CustomPropertyTypeMap(typeof(Account), 
             (type, columnName) => type

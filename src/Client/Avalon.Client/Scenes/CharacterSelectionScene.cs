@@ -4,10 +4,10 @@ using Avalon.Client.Managers;
 using Avalon.Client.UI;
 using Avalon.Client.UI.CharacterSelection;
 using Avalon.Network.Packets.Character;
-using Avalon.Network.Tcp;
-using Avalon.Network.Udp;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
+using Steamworks.Data;
+using Color = Microsoft.Xna.Framework.Color;
 
 namespace Avalon.Client.Scenes;
 
@@ -18,7 +18,7 @@ public class CharacterSelectionScene : Scene
     private Vector2 _titlePosition;
     private Vector2 _shadowOffset;
     
-    private ConcurrentBag<CharacterSelectFrame> _characterSelectFrames;
+    private ConcurrentBag<CharacterSelectFrame> _characterSelectFrames; //TODO: ConcurrentBag iteration is doing a lot of allocations, maybe use a different collection?
     
     private Cursor _cursor;
     private ButtonComponent _createButton;
@@ -179,6 +179,8 @@ public class CharacterSelectionScene : Scene
     {
         if (packet.Result == SCharacterCreateResult.Success)
         {
+            var ach = new Achievement("ACH_FIRST_CHARACTER");
+            ach.Trigger();
             _gotCharacterList = false;
             await Globals.Tcp.SendCharacterListPacket(Globals.AccountId);    
         }

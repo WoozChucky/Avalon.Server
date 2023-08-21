@@ -29,15 +29,10 @@ public partial class AvalonGame
             await _packetSerializer.SerializeToNetwork(client.Stream, SAuthResultPacket.Create(AuthResult.INVALID_CREDENTIALS));
             return;
         }
-
-        // $2a$11$sd9udnt8wyS/2g/xWBrjau
-        // $2a$11$sd9udnt8wyS/2g/xWBrjauC4uQo7VmjsWOKrIXYw7mG9NLQ46CY96
         
         var verifier = Encoding.UTF8.GetString(account.Verifier);
-        
-        var hash = BCrypt.Net.BCrypt.HashPassword(packet.Password.Trim());
 
-        if (!BCrypt.Net.BCrypt.Verify(packet.Password.Trim(), hash))
+        if (!BCrypt.Net.BCrypt.Verify(packet.Password.Trim(), verifier))
         {
             //TODO: Increment failed login attempts
             

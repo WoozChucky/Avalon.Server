@@ -111,7 +111,7 @@ public partial class AvalonGame : IAvalonGame
                 
                 if (elapsedTime > TimeSpan.FromMilliseconds(maxFrameTimeMs))
                 {
-                    _logger.LogWarning("Exceeded max frame time");
+                    _logger.LogWarning("Exceeded max update time: {Elapsed}ms", elapsedTime.TotalMilliseconds);
                     elapsedTime = TimeSpan.FromMilliseconds(maxFrameTimeMs);
                 }
                 
@@ -365,6 +365,7 @@ public partial class AvalonGame : IAvalonGame
             Directory = newInstance.Directory,
             MapId = packet.MapId,
             Name = newInstance.Name,
+            Description = newInstance.Description,
             Data = newInstance.VirtualizedMap.TmxData,
             TilesetsData = newInstance.VirtualizedMap.TsxData,
         }, x, y));

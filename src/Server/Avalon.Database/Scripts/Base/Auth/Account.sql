@@ -2,8 +2,8 @@ DROP TABLE IF EXISTS `Account`;
 CREATE TABLE IF NOT EXISTS `Account` (
     `id` int unsigned NOT NULL AUTO_INCREMENT COMMENT 'Identifier',
     `username` varchar(32) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
-    `salt` binary(32) NOT NULL,
-    `verifier` binary(255) NOT NULL,
+    `salt` varbinary(64) NOT NULL,
+    `verifier` varbinary(128) NOT NULL,
     `session_key` binary(40) DEFAULT NULL,
     `totp_secret` varbinary(128) DEFAULT NULL,
     `email` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',

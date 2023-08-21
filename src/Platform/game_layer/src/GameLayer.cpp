@@ -18,5 +18,5 @@
 extern "C" GAME_API void UpdateGame()
 {
     // Your game update logic
-    std::cout << "Updating the game" << std::endl;
+    std::cout << "Updating the game works." << std::endl;
 }

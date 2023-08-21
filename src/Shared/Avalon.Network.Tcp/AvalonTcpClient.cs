@@ -4,57 +4,62 @@ using System.Net.Security;
 using System.Net.Sockets;
 using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
+using Avalon.Common.Threading;
 using Avalon.Network.Packets;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Auth;
 using Avalon.Network.Packets.Character;
 using Avalon.Network.Packets.Generic;
 using Avalon.Network.Packets.Internal.Deserialization;
+using Avalon.Network.Packets.Internal.Exceptions;
 using Avalon.Network.Packets.Map;
 using Avalon.Network.Packets.Movement;
 using Avalon.Network.Packets.Serialization;
 using Avalon.Network.Packets.Social;
 using Avalon.Network.Packets.World;
-using ProtoBuf;
 
 namespace Avalon.Network.Tcp;
 
 public class AvalonTcpClientSettings
 {
-    public string Host { get; set; }
-    public string CertificatePath { get; set; }
+    public string Host { get; set; } = string.Empty;
+    public string CertificatePath { get; set; } = string.Empty;
     public int Port { get; set; }
 }
 
 public class AvalonTcpClient : IDisposable
 {
     private readonly AvalonTcpClientSettings _settings;
-    public event PlayerConnectedHandler PlayerConnected;
-    public event PlayerDisconnectedHandler PlayerDisconnected;
-    public event ChatMessageHandler ChatMessage;
-    public event AuthResultHandler AuthResult;
-    public event GroupInviteHandler GroupInvite;
-    public event GroupResultHandler GroupInviteResult;
-    public event NpcUpdatedHandler NpcUpdated;
-    public event PlayerMovedHandler PlayerMoved;
-    public event CharacterListHandler CharacterList;
-    public event CharacterSelectedHandler CharacterSelected;
-    public event CharacterCreatedHandler CharacterCreated;
-    public event CharacterDeletedHandler CharacterDeleted;
-    public event LogoutHandler Logout;
-    public event MapTeleportHandler MapTeleport;
+    public event PlayerConnectedHandler? PlayerConnected;
+    public event PlayerDisconnectedHandler? PlayerDisconnected;
+    public event ChatMessageHandler? ChatMessage;
+    public event AuthResultHandler? AuthResult;
+    public event GroupInviteHandler? GroupInvite;
+    public event GroupResultHandler? GroupInviteResult;
+    public event NpcUpdatedHandler? NpcUpdated;
+    public event PlayerMovedHandler? PlayerMoved;
+    public event CharacterListHandler? CharacterList;
+    public event CharacterSelectedHandler? CharacterSelected;
+    public event CharacterCreatedHandler? CharacterCreated;
+    public event CharacterDeletedHandler? CharacterDeleted;
+    public event LogoutHandler? Logout;
+    public event MapTeleportHandler? MapTeleport;
 
     private readonly CancellationTokenSource _cts;
     private readonly X509Certificate2 _certificate;
+    private readonly IPAddress _ipAddress;
     private readonly Socket _socket;
-    private SslStream _stream;
+    private readonly SemaphoreSlim _sendLock;
+    private readonly RingBuffer<Packet> _receivedPacketBuffer;
+    
+    private SslStream _stream = null!;
 
     private readonly IPacketDeserializer _packetDeserializer;
     private readonly IPacketSerializer _packetSerializer;
 
     public int AccountId { get; set; }
     public int CharacterId { get; set; }
-    
+
     public AvalonTcpClient(AvalonTcpClientSettings settings)
     {
         _settings = settings;
@@ -64,25 +69,129 @@ public class AvalonTcpClient : IDisposable
         _certificate = new X509Certificate2(clientCertBytes);
         _socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
         _cts = new CancellationTokenSource();
+        _sendLock = new SemaphoreSlim(1, 1);
+        _receivedPacketBuffer = new RingBuffer<Packet>(100);
+
+        _ipAddress =
+            Dns.GetHostAddresses(_settings.Host).ToList()
+                .FirstOrDefault(ip => ip.AddressFamily == AddressFamily.InterNetwork) ??
+            throw new Exception("Unable to resolve host: " + _settings.Host + "");
+        
         _packetDeserializer.RegisterPacketDeserializers();
         _packetSerializer.RegisterPacketSerializers();
     }
 
     public async Task ConnectAsync()
     {
-        await _socket.ConnectAsync(new IPEndPoint(IPAddress.Parse(_settings.Host), _settings.Port)).ConfigureAwait(true);
+        await _socket.ConnectAsync(new IPEndPoint(_ipAddress, _settings.Port)).ConfigureAwait(true);
         _stream = new SslStream(new NetworkStream(_socket), false, UserCertificateValidationCallback);
         await _stream.AuthenticateAsClientAsync(_settings.Host, new X509Certificate2Collection() { _certificate }, SslProtocols.Tls12,
             true).ConfigureAwait(false);
         
 #pragma warning disable CS4014
         Task.Run(HandleCommunications);
+        Task.Run(ProcessReceivedPackets);
 #pragma warning restore CS4014
     }
 
     private bool UserCertificateValidationCallback(object sender, X509Certificate x509Certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors)
     {
         return true;
+    }
+
+    private async void ProcessReceivedPackets()
+    {
+        try
+        {
+            async void Send(Action action)
+            {
+                await Task.Run(() =>
+                {
+                    try
+                    {
+                        action();
+                    }
+                    catch (Exception e)
+                    {
+                        Console.WriteLine(e);
+                    }
+                });
+            }
+            
+            while (!_cts.IsCancellationRequested)
+            {
+                var packet = await _receivedPacketBuffer.DequeueAsync(_cts.Token);
+
+                if (packet is null)
+                {
+                    Console.WriteLine("Received packet in packet processor thread");
+                    continue;
+                }
+
+                switch (packet)
+                {
+                    case SPlayerPositionUpdatePacket p:
+                        Send(() => PlayerMoved?.Invoke(this, p));
+                        break;
+                    case SNpcUpdatePacket p:
+                        Send(() => NpcUpdated?.Invoke(this, p));
+                        break;
+                    case SPlayerConnectedPacket p:
+                        Send(() => PlayerConnected?.Invoke(this, p));
+                        break;
+                    case SPlayerDisconnectedPacket p:
+                        Send(() => PlayerDisconnected?.Invoke(this, p));
+                        break;
+                    case SChatMessagePacket p:
+                        Send(() => ChatMessage?.Invoke(this, p));
+                        break;
+                    case SAuthResultPacket p:
+                        Send(() => AuthResult?.Invoke(this, p));
+                        break;
+                    case SGroupInvitePacket p:
+                        Send(() => GroupInvite?.Invoke(this, p));
+                        break;
+                    case SGroupResultPacket p:
+                        Send(() => GroupInviteResult?.Invoke(this, p));
+                        break;
+                    case SCharacterListPacket p:
+                        Send(() => CharacterList?.Invoke(this, p));
+                        break;
+                    case SCharacterSelectedPacket p:
+                        Send(() => CharacterSelected?.Invoke(this, p));
+                        break;
+                    case SCharacterCreatedPacket p:
+                        Send(() => CharacterCreated?.Invoke(this, p));
+                        break;
+                    case SCharacterDeletedPacket p:
+                        Send(() => CharacterDeleted?.Invoke(this, p));
+                        break;
+                    case SLogoutPacket p:
+                        Send(() => Logout?.Invoke(this, p));
+                        break;
+                    case SMapTeleportPacket p:
+                        Send(() => MapTeleport?.Invoke(this, p));
+                        break;
+                    case SPingPacket p:
+                        Send(() =>
+                        {
+                            var pongPacket = CPongPacket.Create(p.SequenceNumber, AccountId, p.Ticks);
+                            SendPacket(pongPacket);
+                        });
+                        break;
+                    
+                }
+                
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // ignored
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine(e);
+        }
     }
     
     private async void HandleCommunications()
@@ -91,159 +200,17 @@ public class AvalonTcpClient : IDisposable
         {
             while (!_cts.IsCancellationRequested)
             {
-                var packet = Serializer.DeserializeWithLengthPrefix<NetworkPacket>(_stream, PrefixStyle.Base128);
-
-                switch (packet.Header.Type)
+                var packet = await _packetDeserializer.DeserializeFromNetwork<NetworkPacket>(_stream);
+                
+                if (packet == null)
                 {
-                    case NetworkPacketType.SMSG_PLAYER_POSITION_UPDATE:
-                        var movementPacket = _packetDeserializer.Deserialize<SPlayerPositionUpdatePacket>(packet.Header.Type,
-                            packet.Payload);
-                        try {
-                            PlayerMoved?.Invoke(this, movementPacket);
-                        } catch (Exception e) {
-                            Console.WriteLine(e);
-                        }
-                        break;
-                    case NetworkPacketType.SMSG_NPC_UPDATE:
-                        var npcUpdatePacket = Serializer.Deserialize<SNpcUpdatePacket>(new MemoryStream(packet.Payload));
-                        try {
-                            NpcUpdated?.Invoke(this, npcUpdatePacket);
-                        } catch (Exception e) {
-                            Console.WriteLine(e);
-                        }
-                        break;
-                    case NetworkPacketType.SMSG_PLAYER_CONNECTED:
-                        var connectPacket = Serializer.Deserialize<SPlayerConnectedPacket>(new MemoryStream(packet.Payload));
-                        try {
-                            PlayerConnected?.Invoke(this, connectPacket);
-                        } catch (Exception e) {
-                            Console.WriteLine(e);
-                        }
-                        break;
-                    case NetworkPacketType.SMSG_PLAYER_DISCONNECTED:
-                        var disconnectPacket = Serializer.Deserialize<SPlayerDisconnectedPacket>(new MemoryStream(packet.Payload));
-                        
-                        try {
-                            PlayerDisconnected?.Invoke(this, disconnectPacket);
-                        } catch (Exception e) {
-                            Console.WriteLine(e);
-                        }
-                        break;
-                    case NetworkPacketType.SMSG_CHAT_MESSAGE:
-                        var messagePacket = Serializer.Deserialize<SChatMessagePacket>(new MemoryStream(packet.Payload));
-                        try {
-                            ChatMessage?.Invoke(this, messagePacket);
-                        } catch (Exception e) {
-                            Console.WriteLine(e);
-                        }
-                        break;
-                    case NetworkPacketType.SMSG_AUTH_RESULT:
-                        var authResultPacket = Serializer.Deserialize<SAuthResultPacket>(new MemoryStream(packet.Payload));
-                        try {
-                            AuthResult?.Invoke(this, authResultPacket);
-                        } catch (Exception e) {
-                            Console.WriteLine(e);
-                        }
-                        break;
-                    case NetworkPacketType.SMSG_GROUP_INVITE:
-                        var groupInvitePacket = Serializer.Deserialize<SGroupInvitePacket>(new MemoryStream(packet.Payload));
-                        try
-                        {
-                            GroupInvite?.Invoke(this, groupInvitePacket);
-                        }
-                        catch (Exception e)
-                        {
-                            Console.WriteLine(e);
-                        }
-                        break;
-                    case NetworkPacketType.SMSG_GROUP_INVITE_RESULT:
-                        var groupResultPacket = Serializer.Deserialize<SGroupResultPacket>(new MemoryStream(packet.Payload));
-                        try
-                        {
-                            GroupInviteResult?.Invoke(this, groupResultPacket);
-                        }
-                        catch (Exception e)
-                        {
-                            Console.WriteLine(e);
-                        }
-                        break;
-                    case NetworkPacketType.SMSG_CHARACTER_LIST:
-                        var characterListPacket = Serializer.Deserialize<SCharacterListPacket>(new MemoryStream(packet.Payload));
-                        try
-                        {
-                            CharacterList?.Invoke(this, characterListPacket);
-                        }
-                        catch (Exception e)
-                        {
-                            Console.WriteLine(e);
-                        }
-                        break;
-                    case NetworkPacketType.SMSG_CHARACTER_SELECTED:
-                        var characterSelectedPacket = Serializer.Deserialize<SCharacterSelectedPacket>(new MemoryStream(packet.Payload));
-                        try
-                        {
-                            CharacterSelected?.Invoke(this, characterSelectedPacket);
-                        }
-                        catch (Exception e)
-                        {
-                            Console.WriteLine(e);
-                        }
-                        break;
-                    case NetworkPacketType.SMSG_CHARACTER_CREATED:
-                        var characterCreatedPacket = Serializer.Deserialize<SCharacterCreatedPacket>(new MemoryStream(packet.Payload));
-                        try
-                        {
-                            CharacterCreated?.Invoke(this, characterCreatedPacket);
-                        }
-                        catch (Exception e)
-                        {
-                            Console.WriteLine(e);
-                        }
-                        break;
-                    case NetworkPacketType.SMSG_CHARACTER_DELETED:
-                        var characterDeletedPacket = Serializer.Deserialize<SCharacterDeletedPacket>(new MemoryStream(packet.Payload));
-                        try
-                        {
-                            CharacterDeleted?.Invoke(this, characterDeletedPacket);
-                        }
-                        catch (Exception e)
-                        {
-                            Console.WriteLine(e);
-                        }
-                        break;
-                    case NetworkPacketType.SMSG_LOGOUT:
-                        var logoutPacket = Serializer.Deserialize<SLogoutPacket>(new MemoryStream(packet.Payload));
-                        try
-                        {
-                            Logout?.Invoke(this, logoutPacket);
-                        }
-                        catch (Exception e)
-                        {
-                            Console.WriteLine(e);
-                        }
-                        break;
-                    case NetworkPacketType.SMSG_MAP_TELEPORT:
-                        var teleportPacket = Serializer.Deserialize<SMapTeleportPacket>(new MemoryStream(packet.Payload));
-                        try
-                        {
-                            MapTeleport?.Invoke(this, teleportPacket);
-                        }
-                        catch (Exception e)
-                        {
-                            Console.WriteLine(e);
-                        }
-                        break;
-                    case NetworkPacketType.SMSG_PING:
-                        var pingPacket = _packetDeserializer.Deserialize<SPingPacket>(packet.Header.Type,
-                            packet.Payload);
-                                        
-                        var pongPacket = CPongPacket.Create(pingPacket.SequenceNumber, AccountId, pingPacket.Ticks);
-                                        
-                        await _packetSerializer.SerializeToNetwork(_stream, pongPacket);
-                                        
-                        break;
-                    
+                    Console.WriteLine("Received null packet in network thread");
+                    continue;
                 }
+                
+                var innerPacket = GetInnerPacket(packet);
+                
+                _receivedPacketBuffer.Enqueue(innerPacket);
             }
         }
         catch (OperationCanceledException e)
@@ -255,6 +222,45 @@ public class AvalonTcpClient : IDisposable
             Console.WriteLine(e);
             throw;
         }
+    }
+    
+    private Packet GetInnerPacket(NetworkPacket packet)
+    {
+        return packet.Header.Type switch
+        {
+            // Auth
+            NetworkPacketType.SMSG_AUTH_RESULT => _packetDeserializer.Deserialize<SAuthResultPacket>(packet.Header.Type, packet.Payload),
+            NetworkPacketType.SMSG_LOGOUT => _packetDeserializer.Deserialize<SLogoutPacket>(packet.Header.Type, packet.Payload),
+            
+            // Account
+            NetworkPacketType.SMSG_PLAYER_CONNECTED => _packetDeserializer.Deserialize<SPlayerConnectedPacket>(packet.Header.Type, packet.Payload),
+            NetworkPacketType.SMSG_PLAYER_DISCONNECTED => _packetDeserializer.Deserialize<SPlayerDisconnectedPacket>(packet.Header.Type, packet.Payload),
+            NetworkPacketType.SMSG_PLAYER_POSITION_UPDATE => _packetDeserializer.Deserialize<SPlayerPositionUpdatePacket>(packet.Header.Type, packet.Payload),
+            
+            // TODO: Refactor this packet type and packet name
+            NetworkPacketType.SMSG_NPC_UPDATE => _packetDeserializer.Deserialize<SNpcUpdatePacket>(packet.Header.Type, packet.Payload),
+
+            // Character
+            NetworkPacketType.SMSG_CHARACTER_LIST => _packetDeserializer.Deserialize<SCharacterListPacket>(packet.Header.Type, packet.Payload),
+            NetworkPacketType.SMSG_CHARACTER_SELECTED => _packetDeserializer.Deserialize<SCharacterSelectedPacket>(packet.Header.Type, packet.Payload),
+            NetworkPacketType.SMSG_CHARACTER_CREATED => _packetDeserializer.Deserialize<SCharacterCreatedPacket>(packet.Header.Type, packet.Payload),
+            NetworkPacketType.SMSG_CHARACTER_DELETED => _packetDeserializer.Deserialize<SCharacterDeletedPacket>(packet.Header.Type, packet.Payload),
+            
+            // Map
+            NetworkPacketType.SMSG_MAP_TELEPORT => _packetDeserializer.Deserialize<SMapTeleportPacket>(packet.Header.Type, packet.Payload),
+            
+            // Social
+            NetworkPacketType.SMSG_CHAT_MESSAGE => _packetDeserializer.Deserialize<SChatMessagePacket>(packet.Header.Type, packet.Payload),
+            NetworkPacketType.SMSG_CHAT_OPEN => _packetDeserializer.Deserialize<SOpenChatPacket>(packet.Header.Type, packet.Payload),
+            NetworkPacketType.SMSG_CHAT_CLOSE => _packetDeserializer.Deserialize<SCloseChatPacket>(packet.Header.Type, packet.Payload),
+            NetworkPacketType.SMSG_GROUP_INVITE => _packetDeserializer.Deserialize<SGroupInvitePacket>(packet.Header.Type, packet.Payload),
+            NetworkPacketType.SMSG_GROUP_INVITE_RESULT => _packetDeserializer.Deserialize<SGroupResultPacket>(packet.Header.Type, packet.Payload), 
+            
+            // Generic
+            NetworkPacketType.SMSG_PING => _packetDeserializer.Deserialize<SPingPacket>(packet.Header.Type, packet.Payload),
+            
+            _ => throw new PacketHandlerException("Unknown packet type " + packet.Header.Type)
+        };
     }
     
     public void Disconnect()
@@ -273,109 +279,99 @@ public class AvalonTcpClient : IDisposable
 
     public async Task SendChatMessage(string message)
     {
-        try
-        {
-            var packet = CChatMessagePacket.Create(AccountId, CharacterId, message, DateTime.UtcNow);
+        var packet = CChatMessagePacket.Create(AccountId, CharacterId, message, DateTime.UtcNow);
 
-            await _packetSerializer.SerializeToNetwork(_stream, packet);
-        }
-        catch (Exception e)
-        {
-            Console.WriteLine(e);
-            throw;
-        }
+        await SendPacket(packet);
     }
     
     public async Task SendOpenChatPacket()
     {
-        try
-        {
-            var packet = COpenChatPacket.Create(AccountId, CharacterId);
+        var packet = COpenChatPacket.Create(AccountId, CharacterId);
 
-            await _packetSerializer.SerializeToNetwork(_stream, packet);
-        }
-        catch (Exception e)
-        {
-            Console.WriteLine(e);
-            throw;
-        }
+        await SendPacket(packet);
     }
     
     public async Task SendCloseChatPacket()
     {
-        try
-        {
-            var packet = CCloseChatPacket.Create(AccountId, CharacterId);
+        var packet = CCloseChatPacket.Create(AccountId, CharacterId);
 
-            await _packetSerializer.SerializeToNetwork(_stream, packet);
-        }
-        catch (Exception e)
-        {
-            Console.WriteLine(e);
-            throw;
-        }
+        await SendPacket(packet);
     }
 
     public async Task SendCharacterSelectedPacket(int accountId, int characterId)
     {
         var packet = CCharacterSelectedPacket.Create(accountId, characterId);
         
-        await _packetSerializer.SerializeToNetwork(_stream, packet);
+        await SendPacket(packet);
     }
 
     public async Task SendAuthPacket(string username, string password)
     {
         var packet = CAuthPacket.Create(username, password);
         
-        await _packetSerializer.SerializeToNetwork(_stream, packet);
+        await SendPacket(packet);
     }
 
     public async Task SendCharacterListPacket(int accountId)
     {
         var packet = CCharacterListPacket.Create(accountId);
         
-        await _packetSerializer.SerializeToNetwork(_stream, packet);
+        await SendPacket(packet);
     }
 
     public async Task SendCharacterDeletePacket(int accountId, int characterId)
     {
         var packet = CCharacterDeletePacket.Create(accountId, characterId);
         
-        await _packetSerializer.SerializeToNetwork(_stream, packet);
+        await SendPacket(packet);
     }
 
     public async Task SendCharacterCreatePacket(int accountId, string name, int @class)
     {
         var packet = CCharacterCreatePacket.Create(accountId, name, @class);
         
-        await _packetSerializer.SerializeToNetwork(_stream, packet);
+        await SendPacket(packet);
     }
     
     public async Task SendLogoutPacket(int accountId)
     {
         var packet = CLogoutPacket.Create(accountId);
         
-        await _packetSerializer.SerializeToNetwork(_stream, packet);
+        await SendPacket(packet);
     }
 
     public async Task SendCharacterLoadedPacket()
     {
         var packet = CCharacterLoadedPacket.Create(AccountId);
         
-        await _packetSerializer.SerializeToNetwork(_stream, packet);
+        await SendPacket(packet);
     }
 
     public async Task SendMapTeleportPacket(int mapId)
     {
         var packet = CMapTeleportPacket.Create(AccountId, CharacterId, mapId);
         
-        await _packetSerializer.SerializeToNetwork(_stream, packet);
+        await SendPacket(packet);
     }
     
     public async Task SendInteractPacket(Rectangle targetArea)
     {
         var packet = CInteractPacket.Create(AccountId, CharacterId, targetArea.X, targetArea.Y, targetArea.Width, targetArea.Height);
         
-        await _packetSerializer.SerializeToNetwork(_stream, packet);
+        await SendPacket(packet);
+    }
+    
+    private async Task SendPacket(NetworkPacket packet)
+    {
+        await _sendLock.WaitAsync();
+        
+        try
+        {
+            await _packetSerializer.SerializeToNetwork(_stream, packet);
+        }
+        finally
+        {
+            _sendLock.Release();
+        }
     }
 }
