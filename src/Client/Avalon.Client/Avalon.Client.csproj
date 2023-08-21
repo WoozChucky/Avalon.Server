@@ -52,9 +52,11 @@
         <PackageReference Include="Mono.Nat" Version="3.0.4" />
         <PackageReference Include="MonoGame.Framework.DesktopGL" Version="3.8.1.303" />
         <PackageReference Include="MonoGame.Content.Builder.Task" Version="3.8.1.303" />
+        <!-- <PackageReference Include="Steamworks.NET" Version="20.1.0" /> -->
     </ItemGroup>
     
     <ItemGroup>
+      <ProjectReference Include="..\..\..\vendor\Facepunch.Steamworks\Facepunch.Steamworks\Facepunch.Steamworks.Win64.csproj" />
       <ProjectReference Include="..\..\Shared\Avalon.Common\Avalon.Common.csproj" />
       <ProjectReference Include="..\..\Shared\Avalon.Network.Packets\Avalon.Network.Packets.csproj" />
       <ProjectReference Include="..\..\Shared\Avalon.Network.Tcp\Avalon.Network.Tcp.csproj" />

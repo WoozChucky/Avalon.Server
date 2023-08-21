@@ -2,18 +2,19 @@
 using System.Drawing;
 using Avalon.Common.Extensions;
 using Avalon.VirtualMap;
+using Microsoft.Extensions.Logging;
 
 namespace Avalon.Game.Maps.Virtual;
 
 public class VirtualizedMap
 {
+    private readonly ILogger<VirtualizedMap> _logger;
     private readonly string _directory;
     private readonly ICollection<TileLayer> _layers;
     private readonly ICollection<MapCreaturePool> _creaturePools;
     private readonly ICollection<MapCreature> _creatures;
     private readonly ICollection<MapObject> _objects;
     private readonly ICollection<MapEvent> _events;
-    private List<TileLayer> _collidableLayers;
 
     public Point Size { get; private set; }
 
@@ -28,11 +29,13 @@ public class VirtualizedMap
     
     public byte[] TmxData { get; private set; }
     public byte[][] TsxData { get; private set; }
+
     
-    public VirtualizedMap(int id, string name, string directory)
+    public VirtualizedMap(ILoggerFactory loggerFactory, int id, string name, string directory)
     {
-        _directory = directory;
         Id = id;
+        _directory = directory;
+        _logger = loggerFactory.CreateLogger<VirtualizedMap>();
         _layers = new List<TileLayer>();
         _creatures = new List<MapCreature>();
         _objects = new List<MapObject>();
@@ -83,18 +86,19 @@ public class VirtualizedMap
     public bool IsTileCollidable(int tileX, int tileY, Rectangle boundingBox)
     {
         // Check if the specified tile is collidable
-        foreach (var layer in _collidableLayers)
+        foreach (var layer in _layers)
         {
+            if (!layer.IsCollidable) continue;
+            
             var tile = layer[tileX, tileY];
 
-            if (tile is { IsCollidable: true })
-            {
-                if (boundingBox.IntersectsWith(tile.Bounds))
-                {
-                    Console.WriteLine($"Intersected rectangle: {{X={tile.Bounds.X}, Y={tile.Bounds.Y}}}. Hero rectangle: {{X={boundingBox.X}, Y={boundingBox.Y}}}");
-                    return true;
-                }
-            }
+            if (tile is not { IsCollidable: true }) continue;
+            
+            if (!boundingBox.IntersectsWith(tile.Bounds)) continue;
+            
+            _logger.LogTrace("Intersected rectangle: {{X={BoundsX}, Y={BoundsY}}}. Hero rectangle: {{X={BoundingBoxX}, Y={BoundingBoxY}}}", 
+                tile.Bounds.X, tile.Bounds.Y, boundingBox.X, boundingBox.Y);
+            return true;
         }
         
         return false;
@@ -115,7 +119,7 @@ public class VirtualizedMap
             {
                 if (IsTileCollidable(x, y, boundingBox))
                 {
-                    Console.WriteLine("Collision detected at: " + x + ", " + y + "");
+                    _logger.LogTrace("Collision detected at: {X}, {Y}", x, y);
                     return true;
                 }
             }
@@ -218,7 +222,6 @@ public class VirtualizedMap
                 }
                 _layers.Add(new TileLayer(layerTiles, collidable));
             }
-            _collidableLayers = _layers.Where(l => l.IsCollidable).ToList();
         }
     }
 }

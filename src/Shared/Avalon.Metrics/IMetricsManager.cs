@@ -56,7 +56,7 @@ public class MetricsManager : IMetricsManager
         
         _running = true;
         
-        Environment.SetEnvironmentVariable("Quix__Workspace__Id", "quixdev-nuno");
+        Environment.SetEnvironmentVariable("Quix__Workspace__Id", "quixdev-nuno-development");
         
         _topicProducer = _streamingClient.GetTopicProducer("petertest");
         _streamProducer = _topicProducer.GetOrCreateStream("mystream");

@@ -7,12 +7,14 @@ using Avalon.Network.Tcp;
 using Avalon.Network.Udp;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
+using Steamworks;
 
 namespace Avalon.Client.Scenes;
 
 public class MainMenuScene : Scene
 {
     private Sprite _logo;
+    private Sprite _background;
     
     private RegisterForm _registerForm;
     private LoginForm _loginForm;
@@ -31,7 +33,12 @@ public class MainMenuScene : Scene
     {
         _logo = new Sprite(
             Globals.Content.Load<Texture2D>("Images/Logo"), 
-            new Vector2(Globals.WindowSize.X / 2f, 100)
+            new Vector2(Globals.WindowSize.X / 2f, 150)
+        );
+        
+        _background = new Sprite(
+            Globals.Content.Load<Texture2D>("Images/LoginBackground"), 
+            new Vector2(Globals.WindowSize.X / 2f, Globals.WindowSize.Y / 2f)
         );
         
         _cursor = new Cursor(Globals.Content.Load<Texture2D>("Images/Icons/Mouse"), false);
@@ -42,6 +49,11 @@ public class MainMenuScene : Scene
         _loginForm.RegisterClicked += OnRegisterFormClicked;
         
         _registerForm = new RegisterForm();
+
+        if (!SteamFriends.SetRichPresence("status", "In Main Menu"))
+        {
+            Console.WriteLine("Failed to set rich presence");
+        }
     }
 
     public override void Unload()
@@ -72,6 +84,7 @@ public class MainMenuScene : Scene
     public override void Draw(SpriteBatch spriteBatch)
     {
         spriteBatch.Begin(blendState: BlendState.AlphaBlend);
+        _background.Draw(spriteBatch);
         _logo.Draw(spriteBatch);
         _loginForm?.Draw(spriteBatch);
         _registerForm?.Draw(spriteBatch);
@@ -83,6 +96,7 @@ public class MainMenuScene : Scene
     {
         if (disposing)
         {
+            _background?.Dispose();
             _logo?.Dispose();
             _loginForm?.Dispose();
             _registerForm?.Dispose();

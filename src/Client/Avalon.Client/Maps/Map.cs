@@ -18,6 +18,9 @@ public class Map : IDisposable
     
     private Texture2D _mapAtlas;
     
+    public IReadOnlyList<Layer> Layers => _layers;
+    public Texture2D MapAtlas => _mapAtlas;
+    
     public Point MapSize { get; private set; }
 
     public int Columns { get; private set; }

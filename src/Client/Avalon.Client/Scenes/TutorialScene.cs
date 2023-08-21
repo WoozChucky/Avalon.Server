@@ -17,6 +17,7 @@ using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using Microsoft.Xna.Framework.Media;
+using Steamworks;
 using Color = Microsoft.Xna.Framework.Color;
 using Point = Microsoft.Xna.Framework.Point;
 using Timer = System.Timers.Timer;
@@ -26,6 +27,7 @@ namespace Avalon.Client.Scenes;
 public class TutorialScene : Scene
 {
     private Map _map;
+    private Minimap _minimap;
     private Player _player;
     private SpriteFont _font;
 
@@ -44,10 +46,7 @@ public class TutorialScene : Scene
 
     private Vector2 _lastSentPosition;
     private Vector2 _lastSentVelocity;
-
-    private float _elapsedTime;
-    private int _frameCount;
-    private int _fps;
+    
     private double _latency;
 
     private volatile bool _loaded = false;
@@ -74,6 +73,9 @@ public class TutorialScene : Scene
         _font = Globals.Content.Load<SpriteFont>("Fonts/Nintendo");
         //_map = new Map(mapName, directory, atlas);
         _map = new Map(map.Data.ToMemoryStream(), map.TilesetsData.Select(m => m.ToMemoryStream()).ToArray(), map.Atlas);
+        _minimap = new Minimap();
+        _minimap.Load(_map);
+        _minimap.Generate();
         _player = new Player(
             Globals.AccountId,
             Globals.CharacterName,
@@ -108,6 +110,8 @@ public class TutorialScene : Scene
 
         await Globals.Tcp.SendCharacterLoadedPacket();
         //TODO: Maybe also send a map loaded packet?
+        
+        SteamFriends.SetRichPresence("status", $"In-Game ({Globals.MapInfo.Description}) (Character: {Globals.CharacterName})");
     }
 
     public override async void Load()
@@ -163,11 +167,22 @@ public class TutorialScene : Scene
             Console.WriteLine("Map reloaded!");
             return;
         }
-
-        _elapsedTime += deltaTime;
-        _frameCount++;
         
+        // Update the camera position based on player movement or other logic
+        Globals.CameraPosition = _player.Position - new Vector2((float) Globals.GraphicsDevice.Viewport.Width / 2,
+            (float) Globals.GraphicsDevice.Viewport.Height / 2) + new Vector2(_map.TileWidth / 2f, _map.TileHeight / 2f);
+        
+        // Perform boundary checks to prevent the camera from going outside the game world
+        Globals.CameraPosition = new Vector2(
+            MathHelper.Clamp(Globals.CameraPosition.X, 0, _map.MapSize.X - Globals.GraphicsDevice.Viewport.Width),
+            MathHelper.Clamp(Globals.CameraPosition.Y, 0, _map.MapSize.Y - Globals.GraphicsDevice.Viewport.Height)
+        );
+
+        CalculateTranslation();
+
         _cursor?.Update(deltaTime);
+        
+        _player?.Update(_map.IsObjectColliding, _npcs, _otherPlayers, _chatGui.IsTyping);
 
         foreach (var (_, otherHero) in _otherPlayers)
         {
@@ -178,8 +193,12 @@ public class TutorialScene : Scene
         {
             npc.Update(deltaTime);
         }
-
-        _player?.Update(_map.IsObjectColliding, _npcs, _otherPlayers, _chatGui.IsTyping);
+        
+        _minimap?.Update(deltaTime);
+        if (_chatGui is { IsTyping: false } && InputManager.Instance.KeyPressed(Keys.M))
+        {
+            _minimap?.ToggleVisibility();
+        }
 
         _partyInviteDialog?.Update(deltaTime);
         
@@ -221,25 +240,6 @@ public class TutorialScene : Scene
                 _player.InteractBoundingBox.Height)
             );
         }
-        
-        // Update the camera position based on player movement or other logic
-        Globals.CameraPosition = _player.Position - new Vector2((float) Globals.GraphicsDevice.Viewport.Width / 2,
-            (float) Globals.GraphicsDevice.Viewport.Height / 2) + new Vector2(_map.TileWidth / 2f, _map.TileHeight / 2f);
-        
-        // Perform boundary checks to prevent the camera from going outside the game world
-        Globals.CameraPosition = new Vector2(
-            MathHelper.Clamp(Globals.CameraPosition.X, 0, _map.MapSize.X - Globals.GraphicsDevice.Viewport.Width),
-            MathHelper.Clamp(Globals.CameraPosition.Y, 0, _map.MapSize.Y - Globals.GraphicsDevice.Viewport.Height)
-        );
-
-        CalculateTranslation();
-        
-        if (_elapsedTime >= 1f) // Calculate FPS every second
-        {
-            _fps = _frameCount;
-            _frameCount = 0;
-            _elapsedTime = 0;
-        }
     }
 
     public override void Draw(SpriteBatch spriteBatch)
@@ -266,10 +266,11 @@ public class TutorialScene : Scene
         _chatGui?.Draw(spriteBatch);
         _rightPanel?.Draw(spriteBatch);
 
+        _minimap.Draw(spriteBatch);
+        
         if (true)
         {
             spriteBatch.DrawString(_font, $"X: {Math.Round(_player.Position.X, 1)} Y: {Math.Round(_player.Position.Y, 1)}", new Vector2(3, 2) + Globals.CameraPosition, Color.DarkBlue);
-            spriteBatch.DrawString(_font, $"FPS: {_fps}", new Vector2(3, 36) + Globals.CameraPosition, Color.DarkBlue);
             spriteBatch.DrawString(_font, $"Latency: {_latency}ms", new Vector2(3, 62) + Globals.CameraPosition, Color.DarkBlue);
         }
         

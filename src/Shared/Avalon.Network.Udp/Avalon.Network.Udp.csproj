@@ -11,13 +11,14 @@
     </PropertyGroup>
 
     <ItemGroup>
+      <ProjectReference Include="..\Avalon.Common\Avalon.Common.csproj" />
       <ProjectReference Include="..\Avalon.Network.Packets\Avalon.Network.Packets.csproj" />
       <ProjectReference Include="..\Avalon.Network\Avalon.Network.csproj" />
     </ItemGroup>
 
     <ItemGroup>
       <PackageReference Include="ENet-CSharp" Version="2.4.8" />
-      <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="7.0.0" />
+      <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="7.0.1" />
     </ItemGroup>
 
     <ItemGroup>
