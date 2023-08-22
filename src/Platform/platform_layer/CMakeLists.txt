@@ -1,18 +1,36 @@
-include(FetchContent)
-FetchContent_Declare(
-        googletest
-        URL https://github.com/google/googletest/archive/03597a01ee50ed33e9dfd640b249b4be3799d395.zip
-)
+set(This PlatformLayer)
+
+# Add include directories
+include_directories(${CMAKE_SOURCE_DIR}/platform_layer/include)
+include_directories(${CMAKE_SOURCE_DIR}/game_layer/include)
+
+# Vendor includes
+include_directories(${CMAKE_SOURCE_DIR}/vendor/glfw-3.3.8/include)
+include_directories(${CMAKE_SOURCE_DIR}/vendor/glad/include)
+include_directories(${CMAKE_SOURCE_DIR}/vendor/gl2d/include)
+include_directories(${CMAKE_SOURCE_DIR}/vendor/glm)
+include_directories(${CMAKE_SOURCE_DIR}/vendor/stb_image/include)
+include_directories(${CMAKE_SOURCE_DIR}/vendor/stb_truetype/include)
+
+file(GLOB_RECURSE SOURCES "src/*.cpp" "src/*.h")
 
 if (WIN32)
-    set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
-    FetchContent_MakeAvailable(googletest)
-
-    add_subdirectory(windows)
+    file(GLOB_RECURSE SOURCES "src/*.cpp" "src/*.h" "windows/src/*.cpp" "windows/src/*.h")
 elseif(UNIX AND NOT APPLE)
-    add_subdirectory(linux)
+    file(GLOB_RECURSE SOURCES "src/*.cpp" "src/*.h" "linux/src/*.cpp" "linux/src/*.h")
 elseif(APPLE)
-    add_subdirectory(mac)
+    file(GLOB_RECURSE SOURCES "src/*.cpp" "src/*.h" "mac/src/*.cpp" "mac/src/*.h")
 else()
     message(FATAL_ERROR "Unsupported platform")
 endif()
+
+add_library(${This} STATIC ${SOURCES})
+
+
+
+# Add an installation rule to copy the shared library to the output directory
+install(TARGETS ${This}
+        RUNTIME DESTINATION ${CMAKE_CURRENT_BINARY_DIR}
+        LIBRARY DESTINATION ${CMAKE_CURRENT_BINARY_DIR}
+        ARCHIVE DESTINATION ${CMAKE_CURRENT_BINARY_DIR}
+)

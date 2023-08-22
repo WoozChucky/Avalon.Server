@@ -5,7 +5,7 @@
 #include "Platform.h"
 #include <iostream>
 #include <Windows.h>
-
+/*
 #include "GameLayer.h"
 
 // Global variable to store the previous timestamp
@@ -162,7 +162,6 @@ void Initialize() {
         DispatchMessage(&msg);
     }
 
-#if 0
     GameLayer gameLayer = LoadGameLayer("hotreload/GameLayer.dll");
     if (!gameLayer.IsValid)
     {
@@ -206,7 +205,7 @@ void Initialize() {
 
     // Unload the game layer
     FreeLibrary(gameLayer.DLL);
-#endif
+
     return;
 }
-
+*/
