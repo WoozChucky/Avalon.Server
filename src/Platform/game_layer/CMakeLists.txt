@@ -15,5 +15,5 @@ install(TARGETS GameLayer
 add_custom_command(TARGET GameLayer POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
     $<TARGET_FILE:GameLayer>
-    $<TARGET_FILE_DIR:Game>
+    $<TARGET_FILE_DIR:Client>
 )
