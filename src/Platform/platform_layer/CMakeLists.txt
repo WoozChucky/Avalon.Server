@@ -5,6 +5,8 @@ include_directories(${CMAKE_SOURCE_DIR}/platform_layer/include)
 include_directories(${CMAKE_SOURCE_DIR}/game_layer/include)
 
 # Vendor includes
+include_directories(${CMAKE_SOURCE_DIR}/vendor/boringssl/include)
+include_directories(${CMAKE_SOURCE_DIR}/vendor/boost_asio/include)
 include_directories(${CMAKE_SOURCE_DIR}/vendor/glfw-3.3.8/include)
 include_directories(${CMAKE_SOURCE_DIR}/vendor/glad/include)
 include_directories(${CMAKE_SOURCE_DIR}/vendor/gl2d/include)
@@ -12,10 +14,18 @@ include_directories(${CMAKE_SOURCE_DIR}/vendor/glm)
 include_directories(${CMAKE_SOURCE_DIR}/vendor/stb_image/include)
 include_directories(${CMAKE_SOURCE_DIR}/vendor/stb_truetype/include)
 
-file(GLOB_RECURSE SOURCES "src/*.cpp" "src/*.h" "include/*.h")
+set(BOOST_ROOT ${CMAKE_SOURCE_DIR}/vendor/boost)
+
+find_package(Boost REQUIRED)
+
+if(Boost_FOUND)
+    include_directories(${Boost_INCLUDE_DIRS})
+endif()
+
+file(GLOB_RECURSE SOURCES "src/*.cpp" "src/*.h" "src/**/*.h" "include/*.h")
 
 if (WIN32)
-    file(GLOB_RECURSE SOURCES "src/*.cpp" "src/*.h" "windows/src/*.cpp" "windows/src/*.h")
+    file(GLOB_RECURSE SOURCES "src/*.cpp" "src/**/*.h" "src/*.h" "windows/src/*.cpp" "windows/src/*.h")
 elseif(UNIX AND NOT APPLE)
     file(GLOB_RECURSE SOURCES "src/*.cpp" "src/*.h" "linux/src/*.cpp" "linux/src/*.h")
 elseif(APPLE)
@@ -26,7 +36,7 @@ endif()
 
 add_library(${This} STATIC ${SOURCES})
 
-
+target_link_libraries(${This} PRIVATE Boost::boost ssl crypto)
 
 # Add an installation rule to copy the shared library to the output directory
 install(TARGETS ${This}

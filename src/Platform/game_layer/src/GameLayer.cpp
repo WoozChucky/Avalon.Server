@@ -20,5 +20,5 @@ extern "C" GAME_API void Update(double deltaTime)
 extern "C" GAME_API void Render()
 {
     // Your game render logic
-    std::cout << "Render the game works." << std::endl;
+    // std::cout << "Render the game works." << std::endl;
 }
