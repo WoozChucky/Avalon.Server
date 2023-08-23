@@ -4,3 +4,12 @@
 [submodule "vendor/Facepunch.Steamworks"]
 	path = vendor/Facepunch.Steamworks
 	url = https://github.com/Facepunch/Facepunch.Steamworks
+[submodule "src/Platform/vendor/boost"]
+	path = src/Platform/vendor/boost
+	url = https://github.com/boostorg/boost
+[submodule "src/Platform/vendor/boost_asio"]
+	path = src/Platform/vendor/boost_asio
+	url = https://github.com/boostorg/asio
+[submodule "src/Platform/vendor/boringssl"]
+	path = src/Platform/vendor/boringssl
+	url = https://boringssl.googlesource.com/boringssl
