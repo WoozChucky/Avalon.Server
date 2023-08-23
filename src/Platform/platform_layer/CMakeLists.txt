@@ -12,7 +12,7 @@ include_directories(${CMAKE_SOURCE_DIR}/vendor/glm)
 include_directories(${CMAKE_SOURCE_DIR}/vendor/stb_image/include)
 include_directories(${CMAKE_SOURCE_DIR}/vendor/stb_truetype/include)
 
-file(GLOB_RECURSE SOURCES "src/*.cpp" "src/*.h")
+file(GLOB_RECURSE SOURCES "src/*.cpp" "src/*.h" "include/*.h")
 
 if (WIN32)
     file(GLOB_RECURSE SOURCES "src/*.cpp" "src/*.h" "windows/src/*.cpp" "windows/src/*.h")

@@ -1,7 +1,3 @@
-//
-// Created by nunol on 7/8/2023.
-//
-
 #include "GameLayer.h"
 
 #include <iostream>
@@ -15,8 +11,14 @@
     #pragma warning Unknown dynamic link import/export semantics.
 #endif
 
-extern "C" GAME_API void UpdateGame()
+extern "C" GAME_API void Update(double deltaTime)
 {
     // Your game update logic
-    std::cout << "Updating the game works." << std::endl;
+    //std::cout << "Updating the game works." << std::endl;
+}
+
+extern "C" GAME_API void Render()
+{
+    // Your game render logic
+    std::cout << "Render the game works." << std::endl;
 }
