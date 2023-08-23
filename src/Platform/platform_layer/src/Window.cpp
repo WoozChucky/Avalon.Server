@@ -11,6 +11,7 @@ Window::Window(const U16 width, const U16 height, const String& title) : dllLoad
     this->width = width;
     this->title = title;
     this->cursor = glfwCreateStandardCursor(GLFW_ARROW_CURSOR);
+    this->gameLayer = nullptr;
 
     handle = glfwCreateWindow(width, height, title.c_str(), nullptr, nullptr);
     glfwMakeContextCurrent(handle);
@@ -29,6 +30,12 @@ Window::Window(const U16 width, const U16 height, const String& title) : dllLoad
     });
 
     glfwSwapInterval(1);
+
+    this->gameLayer = new GameLayer {
+            reinterpret_cast<GameUpdateFunction>(dllLoader.GetFunction("Update")),
+            reinterpret_cast<GameRenderFunction>(dllLoader.GetFunction("Render")),
+            glfwGetTime()
+    };
 }
 
 std::unique_ptr<Window, void(*)(Window*)> Window::Create(U16 width, U16 height, const String& title) {
@@ -64,6 +71,8 @@ void Window::Update() {
     while (accumulatedTime >= timePerFrame) {
         // Update game state
 
+        this->gameLayer->update(deltaTime);
+
         accumulatedTime -= timePerFrame;
     }
 
@@ -71,6 +80,8 @@ void Window::Update() {
     glClear(GL_COLOR_BUFFER_BIT);
 
     // Render game state
+
+    this->gameLayer->render();
 
     // Swap front and back buffers
     glfwSwapBuffers(handle);
@@ -89,4 +100,32 @@ void Window::Update() {
 
 bool Window::IsRunning() const {
     return glfwWindowShouldClose(handle) == 0;
+}
+
+void Window::EnsureLatestGameLayer() {
+
+
+    if (this->gameLayer == nullptr) {
+        throw std::runtime_error("GameLayer is null");
+    }
+
+    auto lastLoadTime = this->gameLayer->loadTime;
+
+    if (IsGameLayerModified()) {
+        std::cout << "Reloading GameLayer" << std::endl;
+
+        this->gameLayer = nullptr;
+
+        this->dllLoader.
+
+        CopyFileToDir();
+
+        dllLoader.Reload();
+        this->gameLayer = new GameLayer {
+                reinterpret_cast<GameUpdateFunction>(dllLoader.GetFunction("Update")),
+                reinterpret_cast<GameRenderFunction>(dllLoader.GetFunction("Render")),
+                glfwGetTime()
+        };
+    }
+
 }

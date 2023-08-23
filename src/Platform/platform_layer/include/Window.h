@@ -5,6 +5,8 @@
 
 #include <memory>
 
+#include "../../game_layer/include/GameLayer.h"
+
 class Window {
 public:
     Window() = delete;
@@ -13,6 +15,8 @@ public:
     void Destroy();
 
     bool IsRunning() const;
+
+    void EnsureLatestGameLayer();
 
     virtual void Update();
 
@@ -24,6 +28,7 @@ private:
     std::string title;
 
     DLLLoader dllLoader;
+    GameLayer* gameLayer;
 
     bool running = false;
 

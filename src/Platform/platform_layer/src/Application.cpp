@@ -33,6 +33,7 @@ void Application::Destroy() {
 bool Application::Start() {
 
     while (window->IsRunning()) {
+        window->EnsureLatestGameLayer();
         window->Update();
     }
 

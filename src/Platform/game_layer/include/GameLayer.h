@@ -4,11 +4,14 @@ struct KeyEvent {
     int key;
 };
 
-typedef void (*GameUpdateFunction)();
+typedef void (*GameUpdateFunction)(double deltaTime);
 typedef void (*GameRenderFunction)();
 
-struct GameLayer {
+typedef struct GameLayer {
     GameUpdateFunction update;
     GameRenderFunction render;
+    double loadTime;
 } GameLayer;
+
+bool IsGameLayerModified();
 
