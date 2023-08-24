@@ -7,10 +7,13 @@
 #include <string>
 
 
+
 class Application {
 public:
     Application() = delete;
     Application(U16 height, U16 width, const String& title);
+
+    using Deleter = void(*)(Application*);
 
     void Destroy();
 
@@ -20,7 +23,7 @@ public:
 
     bool IsRunning() const;
 
-    static std::unique_ptr<Application, void(*)(Application*)> Create(U16 height, U16 width, const String& title);
+    static std::unique_ptr<Application, Deleter> Create(U16 height, U16 width, const String& title);
 
 private:
     U16 height;

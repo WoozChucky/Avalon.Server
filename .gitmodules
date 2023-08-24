@@ -13,3 +13,9 @@
 [submodule "src/Platform/vendor/boringssl"]
 	path = src/Platform/vendor/boringssl
 	url = https://boringssl.googlesource.com/boringssl
+[submodule "src/Platform/vendor/fmt"]
+	path = src/Platform/vendor/fmt
+	url = https://github.com/fmtlib/fmt
+[submodule "src/Platform/vendor/utfcpp"]
+	path = src/Platform/vendor/utfcpp
+	url = https://github.com/nemtrif/utfcpp
