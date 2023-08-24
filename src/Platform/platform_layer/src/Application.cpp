@@ -40,7 +40,7 @@ bool Application::Start() {
     return true;
 }
 
-std::unique_ptr<Application, void(*)(Application*)> Application::Create(U16 width, U16 height, const String& title) {
+std::unique_ptr<Application, Application::Deleter> Application::Create(U16 width, U16 height, const String& title) {
     return {
             new Application(width, height, title),
             [](Application *app) {

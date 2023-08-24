@@ -6,8 +6,6 @@
 
 #include <iostream>
 
-#include "Network/SSLCient.h"
-
 Window::Window(const U16 width, const U16 height, const String& title) : dllLoader("GameLayer") {
     this->height = height;
     this->width = width;
