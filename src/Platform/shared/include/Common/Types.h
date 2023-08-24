@@ -2,8 +2,10 @@
 
 #include <cstdint>
 #include <string>
+#include <string_view>
 
 #include <Utilities/advstd.h>
+
 
 using S8 = int8_t;
 using S16 = int16_t;
@@ -37,29 +39,6 @@ namespace Avalon {
     struct find_type_if<Check, T1, Ts...> : std::conditional_t<Check<T1>::value, advstd::type_identity<T1>, find_type_if<Check, Ts...>>
     {
     };
-
-    /*
-        Utility to find a type matching predicate (Check) in a given type list (Ts)
-        Evaluates to first type matching predicate or find_type_end
-        Check must be a type that contains static bool ::value, _v aliases don't work
-
-        template<typename... Ts>
-        struct Example
-        {
-            using TupleArg = Acore::find_type_if_t<Acore::is_tuple, Ts...>;
-
-            bool HasTuple()
-            {
-                return !std::is_same_v<TupleArg, Acore::find_type_end>;
-            }
-        };
-
-        Example<int, std::string, std::tuple<int, int, int>, char> example;
-        example.HasTuple() == true; // TupleArg is std::tuple<int, int, int>
-
-        Example<int, std::string, char> example2;
-        example2.HasTuple() == false; // TupleArg is Acore::find_type_end
-    */
 
     template<template<typename...> typename Check, typename... Ts>
     using find_type_if_t = typename find_type_if<Check, Ts...>::type;

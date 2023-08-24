@@ -32,7 +32,7 @@ namespace Avalon
 
     [[noreturn]] void AbortHandler(int sigval);
 
-} // namespace Acore
+}
 
 String GetDebugInfo();
 
