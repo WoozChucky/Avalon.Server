@@ -91,19 +91,7 @@ namespace Avalon {
         return s;
     }
 
-    String TrimRightInPlace(String& str)
-    {
-        int pos = int(str.size()) - 1;
-
-        while (pos >= 0 && std::isspace(str[pos]))
-        {
-            --pos;
-        }
-
-        str.resize(static_cast<std::basic_string<char, std::char_traits<char>, std::allocator<char>>::size_type>(pos) + 1);
-
-        return str;
-    }
+    String TrimRightInPlace(String& str);
 
     /**
      * @brief Util function to add a suffix char. Can be used to add a slash at the end of a path
@@ -112,11 +100,6 @@ namespace Avalon {
      * @param suffix Character to add at the end of the str
      * @return std::string Suffixed string
      */
-    String AddSuffixIfNotExists(String str, const char suffix) {
-        if (str.empty() || (str.at(str.length() - 1) != suffix))
-            str.push_back(suffix);
-
-        return str;
-    }
+    String AddSuffixIfNotExists(String str, const char suffix);
 
 }

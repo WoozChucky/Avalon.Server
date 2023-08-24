@@ -194,13 +194,6 @@ namespace Avalon::Containers
         return itr != map.end() ? AddressOrSelf(itr->second) : nullptr;
     }
 
-    /*
-     * @fn void Acore::Containers::RandomShuffle(C& container)
-     *
-     * @brief Reorder the elements of the container randomly.
-     *
-     * @param container Container to reorder
-     */
     template<class C>
     inline void RandomShuffle(C& container)
     {

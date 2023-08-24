@@ -1,0 +1,6 @@
+#pragma once
+
+#define AVALON_VERSION_MAJOR 0
+#define AVALON_VERSION_MINOR 1
+#define AVALON_VERSION_PATCH 0
+#define AVALON_VERSION_BUILD 0
