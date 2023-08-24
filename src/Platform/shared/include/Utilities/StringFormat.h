@@ -1,11 +1,23 @@
 #pragma once
 
 #include <Common/Types.h>
-
+#include <Utilities/advstd.h>
 #include <fmt/format.h>
 #include <fmt/printf.h>
 
 #include <locale>
+
+#include <Logging/LogCommon.h>
+#include <Logging/Appender.h>
+
+template<>
+struct fmt::formatter<LogLevel> : fmt::formatter<std::string>
+{
+    auto format(LogLevel my, format_context &ctx) const -> decltype(ctx.out())
+    {
+        return format_to(ctx.out(), "[{}]", Appender::getLogLevelString(my));
+    }
+};
 
 namespace Avalon {
 
