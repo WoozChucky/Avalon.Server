@@ -10,6 +10,9 @@
 #include <Logging/Logger.h>
 #include <Logging/Appender.h>
 #include <Logging/AppenderConsole.h>
+#include <Logging/AppenderFile.h>
+
+#include <Asio/Strand.h>
 
 #include <memory>
 
@@ -228,7 +231,7 @@ void Log::write(std::unique_ptr<LogMessage>&& msg) const
     if (_ioContext)
     {
         std::shared_ptr<LogOperation> logOperation = std::make_shared<LogOperation>(logger, std::move(msg));
-        Acore::Asio::post(*_ioContext, Acore::Asio::bind_executor(*_strand, [logOperation]() { logOperation->call(); }));
+        Avalon::Asio::post(*_ioContext, Avalon::Asio::bind_executor(*_strand, [logOperation]() { logOperation->call(); }));
     }
     else
         logger->write(msg.get());

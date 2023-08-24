@@ -18,16 +18,16 @@ using Minutes = std::chrono::minutes;
 using Hours = std::chrono::hours;
 
 /// Days shorthand typedef.
-using Days = std::chrono::days;
+using Days = std::chrono::duration<__INT64_TYPE__, std::ratio<86400>>;
 
 /// Weeks shorthand typedef.
-using Weeks = std::chrono::weeks;
+using Weeks = std::chrono::duration<__INT64_TYPE__, std::ratio<604800>>;
 
 /// Years shorthand typedef.
-using Years = std::chrono::years;
+using Years = std::chrono::duration<__INT64_TYPE__, std::ratio<31556952>>;
 
 /// Months shorthand typedef.
-using Months = std::chrono::months;
+using Months = std::chrono::duration<__INT64_TYPE__, std::ratio<2629746>>;
 
 /// time_point shorthand typedefs
 using TimePoint = std::chrono::steady_clock::time_point;

@@ -4,6 +4,7 @@
 #include <Utilities/StringFormat.h>
 #include <Utilities/StringConvert.h>
 #include <Utilities/Util.h>
+#include <Utilities/advstd.h>
 
 #include <Logging/Log.h>
 
