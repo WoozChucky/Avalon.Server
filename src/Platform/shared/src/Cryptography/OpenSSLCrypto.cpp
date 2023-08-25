@@ -60,7 +60,7 @@ void OpenSSLCrypto::threadsSetup()
     (void)&lockingCallback;
     CRYPTO_set_locking_callback(lockingCallback);
 #elif OPENSSL_VERSION_NUMBER >= 0x30000000L
-#if AV_PLATFORM == AV_PLATFORM_WINDOWS
+#if AV_PLATFORM == AV_PLATFORM_WIN
     SetupLibrariesForWindows();
 #endif
     LegacyProvider = OSSL_PROVIDER_load(nullptr, "legacy");
