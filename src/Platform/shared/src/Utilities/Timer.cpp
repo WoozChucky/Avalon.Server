@@ -207,7 +207,7 @@ std::string Avalon::Time::ToTimeString(Microseconds durationTime, TimeOutput tim
     return ToTimeString<Microseconds>(durationTime.count(), timeOutput, timeFormat);
 }
 
-#if AC_PLATFORM == AC_PLATFORM_WINDOWS
+#if AV_PLATFORM_WIN
 struct tm* localtime_r(time_t const* time, struct tm* result)
 {
     localtime_s(result, time);
@@ -229,7 +229,7 @@ std::tm Avalon::Time::TimeBreakdown(time_t time /*= 0*/)
 
 time_t Avalon::Time::LocalTimeToUTCTime(time_t time)
 {
-#if AC_PLATFORM == AC_PLATFORM_WINDOWS
+#if AV_PLATFORM_WIN
     return time + _timezone;
 #else
     return time + timezone;

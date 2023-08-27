@@ -16,7 +16,7 @@
 #include "FreezeDetector.h"
 #include "CommandLine/CliRunnable.h"
 #include "Game/World/World.h"
-#include "Game/World/WorldSocketMgr.h"
+#include "Server/WorldSocketMgr.h"
 
 
 namespace fs = std::filesystem;
@@ -87,7 +87,7 @@ int main(int argc, char** argv) {
     }
 
     boost::asio::signal_set signals(*ioContext, SIGINT, SIGTERM);
-#if AV_PLATFORM == AV_PLATFORM_WIN
+#if AV_PLATFORM_WIN
     signals.add(SIGBREAK);
 #endif
 
@@ -192,7 +192,7 @@ void SignalHandler(boost::system::error_code const& error, int /*signalNumber*/)
 {
     if (!error) {
         LOG_INFO("server.worldserver", "Signal received, shutting down world.");
-        // World::StopNow(SHUTDOWN_EXIT_CODE);
+        World::StopNow(SHUTDOWN_EXIT_CODE);
     }
 }
 

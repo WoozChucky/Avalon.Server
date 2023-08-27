@@ -1,10 +1,10 @@
 #include "WorldSocketMgr.h"
 
-#include <Configuration/ConfigManager.h>
-#include <Network/NetworkThread.h>
+#include "Configuration/ConfigManager.h"
+#include "Network/NetworkThread.h"
 
 #include "WorldSocket.h"
-#include <boost/system/error_code.hpp>
+#include "boost/system/error_code.hpp"
 
 class WorldSocketThread : public NetworkThread<WorldSocket>
 {

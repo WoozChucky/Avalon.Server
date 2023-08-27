@@ -428,7 +428,7 @@ std::wstring GetMainPartOfName(std::wstring const& wname, U32 declension)
 
 bool utf8ToConsole(std::string_view utf8str, std::string& conStr)
 {
-#if AC_PLATFORM == AC_PLATFORM_WINDOWS
+#if AV_PLATFORM_WIN
     std::wstring wstr;
     if (!Utf8toWStr(utf8str, wstr))
     {
@@ -447,7 +447,7 @@ bool utf8ToConsole(std::string_view utf8str, std::string& conStr)
 
 bool consoleToUtf8(std::string_view conStr, std::string& utf8str)
 {
-#if AV_PLATFORM == 0
+#if AV_PLATFORM_WIN
     std::wstring wstr;
     wstr.resize(conStr.size());
     OemToCharBuffW(&conStr[0], &wstr[0], U32(conStr.size()));
@@ -490,7 +490,7 @@ void utf8printf(FILE* out, const char* str, ...)
 
 void vutf8printf(FILE* out, const char* str, va_list* ap)
 {
-#if AC_PLATFORM == AC_PLATFORM_WINDOWS
+#if AV_PLATFORM_WIN
     char temp_buf[32 * 1024];
     wchar_t wtemp_buf[32 * 1024];
 

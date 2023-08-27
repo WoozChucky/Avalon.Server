@@ -2,7 +2,7 @@
 #include "Utilities/Timer.h"
 #include "../Time/GameTime.h"
 #include "../Chat/Chat.h"
-#include "../World/WorldSession.h"
+#include "../../Server/WorldSession.h"
 #include "../Entities/Player/Player.h"
 
 #include <Debugging/Errors.h>
