@@ -7,7 +7,7 @@
 #include <Utilities/Util.h>
 #include <Utilities/Optional.h>
 
-#if AC_PLATFORM == AC_PLATFORM_WINDOWS
+#if AV_PLATFORM_WIN
 #include <Windows.h>
 #endif
 
@@ -58,7 +58,7 @@ void AppenderConsole::InitColors(std::string const& name, std::string_view str)
 
 void AppenderConsole::SetColor(bool stdout_stream, ColorTypes color)
 {
-#if AC_PLATFORM == AC_PLATFORM_WINDOWS
+#if AV_PLATFORM_WIN
     static WORD WinColorFG[NUM_COLOR_TYPES] =
     {
         0,                                                  // BLACK
@@ -120,7 +120,7 @@ void AppenderConsole::SetColor(bool stdout_stream, ColorTypes color)
         BG_WHITE
     };
 
-    static uint8 UnixColorFG[NUM_COLOR_TYPES] =
+    static U8 UnixColorFG[NUM_COLOR_TYPES] =
     {
         FG_BLACK,                                          // BLACK
         FG_RED,                                            // RED
@@ -145,7 +145,7 @@ void AppenderConsole::SetColor(bool stdout_stream, ColorTypes color)
 
 void AppenderConsole::ResetColor(bool stdout_stream)
 {
-#if AC_PLATFORM == AC_PLATFORM_WINDOWS
+#if AV_PLATFORM_WIN
     HANDLE hConsole = GetStdHandle(stdout_stream ? STD_OUTPUT_HANDLE : STD_ERROR_HANDLE);
     SetConsoleTextAttribute(hConsole, FOREGROUND_BLUE | FOREGROUND_GREEN | FOREGROUND_RED);
 #else

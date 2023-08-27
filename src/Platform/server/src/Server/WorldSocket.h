@@ -1,17 +1,19 @@
 #pragma once
 
-#include "AuthCrypt.h"
-#include "Common.h"
+#include <Common/Types.h>
+
+#include "Cryptography/Authentication/AuthCrypt.h"
 #include "MPSCQueue.h"
-#include "ServerPktHeader.h"
+
+#include "Protocol/ServerPktHeader.h"
 #include "WorldPacket.h"
 
-#include <Network/Socket.h>
-#include <Utilities/Util.h>
+#include "Network/Socket.h"
+#include "Utilities/Util.h"
 
 #include "WorldSession.h"
 #include "Utilities/Duration.h"
-#include <boost/asio/ip/tcp.hpp>
+#include "boost/asio/ip/tcp.hpp"
 
 using boost::asio::ip::tcp;
 
@@ -39,8 +41,8 @@ namespace WorldPackets
 #pragma pack(push, 1)
 struct ClientPktHeader
 {
-    uint16 size;
-    uint32 cmd;
+    U16 size;
+    U32 cmd;
 
     bool IsValidSize() const { return size >= 4 && size < 10240; }
     bool IsValidOpcode() const { return cmd < NUM_OPCODE_HANDLERS; }
@@ -94,15 +96,15 @@ private:
     void HandleAuthSession(WorldPacket& recvPacket);
     void HandleAuthSessionCallback(std::shared_ptr<AuthSession> authSession, PreparedQueryResult result);
     void LoadSessionPermissionsCallback(PreparedQueryResult result);
-    void SendAuthResponseError(uint8 code);
+    void SendAuthResponseError(U8 code);
 
     bool HandlePing(WorldPacket& recvPacket);
 
-    std::array<uint8, 4> _authSeed;
+    std::array<U8, 4> _authSeed;
     AuthCrypt _authCrypt;
 
     TimePoint _LastPingTime;
-    uint32 _OverSpeedPings;
+    U32 _OverSpeedPings;
 
     std::mutex _worldSessionLock;
     WorldSession* _worldSession;

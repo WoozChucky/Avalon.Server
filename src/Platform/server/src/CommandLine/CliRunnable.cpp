@@ -7,9 +7,9 @@
 #include <fmt/core.h>
 
 
-#if AV_PLATFORM != AV_PLATFORM_WIN
-#include "Chat.h"
-#include "ChatCommand.h"
+#if AV_PLATFORM_UNIX
+//#include "Chat.h"
+//#include "ChatCommand.h"
 #include <cstring>
 #include <readline/history.h>
 #include <readline/readline.h>
@@ -107,7 +107,7 @@ void CliThread()
     if (sConfigMgr->GetOption<bool>("BeepAtStart", true))
         printf("\a"); // \a = Alert
 
-#if AV_PLATFORM == AV_PLATFORM_WIN
+#if AV_PLATFORM_WIN
     if (sConfigMgr->GetOption<bool>("FlashAtStart", true))
     {
         FLASHWINFO fInfo;
@@ -127,7 +127,7 @@ void CliThread()
 
         std::string command;
 
-#if AV_PLATFORM == AV_PLATFORM_WIN
+#if AV_PLATFORM_WIN
         wchar_t commandbuf[256];
         if (fgetws(commandbuf, sizeof(commandbuf), stdin))
         {
@@ -154,7 +154,7 @@ void CliThread()
             {
                 if (nextLineIndex == 0)
                 {
-#if AV_PLATFORM == AV_PLATFORM_WIN
+#if AV_PLATFORM_WIN
                     PrintCliPrefix();
 #endif
                     continue;
@@ -165,7 +165,7 @@ void CliThread()
 
             fflush(stdout);
             sWorld->QueueCliCommand(new CliCommandHolder(nullptr, command.c_str(), &utf8print, &commandFinished));
-#if AV_PLATFORM != AV_PLATFORM_WIN
+#if AV_PLATFORM_UNIX
             add_history(command.c_str());
 #endif
         }
