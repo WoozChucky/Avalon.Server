@@ -40,7 +40,7 @@ namespace Avalon::Impl
 
             GenericHMAC(U8 const* seed, size_t len) : _ctx(GenericHashImpl::MakeCTX()), _key(EVP_PKEY_new_mac_key(EVP_PKEY_HMAC, nullptr, seed, len))
             {
-                //EVP_PKEY_new_raw_private_key(EVP_PKEY_HMAC, nullptr, seed, len)
+                // EVP_PKEY_new_raw_private_key(EVP_PKEY_HMAC, nullptr, seed, len)
                 int result = EVP_DigestSignInit(_ctx, nullptr, HashCreator(), nullptr, _key);
                 ASSERT(result == 1);
             }

@@ -4,6 +4,7 @@ project(${This})
 file(GLOB_RECURSE SOURCES "src/*.cpp" "src/*.h" "include/*.h")
 
 include_directories(${CMAKE_SOURCE_DIR}/shared/include)
+include_directories("/opt/homebrew/Cellar/openssl@3/3.1.2/include")
 
 set(BOOST_ROOT ${CMAKE_SOURCE_DIR}/vendor/boost)
 
@@ -19,7 +20,6 @@ if(MariaDBClient_FOUND)
     include_directories(${MariaDBClient_INCLUDE_DIRS})
 endif()
 
-include_directories(${CMAKE_SOURCE_DIR}/vendor/boringssl/include)
 include_directories(${CMAKE_SOURCE_DIR}/vendor/boost_asio/include)
 include_directories(${CMAKE_SOURCE_DIR}/vendor/fmt/include)
 include_directories(${CMAKE_SOURCE_DIR}/vendor/SFMT)
@@ -52,4 +52,4 @@ if(WIN32)
 endif ()
 
 # Link the platform and game layers to the main executable
-target_link_libraries(${This} PRIVATE Shared fmt Boost::boost ssl crypto libmariadb)
+target_link_libraries(${This} PRIVATE Shared fmt Boost::boost OpenSSL:SSL OpenSSL:Crypto libmariadb)

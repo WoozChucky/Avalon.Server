@@ -27,7 +27,6 @@ add_subdirectory(vendor/imgui-docking)		#ui
 add_subdirectory(vendor/profilerLib)		#profiling, just a simpe library for measuring elapsed time
 add_subdirectory(vendor/gl2d)				#2D rendering library
 add_subdirectory(vendor/glui)				#ui library, usefull for making game menus
-add_subdirectory(vendor/boringssl)
 add_subdirectory(vendor/boost)
 add_subdirectory(vendor/boost_asio)
 add_subdirectory(vendor/fmt)

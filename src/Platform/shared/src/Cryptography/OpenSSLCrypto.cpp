@@ -28,7 +28,7 @@ OSSL_PROVIDER* LegacyProvider;
 OSSL_PROVIDER* DefaultProvider;
 #endif
 
-#if OPENSSL_VERSION_NUMBER >= 0x30000000L && AV_PLATFORM == AV_PLATFORM_WIN
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L && AV_PLATFORM_WIN
 #include <boost/dll/runtime_symbol_info.hpp>
 #include <filesystem>
 
@@ -60,7 +60,7 @@ void OpenSSLCrypto::threadsSetup()
     (void)&lockingCallback;
     CRYPTO_set_locking_callback(lockingCallback);
 #elif OPENSSL_VERSION_NUMBER >= 0x30000000L
-#if AV_PLATFORM == AV_PLATFORM_WIN
+#if AV_PLATFORM_WIN
     SetupLibrariesForWindows();
 #endif
     LegacyProvider = OSSL_PROVIDER_load(nullptr, "legacy");
