@@ -6,6 +6,7 @@ include_directories(${CMAKE_SOURCE_DIR}/vendor/boost_asio/include)
 include_directories(${CMAKE_SOURCE_DIR}/vendor/fmt/include)
 include_directories(${CMAKE_SOURCE_DIR}/vendor/SFMT)
 include_directories(${CMAKE_SOURCE_DIR}/vendor/utfcpp/source)
+include_directories("/opt/homebrew/Cellar/openssl@3/3.1.2/include")
 include_directories(include)
 
 set(BOOST_ROOT ${CMAKE_SOURCE_DIR}/vendor/boost)
@@ -33,7 +34,7 @@ endif()
 
 add_library(${This} STATIC ${SOURCES})
 
-target_link_libraries(${This} PRIVATE Boost::boost ssl crypto)
+target_link_libraries(${This} PRIVATE Boost::boost "/opt/homebrew/Cellar/openssl@3/3.1.2/lib/libssl" "/opt/homebrew/Cellar/openssl@3/3.1.2/lib/libcrypto")
 
 # Add an installation rule to copy the shared library to the output directory
 install(TARGETS ${This}

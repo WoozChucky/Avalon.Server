@@ -1,9 +1,8 @@
 #pragma once
 
 #include <Common/Types.h>
-
-#include <array>
 #include <openssl/evp.h>
+#include <array>
 
 namespace Avalon::Crypto
 {
