@@ -110,7 +110,7 @@ namespace Avalon::Impl::StringConvertImpl
         }
     };
 
-#if AC_COMPILER == AC_COMPILER_MICROSOFT
+#if 0
     template <typename T>
     struct For<T, std::enable_if_t<std::is_floating_point_v<T>>>
     {

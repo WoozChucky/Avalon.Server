@@ -22,7 +22,6 @@ namespace ByteConverter
     }
 }
 
-#warning This is a hack to get the server to compile. It should be fixed properly.
 #if 0
 template<typename T> inline void EndianConvert(T& val) { ByteConverter::apply<T>(&val); }
 template<typename T> inline void EndianConvertReverse(T&) { }
