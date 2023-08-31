@@ -1,19 +1,19 @@
 #pragma once
 
 #include <Common/Types.h>
-
-#include "Cryptography/Authentication/AuthCrypt.h"
+#include <Cryptography/Authentication/AuthCrypt.h>
 #include <Threading/MPSCQueue.h>
+#include <Network/Socket.h>
+#include <Utilities/Util.h>
+#include <Utilities/Duration.h>
+#include <Database/DatabaseEnvFwd.h>
+#include <Utilities/AsyncCallbackProcessor.h>
 
 #include "Protocol/ServerPktHeader.h"
 #include "WorldPacket.h"
-
-#include "Network/Socket.h"
-#include "Utilities/Util.h"
-
 #include "WorldSession.h"
-#include "Utilities/Duration.h"
-#include "boost/asio/ip/tcp.hpp"
+
+#include <boost/asio/ip/tcp.hpp>
 
 using boost::asio::ip::tcp;
 
@@ -84,6 +84,8 @@ protected:
     ReadDataHandlerResult ReadDataHandler();
 
 private:
+    void CheckIpCallback(PreparedQueryResult result);
+
     /// writes network.opcode log
     /// accessing WorldSession is not threadsafe, only do it when holding _worldSessionLock
     void LogOpcodeText(OpcodeClient opcode, std::unique_lock<std::mutex> const& guard) const;
@@ -92,6 +94,8 @@ private:
     void SendPacketAndLogOpcode(WorldPacket const& packet);
     void HandleSendAuthSession();
     void HandleAuthSession(WorldPacket& recvPacket);
+    void HandleAuthSessionCallback(std::shared_ptr<AuthSession> authSession, PreparedQueryResult result);
+    void LoadSessionPermissionsCallback(PreparedQueryResult result);
     void SendAuthResponseError(U8 code);
 
     bool HandlePing(WorldPacket& recvPacket);
@@ -111,5 +115,6 @@ private:
     MPSCQueue<EncryptablePacket, &EncryptablePacket::SocketQueueLink> _bufferQueue;
     std::size_t _sendBufferSize;
 
+    QueryCallbackProcessor _queryProcessor;
     std::string _ipCountry;
 };
