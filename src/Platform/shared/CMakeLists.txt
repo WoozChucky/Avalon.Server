@@ -7,6 +7,7 @@ include_directories(${CMAKE_SOURCE_DIR}/vendor/SFMT)
 include_directories(${CMAKE_SOURCE_DIR}/vendor/utfcpp/source)
 include_directories("/opt/homebrew/Cellar/openssl@3/3.1.2/include")
 include_directories(include)
+include_directories(${CMAKE_BINARY_DIR})
 
 set(BOOST_ROOT ${CMAKE_SOURCE_DIR}/vendor/boost)
 

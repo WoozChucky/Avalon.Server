@@ -2,20 +2,22 @@
 
 #include <Common/Types.h>
 
-#include "AccountMgr.h"
 #include <Configuration/ConfigManager.h>
 #include <Cryptography/CryptoRandom.h>
 #include <Cryptography/CryptoHash.h>
 #include <Database/DatabaseEnv.h>
+#include <Utilities/Random.h>
 
-#include "GameTime.h"
+#include "AccountMgr.h"
 #include "IPLocation.h"
-#include "Opcodes.h"
-#include "PacketLog.h"
-#include "Random.h"
 #include "Realm.h"
+
+#include "Protocol/PacketLog.h"
+#include "Protocol/Opcodes.h"
 #include "../Game/World/World.h"
+#include "../Time/GameTime.h"
 #include "WorldSession.h"
+
 #include <memory>
 
 using boost::asio::ip::tcp;
