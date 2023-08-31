@@ -1,7 +1,6 @@
 set(This Shared)
 
 # Vendor includes
-include_directories(${CMAKE_SOURCE_DIR}/vendor/boringssl/include)
 include_directories(${CMAKE_SOURCE_DIR}/vendor/boost_asio/include)
 include_directories(${CMAKE_SOURCE_DIR}/vendor/fmt/include)
 include_directories(${CMAKE_SOURCE_DIR}/vendor/SFMT)
@@ -28,13 +27,17 @@ elseif(UNIX AND NOT APPLE)
 elseif(APPLE)
 #    file(GLOB_RECURSE SOURCES "src/*.cpp" "src/*.h" "mac/src/*.cpp" "mac/src/*.h")
     add_definitions(-DAV_PLATFORM_UNIX)
+    set(SSL_LIBRARIES "/opt/homebrew/Cellar/openssl@3/3.1.2/lib/libssl.a")
+    set(CRYPTO_LIBRARIES "/opt/homebrew/Cellar/openssl@3/3.1.2/lib/libcrypto.a")
 else()
     message(FATAL_ERROR "Unsupported platform")
 endif()
 
+add_definitions(-D_BUILD_DIRECTIVE="${CMAKE_BUILD_TYPE}")
+
 add_library(${This} STATIC ${SOURCES})
 
-target_link_libraries(${This} PRIVATE Boost::boost "/opt/homebrew/Cellar/openssl@3/3.1.2/lib/libssl" "/opt/homebrew/Cellar/openssl@3/3.1.2/lib/libcrypto")
+target_link_libraries(${This} PRIVATE Boost::boost ${SSL_LIBRARIES} ${CRYPTO_LIBRARIES})
 
 # Add an installation rule to copy the shared library to the output directory
 install(TARGETS ${This}

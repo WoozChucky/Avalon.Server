@@ -4,6 +4,7 @@ project(${This})
 file(GLOB_RECURSE SOURCES "src/*.cpp" "src/*.h" "include/*.h")
 
 include_directories(${CMAKE_SOURCE_DIR}/shared/include)
+include_directories(${CMAKE_SOURCE_DIR}/database/include)
 include_directories("/opt/homebrew/Cellar/openssl@3/3.1.2/include")
 
 set(BOOST_ROOT ${CMAKE_SOURCE_DIR}/vendor/boost)
@@ -31,6 +32,8 @@ elseif(UNIX AND NOT APPLE)
     add_definitions(-DAV_PLATFORM_UNIX)
 elseif(APPLE)
     add_definitions(-DAV_PLATFORM_UNIX)
+    set(SSL_LIBRARIES "/opt/homebrew/Cellar/openssl@3/3.1.2/lib/libssl.a")
+    set(CRYPTO_LIBRARIES "/opt/homebrew/Cellar/openssl@3/3.1.2/lib/libcrypto.a")
 else()
     message(FATAL_ERROR "Unsupported platform")
 endif()
@@ -49,7 +52,14 @@ if(WIN32)
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
             ${MariaDBClient_LIBRARY}
             ${CMAKE_BINARY_DIR}/bin)
+
+    # Link the platform and game layers to the main executable
+    target_link_libraries(${This} PRIVATE Shared Database fmt Boost::boost ${SSL_LIBRARIES} ${CRYPTO_LIBRARIES} libmariadb)
 endif ()
 
-# Link the platform and game layers to the main executable
-target_link_libraries(${This} PRIVATE Shared fmt Boost::boost OpenSSL:SSL OpenSSL:Crypto libmariadb)
+if(UNIX)
+    # Link the platform and game layers to the main executable
+    target_link_libraries(${This} PRIVATE Shared Database fmt Boost::boost ${SSL_LIBRARIES} ${CRYPTO_LIBRARIES} ${MariaDBClient_LIBRARY})
+endif ()
+
+
