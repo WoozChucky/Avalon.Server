@@ -2,7 +2,7 @@
 
 #include "Versioning.h"
 
-#include <Utilities/StringFormat.h>
+#include <Common/Utilities/StringFormat.h>
 
 void Avalon::Banner::Show(std::string_view applicationName, void(*log)(std::string_view text), void(*logExtraInfo)())
 {

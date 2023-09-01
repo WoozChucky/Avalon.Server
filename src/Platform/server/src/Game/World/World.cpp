@@ -1,13 +1,13 @@
 #include "World.h"
-#include "Utilities/Timer.h"
+#include "Common/Utilities/Timer.h"
 #include "../Time/GameTime.h"
 #include "../Chat/Chat.h"
 #include "../../Server/WorldSession.h"
 #include "../Entities/Player/Player.h"
 
-#include <Debugging/Errors.h>
-#include <Logging/Log.h>
-#include <Configuration/ConfigManager.h>
+#include <Common/Debugging/Errors.h>
+#include <Common/Logging/Log.h>
+#include <Common/Configuration/ConfigManager.h>
 
 std::atomic_long World::_stopEvent = false;
 U8 World::_exitCode = SHUTDOWN_EXIT_CODE;

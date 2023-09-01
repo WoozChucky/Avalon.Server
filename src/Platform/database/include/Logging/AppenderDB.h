@@ -1,7 +1,7 @@
 #pragma once
 
 #include <Common/Types.h>
-#include <Logging/Appender.h>
+#include <Common/Logging/Appender.h>
 
 class AppenderDB : public Appender
 {

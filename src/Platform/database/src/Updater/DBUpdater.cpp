@@ -1,15 +1,14 @@
 #include <Updater/DBUpdater.h>
 
-#include <Configuration/ConfigManager.h>
+#include <Common/Configuration/ConfigManager.h>
 #include <Database/DatabaseEnv.h>
 #include <Database/DatabaseLoader.h>
-#include <Logging/Log.h>
+#include <Common/Logging/Log.h>
 #include <Database/QueryResult.h>
 #include <Updater/UpdateFetcher.h>
-
-#include <Configuration/BuiltInConfig.h>
-#include "GitRevision.h"
-#include <Utilities/StartProcess.h>
+#include <Common/Configuration/BuiltInConfig.h>
+#include <Common/GitRevision.h>
+#include <Common/Utilities/StartProcess.h>
 
 #include <filesystem>
 #include <fstream>

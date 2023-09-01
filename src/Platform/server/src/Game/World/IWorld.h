@@ -1,7 +1,7 @@
 #pragma once
 
 #include <Common/Types.h>
-#include <Utilities/Duration.h>
+#include <Common/Utilities/Duration.h>
 
 #include "unordered_map"
 

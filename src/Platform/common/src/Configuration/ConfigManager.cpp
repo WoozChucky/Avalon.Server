@@ -1,0 +1,480 @@
+#include <Common/Configuration/ConfigManager.h>
+
+#include <Common/Utilities/Tokenize.h>
+#include <Common/Utilities/StringFormat.h>
+#include <Common/Utilities/StringConvert.h>
+#include <Common/Utilities/Util.h>
+#include <Common/Utilities/advstd.h>
+
+#include <Common/Logging/Log.h>
+
+#include <cstdlib>
+#include <mutex>
+#include <unordered_map>
+#include <fstream>
+
+namespace {
+    String _filename;
+    std::vector<String> _additonalFiles;
+    std::vector<String> _args;
+    std::unordered_map<String /*name*/, String /*value*/> _configOptions;
+    std::mutex _configLock;
+
+    // Check system configs like *server.conf*
+    bool IsAppConfig(StringView fileName)
+    {
+        size_t foundConfig = fileName.find("avalon.conf");
+
+        return foundConfig != StringView::npos;
+    }
+
+    // Check logging system configs like Appender.* and Logger.*
+    bool IsLoggingSystemOptions(StringView optionName)
+    {
+        size_t foundAppender = optionName.find("Appender.");
+        size_t foundLogger = optionName.find("Logger.");
+
+        return foundAppender != std::string_view::npos || foundLogger != std::string_view::npos;
+    }
+
+    template<typename Format, typename... Args>
+    inline void PrintError(std::string_view filename, Format&& fmt, Args&& ... args)
+    {
+        std::string message = Avalon::StringFormatFmt(std::forward<Format>(fmt), std::forward<Args>(args)...);
+
+        if (IsAppConfig(filename))
+        {
+            fmt::print("{}\n", message);
+        }
+        else
+        {
+            LOG_ERROR("server.loading", message);
+        }
+    }
+
+    void AddKey(std::string const& optionName, std::string const& optionKey, std::string_view fileName, bool isOptional, [[maybe_unused]] bool isReload)
+    {
+        auto const& itr = _configOptions.find(optionName);
+
+        // Check old option
+        if (isOptional && itr == _configOptions.end())
+        {
+            if (!IsLoggingSystemOptions(optionName) && !isReload)
+            {
+                PrintError(fileName, "> Config::LoadFile: Found incorrect option '{}' in config file '{}'. Skip", optionName, fileName);
+
+#ifdef CONFIG_ABORT_INCORRECT_OPTIONS
+                ABORT("> Core can't start if found incorrect options");
+#endif
+
+                return;
+            }
+        }
+
+        // Check exit option
+        if (itr != _configOptions.end())
+        {
+            _configOptions.erase(optionName);
+        }
+
+        _configOptions.emplace(optionName, optionKey);
+    }
+
+    bool ParseFile(std::string const& file, bool isOptional, bool isReload)
+    {
+        std::ifstream in(file);
+
+        if (in.fail())
+        {
+            if (isOptional)
+            {
+                // No display erorr if file optional
+                return false;
+            }
+
+            throw ConfigException(Avalon::StringFormatFmt("Config::LoadFile: Failed open {}file '{}'", isOptional ? "optional " : "", file));
+        }
+
+        U32 count = 0;
+        U32 lineNumber = 0;
+        std::unordered_map<std::string /*name*/, std::string /*value*/> fileConfigs;
+
+        auto IsDuplicateOption = [&](std::string const& confOption)
+        {
+            auto const& itr = fileConfigs.find(confOption);
+            if (itr != fileConfigs.end())
+            {
+                PrintError(file, "> Config::LoadFile: Dublicate key name '{}' in config file '{}'", confOption, file);
+                return true;
+            }
+
+            return false;
+        };
+
+        while (in.good())
+        {
+            lineNumber++;
+            std::string line;
+            std::getline(in, line);
+
+            // read line error
+            if (!in.good() && !in.eof())
+            {
+                throw ConfigException(Avalon::StringFormatFmt("> Config::LoadFile: Failure to read line number {} in file '{}'", lineNumber, file));
+            }
+
+            // remove whitespace in line
+            line = Avalon::Trim(line, in.getloc());
+
+            if (line.empty())
+            {
+                continue;
+            }
+
+            // comments
+            if (line[0] == '#' || line[0] == '[')
+            {
+                continue;
+            }
+
+            size_t found = line.find_first_of('#');
+            if (found != std::string::npos)
+            {
+                line = line.substr(0, found);
+            }
+
+            auto const equal_pos = line.find('=');
+
+            if (equal_pos == std::string::npos || equal_pos == line.length())
+            {
+                PrintError(file, "> Config::LoadFile: Failure to read line number {} in file '{}'. Skip this line", lineNumber, file);
+                continue;
+            }
+
+            auto entry = Avalon::Trim(line.substr(0, equal_pos), in.getloc());
+            auto value = Avalon::Trim(line.substr(equal_pos + 1, std::string::npos), in.getloc());
+
+            value.erase(std::remove(value.begin(), value.end(), '"'), value.end());
+
+            // Skip if 2+ same options in one config file
+            if (IsDuplicateOption(entry))
+            {
+                continue;
+            }
+
+            // Add to temp container
+            fileConfigs.emplace(entry, value);
+            count++;
+        }
+
+        // No lines read
+        if (!count)
+        {
+            if (isOptional)
+            {
+                // No display erorr if file optional
+                return false;
+            }
+
+            throw ConfigException(Avalon::StringFormatFmt("Config::LoadFile: Empty file '{}'", file));
+        }
+
+        // Add correct keys if file load without errors
+        for (auto const& [entry, key] : fileConfigs)
+        {
+            AddKey(entry, key, file, isOptional, isReload);
+        }
+
+        return true;
+    }
+
+    bool LoadFile(std::string const& file, bool isOptional, bool isReload)
+    {
+        try
+        {
+            return ParseFile(file, isOptional, isReload);
+        }
+        catch (const std::exception& e)
+        {
+            PrintError(file, "> {}", e.what());
+        }
+
+        return false;
+    }
+
+    // Converts ini keys to the environment variable key (upper snake case).
+    // Example of conversions:
+    //   SomeConfig => SOME_CONFIG
+    //   myNestedConfig.opt1 => MY_NESTED_CONFIG_OPT_1
+    //   LogDB.Opt.ClearTime => LOG_DB_OPT_CLEAR_TIME
+    std::string IniKeyToEnvVarKey(std::string const& key)
+    {
+        std::string result;
+
+        const char* str = key.c_str();
+        size_t n = key.length();
+
+        char curr;
+        bool isEnd;
+        bool nextIsUpper;
+        bool currIsNumeric;
+        bool nextIsNumeric;
+
+        for (size_t i = 0; i < n; ++i)
+        {
+            curr = str[i];
+            if (curr == ' ' || curr == '.' || curr == '-')
+            {
+                result += '_';
+                continue;
+            }
+
+            isEnd = i == n - 1;
+            if (!isEnd)
+            {
+                nextIsUpper = isupper(str[i + 1]);
+
+                // handle "aB" to "A_B"
+                if (!isupper(curr) && nextIsUpper)
+                {
+                    result += static_cast<char>(std::toupper(curr));
+                    result += '_';
+                    continue;
+                }
+
+                currIsNumeric = isNumeric(curr);
+                nextIsNumeric = isNumeric(str[i + 1]);
+
+                // handle "a1" to "a_1"
+                if (!currIsNumeric && nextIsNumeric)
+                {
+                    result += static_cast<char>(std::toupper(curr));
+                    result += '_';
+                    continue;
+                }
+
+                // handle "1a" to "1_a"
+                if (currIsNumeric && !nextIsNumeric)
+                {
+                    result += static_cast<char>(std::toupper(curr));
+                    result += '_';
+                    continue;
+                }
+            }
+
+            result += static_cast<char>(std::toupper(curr));
+        }
+        return result;
+    }
+
+    Optional<std::string> EnvVarForIniKey(std::string const& key)
+    {
+        std::string envKey = "AC_" + IniKeyToEnvVarKey(key);
+        char* val = std::getenv(envKey.c_str());
+        if (!val)
+            return std::nullopt;
+
+        return std::string(val);
+    }
+}
+
+bool ConfigManager::LoadInitial(std::string const& file, bool isReload /*= false*/)
+{
+    std::lock_guard<std::mutex> lock(_configLock);
+    _configOptions.clear();
+    return LoadFile(file, false, isReload);
+}
+
+bool ConfigManager::LoadAdditionalFile(std::string file, bool isOptional /*= false*/, bool isReload /*= false*/)
+{
+    std::lock_guard<std::mutex> lock(_configLock);
+    return LoadFile(file, isOptional, isReload);
+}
+
+ConfigManager* ConfigManager::Instance()
+{
+    static ConfigManager instance;
+    return &instance;
+}
+
+bool ConfigManager::Reload()
+{
+    if (!LoadAppConfigs(true))
+    {
+        return false;
+    }
+
+    if (!LoadModulesConfigs(true, false))
+    {
+        return false;
+    }
+
+    OverrideWithEnvVariablesIfAny();
+
+    return true;
+}
+
+std::vector<std::string> ConfigManager::OverrideWithEnvVariablesIfAny()
+{
+    std::lock_guard<std::mutex> lock(_configLock);
+
+    std::vector<std::string> overriddenKeys;
+
+    for (auto& itr : _configOptions)
+    {
+        if (itr.first.empty())
+            continue;
+
+        Optional<std::string> envVar = EnvVarForIniKey(itr.first);
+        if (!envVar)
+            continue;
+
+        itr.second = *envVar;
+
+        overriddenKeys.push_back(itr.first);
+    }
+
+    return overriddenKeys;
+}
+
+std::vector<std::string> ConfigManager::GetKeysByString(std::string const& name)
+{
+    std::lock_guard<std::mutex> lock(_configLock);
+
+    std::vector<std::string> keys;
+
+    for (auto const& [optionName, key] : _configOptions)
+    {
+        if (!optionName.compare(0, name.length(), name))
+        {
+            keys.emplace_back(optionName);
+        }
+    }
+
+    return keys;
+}
+
+std::string const ConfigManager::GetFilename()
+{
+    std::lock_guard<std::mutex> lock(_configLock);
+    return _filename;
+}
+
+std::vector<std::string> const& ConfigManager::GetArguments() const
+{
+    return _args;
+}
+
+std::string const ConfigManager::GetConfigPath()
+{
+    std::lock_guard<std::mutex> lock(_configLock);
+
+#if AC_PLATFORM == AC_PLATFORM_WINDOWS
+    return "configs/";
+#else
+    return std::string(_CONF_DIR) + "/";
+#endif
+}
+
+void ConfigManager::Configure(std::string const& initFileName, std::vector<std::string> args, std::string_view modulesConfigList /*= {}*/)
+{
+    _filename = initFileName;
+    _args = std::move(args);
+
+    // Add modules config if exist
+    if (!modulesConfigList.empty())
+    {
+        for (auto const& itr : Avalon::Tokenize(modulesConfigList, ',', false))
+        {
+            _additonalFiles.emplace_back(itr);
+        }
+    }
+}
+
+bool ConfigManager::LoadAppConfigs(bool isReload /*= false*/)
+{
+    // #1 - Load init config file .conf
+    if (!LoadInitial(_filename, isReload))
+    {
+        return false;
+    }
+
+    return true;
+}
+
+bool ConfigManager::LoadModulesConfigs(bool isReload /*= false*/, bool isNeedPrintInfo /*= true*/)
+{
+    if (_additonalFiles.empty())
+    {
+        // Send successful load if no found files
+        return true;
+    }
+
+    if (isNeedPrintInfo)
+    {
+        LOG_INFO("server.loading", " ");
+        LOG_INFO("server.loading", "Loading Modules Configuration...");
+    }
+
+    // Start loading module configs
+    std::string const& moduleConfigPath = GetConfigPath() + "modules/";
+    bool isExistDefaultConfig = true;
+    bool isExistDistConfig = true;
+
+    for (auto const& distFileName : _additonalFiles)
+    {
+        std::string defaultFileName = distFileName;
+
+        if (!defaultFileName.empty())
+        {
+            defaultFileName.erase(defaultFileName.end() - 5, defaultFileName.end());
+        }
+
+        // Load .conf.dist config
+        isExistDistConfig = LoadAdditionalFile(moduleConfigPath + distFileName, false, isReload);
+
+        if (!isReload && !isExistDistConfig)
+        {
+            LOG_FATAL("server.loading", "> ConfigMgr::LoadModulesConfigs: Not found original config '{}'. Stop loading", distFileName);
+            ABORT();
+        }
+
+        // Load .conf config
+        isExistDefaultConfig = LoadAdditionalFile(moduleConfigPath + defaultFileName, true, isReload);
+
+        if (isExistDefaultConfig && isExistDistConfig)
+        {
+            _moduleConfigFiles.emplace_back(defaultFileName);
+        }
+        else if (!isExistDefaultConfig && isExistDistConfig)
+        {
+            _moduleConfigFiles.emplace_back(distFileName);
+        }
+    }
+
+    if (isNeedPrintInfo)
+    {
+        if (!_moduleConfigFiles.empty())
+        {
+            // Print modules configurations
+            LOG_INFO("server.loading", " ");
+            LOG_INFO("server.loading", "Using modules configuration:");
+
+            for (auto const& itr : _moduleConfigFiles)
+            {
+                LOG_INFO("server.loading", "> {}", itr);
+            }
+        }
+        else
+        {
+            LOG_INFO("server.loading", "> Not found modules config files");
+        }
+    }
+
+    if (isNeedPrintInfo)
+    {
+        LOG_INFO("server.loading", " ");
+    }
+
+    return true;
+}

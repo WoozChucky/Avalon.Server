@@ -1,9 +1,9 @@
 #pragma once
 
 #include "IWorld.h"
-#include "Threading/LockedQueue.h"
+#include "Common/Threading/LockedQueue.h"
 
-#include <Utilities/Timer.h>
+#include <Common/Utilities/Timer.h>
 
 #include <memory>
 #include <map>

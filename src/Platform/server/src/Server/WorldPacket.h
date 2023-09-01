@@ -1,8 +1,8 @@
 #pragma once
 
-#include "Packets/ByteBuffer.h"
+#include "Common/Packets/ByteBuffer.h"
 #include "Common/Types.h"
-#include "Utilities/Duration.h"
+#include "Common/Utilities/Duration.h"
 
 #include "Protocol/Opcodes.h"
 

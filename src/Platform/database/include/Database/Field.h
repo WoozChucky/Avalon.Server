@@ -1,8 +1,9 @@
 #pragma once
 
-#include "DatabaseEnvFwd.h"
+#include <Database/DatabaseEnvFwd.h>
 #include <Common/Types.h>
-#include <Utilities/Duration.h>
+#include <Common/Utilities/Duration.h>
+
 #include <array>
 #include <string_view>
 #include <vector>

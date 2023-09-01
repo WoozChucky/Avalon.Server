@@ -1,6 +1,6 @@
 #include "ObjectGuid.h"
 
-#include <Logging/Log.h>
+#include <Common/Logging/Log.h>
 #include "../../World/World.h"
 
 #include <iomanip>

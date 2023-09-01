@@ -1,7 +1,7 @@
 #include "FreezeDetector.h"
 
-#include <Logging/Log.h>
-#include <Debugging/Errors.h>
+#include <Common/Logging/Log.h>
+#include <Common/Debugging/Errors.h>
 
 void FreezeDetector::Handler(std::weak_ptr<FreezeDetector> freezeDetectorRef, boost::system::error_code const& error)
 {

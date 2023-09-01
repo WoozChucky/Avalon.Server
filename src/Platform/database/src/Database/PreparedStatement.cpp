@@ -1,7 +1,7 @@
 #include <Database/PreparedStatement.h>
 
-#include <Debugging/Errors.h>
-#include <Logging/Log.h>
+#include <Common/Debugging/Errors.h>
+#include <Common/Logging/Log.h>
 #include <Database/MySQLConnection.h>
 #include <Database/MySQLPreparedStatement.h>
 #include <Database/MySQLWorkaround.h>

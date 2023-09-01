@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Network/SocketMgr.h"
+#include "Common/Network/SocketMgr.h"
 
 class WorldSocket;
 

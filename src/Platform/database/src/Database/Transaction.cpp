@@ -1,10 +1,10 @@
 #include <Database/Transaction.h>
 
-#include <Debugging/Errors.h>
-#include <Logging/Log.h>
+#include <Common/Debugging/Errors.h>
+#include <Common/Logging/Log.h>
 #include <Database/MySQLConnection.h>
 #include <Database/PreparedStatement.h>
-#include <Utilities/Timer.h>
+#include <Common/Utilities/Timer.h>
 
 #include <mysqld_error.h>
 #include <sstream>

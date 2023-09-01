@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Debugging/Errors.h>
+#include <Common/Debugging/Errors.h>
 #include <vector>
 
 class ChatHandler

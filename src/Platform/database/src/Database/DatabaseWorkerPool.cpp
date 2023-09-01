@@ -1,9 +1,9 @@
 #include <Database/DatabaseWorkerPool.h>
 
 #include <Database/MySQLWorkaround.h>
-#include <Logging/Log.h>
-#include <Debugging/Errors.h>
-#include <Threading/PCQueue.h>
+#include <Common/Logging/Log.h>
+#include <Common/Debugging/Errors.h>
+#include <Common/Threading/PCQueue.h>
 #include <Database/SQLOperation.h>
 #include <Database/PreparedStatement.h>
 #include <Database/MySQLPreparedStatement.h>

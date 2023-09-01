@@ -1,7 +1,7 @@
 #include "PacketLog.h"
 
-#include <Configuration/ConfigManager.h>
-#include <Utilities/Timer.h>
+#include <Common/Configuration/ConfigManager.h>
+#include <Common/Utilities/Timer.h>
 
 #include "../../Time/GameTime.h"
 #include "../WorldPacket.h"

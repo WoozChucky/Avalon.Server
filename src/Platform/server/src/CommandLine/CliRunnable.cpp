@@ -1,7 +1,7 @@
 #include "CliRunnable.h"
 #include "../Game/World/IWorld.h"
-#include <Configuration/ConfigManager.h>
-#include <Debugging/Errors.h>
+#include <Common/Configuration/ConfigManager.h>
+#include <Common/Debugging/Errors.h>
 // #include "ObjectMgr.h"
 #include "../Game/World/World.h"
 #include <fmt/core.h>

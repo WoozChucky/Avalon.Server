@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Logging/Log.h>
+#include <Common/Logging/Log.h>
 
 #pragma pack(push, 1)
 
