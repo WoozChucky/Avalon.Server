@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Common/Packets/ByteBuffer.h"
+#include "Shared/Packets/ByteBuffer.h"
 #include "Common/Types.h"
 #include "Common/Utilities/Duration.h"
 

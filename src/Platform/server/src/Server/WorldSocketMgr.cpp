@@ -1,7 +1,7 @@
 #include "WorldSocketMgr.h"
 
-#include "Common/Configuration/ConfigManager.h"
-#include "Common/Network/NetworkThread.h"
+#include <Common/Configuration/ConfigManager.h>
+#include <Shared/Network/NetworkThread.h>
 
 #include "WorldSocket.h"
 #include "boost/system/error_code.hpp"

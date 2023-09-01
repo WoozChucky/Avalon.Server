@@ -1,4 +1,4 @@
-#include <Common/Packets/ByteBuffer.h>
+#include <Shared/Packets/ByteBuffer.h>
 
 #include <Common/Debugging/Errors.h>
 #include <Common/Logging/Log.h>
@@ -8,7 +8,7 @@
 
 #include <ctime>
 #include <sstream>
-#include "utf8.h"
+#include <utf8.h>
 
 ByteBuffer::ByteBuffer(MessageBuffer&& buffer) :
     _rpos(0), _wpos(0), _storage(buffer.Move()) { }

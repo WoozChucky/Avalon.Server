@@ -1,8 +1,8 @@
 #pragma once
 
-#include <Common/Network/AsyncAcceptor.h>
+#include <Shared/Network/AsyncAcceptor.h>
 #include <Common/Debugging/Errors.h>
-#include <Common/Network/NetworkThread.h>
+#include <Shared/Network/NetworkThread.h>
 
 #include <boost/asio/ip/tcp.hpp>
 #include <memory>
