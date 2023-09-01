@@ -2,6 +2,8 @@
 
 #include <Common/Types.h>
 #include <Database/DatabaseEnv.h>
+#include <Database/DatabaseEnvFwd.h>
+#include <Utilities/AsyncCallbackProcessor.h>
 #include <Utilities/CircularBuffer.h>
 #include <Cryptography/Authentication/AuthDefines.h>
 #include <Configuration/ConfigManager.h>
@@ -10,11 +12,13 @@
 #include "Packet.h"
 #include "../Game/World/World.h"
 #include "../Game/Accounts/AccountMgr.h"
+#include "../Game/Entities/Object/ObjectGuid.h"
 
 #include <map>
 #include <utility>
 
 class WorldSocket;
+class LoginQueryHolder;
 
 struct AccountData
 {
@@ -54,6 +58,35 @@ enum DeclinedNameResult
     DECLINED_NAMES_RESULT_SUCCESS = 0,
     DECLINED_NAMES_RESULT_ERROR = 1
 };
+
+enum AccountDataType
+{
+    GLOBAL_CONFIG_CACHE             = 0,                    // 0x01 g
+    PER_CHARACTER_CONFIG_CACHE      = 1,                    // 0x02 p
+    GLOBAL_BINDINGS_CACHE           = 2,                    // 0x04 g
+    PER_CHARACTER_BINDINGS_CACHE    = 3,                    // 0x08 p
+    GLOBAL_MACROS_CACHE             = 4,                    // 0x10 g
+    PER_CHARACTER_MACROS_CACHE      = 5,                    // 0x20 p
+    PER_CHARACTER_LAYOUT_CACHE      = 6,                    // 0x40 p
+    PER_CHARACTER_CHAT_CACHE        = 7,                    // 0x80 p
+};
+
+#define NUM_ACCOUNT_DATA_TYPES        8
+
+struct CharacterRenameInfo
+{
+    friend class WorldSession;
+
+protected:
+    ObjectGuid Guid;
+    std::string Name;
+};
+
+namespace WorldPackets {
+    namespace Character {
+        class PlayedTimeClient;
+    }
+}
 
 //class to deal with packet processing
 //allows to determine if next packet is safe to be processed
@@ -145,7 +178,6 @@ public:
     void SendPacket(WorldPacket const* packet);
     void SendNotification(const char* format, ...) ATTR_PRINTF(2, 3);
     void SendNotification(U32 string_id, ...);
-    void SendPartyResult(PartyOperation operation, std::string const& member, PartyResult res, U32 val = 0);
     void SendQueryTimeResponse();
 
     void SendAuthResponse(U8 code, bool shortForm, U32 queuePos = 0);
@@ -165,9 +197,6 @@ public:
 
     void SetTotalTime(U32 TotalTime) { m_total_time = TotalTime; }
     U32 GetTotalTime() const { return m_total_time; }
-
-    void InitWarden(SessionKey const&, std::string const& os);
-    Warden* GetWarden();
 
     /// Session in auth.queue currently
     void SetInQueue(bool state) { m_inQueue = state; }
@@ -257,14 +286,10 @@ public:                                                 // opcodes handlers
     void HandlePlayerLoginFromDB(LoginQueryHolder const& holder);
     void HandlePlayerLoginToCharInWorld(Player* pCurrChar);
     void HandlePlayerLoginToCharOutOfWorld(Player* pCurrChar);
-    void HandleCharFactionOrRaceChange(WorldPacket& recvData);
-    void HandleCharFactionOrRaceChangeCallback(std::shared_ptr<CharacterFactionChangeInfo> factionChangeInfo, PreparedQueryResult result);
 
     void SendCharCreate(ResponseCodes result);
     void SendCharDelete(ResponseCodes result);
     void SendCharRename(ResponseCodes result, CharacterRenameInfo const* renameInfo);
-    void SendCharCustomize(ResponseCodes result, CharacterCustomizeInfo const* customizeInfo);
-    void SendCharFactionChange(ResponseCodes result, CharacterFactionChangeInfo const* factionChangeInfo);
     void SendSetPlayerDeclinedNamesResult(DeclinedNameResult result, ObjectGuid guid);
 
     // played time
@@ -357,9 +382,6 @@ private:
     U32 _accountId;
     std::string _accountName;
     U32 m_total_time;
-
-    // Warden
-    std::unique_ptr<Warden> _warden;                    // Remains nullptr if Warden system is not enabled by config
 
     time_t _logoutTime;
     bool m_inQueue;                                     // session wait in auth.queue

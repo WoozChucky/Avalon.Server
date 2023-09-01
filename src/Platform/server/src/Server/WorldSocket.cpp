@@ -487,8 +487,7 @@ void WorldSocket::HandleAuthSessionCallback(std::shared_ptr<AuthSession> authSes
     }
 
     // Must be done before WorldSession is created
-    bool wardenActive = sConfigMgr->GetOption<bool>("Warden.Enabled", true);
-    if (wardenActive && account.OS != "Win" && account.OS != "OSX")
+    if (account.OS != "Win" && account.OS != "OSX")
     {
         SendAuthResponseError(AUTH_REJECT);
         LOG_ERROR("network", "WorldSocket::HandleAuthSession: Client {} attempted to log in using invalid client OS ({}).", address, account.OS);
@@ -597,12 +596,6 @@ void WorldSocket::HandleAuthSessionCallback(std::shared_ptr<AuthSession> authSes
                                      account.Security ? true : false, account.TotalTime);
 
     _worldSession->ReadAddonsInfo(authSession->AddonInfo);
-
-    // Initialize Warden system only if it is enabled by config
-    if (wardenActive)
-    {
-        _worldSession->InitWarden(account.SessionKey, account.OS);
-    }
 
     sWorld->AddSession(_worldSession);
 

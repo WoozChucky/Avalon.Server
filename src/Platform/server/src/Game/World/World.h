@@ -141,6 +141,7 @@ public:
 
     /// Are we on a "Player versus Player" server?
     void KickAll() override;
+    void KickAllLess(AccountTypes sec) override;
 
     // for max speed access
     static float GetMaxVisibleDistanceOnContinents()    { return _maxVisibleDistanceOnContinents; }

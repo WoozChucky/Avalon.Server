@@ -206,3 +206,5 @@ enum ResponseCodes
 };
 
 #define ATTR_PRINTF(F, V) __attribute__ ((format (printf, F, V)))
+#define UI64LIT(N) UINT64_C(N)
+#define SI64LIT(N) INT64_C(N)
