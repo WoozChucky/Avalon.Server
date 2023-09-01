@@ -6,8 +6,7 @@
 #include "../../Server/WorldSession.h"
 #include <Cryptography/Authentication/SRP6.h>
 
-#include "ObjectAccessor.h"
-#include "ScriptMgr.h"
+#include "../Globals/ObjectAccessor.h"
 
 namespace AccountMgr
 {
@@ -63,7 +62,7 @@ namespace AccountMgr
         {
             do
             {
-                ObjectGuid guid = ObjectGuid::Create<HighGuid::Player>((*result)[0].Get<uint32>());
+                ObjectGuid guid = ObjectGuid::Create<HighGuid::Player>((*result)[0].Get<U32>());
 
                 // Kick if player is online
                 if (Player* p = ObjectAccessor::FindPlayer(guid))
