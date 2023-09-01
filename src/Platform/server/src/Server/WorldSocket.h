@@ -3,7 +3,7 @@
 #include <Common/Types.h>
 #include <Common/Cryptography/Authentication/AuthCrypt.h>
 #include <Common/Threading/MPSCQueue.h>
-#include <Common/Network/Socket.h>
+#include <Shared/Network/Socket.h>
 #include <Common/Utilities/Util.h>
 #include <Common/Utilities/Duration.h>
 #include <Database/DatabaseEnvFwd.h>

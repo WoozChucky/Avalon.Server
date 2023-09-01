@@ -1,8 +1,5 @@
-set(This Server)
+set(This worldserver)
 project(${This})
-
-add_subdirectory(shared)
-add_subdirectory(apps)
 
 file(GLOB_RECURSE SOURCES "src/*.cpp" "src/*.h" "include/*.h")
 
