@@ -7,11 +7,11 @@
 #include <Cryptography/CryptoHash.h>
 #include <Database/DatabaseEnv.h>
 #include <Utilities/Random.h>
+#include <IPLocation/IPLocation.h>
 
-#include "AccountMgr.h"
-#include "IPLocation.h"
-#include "Realm.h"
+#include "../Game/Accounts/AccountMgr.h"
 
+#include "../Realms/Realm.h"
 #include "Protocol/PacketLog.h"
 #include "Protocol/Opcodes.h"
 #include "../Game/World/World.h"
@@ -247,9 +247,9 @@ struct AccountInfo
     std::string LockCountry;
     S64 MuteTime;
     LocaleConstant Locale;
-    U32 Recruiter;
+    // U32 Recruiter;
     std::string OS;
-    bool IsRectuiter;
+    // bool IsRectuiter;
     AccountTypes Security;
     bool IsBanned;
     U32 TotalTime;
@@ -273,12 +273,12 @@ struct AccountInfo
         // Expansion = fields[5].Get<U8>();
         MuteTime = fields[6].Get<S64>();
         Locale = LocaleConstant(fields[7].Get<U8>());
-        Recruiter = fields[8].Get<U32>();
+        // Recruiter = fields[8].Get<U32>();
         OS = fields[9].Get<std::string>();
         TotalTime = fields[10].Get<U32>();
         Security = AccountTypes(fields[11].Get<U8>());
         IsBanned = fields[12].Get<U64>() != 0;
-        IsRectuiter = fields[13].Get<U32>() != 0;
+        // IsRectuiter = fields[13].Get<U32>() != 0;
 
         if (Locale >= TOTAL_LOCALES)
             Locale = LOCALE_enUS;
@@ -433,7 +433,7 @@ void WorldSocket::HandleAuthSession(WorldPacket & recvPacket)
 
     // Get the account information from the auth database
     LoginDatabasePreparedStatement* stmt = LoginDatabase.GetPreparedStatement(LOGIN_SEL_ACCOUNT_INFO_BY_NAME);
-    stmt->SetData(0, int32(realm.Id.Realm));
+    stmt->SetData(0, S32(realm.Id.Realm));
     stmt->SetData(1, authSession->Account);
 
     _queryProcessor.AddCallback(LoginDatabase.AsyncQuery(stmt).WithPreparedCallback(std::bind(&WorldSocket::HandleAuthSessionCallback, this, authSession, std::placeholders::_1)));
@@ -487,7 +487,7 @@ void WorldSocket::HandleAuthSessionCallback(std::shared_ptr<AuthSession> authSes
     }
 
     // Must be done before WorldSession is created
-    bool wardenActive = sWorld->getBoolConfig(CONFIG_WARDEN_ENABLED);
+    bool wardenActive = sConfigMgr->GetOption<bool>("Warden.Enabled", true);
     if (wardenActive && account.OS != "Win" && account.OS != "OSX")
     {
         SendAuthResponseError(AUTH_REJECT);
@@ -497,7 +497,7 @@ void WorldSocket::HandleAuthSessionCallback(std::shared_ptr<AuthSession> authSes
     }
 
     // Check that Key and account name are the same on client and server
-    uint8 t[4] = { 0x00,0x00,0x00,0x00 };
+    U8 t[4] = { 0x00,0x00,0x00,0x00 };
 
     Avalon::Crypto::SHA1 sha;
     sha.UpdateData(authSession->Account);
@@ -526,7 +526,7 @@ void WorldSocket::HandleAuthSessionCallback(std::shared_ptr<AuthSession> authSes
             SendAuthResponseError(AUTH_FAILED);
             LOG_DEBUG("network", "WorldSocket::HandleAuthSession: Sent Auth Response (Account IP differs. Original IP: {}, new IP: {}).", account.LastIP, address);
             // We could log on hook only instead of an additional db log, however action logger is config based. Better keep DB logging as well
-            sScriptMgr->OnFailedAccountLogin(account.Id);
+            // sScriptMgr->OnFailedAccountLogin(account.Id);
             DelayedCloseSocket();
             return;
         }
@@ -538,7 +538,7 @@ void WorldSocket::HandleAuthSessionCallback(std::shared_ptr<AuthSession> authSes
             SendAuthResponseError(AUTH_FAILED);
             LOG_DEBUG("network", "WorldSocket::HandleAuthSession: Sent Auth Response (Account country differs. Original country: {}, new country: {}).", account.LockCountry, _ipCountry);
             // We could log on hook only instead of an additional db log, however action logger is config based. Better keep DB logging as well
-            sScriptMgr->OnFailedAccountLogin(account.Id);
+            // sScriptMgr->OnFailedAccountLogin(account.Id);
             DelayedCloseSocket();
             return;
         }
@@ -559,19 +559,19 @@ void WorldSocket::HandleAuthSessionCallback(std::shared_ptr<AuthSession> authSes
     {
         SendAuthResponseError(AUTH_BANNED);
         LOG_ERROR("network", "WorldSocket::HandleAuthSession: Sent Auth Response (Account banned).");
-        sScriptMgr->OnFailedAccountLogin(account.Id);
+        // sScriptMgr->OnFailedAccountLogin(account.Id);
         DelayedCloseSocket();
         return;
     }
 
     // Check locked state for server
     AccountTypes allowedAccountType = sWorld->GetPlayerSecurityLimit();
-    LOG_DEBUG("network", "Allowed Level: {} Player Level {}", allowedAccountType, account.Security);
+    LOG_DEBUG("network", "Allowed Level: {} Player Level {}", static_cast<U8>(allowedAccountType), static_cast<U8>(account.Security));
     if (allowedAccountType > SEC_PLAYER && account.Security < allowedAccountType)
     {
         SendAuthResponseError(AUTH_UNAVAILABLE);
         LOG_DEBUG("network", "WorldSocket::HandleAuthSession: User tries to login but his security level is not enough");
-        sScriptMgr->OnFailedAccountLogin(account.Id);
+        // sScriptMgr->OnFailedAccountLogin(account.Id);
         DelayedCloseSocket();
         return;
     }
@@ -586,14 +586,15 @@ void WorldSocket::HandleAuthSessionCallback(std::shared_ptr<AuthSession> authSes
     LoginDatabase.Execute(stmt);
 
     // At this point, we can safely hook a successful login
-    sScriptMgr->OnAccountLogin(account.Id);
+    // sScriptMgr->OnAccountLogin(account.Id);
 
     _authed = true;
 
-    sScriptMgr->OnLastIpUpdate(account.Id, address);
+    // sScriptMgr->OnLastIpUpdate(account.Id, address);
 
     _worldSession = new WorldSession(account.Id, std::move(authSession->Account), shared_from_this(), account.Security,
-        account.Expansion, account.MuteTime, account.Locale, account.Recruiter, account.IsRectuiter, account.Security ? true : false, account.TotalTime);
+                                     account.MuteTime, account.Locale,
+                                     account.Security ? true : false, account.TotalTime);
 
     _worldSession->ReadAddonsInfo(authSession->AddonInfo);
 
@@ -642,7 +643,7 @@ bool WorldSocket::HandlePing(WorldPacket& recvPacket)
         {
             ++_OverSpeedPings;
 
-            uint32 maxAllowed = sWorld->getIntConfig(CONFIG_MAX_OVERSPEED_PINGS);
+            U32 maxAllowed = sConfigMgr->GetOption<U32>("MaxOverspeedPings", 2);
 
             if (maxAllowed && _OverSpeedPings > maxAllowed)
             {
