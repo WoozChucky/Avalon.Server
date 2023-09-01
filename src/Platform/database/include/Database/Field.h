@@ -7,7 +7,7 @@
 #include <string_view>
 #include <vector>
 
-namespace Acore::Types
+namespace Avalon::Types
 {
     template <typename T>
     using is_chrono_v = std::enable_if_t<std::is_same_v<Milliseconds, T>
@@ -124,7 +124,7 @@ public:
     }
 
     template<typename T>
-    inline Acore::Types::is_chrono_v<T> Get(bool convertToUin32 = true) const
+    inline Avalon::Types::is_chrono_v<T> Get(bool convertToUin32 = true) const
     {
         return convertToUin32 ? T(GetData<U32>()) : T(GetData<U64>());
     }

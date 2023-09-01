@@ -10,7 +10,7 @@
 
 using boost::asio::ip::tcp;
 
-#define ACORE_MAX_LISTEN_CONNECTIONS boost::asio::socket_base::max_listen_connections
+#define AVALON_MAX_LISTEN_CONNECTIONS boost::asio::socket_base::max_listen_connections
 
 class AsyncAcceptor
 {
@@ -63,7 +63,7 @@ public:
             return false;
         }
 
-#if AV_PLATFORM != AV_PLATFORM_WIN
+#if AV_PLATFORM_WIN
         _acceptor.set_option(boost::asio::ip::tcp::acceptor::reuse_address(true), errorCode);
         if (errorCode)
         {
@@ -79,7 +79,7 @@ public:
             return false;
         }
 
-        _acceptor.listen(ACORE_MAX_LISTEN_CONNECTIONS, errorCode);
+        _acceptor.listen(AVALON_MAX_LISTEN_CONNECTIONS, errorCode);
         if (errorCode)
         {
             LOG_INFO("network", "Failed to start listening on {}:{} {}", _endpoint.address().to_string(), _endpoint.port(), errorCode.message());

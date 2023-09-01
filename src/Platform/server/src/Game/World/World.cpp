@@ -519,6 +519,15 @@ void World::KickAll()
         itr->second->KickPlayer("KickAll offline sessions");
 }
 
+void World::SetPlayerSecurityLimit(AccountTypes _sec)
+{
+    AccountTypes sec = _sec < SEC_CONSOLE ? _sec : SEC_PLAYER;
+    bool update = sec > _allowedSecurityLevel;
+    _allowedSecurityLevel = sec;
+    if (update)
+        KickAllLess(_allowedSecurityLevel);
+}
+
 /// Update the game time
 void World::_UpdateGameTime()
 {

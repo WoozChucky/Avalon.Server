@@ -1,3 +1,5 @@
+#pragma once
+
 #include "IWorld.h"
 #include "Threading/LockedQueue.h"
 
@@ -6,6 +8,10 @@
 #include <memory>
 #include <map>
 #include <list>
+
+struct Realm;
+
+extern Realm realm;
 
 enum ShutdownMask
 {
@@ -158,6 +164,9 @@ public:
     [[nodiscard]] std::string const& GetRealmName() const override { return _realmName; } // pussywizard
     void SetRealmName(std::string name) override { _realmName = name; } // pussywizard
 
+    [[nodiscard]] AccountTypes GetPlayerSecurityLimit() const override { return _allowedSecurityLevel; }
+    void SetPlayerSecurityLimit(AccountTypes sec) override;
+
 protected:
     void _UpdateGameTime();
     // callback for UpdateRealmCharacters
@@ -188,6 +197,7 @@ private:
     typedef std::map<U32, U64> WorldStatesMap;
     WorldStatesMap _worldstates;
     U32 _playerLimit;
+    AccountTypes _allowedSecurityLevel;
     U32 _availableDbcLocaleMask;                       // by loaded DBC
     void DetectDBCLang();
     bool _allowMovement;
