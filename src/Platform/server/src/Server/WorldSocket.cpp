@@ -2,12 +2,12 @@
 
 #include <Common/Types.h>
 
-#include <Configuration/ConfigManager.h>
-#include <Cryptography/CryptoRandom.h>
-#include <Cryptography/CryptoHash.h>
+#include <Common/Configuration/ConfigManager.h>
+#include <Common/Cryptography/CryptoRandom.h>
+#include <Common/Cryptography/CryptoHash.h>
 #include <Database/DatabaseEnv.h>
-#include <Utilities/Random.h>
-#include <IPLocation/IPLocation.h>
+#include <Common/Utilities/Random.h>
+#include <Common/IPLocation/IPLocation.h>
 
 #include "../Game/Accounts/AccountMgr.h"
 

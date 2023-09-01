@@ -1,6 +1,6 @@
 #include <Logging/AppenderDB.h>
 
-#include <Logging/LogMessage.h>
+#include <Common/Logging/LogMessage.h>
 #include <Database/DatabaseEnv.h>
 #include <Database/PreparedStatement.h>
 

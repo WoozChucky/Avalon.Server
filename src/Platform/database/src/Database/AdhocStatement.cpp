@@ -1,6 +1,6 @@
 #include <Database/AdhocStatement.h>
 
-#include <Debugging/Errors.h>
+#include <Common/Debugging/Errors.h>
 #include <Database/MySQLConnection.h>
 #include <Database/QueryResult.h>
 

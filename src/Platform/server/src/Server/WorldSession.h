@@ -3,10 +3,10 @@
 #include <Common/Types.h>
 #include <Database/DatabaseEnv.h>
 #include <Database/DatabaseEnvFwd.h>
-#include <Utilities/AsyncCallbackProcessor.h>
-#include <Utilities/CircularBuffer.h>
-#include <Cryptography/Authentication/AuthDefines.h>
-#include <Configuration/ConfigManager.h>
+#include <Common/Utilities/AsyncCallbackProcessor.h>
+#include <Common/Utilities/CircularBuffer.h>
+#include <Common/Cryptography/Authentication/AuthDefines.h>
+#include <Common/Configuration/ConfigManager.h>
 
 #include "WorldPacket.h"
 #include "Packet.h"

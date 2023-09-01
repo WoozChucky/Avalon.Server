@@ -1,9 +1,10 @@
 #pragma once
 
 #include <Common/Types.h>
-#include <Utilities/Optional.h>
-#include <Utilities/Duration.h>
-#include "SQLOperation.h"
+#include <Common/Utilities/Optional.h>
+#include <Common/Utilities/Duration.h>
+#include <Database/SQLOperation.h>
+
 #include <future>
 #include <tuple>
 #include <variant>

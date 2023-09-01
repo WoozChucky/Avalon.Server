@@ -1,9 +1,9 @@
 #include <Database/DatabaseLoader.h>
 
-#include <Configuration/ConfigManager.h>
+#include <Common/Configuration/ConfigManager.h>
 #include <Database/DatabaseEnv.h>
-#include <Utilities/Duration.h>
-#include <Logging/Log.h>
+#include <Common/Utilities/Duration.h>
+#include <Common/Logging/Log.h>
 #include <Updater/DBUpdater.h>
 
 #include <errmsg.h>

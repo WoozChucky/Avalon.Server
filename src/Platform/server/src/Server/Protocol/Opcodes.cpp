@@ -1,6 +1,6 @@
-
 #include "Opcodes.h"
-#include <Logging/Log.h>
+
+#include <Common/Logging/Log.h>
 #include "../Packets/AllPackets.h"
 #include "../WorldSession.h"
 #include <iomanip>

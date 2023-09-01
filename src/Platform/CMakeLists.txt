@@ -38,7 +38,8 @@ add_subdirectory(vendor/utfcpp)
 # Add subdirectories for each of the layers
 add_subdirectory(platform_layer)
 add_subdirectory(game_layer)
-add_subdirectory(shared)
+
+add_subdirectory(common)
 add_subdirectory(database)
 add_subdirectory(client)
 add_subdirectory(server)

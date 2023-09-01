@@ -1,13 +1,13 @@
 #pragma once
 
 #include <Common/Types.h>
-#include <Cryptography/Authentication/AuthCrypt.h>
-#include <Threading/MPSCQueue.h>
-#include <Network/Socket.h>
-#include <Utilities/Util.h>
-#include <Utilities/Duration.h>
+#include <Common/Cryptography/Authentication/AuthCrypt.h>
+#include <Common/Threading/MPSCQueue.h>
+#include <Common/Network/Socket.h>
+#include <Common/Utilities/Util.h>
+#include <Common/Utilities/Duration.h>
 #include <Database/DatabaseEnvFwd.h>
-#include <Utilities/AsyncCallbackProcessor.h>
+#include <Common/Utilities/AsyncCallbackProcessor.h>
 
 #include "Protocol/ServerPktHeader.h"
 #include "WorldPacket.h"

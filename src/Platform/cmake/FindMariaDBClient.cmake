@@ -66,9 +66,6 @@ endif ()
 
 set(CMAKE_FIND_LIBRARY_SUFFIXES ${BAK_CMAKE_FIND_LIBRARY_SUFFIXES})
 
-message(STATUS "MariaDBClient_INCLUDE_DIR: ${MariaDBClient_INCLUDE_DIR}")
-message(STATUS "MariaDBClient_LIBRARY: ${MariaDBClient_LIBRARY}")
-
 include(FindPackageHandleStandardArgs)
 find_package_handle_standard_args(MariaDBClient DEFAULT_MSG MariaDBClient_LIBRARY MariaDBClient_INCLUDE_DIR)
 

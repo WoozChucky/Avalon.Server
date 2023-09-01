@@ -1,11 +1,10 @@
 #include "Database/QueryResult.h"
 
-#include "Debugging/Errors.h"
-#include "Logging/Log.h"
-
-#include "Database/Field.h"
-#include "Database/MySQLHacks.h"
-#include "Database/MySQLWorkaround.h"
+#include <Common/Logging/Log.h>
+#include <Common/Debugging/Errors.h>
+#include <Database/Field.h>
+#include <Database/MySQLHacks.h>
+#include <Database/MySQLWorkaround.h>
 
 namespace
 {

@@ -1,11 +1,11 @@
 #include <Updater/UpdateFetcher.h>
 
-#include <Cryptography/CryptoHash.h>
+#include <Common/Cryptography/CryptoHash.h>
 #include <Updater/DBUpdater.h>
 #include <Database/Field.h>
-#include <Logging/Log.h>
-#include <Utilities/Tokenize.h>
-#include <Utilities/Util.h>
+#include <Common/Logging/Log.h>
+#include <Common/Utilities/Tokenize.h>
+#include <Common/Utilities/Util.h>
 
 #include <fstream>
 #include <sstream>

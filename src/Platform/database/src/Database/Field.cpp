@@ -1,9 +1,9 @@
 #include <Database/Field.h>
 
-#include <Debugging/Errors.h>
-#include <Logging/Log.h>
+#include <Common/Debugging/Errors.h>
+#include <Common/Logging/Log.h>
 #include <Database/MySQLHacks.h>
-#include <Utilities/StringConvert.h>
+#include <Common/Utilities/StringConvert.h>
 
 Field::Field()
 {

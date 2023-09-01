@@ -1,8 +1,8 @@
 
 
 #include "Realm.h"
-#include <Asio/IpAddress.h>
-#include <Asio/IpNetwork.h>
+#include <Common/Asio/IpAddress.h>
+#include <Common/Asio/IpNetwork.h>
 
 #include <boost/asio/ip/tcp.hpp>
 

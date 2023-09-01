@@ -1,7 +1,7 @@
 #include <Database/QueryCallback.h>
 
-#include <Utilities/Duration.h>
-#include <Debugging/Errors.h>
+#include <Common/Utilities/Duration.h>
+#include <Common/Debugging/Errors.h>
 
 template<typename T, typename... Args>
 inline void Construct(T& t, Args&&... args)

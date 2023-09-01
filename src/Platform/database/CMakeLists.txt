@@ -15,8 +15,9 @@ if(Boost_FOUND)
 endif()
 
 include_directories(${CMAKE_SOURCE_DIR}/vendor/fmt/include)
-include_directories(${CMAKE_SOURCE_DIR}/shared/include)
 include_directories("/opt/homebrew/Cellar/openssl@3/3.1.2/include")
+
+include_directories(${CMAKE_SOURCE_DIR}/common/include)
 
 include_directories(include)
 
@@ -56,9 +57,9 @@ if(WIN32)
             ${MariaDBClient_LIBRARY}
             ${CMAKE_BINARY_DIR}/bin)
 
-    target_link_libraries(${This} PRIVATE fmt Shared Boost::boost libmariadb ${SSL_LIBRARIES} ${CRYPTO_LIBRARIES})
+    target_link_libraries(${This} PRIVATE fmt Common Boost::boost libmariadb ${SSL_LIBRARIES} ${CRYPTO_LIBRARIES})
 endif ()
 
 if(UNIX)
-    target_link_libraries(${This} PRIVATE fmt Shared Boost::boost ${MariaDBClient_LIBRARY} ${SSL_LIBRARIES} ${CRYPTO_LIBRARIES})
+    target_link_libraries(${This} PRIVATE fmt Common Boost::boost ${MariaDBClient_LIBRARY} ${SSL_LIBRARIES} ${CRYPTO_LIBRARIES})
 endif ()

@@ -2,9 +2,9 @@
 
 #include <Database/DatabaseEnv.h>
 #include "../Entities/Player/Player.h"
-#include <Utilities/Util.h>
+#include <Common/Utilities/Util.h>
 #include "../../Server/WorldSession.h"
-#include <Cryptography/Authentication/SRP6.h>
+#include <Common/Cryptography/Authentication/SRP6.h>
 
 #include "../Globals/ObjectAccessor.h"
 

@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Asio/AsioHacksFwd.h>
+#include <Common/Asio/AsioHacksFwd.h>
 #include <Common/Types.h>
 
 enum RealmFlags

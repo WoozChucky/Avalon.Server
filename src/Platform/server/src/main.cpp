@@ -1,8 +1,8 @@
-#include <Logging/Log.h>
-#include <Configuration/ConfigManager.h>
-#include <Asio/IoContext.h>
-#include <Cryptography/OpenSSLCrypto.h>
-#include <Threading/ProcessPriority.h>
+#include <Common/Logging/Log.h>
+#include <Common/Configuration/ConfigManager.h>
+#include <Common/Asio/IoContext.h>
+#include <Common/Cryptography/OpenSSLCrypto.h>
+#include <Common/Threading/ProcessPriority.h>
 
 #include <openssl/crypto.h>
 #include <boost/asio/signal_set.hpp>

@@ -1,6 +1,6 @@
 #include <Database/DatabaseWorker.h>
 
-#include <Threading/PCQueue.h>
+#include <Common/Threading/PCQueue.h>
 #include <Database/SQLOperation.h>
 
 DatabaseWorker::DatabaseWorker(ProducerConsumerQueue<SQLOperation*>* newQueue, MySQLConnection* connection)

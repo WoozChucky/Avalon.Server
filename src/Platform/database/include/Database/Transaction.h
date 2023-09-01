@@ -1,9 +1,10 @@
 #pragma once
 
-#include "DatabaseEnvFwd.h"
+#include <Database/DatabaseEnvFwd.h>
 #include <Common/Types.h>
-#include "SQLOperation.h"
-#include <Utilities/StringFormat.h>
+#include <Database/SQLOperation.h>
+#include <Common/Utilities/StringFormat.h>
+
 #include <functional>
 #include <mutex>
 #include <utility>

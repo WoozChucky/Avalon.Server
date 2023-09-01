@@ -1,10 +1,10 @@
 #include <Database/MySQLConnection.h>
 
-#include <Logging/Log.h>
-#include <Utilities/Timer.h>
-#include <Utilities/Tokenize.h>
-#include <Utilities/StringConvert.h>
-#include <Utilities/Util.h>
+#include <Common/Logging/Log.h>
+#include <Common/Utilities/Timer.h>
+#include <Common/Utilities/Tokenize.h>
+#include <Common/Utilities/StringConvert.h>
+#include <Common/Utilities/Util.h>
 
 #include <Database/DatabaseWorker.h>
 #include <Database/MySQLHacks.h>

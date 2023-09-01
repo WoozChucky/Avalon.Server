@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Utilities/Duration.h>
+#include <Common/Utilities/Duration.h>
 
 namespace GameTime
 {

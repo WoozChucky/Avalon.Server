@@ -1,7 +1,7 @@
 #include "ObjectAccessor.h"
 
-#include <Logging/Log.h>
-#include <Utilities/Util.h>
+#include <Common/Logging/Log.h>
+#include <Common/Utilities/Util.h>
 
 #include "../../Server/Protocol/Opcodes.h"
 #include "../Entities/Player/Player.h"

@@ -1,7 +1,7 @@
 #pragma once
 
 #include <Common/Types.h>
-#include <Packets/ByteBuffer.h>
+#include <Common/Packets/ByteBuffer.h>
 
 #include <deque>
 #include <functional>
