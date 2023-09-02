@@ -8,10 +8,13 @@
 #include <Common/Debugging/Errors.h>
 #include <Common/Logging/Log.h>
 #include <Common/Configuration/ConfigManager.h>
+#include <Shared/Realms/Realm.h>
 
 std::atomic_long World::_stopEvent = false;
 U8 World::_exitCode = SHUTDOWN_EXIT_CODE;
 U32 World::m_worldLoopCounter = 0;
+
+Realm realm;
 
 /// World constructor
 World::World()
@@ -690,3 +693,16 @@ void World::UpdateMaxSessionCounters()
     _maxQueuedSessionCount = std::max(_maxQueuedSessionCount, U32(_queuedPlayer.size()));
 }
 
+void World::LoadDBVersion()
+{
+    QueryResult result = WorldDatabase.Query("SELECT db_version, cache_id FROM version LIMIT 1");
+    if (result)
+    {
+        Field* fields = result->Fetch();
+
+        _dbVersion = fields[0].Get<std::string>();
+    }
+
+    if (_dbVersion.empty())
+        _dbVersion = "Unknown world database.";
+}

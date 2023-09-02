@@ -2,7 +2,6 @@
 
 #include "IWorld.h"
 #include "Common/Threading/LockedQueue.h"
-#include "Shared/Realms/Realm.h"
 
 #include <Common/Utilities/Timer.h>
 
@@ -10,7 +9,9 @@
 #include <map>
 #include <list>
 
-Realm realm;
+struct Realm;
+
+extern Realm realm;
 
 enum ShutdownMask
 {
@@ -166,6 +167,8 @@ public:
 
     [[nodiscard]] AccountTypes GetPlayerSecurityLimit() const override { return _allowedSecurityLevel; }
     void SetPlayerSecurityLimit(AccountTypes sec) override;
+
+    void LoadDBVersion() override;
 
 protected:
     void _UpdateGameTime();

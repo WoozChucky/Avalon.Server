@@ -144,14 +144,14 @@ bool DatabaseLoader::Load()
     if (!OpenDatabases())
         return false;
 
-    if (!PopulateDatabases())
-        return false;
+    //if (!PopulateDatabases())
+    //    return false;
 
-    if (!UpdateDatabases())
-        return false;
+    //if (!UpdateDatabases())
+    //    return false;
 
-    if (!PrepareStatements())
-        return false;
+    //if (!PrepareStatements())
+    //    return false;
 
     return true;
 }

@@ -106,4 +106,5 @@ public:
     virtual void SetRealmName(std::string name) = 0;
     [[nodiscard]] virtual AccountTypes GetPlayerSecurityLimit() const = 0;
     virtual void SetPlayerSecurityLimit(AccountTypes sec) = 0;
+    virtual void LoadDBVersion() = 0;
 };
