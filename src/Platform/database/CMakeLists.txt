@@ -1,39 +1,10 @@
 set(This Database)
 
-find_package(MariaDBClient REQUIRED)
-
-if(MariaDBClient_FOUND)
-    include_directories(${MariaDBClient_INCLUDE_DIRS})
-endif()
-
-set(BOOST_ROOT ${CMAKE_SOURCE_DIR}/vendor/boost)
-
-find_package(Boost REQUIRED)
-
-if(Boost_FOUND)
-    include_directories(${Boost_INCLUDE_DIRS})
-endif()
-
-include_directories(${CMAKE_SOURCE_DIR}/vendor/fmt/include)
-include_directories("/opt/homebrew/Cellar/openssl@3/3.1.2/include")
-
 include_directories(${CMAKE_SOURCE_DIR}/common/include)
 
 include_directories(include)
 
 file(GLOB_RECURSE SOURCES "src/*.cpp" "src/*.h" "src/**/*.h" "include/*.h" "include/**/*.h")
-
-if (WIN32)
-    add_definitions(-DAV_PLATFORM_WIN)
-elseif(UNIX AND NOT APPLE)
-    add_definitions(-DAV_PLATFORM_UNIX)
-elseif(APPLE)
-    add_definitions(-DAV_PLATFORM_UNIX)
-    set(SSL_LIBRARIES "/opt/homebrew/Cellar/openssl@3/3.1.2/lib/libssl.a")
-    set(CRYPTO_LIBRARIES "/opt/homebrew/Cellar/openssl@3/3.1.2/lib/libcrypto.a")
-else()
-    message(FATAL_ERROR "Unsupported platform")
-endif()
 
 add_library(${This} STATIC ${SOURCES})
 

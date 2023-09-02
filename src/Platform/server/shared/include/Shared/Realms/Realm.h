@@ -3,6 +3,8 @@
 #include <Common/Asio/AsioHacksFwd.h>
 #include <Common/Types.h>
 
+#include <memory>
+
 enum RealmFlags
 {
     REALM_FLAG_NONE             = 0x00,

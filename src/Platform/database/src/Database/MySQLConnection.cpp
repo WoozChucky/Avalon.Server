@@ -95,7 +95,7 @@ U32 MySQLConnection::Open()
     }
     else                                                    // generic case
     {
-        port = *Avalon::StringTo<uint32>(m_connectionInfo.port_or_socket);
+        port = *Avalon::StringTo<U32>(m_connectionInfo.port_or_socket);
         unix_socket = 0;
     }
 #else
