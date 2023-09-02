@@ -5,7 +5,7 @@
 
 #include <boost/asio/ip/tcp.hpp>
 
-boost::asio::ip::tcp_endpoint Realm::GetAddressForClient(boost::asio::ip::address const& clientAddr) const
+boost::asio::ip::basic_endpoint<boost::asio::ip::tcp> Realm::GetAddressForClient(boost::asio::ip::address const& clientAddr) const
 {
     boost::asio::ip::address realmIp;
 
@@ -37,5 +37,5 @@ boost::asio::ip::tcp_endpoint Realm::GetAddressForClient(boost::asio::ip::addres
     }
 
     // Return external IP
-    return boost::asio::ip::tcp_endpoint(realmIp, Port);
+    return boost::asio::ip::basic_endpoint<boost::asio::ip::tcp>(realmIp, Port);
 }

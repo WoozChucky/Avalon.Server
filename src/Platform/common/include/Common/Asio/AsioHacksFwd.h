@@ -5,7 +5,8 @@
 /**
   Collection of forward declarations to improve compile time
  */
-namespace boost::posix_time
+/*
+ namespace boost::posix_time
 {
     class ptime;
 }
@@ -26,6 +27,7 @@ namespace boost::asio::ip
 
     typedef basic_endpoint<tcp> tcp_endpoint;
 }
+*/
 
 namespace Avalon::Asio
 {

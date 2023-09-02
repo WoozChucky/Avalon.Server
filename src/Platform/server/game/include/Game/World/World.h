@@ -2,6 +2,7 @@
 
 #include "IWorld.h"
 #include "Common/Threading/LockedQueue.h"
+#include "Shared/Realms/Realm.h"
 
 #include <Common/Utilities/Timer.h>
 
@@ -9,9 +10,7 @@
 #include <map>
 #include <list>
 
-struct Realm;
-
-extern Realm realm;
+Realm realm;
 
 enum ShutdownMask
 {
