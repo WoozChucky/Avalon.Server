@@ -2,6 +2,7 @@
 
 #include <Common/Asio/AsioHacksFwd.h>
 #include <Common/Types.h>
+#include <boost/asio.hpp>
 
 #include <memory>
 
@@ -62,5 +63,5 @@ struct Realm
     AccountTypes AllowedSecurityLevel;
     float PopulationLevel;
 
-    [[nodiscard]] boost::asio::ip::tcp_endpoint GetAddressForClient(boost::asio::ip::address const& clientAddr) const;
+    [[nodiscard]] boost::asio::ip::basic_endpoint<boost::asio::ip::tcp> GetAddressForClient(boost::asio::ip::address const& clientAddr) const;
 };
