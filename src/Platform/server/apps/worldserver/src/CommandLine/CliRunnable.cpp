@@ -24,7 +24,7 @@ static inline void PrintCliPrefix()
     fmt::print(CLI_PREFIX);
 }
 
-#if AV_PLATFORM != AV_PLATFORM_WIN
+#if AV_PLATFORM_UNIX
 namespace Avalon::Impl::Readline
 {
     static std::vector<std::string> vec;
@@ -57,7 +57,7 @@ namespace Avalon::Impl::Readline
 
 void utf8print(void* /*arg*/, std::string_view str)
 {
-#if AV_PLATFORM == AV_PLATFORM_WIN
+#if AV_PLATFORM_WIN
     fmt::print(str);
 #else
 {
@@ -91,7 +91,7 @@ int kb_hit_return()
 /// %Thread start
 void CliThread()
 {
-#if AV_PLATFORM == AV_PLATFORM_WIN
+#if AV_PLATFORM_WIN
     // print this here the first time
     // later it will be printed after command queue updates
     PrintCliPrefix();

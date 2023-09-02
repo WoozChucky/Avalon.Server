@@ -157,8 +157,9 @@ bool DatabaseWorkerPool<T>::PrepareStatements()
                 {
                     U32 const paramCount = stmt->GetParameterCount();
 
+
                     // WH only supports uint8 indices.
-                    ASSERT(paramCount < std::numeric_limits<U8>::max());
+                    ASSERT(paramCount < UCHAR_MAX);
 
                     _preparedStatementSize[i] = static_cast<U8>(paramCount);
                 }

@@ -21,7 +21,6 @@ add_subdirectory(vendor/glfw-3.3.8)			#window oppener
 add_subdirectory(vendor/glad)				#opengl loader
 add_subdirectory(vendor/stb_image)			#loading immaged
 add_subdirectory(vendor/stb_truetype)		#loading ttf files
-#add_subdirectory(vendor/enet-1.3.17)		#networking
 add_subdirectory(vendor/raudio)				#audio
 add_subdirectory(vendor/glm)				#math
 add_subdirectory(vendor/imgui-docking)		#ui
@@ -38,6 +37,45 @@ add_subdirectory(vendor/utfcpp)
 # Add subdirectories for each of the layers
 add_subdirectory(platform_layer)
 add_subdirectory(game_layer)
+
+include_directories(${CMAKE_SOURCE_DIR}/vendor/boost_asio/include)
+include_directories(${CMAKE_SOURCE_DIR}/vendor/fmt/include)
+include_directories(${CMAKE_SOURCE_DIR}/vendor/SFMT)
+include_directories(${CMAKE_SOURCE_DIR}/vendor/utfcpp/source)
+
+set(BOOST_ROOT ${CMAKE_SOURCE_DIR}/vendor/boost)
+
+find_package(Boost REQUIRED)
+
+if(Boost_FOUND)
+    include_directories(${Boost_INCLUDE_DIRS})
+endif()
+
+find_package(MariaDBClient REQUIRED)
+
+if(MariaDBClient_FOUND)
+    include_directories(${MariaDBClient_INCLUDE_DIRS})
+endif()
+
+if (WIN32)
+    add_definitions(-DAV_PLATFORM_WIN)
+    set(OPENSSL_INCLUDE_DIR "C:/Program Files/OpenSSL-Win64/include")
+    include_directories(${OPENSSL_INCLUDE_DIR})
+    set(SSL_LIBRARIES "C:/Program Files/OpenSSL-Win64/lib/libssl.lib")
+    set(CRYPTO_LIBRARIES "C:/Program Files/OpenSSL-Win64/lib/libcrypto.lib")
+elseif(UNIX AND NOT APPLE)
+    add_definitions(-DAV_PLATFORM_UNIX)
+elseif(APPLE)
+    add_definitions(-DAV_PLATFORM_UNIX)
+    set(OPENSSL_INCLUDE_DIR "/opt/homebrew/Cellar/openssl@3/3.1.2/include")
+    include_directories(${OPENSSL_INCLUDE_DIR})
+    set(SSL_LIBRARIES "/opt/homebrew/Cellar/openssl@3/3.1.2/lib/libssl.a")
+    set(CRYPTO_LIBRARIES "/opt/homebrew/Cellar/openssl@3/3.1.2/lib/libcrypto.a")
+else()
+    message(FATAL_ERROR "Unsupported platform")
+endif()
+
+add_definitions(-D_BUILD_DIRECTIVE="${CMAKE_BUILD_TYPE}")
 
 add_subdirectory(common)
 add_subdirectory(database)

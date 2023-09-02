@@ -7,38 +7,6 @@ include_directories(${CMAKE_SOURCE_DIR}/common/include)
 include_directories(${CMAKE_SOURCE_DIR}/database/include)
 include_directories(${CMAKE_SOURCE_DIR}/server/shared/include)
 include_directories(${CMAKE_SOURCE_DIR}/server/game/include)
-include_directories("/opt/homebrew/Cellar/openssl@3/3.1.2/include")
-
-set(BOOST_ROOT ${CMAKE_SOURCE_DIR}/vendor/boost)
-
-find_package(Boost REQUIRED)
-
-if(Boost_FOUND)
-    include_directories(${Boost_INCLUDE_DIRS})
-endif()
-
-find_package(MariaDBClient REQUIRED)
-
-if(MariaDBClient_FOUND)
-    include_directories(${MariaDBClient_INCLUDE_DIRS})
-endif()
-
-include_directories(${CMAKE_SOURCE_DIR}/vendor/boost_asio/include)
-include_directories(${CMAKE_SOURCE_DIR}/vendor/fmt/include)
-include_directories(${CMAKE_SOURCE_DIR}/vendor/SFMT)
-include_directories(${CMAKE_SOURCE_DIR}/vendor/utfcpp/source)
-
-if (WIN32)
-    add_definitions(-DAV_PLATFORM_WIN)
-elseif(UNIX AND NOT APPLE)
-    add_definitions(-DAV_PLATFORM_UNIX)
-elseif(APPLE)
-    add_definitions(-DAV_PLATFORM_UNIX)
-    set(SSL_LIBRARIES "/opt/homebrew/Cellar/openssl@3/3.1.2/lib/libssl.a")
-    set(CRYPTO_LIBRARIES "/opt/homebrew/Cellar/openssl@3/3.1.2/lib/libcrypto.a")
-else()
-    message(FATAL_ERROR "Unsupported platform")
-endif()
 
 add_executable(${This} ${SOURCES})
 
@@ -55,13 +23,22 @@ if(WIN32)
             ${MariaDBClient_LIBRARY}
             ${CMAKE_BINARY_DIR}/bin)
 
+    find_package(Boost REQUIRED COMPONENTS filesystem)
+
     # Link the platform and game layers to the main executable
-    target_link_libraries(${This} PRIVATE Common Database Game fmt Boost::boost ${SSL_LIBRARIES} ${CRYPTO_LIBRARIES} libmariadb)
+    # Boost::boost
+    # "C:/local/Personal/Avalon.Server/src/Platform/vendor/boost/stage/lib/libboost_filesystem-mt-x64.lib"
+    # "C:/local/Personal/Avalon.Server/src/Platform/vendor/boost/stage/lib/libboost_filesystem-clang16-mt-s-x64-1_84.lib"
+    # "C:/local/Personal/Avalon.Server/src/Platform/vendor/boost/stage/lib/libboost_filesystem-clang16-mt-x64-1_84.lib"
+    # ${CMAKE_SOURCE_DIR}/vendor/boost/stage/lib/libboost_filesystem-clang16-mt-x64-1_83.lib
+    # ${CMAKE_SOURCE_DIR}/vendor/boost/stage/lib/libboost_filesystem-clangw16-mt-x64-1_83.lib
+    # libboost_filesystem-clang16-mt-s-x64-1_84.lib
+    target_link_libraries(${This} PRIVATE Common Database Game Boost::filesystem Boost::boost fmt ${SSL_LIBRARIES} ${CRYPTO_LIBRARIES} libmariadb)
 endif ()
 
 if(UNIX)
     # Link the platform and game layers to the main executable
-    target_link_libraries(${This} PRIVATE Common Database Game fmt Boost::boost ${SSL_LIBRARIES} ${CRYPTO_LIBRARIES} ${MariaDBClient_LIBRARY})
+    target_link_libraries(${This} PRIVATE Common Database Game Boost::boost fmt ${SSL_LIBRARIES} ${CRYPTO_LIBRARIES} ${MariaDBClient_LIBRARY})
 endif ()
 
 
