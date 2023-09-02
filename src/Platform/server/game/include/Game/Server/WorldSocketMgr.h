@@ -1,8 +1,7 @@
 #pragma once
 
-#include "Shared/Network/SocketMgr.h"
-
-class WorldSocket;
+#include <Shared/Network/SocketMgr.h>
+#include <Game/Server/WorldSocket.h>
 
 /// Manages all sockets connected to peers and network threads
 class WorldSocketMgr : public SocketMgr<WorldSocket>

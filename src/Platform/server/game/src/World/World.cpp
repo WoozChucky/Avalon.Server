@@ -519,6 +519,15 @@ void World::KickAll()
         itr->second->KickPlayer("KickAll offline sessions");
 }
 
+/// Kick (and save) all players with security level less `sec`
+void World::KickAllLess(AccountTypes sec)
+{
+    // session not removed at kick and will removed in next update tick
+    for (SessionMap::const_iterator itr = _sessions.begin(); itr != _sessions.end(); ++itr)
+        if (itr->second->GetSecurity() < sec)
+            itr->second->KickPlayer("KickAllLess");
+}
+
 void World::SetPlayerSecurityLimit(AccountTypes _sec)
 {
     AccountTypes sec = _sec < SEC_CONSOLE ? _sec : SEC_PLAYER;
