@@ -1,4 +1,4 @@
-set(This worldserver)
+set(This Worldserver)
 project(${This})
 
 file(GLOB_RECURSE SOURCES "src/*.cpp" "src/*.h" "include/*.h")
@@ -6,6 +6,7 @@ file(GLOB_RECURSE SOURCES "src/*.cpp" "src/*.h" "include/*.h")
 include_directories(${CMAKE_SOURCE_DIR}/common/include)
 include_directories(${CMAKE_SOURCE_DIR}/database/include)
 include_directories(${CMAKE_SOURCE_DIR}/server/shared/include)
+include_directories(${CMAKE_SOURCE_DIR}/server/game/include)
 include_directories("/opt/homebrew/Cellar/openssl@3/3.1.2/include")
 
 set(BOOST_ROOT ${CMAKE_SOURCE_DIR}/vendor/boost)
@@ -55,12 +56,12 @@ if(WIN32)
             ${CMAKE_BINARY_DIR}/bin)
 
     # Link the platform and game layers to the main executable
-    target_link_libraries(${This} PRIVATE Common Database fmt Boost::boost ${SSL_LIBRARIES} ${CRYPTO_LIBRARIES} libmariadb)
+    target_link_libraries(${This} PRIVATE Common Database Game fmt Boost::boost ${SSL_LIBRARIES} ${CRYPTO_LIBRARIES} libmariadb)
 endif ()
 
 if(UNIX)
     # Link the platform and game layers to the main executable
-    target_link_libraries(${This} PRIVATE Common Database fmt Boost::boost ${SSL_LIBRARIES} ${CRYPTO_LIBRARIES} ${MariaDBClient_LIBRARY})
+    target_link_libraries(${This} PRIVATE Common Database Game fmt Boost::boost ${SSL_LIBRARIES} ${CRYPTO_LIBRARIES} ${MariaDBClient_LIBRARY})
 endif ()
 
 
