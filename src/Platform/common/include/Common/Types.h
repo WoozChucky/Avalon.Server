@@ -205,6 +205,11 @@ enum ResponseCodes
     CHAR_NAME_DECLENSION_DOESNT_MATCH_BASE_NAME            = 0x67
 };
 
-#define ATTR_PRINTF(F, V) __attribute__ ((format (printf, F, V)))
+#if AV_PLATFORM_WIN
+    #define ATTR_PRINTF(F, V)
+#elif AV_PLATFORM_UNIX
+    #define ATTR_PRINTF(F, V) __attribute__ ((format (printf, F, V)))
+#endif
+
 #define UI64LIT(N) UINT64_C(N)
 #define SI64LIT(N) INT64_C(N)

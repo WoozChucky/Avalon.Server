@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <chrono>
 
 /// Microseconds shorthand typedef.
@@ -18,16 +19,16 @@ using Minutes = std::chrono::minutes;
 using Hours = std::chrono::hours;
 
 /// Days shorthand typedef.
-using Days = std::chrono::duration<__INT64_TYPE__, std::ratio<86400>>;
+using Days = std::chrono::duration<int64_t, std::ratio<86400>>;
 
 /// Weeks shorthand typedef.
-using Weeks = std::chrono::duration<__INT64_TYPE__, std::ratio<604800>>;
+using Weeks = std::chrono::duration<int64_t, std::ratio<604800>>;
 
 /// Years shorthand typedef.
-using Years = std::chrono::duration<__INT64_TYPE__, std::ratio<31556952>>;
+using Years = std::chrono::duration<int64_t, std::ratio<31556952>>;
 
 /// Months shorthand typedef.
-using Months = std::chrono::duration<__INT64_TYPE__, std::ratio<2629746>>;
+using Months = std::chrono::duration<int64_t, std::ratio<2629746>>;
 
 /// time_point shorthand typedefs
 using TimePoint = std::chrono::steady_clock::time_point;

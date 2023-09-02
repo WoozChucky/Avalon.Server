@@ -23,7 +23,7 @@ if(WIN32)
             ${MariaDBClient_LIBRARY}
             ${CMAKE_BINARY_DIR}/bin)
 
-    find_package(Boost REQUIRED COMPONENTS filesystem)
+    find_package(Boost REQUIRED) #COMPONENTS filesystem
 
     # Link the platform and game layers to the main executable
     # Boost::boost
