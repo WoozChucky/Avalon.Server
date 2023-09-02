@@ -4,9 +4,11 @@
 #include <Common/Cryptography/OpenSSLCrypto.h>
 #include <Common/Threading/ProcessPriority.h>
 #include <Database/MySQLThreading.h>
+#include <Database/DatabaseEnv.h>
 #include <Common/Banner.h>
 #include <Game/World/World.h>
 #include <Game/Server/WorldSocketMgr.h>
+#include <Shared/Realms/RealmList.h>
 
 #include <openssl/crypto.h>
 #include <boost/asio/signal_set.hpp>
@@ -16,7 +18,8 @@
 
 #include "FreezeDetector.h"
 #include "CommandLine/CliRunnable.h"
-
+#include "Database/DatabaseLoader.h"
+#include "Common/GitRevision.h"
 
 
 namespace fs = std::filesystem;
@@ -30,6 +33,8 @@ void SignalHandler(boost::system::error_code const& error, int /*signalNumber*/)
 
 bool StartDB();
 void StopDB();
+
+void ClearOnlineAccounts();
 
 void ShutdownCLIThread(std::thread* cliThread);
 
@@ -156,6 +161,11 @@ int main(int argc, char** argv) {
         sWorldSocketMgr.StopNetwork();
     });
 
+    // Set server online (allow connecting now)
+    // LoginDatabase.DirectExecute("UPDATE realmlist SET flag = flag & ~{}, population = 0 WHERE id = '{}'", U32(REALM_FLAG_VERSION_MISMATCH), realm.Id.Realm);
+    realm.PopulationLevel = 0.0f;
+    realm.Flags = RealmFlags(realm.Flags & ~U32(REALM_FLAG_VERSION_MISMATCH));
+
     // Start the freeze check callback cycle in 5 seconds (cycle itself is 1 sec)
     std::shared_ptr<FreezeDetector> freezeDetector;
     if (S32 coreStuckTime = sConfigMgr->GetOption<S32>("MaxCoreStuckTime", 60))
@@ -183,6 +193,9 @@ int main(int argc, char** argv) {
 
     sLog->SetSynchronous();
 
+    // set server offline
+    LoginDatabase.DirectExecute("UPDATE realmlist SET flag = flag | {} WHERE id = '{}'", U32(REALM_FLAG_OFFLINE), realm.Id.Realm);
+
     LOG_INFO("server.worldserver", "Halting process...");
 
     return World::GetExitCode();
@@ -209,12 +222,68 @@ bool StartDB()
 
     LOG_INFO("server.worldserver", "> Using MariaDb version:           {}.{}.{}", version / 10000, version / 100 % 1000, version % 100);
 
+    // Load databases
+    DatabaseLoader loader("server.worldserver", DatabaseLoader::DATABASE_NONE, "");
+    loader
+            .AddDatabase(LoginDatabase, "Login")
+            .AddDatabase(CharacterDatabase, "Character")
+            .AddDatabase(WorldDatabase, "World");
+
+    if (!loader.Load())
+        return false;
+
+    ///- Get the realm Id from the configuration file
+    realm.Id.Realm = sConfigMgr->GetOption<U32>("RealmID", 0);
+    if (!realm.Id.Realm)
+    {
+        LOG_ERROR("server.worldserver", "Realm ID not defined in configuration file");
+        return false;
+    }
+    else if (realm.Id.Realm > 255)
+    {
+        /*
+         * Due to the client only being able to read a realm.Id.Realm
+         * with a size of uint8 we can "only" store up to 255 realms
+         * anything further the client will behave anormaly
+        */
+        LOG_ERROR("server.worldserver", "Realm ID must range from 1 to 255");
+        return false;
+    }
+
+    LOG_INFO("server.loading", "Loading World Information...");
+    LOG_INFO("server.loading", "> RealmID:              {}", realm.Id.Realm);
+
+    ///- Clean the database before starting
+    //ClearOnlineAccounts();
+
+    ///- Insert version info into DB
+    //WorldDatabase.Execute("UPDATE version SET core_version = '{}', core_revision = '{}'", GitRevision::GetFullVersion(), GitRevision::GetHash());        // One-time query
+
+    //sWorld->LoadDBVersion();
+
+    LOG_INFO("server.loading", "> Version DB world:     {}", sWorld->GetDBVersion());
+
     return true;
 }
 
 void StopDB()
 {
+    CharacterDatabase.Close();
+    WorldDatabase.Close();
+    LoginDatabase.Close();
+
     MySQL::Library_End();
+}
+
+/// Clear 'online' status for all accounts with characters in this realm
+void ClearOnlineAccounts()
+{
+    // Reset online status for all accounts with characters on the current realm
+    // pussywizard: tc query would set online=0 even if logged in on another realm >_>
+    LoginDatabase.DirectExecute("UPDATE account SET online = 0 WHERE online = {}", realm.Id.Realm);
+
+    // Reset online status for all characters
+    CharacterDatabase.DirectExecute("UPDATE characters SET online = 0 WHERE online <> 0");
 }
 
 void ShutdownCLIThread(std::thread* cliThread)
