@@ -212,7 +212,7 @@ public partial class AvalonGame : IAvalonGame
         // Broadcast player positions
         foreach (var session in _connectionManager.GetInGameSessions())
         {
-            if (session.Character == null) continue;
+            if (session?.Character == null) continue;
             
             var packet = SPlayerPositionUpdatePacket.Create(
                 session.AccountId,
@@ -225,7 +225,10 @@ public partial class AvalonGame : IAvalonGame
                 session.Character.ElapsedGameTime
             );
             
-            foreach (var creature in _mapManager.GetInstance(session.Character.Map, Guid.Parse(session.Character.InstanceId))!.Creatures.Values)
+            var mapInstance = _mapManager.GetInstance(session.Character.Map, Guid.Parse(session.Character.InstanceId));
+            if (mapInstance == null) continue;
+            
+            foreach (var creature in mapInstance.Creatures.Values)
             {
                 var creaturePacket = SNpcUpdatePacket.Create(
                     creature.Id,
@@ -296,7 +299,7 @@ public partial class AvalonGame : IAvalonGame
     public Task HandleMovementPacket(IRemoteSource source, CPlayerMovementPacket packet)
     {
         var session = _connectionManager.GetSession(packet.AccountId);
-        if (session == null || !session.InGame) return Task.CompletedTask;
+        if (session is not { InGame: true }) return Task.CompletedTask;
         
         Vector2 velocity;
         
@@ -319,7 +322,7 @@ public partial class AvalonGame : IAvalonGame
     public async Task HandleMapTeleportPacket(IRemoteSource source, CMapTeleportPacket packet)
     {
         var session = _connectionManager.GetSession(packet.AccountId);
-        if (session == null || session.Character == null) return;
+        if (session?.Character == null) return;
 
         if (packet.MapId == session.Character.Map)
         {
