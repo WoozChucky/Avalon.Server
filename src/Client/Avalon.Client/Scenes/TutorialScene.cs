@@ -118,28 +118,14 @@ public class TutorialScene : Scene
     {
         Console.WriteLine(Globals.MapInfo);
         await Load(Globals.MapInfo);
+        Console.WriteLine("TutorialScene loaded");
     }
 
     public override void Unload()
     {
         MediaPlayer.Stop();
-        if (_timer != null)
-        {
-            _timer.Stop();
-            _timer.Elapsed -= OnTimerElapsed;
-            _timer.Dispose();
-        }
-        Globals.Tcp.PlayerConnected -= OnPlayerConnected;
-        Globals.Tcp.PlayerDisconnected -= OnPlayerDisconnected;
-        Globals.Tcp.GroupInvite -= OnPlayerGroupInvited;
-        Globals.Tcp.PlayerMoved -= OnPlayerMoved;
-        Globals.Tcp.NpcUpdated -= OnNpcUpdated;
-        Globals.Tcp.Logout -= OnLogout;
-        Globals.Tcp.MapTeleport -= OnMapTeleport;
-        
-        Globals.Udp.PlayerMoved -= OnPlayerMoved;
-        Globals.Udp.NpcUpdated -= OnNpcUpdated;
-        Globals.Udp.LatencyUpdated -= OnLatencyUpdated;
+        RemovePacketHandlers();
+        Console.WriteLine("TutorialScene unloaded");
     }
 
     public override async void Update(GameTime gameTime)
@@ -154,6 +140,7 @@ public class TutorialScene : Scene
         if (_loggedOut)
         {
             _loaded = false;
+            RemovePacketHandlers();
             SceneManager.LoadScene(nameof(CharacterSelectionScene));
             _loggedOut = false;
             return;
@@ -163,6 +150,7 @@ public class TutorialScene : Scene
         {
             Console.WriteLine("Reloading map...");
             _reloadRequired = false;
+            RemovePacketHandlers();
             await Load(Globals.MapInfo);
             Console.WriteLine("Map reloaded!");
             return;
@@ -408,5 +396,26 @@ public class TutorialScene : Scene
             _lastSentVelocity = vel;
         }
         
+    }
+
+    private void RemovePacketHandlers()
+    {
+        if (_timer != null)
+        {
+            _timer.Stop();
+            _timer.Elapsed -= OnTimerElapsed;
+            _timer.Dispose();
+        }
+        Globals.Tcp.PlayerConnected -= OnPlayerConnected;
+        Globals.Tcp.PlayerDisconnected -= OnPlayerDisconnected;
+        Globals.Tcp.GroupInvite -= OnPlayerGroupInvited;
+        Globals.Tcp.PlayerMoved -= OnPlayerMoved;
+        Globals.Tcp.NpcUpdated -= OnNpcUpdated;
+        Globals.Tcp.Logout -= OnLogout;
+        Globals.Tcp.MapTeleport -= OnMapTeleport;
+        
+        Globals.Udp.PlayerMoved -= OnPlayerMoved;
+        Globals.Udp.NpcUpdated -= OnNpcUpdated;
+        Globals.Udp.LatencyUpdated -= OnLatencyUpdated;
     }
 }
