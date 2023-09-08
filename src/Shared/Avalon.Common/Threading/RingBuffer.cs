@@ -21,14 +21,11 @@ public class RingBuffer<T>
 
     public void Enqueue(T item)
     {
-        Stopwatch stopwatch = null;
+        Stopwatch? stopwatch = null;
 
         while (_queue.Count >= _capacity)
         {
-            if (stopwatch == null)
-            {
-                stopwatch = Stopwatch.StartNew();
-            }
+            stopwatch ??= Stopwatch.StartNew();
 
             if (_queue.TryDequeue(out _))
                 _signal.Wait();
