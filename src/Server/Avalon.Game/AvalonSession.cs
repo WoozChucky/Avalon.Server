@@ -1,3 +1,4 @@
+using Avalon.Common.Threading;
 using Avalon.Database.Characters;
 using Avalon.Network;
 using Avalon.Network.Packets.Abstractions;
@@ -44,12 +45,18 @@ public class AvalonSession : IDisposable
     
     private long _sequenceNumber = 0;
     
+    private readonly RingBuffer<NetworkPacket> _packetQueue;
+    private readonly CancellationTokenSource _cts;
+    
     public AvalonSession(int accountId, byte[] sessionKey)
     {
         AccountId = accountId;
         SessionKey = sessionKey;
         Party = new PartyGroup();
         Status = ConnectionStatus.Connecting;
+        _packetQueue = new RingBuffer<NetworkPacket>(1024);
+        _cts = new CancellationTokenSource();
+        Task.Run(ProcessPacketsAsync);
     }
     
     public async Task PingAsync()
@@ -57,7 +64,14 @@ public class AvalonSession : IDisposable
         _lastTicks = DateTime.UtcNow.Ticks;
         var sequenceNumber = Interlocked.Increment(ref _sequenceNumber);
         var packet = SPingPacket.Create(sequenceNumber, _lastTicks);
-        await SendAsync(packet);
+        try
+        {
+            await SendAsync(packet);
+        }
+        catch (Exception e)
+        {
+            Status = ConnectionStatus.TimedOut;
+        }
     }
     
     public void OnPong(long sequenceNumber, long ticks)
@@ -77,48 +91,66 @@ public class AvalonSession : IDisposable
 
     public async Task SendAsync(NetworkPacket packet)
     {
-        // We might have lost connection which means the SendAsync will throw,
-        // in this case, we should store the packet in a queue and then send it
-        // once we have reconnected (handled by ping/pong or if could not reconnect in time).
-        
+        _packetQueue.Enqueue(packet);
+    }
+    
+    private async Task ProcessPacketsAsync()
+    {
         try
         {
-            switch (packet.Header.Protocol)
+            while (!_cts.IsCancellationRequested)
             {
-                case NetworkProtocol.Tcp:
-                    if (Tcp != null)
-                    {
-                        await Tcp.SendAsync(packet);
-                    }
-                    break;
-                case NetworkProtocol.Udp:
-                    if (Udp != null)
-                    {
-                        await Udp.SendAsync(packet);
-                    }
-                    break;
-                case NetworkProtocol.Both:
-                    if (Udp != null)
-                    {
-                        await Udp.SendAsync(packet);
-                    }
-                    if (Tcp != null)
-                    {
-                        await Tcp.SendAsync(packet);
-                    }
-                    break;
-                default:
-                case NetworkProtocol.None:
-                    throw new InvalidOperationException("Cannot send a packet with no protocol specified.");
+                var packet = await _packetQueue.DequeueAsync(_cts.Token);
+
+                if (packet is null)
+                {
+                    continue;
+                }
+                
+                await SendQueuedPacketAsync(packet);
             }
         }
-        catch (IOException e)
+        catch (OperationCanceledException)
         {
-            Console.WriteLine(e);
+            
         }
         catch (Exception e)
         {
             Console.WriteLine(e);
+        }
+    }
+    
+    private async Task SendQueuedPacketAsync(NetworkPacket packet)
+    {
+        // We might have lost connection which means the SendAsync will throw
+        
+        switch (packet.Header.Protocol)
+        {
+            case NetworkProtocol.Tcp:
+                if (Tcp != null)
+                {
+                    await Tcp.SendAsync(packet);
+                }
+                break;
+            case NetworkProtocol.Udp:
+                if (Udp != null)
+                {
+                    await Udp.SendAsync(packet);
+                }
+                break;
+            case NetworkProtocol.Both:
+                if (Udp != null)
+                {
+                    await Udp.SendAsync(packet);
+                }
+                if (Tcp != null)
+                {
+                    await Tcp.SendAsync(packet);
+                }
+                break;
+            default:
+            case NetworkProtocol.None:
+                throw new InvalidOperationException("Cannot send a packet with no protocol specified.");
         }
     }
 

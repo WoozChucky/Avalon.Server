@@ -179,7 +179,7 @@ public class AvalonNetworkDaemon : IAvalonNetworkDaemon
         }
         catch (Exception e)
         {
-            _logger.LogError(e, "Error processing UDP packet");
+            _logger.LogError(e, "Error processing packet");
         }
     }
 
