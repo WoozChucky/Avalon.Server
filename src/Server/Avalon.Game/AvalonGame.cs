@@ -1,12 +1,10 @@
-using System.Collections.Concurrent;
 using System.Numerics;
 using System.Reflection;
 using Avalon.Database;
 using Avalon.Game.Creatures;
-using Avalon.Game.Entities;
 using Avalon.Game.Maps;
-using Avalon.Game.Maps.Virtual;
 using Avalon.Game.Pools;
+using Avalon.Game.Quests;
 using Avalon.Game.Scripts;
 using Avalon.Network;
 using Avalon.Network.Packets.Abstractions;
@@ -27,6 +25,10 @@ public interface IAvalonGame
 {
     void Start();
     void Stop();
+    void Update(TimeSpan deltaTime);
+    bool IsRunning();
+    void IncrementLoopCounter();
+    
     Task HandleServerVersionPacket(IRemoteSource source, CRequestServerVersionPacket packet);
     Task HandlePingPacket(IRemoteSource source, CPingPacket packet);
     Task HandleMovementPacket(IRemoteSource source, CPlayerMovementPacket packet);
@@ -59,6 +61,9 @@ public partial class AvalonGame : IAvalonGame
     private readonly ICreatureSpawner _creatureSpawner;
     private readonly IAIController _aiController;
     private readonly IPoolManager _poolManager;
+    private readonly IQuestManager _questManager;
+    private volatile bool _isRunning;
+    private long _loopCounter;
 
     public AvalonGame(ILogger<AvalonGame> logger, 
         IPacketSerializer packetSerializer, 
@@ -67,7 +72,8 @@ public partial class AvalonGame : IAvalonGame
         IAvalonMapManager mapManager,
         ICreatureSpawner creatureSpawner,
         IAIController aiController,
-        IPoolManager poolManager)
+        IPoolManager poolManager,
+        IQuestManager questManager)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _cts = new CancellationTokenSource();
@@ -78,68 +84,30 @@ public partial class AvalonGame : IAvalonGame
         _creatureSpawner = creatureSpawner;
         _aiController = aiController;
         _poolManager = poolManager;
+        _questManager = questManager;
+        _loopCounter = 0;
         
         _connectionManager.SessionLost += OnSessionLost;
         _connectionManager.SessionReconnected += OnPlayerReconnected;
         _connectionManager.SessionTimedOut += OnPlayerTimedOut;
     }
 
-    public async void Start()
+    public void Start()
     {
+        _logger.LogInformation("Loading game data");
+        
         _aiController.LoadScripts();
-        await _creatureSpawner.LoadCreaturesAsync();
-        await _mapManager.LoadMapsAsync();
-
+        _creatureSpawner.LoadCreatures();
+        _mapManager.LoadMaps();
+        _questManager.LoadQuests();
+        
+        _logger.LogInformation("Finished loading game data");
+        
+        _isRunning = true;
+        
         _logger.LogInformation("Starting game loop");
-
-#pragma warning disable CS4014
+        
         Task.Run(BroadcastLoop);
-#pragma warning restore CS4014
-        
-        const int updatesPerSecond = 60;
-        const int maxFrameTimeMs = 100;
-
-        var desiredFrameTime = TimeSpan.FromMilliseconds(1000.0 / updatesPerSecond);
-        var accumulatedTime = TimeSpan.Zero;
-        var previousTime = DateTime.UtcNow;
-
-        try
-        {
-            while (!_cts.IsCancellationRequested)
-            {
-                var currentTime = DateTime.UtcNow;
-                var elapsedTime = currentTime - previousTime;
-                previousTime = currentTime;
-                
-                if (elapsedTime > TimeSpan.FromMilliseconds(maxFrameTimeMs))
-                {
-                    _logger.LogWarning("Exceeded max update time: {Elapsed}ms", elapsedTime.TotalMilliseconds);
-                    elapsedTime = TimeSpan.FromMilliseconds(maxFrameTimeMs);
-                }
-                
-                accumulatedTime += elapsedTime;
-        
-                while (accumulatedTime >= desiredFrameTime)
-                {
-                    accumulatedTime -= desiredFrameTime;
-                    Update(desiredFrameTime);
-                }
-        
-                var sleepTime = desiredFrameTime - accumulatedTime;
-                if (sleepTime > TimeSpan.Zero)
-                {
-                    await Task.Delay(sleepTime);
-                }
-            }
-        }
-        catch (OperationCanceledException)
-        {
-            _logger.LogInformation("Game loop cancelled");
-        }
-        catch (Exception e)
-        {
-            _logger.LogError(e, "Game loop exception");
-        }
     }
 
     private async Task BroadcastLoop()
@@ -168,8 +136,18 @@ public partial class AvalonGame : IAvalonGame
         _logger.LogInformation("Stopping game loop");
         _cts.Cancel();
     }
+    
+    public bool IsRunning()
+    {
+        return _isRunning;
+    }
 
-    private void Update(TimeSpan deltaTime)
+    public void IncrementLoopCounter()
+    {
+        Interlocked.Increment(ref _loopCounter);
+    }
+
+    public void Update(TimeSpan deltaTime)
     {
         
         // Update all maps, including spawns, AI, etc.

@@ -2,7 +2,7 @@ using System.Drawing;
 using System.Numerics;
 using Avalon.Common.Extensions;
 
-namespace Avalon.Game.Entities;
+namespace Avalon.Game.Npc;
 
 public enum UrielState
 {

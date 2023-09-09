@@ -4,6 +4,7 @@ using Avalon.Game;
 using Avalon.Game.Creatures;
 using Avalon.Game.Maps;
 using Avalon.Game.Pools;
+using Avalon.Game.Quests;
 using Avalon.Game.Scripts;
 using Avalon.Infrastructure;
 using Avalon.Metrics;
@@ -62,10 +63,7 @@ namespace Avalon.Server
 
             Infrastructure.Start();
             
-            while (!CancellationTokenSource.IsCancellationRequested)
-            {
-                Infrastructure.Loop(10);
-            }
+            Infrastructure.Update(CancellationTokenSource);
             
             Logger.LogInformation("Stopping application...");
             
@@ -147,6 +145,7 @@ namespace Avalon.Server
                 .AddSingleton<ICreatureSpawner, CreatureSpawner>()
                 .AddSingleton<IPoolManager, PoolManager>()
                 .AddSingleton<IAIController, AIController>()
+                .AddSingleton<IQuestManager, QuestManager>()
                 .AddSingleton<IAvalonGame, AvalonGame>()
                 .AddSingleton<IAvalonInfrastructure, AvalonInfrastructure>()
                 .AddSingleton<CancellationTokenSource>(s => new CancellationTokenSource())

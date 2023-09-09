@@ -1,7 +1,7 @@
 using System.Drawing;
 using System.Numerics;
 using Avalon.Database;
-using Avalon.Database.World;
+using Avalon.Database.World.Model;
 using Avalon.Game.Maps.Virtual;
 using Microsoft.Extensions.Logging;
 
@@ -9,7 +9,7 @@ namespace Avalon.Game.Creatures;
 
 public interface ICreatureSpawner
 {
-    Task LoadCreaturesAsync();
+    void LoadCreatures();
 
     Creature Spawn(MapCreature virtualCreature);
     Creature Spawn(int templateId);
@@ -19,7 +19,7 @@ public class CreatureSpawner : ICreatureSpawner
 {
     private readonly ILogger<CreatureSpawner> _logger;
     private readonly IDatabaseManager _databaseManager;
-    private ICollection<CreatureTemplate> _templates;
+    private IEnumerable<CreatureTemplate> _templates;
 
     public CreatureSpawner(ILogger<CreatureSpawner> logger, IDatabaseManager databaseManager)
     {
@@ -28,11 +28,11 @@ public class CreatureSpawner : ICreatureSpawner
         _templates = new List<CreatureTemplate>();
     }
     
-    public async Task LoadCreaturesAsync()
+    public void LoadCreatures()
     {
-        _templates = (await _databaseManager.World.CreatureTemplate.QueryAllAsync().ConfigureAwait(true)).ToList();
+        _templates = _databaseManager.World.CreatureTemplate.QueryAllAsync().GetAwaiter().GetResult();
         
-        _logger.LogInformation("Loaded {CreatureCount} creatures template from database", _templates.Count);
+        _logger.LogInformation("Loaded {CreatureCount} creatures template from database", _templates.Count());
     }
 
     public Creature Spawn(MapCreature virtualCreature)

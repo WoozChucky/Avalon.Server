@@ -4,6 +4,7 @@ using System.Reflection;
 using Avalon.Database.Auth;
 using Avalon.Database.Characters;
 using Avalon.Database.World;
+using Avalon.Database.World.Model;
 
 // docker run --detach --name avalon-mariadb -p 3306:3306 --env MARIADB_USER=admin --env MARIADB_PASSWORD=123 --env MARIADB_ROOT_PASSWORD=123  mariadb:latest
 

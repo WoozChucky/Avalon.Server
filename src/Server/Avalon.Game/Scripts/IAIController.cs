@@ -27,7 +27,8 @@ public class AIController : IAIController
     {
         var aiScripts = typeof(AIScript)
             .Assembly.GetTypes()
-            .Where(t => t.IsSubclassOf(typeof(AIScript)) && !t.IsAbstract);
+            .Where(t => t.IsSubclassOf(typeof(AIScript)) && !t.IsAbstract)
+            .ToList();
         
         _logger.LogInformation("Loaded {Count} AI scripts", aiScripts.Count());
         

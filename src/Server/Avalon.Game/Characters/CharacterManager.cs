@@ -16,19 +16,19 @@ public partial class AvalonGame
         var session = _connectionManager.GetSession(packet.AccountId);
         if (session == null)
         {
-            _logger.LogWarning("Session not found for account {AccountId}", packet.AccountId);
+            LoggerExtensions.LogWarning(_logger, "Session not found for account {AccountId}", packet.AccountId);
             return;
         }
 
         if (session.InGame)
         {
-            _logger.LogWarning("Session {AccountId} is already in game", packet.AccountId);
+            LoggerExtensions.LogWarning(_logger, "Session {AccountId} is already in game", packet.AccountId);
             return;
         }
 
         var characters = await _databaseManager.Characters.Character.QueryByAccountAsync(packet.AccountId);
 
-        var characterInfo = characters.Select(character => new CharacterInfo
+        var characterInfo = Enumerable.Select<Character, CharacterInfo>(characters, character => new CharacterInfo
         {
             CharacterId = character.Id,
             Name = character.Name,
@@ -46,22 +46,22 @@ public partial class AvalonGame
         var session = _connectionManager.GetSession(packet.AccountId);
         if (session == null)
         {
-            _logger.LogWarning("Session not found for account {AccountId}", packet.AccountId);
+            LoggerExtensions.LogWarning(_logger, "Session not found for account {AccountId}", packet.AccountId);
             return;
         }
         
         if (session.InGame)
         {
-            _logger.LogWarning("Session {AccountId} is already in game", packet.AccountId);
+            LoggerExtensions.LogWarning(_logger, "Session {AccountId} is already in game", packet.AccountId);
             await session.SendAsync(SCharacterCreatedPacket.Create(packet.AccountId, SCharacterCreateResult.AlreadyInGame));
             return;
         }
         
         var characters = await _databaseManager.Characters.Character.QueryByAccountAsync(packet.AccountId);
         
-        if (characters.Count() == MaxCharactersPerAccount || characters.Count() + 1 > MaxCharactersPerAccount)
+        if (Enumerable.Count<Character>(characters) == MaxCharactersPerAccount || Enumerable.Count<Character>(characters) + 1 > MaxCharactersPerAccount)
         {
-            _logger.LogDebug("Account {AccountId} already has {CharacterCount} characters", packet.AccountId, characters.Count());
+            LoggerExtensions.LogDebug(_logger, "Account {AccountId} already has {CharacterCount} characters", packet.AccountId, Enumerable.Count<Character>(characters));
             await session.SendAsync(SCharacterCreatedPacket.Create(packet.AccountId, SCharacterCreateResult.MaxCharactersReached));
             return;
         }
@@ -69,7 +69,7 @@ public partial class AvalonGame
         var duplicateCharacter = await _databaseManager.Characters.Character.QueryByNameAsync(packet.Name);
         if (duplicateCharacter != null)
         {
-            _logger.LogDebug("Character {Name} already exists", packet.Name);
+            LoggerExtensions.LogDebug(_logger, "Character {Name} already exists", packet.Name);
             await session.SendAsync(SCharacterCreatedPacket.Create(packet.AccountId, SCharacterCreateResult.NameAlreadyExists));
             return;
         }
@@ -86,12 +86,12 @@ public partial class AvalonGame
 
         if (!await _databaseManager.Characters.Character.InsertAsync(character))
         {
-            _logger.LogWarning("Failed to create character {Name}", packet.Name);
+            LoggerExtensions.LogWarning(_logger, "Failed to create character {Name}", packet.Name);
             await session.SendAsync(SCharacterCreatedPacket.Create(packet.AccountId, SCharacterCreateResult.InternalDatabaseError));
             return;
         }
         
-        _logger.LogInformation("Character {Name} created for account {AccountId}", packet.Name, packet.AccountId);
+        LoggerExtensions.LogInformation(_logger, "Character {Name} created for account {AccountId}", packet.Name, packet.AccountId);
         await session.SendAsync(SCharacterCreatedPacket.Create(packet.AccountId, SCharacterCreateResult.Success));
     }
     
@@ -100,13 +100,13 @@ public partial class AvalonGame
         var session = _connectionManager.GetSession(packet.AccountId);
         if (session == null)
         {
-            _logger.LogWarning("Session not found for account {AccountId}", packet.AccountId);
+            LoggerExtensions.LogWarning(_logger, "Session not found for account {AccountId}", packet.AccountId);
             return;
         }
 
         if (session.InGame)
         {
-            _logger.LogWarning("Session {AccountId} is already in game", packet.AccountId);
+            LoggerExtensions.LogWarning(_logger, "Session {AccountId} is already in game", packet.AccountId);
             return;
         }
 
@@ -114,12 +114,12 @@ public partial class AvalonGame
         
         if (character == null)
         {
-            _logger.LogWarning("Character {CharacterId} not found for account {AccountId}", packet.CharacterId, packet.AccountId);
+            LoggerExtensions.LogWarning(_logger, "Character {CharacterId} not found for account {AccountId}", packet.CharacterId, packet.AccountId);
             return;
         }
         
         // Try to find the map instance for this character
-        var mapInstance = _mapManager.GetInstance(character.Map, Guid.Parse(character.InstanceId));
+        var mapInstance = _mapManager.GetInstance(character.Map, Guid.Parse((string)character.InstanceId));
         if (mapInstance == null)
         {
             // Specific map instance not found, try to find a other instance of the same map
@@ -169,7 +169,7 @@ public partial class AvalonGame
 
         session.Character = character;
         
-        _logger.LogInformation("Character {CharacterId} logged in for account {AccountId} at {Position}", character.Name, packet.AccountId, character.Movement);
+        LoggerExtensions.LogInformation(_logger, "Character {CharacterId} logged in for account {AccountId} at {Position}", character.Name, packet.AccountId, character.Movement);
 
         // Send to everyone else, that this player is connected
         await BroadcastToOthersInInstance(session.AccountId, SPlayerConnectedPacket.Create(session.AccountId, session.Character.Id, session.Character.Name), mapInstance.InstanceId.ToString());
@@ -180,13 +180,13 @@ public partial class AvalonGame
         var session = _connectionManager.GetSession(packet.AccountId);
         if (session == null)
         {
-            _logger.LogWarning("Session not found for account {AccountId}", packet.AccountId);
+            LoggerExtensions.LogWarning(_logger, "Session not found for account {AccountId}", packet.AccountId);
             return;
         }
         
         if (session.InGame)
         {
-            _logger.LogWarning("Session {AccountId} is already in game", packet.AccountId);
+            LoggerExtensions.LogWarning(_logger, "Session {AccountId} is already in game", packet.AccountId);
             await session.SendAsync(SCharacterDeletedPacket.Create(packet.AccountId, SCharacterDeletedResult.InGame));
             return;
         }
@@ -194,19 +194,19 @@ public partial class AvalonGame
         var character = await _databaseManager.Characters.Character.QueryByIdAndAccountAsync(packet.CharacterId, packet.AccountId);
         if (character == null)
         {
-            _logger.LogWarning("Character {CharacterId} not found for account {AccountId}", packet.CharacterId, packet.AccountId);
+            LoggerExtensions.LogWarning(_logger, "Character {CharacterId} not found for account {AccountId}", packet.CharacterId, packet.AccountId);
             await session.SendAsync(SCharacterDeletedPacket.Create(packet.AccountId, SCharacterDeletedResult.InternalError));
             return;
         }
         
         if (!await _databaseManager.Characters.Character.DeleteAsync(character.Id, character.Account))
         {
-            _logger.LogWarning("Failed to delete character {CharacterId} for account {AccountId}", packet.CharacterId, packet.AccountId);
+            LoggerExtensions.LogWarning(_logger, "Failed to delete character {CharacterId} for account {AccountId}", packet.CharacterId, packet.AccountId);
             await session.SendAsync(SCharacterDeletedPacket.Create(packet.AccountId, SCharacterDeletedResult.InternalError));
             return;
         }
         
-        _logger.LogInformation("Character {CharacterId} deleted for account {AccountId}", packet.CharacterId, packet.AccountId);
+        LoggerExtensions.LogInformation(_logger, "Character {CharacterId} deleted for account {AccountId}", packet.CharacterId, packet.AccountId);
         await session.SendAsync(SCharacterDeletedPacket.Create(packet.AccountId, SCharacterDeletedResult.Success));
     }
 
@@ -215,13 +215,13 @@ public partial class AvalonGame
         var session = _connectionManager.GetSession(packet.AccountId);
         if (session == null)
         {
-            _logger.LogWarning("Session not found for account {AccountId}", packet.AccountId);
+            LoggerExtensions.LogWarning(_logger, "Session not found for account {AccountId}", packet.AccountId);
             return;
         }
         
         if (!session.InGame)
         {
-            _logger.LogWarning("Session {AccountId} is not in game", packet.AccountId);
+            LoggerExtensions.LogWarning(_logger, "Session {AccountId} is not in game", packet.AccountId);
             return;
         }
         

@@ -1,9 +1,10 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using Avalon.Database.World.Model;
 using Dapper;
 using MySqlConnector;
 
-namespace Avalon.Database.World;
+namespace Avalon.Database.World.Tables;
 
 public interface ICreatureTemplateTable
 {
