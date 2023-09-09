@@ -14,6 +14,7 @@ using Avalon.Network.Packets.Internal.Deserialization;
 using Avalon.Network.Packets.Internal.Exceptions;
 using Avalon.Network.Packets.Map;
 using Avalon.Network.Packets.Movement;
+using Avalon.Network.Packets.Quest;
 using Avalon.Network.Packets.Serialization;
 using Avalon.Network.Packets.Social;
 using Avalon.Network.Packets.World;
@@ -110,6 +111,10 @@ public class AvalonNetworkDaemon : IAvalonNetworkDaemon
         
         // Movement handlers
         _packetRegistry.RegisterHandler<CPlayerMovementPacket>(NetworkPacketType.CMSG_MOVEMENT, _game.HandleMovementPacket);
+        
+        // Quest handlers
+        _packetRegistry.RegisterHandler<CQuestStatusPacket>(NetworkPacketType.CMSG_QUEST_STATUS, _game.HandleQuestStatusPacket);
+        _packetRegistry.RegisterHandler<CQuestStatusPacket>(NetworkPacketType.CMSG_QUEST_LIST, _game.HandleQuestListPacket);
         
         _packetRegistry.RegisterHandler<CRequestServerVersionPacket>(NetworkPacketType.CMSG_REQUEST_SERVER_VERSION, _game.HandleServerVersionPacket);
         _packetRegistry.RegisterHandler<CPingPacket>(NetworkPacketType.CMSG_PING, _game.HandlePingPacket);

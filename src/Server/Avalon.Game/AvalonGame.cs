@@ -15,6 +15,7 @@ using Avalon.Network.Packets.Character;
 using Avalon.Network.Packets.Generic;
 using Avalon.Network.Packets.Map;
 using Avalon.Network.Packets.Movement;
+using Avalon.Network.Packets.Quest;
 using Avalon.Network.Packets.Serialization;
 using Avalon.Network.Packets.Social;
 using Avalon.Network.Packets.World;
@@ -41,9 +42,10 @@ public interface IAvalonGame
     Task HandleCharacterDeletePacket(IRemoteSource source, CCharacterDeletePacket packet);
     Task HandleCharacterLoadedPacket(IRemoteSource source, CCharacterLoadedPacket packet);
     Task HandleLogoutPacket(IRemoteSource source, CLogoutPacket packet);
-
     Task HandleMapTeleportPacket(IRemoteSource source, CMapTeleportPacket packet);
     Task HandleInteractPacket(IRemoteSource source, CInteractPacket packet);
+    Task HandleQuestListPacket(IRemoteSource source, CQuestStatusPacket packet);
+    Task HandleQuestStatusPacket(IRemoteSource source, CQuestStatusPacket packet);
 }
 
 public partial class AvalonGame : IAvalonGame
