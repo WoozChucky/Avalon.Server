@@ -1,6 +1,9 @@
-﻿using Avalon.Game;
+﻿using System.Diagnostics;
+using Avalon.Common.Utils;
+using Avalon.Game;
 using Avalon.Metrics;
 using Microsoft.Extensions.Logging;
+using Timer = Avalon.Common.Utils.Timer;
 
 namespace Avalon.Infrastructure;
 
@@ -49,36 +52,34 @@ public class AvalonInfrastructure : IAvalonInfrastructure
         _metricsManager.Stop();
         _cts.Cancel();
     }
-    
-    long getMSTimeDiff(long oldMSTime, long newMSTime)
-    {
-        // getMSTime() have limited data range and this is case when it overflow in this tick
-        if (oldMSTime > newMSTime)
-        {
-            throw new Exception("getMSTimeDiff: oldMSTime > newMSTime");
-            return (0xFFFFFFFF - oldMSTime) + newMSTime;
-        }
-        else
-        {
-            return newMSTime - oldMSTime;
-        }
-    }
 
     public void Update(CancellationTokenSource cts)
     {
+        // TODO: Move this to a config file
         const uint minUpdateDiff = 1; // 1ms
         const int maxCoreStuckTime = 60000; // 60s
         const int halfMaxCoreStuckTime = maxCoreStuckTime / 2;
         
-        var previousTime = DateTime.UtcNow.Ticks / TimeSpan.TicksPerMillisecond;
+        var previousTime = Timer.CurrentTimeMillis();
+
+        var timer = new System.Timers.Timer(2500);
+        timer.Elapsed += (sender, args) =>
+        {
+            var numberOfThreads = Process.GetCurrentProcess().Threads.Count;
+            if (numberOfThreads > 1)
+            {
+                _logger.LogInformation("Game UpdateLoop running on {NumberOfThreads} threads", numberOfThreads);
+            }
+        };
+        timer.Start();
         
         while (_gameServer.IsRunning())
         {
             _gameServer.IncrementLoopCounter();
             
-            var currentTime = DateTime.UtcNow.Ticks / TimeSpan.TicksPerMillisecond;
+            var currentTime = Timer.CurrentTimeMillis();
+            var diff = Timer.GetDiff(previousTime, currentTime);
             
-            var diff = getMSTimeDiff(previousTime, currentTime);
             if (diff < minUpdateDiff)
             {
                 var sleepTime = minUpdateDiff - diff;
@@ -90,7 +91,7 @@ public class AvalonInfrastructure : IAvalonInfrastructure
                 continue;
             }
             
-            _gameServer.Update(TimeSpan.FromMilliseconds(diff));
+            _gameServer.Update(diff.ToTimeSpan());
             
             previousTime = currentTime;
 
