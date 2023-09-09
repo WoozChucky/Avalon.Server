@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using Avalon.Database.World;
+using Avalon.Database.World.Model;
 using Avalon.Game.Creatures;
 using Avalon.Game.Maps.Virtual;
 

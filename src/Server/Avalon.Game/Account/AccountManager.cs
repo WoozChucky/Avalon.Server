@@ -2,7 +2,6 @@ using System.Security.Cryptography;
 using System.Text;
 using Avalon.Network;
 using Avalon.Network.Packets.Auth;
-using BCrypt.Net;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.Game;
@@ -13,7 +12,7 @@ public partial class AvalonGame
     {
         var client = (TcpClient) source;
         
-        _logger.LogDebug("Handling auth packet from {EndPoint}", client.Socket.RemoteEndPoint);
+        LoggerExtensions.LogDebug(_logger, "Handling auth packet from {EndPoint}", client.Socket.RemoteEndPoint);
         
         if (string.IsNullOrWhiteSpace(packet.Username) || string.IsNullOrWhiteSpace(packet.Password))
         {
@@ -30,7 +29,7 @@ public partial class AvalonGame
             return;
         }
         
-        var verifier = Encoding.UTF8.GetString(account.Verifier);
+        var verifier = Encoding.UTF8.GetString((byte[])account.Verifier);
 
         if (!BCrypt.Net.BCrypt.Verify(packet.Password.Trim(), verifier))
         {
@@ -76,13 +75,13 @@ public partial class AvalonGame
         
         if (session == null)
         {
-            _logger.LogWarning("Session not found for account {AccountId}", packet.AccountId);
+            LoggerExtensions.LogWarning(_logger, "Session not found for account {AccountId}", packet.AccountId);
             return;
         }
         
         if (!session.InGame)
         {
-            _logger.LogWarning("Session {AccountId} is not in game", packet.AccountId);
+            LoggerExtensions.LogWarning(_logger, "Session {AccountId} is not in game", packet.AccountId);
             await session.SendAsync(SLogoutPacket.Create(session.AccountId, LogoutResult.NotInGame));
             return;
         }
@@ -96,11 +95,11 @@ public partial class AvalonGame
 
         if (!await _databaseManager.Characters.Character.UpdateAsync(character))
         {
-            _logger.LogWarning("Failed to save character {CharacterId} progress to the database", character.Name);
+            LoggerExtensions.LogWarning(_logger, "Failed to save character {CharacterId} progress to the database", character.Name);
             await session.SendAsync(SLogoutPacket.Create(session.AccountId, LogoutResult.InternalError));
         }
         
-        _logger.LogInformation("Character {CharacterId} logged out at {Position}", character.Name, character.Movement);
+        LoggerExtensions.LogInformation(_logger, "Character {CharacterId} logged out at {Position}", character.Name, character.Movement);
         
         await BroadcastToOthersInInstance(session.AccountId, SPlayerDisconnectedPacket.Create(session.AccountId, session.Character!.Id), session.Character.InstanceId);
         

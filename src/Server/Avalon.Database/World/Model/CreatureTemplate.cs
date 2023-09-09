@@ -1,4 +1,4 @@
-namespace Avalon.Database.World;
+namespace Avalon.Database.World.Model;
 
 public class CreatureTemplate
 {

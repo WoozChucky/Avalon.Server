@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Collections.ObjectModel;
 using Avalon.Database;
 using Avalon.Database.World;
+using Avalon.Database.World.Model;
 using Avalon.Game.Maps.Virtual;
 using Avalon.Game.Pools;
 using Microsoft.Extensions.Logging;
@@ -10,8 +11,7 @@ namespace Avalon.Game.Maps;
 
 public interface IAvalonMapManager
 {
-    Task LoadMapsAsync();
-    
+    void LoadMaps();
     MapInstance GenerateInstance(int mapId);
     MapInstance? GetInstance(int mapId, Guid instanceId);
     MapInstance? GetInstance(int mapId, int characterId);
@@ -36,7 +36,7 @@ public class AvalonMapManager : IAvalonMapManager
     private readonly IList<int> _villageMaps = new List<int>();
 
     // Map template loaded from database
-    private List<Map>? _mapTemplates;
+    private IEnumerable<Map>? _mapTemplates;
     
     // Virtual map templates, these are loaded from the map templates and are used to create map instances
     private readonly Dictionary<int, VirtualizedMap> _virtualTemplates = new();
@@ -51,13 +51,13 @@ public class AvalonMapManager : IAvalonMapManager
         _lock = new ReaderWriterLockSlim(LockRecursionPolicy.SupportsRecursion);
     }
     
-    public async Task LoadMapsAsync()
+    public async void LoadMaps()
     {
         _logger.LogInformation("Loading maps...");
 
-        _mapTemplates = (await _databaseManager.World.Map.QueryAllAsync().ConfigureAwait(true)).ToList();
+        _mapTemplates = _databaseManager.World.Map.QueryAllAsync().GetAwaiter().GetResult();
         
-        _logger.LogInformation("Loaded {MapCount} maps from database", _mapTemplates.Count);
+        _logger.LogInformation("Loaded {MapCount} maps from database", _mapTemplates.Count());
 
         var villageMaps = _mapTemplates.Where(map => map.InstanceType == MapInstanceType.Village).ToArray();
 

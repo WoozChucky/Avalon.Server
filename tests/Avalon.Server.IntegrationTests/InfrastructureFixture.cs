@@ -3,6 +3,7 @@ using Avalon.Game;
 using Avalon.Game.Creatures;
 using Avalon.Game.Maps;
 using Avalon.Game.Pools;
+using Avalon.Game.Quests;
 using Avalon.Game.Scripts;
 using Avalon.Infrastructure;
 using Avalon.Metrics;
@@ -53,6 +54,11 @@ public class InfrastructureFixture : IDisposable
 			DatabaseManager,
 			PoolManager
 		);
+		
+		QuestManager = new QuestManager(
+			new NullLogger<QuestManager>(),
+			DatabaseManager
+		);
 
 		Game = new AvalonGame(
 			new NullLogger<AvalonGame>(),
@@ -62,7 +68,8 @@ public class InfrastructureFixture : IDisposable
 			MapManager,
 			CreatureSpawner,
 			AIController,
-			PoolManager
+			PoolManager,
+			QuestManager
 		);
 
 		NetworkDaemon = new AvalonNetworkDaemon(
@@ -104,6 +111,7 @@ public class InfrastructureFixture : IDisposable
 	public IDatabaseManager DatabaseManager { get; set; }
 	public IPoolManager PoolManager { get; set; }
 	public IAvalonMapManager MapManager { get; set; }
+	public IQuestManager QuestManager { get; set; }
 	
 	public ICreatureSpawner CreatureSpawner { get; set; }
 	public IAIController AIController { get; set; }

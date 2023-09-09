@@ -2,7 +2,7 @@ using System.Drawing;
 using System.Numerics;
 using Avalon.Common;
 
-namespace Avalon.Game.Entities;
+namespace Avalon.Game.Npc;
 
 public interface IEntity : IHideObjectMembers
 {

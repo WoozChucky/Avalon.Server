@@ -8,7 +8,7 @@ public interface IAvalonInfrastructure : IDisposable
 {
     void Start();
     void Stop();
-    void Loop(int waitTimeMs);
+    void Update(CancellationTokenSource cancellationTokenSource);
 }
 
 public class AvalonInfrastructure : IAvalonInfrastructure
@@ -49,18 +49,55 @@ public class AvalonInfrastructure : IAvalonInfrastructure
         _metricsManager.Stop();
         _cts.Cancel();
     }
-
-    public void Loop(int waitTimeMs)
+    
+    long getMSTimeDiff(long oldMSTime, long newMSTime)
     {
-        try
+        // getMSTime() have limited data range and this is case when it overflow in this tick
+        if (oldMSTime > newMSTime)
         {
-
-            Thread.Sleep(waitTimeMs);
+            throw new Exception("getMSTimeDiff: oldMSTime > newMSTime");
+            return (0xFFFFFFFF - oldMSTime) + newMSTime;
         }
-        catch (Exception e)
+        else
         {
-            _logger.LogError(e, "");
-            throw;
+            return newMSTime - oldMSTime;
+        }
+    }
+
+    public void Update(CancellationTokenSource cts)
+    {
+        const uint minUpdateDiff = 1; // 1ms
+        const int maxCoreStuckTime = 60000; // 60s
+        const int halfMaxCoreStuckTime = maxCoreStuckTime / 2;
+        
+        var previousTime = DateTime.UtcNow.Ticks / TimeSpan.TicksPerMillisecond;
+        
+        while (_gameServer.IsRunning())
+        {
+            _gameServer.IncrementLoopCounter();
+            
+            var currentTime = DateTime.UtcNow.Ticks / TimeSpan.TicksPerMillisecond;
+            
+            var diff = getMSTimeDiff(previousTime, currentTime);
+            if (diff < minUpdateDiff)
+            {
+                var sleepTime = minUpdateDiff - diff;
+                if (sleepTime >= halfMaxCoreStuckTime)
+                {
+                    _logger.LogWarning("Game UpdateLoop waiting for {SleepTime}ms with MaxCoreStruckTime set to {MaxCoreStuckTime}ms", sleepTime, maxCoreStuckTime);
+                }
+                Thread.Sleep((int)sleepTime);
+                continue;
+            }
+            
+            _gameServer.Update(TimeSpan.FromMilliseconds(diff));
+            
+            previousTime = currentTime;
+
+            if (cts.IsCancellationRequested)
+            {
+                break;
+            }
         }
     }
 
