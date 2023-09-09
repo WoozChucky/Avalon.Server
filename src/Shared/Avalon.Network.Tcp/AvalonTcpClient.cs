@@ -49,8 +49,8 @@ public class AvalonTcpClient : IDisposable
     private readonly X509Certificate2 _certificate;
     private readonly IPAddress _ipAddress;
     private readonly Socket _socket;
-    private readonly SemaphoreSlim _sendLock;
     private readonly RingBuffer<Packet> _receivedPacketBuffer;
+    private readonly RingBuffer<NetworkPacket> _sendPacketBuffer;
     
     private SslStream _stream = null!;
 
@@ -69,8 +69,9 @@ public class AvalonTcpClient : IDisposable
         _certificate = new X509Certificate2(clientCertBytes);
         _socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
         _cts = new CancellationTokenSource();
-        _sendLock = new SemaphoreSlim(1, 1);
+
         _receivedPacketBuffer = new RingBuffer<Packet>(100);
+        _sendPacketBuffer = new RingBuffer<NetworkPacket>(100);
 
         _ipAddress =
             Dns.GetHostAddresses(_settings.Host).ToList()
@@ -89,6 +90,7 @@ public class AvalonTcpClient : IDisposable
             true).ConfigureAwait(false);
         
 #pragma warning disable CS4014
+        Task.Run(ProcessPacketsAsync);
         Task.Run(HandleCommunications);
         Task.Run(ProcessReceivedPackets);
 #pragma warning restore CS4014
@@ -363,15 +365,37 @@ public class AvalonTcpClient : IDisposable
     
     private async Task SendPacket(NetworkPacket packet)
     {
-        await _sendLock.WaitAsync();
-        
+        _sendPacketBuffer.Enqueue(packet);
+    }
+    
+    private async Task ProcessPacketsAsync()
+    {
         try
         {
-            await _packetSerializer.SerializeToNetwork(_stream, packet);
+            while (!_cts.IsCancellationRequested)
+            {
+                var packet = await _sendPacketBuffer.DequeueAsync(_cts.Token);
+
+                if (packet is null)
+                {
+                    continue;
+                }
+                
+                await SendQueuedPacketAsync(packet);
+            }
         }
-        finally
+        catch (OperationCanceledException)
         {
-            _sendLock.Release();
+            
         }
+        catch (Exception e)
+        {
+            Console.WriteLine(e);
+        }
+    }
+    
+    private async Task SendQueuedPacketAsync(NetworkPacket packet)
+    {
+        await _packetSerializer.SerializeToNetwork(_stream, packet);
     }
 }

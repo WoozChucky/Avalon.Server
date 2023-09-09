@@ -34,6 +34,7 @@ public class AvalonUdpClient : IDisposable
     private readonly IPacketSerializer _packetSerializer;
     private readonly SemaphoreSlim _sendLock;
     private readonly RingBuffer<APacket> _receivedPacketBuffer;
+    private readonly RingBuffer<NetworkPacket> _sendPacketBuffer;
     private readonly Host _client;
     private readonly Address _address;
     
@@ -51,6 +52,7 @@ public class AvalonUdpClient : IDisposable
         
         _sendLock = new SemaphoreSlim(1, 1);
         _receivedPacketBuffer = new RingBuffer<APacket>(100);
+        _sendPacketBuffer = new RingBuffer<NetworkPacket>(100);
         
         _client = new Host();
         _address = new Address();
@@ -73,10 +75,10 @@ public class AvalonUdpClient : IDisposable
     {
         _serverPeer = _client.Connect(_address);
         
+        Task.Run(ProcessPacketsAsync);
         Task.Run(HandleLatency);
         Task.Run(ProcessReceivedPackets);
         Task.Run(HandleCommunications);
-        
 
         return Task.CompletedTask;
     }
@@ -283,6 +285,37 @@ public class AvalonUdpClient : IDisposable
     }
 
     private async Task SendToServer(NetworkPacket packet)
+    {
+        _sendPacketBuffer.Enqueue(packet);
+    }
+    
+    private async Task ProcessPacketsAsync()
+    {
+        try
+        {
+            while (!_cts.IsCancellationRequested)
+            {
+                var packet = await _sendPacketBuffer.DequeueAsync(_cts.Token);
+
+                if (packet is null)
+                {
+                    continue;
+                }
+                
+                await SendQueuedPacketAsync(packet);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine(e);
+        }
+    }
+    
+    private async Task SendQueuedPacketAsync(NetworkPacket packet)
     {
         await using var buffer = new MemoryStream();
         
