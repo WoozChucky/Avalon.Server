@@ -64,7 +64,6 @@ public class UdpClientPacket : IRemoteSource
         {
             Console.WriteLine($"Failed to send udp packet {packet.Header.Type} to client {_peer.IP}:{_peer.Port}");
         }
-        responsePacket.Dispose();
     }
 
     public void Dispose()
