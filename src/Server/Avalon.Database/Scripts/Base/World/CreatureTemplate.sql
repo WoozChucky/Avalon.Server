@@ -41,4 +41,4 @@ CREATE TABLE IF NOT EXISTS CreatureTemplate (
     PRIMARY KEY (`id`),
     KEY `idx_name` (`name`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Creature Template System';
-DELETE FROM CreatureTemplate;
+DELETE FROM CreatureTemplate WHERE id > 0;

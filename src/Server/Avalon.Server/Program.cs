@@ -1,4 +1,5 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
+using System.Reflection;
 using Avalon.Database;
 using Avalon.Game;
 using Avalon.Game.Creatures;
@@ -50,15 +51,15 @@ namespace Avalon.Server
 
             MetricsManager.Start(new Dictionary<string, string>()
             {
-                {"Host", Environment.MachineName},
-                {"OS", Environment.OSVersion.VersionString},
-                {"SystemPageSize", Environment.SystemPageSize.ToString()},
-                {"ProcessorCount", Environment.ProcessorCount.ToString()},
-                {"UserDomainName", Environment.UserDomainName},
-                {"UserName", Environment.UserName},
-                {"Version", Environment.Version.ToString()},
-                {"WorkingSet", Environment.WorkingSet.ToString()},
-                {"Application", "Avalon.Server"},
+                {"Host", Environment.MachineName },
+                {"OS", Environment.OSVersion.VersionString },
+                {"SystemPageSize", Environment.SystemPageSize.ToString() },
+                {"ProcessorCount", Environment.ProcessorCount.ToString() },
+                {"UserDomainName", Environment.UserDomainName },
+                {"UserName", Environment.UserName },
+                {"Version", Environment.Version.ToString() },
+                {"WorkingSet", Environment.WorkingSet.ToString() },
+                {"Application", Assembly.GetExecutingAssembly().GetName().Name! },
             });
 
             Infrastructure.Start();

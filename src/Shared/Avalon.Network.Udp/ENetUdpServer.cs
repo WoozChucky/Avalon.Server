@@ -39,7 +39,8 @@ public class ENetUdpServer : IAvalonUdpServer
         };
         
         Callbacks callbacks = new Callbacks(OnMemoryAllocate, OnMemoryFree, OnNoMemory);
-        Library.Initialize(callbacks);
+        if (!Library.Initialize(callbacks))
+            throw new InvalidOperationException("Enet failed to initialize!");
     }
     
     private AllocCallback OnMemoryAllocate = Marshal.AllocHGlobal;
@@ -136,6 +137,8 @@ public class ENetUdpServer : IAvalonUdpServer
         if (!_isRunning) throw new InvalidOperationException("Server is not running.");
         
         _isRunning = false;
+        
+        Library.Deinitialize();
         
         //TODO(Nuno): Close all connections.
         //TODO(Nuno): Send the connection disconnect packet to all clients.

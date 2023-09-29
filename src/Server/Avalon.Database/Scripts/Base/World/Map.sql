@@ -17,4 +17,4 @@ CREATE TABLE IF NOT EXISTS `Map` (
     PRIMARY KEY (`ID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-DELETE FROM `Map`;
+DELETE FROM `Map` where id > 0;
