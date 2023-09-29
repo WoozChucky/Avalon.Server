@@ -135,6 +135,7 @@ public partial class AvalonGame : IAvalonGame
     {
         _logger.LogInformation("Stopping game loop");
         _cts.Cancel();
+        _isRunning = false;
     }
     
     public bool IsRunning()
