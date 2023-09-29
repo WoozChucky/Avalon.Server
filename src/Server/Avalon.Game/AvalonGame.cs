@@ -28,6 +28,7 @@ public interface IAvalonGame
     void Update(TimeSpan deltaTime);
     bool IsRunning();
     void IncrementLoopCounter();
+    long GetLoopCounter();
     
     Task HandleServerVersionPacket(IRemoteSource source, CRequestServerVersionPacket packet);
     Task HandlePingPacket(IRemoteSource source, CPingPacket packet);
@@ -146,6 +147,12 @@ public partial class AvalonGame : IAvalonGame
     public void IncrementLoopCounter()
     {
         Interlocked.Increment(ref _loopCounter);
+    }
+
+    public long GetLoopCounter()
+    {
+        Interlocked.Read(ref _loopCounter);
+        return _loopCounter;
     }
 
     public void Update(TimeSpan deltaTime)

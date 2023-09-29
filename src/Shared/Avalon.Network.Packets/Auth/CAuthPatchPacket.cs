@@ -23,6 +23,8 @@ public class CAuthPatchPacket : Packet
         };
         
         Serializer.Serialize(memoryStream, authPacket);
+
+        memoryStream.TryGetBuffer(out var buffer);
         
         return new NetworkPacket
         {
@@ -33,7 +35,7 @@ public class CAuthPatchPacket : Packet
                 Protocol = Protocol,
                 Version = 0
             },
-            Payload = memoryStream.ToArray()
+            Payload = buffer.ToArray()
         };
     }
 }

@@ -8,13 +8,15 @@ public class SCharacterListPacket : Packet
 {
     public static NetworkPacketType PacketType = NetworkPacketType.SMSG_CHARACTER_LIST;
     public static NetworkProtocol Protocol = NetworkProtocol.Tcp;
+    public static NetworkPacketFlags Flags = NetworkPacketFlags.Encrypted;
     
     [ProtoMember(1)] public int AccountId { get; set; }
     [ProtoMember(2)] public int CharacterCount { get; set; }
     [ProtoMember(3)] public int MaxCharacterCount { get; set; }
     [ProtoMember(4)] public CharacterInfo[] Characters { get; set; }
 
-    public static NetworkPacket Create(int accountId, int characterCount, int maxCharacterCount, CharacterInfo[] characters)
+    public static NetworkPacket Create(int accountId, int characterCount, int maxCharacterCount,
+        CharacterInfo[] characters, Func<byte[], byte[]> encrypt)
     {
         using var memoryStream = new MemoryStream();
         
@@ -28,16 +30,18 @@ public class SCharacterListPacket : Packet
         
         Serializer.Serialize(memoryStream, authPacket);
         
+        var encrypted = encrypt(memoryStream.ToArray());
+        
         return new NetworkPacket
         {
             Header = new NetworkPacketHeader
             {
                 Type = PacketType,
-                Flags = NetworkPacketFlags.None,
+                Flags = Flags,
                 Protocol = Protocol,
                 Version = 0
             },
-            Payload = memoryStream.ToArray()
+            Payload = encrypted
         };
     }
 }

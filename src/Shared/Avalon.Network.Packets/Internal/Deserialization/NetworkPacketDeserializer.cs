@@ -19,10 +19,13 @@ public class NetworkPacketDeserializer : IPacketDeserializer
         _packetDeserializerMethods = new ConcurrentDictionary<Type, MethodInfo>();
     }
     
-    public T Deserialize<T>(NetworkPacketType packetType, byte[] data) where T : class
+    public T Deserialize<T>(NetworkPacketType packetType, byte[] data, Func<byte[], byte[]>? func) where T : class
     {
         if (!_packetDeserializerFactories.ContainsKey(packetType))
             throw new PacketDeserializationException($"Packet deserializer not registered for type ({packetType}).");
+        
+        if (func != null)
+            data = func(data);
         
         return _packetDeserializerFactories[packetType](data, typeof(T)) as T ?? throw new PacketDeserializationException("Packet deserialization failed.");
     }

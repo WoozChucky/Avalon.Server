@@ -41,7 +41,7 @@ public class RingBuffer<T>
         _signal.Release();
     }
 
-    public async Task<T?> DequeueAsync(CancellationToken cancellationToken = default)
+    public async Task<T> DequeueAsync(CancellationToken cancellationToken = default)
     {
         await _signal.WaitAsync(cancellationToken).ConfigureAwait(false);
         _queue.TryDequeue(out var item);

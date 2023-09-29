@@ -56,9 +56,9 @@ public class MetricsManager : IMetricsManager
         
         _running = true;
         
-        Environment.SetEnvironmentVariable("Quix__Workspace__Id", "quixdev-nuno-development");
+        Environment.SetEnvironmentVariable("Quix__Workspace__Id", "quixdev-nuno-dev");
         
-        _topicProducer = _streamingClient.GetTopicProducer("petertest");
+        _topicProducer = _streamingClient.GetTopicProducer("avalon");
         _streamProducer = _topicProducer.GetOrCreateStream("mystream");
         _defaultProperties = new ConcurrentDictionary<string, string>(defaultProperties ?? new Dictionary<string, string>());
         
