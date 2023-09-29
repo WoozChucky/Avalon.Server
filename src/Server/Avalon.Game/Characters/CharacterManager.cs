@@ -36,7 +36,7 @@ public partial class AvalonGame
             Class = character.Class
         }).ToArray();
         
-        var responsePacket = SCharacterListPacket.Create(session.AccountId, characterInfo.Length, MaxCharactersPerAccount, characterInfo);
+        var responsePacket = SCharacterListPacket.Create(session.AccountId, characterInfo.Length, MaxCharactersPerAccount, characterInfo, session.Encrypt);
         
         await session.SendAsync(responsePacket);
     }
