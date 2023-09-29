@@ -2,18 +2,26 @@
 using Avalon.Network.Packets.Character;
 using Avalon.Network.Tcp;
 using Avalon.Network.Udp;
+using BenchmarkDotNet.Attributes;
+using BenchmarkDotNet.Jobs;
+using BenchmarkDotNet.Running;
+using ProtoBuf;
+using ProtoBuf.Meta;
 
 namespace Avalon.Client.Simulator
 {
-    internal class Program
+    public class Program
     {
         private static async Task Main(string[] args)
         {
+            //var summary = BenchmarkRunner.Run<MemoryBenchmark>();
+            var proto = Serializer.GetProto<CAuthPacket>();
+            /*
             const int clientCount = 4; // This is the number of clients to simulate
-            
+
             const string username = "test";
             const string password = "test";
-            
+
             for (var i = 0; i < clientCount; i++)
             {
                 // how create a thread for each client and run them
@@ -24,7 +32,80 @@ namespace Avalon.Client.Simulator
 
             while (true)
             {
+
+            }
+            */
+
+
+        }
+        
+        [MemoryDiagnoser]
+        [SimpleJob(RuntimeMoniker.Net70)]
+        [RPlotExporter]
+        public class MemoryBenchmark
+        {
+            private byte[] data;
+            
+            [GlobalSetup]
+            public void Setup()
+            {
+                data = new byte[N];
+                new Random(42).NextBytes(data);
+            }
+            
+            [Params(1, 10000)]
+            public int N;
+
+            [Benchmark]
+            public byte[] MemoryStream_ToArray()
+            {
+                using var memoryStream = new MemoryStream();
+            
+                var authPacket = new CAuthPatchPacket()
+                {
+                    AccountId = N,
+                    PrivateKey = data
+                };
+            
+                Serializer.Serialize(memoryStream, authPacket);
+
+                return memoryStream.ToArray();
+            }
+            
+            [Benchmark]
+            public byte[] MemoryStream_TryGetBuffer()
+            {
+                using var memoryStream = new MemoryStream();
+            
+                var authPacket = new CAuthPatchPacket()
+                {
+                    AccountId = N,
+                    PrivateKey = data
+                };
+            
+                Serializer.Serialize(memoryStream, authPacket);
+
+                memoryStream.TryGetBuffer(out ArraySegment<byte> buffer);
                 
+                return buffer.ToArray();
+            }
+            
+            [Benchmark]
+            public byte[] MemoryStream_TryGetBuffer_WithArray()
+            {
+                using var memoryStream = new MemoryStream();
+            
+                var authPacket = new CAuthPatchPacket()
+                {
+                    AccountId = N,
+                    PrivateKey = data
+                };
+            
+                Serializer.Serialize(memoryStream, authPacket);
+                
+                Memory<byte> memory = new Memory<byte>(memoryStream.GetBuffer(), 0, (int)memoryStream.Length);
+                
+                return memory.ToArray();
             }
         }
 

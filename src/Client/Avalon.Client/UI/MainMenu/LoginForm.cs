@@ -138,6 +138,7 @@ public class LoginForm : IGameComponent
                 break;
             case AuthResult.PENDING_KEY:
                 Globals.Udp.SetPrivateKey(packet.PrivateKey);
+                Globals.Tcp.InitializeCryptography(packet.PrivateKey);
                 await Globals.Udp.SendAuthPatchPacket(packet.AccountId);
                 break;
             case AuthResult.SUCCESS:

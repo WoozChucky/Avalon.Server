@@ -11,11 +11,11 @@ public class TcpClient : IRemoteSource
     public string RemoteAddress => Socket.RemoteEndPoint.ToString();
 
     public Socket Socket { get; }
-    public SslStream Stream { get; }
+    public Stream Stream { get; }
 
     public bool Authenticated { get; }
     
-    public TcpClient(Socket socket, SslStream stream)
+    public TcpClient(Socket socket, Stream stream)
     {
         Socket = socket ?? throw new ArgumentNullException(nameof(socket));
         Stream = stream ?? throw new ArgumentNullException(nameof(stream));

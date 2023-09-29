@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Collections.Concurrent;
+using System.Security.Cryptography;
 using Avalon.Network;
 using Avalon.Network.Packets.Generic;
 using Microsoft.Extensions.Logging;
@@ -21,6 +22,7 @@ public interface IAvalonConnectionManager : IDisposable
     void AddSession(IRemoteSource source, int accountId, byte[] privateKey);
     bool PatchSession(IRemoteSource source, int accountId, byte[] privateKey);
     AvalonSession? GetSession(int accountId);
+    AvalonSession? GetSession(IRemoteSource source);
     ConcurrentDictionary<int, AvalonSession> GetSessions();
     ICollection<AvalonSession> GetInGameSessions();
 }
@@ -182,13 +184,14 @@ public class AvalonConnectionManager : IAvalonConnectionManager
     {
         if (!_sessions.TryGetValue(accountId, out var session))
         {
-            session = new AvalonSession(accountId, privateKey);
+            session = new AvalonSession(accountId);
+            session.InitializeCryptography(privateKey);
             _sessions.TryAdd(accountId, session);
         }
         else
         {
             _logger.LogWarning("Account {Id} already connected, updating server side private key", accountId);
-            session.SessionKey = privateKey;
+            session.InitializeCryptography(privateKey);
         }
         
         session.SetTcp(source as TcpClient ?? throw new InvalidOperationException("Connection is not a TCP connection"));
@@ -219,6 +222,16 @@ public class AvalonConnectionManager : IAvalonConnectionManager
     public AvalonSession? GetSession(int accountId)
     {
         return _sessions.TryGetValue(accountId, out var session) ? session : null;
+    }
+
+    public AvalonSession? GetSession(IRemoteSource source)
+    {
+        return source switch
+        {
+            TcpClient _ => _sessions.Values.FirstOrDefault(c => c.Tcp?.RemoteAddress == source.RemoteAddress),
+            UdpClientPacket _ => _sessions.Values.FirstOrDefault(c => c.Udp?.RemoteAddress == source.RemoteAddress),
+            _ => null
+        };
     }
 
     public ConcurrentDictionary<int, AvalonSession> GetSessions()

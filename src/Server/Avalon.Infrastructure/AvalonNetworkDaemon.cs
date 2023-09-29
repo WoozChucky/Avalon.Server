@@ -147,15 +147,11 @@ public class AvalonNetworkDaemon : IAvalonNetworkDaemon
             {
                 var (client, packet) = await _packetProcessorBuffer.DequeueAsync(_cts.Token);
 
-                if (client is null || packet is null)
-                {
-                    _logger.LogWarning("Received null client or packet in processor thread");
-                    continue;
-                }
-                
+                var session = _connectionManager.GetSession(client);
+
                 var handler = _packetRegistry.GetHandler(packet.Header.Type);
                 
-                var deserializedPacket = GetInnerPacket(packet);
+                var deserializedPacket = GetInnerPacket(packet, session);
 
                 _ = Task.Run(async () =>
                 {
@@ -343,32 +339,39 @@ public class AvalonNetworkDaemon : IAvalonNetworkDaemon
         _connectionManager.RemoveConnection(clientPacket);
     }
     
-    private Packet GetInnerPacket(NetworkPacket packet)
+    private Packet GetInnerPacket(NetworkPacket packet, AvalonSession? session)
     {
+        if (packet.Header.Flags == NetworkPacketFlags.Encrypted && session == null)
+            throw new PacketHandlerException("Encrypted packet received without session key");
+        
+        Func<byte[], byte[]>? decryptFunc = null;
+        if (packet.Header.Flags == NetworkPacketFlags.Encrypted)
+            decryptFunc = session!.Decrypt;
+        
         return packet.Header.Type switch
         {
-            NetworkPacketType.CMSG_AUTH => _packetDeserializer.Deserialize<CAuthPacket>(packet.Header.Type, packet.Payload),
-            NetworkPacketType.CMSG_AUTH_PATCH => _packetDeserializer.Deserialize<CAuthPatchPacket>(packet.Header.Type, packet.Payload),
-            NetworkPacketType.CMSG_LOGOUT => _packetDeserializer.Deserialize<CLogoutPacket>(packet.Header.Type, packet.Payload),
+            NetworkPacketType.CMSG_AUTH => _packetDeserializer.Deserialize<CAuthPacket>(packet.Header.Type, packet.Payload, decryptFunc),
+            NetworkPacketType.CMSG_AUTH_PATCH => _packetDeserializer.Deserialize<CAuthPatchPacket>(packet.Header.Type, packet.Payload, decryptFunc),
+            NetworkPacketType.CMSG_LOGOUT => _packetDeserializer.Deserialize<CLogoutPacket>(packet.Header.Type, packet.Payload, decryptFunc),
             
-            NetworkPacketType.CMSG_CHARACTER_LIST => _packetDeserializer.Deserialize<CCharacterListPacket>(packet.Header.Type, packet.Payload),
-            NetworkPacketType.CMSG_CHARACTER_SELECTED => _packetDeserializer.Deserialize<CCharacterSelectedPacket>(packet.Header.Type, packet.Payload),
-            NetworkPacketType.CMSG_CHARACTER_CREATE => _packetDeserializer.Deserialize<CCharacterCreatePacket>(packet.Header.Type, packet.Payload),
-            NetworkPacketType.CMSG_CHARACTER_DELETE => _packetDeserializer.Deserialize<CCharacterDeletePacket>(packet.Header.Type, packet.Payload),
-            NetworkPacketType.CMSG_CHARACTER_LOADED => _packetDeserializer.Deserialize<CCharacterLoadedPacket>(packet.Header.Type, packet.Payload),
+            NetworkPacketType.CMSG_CHARACTER_LIST => _packetDeserializer.Deserialize<CCharacterListPacket>(packet.Header.Type, packet.Payload, decryptFunc),
+            NetworkPacketType.CMSG_CHARACTER_SELECTED => _packetDeserializer.Deserialize<CCharacterSelectedPacket>(packet.Header.Type, packet.Payload, decryptFunc),
+            NetworkPacketType.CMSG_CHARACTER_CREATE => _packetDeserializer.Deserialize<CCharacterCreatePacket>(packet.Header.Type, packet.Payload, decryptFunc),
+            NetworkPacketType.CMSG_CHARACTER_DELETE => _packetDeserializer.Deserialize<CCharacterDeletePacket>(packet.Header.Type, packet.Payload, decryptFunc),
+            NetworkPacketType.CMSG_CHARACTER_LOADED => _packetDeserializer.Deserialize<CCharacterLoadedPacket>(packet.Header.Type, packet.Payload, decryptFunc),
             
-            NetworkPacketType.CMSG_MAP_TELEPORT => _packetDeserializer.Deserialize<CMapTeleportPacket>(packet.Header.Type, packet.Payload),
+            NetworkPacketType.CMSG_MAP_TELEPORT => _packetDeserializer.Deserialize<CMapTeleportPacket>(packet.Header.Type, packet.Payload, decryptFunc),
             
-            NetworkPacketType.CMSG_INTERACT => _packetDeserializer.Deserialize<CInteractPacket>(packet.Header.Type, packet.Payload),
+            NetworkPacketType.CMSG_INTERACT => _packetDeserializer.Deserialize<CInteractPacket>(packet.Header.Type, packet.Payload, decryptFunc),
             
-            NetworkPacketType.CMSG_MOVEMENT => _packetDeserializer.Deserialize<CPlayerMovementPacket>(packet.Header.Type, packet.Payload),
-            NetworkPacketType.CMSG_REQUEST_SERVER_VERSION => _packetDeserializer.Deserialize<CRequestServerVersionPacket>(packet.Header.Type, packet.Payload),
-            NetworkPacketType.CMSG_PING => _packetDeserializer.Deserialize<CPingPacket>(packet.Header.Type, packet.Payload),
-            NetworkPacketType.CMSG_PONG => _packetDeserializer.Deserialize<CPongPacket>(packet.Header.Type, packet.Payload),
-            NetworkPacketType.CMSG_CHAT_MESSAGE => _packetDeserializer.Deserialize<CChatMessagePacket>(packet.Header.Type, packet.Payload),
-            NetworkPacketType.CMSG_CHAT_OPEN => _packetDeserializer.Deserialize<COpenChatPacket>(packet.Header.Type, packet.Payload),
-            NetworkPacketType.CMSG_CHAT_CLOSE => _packetDeserializer.Deserialize<CCloseChatPacket>(packet.Header.Type, packet.Payload),
-            NetworkPacketType.CMSG_GROUP_INVITE_RESULT => _packetDeserializer.Deserialize<CGroupInviteResultPacket>(packet.Header.Type, packet.Payload),
+            NetworkPacketType.CMSG_MOVEMENT => _packetDeserializer.Deserialize<CPlayerMovementPacket>(packet.Header.Type, packet.Payload, decryptFunc),
+            NetworkPacketType.CMSG_REQUEST_SERVER_VERSION => _packetDeserializer.Deserialize<CRequestServerVersionPacket>(packet.Header.Type, packet.Payload, decryptFunc),
+            NetworkPacketType.CMSG_PING => _packetDeserializer.Deserialize<CPingPacket>(packet.Header.Type, packet.Payload, decryptFunc),
+            NetworkPacketType.CMSG_PONG => _packetDeserializer.Deserialize<CPongPacket>(packet.Header.Type, packet.Payload, decryptFunc),
+            NetworkPacketType.CMSG_CHAT_MESSAGE => _packetDeserializer.Deserialize<CChatMessagePacket>(packet.Header.Type, packet.Payload, decryptFunc),
+            NetworkPacketType.CMSG_CHAT_OPEN => _packetDeserializer.Deserialize<COpenChatPacket>(packet.Header.Type, packet.Payload, decryptFunc),
+            NetworkPacketType.CMSG_CHAT_CLOSE => _packetDeserializer.Deserialize<CCloseChatPacket>(packet.Header.Type, packet.Payload, decryptFunc),
+            NetworkPacketType.CMSG_GROUP_INVITE_RESULT => _packetDeserializer.Deserialize<CGroupInviteResultPacket>(packet.Header.Type, packet.Payload, decryptFunc),
             _ => throw new PacketHandlerException("Unknown packet type " + packet.Header.Type)
         };
     }

@@ -3,6 +3,7 @@ using System.Net;
 using System.Net.Security;
 using System.Net.Sockets;
 using System.Security.Authentication;
+using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using Avalon.Common.Threading;
 using Avalon.Network.Packets;
@@ -51,6 +52,7 @@ public class AvalonTcpClient : IDisposable
     private readonly Socket _socket;
     private readonly RingBuffer<Packet> _receivedPacketBuffer;
     private readonly RingBuffer<NetworkPacket> _sendPacketBuffer;
+    private readonly AvalonCryptography _cryptography;
     
     private SslStream _stream = null!;
 
@@ -69,6 +71,7 @@ public class AvalonTcpClient : IDisposable
         _certificate = new X509Certificate2(clientCertBytes);
         _socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
         _cts = new CancellationTokenSource();
+        _cryptography = new AvalonCryptography();
 
         _receivedPacketBuffer = new RingBuffer<Packet>(100);
         _sendPacketBuffer = new RingBuffer<NetworkPacket>(100);
@@ -243,7 +246,7 @@ public class AvalonTcpClient : IDisposable
             NetworkPacketType.SMSG_NPC_UPDATE => _packetDeserializer.Deserialize<SNpcUpdatePacket>(packet.Header.Type, packet.Payload),
 
             // Character
-            NetworkPacketType.SMSG_CHARACTER_LIST => _packetDeserializer.Deserialize<SCharacterListPacket>(packet.Header.Type, packet.Payload),
+            NetworkPacketType.SMSG_CHARACTER_LIST => _packetDeserializer.Deserialize<SCharacterListPacket>(packet.Header.Type, packet.Payload, _cryptography.Decrypt),
             NetworkPacketType.SMSG_CHARACTER_SELECTED => _packetDeserializer.Deserialize<SCharacterSelectedPacket>(packet.Header.Type, packet.Payload),
             NetworkPacketType.SMSG_CHARACTER_CREATED => _packetDeserializer.Deserialize<SCharacterCreatedPacket>(packet.Header.Type, packet.Payload),
             NetworkPacketType.SMSG_CHARACTER_DELETED => _packetDeserializer.Deserialize<SCharacterDeletedPacket>(packet.Header.Type, packet.Payload),
@@ -316,7 +319,7 @@ public class AvalonTcpClient : IDisposable
 
     public async Task SendCharacterListPacket(int accountId)
     {
-        var packet = CCharacterListPacket.Create(accountId);
+        var packet = CCharacterListPacket.Create(accountId, _cryptography.Encrypt);
         
         await SendPacket(packet);
     }
@@ -397,5 +400,64 @@ public class AvalonTcpClient : IDisposable
     private async Task SendQueuedPacketAsync(NetworkPacket packet)
     {
         await _packetSerializer.SerializeToNetwork(_stream, packet);
+    }
+    
+    public void InitializeCryptography(byte[] sessionKey)
+    {
+        _cryptography.Initialize(sessionKey);
+    }
+    
+    public byte[] Encrypt(byte[] data)
+    {
+        return _cryptography.Encrypt(data);
+    }
+    
+    public byte[] Decrypt(byte[] data)
+    {
+        return _cryptography.Decrypt(data);
+    }
+    
+    private class AvalonCryptography
+    {
+        private Aes _aes;
+
+        public void Initialize(byte[] sessionKey)
+        {
+            _aes = Aes.Create();
+            _aes.Key = sessionKey;
+            _aes.IV = new byte[] {0x5A, 0x36, 0x7F, 0x8D, 0xE9, 0x02, 0xC4, 0xAF, 0x71, 0x5E, 0x9B, 0x44, 0xD7, 0x1A, 0x80, 0x3F};
+        }
+
+        public byte[] Encrypt(byte[] data)
+        {
+            using var memoryStream = new MemoryStream();
+
+            using (var encryptor = _aes.CreateEncryptor())
+            {
+                using (var csEncrypt = new CryptoStream(memoryStream, encryptor, CryptoStreamMode.Write))
+                {
+                    csEncrypt.Write(data, 0, data.Length);
+                    csEncrypt.FlushFinalBlock();
+                }
+            }
+
+            return memoryStream.ToArray();
+        }
+
+        public byte[] Decrypt(byte[] data)
+        {
+            using var memoryStream = new MemoryStream();
+
+            using (var decryptor = _aes.CreateDecryptor())
+            {
+                using (var csDecrypt = new CryptoStream(memoryStream, decryptor, CryptoStreamMode.Write))
+                {
+                    csDecrypt.Write(data, 0, data.Length);
+                    csDecrypt.FlushFinalBlock();
+                }
+            }
+
+            return memoryStream.ToArray();
+        }
     }
 }

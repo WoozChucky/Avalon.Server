@@ -12,7 +12,7 @@ public partial class AvalonGame
     {
         var client = (TcpClient) source;
         
-        LoggerExtensions.LogDebug(_logger, "Handling auth packet from {EndPoint}", client.Socket.RemoteEndPoint);
+        _logger.LogDebug("Handling auth packet from {EndPoint}", client.Socket.RemoteEndPoint);
         
         if (string.IsNullOrWhiteSpace(packet.Username) || string.IsNullOrWhiteSpace(packet.Password))
         {
@@ -75,13 +75,13 @@ public partial class AvalonGame
         
         if (session == null)
         {
-            LoggerExtensions.LogWarning(_logger, "Session not found for account {AccountId}", packet.AccountId);
+            _logger.LogWarning("Session not found for account {AccountId}", packet.AccountId);
             return;
         }
         
         if (!session.InGame)
         {
-            LoggerExtensions.LogWarning(_logger, "Session {AccountId} is not in game", packet.AccountId);
+            _logger.LogWarning("Session {AccountId} is not in game", packet.AccountId);
             await session.SendAsync(SLogoutPacket.Create(session.AccountId, LogoutResult.NotInGame));
             return;
         }
@@ -95,11 +95,11 @@ public partial class AvalonGame
 
         if (!await _databaseManager.Characters.Character.UpdateAsync(character))
         {
-            LoggerExtensions.LogWarning(_logger, "Failed to save character {CharacterId} progress to the database", character.Name);
+            _logger.LogWarning("Failed to save character {CharacterId} progress to the database", character.Name);
             await session.SendAsync(SLogoutPacket.Create(session.AccountId, LogoutResult.InternalError));
         }
         
-        LoggerExtensions.LogInformation(_logger, "Character {CharacterId} logged out at {Position}", character.Name, character.Movement);
+        _logger.LogInformation("Character {CharacterId} logged out at {Position}", character.Name, character.Movement);
         
         await BroadcastToOthersInInstance(session.AccountId, SPlayerDisconnectedPacket.Create(session.AccountId, session.Character!.Id), session.Character.InstanceId);
         

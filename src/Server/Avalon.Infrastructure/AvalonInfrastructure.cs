@@ -62,7 +62,7 @@ public class AvalonInfrastructure : IAvalonInfrastructure
         
         var previousTime = Timer.CurrentTimeMillis();
 
-        var timer = new System.Timers.Timer(2500);
+        var timer = new System.Timers.Timer(60000);
         timer.Elapsed += (sender, args) =>
         {
             var numberOfThreads = Process.GetCurrentProcess().Threads.Count;
@@ -104,6 +104,7 @@ public class AvalonInfrastructure : IAvalonInfrastructure
 
     public void Dispose()
     {
+        _logger.LogInformation("Game looped {LoopCounter} times", _gameServer.GetLoopCounter());
         _logger.LogInformation("Disposing AvalonInfrastructure...");
         _cts.Dispose();
         _metricsManager.QueueEvent("AvalonInfrastructureStatus", "Offline");
