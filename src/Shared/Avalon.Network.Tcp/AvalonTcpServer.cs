@@ -85,7 +85,8 @@ public class AvalonTcpServer : IAvalonTcpServer
         {
             while (!_cts.IsCancellationRequested)
             {
-                var client = await _socket.AcceptAsync();
+                var client = await _socket.AcceptAsync().ConfigureAwait(true);
+                if (_socket == null) continue;
                 await HandleNewConnection(client).ConfigureAwait(false);
             }
         }
@@ -100,7 +101,7 @@ public class AvalonTcpServer : IAvalonTcpServer
         var sslStream = new SslStream(new NetworkStream(client), false, OnClientCertificateValidation);
         try
         {
-            await sslStream.AuthenticateAsServerAsync(_certificate, false, SslProtocols.Tls12, false);
+            await sslStream.AuthenticateAsServerAsync(_certificate, false, SslProtocols.Tls12, false).ConfigureAwait(true);
             
             ClientConnected?.Invoke(this, new TcpClient(client, sslStream));
         }
