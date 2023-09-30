@@ -1,4 +1,5 @@
-﻿using Avalon.Network.Packets.Auth;
+﻿using System.Security.Cryptography;
+using Avalon.Network.Packets.Auth;
 using Avalon.Network.Packets.Character;
 using Avalon.Network.Tcp;
 using Avalon.Network.Udp;
@@ -14,8 +15,8 @@ namespace Avalon.Client.Simulator
     {
         private static async Task Main(string[] args)
         {
-            //var summary = BenchmarkRunner.Run<MemoryBenchmark>();
-            var proto = Serializer.GetProto<CAuthPacket>();
+            var summary = BenchmarkRunner.Run<MemoryBenchmark>();
+            //var proto = Serializer.GetProto<CAuthPacket>();
             /*
             const int clientCount = 4; // This is the number of clients to simulate
 
@@ -44,68 +45,77 @@ namespace Avalon.Client.Simulator
         [RPlotExporter]
         public class MemoryBenchmark
         {
-            private byte[] data;
-            
-            [GlobalSetup]
-            public void Setup()
-            {
-                data = new byte[N];
-                new Random(42).NextBytes(data);
-            }
-            
-            [Params(1, 10000)]
-            public int N;
+            private Aes _aes;
 
-            [Benchmark]
-            public byte[] MemoryStream_ToArray()
+            private byte[] Encrypt(byte[] data)
             {
                 using var memoryStream = new MemoryStream();
-            
-                var authPacket = new CAuthPatchPacket()
+
+                using (var encryptor = _aes.CreateEncryptor())
                 {
-                    AccountId = N,
-                    PrivateKey = data
-                };
-            
-                Serializer.Serialize(memoryStream, authPacket);
+                    using (var csEncrypt = new CryptoStream(memoryStream, encryptor, CryptoStreamMode.Write))
+                    {
+                        csEncrypt.Write(data, 0, data.Length);
+                        csEncrypt.FlushFinalBlock();
+                    }
+                }
 
                 return memoryStream.ToArray();
             }
             
-            [Benchmark]
-            public byte[] MemoryStream_TryGetBuffer()
+            private byte[] Decrypt(byte[] data)
             {
                 using var memoryStream = new MemoryStream();
-            
-                var authPacket = new CAuthPatchPacket()
-                {
-                    AccountId = N,
-                    PrivateKey = data
-                };
-            
-                Serializer.Serialize(memoryStream, authPacket);
 
-                memoryStream.TryGetBuffer(out ArraySegment<byte> buffer);
+                using (var decryptor = _aes.CreateDecryptor())
+                {
+                    using (var csDecrypt = new CryptoStream(memoryStream, decryptor, CryptoStreamMode.Write))
+                    {
+                        csDecrypt.Write(data, 0, data.Length);
+                        csDecrypt.FlushFinalBlock();
+                    }
+                }
+
+                return memoryStream.ToArray();
+            }
+            
+            [GlobalSetup]
+            public void Setup()
+            {
+                var privateKey = new byte[32]; // 256 bits = 32 bytes
+                using (var rng = new RNGCryptoServiceProvider())
+                {
+                    rng.GetBytes(privateKey);
+                }
                 
-                return buffer.ToArray();
+                _aes = Aes.Create();
+                _aes.Key = privateKey;
+                _aes.IV = new byte[] {0x5A, 0x36, 0x7F, 0x8D, 0xE9, 0x02, 0xC4, 0xAF, 0x71, 0x5E, 0x9B, 0x44, 0xD7, 0x1A, 0x80, 0x3F};
+            }
+            
+            [Params(1, 10000)]
+            public int N;
+            
+            [Benchmark]
+            public void Serialize_Aes()
+            {
+
+                var packet = CCharacterListPacket.Create(N, Encrypt);
+                
+                using var memoryStream = new MemoryStream();
+            
+                Serializer.SerializeWithLengthPrefix(memoryStream, packet, PrefixStyle.Base128);
             }
             
             [Benchmark]
-            public byte[] MemoryStream_TryGetBuffer_WithArray()
+            public void Serialize_NoEncryption()
             {
+
+                var packet = CCharacterLoadedPacket.Create(N);
+                
                 using var memoryStream = new MemoryStream();
             
-                var authPacket = new CAuthPatchPacket()
-                {
-                    AccountId = N,
-                    PrivateKey = data
-                };
-            
-                Serializer.Serialize(memoryStream, authPacket);
-                
-                Memory<byte> memory = new Memory<byte>(memoryStream.GetBuffer(), 0, (int)memoryStream.Length);
-                
-                return memory.ToArray();
+                Serializer.SerializeWithLengthPrefix(memoryStream, packet, PrefixStyle.Base128);
             }
         }
 
