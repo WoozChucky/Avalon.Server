@@ -1,4 +1,6 @@
 ﻿using System.Security.Cryptography;
+using Avalon.Common.Cryptography;
+using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Auth;
 using Avalon.Network.Packets.Character;
 using Avalon.Network.Tcp;
@@ -6,6 +8,8 @@ using Avalon.Network.Udp;
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Jobs;
 using BenchmarkDotNet.Running;
+using Org.BouncyCastle.Crypto.Parameters;
+using Org.BouncyCastle.Security;
 using ProtoBuf;
 using ProtoBuf.Meta;
 
@@ -15,6 +19,20 @@ namespace Avalon.Client.Simulator
     {
         private static async Task Main(string[] args)
         {
+            var serverKeyPair = AsymmetricCipher.GenerateECDHKeyPair();
+            var clientKeyPair = AsymmetricCipher.GenerateECDHKeyPair();
+            var serverPublicKey = AsymmetricCipher.GetPublicKeyFromKeyPair(serverKeyPair);
+            var clientPublicKey = AsymmetricCipher.GetPublicKeyFromKeyPair(clientKeyPair);
+                
+            var _serverSharedKey = AsymmetricCipher.CalculateSharedSecret(serverKeyPair, clientPublicKey);
+            var _clientSharedKey = AsymmetricCipher.CalculateSharedSecret(clientKeyPair, serverPublicKey);
+            
+            
+            if (_serverSharedKey.Length != 16 || _clientSharedKey.Length != 16)
+            {
+                throw new Exception("Invalid shared key length");
+            }
+            
             var summary = BenchmarkRunner.Run<MemoryBenchmark>();
             //var proto = Serializer.GetProto<CAuthPacket>();
             /*
@@ -42,16 +60,65 @@ namespace Avalon.Client.Simulator
         
         [MemoryDiagnoser]
         [SimpleJob(RuntimeMoniker.Net70)]
+        [SimpleJob(RuntimeMoniker.Net80)]
         [RPlotExporter]
         public class MemoryBenchmark
         {
-            private Aes _aes;
+            private Aes _aes256Weak;
+            private Aes _aes128;
+            private SecureRandom _secureRandom = new();
+            private MemoryStream _unencryptedPacket;
+            private MemoryStream _encryptedPacket_Aes256_Weak;
+            private MemoryStream _encryptedPacket_Aes128;
+            private byte[] _serverSharedKey;
+            private byte[] _clientSharedKey;
+            
+            [GlobalSetup]
+            public void Setup()
+            {
+                var aes256InsecureKey = new byte[32]; // 256 bits = 32 bytes
+                using (var rng = new RNGCryptoServiceProvider())
+                {
+                    rng.GetBytes(aes256InsecureKey);
+                }
+                _aes256Weak = Aes.Create();
+                _aes256Weak.Key = aes256InsecureKey;
+                _aes256Weak.IV = new byte[]
+                    { 0x5A, 0x36, 0x7F, 0x8D, 0xE9, 0x02, 0xC4, 0xAF, 0x71, 0x5E, 0x9B, 0x44, 0xD7, 0x1A, 0x80, 0x3F };
+                
+                _aes128 = Aes.Create();
+                _aes128.KeySize = 128;
+                
+                _unencryptedPacket = new MemoryStream();
+                Serializer.SerializeWithLengthPrefix(_unencryptedPacket, CCharacterLoadedPacket.Create(1), PrefixStyle.Base128);
+                _unencryptedPacket.Seek(0, SeekOrigin.Begin);
+                
+                _encryptedPacket_Aes256_Weak = new MemoryStream();
+                Serializer.SerializeWithLengthPrefix(_encryptedPacket_Aes256_Weak, CCharacterListPacket.Create(1, Encrypt), PrefixStyle.Base128);
+                _encryptedPacket_Aes256_Weak.Seek(0, SeekOrigin.Begin);
+                
+                var serverKeyPair = AsymmetricCipher.GenerateECDHKeyPair();
+                var clientKeyPair = AsymmetricCipher.GenerateECDHKeyPair();
+                var serverPublicKey = AsymmetricCipher.GetPublicKeyFromKeyPair(serverKeyPair);
+                var clientPublicKey = AsymmetricCipher.GetPublicKeyFromKeyPair(clientKeyPair);
+                
+                _serverSharedKey = AsymmetricCipher.CalculateSharedSecret(serverKeyPair, clientPublicKey);
+                _clientSharedKey = AsymmetricCipher.CalculateSharedSecret(clientKeyPair, serverPublicKey);
+                
+                if (_serverSharedKey.Length != 16 || _clientSharedKey.Length != 16)
+                {
+                    throw new Exception("Invalid shared key length");
+                }
+                
+                _encryptedPacket_Aes128 = new MemoryStream();
+                Serializer.SerializeWithLengthPrefix(_encryptedPacket_Aes128, CCharacterListPacket.Create(1, bytes => EncryptStrong(_serverSharedKey, bytes)), PrefixStyle.Base128);
+                _encryptedPacket_Aes128.Seek(0, SeekOrigin.Begin);
+            }
 
             private byte[] Encrypt(byte[] data)
             {
                 using var memoryStream = new MemoryStream();
-
-                using (var encryptor = _aes.CreateEncryptor())
+                using (var encryptor = _aes256Weak.CreateEncryptor())
                 {
                     using (var csEncrypt = new CryptoStream(memoryStream, encryptor, CryptoStreamMode.Write))
                     {
@@ -66,8 +133,7 @@ namespace Avalon.Client.Simulator
             private byte[] Decrypt(byte[] data)
             {
                 using var memoryStream = new MemoryStream();
-
-                using (var decryptor = _aes.CreateDecryptor())
+                using (var decryptor = _aes256Weak.CreateDecryptor())
                 {
                     using (var csDecrypt = new CryptoStream(memoryStream, decryptor, CryptoStreamMode.Write))
                     {
@@ -79,43 +145,121 @@ namespace Avalon.Client.Simulator
                 return memoryStream.ToArray();
             }
             
-            [GlobalSetup]
-            public void Setup()
+            private byte[] EncryptStrong(byte[] key, byte[] data)
             {
-                var privateKey = new byte[32]; // 256 bits = 32 bytes
-                using (var rng = new RNGCryptoServiceProvider())
-                {
-                    rng.GetBytes(privateKey);
-                }
-                
-                _aes = Aes.Create();
-                _aes.Key = privateKey;
-                _aes.IV = new byte[] {0x5A, 0x36, 0x7F, 0x8D, 0xE9, 0x02, 0xC4, 0xAF, 0x71, 0x5E, 0x9B, 0x44, 0xD7, 0x1A, 0x80, 0x3F};
+                // Generate a random 96-bit nonce (IV)
+                var nonce = new byte[12];
+                _secureRandom.NextBytes(nonce);
+
+                // Create an AES-GCM cipher
+                var cipher = CipherUtilities.GetCipher("AES/GCM/NoPadding");
+                var parameters = new ParametersWithIV(new KeyParameter(key), nonce);
+                cipher.Init(true, parameters);
+
+                // Encrypt the data
+                var ciphertext = cipher.DoFinal(data);
+
+                // Combine the nonce and ciphertext
+                var encryptedData = nonce.Concat(ciphertext).ToArray();
+        
+                return encryptedData;
             }
             
-            [Params(1, 10000)]
-            public int N;
-            
-            [Benchmark]
-            public void Serialize_Aes()
+            public byte[] DecryptStrong(byte[] key, byte[] data)
             {
+                // Split the nonce (IV) and ciphertext
+                var nonce = data.Take(12).ToArray();
+                var ciphertext = data.Skip(12).ToArray();
 
-                var packet = CCharacterListPacket.Create(N, Encrypt);
-                
-                using var memoryStream = new MemoryStream();
-            
-                Serializer.SerializeWithLengthPrefix(memoryStream, packet, PrefixStyle.Base128);
+                // Create an AES-GCM cipher with BouncyCastle
+                var cipher = CipherUtilities.GetCipher("AES/GCM/NoPadding");
+                var parameters = new ParametersWithIV(new KeyParameter(key), nonce);
+                cipher.Init(false, parameters);
+
+                // Decrypt the data
+                var decryptedData = cipher.DoFinal(ciphertext);
+
+                return decryptedData;
             }
             
             [Benchmark]
             public void Serialize_NoEncryption()
             {
 
-                var packet = CCharacterLoadedPacket.Create(N);
+                var packet = CCharacterLoadedPacket.Create(1);
                 
                 using var memoryStream = new MemoryStream();
             
                 Serializer.SerializeWithLengthPrefix(memoryStream, packet, PrefixStyle.Base128);
+            }
+            
+            [Benchmark]
+            public void Serialize_Aes256_Weak()
+            {
+
+                var packet = CCharacterListPacket.Create(1, Encrypt);
+                
+                using var memoryStream = new MemoryStream();
+            
+                Serializer.SerializeWithLengthPrefix(memoryStream, packet, PrefixStyle.Base128);
+            }
+            
+            [Benchmark]
+            public void Serialize_Aes128()
+            {
+                var packet = CCharacterListPacket.Create(1, bytes => EncryptStrong(_serverSharedKey, bytes));
+                
+                using var memoryStream = new MemoryStream();
+            
+                Serializer.SerializeWithLengthPrefix(memoryStream, packet, PrefixStyle.Base128);
+            }
+            
+            [Benchmark]
+            public void Deserialize_Aes256_Weak()
+            {
+                _encryptedPacket_Aes256_Weak.Seek(0, SeekOrigin.Begin);
+                var packet = Serializer.DeserializeWithLengthPrefix<NetworkPacket>(_encryptedPacket_Aes256_Weak, PrefixStyle.Base128);
+                
+                var decryptedBytes = Decrypt(packet.Payload);
+                
+                using var memoryStream = new MemoryStream(decryptedBytes);
+                
+                var innerPacket = Serializer.Deserialize<CCharacterLoadedPacket>(memoryStream);
+                if (innerPacket is not { AccountId: 1 })
+                {
+                    throw new Exception("Failed to deserialize packet");
+                }
+            }
+            
+            [Benchmark]
+            public void Deserialize_Aes128()
+            {
+                _encryptedPacket_Aes128.Seek(0, SeekOrigin.Begin);
+                var packet = Serializer.DeserializeWithLengthPrefix<NetworkPacket>(_encryptedPacket_Aes128, PrefixStyle.Base128);
+                
+                var decryptedBytes = DecryptStrong(_clientSharedKey, packet.Payload);
+                
+                using var memoryStream = new MemoryStream(decryptedBytes);
+                
+                var innerPacket = Serializer.Deserialize<CCharacterListPacket>(memoryStream);
+                if (innerPacket is not { AccountId: 1 })
+                {
+                    throw new Exception("Failed to deserialize packet");
+                }
+            }
+            
+            [Benchmark]
+            public void Deserialize_NoEncryption()
+            {
+                _unencryptedPacket.Seek(0, SeekOrigin.Begin);
+                var packet = Serializer.DeserializeWithLengthPrefix<NetworkPacket>(_unencryptedPacket, PrefixStyle.Base128);
+                
+                using var memoryStream = new MemoryStream(packet.Payload);
+                var innerPacket = Serializer.Deserialize<CCharacterListPacket>(memoryStream);
+                if (innerPacket is not { AccountId: 1 })
+                {
+                    throw new Exception("Failed to deserialize packet");
+                }
             }
         }
 

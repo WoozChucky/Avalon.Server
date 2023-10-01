@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using Avalon.Common.Cryptography;
 using Org.BouncyCastle.Crypto;
 using Org.BouncyCastle.Crypto.Parameters;
+using Org.BouncyCastle.Security;
 
 namespace Avalon.Game;
 
@@ -17,12 +18,18 @@ public class CryptoManager : ICryptoManager
     private readonly byte[] _publicKeyBytes;
     private readonly ECPublicKeyParameters _publicKey;
     private readonly AsymmetricCipherKeyPair _keyPair;
+    private readonly SecureRandom _secureRandom;
 
     public CryptoManager()
     {
         _keyPair = AsymmetricCipher.GenerateECDHKeyPair();
         _publicKey = AsymmetricCipher.GetPublicKeyFromKeyPair(_keyPair);
         _publicKeyBytes = AsymmetricCipher.GetPublicKeyBytes(_publicKey);
+        _secureRandom = new SecureRandom();
+        // Make sure the RNG is properly seeded so next usages are faster
+        _secureRandom.SetSeed(DateTime.UtcNow.Ticks);
+        var tempBytes = new byte[32];
+        _secureRandom.NextBytes(tempBytes);
     }
 
     public byte[] GetPublicKey()
@@ -30,49 +37,40 @@ public class CryptoManager : ICryptoManager
         return _publicKeyBytes;
     }
 
-    public byte[] Decrypt(byte[] key, byte[] data)
-    {
-        using var aesAlg = Aes.Create();
-        aesAlg.Key = key;
-
-        // Split the IV from the encrypted data
-        byte[] iv = data.Take(16).ToArray();
-        byte[] encryptedBytes = data.Skip(16).ToArray();
-
-        aesAlg.IV = iv;
-
-        // Create a decryptor to perform the stream transform
-        var decryptor = aesAlg.CreateDecryptor(aesAlg.Key, aesAlg.IV);
-
-        using var msDecrypt = new MemoryStream(encryptedBytes);
-        using var csDecrypt = new CryptoStream(msDecrypt, decryptor, CryptoStreamMode.Read);
-        
-        byte[] decryptedBytes = new byte[encryptedBytes.Length];
-        int bytesRead = csDecrypt.Read(decryptedBytes, 0, decryptedBytes.Length);
-
-        // Resize the byte array to the actual length of the decrypted data
-        Array.Resize(ref decryptedBytes, bytesRead);
-
-        return decryptedBytes;
-    }
-
     public byte[] Encrypt(byte[] key, byte[] data)
     {
-        using var aesAlg = Aes.Create();
-        aesAlg.Key = key;
-        aesAlg.GenerateIV();
+        // Generate a random 96-bit nonce (IV)
+        var nonce = new byte[12];
+        _secureRandom.NextBytes(nonce);
 
-        // Create an encryptor to perform the stream transform
-        ICryptoTransform encryptor = aesAlg.CreateEncryptor(aesAlg.Key, aesAlg.IV);
+        // Create an AES-GCM cipher
+        var cipher = CipherUtilities.GetCipher("AES/GCM/NoPadding");
+        var parameters = new ParametersWithIV(new KeyParameter(key), nonce);
+        cipher.Init(true, parameters);
 
-        using var msEncrypt = new MemoryStream();
-        using var csEncrypt = new CryptoStream(msEncrypt, encryptor, CryptoStreamMode.Write);
-        using var swEncrypt = new StreamWriter(csEncrypt);
-        // Write all data to the stream
-        swEncrypt.Write(data);
+        // Encrypt the data
+        var ciphertext = cipher.DoFinal(data);
 
-        // Combine the IV and encrypted data
-        var encrypted = aesAlg.IV.Concat(msEncrypt.ToArray()).ToArray();
-        return encrypted;
+        // Combine the nonce and ciphertext
+        var encryptedData = nonce.Concat(ciphertext).ToArray();
+        
+        return encryptedData;
+    }
+    
+    public byte[] Decrypt(byte[] key, byte[] data)
+    {
+        // Split the nonce (IV) and ciphertext
+        var nonce = data.Take(12).ToArray();
+        var ciphertext = data.Skip(12).ToArray();
+
+        // Create an AES-GCM cipher with BouncyCastle
+        var cipher = CipherUtilities.GetCipher("AES/GCM/NoPadding");
+        var parameters = new ParametersWithIV(new KeyParameter(key), nonce);
+        cipher.Init(false, parameters);
+
+        // Decrypt the data
+        var decryptedData = cipher.DoFinal(ciphertext);
+
+        return decryptedData;
     }
 }
