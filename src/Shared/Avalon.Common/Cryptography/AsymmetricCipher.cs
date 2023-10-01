@@ -4,6 +4,7 @@ using Org.BouncyCastle.Asn1.Sec;
 using Org.BouncyCastle.Asn1.X509;
 using Org.BouncyCastle.Crypto;
 using Org.BouncyCastle.Crypto.Agreement;
+using Org.BouncyCastle.Crypto.EC;
 using Org.BouncyCastle.Crypto.Parameters;
 using Org.BouncyCastle.Security;
 using Org.BouncyCastle.X509;
@@ -14,24 +15,22 @@ public class AsymmetricCipher
 {
     public static AsymmetricCipherKeyPair GenerateECDHKeyPair()
     {
-        // Generate an ECDH key pair using the Bouncy Castle library
-        var keyGenParams = new ECKeyGenerationParameters(SecObjectIdentifiers.SecP256r1, new SecureRandom());
-        var keyPairGen = GeneratorUtilities.GetKeyPairGenerator("ECDH");
-        keyPairGen.Init(keyGenParams);
+        // Use a curve with a 128-bit security level
+        var curve = CustomNamedCurves.GetByName("secp128r1");
+        var domainParams = new ECDomainParameters(curve.Curve, curve.G, curve.N, curve.H);
 
-        return keyPairGen.GenerateKeyPair();
+        // Generate key pairs
+        var keyGenerationParameters = new ECKeyGenerationParameters(domainParams, new SecureRandom());
+        var keyPairGenerator = GeneratorUtilities.GetKeyPairGenerator("ECDH");
+        keyPairGenerator.Init(keyGenerationParameters);
+
+        return keyPairGenerator.GenerateKeyPair();
     }
 
     public static ECPublicKeyParameters GetPublicKeyFromKeyPair(AsymmetricCipherKeyPair keyPair)
     {
         if (keyPair == null) throw new ArgumentNullException(nameof(keyPair));
         return (ECPublicKeyParameters)keyPair.Public;
-    }
-    
-    public static ECPublicKeyParameters GetPrivateKeyFromKeyPair(AsymmetricCipherKeyPair keyPair)
-    {
-        if (keyPair == null) throw new ArgumentNullException(nameof(keyPair));
-        return (ECPublicKeyParameters)keyPair.Private;
     }
     
     public static byte[] GetPublicKeyBytes(ECPublicKeyParameters publicKey)
@@ -68,7 +67,7 @@ public class AsymmetricCipher
         var secret = agreement.CalculateAgreement(otherPublicKey);
 
         // Convert the shared secret to a byte array
-        byte[] sharedSecret = secret.ToByteArray();
+        byte[] sharedSecret = secret.ToByteArrayUnsigned();
 
         return sharedSecret;
     }
