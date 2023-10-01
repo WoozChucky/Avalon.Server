@@ -9,8 +9,8 @@ namespace Avalon.Game;
 public interface ICryptoManager
 {
     byte[] GetPublicKey();
-    byte[] Decrypt(byte[] key, byte[] data);
-    byte[] Encrypt(byte[] key, byte[] data);
+    AsymmetricCipherKeyPair GetKeyPair();
+    int GetValidKeySize();
 }
 
 public class CryptoManager : ICryptoManager
@@ -37,40 +37,13 @@ public class CryptoManager : ICryptoManager
         return _publicKeyBytes;
     }
 
-    public byte[] Encrypt(byte[] key, byte[] data)
+    public AsymmetricCipherKeyPair GetKeyPair()
     {
-        // Generate a random 96-bit nonce (IV)
-        var nonce = new byte[12];
-        _secureRandom.NextBytes(nonce);
-
-        // Create an AES-GCM cipher
-        var cipher = CipherUtilities.GetCipher("AES/GCM/NoPadding");
-        var parameters = new ParametersWithIV(new KeyParameter(key), nonce);
-        cipher.Init(true, parameters);
-
-        // Encrypt the data
-        var ciphertext = cipher.DoFinal(data);
-
-        // Combine the nonce and ciphertext
-        var encryptedData = nonce.Concat(ciphertext).ToArray();
-        
-        return encryptedData;
+        return _keyPair;
     }
-    
-    public byte[] Decrypt(byte[] key, byte[] data)
+
+    public int GetValidKeySize()
     {
-        // Split the nonce (IV) and ciphertext
-        var nonce = data.Take(12).ToArray();
-        var ciphertext = data.Skip(12).ToArray();
-
-        // Create an AES-GCM cipher with BouncyCastle
-        var cipher = CipherUtilities.GetCipher("AES/GCM/NoPadding");
-        var parameters = new ParametersWithIV(new KeyParameter(key), nonce);
-        cipher.Init(false, parameters);
-
-        // Decrypt the data
-        var decryptedData = cipher.DoFinal(ciphertext);
-
-        return decryptedData;
+        return _publicKeyBytes.Length;
     }
 }

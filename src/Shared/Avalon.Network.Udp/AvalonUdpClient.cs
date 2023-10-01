@@ -93,9 +93,9 @@ public class AvalonUdpClient : IDisposable
         this._privateKey = privateKey;
     }
 
-    public async Task SendAuthPatchPacket(int accountId)
+    public async Task SendAuthPatchPacket(int accountId, byte[] publicKey)
     {
-        await SendToServer(CAuthPatchPacket.Create(accountId, _privateKey));
+        await SendToServer(CAuthPatchPacket.Create(accountId, publicKey));
     }
     
     public async Task BroadcastMovementUpdates(float time, float x, float y, float velX, float velY)

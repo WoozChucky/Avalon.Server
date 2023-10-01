@@ -13,18 +13,37 @@ namespace Avalon.Common.Cryptography;
 
 public class AsymmetricCipher
 {
-    public static AsymmetricCipherKeyPair GenerateECDHKeyPair()
+    public static AsymmetricCipherKeyPair GenerateECDHKeyPair(int bits = 128)
     {
-        // Use a curve with a 128-bit security level
-        var curve = CustomNamedCurves.GetByName("secp128r1");
-        var domainParams = new ECDomainParameters(curve.Curve, curve.G, curve.N, curve.H);
+        switch (bits)
+        {
+            case 128:
+            {
+                // Use a curve with a 128-bit security level
+                var curve = CustomNamedCurves.GetByName("secp128r1");
+                var domainParams = new ECDomainParameters(curve.Curve, curve.G, curve.N, curve.H);
 
-        // Generate key pairs
-        var keyGenerationParameters = new ECKeyGenerationParameters(domainParams, new SecureRandom());
-        var keyPairGenerator = GeneratorUtilities.GetKeyPairGenerator("ECDH");
-        keyPairGenerator.Init(keyGenerationParameters);
+                // Generate key pairs
+                var keyGenerationParameters = new ECKeyGenerationParameters(domainParams, new SecureRandom());
+                var keyPairGenerator = GeneratorUtilities.GetKeyPairGenerator("ECDH");
+                keyPairGenerator.Init(keyGenerationParameters);
 
-        return keyPairGenerator.GenerateKeyPair();
+                return keyPairGenerator.GenerateKeyPair();
+            }
+            case 192:
+                throw new NotImplementedException("192-bit ECDH key pair generation not implemented");
+            case 256:
+            {
+                // Use a curve with a 256-bit security level
+                var keyGenParams = new ECKeyGenerationParameters(SecObjectIdentifiers.SecP256r1, new SecureRandom());
+                var keyPairGen = GeneratorUtilities.GetKeyPairGenerator("ECDH");
+                keyPairGen.Init(keyGenParams);
+
+                return keyPairGen.GenerateKeyPair();   
+            }
+            default:
+                throw new ArgumentException("Invalid key size");
+        }
     }
 
     public static ECPublicKeyParameters GetPublicKeyFromKeyPair(AsymmetricCipherKeyPair keyPair)
@@ -67,7 +86,7 @@ public class AsymmetricCipher
         var secret = agreement.CalculateAgreement(otherPublicKey);
 
         // Convert the shared secret to a byte array
-        byte[] sharedSecret = secret.ToByteArrayUnsigned();
+        var sharedSecret = secret.ToByteArrayUnsigned();
 
         return sharedSecret;
     }

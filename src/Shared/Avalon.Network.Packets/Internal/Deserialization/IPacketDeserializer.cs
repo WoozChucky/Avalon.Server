@@ -5,7 +5,7 @@ namespace Avalon.Network.Packets.Internal.Deserialization;
 
 public interface IPacketDeserializer
 {
-    T Deserialize<T>(NetworkPacketType packetType, byte[] data, Func<byte[], byte[]>? func = null) where T : class;
+    T Deserialize<T>(NetworkPacketType packetType, byte[] data, Func<byte[], byte[]>? decryptFunc = null) where T : class;
     
     Task<T?> DeserializeFromNetwork<T>(Stream source) where T : class;
     

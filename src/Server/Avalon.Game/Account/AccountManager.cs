@@ -10,13 +10,21 @@ public partial class AvalonGame
 {
     public async Task HandleAuthPacket(IRemoteSource source, CAuthPacket packet)
     {
-        var client = (TcpClient) source;
+        var client = source.AsTcpClient();
         
         _logger.LogDebug("Handling auth packet from {EndPoint}", client.Socket.RemoteEndPoint);
         
+        var session = _connectionManager.GetSession(client);
+
+        if (session == null)
+        {
+            _logger.LogWarning("Session not found for client {EndPoint}", client.Socket.RemoteEndPoint);
+            return;
+        }
+        
         if (string.IsNullOrWhiteSpace(packet.Username) || string.IsNullOrWhiteSpace(packet.Password))
         {
-            await _packetSerializer.SerializeToNetwork(client.Stream, SAuthResultPacket.Create(AuthResult.INVALID_CREDENTIALS));
+            await client.SendAsync(SAuthResultPacket.Create(AuthResult.INVALID_CREDENTIALS, session.Encrypt));
             return;
         }
 
@@ -25,42 +33,30 @@ public partial class AvalonGame
 
         if (account == null)
         {
-            await _packetSerializer.SerializeToNetwork(client.Stream, SAuthResultPacket.Create(AuthResult.INVALID_CREDENTIALS));
+            await client.SendAsync(SAuthResultPacket.Create(AuthResult.INVALID_CREDENTIALS, session.Encrypt));
             return;
         }
         
-        var verifier = Encoding.UTF8.GetString((byte[])account.Verifier);
+        var verifier = Encoding.UTF8.GetString(account.Verifier);
 
         if (!BCrypt.Net.BCrypt.Verify(packet.Password.Trim(), verifier))
         {
             //TODO: Increment failed login attempts
             
-            await _packetSerializer.SerializeToNetwork(client.Stream, SAuthResultPacket.Create(AuthResult.INVALID_CREDENTIALS));
+            await client.SendAsync(SAuthResultPacket.Create(AuthResult.INVALID_CREDENTIALS, session.Encrypt));
             return;
         }
         
         // TODO: Check if account is locked
-            
-        //var salt = BCrypt.Net.BCrypt.GenerateSalt();
-        //var hash = BCrypt.Net.BCrypt.HashPassword("123", salt);
 
-        // Generate 256 bits private key for this client
-        var privateKey = new byte[32]; // 256 bits = 32 bytes
-        using (var rng = new RNGCryptoServiceProvider())
-        {
-            rng.GetBytes(privateKey);
-        }
-
-        _connectionManager.AddSession(source, account.Id, privateKey);
-        
-        await _packetSerializer.SerializeToNetwork(client.Stream, SAuthResultPacket.Create(account.Id, privateKey));
+        await client.SendAsync(SAuthResultPacket.Create(account.Id, AuthResult.PENDING_KEY, session.Encrypt));
     }
 
     public async Task HandleAuthPatchPacket(IRemoteSource source, CAuthPatchPacket packet)
     {
         var udpClient = source.AsUdpClient();
         
-        if (!_connectionManager.PatchSession(source, packet.AccountId, packet.PrivateKey))
+        if (!_connectionManager.PatchSession(source, packet.AccountId, packet.PublicKey))
         {
             
             await udpClient.SendAsync(SAuthResultPacket.Create(AuthResult.WRONG_KEY));

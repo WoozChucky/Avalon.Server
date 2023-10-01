@@ -59,6 +59,8 @@ public class InfrastructureFixture : IDisposable
 			new NullLogger<QuestManager>(),
 			DatabaseManager
 		);
+		
+		CryptoManager = new CryptoManager();
 
 		Game = new AvalonGame(
 			new NullLogger<AvalonGame>(),
@@ -69,7 +71,8 @@ public class InfrastructureFixture : IDisposable
 			CreatureSpawner,
 			AIController,
 			PoolManager,
-			QuestManager
+			QuestManager,
+			CryptoManager
 		);
 
 		NetworkDaemon = new AvalonNetworkDaemon(
@@ -115,6 +118,7 @@ public class InfrastructureFixture : IDisposable
 	
 	public ICreatureSpawner CreatureSpawner { get; set; }
 	public IAIController AIController { get; set; }
+	public ICryptoManager CryptoManager { get; set; }
 	
 	public IAvalonGame Game { get; set; }
     

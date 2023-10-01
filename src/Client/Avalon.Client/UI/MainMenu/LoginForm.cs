@@ -137,9 +137,7 @@ public class LoginForm : IGameComponent
                 LoginFailed?.Invoke("Invalid username or password");
                 break;
             case AuthResult.PENDING_KEY:
-                Globals.Udp.SetPrivateKey(packet.PrivateKey);
-                Globals.Tcp.InitializeCryptography(packet.PrivateKey);
-                await Globals.Udp.SendAuthPatchPacket(packet.AccountId);
+                await Globals.Udp.SendAuthPatchPacket(packet.AccountId, Globals.Tcp.PublicKey());
                 break;
             case AuthResult.SUCCESS:
                 LoginSuccess?.Invoke(packet.AccountId);

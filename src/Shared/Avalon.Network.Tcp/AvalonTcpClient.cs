@@ -5,12 +5,14 @@ using System.Net.Sockets;
 using System.Security.Authentication;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
+using Avalon.Common.Cryptography;
 using Avalon.Common.Threading;
 using Avalon.Network.Packets;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Auth;
 using Avalon.Network.Packets.Character;
 using Avalon.Network.Packets.Generic;
+using Avalon.Network.Packets.Handshake;
 using Avalon.Network.Packets.Internal.Deserialization;
 using Avalon.Network.Packets.Internal.Exceptions;
 using Avalon.Network.Packets.Map;
@@ -52,7 +54,7 @@ public class AvalonTcpClient : IDisposable
     private readonly Socket _socket;
     private readonly RingBuffer<Packet> _receivedPacketBuffer;
     private readonly RingBuffer<NetworkPacket> _sendPacketBuffer;
-    private readonly AvalonCryptography _cryptography;
+    private readonly IAvalonCryptoSession _cryptography;
     
     private SslStream _stream = null!;
 
@@ -71,7 +73,7 @@ public class AvalonTcpClient : IDisposable
         _certificate = new X509Certificate2(clientCertBytes);
         _socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
         _cts = new CancellationTokenSource();
-        _cryptography = new AvalonCryptography();
+        _cryptography = new AvalonCryptoSession();
 
         _receivedPacketBuffer = new RingBuffer<Packet>(100);
         _sendPacketBuffer = new RingBuffer<NetworkPacket>(100);
@@ -97,6 +99,8 @@ public class AvalonTcpClient : IDisposable
         Task.Run(HandleCommunications);
         Task.Run(ProcessReceivedPackets);
 #pragma warning restore CS4014
+        
+        await RequestServerInfoPacket();
     }
 
     private bool UserCertificateValidationCallback(object sender, X509Certificate x509Certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors)
@@ -135,6 +139,30 @@ public class AvalonTcpClient : IDisposable
 
                 switch (packet)
                 {
+                    case SServerInfoPacket p:
+                        Send(async () =>
+                        {
+                            _cryptography.Initialize(p.PublicKey);
+                            await SendPacket(CClientInfoPacket.Create(_cryptography.GetPublicKey()));
+                        });
+                        break;
+                    case SHandshakePacket p:
+                        Send(async () =>
+                        {
+                            var data = p.HandshakeData;
+                            var result = CHandshakePacket.Create(data, _cryptography.Encrypt);
+                            await SendPacket(result);
+                        });
+                        break;
+                    case SHandshakeResultPacket p:
+                        Send(() =>
+                        {
+                            if (!p.Verified)
+                            {
+                                throw new Exception("Handshake failed");
+                            }
+                        });
+                        break;
                     case SPlayerPositionUpdatePacket p:
                         Send(() => PlayerMoved?.Invoke(this, p));
                         break;
@@ -231,38 +259,49 @@ public class AvalonTcpClient : IDisposable
     
     private Packet GetInnerPacket(NetworkPacket packet)
     {
+        
+        Func<byte[], byte[]>? decryptFunc = null;
+        if (packet.Header.Flags == NetworkPacketFlags.Encrypted)
+            decryptFunc = _cryptography!.Decrypt;
+        
         return packet.Header.Type switch
         {
+            // Handshake
+            NetworkPacketType.SMSG_SERVER_INFO => _packetDeserializer.Deserialize<SServerInfoPacket>(packet.Header.Type, packet.Payload, decryptFunc),
+            NetworkPacketType.SMSG_SERVER_HANDSHAKE => _packetDeserializer.Deserialize<SHandshakePacket>(packet.Header.Type, packet.Payload, decryptFunc),
+            NetworkPacketType.SMSG_SERVER_HANDSHAKE_RESULT => _packetDeserializer.Deserialize<SHandshakeResultPacket>(packet.Header.Type, packet.Payload, decryptFunc),
+            
+            
             // Auth
-            NetworkPacketType.SMSG_AUTH_RESULT => _packetDeserializer.Deserialize<SAuthResultPacket>(packet.Header.Type, packet.Payload),
-            NetworkPacketType.SMSG_LOGOUT => _packetDeserializer.Deserialize<SLogoutPacket>(packet.Header.Type, packet.Payload),
+            NetworkPacketType.SMSG_AUTH_RESULT => _packetDeserializer.Deserialize<SAuthResultPacket>(packet.Header.Type, packet.Payload, decryptFunc),
+            NetworkPacketType.SMSG_LOGOUT => _packetDeserializer.Deserialize<SLogoutPacket>(packet.Header.Type, packet.Payload, decryptFunc),
             
             // Account
-            NetworkPacketType.SMSG_PLAYER_CONNECTED => _packetDeserializer.Deserialize<SPlayerConnectedPacket>(packet.Header.Type, packet.Payload),
-            NetworkPacketType.SMSG_PLAYER_DISCONNECTED => _packetDeserializer.Deserialize<SPlayerDisconnectedPacket>(packet.Header.Type, packet.Payload),
-            NetworkPacketType.SMSG_PLAYER_POSITION_UPDATE => _packetDeserializer.Deserialize<SPlayerPositionUpdatePacket>(packet.Header.Type, packet.Payload),
+            NetworkPacketType.SMSG_CHARACTER_CONNECTED => _packetDeserializer.Deserialize<SPlayerConnectedPacket>(packet.Header.Type, packet.Payload, decryptFunc),
+            NetworkPacketType.SMSG_CHARACTER_DISCONNECTED => _packetDeserializer.Deserialize<SPlayerDisconnectedPacket>(packet.Header.Type, packet.Payload, decryptFunc),
+            NetworkPacketType.SMSG_PLAYER_POSITION_UPDATE => _packetDeserializer.Deserialize<SPlayerPositionUpdatePacket>(packet.Header.Type, packet.Payload, decryptFunc),
             
             // TODO: Refactor this packet type and packet name
-            NetworkPacketType.SMSG_NPC_UPDATE => _packetDeserializer.Deserialize<SNpcUpdatePacket>(packet.Header.Type, packet.Payload),
+            NetworkPacketType.SMSG_NPC_UPDATE => _packetDeserializer.Deserialize<SNpcUpdatePacket>(packet.Header.Type, packet.Payload, decryptFunc),
 
             // Character
-            NetworkPacketType.SMSG_CHARACTER_LIST => _packetDeserializer.Deserialize<SCharacterListPacket>(packet.Header.Type, packet.Payload, _cryptography.Decrypt),
-            NetworkPacketType.SMSG_CHARACTER_SELECTED => _packetDeserializer.Deserialize<SCharacterSelectedPacket>(packet.Header.Type, packet.Payload),
-            NetworkPacketType.SMSG_CHARACTER_CREATED => _packetDeserializer.Deserialize<SCharacterCreatedPacket>(packet.Header.Type, packet.Payload),
-            NetworkPacketType.SMSG_CHARACTER_DELETED => _packetDeserializer.Deserialize<SCharacterDeletedPacket>(packet.Header.Type, packet.Payload),
+            NetworkPacketType.SMSG_CHARACTER_LIST => _packetDeserializer.Deserialize<SCharacterListPacket>(packet.Header.Type, packet.Payload, decryptFunc),
+            NetworkPacketType.SMSG_CHARACTER_SELECTED => _packetDeserializer.Deserialize<SCharacterSelectedPacket>(packet.Header.Type, packet.Payload, decryptFunc),
+            NetworkPacketType.SMSG_CHARACTER_CREATED => _packetDeserializer.Deserialize<SCharacterCreatedPacket>(packet.Header.Type, packet.Payload, decryptFunc),
+            NetworkPacketType.SMSG_CHARACTER_DELETED => _packetDeserializer.Deserialize<SCharacterDeletedPacket>(packet.Header.Type, packet.Payload, decryptFunc),
             
             // Map
-            NetworkPacketType.SMSG_MAP_TELEPORT => _packetDeserializer.Deserialize<SMapTeleportPacket>(packet.Header.Type, packet.Payload),
+            NetworkPacketType.SMSG_MAP_TELEPORT => _packetDeserializer.Deserialize<SMapTeleportPacket>(packet.Header.Type, packet.Payload, decryptFunc),
             
             // Social
-            NetworkPacketType.SMSG_CHAT_MESSAGE => _packetDeserializer.Deserialize<SChatMessagePacket>(packet.Header.Type, packet.Payload),
-            NetworkPacketType.SMSG_CHAT_OPEN => _packetDeserializer.Deserialize<SOpenChatPacket>(packet.Header.Type, packet.Payload),
-            NetworkPacketType.SMSG_CHAT_CLOSE => _packetDeserializer.Deserialize<SCloseChatPacket>(packet.Header.Type, packet.Payload),
-            NetworkPacketType.SMSG_GROUP_INVITE => _packetDeserializer.Deserialize<SGroupInvitePacket>(packet.Header.Type, packet.Payload),
-            NetworkPacketType.SMSG_GROUP_INVITE_RESULT => _packetDeserializer.Deserialize<SGroupResultPacket>(packet.Header.Type, packet.Payload), 
+            NetworkPacketType.SMSG_CHAT_MESSAGE => _packetDeserializer.Deserialize<SChatMessagePacket>(packet.Header.Type, packet.Payload, decryptFunc),
+            NetworkPacketType.SMSG_CHAT_OPEN => _packetDeserializer.Deserialize<SOpenChatPacket>(packet.Header.Type, packet.Payload, decryptFunc),
+            NetworkPacketType.SMSG_CHAT_CLOSE => _packetDeserializer.Deserialize<SCloseChatPacket>(packet.Header.Type, packet.Payload, decryptFunc),
+            NetworkPacketType.SMSG_GROUP_INVITE => _packetDeserializer.Deserialize<SGroupInvitePacket>(packet.Header.Type, packet.Payload, decryptFunc),
+            NetworkPacketType.SMSG_GROUP_INVITE_RESULT => _packetDeserializer.Deserialize<SGroupResultPacket>(packet.Header.Type, packet.Payload, decryptFunc), 
             
             // Generic
-            NetworkPacketType.SMSG_PING => _packetDeserializer.Deserialize<SPingPacket>(packet.Header.Type, packet.Payload),
+            NetworkPacketType.SMSG_PING => _packetDeserializer.Deserialize<SPingPacket>(packet.Header.Type, packet.Payload, decryptFunc),
             
             _ => throw new PacketHandlerException("Unknown packet type " + packet.Header.Type)
         };
@@ -365,6 +404,13 @@ public class AvalonTcpClient : IDisposable
         
         await SendPacket(packet);
     }
+
+    public async Task RequestServerInfoPacket()
+    {
+        var packet = CRequestServerInfoPacket.Create(1_000_000);
+        
+        await SendPacket(packet);
+    }
     
     private async Task SendPacket(NetworkPacket packet)
     {
@@ -401,63 +447,9 @@ public class AvalonTcpClient : IDisposable
     {
         await _packetSerializer.SerializeToNetwork(_stream, packet);
     }
-    
-    public void InitializeCryptography(byte[] sessionKey)
+
+    public byte[] PublicKey()
     {
-        _cryptography.Initialize(sessionKey);
-    }
-    
-    public byte[] Encrypt(byte[] data)
-    {
-        return _cryptography.Encrypt(data);
-    }
-    
-    public byte[] Decrypt(byte[] data)
-    {
-        return _cryptography.Decrypt(data);
-    }
-    
-    private class AvalonCryptography
-    {
-        private Aes _aes;
-
-        public void Initialize(byte[] sessionKey)
-        {
-            _aes = Aes.Create();
-            _aes.Key = sessionKey;
-            _aes.IV = new byte[] {0x5A, 0x36, 0x7F, 0x8D, 0xE9, 0x02, 0xC4, 0xAF, 0x71, 0x5E, 0x9B, 0x44, 0xD7, 0x1A, 0x80, 0x3F};
-        }
-
-        public byte[] Encrypt(byte[] data)
-        {
-            using var memoryStream = new MemoryStream();
-
-            using (var encryptor = _aes.CreateEncryptor())
-            {
-                using (var csEncrypt = new CryptoStream(memoryStream, encryptor, CryptoStreamMode.Write))
-                {
-                    csEncrypt.Write(data, 0, data.Length);
-                    csEncrypt.FlushFinalBlock();
-                }
-            }
-
-            return memoryStream.ToArray();
-        }
-
-        public byte[] Decrypt(byte[] data)
-        {
-            using var memoryStream = new MemoryStream();
-
-            using (var decryptor = _aes.CreateDecryptor())
-            {
-                using (var csDecrypt = new CryptoStream(memoryStream, decryptor, CryptoStreamMode.Write))
-                {
-                    csDecrypt.Write(data, 0, data.Length);
-                    csDecrypt.FlushFinalBlock();
-                }
-            }
-
-            return memoryStream.ToArray();
-        }
+        return _cryptography.GetPublicKey();
     }
 }

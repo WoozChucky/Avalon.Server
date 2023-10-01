@@ -10,52 +10,42 @@ public class SAuthResultPacket : Packet
     private const NetworkProtocol Protocol = NetworkProtocol.Tcp;
     [ProtoMember(1)] public int AccountId { get; set; }
     [ProtoMember(2)] public AuthResult Result { get; set; }
-    [ProtoMember(3)] public byte[] PrivateKey { get; set; }
     
-    public static NetworkPacket Create(int accountId, byte[] privateKey)
+    public static NetworkPacket Create(int accountId, AuthResult result, Func<byte[], byte[]>? encryptFunc = null)
     {
         using var memoryStream = new MemoryStream();
         
-        var byePacket = new SAuthResultPacket()
-        {
-            AccountId = accountId,
-            Result = AuthResult.PENDING_KEY,
-            PrivateKey = privateKey
-        };
-        
-        Serializer.Serialize(memoryStream, byePacket);
-        
-        return new NetworkPacket
-        {
-            Header = new NetworkPacketHeader
-            {
-                Type = PacketType,
-                Flags = NetworkPacketFlags.None,
-                Protocol = Protocol,
-                Version = 0
-            },
-            Payload = memoryStream.ToArray()
-        };
-    }
-    
-    public static NetworkPacket Create(int accountId, AuthResult result)
-    {
-        using var memoryStream = new MemoryStream();
-        
-        var byePacket = new SAuthResultPacket()
+        var packet = new SAuthResultPacket()
         {
             AccountId = accountId,
             Result = result,
         };
         
-        Serializer.Serialize(memoryStream, byePacket);
+        Serializer.Serialize(memoryStream, packet);
+        
+        if (encryptFunc != null)
+        {
+            var buffer = encryptFunc(memoryStream.ToArray());
+            
+            return new NetworkPacket
+            {
+                Header = new NetworkPacketHeader
+                {
+                    Type = PacketType,
+                    Flags = NetworkPacketFlags.Encrypted,
+                    Protocol = Protocol,
+                    Version = 0
+                },
+                Payload = buffer.ToArray()
+            };
+        }
         
         return new NetworkPacket
         {
             Header = new NetworkPacketHeader
             {
                 Type = PacketType,
-                Flags = NetworkPacketFlags.None,
+                Flags = NetworkPacketFlags.ClearText,
                 Protocol = Protocol,
                 Version = 0
             },
@@ -63,7 +53,7 @@ public class SAuthResultPacket : Packet
         };
     }
     
-    public static NetworkPacket Create(AuthResult result)
+    public static NetworkPacket Create(AuthResult result, Func<byte[], byte[]>? encryptFunc = null)
     {
         using var memoryStream = new MemoryStream();
         
@@ -74,12 +64,29 @@ public class SAuthResultPacket : Packet
         
         Serializer.Serialize(memoryStream, byePacket);
         
+        if (encryptFunc != null)
+        {
+            var buffer = encryptFunc(memoryStream.ToArray());
+            
+            return new NetworkPacket
+            {
+                Header = new NetworkPacketHeader
+                {
+                    Type = PacketType,
+                    Flags = NetworkPacketFlags.Encrypted,
+                    Protocol = Protocol,
+                    Version = 0
+                },
+                Payload = buffer.ToArray()
+            };
+        }
+        
         return new NetworkPacket
         {
             Header = new NetworkPacketHeader
             {
                 Type = PacketType,
-                Flags = NetworkPacketFlags.None,
+                Flags = NetworkPacketFlags.ClearText,
                 Protocol = Protocol,
                 Version = 0
             },

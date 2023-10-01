@@ -11,6 +11,7 @@ using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Auth;
 using Avalon.Network.Packets.Character;
 using Avalon.Network.Packets.Generic;
+using Avalon.Network.Packets.Handshake;
 using Avalon.Network.Packets.Map;
 using Avalon.Network.Packets.Movement;
 using Avalon.Network.Packets.Quest;
@@ -30,7 +31,6 @@ public interface IAvalonGame
     void IncrementLoopCounter();
     long GetLoopCounter();
     
-    Task HandleServerVersionPacket(IRemoteSource source, CRequestServerVersionPacket packet);
     Task HandlePingPacket(IRemoteSource source, CPingPacket packet);
     Task HandleMovementPacket(IRemoteSource source, CPlayerMovementPacket packet);
     Task HandleChatMessagePacket(IRemoteSource source, CChatMessagePacket packet);
@@ -49,6 +49,9 @@ public interface IAvalonGame
     Task HandleInteractPacket(IRemoteSource source, CInteractPacket packet);
     Task HandleQuestListPacket(IRemoteSource source, CQuestStatusPacket packet);
     Task HandleQuestStatusPacket(IRemoteSource source, CQuestStatusPacket packet);
+    Task HandleServerInfoPacket(IRemoteSource source, CRequestServerInfoPacket packet);
+    Task HandleClientInfoPacket(IRemoteSource source, CClientInfoPacket packet);
+    Task HandleHandshakePacket(IRemoteSource source, CHandshakePacket packet);
 }
 
 public partial class AvalonGame : IAvalonGame
@@ -63,6 +66,7 @@ public partial class AvalonGame : IAvalonGame
     private readonly IAIController _aiController;
     private readonly IPoolManager _poolManager;
     private readonly IQuestManager _questManager;
+    private readonly ICryptoManager _cryptography;
     private volatile bool _isRunning;
     private long _loopCounter;
 
@@ -74,7 +78,8 @@ public partial class AvalonGame : IAvalonGame
         ICreatureSpawner creatureSpawner,
         IAIController aiController,
         IPoolManager poolManager,
-        IQuestManager questManager)
+        IQuestManager questManager,
+        ICryptoManager cryptography)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _cts = new CancellationTokenSource();
@@ -86,6 +91,7 @@ public partial class AvalonGame : IAvalonGame
         _aiController = aiController;
         _poolManager = poolManager;
         _questManager = questManager;
+        _cryptography = cryptography;
         _loopCounter = 0;
         
         _connectionManager.SessionLost += OnSessionLost;
@@ -376,20 +382,73 @@ public partial class AvalonGame : IAvalonGame
         await _databaseManager.Characters.Character.UpdateAsync(session.Character);
     }
 
-    public async Task HandleServerVersionPacket(IRemoteSource source, CRequestServerVersionPacket packet)
+    public Task HandleServerInfoPacket(IRemoteSource source, CRequestServerInfoPacket packet)
     {
-        var client = (TcpClient) source;
+        var client = source.AsTcpClient();
         
-        _logger.LogDebug("Handling server version packet from {EndPoint}", client.Socket.RemoteEndPoint);
+        _logger.LogDebug("Handling server info packet from {EndPoint}", client.Socket.RemoteEndPoint);
         
-        var result = SServerVersionPacket.Create(
-            Assembly.GetExecutingAssembly().GetName().Version?.Major ?? 0,
-            Assembly.GetExecutingAssembly().GetName().Version?.Minor ?? 0,
-            Assembly.GetExecutingAssembly().GetName().Version?.Build ?? 0,
-            Assembly.GetExecutingAssembly().GetName().Version?.Revision ?? 0
+        if (packet.ClientVersion != 1_000_000)
+        {
+            _logger.LogWarning("Client {EndPoint} is using an invalid version", client.Socket.RemoteEndPoint);
+            client.Dispose();
+            return Task.CompletedTask;
+        }
+        
+        var result = SServerInfoPacket.Create(
+            1_000_000, // TODO: Hardcoded server version
+            _cryptography.GetPublicKey()
         );
         
-        await _packetSerializer.SerializeToNetwork(client.Stream, result);
+        return _packetSerializer.SerializeToNetwork(client.Stream, result);
+    }
+
+    public async Task HandleClientInfoPacket(IRemoteSource source, CClientInfoPacket packet)
+    {
+        if (packet.PublicKey == null || packet.PublicKey.Length == 0)
+        {
+            _logger.LogWarning("Client {EndPoint} sent an invalid public key", source.RemoteAddress);
+            return;
+        }
+
+        if (packet.PublicKey.Length != _cryptography.GetValidKeySize())
+        {
+            _logger.LogWarning("Client {EndPoint} sent an invalid public key size", source.RemoteAddress);
+            return;
+        }
+        
+        _connectionManager.AddSession(source, _cryptography.GetKeyPair(), packet.PublicKey);
+
+        var session = _connectionManager.GetSession(source);
+
+        var data = session?.GenerateHandshakeData() ?? throw new InvalidOperationException("Session not found");
+        
+        var result = SHandshakePacket.Create(data, session.Encrypt);
+        
+        await source.SendAsync(result);
+    }
+
+    public async Task HandleHandshakePacket(IRemoteSource source, CHandshakePacket packet)
+    {
+        var session = _connectionManager.GetSession(source);
+        if (session == null)
+        {
+            _logger.LogWarning("Client {EndPoint} sent a handshake packet, but no session was found", source.RemoteAddress);
+            return;
+        }
+        
+        if (!session.VerifyHandshakeData(packet.HandshakeData))
+        {
+            _logger.LogWarning("Client {EndPoint} sent an invalid handshake data", source.RemoteAddress);
+            
+            // TODO: Send a packet to the client, and disconnect
+            
+            return;
+        }
+
+        var result = SHandshakeResultPacket.Create(true, session.Encrypt);
+        
+        await source.SendAsync(result);
     }
 
     public async Task HandlePingPacket(IRemoteSource source, CPingPacket packet)

@@ -9,6 +9,7 @@ using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Auth;
 using Avalon.Network.Packets.Character;
 using Avalon.Network.Packets.Generic;
+using Avalon.Network.Packets.Handshake;
 using Avalon.Network.Packets.Internal;
 using Avalon.Network.Packets.Internal.Deserialization;
 using Avalon.Network.Packets.Internal.Exceptions;
@@ -90,6 +91,10 @@ public class AvalonNetworkDaemon : IAvalonNetworkDaemon
         _packetSerializer.RegisterPacketSerializers();
         _packetDeserializer.RegisterPacketDeserializers();
         
+        // Handshake handlers
+        _packetRegistry.RegisterHandler<CRequestServerInfoPacket>(NetworkPacketType.CMSG_SERVER_INFO, _game.HandleServerInfoPacket);
+        _packetRegistry.RegisterHandler<CClientInfoPacket>(NetworkPacketType.CMSG_CLIENT_INFO, _game.HandleClientInfoPacket);
+        _packetRegistry.RegisterHandler<CHandshakePacket>(NetworkPacketType.CMSG_CLIENT_HANDSHAKE, _game.HandleHandshakePacket);
         
         // Auth handlers
         _packetRegistry.RegisterHandler<CAuthPacket>(NetworkPacketType.CMSG_AUTH, _game.HandleAuthPacket);
@@ -116,7 +121,6 @@ public class AvalonNetworkDaemon : IAvalonNetworkDaemon
         _packetRegistry.RegisterHandler<CQuestStatusPacket>(NetworkPacketType.CMSG_QUEST_STATUS, _game.HandleQuestStatusPacket);
         _packetRegistry.RegisterHandler<CQuestStatusPacket>(NetworkPacketType.CMSG_QUEST_LIST, _game.HandleQuestListPacket);
         
-        _packetRegistry.RegisterHandler<CRequestServerVersionPacket>(NetworkPacketType.CMSG_REQUEST_SERVER_VERSION, _game.HandleServerVersionPacket);
         _packetRegistry.RegisterHandler<CPingPacket>(NetworkPacketType.CMSG_PING, _game.HandlePingPacket);
         
         _packetRegistry.RegisterHandler<CPongPacket>(NetworkPacketType.CMSG_PONG, _connectionManager.HandlePongPacket);
@@ -235,14 +239,14 @@ public class AvalonNetworkDaemon : IAvalonNetworkDaemon
     private void TcpServerOnClientConnected(object? sender, TcpClient client)
     {
 
-        Task.Run(async () =>
+        _ = Task.Run(async () =>
         {
             try
             {
                 while (!_cts.IsCancellationRequested)
                 {
                     var packet = await _packetDeserializer.DeserializeFromNetwork<NetworkPacket>(client.Stream);
-                    
+
                     try
                     {
                         if (packet == null)
@@ -250,12 +254,12 @@ public class AvalonNetworkDaemon : IAvalonNetworkDaemon
                             _logger.LogWarning("Received null tcp packet from client {Endpoint}", client.RemoteAddress);
                             break;
                         }
-                        
+
                         _packetProcessorBuffer.Enqueue((client, packet));
 
                         Interlocked.Increment(ref _tcpPacketsReceived);
                         Interlocked.Increment(ref _packetsReceived);
-                        
+
                         Interlocked.Add(ref _tcpBytesReceived, packet.Size);
                         Interlocked.Add(ref _bytesReceived, packet.Size);
                     }
@@ -275,7 +279,8 @@ public class AvalonNetworkDaemon : IAvalonNetworkDaemon
             }
             catch (IOException e)
             {
-                if (e.InnerException is SocketException && e.InnerException.Message.Contains("An existing connection was forcibly closed by the remote host"))
+                if (e.InnerException is SocketException &&
+                    e.InnerException.Message.Contains("An existing connection was forcibly closed by the remote host"))
                 {
                     _logger.LogInformation("Client {Endpoint} disconnected", client.RemoteAddress);
                     _connectionManager.RemoveConnection(client);
@@ -285,8 +290,10 @@ public class AvalonNetworkDaemon : IAvalonNetworkDaemon
                     _logger.LogWarning(e, "IOException while reading from client stream");
                 }
             }
-
-            await client.Stream.DisposeAsync();
+            finally
+            {
+                await client.Stream.DisposeAsync();
+            }
 
         }).ConfigureAwait(false);
     }
@@ -350,6 +357,10 @@ public class AvalonNetworkDaemon : IAvalonNetworkDaemon
         
         return packet.Header.Type switch
         {
+            NetworkPacketType.CMSG_SERVER_INFO => _packetDeserializer.Deserialize<CRequestServerInfoPacket>(packet.Header.Type, packet.Payload, decryptFunc),
+            NetworkPacketType.CMSG_CLIENT_INFO => _packetDeserializer.Deserialize<CClientInfoPacket>(packet.Header.Type, packet.Payload, decryptFunc),
+            NetworkPacketType.CMSG_CLIENT_HANDSHAKE => _packetDeserializer.Deserialize<CHandshakePacket>(packet.Header.Type, packet.Payload, decryptFunc),
+            
             NetworkPacketType.CMSG_AUTH => _packetDeserializer.Deserialize<CAuthPacket>(packet.Header.Type, packet.Payload, decryptFunc),
             NetworkPacketType.CMSG_AUTH_PATCH => _packetDeserializer.Deserialize<CAuthPatchPacket>(packet.Header.Type, packet.Payload, decryptFunc),
             NetworkPacketType.CMSG_LOGOUT => _packetDeserializer.Deserialize<CLogoutPacket>(packet.Header.Type, packet.Payload, decryptFunc),
@@ -365,7 +376,7 @@ public class AvalonNetworkDaemon : IAvalonNetworkDaemon
             NetworkPacketType.CMSG_INTERACT => _packetDeserializer.Deserialize<CInteractPacket>(packet.Header.Type, packet.Payload, decryptFunc),
             
             NetworkPacketType.CMSG_MOVEMENT => _packetDeserializer.Deserialize<CPlayerMovementPacket>(packet.Header.Type, packet.Payload, decryptFunc),
-            NetworkPacketType.CMSG_REQUEST_SERVER_VERSION => _packetDeserializer.Deserialize<CRequestServerVersionPacket>(packet.Header.Type, packet.Payload, decryptFunc),
+            
             NetworkPacketType.CMSG_PING => _packetDeserializer.Deserialize<CPingPacket>(packet.Header.Type, packet.Payload, decryptFunc),
             NetworkPacketType.CMSG_PONG => _packetDeserializer.Deserialize<CPongPacket>(packet.Header.Type, packet.Payload, decryptFunc),
             NetworkPacketType.CMSG_CHAT_MESSAGE => _packetDeserializer.Deserialize<CChatMessagePacket>(packet.Header.Type, packet.Payload, decryptFunc),

@@ -6,7 +6,7 @@ namespace Avalon.Network.Packets.Auth;
 [ProtoContract]
 public class SPlayerConnectedPacket : Packet
 {
-    public static NetworkPacketType PacketType = NetworkPacketType.SMSG_PLAYER_CONNECTED;
+    public static NetworkPacketType PacketType = NetworkPacketType.SMSG_CHARACTER_CONNECTED;
     private const NetworkProtocol Protocol = NetworkProtocol.Tcp;
     [ProtoMember(1)] public int AccountId { get; set; }
     [ProtoMember(2)] public int CharacterId { get; set; }
