@@ -9,6 +9,11 @@ public enum NetworkPacketType : short
      * Client Packets
      *************************************************************************/
     
+    // Handshake
+    CMSG_SERVER_INFO = 0x1000,
+    CMSG_CLIENT_INFO = 0x1001,
+    CMSG_CLIENT_HANDSHAKE = 0x1002,
+    
     // Authentication
     
     CMSG_AUTH = 0x2000,
@@ -16,7 +21,6 @@ public enum NetworkPacketType : short
     CMSG_LOGOUT = 0x2002,
     
     // Character
-    
     CMSG_CHARACTER_LIST = 0x2010,
     CMSG_CHARACTER_CREATE = 0x2011,
     CMSG_CHARACTER_DELETE = 0x2012,
@@ -47,23 +51,27 @@ public enum NetworkPacketType : short
      * Server Packets
      *************************************************************************/
     
-    // Authentication
+    // Handshake
+    SMSG_SERVER_INFO = 0x3000,
+    SMSG_SERVER_HANDSHAKE = 0x3002,
+    SMSG_SERVER_HANDSHAKE_RESULT = 0x3001,
     
-    SMSG_AUTH_RESULT = 0x3000,
-    SMSG_LOGOUT = 0x3003,
+    // Authentication
+    SMSG_AUTH_RESULT = 0x3010,
+    SMSG_LOGOUT = 0x3011,
 
     // Character
-    
-    SMSG_CHARACTER_LIST = 0x3010,
-    SMSG_CHARACTER_CREATED = 0x3011,
-    SMSG_CHARACTER_DELETED = 0x3012,
-    SMSG_CHARACTER_SELECTED = 0x3013,
+    SMSG_CHARACTER_CONNECTED = 0x3020,
+    SMSG_CHARACTER_DISCONNECTED = 0x3021,
+    SMSG_CHARACTER_LIST = 0x3023,
+    SMSG_CHARACTER_CREATED = 0x3024,
+    SMSG_CHARACTER_DELETED = 0x3025,
+    SMSG_CHARACTER_SELECTED = 0x3026,
     
     // Map
-    SMSG_MAP_TELEPORT = 0x3020,
+    SMSG_MAP_TELEPORT = 0x3030,
     
-    SMSG_PLAYER_DISCONNECTED = 0x3400,
-    SMSG_PLAYER_CONNECTED = 0x3001,
+    
     SMSG_PONG = 0x3006,
     SMSG_PING = 0x3007,
     

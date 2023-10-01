@@ -1,28 +1,28 @@
 using Avalon.Network.Packets.Abstractions;
 using ProtoBuf;
 
-namespace Avalon.Network.Packets.Auth;
+namespace Avalon.Network.Packets.Handshake;
 
 [ProtoContract]
-public class CAuthPatchPacket : Packet
+public class SServerInfoPacket : Packet
 {
-    public static NetworkPacketType PacketType = NetworkPacketType.CMSG_AUTH_PATCH;
-    public static NetworkProtocol Protocol = NetworkProtocol.Udp;
+    public static NetworkPacketType PacketType = NetworkPacketType.SMSG_SERVER_INFO;
+    public static NetworkProtocol Protocol = NetworkProtocol.Tcp;
     
-    [ProtoMember(1)] public int AccountId { get; set; }
+    [ProtoMember(1)] public int ServerVersion { get; set; }
     [ProtoMember(2)] public byte[] PublicKey { get; set; }
 
-    public static NetworkPacket Create(int accountId, byte[] publicKey)
+    public static NetworkPacket Create(int serverVersion, byte[] publicKey)
     {
         using var memoryStream = new MemoryStream();
         
-        var authPacket = new CAuthPatchPacket()
+        var packet = new SServerInfoPacket()
         {
-            AccountId = accountId,
+            ServerVersion = serverVersion,
             PublicKey = publicKey
         };
         
-        Serializer.Serialize(memoryStream, authPacket);
+        Serializer.Serialize(memoryStream, packet);
 
         memoryStream.TryGetBuffer(out var buffer);
         
@@ -31,7 +31,7 @@ public class CAuthPatchPacket : Packet
             Header = new NetworkPacketHeader
             {
                 Type = PacketType,
-                Flags = NetworkPacketFlags.None,
+                Flags = NetworkPacketFlags.ClearText,
                 Protocol = Protocol,
                 Version = 0
             },

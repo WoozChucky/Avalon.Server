@@ -148,6 +148,7 @@ namespace Avalon.Server
                 .AddSingleton<IAIController, AIController>()
                 .AddSingleton<IQuestManager, QuestManager>()
                 .AddSingleton<IAvalonGame, AvalonGame>()
+                .AddSingleton<ICryptoManager, CryptoManager>()
                 .AddSingleton<IAvalonInfrastructure, AvalonInfrastructure>()
                 .AddSingleton<CancellationTokenSource>(s => new CancellationTokenSource())
                 .BuildServiceProvider();

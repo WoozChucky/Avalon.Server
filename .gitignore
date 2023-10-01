@@ -31,3 +31,5 @@ Avalon.sln.DotSettings.user
 .idea/.idea.Avalon/.idea/kubernetes-settings.xml
 
 src/Web/dashboard/.idea/
+
+src/Client/Avalon.Client.Simulator/BenchmarkDotNet.Artifacts/

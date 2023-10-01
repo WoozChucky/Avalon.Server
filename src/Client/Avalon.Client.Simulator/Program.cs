@@ -33,6 +33,8 @@ namespace Avalon.Client.Simulator
                 throw new Exception("Invalid shared key length");
             }
             
+            var serverPublicKeyBytes = AsymmetricCipher.GetPublicKeyBytes(serverPublicKey);
+            
             var summary = BenchmarkRunner.Run<MemoryBenchmark>();
             //var proto = Serializer.GetProto<CAuthPacket>();
             /*
@@ -64,140 +66,39 @@ namespace Avalon.Client.Simulator
         [RPlotExporter]
         public class MemoryBenchmark
         {
-            private Aes _aes256Weak;
-            private Aes _aes128;
-            private SecureRandom _secureRandom = new();
+            
             private MemoryStream _unencryptedPacket;
-            private MemoryStream _encryptedPacket_Aes256_Weak;
             private MemoryStream _encryptedPacket_Aes128;
-            private byte[] _serverSharedKey;
-            private byte[] _clientSharedKey;
+            private MemoryStream _encryptedPacket_Aes128_Std;
+            private MemoryStream _encryptedPacket_Aes256_Std;
+
+            private IAvalonCryptoSession _cryptoSessionStd256;
+            private IAvalonCryptoSession _cryptoSessionStd128;
+            private IAvalonCryptoSession _cryptoSession128;
             
             [GlobalSetup]
             public void Setup()
             {
-                var aes256InsecureKey = new byte[32]; // 256 bits = 32 bytes
-                using (var rng = new RNGCryptoServiceProvider())
-                {
-                    rng.GetBytes(aes256InsecureKey);
-                }
-                _aes256Weak = Aes.Create();
-                _aes256Weak.Key = aes256InsecureKey;
-                _aes256Weak.IV = new byte[]
-                    { 0x5A, 0x36, 0x7F, 0x8D, 0xE9, 0x02, 0xC4, 0xAF, 0x71, 0x5E, 0x9B, 0x44, 0xD7, 0x1A, 0x80, 0x3F };
-                
-                _aes128 = Aes.Create();
-                _aes128.KeySize = 128;
-                
                 _unencryptedPacket = new MemoryStream();
                 Serializer.SerializeWithLengthPrefix(_unencryptedPacket, CCharacterLoadedPacket.Create(1), PrefixStyle.Base128);
                 _unencryptedPacket.Seek(0, SeekOrigin.Begin);
                 
-                _encryptedPacket_Aes256_Weak = new MemoryStream();
-                Serializer.SerializeWithLengthPrefix(_encryptedPacket_Aes256_Weak, CCharacterListPacket.Create(1, Encrypt), PrefixStyle.Base128);
-                _encryptedPacket_Aes256_Weak.Seek(0, SeekOrigin.Begin);
+                var serverKeyPair128 = AsymmetricCipher.GenerateECDHKeyPair(128);
+                var serverPublicKey128 = AsymmetricCipher.GetPublicKeyFromKeyPair(serverKeyPair128);
+                var serverPublicKeyBytes128 = AsymmetricCipher.GetPublicKeyBytes(serverPublicKey128);
                 
-                var serverKeyPair = AsymmetricCipher.GenerateECDHKeyPair();
-                var clientKeyPair = AsymmetricCipher.GenerateECDHKeyPair();
-                var serverPublicKey = AsymmetricCipher.GetPublicKeyFromKeyPair(serverKeyPair);
-                var clientPublicKey = AsymmetricCipher.GetPublicKeyFromKeyPair(clientKeyPair);
-                
-                _serverSharedKey = AsymmetricCipher.CalculateSharedSecret(serverKeyPair, clientPublicKey);
-                _clientSharedKey = AsymmetricCipher.CalculateSharedSecret(clientKeyPair, serverPublicKey);
-                
-                if (_serverSharedKey.Length != 16 || _clientSharedKey.Length != 16)
-                {
-                    throw new Exception("Invalid shared key length");
-                }
+                _cryptoSession128 = new AvalonCryptoSession();
+                _cryptoSession128.Initialize(serverPublicKeyBytes128);
                 
                 _encryptedPacket_Aes128 = new MemoryStream();
-                Serializer.SerializeWithLengthPrefix(_encryptedPacket_Aes128, CCharacterListPacket.Create(1, bytes => EncryptStrong(_serverSharedKey, bytes)), PrefixStyle.Base128);
+                Serializer.SerializeWithLengthPrefix(_encryptedPacket_Aes128, CCharacterListPacket.Create(1, _cryptoSession128.Encrypt), PrefixStyle.Base128);
                 _encryptedPacket_Aes128.Seek(0, SeekOrigin.Begin);
-            }
-
-            private byte[] Encrypt(byte[] data)
-            {
-                using var memoryStream = new MemoryStream();
-                using (var encryptor = _aes256Weak.CreateEncryptor())
-                {
-                    using (var csEncrypt = new CryptoStream(memoryStream, encryptor, CryptoStreamMode.Write))
-                    {
-                        csEncrypt.Write(data, 0, data.Length);
-                        csEncrypt.FlushFinalBlock();
-                    }
-                }
-
-                return memoryStream.ToArray();
-            }
-            
-            private byte[] Decrypt(byte[] data)
-            {
-                using var memoryStream = new MemoryStream();
-                using (var decryptor = _aes256Weak.CreateDecryptor())
-                {
-                    using (var csDecrypt = new CryptoStream(memoryStream, decryptor, CryptoStreamMode.Write))
-                    {
-                        csDecrypt.Write(data, 0, data.Length);
-                        csDecrypt.FlushFinalBlock();
-                    }
-                }
-
-                return memoryStream.ToArray();
-            }
-            
-            private byte[] EncryptStrong(byte[] key, byte[] data)
-            {
-                // Generate a random 96-bit nonce (IV)
-                var nonce = new byte[12];
-                _secureRandom.NextBytes(nonce);
-
-                // Create an AES-GCM cipher
-                var cipher = CipherUtilities.GetCipher("AES/GCM/NoPadding");
-                var parameters = new ParametersWithIV(new KeyParameter(key), nonce);
-                cipher.Init(true, parameters);
-
-                // Encrypt the data
-                var ciphertext = cipher.DoFinal(data);
-
-                // Combine the nonce and ciphertext
-                var encryptedData = nonce.Concat(ciphertext).ToArray();
-        
-                return encryptedData;
-            }
-            
-            public byte[] DecryptStrong(byte[] key, byte[] data)
-            {
-                // Split the nonce (IV) and ciphertext
-                var nonce = data.Take(12).ToArray();
-                var ciphertext = data.Skip(12).ToArray();
-
-                // Create an AES-GCM cipher with BouncyCastle
-                var cipher = CipherUtilities.GetCipher("AES/GCM/NoPadding");
-                var parameters = new ParametersWithIV(new KeyParameter(key), nonce);
-                cipher.Init(false, parameters);
-
-                // Decrypt the data
-                var decryptedData = cipher.DoFinal(ciphertext);
-
-                return decryptedData;
             }
             
             [Benchmark]
             public void Serialize_NoEncryption()
             {
-
                 var packet = CCharacterLoadedPacket.Create(1);
-                
-                using var memoryStream = new MemoryStream();
-            
-                Serializer.SerializeWithLengthPrefix(memoryStream, packet, PrefixStyle.Base128);
-            }
-            
-            [Benchmark]
-            public void Serialize_Aes256_Weak()
-            {
-
-                var packet = CCharacterListPacket.Create(1, Encrypt);
                 
                 using var memoryStream = new MemoryStream();
             
@@ -207,7 +108,8 @@ namespace Avalon.Client.Simulator
             [Benchmark]
             public void Serialize_Aes128()
             {
-                var packet = CCharacterListPacket.Create(1, bytes => EncryptStrong(_serverSharedKey, bytes));
+
+                var packet = CCharacterListPacket.Create(1, _cryptoSession128.Encrypt);
                 
                 using var memoryStream = new MemoryStream();
             
@@ -215,33 +117,17 @@ namespace Avalon.Client.Simulator
             }
             
             [Benchmark]
-            public void Deserialize_Aes256_Weak()
+            public void Deserialize_Aes128()
             {
-                _encryptedPacket_Aes256_Weak.Seek(0, SeekOrigin.Begin);
-                var packet = Serializer.DeserializeWithLengthPrefix<NetworkPacket>(_encryptedPacket_Aes256_Weak, PrefixStyle.Base128);
+                _encryptedPacket_Aes128.Seek(0, SeekOrigin.Begin);
                 
-                var decryptedBytes = Decrypt(packet.Payload);
+                var packet = Serializer.DeserializeWithLengthPrefix<NetworkPacket>(_encryptedPacket_Aes128, PrefixStyle.Base128);
+                
+                var decryptedBytes = _cryptoSession128.Decrypt(packet.Payload);
                 
                 using var memoryStream = new MemoryStream(decryptedBytes);
                 
                 var innerPacket = Serializer.Deserialize<CCharacterLoadedPacket>(memoryStream);
-                if (innerPacket is not { AccountId: 1 })
-                {
-                    throw new Exception("Failed to deserialize packet");
-                }
-            }
-            
-            [Benchmark]
-            public void Deserialize_Aes128()
-            {
-                _encryptedPacket_Aes128.Seek(0, SeekOrigin.Begin);
-                var packet = Serializer.DeserializeWithLengthPrefix<NetworkPacket>(_encryptedPacket_Aes128, PrefixStyle.Base128);
-                
-                var decryptedBytes = DecryptStrong(_clientSharedKey, packet.Payload);
-                
-                using var memoryStream = new MemoryStream(decryptedBytes);
-                
-                var innerPacket = Serializer.Deserialize<CCharacterListPacket>(memoryStream);
                 if (innerPacket is not { AccountId: 1 })
                 {
                     throw new Exception("Failed to deserialize packet");
@@ -336,8 +222,8 @@ namespace Avalon.Client.Simulator
                         Console.WriteLine("Invalid username or password");    
                         break;
                     case AuthResult.PENDING_KEY:
-                        _udp.SetPrivateKey(packet.PrivateKey);
-                        await _udp.SendAuthPatchPacket(packet.AccountId);
+                        _udp.SetPrivateKey(null);
+                        await _udp.SendAuthPatchPacket(packet.AccountId, new byte[]{0x0});
                         break;
                     case AuthResult.SUCCESS:
                         _tcp.AccountId = packet.AccountId;

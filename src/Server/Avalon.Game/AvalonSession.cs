@@ -1,9 +1,11 @@
 using System.Security.Cryptography;
+using Avalon.Common.Cryptography;
 using Avalon.Common.Threading;
 using Avalon.Database.Characters;
 using Avalon.Network;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Generic;
+using Org.BouncyCastle.Crypto;
 
 namespace Avalon.Game;
 
@@ -11,6 +13,7 @@ public enum ConnectionStatus
 {
     Disconnected,
     Connecting,
+    Handshake,
     Connected,
     TimedOut,
     PendingKey
@@ -30,7 +33,7 @@ public class PartyGroup
 
 public class AvalonSession : IDisposable
 {
-    public int AccountId { get; private set; }
+    public int AccountId { get; set; }
     public byte[] SessionKey { get; private set; }
     public Character? Character { get; set; }
     public PartyGroup Party { get; set; }
@@ -41,6 +44,7 @@ public class AvalonSession : IDisposable
     public ConnectionStatus Status { get; set; }
     public DateTime LastUpdateAt { get; set; } = DateTime.UtcNow;
     
+    private byte[] _handshakeData = Array.Empty<byte>();
     
     private long _lastTicks;
     
@@ -48,23 +52,24 @@ public class AvalonSession : IDisposable
     
     private readonly RingBuffer<NetworkPacket> _packetQueue;
     private readonly CancellationTokenSource _cts;
-    private readonly AvalonCryptography _cryptography;
-    
-    public AvalonSession(int accountId)
+    private readonly IAvalonCryptoSession _cryptography;
+    private bool _verified;
+
+    public AvalonSession(AsymmetricCipherKeyPair serverKeyPair, byte[] clientPublicKey)
     {
-        AccountId = accountId;
+        AccountId = 0;
         Party = new PartyGroup();
         Status = ConnectionStatus.Connecting;
         _packetQueue = new RingBuffer<NetworkPacket>(1024);
         _cts = new CancellationTokenSource();
-        _cryptography = new AvalonCryptography();
+        _cryptography = new AvalonCryptoSession(serverKeyPair);
+        _cryptography.Initialize(clientPublicKey);
         Task.Run(ProcessPacketsAsync);
     }
     
-    public void InitializeCryptography(byte[] sessionKey)
+    public void InitializeCryptography(byte[] clientPublicKey)
     {
-        SessionKey = sessionKey;
-        _cryptography.Initialize(SessionKey);
+        _cryptography.Initialize(clientPublicKey);
     }
     
     public async Task PingAsync()
@@ -178,50 +183,6 @@ public class AvalonSession : IDisposable
         Udp?.Dispose();
     }
 
-    private class AvalonCryptography
-    {
-        private Aes _aes;
-
-        public void Initialize(byte[] sessionKey)
-        {
-            _aes = Aes.Create();
-            _aes.Key = sessionKey;
-            _aes.IV = new byte[] {0x5A, 0x36, 0x7F, 0x8D, 0xE9, 0x02, 0xC4, 0xAF, 0x71, 0x5E, 0x9B, 0x44, 0xD7, 0x1A, 0x80, 0x3F};
-        }
-
-        public byte[] Encrypt(byte[] data)
-        {
-            using var memoryStream = new MemoryStream();
-
-            using (var encryptor = _aes.CreateEncryptor())
-            {
-                using (var csEncrypt = new CryptoStream(memoryStream, encryptor, CryptoStreamMode.Write))
-                {
-                    csEncrypt.Write(data, 0, data.Length);
-                    csEncrypt.FlushFinalBlock();
-                }
-            }
-
-            return memoryStream.ToArray();
-        }
-
-        public byte[] Decrypt(byte[] data)
-        {
-            using var memoryStream = new MemoryStream();
-
-            using (var decryptor = _aes.CreateDecryptor())
-            {
-                using (var csDecrypt = new CryptoStream(memoryStream, decryptor, CryptoStreamMode.Write))
-                {
-                    csDecrypt.Write(data, 0, data.Length);
-                    csDecrypt.FlushFinalBlock();
-                }
-            }
-
-            return memoryStream.ToArray();
-        }
-    }
-
     public byte[] Decrypt(byte[] arg)
     {
         return _cryptography.Decrypt(arg);
@@ -230,5 +191,22 @@ public class AvalonSession : IDisposable
     public byte[] Encrypt(byte[] arg)
     {
         return _cryptography.Encrypt(arg);
+    }
+
+    public byte[] GenerateHandshakeData()
+    {
+        _handshakeData = _cryptography.GenerateHandshakeData();
+        return _handshakeData;
+    }
+
+    public bool VerifyHandshakeData(byte[] handshakeData)
+    {
+        _verified = _handshakeData.SequenceEqual(handshakeData);
+        return _verified;
+    }
+    
+    public byte[] OtherEndPublicKey()
+    {
+        return _cryptography.GetOtherEndPublicKey();
     }
 }

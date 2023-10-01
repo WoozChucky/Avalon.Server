@@ -4,6 +4,7 @@ using System.Security.Cryptography;
 using Avalon.Network;
 using Avalon.Network.Packets.Generic;
 using Microsoft.Extensions.Logging;
+using Org.BouncyCastle.Crypto;
 
 namespace Avalon.Game;
 
@@ -19,8 +20,8 @@ public interface IAvalonConnectionManager : IDisposable
     
     Task HandlePongPacket(IRemoteSource source, CPongPacket packet);
     void RemoveConnection(IRemoteSource source);
-    void AddSession(IRemoteSource source, int accountId, byte[] privateKey);
-    bool PatchSession(IRemoteSource source, int accountId, byte[] privateKey);
+    void AddSession(IRemoteSource source, AsymmetricCipherKeyPair serverKeyPair, byte[] clientPublicKey);
+    bool PatchSession(IRemoteSource source, int accountId, byte[] clientPublicKey);
     AvalonSession? GetSession(int accountId);
     AvalonSession? GetSession(IRemoteSource source);
     ConcurrentDictionary<int, AvalonSession> GetSessions();
@@ -40,6 +41,7 @@ public class AvalonConnectionManager : IAvalonConnectionManager
     
     private readonly ILogger<AvalonConnectionManager> _logger;
     private readonly ConcurrentDictionary<int, AvalonSession> _sessions;
+    private readonly ConcurrentDictionary<string, AvalonSession> _handshakingSessions;
     private readonly CancellationTokenSource _cts;
     
     private const int MonitorInterval = 100;
@@ -53,6 +55,7 @@ public class AvalonConnectionManager : IAvalonConnectionManager
     {
         _logger = logger;
         _sessions = new ConcurrentDictionary<int, AvalonSession>();
+        _handshakingSessions = new ConcurrentDictionary<string, AvalonSession>();
         _cts = new CancellationTokenSource();
     }
     
@@ -180,42 +183,60 @@ public class AvalonConnectionManager : IAvalonConnectionManager
         }
     }
     
-    public void AddSession(IRemoteSource source, int accountId, byte[] privateKey)
+    public void AddSession(IRemoteSource source, AsymmetricCipherKeyPair serverKeyPair, byte[] clientPublicKey)
     {
-        if (!_sessions.TryGetValue(accountId, out var session))
+        foreach (var session in _sessions.Values)
         {
-            session = new AvalonSession(accountId);
-            session.InitializeCryptography(privateKey);
-            _sessions.TryAdd(accountId, session);
+            if (session.Tcp?.RemoteAddress == source.RemoteAddress)
+            {
+                _logger.LogWarning("Client {Id} already connected", session.AccountId);
+                return;
+            }
         }
-        else
+
+        foreach (var handshakingSession in _handshakingSessions)
         {
-            _logger.LogWarning("Account {Id} already connected, updating server side private key", accountId);
-            session.InitializeCryptography(privateKey);
+            if (handshakingSession.Value.Tcp?.RemoteAddress == source.RemoteAddress)
+            {
+                _logger.LogWarning("Client {Id} already handshaking", handshakingSession.Value.AccountId);
+                return;
+            }
         }
         
-        session.SetTcp(source as TcpClient ?? throw new InvalidOperationException("Connection is not a TCP connection"));
-        session.Status = ConnectionStatus.PendingKey;
+        var connectingSession = new AvalonSession(serverKeyPair, clientPublicKey);
+        connectingSession.SetTcp(source as TcpClient ?? throw new InvalidOperationException("Connection is not a TCP connection"));
+        connectingSession.Status = ConnectionStatus.Handshake;
+        
+        if (!_handshakingSessions.TryAdd(source.RemoteAddress, connectingSession))
+        {
+            _logger.LogWarning("Failed to add client {Id} to handshaking sessions", connectingSession.AccountId);
+            return;
+        }
     }
 
-    public bool PatchSession(IRemoteSource source, int accountId, byte[] privateKey)
+    public bool PatchSession(IRemoteSource source, int accountId, byte[] publicKey)
     {
-        if (!_sessions.TryGetValue(accountId, out var session))
+        var session = _handshakingSessions
+            .Values
+            .FirstOrDefault(handshakingSession => handshakingSession.OtherEndPublicKey().SequenceEqual(publicKey));
+
+        if (session == null)
         {
-            _logger.LogWarning("Failed to patch session. Account {Id} not connected", accountId);
+            _logger.LogWarning("Failed to patch session. Account {Id} not found", accountId);
             return false;
         }
-
-        // now we compare the private keys
-        if (!session.SessionKey.SequenceEqual(privateKey))
+        
+        if (!_handshakingSessions.TryRemove(session.Tcp!.RemoteAddress, out _))
         {
-            _logger.LogWarning("Failed to patch session. Account {Id} private key mismatch", accountId);
+            _logger.LogWarning("Failed to remove client {Id} from handshaking sessions", session.AccountId);
             return false;
         }
         
         session.SetUdp(source as UdpClientPacket ?? throw new InvalidOperationException("Connection is not a UDP connection"));
         session.Status = ConnectionStatus.Connected;
 
+        _sessions.TryAdd(accountId, session);
+        
         return true;
     }
 
@@ -228,8 +249,8 @@ public class AvalonConnectionManager : IAvalonConnectionManager
     {
         return source switch
         {
-            TcpClient _ => _sessions.Values.FirstOrDefault(c => c.Tcp?.RemoteAddress == source.RemoteAddress),
-            UdpClientPacket _ => _sessions.Values.FirstOrDefault(c => c.Udp?.RemoteAddress == source.RemoteAddress),
+            TcpClient _ => _sessions.Values.FirstOrDefault(c => c.Tcp?.RemoteAddress == source.RemoteAddress) ?? _handshakingSessions.Values.FirstOrDefault(c => c.Tcp?.RemoteAddress == source.RemoteAddress),
+            UdpClientPacket _ => _sessions.Values.FirstOrDefault(c => c.Udp?.RemoteAddress == source.RemoteAddress) ?? _handshakingSessions.Values.FirstOrDefault(c => c.Udp?.RemoteAddress == source.RemoteAddress),
             _ => null
         };
     }
