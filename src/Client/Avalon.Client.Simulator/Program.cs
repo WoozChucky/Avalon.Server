@@ -1,17 +1,7 @@
-﻿using System.Security.Cryptography;
-using Avalon.Common.Cryptography;
-using Avalon.Network.Packets.Abstractions;
-using Avalon.Network.Packets.Auth;
+﻿using Avalon.Network.Packets.Auth;
 using Avalon.Network.Packets.Character;
 using Avalon.Network.Tcp;
 using Avalon.Network.Udp;
-using BenchmarkDotNet.Attributes;
-using BenchmarkDotNet.Jobs;
-using BenchmarkDotNet.Running;
-using Org.BouncyCastle.Crypto.Parameters;
-using Org.BouncyCastle.Security;
-using ProtoBuf;
-using ProtoBuf.Meta;
 
 namespace Avalon.Client.Simulator
 {
@@ -19,25 +9,6 @@ namespace Avalon.Client.Simulator
     {
         private static async Task Main(string[] args)
         {
-            var serverKeyPair = AsymmetricCipher.GenerateECDHKeyPair();
-            var clientKeyPair = AsymmetricCipher.GenerateECDHKeyPair();
-            var serverPublicKey = AsymmetricCipher.GetPublicKeyFromKeyPair(serverKeyPair);
-            var clientPublicKey = AsymmetricCipher.GetPublicKeyFromKeyPair(clientKeyPair);
-                
-            var _serverSharedKey = AsymmetricCipher.CalculateSharedSecret(serverKeyPair, clientPublicKey);
-            var _clientSharedKey = AsymmetricCipher.CalculateSharedSecret(clientKeyPair, serverPublicKey);
-            
-            
-            if (_serverSharedKey.Length != 16 || _clientSharedKey.Length != 16)
-            {
-                throw new Exception("Invalid shared key length");
-            }
-            
-            var serverPublicKeyBytes = AsymmetricCipher.GetPublicKeyBytes(serverPublicKey);
-            
-            var summary = BenchmarkRunner.Run<MemoryBenchmark>();
-            //var proto = Serializer.GetProto<CAuthPacket>();
-            /*
             const int clientCount = 4; // This is the number of clients to simulate
 
             const string username = "test";
@@ -55,101 +26,10 @@ namespace Avalon.Client.Simulator
             {
 
             }
-            */
-
-
         }
         
-        [MemoryDiagnoser]
-        [SimpleJob(RuntimeMoniker.Net70)]
-        [SimpleJob(RuntimeMoniker.Net80)]
-        [RPlotExporter]
-        public class MemoryBenchmark
-        {
-            
-            private MemoryStream _unencryptedPacket;
-            private MemoryStream _encryptedPacket_Aes128;
-            private MemoryStream _encryptedPacket_Aes128_Std;
-            private MemoryStream _encryptedPacket_Aes256_Std;
 
-            private IAvalonCryptoSession _cryptoSessionStd256;
-            private IAvalonCryptoSession _cryptoSessionStd128;
-            private IAvalonCryptoSession _cryptoSession128;
-            
-            [GlobalSetup]
-            public void Setup()
-            {
-                _unencryptedPacket = new MemoryStream();
-                Serializer.SerializeWithLengthPrefix(_unencryptedPacket, CCharacterLoadedPacket.Create(1), PrefixStyle.Base128);
-                _unencryptedPacket.Seek(0, SeekOrigin.Begin);
-                
-                var serverKeyPair128 = AsymmetricCipher.GenerateECDHKeyPair(128);
-                var serverPublicKey128 = AsymmetricCipher.GetPublicKeyFromKeyPair(serverKeyPair128);
-                var serverPublicKeyBytes128 = AsymmetricCipher.GetPublicKeyBytes(serverPublicKey128);
-                
-                _cryptoSession128 = new AvalonCryptoSession();
-                _cryptoSession128.Initialize(serverPublicKeyBytes128);
-                
-                _encryptedPacket_Aes128 = new MemoryStream();
-                Serializer.SerializeWithLengthPrefix(_encryptedPacket_Aes128, CCharacterListPacket.Create(1, _cryptoSession128.Encrypt), PrefixStyle.Base128);
-                _encryptedPacket_Aes128.Seek(0, SeekOrigin.Begin);
-            }
-            
-            [Benchmark]
-            public void Serialize_NoEncryption()
-            {
-                var packet = CCharacterLoadedPacket.Create(1);
-                
-                using var memoryStream = new MemoryStream();
-            
-                Serializer.SerializeWithLengthPrefix(memoryStream, packet, PrefixStyle.Base128);
-            }
-            
-            [Benchmark]
-            public void Serialize_Aes128()
-            {
-
-                var packet = CCharacterListPacket.Create(1, _cryptoSession128.Encrypt);
-                
-                using var memoryStream = new MemoryStream();
-            
-                Serializer.SerializeWithLengthPrefix(memoryStream, packet, PrefixStyle.Base128);
-            }
-            
-            [Benchmark]
-            public void Deserialize_Aes128()
-            {
-                _encryptedPacket_Aes128.Seek(0, SeekOrigin.Begin);
-                
-                var packet = Serializer.DeserializeWithLengthPrefix<NetworkPacket>(_encryptedPacket_Aes128, PrefixStyle.Base128);
-                
-                var decryptedBytes = _cryptoSession128.Decrypt(packet.Payload);
-                
-                using var memoryStream = new MemoryStream(decryptedBytes);
-                
-                var innerPacket = Serializer.Deserialize<CCharacterLoadedPacket>(memoryStream);
-                if (innerPacket is not { AccountId: 1 })
-                {
-                    throw new Exception("Failed to deserialize packet");
-                }
-            }
-            
-            [Benchmark]
-            public void Deserialize_NoEncryption()
-            {
-                _unencryptedPacket.Seek(0, SeekOrigin.Begin);
-                var packet = Serializer.DeserializeWithLengthPrefix<NetworkPacket>(_unencryptedPacket, PrefixStyle.Base128);
-                
-                using var memoryStream = new MemoryStream(packet.Payload);
-                var innerPacket = Serializer.Deserialize<CCharacterListPacket>(memoryStream);
-                if (innerPacket is not { AccountId: 1 })
-                {
-                    throw new Exception("Failed to deserialize packet");
-                }
-            }
-        }
-
-        class SimulatedClient
+        public class SimulatedClient
         {
             private readonly string _username;
             private readonly string _password;
@@ -169,13 +49,13 @@ namespace Avalon.Client.Simulator
                 _password = password;
                 _tcp = new AvalonTcpClient(new AvalonTcpClientSettings
                 {
-                    Host = "85.246.140.89",
+                    Host = "nunolevezinho.xyz",
                     Port = 21000,
                     CertificatePath = "cert-public.pem"
                 });
                 _udp = new AvalonUdpClient(new AvalonUdpClientSettings
                 {
-                    Host = "85.246.140.89",
+                    Host = "nunolevezinho.xyz",
                     Port = 21000,
                 });
                 
@@ -222,8 +102,7 @@ namespace Avalon.Client.Simulator
                         Console.WriteLine("Invalid username or password");    
                         break;
                     case AuthResult.PENDING_KEY:
-                        _udp.SetPrivateKey(null);
-                        await _udp.SendAuthPatchPacket(packet.AccountId, new byte[]{0x0});
+                        await _udp.SendAuthPatchPacket(packet.AccountId, _tcp.PublicKey());
                         break;
                     case AuthResult.SUCCESS:
                         _tcp.AccountId = packet.AccountId;

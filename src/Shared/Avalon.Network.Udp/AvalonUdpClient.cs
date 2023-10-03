@@ -39,7 +39,6 @@ public class AvalonUdpClient : IDisposable
     private readonly Address _address;
     
     private Peer _serverPeer;
-    private byte[] _privateKey;
 
     public int AccountId { get; set; }
     public int CharacterId { get; set; }
@@ -86,11 +85,6 @@ public class AvalonUdpClient : IDisposable
     public void Disconnect()
     {
         _serverPeer.DisconnectNow(0);
-    }
-
-    public void SetPrivateKey(byte[] privateKey)
-    {
-        this._privateKey = privateKey;
     }
 
     public async Task SendAuthPatchPacket(int accountId, byte[] publicKey)
