@@ -1,4 +1,7 @@
 using Avalon.Database;
+using Avalon.Database.Auth;
+using Avalon.Database.Characters;
+using Avalon.Database.World;
 using Avalon.Game;
 using Avalon.Game.Creatures;
 using Avalon.Game.Maps;
@@ -30,40 +33,52 @@ public class InfrastructureFixture : IDisposable
 		PacketDeserializer = new NetworkPacketDeserializer();
 		PacketRegistry = new PacketRegistry();
 		
-		DatabaseManager = Substitute.For<IDatabaseManager>();
+		AuthDatabase = Substitute.For<IAuthDatabase>();
+		CharactersDatabase = Substitute.For<ICharactersDatabase>();
+		WorldDatabase = Substitute.For<IWorldDatabase>();
+		
+		var mockedLoggerFactory = Substitute.For<LoggerFactory>();
+
+		DatabaseManager = new DatabaseManager(
+			AuthDatabase,
+			CharactersDatabase,
+			WorldDatabase
+		);
 
 		ConnectionManager = new AvalonConnectionManager(
-			new NullLogger<AvalonConnectionManager>()
+			mockedLoggerFactory
 		);
 
 		CreatureSpawner = new CreatureSpawner(
-			new NullLogger<CreatureSpawner>(),
+			mockedLoggerFactory,
 			DatabaseManager
 		);
 
-		AIController = new AIController(new NullLogger<AIController>());
+		AIController = new AIController(
+			mockedLoggerFactory
+		);
 
 		PoolManager = new PoolManager(
-			new NullLogger<PoolManager>(),
+			mockedLoggerFactory,
 			CreatureSpawner,
 			AIController
 		);
 
 		MapManager = new AvalonMapManager(
-			Substitute.For<LoggerFactory>(),
+			mockedLoggerFactory,
 			DatabaseManager,
 			PoolManager
 		);
 		
 		QuestManager = new QuestManager(
-			new NullLogger<QuestManager>(),
+			mockedLoggerFactory,
 			DatabaseManager
 		);
 		
 		CryptoManager = new CryptoManager();
 
 		Game = new AvalonGame(
-			new NullLogger<AvalonGame>(),
+			mockedLoggerFactory,
 			PacketSerializer,
 			ConnectionManager,
 			DatabaseManager,
@@ -76,7 +91,7 @@ public class InfrastructureFixture : IDisposable
 		);
 
 		NetworkDaemon = new AvalonNetworkDaemon(
-			new NullLogger<AvalonNetworkDaemon>(),
+			mockedLoggerFactory,
 			CancellationTokenSource,
 			TcpServer,
 			UdpServer,
@@ -89,8 +104,8 @@ public class InfrastructureFixture : IDisposable
 		);
 		
 		Infrastructure = new AvalonInfrastructure(
-			CancellationTokenSource, 
-			new NullLogger<AvalonInfrastructure>(), 
+			mockedLoggerFactory,
+			CancellationTokenSource,
 			NetworkDaemon, 
 			Game, 
 			MetricsManager
@@ -112,6 +127,9 @@ public class InfrastructureFixture : IDisposable
 	public IPacketRegistry PacketRegistry { get; set; }
 	
 	public IDatabaseManager DatabaseManager { get; set; }
+	public IAuthDatabase AuthDatabase { get; set; }
+	public IWorldDatabase WorldDatabase { get; set; }
+	public ICharactersDatabase CharactersDatabase { get; set; }
 	public IPoolManager PoolManager { get; set; }
 	public IAvalonMapManager MapManager { get; set; }
 	public IQuestManager QuestManager { get; set; }

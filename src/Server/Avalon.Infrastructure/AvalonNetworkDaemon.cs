@@ -54,7 +54,7 @@ public class AvalonNetworkDaemon : IAvalonNetworkDaemon
     private long _tcpPacketsReceived;
 
     public AvalonNetworkDaemon(
-        ILogger<AvalonNetworkDaemon> logger, 
+        ILoggerFactory loggerFactory, 
         CancellationTokenSource cts,
         IAvalonTcpServer tcpServer, 
         IAvalonUdpServer udpServer,
@@ -65,7 +65,7 @@ public class AvalonNetworkDaemon : IAvalonNetworkDaemon
         IAvalonConnectionManager connectionManager,
         IMetricsManager metrics)
     {
-        _logger = logger;
+        _logger = loggerFactory.CreateLogger<AvalonNetworkDaemon>();
         _cts = cts;
 
         _packetDeserializer = packetDeserializer;

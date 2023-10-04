@@ -21,9 +21,9 @@ public class CreatureSpawner : ICreatureSpawner
     private readonly IDatabaseManager _databaseManager;
     private IEnumerable<CreatureTemplate> _templates;
 
-    public CreatureSpawner(ILogger<CreatureSpawner> logger, IDatabaseManager databaseManager)
+    public CreatureSpawner(ILoggerFactory loggerFactory, IDatabaseManager databaseManager)
     {
-        _logger = logger;
+        _logger = loggerFactory.CreateLogger<CreatureSpawner>();
         _databaseManager = databaseManager;
         _templates = new List<CreatureTemplate>();
     }

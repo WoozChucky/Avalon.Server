@@ -18,9 +18,9 @@ public class QuestManager : IQuestManager
     private IEnumerable<QuestRewardTemplate> _questRewardTemplates;
     private IEnumerable<QuestReward> _questRewards;
     
-    public QuestManager(ILogger<QuestManager> logger, IDatabaseManager databaseManager)
+    public QuestManager(ILoggerFactory loggerFactory, IDatabaseManager databaseManager)
     {
-        _logger = logger;
+        _logger = loggerFactory.CreateLogger<QuestManager>();
         _databaseManager = databaseManager;
     }
 

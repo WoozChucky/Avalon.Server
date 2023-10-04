@@ -70,7 +70,7 @@ public partial class AvalonGame : IAvalonGame
     private volatile bool _isRunning;
     private long _loopCounter;
 
-    public AvalonGame(ILogger<AvalonGame> logger, 
+    public AvalonGame(ILoggerFactory loggerFactory, 
         IPacketSerializer packetSerializer, 
         IAvalonConnectionManager connectionManager,
         IDatabaseManager databaseManager,
@@ -81,7 +81,7 @@ public partial class AvalonGame : IAvalonGame
         IQuestManager questManager,
         ICryptoManager cryptography)
     {
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _logger = loggerFactory.CreateLogger<AvalonGame>() ?? throw new ArgumentNullException(nameof(loggerFactory));
         _cts = new CancellationTokenSource();
         _packetSerializer = packetSerializer;
         _connectionManager = connectionManager;

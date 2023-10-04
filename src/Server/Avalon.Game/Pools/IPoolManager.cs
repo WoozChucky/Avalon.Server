@@ -17,9 +17,9 @@ public class PoolManager : IPoolManager
     private readonly ICreatureSpawner _creatureSpawner;
     private readonly IAIController _aiController;
 
-    public PoolManager(ILogger<PoolManager> logger, ICreatureSpawner creatureSpawner, IAIController aiController)
+    public PoolManager(ILoggerFactory loggerFactory, ICreatureSpawner creatureSpawner, IAIController aiController)
     {
-        _logger = logger;
+        _logger = loggerFactory.CreateLogger<PoolManager>();
         _creatureSpawner = creatureSpawner;
         _aiController = aiController;
     }
