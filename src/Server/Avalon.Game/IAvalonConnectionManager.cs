@@ -51,9 +51,9 @@ public class AvalonConnectionManager : IAvalonConnectionManager
     private const int PingDisconnectThreshold = 30000;
     private const int PingDisconnectThresholdInSec = PingDisconnectThreshold / 1000;
 
-    public AvalonConnectionManager(ILogger<AvalonConnectionManager> logger)
+    public AvalonConnectionManager(ILoggerFactory loggerFactory)
     {
-        _logger = logger;
+        _logger = loggerFactory.CreateLogger<AvalonConnectionManager>();
         _sessions = new ConcurrentDictionary<int, AvalonSession>();
         _handshakingSessions = new ConcurrentDictionary<string, AvalonSession>();
         _cts = new CancellationTokenSource();

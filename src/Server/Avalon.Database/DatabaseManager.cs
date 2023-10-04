@@ -25,6 +25,15 @@ public class DatabaseManager : IDatabaseManager
     public ICharactersDatabase Characters { get; }
     public IWorldDatabase World { get; }
     
+    public DatabaseManager(IAuthDatabase auth, ICharactersDatabase characters, IWorldDatabase world)
+    {
+        Auth = auth;
+        Characters = characters;
+        World = world;
+        
+        RegisterMappings();
+    }
+    
     public DatabaseManager()
     {
         Auth = new AuthDatabase();
@@ -55,6 +64,24 @@ public class DatabaseManager : IDatabaseManager
         );
         
         Dapper.SqlMapper.SetTypeMap(typeof(CreatureTemplate), new Dapper.CustomPropertyTypeMap(typeof(CreatureTemplate), 
+            (type, columnName) => type
+                .GetProperties()
+                .FirstOrDefault(prop => GetDescriptionFromAttribute(prop) == columnName.ToLower()))
+        );
+        
+        Dapper.SqlMapper.SetTypeMap(typeof(QuestTemplate), new Dapper.CustomPropertyTypeMap(typeof(QuestTemplate), 
+            (type, columnName) => type
+                .GetProperties()
+                .FirstOrDefault(prop => GetDescriptionFromAttribute(prop) == columnName.ToLower()))
+        );
+        
+        Dapper.SqlMapper.SetTypeMap(typeof(QuestReward), new Dapper.CustomPropertyTypeMap(typeof(QuestReward), 
+            (type, columnName) => type
+                .GetProperties()
+                .FirstOrDefault(prop => GetDescriptionFromAttribute(prop) == columnName.ToLower()))
+        );
+        
+        Dapper.SqlMapper.SetTypeMap(typeof(QuestRewardTemplate), new Dapper.CustomPropertyTypeMap(typeof(QuestRewardTemplate), 
             (type, columnName) => type
                 .GetProperties()
                 .FirstOrDefault(prop => GetDescriptionFromAttribute(prop) == columnName.ToLower()))

@@ -23,14 +23,14 @@ public class AvalonInfrastructure : IAvalonInfrastructure
     private readonly IMetricsManager _metricsManager;
 
     public AvalonInfrastructure(
+        ILoggerFactory loggerFactory,
         CancellationTokenSource cts,
-        ILogger<AvalonInfrastructure> logger,
         IAvalonNetworkDaemon networkDaemon,
         IAvalonGame gameServer,
         IMetricsManager metricsManager)
     {
+        _logger = loggerFactory.CreateLogger<AvalonInfrastructure>();
         _cts = cts;
-        _logger = logger;
         _networkDaemon = networkDaemon;
         _gameServer = gameServer;
         _metricsManager = metricsManager;

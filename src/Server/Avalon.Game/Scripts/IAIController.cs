@@ -18,9 +18,9 @@ public class AIController : IAIController
 
     private Dictionary<string, Type> _templateScripts;
 
-    public AIController(ILogger<AIController> logger)
+    public AIController(ILoggerFactory loggerFactory)
     {
-        _logger = logger;
+        _logger = loggerFactory.CreateLogger<AIController>();
     }
     
     public void LoadScripts()
@@ -30,7 +30,7 @@ public class AIController : IAIController
             .Where(t => t.IsSubclassOf(typeof(AIScript)) && !t.IsAbstract)
             .ToList();
         
-        _logger.LogInformation("Loaded {Count} AI scripts", aiScripts.Count());
+        _logger.LogInformation("Loaded {Count} AI scripts", aiScripts.Count);
         
         _templateScripts = aiScripts.ToDictionary(t => t.Name, t => t);
     }
