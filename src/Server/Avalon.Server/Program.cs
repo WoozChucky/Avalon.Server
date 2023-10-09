@@ -17,6 +17,8 @@ using Avalon.Network.Tcp;
 using Avalon.Network.Tcp.Configuration;
 using Avalon.Network.Udp;
 using Avalon.Network.Udp.Configuration;
+using Avalon.Server.Configuration;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Serilog;
@@ -29,9 +31,11 @@ namespace Avalon.Server
     {
         private static CancellationTokenSource CancellationTokenSource { get; set; } = null!;
         private static IServiceProvider ServiceProvider { get; set; } = null!;
+        private static IConfigurationRoot Configuration { get; set; } = null!;
         private static IAvalonInfrastructure Infrastructure { get; set; } = null!;
         private static ILogger<Program> Logger { get; set; } = null!;
         private static IMetricsManager MetricsManager { get; set; } = null!;
+        private static AppConfiguration AppConfiguration { get; set; } = null!;
         private static AllocationsListener AllocationsListener { get; set; } = null!;
         private static SystemUsageCollector SystemUsageCollector { get; set; } = null!;
 
@@ -45,6 +49,7 @@ namespace Avalon.Server
             Process.GetCurrentProcess().PriorityClass = ProcessPriorityClass.RealTime;
             Process.GetCurrentProcess().PriorityBoostEnabled = true;
 
+            ConfigureConfiguration(args);
             ConfigureDependencyInjection();
             
             SystemUsageCollector.Start();
@@ -97,9 +102,30 @@ namespace Avalon.Server
             Logger.LogInformation("Exited successfully");
         }
 
+        private static void ConfigureConfiguration(string[] args)
+        {
+            var builder = new ConfigurationBuilder()
+                .SetBasePath(Directory.GetCurrentDirectory())
+                .AddEnvironmentVariables()
+                .AddJsonFile("appsettings.json", false, false);
+            
+            if (args.Length > 0)
+            {
+                builder.AddCommandLine(args);
+            }
+            
+            Configuration = builder.Build();
+
+            AppConfiguration = new AppConfiguration();
+            
+            Configuration.Bind(AppConfiguration);
+        }
+
         private static void ConfigureDependencyInjection()
         {
             ServiceProvider = new ServiceCollection()
+                
+                // Logging
                 .AddLogging(builder =>
                 {
                     builder
@@ -112,25 +138,14 @@ namespace Avalon.Server
                         )
                         .SetMinimumLevel(LogLevel.Trace);
                 })
-                .AddSingleton<AvalonUdpServerConfiguration>(_ => new AvalonUdpServerConfiguration
-                {
-                    Backlog = 32,
-                    CertificatePath = "cert-server-udp.pem",
-                    ListenPort = 21000
-                })
-                .AddSingleton<AvalonTcpServerConfiguration>(_ => new AvalonTcpServerConfiguration
-                {
-                    Backlog = 32,
-                    CertificatePassword = "avalon",
-                    CertificatePath = "cert-tcp.pfx",
-                    ListenPort = 21000
-                })
-                .AddSingleton<MetricsConfiguration>(_ => new MetricsConfiguration()
-                {
-                    ApiUrl = "https://portal-api.dev.quix.ai",
-                    ApiKey = "pat-496497a924db4db99617bda12f6b6e39",
-                    Automatic = true
-                })
+                
+                // Configuration
+                .AddSingleton(AppConfiguration)
+                .AddSingleton(AppConfiguration.NetworkDaemon)
+                .AddSingleton(AppConfiguration.NetworkDaemon.Udp)
+                .AddSingleton(AppConfiguration.NetworkDaemon.Tcp)
+                .AddSingleton(AppConfiguration.Metrics)
+                
                 .AddSingleton<AllocationsListener>()
                 .AddSingleton<SystemUsageCollector>()
                 .AddSingleton<IDatabaseManager, DatabaseManager>()

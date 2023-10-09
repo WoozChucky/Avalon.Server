@@ -10,21 +10,19 @@ public partial class AvalonGame
 {
     public async Task HandleAuthPacket(IRemoteSource source, CAuthPacket packet)
     {
-        var client = source.AsTcpClient();
+        _logger.LogDebug("Handling auth packet from {EndPoint}", source.RemoteAddress);
         
-        _logger.LogDebug("Handling auth packet from {EndPoint}", client.Socket.RemoteEndPoint);
-        
-        var session = _connectionManager.GetSession(client);
+        var session = _connectionManager.GetSession(source);
 
         if (session == null)
         {
-            _logger.LogWarning("Session not found for client {EndPoint}", client.Socket.RemoteEndPoint);
+            _logger.LogWarning("Session not found for client {EndPoint}", source.RemoteAddress);
             return;
         }
         
         if (string.IsNullOrWhiteSpace(packet.Username) || string.IsNullOrWhiteSpace(packet.Password))
         {
-            await client.SendAsync(SAuthResultPacket.Create(AuthResult.INVALID_CREDENTIALS, session.Encrypt));
+            await source.SendAsync(SAuthResultPacket.Create(AuthResult.INVALID_CREDENTIALS, session.Encrypt));
             return;
         }
 
@@ -33,7 +31,7 @@ public partial class AvalonGame
 
         if (account == null)
         {
-            await client.SendAsync(SAuthResultPacket.Create(AuthResult.INVALID_CREDENTIALS, session.Encrypt));
+            await source.SendAsync(SAuthResultPacket.Create(AuthResult.INVALID_CREDENTIALS, session.Encrypt));
             return;
         }
         
@@ -43,27 +41,21 @@ public partial class AvalonGame
         {
             //TODO: Increment failed login attempts
             
-            await client.SendAsync(SAuthResultPacket.Create(AuthResult.INVALID_CREDENTIALS, session.Encrypt));
+            await source.SendAsync(SAuthResultPacket.Create(AuthResult.INVALID_CREDENTIALS, session.Encrypt));
             return;
         }
         
         // TODO: Check if account is locked
-
-        await client.SendAsync(SAuthResultPacket.Create(account.Id, AuthResult.PENDING_KEY, session.Encrypt));
-    }
-
-    public async Task HandleAuthPatchPacket(IRemoteSource source, CAuthPatchPacket packet)
-    {
-        var udpClient = source.AsUdpClient();
         
-        if (!_connectionManager.PatchSession(source, packet.AccountId, packet.PublicKey))
+        if (!_connectionManager.PatchSession(source, account.Id))
         {
-            
-            await udpClient.SendAsync(SAuthResultPacket.Create(AuthResult.WRONG_KEY));
+            //TODO: Fix this EXCEPTION properly
+            throw new Exception("Failed to patch session");
         }
         
-        await udpClient.SendAsync(SAuthResultPacket.Create(packet.AccountId, AuthResult.SUCCESS));
+        await source.SendAsync(SAuthResultPacket.Create(account.Id, AuthResult.SUCCESS));
     }
+    
     
     public async Task HandleLogoutPacket(IRemoteSource source, CLogoutPacket packet)
     {

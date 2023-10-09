@@ -98,7 +98,6 @@ public class AvalonNetworkDaemon : IAvalonNetworkDaemon
         
         // Auth handlers
         _packetRegistry.RegisterHandler<CAuthPacket>(NetworkPacketType.CMSG_AUTH, _game.HandleAuthPacket);
-        _packetRegistry.RegisterHandler<CAuthPatchPacket>(NetworkPacketType.CMSG_AUTH_PATCH, _game.HandleAuthPatchPacket);
         _packetRegistry.RegisterHandler<CLogoutPacket>(NetworkPacketType.CMSG_LOGOUT, _game.HandleLogoutPacket);
         
         // Character handlers

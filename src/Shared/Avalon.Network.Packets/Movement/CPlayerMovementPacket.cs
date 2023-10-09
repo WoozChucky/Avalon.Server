@@ -7,7 +7,7 @@ namespace Avalon.Network.Packets.Movement;
 public class CPlayerMovementPacket : Packet
 {
     public static NetworkPacketType PacketType = NetworkPacketType.CMSG_MOVEMENT;
-    public static NetworkProtocol Protocol = NetworkProtocol.Udp;
+    public static NetworkProtocol Protocol = NetworkProtocol.Tcp;
     
     [ProtoMember(1)] public int AccountId { get; set; }
     [ProtoMember(2)] public int CharacterId { get; set; }

@@ -6,6 +6,11 @@ namespace Avalon.Network.Tcp.Configuration;
 public class AvalonTcpServerConfiguration
 {
     /// <summary>
+    /// Specifies whether the server is enabled or not.
+    /// </summary>
+    public bool Enabled { get; set; }
+    
+    /// <summary>
     /// PFX certificate file path.
     /// </summary>
     public string? CertificatePath { get; set; }

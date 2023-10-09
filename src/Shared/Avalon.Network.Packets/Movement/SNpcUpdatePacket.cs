@@ -7,7 +7,7 @@ namespace Avalon.Network.Packets.Movement;
 public class SNpcUpdatePacket : Packet
 {
     public static NetworkPacketType PacketType = NetworkPacketType.SMSG_NPC_UPDATE;
-    public static NetworkProtocol Protocol = NetworkProtocol.Udp;
+    public static NetworkProtocol Protocol = NetworkProtocol.Tcp;
 
     [ProtoMember(1)] public Guid Id { get; set; }
     [ProtoMember(2)] public string Name { get; set; }

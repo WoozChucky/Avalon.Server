@@ -95,10 +95,6 @@ public class TutorialScene : Scene
         Globals.Tcp.NpcUpdated += OnNpcUpdated;
         Globals.Tcp.Logout += OnLogout;
         Globals.Tcp.MapTeleport += OnMapTeleport;
-        
-        Globals.Udp.PlayerMoved += OnPlayerMoved;
-        Globals.Udp.NpcUpdated += OnNpcUpdated;
-        Globals.Udp.LatencyUpdated += OnLatencyUpdated;
 
         _timer = new Timer();
         _timer.Interval = 26; // 20 updates per seconds which would be 50 milliseconds interval (1000/20 = 50)
@@ -294,11 +290,13 @@ public class TutorialScene : Scene
     private void OnPlayerConnected(object sender, SPlayerConnectedPacket packet)
     {
         if (!_loaded) return;
+        Console.WriteLine("Player connected: " + packet.Name);
         _otherPlayers.TryAdd(packet.AccountId, new OtherPlayer(packet.AccountId, packet.CharacterId, packet.Name, Globals.Content.Load<Texture2D>("Images/player"), new Vector2(0, 0)));
     }
     
     private void OnPlayerDisconnected(object sender, SPlayerDisconnectedPacket packet)
     {
+        Console.WriteLine("Player disconnected: " + packet.AccountId);
         _otherPlayers.TryRemove(packet.AccountId, out _);
     }
     
@@ -391,7 +389,8 @@ public class TutorialScene : Scene
             if (pos == _lastSentPosition && vel == _lastSentVelocity)
                 return;
 
-            await Globals.Udp.BroadcastMovementUpdates(Globals.Time, pos.X, pos.Y, vel.X, vel.Y);
+            //await Globals.Udp.BroadcastMovementUpdates(Globals.Time, pos.X, pos.Y, vel.X, vel.Y);
+            await Globals.Tcp.BroadcastMovementUpdates(Globals.Time, pos.X, pos.Y, vel.X, vel.Y);
             _lastSentPosition = pos;
             _lastSentVelocity = vel;
         }
@@ -413,9 +412,5 @@ public class TutorialScene : Scene
         Globals.Tcp.NpcUpdated -= OnNpcUpdated;
         Globals.Tcp.Logout -= OnLogout;
         Globals.Tcp.MapTeleport -= OnMapTeleport;
-        
-        Globals.Udp.PlayerMoved -= OnPlayerMoved;
-        Globals.Udp.NpcUpdated -= OnNpcUpdated;
-        Globals.Udp.LatencyUpdated -= OnLatencyUpdated;
     }
 }

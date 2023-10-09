@@ -38,7 +38,6 @@ public interface IAvalonGame
     Task HandleCloseChatPacket(IRemoteSource source, CCloseChatPacket packet);
     Task HandleAuthPacket(IRemoteSource source, CAuthPacket packet);
     Task HandleGroupInviteResultPacket(IRemoteSource source, CGroupInviteResultPacket packet);
-    Task HandleAuthPatchPacket(IRemoteSource source, CAuthPatchPacket packet);
     Task HandleCharacterSelectedPacket(IRemoteSource source, CCharacterSelectedPacket packet);
     Task HandleCharacterListPacket(IRemoteSource source, CCharacterListPacket packet);
     Task HandleCharacterCreatePacket(IRemoteSource source, CCharacterCreatePacket packet);
@@ -208,7 +207,7 @@ public partial class AvalonGame : IAvalonGame
         {
             if (session?.Character == null) continue;
             
-            var packet = SPlayerPositionUpdatePacket.Create(
+            var playerUpdatePacket = SPlayerPositionUpdatePacket.Create(
                 session.AccountId,
                 session.Character.Id,
                 session.Character.Movement.Position.X, 
@@ -218,6 +217,8 @@ public partial class AvalonGame : IAvalonGame
                 session.Character.IsChatting,
                 session.Character.ElapsedGameTime
             );
+            
+            await BroadcastToOthersInInstance(session.AccountId, playerUpdatePacket, session.Character.InstanceId);
             
             var mapInstance = _mapManager.GetInstance(session.Character.Map, Guid.Parse(session.Character.InstanceId));
             if (mapInstance == null) continue;
@@ -235,8 +236,6 @@ public partial class AvalonGame : IAvalonGame
                 
                 await BroadcastToInstance(creaturePacket, session.Character.InstanceId);
             }
-            
-            await BroadcastToInstance(packet, session.Character.InstanceId);
         }
     }
     
@@ -279,11 +278,31 @@ public partial class AvalonGame : IAvalonGame
     
     private async Task BroadcastToOthersInInstance(int except, NetworkPacket packet, string instanceId)
     {
-        var availablePlayers = _connectionManager.GetSessions().Values.Where(
-            p =>  p.AccountId != except && p.Status == ConnectionStatus.Connected
-                  && p.Character != null && p.Character.InstanceId == instanceId).Select(p => p.SendAsync(packet));
+        
+        if (packet.Header.Type == NetworkPacketType.SMSG_CHARACTER_CONNECTED ||
+            packet.Header.Type == NetworkPacketType.SMSG_CHARACTER_DISCONNECTED)
+        {
+            var availablePlayers = _connectionManager.GetSessions().Values.Where(
+                p => p.AccountId != except && p.Status == ConnectionStatus.Connected
+                                           && p.Character != null && p.Character.InstanceId == instanceId);
 
-        await Task.WhenAll(availablePlayers);
+            foreach (var availablePlayer in availablePlayers)
+            {
+                _logger.LogDebug("Sending packet {PacketType} to {CharacterName}", packet.Header.Type, availablePlayer.Character?.Name);
+            }
+            
+            var tasks = availablePlayers.Select(p => p.SendAsync(packet));
+            
+            await Task.WhenAll(tasks);
+        }
+        else
+        {
+            var availablePlayers = _connectionManager.GetSessions().Values.Where(
+                p => p.AccountId != except && p.Status == ConnectionStatus.Connected
+                                           && p.Character != null && p.Character.InstanceId == instanceId).Select(p => p.SendAsync(packet));
+            
+            await Task.WhenAll(availablePlayers);
+        }
     }
 
     #endregion
@@ -382,7 +401,7 @@ public partial class AvalonGame : IAvalonGame
         await _databaseManager.Characters.Character.UpdateAsync(session.Character);
     }
 
-    public Task HandleServerInfoPacket(IRemoteSource source, CRequestServerInfoPacket packet)
+    public async Task HandleServerInfoPacket(IRemoteSource source, CRequestServerInfoPacket packet)
     {
         var client = source.AsTcpClient();
         
@@ -392,15 +411,15 @@ public partial class AvalonGame : IAvalonGame
         {
             _logger.LogWarning("Client {EndPoint} is using an invalid version", client.Socket.RemoteEndPoint);
             client.Dispose();
-            return Task.CompletedTask;
+            throw new NotImplementedException("Invalid client version not implemented yet");
         }
         
         var result = SServerInfoPacket.Create(
             1_000_000, // TODO: Hardcoded server version
             _cryptography.GetPublicKey()
         );
-        
-        return _packetSerializer.SerializeToNetwork(client.Stream, result);
+
+        await source.SendAsync(result);
     }
 
     public async Task HandleClientInfoPacket(IRemoteSource source, CClientInfoPacket packet)

@@ -205,7 +205,6 @@ public class CharacterSelectionScene : Scene
         Globals.MapInfo = packet.Map;
         Globals.StartPosition = new Vector2(packet.Character.X, packet.Character.Y);
         Globals.Tcp.CharacterId = packet.Character.CharacterId;
-        Globals.Udp.CharacterId = packet.Character.CharacterId;
         _characterSelected = true;
     }
     

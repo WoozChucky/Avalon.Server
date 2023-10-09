@@ -5,6 +5,7 @@ using Avalon.Database.Characters;
 using Avalon.Network;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Generic;
+using Microsoft.Extensions.Logging;
 using Org.BouncyCastle.Crypto;
 
 namespace Avalon.Game;
@@ -34,11 +35,9 @@ public class PartyGroup
 public class AvalonSession : IDisposable
 {
     public int AccountId { get; set; }
-    public byte[] SessionKey { get; private set; }
     public Character? Character { get; set; }
     public PartyGroup Party { get; set; }
-    public IRemoteSource? Udp { get; private set; }
-    public IRemoteSource? Tcp { get; private set; }
+    public IRemoteSource? Connection { get; private set; }
     public long RoundTripTime { get; private set; }
     public bool InGame => Character != null;
     public ConnectionStatus Status { get; set; }
@@ -51,12 +50,14 @@ public class AvalonSession : IDisposable
     private long _sequenceNumber = 0;
     
     private readonly RingBuffer<NetworkPacket> _packetQueue;
+    private readonly ILogger<AvalonSession> _logger;
     private readonly CancellationTokenSource _cts;
     private readonly IAvalonCryptoSession _cryptography;
     private bool _verified;
 
-    public AvalonSession(AsymmetricCipherKeyPair serverKeyPair, byte[] clientPublicKey)
+    public AvalonSession(ILoggerFactory loggerFactory, AsymmetricCipherKeyPair serverKeyPair, byte[] clientPublicKey)
     {
+        _logger = loggerFactory.CreateLogger<AvalonSession>();
         AccountId = 0;
         Party = new PartyGroup();
         Status = ConnectionStatus.Connecting;
@@ -65,11 +66,6 @@ public class AvalonSession : IDisposable
         _cryptography = new AvalonCryptoSession(serverKeyPair);
         _cryptography.Initialize(clientPublicKey);
         Task.Run(ProcessPacketsAsync);
-    }
-    
-    public void InitializeCryptography(byte[] clientPublicKey)
-    {
-        _cryptography.Initialize(clientPublicKey);
     }
     
     public async Task PingAsync()
@@ -83,6 +79,7 @@ public class AvalonSession : IDisposable
         }
         catch (Exception e)
         {
+            _logger.LogWarning(e, "Failed to send ping packet");
             Status = ConnectionStatus.TimedOut;
         }
     }
@@ -117,6 +114,7 @@ public class AvalonSession : IDisposable
 
                 if (packet is null)
                 {
+                    _logger.LogWarning("Packet was null for session {SessionId}", AccountId);
                     continue;
                 }
                 
@@ -140,47 +138,33 @@ public class AvalonSession : IDisposable
         switch (packet.Header.Protocol)
         {
             case NetworkProtocol.Tcp:
-                if (Tcp != null)
+                if (Connection != null)
                 {
-                    await Tcp.SendAsync(packet);
+                    await Connection.SendAsync(packet);
+                }
+                else
+                {
+                    _logger.LogWarning("Connection was null for session {SessionId}", AccountId);
                 }
                 break;
             case NetworkProtocol.Udp:
-                if (Udp != null)
-                {
-                    await Udp.SendAsync(packet);
-                }
-                break;
+                throw new NotSupportedException("Cannot send UDP packets to a remote source.");
             case NetworkProtocol.Both:
-                if (Udp != null)
-                {
-                    await Udp.SendAsync(packet);
-                }
-                if (Tcp != null)
-                {
-                    await Tcp.SendAsync(packet);
-                }
-                break;
+                throw new NotSupportedException("Cannot send Both packet types to a remote source.");
             default:
             case NetworkProtocol.None:
                 throw new InvalidOperationException("Cannot send a packet with no protocol specified.");
         }
     }
-
-    internal void SetUdp(UdpClientPacket udp)
-    {
-        Udp = udp;
-    }
     
-    internal void SetTcp(TcpClient tcp)
+    internal void SetConnection(IRemoteSource source)
     {
-        Tcp = tcp;
+        Connection = source;
     }
 
     public void Dispose()
     {
-        Tcp?.Dispose();
-        Udp?.Dispose();
+        Connection?.Dispose();
     }
 
     public byte[] Decrypt(byte[] arg)

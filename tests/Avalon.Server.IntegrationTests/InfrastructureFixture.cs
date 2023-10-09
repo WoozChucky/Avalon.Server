@@ -9,6 +9,7 @@ using Avalon.Game.Pools;
 using Avalon.Game.Quests;
 using Avalon.Game.Scripts;
 using Avalon.Infrastructure;
+using Avalon.Infrastructure.Configuration;
 using Avalon.Metrics;
 using Avalon.Network;
 using Avalon.Network.Packets.Internal;

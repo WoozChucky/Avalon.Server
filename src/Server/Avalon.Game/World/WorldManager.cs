@@ -12,13 +12,13 @@ public partial class AvalonGame
         var session = _connectionManager.GetSession(packet.AccountId);
         if (session == null)
         {
-            LoggerExtensions.LogWarning(_logger, "Received interact packet from unknown account: {AccountId}", packet.AccountId);
+            _logger.LogWarning("Received interact packet from unknown account: {AccountId}", packet.AccountId);
             return;
         }
 
         if (!session.InGame)
         {
-            LoggerExtensions.LogWarning(_logger, "Received interact packet from account that is not in game: {AccountId}", packet.AccountId);
+            _logger.LogWarning("Received interact packet from account that is not in game: {AccountId}", packet.AccountId);
             return;
         }
         
@@ -26,7 +26,7 @@ public partial class AvalonGame
         
         if (instance == null)
         {
-            LoggerExtensions.LogWarning(_logger, "Received interact packet from account that is not in an instance: {AccountId}", packet.AccountId);
+            _logger.LogWarning("Received interact packet from account that is not in an instance: {AccountId}", packet.AccountId);
             return;
         }
         
@@ -36,7 +36,7 @@ public partial class AvalonGame
         {
             if (creature.Bounds.IntersectsWith(playerInteractionArea))
             {
-                LoggerExtensions.LogInformation(_logger, "Character {CharacterName} interacted with creature {CreatureName}", session.Character.Name, creature.Name);
+                _logger.LogInformation("Character {CharacterName} interacted with creature {CreatureName}", session.Character.Name, creature.Name);
                 creature.Script?.OnCharacterInteraction(session.Character);
                 return;
             }
@@ -46,7 +46,7 @@ public partial class AvalonGame
         {
             if (@event.Bounds.IntersectsWith(playerInteractionArea))
             {
-                LoggerExtensions.LogInformation(_logger, "Character {CharacterName} interacted with event {EventName} ({EventClass})", session.Character.Name, @event.Name, @event.Class);
+                _logger.LogInformation("Character {CharacterName} interacted with event {EventName} ({EventClass})", session.Character.Name, @event.Name, @event.Class);
                 return;
             }
         }

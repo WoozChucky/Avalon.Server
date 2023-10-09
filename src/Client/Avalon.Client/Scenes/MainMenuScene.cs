@@ -129,7 +129,6 @@ public class MainMenuScene : Scene
         
         Globals.AccountId = accountId;
         Globals.Tcp.AccountId = accountId;
-        Globals.Udp.AccountId = accountId;
 
         _isLoggedIn = true;
     }

@@ -76,17 +76,6 @@ public class AvalonGame : Game
             CertificatePath = "cert-public.pem"
         });
         
-        Globals.Udp = new AvalonUdpClient(new AvalonUdpClientSettings
-        {
-            Host = "nunolevezinho.xyz",
-            Port = 21000,
-        });
-        
-        Globals.Udp.LatencyUpdated += ((sender, latency) =>
-        {
-            Window.Title = $"Avalon: The Beginning ({latency}ms) ({_fps}fps)";
-        });
-        
         //TargetElapsedTime = TimeSpan.FromSeconds(1d / 60d);
         //MaxElapsedTime = TimeSpan.FromMilliseconds(500);
         InactiveSleepTime = TimeSpan.Zero;
@@ -113,7 +102,6 @@ public class AvalonGame : Game
         Globals.GraphicsDevice = GraphicsDevice;
 
         Globals.Tcp.ConnectAsync().GetAwaiter().GetResult();
-        Globals.Udp.ConnectAsync().GetAwaiter().GetResult();
 
         _sceneManager.Initialize();
         _sceneManager.LoadScene(nameof(MainMenuScene));
@@ -142,7 +130,6 @@ public class AvalonGame : Game
             Keyboard.GetState().IsKeyDown(Keys.F10))
         {
             SteamClient.Shutdown();
-            Globals.Udp.Disconnect();
             Globals.Tcp.Disconnect();
             Exit();
         }

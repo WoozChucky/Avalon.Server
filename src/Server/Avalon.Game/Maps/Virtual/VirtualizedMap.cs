@@ -79,11 +79,11 @@ public class VirtualizedMap
         }
     }
     
-    public ICollection<MapCreature> Creatures => _creatures;
+    public IEnumerable<MapCreature> Creatures => _creatures;
     
     public ICollection<MapEvent> Events => _events;
 
-    public bool IsTileCollidable(int tileX, int tileY, Rectangle boundingBox)
+    private bool IsTileCollidable(int tileX, int tileY, Rectangle boundingBox)
     {
         // Check if the specified tile is collidable
         foreach (var layer in _layers)

@@ -18,6 +18,8 @@
       <ProjectReference Include="..\..\Shared\Avalon.Common\Avalon.Common.csproj" />
       <ProjectReference Include="..\..\Shared\Avalon.Metrics\Avalon.Metrics.csproj" />
       <ProjectReference Include="..\..\Shared\Avalon.Network.Packets\Avalon.Network.Packets.csproj" />
+      <ProjectReference Include="..\..\Shared\Avalon.Network.Tcp\Avalon.Network.Tcp.csproj" />
+      <ProjectReference Include="..\..\Shared\Avalon.Network.Udp\Avalon.Network.Udp.csproj" />
       <ProjectReference Include="..\..\Shared\Avalon.Network\Avalon.Network.csproj" />
       <ProjectReference Include="..\Avalon.Game\Avalon.Game.csproj" />
     </ItemGroup>
