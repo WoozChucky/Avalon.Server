@@ -7,6 +7,7 @@ using ProtoBuf;
 
 namespace Avalon.Network.Udp;
 
+[Obsolete("Use IAvalonTcpServer instead")]
 public class ENetUdpServer : IAvalonUdpServer
 {
     private readonly ILogger<ENetUdpServer> _logger;
@@ -30,6 +31,9 @@ public class ENetUdpServer : IAvalonUdpServer
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
         _cts = cts ?? throw new ArgumentNullException(nameof(cts));
+        
+        if (!_configuration.Enabled) return;
+        
         _isRunning = false;
 
         _server = new Host();
@@ -49,6 +53,8 @@ public class ENetUdpServer : IAvalonUdpServer
 
     public async Task RunAsync()
     {
+        if (!_configuration.Enabled) return;
+        
         if (_isRunning) throw new InvalidOperationException("Server is already running.");
         try
         {
@@ -134,6 +140,8 @@ public class ENetUdpServer : IAvalonUdpServer
 
     public Task StopAsync()
     {
+        if (!_configuration.Enabled) return Task.CompletedTask;
+        
         if (!_isRunning) throw new InvalidOperationException("Server is not running.");
         
         _isRunning = false;

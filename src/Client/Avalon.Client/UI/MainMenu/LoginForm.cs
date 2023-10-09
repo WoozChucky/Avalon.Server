@@ -28,7 +28,6 @@ public class LoginForm : IGameComponent
         _isVisible = visible;
         
         Globals.Tcp.AuthResult += OnAuthResult;
-        Globals.Udp.AuthResult += OnAuthResult;
         
         _usernameComponent = new TextInputComponent(
             new Vector2(Globals.WindowSize.X / 2f - 200 /2f, Globals.WindowSize.Y / 2f + 0),
@@ -135,9 +134,6 @@ public class LoginForm : IGameComponent
             case AuthResult.WRONG_KEY or AuthResult.INVALID_CREDENTIALS:
                 //TODO: Handle different auth results
                 LoginFailed?.Invoke("Invalid username or password");
-                break;
-            case AuthResult.PENDING_KEY:
-                await Globals.Udp.SendAuthPatchPacket(packet.AccountId, Globals.Tcp.PublicKey());
                 break;
             case AuthResult.SUCCESS:
                 LoginSuccess?.Invoke(packet.AccountId);

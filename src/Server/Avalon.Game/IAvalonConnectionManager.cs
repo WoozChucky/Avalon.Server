@@ -21,7 +21,7 @@ public interface IAvalonConnectionManager : IDisposable
     Task HandlePongPacket(IRemoteSource source, CPongPacket packet);
     void RemoveConnection(IRemoteSource source);
     void AddSession(IRemoteSource source, AsymmetricCipherKeyPair serverKeyPair, byte[] clientPublicKey);
-    bool PatchSession(IRemoteSource source, int accountId, byte[] clientPublicKey);
+    bool PatchSession(IRemoteSource source, int accountId);
     AvalonSession? GetSession(int accountId);
     AvalonSession? GetSession(IRemoteSource source);
     ConcurrentDictionary<int, AvalonSession> GetSessions();
@@ -35,10 +35,12 @@ public delegate void SessionReconnectedHandler(object? sender, AvalonSession ses
 
 public class AvalonConnectionManager : IAvalonConnectionManager
 {
+    
     public event SessionLostHandler? SessionLost;
     public event SessionTimedOutHandler? SessionTimedOut;
     public event SessionReconnectedHandler? SessionReconnected;
     
+    private readonly ILoggerFactory _loggerFactory;
     private readonly ILogger<AvalonConnectionManager> _logger;
     private readonly ConcurrentDictionary<int, AvalonSession> _sessions;
     private readonly ConcurrentDictionary<string, AvalonSession> _handshakingSessions;
@@ -53,6 +55,7 @@ public class AvalonConnectionManager : IAvalonConnectionManager
 
     public AvalonConnectionManager(ILoggerFactory loggerFactory)
     {
+        _loggerFactory = loggerFactory;
         _logger = loggerFactory.CreateLogger<AvalonConnectionManager>();
         _sessions = new ConcurrentDictionary<int, AvalonSession>();
         _handshakingSessions = new ConcurrentDictionary<string, AvalonSession>();
@@ -187,7 +190,7 @@ public class AvalonConnectionManager : IAvalonConnectionManager
     {
         foreach (var session in _sessions.Values)
         {
-            if (session.Tcp?.RemoteAddress == source.RemoteAddress)
+            if (session.Connection?.RemoteAddress == source.RemoteAddress)
             {
                 _logger.LogWarning("Client {Id} already connected", session.AccountId);
                 return;
@@ -196,15 +199,15 @@ public class AvalonConnectionManager : IAvalonConnectionManager
 
         foreach (var handshakingSession in _handshakingSessions)
         {
-            if (handshakingSession.Value.Tcp?.RemoteAddress == source.RemoteAddress)
+            if (handshakingSession.Value.Connection?.RemoteAddress == source.RemoteAddress)
             {
                 _logger.LogWarning("Client {Id} already handshaking", handshakingSession.Value.AccountId);
                 return;
             }
         }
         
-        var connectingSession = new AvalonSession(serverKeyPair, clientPublicKey);
-        connectingSession.SetTcp(source as TcpClient ?? throw new InvalidOperationException("Connection is not a TCP connection"));
+        var connectingSession = new AvalonSession(_loggerFactory, serverKeyPair, clientPublicKey);
+        connectingSession.SetConnection(source);
         connectingSession.Status = ConnectionStatus.Handshake;
         
         if (!_handshakingSessions.TryAdd(source.RemoteAddress, connectingSession))
@@ -214,11 +217,11 @@ public class AvalonConnectionManager : IAvalonConnectionManager
         }
     }
 
-    public bool PatchSession(IRemoteSource source, int accountId, byte[] publicKey)
+    public bool PatchSession(IRemoteSource source, int accountId)
     {
         var session = _handshakingSessions
             .Values
-            .FirstOrDefault(handshakingSession => handshakingSession.OtherEndPublicKey().SequenceEqual(publicKey));
+            .FirstOrDefault(handshakingSession => handshakingSession.Connection!.RemoteAddress == source.RemoteAddress);
 
         if (session == null)
         {
@@ -226,14 +229,14 @@ public class AvalonConnectionManager : IAvalonConnectionManager
             return false;
         }
         
-        if (!_handshakingSessions.TryRemove(session.Tcp!.RemoteAddress, out _))
+        if (!_handshakingSessions.TryRemove(session.Connection!.RemoteAddress, out _))
         {
             _logger.LogWarning("Failed to remove client {Id} from handshaking sessions", session.AccountId);
             return false;
         }
         
-        session.SetUdp(source as UdpClientPacket ?? throw new InvalidOperationException("Connection is not a UDP connection"));
         session.Status = ConnectionStatus.Connected;
+        session.AccountId = accountId;
 
         _sessions.TryAdd(accountId, session);
         
@@ -249,8 +252,8 @@ public class AvalonConnectionManager : IAvalonConnectionManager
     {
         return source switch
         {
-            TcpClient _ => _sessions.Values.FirstOrDefault(c => c.Tcp?.RemoteAddress == source.RemoteAddress) ?? _handshakingSessions.Values.FirstOrDefault(c => c.Tcp?.RemoteAddress == source.RemoteAddress),
-            UdpClientPacket _ => _sessions.Values.FirstOrDefault(c => c.Udp?.RemoteAddress == source.RemoteAddress) ?? _handshakingSessions.Values.FirstOrDefault(c => c.Udp?.RemoteAddress == source.RemoteAddress),
+            TcpClient _ => _sessions.Values.FirstOrDefault(c => c.Connection?.RemoteAddress == source.RemoteAddress) ?? _handshakingSessions.Values.FirstOrDefault(c => c.Connection?.RemoteAddress == source.RemoteAddress),
+            UdpClientPacket _ => throw new NotSupportedException("UDP is not supported yet"),
             _ => null
         };
     }
@@ -286,11 +289,7 @@ public class AvalonConnectionManager : IAvalonConnectionManager
         
         if (source is TcpClient tcp)
         {
-            session = _sessions.Values.FirstOrDefault(c => c.Tcp?.RemoteAddress == source.RemoteAddress);
-        }
-        else if (source is UdpClientPacket udp)
-        {
-            session = _sessions.Values.FirstOrDefault(c => c.Udp?.RemoteAddress == source.RemoteAddress);
+            session = _sessions.Values.FirstOrDefault(c => c.Connection?.RemoteAddress == source.RemoteAddress);
         }
         
         if (session == null)

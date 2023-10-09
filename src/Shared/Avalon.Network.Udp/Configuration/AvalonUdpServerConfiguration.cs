@@ -6,6 +6,11 @@ namespace Avalon.Network.Udp.Configuration;
 public class AvalonUdpServerConfiguration
 {
     /// <summary>
+    /// Specifies whether the server is enabled or not.
+    /// </summary>
+    public bool Enabled { get; set; }
+    
+    /// <summary>
     /// PEM certificate file path.
     /// </summary>
     public string? CertificatePath { get; set; }

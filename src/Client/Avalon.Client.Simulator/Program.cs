@@ -101,9 +101,6 @@ namespace Avalon.Client.Simulator
                     case AuthResult.INVALID_CREDENTIALS:
                         Console.WriteLine("Invalid username or password");    
                         break;
-                    case AuthResult.PENDING_KEY:
-                        await _udp.SendAuthPatchPacket(packet.AccountId, _tcp.PublicKey());
-                        break;
                     case AuthResult.SUCCESS:
                         _tcp.AccountId = packet.AccountId;
                         _udp.AccountId = packet.AccountId;

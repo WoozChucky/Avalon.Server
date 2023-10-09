@@ -5,7 +5,6 @@ using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
 using Avalon.Network.Tcp.Configuration;
 using Microsoft.Extensions.Logging;
-using TcpClient = Avalon.Network.TcpClient;
 
 namespace Avalon.Network.Tcp;
 
@@ -26,8 +25,12 @@ public class AvalonTcpServer : IAvalonTcpServer
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
         _cts = cts ?? throw new ArgumentNullException(nameof(cts));
+        
+        if (!_configuration.Enabled) return;
+        
         _isRunning = false;
         _socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+        _socket.NoDelay = true;
         _socket.Bind(new IPEndPoint(IPAddress.Any, _configuration.ListenPort));
         var serverCertBytes = File.ReadAllBytesAsync(
                 _configuration.CertificatePath ?? throw new ArgumentNullException(nameof(configuration.CertificatePath))
@@ -44,6 +47,8 @@ public class AvalonTcpServer : IAvalonTcpServer
     
     public async Task RunAsync()
     {
+        if (!_configuration.Enabled) return;
+        
         if (_isRunning)
         {
             throw new InvalidOperationException("Server is already running.");
@@ -61,6 +66,8 @@ public class AvalonTcpServer : IAvalonTcpServer
 
     public Task StopAsync()
     {
+        if (!_configuration.Enabled) return Task.CompletedTask;
+        
         if (!_isRunning) throw new InvalidOperationException("Server is not running.");
 
         _isRunning = false;

@@ -33,6 +33,7 @@ public enum NetworkPacketType : short
     // Quest
     CMSG_QUEST_STATUS = 0x2040,
     CMSG_QUEST_LIST = 0x2041,
+    CMSG_QUEST_QUERY_AVAILABLE = 0x2042,
     
     // World
     CMSG_INTERACT = 0x2030,

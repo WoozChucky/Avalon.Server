@@ -98,7 +98,6 @@ public class SAuthResultPacket : Packet
 public enum AuthResult : ushort
 {
     INVALID_CREDENTIALS,
-    PENDING_KEY,
     WRONG_KEY,
     LOCKED,
     SUCCESS

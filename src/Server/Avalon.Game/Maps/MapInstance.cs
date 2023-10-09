@@ -21,7 +21,7 @@ public class MapInstance
 
     public ConcurrentDictionary<Guid, Creature> Creatures { get; }
     
-    public ICollection<MapEvent> Events => VirtualizedMap.Events;
+    public IEnumerable<MapEvent> Events => VirtualizedMap.Events;
 
     // Map configuration from database
     private readonly Map _template;

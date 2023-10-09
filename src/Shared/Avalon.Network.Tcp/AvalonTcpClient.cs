@@ -72,6 +72,7 @@ public class AvalonTcpClient : IDisposable
         var clientCertBytes = File.ReadAllBytesAsync(_settings.CertificatePath).ConfigureAwait(true).GetAwaiter().GetResult();
         _certificate = new X509Certificate2(clientCertBytes);
         _socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+        _socket.NoDelay = true;
         _cts = new CancellationTokenSource();
         _cryptography = new AvalonCryptoSession();
 
@@ -164,15 +165,18 @@ public class AvalonTcpClient : IDisposable
                         });
                         break;
                     case SPlayerPositionUpdatePacket p:
+                        Console.WriteLine("Received player position update packet");
                         Send(() => PlayerMoved?.Invoke(this, p));
                         break;
                     case SNpcUpdatePacket p:
                         Send(() => NpcUpdated?.Invoke(this, p));
                         break;
                     case SPlayerConnectedPacket p:
+                        Console.WriteLine("Received player connected packet");
                         Send(() => PlayerConnected?.Invoke(this, p));
                         break;
                     case SPlayerDisconnectedPacket p:
+                        Console.WriteLine("Received player disconnected packet");
                         Send(() => PlayerDisconnected?.Invoke(this, p));
                         break;
                     case SChatMessagePacket p:
@@ -451,5 +455,15 @@ public class AvalonTcpClient : IDisposable
     public byte[] PublicKey()
     {
         return _cryptography.GetPublicKey();
+    }
+
+    public async Task BroadcastMovementUpdates(float time, float posX, float posY, float velX, float velY)
+    {
+        if (velX == 0 && velY == 0)
+        {
+            Console.WriteLine("No movement detected, skipping...");
+        }
+
+        await SendPacket(CPlayerMovementPacket.Create(AccountId, CharacterId, time, posX, posY, velX, velY));
     }
 }

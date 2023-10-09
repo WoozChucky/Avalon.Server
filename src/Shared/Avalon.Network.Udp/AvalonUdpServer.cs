@@ -1,12 +1,12 @@
 using System.Net;
 using System.Net.Sockets;
-using System.Text;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Udp.Configuration;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.Network.Udp;
 
+[Obsolete("Use IAvalonTcpServer instead")]
 public class AvalonUdpServer : IAvalonUdpServer
 {
     private readonly ILogger<AvalonUdpServer> _logger;
@@ -32,6 +32,9 @@ public class AvalonUdpServer : IAvalonUdpServer
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
         _cts = cts ?? throw new ArgumentNullException(nameof(cts));
+        
+        if (!_configuration.Enabled) return;
+        
         _isRunning = false;
 
         if (string.IsNullOrEmpty(_configuration.CertificatePath))
@@ -61,6 +64,8 @@ public class AvalonUdpServer : IAvalonUdpServer
     
     public async Task RunAsync()
     {
+        if (!_configuration.Enabled) return;
+            
         if (_isRunning) throw new InvalidOperationException("Server is already running.");
         try
         {
@@ -111,6 +116,8 @@ public class AvalonUdpServer : IAvalonUdpServer
 
     public Task StopAsync()
     {
+        if (!_configuration.Enabled) return Task.CompletedTask;
+        
         if (!_isRunning) throw new InvalidOperationException("Server is not running.");
         
         _isRunning = false;
