@@ -14,9 +14,13 @@ public interface ICreatureTemplateTable
 
 public class CreatureTemplateTable : ICreatureTemplateTable
 {
-    
-    private const string ConnectionString =
-        "Server=localhost; Port=3306; Database=world; userid=root; Pwd=123;";
+    private readonly string _connectionString;
+
+    public CreatureTemplateTable(string connectionString)
+    {
+        _connectionString = connectionString;
+    }
+
     private const string TableName = "CreatureTemplate";
     
     private const string GetAllQuery = $"SELECT * FROM `CreatureTemplate`";
@@ -24,14 +28,14 @@ public class CreatureTemplateTable : ICreatureTemplateTable
     
     public async Task<IEnumerable<CreatureTemplate>> QueryAllAsync()
     {
-        await using var connection = new MySqlConnection(ConnectionString);
+        await using var connection = new MySqlConnection(_connectionString);
         
         return await connection.QueryAsync<CreatureTemplate>(GetAllQuery);
     }
     
     public async Task<CreatureTemplate?> QueryByIdAsync(int id)
     {
-        await using var connection = new MySqlConnection(ConnectionString);
+        await using var connection = new MySqlConnection(_connectionString);
         
         return await connection.QueryFirstOrDefaultAsync<CreatureTemplate>(GetByIdQuery, new { Id = id });
     }

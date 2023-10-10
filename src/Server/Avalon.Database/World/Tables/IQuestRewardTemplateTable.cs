@@ -14,9 +14,13 @@ public interface IQuestRewardTemplateTable
 
 public class QuestRewardTemplateTable : IQuestRewardTemplateTable
 {
-    
-    private const string ConnectionString =
-        "Server=localhost; Port=3306; Database=world; userid=root; Pwd=123;";
+    private readonly string _connectionString;
+
+    public QuestRewardTemplateTable(string connectionString)
+    {
+        _connectionString = connectionString;
+    }
+
     private const string TableName = "QuestRewardTemplate";
     
     private const string GetAllQuery = $"SELECT * FROM `QuestRewardTemplate`";
@@ -24,14 +28,14 @@ public class QuestRewardTemplateTable : IQuestRewardTemplateTable
     
     public async Task<IEnumerable<QuestRewardTemplate>> QueryAllAsync()
     {
-        await using var connection = new MySqlConnection(ConnectionString);
+        await using var connection = new MySqlConnection(_connectionString);
         
         return await connection.QueryAsync<QuestRewardTemplate>(GetAllQuery);
     }
 
     public async Task<QuestRewardTemplate?> QueryByIdAsync(int id)
     {
-        await using var connection = new MySqlConnection(ConnectionString);
+        await using var connection = new MySqlConnection(_connectionString);
         
         return await connection.QueryFirstOrDefaultAsync<QuestRewardTemplate>(GetByIdQuery, new { Id = id });
     }

@@ -1,3 +1,4 @@
+using Avalon.Database.Configuration;
 using Avalon.Database.World.Tables;
 
 namespace Avalon.Database.World
@@ -18,14 +19,16 @@ namespace Avalon.Database.World
         public IQuestTemplateTable QuestTemplate { get; }
         public IQuestRewardTable QuestReward { get; }
         public IQuestRewardTemplateTable QuestRewardTemplate { get; }
-
-        public WorldDatabase()
+        
+        public WorldDatabase(DatabaseConfiguration configuration)
         {
-            Map = new MapTable();
-            CreatureTemplate = new CreatureTemplateTable();
-            QuestTemplate = new QuestTemplateTable();
-            QuestReward = new QuestRewardTable();
-            QuestRewardTemplate = new QuestRewardTemplateTable();
+            var connectionString = $"Server={configuration.World.Host}; Port={configuration.World.Port}; Database={configuration.World.Database}; userid={configuration.World.Username}; Pwd={configuration.World.Password};";
+            
+            Map = new MapTable(connectionString);
+            CreatureTemplate = new CreatureTemplateTable(connectionString);
+            QuestTemplate = new QuestTemplateTable(connectionString);
+            QuestReward = new QuestRewardTable(connectionString);
+            QuestRewardTemplate = new QuestRewardTemplateTable(connectionString);
         }
     }
 }

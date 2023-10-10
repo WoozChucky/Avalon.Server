@@ -1,4 +1,3 @@
-using System.Security.Cryptography;
 using Avalon.Common.Cryptography;
 using Avalon.Common.Threading;
 using Avalon.Database.Characters;
@@ -16,8 +15,7 @@ public enum ConnectionStatus
     Connecting,
     Handshake,
     Connected,
-    TimedOut,
-    PendingKey
+    TimedOut
 }
 
 public class PartyGroup
@@ -91,9 +89,9 @@ public class AvalonSession : IDisposable
             LastUpdateAt = DateTime.UtcNow;
             var now = DateTime.UtcNow.Ticks;
             var newRtt = (now - ticks) / TimeSpan.TicksPerMillisecond;
-            if (RoundTripTime != newRtt)
+            if (RoundTripTime - newRtt >  20)
             {
-                Console.WriteLine($"Round trip time: {RoundTripTime}ms");
+                _logger.LogInformation("Round trip time changed: {RoundTripTime}ms -> {NewRtt}ms", RoundTripTime, newRtt);
             }
             RoundTripTime = newRtt;
         }
@@ -110,15 +108,27 @@ public class AvalonSession : IDisposable
         {
             while (!_cts.IsCancellationRequested)
             {
-                var packet = await _packetQueue.DequeueAsync(_cts.Token);
-
-                if (packet is null)
+                try
                 {
-                    _logger.LogWarning("Packet was null for session {SessionId}", AccountId);
-                    continue;
-                }
+                    var packet = await _packetQueue.DequeueAsync(_cts.Token);
+
+                    if (packet is null)
+                    {
+                        _logger.LogWarning("Packet was null for session {SessionId}", AccountId);
+                        continue;
+                    }
                 
-                await SendQueuedPacketAsync(packet);
+                    await SendQueuedPacketAsync(packet);
+                }
+                catch (IOException ex)
+                {
+                    _logger.LogWarning(ex, "Lost connection to session {SessionId}", AccountId);
+                    break;
+                }
+                catch (Exception e)
+                {
+                    _logger.LogError(e, "Failed to process packet");
+                }
             }
         }
         catch (OperationCanceledException)
@@ -127,14 +137,12 @@ public class AvalonSession : IDisposable
         }
         catch (Exception e)
         {
-            Console.WriteLine(e);
+            _logger.LogError(e, "Failed to process packets");
         }
     }
     
     private async Task SendQueuedPacketAsync(NetworkPacket packet)
     {
-        // We might have lost connection which means the SendAsync will throw
-        
         switch (packet.Header.Protocol)
         {
             case NetworkProtocol.Tcp:

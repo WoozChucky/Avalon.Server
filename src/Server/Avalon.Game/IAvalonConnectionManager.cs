@@ -1,6 +1,4 @@
-using System.Collections;
 using System.Collections.Concurrent;
-using System.Security.Cryptography;
 using Avalon.Network;
 using Avalon.Network.Packets.Generic;
 using Microsoft.Extensions.Logging;
@@ -90,7 +88,7 @@ public class AvalonConnectionManager : IAvalonConnectionManager
                     if (connection.Status == ConnectionStatus.Connected)
                     {
                         // check if the connection has timed out
-                        if (connection.RoundTripTime > PingTimeoutThreshold && DateTime.UtcNow - connection.LastUpdateAt > TimeSpan.FromSeconds(PingTimeoutThresholdInSec))
+                        if (connection.RoundTripTime > PingTimeoutThreshold || DateTime.UtcNow - connection.LastUpdateAt > TimeSpan.FromSeconds(PingTimeoutThresholdInSec))
                         {
                             _logger.LogInformation("Account {Id} has timed out", connection.AccountId);
                             connection.Status = ConnectionStatus.TimedOut;
@@ -270,15 +268,14 @@ public class AvalonConnectionManager : IAvalonConnectionManager
 
     public Task HandlePongPacket(IRemoteSource source, CPongPacket packet)
     {
-        /*
-        if (!_sessions.TryGetValue(packet.ClientId, out var connection))
+        
+        if (!_sessions.TryGetValue(packet.AccountId, out var connection))
         {
-            _logger.LogWarning("Received pong packet from unknown client {Id}", packet.ClientId);
+            _logger.LogWarning("Received pong packet from unknown client {Id}", packet.AccountId);
             return Task.CompletedTask;
         }
 
         connection.OnPong(packet.SequenceNumber, packet.Ticks);
-        */
         
         return Task.CompletedTask;
     }
@@ -287,7 +284,7 @@ public class AvalonConnectionManager : IAvalonConnectionManager
     {
         AvalonSession? session = null;
         
-        if (source is TcpClient tcp)
+        if (source is TcpClient)
         {
             session = _sessions.Values.FirstOrDefault(c => c.Connection?.RemoteAddress == source.RemoteAddress);
         }
@@ -311,6 +308,8 @@ public class AvalonConnectionManager : IAvalonConnectionManager
         if (_sessions.TryRemove(session.AccountId, out _))
         {
             _logger.LogInformation("Client {Id} has disconnected", session.AccountId);
+            
+            session.Dispose();
         }
     }
 

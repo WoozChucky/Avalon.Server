@@ -214,7 +214,7 @@ public class AvalonNetworkDaemon : IAvalonNetworkDaemon
             
                 _logger.LogInformation("---------------------------------");
             }
-
+            
             _metrics.QueueMetric("network.bytes_received", Interlocked.Read(ref _bytesReceived));
             _metrics.QueueMetric("network.bytes_received.udp", Interlocked.Read(ref _udpBytesReceived));
             _metrics.QueueMetric("network.bytes_received.tcp", Interlocked.Read(ref _tcpBytesReceived));
@@ -248,9 +248,16 @@ public class AvalonNetworkDaemon : IAvalonNetworkDaemon
 
                     try
                     {
+                        if (!client.Connected)
+                        {
+                            this._connectionManager.RemoveConnection(client);
+                            break;
+                        }
+                        
                         if (packet == null)
                         {
                             _logger.LogWarning("Received null tcp packet from client {Endpoint}", client.RemoteAddress);
+                            this._connectionManager.RemoveConnection(client);
                             break;
                         }
 

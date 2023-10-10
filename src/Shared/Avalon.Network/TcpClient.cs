@@ -1,5 +1,6 @@
 using System.Net.Security;
 using System.Net.Sockets;
+using System.Security.Authentication.ExtendedProtection;
 using Avalon.Network.Packets.Abstractions;
 using ProtoBuf;
 
@@ -15,6 +16,8 @@ public class TcpClient : IRemoteSource
 
     public bool Authenticated { get; }
     
+    public bool Connected => Stream.CanWrite;
+    
     public TcpClient(Socket socket, Stream stream)
     {
         Socket = socket ?? throw new ArgumentNullException(nameof(socket));
@@ -24,6 +27,10 @@ public class TcpClient : IRemoteSource
 
     public Task SendAsync(NetworkPacket packet)
     {
+        if (!Connected)
+        {
+            throw new IOException("Client is not connected");
+        }
         Serializer.SerializeWithLengthPrefix(Stream, packet, PrefixStyle.Base128);
         return Task.CompletedTask;
     }

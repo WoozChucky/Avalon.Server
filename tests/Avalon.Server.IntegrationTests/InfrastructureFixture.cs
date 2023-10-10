@@ -80,7 +80,6 @@ public class InfrastructureFixture : IDisposable
 
 		Game = new AvalonGame(
 			mockedLoggerFactory,
-			PacketSerializer,
 			ConnectionManager,
 			DatabaseManager,
 			MapManager,

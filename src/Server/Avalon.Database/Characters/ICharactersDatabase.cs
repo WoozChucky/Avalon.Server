@@ -1,3 +1,5 @@
+using Avalon.Database.Configuration;
+
 namespace Avalon.Database.Characters
 {
     public interface ICharactersDatabase
@@ -9,9 +11,11 @@ namespace Avalon.Database.Characters
     {
         public ICharacterTable Character { get; }
         
-        public CharactersDatabase()
+        public CharactersDatabase(DatabaseConfiguration configuration)
         {
-            Character = new CharacterTable();
+            var connectionString = $"Server={configuration.Characters.Host}; Port={configuration.Characters.Port}; Database={configuration.Characters.Database}; userid={configuration.Characters.Username}; Pwd={configuration.Characters.Password};";
+            
+            Character = new CharacterTable(connectionString);
         }
     }
 }
