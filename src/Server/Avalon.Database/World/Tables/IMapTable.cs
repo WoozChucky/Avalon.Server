@@ -13,17 +13,21 @@ public interface IMapTable
 
 public class MapTable : IMapTable
 {
+    private readonly string _connectionString;
     
-    private const string ConnectionString =
-        "Server=localhost; Port=3306; Database=world; userid=root; Pwd=123;";
     private const string TableName = "Map";
     
     private const string GetAllQuery = $"SELECT * FROM `Map`";
     private const string GetByIdQuery = $"SELECT * FROM `Map` WHERE id = @Id";
     
+    public MapTable(string connectionString)
+    {
+        _connectionString = connectionString;
+    }
+    
     public async Task<IEnumerable<Map>> QueryAllAsync()
     {
-        await using var connection = new MySqlConnection(ConnectionString);
+        await using var connection = new MySqlConnection(_connectionString);
         
         return await connection.QueryAsync<Map>(GetAllQuery);
     }

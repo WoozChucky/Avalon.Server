@@ -7,7 +7,7 @@ namespace Avalon.Network.Packets.Generic;
 public class CPongPacket : Packet
 {
     public static NetworkPacketType PacketType = NetworkPacketType.CMSG_PONG;
-    public static NetworkProtocol Protocol = NetworkProtocol.Udp;
+    public static NetworkProtocol Protocol = NetworkProtocol.Tcp;
     
     [ProtoMember(1)] public long SequenceNumber { get; set; }
     [ProtoMember(2)] public int AccountId { get; set; }

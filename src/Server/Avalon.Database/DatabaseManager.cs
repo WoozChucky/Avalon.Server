@@ -3,6 +3,7 @@ using System.Linq;
 using System.Reflection;
 using Avalon.Database.Auth;
 using Avalon.Database.Characters;
+using Avalon.Database.Configuration;
 using Avalon.Database.World;
 using Avalon.Database.World.Model;
 
@@ -30,15 +31,6 @@ public class DatabaseManager : IDatabaseManager
         Auth = auth;
         Characters = characters;
         World = world;
-        
-        RegisterMappings();
-    }
-    
-    public DatabaseManager()
-    {
-        Auth = new AuthDatabase();
-        Characters = new CharactersDatabase();
-        World = new WorldDatabase();
         
         RegisterMappings();
     }

@@ -57,7 +57,6 @@ public partial class AvalonGame : IAvalonGame
 {
     private readonly ILogger<AvalonGame> _logger;
     private readonly CancellationTokenSource _cts;
-    private readonly IPacketSerializer _packetSerializer;
     private readonly IAvalonConnectionManager _connectionManager;
     private readonly IDatabaseManager _databaseManager;
     private readonly IAvalonMapManager _mapManager;
@@ -68,9 +67,10 @@ public partial class AvalonGame : IAvalonGame
     private readonly ICryptoManager _cryptography;
     private volatile bool _isRunning;
     private long _loopCounter;
+    private DateTime _lastMetricsUpdate = DateTime.UtcNow;
+    private const int MetricsUpdateInterval = 1000;
 
-    public AvalonGame(ILoggerFactory loggerFactory, 
-        IPacketSerializer packetSerializer, 
+    public AvalonGame(ILoggerFactory loggerFactory,
         IAvalonConnectionManager connectionManager,
         IDatabaseManager databaseManager,
         IAvalonMapManager mapManager,
@@ -82,7 +82,6 @@ public partial class AvalonGame : IAvalonGame
     {
         _logger = loggerFactory.CreateLogger<AvalonGame>() ?? throw new ArgumentNullException(nameof(loggerFactory));
         _cts = new CancellationTokenSource();
-        _packetSerializer = packetSerializer;
         _connectionManager = connectionManager;
         _databaseManager = databaseManager;
         _mapManager = mapManager;
@@ -123,6 +122,12 @@ public partial class AvalonGame : IAvalonGame
             while (!_cts.IsCancellationRequested)
             {
                 await BroadcastGameState();
+                
+                if (DateTime.UtcNow - _lastMetricsUpdate > TimeSpan.FromMilliseconds(MetricsUpdateInterval))
+                {
+                    _lastMetricsUpdate = DateTime.UtcNow;
+                    
+                }
             
                 await Task.Delay(26);
             }
@@ -472,8 +477,6 @@ public partial class AvalonGame : IAvalonGame
 
     public async Task HandlePingPacket(IRemoteSource source, CPingPacket packet)
     {
-        var client = source.AsUdpClient();
-
         var response = SPongPacket.Create(packet.SequenceNumber, packet.Ticks);
 
         await source.SendAsync(response);

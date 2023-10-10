@@ -34,12 +34,6 @@
         <PublicSign>true</PublicSign>
     </PropertyGroup>
 
-    <ItemGroup>
-      <Content Include="..\.dockerignore">
-        <Link>.dockerignore</Link>
-      </Content>
-    </ItemGroup>
-
     <!--
 	<ItemGroup>
 		<FlatSharpSchema Include="Monster.fbs" />
@@ -79,6 +73,8 @@
       <None Update="appsettings.json">
         <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       </None>
+      <None Include="Maps\**" CopyToOutputDirectory="PreserveNewest" />
+      <None Include="cert-tcp.pfx" CopyToOutputDirectory="PreserveNewest" />
     </ItemGroup>
 
 </Project>

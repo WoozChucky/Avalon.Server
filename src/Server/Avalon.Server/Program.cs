@@ -1,6 +1,9 @@
 using System.Diagnostics;
 using System.Reflection;
 using Avalon.Database;
+using Avalon.Database.Auth;
+using Avalon.Database.Characters;
+using Avalon.Database.World;
 using Avalon.Game;
 using Avalon.Game.Creatures;
 using Avalon.Game.Maps;
@@ -46,11 +49,18 @@ namespace Avalon.Server
             Console.CancelKeyPress += ConsoleOnCancelKeyPress;
             //AssemblyLoadContext.Default.Unloading += SigTermEventHandler;
 
-            Process.GetCurrentProcess().PriorityClass = ProcessPriorityClass.RealTime;
-            Process.GetCurrentProcess().PriorityBoostEnabled = true;
-
             ConfigureConfiguration(args);
             ConfigureDependencyInjection();
+            
+            try
+            {
+                Process.GetCurrentProcess().PriorityClass = ProcessPriorityClass.RealTime;
+                Process.GetCurrentProcess().PriorityBoostEnabled = true;
+            }
+            catch (Exception e)
+            {
+                Logger.LogWarning("Failed to set process priority, defaulting to Normal priority");
+            }
             
             SystemUsageCollector.Start();
             
@@ -121,52 +131,69 @@ namespace Avalon.Server
             Configuration.Bind(AppConfiguration);
         }
 
+        private static void ConfigureServices(IServiceCollection services)
+        {
+            
+        }
+        
         private static void ConfigureDependencyInjection()
         {
-            ServiceProvider = new ServiceCollection()
-                
-                // Logging
-                .AddLogging(builder =>
-                {
-                    builder
-                        .AddSerilog(new LoggerConfiguration()
-                            .MinimumLevel.Verbose()
-                            .Enrich.FromLogContext()
-                            .Enrich.WithThreadId()
-                            .WriteTo.Console(LogEventLevel.Debug, outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level}] [{ThreadId}] ({SourceContext}) -> {Message}{NewLine}{Exception}", theme: AnsiConsoleTheme.Sixteen)
-                            .CreateLogger()
-                        )
-                        .SetMinimumLevel(LogLevel.Trace);
-                })
-                
-                // Configuration
-                .AddSingleton(AppConfiguration)
-                .AddSingleton(AppConfiguration.NetworkDaemon)
-                .AddSingleton(AppConfiguration.NetworkDaemon.Udp)
-                .AddSingleton(AppConfiguration.NetworkDaemon.Tcp)
-                .AddSingleton(AppConfiguration.Metrics)
-                
-                .AddSingleton<AllocationsListener>()
-                .AddSingleton<SystemUsageCollector>()
-                .AddSingleton<IDatabaseManager, DatabaseManager>()
-                .AddSingleton<IMetricsManager, MetricsManager>()
-                .AddSingleton<IAvalonTcpServer, AvalonTcpServer>()
-                .AddSingleton<IAvalonUdpServer, ENetUdpServer>()
-                .AddSingleton<IAvalonConnectionManager, AvalonConnectionManager>()
-                .AddSingleton<IPacketDeserializer, NetworkPacketDeserializer>()
-                .AddSingleton<IPacketSerializer, NetworkPacketSerializer>()
-                .AddSingleton<IPacketRegistry, PacketRegistry>()
-                .AddSingleton<IAvalonNetworkDaemon, AvalonNetworkDaemon>()
-                .AddSingleton<IAvalonMapManager, AvalonMapManager>()
-                .AddSingleton<ICreatureSpawner, CreatureSpawner>()
-                .AddSingleton<IPoolManager, PoolManager>()
-                .AddSingleton<IAIController, AIController>()
-                .AddSingleton<IQuestManager, QuestManager>()
-                .AddSingleton<IAvalonGame, AvalonGame>()
-                .AddSingleton<ICryptoManager, CryptoManager>()
-                .AddSingleton<IAvalonInfrastructure, AvalonInfrastructure>()
-                .AddSingleton<CancellationTokenSource>(s => new CancellationTokenSource())
-                .BuildServiceProvider();
+            var services = new ServiceCollection();
+            services.AddLogging(builder =>
+            {
+                builder
+                    .AddSerilog(new LoggerConfiguration()
+                        .MinimumLevel.Verbose()
+                        .Enrich.FromLogContext()
+                        .Enrich.WithThreadId()
+                        .WriteTo.Console(LogEventLevel.Debug, outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level}] [{ThreadId}] ({SourceContext}) -> {Message}{NewLine}{Exception}", theme: AnsiConsoleTheme.Sixteen)
+                        .CreateLogger()
+                    )
+                    .SetMinimumLevel(LogLevel.Trace);
+            });
+            
+            services.AddSingleton(AppConfiguration);
+            services.AddSingleton(AppConfiguration.NetworkDaemon);
+            services.AddSingleton(AppConfiguration.NetworkDaemon.Udp);
+            services.AddSingleton(AppConfiguration.NetworkDaemon.Tcp);
+            services.AddSingleton(AppConfiguration.Metrics);
+            services.AddSingleton(AppConfiguration.Database);
+
+            if (AppConfiguration.Metrics.Enabled)
+            {
+                services.AddSingleton<IMetricsManager, MetricsManager>();
+            }
+            else
+            {
+                services.AddSingleton<IMetricsManager, FakeMetricsManager>();
+            }
+            
+            services.AddSingleton<AllocationsListener>();
+            services.AddSingleton<SystemUsageCollector>();
+
+            services.AddSingleton<IAuthDatabase, AuthDatabase>();
+            services.AddSingleton<ICharactersDatabase, CharactersDatabase>();
+            services.AddSingleton<IWorldDatabase, WorldDatabase>();
+            services.AddSingleton<IDatabaseManager, DatabaseManager>();
+            
+            services.AddSingleton<IAvalonTcpServer, AvalonTcpServer>();
+            services.AddSingleton<IAvalonUdpServer, ENetUdpServer>();
+            services.AddSingleton<IAvalonConnectionManager, AvalonConnectionManager>();
+            services.AddSingleton<IPacketDeserializer, NetworkPacketDeserializer>();
+            services.AddSingleton<IPacketSerializer, NetworkPacketSerializer>();
+            services.AddSingleton<IPacketRegistry, PacketRegistry>();
+            services.AddSingleton<IAvalonNetworkDaemon, AvalonNetworkDaemon>();
+            services.AddSingleton<IAvalonMapManager, AvalonMapManager>();
+            services.AddSingleton<ICreatureSpawner, CreatureSpawner>();
+            services.AddSingleton<IPoolManager, PoolManager>();
+            services.AddSingleton<IAIController, AIController>();
+            services.AddSingleton<IQuestManager, QuestManager>();
+            services.AddSingleton<IAvalonGame, AvalonGame>();
+            services.AddSingleton<ICryptoManager, CryptoManager>();
+            services.AddSingleton<IAvalonInfrastructure, AvalonInfrastructure>();
+            services.AddSingleton<CancellationTokenSource>(s => new CancellationTokenSource());
+            
+            ServiceProvider = services.BuildServiceProvider();
             
             Logger = ServiceProvider.GetService<ILogger<Program>>() ?? throw new InvalidOperationException();
             Infrastructure = ServiceProvider.GetService<IAvalonInfrastructure>() ?? throw new InvalidOperationException();

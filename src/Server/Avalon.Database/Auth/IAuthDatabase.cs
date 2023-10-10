@@ -1,3 +1,5 @@
+using Avalon.Database.Configuration;
+
 namespace Avalon.Database.Auth
 {
     public interface IAuthDatabase
@@ -11,10 +13,11 @@ namespace Avalon.Database.Auth
         public IAccountTable Account { get; }
         public IAccountAccessTable AccountAccess { get; }
         
-        public AuthDatabase()
+        public AuthDatabase(DatabaseConfiguration configuration)
         {
-            Account = new AccountTable();
-
+            var connectionString = $"Server={configuration.Auth.Host}; Port={configuration.Auth.Port}; Database={configuration.Auth.Database}; userid={configuration.Auth.Username}; Pwd={configuration.Auth.Password};";
+            
+            Account = new AccountTable(connectionString);
         }
     }
 }

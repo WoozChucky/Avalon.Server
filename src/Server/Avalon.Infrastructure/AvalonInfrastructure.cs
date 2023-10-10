@@ -94,6 +94,8 @@ public class AvalonInfrastructure : IAvalonInfrastructure
             _gameServer.Update(diff.ToTimeSpan());
             
             previousTime = currentTime;
+            
+            _metricsManager.QueueMetric("server.loop.counter", _gameServer.GetLoopCounter());
 
             if (cts.IsCancellationRequested)
             {
