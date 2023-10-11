@@ -35,7 +35,7 @@ jobs:
       id: get-latest-tag
       if: ${{ steps.release-label.outputs.level != null }}
       with:
-        github_token: ${{ secrets.GITHUB_TOKEN }}
+        github_token: ${{ secrets.SECRETTOKEN }}
         semver_only: true
     - uses: actions-ecosystem/action-bump-semver@v1
       id: bump-semver
