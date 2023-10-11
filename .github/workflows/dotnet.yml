@@ -20,10 +20,10 @@ jobs:
       #if: ${{ steps.release-label.outputs.level != null }}
       with:
         github_token: ${{ secrets.GITHUB_TOKEN }}
-        #initial_version: v0.0.1
-        #with_initial_version: true
+        initial_version: v0.0.1
+        with_initial_version: true
         semver_only: true
-        message: '${{ steps.get-latest-tag.outputs.tag }}'
+    
     - uses: actions-ecosystem/action-bump-semver@v1
       id: bump-semver
       with:
