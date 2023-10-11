@@ -37,6 +37,7 @@ jobs:
       with:
         github_token: ${{ secrets.GITHUB_TOKEN }}
         semver_only: true
+        message: '${{ steps.get-latest-tag.outputs.tag }}'
     - uses: actions-ecosystem/action-bump-semver@v1
       id: bump-semver
       with:
