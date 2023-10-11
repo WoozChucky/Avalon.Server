@@ -4,15 +4,3 @@
 [submodule "vendor/Facepunch.Steamworks"]
 	path = vendor/Facepunch.Steamworks
 	url = https://github.com/Facepunch/Facepunch.Steamworks
-[submodule "src/Platform/vendor/boost"]
-	path = src/Platform/vendor/boost
-	url = https://github.com/boostorg/boost
-[submodule "src/Platform/vendor/boost_asio"]
-	path = src/Platform/vendor/boost_asio
-	url = https://github.com/boostorg/asio
-[submodule "src/Platform/vendor/fmt"]
-	path = src/Platform/vendor/fmt
-	url = https://github.com/fmtlib/fmt
-[submodule "src/Platform/vendor/utfcpp"]
-	path = src/Platform/vendor/utfcpp
-	url = https://github.com/nemtrif/utfcpp
