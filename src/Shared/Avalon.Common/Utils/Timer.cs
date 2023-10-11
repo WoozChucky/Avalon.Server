@@ -17,7 +17,7 @@ public static class Timer
         // getMSTime() have limited data range and this is case when it overflow in this tick
         if (oldMs > newMs)
         {
-            throw new Exception("getMSTimeDiff: oldMSTime > newMSTime");
+            //throw new Exception("getMSTimeDiff: oldMSTime > newMSTime");
             return (0xFFFFFFFF - oldMs) + newMs;
         }
         else
