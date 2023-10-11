@@ -27,9 +27,26 @@ jobs:
     - name: Build
       run: dotnet build --no-restore
     - name: Test
-      run: dotnet test --no-restore
+      run: dotnet test --no-build
     - name: Publish Server
       run: dotnet publish src/Server/Avalon.Server/Avalon.Server.csproj -c Release --no-restore
+    - name: Docker meta
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        # list of Docker images to use as base name for tags
+        images: |
+          woozx/avalon           
+        # generate Docker tags based on the following events/attributes
+        tags: |
+          type=schedule
+          type=ref,event=branch
+          type=ref,event=pr
+          type=semver,pattern={{version}}
+          type=semver,pattern={{major}}.{{minor}}
+          type=semver,pattern={{major}}
+          type=sha
+          woozx/avalon:{{version}}
     - name: Docker Login
       uses: docker/login-action@v3.0.0
       with:
@@ -42,15 +59,13 @@ jobs:
       # uses: docker/build-push-action@0565240e2d4ab88bba5387d719585280857ece09
       uses: docker/build-push-action@v5.0.0
       with:
-        # List of a customs host-to-IP mapping (e.g., docker:10.180.0.1)
-        #build-contexts: # optional
         context: src/Server/Avalon.Server/
         # Path to the Dockerfile
         file: src/Server/Avalon.Server/Dockerfile
-        # Always attempt to pull all referenced images
-        pull: true
         # Push is a shorthand for --output=type=registry
-        push: true
+        push: ${{ github.event_name != 'pull_request' }}
         # List of tags
-        tags: woozx/avalon:dev
+        # tags: woozx/avalon:dev
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
       
