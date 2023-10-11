@@ -26,5 +26,15 @@ jobs:
       run: dotnet restore
     - name: Build
       run: dotnet build --no-restore
+    - name: Test
+      run: dotnet test
     - name: Publish Server
       run: dotnet publish src/Server/Avalon.Server/Avalon.Server.csproj -c Release
+    - name: Docker Login
+      uses: docker/login-action@v3.0.0
+      with:
+        # Username used to log against the Docker registry
+        username: ${{ secrets.DOCKERUSERNAME }}
+        # Password or personal access token used to log against the Docker registry
+        password: ${{ secrets.DOCKERPASSWORD }}
+      
