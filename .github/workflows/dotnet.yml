@@ -26,3 +26,5 @@ jobs:
       run: dotnet restore
     - name: Build
       run: dotnet build --no-restore
+    - name: Publish Server
+      run: dotnet publish src/Server/Avalon.Server/Avalon.Server.csproj -c Release
