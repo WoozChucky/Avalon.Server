@@ -27,7 +27,8 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # if you don't want to set write permissions use a PAT token
         WITH_V: true
-        VERBOSE: true
+        # VERBOSE: true
+        DEFAULT_BUMP: patch
         
     - name: Setup .NET
       uses: actions/setup-dotnet@v3
