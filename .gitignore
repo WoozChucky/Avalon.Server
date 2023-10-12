@@ -33,3 +33,5 @@ Avalon.sln.DotSettings.user
 src/Web/dashboard/.idea/
 
 src/Client/Avalon.Client.Simulator/BenchmarkDotNet.Artifacts/
+
+.idea/.idea.Avalon/.idea/
