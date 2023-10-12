@@ -19,9 +19,7 @@ public static class Timer
         {
             return (0xFFFFFFFF - oldMs) + newMs;
         }
-        else
-        {
-            return newMs - oldMs;
-        }
+
+        return newMs - oldMs;
     }
 }

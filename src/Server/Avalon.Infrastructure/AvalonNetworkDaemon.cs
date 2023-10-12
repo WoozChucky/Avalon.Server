@@ -189,30 +189,53 @@ public class AvalonNetworkDaemon : IAvalonNetworkDaemon
 
     private async Task UpdateMetricsAsync()
     {
+        long previousBytesReceived = 0;
+        long previousPacketsReceived = 0;
+        var lastUpdate = DateTime.UtcNow;
+        
         while (!_cts.IsCancellationRequested)
         {
-            await Task.Delay(1000, _cts.Token).ConfigureAwait(false);
+            await Task.Delay(5000, _cts.Token).ConfigureAwait(false);
             
             if (false)
             {
-                _logger.LogInformation("Threads: {Threads}", Process.GetCurrentProcess().Threads.Count);
+                var currentBytesReceived = Interlocked.Read(ref _bytesReceived);
+                var currentTcpBytesReceived = Interlocked.Read(ref _tcpBytesReceived);
+                var currentUdpBytesReceived = Interlocked.Read(ref _udpBytesReceived);
+                var currentPacketsReceived = Interlocked.Read(ref _packetsReceived);
                 
-                _logger.LogInformation("Updating network metrics");
+                // Bytes conversion to Mb
+                var kbBytesReceived = currentBytesReceived / 1024;
+                var mgBytesReceived = currentBytesReceived / (1024 * 1024);
+                var gbBytesReceived = currentBytesReceived / (1024 * 1024 * 1024);
                 
-                var MgBytesReceived = Interlocked.Read(ref _bytesReceived) / 1024 / 1024;
-                var MgBytesReceivedUdp = Interlocked.Read(ref _udpBytesReceived) / 1024 / 1024;
-                var MgBytesReceivedTcp = Interlocked.Read(ref _tcpBytesReceived) / 1024 / 1024;
+                var kbBytesReceivedUdp = currentUdpBytesReceived / 1024;
+                var mgBytesReceivedUdp = currentUdpBytesReceived / (1024 * 1024);
+                var gbBytesReceivedUdp = currentUdpBytesReceived / (1024 * 1024 * 1024);
+                
+                var kbBytesReceivedTcp = currentTcpBytesReceived / 1024;
+                var mgBytesReceivedTcp = currentTcpBytesReceived / (1024 * 1024);
+                var gbBytesReceivedTcp = currentTcpBytesReceived / (1024 * 1024 * 1024);
+                
+                // Byte rate calculation
+                var bytesInLastSecond = currentBytesReceived - previousBytesReceived;
+                var byteRate = Math.Round(bytesInLastSecond / Math.Max((DateTime.UtcNow - lastUpdate).TotalSeconds, 1), 2);
+                
+                // Packet rate calculation
+                var packetsInLastSecond = currentPacketsReceived - previousPacketsReceived;
+                var packetRate = (int) (packetsInLastSecond / Math.Max((DateTime.UtcNow - lastUpdate).TotalSeconds, 1));
 
-                _logger.LogInformation("Bytes received: {BytesReceived}Mb", MgBytesReceived);
-                _logger.LogInformation("Packets received: {PacketsReceived}", Interlocked.Read(ref _packetsReceived));
-
-                _logger.LogInformation("(UDP) Bytes: {BytesReceived}Mb", MgBytesReceivedUdp);
-                _logger.LogInformation("(UDP) Packets: {PacketsReceived}", Interlocked.Read(ref _udpPacketsReceived));
-            
-                _logger.LogInformation("(TCP) Bytes: {BytesReceived}Mb", MgBytesReceivedTcp);
-                _logger.LogInformation("(TCP) Packets: {PacketsReceived}", Interlocked.Read(ref _tcpPacketsReceived));
-            
+                LogNetworkMetrics("Bytes received", kbBytesReceived, "Kb", "bytes", byteRate);
+                LogNetworkMetrics("Packets received", currentPacketsReceived, null, "packets", packetRate);
+                LogNetworkMetrics("(UDP) Bytes", currentUdpBytesReceived, "Kb", null, null);
+                LogNetworkMetrics("(UDP) Packets", Interlocked.Read(ref _udpPacketsReceived), null, null, null);
+                LogNetworkMetrics("(TCP) Bytes", currentTcpBytesReceived, "Kb", null, null);
+                LogNetworkMetrics("(TCP) Packets", Interlocked.Read(ref _tcpPacketsReceived), null, null, null);
                 _logger.LogInformation("---------------------------------");
+                
+                previousPacketsReceived = currentPacketsReceived;
+                previousBytesReceived = currentBytesReceived;
+                lastUpdate = DateTime.UtcNow;
             }
             
             _metrics.QueueMetric("network.bytes_received", Interlocked.Read(ref _bytesReceived));
@@ -223,6 +246,11 @@ public class AvalonNetworkDaemon : IAvalonNetworkDaemon
             _metrics.QueueMetric("network.packets_received.udp", Interlocked.Read(ref _udpPacketsReceived));
             _metrics.QueueMetric("network.packets_received.tcp", Interlocked.Read(ref _tcpPacketsReceived));
         }
+    }
+
+    private void LogNetworkMetrics(string metricName, long value, string? unit, string? rateUnit, double? rate)
+    {
+        _logger.LogInformation("{0}: {1}{2}{3}", metricName, value, unit, rate.HasValue ? $", Rate: {rate} {rateUnit}/second" : null);
     }
 
     public async void Stop()
@@ -250,14 +278,14 @@ public class AvalonNetworkDaemon : IAvalonNetworkDaemon
                     {
                         if (!client.Connected)
                         {
-                            this._connectionManager.RemoveConnection(client);
+                            _connectionManager.RemoveConnection(client);
                             break;
                         }
                         
                         if (packet == null)
                         {
-                            _logger.LogWarning("Received null tcp packet from client {Endpoint}", client.RemoteAddress);
-                            this._connectionManager.RemoveConnection(client);
+                            _logger.LogWarning("Client {Endpoint} connection was closed abruptly", client.RemoteAddress);
+                            _connectionManager.RemoveConnection(client);
                             break;
                         }
 

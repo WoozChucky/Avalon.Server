@@ -17,10 +17,9 @@ using Avalon.Network.Packets.Internal;
 using Avalon.Network.Packets.Internal.Deserialization;
 using Avalon.Network.Packets.Serialization;
 using Avalon.Network.Tcp;
-using Avalon.Network.Tcp.Configuration;
 using Avalon.Network.Udp;
-using Avalon.Network.Udp.Configuration;
 using Avalon.Server.Configuration;
+using Avalon.Server.Logging;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -39,7 +38,6 @@ namespace Avalon.Server
         private static ILogger<Program> Logger { get; set; } = null!;
         private static IMetricsManager MetricsManager { get; set; } = null!;
         private static AppConfiguration AppConfiguration { get; set; } = null!;
-        private static AllocationsListener AllocationsListener { get; set; } = null!;
         private static SystemUsageCollector SystemUsageCollector { get; set; } = null!;
 
         private static Task Main(string[] args)
@@ -146,13 +144,15 @@ namespace Avalon.Server
                         .MinimumLevel.Verbose()
                         .Enrich.FromLogContext()
                         .Enrich.WithThreadId()
-                        .WriteTo.Console(LogEventLevel.Debug, outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level}] [{ThreadId}] ({SourceContext}) -> {Message}{NewLine}{Exception}", theme: AnsiConsoleTheme.Sixteen)
+                        .Enrich.With<LayerEnricher>() // ({SourceContext})
+                        .WriteTo.Console(LogEventLevel.Debug, outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level}] [{ThreadId}] [{Layer}] -> {Message}{NewLine}{Exception}", theme: AnsiConsoleTheme.Sixteen)
                         .CreateLogger()
                     )
                     .SetMinimumLevel(LogLevel.Trace);
             });
             
             services.AddSingleton(AppConfiguration);
+            services.AddSingleton(AppConfiguration.Infrastructure);
             services.AddSingleton(AppConfiguration.NetworkDaemon);
             services.AddSingleton(AppConfiguration.NetworkDaemon.Udp);
             services.AddSingleton(AppConfiguration.NetworkDaemon.Tcp);
@@ -199,7 +199,6 @@ namespace Avalon.Server
             Infrastructure = ServiceProvider.GetService<IAvalonInfrastructure>() ?? throw new InvalidOperationException();
             CancellationTokenSource = ServiceProvider.GetService<CancellationTokenSource>() ?? throw new InvalidOperationException();
             MetricsManager = ServiceProvider.GetService<IMetricsManager>() ?? throw new InvalidOperationException();
-            AllocationsListener = ServiceProvider.GetService<AllocationsListener>() ?? throw new InvalidOperationException();
             SystemUsageCollector = ServiceProvider.GetService<SystemUsageCollector>() ?? throw new InvalidOperationException();
         }
     }

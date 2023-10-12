@@ -1,6 +1,7 @@
 ﻿using System.Diagnostics;
 using Avalon.Common.Utils;
 using Avalon.Game;
+using Avalon.Infrastructure.Configuration;
 using Avalon.Metrics;
 using Microsoft.Extensions.Logging;
 using Timer = Avalon.Common.Utils.Timer;
@@ -17,6 +18,7 @@ public interface IAvalonInfrastructure : IDisposable
 public class AvalonInfrastructure : IAvalonInfrastructure
 {
     private readonly CancellationTokenSource _cts;
+    private readonly InfrastructureConfiguration _infrastructureConfiguration;
     private readonly ILogger<AvalonInfrastructure> _logger;
     private readonly IAvalonNetworkDaemon _networkDaemon;
     private readonly IAvalonGame _gameServer;
@@ -25,12 +27,14 @@ public class AvalonInfrastructure : IAvalonInfrastructure
     public AvalonInfrastructure(
         ILoggerFactory loggerFactory,
         CancellationTokenSource cts,
+        InfrastructureConfiguration infrastructureConfiguration,
         IAvalonNetworkDaemon networkDaemon,
         IAvalonGame gameServer,
         IMetricsManager metricsManager)
     {
         _logger = loggerFactory.CreateLogger<AvalonInfrastructure>();
         _cts = cts;
+        _infrastructureConfiguration = infrastructureConfiguration;
         _networkDaemon = networkDaemon;
         _gameServer = gameServer;
         _metricsManager = metricsManager;
@@ -55,10 +59,7 @@ public class AvalonInfrastructure : IAvalonInfrastructure
 
     public void Update(CancellationTokenSource cts)
     {
-        // TODO: Move this to a config file
-        const uint minUpdateDiff = 1; // 1ms
-        const int maxCoreStuckTime = 60000; // 60s
-        const int halfMaxCoreStuckTime = maxCoreStuckTime / 2;
+        var halfMaxCoreStuckTime = _infrastructureConfiguration.MaxCoreStuckTime / 2;
         
         var previousTime = Timer.CurrentTimeMillis();
 
@@ -68,7 +69,7 @@ public class AvalonInfrastructure : IAvalonInfrastructure
             var numberOfThreads = Process.GetCurrentProcess().Threads.Count;
             if (numberOfThreads > 1)
             {
-                _logger.LogInformation("Game UpdateLoop running on {NumberOfThreads} threads", numberOfThreads);
+                _logger.LogTrace("Game UpdateLoop running on {NumberOfThreads} threads", numberOfThreads);
             }
         };
         timer.Start();
@@ -80,12 +81,16 @@ public class AvalonInfrastructure : IAvalonInfrastructure
             var currentTime = Timer.CurrentTimeMillis();
             var diff = Timer.GetDiff(previousTime, currentTime);
             
-            if (diff < minUpdateDiff)
+            if (diff < _infrastructureConfiguration.MinUpdateDiff)
             {
-                var sleepTime = minUpdateDiff - diff;
+                var sleepTime = _infrastructureConfiguration.MinUpdateDiff - diff;
                 if (sleepTime >= halfMaxCoreStuckTime)
                 {
-                    _logger.LogWarning("Game UpdateLoop waiting for {SleepTime}ms with MaxCoreStruckTime set to {MaxCoreStuckTime}ms", sleepTime, maxCoreStuckTime);
+                    _logger.LogWarning(
+                        "Game UpdateLoop waiting for {SleepTime}ms with MaxCoreStruckTime set to {MaxCoreStuckTime}ms",
+                        sleepTime, 
+                        _infrastructureConfiguration.MaxCoreStuckTime
+                    );
                 }
                 Thread.Sleep((int)sleepTime);
                 continue;
