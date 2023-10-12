@@ -14,10 +14,9 @@ public static class Timer
 
     public static long GetDiff(long oldMs, long newMs)
     {
-        // getMSTime() have limited data range and this is case when it overflow in this tick
+        // CurrentTimeMillis() has a limited data range and this is case when it overflow in this tick
         if (oldMs > newMs)
         {
-            //throw new Exception("getMSTimeDiff: oldMSTime > newMSTime");
             return (0xFFFFFFFF - oldMs) + newMs;
         }
         else
