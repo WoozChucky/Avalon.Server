@@ -60,10 +60,9 @@
       <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="7.0.0" />
       <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="7.0.0" />
       <PackageReference Include="protobuf-net" Version="3.2.26" />
-      <PackageReference Include="QuixStreams.Streaming" Version="0.5.6" />
+      <PackageReference Include="QuixStreams.Streaming" Version="0.5.7" />
       <PackageReference Include="Serilog.Extensions.Logging" Version="7.0.0" />
       <PackageReference Include="Serilog.Sinks.Console" Version="4.1.0" />
-      <PackageReference Include="YamlDotNet" Version="13.4.0" />
     </ItemGroup>
 
     <ItemGroup>
