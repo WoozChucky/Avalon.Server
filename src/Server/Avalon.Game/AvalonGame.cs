@@ -316,8 +316,9 @@ public partial class AvalonGame : IAvalonGame
 
     public Task HandleMovementPacket(IRemoteSource source, CPlayerMovementPacket packet)
     {
-        var session = _connectionManager.GetSession(packet.AccountId);
+        var session = _connectionManager.GetSession(source);
         if (session is not { InGame: true }) return Task.CompletedTask;
+        if (session.AccountId != packet.AccountId) return Task.CompletedTask;
         
         Vector2 velocity;
         

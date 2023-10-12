@@ -106,6 +106,11 @@ public class InfrastructureFixture : IDisposable
 		Infrastructure = new AvalonInfrastructure(
 			mockedLoggerFactory,
 			CancellationTokenSource,
+			new InfrastructureConfiguration
+			{
+				MinUpdateDiff = 1,
+				MaxCoreStuckTime = 60000
+			},
 			NetworkDaemon, 
 			Game, 
 			MetricsManager

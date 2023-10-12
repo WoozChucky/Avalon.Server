@@ -43,16 +43,16 @@ public class SystemUsageCollector : IDisposable
 
     private void CollectData(object? state, ElapsedEventArgs e)
     {
-        double totalCpuTimeUsed = _process.TotalProcessorTime.TotalMilliseconds - _lastTotalProcessorTime.TotalMilliseconds;
-        double privilegedCpuTimeUsed = _process.PrivilegedProcessorTime.TotalMilliseconds - _lastPrivilegedProcessorTime.TotalMilliseconds;
-        double userCpuTimeUsed = _process.UserProcessorTime.TotalMilliseconds - _lastUserProcessorTime.TotalMilliseconds;
+        var totalCpuTimeUsed = _process.TotalProcessorTime.TotalMilliseconds - _lastTotalProcessorTime.TotalMilliseconds;
+        var privilegedCpuTimeUsed = _process.PrivilegedProcessorTime.TotalMilliseconds - _lastPrivilegedProcessorTime.TotalMilliseconds;
+        var userCpuTimeUsed = _process.UserProcessorTime.TotalMilliseconds - _lastUserProcessorTime.TotalMilliseconds;
 
         _lastTotalProcessorTime = _process.TotalProcessorTime;
         _lastPrivilegedProcessorTime = _process.PrivilegedProcessorTime;
         _lastUserProcessorTime = _process.UserProcessorTime;
 
         // total CPU time available to the process, in milliseconds
-        double cpuTimeElapsed = (DateTime.UtcNow - _lastTimeStamp).TotalMilliseconds * Environment.ProcessorCount;
+        var cpuTimeElapsed = (DateTime.UtcNow - _lastTimeStamp).TotalMilliseconds * Environment.ProcessorCount;
         _lastTimeStamp = DateTime.UtcNow;
         
         _logger.LogTrace("Total CPU time: {0}", Math.Round(totalCpuTimeUsed * 100 / cpuTimeElapsed, 3));
