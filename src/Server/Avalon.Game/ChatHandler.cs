@@ -8,7 +8,7 @@ public partial class AvalonGame
 {
     public async Task HandleChatMessagePacket(IRemoteSource source, CChatMessagePacket packet)
     {
-        var session = _connectionManager.GetSession(packet.AccountId);
+        var session = _sessionManager.GetSession(packet.AccountId);
         if (session == null)
         {
             _logger.LogInformation("Invalid account {AccountId} for group invite", packet.AccountId);
@@ -32,35 +32,46 @@ public partial class AvalonGame
                     _logger.LogInformation("Invalid player name for group invite");
                     return;
                 }
-                var invitedAccount = _connectionManager.GetSessions().Values.FirstOrDefault(p => p.InGame && p.Character.Name == playerName);
+                var invitedAccount = _sessionManager.GetSessions().Values.FirstOrDefault(p => p.InGame && p.Character.Name == playerName);
                 if (invitedAccount == null)
                 {
                     _logger.LogInformation("Player {PlayerName} not found for group invite", playerName);
                     return;
                 }
                 
-                /*
                 if (invitedAccount.AccountId == session.AccountId)
                 {
                     _logger.LogInformation("Player {PlayerName} tried to invite themselves to a group", playerName);
                     return;
                 }
-                */
                 
-                await invitedAccount.SendAsync(SGroupInvitePacket.Create(invitedAccount.AccountId, session.AccountId, session.Character.Id, session.Character.Name));
+                await invitedAccount.SendAsync(SGroupInvitePacket.Create(invitedAccount.AccountId, session.AccountId, session.Character.Id, session.Character.Name, invitedAccount.Encrypt));
             }
         }
         else
         {
-            var msgPacket = SChatMessagePacket.Create(packet.AccountId, session.Character.Id, session.Character.Name, packet.Message, packet.DateTime);
+            // Broadcast to all players
+
+            var availableSessions = _sessionManager.GetSessions().Values
+                .Where(p => p.InGame && p.AccountId != session.AccountId);
             
-            await BroadcastToOthers(packet.AccountId, msgPacket, true);
+            var tasks = availableSessions.Select(s => s.SendAsync(
+                SChatMessagePacket.Create(
+                    packet.AccountId, 
+                    session.Character!.Id,
+                    session.Character.Name, 
+                    packet.Message, 
+                    packet.DateTime,
+                    s.Encrypt))
+            );
+            
+            await Task.WhenAll(tasks);
         }
     }
     
     public Task HandleOpenChatPacket(IRemoteSource source, COpenChatPacket packet)
     {
-        var session = _connectionManager.GetSession(packet.AccountId);
+        var session = _sessionManager.GetSession(packet.AccountId);
         if (session == null)
         {
             _logger.LogInformation("Invalid account {AccountId} for chat", packet.AccountId);
@@ -72,7 +83,7 @@ public partial class AvalonGame
 
     public Task HandleCloseChatPacket(IRemoteSource source, CCloseChatPacket packet)
     {
-        var session = _connectionManager.GetSession(packet.AccountId);
+        var session = _sessionManager.GetSession(packet.AccountId);
         if (session == null)
         {
             _logger.LogInformation("Invalid account {AccountId} for chat", packet.AccountId);

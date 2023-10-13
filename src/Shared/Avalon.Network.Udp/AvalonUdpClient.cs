@@ -99,7 +99,9 @@ public class AvalonUdpClient : IDisposable
             Console.WriteLine("No movement detected, skipping...");
         }
 
-        await SendToServer(CPlayerMovementPacket.Create(AccountId, CharacterId, time, x, y, velX, velY));
+        throw new NotImplementedException();
+
+        // await SendToServer(CPlayerMovementPacket.Create(AccountId, CharacterId, time, x, y, velX, velY));
     }
     
     private async void ProcessReceivedPackets()

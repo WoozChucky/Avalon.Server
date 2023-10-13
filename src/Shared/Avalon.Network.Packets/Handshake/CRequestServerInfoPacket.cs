@@ -8,6 +8,7 @@ public class CRequestServerInfoPacket : Packet
 {
     public static NetworkPacketType PacketType = NetworkPacketType.CMSG_SERVER_INFO;
     public static NetworkProtocol Protocol = NetworkProtocol.Tcp;
+    public static NetworkPacketFlags Flags = NetworkPacketFlags.ClearText;
     
     [ProtoMember(1)] public int ClientVersion { get; set; }
 
@@ -29,7 +30,7 @@ public class CRequestServerInfoPacket : Packet
             Header = new NetworkPacketHeader
             {
                 Type = PacketType,
-                Flags = NetworkPacketFlags.ClearText,
+                Flags = Flags,
                 Protocol = Protocol,
                 Version = 0
             },

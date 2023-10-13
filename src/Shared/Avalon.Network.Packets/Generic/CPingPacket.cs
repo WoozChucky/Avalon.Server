@@ -7,7 +7,7 @@ namespace Avalon.Network.Packets.Generic;
 public class CPingPacket : Packet
 {
     public static NetworkPacketType PacketType = NetworkPacketType.CMSG_PING;
-    public static NetworkProtocol Protocol = NetworkProtocol.Udp;
+    public static NetworkProtocol Protocol = NetworkProtocol.Tcp;
     
     [ProtoMember(1)] public long SequenceNumber { get; set; }
     [ProtoMember(2)] public long Ticks { get; set; }
@@ -29,7 +29,7 @@ public class CPingPacket : Packet
             Header = new NetworkPacketHeader
             {
                 Type = PacketType,
-                Flags = NetworkPacketFlags.None,
+                Flags = NetworkPacketFlags.ClearText,
                 Protocol = Protocol,
                 Version = 0
             },

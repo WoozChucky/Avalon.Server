@@ -46,7 +46,7 @@ public class InfrastructureFixture : IDisposable
 			WorldDatabase
 		);
 
-		ConnectionManager = new AvalonConnectionManager(
+		SessionManager = new AvalonSessionManager(
 			mockedLoggerFactory
 		);
 
@@ -80,7 +80,7 @@ public class InfrastructureFixture : IDisposable
 
 		Game = new AvalonGame(
 			mockedLoggerFactory,
-			ConnectionManager,
+			SessionManager,
 			DatabaseManager,
 			MapManager,
 			CreatureSpawner,
@@ -99,7 +99,7 @@ public class InfrastructureFixture : IDisposable
 			PacketSerializer,
 			PacketRegistry,
 			Game,
-			ConnectionManager,
+			SessionManager,
 			MetricsManager
 		);
 		
@@ -125,7 +125,7 @@ public class InfrastructureFixture : IDisposable
 	
 	public IAvalonTcpServer TcpServer { get; set; }
 	public IAvalonUdpServer UdpServer { get; set; }
-	public IAvalonConnectionManager ConnectionManager { get; set; }
+	public IAvalonSessionManager SessionManager { get; set; }
 	
 	public IPacketSerializer PacketSerializer { get; set; }
 	public IPacketDeserializer PacketDeserializer { get; set; }

@@ -57,7 +57,7 @@ public partial class AvalonGame : IAvalonGame
 {
     private readonly ILogger<AvalonGame> _logger;
     private readonly CancellationTokenSource _cts;
-    private readonly IAvalonConnectionManager _connectionManager;
+    private readonly IAvalonSessionManager _sessionManager;
     private readonly IDatabaseManager _databaseManager;
     private readonly IAvalonMapManager _mapManager;
     private readonly ICreatureSpawner _creatureSpawner;
@@ -71,7 +71,7 @@ public partial class AvalonGame : IAvalonGame
     private const int MetricsUpdateInterval = 1000;
 
     public AvalonGame(ILoggerFactory loggerFactory,
-        IAvalonConnectionManager connectionManager,
+        IAvalonSessionManager sessionManager,
         IDatabaseManager databaseManager,
         IAvalonMapManager mapManager,
         ICreatureSpawner creatureSpawner,
@@ -82,7 +82,7 @@ public partial class AvalonGame : IAvalonGame
     {
         _logger = loggerFactory.CreateLogger<AvalonGame>() ?? throw new ArgumentNullException(nameof(loggerFactory));
         _cts = new CancellationTokenSource();
-        _connectionManager = connectionManager;
+        _sessionManager = sessionManager;
         _databaseManager = databaseManager;
         _mapManager = mapManager;
         _creatureSpawner = creatureSpawner;
@@ -92,9 +92,9 @@ public partial class AvalonGame : IAvalonGame
         _cryptography = cryptography;
         _loopCounter = 0;
         
-        _connectionManager.SessionLost += OnSessionLost;
-        _connectionManager.SessionReconnected += OnPlayerReconnected;
-        _connectionManager.SessionTimedOut += OnPlayerTimedOut;
+        _sessionManager.SessionLost += OnSessionLost;
+        _sessionManager.SessionReconnected += OnPlayerReconnected;
+        _sessionManager.SessionTimedOut += OnPlayerTimedOut;
     }
 
     public void Start()
@@ -186,9 +186,17 @@ public partial class AvalonGame : IAvalonGame
     {
         if (!session.InGame) return;
         
-        var packet = SPlayerDisconnectedPacket.Create(session.AccountId, session.Character!.Id);
+        _logger.LogDebug("Session lost for account {AccountId}", session.AccountId);
+        
+        var availableSessions = _sessionManager.GetSessions().Values.Where(
+            s => 
+                s.AccountId != session.AccountId 
+                && s is { Status: ConnectionStatus.Connected, Character: not null }
+        );
+
+        var tasks = availableSessions.Select(s => s.SendAsync(SPlayerDisconnectedPacket.Create(session.AccountId, session.Character!.Id, s.Encrypt)));
             
-        await BroadcastToOthers(session.AccountId, packet, true);
+        await Task.WhenAll(tasks);
     }
     
     private void OnPlayerTimedOut(object? sender, AvalonSession session)
@@ -207,106 +215,56 @@ public partial class AvalonGame : IAvalonGame
 
     private async Task BroadcastGameState()
     {
-        // Broadcast player positions
-        foreach (var session in _connectionManager.GetInGameSessions())
+        foreach (var (_, map) in _mapManager.GetInstances())
         {
-            if (session?.Character == null) continue;
-            
-            var playerUpdatePacket = SPlayerPositionUpdatePacket.Create(
-                session.AccountId,
-                session.Character.Id,
-                session.Character.Movement.Position.X, 
-                session.Character.Movement.Position.Y,
-                session.Character.Movement.Velocity.X,
-                session.Character.Movement.Velocity.Y,
-                session.Character.IsChatting,
-                session.Character.ElapsedGameTime
-            );
-            
-            await BroadcastToOthersInInstance(session.AccountId, playerUpdatePacket, session.Character.InstanceId);
-            
-            var mapInstance = _mapManager.GetInstance(session.Character.Map, Guid.Parse(session.Character.InstanceId));
-            if (mapInstance == null) continue;
-            
-            foreach (var creature in mapInstance.Creatures.Values)
+            foreach (var (mapId, mapInstance) in map)
             {
-                var creaturePacket = SNpcUpdatePacket.Create(
-                    creature.Id,
-                    creature.Name,
-                    creature.Position.X, 
-                    creature.Position.Y,
-                    creature.Velocity.X,
-                    creature.Velocity.Y
+                // Get players in this map instance
+                var sessionsInMap = _sessionManager.GetSessions().Values.Where(
+                    s =>
+                        s is { Status: ConnectionStatus.Connected, Character: not null }
+                        && s.Character.InstanceId == mapId.ToString()
                 );
-                
-                await BroadcastToInstance(creaturePacket, session.Character.InstanceId);
+
+                // Broadcast creature positions
+                foreach (var creature in mapInstance.Creatures.Values)
+                {
+                    
+                    var tasks = sessionsInMap.Select(s => s.SendAsync(SNpcUpdatePacket.Create(
+                        creature.Id,
+                        creature.Name,
+                        creature.Position.X,
+                        creature.Position.Y,
+                        creature.Velocity.X,
+                        creature.Velocity.Y,
+                        s.Encrypt))
+                    );
+                    
+                    await Task.WhenAll(tasks);
+                }
+
+                // TODO: Broadcast map events / objects
+
+                // Broadcast player positions
+                foreach (var session in sessionsInMap)
+                {
+                    var otherSessions = sessionsInMap.Where(s => s.AccountId != session.AccountId);
+
+                    var tasks = otherSessions.Select(s => s.SendAsync(SPlayerPositionUpdatePacket.Create(
+                        session.AccountId,
+                        session.Character!.Id,
+                        session.Character.Movement.Position.X,
+                        session.Character.Movement.Position.Y,
+                        session.Character.Movement.Velocity.X,
+                        session.Character.Movement.Velocity.Y,
+                        session.Character.IsChatting,
+                        session.Character.ElapsedGameTime,
+                        s.Encrypt))
+                    );
+
+                    await Task.WhenAll(tasks);
+                }
             }
-        }
-    }
-    
-    private async Task BroadcastToOthers(int except, NetworkPacket packet, bool onlineOnly = false)
-    {
-        if (onlineOnly)
-        {
-            var availablePlayers = _connectionManager.GetSessions().Values.Where(
-                p => p.AccountId != except
-                     && p is { Status: ConnectionStatus.Connected, InGame: true }).Select(p => p.SendAsync(packet));
-        
-            await Task.WhenAll(availablePlayers);
-        }
-        else
-        {
-            var availablePlayers = _connectionManager.GetSessions().Values.Where(
-                p => p.AccountId != except
-                     && p is { Status: ConnectionStatus.Connected, InGame: false }).Select(p => p.SendAsync(packet));
-        
-            await Task.WhenAll(availablePlayers);
-        }
-    }
-    
-    private async Task BroadcastAll(NetworkPacket packet)
-    {
-        var availablePlayers = _connectionManager.GetSessions().Values.Where(
-            p => p.Status == ConnectionStatus.Connected).Select(p => p.SendAsync(packet));
-
-        await Task.WhenAll(availablePlayers);
-    }
-    
-    private async Task BroadcastToInstance(NetworkPacket packet, string instanceId)
-    {
-        var availablePlayers = _connectionManager.GetSessions().Values.Where(
-            p => p.Status == ConnectionStatus.Connected
-            && p.Character != null && p.Character.InstanceId == instanceId).Select(p => p.SendAsync(packet));
-
-        await Task.WhenAll(availablePlayers);
-    }
-    
-    private async Task BroadcastToOthersInInstance(int except, NetworkPacket packet, string instanceId)
-    {
-        
-        if (packet.Header.Type == NetworkPacketType.SMSG_CHARACTER_CONNECTED ||
-            packet.Header.Type == NetworkPacketType.SMSG_CHARACTER_DISCONNECTED)
-        {
-            var availablePlayers = _connectionManager.GetSessions().Values.Where(
-                p => p.AccountId != except && p.Status == ConnectionStatus.Connected
-                                           && p.Character != null && p.Character.InstanceId == instanceId);
-
-            foreach (var availablePlayer in availablePlayers)
-            {
-                _logger.LogDebug("Sending packet {PacketType} to {CharacterName}", packet.Header.Type, availablePlayer.Character?.Name);
-            }
-            
-            var tasks = availablePlayers.Select(p => p.SendAsync(packet));
-            
-            await Task.WhenAll(tasks);
-        }
-        else
-        {
-            var availablePlayers = _connectionManager.GetSessions().Values.Where(
-                p => p.AccountId != except && p.Status == ConnectionStatus.Connected
-                                           && p.Character != null && p.Character.InstanceId == instanceId).Select(p => p.SendAsync(packet));
-            
-            await Task.WhenAll(availablePlayers);
         }
     }
 
@@ -316,7 +274,7 @@ public partial class AvalonGame : IAvalonGame
 
     public Task HandleMovementPacket(IRemoteSource source, CPlayerMovementPacket packet)
     {
-        var session = _connectionManager.GetSession(source);
+        var session = _sessionManager.GetSession(source);
         if (session is not { InGame: true }) return Task.CompletedTask;
         if (session.AccountId != packet.AccountId) return Task.CompletedTask;
         
@@ -340,7 +298,7 @@ public partial class AvalonGame : IAvalonGame
 
     public async Task HandleMapTeleportPacket(IRemoteSource source, CMapTeleportPacket packet)
     {
-        var session = _connectionManager.GetSession(packet.AccountId);
+        var session = _sessionManager.GetSession(packet.AccountId);
         if (session?.Character == null) return;
 
         if (packet.MapId == session.Character.Map)
@@ -390,13 +348,34 @@ public partial class AvalonGame : IAvalonGame
             Description = newInstance.Description,
             Data = newInstance.VirtualizedMap.TmxData,
             TilesetsData = newInstance.VirtualizedMap.TsxData,
-        }, x, y));
+        }, x, y, session.Encrypt));
         
-        // Warn about other players, that the player left the old instance
-        await BroadcastToOthersInInstance(session.AccountId, SPlayerDisconnectedPacket.Create(session.AccountId, packet.CharacterId), session.Character.InstanceId);
         
-        // Warn player in the new instance, that a new player has joined
-        await BroadcastToOthersInInstance(session.AccountId, SPlayerConnectedPacket.Create(session.AccountId, packet.CharacterId, session.Character.Name), newInstance.InstanceId.ToString());
+        
+        // Warn other players, that the current player left the old instance
+        var sessionsInCurrentInstance = _sessionManager.GetSessions().Values.Where(
+            s => 
+                s.AccountId != session.AccountId 
+                && s is { Status: ConnectionStatus.Connected, Character: not null } 
+                && s.Character.InstanceId == session.Character.InstanceId
+        );
+        
+        var tasks = sessionsInCurrentInstance.Select(s => s.SendAsync(SPlayerDisconnectedPacket.Create(session.AccountId, packet.CharacterId, s.Encrypt)));
+        
+        await Task.WhenAll(tasks);
+        
+        
+        // Warn other players, that the current player joined the new instance
+        var sessionsInNewInstance = _sessionManager.GetSessions().Values.Where(
+            s => 
+                s.AccountId != session.AccountId 
+                && s is { Status: ConnectionStatus.Connected, Character: not null } 
+                && s.Character.InstanceId == newInstance.InstanceId.ToString()
+        );
+        
+        tasks = sessionsInNewInstance.Select(s => s.SendAsync(SPlayerConnectedPacket.Create(session.AccountId, packet.CharacterId, session.Character.Name, s.Encrypt)));
+        
+        await Task.WhenAll(tasks);
         
         session.Character.Map = packet.MapId;
         session.Character.InstanceId = newInstance.InstanceId.ToString();
@@ -409,14 +388,12 @@ public partial class AvalonGame : IAvalonGame
 
     public async Task HandleServerInfoPacket(IRemoteSource source, CRequestServerInfoPacket packet)
     {
-        var client = source.AsTcpClient();
-        
-        _logger.LogDebug("Handling server info packet from {EndPoint}", client.Socket.RemoteEndPoint);
+        _logger.LogDebug("Handling server info packet from {EndPoint}", source.RemoteAddress);
         
         if (packet.ClientVersion != 1_000_000)
         {
-            _logger.LogWarning("Client {EndPoint} is using an invalid version", client.Socket.RemoteEndPoint);
-            client.Dispose();
+            _logger.LogWarning("Client {EndPoint} is using an invalid version", source.RemoteAddress);
+            source.Dispose();
             throw new NotImplementedException("Invalid client version not implemented yet");
         }
         
@@ -442,9 +419,15 @@ public partial class AvalonGame : IAvalonGame
             return;
         }
         
-        _connectionManager.AddSession(source, _cryptography.GetKeyPair(), packet.PublicKey);
+        _sessionManager.AddSession(source, _cryptography.GetKeyPair(), packet.PublicKey);
 
-        var session = _connectionManager.GetSession(source);
+        var session = _sessionManager.GetSession(source);
+        
+        if (session == null)
+        {
+            _logger.LogWarning("Session not found for client {EndPoint}", source.RemoteAddress);
+            return;
+        }
 
         var data = session?.GenerateHandshakeData() ?? throw new InvalidOperationException("Session not found");
         
@@ -455,7 +438,8 @@ public partial class AvalonGame : IAvalonGame
 
     public async Task HandleHandshakePacket(IRemoteSource source, CHandshakePacket packet)
     {
-        var session = _connectionManager.GetSession(source);
+        var session = _sessionManager.GetSession(source);
+        
         if (session == null)
         {
             _logger.LogWarning("Client {EndPoint} sent a handshake packet, but no session was found", source.RemoteAddress);

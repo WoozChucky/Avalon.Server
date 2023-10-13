@@ -17,6 +17,8 @@ public interface IAvalonCryptoSession
 
 public class AvalonCryptoSession : IAvalonCryptoSession
 {
+    private readonly object _lock = new object();
+    
     private volatile bool _initialized;
     
     private readonly AsymmetricCipherKeyPair _ownKeyPair;
@@ -73,43 +75,49 @@ public class AvalonCryptoSession : IAvalonCryptoSession
     {
         if (!_initialized) throw new InvalidOperationException("Crypto session not initialized");
         
-        // Generate a random 96-bit nonce (IV)
-        var nonce = new byte[12];
-        _secureRandom.NextBytes(nonce);
+        lock (_lock)
+        {
+            // Generate a random 96-bit nonce (IV)
+            var nonce = new byte[12];
+            _secureRandom.NextBytes(nonce);
 
-        // Create an AES-GCM cipher
-        var parameters = new ParametersWithIV(new KeyParameter(_sessionKey), nonce);
-        _encryptCipher.Init(true, parameters);
+            // Create an AES-GCM cipher
+            var parameters = new ParametersWithIV(new KeyParameter(_sessionKey), nonce);
+            _encryptCipher.Init(true, parameters);
         
-        // Encrypt the data
-        var ciphertext = _encryptCipher.DoFinal(data);
+            // Encrypt the data
+            var ciphertext = _encryptCipher.DoFinal(data);
         
-        _encryptCipher.Reset();
+            _encryptCipher.Reset();
 
-        // Combine the nonce and ciphertext
-        var encryptedData = nonce.Concat(ciphertext).ToArray();
+            // Combine the nonce and ciphertext
+            var encryptedData = nonce.Concat(ciphertext).ToArray();
         
-        return encryptedData;
+            return encryptedData;
+        }
     }
 
     public byte[] Decrypt(byte[] data)
     {
         if (!_initialized) throw new InvalidOperationException("Crypto session not initialized");
+
+        lock (_lock)
+        {
+            // Split the nonce (IV) and ciphertext
+            var nonce = data.Take(12).ToArray();
+            var ciphertext = data.Skip(12).ToArray();
+
+            // Create an AES-GCM cipher with BouncyCastle
+            var parameters = new ParametersWithIV(new KeyParameter(_sessionKey), nonce);
+            _encryptCipher.Init(false, parameters);
+
+            // Decrypt the data
+            var decryptedData = _encryptCipher.DoFinal(ciphertext);
         
-        // Split the nonce (IV) and ciphertext
-        var nonce = data.Take(12).ToArray();
-        var ciphertext = data.Skip(12).ToArray();
+            _encryptCipher.Reset();
 
-        // Create an AES-GCM cipher with BouncyCastle
-        var parameters = new ParametersWithIV(new KeyParameter(_sessionKey), nonce);
-        _encryptCipher.Init(false, parameters);
-
-        // Decrypt the data
-        var decryptedData = _encryptCipher.DoFinal(ciphertext);
-        
-        _encryptCipher.Reset();
-
-        return decryptedData;
+            return decryptedData;
+        }
     }
 
     public byte[] GenerateHandshakeData()

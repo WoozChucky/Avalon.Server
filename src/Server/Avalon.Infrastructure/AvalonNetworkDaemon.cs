@@ -40,7 +40,7 @@ public class AvalonNetworkDaemon : IAvalonNetworkDaemon
     private readonly IPacketSerializer _packetSerializer;
     private readonly IPacketRegistry _packetRegistry;
     private readonly IAvalonGame _game;
-    private readonly IAvalonConnectionManager _connectionManager;
+    private readonly IAvalonSessionManager _sessionManager;
     private readonly IMetricsManager _metrics;
     
     private readonly RingBuffer<(IRemoteSource, NetworkPacket)> _packetProcessorBuffer;
@@ -62,7 +62,7 @@ public class AvalonNetworkDaemon : IAvalonNetworkDaemon
         IPacketSerializer packetSerializer,
         IPacketRegistry packetRegistry,
         IAvalonGame game,
-        IAvalonConnectionManager connectionManager,
+        IAvalonSessionManager sessionManager,
         IMetricsManager metrics)
     {
         _logger = loggerFactory.CreateLogger<AvalonNetworkDaemon>();
@@ -72,7 +72,7 @@ public class AvalonNetworkDaemon : IAvalonNetworkDaemon
         _packetSerializer = packetSerializer;
         _packetRegistry = packetRegistry;
         _game = game;
-        _connectionManager = connectionManager;
+        _sessionManager = sessionManager;
         _metrics = metrics;
         
         _packetProcessorBuffer = new RingBuffer<(IRemoteSource, NetworkPacket)>(1024);
@@ -120,9 +120,9 @@ public class AvalonNetworkDaemon : IAvalonNetworkDaemon
         _packetRegistry.RegisterHandler<CQuestStatusPacket>(NetworkPacketType.CMSG_QUEST_STATUS, _game.HandleQuestStatusPacket);
         _packetRegistry.RegisterHandler<CQuestStatusPacket>(NetworkPacketType.CMSG_QUEST_LIST, _game.HandleQuestListPacket);
         
+        // Latency handlers
         _packetRegistry.RegisterHandler<CPingPacket>(NetworkPacketType.CMSG_PING, _game.HandlePingPacket);
-        
-        _packetRegistry.RegisterHandler<CPongPacket>(NetworkPacketType.CMSG_PONG, _connectionManager.HandlePongPacket);
+        _packetRegistry.RegisterHandler<CPongPacket>(NetworkPacketType.CMSG_PONG, _sessionManager.HandlePongPacket);
         
         
         // Social handlers
@@ -135,7 +135,7 @@ public class AvalonNetworkDaemon : IAvalonNetworkDaemon
         
         Task.Run(ProcessPacketsAsync).ConfigureAwait(false);
         
-        _connectionManager.Start();
+        _sessionManager.Start();
         
         Task.Run(_udpServer.RunAsync).ConfigureAwait(false);
         Task.Run(_tcpServer.RunAsync).ConfigureAwait(false);
@@ -150,7 +150,7 @@ public class AvalonNetworkDaemon : IAvalonNetworkDaemon
             {
                 var (client, packet) = await _packetProcessorBuffer.DequeueAsync(_cts.Token);
 
-                var session = _connectionManager.GetSession(client);
+                var session = _sessionManager.GetSession(client);
 
                 var handler = _packetRegistry.GetHandler(packet.Header.Type);
                 
@@ -197,7 +197,7 @@ public class AvalonNetworkDaemon : IAvalonNetworkDaemon
         {
             await Task.Delay(5000, _cts.Token).ConfigureAwait(false);
             
-            if (false)
+            if (true)
             {
                 var currentBytesReceived = Interlocked.Read(ref _bytesReceived);
                 var currentTcpBytesReceived = Interlocked.Read(ref _tcpBytesReceived);
@@ -227,9 +227,9 @@ public class AvalonNetworkDaemon : IAvalonNetworkDaemon
 
                 LogNetworkMetrics("Bytes received", kbBytesReceived, "Kb", "bytes", byteRate);
                 LogNetworkMetrics("Packets received", currentPacketsReceived, null, "packets", packetRate);
-                LogNetworkMetrics("(UDP) Bytes", currentUdpBytesReceived, "Kb", null, null);
+                LogNetworkMetrics("(UDP) Bytes", kbBytesReceivedUdp, "Kb", null, null);
                 LogNetworkMetrics("(UDP) Packets", Interlocked.Read(ref _udpPacketsReceived), null, null, null);
-                LogNetworkMetrics("(TCP) Bytes", currentTcpBytesReceived, "Kb", null, null);
+                LogNetworkMetrics("(TCP) Bytes", kbBytesReceivedTcp, "Kb", null, null);
                 LogNetworkMetrics("(TCP) Packets", Interlocked.Read(ref _tcpPacketsReceived), null, null, null);
                 _logger.LogInformation("---------------------------------");
                 
@@ -250,14 +250,14 @@ public class AvalonNetworkDaemon : IAvalonNetworkDaemon
 
     private void LogNetworkMetrics(string metricName, long value, string? unit, string? rateUnit, double? rate)
     {
-        _logger.LogInformation("{0}: {1}{2}{3}", metricName, value, unit, rate.HasValue ? $", Rate: {rate} {rateUnit}/second" : null);
+        _logger.LogDebug("{0}: {1}{2}{3}", metricName, value, unit, rate.HasValue ? $", Rate: {rate} {rateUnit}/second" : null);
     }
 
     public async void Stop()
     {
         _logger.LogInformation("Stopping network daemon");
         
-        _connectionManager.Stop();
+        _sessionManager.Stop();
         
         await _udpServer.StopAsync().ConfigureAwait(false);
         await _tcpServer.StopAsync().ConfigureAwait(false);
@@ -278,14 +278,14 @@ public class AvalonNetworkDaemon : IAvalonNetworkDaemon
                     {
                         if (!client.Connected)
                         {
-                            _connectionManager.RemoveConnection(client);
+                            _sessionManager.RemoveConnection(client);
                             break;
                         }
                         
                         if (packet == null)
                         {
                             _logger.LogWarning("Client {Endpoint} connection was closed abruptly", client.RemoteAddress);
-                            _connectionManager.RemoveConnection(client);
+                            _sessionManager.RemoveConnection(client);
                             break;
                         }
 
@@ -317,7 +317,7 @@ public class AvalonNetworkDaemon : IAvalonNetworkDaemon
                     e.InnerException.Message.Contains("An existing connection was forcibly closed by the remote host"))
                 {
                     _logger.LogInformation("Client {Endpoint} disconnected", client.RemoteAddress);
-                    _connectionManager.RemoveConnection(client);
+                    _sessionManager.RemoveConnection(client);
                 }
                 else
                 {
@@ -377,7 +377,7 @@ public class AvalonNetworkDaemon : IAvalonNetworkDaemon
     private void UdpServerOnClientDisconnected(object? sender, UdpClientPacket clientPacket)
     {
         _logger.LogInformation("UdpServerOnClientDisconnected {Endpoint} disconnected", clientPacket.RemoteAddress);
-        _connectionManager.RemoveConnection(clientPacket);
+        _sessionManager.RemoveConnection(clientPacket);
     }
     
     private Packet GetInnerPacket(NetworkPacket packet, AvalonSession? session)
@@ -423,7 +423,7 @@ public class AvalonNetworkDaemon : IAvalonNetworkDaemon
 
     public void Dispose()
     {
-        _connectionManager.Dispose();
+        _sessionManager.Dispose();
         _tcpServer.Dispose();
         _udpServer.Dispose();
         

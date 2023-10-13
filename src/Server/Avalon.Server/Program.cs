@@ -178,7 +178,7 @@ namespace Avalon.Server
             
             services.AddSingleton<IAvalonTcpServer, AvalonTcpServer>();
             services.AddSingleton<IAvalonUdpServer, ENetUdpServer>();
-            services.AddSingleton<IAvalonConnectionManager, AvalonConnectionManager>();
+            services.AddSingleton<IAvalonSessionManager, AvalonSessionManager>();
             services.AddSingleton<IPacketDeserializer, NetworkPacketDeserializer>();
             services.AddSingleton<IPacketSerializer, NetworkPacketSerializer>();
             services.AddSingleton<IPacketRegistry, PacketRegistry>();

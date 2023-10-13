@@ -8,6 +8,7 @@ public class SGroupResultPacket : Packet
 {
     public static NetworkPacketType PacketType = NetworkPacketType.SMSG_GROUP_INVITE_RESULT;
     public static NetworkProtocol Protocol = NetworkProtocol.Tcp;
+    public static NetworkPacketFlags Flags = NetworkPacketFlags.Encrypted;
     
     [ProtoMember(1)] public int AccountId { get; set; }
     [ProtoMember(2)] public int CharacterId { get; set; }
@@ -15,7 +16,7 @@ public class SGroupResultPacket : Packet
     [ProtoMember(4)] public int InviterCharacterId { get; set; }
     [ProtoMember(5)] public bool Accepted { get; set; }
 
-    public static NetworkPacket Create(int accountId, int characterId, int inviterAccountId, int inviterCharacterId, bool accepted)
+    public static NetworkPacket Create(int accountId, int characterId, int inviterAccountId, int inviterCharacterId, bool accepted, Func<byte[], byte[]> encryptFunc)
     {
         using var memoryStream = new MemoryStream();
         
@@ -30,16 +31,18 @@ public class SGroupResultPacket : Packet
         
         Serializer.Serialize(memoryStream, movementPacket);
         
+        var buffer = encryptFunc(memoryStream.ToArray());
+        
         return new NetworkPacket
         {
             Header = new NetworkPacketHeader
             {
                 Type = PacketType,
-                Flags = NetworkPacketFlags.None,
+                Flags = Flags,
                 Protocol = Protocol,
                 Version = 0
             },
-            Payload = memoryStream.ToArray()
+            Payload = buffer
         };
     }
 }

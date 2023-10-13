@@ -357,7 +357,26 @@ public class TutorialScene : Scene
     
     private void OnLogout(object sender, SLogoutPacket packet)
     {
-        _loggedOut = true;
+        switch (packet.Result)
+        {
+            case LogoutResult.Success:
+                _loggedOut = true;
+                break;
+            case LogoutResult.RecentlyInCombat:
+                Console.WriteLine("Logout failed: Recently in combat");
+                break;
+            case LogoutResult.NotInGame:
+                Console.WriteLine("Logout failed: Not in game");
+                break;
+            case LogoutResult.NotSameAccount:
+                Console.WriteLine("Logout failed: Not same account");
+                break;
+            case LogoutResult.InternalError:
+                Console.WriteLine("Logout failed: Internal error");
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(packet.Result));
+        }
     }
     
     private void OnMapTeleport(object sender, SMapTeleportPacket packet)

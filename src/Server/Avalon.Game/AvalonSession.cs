@@ -36,7 +36,7 @@ public class AvalonSession : IDisposable
     public Character? Character { get; set; }
     public PartyGroup Party { get; set; }
     public IRemoteSource? Connection { get; private set; }
-    public long RoundTripTime { get; private set; }
+    public int RoundTripTime { get; private set; }
     public bool InGame => Character != null;
     public ConnectionStatus Status { get; set; }
     public DateTime LastUpdateAt { get; set; } = DateTime.UtcNow;
@@ -93,7 +93,7 @@ public class AvalonSession : IDisposable
             {
                 _logger.LogInformation("Round trip time changed: {RoundTripTime}ms -> {NewRtt}ms", RoundTripTime, newRtt);
             }
-            RoundTripTime = newRtt;
+            RoundTripTime = (int) newRtt;
         }
     }
 

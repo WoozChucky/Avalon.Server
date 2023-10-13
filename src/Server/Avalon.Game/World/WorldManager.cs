@@ -9,7 +9,7 @@ public partial class AvalonGame
 {
     public async Task HandleInteractPacket(IRemoteSource source, CInteractPacket packet)
     {
-        var session = _connectionManager.GetSession(packet.AccountId);
+        var session = _sessionManager.GetSession(packet.AccountId);
         if (session == null)
         {
             _logger.LogWarning("Received interact packet from unknown account: {AccountId}", packet.AccountId);

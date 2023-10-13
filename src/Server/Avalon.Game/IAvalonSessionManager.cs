@@ -6,7 +6,7 @@ using Org.BouncyCastle.Crypto;
 
 namespace Avalon.Game;
 
-public interface IAvalonConnectionManager : IDisposable
+public interface IAvalonSessionManager : IDisposable
 {
     void Start();
     
@@ -22,6 +22,7 @@ public interface IAvalonConnectionManager : IDisposable
     bool PatchSession(IRemoteSource source, int accountId);
     AvalonSession? GetSession(int accountId);
     AvalonSession? GetSession(IRemoteSource source);
+    SemaphoreSlim GetSessionLock(AvalonSession session);
     ConcurrentDictionary<int, AvalonSession> GetSessions();
     ICollection<AvalonSession> GetInGameSessions();
 }
@@ -31,7 +32,7 @@ public delegate void SessionLostHandler(object? sender, AvalonSession session);
 public delegate void SessionTimedOutHandler(object? sender, AvalonSession session);
 public delegate void SessionReconnectedHandler(object? sender, AvalonSession session);
 
-public class AvalonConnectionManager : IAvalonConnectionManager
+public class AvalonSessionManager : IAvalonSessionManager
 {
     
     public event SessionLostHandler? SessionLost;
@@ -39,9 +40,10 @@ public class AvalonConnectionManager : IAvalonConnectionManager
     public event SessionReconnectedHandler? SessionReconnected;
     
     private readonly ILoggerFactory _loggerFactory;
-    private readonly ILogger<AvalonConnectionManager> _logger;
+    private readonly ILogger<AvalonSessionManager> _logger;
     private readonly ConcurrentDictionary<int, AvalonSession> _sessions;
     private readonly ConcurrentDictionary<string, AvalonSession> _handshakingSessions;
+    private readonly ConcurrentDictionary<AvalonSession, SemaphoreSlim> _sessionLocks;
     private readonly CancellationTokenSource _cts;
     
     private const int MonitorInterval = 100;
@@ -51,12 +53,13 @@ public class AvalonConnectionManager : IAvalonConnectionManager
     private const int PingDisconnectThreshold = 30000;
     private const int PingDisconnectThresholdInSec = PingDisconnectThreshold / 1000;
 
-    public AvalonConnectionManager(ILoggerFactory loggerFactory)
+    public AvalonSessionManager(ILoggerFactory loggerFactory)
     {
         _loggerFactory = loggerFactory;
-        _logger = loggerFactory.CreateLogger<AvalonConnectionManager>();
+        _logger = loggerFactory.CreateLogger<AvalonSessionManager>();
         _sessions = new ConcurrentDictionary<int, AvalonSession>();
         _handshakingSessions = new ConcurrentDictionary<string, AvalonSession>();
+        _sessionLocks = new ConcurrentDictionary<AvalonSession, SemaphoreSlim>();
         _cts = new CancellationTokenSource();
     }
     
@@ -254,6 +257,11 @@ public class AvalonConnectionManager : IAvalonConnectionManager
             UdpClientPacket _ => throw new NotSupportedException("UDP is not supported yet"),
             _ => null
         };
+    }
+
+    public SemaphoreSlim GetSessionLock(AvalonSession session)
+    {
+        return _sessionLocks.GetOrAdd(session, new SemaphoreSlim(1, 1));
     }
 
     public ConcurrentDictionary<int, AvalonSession> GetSessions()

@@ -8,6 +8,7 @@ public class CHandshakePacket : Packet
 {
     public static NetworkPacketType PacketType = NetworkPacketType.CMSG_CLIENT_HANDSHAKE;
     public static NetworkProtocol Protocol = NetworkProtocol.Tcp;
+    public static NetworkPacketFlags Flags = NetworkPacketFlags.Encrypted;
 
     [ProtoMember(1)] public byte[] HandshakeData { get; set; }
 
@@ -29,7 +30,7 @@ public class CHandshakePacket : Packet
             Header = new NetworkPacketHeader
             {
                 Type = PacketType,
-                Flags = NetworkPacketFlags.Encrypted,
+                Flags = Flags,
                 Protocol = Protocol,
                 Version = 0
             },
