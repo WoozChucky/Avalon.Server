@@ -165,7 +165,6 @@ public class AvalonTcpClient : IDisposable
                         });
                         break;
                     case SPlayerPositionUpdatePacket p:
-                        Console.WriteLine("Received player position update packet");
                         Send(() => PlayerMoved?.Invoke(this, p));
                         break;
                     case SNpcUpdatePacket p:
@@ -263,10 +262,12 @@ public class AvalonTcpClient : IDisposable
     
     private Packet GetInnerPacket(NetworkPacket packet)
     {
-        
         Func<byte[], byte[]>? decryptFunc = null;
         if (packet.Header.Flags == NetworkPacketFlags.Encrypted)
             decryptFunc = _cryptography!.Decrypt;
+        
+        if (packet.Header.Flags == NetworkPacketFlags.Encrypted && decryptFunc == null)
+            throw new PacketHandlerException("Encrypted packet received without session key");
         
         return packet.Header.Type switch
         {
@@ -327,35 +328,35 @@ public class AvalonTcpClient : IDisposable
 
     public async Task SendChatMessage(string message)
     {
-        var packet = CChatMessagePacket.Create(AccountId, CharacterId, message, DateTime.UtcNow);
+        var packet = CChatMessagePacket.Create(AccountId, CharacterId, message, DateTime.UtcNow, _cryptography.Encrypt);
 
         await SendPacket(packet);
     }
     
     public async Task SendOpenChatPacket()
     {
-        var packet = COpenChatPacket.Create(AccountId, CharacterId);
+        var packet = COpenChatPacket.Create(AccountId, CharacterId, _cryptography.Encrypt);
 
         await SendPacket(packet);
     }
     
     public async Task SendCloseChatPacket()
     {
-        var packet = CCloseChatPacket.Create(AccountId, CharacterId);
+        var packet = CCloseChatPacket.Create(AccountId, CharacterId, _cryptography.Encrypt);
 
         await SendPacket(packet);
     }
 
-    public async Task SendCharacterSelectedPacket(int accountId, int characterId)
+    public async Task SendCharacterSelectedPacket(int characterId)
     {
-        var packet = CCharacterSelectedPacket.Create(accountId, characterId);
+        var packet = CCharacterSelectedPacket.Create(characterId, _cryptography.Encrypt);
         
         await SendPacket(packet);
     }
 
     public async Task SendAuthPacket(string username, string password)
     {
-        var packet = CAuthPacket.Create(username, password);
+        var packet = CAuthPacket.Create(username, password, _cryptography.Encrypt);
         
         await SendPacket(packet);
     }
@@ -369,42 +370,42 @@ public class AvalonTcpClient : IDisposable
 
     public async Task SendCharacterDeletePacket(int accountId, int characterId)
     {
-        var packet = CCharacterDeletePacket.Create(accountId, characterId);
+        var packet = CCharacterDeletePacket.Create(characterId, _cryptography.Encrypt);
         
         await SendPacket(packet);
     }
 
     public async Task SendCharacterCreatePacket(int accountId, string name, int @class)
     {
-        var packet = CCharacterCreatePacket.Create(accountId, name, @class);
+        var packet = CCharacterCreatePacket.Create(accountId, name, @class, _cryptography.Encrypt);
         
         await SendPacket(packet);
     }
     
     public async Task SendLogoutPacket(int accountId)
     {
-        var packet = CLogoutPacket.Create(accountId);
+        var packet = CLogoutPacket.Create(accountId, _cryptography.Encrypt);
         
         await SendPacket(packet);
     }
 
     public async Task SendCharacterLoadedPacket()
     {
-        var packet = CCharacterLoadedPacket.Create(AccountId);
+        var packet = CCharacterLoadedPacket.Create(AccountId, _cryptography.Encrypt);
         
         await SendPacket(packet);
     }
 
     public async Task SendMapTeleportPacket(int mapId)
     {
-        var packet = CMapTeleportPacket.Create(AccountId, CharacterId, mapId);
+        var packet = CMapTeleportPacket.Create(AccountId, CharacterId, mapId, _cryptography.Encrypt);
         
         await SendPacket(packet);
     }
     
     public async Task SendInteractPacket(Rectangle targetArea)
     {
-        var packet = CInteractPacket.Create(AccountId, CharacterId, targetArea.X, targetArea.Y, targetArea.Width, targetArea.Height);
+        var packet = CInteractPacket.Create(AccountId, CharacterId, targetArea.X, targetArea.Y, targetArea.Width, targetArea.Height, _cryptography.Encrypt);
         
         await SendPacket(packet);
     }
@@ -464,6 +465,6 @@ public class AvalonTcpClient : IDisposable
             Console.WriteLine("No movement detected, skipping...");
         }
 
-        await SendPacket(CPlayerMovementPacket.Create(AccountId, CharacterId, time, posX, posY, velX, velY));
+        await SendPacket(CPlayerMovementPacket.Create(AccountId, CharacterId, time, posX, posY, velX, velY, _cryptography.Encrypt));
     }
 }

@@ -142,7 +142,7 @@ public class AvalonMapManager : IAvalonMapManager
                 return mapInstances.First().Value;
             }
 
-            foreach (var (instanceId, instance) in mapInstances)
+            foreach (var (_, instance) in mapInstances)
             {
                 if (instance.ContainsCharacter(characterId))
                 {

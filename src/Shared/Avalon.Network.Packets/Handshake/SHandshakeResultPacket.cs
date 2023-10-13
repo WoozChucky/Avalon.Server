@@ -8,6 +8,7 @@ public class SHandshakeResultPacket : Packet
 {
     public static NetworkPacketType PacketType = NetworkPacketType.SMSG_SERVER_HANDSHAKE_RESULT;
     public static NetworkProtocol Protocol = NetworkProtocol.Tcp;
+    public static NetworkPacketFlags Flags = NetworkPacketFlags.Encrypted;
 
     [ProtoMember(1)] public bool Verified { get; set; }
 
@@ -30,7 +31,7 @@ public class SHandshakeResultPacket : Packet
             Header = new NetworkPacketHeader
             {
                 Type = PacketType,
-                Flags = NetworkPacketFlags.Encrypted,
+                Flags = Flags,
                 Protocol = Protocol,
                 Version = 0
             },

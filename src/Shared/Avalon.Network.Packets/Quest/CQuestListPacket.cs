@@ -14,7 +14,7 @@ public class CQuestListPacket : Packet
     [ProtoMember(2)] public int CharacterId { get; set; }
     [ProtoMember(3)] public int MapId { get; set; }
 
-    public static NetworkPacket Create(int accountId, int characterId, int mapId)
+    public static NetworkPacket Create(int accountId, int characterId, int mapId, Func<byte[], byte[]> encryptFunc)
     {
         using var memoryStream = new MemoryStream();
         

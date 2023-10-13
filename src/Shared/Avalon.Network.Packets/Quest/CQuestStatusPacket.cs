@@ -9,12 +9,13 @@ public class CQuestStatusPacket : Packet
 {
     public static NetworkPacketType PacketType = NetworkPacketType.CMSG_QUEST_STATUS;
     public static NetworkProtocol Protocol = NetworkProtocol.Tcp;
+    public static NetworkPacketFlags Flags = NetworkPacketFlags.Encrypted;
     
     [ProtoMember(1)] public int AccountId { get; set; }
     [ProtoMember(2)] public int CharacterId { get; set; }
     [ProtoMember(3)] public int QuestId { get; set; }
 
-    public static NetworkPacket Create(int accountId, int characterId, int questId)
+    public static NetworkPacket Create(int accountId, int characterId, int questId, Func<byte[], byte[]> encryptFunc)
     {
         using var memoryStream = new MemoryStream();
         
@@ -32,7 +33,7 @@ public class CQuestStatusPacket : Packet
             Header = new NetworkPacketHeader
             {
                 Type = PacketType,
-                Flags = NetworkPacketFlags.None,
+                Flags = Flags,
                 Protocol = Protocol,
                 Version = 0
             },

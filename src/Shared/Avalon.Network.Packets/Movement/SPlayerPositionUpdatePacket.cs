@@ -8,6 +8,7 @@ public class SPlayerPositionUpdatePacket : Packet
 {
     public static NetworkPacketType PacketType = NetworkPacketType.SMSG_PLAYER_POSITION_UPDATE;
     public static NetworkProtocol Protocol = NetworkProtocol.Tcp;
+    public static NetworkPacketFlags Flags = NetworkPacketFlags.Encrypted;
     
     [ProtoMember(1)] public int AccountId { get; set; }
     [ProtoMember(2)] public int CharacterId { get; set; }
@@ -18,7 +19,7 @@ public class SPlayerPositionUpdatePacket : Packet
     [ProtoMember(7)] public bool Chatting { get; set; }
     [ProtoMember(8)] public float Elapsed { get; set; }
     
-    public static NetworkPacket Create(int accountId, int characterId, float x, float y, float velX, float velY, bool chatting, float elapsed)
+    public static NetworkPacket Create(int accountId, int characterId, float x, float y, float velX, float velY, bool chatting, float elapsed, Func<byte[], byte[]> encryptFunc)
     {
         using var memoryStream = new MemoryStream();
         
@@ -36,16 +37,18 @@ public class SPlayerPositionUpdatePacket : Packet
         
         Serializer.Serialize(memoryStream, movementPacket);
         
+        var buffer = encryptFunc(memoryStream.ToArray());
+        
         return new NetworkPacket
         {
             Header = new NetworkPacketHeader
             {
                 Type = PacketType,
-                Flags = NetworkPacketFlags.None,
+                Flags = Flags,
                 Protocol = Protocol,
                 Version = 0
             },
-            Payload = memoryStream.ToArray()
+            Payload = buffer
         };
     }
 }

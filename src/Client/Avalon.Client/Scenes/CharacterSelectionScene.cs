@@ -276,7 +276,7 @@ public class CharacterSelectionScene : Scene
     private async void OnCharacterSelectedFrame(CharacterInfo charInfo)
     {
         Console.WriteLine($"Selected character {charInfo.Name}");
-        await Globals.Tcp.SendCharacterSelectedPacket(Globals.AccountId, charInfo.CharacterId);
+        await Globals.Tcp.SendCharacterSelectedPacket(charInfo.CharacterId);
     }
     
     private async void OnCharacterDeletedFrame(CharacterInfo charInfo)

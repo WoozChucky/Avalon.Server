@@ -8,6 +8,7 @@ public class SNpcUpdatePacket : Packet
 {
     public static NetworkPacketType PacketType = NetworkPacketType.SMSG_NPC_UPDATE;
     public static NetworkProtocol Protocol = NetworkProtocol.Tcp;
+    public static NetworkPacketFlags Flags = NetworkPacketFlags.Encrypted;
 
     [ProtoMember(1)] public Guid Id { get; set; }
     [ProtoMember(2)] public string Name { get; set; }
@@ -16,7 +17,7 @@ public class SNpcUpdatePacket : Packet
     [ProtoMember(5)] public float VelocityX { get; set; }
     [ProtoMember(6)] public float VelocityY { get; set; }
     
-    public static NetworkPacket Create(Guid id, string name, float x, float y, float velX, float velY)
+    public static NetworkPacket Create(Guid id, string name, float x, float y, float velX, float velY, Func<byte[], byte[]> encryptFunc)
     {
         using var memoryStream = new MemoryStream();
         
@@ -32,16 +33,18 @@ public class SNpcUpdatePacket : Packet
         
         Serializer.Serialize(memoryStream, movementPacket);
         
+        var buffer = encryptFunc(memoryStream.ToArray());
+        
         return new NetworkPacket
         {
             Header = new NetworkPacketHeader
             {
                 Type = PacketType,
-                Flags = NetworkPacketFlags.None,
+                Flags = Flags,
                 Protocol = Protocol,
                 Version = 0
             },
-            Payload = memoryStream.ToArray()
+            Payload = buffer
         };
     }
 }

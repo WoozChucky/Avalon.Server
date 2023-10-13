@@ -1,4 +1,3 @@
-using System.Security.Cryptography;
 using System.Text;
 using Avalon.Network;
 using Avalon.Network.Packets.Auth;
@@ -12,7 +11,7 @@ public partial class AvalonGame
     {
         _logger.LogDebug("Handling auth packet from {EndPoint}", source.RemoteAddress);
         
-        var session = _connectionManager.GetSession(source);
+        var session = _sessionManager.GetSession(source);
 
         if (session == null)
         {
@@ -22,7 +21,7 @@ public partial class AvalonGame
         
         if (string.IsNullOrWhiteSpace(packet.Username) || string.IsNullOrWhiteSpace(packet.Password))
         {
-            await source.SendAsync(SAuthResultPacket.Create(AuthResult.INVALID_CREDENTIALS, session.Encrypt));
+            await session.SendAsync(SAuthResultPacket.Create(null, AuthResult.INVALID_CREDENTIALS, session.Encrypt));
             return;
         }
 
@@ -31,7 +30,7 @@ public partial class AvalonGame
 
         if (account == null)
         {
-            await source.SendAsync(SAuthResultPacket.Create(AuthResult.INVALID_CREDENTIALS, session.Encrypt));
+            await session.SendAsync(SAuthResultPacket.Create(null, AuthResult.INVALID_CREDENTIALS, session.Encrypt));
             return;
         }
         
@@ -41,58 +40,84 @@ public partial class AvalonGame
         {
             //TODO: Increment failed login attempts
             
-            await source.SendAsync(SAuthResultPacket.Create(AuthResult.INVALID_CREDENTIALS, session.Encrypt));
+            await session.SendAsync(SAuthResultPacket.Create(null, AuthResult.INVALID_CREDENTIALS, session.Encrypt));
             return;
         }
         
         // TODO: Check if account is locked
         
-        if (!_connectionManager.PatchSession(source, account.Id))
+        if (!_sessionManager.PatchSession(source, account.Id))
         {
             //TODO: Fix this EXCEPTION properly
             throw new Exception("Failed to patch session");
         }
         
-        await source.SendAsync(SAuthResultPacket.Create(account.Id, AuthResult.SUCCESS));
+        await session.SendAsync(SAuthResultPacket.Create(account.Id, AuthResult.SUCCESS, session.Encrypt));
     }
     
     
     public async Task HandleLogoutPacket(IRemoteSource source, CLogoutPacket packet)
     {
-        var session = _connectionManager.GetSession(packet.AccountId);
+        var session = _sessionManager.GetSession(source);
         
         if (session == null)
         {
             _logger.LogWarning("Session not found for account {AccountId}", packet.AccountId);
             return;
         }
-        
-        if (!session.InGame)
-        {
-            _logger.LogWarning("Session {AccountId} is not in game", packet.AccountId);
-            await session.SendAsync(SLogoutPacket.Create(session.AccountId, LogoutResult.NotInGame));
-            return;
-        }
-        
-        // Save character progress to the database
-        var character = session.Character;
-        
-        // TODO: Calculate play time
-        
-        character!.Online = false;
 
-        if (!await _databaseManager.Characters.Character.UpdateAsync(character))
+        var sessionLock = _sessionManager.GetSessionLock(session);
+        
+        await sessionLock.WaitAsync();
+
+        try
         {
-            _logger.LogWarning("Failed to save character {CharacterId} progress to the database", character.Name);
-            await session.SendAsync(SLogoutPacket.Create(session.AccountId, LogoutResult.InternalError));
+            if (!session.InGame)
+            {
+                _logger.LogWarning("Session {AccountId} is not in game", packet.AccountId);
+                await session.SendAsync(SLogoutPacket.Create(session.AccountId, LogoutResult.NotInGame, session.Encrypt));
+                return;
+            }
+
+            if (session.AccountId != packet.AccountId)
+            {
+                _logger.LogWarning("Session {AccountId} is not the same as the packet {PacketAccountId}", session.AccountId, packet.AccountId);
+                await session.SendAsync(SLogoutPacket.Create(session.AccountId, LogoutResult.NotSameAccount, session.Encrypt));
+            }
+    
+            // Save character progress to the database
+            var character = session.Character;
+    
+            // TODO: Calculate play time
+    
+            character!.Online = false;
+
+            if (!await _databaseManager.Characters.Character.UpdateAsync(character))
+            {
+                _logger.LogWarning("Failed to save character {CharacterId} progress to the database", character.Name);
+                await session.SendAsync(SLogoutPacket.Create(session.AccountId, LogoutResult.InternalError, session.Encrypt));
+            }
+    
+            _logger.LogInformation("Character {CharacterId} logged out at {Position}", character.Name, character.Movement);
+            
+            var availableSessions = _sessionManager.GetSessions().Values.Where(
+                s => 
+                    s.AccountId != session.AccountId 
+                    && s is { Status: ConnectionStatus.Connected, Character: not null } 
+                    && s.Character.InstanceId == session.Character!.InstanceId
+            );
+
+            var tasks = availableSessions.Select(s => s.SendAsync(SPlayerDisconnectedPacket.Create(session.AccountId, session.Character!.Id, s.Encrypt)));
+            
+            await Task.WhenAll(tasks);
+            
+            session.Character = null;
+    
+            await session.SendAsync(SLogoutPacket.Create(session.AccountId, LogoutResult.Success, session.Encrypt));
         }
-        
-        _logger.LogInformation("Character {CharacterId} logged out at {Position}", character.Name, character.Movement);
-        
-        await BroadcastToOthersInInstance(session.AccountId, SPlayerDisconnectedPacket.Create(session.AccountId, session.Character!.Id), session.Character.InstanceId);
-        
-        session.Character = null;
-        
-        await session.SendAsync(SLogoutPacket.Create(session.AccountId, LogoutResult.Success));
+        finally
+        {
+            sessionLock.Release();
+        }
     }
 }

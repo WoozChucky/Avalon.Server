@@ -7,90 +7,36 @@ namespace Avalon.Network.Packets.Auth;
 public class SAuthResultPacket : Packet
 {
     public static NetworkPacketType PacketType = NetworkPacketType.SMSG_AUTH_RESULT;
-    private const NetworkProtocol Protocol = NetworkProtocol.Tcp;
+    public static NetworkProtocol Protocol = NetworkProtocol.Tcp;
+    public static NetworkPacketFlags Flags = NetworkPacketFlags.Encrypted;
+    
     [ProtoMember(1)] public int AccountId { get; set; }
     [ProtoMember(2)] public AuthResult Result { get; set; }
     
-    public static NetworkPacket Create(int accountId, AuthResult result, Func<byte[], byte[]>? encryptFunc = null)
+    public static NetworkPacket Create(int? accountId, AuthResult result, Func<byte[], byte[]> encryptFunc)
     {
         using var memoryStream = new MemoryStream();
         
         var packet = new SAuthResultPacket()
         {
-            AccountId = accountId,
+            AccountId = accountId ?? 0,
             Result = result,
         };
         
         Serializer.Serialize(memoryStream, packet);
         
-        if (encryptFunc != null)
-        {
-            var buffer = encryptFunc(memoryStream.ToArray());
-            
-            return new NetworkPacket
-            {
-                Header = new NetworkPacketHeader
-                {
-                    Type = PacketType,
-                    Flags = NetworkPacketFlags.Encrypted,
-                    Protocol = Protocol,
-                    Version = 0
-                },
-                Payload = buffer.ToArray()
-            };
-        }
+        var buffer = encryptFunc(memoryStream.ToArray());
         
         return new NetworkPacket
         {
             Header = new NetworkPacketHeader
             {
                 Type = PacketType,
-                Flags = NetworkPacketFlags.ClearText,
+                Flags = Flags,
                 Protocol = Protocol,
                 Version = 0
             },
-            Payload = memoryStream.ToArray()
-        };
-    }
-    
-    public static NetworkPacket Create(AuthResult result, Func<byte[], byte[]>? encryptFunc = null)
-    {
-        using var memoryStream = new MemoryStream();
-        
-        var byePacket = new SAuthResultPacket()
-        {
-            Result = result,
-        };
-        
-        Serializer.Serialize(memoryStream, byePacket);
-        
-        if (encryptFunc != null)
-        {
-            var buffer = encryptFunc(memoryStream.ToArray());
-            
-            return new NetworkPacket
-            {
-                Header = new NetworkPacketHeader
-                {
-                    Type = PacketType,
-                    Flags = NetworkPacketFlags.Encrypted,
-                    Protocol = Protocol,
-                    Version = 0
-                },
-                Payload = buffer.ToArray()
-            };
-        }
-        
-        return new NetworkPacket
-        {
-            Header = new NetworkPacketHeader
-            {
-                Type = PacketType,
-                Flags = NetworkPacketFlags.ClearText,
-                Protocol = Protocol,
-                Version = 0
-            },
-            Payload = memoryStream.ToArray()
+            Payload = buffer.ToArray()
         };
     }
 }

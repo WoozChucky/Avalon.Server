@@ -29,9 +29,9 @@ public class MapInstance
     // contains character ids that are in the map, in the future the bool will be replaced with a character object probably
     // still not sure if this is the best way to do it, since i'll be sharing references to the character object between the map and the character manager
     // (even though the character manager will be the one to create the character object and is accessed in a thread safe way)
-    private ConcurrentDictionary<int, bool> _characters;
+    private readonly ConcurrentDictionary<int, bool> _characters;
     
-    public MapInstance(Map template, Virtual.VirtualizedMap virtualizedMap)
+    public MapInstance(Map template, VirtualizedMap virtualizedMap)
     {
         InstanceId = Guid.NewGuid();
         Creatures = new ConcurrentDictionary<Guid, Creature>();
@@ -58,6 +58,12 @@ public class MapInstance
     public bool ContainsCharacter(int characterId)
     {
         return _characters.ContainsKey(characterId);
+    }
+    
+    public IList<int> GetCharactersIds()
+    {
+        // Get characters in the map (value = true)
+        return _characters.Where(pair => pair.Value).Select(pair => pair.Key).ToList();
     }
 
     public void Update(TimeSpan deltaTime)

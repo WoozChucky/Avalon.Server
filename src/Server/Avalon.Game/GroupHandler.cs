@@ -9,14 +9,14 @@ public partial class AvalonGame
     
     public async Task HandleGroupInviteResultPacket(IRemoteSource source, CGroupInviteResultPacket packet)
     {
-        var invitedSession = _connectionManager.GetSession(packet.AccountId);
+        var invitedSession = _sessionManager.GetSession(packet.AccountId);
         if (invitedSession == null)
         {
             _logger.LogInformation("Player {PlayerName} not found for group invite result", packet.AccountId);
             return;
         }
         
-        var inviterSession = _connectionManager.GetSession(packet.InviterAccountId);
+        var inviterSession = _sessionManager.GetSession(packet.InviterAccountId);
         if (inviterSession == null)
         {
             _logger.LogInformation("Player {PlayerName} not found for group invite result", packet.InviterAccountId);

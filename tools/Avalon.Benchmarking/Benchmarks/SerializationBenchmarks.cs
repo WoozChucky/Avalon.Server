@@ -1,6 +1,7 @@
 using Avalon.Common.Cryptography;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Character;
+using Avalon.Network.Packets.Handshake;
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Jobs;
 using ProtoBuf;
@@ -26,7 +27,7 @@ public class SerializationBenchmarks
     public void Setup()
     {
         _unencryptedPacket = new MemoryStream();
-        Serializer.SerializeWithLengthPrefix(_unencryptedPacket, CCharacterLoadedPacket.Create(1), PrefixStyle.Base128);
+        Serializer.SerializeWithLengthPrefix(_unencryptedPacket, CClientInfoPacket.Create(new byte[]{0x04, 0x10}), PrefixStyle.Base128);
         _unencryptedPacket.Seek(0, SeekOrigin.Begin);
         
         var serverKeyPair128 = AsymmetricCipher.GenerateECDHKeyPair(128);
@@ -44,7 +45,7 @@ public class SerializationBenchmarks
     [Benchmark]
     public void Serialize_NoEncryption()
     {
-        var packet = CCharacterLoadedPacket.Create(1);
+        var packet = CClientInfoPacket.Create(new byte[]{0x04, 0x10});
         
         using var memoryStream = new MemoryStream();
     

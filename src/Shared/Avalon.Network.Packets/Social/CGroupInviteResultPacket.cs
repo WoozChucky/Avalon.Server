@@ -8,6 +8,7 @@ public class CGroupInviteResultPacket : Packet
 {
     public static NetworkPacketType PacketType = NetworkPacketType.CMSG_GROUP_INVITE_RESULT;
     public static NetworkProtocol Protocol = NetworkProtocol.Tcp;
+    public static NetworkPacketFlags Flags = NetworkPacketFlags.Encrypted;
     
     [ProtoMember(1)] public int AccountId { get; set; }
     [ProtoMember(2)] public int CharacterId { get; set; }
@@ -15,7 +16,7 @@ public class CGroupInviteResultPacket : Packet
     [ProtoMember(4)] public int InviterCharacterId { get; set; }
     [ProtoMember(5)] public bool Accepted { get; set; }
 
-    public static NetworkPacket Create(int accountId, int characterId, int inviterAccountId, int inviterCharacterId, bool accepted)
+    public static NetworkPacket Create(int accountId, int characterId, int inviterAccountId, int inviterCharacterId, bool accepted, Func<byte[], byte[]> encryptFunc)
     {
         using var memoryStream = new MemoryStream();
         
@@ -35,7 +36,7 @@ public class CGroupInviteResultPacket : Packet
             Header = new NetworkPacketHeader
             {
                 Type = PacketType,
-                Flags = NetworkPacketFlags.None,
+                Flags = Flags,
                 Protocol = Protocol,
                 Version = 0
             },

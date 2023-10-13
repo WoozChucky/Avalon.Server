@@ -87,7 +87,7 @@ namespace Avalon.Client.Simulator
                 {
                     // login with the first character
                     _characterId = packet.Characters[0].CharacterId;
-                    await _tcp.SendCharacterSelectedPacket(_accountId, _characterId);
+                    await _tcp.SendCharacterSelectedPacket(_characterId);
                 }
             }
 
