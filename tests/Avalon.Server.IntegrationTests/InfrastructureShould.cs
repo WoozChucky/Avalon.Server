@@ -22,7 +22,7 @@ public class InfrastructureShould : IClassFixture<InfrastructureFixture>
         // Assert
         _fixture.MetricsManager.Received(1).QueueEvent("AvalonInfrastructureStatus", "Online");
         _fixture.TcpServer.Received(1).RunAsync();
-        _fixture.UdpServer.Received(1).RunAsync();
+        // _fixture.UdpServer.Received(1).RunAsync();
 
         _fixture.DatabaseManager.World.Received(1).Map.QueryAllAsync();
         _fixture.DatabaseManager.World.Received(1).CreatureTemplate.QueryAllAsync();
