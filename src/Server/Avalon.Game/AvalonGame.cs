@@ -51,6 +51,7 @@ public interface IAvalonGame
     Task HandleServerInfoPacket(IRemoteSource source, CRequestServerInfoPacket packet);
     Task HandleClientInfoPacket(IRemoteSource source, CClientInfoPacket packet);
     Task HandleHandshakePacket(IRemoteSource source, CHandshakePacket packet);
+    Task HandleRegisterPacket(IRemoteSource source, CRegisterPacket packet);
 }
 
 public partial class AvalonGame : IAvalonGame

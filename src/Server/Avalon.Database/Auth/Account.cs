@@ -5,7 +5,7 @@ namespace Avalon.Database.Auth
     public class Account
     {
         [Column("id")]
-        public int Id { get; set; }
+        public int? Id { get; set; }
         
         [Column("username")]
         public string Username { get; set; }

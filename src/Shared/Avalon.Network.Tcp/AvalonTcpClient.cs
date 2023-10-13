@@ -3,7 +3,6 @@ using System.Net;
 using System.Net.Security;
 using System.Net.Sockets;
 using System.Security.Authentication;
-using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using Avalon.Common.Cryptography;
 using Avalon.Common.Threading;
@@ -33,6 +32,7 @@ public class AvalonTcpClientSettings
 public class AvalonTcpClient : IDisposable
 {
     private readonly AvalonTcpClientSettings _settings;
+    public event AccountRegisterHandler? RegisterResult;
     public event PlayerConnectedHandler? PlayerConnected;
     public event PlayerDisconnectedHandler? PlayerDisconnected;
     public event ChatMessageHandler? ChatMessage;
@@ -141,28 +141,22 @@ public class AvalonTcpClient : IDisposable
                 switch (packet)
                 {
                     case SServerInfoPacket p:
-                        Send(async () =>
-                        {
-                            _cryptography.Initialize(p.PublicKey);
-                            await SendPacket(CClientInfoPacket.Create(_cryptography.GetPublicKey()));
-                        });
+                        _cryptography.Initialize(p.PublicKey);
+                        await SendPacket(CClientInfoPacket.Create(_cryptography.GetPublicKey()));
                         break;
                     case SHandshakePacket p:
-                        Send(async () =>
-                        {
-                            var data = p.HandshakeData;
-                            var result = CHandshakePacket.Create(data, _cryptography.Encrypt);
-                            await SendPacket(result);
-                        });
+                        var data = p.HandshakeData;
+                        var result = CHandshakePacket.Create(data, _cryptography.Encrypt);
+                        await SendPacket(result);
                         break;
                     case SHandshakeResultPacket p:
-                        Send(() =>
+                        if (!p.Verified)
                         {
-                            if (!p.Verified)
-                            {
-                                throw new Exception("Handshake failed");
-                            }
-                        });
+                            throw new Exception("Handshake failed");
+                        }
+                        break;
+                    case SRegisterResultPacket p:
+                        Send(() => RegisterResult?.Invoke(this, p));
                         break;
                     case SPlayerPositionUpdatePacket p:
                         Send(() => PlayerMoved?.Invoke(this, p));
@@ -280,6 +274,7 @@ public class AvalonTcpClient : IDisposable
             // Auth
             NetworkPacketType.SMSG_AUTH_RESULT => _packetDeserializer.Deserialize<SAuthResultPacket>(packet.Header.Type, packet.Payload, decryptFunc),
             NetworkPacketType.SMSG_LOGOUT => _packetDeserializer.Deserialize<SLogoutPacket>(packet.Header.Type, packet.Payload, decryptFunc),
+            NetworkPacketType.SMSG_REGISTER_RESULT => _packetDeserializer.Deserialize<SRegisterResultPacket>(packet.Header.Type, packet.Payload, decryptFunc),
             
             // Account
             NetworkPacketType.SMSG_CHARACTER_CONNECTED => _packetDeserializer.Deserialize<SPlayerConnectedPacket>(packet.Header.Type, packet.Payload, decryptFunc),
@@ -368,7 +363,7 @@ public class AvalonTcpClient : IDisposable
         await SendPacket(packet);
     }
 
-    public async Task SendCharacterDeletePacket(int accountId, int characterId)
+    public async Task SendCharacterDeletePacket(int characterId)
     {
         var packet = CCharacterDeletePacket.Create(characterId, _cryptography.Encrypt);
         
@@ -466,5 +461,12 @@ public class AvalonTcpClient : IDisposable
         }
 
         await SendPacket(CPlayerMovementPacket.Create(AccountId, CharacterId, time, posX, posY, velX, velY, _cryptography.Encrypt));
+    }
+
+    public async Task SendRegisterPacket(string username, string password)
+    {
+        var packet = CRegisterPacket.Create(username, password, _cryptography.Encrypt);
+        
+        await SendPacket(packet);
     }
 }

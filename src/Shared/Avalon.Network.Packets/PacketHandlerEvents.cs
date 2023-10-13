@@ -6,6 +6,7 @@ using Avalon.Network.Packets.Social;
 
 namespace Avalon.Network.Packets;
 
+public delegate void AccountRegisterHandler(object sender, SRegisterResultPacket packet);
 public delegate void PlayerConnectedHandler(object sender, SPlayerConnectedPacket packet);
 public delegate void PlayerDisconnectedHandler(object sender, SPlayerDisconnectedPacket packet);
 public delegate void PlayerMovedHandler(object sender, SPlayerPositionUpdatePacket packet);

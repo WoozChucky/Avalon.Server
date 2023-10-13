@@ -19,6 +19,7 @@ public enum NetworkPacketType : short
     CMSG_AUTH = 0x2000,
     CMSG_AUTH_PATCH = 0x2001,
     CMSG_LOGOUT = 0x2002,
+    CMSG_REGISTER = 0x2003,
     
     // Character
     CMSG_CHARACTER_LIST = 0x2010,
@@ -60,6 +61,7 @@ public enum NetworkPacketType : short
     // Authentication
     SMSG_AUTH_RESULT = 0x3010,
     SMSG_LOGOUT = 0x3011,
+    SMSG_REGISTER_RESULT = 0x3012,
 
     // Character
     SMSG_CHARACTER_CONNECTED = 0x3020,
