@@ -1,7 +1,7 @@
-﻿using Avalon.Network.Packets.Auth;
+﻿using System.Security.Cryptography;
+using Avalon.Network.Packets.Auth;
 using Avalon.Network.Packets.Character;
 using Avalon.Network.Tcp;
-using Avalon.Network.Udp;
 
 namespace Avalon.Client.Simulator
 {
@@ -9,7 +9,7 @@ namespace Avalon.Client.Simulator
     {
         private static async Task Main(string[] args)
         {
-            const int clientCount = 4; // This is the number of clients to simulate
+            const int clientCount = 5; // This is the number of clients to simulate
 
             const string username = "test";
             const string password = "test";
@@ -17,7 +17,7 @@ namespace Avalon.Client.Simulator
             for (var i = 0; i < clientCount; i++)
             {
                 // how create a thread for each client and run them
-                var client = new SimulatedClient($"{username}{i}", password);
+                var client = new SimulatedClient($"{username}{i}", $"{password}{i}");
                 await Task.Run(() => client.Run());
                 await Task.Delay(1000);
             }
@@ -34,7 +34,6 @@ namespace Avalon.Client.Simulator
             private readonly string _username;
             private readonly string _password;
             private readonly AvalonTcpClient _tcp;
-            private readonly AvalonUdpClient _udp;
 
             private int _accountId;
             private int _characterId;
@@ -42,7 +41,9 @@ namespace Avalon.Client.Simulator
             private volatile bool _isLogged;
             private volatile bool _needsFirstCharacter;
             private volatile bool _characterSelected;
-            
+            private volatile bool _needsAccount;
+            private volatile bool _inGame;
+
             public SimulatedClient(string username, string password)
             {
                 _username = username;
@@ -53,18 +54,37 @@ namespace Avalon.Client.Simulator
                     Port = 21000,
                     CertificatePath = "cert-public.pem"
                 });
-                _udp = new AvalonUdpClient(new AvalonUdpClientSettings
-                {
-                    Host = "nunolevezinho.xyz",
-                    Port = 21000,
-                });
                 
                 _tcp.AuthResult += OnAuthResult;
                 _tcp.CharacterList += OnCharacterList;
                 _tcp.CharacterCreated += OnCharacterCreated;
                 _tcp.CharacterSelected += OnCharacterSelected;
-                
-                _udp.AuthResult += OnAuthResult;
+                _tcp.RegisterResult += OnRegisterResult;
+            }
+
+            private async void OnRegisterResult(object sender, SRegisterResultPacket packet)
+            {
+                switch (packet.Result)
+                {
+                    case RegisterResult.Ok:
+                        await _tcp.SendAuthPacket(_username, _password);
+                        break;
+                    case RegisterResult.EmptyUsername:
+                        Console.WriteLine("Empty username");
+                        break;
+                    case RegisterResult.EmptyPassword:
+                        Console.WriteLine("Empty password");
+                        break;
+                    case RegisterResult.PasswordTooShort:
+                        Console.WriteLine("Password too short");
+                        break;
+                    case RegisterResult.PasswordTooLong:
+                        Console.WriteLine("Password too long");
+                        break;
+                    case RegisterResult.UnknownError:
+                        Console.WriteLine("Unknown error");
+                        break;
+                }
             }
 
             private void OnCharacterSelected(object sender, SCharacterSelectedPacket packet)
@@ -99,11 +119,11 @@ namespace Avalon.Client.Simulator
                         Console.WriteLine("Wrong session private key");
                         break;
                     case AuthResult.INVALID_CREDENTIALS:
-                        Console.WriteLine("Invalid username or password");    
+                        Console.WriteLine("Invalid username or password");
+                        _needsAccount = true;
                         break;
                     case AuthResult.SUCCESS:
                         _tcp.AccountId = packet.AccountId;
-                        _udp.AccountId = packet.AccountId;
                         _accountId = packet.AccountId;
                         _isLogged = true;
                         break;
@@ -113,12 +133,19 @@ namespace Avalon.Client.Simulator
             public async void Run()
             {
                 await _tcp.ConnectAsync();
-                await _udp.ConnectAsync();
+                
+                await Task.Delay(RandomNumberGenerator.GetInt32(2500, 5000));
                 
                 await _tcp.SendAuthPacket(_username, _password);
 
                 while (true)
                 {
+                    if (_needsAccount)
+                    {
+                        _needsAccount = false;
+                        await _tcp.SendRegisterPacket(_username, _password);
+                    }
+                    
                     if (_isLogged)
                     {
                         _isLogged = false;
@@ -136,6 +163,13 @@ namespace Avalon.Client.Simulator
                     {
                         _characterSelected = false;
                         await _tcp.SendCharacterLoadedPacket();
+                        _inGame = true;
+                    }
+
+                    if (_inGame)
+                    {
+                        // send random movement packets
+                        //await _tcp.BroadcastMovementUpdates()
                     }
                 }
             }

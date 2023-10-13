@@ -49,11 +49,14 @@ namespace Avalon.Repositories
         {
             await using var connection = new MySqlConnection(_connectionString);
 
-            var account = await FindByIdAsync(entity.Id);
-            
-            if (account != null)
+            if (entity.Id != null)
             {
-                return await UpdateAsync(entity);
+                var account = await FindByIdAsync(entity.Id.Value);
+            
+                if (account != null)
+                {
+                    return await UpdateAsync(entity);
+                }
             }
             
             var rows = await connection.ExecuteAsync("INSERT INTO auth.Account (username, email, totp_secret, salt, verifier, last_ip) VALUES (@Username, @Email, @TotpSecret, @Salt, @Verifier, @IpAddress)", new
@@ -94,7 +97,7 @@ namespace Avalon.Repositories
                 throw new Exception("Failed to update account");
             }
 
-            return (await FindByIdAsync(entity.Id))!;
+            return (await FindByIdAsync(entity.Id!.Value))!;
         }
 
         public async Task<bool> DeleteAsync(Account entity)

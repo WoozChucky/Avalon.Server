@@ -34,7 +34,7 @@ public class JwtUtils : IJwtUtils
             Subject = new ClaimsIdentity(new[]
             {
                 new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()), 
-                new Claim(ClaimTypes.NameIdentifier, account.Id.ToString()), 
+                new Claim(ClaimTypes.NameIdentifier, account.Id.ToString() ?? throw new InvalidOperationException()), 
                 new Claim(JwtRegisteredClaimNames.Name, account.Username),
                 new Claim(JwtRegisteredClaimNames.Email, account.Email),
             },

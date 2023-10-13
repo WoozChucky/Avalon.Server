@@ -282,7 +282,7 @@ public class CharacterSelectionScene : Scene
     private async void OnCharacterDeletedFrame(CharacterInfo charInfo)
     {
         Console.WriteLine($"Deleted character {charInfo.Name}");
-        await Globals.Tcp.SendCharacterDeletePacket(Globals.AccountId, charInfo.CharacterId);
+        await Globals.Tcp.SendCharacterDeletePacket(charInfo.CharacterId);
         _gotCharacterList = false;
     }
     

@@ -2,6 +2,7 @@ using System.Text;
 using Avalon.Network;
 using Avalon.Network.Packets.Auth;
 using Microsoft.Extensions.Logging;
+using OtpNet;
 
 namespace Avalon.Game;
 
@@ -46,7 +47,7 @@ public partial class AvalonGame
         
         // TODO: Check if account is locked
         
-        if (!_sessionManager.PatchSession(source, account.Id))
+        if (!_sessionManager.PatchSession(source, account.Id!.Value))
         {
             //TODO: Fix this EXCEPTION properly
             throw new Exception("Failed to patch session");
@@ -119,5 +120,65 @@ public partial class AvalonGame
         {
             sessionLock.Release();
         }
+    }
+
+    public async Task HandleRegisterPacket(IRemoteSource source, CRegisterPacket packet)
+    {
+        var session = _sessionManager.GetSession(source);
+        
+        if (session == null)
+        {
+            _logger.LogWarning("Session not found for client {EndPoint}", source.RemoteAddress);
+            return;
+        }
+        
+        if (string.IsNullOrWhiteSpace(packet.Username))
+        {
+            await session.SendAsync(SRegisterResultPacket.Create(RegisterResult.EmptyUsername, session.Encrypt));
+            return;
+        }
+        
+        if (string.IsNullOrWhiteSpace(packet.Password))
+        {
+            await session.SendAsync(SRegisterResultPacket.Create(RegisterResult.EmptyPassword, session.Encrypt));
+            return;
+        }
+        
+        switch (packet.Password.Length)
+        {
+            case < 3:
+                await session.SendAsync(SRegisterResultPacket.Create(RegisterResult.PasswordTooShort, session.Encrypt));
+                return;
+            case > 12:
+                await session.SendAsync(SRegisterResultPacket.Create(RegisterResult.PasswordTooLong, session.Encrypt));
+                return;
+        }
+        
+        var salt = BCrypt.Net.BCrypt.GenerateSalt();
+        var hash = BCrypt.Net.BCrypt.HashPassword(packet.Password.Trim(), salt);
+
+        var saltBytes = Encoding.UTF8.GetBytes(salt);
+        var hashBytes = Encoding.UTF8.GetBytes(hash);
+        
+        var totpSecret = KeyGeneration.GenerateRandomKey(32);
+        
+        var inserted = await _databaseManager.Auth.Account.InsertAccountAsync(
+            packet.Username.Trim(), 
+            "", 
+            totpSecret, 
+            saltBytes, 
+            hashBytes, 
+            session.Connection!.RemoteAddress.Split(':')[0]
+        );
+        
+        if (!inserted)
+        {
+            await session.SendAsync(SRegisterResultPacket.Create(RegisterResult.UnknownError, session.Encrypt));
+            return;
+        }
+        
+        await session.SendAsync(SRegisterResultPacket.Create(RegisterResult.Ok, session.Encrypt));
+        
+        _logger.LogInformation("Account {Username} registered", packet.Username);
     }
 }
