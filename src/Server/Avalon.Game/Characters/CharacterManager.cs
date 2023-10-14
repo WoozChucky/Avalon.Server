@@ -273,23 +273,36 @@ public partial class AvalonGame
             return;
         }
         
-        if (!session.InGame)
+        var sessionLock = _sessionManager.GetSessionLock(session);
+
+        await sessionLock.WaitAsync();
+
+        try
         {
-            _logger.LogWarning("Session {AccountId} is not in game", packet.AccountId);
-            return;
-        }
-        
-        var sessions = _sessionManager.GetSessions();
-        
-        // Send to this player, that everyone else is connected
-        foreach (var otherSession in sessions.Values)
-        {
-            if (otherSession.AccountId == session.AccountId || !otherSession.InGame || otherSession.Character!.InstanceId != session.Character!.InstanceId)
+
+            if (!session.InGame)
             {
-                continue;
+                _logger.LogWarning("Session {AccountId} is not in game", packet.AccountId);
+                return;
+            }
+        
+            var sessions = _sessionManager.GetSessions();
+        
+            // Send to this player, that everyone else is connected
+            foreach (var otherSession in sessions.Values)
+            {
+                if (otherSession.AccountId == session.AccountId || !otherSession.InGame || otherSession.Character!.InstanceId != session.Character!.InstanceId)
+                {
+                    continue;
+                }
+            
+                await session.SendAsync(SPlayerConnectedPacket.Create(otherSession.AccountId, otherSession.Character!.Id, otherSession.Character.Name, session.Encrypt));
             }
             
-            await session.SendAsync(SPlayerConnectedPacket.Create(otherSession.AccountId, otherSession.Character!.Id, otherSession.Character.Name, session.Encrypt));
+        }
+        finally
+        {
+            sessionLock.Release();
         }
     }
 }

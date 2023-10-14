@@ -9,7 +9,7 @@ namespace Avalon.Client.Simulator
     {
         private static async Task Main(string[] args)
         {
-            const int clientCount = 5; // This is the number of clients to simulate
+            const int clientCount = 25; // This is the number of clients to simulate
 
             const string username = "test";
             const string password = "test";
@@ -18,8 +18,9 @@ namespace Avalon.Client.Simulator
             {
                 // how create a thread for each client and run them
                 var client = new SimulatedClient($"{username}{i}", $"{password}{i}");
+                await Task.Delay(RandomNumberGenerator.GetInt32(2500, 5000));
                 await Task.Run(() => client.Run());
-                await Task.Delay(1000);
+                await Task.Delay(RandomNumberGenerator.GetInt32(2500, 5000));
             }
 
             while (true)
@@ -134,7 +135,7 @@ namespace Avalon.Client.Simulator
             {
                 await _tcp.ConnectAsync();
                 
-                await Task.Delay(RandomNumberGenerator.GetInt32(2500, 5000));
+                await Task.Delay(RandomNumberGenerator.GetInt32(1500, 3000));
                 
                 await _tcp.SendAuthPacket(_username, _password);
 
