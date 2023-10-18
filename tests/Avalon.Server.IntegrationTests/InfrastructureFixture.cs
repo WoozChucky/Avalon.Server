@@ -68,7 +68,8 @@ public class InfrastructureFixture : IDisposable
 		MapManager = new AvalonMapManager(
 			mockedLoggerFactory,
 			DatabaseManager,
-			PoolManager
+			PoolManager,
+			SessionManager
 		);
 		
 		QuestManager = new QuestManager(

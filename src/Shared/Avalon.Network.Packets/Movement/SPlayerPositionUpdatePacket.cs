@@ -10,32 +10,18 @@ public class SPlayerPositionUpdatePacket : Packet
     public static NetworkProtocol Protocol = NetworkProtocol.Tcp;
     public static NetworkPacketFlags Flags = NetworkPacketFlags.Encrypted;
     
-    [ProtoMember(1)] public int AccountId { get; set; }
-    [ProtoMember(2)] public int CharacterId { get; set; }
-    [ProtoMember(3)] public float PositionX { get; set; }
-    [ProtoMember(4)] public float PositionY { get; set; }
-    [ProtoMember(5)] public float VelocityX { get; set; }
-    [ProtoMember(6)] public float VelocityY { get; set; }
-    [ProtoMember(7)] public bool Chatting { get; set; }
-    [ProtoMember(8)] public float Elapsed { get; set; }
+    [ProtoMember(1)] public SPlayerPacket[] Players { get; set; }
     
-    public static NetworkPacket Create(int accountId, int characterId, float x, float y, float velX, float velY, bool chatting, float elapsed, Func<byte[], byte[]> encryptFunc)
+    public static NetworkPacket Create(SPlayerPacket[] players, Func<byte[], byte[]> encryptFunc)
     {
         using var memoryStream = new MemoryStream();
         
-        var movementPacket = new SPlayerPositionUpdatePacket()
+        var packet = new SPlayerPositionUpdatePacket()
         {
-            AccountId = accountId,
-            CharacterId = characterId,
-            PositionX = x,
-            PositionY = y,
-            VelocityX = velX,
-            VelocityY = velY,
-            Chatting = chatting,
-            Elapsed = elapsed
+            Players = players
         };
         
-        Serializer.Serialize(memoryStream, movementPacket);
+        Serializer.Serialize(memoryStream, packet);
         
         var buffer = encryptFunc(memoryStream.ToArray());
         
@@ -51,4 +37,17 @@ public class SPlayerPositionUpdatePacket : Packet
             Payload = buffer
         };
     }
+}
+
+[ProtoContract]
+public class SPlayerPacket
+{
+    [ProtoMember(1)] public int AccountId { get; set; }
+    [ProtoMember(2)] public int CharacterId { get; set; }
+    [ProtoMember(3)] public float PositionX { get; set; }
+    [ProtoMember(4)] public float PositionY { get; set; }
+    [ProtoMember(5)] public float VelocityX { get; set; }
+    [ProtoMember(6)] public float VelocityY { get; set; }
+    [ProtoMember(7)] public bool Chatting { get; set; }
+    [ProtoMember(8)] public float Elapsed { get; set; }
 }

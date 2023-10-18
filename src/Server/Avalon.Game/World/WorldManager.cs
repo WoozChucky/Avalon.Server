@@ -22,7 +22,13 @@ public partial class AvalonGame
             return;
         }
         
-        var instance = _mapManager.GetInstance(session.Character!.Map, session.Character.Id);
+        if (!session.InMap)
+        {
+            _logger.LogWarning("Received interact packet from account that is not in a map: {AccountId}", packet.AccountId);
+            return;
+        }
+        
+        var instance = _mapManager.GetInstance(session.Character!.Map, session);
         
         if (instance == null)
         {

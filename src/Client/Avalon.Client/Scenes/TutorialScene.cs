@@ -302,18 +302,25 @@ public class TutorialScene : Scene
     
     private void OnPlayerMoved(object sender, SPlayerPositionUpdatePacket packet)
     {
-        if (_otherPlayers.TryGetValue(packet.AccountId, out var player))
+        if (packet.Players == null)
         {
-            //Console.WriteLine("Received velocity: " + packet.VelocityX + ", " + packet.VelocityY);
-            player.OnMovementReceived(new Vector2(packet.PositionX, packet.PositionY), new Vector2(packet.VelocityX, packet.VelocityY), _latency);
-            player.OnChatChanged(packet.Chatting);
+            throw new ArgumentNullException(nameof(packet.Players));
         }
-
-        if (packet.AccountId == Globals.AccountId)
+        foreach (var player in packet.Players)
         {
-            if (_player != null)
+            if (_otherPlayers.TryGetValue(player.AccountId, out var otherPlayer))
             {
-                // _hero.UpdateVelocity(new Vector2(packet.VelocityX, packet.VelocityY));
+                //Console.WriteLine("Received velocity: " + packet.VelocityX + ", " + packet.VelocityY);
+                otherPlayer.OnMovementReceived(new Vector2(player.PositionX, player.PositionY), new Vector2(player.VelocityX, player.VelocityY), _latency);
+                otherPlayer.OnChatChanged(player.Chatting);
+            }
+
+            if (player.AccountId == Globals.AccountId)
+            {
+                if (_player != null)
+                {
+                    // _hero.UpdateVelocity(new Vector2(packet.VelocityX, packet.VelocityY));
+                }
             }
         }
     }
@@ -332,22 +339,25 @@ public class TutorialScene : Scene
     
     private void OnNpcUpdated(object sender, SNpcUpdatePacket packet)
     {
-        _npcs.AddOrUpdate(packet.Id, id =>
-            {
-                // If the NPC does not already exist in the dictionary, create a new OtherPlayer object and return it.
-                var texture = Globals.Content.Load<Texture2D>("Images/player");
-                return new GameCreature(
-                    packet.Id,
-                    0,
-                    packet.Name,
-                    texture, new Vector2(packet.PositionX, packet.PositionY), true);
-            }, 
-            (guid, player) =>
-            {
-                // If the NPC already exists, just update its position and velocity and return it.
-                player.OnMovementReceived(new Vector2(packet.PositionX, packet.PositionY), new Vector2(packet.VelocityX, packet.VelocityY), _latency);
-                return player;
-            });
+        foreach (var creature in packet.Creatures)
+        {
+            _npcs.AddOrUpdate(creature.Id, id =>
+                {
+                    // If the NPC does not already exist in the dictionary, create a new OtherPlayer object and return it.
+                    var texture = Globals.Content.Load<Texture2D>("Images/player");
+                    return new GameCreature(
+                        creature.Id,
+                        0,
+                        creature.Name,
+                        texture, new Vector2(creature.PositionX, creature.PositionY), true);
+                }, 
+                (guid, player) =>
+                {
+                    // If the NPC already exists, just update its position and velocity and return it.
+                    player.OnMovementReceived(new Vector2(creature.PositionX, creature.PositionY), new Vector2(creature.VelocityX, creature.VelocityY), _latency);
+                    return player;
+                });
+        }
     }
 
     private void OnLatencyUpdated(object sender, double latency)

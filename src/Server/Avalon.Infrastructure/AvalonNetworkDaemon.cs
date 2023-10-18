@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Net.Sockets;
+using Avalon.Common.Telemetry;
 using Avalon.Common.Threading;
 using Avalon.Game;
 using Avalon.Metrics;
@@ -75,7 +76,7 @@ public class AvalonNetworkDaemon : IAvalonNetworkDaemon
         _sessionManager = sessionManager;
         _metrics = metrics;
         
-        _packetProcessorBuffer = new RingBuffer<(IRemoteSource, NetworkPacket)>(1024);
+        _packetProcessorBuffer = new RingBuffer<(IRemoteSource, NetworkPacket)>("RECV",1024);
 
         _udpServer = udpServer;
         _udpServer.OnPacketReceived += UdpServerOnOnPacketReceived;
@@ -163,6 +164,14 @@ public class AvalonNetworkDaemon : IAvalonNetworkDaemon
                     {
                         var watch = Stopwatch.StartNew();
                         
+                        using var activity = DiagnosticsConfig.Server.Source
+                            .StartActivity("Packet Handler Loop", ActivityKind.Server);
+                        
+                        activity?.SetTag("network.packet.type", packet.Header.Type.ToString());
+                        activity?.SetTag("network.packet.size", packet.Size);
+                        activity?.SetTag("network.client.address", client.RemoteAddress);
+                        activity?.SetTag("network.client.rtt", client.RoundTripTime);
+                        
                         await handler.Handle(client, deserializedPacket).ConfigureAwait(false);
                         
                         watch.Stop();
@@ -222,17 +231,22 @@ public class AvalonNetworkDaemon : IAvalonNetworkDaemon
                 var bytesInLastSecond = currentBytesReceived - previousBytesReceived;
                 var byteRate = Math.Round(bytesInLastSecond / Math.Max((DateTime.UtcNow - lastUpdate).TotalSeconds, 1), 2);
                 
+                DiagnosticsConfig.Server.BytesReceivedRate.Record(byteRate);
+                
+                
                 // Packet rate calculation
                 var packetsInLastSecond = currentPacketsReceived - previousPacketsReceived;
-                var packetRate = (int) (packetsInLastSecond / Math.Max((DateTime.UtcNow - lastUpdate).TotalSeconds, 1));
+                var packetRate = (packetsInLastSecond / Math.Max((DateTime.UtcNow - lastUpdate).TotalSeconds, 1));
+                
+                DiagnosticsConfig.Server.PacketReceivedRate.Record(packetRate);
 
                 LogNetworkMetrics("Bytes received", kbBytesReceived, "Kb", "bytes", byteRate);
-                LogNetworkMetrics("Packets received", currentPacketsReceived, null, "packets", packetRate);
-                LogNetworkMetrics("(UDP) Bytes", kbBytesReceivedUdp, "Kb", null, null);
-                LogNetworkMetrics("(UDP) Packets", Interlocked.Read(ref _udpPacketsReceived), null, null, null);
-                LogNetworkMetrics("(TCP) Bytes", kbBytesReceivedTcp, "Kb", null, null);
-                LogNetworkMetrics("(TCP) Packets", Interlocked.Read(ref _tcpPacketsReceived), null, null, null);
-                _logger.LogInformation("---------------------------------");
+                LogNetworkMetrics("Packets received", currentPacketsReceived, "p", "packets", packetRate);
+                //LogNetworkMetrics("(UDP) Bytes", kbBytesReceivedUdp, "Kb", null, null);
+                //LogNetworkMetrics("(UDP) Packets", Interlocked.Read(ref _udpPacketsReceived), null, null, null);
+                //LogNetworkMetrics("(TCP) Bytes", kbBytesReceivedTcp, "Kb", null, null);
+                //LogNetworkMetrics("(TCP) Packets", Interlocked.Read(ref _tcpPacketsReceived), null, null, null);
+                //_logger.LogInformation("---------------------------------");
                 
                 previousPacketsReceived = currentPacketsReceived;
                 previousBytesReceived = currentBytesReceived;
@@ -251,7 +265,12 @@ public class AvalonNetworkDaemon : IAvalonNetworkDaemon
 
     private void LogNetworkMetrics(string metricName, long value, string? unit, string? rateUnit, double? rate)
     {
-        _logger.LogDebug("{0}: {1}{2}{3}", metricName, value, unit, rate.HasValue ? $", Rate: {rate} {rateUnit}/second" : null);
+        if (unit == null && rateUnit == null && rate == null)
+            _logger.LogDebug("{0}: {1}", metricName, value);
+        else if (unit != null && rateUnit == null && rate == null)
+            _logger.LogDebug("{0}: {1} {2}", metricName, value, unit);
+        else if (unit != null && rateUnit != null && rate != null)
+            _logger.LogDebug("{0}: {1}{2}{3}", metricName, value, unit, rate.HasValue ? $", Rate: {rate} {rateUnit}/second" : null);
     }
 
     public async void Stop()
@@ -289,8 +308,13 @@ public class AvalonNetworkDaemon : IAvalonNetworkDaemon
                             _sessionManager.RemoveConnection(client);
                             break;
                         }
-
+ 
                         _packetProcessorBuffer.Enqueue((client, packet));
+                        
+                        DiagnosticsConfig.Server.BytesReceived.Add(packet.Size);
+                        DiagnosticsConfig.Server.PacketsReceived.Add(1, new KeyValuePair<string, object?>(
+                            nameof(NetworkPacketType), packet.Header.Type
+                        ));
 
                         Interlocked.Increment(ref _tcpPacketsReceived);
                         Interlocked.Increment(ref _packetsReceived);

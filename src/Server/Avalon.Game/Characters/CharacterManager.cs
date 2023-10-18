@@ -163,12 +163,27 @@ public partial class AvalonGame
             }
             
             // Try to find the map instance for this character
-            var mapInstance = _mapManager.GetInstance(character.Map, Guid.Parse(character.InstanceId));
+            var mapInstance = _mapManager.GetInstance(character.Map, Guid.Parse(character.InstanceId!));
             if (mapInstance == null)
             {
                 // Specific map instance not found, try to find a other instance of the same map
-                // If no instance found, (internally will create a new one) add the character to it
-                mapInstance = _mapManager.GetInstance(character.Map, character.Id) ?? _mapManager.AddCharacterToMap(character.Map, character.Id);
+                // If no instance found, (internally will create a new one) add the session to it
+                mapInstance = _mapManager.GetInstance(character.Map, session) ?? _mapManager.AddSessionToMap(character.Map, session, true);
+                
+                if (mapInstance == null)
+                {
+                    _logger.LogWarning("Failed to find or create map instance for character {CharacterId} for account {AccountId}", packet.CharacterId, session.AccountId);
+                    return;
+                }
+            }
+            else
+            {
+                // Map instance found, add the session to it
+                if (!mapInstance.AddSession(session, true))
+                {
+                    _logger.LogWarning("Failed to add session {AccountId} to map instance {InstanceId}", session.AccountId, mapInstance.InstanceId);
+                    return;
+                }
             }
             
             // Update the current map instance

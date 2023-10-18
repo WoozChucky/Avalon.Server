@@ -38,7 +38,7 @@ public class Character
     public int Map { get; set; }
 
     [Column("instance_id")]
-    public string InstanceId { get; set; }
+    public string? InstanceId { get; set; }
 
     [Column("online")]
     public bool Online { get; set; }

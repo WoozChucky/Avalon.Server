@@ -60,6 +60,10 @@ public class AvalonTcpClient : IDisposable
 
     private readonly IPacketDeserializer _packetDeserializer;
     private readonly IPacketSerializer _packetSerializer;
+    
+    private long _bytesReceived;
+    
+    private long _packetsReceived;
 
     public int AccountId { get; set; }
     public int CharacterId { get; set; }
@@ -76,8 +80,8 @@ public class AvalonTcpClient : IDisposable
         _cts = new CancellationTokenSource();
         _cryptography = new AvalonCryptoSession();
 
-        _receivedPacketBuffer = new RingBuffer<Packet>(100);
-        _sendPacketBuffer = new RingBuffer<NetworkPacket>(100);
+        _receivedPacketBuffer = new RingBuffer<Packet>("RECV", 100);
+        _sendPacketBuffer = new RingBuffer<NetworkPacket>("SND", 100);
 
         _ipAddress =
             Dns.GetHostAddresses(_settings.Host).ToList()
@@ -99,6 +103,7 @@ public class AvalonTcpClient : IDisposable
         Task.Run(ProcessPacketsAsync);
         Task.Run(HandleCommunications);
         Task.Run(ProcessReceivedPackets);
+        Task.Run(UpdateMetricsAsync);
 #pragma warning restore CS4014
         
         await RequestServerInfoPacket();
@@ -107,6 +112,46 @@ public class AvalonTcpClient : IDisposable
     private bool UserCertificateValidationCallback(object sender, X509Certificate x509Certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors)
     {
         return true;
+    }
+    
+    private async Task UpdateMetricsAsync()
+    {
+        long previousBytesReceived = 0;
+        long previousPacketsReceived = 0;
+        var lastUpdate = DateTime.UtcNow;
+        
+        while (!_cts.IsCancellationRequested)
+        {
+            await Task.Delay(5000, _cts.Token).ConfigureAwait(false);
+            
+            if (true)
+            {
+                var currentBytesReceived = Interlocked.Read(ref _bytesReceived);
+                var currentPacketsReceived = Interlocked.Read(ref _packetsReceived);
+                
+                // Bytes conversion to Mb
+                var kbBytesReceived = currentBytesReceived / 1024;
+                var mgBytesReceived = currentBytesReceived / (1024 * 1024);
+                var gbBytesReceived = currentBytesReceived / (1024 * 1024 * 1024);
+                
+                // Byte rate calculation
+                var bytesInLastSecond = currentBytesReceived - previousBytesReceived;
+                var byteRate = Math.Round(bytesInLastSecond / Math.Max((DateTime.UtcNow - lastUpdate).TotalSeconds, 1), 2);
+                
+                // Packet rate calculation
+                var packetsInLastSecond = currentPacketsReceived - previousPacketsReceived;
+                var packetRate = (int) (packetsInLastSecond / Math.Max((DateTime.UtcNow - lastUpdate).TotalSeconds, 1));
+
+                
+                Console.WriteLine($"Bytes received: {kbBytesReceived}Kb, Rate: {byteRate} bytes/second");
+                Console.WriteLine($"Packets received: {currentPacketsReceived}, Rate: {packetRate} packets/second");
+                Console.WriteLine("---------------------------------");
+                
+                previousPacketsReceived = currentPacketsReceived;
+                previousBytesReceived = currentBytesReceived;
+                lastUpdate = DateTime.UtcNow;
+            }
+        }
     }
 
     private async void ProcessReceivedPackets()
@@ -237,6 +282,9 @@ public class AvalonTcpClient : IDisposable
                     Console.WriteLine("Received null packet in network thread");
                     continue;
                 }
+                
+                Interlocked.Add(ref _bytesReceived, packet.Size);
+                Interlocked.Increment(ref _packetsReceived);
                 
                 var innerPacket = GetInnerPacket(packet);
                 

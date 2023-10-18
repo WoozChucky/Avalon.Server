@@ -57,7 +57,8 @@ public class LayerEnricher : ILogEventEnricher
         
         if (_gameNamespaces.Contains(fullNamespace))
         {
-            var layerProperty = new LogEventProperty(LayerPropertyName, _gameLayer);
+            //var layerProperty = new LogEventProperty(LayerPropertyName, _gameLayer);
+            var layerProperty = new LogEventProperty(LayerPropertyName, new ScalarValue($"GAME/{fullNamespace}"));
             logEvent.AddPropertyIfAbsent(layerProperty);
             return;
         }

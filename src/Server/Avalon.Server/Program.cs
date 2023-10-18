@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Reflection;
+using Avalon.Common.Telemetry;
 using Avalon.Database;
 using Avalon.Database.Auth;
 using Avalon.Database.Characters;
@@ -20,9 +21,12 @@ using Avalon.Network.Tcp;
 using Avalon.Network.Udp;
 using Avalon.Server.Configuration;
 using Avalon.Server.Logging;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
+using OpenTelemetry.Exporter;
+using OpenTelemetry.Logs;
+using OpenTelemetry.Metrics;
+using OpenTelemetry.ResourceDetectors.Container;
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
 using Serilog;
 using Serilog.Events;
 using Serilog.Sinks.SystemConsole.Themes;
@@ -40,7 +44,7 @@ namespace Avalon.Server
         private static AppConfiguration AppConfiguration { get; set; } = null!;
         private static SystemUsageCollector SystemUsageCollector { get; set; } = null!;
 
-        private static Task Main(string[] args)
+        private static async Task Main(string[] args)
         {
             AppDomain.CurrentDomain.UnhandledException += OnUnhandledExceptionOccurred;
             AppDomain.CurrentDomain.ProcessExit += OnProcessExit;
@@ -49,6 +53,10 @@ namespace Avalon.Server
 
             ConfigureConfiguration(args);
             ConfigureDependencyInjection();
+
+            var svc = ServiceProvider.GetService<IHostedService>();
+            
+            await svc!.StartAsync(CancellationTokenSource.Token);
             
             try
             {
@@ -88,8 +96,6 @@ namespace Avalon.Server
             SystemUsageCollector.Dispose();
             
             Logger.LogInformation("Terminated successfully");
-            
-            return Task.CompletedTask;
         }
 
         private static void ConsoleOnCancelKeyPress(object? sender, ConsoleCancelEventArgs e)
@@ -128,11 +134,6 @@ namespace Avalon.Server
             
             Configuration.Bind(AppConfiguration);
         }
-
-        private static void ConfigureServices(IServiceCollection services)
-        {
-            
-        }
         
         private static void ConfigureDependencyInjection()
         {
@@ -148,8 +149,62 @@ namespace Avalon.Server
                         .WriteTo.Console(LogEventLevel.Debug, outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level}] [{ThreadId}] [{Layer}] -> {Message}{NewLine}{Exception}", theme: AnsiConsoleTheme.Sixteen)
                         .CreateLogger()
                     )
-                    .SetMinimumLevel(LogLevel.Trace);
+                    .AddOpenTelemetry(options =>
+                    {
+                        options.SetResourceBuilder(
+                                ResourceBuilder
+                                    .CreateDefault()
+                                    .AddService(DiagnosticsConfig.Server.ServiceName)
+                            )
+                            .AddOtlpExporter(options =>
+                            {
+                                options.Protocol = OtlpExportProtocol.Grpc;
+                                options.Endpoint = new Uri("http://192.168.1.227:4317");
+                            });
+                    })
+                    .SetMinimumLevel(LogLevel.Debug);
             });
+            
+            services.AddOpenTelemetry()
+                    .ConfigureResource(builder =>
+                    {
+                        builder
+                            .AddService(DiagnosticsConfig.Server.ServiceName)
+                            .AddAttributes(new Dictionary<string, object>()
+                            {
+                                {"Host", Environment.MachineName },
+                                {"OS", Environment.OSVersion.VersionString },
+                                {"SystemPageSize", Environment.SystemPageSize.ToString() },
+                                {"ProcessorCount", Environment.ProcessorCount.ToString() },
+                                {"UserDomainName", Environment.UserDomainName },
+                                {"UserName", Environment.UserName },
+                                {"Version", Environment.Version.ToString() },
+                                {"WorkingSet", Environment.WorkingSet.ToString() },
+                                {"Application", Assembly.GetExecutingAssembly().GetName().Name! },
+                            })
+                            .AddDetector(new ContainerResourceDetector());
+                    })
+                    .WithMetrics(builder =>
+                    {
+                        builder
+                            .AddMeter(DiagnosticsConfig.Server.Meter.Name)
+                            .AddRuntimeInstrumentation()
+                            .AddProcessInstrumentation()
+                            .AddOtlpExporter(options =>
+                            {
+                                options.Protocol = OtlpExportProtocol.Grpc;
+                                options.Endpoint = new Uri("http://192.168.1.227:4317");
+                            });
+                    })
+                    .WithTracing(builder =>
+                    {
+                        builder
+                            .AddOtlpExporter(options =>
+                            {
+                                options.Protocol = OtlpExportProtocol.Grpc;
+                                options.Endpoint = new Uri("http://192.168.1.227:4317");
+                            });
+                    });
             
             services.AddSingleton(AppConfiguration);
             services.AddSingleton(AppConfiguration.Infrastructure);

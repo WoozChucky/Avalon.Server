@@ -9,7 +9,7 @@ namespace Avalon.Client.Simulator
     {
         private static async Task Main(string[] args)
         {
-            const int clientCount = 25; // This is the number of clients to simulate
+            const int clientCount = 5; // This is the number of clients to simulate
 
             const string username = "test";
             const string password = "test";

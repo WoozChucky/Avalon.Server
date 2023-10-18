@@ -112,35 +112,6 @@ public partial class AvalonGame : IAvalonGame
         _isRunning = true;
         
         _logger.LogInformation("Starting game loop");
-        
-        Task.Run(BroadcastLoop);
-    }
-
-    private async Task BroadcastLoop()
-    {
-        try
-        {
-            while (!_cts.IsCancellationRequested)
-            {
-                await BroadcastGameState();
-                
-                if (DateTime.UtcNow - _lastMetricsUpdate > TimeSpan.FromMilliseconds(MetricsUpdateInterval))
-                {
-                    _lastMetricsUpdate = DateTime.UtcNow;
-                    
-                }
-            
-                await Task.Delay(26);
-            }
-        }
-        catch (OperationCanceledException)
-        {
-            // ignore
-        }
-        catch (Exception e)
-        {
-            _logger.LogError(e, "Broadcast loop exception");
-        }
     }
 
     public void Stop()
@@ -169,7 +140,9 @@ public partial class AvalonGame : IAvalonGame
     public void Update(TimeSpan deltaTime)
     {
         
-        // Update all maps, including spawns, AI, etc.
+        // Process AvalonSession packets
+        
+        // Process Map updates
         foreach (var (_, mapInstances) in _mapManager.GetInstances())
         {
             foreach (var (_, mapInstance) in mapInstances)
@@ -212,65 +185,6 @@ public partial class AvalonGame : IAvalonGame
 
     #endregion
 
-    #region Broadcasts
-
-    private async Task BroadcastGameState()
-    {
-        foreach (var (_, map) in _mapManager.GetInstances())
-        {
-            foreach (var (mapId, mapInstance) in map)
-            {
-                // Get players in this map instance
-                var sessionsInMap = _sessionManager.GetSessions().Values.Where(
-                    s =>
-                        s is { Status: ConnectionStatus.Connected, Character: not null }
-                        && s.Character.InstanceId == mapId.ToString()
-                );
-
-                // Broadcast creature positions
-                foreach (var creature in mapInstance.Creatures.Values)
-                {
-                    
-                    var tasks = sessionsInMap.Select(s => s.SendAsync(SNpcUpdatePacket.Create(
-                        creature.Id,
-                        creature.Name,
-                        creature.Position.X,
-                        creature.Position.Y,
-                        creature.Velocity.X,
-                        creature.Velocity.Y,
-                        s.Encrypt))
-                    );
-                    
-                    await Task.WhenAll(tasks);
-                }
-
-                // TODO: Broadcast map events / objects
-
-                // Broadcast player positions
-                foreach (var session in sessionsInMap)
-                {
-                    var otherSessions = sessionsInMap.Where(s => s.AccountId != session.AccountId);
-
-                    var tasks = otherSessions.Select(s => s.SendAsync(SPlayerPositionUpdatePacket.Create(
-                        session.AccountId,
-                        session.Character!.Id,
-                        session.Character.Movement.Position.X,
-                        session.Character.Movement.Position.Y,
-                        session.Character.Movement.Velocity.X,
-                        session.Character.Movement.Velocity.Y,
-                        session.Character.IsChatting,
-                        session.Character.ElapsedGameTime,
-                        s.Encrypt))
-                    );
-
-                    await Task.WhenAll(tasks);
-                }
-            }
-        }
-    }
-
-    #endregion
-
     #region Packet Handlers
 
     public Task HandleMovementPacket(IRemoteSource source, CPlayerMovementPacket packet)
@@ -300,34 +214,45 @@ public partial class AvalonGame : IAvalonGame
     public async Task HandleMapTeleportPacket(IRemoteSource source, CMapTeleportPacket packet)
     {
         var session = _sessionManager.GetSession(packet.AccountId);
-        if (session?.Character == null) return;
+        
+        if (session == null)
+        {
+            _logger.LogWarning("Session not found for account {AccountId}", packet.AccountId);
+            return;
+        }
+        
+        if (!session.InMap)
+        {
+            _logger.LogWarning("Session {AccountId} is not in a map", packet.AccountId);
+            return;
+        }
 
-        if (packet.MapId == session.Character.Map)
+        if (packet.MapId == session.Character!.Map)
         {
             _logger.LogWarning("Character {CharacterId} tried to teleport to the same map", packet.CharacterId);
             return;
         }
 
-        var currentMapInstance = _mapManager.GetInstance(session.Character.Map, session.Character.Id);
-        if (currentMapInstance == null)
+        if (!_mapManager.RemoveSessionFromMap(session))
         {
-            _logger.LogWarning("Character {CharacterId} tried to teleport, and is coming from a map that doesn't exist", packet.CharacterId);
-            return;
-        }
-
-        if (!_mapManager.RemoveCharacterFromMap(session.Character.Map, session.Character.Id))
-        {
-            _logger.LogWarning("Character {CharacterId} tried to teleport, and is coming from a map that doesn't exist", packet.CharacterId);
+            _logger.LogWarning(
+                "Character {CharacterId} tried to teleport, but couldn't be removed from source instance {InstanceId}",
+                packet.CharacterId, session.Character.InstanceId);
             return;
         }
 
         var newInstance = _mapManager.GenerateInstance(packet.MapId);
-        newInstance.AddCharacter(session.Character.Id);
+
+        if (!newInstance.AddSession(session))
+        {
+            _logger.LogWarning("Character {CharacterId} tried to teleport, and failed", packet.CharacterId);
+            return;
+        }
         
         float x;
         float y;
 
-        if (packet.MapId == 1) // TODO: Hardcoded starting coordinates
+        if (packet.MapId == 1) // TODO: Hardcoded starting coordinates, and map ids :(
         {
             x = 31;
             y = 801;

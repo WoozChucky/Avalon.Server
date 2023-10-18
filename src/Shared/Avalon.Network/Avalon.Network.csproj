@@ -23,6 +23,7 @@
     </ItemGroup>
     
     <ItemGroup>
+      <ProjectReference Include="..\Avalon.Common\Avalon.Common.csproj" />
       <ProjectReference Include="..\Avalon.Network.Packets.Abstractions\Avalon.Network.Packets.Abstractions.csproj" />
     </ItemGroup>
 
