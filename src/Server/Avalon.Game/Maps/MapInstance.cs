@@ -3,6 +3,7 @@ using Avalon.Database.World;
 using Avalon.Database.World.Model;
 using Avalon.Game.Creatures;
 using Avalon.Game.Maps.Virtual;
+using Avalon.Network.Packets.Movement;
 
 namespace Avalon.Game.Maps;
 
@@ -21,54 +22,103 @@ public class MapInstance
 
     public ConcurrentDictionary<Guid, Creature> Creatures { get; }
     
+    public ConcurrentDictionary<int, AvalonSession> Sessions { get; }
+    
     public IEnumerable<MapEvent> Events => VirtualizedMap.Events;
 
     // Map configuration from database
     private readonly Map _template;
-
-    // contains character ids that are in the map, in the future the bool will be replaced with a character object probably
-    // still not sure if this is the best way to do it, since i'll be sharing references to the character object between the map and the character manager
-    // (even though the character manager will be the one to create the character object and is accessed in a thread safe way)
-    private readonly ConcurrentDictionary<int, bool> _characters;
     
     public MapInstance(Map template, VirtualizedMap virtualizedMap)
     {
         InstanceId = Guid.NewGuid();
         Creatures = new ConcurrentDictionary<Guid, Creature>();
-        _characters = new ConcurrentDictionary<int, bool>();
+        Sessions = new ConcurrentDictionary<int, AvalonSession>();
         _template = template;
         VirtualizedMap = virtualizedMap;
     }
     
-    public void AddCharacter(int characterId)
+    public bool AddSession(AvalonSession session, bool initialLoad = false)
     {
-        _characters.TryAdd(characterId, true);
+        if (initialLoad)
+        {
+            return Sessions.TryAdd(session.AccountId, session);
+        }
+        
+        // Only add the session if it's in game
+        return session.InGame && Sessions.TryAdd(session.AccountId, session);
     }
     
-    public bool IsEmptyCharacters()
+    public bool IsEmptySessions()
     {
-        return _characters.IsEmpty;
+        return Sessions.Count == 0;
     }
     
-    public void RemoveCharacter(int characterId)
+    public bool RemoveSession(AvalonSession session)
     {
-        _characters.TryRemove(characterId, out _);
+        return Sessions.TryRemove(session.AccountId, out _);
     }
 
-    public bool ContainsCharacter(int characterId)
+    public bool ContainsSession(AvalonSession session)
     {
-        return _characters.ContainsKey(characterId);
-    }
-    
-    public IList<int> GetCharactersIds()
-    {
-        // Get characters in the map (value = true)
-        return _characters.Where(pair => pair.Value).Select(pair => pair.Key).ToList();
+        return session.InMap && Sessions.ContainsKey(session.AccountId);
     }
 
-    public void Update(TimeSpan deltaTime)
+    public async void Update(TimeSpan deltaTime)
     {
         
+        // Broadcast Creature positions
+        foreach (var session in Sessions)
+        {
+            
+            if (!session.Value.InMap || session.Value.Status != ConnectionStatus.Connected) continue;
+            
+            // Creatures
+            var creatures = Creatures.Values
+                .Select(c => new CreaturePacket
+                {
+                    Id = c.Id,
+                    Name = c.Name,
+                    PositionX = c.Position.X,
+                    PositionY = c.Position.Y,
+                    VelocityX = c.Velocity.X,
+                    VelocityY = c.Velocity.Y
+                })
+                .ToArray();
+            
+            await session.Value.SendAsync(SNpcUpdatePacket.Create(
+                creatures,
+                session.Value.Encrypt));
+        }
+        
+        // Broadcast player positions
+        foreach (var session in Sessions)
+        {
+            if (!session.Value.InMap || session.Value.Status != ConnectionStatus.Connected) continue;
+
+            var playerPackets = new List<SPlayerPacket>();
+            
+            foreach (var otherSession in Sessions)
+            {
+                if (otherSession.Value == null || !otherSession.Value.InMap || otherSession.Value.Status != ConnectionStatus.Connected) continue;
+                
+                playerPackets.Add(new SPlayerPacket
+                {
+                    AccountId = otherSession.Value.AccountId,
+                    CharacterId = otherSession.Value.Character!.Id,
+                    PositionX = otherSession.Value.Character.Movement.Position.X,
+                    PositionY = otherSession.Value.Character.Movement.Position.Y,
+                    VelocityX = otherSession.Value.Character.Movement.Velocity.X,
+                    VelocityY = otherSession.Value.Character.Movement.Velocity.Y,
+                    Chatting = otherSession.Value.Character!.IsChatting,
+                    Elapsed = otherSession.Value.Character.ElapsedGameTime
+                });
+            }
+            
+            if (playerPackets.Count == 0) continue;
+
+            await session.Value.SendAsync(SPlayerPositionUpdatePacket.Create(playerPackets.ToArray(), session.Value.Encrypt));
+        }
     }
 
     public void AddCreature(Creature creature)

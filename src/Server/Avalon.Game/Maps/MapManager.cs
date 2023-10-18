@@ -14,10 +14,10 @@ public interface IAvalonMapManager
     void LoadMaps();
     MapInstance GenerateInstance(int mapId);
     MapInstance? GetInstance(int mapId, Guid instanceId);
-    MapInstance? GetInstance(int mapId, int characterId);
+    MapInstance? GetInstance(int mapId, AvalonSession session);
     ConcurrentDictionary<int, ConcurrentDictionary<Guid, MapInstance>> GetInstances();
-    MapInstance AddCharacterToMap(int mapId, int characterId);
-    bool RemoveCharacterFromMap(int mapId, int characterId);
+    MapInstance? AddSessionToMap(int mapId, AvalonSession session, bool initialLoad = false);
+    bool RemoveSessionFromMap(AvalonSession session);
 }
 
 public class AvalonMapManager : IAvalonMapManager
@@ -26,9 +26,10 @@ public class AvalonMapManager : IAvalonMapManager
     private readonly ILoggerFactory _loggerFactory;
     private readonly IDatabaseManager _databaseManager;
     private readonly IPoolManager _poolManager;
+    private readonly IAvalonSessionManager _sessionManager;
 
     // MapId, Dictionary<InstanceId, MapInstance>>
-    private readonly ConcurrentDictionary<int, ConcurrentDictionary<Guid, MapInstance>> _instancedMaps = new();
+    private readonly ConcurrentDictionary<int, ConcurrentDictionary<Guid, MapInstance>> _maps = new();
 
     private readonly ReaderWriterLockSlim _lock;
     
@@ -42,12 +43,16 @@ public class AvalonMapManager : IAvalonMapManager
     private readonly Dictionary<int, VirtualizedMap> _virtualTemplates = new();
 
     public AvalonMapManager(ILoggerFactory loggerFactory, IDatabaseManager databaseManager,
-        IPoolManager poolManager)
+        IPoolManager poolManager, IAvalonSessionManager sessionManager)
     {
         _logger = loggerFactory.CreateLogger<AvalonMapManager>();
         _loggerFactory = loggerFactory;
         _databaseManager = databaseManager;
         _poolManager = poolManager;
+        _sessionManager = sessionManager;
+        _sessionManager.SessionLost += (_, session) => RemoveSessionFromMap(session);
+        
+        
         _lock = new ReaderWriterLockSlim(LockRecursionPolicy.SupportsRecursion);
     }
     
@@ -78,7 +83,7 @@ public class AvalonMapManager : IAvalonMapManager
             _poolManager.SpawnStartingEntities(mapInstance);
             
             // This can be done the way it is , because we're sure that no other instance of this map exists, since this is server startup logic
-            _instancedMaps.TryAdd(map.Id, new ConcurrentDictionary<Guid, MapInstance> { [mapInstance.InstanceId] = mapInstance });
+            _maps.TryAdd(map.Id, new ConcurrentDictionary<Guid, MapInstance> { [mapInstance.InstanceId] = mapInstance });
             _villageMaps.Add(map.Id);
             
             _logger.LogInformation("Map {MapId} '{MapName}' instanced {InstanceId}", mapInstance.MapId, mapInstance.Name, mapInstance.InstanceId);
@@ -90,7 +95,7 @@ public class AvalonMapManager : IAvalonMapManager
         _lock.EnterWriteLock();
         try
         {
-            if (!_instancedMaps.TryGetValue(mapId, out var mapInstances))
+            if (!_maps.TryGetValue(mapId, out var mapInstances))
             {
                 // if no instances exist for this map, create the first one
                 var newInstance = new MapInstance(_mapTemplates!.First(map => map.Id == mapId), _virtualTemplates[mapId]);
@@ -100,7 +105,7 @@ public class AvalonMapManager : IAvalonMapManager
         
                 _logger.LogInformation("Map {MapId} '{MapName}' instanced {InstanceId}", newInstance.MapId, newInstance.Name, newInstance.InstanceId);
             
-                _instancedMaps.TryAdd(mapId, new ConcurrentDictionary<Guid, MapInstance>() { [newInstance.InstanceId] = newInstance});
+                _maps.TryAdd(mapId, new ConcurrentDictionary<Guid, MapInstance>() { [newInstance.InstanceId] = newInstance});
 
                 return newInstance;
             }
@@ -128,7 +133,7 @@ public class AvalonMapManager : IAvalonMapManager
         }
     }
 
-    public MapInstance? GetInstance(int mapId, int characterId)
+    public MapInstance? GetInstance(int mapId, AvalonSession session)
     {
         _lock.EnterReadLock();
         try
@@ -142,15 +147,17 @@ public class AvalonMapManager : IAvalonMapManager
                 return mapInstances.First().Value;
             }
 
-            foreach (var (_, instance) in mapInstances)
+            if (!mapInstances.TryGetValue(Guid.Parse(session.Character!.InstanceId!), out var instance))
             {
-                if (instance.ContainsCharacter(characterId))
-                {
-                    return instance;
-                }
+                return null;
             }
-    
-            return null;
+
+            if (!instance.ContainsSession(session))
+            {
+                return null;
+            }
+
+            return instance;
         }
         finally
         {
@@ -163,7 +170,7 @@ public class AvalonMapManager : IAvalonMapManager
         _lock.EnterReadLock();
         try
         {
-            return _instancedMaps;
+            return _maps;
         }
         finally
         {
@@ -192,23 +199,28 @@ public class AvalonMapManager : IAvalonMapManager
             _lock.ExitReadLock();
         }
     }
-    
-    public MapInstance AddCharacterToMap(int mapId, int characterId)
+
+    public MapInstance? AddSessionToMap(int mapId, AvalonSession session, bool initialLoad = false)
     {
         _lock.EnterWriteLock();
         try
         {
-            var mapInstance = GetInstance(mapId, characterId);
+            var mapInstance = GetInstance(mapId, session);
             if (mapInstance != null)
             {
-                _logger.LogDebug("Character {CharacterId} is already in map {MapId}", characterId, mapId);
+                _logger.LogDebug("Session {SessionId} is already in map {MapId}", session.AccountId, mapId);
                 return mapInstance;
             }
 
             mapInstance = GenerateInstance(mapId);
-            mapInstance.AddCharacter(characterId);
+            
+            if (!mapInstance.AddSession(session, initialLoad))
+            {
+                _logger.LogError("Failed to add session {SessionId} to map {MapId}", session.AccountId, mapId);
+                return null;
+            }
         
-            _logger.LogDebug("Added character {CharacterId} to map {MapId}, instance {InstanceId}", characterId, mapId, mapInstance.InstanceId);
+            _logger.LogDebug("Added session {SessionId} to map {MapId}, instance {InstanceId}", session.AccountId, mapId, mapInstance.InstanceId);
             
             return mapInstance;
         }
@@ -217,39 +229,42 @@ public class AvalonMapManager : IAvalonMapManager
             _lock.ExitWriteLock();
         }
     }
-    
-    public bool RemoveCharacterFromMap(int mapId, int characterId)
+
+    public bool RemoveSessionFromMap(AvalonSession session)
     {
         _lock.EnterWriteLock();
         try
         {
-            if (!_instancedMaps.TryGetValue(mapId, out var mapInstances))
+            if (!session.InMap)
             {
-                _logger.LogWarning("Map {MapId} not found", mapId);
+                _logger.LogWarning("Session {SessionId} is not in a map", session.AccountId);
+                return false;
+            }
+            
+            if (!_maps.TryGetValue(session.Character!.Map, out var mapInstances))
+            {
+                _logger.LogWarning("Map {MapId} not found", session.Character!.Map);
                 return false;
             }
 
-            Guid? foundId = null;
-
-            foreach (var (id, instance) in mapInstances)
+            if (!mapInstances.TryGetValue(Guid.Parse(session.Character!.InstanceId!), out var instance))
             {
-                if (!instance.ContainsCharacter(characterId)) continue;
-        
-                instance.RemoveCharacter(characterId);
-            
-                _logger.LogInformation("Removed character {CharacterId} from map {MapId}, instance {InstanceId}", characterId, mapId, instance.InstanceId);
-            
-                if (instance.IsEmptyCharacters() && !_villageMaps.Contains(mapId))
-                {
-                    foundId = id;
-                }
-                break;
+                _logger.LogWarning("Session {SessionId} is not found in instance {InstanceId} of map {MapId}",
+                    session.AccountId, session.Character.InstanceId, session.Character!.Map);
+                return false;
             }
-    
-            if (foundId.HasValue)
+
+            if (!instance.RemoveSession(session))
             {
-                mapInstances.TryRemove(foundId.Value, out _);
-                _logger.LogInformation("Removed empty instance {InstanceId} from map {MapId} since all characters left", foundId.Value, mapId);
+                _logger.LogWarning("Session {SessionId} could not be removed from instance {InstanceId} of map {MapId}",
+                    session.AccountId, session.Character.InstanceId, session.Character!.Map);
+                return false;
+            }
+            
+            if (instance.IsEmptySessions() && !_villageMaps.Contains(session.Character!.Map))
+            {
+                mapInstances.TryRemove(instance.InstanceId, out _);
+                _logger.LogInformation("Removed empty instance {InstanceId} from map {MapId} since all sessions left", instance.InstanceId, session.Character!.Map);
             }
         
             return true;
@@ -262,15 +277,15 @@ public class AvalonMapManager : IAvalonMapManager
 
     private ConcurrentDictionary<Guid, MapInstance>? GetMapInstances(int mapId)
     {
-        if (!_instancedMaps.TryGetValue(mapId, out var mapInstances))
+        if (!_maps.TryGetValue(mapId, out var mapInstances))
         {
-            _logger.LogWarning("Map {MapId} not found", mapId);
+            _logger.LogDebug("Map {MapId} not found", mapId);
             return null;
         }
 
         if (mapInstances.IsEmpty)
         {
-            _logger.LogWarning("Map {MapId} has no instances", mapId);
+            _logger.LogDebug("Map {MapId} has no instances", mapId);
             return null;
         }
 

@@ -253,7 +253,8 @@ public class AvalonSessionManager : IAvalonSessionManager
     {
         return source switch
         {
-            TcpClient _ => _sessions.Values.FirstOrDefault(c => c.Connection?.RemoteAddress == source.RemoteAddress) ?? _handshakingSessions.Values.FirstOrDefault(c => c.Connection?.RemoteAddress == source.RemoteAddress),
+            TcpClient _ => _sessions.Values.FirstOrDefault(c => c.Connection?.RemoteAddress == source.RemoteAddress) 
+                           ?? _handshakingSessions.Values.FirstOrDefault(c => c.Connection?.RemoteAddress == source.RemoteAddress),
             UdpClientPacket _ => throw new NotSupportedException("UDP is not supported yet"),
             _ => null
         };

@@ -50,8 +50,8 @@ public class AvalonUdpClient : IDisposable
         _packetSerializer = new NetworkPacketSerializer();
         
         _sendLock = new SemaphoreSlim(1, 1);
-        _receivedPacketBuffer = new RingBuffer<APacket>(100);
-        _sendPacketBuffer = new RingBuffer<NetworkPacket>(100);
+        _receivedPacketBuffer = new RingBuffer<APacket>("",100);
+        _sendPacketBuffer = new RingBuffer<NetworkPacket>("",100);
         
         _client = new Host();
         _address = new Address();

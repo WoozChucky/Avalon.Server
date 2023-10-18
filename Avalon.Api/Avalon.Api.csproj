@@ -14,6 +14,11 @@
         <PackageReference Include="Swashbuckle.AspNetCore" Version="6.5.0"/>
         <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="7.0.2" />
         <PackageReference Include="BCrypt.Net-Next" Version="4.0.3" />
+        <PackageReference Include="OpenTelemetry" Version="1.6.0" />
+        <PackageReference Include="OpenTelemetry.AutoInstrumentation.Runtime.Managed" Version="1.0.2" />
+        <PackageReference Include="OpenTelemetry.AutoInstrumentation.Runtime.Native" Version="1.0.2" />
+        <PackageReference Include="OpenTelemetry.AutoInstrumentation.AspNetCoreBootstrapper" Version="1.0.2" />
+        <PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.6.0" />
     </ItemGroup>
 
     <ItemGroup>
@@ -25,6 +30,7 @@
     <ItemGroup>
       <ProjectReference Include="..\src\Server\Avalon.Database\Avalon.Database.csproj" />
       <ProjectReference Include="..\src\Server\Avalon.Repositories\Avalon.Repositories.csproj" />
+      <ProjectReference Include="..\src\Shared\Avalon.Common\Avalon.Common.csproj" />
     </ItemGroup>
 
 </Project>

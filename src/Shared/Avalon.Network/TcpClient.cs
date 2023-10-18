@@ -1,6 +1,7 @@
 using System.Net.Security;
 using System.Net.Sockets;
 using System.Security.Authentication.ExtendedProtection;
+using Avalon.Common.Telemetry;
 using Avalon.Network.Packets.Abstractions;
 using ProtoBuf;
 
@@ -31,6 +32,12 @@ public class TcpClient : IRemoteSource
         {
             throw new IOException("Client is not connected");
         }
+        
+        DiagnosticsConfig.Server.BytesSent.Add(packet.Size);
+        DiagnosticsConfig.Server.PacketsSent.Add(1, new KeyValuePair<string, object?>(
+            nameof(NetworkPacketType), packet.Header.Type
+        ));
+        
         Serializer.SerializeWithLengthPrefix(Stream, packet, PrefixStyle.Base128);
         return Task.CompletedTask;
     }

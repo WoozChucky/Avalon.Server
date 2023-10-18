@@ -85,6 +85,14 @@ public partial class AvalonGame
                 _logger.LogWarning("Session {AccountId} is not the same as the packet {PacketAccountId}", session.AccountId, packet.AccountId);
                 await session.SendAsync(SLogoutPacket.Create(session.AccountId, LogoutResult.NotSameAccount, session.Encrypt));
             }
+
+            if (session.InMap)
+            {
+                if (!_mapManager.RemoveSessionFromMap(session))
+                {
+                    _logger.LogWarning("Failed to remove session {AccountId} from map", session.AccountId);
+                }
+            }
     
             // Save character progress to the database
             var character = session.Character;

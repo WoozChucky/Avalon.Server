@@ -10,28 +10,18 @@ public class SNpcUpdatePacket : Packet
     public static NetworkProtocol Protocol = NetworkProtocol.Tcp;
     public static NetworkPacketFlags Flags = NetworkPacketFlags.Encrypted;
 
-    [ProtoMember(1)] public Guid Id { get; set; }
-    [ProtoMember(2)] public string Name { get; set; }
-    [ProtoMember(3)] public float PositionX { get; set; }
-    [ProtoMember(4)] public float PositionY { get; set; }
-    [ProtoMember(5)] public float VelocityX { get; set; }
-    [ProtoMember(6)] public float VelocityY { get; set; }
+    [ProtoMember(1)] public CreaturePacket[] Creatures { get; set; }
     
-    public static NetworkPacket Create(Guid id, string name, float x, float y, float velX, float velY, Func<byte[], byte[]> encryptFunc)
+    public static NetworkPacket Create(CreaturePacket[] creatures, Func<byte[], byte[]> encryptFunc)
     {
         using var memoryStream = new MemoryStream();
         
-        var movementPacket = new SNpcUpdatePacket()
+        var packet = new SNpcUpdatePacket()
         {
-            Id = id,
-            Name = name,
-            PositionX = x,
-            PositionY = y,
-            VelocityX = velX,
-            VelocityY = velY
+            Creatures = creatures
         };
         
-        Serializer.Serialize(memoryStream, movementPacket);
+        Serializer.Serialize(memoryStream, packet);
         
         var buffer = encryptFunc(memoryStream.ToArray());
         
@@ -47,4 +37,15 @@ public class SNpcUpdatePacket : Packet
             Payload = buffer
         };
     }
+}
+
+[ProtoContract]
+public class CreaturePacket
+{
+    [ProtoMember(1)] public Guid Id { get; set; }
+    [ProtoMember(2)] public string Name { get; set; }
+    [ProtoMember(3)] public float PositionX { get; set; }
+    [ProtoMember(4)] public float PositionY { get; set; }
+    [ProtoMember(5)] public float VelocityX { get; set; }
+    [ProtoMember(6)] public float VelocityY { get; set; }
 }

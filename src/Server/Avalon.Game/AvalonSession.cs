@@ -38,6 +38,7 @@ public class AvalonSession : IDisposable
     public IRemoteSource? Connection { get; private set; }
     public int RoundTripTime { get; private set; }
     public bool InGame => Character != null;
+    public bool InMap => InGame && Character!.InstanceId != null;
     public ConnectionStatus Status { get; set; }
     public DateTime LastUpdateAt { get; set; } = DateTime.UtcNow;
     
@@ -59,7 +60,7 @@ public class AvalonSession : IDisposable
         AccountId = 0;
         Party = new PartyGroup();
         Status = ConnectionStatus.Connecting;
-        _packetQueue = new RingBuffer<NetworkPacket>(1024);
+        _packetQueue = new RingBuffer<NetworkPacket>("SND",1024);
         _cts = new CancellationTokenSource();
         _cryptography = new AvalonCryptoSession(serverKeyPair);
         _cryptography.Initialize(clientPublicKey);
