@@ -7,6 +7,10 @@ pool:
   name: CI
 
 steps:
+- checkout: self
+  persistCredentials: true
+  submodules: true
+
 - script: dotnet new --install MonoGame.Templates.CSharp
   displayName: 'Install .NET MonoGame Templates'
 
