@@ -6,4 +6,5 @@ public class MetricsConfiguration
     public string ApiKey { get; set; }
     public bool Automatic { get; set; }
     public bool Enabled { get; set; }
+    public bool Export { get; set; }
 }

@@ -120,8 +120,8 @@ namespace Avalon.Server
         {
             var builder = new ConfigurationBuilder()
                 .SetBasePath(Directory.GetCurrentDirectory())
-                .AddEnvironmentVariables()
-                .AddJsonFile("appsettings.json", false, false);
+                .AddJsonFile("appsettings.json", false, false)
+                .AddEnvironmentVariables();
             
             if (args.Length > 0)
             {
@@ -149,7 +149,10 @@ namespace Avalon.Server
                         .WriteTo.Console(LogEventLevel.Debug, outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level}] [{ThreadId}] [{Layer}] -> {Message}{NewLine}{Exception}", theme: AnsiConsoleTheme.Sixteen)
                         .CreateLogger()
                     )
-                    .AddOpenTelemetry(options =>
+                    .SetMinimumLevel(LogLevel.Debug);
+                if (AppConfiguration.Metrics.Export)
+                {
+                    builder.AddOpenTelemetry(options =>
                     {
                         options.SetResourceBuilder(
                                 ResourceBuilder
@@ -161,11 +164,13 @@ namespace Avalon.Server
                                 options.Protocol = OtlpExportProtocol.Grpc;
                                 options.Endpoint = new Uri("http://192.168.1.227:4317");
                             });
-                    })
-                    .SetMinimumLevel(LogLevel.Debug);
+                    });
+                }
             });
-            
-            services.AddOpenTelemetry()
+
+            if (AppConfiguration.Metrics.Export)
+            {
+                services.AddOpenTelemetry()
                     .ConfigureResource(builder =>
                     {
                         builder
@@ -204,7 +209,8 @@ namespace Avalon.Server
                                 options.Protocol = OtlpExportProtocol.Grpc;
                                 options.Endpoint = new Uri("http://192.168.1.227:4317");
                             });
-                    });
+                    });   
+            }
             
             services.AddSingleton(AppConfiguration);
             services.AddSingleton(AppConfiguration.Infrastructure);
