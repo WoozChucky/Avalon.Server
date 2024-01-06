@@ -2,12 +2,13 @@ trigger:
 - main
 
 pool:
-  vmImage: ubuntu-latest
-  name: Azure Pipelines
+  #vmImage: ubuntu-latest
+  #name: Azure Pipelines
+  name: CI
 
 steps:
-- script: echo Hello, world!
-  displayName: 'Run a one-line script'
+- script: dotnet new --install MonoGame.Templates.CSharp
+  displayName: 'Install .NET MonoGame Templates'
 
 - script: |
     echo Add other tasks to build, test, and deploy your project.
@@ -21,17 +22,20 @@ steps:
     feedsToUse: 'select'
     vstsFeed: '5392b5e8-f3b7-4382-b047-8bb2081f4a91'
     verbosityRestore: 'Normal'
+  displayName: '.NET Restore'
 
 - task: DotNetCoreCLI@2
   inputs:
     command: 'build'
     projects: '**/*.csproj'
     arguments: '--no-restore'
+  displayName: '.NET Build'
 
 - task: DotNetCoreCLI@2
   inputs:
     command: 'test'
     arguments: '--no-build'
+  displayName: '.NET Test'
 
 - task: DotNetCoreCLI@2
   inputs:
@@ -40,6 +44,7 @@ steps:
     publishWebProjects: false
     zipAfterPublish: false
     modifyOutputPath: false
+  displayName: '.NET Publish Server'
 
 - task: Docker@2
   inputs:
@@ -48,3 +53,4 @@ steps:
     command: 'buildAndPush'
     Dockerfile: 'src/Server/Avalon.Server/Dockerfile'
     buildContext: 'src/Server/Avalon.Server/'
+  displayName: 'Docker Build&Publish'
