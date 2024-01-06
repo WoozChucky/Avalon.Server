@@ -1,0 +1,49 @@
+trigger:
+- main
+
+pool:
+  vmImage: ubuntu-latest
+
+steps:
+- script: echo Hello, world!
+  displayName: 'Run a one-line script'
+
+- script: |
+    echo Add other tasks to build, test, and deploy your project.
+    echo See https://aka.ms/yaml
+  displayName: 'Run a multi-line script'
+
+- task: DotNetCoreCLI@2
+  inputs:
+    command: 'restore'
+    projects: '**/*.csproj'
+    feedsToUse: 'select'
+    vstsFeed: '5392b5e8-f3b7-4382-b047-8bb2081f4a91'
+    verbosityRestore: 'Normal'
+
+- task: DotNetCoreCLI@2
+  inputs:
+    command: 'build'
+    projects: '**/*.csproj'
+    arguments: '--no-restore'
+
+- task: DotNetCoreCLI@2
+  inputs:
+    command: 'test'
+    arguments: '--no-build'
+
+- task: DotNetCoreCLI@2
+  inputs:
+    command: 'publish'
+    arguments: 'src/Server/Avalon.Server/Avalon.Server.csproj -c Release --no-restore'
+    publishWebProjects: false
+    zipAfterPublish: false
+    modifyOutputPath: false
+
+- task: Docker@2
+  inputs:
+    containerRegistry: 'DockerHub Registry'
+    repository: 'woozx/avalon'
+    command: 'buildAndPush'
+    Dockerfile: 'src/Server/Avalon.Server/Dockerfile'
+    buildContext: 'src/Server/Avalon.Server/'
