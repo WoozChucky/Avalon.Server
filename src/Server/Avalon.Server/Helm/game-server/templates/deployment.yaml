@@ -1,0 +1,119 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "avalon-server.fullname" . }}
+  labels:
+    {{- include "avalon-server.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "avalon-server.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "avalon-server.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ .Chart.Name }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "registry.nunolevezinho.xyz/{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: Always
+          env:
+            # Infrastructure configuration
+            {{- if .Values.server.infra.minUpdateDiff }}
+            - name: Infrastructure__MinUpdateDiff
+              value: {{ .Values.server.infra.minUpdateDiff }}
+            {{- end }}
+            {{- if .Values.server.infra.maxCoreStuckTime }}
+            - name: Infrastructure__MaxCoreStuckTime
+              value: {{ .Values.server.infra.maxCoreStuckTime }}
+            {{- end }}
+            # TCP Network configuration
+            - name: NetworkDaemon__Tcp__Enabled
+              value: {{ .Values.server.network.tcp.enabled | default true }}
+            {{- if .Values.server.network.tcp.backlog }}
+            - name: NetworkDaemon__Tcp__Backlog
+              value: {{ .Values.server.network.tcp.backlog | default 128 }}
+            {{- end }}
+            # UDP Network configuration
+            - name: NetworkDaemon__Udp__Enabled
+              value: {{ .Values.server.network.udp.enabled | default false }}
+            {{- if .Values.server.network.udp.backlog }}
+            - name: NetworkDaemon__Udp__Backlog
+              value: {{ .Values.server.network.udp.backlog | default 128 }}
+            {{- end }}
+            # Metrics configuration
+            - name: Metrics__Enabled
+              value: {{ .Values.server.metrics.enabled | default false }}
+            - name: Metrics__Automatic
+              value: {{ .Values.server.metrics.automatic | default false }}
+            - name: Metrics__Export
+              value: {{ .Values.server.metrics.export | default false }}
+            {{- if .Values.server.metrics.apiUrl }}
+            - name: Metrics__ApiUrl
+              value: {{ .Values.server.metrics.apiUrl | quote }}
+            {{- end }}
+            {{- if .Values.server.metrics.apiUrl }}
+            - name: Metrics__ApiKey
+              value: {{ .Values.server.metrics.apiKey | quote }}
+            {{- end }}
+            # Database configuration
+            - name: Database__Auth__Host
+              value: {{ .Values.server.database.auth.host | quote }}
+            - name: Database__Auth__Port
+              value: {{ .Values.server.database.auth.port | quote }}
+            - name: Database__Auth__Database
+              value: {{ .Values.server.database.auth.database | quote }}
+            - name: Database__Auth__Username
+              value: {{ .Values.server.database.auth.username | quote }}
+            - name: Database__Auth__Password
+              value: {{ .Values.server.database.auth.password | quote }}
+            - name: Database__Characters__Host
+              value: {{ .Values.server.database.characters.host | quote }}
+            - name: Database__Characters__Port
+              value: {{ .Values.server.database.characters.port | quote }}
+            - name: Database__Characters__Database
+              value: {{ .Values.server.database.characters.database | quote }}
+            - name: Database__Characters__Username
+              value: {{ .Values.server.database.characters.username | quote }}
+            - name: Database__Characters__Password
+              value: {{ .Values.server.database.characters.password | quote }}
+            - name: Database__World__Host
+              value: {{ .Values.server.database.world.host | quote }}
+            - name: Database__World__Port
+              value: {{ .Values.server.database.world.port | quote }}
+            - name: Database__World__Database
+              value: {{ .Values.server.database.world.database | quote }}
+            - name: Database__World__Username
+              value: {{ .Values.server.database.world.username | quote }}
+            - name: Database__World__Password
+              value: {{ .Values.server.database.world.password | quote }}
+          ports:
+            - name: server-tcp
+              containerPort: {{ .Values.service.port }}
+              protocol: TCP
+            - name: server-udp
+              containerPort: {{ .Values.service.port }}
+              protocol: UDP
+          #livenessProbe:
+          #  httpGet:
+          #    path: /
+          #    port: server-tcp
+          #readinessProbe:
+          #  httpGet:
+          #    path: /
+          #    port: server-tcp
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
