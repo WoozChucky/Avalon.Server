@@ -52,10 +52,14 @@ internal class Program
 
     private static bool ExcludeFiles(string filename)
     {
-        if (filename.Contains("Patcher.dll") || filename.Contains("Patcher.exe"))
-            return false;
-        if (filename.Contains("crash.txt") || filename.Contains("patcher.txt") || filename.Contains("hash.json"))
-            return false;
-        return true;
+        return filename switch
+        {
+            "Patcher.exe" => false,
+            "Patcher.dll" => false,
+            "crash.txt" => false,
+            "patcher.txt" => false,
+            "hash.json" => false,
+            _ => true
+        };
     }
 }
