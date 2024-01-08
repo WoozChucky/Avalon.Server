@@ -53,10 +53,6 @@ namespace Avalon.Server
 
             ConfigureConfiguration(args);
             ConfigureDependencyInjection();
-
-            var svc = ServiceProvider.GetService<IHostedService>();
-            
-            await svc!.StartAsync(CancellationTokenSource.Token);
             
             try
             {

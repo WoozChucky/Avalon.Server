@@ -1,11 +1,44 @@
-# Default values for avalon-server.
-# This is a YAML-formatted file.
-# Declare variables to be passed into your templates.
+server:
+  infra:
+    minUpdateDiff: 1
+    maxCoreStuckTime: 60000
+  network:
+    tcp:
+      enabled: true
+      backlog: 128
+    udp:
+      enabled: false
+      backlog: 128
+  metrics:
+    enabled: false
+    apiUrl:
+    apiKey:
+    automatic: false
+    export: false
+  database:
+    auth:
+      host:
+      port:
+      database:
+      username:
+      password:
+    characters:
+      host:
+      port:
+      database:
+      username:
+      password:
+    world:
+      host:
+      port:
+      database:
+      username:
+      password:
 
 replicaCount: 1
 
 image:
-  repository: avalon/avalon-server
+  repository: avalon/game-server
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
   tag: latest
@@ -29,7 +62,7 @@ securityContext: {}
 
 service:
   type: ClusterIP
-  port: 80
+  port: 21000
 
 resources: {}
   # We usually recommend not to specify default resources and to leave this as a conscious

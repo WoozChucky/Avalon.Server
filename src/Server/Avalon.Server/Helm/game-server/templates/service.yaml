@@ -8,8 +8,12 @@ spec:
   type: {{ .Values.service.type }}
   ports:
     - port: {{ .Values.service.port }}
-      targetPort: http
+      targetPort: server-tcp
       protocol: TCP
-      name: http
+      name: server-tcp
+    - port: {{ .Values.service.port }}
+      targetPort: server-udp
+      protocol: UDP
+      name: server-udp
   selector:
     {{- include "avalon-server.selectorLabels" . | nindent 4 }}
