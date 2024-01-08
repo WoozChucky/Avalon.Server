@@ -1,60 +1,110 @@
+name: '$(Date:yyyyMMdd).$(rev:r)'
+
 trigger:
-- main
+  branches:
+    include:
+    - main
+  tags:
+    include:
+    - '*'
 
 pool:
-  #vmImage: ubuntu-latest
-  #name: Azure Pipelines
   name: CI
 
-steps:
-- checkout: self
-  persistCredentials: true
-  submodules: true
+variables:
+- name: dockerRegistryServiceConnection
+  value: 'Private Registry'
+- name: buildConfiguration
+  value: 'Release'
+- name: solution
+  value: 'Avalon.sln'
+- name: MajorVersion
+  value: 0
+- name: MinorVersion
+  value: 0
+- name: PatchVersion
+  value: 18
 
-- script: dotnet new --install MonoGame.Templates.CSharp
-  displayName: 'Install .NET MonoGame Templates'
+resources:
+  repositories:
+    - repository: BuildSteps
+      type: git
+      name: Avalon/BuildSteps
+      ref: refs/heads/main
 
-- script: |
-    echo Add other tasks to build, test, and deploy your project.
-    echo See https://aka.ms/yaml
-  displayName: 'Run a multi-line script'
+jobs:
+- job: 'ci_build'
+  displayName: 'CI Build'
+  timeoutInMinutes: 15 # how long to run the job before automatically cancelling
+  cancelTimeoutInMinutes: 2 # how much time to give 'run always even if cancelled tasks' before stopping them
+  steps:
+  - checkout: self
+    persistCredentials: true
+    submodules: true
 
-- task: DotNetCoreCLI@2
-  inputs:
-    command: 'restore'
-    projects: '**/*.csproj'
-    feedsToUse: 'select'
-    vstsFeed: '5392b5e8-f3b7-4382-b047-8bb2081f4a91'
-    verbosityRestore: 'Normal'
-  displayName: '.NET Restore'
+  - script: dotnet new --install MonoGame.Templates.CSharp
+    displayName: 'Install .NET MonoGame Templates'
 
-- task: DotNetCoreCLI@2
-  inputs:
-    command: 'build'
-    projects: '**/*.csproj'
-    arguments: '--no-restore'
-  displayName: '.NET Build'
+  - template: 'dotnet/restore-solution.yml@BuildSteps'
+  - template: 'dotnet/build-solution.yml@BuildSteps'
+  - template: 'dotnet/test-solution.yml@BuildSteps'
+  # Pack Network Packets
+  - template: 'dotnet/update-assembly.yml@BuildSteps'
+    parameters:
+      project: 'src/Shared/Avalon.Network.Packets/*.csproj'
+      product: 'Avalon.Network.Packets'
+      description: 'Network packets reference used by Avalon Game Server'
+  - template: 'dotnet/nuget-pack.yml@BuildSteps'
+    parameters:
+      project: 'src/Shared/Avalon.Network.Packets/*.csproj'
+  # Pack Network Packets end
+  # Pack Network Tcp
+  - template: 'dotnet/update-assembly.yml@BuildSteps'
+    parameters:
+      project: 'src/Shared/Avalon.Network.Tcp/*.csproj'
+      product: 'Avalon.Network.Tcp'
+      description: 'TCP client and server used by Avalon'
+  - template: 'dotnet/nuget-pack.yml@BuildSteps'
+    parameters:
+      project: 'src/Shared/Avalon.Network.Tcp/*.csproj'
+  # Pack Network Tcp end
+  # Pack Network Udp
+  - template: 'dotnet/update-assembly.yml@BuildSteps'
+    parameters:
+      project: 'src/Shared/Avalon.Network.Udp/*.csproj'
+      product: 'Avalon.Network.Udp'
+      description: 'UDP client and server used by Avalon'
+  - template: 'dotnet/nuget-pack.yml@BuildSteps'
+    parameters:
+      project: 'src/Shared/Avalon.Network.Udp/*.csproj'
+  # Pack Network Udp end
+  - template: 'dotnet/nuget-publish.yml@BuildSteps'
 
-- task: DotNetCoreCLI@2
-  inputs:
-    command: 'test'
-    arguments: '--no-build'
-  displayName: '.NET Test'
-
-- task: DotNetCoreCLI@2
-  inputs:
-    command: 'publish'
-    arguments: 'src/Server/Avalon.Server/Avalon.Server.csproj -c Release --no-restore'
-    publishWebProjects: false
-    zipAfterPublish: false
-    modifyOutputPath: false
-  displayName: '.NET Publish Server'
-
-- task: Docker@2
-  inputs:
-    containerRegistry: 'DockerHub Registry'
-    repository: 'woozx/avalon'
-    command: 'buildAndPush'
-    Dockerfile: 'src/Server/Avalon.Server/Dockerfile'
-    buildContext: 'src/Server/Avalon.Server/'
-  displayName: 'Docker Build&Publish'
+  - task: DotNetCoreCLI@2
+    inputs:
+      command: 'publish'
+      arguments: 'src/Server/Avalon.Server/Avalon.Server.csproj -c Release --no-restore'
+      publishWebProjects: false
+      zipAfterPublish: false
+      modifyOutputPath: false
+    displayName: '.NET Publish Server'
+  
+  # Publish Avalon Server
+  - template: 'docker/buildandpublish.yml@BuildSteps'
+    parameters:
+      buildContext: '$(Build.SourcesDirectory)/src/Server/Avalon.Server'
+      dockerfilePath: '$(Build.SourcesDirectory)/src/Server/Avalon.Server/Dockerfile'
+      imageRepository: 'avalon/server'
+  #- template: 'helm/packageandpublish.yml@BuildSteps'
+  #  parameters:
+  #    helmName: 'portal-api'
+  #    helmChartPath: '$(Build.SourcesDirectory)/Quix.Portal.Api/Helm'
+  
+  #- task: Docker@2
+  #  inputs:
+  #    containerRegistry: 'Private Registry'
+  #    repository: 'avalon/avalon-server'
+  #    command: 'buildAndPush'
+  #    Dockerfile: 'src/Server/Avalon.Server/Dockerfile'
+  #    buildContext: 'src/Server/Avalon.Server/'
+  #  displayName: 'Docker Build&Publish'
