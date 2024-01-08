@@ -7,7 +7,7 @@ trigger:
   tags:
     include:
     - '*'
-
+ 
 pool:
   name: CI
 
