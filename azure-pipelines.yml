@@ -94,7 +94,7 @@ jobs:
     parameters:
       buildContext: '$(Build.SourcesDirectory)/src/Server/Avalon.Server'
       dockerfilePath: '$(Build.SourcesDirectory)/src/Server/Avalon.Server/Dockerfile'
-      imageRepository: 'avalon/server'
+      imageRepository: 'game-server'
   #- template: 'helm/packageandpublish.yml@BuildSteps'
   #  parameters:
   #    helmName: 'portal-api'
