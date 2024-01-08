@@ -11,29 +11,29 @@ server:
       backlog: 128
   metrics:
     enabled: false
-    apiUrl:
-    apiKey:
+    apiUrl: localhost
+    apiKey: apiKey
     automatic: false
     export: false
   database:
     auth:
-      host:
-      port:
-      database:
-      username:
-      password:
+      host: localhost
+      port: 3306
+      database: auth
+      username: root
+      password: password
     characters:
-      host:
-      port:
-      database:
-      username:
-      password:
+      host: localhost
+      port: 3306
+      database: characters
+      username: root
+      password: password
     world:
-      host:
-      port:
-      database:
-      username:
-      password:
+      host: localhost
+      port: 3306
+      database: world
+      username: root
+      password: password
 
 replicaCount: 1
 
