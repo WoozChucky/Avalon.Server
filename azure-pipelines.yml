@@ -52,7 +52,7 @@ steps:
 
 - task: Docker@2
   inputs:
-    containerRegistry: 'DockerHub Registry'
+    containerRegistry: 'Private Registry'
     repository: 'woozx/avalon'
     command: 'buildAndPush'
     Dockerfile: 'src/Server/Avalon.Server/Dockerfile'
