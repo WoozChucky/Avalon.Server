@@ -123,7 +123,7 @@ jobs:
       scriptLocation: 'inlineScript'
       script: |
         ls
-        helm push game-server-$(Build.BuildNumber).tgz oci://$(registryUrl)/avalon
+        helm push game-server-$(Build.BuildNumber)-helm.tgz oci://$(registryUrl)/avalon
   #- task: Docker@2
   #  inputs:
   #    containerRegistry: 'Private Registry'
