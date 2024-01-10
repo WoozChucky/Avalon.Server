@@ -9,7 +9,7 @@ trigger:
     - '*'
  
 pool:
-  name: Azure Pipelines
+  name: CI
 
 variables:
 - name: dockerRegistryServiceConnection
@@ -98,6 +98,13 @@ jobs:
       modifyOutputPath: false
     displayName: '.NET Publish Server'
   
+  - task: Docker@2
+    inputs:
+      containerRegistry: 'Private Registry'
+      repository: 'avalon/game-server'
+      command: 'buildAndPush'
+      Dockerfile: 'src/Server/Avalon.Server/Dockerfile'
+      buildContext: 'src/Server/Avalon.Server/'
   # Publish Avalon Server
   - template: 'docker/buildandpublish.yml@BuildSteps'
     parameters:
@@ -115,6 +122,6 @@ jobs:
   #    containerRegistry: 'Private Registry'
   #    repository: 'avalon/avalon-server'
   #    command: 'buildAndPush'
-  #    Dockerfile: 'src/Server/Avalon.Server/Dockerfile'
+  #    Dockerfile: '
   #    buildContext: 'src/Server/Avalon.Server/'
   #  displayName: 'Docker Build&Publish'
