@@ -34,33 +34,33 @@ spec:
             # Infrastructure configuration
             {{- if .Values.server.infra.minUpdateDiff }}
             - name: Infrastructure__MinUpdateDiff
-              value: {{ .Values.server.infra.minUpdateDiff }}
+              value: {{ .Values.server.infra.minUpdateDiff | quote }}
             {{- end }}
             {{- if .Values.server.infra.maxCoreStuckTime }}
             - name: Infrastructure__MaxCoreStuckTime
-              value: {{ .Values.server.infra.maxCoreStuckTime }}
+              value: {{ .Values.server.infra.maxCoreStuckTime | quote }}
             {{- end }}
             # TCP Network configuration
             - name: NetworkDaemon__Tcp__Enabled
               value: {{ .Values.server.network.tcp.enabled | default true | quote }}
             {{- if .Values.server.network.tcp.backlog }}
             - name: NetworkDaemon__Tcp__Backlog
-              value: {{ .Values.server.network.tcp.backlog | default 128 }}
+              value: {{ .Values.server.network.tcp.backlog | default 128 | quote }}
             {{- end }}
             # UDP Network configuration
             - name: NetworkDaemon__Udp__Enabled
               value: {{ .Values.server.network.udp.enabled | default false | quote }}
             {{- if .Values.server.network.udp.backlog }}
             - name: NetworkDaemon__Udp__Backlog
-              value: {{ .Values.server.network.udp.backlog | default 128 }}
+              value: {{ .Values.server.network.udp.backlog | default 128 | quote }}
             {{- end }}
             # Metrics configuration
             - name: Metrics__Enabled
-              value: {{ .Values.server.metrics.enabled | default false }}
+              value: {{ .Values.server.metrics.enabled | default false | quote }}
             - name: Metrics__Automatic
-              value: {{ .Values.server.metrics.automatic | default false }}
+              value: {{ .Values.server.metrics.automatic | default false | quote }}
             - name: Metrics__Export
-              value: {{ .Values.server.metrics.export | default false }}
+              value: {{ .Values.server.metrics.export | default false | quote }}
             {{- if .Values.server.metrics.apiUrl }}
             - name: Metrics__ApiUrl
               value: {{ .Values.server.metrics.apiUrl | quote }}
@@ -73,7 +73,7 @@ spec:
             - name: Database__Auth__Host
               value: {{ .Values.server.database.auth.host | quote }}
             - name: Database__Auth__Port
-              value: {{ .Values.server.database.auth.port }}
+              value: {{ .Values.server.database.auth.port | quote }}
             - name: Database__Auth__Database
               value: {{ .Values.server.database.auth.database | quote }}
             - name: Database__Auth__Username
@@ -83,7 +83,7 @@ spec:
             - name: Database__Characters__Host
               value: {{ .Values.server.database.characters.host | quote }}
             - name: Database__Characters__Port
-              value: {{ .Values.server.database.characters.port }}
+              value: {{ .Values.server.database.characters.port | quote }}
             - name: Database__Characters__Database
               value: {{ .Values.server.database.characters.database | quote }}
             - name: Database__Characters__Username
@@ -93,7 +93,7 @@ spec:
             - name: Database__World__Host
               value: {{ .Values.server.database.world.host | quote }}
             - name: Database__World__Port
-              value: {{ .Values.server.database.world.port }}
+              value: {{ .Values.server.database.world.port | quote }}
             - name: Database__World__Database
               value: {{ .Values.server.database.world.database | quote }}
             - name: Database__World__Username
