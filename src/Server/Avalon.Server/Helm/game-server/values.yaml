@@ -17,29 +17,29 @@ server:
     export: false
   database:
     auth:
-      host: localhost
-      port: 3306
-      database: auth
-      username: root
-      password: password
+      host:
+      port:
+      database:
+      username:
+      password:
     characters:
-      host: localhost
-      port: 3306
-      database: characters
-      username: root
-      password: password
+      host:
+      port:
+      database:
+      username:
+      password:
     world:
-      host: localhost
-      port: 3306
-      database: world
-      username: root
-      password: password
+      host:
+      port:
+      database:
+      username:
+      password:
 
 replicaCount: 1
 
 image:
   repository: avalon/game-server
-  pullPolicy: IfNotPresent
+  pullPolicy: Always
   # Overrides the image tag whose default is the chart appVersion.
   tag: latest
 
