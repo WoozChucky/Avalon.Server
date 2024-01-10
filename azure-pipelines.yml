@@ -101,7 +101,7 @@ jobs:
   - template: 'docker/build.yml@BuildSteps'
     parameters:
       imageRepository: 'avalon/game-server'
-      dockerfilePath: $(Build.SourcesDirectory)/src/Server/Avalon.Server/Dockerfile'
+      dockerfilePath: '$(Build.SourcesDirectory)/src/Server/Avalon.Server/Dockerfile'
 
   - task: Bash@3
     inputs:
