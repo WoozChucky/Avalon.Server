@@ -124,7 +124,7 @@ jobs:
       script: |
         ls
         helm push game-server-$(Build.BuildNumber)-helm.tgz oci://$(registryUrl)/avalon
-        helm push game-server-latest.tgz oci://$(registryUrl)/avalon
+        helm push game-server-0.0-latest.tgz oci://$(registryUrl)/avalon
   #- task: Docker@2
   #  inputs:
   #    containerRegistry: 'Private Registry'
