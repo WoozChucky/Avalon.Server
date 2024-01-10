@@ -98,7 +98,7 @@ jobs:
       modifyOutputPath: false
     displayName: '.NET Publish Server'
   
-  - template: 'docker/build.yml'
+  - template: 'docker/build.yml@BuildSteps'
     parameters:
       imageRepository: 'avalon/game-server'
       dockerfilePath: $(Build.SourcesDirectory)/src/Server/Avalon.Server/Dockerfile'
