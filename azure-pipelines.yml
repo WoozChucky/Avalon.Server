@@ -98,20 +98,18 @@ jobs:
       modifyOutputPath: false
     displayName: '.NET Publish Server'
   
-  - template: 'docker/buildandpublish.yml@BuildSteps'
+  - template: 'docker/build.yml@BuildSteps'
     parameters:
       imageRepository: '$(registryUrl)/avalon/game-server'
       dockerfilePath: 'src/Server/Avalon.Server/Dockerfile'
-      dockerRegistryServiceConnection: $(dockerRegistryServiceConnection)
-      buildContext: 'src/Server/Avalon.Server'
 
-  #- task: Bash@3
-  #  inputs:
-  #    targetType: 'inline'
-  #    script: |
-  #      #!/bin/bash
-  #      docker push $(registryUrl)/avalon/game-server:$(Build.BuildNumber)
-  #      docker push $(registryUrl)/avalon/game-server:latest
+  - task: Bash@3
+    inputs:
+      targetType: 'inline'
+      script: |
+        #!/bin/bash
+        docker push $(registryUrl)/avalon/game-server:$(Build.BuildNumber)
+        docker push $(registryUrl)/avalon/game-server:latest
         
   - template: 'helm/packageandpublish.yml@BuildSteps'
     parameters:
