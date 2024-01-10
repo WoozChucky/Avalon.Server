@@ -14,10 +14,19 @@ pool:
 variables:
 - name: dockerRegistryServiceConnection
   value: 'Private Registry'
+
+- name: dockerHubContainerRegistry
+  value: 'Private Registry'
+- name: dockerHubUsername
+  value: 'avalon'
+- name: dockerHubPassword
+  value: $(dockerHubPassword)
+
 - name: buildConfiguration
   value: 'Release'
 - name: solution
   value: 'Avalon.sln'
+
 - name: MajorVersion
   value: 0
 - name: MinorVersion
@@ -95,10 +104,10 @@ jobs:
       buildContext: '$(Build.SourcesDirectory)/src/Server/Avalon.Server'
       dockerfilePath: '$(Build.SourcesDirectory)/src/Server/Avalon.Server/Dockerfile'
       imageRepository: 'game-server'
-  #- template: 'helm/packageandpublish.yml@BuildSteps'
-  #  parameters:
-  #    helmName: 'portal-api'
-  #    helmChartPath: '$(Build.SourcesDirectory)/Quix.Portal.Api/Helm'
+  - template: 'helm/packageandpublish.yml@BuildSteps'
+    parameters:
+      helmName: 'game-server'
+      helmChartPath: '$(Build.SourcesDirectory)/src/Server/Avalon.Server/Helm'
   
   #- task: Docker@2
   #  inputs:
