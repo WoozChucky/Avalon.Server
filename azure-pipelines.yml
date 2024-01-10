@@ -16,11 +16,11 @@ variables:
   value: 'Private Registry'
 
 - name: dockerHubContainerRegistry
-  value: 'Private Registry'
+  value: $(registryUrl)
 - name: dockerHubUsername
-  value: 'avalon'
+  value: $(registryUsername)
 - name: dockerHubPassword
-  value: $(dockerHubPassword)
+  value: $(registryPassword)
 
 - name: buildConfiguration
   value: 'Release'
