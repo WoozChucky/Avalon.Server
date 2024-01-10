@@ -100,7 +100,7 @@ jobs:
   
   - template: 'docker/buildandpublish.yml@BuildSteps'
     parameters:
-      imageRepository: '$(registryUrl)/avalon/game-server'
+      imageRepository: 'avalon/game-server'
       dockerfilePath: 'src/Server/Avalon.Server/Dockerfile'
       dockerRegistryServiceConnection: $(dockerRegistryServiceConnection)
       buildContext: 'src/Server/Avalon.Server'
