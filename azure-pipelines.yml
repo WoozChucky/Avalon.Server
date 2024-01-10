@@ -101,6 +101,7 @@ jobs:
   # Publish Avalon Server
   - template: 'docker/buildandpublish.yml@BuildSteps'
     parameters:
+      dockerServiceConnection: $(dockerRegistryServiceConnection)
       buildContext: '$(Build.SourcesDirectory)/src/Server/Avalon.Server'
       dockerfilePath: '$(Build.SourcesDirectory)/src/Server/Avalon.Server/Dockerfile'
       imageRepository: 'game-server'
