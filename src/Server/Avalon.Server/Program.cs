@@ -145,7 +145,7 @@ namespace Avalon.Server
                         .Enrich.FromLogContext()
                         .Enrich.WithThreadId()
                         .Enrich.With<LayerEnricher>() // ({SourceContext})
-                        .WriteTo.Console(LogEventLevel.Debug, outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level}] [{ThreadId}] [{Layer}] -> {Message}{NewLine}{Exception}", theme: AnsiConsoleTheme.Sixteen)
+                        .WriteTo.Console(LogEventLevel.Debug, outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level}] [{ThreadId}] [{Layer}] -> {Message}{NewLine}{Exception}", theme: AnsiConsoleTheme.Sixteen, applyThemeToRedirectedOutput: true)
                         .CreateLogger()
                     )
                     .SetMinimumLevel(LogLevel.Debug);
