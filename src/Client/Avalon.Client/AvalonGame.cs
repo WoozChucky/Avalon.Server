@@ -71,7 +71,7 @@ public class AvalonGame : Game
         
         Globals.Tcp = new AvalonTcpClient(new AvalonTcpClientSettings
         {
-            Host = "nunolevezinho.xyz",
+            Host = "play.avalon.monster",
             Port = 21000,
             CertificatePath = "cert-public.pem"
         });
