@@ -45,6 +45,17 @@ namespace Avalon.Client.Simulator
             private volatile bool _needsAccount;
             private volatile bool _inGame;
 
+            private volatile float _currentXPosition;
+            private volatile float _currentYPosition;
+            private volatile float _currentXVelocity;
+            private volatile float _currentYVelocity;
+            // Initialize persistent direction
+            private volatile float persistentXDirection = 0f;
+            private volatile float persistentYDirection = 0f;
+            
+            // Define persistence factor (higher values mean less frequent direction changes)
+            private float _persistence = 0.8f;
+
             public SimulatedClient(string username, string password)
             {
                 _username = username;
@@ -61,6 +72,7 @@ namespace Avalon.Client.Simulator
                 _tcp.CharacterCreated += OnCharacterCreated;
                 _tcp.CharacterSelected += OnCharacterSelected;
                 _tcp.RegisterResult += OnRegisterResult;
+                
             }
 
             private async void OnRegisterResult(object sender, SRegisterResultPacket packet)
@@ -90,6 +102,8 @@ namespace Avalon.Client.Simulator
 
             private void OnCharacterSelected(object sender, SCharacterSelectedPacket packet)
             {
+                _currentXPosition = packet.Character.X;
+                _currentYPosition = packet.Character.Y;
                 _characterSelected = true;
             }
 
@@ -169,10 +183,60 @@ namespace Avalon.Client.Simulator
 
                     if (_inGame)
                     {
-                        // send random movement packets
-                        //await _tcp.BroadcastMovementUpdates()
+                        if (RandomNumberGenerator.GetInt32(0, 10) == 0)
+                        {
+                            // Introduce acceleration and deceleration
+                            float acceleration = 0.1f;
+                            float deceleration = 0.2f;
+
+                            // Random acceleration changes
+                            float xAcceleration = RandomFloat(-acceleration, acceleration);
+                            float yAcceleration = RandomFloat(-acceleration, acceleration);
+
+                            // Update velocity with acceleration
+                            _currentXVelocity += xAcceleration;
+                            _currentYVelocity += yAcceleration;
+
+                            // Apply deceleration to simulate natural slowing down
+                            _currentXVelocity *= (1 - deceleration);
+                            _currentYVelocity *= (1 - deceleration);
+
+                            // Update position based on velocity
+                            _currentXPosition = Clamp(_currentXPosition + (int)_currentXVelocity, 0, 250);
+                            _currentYPosition = Clamp(_currentYPosition + (int)_currentYVelocity, 0, 250);
+
+                            // Apply persistence to maintain direction
+                            if (RandomFloat(0, 1) > _persistence)
+                            {
+                                // Change persistent direction
+                                persistentXDirection = RandomFloat(-1, 1);
+                                persistentYDirection = RandomFloat(-1, 1);
+                            }
+
+                            // Update velocity based on persistent direction
+                            _currentXVelocity = persistentXDirection;
+                            _currentYVelocity = persistentYDirection;
+
+                            // Broadcast the movement updates
+                            await _tcp.BroadcastMovementUpdates(0f, _currentXPosition, _currentYPosition, _currentXVelocity, _currentYVelocity);
+
+                            // Introduce a small delay to simulate more natural movement
+                            Thread.Sleep(50);
+                        }
+                        
                     }
                 }
+            }
+            
+            float RandomFloat(float min, float max)
+            {
+                return min + (float)RandomNumberGenerator.GetInt32((int)((min * 1000)), (int)((max * 1000) + 1)) / 1000f;
+            }
+            
+            // Helper function to clamp a value within a specified range
+            float Clamp(float value, int min, int max)
+            {
+                return Math.Max(min, Math.Min(max, value));
             }
         }
     }
