@@ -1,6 +1,7 @@
 using Avalon.Api;
 using Avalon.Api.Config;
 using Avalon.Api.ExceptionHandlers;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -26,7 +27,7 @@ var services = builder.Services;
     });
 
     services.AddExceptionHandler<DefaultExceptionHandler>();
-    
+    services.AddHealthChecks();
     services.AddCors();
 
     services.AddHttpContextAccessor();
@@ -44,16 +45,16 @@ var app = builder.Build();
 {
     if (app.Environment.IsDevelopment())
     {
-        app.UseSwagger();
-        app.UseSwaggerUI();
+        
         app.UseDeveloperExceptionPage();
     }
     else
     {
-        app.UseHsts();
+        // app.UseHsts();
     }
     
-    app.UseHttpsRedirection();
+    app.UseSwagger();
+    app.UseSwaggerUI();
     
     app.UseRouting();
 
@@ -68,7 +69,9 @@ var app = builder.Build();
     app.UseAuthentication();
 
     app.UseAuthorization();
-
+    
+    app.MapHealthChecks("/health");
+    
     app.MapControllers();
 }
 
