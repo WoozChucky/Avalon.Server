@@ -158,7 +158,7 @@ jobs:
       zipAfterPublish: false
       modifyOutputPath: false
   
-  - template: Bash@3
+  - task: Bash@3
     displayName: 'Docker Build - game-server - $(Build.BuildNumber)'
     inputs:
       targetType: 'inline'
