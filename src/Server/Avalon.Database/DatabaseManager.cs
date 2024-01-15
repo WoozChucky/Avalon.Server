@@ -4,6 +4,7 @@ using System.Reflection;
 using Avalon.Database.Auth;
 using Avalon.Database.Characters;
 using Avalon.Database.World;
+using Avalon.Domain.Attributes;
 using Avalon.Domain.Auth;
 using Avalon.Domain.Characters;
 using Avalon.Domain.World;

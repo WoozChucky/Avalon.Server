@@ -3,6 +3,8 @@ services:
   avalon-server:
     image: registry.nunolevezinho.xyz/avalon/game-server:latest
     container_name: avalon-server
+    privileged: true
+    network_mode: host
     environment:
       - "AVALON_SERVER__NETWORK__TCP__ENABLED=true"
       - "AVALON_SERVER__NETWORK__TCP__BACKLOG=128"
@@ -13,20 +15,20 @@ services:
       - "AVALON_SERVER__METRICS__APIKEY=apiKey"
       - "AVALON_SERVER__METRICS__AUTOMATIC=false"
       - "AVALON_SERVER__METRICS__EXPORT=false"
-      - "DATABASE__AUTH__HOST=192.168.1.67"
-      - "AVALON_SERVER__DATABASE__AUTH__PORT=3306"
-      - "AVALON_SERVER__DATABASE__AUTH__DATABASE=auth"
-      - "AVALON_SERVER__DATABASE__AUTH__USERNAME=root"
-      - "AVALON_SERVER__DATABASE__AUTH__PASSWORD=123"
-      - "DATABASE__CHARACTERS__HOST=192.168.1.67"
-      - "AVALON_SERVER__DATABASE__CHARACTERS__PORT=3306"
-      - "AVALON_SERVER__DATABASE__CHARACTERS__DATABASE=characters"
-      - "AVALON_SERVER__DATABASE__CHARACTERS__USERNAME=root"
-      - "AVALON_SERVER__DATABASE__CHARACTERS__PASSWORD=123"
-      - "DATABASE__WORLD__HOST=192.168.1.67"
-      - "AVALON_SERVER__DATABASE__WORLD__PORT=3306"
-      - "AVALON_SERVER__DATABASE__WORLD__DATABASE=world"
-      - "AVALON_SERVER__DATABASE__WORLD__USERNAME=root"
-      - "AVALON_SERVER__DATABASE__WORLD__PASSWORD=123"
+      - "Database__Auth__Host=192.168.1.67"
+      - "Database__Auth__Port=3306"
+      - "Database__Auth__Database=auth"
+      - "Database__Auth__Username=root"
+      - "Database__Auth__Password=123"
+      - "Database__Characters__Host=192.168.1.67"
+      - "Database__Characters__Port=3306"
+      - "Database__Characters__Database=characters"
+      - "Database__Characters__Username=root"
+      - "Database__Characters__Password=123"
+      - "Database__World__Host=192.168.1.67"
+      - "Database__World__Port=3306"
+      - "Database__World__Database=world"
+      - "Database__World__Username=root"
+      - "Database__World__Password=123"
     ports:
       - "21000:21000"
