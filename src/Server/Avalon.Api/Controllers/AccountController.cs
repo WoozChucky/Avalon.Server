@@ -1,8 +1,6 @@
-using System.Security.Claims;
 using Avalon.Api.Authentication;
 using Avalon.Api.Contract;
 using Avalon.Api.Services;
-using Avalon.Database.Auth;
 using Avalon.Domain.Auth;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -11,7 +9,7 @@ using OtpNet;
 namespace Avalon.Api.Controllers;
 
 [ApiController]
-[Route("[controller]")]
+[Route("account")]
 public class AccountController : BaseController
 {
     private readonly IAccountService _accountService;
@@ -23,7 +21,6 @@ public class AccountController : BaseController
         _authContext = authContext;
     }
     
-    //[Authentication.Authorize]
     [Authorize]
     [HttpGet(Name = "GetAccount")]
     public async Task<Account> Get()
@@ -32,7 +29,7 @@ public class AccountController : BaseController
     }
     
     [AllowAnonymous]
-    [HttpPost("Authenticate", Name = "Authenticate")]
+    [HttpPost("authenticate", Name = "Authenticate")]
     public async Task<IActionResult> Authenticate([FromBody] AuthenticateRequest model)
     {
         var jwt = await _accountService.Authenticate(model, IpAddress, CancellationToken);
@@ -42,7 +39,7 @@ public class AccountController : BaseController
     }
     
     [AllowAnonymous]
-    [HttpPost("Register", Name = "Register")]
+    [HttpPost("register", Name = "Register")]
     public async Task<IActionResult> Register([FromBody] RegisterRequest model)
     {
         var jwt = await _accountService.Register(model, IpAddress, CancellationToken);
@@ -50,7 +47,7 @@ public class AccountController : BaseController
     }
     
     [AllowAnonymous]
-    [HttpGet("Test", Name = "Test")]
+    [HttpGet("test", Name = "Test")]
     public async Task<IActionResult> Test()
     {
         var totp = new Totp("base32secret3232"u8.ToArray());

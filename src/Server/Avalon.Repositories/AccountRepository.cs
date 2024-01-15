@@ -29,7 +29,7 @@ namespace Avalon.Repositories
         {
             await using var connection = new MySqlConnection(_connectionString);
             
-            return await connection.GetAsync<Account>(id);
+            return await connection.QueryFirstOrDefaultAsync<Account>("SELECT * FROM auth.Account WHERE id = @Id", new { Id = id });
         }
 
         public async Task<IEnumerable<Account>> FindAllAsync()

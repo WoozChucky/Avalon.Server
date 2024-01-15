@@ -10,6 +10,7 @@ using Avalon.Repositories;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.Net.Http.Headers;
 using Microsoft.OpenApi.Models;
 using OpenTelemetry.Exporter;
 using OpenTelemetry.Metrics;
@@ -95,6 +96,22 @@ public static class ServiceRegistration
             options.DefaultScheme = JwtBearerDefaults.AuthenticationScheme;
         }).AddJwtBearer(x =>
         {
+            x.Events = new JwtBearerEvents
+            {
+                OnMessageReceived = context =>
+                {
+                    // try to fetch from authorization header, if not found, try from cookie
+                    if (context.Request.Headers.TryGetValue(HeaderNames.Authorization, out var token))
+                    {
+                        context.Token = token.ToString().Split(" ")[1];
+                    }
+                    else if (context.Request.Cookies.TryGetValue(AuthConstants.CookieName, out var cookie))
+                    {
+                        context.Token = cookie;
+                    }
+                    return Task.CompletedTask;
+                }
+            };
             
             x.TokenValidationParameters = new TokenValidationParameters
             {
