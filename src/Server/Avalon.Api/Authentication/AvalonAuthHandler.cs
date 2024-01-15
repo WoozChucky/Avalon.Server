@@ -14,9 +14,10 @@ public class AvalonAuthHandler : IAuthorizationHandler
 {
     private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly IAccountService _accountService;
-    
-    public AvalonAuthHandler(IHttpContextAccessor httpContextAccessor, IAccountService accountService)
+    private readonly ILogger<AvalonAuthHandler> _logger;
+    public AvalonAuthHandler(ILoggerFactory loggerFactory, IHttpContextAccessor httpContextAccessor, IAccountService accountService)
     {
+        _logger = loggerFactory.CreateLogger<AvalonAuthHandler>();
         _httpContextAccessor = httpContextAccessor;
         _accountService = accountService;
     }
@@ -57,7 +58,9 @@ public class AvalonAuthHandler : IAuthorizationHandler
         }
 
         var authContext = _httpContextAccessor.HttpContext.RequestServices.GetRequiredService<IAuthContext>();
-
+        
+        _logger.LogInformation("Loading account {AccountId}", accountId);
+        
         var account = await _accountService.FindById(int.Parse(accountId));
         
         if (account == null)
