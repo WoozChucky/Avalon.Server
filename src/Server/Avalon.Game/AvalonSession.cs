@@ -1,6 +1,7 @@
 using Avalon.Common.Cryptography;
 using Avalon.Common.Threading;
 using Avalon.Database.Characters;
+using Avalon.Domain.Characters;
 using Avalon.Network;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Generic;

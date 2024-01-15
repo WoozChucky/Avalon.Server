@@ -1,8 +1,6 @@
 using System.Collections.Concurrent;
-using System.Collections.ObjectModel;
 using Avalon.Database;
-using Avalon.Database.World;
-using Avalon.Database.World.Model;
+using Avalon.Domain.World;
 using Avalon.Game.Maps.Virtual;
 using Avalon.Game.Pools;
 using Microsoft.Extensions.Logging;

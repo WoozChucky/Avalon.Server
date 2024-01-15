@@ -1,7 +1,7 @@
 using System.Drawing;
 using System.Numerics;
 using Avalon.Database;
-using Avalon.Database.World.Model;
+using Avalon.Domain.World;
 using Avalon.Game.Maps.Virtual;
 using Microsoft.Extensions.Logging;
 

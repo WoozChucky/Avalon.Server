@@ -21,5 +21,8 @@
       </None>
     </ItemGroup>
 
-
+    <ItemGroup>
+      <ProjectReference Include="..\..\Shared\Avalon.Domain\Avalon.Domain.csproj" />
+    </ItemGroup>
+    
 </Project>

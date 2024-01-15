@@ -61,13 +61,15 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Tests", "Tests", "{659A24EA
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Avalon.Server.IntegrationTests", "tests\Avalon.Server.IntegrationTests\Avalon.Server.IntegrationTests.csproj", "{60C6291A-0BB7-43F2-8C8A-956BE12201C2}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Avalon.Api", "Avalon.Api\Avalon.Api.csproj", "{A20E1FEC-07B3-4B74-9CB2-6A234477EEE6}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Avalon.Api", "src\Server\Avalon.Api\Avalon.Api.csproj", "{A20E1FEC-07B3-4B74-9CB2-6A234477EEE6}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Avalon.Repositories", "src\Server\Avalon.Repositories\Avalon.Repositories.csproj", "{2352D5E8-1C9B-49C9-9437-CC3F9BB0E6E0}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Tools", "Tools", "{F506D206-DC04-4EAC-BD00-ABA6A073E757}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Avalon.Benchmarking", "tools\Avalon.Benchmarking\Avalon.Benchmarking.csproj", "{E1B1005A-43F4-47A2-BEF5-AE3D2BE1A183}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Avalon.Domain", "src\Shared\Avalon.Domain\Avalon.Domain.csproj", "{D8D5505D-6256-4E08-BFA9-BCF356BB4883}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -163,6 +165,10 @@ Global
 		{E1B1005A-43F4-47A2-BEF5-AE3D2BE1A183}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{E1B1005A-43F4-47A2-BEF5-AE3D2BE1A183}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{E1B1005A-43F4-47A2-BEF5-AE3D2BE1A183}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D8D5505D-6256-4E08-BFA9-BCF356BB4883}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D8D5505D-6256-4E08-BFA9-BCF356BB4883}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D8D5505D-6256-4E08-BFA9-BCF356BB4883}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D8D5505D-6256-4E08-BFA9-BCF356BB4883}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -195,6 +201,7 @@ Global
 		{A20E1FEC-07B3-4B74-9CB2-6A234477EEE6} = {487F1AE2-1995-411B-8080-6434ACA40E86}
 		{2352D5E8-1C9B-49C9-9437-CC3F9BB0E6E0} = {0C56F203-0A21-4680-9F9D-987BA111B125}
 		{E1B1005A-43F4-47A2-BEF5-AE3D2BE1A183} = {F506D206-DC04-4EAC-BD00-ABA6A073E757}
+		{D8D5505D-6256-4E08-BFA9-BCF356BB4883} = {44F4FAA6-D875-4F06-8308-DD6990AF1E63}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {20CD880E-2A9B-4B75-A2C1-3145230B285E}
