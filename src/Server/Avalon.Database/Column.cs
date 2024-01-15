@@ -1,9 +1,0 @@
-using System;
-
-namespace Avalon.Database;
-
-[AttributeUsage(AttributeTargets.Property)]
-public class Column(string name) : Attribute
-{
-    public string Name { get; } = name;
-}
