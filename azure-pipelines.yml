@@ -64,8 +64,8 @@ jobs:
       product: 'Avalon.Network.Packets'
       description: 'Network packets reference used by Avalon Game Server'
   - template: 'dotnet/nuget-pack.yml@BuildSteps'
-  #  parameters:
-  #    project: 'src/Shared/Avalon.Network.Packets/*.csproj'
+    parameters:
+      project: 'src/Shared/Avalon.Network.Packets/*.csproj'
   # Pack Network Packets end
   # Pack Network Tcp
   #- template: 'dotnet/update-assembly.yml@BuildSteps'
