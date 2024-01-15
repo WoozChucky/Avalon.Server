@@ -134,7 +134,7 @@ jobs:
     - template: 'dotnet/restore-solution.yml@BuildSteps'
 
     - task: DotNetCoreCLI@2
-      displayName: '.NET Publish Server'
+      displayName: '.NET Publish Api'
       inputs:
         command: 'publish'
         arguments: 'src/Server/Avalon.Api/Avalon.Api.csproj -c Release --no-restore'
