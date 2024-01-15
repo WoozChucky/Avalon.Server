@@ -58,18 +58,6 @@ jobs:
   - template: 'dotnet/restore-solution.yml@BuildSteps'
   - template: 'dotnet/build-solution.yml@BuildSteps'
   - template: 'dotnet/test-solution.yml@BuildSteps'
-
-- job: 'ci_publish'
-  displayName: 'CI Publish'
-  dependsOn: 'ci_build_test'
-  steps:
-
-  - checkout: self
-    persistCredentials: true
-    submodules: true
-
-  - template: 'dotnet/restore-solution.yml@BuildSteps'
-  - template: 'dotnet/build-solution.yml@BuildSteps'
     
   # Pack Network Packets
   #- template: 'dotnet/update-assembly.yml@BuildSteps'
@@ -123,64 +111,43 @@ jobs:
   # Pack Domain end
   - template: 'dotnet/nuget-publish.yml@BuildSteps'
 
-- job: 'ci_api_docker_helm'
-  displayName: 'CI Api Docker + Helm'
-  dependsOn: 'ci_build_test'
-  steps:
-    - checkout: self
-      persistCredentials: true
-      submodules: true
+  - task: DotNetCoreCLI@2
+    displayName: '.NET Publish Api'
+    inputs:
+      command: 'publish'
+      arguments: 'src/Server/Avalon.Api/Avalon.Api.csproj -c Release --no-restore'
+      publishWebProjects: false
+      zipAfterPublish: false
+      modifyOutputPath: false
 
-    - template: 'dotnet/restore-solution.yml@BuildSteps'
+  - template: 'docker/build.yml@BuildSteps'
+    parameters:
+      imageRepository: '$(registryUrl)/avalon/avalon-api'
+      dockerfilePath: 'src/Server/Avalon.Api/Dockerfile'
 
-    - task: DotNetCoreCLI@2
-      displayName: '.NET Publish Api'
-      inputs:
-        command: 'publish'
-        arguments: 'src/Server/Avalon.Api/Avalon.Api.csproj -c Release --no-restore'
-        publishWebProjects: false
-        zipAfterPublish: false
-        modifyOutputPath: false
+  - task: Bash@3
+    displayName:  Docker Push - avalon-api - $(Build.BuildNumber)
+    inputs:
+      targetType: 'inline'
+      script: |
+        #!/bin/bash
+        docker push $(registryUrl)/avalon/avalon-api:$(Build.BuildNumber)
+        docker push $(registryUrl)/avalon/avalon-api:latest
 
-    - template: 'docker/build.yml@BuildSteps'
-      parameters:
-        imageRepository: '$(registryUrl)/avalon/avalon-api'
-        dockerfilePath: 'src/Server/Avalon.Api/Dockerfile'
+  - template: 'helm/package.yml@BuildSteps'
+    parameters:
+      helmName: 'avalon-api'
+      helmChartPath: '$(Build.SourcesDirectory)/src/Server/Avalon.Api/Helm'
 
-    - task: Bash@3
-      displayName:  Docker Push - avalon-api - $(Build.BuildNumber)
-      inputs:
-        targetType: 'inline'
-        script: |
-          #!/bin/bash
-          docker push $(registryUrl)/avalon/avalon-api:$(Build.BuildNumber)
-          docker push $(registryUrl)/avalon/avalon-api:latest
-
-    - template: 'helm/package.yml@BuildSteps'
-      parameters:
-        helmName: 'avalon-api'
-        helmChartPath: '$(Build.SourcesDirectory)/src/Server/Avalon.Api/Helm'
-
-    - task: Bash@3
-      displayName:  'Helm OCI Publish - avalon-api - $(Build.BuildNumber)'
-      inputs:
-        targetType: 'bash'
-        scriptLocation: 'inlineScript'
-        script: |
-          ls
-          helm push avalon-api-$(Build.BuildNumber)-helm.tgz oci://$(registryUrl)/avalon
-          helm push avalon-api-0.0-latest.tgz oci://$(registryUrl)/avalon
-
-- job: 'ci_server_docker_helm'
-  displayName: 'CI Server Docker + Helm'
-  dependsOn: 'ci_build_test'
-  steps:
-  - checkout: self
-    persistCredentials: true
-    submodules: true
-
-  - template: 'dotnet/restore-solution.yml@BuildSteps'
-  - template: 'dotnet/build-solution.yml@BuildSteps'
+  - task: Bash@3
+    displayName:  'Helm OCI Publish - avalon-api - $(Build.BuildNumber)'
+    inputs:
+      targetType: 'bash'
+      scriptLocation: 'inlineScript'
+      script: |
+        ls
+        helm push avalon-api-$(Build.BuildNumber)-helm.tgz oci://$(registryUrl)/avalon
+        helm push avalon-api-0.0-latest.tgz oci://$(registryUrl)/avalon
 
   - task: DotNetCoreCLI@2
     displayName: '.NET Publish Server'
