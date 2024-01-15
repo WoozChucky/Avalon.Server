@@ -159,7 +159,7 @@ jobs:
     - template: 'helm/package.yml@BuildSteps'
       parameters:
         helmName: 'avalon-api'
-        helmChartPath: '$(Build.SourcesDirectory)/src/Server/Avalon.Server/Helm'
+        helmChartPath: '$(Build.SourcesDirectory)/src/Server/Avalon.Api/Helm'
 
     - task: Bash@3
       displayName:  'Helm OCI Publish - avalon-api - $(Build.BuildNumber)'
