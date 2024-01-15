@@ -71,31 +71,31 @@ jobs:
   - template: 'dotnet/restore-solution.yml@BuildSteps'
   - template: 'dotnet/build-solution.yml@BuildSteps'
   # Pack Network Packets
-  - template: 'dotnet/update-assembly.yml@BuildSteps'
-    parameters:
-      project: 'src/Shared/Avalon.Network.Packets/*.csproj'
-      product: 'Avalon.Network.Packets'
-      description: 'Network packets reference used by Avalon Game Server'
+  #- template: 'dotnet/update-assembly.yml@BuildSteps'
+  #  parameters:
+  #    project: 'src/Shared/Avalon.Network.Packets/*.csproj'
+  #    product: 'Avalon.Network.Packets'
+  #    description: 'Network packets reference used by Avalon Game Server'
   - template: 'dotnet/nuget-pack.yml@BuildSteps'
     parameters:
       project: 'src/Shared/Avalon.Network.Packets/*.csproj'
   # Pack Network Packets end
   # Pack Network Tcp
-  - template: 'dotnet/update-assembly.yml@BuildSteps'
-    parameters:
-      project: 'src/Shared/Avalon.Network.Tcp/*.csproj'
-      product: 'Avalon.Network.Tcp'
-      description: 'TCP client and server used by Avalon'
+  #- template: 'dotnet/update-assembly.yml@BuildSteps'
+  #  parameters:
+  #    project: 'src/Shared/Avalon.Network.Tcp/*.csproj'
+  #    product: 'Avalon.Network.Tcp'
+  #    description: 'TCP client and server used by Avalon'
   - template: 'dotnet/nuget-pack.yml@BuildSteps'
     parameters:
       project: 'src/Shared/Avalon.Network.Tcp/*.csproj'
   # Pack Network Tcp end
   # Pack Network Udp
-  - template: 'dotnet/update-assembly.yml@BuildSteps'
-    parameters:
-      project: 'src/Shared/Avalon.Network.Udp/*.csproj'
-      product: 'Avalon.Network.Udp'
-      description: 'UDP client and server used by Avalon'
+  #- template: 'dotnet/update-assembly.yml@BuildSteps'
+  #  parameters:
+  #    project: 'src/Shared/Avalon.Network.Udp/*.csproj'
+  #    product: 'Avalon.Network.Udp'
+  #    description: 'UDP client and server used by Avalon'
   - template: 'dotnet/nuget-pack.yml@BuildSteps'
     parameters:
       project: 'src/Shared/Avalon.Network.Udp/*.csproj'
