@@ -158,10 +158,17 @@ jobs:
       zipAfterPublish: false
       modifyOutputPath: false
   
-  - template: 'docker/build.yml@BuildSteps'
-    parameters:
-      imageRepository: '$(registryUrl)/avalon/game-server'
-      dockerfilePath: 'src/Server/Avalon.Server/Dockerfile'
+  - template: Bash@3
+    displayName: 'Docker Build - game-server - $(Build.BuildNumber)'
+    inputs:
+      targetType: 'inline'
+      script: |
+        #!/bin/bash
+        docker build --no-cache -t $(registryUrl)/avalon/game-server:$(Build.BuildNumber) -f src/Server/Avalon.Server/Dockerfile src/Server/Avalon.Server
+        docker tag $(registryUrl)/avalon/game-server:$(Build.BuildNumber) $(registryUrl)/avalon/game-server:latest
+    #parameters:
+    #  imageRepository: '$(registryUrl)/avalon/game-server'
+    #  dockerfilePath: 'src/Server/Avalon.Server/Dockerfile'
 
   - task: Bash@3
     displayName:  Docker Push - game-server - $(Build.BuildNumber)
