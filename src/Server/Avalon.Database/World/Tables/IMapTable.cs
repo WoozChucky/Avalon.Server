@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using Avalon.Database.World.Model;
+using Avalon.Domain.World;
 using Dapper;
 using MySqlConnector;
 

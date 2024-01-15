@@ -1,6 +1,6 @@
 using System;
 
-namespace Avalon.Database;
+namespace Avalon.Domain.Attributes;
 
 [AttributeUsage(AttributeTargets.Property)]
 public class Column(string name) : Attribute

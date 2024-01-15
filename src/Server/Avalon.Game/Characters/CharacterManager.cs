@@ -1,5 +1,6 @@
 using System.Numerics;
 using Avalon.Database.Characters;
+using Avalon.Domain.Characters;
 using Avalon.Network;
 using Avalon.Network.Packets.Auth;
 using Avalon.Network.Packets.Character;

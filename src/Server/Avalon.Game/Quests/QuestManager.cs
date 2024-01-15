@@ -1,6 +1,5 @@
 using Avalon.Database;
-using Avalon.Database.World.Model;
-using Avalon.Game.Maps;
+using Avalon.Domain.World;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.Game.Quests;

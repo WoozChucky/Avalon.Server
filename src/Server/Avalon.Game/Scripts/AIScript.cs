@@ -1,4 +1,5 @@
 using Avalon.Database.Characters;
+using Avalon.Domain.Characters;
 using Avalon.Game.Creatures;
 using Avalon.Game.Maps;
 

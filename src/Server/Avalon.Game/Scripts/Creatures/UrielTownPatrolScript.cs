@@ -2,6 +2,7 @@ using System.Drawing;
 using System.Numerics;
 using Avalon.Common.Extensions;
 using Avalon.Database.Characters;
+using Avalon.Domain.Characters;
 using Avalon.Game.Creatures;
 using Avalon.Game.Maps;
 

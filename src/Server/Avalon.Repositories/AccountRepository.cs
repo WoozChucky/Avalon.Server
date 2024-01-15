@@ -1,9 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Linq.Expressions;
 using System.Threading.Tasks;
-using Avalon.Database.Auth;
+using Avalon.Domain.Auth;
 using Dapper;
+using DapperExtensions;
+using DapperExtensions.Predicate;
 using MySqlConnector;
 
 namespace Avalon.Repositories
@@ -26,7 +29,7 @@ namespace Avalon.Repositories
         {
             await using var connection = new MySqlConnection(_connectionString);
             
-            return await connection.QueryFirstOrDefaultAsync<Account>("SELECT * FROM auth.Account", new { Id = id });
+            return await connection.GetAsync<Account>(id);
         }
 
         public async Task<IEnumerable<Account>> FindAllAsync()
@@ -36,13 +39,22 @@ namespace Avalon.Repositories
             return await connection.QueryAsync<Account>("SELECT * FROM auth.Account");
         }
 
-        public async Task<IEnumerable<Account>> FindByAsync(Predicate<Account> predicate)
+        public async Task<IEnumerable<Account>> FindByAsync(IFieldPredicate predicate)
+        {
+            await using var connection = new MySqlConnection(_connectionString);
+            
+            var accounts = await connection.GetListAsync<Account>(predicate);
+
+            return accounts;
+        }
+
+        public async Task<IEnumerable<Account>> FindByAsync(Expression<Func<Account, bool>> predicate)
         {
             await using var connection = new MySqlConnection(_connectionString);
             
             var accounts = await connection.QueryAsync<Account>("SELECT * FROM auth.Account");
 
-            return accounts.Where(account => predicate(account)).ToList();
+            return accounts.Where(predicate.Compile());
         }
 
         public async Task<Account> SaveAsync(Account entity)

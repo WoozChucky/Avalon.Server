@@ -1,4 +1,5 @@
 using System.Threading.Tasks;
+using Avalon.Domain.Auth;
 using Dapper;
 using MySqlConnector;
 

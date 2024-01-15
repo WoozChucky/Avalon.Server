@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Avalon.Database.Auth;
+using Avalon.Domain.Characters;
 using Dapper;
 using MySqlConnector;
 

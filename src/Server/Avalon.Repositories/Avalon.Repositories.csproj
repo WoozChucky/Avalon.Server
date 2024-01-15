@@ -9,4 +9,8 @@
       <ProjectReference Include="..\Avalon.Database\Avalon.Database.csproj" />
     </ItemGroup>
 
+    <ItemGroup>
+      <PackageReference Include="DapperExtensions" Version="1.7.0" />
+    </ItemGroup>
+
 </Project>

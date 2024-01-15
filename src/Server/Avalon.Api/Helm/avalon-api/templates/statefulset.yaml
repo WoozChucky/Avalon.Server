@@ -1,0 +1,81 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "avalon-api.fullname" . }}
+  labels:
+    {{- include "avalon-api.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "avalon-api.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "avalon-api.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "avalon-api.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ .Chart.Name }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "registry.nunolevezinho.xyz/{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            # Database configuration
+            - name: Database__Auth__Host
+              value: {{ .Values.database.auth.host | quote }}
+            - name: Database__Auth__Port
+              value: {{ .Values.database.auth.port | quote }}
+            - name: Database__Auth__Database
+              value: {{ .Values.database.auth.database | quote }}
+            - name: Database__Auth__Username
+              value: {{ .Values.database.auth.username | quote }}
+            - name: Database__Auth__Password
+              value: {{ .Values.database.auth.password | quote }}
+            - name: Database__Characters__Host
+              value: {{ .Values.database.characters.host | quote }}
+            - name: Database__Characters__Port
+              value: {{ .Values.database.characters.port | quote }}
+            - name: Database__Characters__Database
+              value: {{ .Values.database.characters.database | quote }}
+            - name: Database__Characters__Username
+              value: {{ .Values.database.characters.username | quote }}
+            - name: Database__Characters__Password
+              value: {{ .Values.database.characters.password | quote }}
+            - name: Database__World__Host
+              value: {{ .Values.database.world.host | quote }}
+            - name: Database__World__Port
+              value: {{ .Values.database.world.port | quote }}
+            - name: Database__World__Database
+              value: {{ .Values.database.world.database | quote }}
+            - name: Database__World__Username
+              value: {{ .Values.database.world.username | quote }}
+            - name: Database__World__Password
+              value: {{ .Values.database.world.password | quote }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.port }}
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
