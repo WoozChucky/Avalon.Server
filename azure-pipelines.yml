@@ -122,7 +122,6 @@ jobs:
       modifyOutputPath: false
   
   - template: 'docker/build.yml@BuildSteps'
-    displayName: 'Docker Build - game-server - $(Build.BuildNumber)'
     parameters:
       imageRepository: '$(registryUrl)/avalon/game-server'
       dockerfilePath: 'src/Server/Avalon.Server/Dockerfile'
@@ -137,7 +136,6 @@ jobs:
         docker push $(registryUrl)/avalon/game-server:latest
         
   - template: 'helm/package.yml@BuildSteps'
-    displayName: 'Helm OCI Package - game-server - $(Build.BuildNumber)'
     parameters:
       helmName: 'game-server'
       helmChartPath: '$(Build.SourcesDirectory)/src/Server/Avalon.Server/Helm'
