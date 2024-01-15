@@ -34,35 +34,35 @@ spec:
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           env:
             # Database configuration
-            - name: Database__Auth__Host
+            - name: Application__Database__Auth__Host
               value: {{ .Values.database.auth.host | quote }}
-            - name: Database__Auth__Port
+            - name: Application__Database__Auth__Port
               value: {{ .Values.database.auth.port | quote }}
-            - name: Database__Auth__Database
+            - name: Application__Database__Auth__Database
               value: {{ .Values.database.auth.database | quote }}
-            - name: Database__Auth__Username
+            - name: Application__Database__Auth__Username
               value: {{ .Values.database.auth.username | quote }}
-            - name: Database__Auth__Password
+            - name: Application__Database__Auth__Password
               value: {{ .Values.database.auth.password | quote }}
-            - name: Database__Characters__Host
+            - name: Application__Database__Characters__Host
               value: {{ .Values.database.characters.host | quote }}
-            - name: Database__Characters__Port
+            - name: Application__Database__Characters__Port
               value: {{ .Values.database.characters.port | quote }}
-            - name: Database__Characters__Database
+            - name: Application__Database__Characters__Database
               value: {{ .Values.database.characters.database | quote }}
-            - name: Database__Characters__Username
+            - name: Application__Database__Characters__Username
               value: {{ .Values.database.characters.username | quote }}
-            - name: Database__Characters__Password
+            - name: Application__Database__Characters__Password
               value: {{ .Values.database.characters.password | quote }}
-            - name: Database__World__Host
+            - name: Application__Database__World__Host
               value: {{ .Values.database.world.host | quote }}
-            - name: Database__World__Port
+            - name: Application__Database__World__Port
               value: {{ .Values.database.world.port | quote }}
-            - name: Database__World__Database
+            - name: Application__Database__World__Database
               value: {{ .Values.database.world.database | quote }}
-            - name: Database__World__Username
+            - name: Application__Database__World__Username
               value: {{ .Values.database.world.username | quote }}
-            - name: Database__World__Password
+            - name: Application__Database__World__Password
               value: {{ .Values.database.world.password | quote }}
           ports:
             - name: http
