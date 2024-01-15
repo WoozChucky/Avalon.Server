@@ -58,12 +58,12 @@ jobs:
   - template: 'dotnet/build-solution.yml@BuildSteps'
   - template: 'dotnet/test-solution.yml@BuildSteps'
   # Pack Network Packets
-  #- template: 'dotnet/update-assembly.yml@BuildSteps'
-  #  parameters:
-  #    project: 'src/Shared/Avalon.Network.Packets/*.csproj'
-  #    product: 'Avalon.Network.Packets'
-  #    description: 'Network packets reference used by Avalon Game Server'
-  #- template: 'dotnet/nuget-pack.yml@BuildSteps'
+  - template: 'dotnet/update-assembly.yml@BuildSteps'
+    parameters:
+      project: 'src/Shared/Avalon.Network.Packets/*.csproj'
+      product: 'Avalon.Network.Packets'
+      description: 'Network packets reference used by Avalon Game Server'
+  - template: 'dotnet/nuget-pack.yml@BuildSteps'
   #  parameters:
   #    project: 'src/Shared/Avalon.Network.Packets/*.csproj'
   # Pack Network Packets end
@@ -87,7 +87,7 @@ jobs:
   #  parameters:
   #    project: 'src/Shared/Avalon.Network.Udp/*.csproj'
   # Pack Network Udp end
-  #- template: 'dotnet/nuget-publish.yml@BuildSteps'
+  - template: 'dotnet/nuget-publish.yml@BuildSteps'
 
   - task: DotNetCoreCLI@2
     inputs:
