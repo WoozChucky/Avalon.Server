@@ -62,7 +62,6 @@ var app = builder.Build();
     
     app.UseCors(x => x
         .WithOrigins("http://localhost:3000", "https://avalon.monster", "https://dashboard.avalon.monster")
-        .AllowCredentials()
         .AllowAnyMethod()
         .AllowAnyHeader()
     );
