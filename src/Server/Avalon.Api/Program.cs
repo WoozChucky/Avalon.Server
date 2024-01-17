@@ -61,7 +61,7 @@ var app = builder.Build();
     app.UseExceptionHandler(_ => { });
     
     app.UseCors(x => x
-        .WithOrigins("http://localhost:3000", "https://avalon.monster", "https://dashboard.avalon.monster")
+        .WithOrigins("http://localhost:4200", "https://avalon.monster", "https://dashboard.avalon.monster")
         .AllowAnyMethod()
         .AllowAnyHeader()
     );
