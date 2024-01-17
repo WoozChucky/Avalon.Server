@@ -1,6 +1,6 @@
 using Avalon.Api;
 using Avalon.Api.Config;
-using Avalon.Api.ExceptionHandlers;
+using Avalon.Api.Exceptions.Handlers;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 
 var builder = WebApplication.CreateBuilder(args);

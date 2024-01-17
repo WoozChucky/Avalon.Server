@@ -30,12 +30,9 @@ public class AccountController : BaseController
     
     [AllowAnonymous]
     [HttpPost("authenticate", Name = "Authenticate")]
-    public async Task<IActionResult> Authenticate([FromBody] AuthenticateRequest model)
+    public async Task<AuthenticateResponse> Authenticate([FromBody] AuthenticateRequest model)
     {
-        var jwt = await _accountService.Authenticate(model, IpAddress, CancellationToken);
-        if (jwt == null)
-            return BadRequest(new {message = "Username or password is incorrect"});
-        return Ok(jwt);
+        return await _accountService.Authenticate(model, IpAddress, CancellationToken);
     }
     
     [AllowAnonymous]
