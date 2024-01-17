@@ -1,4 +1,5 @@
 using System.Net;
+using System.Security.Authentication;
 using System.Text;
 using Avalon.Api.Authentication;
 using Avalon.Api.Contract;
@@ -12,44 +13,39 @@ namespace Avalon.Api.Services;
 public interface IAccountService
 {
     Task<Account?> FindById(int id);
-    Task<string?> Authenticate(AuthenticateRequest model, IPAddress ipAddress, CancellationToken cancellationToken);
-    Task<string> Register(RegisterRequest model, IPAddress ipAddress, CancellationToken cancellationToken);
+    Task<AuthenticateResponse> Authenticate(AuthenticateRequest model, IPAddress ipAddress, CancellationToken cancellationToken);
+    Task<RegisterResponse> Register(RegisterRequest model, IPAddress ipAddress, CancellationToken cancellationToken);
 }
 
-public class AccountService : IAccountService
+public class AccountService(IAccountRepository authRepository, IJwtUtils jwtUtils) : IAccountService
 {
-    private readonly IAccountRepository _authRepository;
-    private readonly IJwtUtils _jwtUtils;
-
-    public AccountService(IAccountRepository authRepository, IJwtUtils jwtUtils)
-    {
-        _authRepository = authRepository;
-        _jwtUtils = jwtUtils;
-    }
-
     public async Task<Account?> FindById(int id)
     {
-        return await _authRepository.FindByIdAsync(id);
+        return await authRepository.FindByIdAsync(id);
     }
 
-    public async Task<string?> Authenticate(AuthenticateRequest model, IPAddress ipAddress, 
+    public async Task<AuthenticateResponse> Authenticate(AuthenticateRequest model, IPAddress ipAddress, 
         CancellationToken cancellationToken)
     {
-        var account = await _authRepository.FindByUsernameAsync(model.Username);
+        var account = await authRepository.FindByUsernameAsync(model.Username);
         if (account == null)
-            return null;
+            throw new AuthenticationException("Invalid username or password");
 
         var hash = Encoding.UTF8.GetString(account.Verifier);
 
         if (!BCrypt.Net.BCrypt.Verify(model.Password, hash))
         {
-            throw new Exception("Invalid password");
+            throw new AuthenticationException("Invalid username or password");
         }
-        
-        return _jwtUtils.GenerateJwtToken(account);
+
+        return new AuthenticateResponse
+        {
+            Token = jwtUtils.GenerateJwtToken(account),
+            ExpiresAt = DateTimeOffset.UtcNow.AddHours(1).ToUnixTimeSeconds(),
+        };
     }
 
-    public async Task<string> Register(RegisterRequest model, IPAddress ipAddress, CancellationToken cancellationToken)
+    public async Task<RegisterResponse> Register(RegisterRequest model, IPAddress ipAddress, CancellationToken cancellationToken)
     {
         var salt = BCrypt.Net.BCrypt.GenerateSalt();
         var hash = BCrypt.Net.BCrypt.HashPassword(model.Password.Trim(), salt);
@@ -59,21 +55,25 @@ public class AccountService : IAccountService
         
         var totpSecret = KeyGeneration.GenerateRandomKey(32);
 
-        var account = new Account()
+        var account = new Account
         {
             Username = model.Username,
             Email = model.Email,
             TotpSecret = totpSecret,
             Salt = saltBytes,
             Verifier = hashBytes,
-            LastIp = ipAddress.ToString()
+            LastIp = ipAddress.ToString(),
         };
         
-        var inserted = await _authRepository.SaveAsync(account);
+        var inserted = await authRepository.SaveAsync(account);
         
         if (inserted == null)
             throw new Exception("Failed to insert account");
 
-        return _jwtUtils.GenerateJwtToken(inserted);
+        return new RegisterResponse
+        {
+            Token = jwtUtils.GenerateJwtToken(inserted),
+            ExpiresAt = DateTimeOffset.UtcNow.AddHours(1).ToUnixTimeSeconds(),
+        };
     }
 }

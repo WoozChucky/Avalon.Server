@@ -3,19 +3,13 @@ using System.Security.Authentication;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 
-namespace Avalon.Api.ExceptionHandlers;
+namespace Avalon.Api.Exceptions.Handlers;
 
-public class DefaultExceptionHandler : IExceptionHandler
+public class DefaultExceptionHandler(ILogger<DefaultExceptionHandler> logger) : IExceptionHandler
 {
-    private readonly ILogger<DefaultExceptionHandler> _logger;
-    public DefaultExceptionHandler(ILogger<DefaultExceptionHandler> logger)
-    {
-        _logger = logger;
-    }
-
     public async ValueTask<bool> TryHandleAsync(HttpContext httpContext, Exception exception, CancellationToken cancellationToken)
     {
-        _logger.LogError(exception, "An unexpected error occurred");
+        logger.LogError(exception, "An unexpected error occurred");
 
         switch (exception)
         {
@@ -25,6 +19,16 @@ public class DefaultExceptionHandler : IExceptionHandler
                     Status = (int)HttpStatusCode.Unauthorized,
                     Type = exception.GetType().Name,
                     Title = "Whoops!",
+                    Detail = ex.Message,
+                    Instance = $"{httpContext.Request.Method} {httpContext.Request.Path}"
+                }, cancellationToken: cancellationToken);
+                return true;
+            case BusinessException ex:
+                await httpContext.Response.WriteAsJsonAsync(new ProblemDetails
+                {
+                    Status = (int)HttpStatusCode.BadRequest,
+                    Type = exception.GetType().Name,
+                    Title = "Client error",
                     Detail = ex.Message,
                     Instance = $"{httpContext.Request.Method} {httpContext.Request.Path}"
                 }, cancellationToken: cancellationToken);

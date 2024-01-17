@@ -83,7 +83,7 @@ namespace Avalon.Repositories
             
             if (rows == 0)
             {
-                throw new Exception("Failed to insert account");
+                throw new Exception("Failed to save account");
             }
 
             return (await FindByUsernameAsync(entity.Username))!;
