@@ -4,7 +4,4 @@ namespace Avalon.Api.Authentication;
 
 public class AvalonAuthRequirement: IAuthorizationRequirement
 {
-    public AvalonAuthRequirement()
-    {
-    }
 }
