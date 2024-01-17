@@ -2,6 +2,7 @@ using System.Net;
 using System.Security.Authentication;
 using System.Text;
 using Avalon.Api.Authentication;
+using Avalon.Api.Config;
 using Avalon.Api.Contract;
 using Avalon.Database.Auth;
 using Avalon.Domain.Auth;
@@ -15,9 +16,10 @@ public interface IAccountService
     Task<Account?> FindById(int id);
     Task<AuthenticateResponse> Authenticate(AuthenticateRequest model, IPAddress ipAddress, CancellationToken cancellationToken);
     Task<RegisterResponse> Register(RegisterRequest model, IPAddress ipAddress, CancellationToken cancellationToken);
+    Task<Setup2FAResponse> Setup2FA(Account account, CancellationToken cancellationToken);
 }
 
-public class AccountService(IAccountRepository authRepository, IJwtUtils jwtUtils) : IAccountService
+public class AccountService(IAccountRepository authRepository, IJwtUtils jwtUtils, ApplicationConfig applicationConfig) : IAccountService
 {
     public async Task<Account?> FindById(int id)
     {
@@ -74,6 +76,18 @@ public class AccountService(IAccountRepository authRepository, IJwtUtils jwtUtil
         {
             Token = jwtUtils.GenerateJwtToken(inserted),
             ExpiresAt = DateTimeOffset.UtcNow.AddHours(1).ToUnixTimeSeconds(),
+        };
+    }
+
+    public async Task<Setup2FAResponse> Setup2FA(Account account, CancellationToken cancellationToken)
+    {
+        var totp = new Totp(account.TotpSecret);
+        var uriString = new OtpUri(OtpType.Totp, account.TotpSecret, account.Email, applicationConfig.Authentication.Issuer).ToString();
+        
+        return new Setup2FAResponse
+        {
+            SecretKey = Encoding.UTF8.GetString(account.TotpSecret),
+            Uri = uriString
         };
     }
 }

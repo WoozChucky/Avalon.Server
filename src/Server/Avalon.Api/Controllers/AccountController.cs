@@ -8,6 +8,7 @@ using OtpNet;
 
 namespace Avalon.Api.Controllers;
 
+[Authorize]
 [ApiController]
 [Route("account")]
 public class AccountController : BaseController
@@ -21,7 +22,6 @@ public class AccountController : BaseController
         _authContext = authContext;
     }
     
-    [Authorize]
     [HttpGet(Name = "GetAccount")]
     public async Task<Account> Get()
     {
@@ -42,16 +42,29 @@ public class AccountController : BaseController
         return await _accountService.Register(model, IpAddress, CancellationToken);
     }
     
-    [Authorize(AvalonRoles.Admin)]
-    [HttpGet("test", Name = "Test")]
-    public async Task<IActionResult> Test()
+    [HttpGet("2fa/setup", Name = "Setup 2FA for the logged account")]
+    public async Task<Setup2FAResponse> Setup2FA()
     {
-        var totp = new Totp("base32secret3232"u8.ToArray());
-        var uriString = new OtpUri(OtpType.Totp, "base32secret3232", "alice@google.com", "Avalon").ToString();        
-        return Ok(new
-        {
-            code = totp.ComputeTotp(),
-            uri = uriString
-        });
+        return await _accountService.Setup2FA(_authContext.Account!, CancellationToken);
     }
+    
+    [HttpGet("2fa/confirm", Name = "Confirm a 2FA setup process for the logged account")]
+    public async Task<Setup2FAResponse> Confirm2FA()
+    {
+        return await _accountService.Setup2FA(_authContext.Account!, CancellationToken);
+    }
+    
+    [HttpPost("2fa/reset", Name = "Reset 2FA for the logged account")]
+    public async Task<Setup2FAResponse> Reset2FA()
+    {
+        return await _accountService.Setup2FA(_authContext.Account!, CancellationToken);
+    }
+    
+    [HttpPost("2fa/verify", Name = "Verify 2FA for the logged account")]
+    public async Task<Setup2FAResponse> Verify2FA()
+    {
+        return await _accountService.Setup2FA(_authContext.Account!, CancellationToken);
+    }
+    
+    
 }
