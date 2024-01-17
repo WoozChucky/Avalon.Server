@@ -138,8 +138,23 @@ public static class ServiceRegistration
                 .AddRequirements(new AvalonAuthRequirement())
                 .Build();
         
-            options.AddPolicy("Admin", policy => policy
-                .RequireClaim(ClaimTypes.GroupSid, "admin", "Admin")
+            options.AddPolicy(AvalonRoles.Console, policy => policy
+                .RequireClaim(ClaimTypes.GroupSid, AvalonRoles.Console)
+                .Combine(options.DefaultPolicy)
+            );
+            
+            options.AddPolicy(AvalonRoles.Admin, policy => policy
+                .RequireClaim(ClaimTypes.GroupSid, AvalonRoles.Admin, AvalonRoles.Console)
+                .Combine(options.DefaultPolicy)
+            );
+            
+            options.AddPolicy(AvalonRoles.GameMaster, policy => policy
+                .RequireClaim(ClaimTypes.GroupSid, AvalonRoles.GameMaster, AvalonRoles.Admin, AvalonRoles.Console)
+                .Combine(options.DefaultPolicy)
+            );
+            
+            options.AddPolicy(AvalonRoles.Player, policy => policy
+                .RequireClaim(ClaimTypes.GroupSid, AvalonRoles.Player, AvalonRoles.GameMaster, AvalonRoles.Admin, AvalonRoles.Console)
                 .Combine(options.DefaultPolicy)
             );
         

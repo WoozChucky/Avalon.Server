@@ -27,6 +27,12 @@ public class AvalonAuthHandler : IAuthorizationHandler
         if (!context.PendingRequirements.Any())
             return;
         
+        if (context.User.Identity is { IsAuthenticated: false })
+        {
+            context.Fail();
+            throw new AuthenticationException("User is not authenticated");
+        }
+        
         var pendingRequirements = context.PendingRequirements.ToList();
             
         if (pendingRequirements.FirstOrDefault(r => r is AvalonAuthRequirement) is AvalonAuthRequirement authRequirement)
@@ -37,12 +43,6 @@ public class AvalonAuthHandler : IAuthorizationHandler
     
     private async Task HandleRequirementAsync(AuthorizationHandlerContext context, IAuthorizationRequirement requirement)
     {
-        if (context.User.Identity is { IsAuthenticated: false })
-        {
-            context.Fail();
-            throw new AuthenticationException("User is not authenticated");
-        }
-        
         if (!_httpContextAccessor.HttpContext!.Request.Headers.TryGetValue(HeaderNames.Authorization, out var token))
         {
             context.Fail();

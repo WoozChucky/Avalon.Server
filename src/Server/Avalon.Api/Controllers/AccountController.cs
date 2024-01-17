@@ -25,7 +25,7 @@ public class AccountController : BaseController
     [HttpGet(Name = "GetAccount")]
     public async Task<Account> Get()
     {
-        return _authContext.Account ?? throw new Exception("Account not loaded");
+        return await Task.FromResult(_authContext.Account ?? throw new Exception("Account not loaded"));
     }
     
     [AllowAnonymous]
@@ -37,13 +37,12 @@ public class AccountController : BaseController
     
     [AllowAnonymous]
     [HttpPost("register", Name = "Register")]
-    public async Task<IActionResult> Register([FromBody] RegisterRequest model)
+    public async Task<RegisterResponse> Register([FromBody] RegisterRequest model)
     {
-        var jwt = await _accountService.Register(model, IpAddress, CancellationToken);
-        return Ok(jwt);
+        return await _accountService.Register(model, IpAddress, CancellationToken);
     }
     
-    [AllowAnonymous]
+    [Authorize(AvalonRoles.Admin)]
     [HttpGet("test", Name = "Test")]
     public async Task<IActionResult> Test()
     {

@@ -33,13 +33,15 @@ public class JwtUtils : IJwtUtils
         var tokenDescriptor = new SecurityTokenDescriptor
         {
             Subject = new ClaimsIdentity(new[]
-            {
-                new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()), 
-                new Claim(ClaimTypes.NameIdentifier, account.Id.ToString() ?? throw new InvalidOperationException()), 
-                new Claim(JwtRegisteredClaimNames.Name, account.Username),
-                new Claim(JwtRegisteredClaimNames.Email, account.Email),
-            },
-                JwtBearerDefaults.AuthenticationScheme),
+                {
+                    new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()), 
+                    new Claim(ClaimTypes.NameIdentifier, account.Id.ToString() ?? throw new InvalidOperationException()), 
+                    new Claim(JwtRegisteredClaimNames.Name, account.Username),
+                    new Claim(JwtRegisteredClaimNames.Email, account.Email),
+                    new Claim(ClaimTypes.GroupSid, account.Role),
+                },
+            JwtBearerDefaults.AuthenticationScheme
+            ),
             Expires = DateTime.UtcNow.AddHours(1),
             SigningCredentials = new SigningCredentials(_key, SecurityAlgorithms.HmacSha256Signature),
             Issuer = _authenticationConfig.Issuer,

@@ -63,4 +63,7 @@ public class Account
     
     [Column("total_time")]
     public long TotalTime { get; set; }
+
+    [Column("Role")]
+    public string Role { get; set; }
 }
