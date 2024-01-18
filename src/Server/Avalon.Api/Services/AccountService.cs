@@ -65,6 +65,7 @@ public class AccountService(IAccountRepository authRepository, IJwtUtils jwtUtil
             Salt = saltBytes,
             Verifier = hashBytes,
             LastIp = ipAddress.ToString(),
+            JoinDate = DateTime.UtcNow,
         };
         
         var inserted = await authRepository.SaveAsync(account);
