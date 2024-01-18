@@ -4,47 +4,47 @@ namespace Avalon.Domain.World;
 
 public class CreatureTemplate
 {
-    [Column("id")]
+    [Column("Id")]
     public int Id { get; set; }
-    [Column("name")]
+    [Column("Name")]
     public string Name { get; set; } = string.Empty;
-    [Column("subname")]
+    [Column("SubName")]
     public string SubName { get; set; } = string.Empty;
     [Column("IconName")]
     public string IconName { get; set; } = string.Empty;
-    [Column("minlevel")]
+    [Column("MinLevel")]
     public short MinLevel { get; set; }
-    [Column("maxlevel")]
+    [Column("MaxLevel")]
     public short MaxLevel { get; set; }
-    [Column("speed_walk")]
+    [Column("SpeedWalk")]
     public float SpeedWalk { get; set; }
-    [Column("speed_run")]
+    [Column("SpeedRun")]
     public float SpeedRun { get; set; }
-    [Column("speed_swim")]
+    [Column("SpeedSwim")]
     public float SpeedSwim { get; set; }
-    [Column("rank")]
+    [Column("Rank")]
     public short Rank { get; set; }
-    [Column("unit_class")]
+    [Column("UnitClass")]
     public UnitClass UnitClass { get; set; }
-    [Column("family")]
+    [Column("Family")]
     public CreatureFamily Family { get; set; }
-    [Column("type")]
+    [Column("Type")]
     public CreatureType Type { get; set; }
-    [Column("exp")]
+    [Column("Exp")]
     public short Exp { get; set; }
-    [Column("lootid")]
+    [Column("LootId")]
     public int LootId { get; set; }
-    [Column("mingold")]
+    [Column("MinGold")]
     public int MinGold { get; set; }
-    [Column("maxgold")]
+    [Column("MaxGold")]
     public int MaxGold { get; set; }
     [Column("AIName")]
-    public string AiName { get; set; } = string.Empty;
+    public string AIName { get; set; } = string.Empty;
     [Column("MovementType")]
     public short MovementType { get; set; }
-    [Column("detection_range")]
+    [Column("DetectionRange")]
     public float DetectionRange { get; set; }
-    [Column("movementId")]
+    [Column("MovementId")]
     public int MovementId { get; set; }
     [Column("ScriptName")]
     public string ScriptName { get; set; } = string.Empty;
@@ -58,7 +58,7 @@ public class CreatureTemplate
     public float ExperienceModifier { get; set; }
     [Column("RegenHealth")]
     public short RegenHealth { get; set; }
-    [Column("dmgschool")]
+    [Column("DmgSchool")]
     public short DmgSchool { get; set; }
     [Column("DamageModifier")]
     public float DamageModifier { get; set; }

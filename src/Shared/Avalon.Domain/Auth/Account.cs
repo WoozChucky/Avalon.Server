@@ -4,64 +4,64 @@ namespace Avalon.Domain.Auth;
 
 public class Account
 {
-    [Column("id")]
+    [Column("Id")]
     public int? Id { get; set; }
     
-    [Column("username")]
+    [Column("Username")]
     public string Username { get; set; }
     
-    [Column("salt")]
+    [Column("Salt")]
     public byte[] Salt { get; set; }
     
-    [Column("verifier")]
+    [Column("Verifier")]
     public byte[] Verifier { get; set; }
     
-    [Column("session_key")]
+    [Column("SessionKey")]
     public byte[] SessionKey { get; set; }
     
     [Column("totp_secret")]
     public byte[] TotpSecret { get; set; }
     
-    [Column("email")]
+    [Column("Email")]
     public string Email { get; set; }
     
-    [Column("join_date")]
+    [Column("JoinDate")]
     public DateTime JoinDate { get; set; }
     
-    [Column("last_ip")]
+    [Column("LastIp")]
     public string LastIp { get; set; }
     
-    [Column("last_attempt_ip")]
+    [Column("LastAttemptIp")]
     public string LastAttemptIp { get; set; }
     
-    [Column("failed_logins")]
+    [Column("FailedLogins")]
     public int FailedLogins { get; set; }
     
-    [Column("locked")]
+    [Column("Locked")]
     public bool Locked { get; set; }
     
-    [Column("last_login")]
+    [Column("LastLogin")]
     public DateTime LastLogin { get; set; }
     
-    [Column("online")]
+    [Column("Online")]
     public bool Online { get; set; }
     
-    [Column("mute_time")]
+    [Column("MuteTime")]
     public long MuteTime { get; set; }
     
-    [Column("mute_reason")]
+    [Column("MuteReason")]
     public string MuteReason { get; set; }
     
-    [Column("mute_by")]
+    [Column("MuteBy")]
     public string MuteBy { get; set; }
     
-    [Column("locale")]
+    [Column("Locale")]
     public string Locale { get; set; }
     
-    [Column("os")]
-    public string Os { get; set; }
+    [Column("OS")]
+    public string OS { get; set; }
     
-    [Column("total_time")]
+    [Column("TotalTime")]
     public long TotalTime { get; set; }
 
     [Column("Role")]
