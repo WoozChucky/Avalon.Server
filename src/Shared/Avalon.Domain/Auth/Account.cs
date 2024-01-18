@@ -47,7 +47,7 @@ public class Account
     public bool Online { get; set; }
     
     [Column("MuteTime")]
-    public long MuteTime { get; set; }
+    public DateTime MuteTime { get; set; }
     
     [Column("MuteReason")]
     public string MuteReason { get; set; }
