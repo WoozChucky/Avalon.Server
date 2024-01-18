@@ -4,46 +4,46 @@ namespace Avalon.Domain.World;
 
 public class Map
 {
-    [Column("id")]
+    [Column("Id")]
     public int Id { get; set; }
     
-    [Column("map_name")]
+    [Column("Name")]
     public string Name { get; set; }
     
-    [Column("map_description")]
+    [Column("Description")]
     public string Description { get; set; }
     
-    [Column("atlas")]
+    [Column("Atlas")]
     public string Atlas { get; set; }
     
-    [Column("directory")]
+    [Column("Directory")]
     public string Directory { get; set; }
     
-    [Column("instance_type")]
+    [Column("InstanceType")]
     public MapInstanceType InstanceType { get; set; }
     
-    [Column("pvp")]
+    [Column("PvP")]
     public bool PvP { get; set; }
     
-    [Column("min_level")]
+    [Column("MinLevel")]
     public int MinLevel { get; set; }
     
-    [Column("max_level")]
+    [Column("MaxLevel")]
     public int MaxLevel { get; set; }
     
-    [Column("area_table_id")]
+    [Column("AreaTableId")]
     public int AreaTableId { get; set; }
     
-    [Column("loading_screen_id")]
+    [Column("LoadingScreenId")]
     public int LoadingScreenId { get; set; }
     
-    [Column("corpse_x")]
+    [Column("CorpseX")]
     public float CorpseX { get; set; }
     
-    [Column("corpse_y")]
+    [Column("CorpseY")]
     public float CorpseY { get; set; }
     
-    [Column("max_players")]
+    [Column("MaxPlayers")]
     public int MaxPlayers { get; set; }
 }
 

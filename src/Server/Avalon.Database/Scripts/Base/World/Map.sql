@@ -1,20 +1,23 @@
-DROP TABLE IF EXISTS `Map`;
 CREATE TABLE IF NOT EXISTS `Map` (
-    `id` int NOT NULL DEFAULT '0',
-    `map_name` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-    `map_description` text COLLATE utf8mb4_unicode_ci,
-    `atlas` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-    `directory` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-    `instance_type` int NOT NULL DEFAULT '0',
-    `pvp` bool NOT NULL DEFAULT FALSE,
-    `min_level` int NOT NULL DEFAULT '0',
-    `max_level` int NOT NULL DEFAULT '0',
-    `area_table_id` int NOT NULL DEFAULT '0',
-    `loading_screen_id` int NOT NULL DEFAULT '0',
-    `corpse_x` float NOT NULL DEFAULT '0',
-    `corpse_y` float NOT NULL DEFAULT '0',
-    `max_players` int NOT NULL DEFAULT '0',
-    PRIMARY KEY (`ID`)
+    `Id` int(11) NOT NULL DEFAULT 0,
+    `Name` varchar(100) DEFAULT NULL,
+    `Description` text DEFAULT NULL,
+    `Atlas` varchar(100) DEFAULT NULL,
+    `Directory` varchar(100) DEFAULT NULL,
+    `InstanceType` int(11) NOT NULL DEFAULT 0,
+    `PvP` tinyint(1) NOT NULL DEFAULT 0,
+    `MinLevel` int(11) NOT NULL DEFAULT 0,
+    `MaxLevel` int(11) NOT NULL DEFAULT 0,
+    `AreaTableId` int(11) NOT NULL DEFAULT 0,
+    `LoadingScreenId` int(11) NOT NULL DEFAULT 0,
+    `CorpseX` float NOT NULL DEFAULT 0,
+    `CorpseY` float NOT NULL DEFAULT 0,
+    `MaxPlayers` int(11) NOT NULL DEFAULT 0,
+    PRIMARY KEY (`Id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-DELETE FROM `Map` where id > 0;
+LOCK TABLES `Map` WRITE;
+INSERT INTO `Map` VALUES
+  (1,'Tutorial.tmx','Glimmerdell','Serene_Village_32x32','Maps/',0,0,1,60,0,0,0,0,32),
+  (2,'Village.tmx','Ebonheart Woods','Serene_Village_32x32','Maps/',1,0,1,20,0,0,0,0,5);
+UNLOCK TABLES;

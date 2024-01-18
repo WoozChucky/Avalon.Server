@@ -1,27 +1,28 @@
-DROP TABLE IF EXISTS `Account`;
+--
+-- Table structure for table `Account`
+--
 CREATE TABLE IF NOT EXISTS `Account` (
-    `id` int unsigned NOT NULL AUTO_INCREMENT COMMENT 'Identifier',
-    `username` varchar(32) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
-    `salt` varbinary(64) NOT NULL,
-    `verifier` varbinary(128) NOT NULL,
-    `session_key` binary(40) DEFAULT NULL,
-    `totp_secret` varbinary(128) DEFAULT NULL,
-    `email` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
-    `join_date` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    `last_ip` varchar(15) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '127.0.0.1',
-    `last_attempt_ip` varchar(15) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '127.0.0.1',
-    `failed_logins` int unsigned NOT NULL DEFAULT '0',
-    `locked` tinyint unsigned NOT NULL DEFAULT '0',
-    `last_login` timestamp NULL DEFAULT NULL,
-    `online` int unsigned NOT NULL DEFAULT '0',
-    `mute_time` bigint NOT NULL DEFAULT '0',
-    `mute_reason` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
-    `mute_by` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
-    `locale` tinyint unsigned NOT NULL DEFAULT '0',
-    `os` varchar(3) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT '',
-    `total_time` int unsigned NOT NULL DEFAULT '0',
-    PRIMARY KEY (`id`),
-    UNIQUE KEY `idx_username` (`username`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Account System';
-
-DELETE FROM `Account`;
+    `Id` int(10) unsigned NOT NULL AUTO_INCREMENT COMMENT 'Identifier',
+    `Username` varchar(32) NOT NULL DEFAULT '',
+    `Salt` varbinary(64) NOT NULL,
+    `Verifier` varbinary(128) NOT NULL,
+    `SessionKey` binary(40) DEFAULT NULL,
+    `TotpSecret` varbinary(128) DEFAULT NULL,
+    `Email` varchar(120) NOT NULL DEFAULT '',
+    `JoinDate` datetime NOT NULL DEFAULT curdate(),
+    `LastIp` varchar(15) NOT NULL DEFAULT '127.0.0.1',
+    `LastAttemptIp` varchar(15) NOT NULL DEFAULT '127.0.0.1',
+    `FailedLogins` int(10) unsigned NOT NULL DEFAULT 0,
+    `Locked` tinyint(1) unsigned NOT NULL DEFAULT 0,
+    `LastLogin` datetime NOT NULL DEFAULT '0000-00-00 00:00:00',
+    `Online` tinyint(1) unsigned NOT NULL DEFAULT 0,
+    `MuteTime` datetime NOT NULL DEFAULT '0000-00-00 00:00:00',
+    `MuteReason` varchar(255) NOT NULL DEFAULT '',
+    `MuteBy` varchar(32) NOT NULL DEFAULT '',
+    `Locale` tinyint(3) unsigned NOT NULL DEFAULT 0,
+    `OS` varchar(3) NOT NULL DEFAULT '',
+    `TotalTime` int(10) unsigned NOT NULL DEFAULT 0,
+    `Role` varchar(32) NOT NULL DEFAULT 'Player',
+    PRIMARY KEY (`Id`),
+    UNIQUE KEY `idx_username` (`Username`)
+) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Account System';
