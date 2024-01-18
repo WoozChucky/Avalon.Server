@@ -10,23 +10,15 @@
     </PropertyGroup>
 
     <ItemGroup>
+        <None Include="..\..\..\sgKey.snk">
+            <Link>sgKey.snk</Link>
+        </None>
+    </ItemGroup>
+    
+    <ItemGroup>
         <PackageReference Include="Dapper" Version="2.1.28" />
         <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.0" />
         <PackageReference Include="MySqlConnector" Version="2.3.3" />
-    </ItemGroup>
-
-    <ItemGroup>
-      <None Include="..\..\..\sgKey.snk">
-        <Link>sgKey.snk</Link>
-      </None>
-    </ItemGroup>
-
-    <ItemGroup>
-      <ProjectReference Include="..\..\Shared\Avalon.Domain\Avalon.Domain.csproj" />
-    </ItemGroup>
-
-    <ItemGroup>
-        <None Include="Scripts\**" CopyToOutputDirectory="PreserveNewest" />
     </ItemGroup>
     
 </Project>

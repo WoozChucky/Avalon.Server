@@ -71,6 +71,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Avalon.Benchmarking", "tool
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Avalon.Domain", "src\Shared\Avalon.Domain\Avalon.Domain.csproj", "{D8D5505D-6256-4E08-BFA9-BCF356BB4883}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Avalon.Database.Migrator", "src\Server\Avalon.Database.Migrator\Avalon.Database.Migrator.csproj", "{A9E3CB67-7045-4AEB-B6A1-95E8128A7901}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -169,6 +171,10 @@ Global
 		{D8D5505D-6256-4E08-BFA9-BCF356BB4883}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{D8D5505D-6256-4E08-BFA9-BCF356BB4883}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{D8D5505D-6256-4E08-BFA9-BCF356BB4883}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A9E3CB67-7045-4AEB-B6A1-95E8128A7901}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A9E3CB67-7045-4AEB-B6A1-95E8128A7901}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A9E3CB67-7045-4AEB-B6A1-95E8128A7901}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A9E3CB67-7045-4AEB-B6A1-95E8128A7901}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -202,6 +208,7 @@ Global
 		{2352D5E8-1C9B-49C9-9437-CC3F9BB0E6E0} = {0C56F203-0A21-4680-9F9D-987BA111B125}
 		{E1B1005A-43F4-47A2-BEF5-AE3D2BE1A183} = {F506D206-DC04-4EAC-BD00-ABA6A073E757}
 		{D8D5505D-6256-4E08-BFA9-BCF356BB4883} = {44F4FAA6-D875-4F06-8308-DD6990AF1E63}
+		{A9E3CB67-7045-4AEB-B6A1-95E8128A7901} = {0C56F203-0A21-4680-9F9D-987BA111B125}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {20CD880E-2A9B-4B75-A2C1-3145230B285E}
