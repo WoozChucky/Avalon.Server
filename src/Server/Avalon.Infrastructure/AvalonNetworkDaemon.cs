@@ -207,7 +207,7 @@ public class AvalonNetworkDaemon : IAvalonNetworkDaemon
         {
             await Task.Delay(5000, _cts.Token).ConfigureAwait(false);
             
-            if (true)
+            if (false)
             {
                 var currentBytesReceived = Interlocked.Read(ref _bytesReceived);
                 var currentTcpBytesReceived = Interlocked.Read(ref _tcpBytesReceived);
