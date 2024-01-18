@@ -37,3 +37,7 @@ src/Client/Avalon.Client.Simulator/BenchmarkDotNet.Artifacts/
 .idea/.idea.Avalon/.idea/
 
 compose/
+
+src/Client/.DS_Store
+
+src/Client/Avalon.Client/.DS_Store
