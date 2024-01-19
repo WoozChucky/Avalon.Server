@@ -1,6 +1,3 @@
---
--- Table structure for table `Account`
---
 CREATE TABLE IF NOT EXISTS `Account` (
     `Id` int(10) unsigned NOT NULL AUTO_INCREMENT COMMENT 'Identifier',
     `Username` varchar(32) NOT NULL DEFAULT '',

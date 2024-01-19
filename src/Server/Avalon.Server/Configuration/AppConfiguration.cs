@@ -1,4 +1,4 @@
-using Avalon.Database.Configuration;
+using Avalon.Configuration;
 using Avalon.Infrastructure.Configuration;
 using Avalon.Metrics;
 

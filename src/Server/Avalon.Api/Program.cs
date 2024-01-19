@@ -1,6 +1,8 @@
 using Avalon.Api;
 using Avalon.Api.Config;
 using Avalon.Api.Exceptions.Handlers;
+using Avalon.Database.Migrator;
+using Avalon.Database.Migrator.Extensions;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -20,6 +22,7 @@ var services = builder.Services;
     services.AddSingleton(applicationConfig.Environment);
     services.AddSingleton(applicationConfig.Authentication);
     services.AddSingleton(applicationConfig.Database);
+    services.AddSingleton(applicationConfig.Migrator);
     
     services.Configure<CookiePolicyOptions>(options =>
     {
@@ -37,6 +40,7 @@ var services = builder.Services;
     services.AddAuth(applicationConfig);
     services.AddSwagger();
     services.AddInfrastructure(applicationConfig);
+    services.AddDatabaseMigrator();
 }
 
 var app = builder.Build();
@@ -73,6 +77,15 @@ var app = builder.Build();
     app.MapHealthChecks("/health");
     
     app.MapControllers();
+}
+
+var appConfig = app.Services.GetRequiredService<ApplicationConfig>();
+
+if (appConfig.Migrator.Enabled)
+{
+    app.Services
+        .GetRequiredService<IDatabaseMigrator>()
+        .RunAsync().GetAwaiter().GetResult();
 }
 
 app.Run();

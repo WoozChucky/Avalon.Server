@@ -22,11 +22,12 @@
     </ItemGroup>
 
     <ItemGroup>
+      <ProjectReference Include="..\..\Shared\Avalon.Configuration\Avalon.Configuration.csproj" />
       <ProjectReference Include="..\..\Shared\Avalon.Domain\Avalon.Domain.csproj" />
     </ItemGroup>
 
     <ItemGroup>
-        <None Include="Scripts\**" CopyToOutputDirectory="PreserveNewest" />
+        <None Include="Scripts\**" CopyToOutputDirectory="Always" />
     </ItemGroup>
     
 </Project>

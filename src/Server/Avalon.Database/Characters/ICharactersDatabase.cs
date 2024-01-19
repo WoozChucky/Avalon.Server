@@ -1,4 +1,4 @@
-using Avalon.Database.Configuration;
+using Avalon.Configuration;
 
 namespace Avalon.Database.Characters
 {

@@ -1,4 +1,4 @@
-using Avalon.Database.Configuration;
+using Avalon.Configuration;
 using Avalon.Database.World.Tables;
 
 namespace Avalon.Database.World
