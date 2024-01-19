@@ -1,4 +1,4 @@
-﻿namespace Avalon.Database.Configuration;
+namespace Avalon.Configuration;
 
 public class DatabaseConfiguration
 {
