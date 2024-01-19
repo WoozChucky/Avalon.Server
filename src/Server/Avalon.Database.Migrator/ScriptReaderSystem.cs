@@ -39,7 +39,7 @@ internal class ScriptReaderSystem
             });
         }
         
-        return scripts;
+        return scripts.OrderBy(s => s.Name).ToList();
     }
     
     public static async Task<ICollection<MigrationScript>> ListMigrationScriptsAsync(string path)
@@ -73,7 +73,7 @@ internal class ScriptReaderSystem
             }
         }
         
-        return scripts;
+        return scripts.OrderBy(s => s.Name).ToList();
     }
     
     public static async Task<ICollection<string>> ListMigrationDirectoriesAsync(string path = ScriptsPath)
