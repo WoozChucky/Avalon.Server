@@ -78,89 +78,6 @@ internal class DatabaseMigrationProcess
                 
         _logger.LogInformation("Database {Database} created", _databaseName);
     }
-    
-    private async Task CreateDatabaseAsync(IDbConnection connection, IDbTransaction transaction, MigrationScript? script)
-    {
-        if (script == null)
-            throw new DatabaseMigrationException($"Database creation script for {_databaseName} not found.");
-
-        var sqlScript = script.Content.Replace(DatabaseNameMask, _connectionDetails.Database);
-        
-        await connection.ExecuteAsync(sqlScript, transaction: transaction);
-    }
-    
-    private async Task<bool> IsDatabaseCreatedAsync()
-    {
-        try
-        {
-            await using var connection = new MySqlConnection(_connectionString);
-
-            var record = await connection.QueryFirstOrDefaultAsync<string>(
-                "SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME = @Name",
-                new { Name = _databaseName.ToLower() }
-            );
-
-            return !string.IsNullOrWhiteSpace(record);
-        }
-        catch (MySqlException e)
-        {
-            if (e.ErrorCode == MySqlErrorCode.UnknownDatabase)
-                return false;
-        }
-
-        return false;
-    }
-    
-    private static string GenerateConnectionString(DatabaseConnection database)
-    {
-        return $"Server={database.Host};" +
-               $"Port={database.Port};" +
-               $"Database={database.Database};" +
-               $"Uid={database.Username};" +
-               $"Pwd={database.Password};";
-    }
-    
-    private static byte[] GetMigrationHash(IEnumerable<MigrationScript> scripts)
-    {
-        var bytes = Encoding.UTF8.GetBytes(scripts.Select(s => s.Content).Aggregate((a, b) => a + b));
-        using var sha1 = SHA1.Create();
-        var result = sha1.ComputeHash(bytes);
-        return result;
-    }
-    
-    private async Task<ICollection<MigrationRecord>> GetRemoteMigrationRecordAsync()
-    {
-        await using var connection = new MySqlConnection(_connectionString);
-
-        var records = await connection.QueryAsync<MigrationRecord>(
-            "SELECT * FROM __MigrationRecord"
-        );
-
-        return records.ToList();
-    }
-    
-    private async Task<ICollection<MigrationRecord>> GetLocalMigrationRecordAsync()
-    {
-        var migrationFolders = await ScriptReaderSystem.ListMigrationDirectoriesAsync();
-
-        var result = new List<MigrationRecord>();
-        
-        foreach (var migrationFolder in migrationFolders)
-        {
-            var scripts = await ScriptReaderSystem.ListMigrationScriptsAsync(migrationFolder);
-            scripts = scripts.Where(s => s.Database!.Equals(_databaseName, StringComparison.InvariantCultureIgnoreCase)).ToList();
-            
-            var record = new MigrationRecord
-            {
-                Name = migrationFolder,
-                Hash = GetMigrationHash(scripts)
-            };
-
-            result.Add(record);
-        }
-
-        return result;
-    }
 
     public async Task ApplyMigrationsAsync()
     {
@@ -196,6 +113,72 @@ internal class DatabaseMigrationProcess
             _logger.LogInformation("Local migrations are ahead of remote migrations. Applying missing migrations...");
             await ApplyMissingMigrationsAsync(localMigrationsAhead);
         }
+    }
+    
+    private async Task CreateDatabaseAsync(IDbConnection connection, IDbTransaction transaction, MigrationScript? script)
+    {
+        if (script == null)
+            throw new DatabaseMigrationException($"Database creation script for {_databaseName} not found.");
+
+        var sqlScript = script.Content.Replace(DatabaseNameMask, _connectionDetails.Database);
+        
+        await connection.ExecuteAsync(sqlScript, transaction: transaction);
+    }
+    
+    private async Task<bool> IsDatabaseCreatedAsync()
+    {
+        try
+        {
+            await using var connection = new MySqlConnection(_connectionString);
+
+            var record = await connection.QueryFirstOrDefaultAsync<string>(
+                "SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME = @Name",
+                new { Name = _databaseName.ToLower() }
+            );
+
+            return !string.IsNullOrWhiteSpace(record);
+        }
+        catch (MySqlException e)
+        {
+            if (e.ErrorCode == MySqlErrorCode.UnknownDatabase)
+                return false;
+        }
+
+        return false;
+    }
+    
+    private async Task<ICollection<MigrationRecord>> GetRemoteMigrationRecordAsync()
+    {
+        await using var connection = new MySqlConnection(_connectionString);
+
+        var records = await connection.QueryAsync<MigrationRecord>(
+            "SELECT * FROM __MigrationRecord"
+        );
+
+        return records.ToList();
+    }
+    
+    private async Task<ICollection<MigrationRecord>> GetLocalMigrationRecordAsync()
+    {
+        var migrationFolders = await ScriptReaderSystem.ListMigrationDirectoriesAsync();
+
+        var result = new List<MigrationRecord>();
+        
+        foreach (var migrationFolder in migrationFolders)
+        {
+            var scripts = await ScriptReaderSystem.ListMigrationScriptsAsync(migrationFolder);
+            scripts = scripts.Where(s => s.Database!.Equals(_databaseName, StringComparison.InvariantCultureIgnoreCase)).ToList();
+            
+            var record = new MigrationRecord
+            {
+                Name = migrationFolder,
+                Hash = GetMigrationHash(scripts)
+            };
+
+            result.Add(record);
+        }
+
+        return result;
     }
 
     private async Task ApplyAllMigrationsAsync(ICollection<MigrationRecord> migrationRecords)
@@ -241,5 +224,22 @@ internal class DatabaseMigrationProcess
             
             _logger.LogInformation("Migration {Migration} applied to '{Database}'", migrationRecord.Name, _databaseName);
         }
+    }
+    
+    private static string GenerateConnectionString(DatabaseConnection database)
+    {
+        return $"Server={database.Host};" +
+               $"Port={database.Port};" +
+               $"Database={database.Database};" +
+               $"Uid={database.Username};" +
+               $"Pwd={database.Password};";
+    }
+    
+    private static byte[] GetMigrationHash(IEnumerable<MigrationScript> scripts)
+    {
+        var bytes = Encoding.UTF8.GetBytes(scripts.Select(s => s.Content).Aggregate((a, b) => a + b));
+        using var sha1 = SHA1.Create();
+        var result = sha1.ComputeHash(bytes);
+        return result;
     }
 }

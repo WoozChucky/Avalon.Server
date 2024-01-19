@@ -4,12 +4,49 @@ using System.Linq;
 
 namespace Avalon.Database.Migrator.Model;
 
+/// <summary>
+/// Represents a migration record.
+/// </summary>
 internal class MigrationRecord
 {
+    /// <summary>
+    /// Gets or sets the unique identifier of the property.
+    /// </summary>
+    /// <value>
+    /// The identifier.
+    /// </value>
     public Guid Id { get; set; }
+
+    /// <summary>
+    /// Gets or sets the name of the migration.
+    /// </summary>
+    /// <value>
+    /// The name of the property.
+    /// </value>
     public string Name { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the hash value of the migration.
+    /// </summary>
+    /// <value>
+    /// The hash value represented as an array of bytes.
+    /// </value>
     public byte[] Hash { get; set; }
+
+    /// <summary>
+    /// Gets or sets the name of the entity that executed the operation.
+    /// </summary>
+    /// <value>
+    /// The name of the entity that executed the operation.
+    /// </value>
     public string ExecutedBy { get; set; }
+
+    /// <summary>
+    /// Property representing the date and time when the operation was executed.
+    /// </summary>
+    /// <value>
+    /// The value of this property is a DateTime object representing the date and time when the operation was executed.
+    /// </value>
     public DateTime ExecutedOn { get; set; }
 }
 
