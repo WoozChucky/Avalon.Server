@@ -1,9 +1,11 @@
 using Avalon.Api;
 using Avalon.Api.Config;
-using Avalon.Api.Exceptions.Handlers;
+using Avalon.Api.Middlewares;
 using Avalon.Database.Migrator;
 using Avalon.Database.Migrator.Extensions;
-using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Serilog;
+using Serilog.Events;
+using Serilog.Sinks.SystemConsole.Themes;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -11,6 +13,21 @@ var configuration = builder
     .Configuration
     .AddEnvironmentVariables().
     Build();
+
+//Add support to logging with SERILOG
+builder.Host.UseSerilog((context, hostConfig) =>
+{
+    hostConfig
+        .MinimumLevel.Verbose()
+        .MinimumLevel.Override("Microsoft", LogEventLevel.Information)
+        .MinimumLevel.Override("Microsoft.AspNetCore", LogEventLevel.Warning)
+        .MinimumLevel.Override("Microsoft.AspNetCore.Diagnostics.ExceptionHandlerMiddleware]", LogEventLevel.Fatal)
+        .Enrich.FromLogContext()
+        .WriteTo.Console(LogEventLevel.Debug,
+            outputTemplate:
+            "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level}] [{SourceContext}] -> {Message}{NewLine}{Exception}",
+            theme: AnsiConsoleTheme.Sixteen, applyThemeToRedirectedOutput: true);
+});
 
 var services = builder.Services;
 
@@ -28,8 +45,7 @@ var services = builder.Services;
     {
         options.MinimumSameSitePolicy = SameSiteMode.None;
     });
-
-    services.AddExceptionHandler<DefaultExceptionHandler>();
+    
     services.AddHealthChecks();
     services.AddCors();
 
@@ -41,6 +57,21 @@ var services = builder.Services;
     services.AddSwagger();
     services.AddInfrastructure(applicationConfig);
     services.AddDatabaseMigrator();
+
+    services.AddLogging(loggingBuilder =>
+    {
+        loggingBuilder.AddSerilog(new LoggerConfiguration()
+                .MinimumLevel.Verbose()
+                .Enrich.FromLogContext()
+                .WriteTo.Console(LogEventLevel.Debug,
+                    outputTemplate:
+                    "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level}] [{ThreadId}] [{Layer}] -> {Message}{NewLine}{Exception}",
+                    theme: AnsiConsoleTheme.Sixteen, applyThemeToRedirectedOutput: true)
+                .CreateLogger()
+            )
+            .SetMinimumLevel(LogLevel.Debug);
+    });
+
 }
 
 var app = builder.Build();
@@ -56,13 +87,14 @@ var app = builder.Build();
     {
         // app.UseHsts();
     }
+
+    app.UseMiddleware<ExceptionHandlerMiddleware>();
+    app.UseMiddleware<RequestLoggingMiddleware>();
     
     app.UseSwagger();
     app.UseSwaggerUI();
     
     app.UseRouting();
-
-    app.UseExceptionHandler(_ => { });
     
     app.UseCors(x => x
         .WithOrigins("http://localhost:4200", "https://avalon.monster", "https://dashboard.avalon.monster")
