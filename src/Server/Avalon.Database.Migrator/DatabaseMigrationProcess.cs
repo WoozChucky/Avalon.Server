@@ -15,7 +15,7 @@ using MySqlConnector;
 
 namespace Avalon.Database.Migrator;
 
-public class DatabaseMigrationProcess
+internal class DatabaseMigrationProcess
 {
     private readonly ILogger<DatabaseMigrationProcess> _logger;
     private readonly MigratorConfiguration _config;
@@ -240,34 +240,6 @@ public class DatabaseMigrationProcess
             await transaction.CommitAsync();
             
             _logger.LogInformation("Migration {Migration} applied to '{Database}'", migrationRecord.Name, _databaseName);
-        }
-    }
-}
-
-public class MigrationRecordComparer : IEqualityComparer<MigrationRecord>
-{
-    public bool Equals(MigrationRecord x, MigrationRecord y)
-    {
-        if (ReferenceEquals(x, y)) return true;
-        if (ReferenceEquals(x, null) || ReferenceEquals(y, null)) return false;
-        if (x.GetType() != y.GetType()) return false;
-
-        return x.Name == y.Name && x.Hash.SequenceEqual(y.Hash);
-    }
-
-    public int GetHashCode(MigrationRecord obj)
-    {
-        unchecked
-        {
-            var hash = 17;
-            hash = hash * 23 + obj.Name.GetHashCode();
-
-            foreach (var b in obj.Hash)
-            {
-                hash = hash * 23 + b.GetHashCode();
-            }
-
-            return hash;
         }
     }
 }

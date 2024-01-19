@@ -1,6 +1,6 @@
 namespace Avalon.Database.Migrator.Model;
 
-public class MigrationScript
+internal class MigrationScript
 {
     public string Name { get; set; } = string.Empty;
     public string Migration { get; set; } = string.Empty;

@@ -7,7 +7,7 @@ using Avalon.Database.Migrator.Model;
 
 namespace Avalon.Database.Migrator;
 
-public class ScriptReaderSystem
+internal class ScriptReaderSystem
 {
     private const string ScriptsPath = "Scripts";
     private const string SqlExtension = ".sql";
