@@ -22,6 +22,7 @@ internal class DatabaseMigrationProcess
     private readonly string _databaseName;
     private readonly DatabaseConnection _connectionDetails;
     private readonly string _connectionString;
+    private MigrationLock? _currentLock;
 
     private const string DatabaseNameMask = "[[NAME]]";
 
@@ -228,7 +229,11 @@ internal class DatabaseMigrationProcess
             
             await transaction.CommitAsync();
             
-            _logger.LogInformation("Migration {Migration} applied to '{Database}'", migrationRecord.Name, _databaseName);
+            _logger.LogInformation("Migration {Migration} applied to '{Database}' with Hash='{Hash}'", 
+                migrationRecord.Name, 
+                _databaseName, 
+                BitConverter.ToString(migrationRecord.Hash.ToArray()).Replace("-", "")
+            );
         }
     }
     
@@ -238,7 +243,8 @@ internal class DatabaseMigrationProcess
                $"Port={database.Port};" +
                $"Database={database.Database};" +
                $"Uid={database.Username};" +
-               $"Pwd={database.Password};";
+               $"Pwd={database.Password};" +
+               $"Allow User Variables=true";
     }
     
     private static byte[] GetMigrationHash(IEnumerable<MigrationScript> scripts)
@@ -260,5 +266,68 @@ internal class DatabaseMigrationProcess
             .Aggregate(new List<byte>(), (a, b) => { a.AddRange(b); return a; });
 
         return BitConverter.ToString(aggregatedHash.ToArray()).Replace("-", "");
+    }
+
+    public async Task AcquireLockAsync()
+    {
+        // This should check if theres a lock on the database.
+        // If there is, we should wait (lets say 5 seconds) and try again up to a maximum of 10 times.
+        // After failing 10 times, we should throw an exception.
+        
+        var attempts = 0;
+        
+        while (true)
+        {
+            await using var connection = new MySqlConnection(_connectionString);
+            
+            var existingLocks = await connection.QueryAsync<MigrationLock>(
+                "SELECT * FROM __MigrationLock WHERE Locked = 1 AND LockedAt > @LockedAt",
+                new { LockedAt = DateTime.UtcNow.AddSeconds(-5) }
+            );
+
+            if (existingLocks.Any())
+            {
+                if (attempts >= 10)
+                    throw new DatabaseMigrationException($"Failed to acquire lock for '{_databaseName}' database.");
+
+                attempts++;
+                await Task.Delay(5000);
+                continue;
+            }
+
+            _currentLock = new MigrationLock
+            {
+                Id = Guid.NewGuid(),
+                Locked = true,
+                LockedBy = Environment.UserName,
+                LockedAt = DateTime.UtcNow,
+            };
+            
+            await connection.ExecuteAsync(
+                "INSERT INTO __MigrationLock (Id, Locked, LockedBy, LockedAt) VALUES (@Id, @Locked, @LockedBy, @LockedAt)",
+                new
+                {
+                    Id = _currentLock.Id,
+                    Locked = _currentLock.Locked,
+                    LockedBy = _currentLock.LockedBy,
+                    LockedAt = _currentLock.LockedAt,
+                }
+            );
+
+            return;
+        }
+    }
+
+    public async Task ReleaseLockAsync()
+    {
+        if (_currentLock == null)
+            throw new DatabaseMigrationException($"No lock acquired for '{_databaseName}' database.");
+        
+        await using var connection = new MySqlConnection(_connectionString);
+        
+        await connection.ExecuteAsync(
+            "DELETE FROM __MigrationLock WHERE Id = @Id",
+            new { Id = _currentLock.Id }
+        );
     }
 }
