@@ -42,25 +42,25 @@ public class AccountController : BaseController
         return await _accountService.Register(model, IpAddress, CancellationToken);
     }
     
-    [HttpGet("2fa/setup", Name = "Setup 2FA for the logged account")]
+    [HttpGet("mfa/setup", Name = "Setup MFA for the logged account")]
     public async Task<Setup2FAResponse> Setup2FA()
     {
         return await _accountService.Setup2FA(_authContext.Account!, CancellationToken);
     }
     
-    [HttpGet("2fa/confirm", Name = "Confirm a 2FA setup process for the logged account")]
+    [HttpGet("mfa/confirm", Name = "Confirm a MFA setup process for the logged account")]
     public async Task<Setup2FAResponse> Confirm2FA()
     {
         return await _accountService.Setup2FA(_authContext.Account!, CancellationToken);
     }
     
-    [HttpPost("2fa/reset", Name = "Reset 2FA for the logged account")]
+    [HttpPost("mfa/reset", Name = "Reset MFA for the logged account")]
     public async Task<Setup2FAResponse> Reset2FA()
     {
         return await _accountService.Setup2FA(_authContext.Account!, CancellationToken);
     }
     
-    [HttpPost("2fa/verify", Name = "Verify 2FA for the logged account")]
+    [HttpPost("mfa/verify", Name = "Verify MFA for the logged account")]
     public async Task<Setup2FAResponse> Verify2FA()
     {
         return await _accountService.Setup2FA(_authContext.Account!, CancellationToken);
