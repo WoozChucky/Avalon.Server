@@ -11,13 +11,13 @@ namespace Avalon.Database.Auth
     {
         public IAccountTable Account { get; }
         
-        public AuthDatabase(DatabaseConfiguration configuration)
+        public AuthDatabase(DatabaseConnection configuration)
         {
-            var connectionString = $"Server={configuration.Auth.Host};" +
-                                   $"Port={configuration.Auth.Port};" +
-                                   $"Database={configuration.Auth.Database};" +
-                                   $"userid={configuration.Auth.Username};" +
-                                   $"Pwd={configuration.Auth.Password};" +
+            var connectionString = $"Server={configuration.Host};" +
+                                   $"Port={configuration.Port};" +
+                                   $"Database={configuration.Database};" +
+                                   $"userid={configuration.Username};" +
+                                   $"Pwd={configuration.Password};" +
                                    $"ConvertZeroDatetime=True;" +
                                    $"AllowZeroDateTime=True";
             
