@@ -57,21 +57,6 @@ var services = builder.Services;
     services.AddSwagger();
     services.AddInfrastructure(applicationConfig);
     services.AddDatabaseMigrator();
-
-    services.AddLogging(loggingBuilder =>
-    {
-        loggingBuilder.AddSerilog(new LoggerConfiguration()
-                .MinimumLevel.Verbose()
-                .Enrich.FromLogContext()
-                .WriteTo.Console(LogEventLevel.Debug,
-                    outputTemplate:
-                    "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level}] [{ThreadId}] [{Layer}] -> {Message}{NewLine}{Exception}",
-                    theme: AnsiConsoleTheme.Sixteen, applyThemeToRedirectedOutput: true)
-                .CreateLogger()
-            )
-            .SetMinimumLevel(LogLevel.Debug);
-    });
-
 }
 
 var app = builder.Build();
@@ -110,6 +95,22 @@ var app = builder.Build();
     
     app.MapControllers();
 }
+
+var logger = app.Services.GetRequiredService<ILogger<Program>>();
+
+AppDomain.CurrentDomain.UnhandledException += (_, eventArgs) =>
+{
+    logger.LogError(eventArgs.ExceptionObject as Exception, "Unhandled exception");
+    Environment.Exit(1);
+};
+AppDomain.CurrentDomain.ProcessExit += (_, _) =>
+{
+    logger.LogInformation("Exited successfully");
+};
+Console.CancelKeyPress += (_, _) =>
+{
+    logger.LogInformation("Ctrl+C was pressed, stopping application...");
+};
 
 var appConfig = app.Services.GetRequiredService<ApplicationConfig>();
 

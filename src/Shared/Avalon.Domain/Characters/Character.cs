@@ -5,93 +5,93 @@ namespace Avalon.Domain.Characters;
 
 public class Character
 {
-    [Column("id")]
+    [Column("Id")]
     public int Id { get; set; }
     
-    [Column("account")]
+    [Column("Account")]
     public int Account { get; set; }
     
-    [Column("name")]
+    [Column("Name")]
     public string Name { get; set; }
     
     
-    [Column("class")]
+    [Column("Class")]
     public int Class { get; set; }
     
-    [Column("gender")]
+    [Column("Gender")]
     public int Gender { get; set; }
     
-    [Column("level")]
+    [Column("Level")]
     public int Level { get; set; }
     
-    [Column("xp")]
-    public int Xp { get; set; }
+    [Column("XP")]
+    public int XP { get; set; }
     
     
-    [Column("position_x")]
+    [Column("PositionX")]
     public float PositionX { get; set; }
     
-    [Column("position_y")]
+    [Column("PositionY")]
     public float PositionY { get; set; }
     
-    [Column("map")]
+    [Column("Map")]
     public int Map { get; set; }
 
-    [Column("instance_id")]
+    [Column("InstanceId")]
     public string? InstanceId { get; set; }
 
     [Column("online")]
     public bool Online { get; set; }
 
-    [Column("total_time")]
+    [Column("TotalTime")]
     public int TotalTime { get; set; }
 
-    [Column("level_time")]
+    [Column("LevelTime")]
     public int LevelTime { get; set; }
 
-    [Column("logout_time")]
+    [Column("LogoutTime")]
     public int LogoutTime { get; set; }
 
-    [Column("is_logout_resting")]
+    [Column("IsLogoutResting")]
     public bool IsLogoutResting { get; set; }
 
-    [Column("rest_bonus")]
+    [Column("RestBonus")]
     public float RestBonus { get; set; }
 
-    [Column("total_kills")]
+    [Column("TotalKills")]
     public int TotalKills { get; set; }
     
-    [Column("today_kills")]
+    [Column("TodayKills")]
     public int TodayKills { get; set; }
     
-    [Column("yesterday_kills")]
+    [Column("YesterdayKills")]
     public int YesterdayKills { get; set; }
     
-    [Column("chosen_title")]
+    [Column("ChosenTitle")]
     public int ChosenTitle { get; set; }
     
-    [Column("health")]
+    [Column("Health")]
     public int Health { get; set; }
     
-    [Column("power1")]
+    [Column("Power1")]
     public int Power1 { get; set; }
     
-    [Column("power2")]
+    [Column("Power2")]
     public int Power2 { get; set; }
     
-    [Column("latency")]
+    [Column("Latency")]
     public int Latency { get; set; }
     
-    [Column("action_bars")]
+    [Column("ActionBars")]
     public int ActionBars { get; set; }
     
-    [Column("order")]
+    [Column("Order")]
     public int Order { get; set; }
     
-    [Column("creation_date")]
+    [Column("CreationDate")]
     public DateTime CreationDate { get; set; }
     
-    [Column("delete_date")]
+    [Column("DeleteDate")]
     public int DeleteDate { get; set; }
 
     // Non database properties

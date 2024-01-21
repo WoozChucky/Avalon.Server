@@ -19,7 +19,7 @@ public class Account
     [Column("SessionKey")]
     public byte[] SessionKey { get; set; }
     
-    [Column("totp_secret")]
+    [Column("TotpSecret")]
     public byte[] TotpSecret { get; set; }
     
     [Column("Email")]
@@ -41,7 +41,7 @@ public class Account
     public bool Locked { get; set; }
     
     [Column("LastLogin")]
-    public DateTime LastLogin { get; set; }
+    public DateTime? LastLogin { get; set; }
     
     [Column("Online")]
     public bool Online { get; set; }
