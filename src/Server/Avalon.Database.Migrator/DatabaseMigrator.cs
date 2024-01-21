@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Avalon.Configuration;
@@ -77,7 +78,22 @@ public class DatabaseMigrator : IDatabaseMigrator
     {
         foreach (var migrationProcess in _databaseMigrationProcesses)
         {
-            await migrationProcess.ApplyMigrationsAsync();
+            try
+            {
+                await migrationProcess.AcquireLockAsync();
+                
+                await migrationProcess.ApplyMigrationsAsync();
+            }
+            catch (Exception e)
+            {
+                _logger.LogCritical(e,"Failed to apply migrations");
+                throw;
+            }
+            finally
+            {
+                await migrationProcess.ReleaseLockAsync();
+            }
+            
         }
     }
 }
