@@ -100,9 +100,15 @@ internal class DatabaseMigrationProcess
             
         if (localMigrationsBehind.Any())
         {
+            var remoteMigrationNames = AggregateNames(remoteRecords);
+            var remoteMigrationHashes = AggregateHashes(remoteRecords);
+            
+            var localMigrationNames = AggregateNames(localMigrationsBehind);
+            var localMigrationHashes = AggregateHashes(localMigrationsBehind);
+                
             throw new DatabaseMigrationException(
-                $"Local migrations are behind remote migrations. " +
-                $"Please make sure local migrations are updated for {_databaseName} database."
+                $"Local migrations ('{localMigrationNames}' - {localMigrationHashes}) are behind remote migrations ('{remoteMigrationNames}' - {remoteMigrationHashes}).\n" +
+                $"Please make sure local migrations are updated for '{_connectionDetails.Database}' database."
             );
         }
         
@@ -241,5 +247,18 @@ internal class DatabaseMigrationProcess
         using var sha1 = SHA1.Create();
         var result = sha1.ComputeHash(bytes);
         return result;
+    }
+    
+    private static string AggregateNames(IEnumerable<MigrationRecord> records)
+    {
+        return records.Select(m => m.Name).Aggregate(new StringBuilder(), (a, b) => a.Append(b)).ToString();
+    }
+
+    private static string AggregateHashes(IEnumerable<MigrationRecord> records)
+    {
+        var aggregatedHash = records.Select(m => m.Hash)
+            .Aggregate(new List<byte>(), (a, b) => { a.AddRange(b); return a; });
+
+        return BitConverter.ToString(aggregatedHash.ToArray()).Replace("-", "");
     }
 }
