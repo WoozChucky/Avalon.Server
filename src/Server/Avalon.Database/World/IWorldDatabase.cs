@@ -20,9 +20,15 @@ namespace Avalon.Database.World
         public IQuestRewardTable QuestReward { get; }
         public IQuestRewardTemplateTable QuestRewardTemplate { get; }
         
-        public WorldDatabase(DatabaseConfiguration configuration)
+        public WorldDatabase(DatabaseConnection configuration)
         {
-            var connectionString = $"Server={configuration.World.Host}; Port={configuration.World.Port}; Database={configuration.World.Database}; userid={configuration.World.Username}; Pwd={configuration.World.Password};";
+            var connectionString = $"Server={configuration.Host};" +
+                                   $"Port={configuration.Port};" +
+                                   $"Database={configuration.Database};" +
+                                   $"userid={configuration.Username};" +
+                                   $"Pwd={configuration.Password};" +
+                                   $"ConvertZeroDatetime=True;" +
+                                   $"AllowZeroDateTime=True";
             
             Map = new MapTable(connectionString);
             CreatureTemplate = new CreatureTemplateTable(connectionString);

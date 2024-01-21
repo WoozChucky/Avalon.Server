@@ -11,9 +11,15 @@ namespace Avalon.Database.Characters
     {
         public ICharacterTable Character { get; }
         
-        public CharactersDatabase(DatabaseConfiguration configuration)
+        public CharactersDatabase(DatabaseConnection configuration)
         {
-            var connectionString = $"Server={configuration.Characters.Host}; Port={configuration.Characters.Port}; Database={configuration.Characters.Database}; userid={configuration.Characters.Username}; Pwd={configuration.Characters.Password};";
+            var connectionString = $"Server={configuration.Host};" +
+                                   $"Port={configuration.Port};" +
+                                   $"Database={configuration.Database};" +
+                                   $"userid={configuration.Username};" +
+                                   $"Pwd={configuration.Password};" +
+                                   $"ConvertZeroDatetime=True;" +
+                                   $"AllowZeroDateTime=True";
             
             Character = new CharacterTable(connectionString);
         }
