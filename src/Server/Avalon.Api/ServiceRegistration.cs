@@ -32,7 +32,9 @@ public static class ServiceRegistration
                                $"Port={config.Database.Auth.Port}; " +
                                $"Database={config.Database.Auth.Database}; " +
                                $"userid={config.Database.Auth.Username}; " +
-                               $"Pwd={config.Database.Auth.Password};";
+                               $"Pwd={config.Database.Auth.Password};" +
+                               "AllowZeroDateTime=True;" +
+                               "ConvertZeroDateTime=True;";
         services.AddScoped<IAccountRepository>(_ => new AccountRepository(connectionString));
         
         services.AddScoped<IJwtUtils, JwtUtils>();

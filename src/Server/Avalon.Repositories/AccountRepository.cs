@@ -29,7 +29,7 @@ namespace Avalon.Repositories
         {
             await using var connection = new MySqlConnection(_connectionString);
             
-            return await connection.QueryFirstOrDefaultAsync<Account>("SELECT * FROM auth.Account WHERE id = @Id", new { Id = id });
+            return await connection.QueryFirstOrDefaultAsync<Account>("SELECT * FROM auth.Account WHERE Id = @Id", new { Id = id });
         }
 
         public async Task<IEnumerable<Account>> FindAllAsync()
@@ -71,7 +71,7 @@ namespace Avalon.Repositories
                 }
             }
             
-            var rows = await connection.ExecuteAsync("INSERT INTO auth.Account (username, email, totp_secret, salt, verifier, last_ip) VALUES (@Username, @Email, @TotpSecret, @Salt, @Verifier, @IpAddress)", new
+            var rows = await connection.ExecuteAsync("INSERT INTO auth.Account (Username, Email, TotpSecret, Salt, Verifier, LastIp) VALUES (@Username, @Email, @TotpSecret, @Salt, @Verifier, @IpAddress)", new
             {
                 Username = entity.Username,
                 Email = entity.Email,
@@ -93,7 +93,7 @@ namespace Avalon.Repositories
         {
             await using var connection = new MySqlConnection(_connectionString);
             
-            var rows = await connection.ExecuteAsync("UPDATE auth.Account SET username = @Username, email = @Email, totp_secret = @TotpSecret, salt = @Salt, verifier = @Verifier, last_ip = @IpAddress WHERE id = @Id", new
+            var rows = await connection.ExecuteAsync("UPDATE auth.Account SET Username = @Username, Email = @Email, TotpSecret = @TotpSecret, Salt = @Salt, Verifier = @Verifier, LastIp = @IpAddress WHERE Id = @Id", new
             {
                 Id = entity.Id,
                 Username = entity.Username,
@@ -116,7 +116,7 @@ namespace Avalon.Repositories
         {
             await using var connection = new MySqlConnection(_connectionString);
             
-            var rows = await connection.ExecuteAsync("DELETE FROM auth.Account WHERE id = @Id", new { Id = entity.Id });
+            var rows = await connection.ExecuteAsync("DELETE FROM auth.Account WHERE Id = @Id", new { Id = entity.Id });
 
             return rows >= 1;
         }
@@ -125,7 +125,7 @@ namespace Avalon.Repositories
         {
             await using var connection = new MySqlConnection(_connectionString);
             
-            return await connection.QueryFirstOrDefaultAsync<Account>("SELECT * FROM auth.Account WHERE username = @Username", new { Username = username });
+            return await connection.QueryFirstOrDefaultAsync<Account>("SELECT * FROM auth.Account WHERE Username = @Username", new { Username = username });
         }
     }
 }
