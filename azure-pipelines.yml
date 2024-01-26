@@ -218,7 +218,7 @@ jobs:
         docker tag $(registryUrl)/avalon/database-migrator:$(Build.BuildNumber) $(registryUrl)/avalon/database-migrator:latest
 
   - task: Bash@3
-    displayName:  Docker Push - game-server - $(Build.BuildNumber)
+    displayName:  Docker Push - database-migrator - $(Build.BuildNumber)
     inputs:
       targetType: 'inline'
       script: |
