@@ -1,40 +1,33 @@
-using Avalon.Configuration;
-using Avalon.Database.World.Tables;
-
 namespace Avalon.Database.World
 {
     public interface IWorldDatabase
     {
-        IMapTable Map { get; }
-        ICreatureTemplateTable CreatureTemplate { get; }
-        IQuestTemplateTable QuestTemplate { get; }
-        IQuestRewardTable QuestReward { get; }
-        IQuestRewardTemplateTable QuestRewardTemplate { get; }
+        IMapRepository Map { get; }
+        ICreatureTemplateRepository CreatureTemplate { get; }
+        IQuestTemplateRepository QuestTemplate { get; }
+        IQuestRewardRepository QuestReward { get; }
+        IQuestRewardTemplateRepository QuestRewardTemplate { get; }
     }
     
     public class WorldDatabase : IWorldDatabase
     {
-        public IMapTable Map { get; }
-        public ICreatureTemplateTable CreatureTemplate { get; }
-        public IQuestTemplateTable QuestTemplate { get; }
-        public IQuestRewardTable QuestReward { get; }
-        public IQuestRewardTemplateTable QuestRewardTemplate { get; }
+        public IMapRepository Map { get; }
+        public ICreatureTemplateRepository CreatureTemplate { get; }
+        public IQuestTemplateRepository QuestTemplate { get; }
+        public IQuestRewardRepository QuestReward { get; }
+        public IQuestRewardTemplateRepository QuestRewardTemplate { get; }
         
-        public WorldDatabase(DatabaseConnection configuration)
+        public WorldDatabase(IMapRepository mapRepository,
+                             ICreatureTemplateRepository creatureTemplateRepository,
+                             IQuestTemplateRepository questTemplateRepository,
+                             IQuestRewardRepository questRewardRepository,
+                             IQuestRewardTemplateRepository questRewardTemplateRepository)
         {
-            var connectionString = $"Server={configuration.Host};" +
-                                   $"Port={configuration.Port};" +
-                                   $"Database={configuration.Database};" +
-                                   $"userid={configuration.Username};" +
-                                   $"Pwd={configuration.Password};" +
-                                   $"ConvertZeroDatetime=True;" +
-                                   $"AllowZeroDateTime=True";
-            
-            Map = new MapTable(connectionString);
-            CreatureTemplate = new CreatureTemplateTable(connectionString);
-            QuestTemplate = new QuestTemplateTable(connectionString);
-            QuestReward = new QuestRewardTable(connectionString);
-            QuestRewardTemplate = new QuestRewardTemplateTable(connectionString);
+            Map = mapRepository;
+            CreatureTemplate = creatureTemplateRepository;
+            QuestTemplate = questTemplateRepository;
+            QuestReward = questRewardRepository;
+            QuestRewardTemplate = questRewardTemplateRepository;
         }
     }
 }

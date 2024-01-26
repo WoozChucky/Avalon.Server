@@ -168,7 +168,7 @@ public partial class AvalonGame : IAvalonGame
                 && s is { Status: ConnectionStatus.Connected, Character: not null }
         );
 
-        var tasks = availableSessions.Select(s => s.SendAsync(SPlayerDisconnectedPacket.Create(session.AccountId, session.Character!.Id, s.Encrypt)));
+        var tasks = availableSessions.Select(s => s.SendAsync(SPlayerDisconnectedPacket.Create(session.AccountId, session.Character!.Id!.Value, s.Encrypt)));
             
         await Task.WhenAll(tasks);
     }

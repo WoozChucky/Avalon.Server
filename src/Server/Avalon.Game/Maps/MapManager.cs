@@ -58,7 +58,7 @@ public class AvalonMapManager : IAvalonMapManager
     {
         _logger.LogInformation("Loading maps...");
 
-        _mapTemplates = _databaseManager.World.Map.QueryAllAsync().GetAwaiter().GetResult();
+        _mapTemplates = _databaseManager.World.Map.FindAllAsync().GetAwaiter().GetResult();
         
         _logger.LogInformation("Loaded {MapCount} maps from database", _mapTemplates.Count());
 

@@ -3,13 +3,14 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Threading.Tasks;
+using Avalon.Database.Repositories;
 using Avalon.Domain.Auth;
 using Dapper;
 using DapperExtensions;
 using DapperExtensions.Predicate;
 using MySqlConnector;
 
-namespace Avalon.Database.Repositories
+namespace Avalon.Database.Auth
 {
     public interface IMFASetupRepository : IRepository<MFASetup, Guid>
     {
