@@ -61,7 +61,6 @@ public class AccountService(IAccountRepository authRepository, IJwtUtils jwtUtil
         {
             Username = model.Username,
             Email = model.Email,
-            TotpSecret = totpSecret,
             Salt = saltBytes,
             Verifier = hashBytes,
             LastIp = ipAddress.ToString(),
@@ -82,12 +81,14 @@ public class AccountService(IAccountRepository authRepository, IJwtUtils jwtUtil
 
     public async Task<Setup2FAResponse> Setup2FA(Account account, CancellationToken cancellationToken)
     {
-        var totp = new Totp(account.TotpSecret);
-        var uriString = new OtpUri(OtpType.Totp, account.TotpSecret, account.Email, applicationConfig.Authentication.Issuer).ToString();
+        var mfaSetup = new MFASetup();
+        
+        var totp = new Totp(mfaSetup.Secret);
+        var uriString = new OtpUri(OtpType.Totp, mfaSetup.Secret, account.Email, applicationConfig.Authentication!.Issuer).ToString();
         
         return new Setup2FAResponse
         {
-            SecretKey = Encoding.UTF8.GetString(account.TotpSecret),
+            SecretKey = Encoding.UTF8.GetString(mfaSetup.Secret),
             Uri = uriString
         };
     }

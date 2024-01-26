@@ -19,9 +19,6 @@
       <None Include="..\..\..\sgKey.snk">
         <Link>sgKey.snk</Link>
       </None>
-      <None Update="Scripts\Create\02-MigrationLock.sql">
-        <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-      </None>
     </ItemGroup>
 
     <ItemGroup>

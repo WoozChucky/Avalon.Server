@@ -71,11 +71,10 @@ namespace Avalon.Repositories
                 }
             }
             
-            var rows = await connection.ExecuteAsync("INSERT INTO auth.Account (Username, Email, TotpSecret, Salt, Verifier, LastIp) VALUES (@Username, @Email, @TotpSecret, @Salt, @Verifier, @IpAddress)", new
+            var rows = await connection.ExecuteAsync("INSERT INTO auth.Account (Username, Email, Salt, Verifier, LastIp) VALUES (@Username, @Email, @Salt, @Verifier, @IpAddress)", new
             {
                 Username = entity.Username,
                 Email = entity.Email,
-                TotpSecret = entity.TotpSecret,
                 Salt = entity.Salt, 
                 Verifier = entity.Verifier,
                 IpAddress = entity.LastIp
@@ -93,12 +92,11 @@ namespace Avalon.Repositories
         {
             await using var connection = new MySqlConnection(_connectionString);
             
-            var rows = await connection.ExecuteAsync("UPDATE auth.Account SET Username = @Username, Email = @Email, TotpSecret = @TotpSecret, Salt = @Salt, Verifier = @Verifier, LastIp = @IpAddress WHERE Id = @Id", new
+            var rows = await connection.ExecuteAsync("UPDATE auth.Account SET Username = @Username, Email = @Email, Salt = @Salt, Verifier = @Verifier, LastIp = @IpAddress WHERE Id = @Id", new
             {
                 Id = entity.Id,
                 Username = entity.Username,
                 Email = entity.Email,
-                TotpSecret = entity.TotpSecret,
                 Salt = entity.Salt, 
                 Verifier = entity.Verifier,
                 IpAddress = entity.LastIp,

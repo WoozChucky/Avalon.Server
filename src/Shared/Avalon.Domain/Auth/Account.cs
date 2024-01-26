@@ -19,9 +19,6 @@ public class Account
     [Column("SessionKey")]
     public byte[] SessionKey { get; set; }
     
-    [Column("TotpSecret")]
-    public byte[] TotpSecret { get; set; }
-    
     [Column("Email")]
     public string Email { get; set; }
     

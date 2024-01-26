@@ -4,7 +4,6 @@ CREATE TABLE IF NOT EXISTS `Account` (
     `Salt` varbinary(64) NOT NULL,
     `Verifier` varbinary(128) NOT NULL,
     `SessionKey` binary(40) DEFAULT NULL,
-    `TotpSecret` varbinary(128) DEFAULT NULL,
     `Email` varchar(120) NOT NULL DEFAULT '',
     `JoinDate` datetime NOT NULL DEFAULT curdate(),
     `LastIp` varchar(15) NOT NULL DEFAULT '127.0.0.1',
