@@ -20,4 +20,8 @@
         </None>
     </ItemGroup>
 
+    <ItemGroup>
+      <ProjectReference Include="..\Avalon.Configuration\Avalon.Configuration.csproj" />
+    </ItemGroup>
+
 </Project>

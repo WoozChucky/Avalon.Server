@@ -66,7 +66,6 @@ namespace Avalon.Database.Auth
             {
                 Username = account.Username,
                 Email = account.Email,
-                TotpSecret = account.TotpSecret,
                 Salt = account.Salt, 
                 Verifier = account.Verifier,
                 IpAddress = account.LastIp

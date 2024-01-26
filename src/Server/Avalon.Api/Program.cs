@@ -36,10 +36,10 @@ var services = builder.Services;
     var applicationConfig = new ApplicationConfig();
     configuration.Bind("Application", applicationConfig);
     services.AddSingleton(applicationConfig);
-    services.AddSingleton(applicationConfig.Environment);
-    services.AddSingleton(applicationConfig.Authentication);
-    services.AddSingleton(applicationConfig.Database);
-    services.AddSingleton(applicationConfig.Migrator);
+    services.AddSingleton(applicationConfig.Environment!);
+    services.AddSingleton(applicationConfig.Authentication!);
+    services.AddSingleton(applicationConfig.Database!);
+    services.AddSingleton(applicationConfig.Migrator!);
     
     services.Configure<CookiePolicyOptions>(options =>
     {
@@ -114,7 +114,7 @@ Console.CancelKeyPress += (_, _) =>
 
 var appConfig = app.Services.GetRequiredService<ApplicationConfig>();
 
-if (appConfig.Migrator.Enabled)
+if (appConfig.Migrator!.Enabled)
 {
     app.Services
         .GetRequiredService<IDatabaseMigrator>()
