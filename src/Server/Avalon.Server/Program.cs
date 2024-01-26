@@ -4,6 +4,7 @@ using Avalon.Common.Telemetry;
 using Avalon.Database;
 using Avalon.Database.Auth;
 using Avalon.Database.Characters;
+using Avalon.Database.Extensions;
 using Avalon.Database.World;
 using Avalon.Game;
 using Avalon.Game.Creatures;
@@ -231,9 +232,10 @@ namespace Avalon.Server
             services.AddSingleton<AllocationsListener>();
             services.AddSingleton<SystemUsageCollector>();
 
-            services.AddSingleton<IAuthDatabase, AuthDatabase>();
-            services.AddSingleton<ICharactersDatabase, CharactersDatabase>();
-            services.AddSingleton<IWorldDatabase, WorldDatabase>();
+            services.AddDatabases(AppConfiguration.Database);
+            //services.AddSingleton<IAuthDatabase, AuthDatabase>();
+            //services.AddSingleton<ICharactersDatabase, CharactersDatabase>();
+            //services.AddSingleton<IWorldDatabase, WorldDatabase>();
             services.AddSingleton<IDatabaseManager, DatabaseManager>();
             
             services.AddSingleton<IAvalonTcpServer, AvalonTcpServer>();
