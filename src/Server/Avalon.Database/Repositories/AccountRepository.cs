@@ -9,7 +9,7 @@ using DapperExtensions;
 using DapperExtensions.Predicate;
 using MySqlConnector;
 
-namespace Avalon.Repositories
+namespace Avalon.Database.Repositories
 {
     public interface IAccountRepository : IRepository<Account, int>
     {

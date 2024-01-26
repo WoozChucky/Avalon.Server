@@ -5,8 +5,8 @@ using Avalon.Api.Authentication;
 using Avalon.Api.Config;
 using Avalon.Api.Contract;
 using Avalon.Database.Auth;
+using Avalon.Database.Repositories;
 using Avalon.Domain.Auth;
-using Avalon.Repositories;
 using OtpNet;
 
 namespace Avalon.Api.Services;

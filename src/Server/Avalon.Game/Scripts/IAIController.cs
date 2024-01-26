@@ -21,6 +21,7 @@ public class AIController : IAIController
     public AIController(ILoggerFactory loggerFactory)
     {
         _logger = loggerFactory.CreateLogger<AIController>();
+        _templateScripts = new Dictionary<string, Type>();
     }
     
     public void LoadScripts()

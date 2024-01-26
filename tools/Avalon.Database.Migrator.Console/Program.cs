@@ -78,8 +78,8 @@ internal class Program
         });
         
         services.AddSingleton(AppConfiguration!);
-        services.AddSingleton(AppConfiguration!.Database);
-        services.AddSingleton(AppConfiguration.Migrator);
+        services.AddSingleton(AppConfiguration!.Database!);
+        services.AddSingleton(AppConfiguration.Migrator!);
 
         services.AddDatabaseMigrator();
         

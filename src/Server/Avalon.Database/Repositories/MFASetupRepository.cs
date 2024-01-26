@@ -9,7 +9,7 @@ using DapperExtensions;
 using DapperExtensions.Predicate;
 using MySqlConnector;
 
-namespace Avalon.Repositories
+namespace Avalon.Database.Repositories
 {
     public interface IMFASetupRepository : IRepository<MFASetup, Guid>
     {
@@ -36,7 +36,7 @@ namespace Avalon.Repositories
         {
             await using var connection = new MySqlConnection(_connectionString);
             
-            return await connection.QueryAsync<MFASetup>("SELECT * FROM auth.Account");
+            return await connection.QueryAsync<MFASetup>("SELECT * FROM auth.MFASetup");
         }
 
         public async Task<IEnumerable<MFASetup>> FindByAsync(IFieldPredicate predicate)

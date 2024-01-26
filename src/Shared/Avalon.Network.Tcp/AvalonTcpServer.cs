@@ -18,7 +18,7 @@ public class AvalonTcpServer : IAvalonTcpServer
     
     private volatile bool _isRunning;
     
-    public event TcpClientConnectedHandler ClientConnected;
+    public event TcpClientConnectedHandler? ClientConnected;
 
     public AvalonTcpServer(ILogger<AvalonTcpServer> logger, AvalonTcpServerConfiguration configuration, CancellationTokenSource cts)
     {

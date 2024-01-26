@@ -11,6 +11,7 @@
 
     <ItemGroup>
         <PackageReference Include="Dapper" Version="2.1.28" />
+        <PackageReference Include="DapperExtensions" Version="1.7.0" />
         <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.0" />
         <PackageReference Include="MySqlConnector" Version="2.3.3" />
     </ItemGroup>
@@ -24,10 +25,6 @@
     <ItemGroup>
       <ProjectReference Include="..\..\Shared\Avalon.Configuration\Avalon.Configuration.csproj" />
       <ProjectReference Include="..\..\Shared\Avalon.Domain\Avalon.Domain.csproj" />
-    </ItemGroup>
-
-    <ItemGroup>
-        <None Include="Scripts\**" CopyToOutputDirectory="Always" />
     </ItemGroup>
     
 </Project>

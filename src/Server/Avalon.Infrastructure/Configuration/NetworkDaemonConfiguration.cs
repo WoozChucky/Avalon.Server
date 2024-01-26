@@ -5,6 +5,6 @@ namespace Avalon.Infrastructure.Configuration;
 
 public class NetworkDaemonConfiguration
 {
-    public AvalonUdpServerConfiguration Udp { get; set; }
-    public AvalonTcpServerConfiguration Tcp { get; set; }
+    public AvalonUdpServerConfiguration? Udp { get; set; }
+    public AvalonTcpServerConfiguration? Tcp { get; set; }
 }

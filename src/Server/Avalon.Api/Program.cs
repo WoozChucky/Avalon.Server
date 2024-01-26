@@ -1,8 +1,6 @@
 using Avalon.Api;
 using Avalon.Api.Config;
 using Avalon.Api.Middlewares;
-using Avalon.Database.Migrator;
-using Avalon.Database.Migrator.Extensions;
 using Serilog;
 using Serilog.Events;
 using Serilog.Sinks.SystemConsole.Themes;
@@ -39,7 +37,6 @@ var services = builder.Services;
     services.AddSingleton(applicationConfig.Environment!);
     services.AddSingleton(applicationConfig.Authentication!);
     services.AddSingleton(applicationConfig.Database!);
-    services.AddSingleton(applicationConfig.Migrator!);
     
     services.Configure<CookiePolicyOptions>(options =>
     {
@@ -56,7 +53,6 @@ var services = builder.Services;
     services.AddAuth(applicationConfig);
     services.AddSwagger();
     services.AddInfrastructure(applicationConfig);
-    services.AddDatabaseMigrator();
 }
 
 var app = builder.Build();
@@ -111,14 +107,5 @@ Console.CancelKeyPress += (_, _) =>
 {
     logger.LogInformation("Ctrl+C was pressed, stopping application...");
 };
-
-var appConfig = app.Services.GetRequiredService<ApplicationConfig>();
-
-if (appConfig.Migrator!.Enabled)
-{
-    app.Services
-        .GetRequiredService<IDatabaseMigrator>()
-        .RunAsync().GetAwaiter().GetResult();
-}
 
 app.Run();
