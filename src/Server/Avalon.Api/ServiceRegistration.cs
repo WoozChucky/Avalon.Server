@@ -28,6 +28,7 @@ public static class ServiceRegistration
         DatabaseManager.RegisterMappings();
         
         services.AddScoped<IAccountService, AccountService>();
+        services.AddScoped<IMFAService, MFAService>();
         
         var connectionString = $"Server={config.Database!.Auth!.Host}; " +
                                $"Port={config.Database.Auth.Port}; " +
@@ -37,6 +38,7 @@ public static class ServiceRegistration
                                "AllowZeroDateTime=True;" +
                                "ConvertZeroDateTime=True;";
         services.AddScoped<IAccountRepository>(_ => new AccountRepository(connectionString));
+        services.AddScoped<IMFASetupRepository>(_ => new MFASetupRepository(connectionString));
         
         services.AddScoped<IJwtUtils, JwtUtils>();
     }
