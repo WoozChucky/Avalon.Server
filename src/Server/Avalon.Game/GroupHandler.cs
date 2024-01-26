@@ -37,11 +37,11 @@ public partial class AvalonGame
         
         // Create a new group and add both players to it
         inviterSession.Party.Active = true;
-        inviterSession.Party.Members.Add(invitedSession.Character.Id);
+        inviterSession.Party.Members.Add(invitedSession.Character!.Id!.Value);
         inviterSession.Party.Leader = true;
         
         invitedSession.Party.Active = true;
-        invitedSession.Party.Members.Add(inviterSession.Character.Id);
+        invitedSession.Party.Members.Add(inviterSession.Character!.Id!.Value);
         invitedSession.Party.Leader = false;
         
         // Send group result packets to both players

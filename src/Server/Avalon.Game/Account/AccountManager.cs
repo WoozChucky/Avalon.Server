@@ -1,4 +1,5 @@
 using System.Text;
+using Avalon.Domain.Auth;
 using Avalon.Network;
 using Avalon.Network.Packets.Auth;
 using Microsoft.Extensions.Logging;
@@ -27,7 +28,7 @@ public partial class AvalonGame
         }
 
         var account =
-            await _databaseManager.Auth.Account.QueryByUsernameAsync(packet.Username.ToUpperInvariant().Trim());
+            await _databaseManager.Auth.Account.FindByUsernameAsync(packet.Username.ToUpperInvariant().Trim());
 
         if (account == null)
         {
@@ -101,9 +102,13 @@ public partial class AvalonGame
     
             character!.Online = false;
 
-            if (!await _databaseManager.Characters.Character.UpdateAsync(character))
+            try
             {
-                _logger.LogWarning("Failed to save character {CharacterId} progress to the database", character.Name);
+                await _databaseManager.Characters.Character.UpdateAsync(character);
+            }
+            catch (Exception e)
+            {
+                _logger.LogWarning(e, "Failed to save character {CharacterId} progress to the database", character.Name);
                 await session.SendAsync(SLogoutPacket.Create(session.AccountId, LogoutResult.InternalError, session.Encrypt));
             }
     
@@ -116,7 +121,7 @@ public partial class AvalonGame
                     && s.Character.InstanceId == session.Character!.InstanceId
             );
 
-            var tasks = availableSessions.Select(s => s.SendAsync(SPlayerDisconnectedPacket.Create(session.AccountId, session.Character!.Id, s.Encrypt)));
+            var tasks = availableSessions.Select(s => s.SendAsync(SPlayerDisconnectedPacket.Create(session.AccountId, session.Character!.Id!.Value, s.Encrypt)));
             
             await Task.WhenAll(tasks);
             
@@ -167,26 +172,42 @@ public partial class AvalonGame
 
         var saltBytes = Encoding.UTF8.GetBytes(salt);
         var hashBytes = Encoding.UTF8.GetBytes(hash);
+
+        var account = new Account
+        {
+            Username = packet.Username.Trim(),
+            Email = "Email",
+            FailedLogins = 0,
+            JoinDate = DateTime.UtcNow,
+            LastIp = session.Connection!.RemoteAddress.Split(':')[0],
+            Salt = saltBytes,
+            Verifier = hashBytes,
+            Online = false,
+            Locale = "en",
+            Locked = false,
+            Role = "Player",
+            OS = "Windows",
+            LastLogin = DateTime.UnixEpoch,
+            MuteBy = "",
+            MuteReason = "",
+            MuteTime = null,
+            TotalTime = 0,
+            LastAttemptIp = ""
+        };
+
+        try
+        {
+            await _databaseManager.Auth.Account.SaveAsync(account);
         
-        var totpSecret = KeyGeneration.GenerateRandomKey(32);
+            await session.SendAsync(SRegisterResultPacket.Create(RegisterResult.Ok, session.Encrypt));
         
-        var inserted = await _databaseManager.Auth.Account.InsertAccountAsync(
-            packet.Username.Trim(), 
-            "", 
-            totpSecret, 
-            saltBytes, 
-            hashBytes, 
-            session.Connection!.RemoteAddress.Split(':')[0]
-        );
-        
-        if (!inserted)
+            _logger.LogInformation("Account {Username} registered", packet.Username);
+        }
+        catch (Exception e)
         {
             await session.SendAsync(SRegisterResultPacket.Create(RegisterResult.UnknownError, session.Encrypt));
+            _logger.LogError(e, "Failed to save account");
             return;
         }
-        
-        await session.SendAsync(SRegisterResultPacket.Create(RegisterResult.Ok, session.Encrypt));
-        
-        _logger.LogInformation("Account {Username} registered", packet.Username);
     }
 }

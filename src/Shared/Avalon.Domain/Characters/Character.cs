@@ -6,7 +6,7 @@ namespace Avalon.Domain.Characters;
 public class Character
 {
     [Column("Id")]
-    public int Id { get; set; }
+    public int? Id { get; set; }
     
     [Column("Account")]
     public int Account { get; set; }

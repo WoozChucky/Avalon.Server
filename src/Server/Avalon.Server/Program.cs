@@ -233,9 +233,6 @@ namespace Avalon.Server
             services.AddSingleton<SystemUsageCollector>();
 
             services.AddDatabases(AppConfiguration.Database!);
-            //services.AddSingleton<IAuthDatabase, AuthDatabase>();
-            //services.AddSingleton<ICharactersDatabase, CharactersDatabase>();
-            //services.AddSingleton<IWorldDatabase, WorldDatabase>();
             services.AddSingleton<IDatabaseManager, DatabaseManager>();
             
             services.AddSingleton<IAvalonTcpServer, AvalonTcpServer>();

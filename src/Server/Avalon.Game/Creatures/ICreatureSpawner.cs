@@ -30,7 +30,7 @@ public class CreatureSpawner : ICreatureSpawner
     
     public void LoadCreatures()
     {
-        _templates = _databaseManager.World.CreatureTemplate.QueryAllAsync().GetAwaiter().GetResult();
+        _templates = _databaseManager.World.CreatureTemplate.FindAllAsync().GetAwaiter().GetResult();
         
         _logger.LogInformation("Loaded {CreatureCount} creatures template from database", _templates.Count());
     }

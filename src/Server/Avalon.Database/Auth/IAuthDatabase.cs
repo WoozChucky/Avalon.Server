@@ -4,24 +4,19 @@ namespace Avalon.Database.Auth
 {
     public interface IAuthDatabase
     {
-        IAccountTable Account { get; }
+        IAccountRepository Account { get; }
+        IMFASetupRepository MFASetup { get; }
     }
 
     public class AuthDatabase : IAuthDatabase
     {
-        public IAccountTable Account { get; }
+        public IAccountRepository Account { get; }
+        public IMFASetupRepository MFASetup { get; }
         
-        public AuthDatabase(DatabaseConnection configuration)
+        public AuthDatabase(IAccountRepository accountRepository, IMFASetupRepository mfaSetupRepository)
         {
-            var connectionString = $"Server={configuration.Host};" +
-                                   $"Port={configuration.Port};" +
-                                   $"Database={configuration.Database};" +
-                                   $"userid={configuration.Username};" +
-                                   $"Pwd={configuration.Password};" +
-                                   $"ConvertZeroDatetime=True;" +
-                                   $"AllowZeroDateTime=True";
-            
-            Account = new AccountTable(connectionString);
+            Account = accountRepository;
+            MFASetup = mfaSetupRepository;
         }
     }
 }
