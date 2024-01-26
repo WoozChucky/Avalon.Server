@@ -32,7 +32,7 @@ public partial class AvalonGame
                     _logger.LogInformation("Invalid player name for group invite");
                     return;
                 }
-                var invitedAccount = _sessionManager.GetSessions().Values.FirstOrDefault(p => p.InGame && p.Character.Name == playerName);
+                var invitedAccount = _sessionManager.GetSessions().Values.FirstOrDefault(p => p.InGame && p.Character?.Name == playerName);
                 if (invitedAccount == null)
                 {
                     _logger.LogInformation("Player {PlayerName} not found for group invite", playerName);
@@ -45,7 +45,7 @@ public partial class AvalonGame
                     return;
                 }
                 
-                await invitedAccount.SendAsync(SGroupInvitePacket.Create(invitedAccount.AccountId, session.AccountId, session.Character.Id, session.Character.Name, invitedAccount.Encrypt));
+                await invitedAccount.SendAsync(SGroupInvitePacket.Create(invitedAccount.AccountId, session.AccountId, session.Character!.Id!.Value, session.Character.Name, invitedAccount.Encrypt));
             }
         }
         else
@@ -58,7 +58,7 @@ public partial class AvalonGame
             var tasks = availableSessions.Select(s => s.SendAsync(
                 SChatMessagePacket.Create(
                     packet.AccountId, 
-                    session.Character!.Id,
+                    session.Character!.Id!.Value,
                     session.Character.Name, 
                     packet.Message, 
                     packet.DateTime,

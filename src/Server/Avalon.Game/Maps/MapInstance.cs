@@ -104,7 +104,7 @@ public class MapInstance
                 playerPackets.Add(new SPlayerPacket
                 {
                     AccountId = otherSession.Value.AccountId,
-                    CharacterId = otherSession.Value.Character!.Id,
+                    CharacterId = otherSession.Value.Character!.Id!.Value,
                     PositionX = otherSession.Value.Character.Movement.Position.X,
                     PositionY = otherSession.Value.Character.Movement.Position.Y,
                     VelocityX = otherSession.Value.Character.Movement.Velocity.X,

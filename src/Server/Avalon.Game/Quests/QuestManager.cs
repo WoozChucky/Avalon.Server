@@ -29,9 +29,9 @@ public class QuestManager : IQuestManager
 
     public void LoadQuests()
     {
-        _questTemplates = _databaseManager.World.QuestTemplate.QueryAllAsync().GetAwaiter().GetResult();
-        _questRewardTemplates = _databaseManager.World.QuestRewardTemplate.QueryAllAsync().GetAwaiter().GetResult();
-        _questRewards = _databaseManager.World.QuestReward.QueryAllAsync().GetAwaiter().GetResult();
+        _questTemplates = _databaseManager.World.QuestTemplate.FindAllAsync().GetAwaiter().GetResult();
+        _questRewardTemplates = _databaseManager.World.QuestRewardTemplate.FindAllAsync().GetAwaiter().GetResult();
+        _questRewards = _databaseManager.World.QuestReward.FindAllAsync().GetAwaiter().GetResult();
         
         _logger.LogInformation("Loaded {Count} quest templates", _questTemplates.Count());
         _logger.LogInformation("Loaded {Count} quest reward templates", _questRewardTemplates.Count());

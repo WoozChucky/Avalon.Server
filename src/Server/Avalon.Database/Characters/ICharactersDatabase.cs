@@ -1,27 +1,17 @@
-using Avalon.Configuration;
-
 namespace Avalon.Database.Characters
 {
     public interface ICharactersDatabase
     {
-        ICharacterTable Character { get; }
+        ICharacterRepository Character { get; }
     }
     
     public class CharactersDatabase : ICharactersDatabase
     {
-        public ICharacterTable Character { get; }
+        public ICharacterRepository Character { get; }
         
-        public CharactersDatabase(DatabaseConnection configuration)
+        public CharactersDatabase(ICharacterRepository characterRepository)
         {
-            var connectionString = $"Server={configuration.Host};" +
-                                   $"Port={configuration.Port};" +
-                                   $"Database={configuration.Database};" +
-                                   $"userid={configuration.Username};" +
-                                   $"Pwd={configuration.Password};" +
-                                   $"ConvertZeroDatetime=True;" +
-                                   $"AllowZeroDateTime=True";
-            
-            Character = new CharacterTable(connectionString);
+            Character = characterRepository;
         }
     }
 }
