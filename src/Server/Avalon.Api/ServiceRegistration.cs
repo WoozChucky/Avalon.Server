@@ -28,7 +28,7 @@ public static class ServiceRegistration
         
         services.AddScoped<IAccountService, AccountService>();
         
-        var connectionString = $"Server={config.Database.Auth.Host}; " +
+        var connectionString = $"Server={config.Database!.Auth!.Host}; " +
                                $"Port={config.Database.Auth.Port}; " +
                                $"Database={config.Database.Auth.Database}; " +
                                $"userid={config.Database.Auth.Username}; " +
@@ -117,7 +117,7 @@ public static class ServiceRegistration
             
             x.TokenValidationParameters = new TokenValidationParameters
             {
-                ValidIssuer = config.Authentication.Issuer,
+                ValidIssuer = config.Authentication!.Issuer,
                 ValidateIssuer = config.Authentication.ValidateIssuer,
             
                 IssuerSigningKey = new SymmetricSecurityKey(Encoding.ASCII.GetBytes(config.Authentication.IssuerSigningKey)),

@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using Avalon.Configuration;
 using Microsoft.Extensions.Logging;
 using QuixStreams.Streaming;
 using QuixStreams.Streaming.Models;
