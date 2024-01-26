@@ -73,8 +73,8 @@ namespace Avalon.Database.Auth
             }
             
             var rows = await connection.ExecuteAsync("INSERT INTO auth.MFASetup " +
-                                                     "(AccountId, Secret, RecoveryCode1, RecoveryCode2, RecoveryCode3, Status, CreatedAt)" +
-                                                     " VALUES (@AccountId, @Secret, @RecoveryCode1, @RecoveryCode2, @RecoveryCode3, @Status, @CreatedAt)", new
+                                                     "(AccountId, Secret, RecoveryCode1, RecoveryCode2, RecoveryCode3, Status, CreatedAt, ConfirmedAt)" +
+                                                     " VALUES (@AccountId, @Secret, @RecoveryCode1, @RecoveryCode2, @RecoveryCode3, @Status, @CreatedAt, @ConfirmedAt)", new
             {
                 AccountId = entity.AccountId,
                 Secret = entity.Secret,
@@ -82,7 +82,8 @@ namespace Avalon.Database.Auth
                 RecoveryCode2 = entity.RecoveryCode2, 
                 RecoveryCode3 = entity.RecoveryCode3,
                 Status = entity.Status,
-                CreatedAt = DateTime.UtcNow
+                CreatedAt = entity.CreatedAt,
+                ConfirmedAt = entity.ConfirmedAt
             });
             
             if (rows == 0)

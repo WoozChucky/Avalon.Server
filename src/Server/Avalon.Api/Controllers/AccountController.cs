@@ -4,7 +4,6 @@ using Avalon.Api.Services;
 using Avalon.Domain.Auth;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using OtpNet;
 
 namespace Avalon.Api.Controllers;
 
@@ -41,30 +40,4 @@ public class AccountController : BaseController
     {
         return await _accountService.Register(model, IpAddress, CancellationToken);
     }
-    
-    [HttpGet("mfa/setup", Name = "Setup MFA for the logged account")]
-    public async Task<Setup2FAResponse> Setup2FA()
-    {
-        return await _accountService.Setup2FA(_authContext.Account!, CancellationToken);
-    }
-    
-    [HttpGet("mfa/confirm", Name = "Confirm a MFA setup process for the logged account")]
-    public async Task<Setup2FAResponse> Confirm2FA()
-    {
-        return await _accountService.Setup2FA(_authContext.Account!, CancellationToken);
-    }
-    
-    [HttpPost("mfa/reset", Name = "Reset MFA for the logged account")]
-    public async Task<Setup2FAResponse> Reset2FA()
-    {
-        return await _accountService.Setup2FA(_authContext.Account!, CancellationToken);
-    }
-    
-    [HttpPost("mfa/verify", Name = "Verify MFA for the logged account")]
-    public async Task<Setup2FAResponse> Verify2FA()
-    {
-        return await _accountService.Setup2FA(_authContext.Account!, CancellationToken);
-    }
-    
-    
 }

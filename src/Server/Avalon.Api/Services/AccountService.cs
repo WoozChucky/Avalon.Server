@@ -2,8 +2,8 @@ using System.Net;
 using System.Security.Authentication;
 using System.Text;
 using Avalon.Api.Authentication;
-using Avalon.Api.Config;
 using Avalon.Api.Contract;
+using Avalon.Api.Exceptions;
 using Avalon.Database.Auth;
 using Avalon.Database.Repositories;
 using Avalon.Domain.Auth;
@@ -16,10 +16,11 @@ public interface IAccountService
     Task<Account?> FindById(int id);
     Task<AuthenticateResponse> Authenticate(AuthenticateRequest model, IPAddress ipAddress, CancellationToken cancellationToken);
     Task<RegisterResponse> Register(RegisterRequest model, IPAddress ipAddress, CancellationToken cancellationToken);
-    Task<Setup2FAResponse> Setup2FA(Account account, CancellationToken cancellationToken);
 }
 
-public class AccountService(IAccountRepository authRepository, IJwtUtils jwtUtils, ApplicationConfig applicationConfig) : IAccountService
+public class AccountService(
+    IAccountRepository authRepository, 
+    IJwtUtils jwtUtils) : IAccountService
 {
     public async Task<Account?> FindById(int id)
     {
@@ -54,8 +55,6 @@ public class AccountService(IAccountRepository authRepository, IJwtUtils jwtUtil
 
         var saltBytes = Encoding.UTF8.GetBytes(salt);
         var hashBytes = Encoding.UTF8.GetBytes(hash);
-        
-        var totpSecret = KeyGeneration.GenerateRandomKey(32);
 
         var account = new Account
         {
@@ -76,20 +75,6 @@ public class AccountService(IAccountRepository authRepository, IJwtUtils jwtUtil
         {
             Token = jwtUtils.GenerateJwtToken(inserted),
             ExpiresAt = DateTimeOffset.UtcNow.AddHours(1).ToUnixTimeSeconds(),
-        };
-    }
-
-    public async Task<Setup2FAResponse> Setup2FA(Account account, CancellationToken cancellationToken)
-    {
-        var mfaSetup = new MFASetup();
-        
-        var totp = new Totp(mfaSetup.Secret);
-        var uriString = new OtpUri(OtpType.Totp, mfaSetup.Secret, account.Email, applicationConfig.Authentication!.Issuer).ToString();
-        
-        return new Setup2FAResponse
-        {
-            SecretKey = Encoding.UTF8.GetString(mfaSetup.Secret),
-            Uri = uriString
         };
     }
 }

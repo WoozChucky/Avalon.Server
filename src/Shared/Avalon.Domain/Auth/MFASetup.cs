@@ -20,7 +20,7 @@ public class MFASetup {
     [Column("CreatedAt")]
     public DateTime CreatedAt { get; set; }
     [Column("ConfirmedAt")]
-    public DateTime? ConfirmedAt { get; set; }
+    public DateTime ConfirmedAt { get; set; }
 }
 
 public enum Status : ushort {
