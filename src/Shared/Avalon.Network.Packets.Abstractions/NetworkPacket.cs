@@ -1,3 +1,4 @@
+using System;
 using ProtoBuf;
 
 namespace Avalon.Network.Packets.Abstractions;
@@ -5,8 +6,8 @@ namespace Avalon.Network.Packets.Abstractions;
 [ProtoContract]
 public class NetworkPacket
 {
-    [ProtoMember(1)] public NetworkPacketHeader Header { get; set; }
-    [ProtoMember(2)] public byte[] Payload { get; set; }
+    [ProtoMember(1)] public NetworkPacketHeader Header { get; set; } = new();
+    [ProtoMember(2)] public byte[] Payload { get; set; } = Array.Empty<byte>();
 
     public int Size => Header?.Size + Payload?.Length ?? 0;
 }

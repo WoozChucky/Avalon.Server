@@ -63,7 +63,7 @@ namespace Avalon.Server
                 Process.GetCurrentProcess().PriorityClass = ProcessPriorityClass.RealTime;
                 Process.GetCurrentProcess().PriorityBoostEnabled = true;
             }
-            catch (Exception e)
+            catch (Exception)
             {
                 Logger.LogWarning("Failed to set process priority, defaulting to Normal priority");
             }
@@ -213,12 +213,12 @@ namespace Avalon.Server
             }
             
             services.AddSingleton(AppConfiguration);
-            services.AddSingleton(AppConfiguration.Infrastructure);
-            services.AddSingleton(AppConfiguration.NetworkDaemon);
-            services.AddSingleton(AppConfiguration.NetworkDaemon.Udp);
-            services.AddSingleton(AppConfiguration.NetworkDaemon.Tcp);
+            services.AddSingleton(AppConfiguration.Infrastructure!);
+            services.AddSingleton(AppConfiguration.NetworkDaemon!);
+            services.AddSingleton(AppConfiguration.NetworkDaemon!.Udp!);
+            services.AddSingleton(AppConfiguration.NetworkDaemon.Tcp!);
             services.AddSingleton(AppConfiguration.Metrics);
-            services.AddSingleton(AppConfiguration.Database);
+            services.AddSingleton(AppConfiguration.Database!);
 
             if (AppConfiguration.Metrics.Enabled)
             {
@@ -232,7 +232,7 @@ namespace Avalon.Server
             services.AddSingleton<AllocationsListener>();
             services.AddSingleton<SystemUsageCollector>();
 
-            services.AddDatabases(AppConfiguration.Database);
+            services.AddDatabases(AppConfiguration.Database!);
             //services.AddSingleton<IAuthDatabase, AuthDatabase>();
             //services.AddSingleton<ICharactersDatabase, CharactersDatabase>();
             //services.AddSingleton<IWorldDatabase, WorldDatabase>();

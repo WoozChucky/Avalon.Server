@@ -6,7 +6,7 @@ using Avalon.Api.Config;
 using Avalon.Api.Services;
 using Avalon.Common.Telemetry;
 using Avalon.Database;
-using Avalon.Repositories;
+using Avalon.Database.Repositories;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.IdentityModel.Tokens;

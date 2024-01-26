@@ -42,6 +42,7 @@ public class VirtualizedMap
         _events = new List<MapEvent>();
         _creaturePools = new List<MapCreaturePool>();
         TmxData = File.ReadAllBytes($"{directory}{name}");
+        TsxData = Array.Empty<byte[]>();
         Load(new TiledMap(TmxData.ToMemoryStream()));
     }
 

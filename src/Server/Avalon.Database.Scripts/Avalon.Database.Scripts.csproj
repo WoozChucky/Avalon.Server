@@ -3,21 +3,24 @@
     <PropertyGroup>
         <TargetFramework>netstandard2.1</TargetFramework>
         <Nullable>enable</Nullable>
-        <LangVersion>latest</LangVersion>
-        <LangVersion>latest</LangVersion>
         <SignAssembly>true</SignAssembly>
         <AssemblyOriginatorKeyFile>..\..\..\sgKey.snk</AssemblyOriginatorKeyFile>
         <PublicSign>true</PublicSign>
+        <LangVersion>latest</LangVersion>
     </PropertyGroup>
-
-    <ItemGroup>
-      <PackageReference Include="protobuf-net.Core" Version="3.2.30" />
-    </ItemGroup>
 
     <ItemGroup>
         <None Include="..\..\..\sgKey.snk">
             <Link>sgKey.snk</Link>
         </None>
+    </ItemGroup>
+    
+    <ItemGroup>
+        <None Include="Scripts\**" CopyToOutputDirectory="Always" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <Folder Include="Scripts\" />
     </ItemGroup>
 
 </Project>
