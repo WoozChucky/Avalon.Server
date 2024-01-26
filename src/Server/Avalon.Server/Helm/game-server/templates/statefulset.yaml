@@ -24,7 +24,6 @@ spec:
       {{- end }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
-      
       initContainers:
         # an init container that runs the migrations
         {{- if .Values.migrator.enabled }}
