@@ -38,6 +38,7 @@
 
     <ItemGroup>
       <ProjectReference Include="..\..\src\Server\Avalon.Database.Migrator\Avalon.Database.Migrator.csproj" />
+      <ProjectReference Include="..\..\src\Server\Avalon.Database.Scripts\Avalon.Database.Scripts.csproj" />
       <ProjectReference Include="..\..\src\Server\Avalon.Database\Avalon.Database.csproj" />
     </ItemGroup>
 

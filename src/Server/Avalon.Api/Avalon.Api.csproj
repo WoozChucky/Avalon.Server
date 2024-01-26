@@ -33,12 +33,7 @@
     <ItemGroup>
       <ProjectReference Include="..\..\Shared\Avalon.Common\Avalon.Common.csproj" />
       <ProjectReference Include="..\..\Shared\Avalon.Configuration\Avalon.Configuration.csproj" />
-      <ProjectReference Include="..\Avalon.Database.Migrator\Avalon.Database.Migrator.csproj" />
       <ProjectReference Include="..\Avalon.Database\Avalon.Database.csproj" />
-    </ItemGroup>
-
-    <ItemGroup>
-      <ProjectReference Include="..\Avalon.Repositories\Avalon.Repositories.csproj" />
     </ItemGroup>
 
     <ItemGroup>

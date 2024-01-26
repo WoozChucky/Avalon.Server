@@ -31,7 +31,7 @@ internal class MigrationRecord
     /// <value>
     /// The hash value represented as an array of bytes.
     /// </value>
-    public byte[] Hash { get; set; }
+    public byte[] Hash { get; set; } = Array.Empty<byte>();
 
     /// <summary>
     /// Gets or sets the name of the entity that executed the operation.
@@ -39,7 +39,7 @@ internal class MigrationRecord
     /// <value>
     /// The name of the entity that executed the operation.
     /// </value>
-    public string ExecutedBy { get; set; }
+    public string ExecutedBy { get; set; } = string.Empty;
 
     /// <summary>
     /// Property representing the date and time when the operation was executed.

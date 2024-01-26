@@ -4,7 +4,7 @@ using System.Linq.Expressions;
 using System.Threading.Tasks;
 using DapperExtensions.Predicate;
 
-namespace Avalon.Repositories
+namespace Avalon.Database.Repositories
 {
     public interface IRepository<TEntity, in TKey> where TEntity : class
     {
