@@ -29,6 +29,8 @@ public static class ServiceRegistration
         
         services.AddScoped<IAccountService, AccountService>();
         services.AddScoped<IMFAService, MFAService>();
+        services.AddSingleton<IMFAHashService, MFAHashService>();
+        services.AddSingleton<IWorkerService, MFAHashService>();
         
         var connectionString = $"Server={config.Database!.Auth!.Host}; " +
                                $"Port={config.Database.Auth.Port}; " +
