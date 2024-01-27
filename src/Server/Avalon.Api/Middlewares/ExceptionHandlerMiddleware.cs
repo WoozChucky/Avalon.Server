@@ -34,6 +34,7 @@ public class ExceptionHandlerMiddleware
         switch (exception)
         {
             case AuthenticationException ex:
+                context.Request.HttpContext.Response.StatusCode = (int)HttpStatusCode.Unauthorized;
                 await context.Response.WriteAsJsonAsync(new ProblemDetails
                 {
                     Status = (int)HttpStatusCode.Unauthorized,
@@ -44,6 +45,7 @@ public class ExceptionHandlerMiddleware
                 }, cancellationToken: context.RequestAborted);
                 return;
             case BusinessException ex:
+                context.Request.HttpContext.Response.StatusCode = (int)HttpStatusCode.BadRequest;
                 await context.Response.WriteAsJsonAsync(new ProblemDetails
                 {
                     Status = (int)HttpStatusCode.BadRequest,
@@ -57,12 +59,13 @@ public class ExceptionHandlerMiddleware
         
         _logger.LogError(exception, "An unexpected error occurred");
 
+        context.Request.HttpContext.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
         await context.Response.WriteAsJsonAsync(new ProblemDetails
         {
             Status = (int)HttpStatusCode.InternalServerError,
-            Type = exception.GetType().Name,
+            Type = "ServerError",
             Title = "An unexpected error occurred",
-            Detail = exception.Message,
+            Detail = "An unexpected error occurred",
             Instance = $"{context.Request.Method} {context.Request.Path}"
         }, cancellationToken: context.RequestAborted);
     }

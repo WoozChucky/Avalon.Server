@@ -1,6 +1,7 @@
 using Avalon.Api;
 using Avalon.Api.Config;
 using Avalon.Api.Middlewares;
+using Avalon.Api.Services;
 using Serilog;
 using Serilog.Events;
 using Serilog.Sinks.SystemConsole.Themes;
@@ -94,6 +95,15 @@ var app = builder.Build();
 
 var logger = app.Services.GetRequiredService<ILogger<Program>>();
 
+var workerServices = app.Services.GetServices<IWorkerService>();
+
+var cts = new CancellationTokenSource();
+foreach (var workerService in workerServices)
+{
+    logger.LogInformation("Starting worker {Worker}", workerService.GetType().Name);
+    workerService.StartWorker(cts.Token);
+}
+
 AppDomain.CurrentDomain.UnhandledException += (_, eventArgs) =>
 {
     logger.LogError(eventArgs.ExceptionObject as Exception, "Unhandled exception");
@@ -101,6 +111,7 @@ AppDomain.CurrentDomain.UnhandledException += (_, eventArgs) =>
 };
 AppDomain.CurrentDomain.ProcessExit += (_, _) =>
 {
+    cts.Cancel();
     logger.LogInformation("Exited successfully");
 };
 Console.CancelKeyPress += (_, _) =>

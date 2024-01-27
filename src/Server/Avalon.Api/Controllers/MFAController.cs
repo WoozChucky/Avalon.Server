@@ -23,7 +23,7 @@ public class MFAController : BaseController
     [HttpGet("setup", Name = "Setup MFA for the logged account")]
     public async Task<SetupMFAResponse> SetupMFA()
     {
-        return await _mfaService.Setup2FA(_authContext.Account!, CancellationToken);
+        return await _mfaService.SetupMFA(_authContext.Account!, CancellationToken);
     }
     
     [HttpPost("confirm", Name = "Confirm a MFA setup process for the logged account")]
@@ -38,9 +38,10 @@ public class MFAController : BaseController
         return await _mfaService.ResetMFA(request, _authContext.Account!, CancellationToken);
     }
     
+    [AllowAnonymous]
     [HttpPost("verify", Name = "Verify MFA for the logged account")]
-    public async Task VerifyMFA([FromBody] VerifyMFARequest request)
+    public async Task<AuthenticateResponse> VerifyMFA([FromBody] VerifyMFARequest request)
     {
-        await _mfaService.VerifyMFA(request.Code, _authContext.Account!, CancellationToken);
+        return await _mfaService.VerifyMFA(request, CancellationToken);
     }
 }

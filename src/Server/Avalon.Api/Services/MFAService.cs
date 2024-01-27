@@ -1,4 +1,6 @@
+using System.Security.Authentication;
 using System.Text;
+using Avalon.Api.Authentication;
 using Avalon.Api.Config;
 using Avalon.Api.Contract;
 using Avalon.Api.Exceptions;
@@ -10,8 +12,8 @@ namespace Avalon.Api.Services;
 
 public interface IMFAService
 {
-    Task<SetupMFAResponse> Setup2FA(Account account, CancellationToken cancellationToken = default);
-    Task VerifyMFA(string code, Account account, CancellationToken cancellationToken = default);
+    Task<SetupMFAResponse> SetupMFA(Account account, CancellationToken cancellationToken = default);
+    Task<AuthenticateResponse> VerifyMFA(VerifyMFARequest request, CancellationToken cancellationToken = default);
     Task<ConfirmMFAResponse> ConfirmMFA(string code, Account authContextAccount, CancellationToken cancellationToken = default);
     Task<SetupMFAResponse> ResetMFA(ResetMFARequest request, Account authContextAccount, CancellationToken cancellationToken = default);
 }
@@ -21,15 +23,20 @@ public class MFAService : IMFAService
     private readonly ILogger<MFAService> _logger;
     private readonly IMFASetupRepository _mfaSetupRepository;
     private readonly AuthenticationConfig _authenticationConfig;
+    private readonly IMFAHashService _mfaHashService;
+    private readonly IJwtUtils _jwtUtils;
 
-    public MFAService(ILoggerFactory loggerFactory, IMFASetupRepository mfaSetupRepository, AuthenticationConfig authenticationConfig)
+    public MFAService(ILoggerFactory loggerFactory, IMFASetupRepository mfaSetupRepository, AuthenticationConfig authenticationConfig,
+        IMFAHashService mfaHashService, IJwtUtils jwtUtils)
     {
         _logger = loggerFactory.CreateLogger<MFAService>();
         _mfaSetupRepository = mfaSetupRepository;
         _authenticationConfig = authenticationConfig;
+        _mfaHashService = mfaHashService;
+        _jwtUtils = jwtUtils;
     }
     
-    public async Task<SetupMFAResponse> Setup2FA(Account account, CancellationToken cancellationToken = default)
+    public async Task<SetupMFAResponse> SetupMFA(Account account, CancellationToken cancellationToken = default)
     {
         var existingMfaSetup = await _mfaSetupRepository.FindByAccountIdAsync(account.Id!.Value);
         
@@ -73,8 +80,16 @@ public class MFAService : IMFAService
         };
     }
 
-    public async Task VerifyMFA(string code, Account account, CancellationToken cancellationToken = default)
+    public async Task<AuthenticateResponse> VerifyMFA(VerifyMFARequest request, CancellationToken cancellationToken = default)
     {
+        var code = request.Code;
+
+        var account = await _mfaHashService.GetAccountAsync(request.Hash);
+        if (account == null)
+        {
+            throw new AuthenticationException("Login expired");
+        }
+        
         var mfaSetup = await _mfaSetupRepository.FindByAccountIdAsync(account.Id!.Value);
         
         if (mfaSetup == null)
@@ -91,6 +106,15 @@ public class MFAService : IMFAService
         {
             throw new BusinessException("Invalid code");
         }
+        
+        await _mfaHashService.CleanupHash(request.Hash);
+        
+        return new AuthenticateResponse
+        {
+            Token = _jwtUtils.GenerateJwtToken(account),
+            ExpiresAt = DateTimeOffset.UtcNow.AddHours(1).ToUnixTimeSeconds(),
+            Status = AuthenticationResponseStatus.Success
+        };
     }
 
     public async Task<ConfirmMFAResponse> ConfirmMFA(string code, Account account, CancellationToken cancellationToken = default)
@@ -152,6 +176,6 @@ public class MFAService : IMFAService
         
         await _mfaSetupRepository.DeleteAsync(mfaSetup);
         
-        return await this.Setup2FA(account, cancellationToken);
+        return await this.SetupMFA(account, cancellationToken);
     }
 }
