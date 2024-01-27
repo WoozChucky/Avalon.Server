@@ -18,19 +18,35 @@ public interface IAccountService
     Task<RegisterResponse> Register(RegisterRequest model, IPAddress ipAddress, CancellationToken cancellationToken);
 }
 
-public class AccountService(
-    IAccountRepository authRepository, 
-    IJwtUtils jwtUtils) : IAccountService
+public class AccountService : IAccountService
 {
+    private readonly ILogger<AccountService> _logger;
+    private readonly IAccountRepository _authRepository;
+    private readonly IJwtUtils _jwtUtils;
+    private readonly IMFAHashService _mfaHashService;
+    private readonly IMFASetupRepository _mfaSetupRepository;
+    public AccountService(ILoggerFactory loggerFactory, 
+        IAccountRepository authRepository, 
+        IJwtUtils jwtUtils, 
+        IMFAHashService mfaHashService, 
+        IMFASetupRepository mfaSetupRepository)
+    {
+        _logger = loggerFactory.CreateLogger<AccountService>();
+        _authRepository = authRepository;
+        _jwtUtils = jwtUtils;
+        _mfaHashService = mfaHashService;
+        _mfaSetupRepository = mfaSetupRepository;
+    }
+    
     public async Task<Account?> FindById(int id)
     {
-        return await authRepository.FindByIdAsync(id);
+        return await _authRepository.FindByIdAsync(id);
     }
 
     public async Task<AuthenticateResponse> Authenticate(AuthenticateRequest model, IPAddress ipAddress, 
         CancellationToken cancellationToken)
     {
-        var account = await authRepository.FindByUsernameAsync(model.Username);
+        var account = await _authRepository.FindByUsernameAsync(model.Username);
         if (account == null)
             throw new AuthenticationException("Invalid username or password");
 
@@ -40,11 +56,24 @@ public class AccountService(
         {
             throw new AuthenticationException("Invalid username or password");
         }
+        
+        var mfaSetup = await _mfaSetupRepository.FindByAccountIdAsync(account.Id!.Value);
+        if (mfaSetup is { Status: Status.Confirmed } )
+        {
+            return new AuthenticateResponse
+            {
+                Token = null,
+                ExpiresAt = null,
+                MfaHash = await _mfaHashService.GenerateHashAsync(account),
+                Status = AuthenticationResponseStatus.RequiresMFA
+            };
+        }
 
         return new AuthenticateResponse
         {
-            Token = jwtUtils.GenerateJwtToken(account),
+            Token = _jwtUtils.GenerateJwtToken(account),
             ExpiresAt = DateTimeOffset.UtcNow.AddHours(1).ToUnixTimeSeconds(),
+            Status = AuthenticationResponseStatus.Success
         };
     }
 
@@ -66,14 +95,14 @@ public class AccountService(
             JoinDate = DateTime.UtcNow,
         };
         
-        var inserted = await authRepository.SaveAsync(account);
+        account = await _authRepository.SaveAsync(account);
         
-        if (inserted == null)
+        if (account == null)
             throw new Exception("Failed to insert account");
 
         return new RegisterResponse
         {
-            Token = jwtUtils.GenerateJwtToken(inserted),
+            Token = _jwtUtils.GenerateJwtToken(account),
             ExpiresAt = DateTimeOffset.UtcNow.AddHours(1).ToUnixTimeSeconds(),
         };
     }
