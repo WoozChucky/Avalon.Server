@@ -5,7 +5,7 @@ CREATE TABLE IF NOT EXISTS `Device` (
     `Id` int(10) unsigned NOT NULL AUTO_INCREMENT COMMENT 'Identifier',
     `AccountId` int(10) unsigned NOT NULL COMMENT 'Account Identifier',
     `Name` varchar(255) NOT NULL DEFAULT '' COMMENT 'Device Name',
-    `Metadata` JSON NOT NULL DEFAULT '' COMMENT 'Device Metadata',
+    `Metadata` JSON COMMENT 'Device Metadata',
     `Trusted` tinyint(1) unsigned NOT NULL DEFAULT 0,
     `TrustEnd` datetime NOT NULL DEFAULT '0000-00-00 00:00:00',
     `LastUsage` datetime NOT NULL DEFAULT '0000-00-00 00:00:00',
