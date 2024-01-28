@@ -1,3 +1,4 @@
+using System.Net;
 using System.Security.Authentication;
 using System.Text;
 using Avalon.Api.Authentication;
@@ -13,7 +14,7 @@ namespace Avalon.Api.Services;
 public interface IMFAService
 {
     Task<SetupMFAResponse> SetupMFA(Account account, CancellationToken cancellationToken = default);
-    Task<AuthenticateResponse> VerifyMFA(VerifyMFARequest request, CancellationToken cancellationToken = default);
+    Task<AuthenticateResponse> VerifyMFA(VerifyMFARequest request, IPAddress ipAddress, CancellationToken cancellationToken = default);
     Task<ConfirmMFAResponse> ConfirmMFA(string code, Account authContextAccount, CancellationToken cancellationToken = default);
     Task<SetupMFAResponse> ResetMFA(ResetMFARequest request, Account authContextAccount, CancellationToken cancellationToken = default);
 }
@@ -25,15 +26,17 @@ public class MFAService : IMFAService
     private readonly AuthenticationConfig _authenticationConfig;
     private readonly IMFAHashService _mfaHashService;
     private readonly IJwtUtils _jwtUtils;
+    private readonly IAccountRepository _accountRepository;
 
     public MFAService(ILoggerFactory loggerFactory, IMFASetupRepository mfaSetupRepository, AuthenticationConfig authenticationConfig,
-        IMFAHashService mfaHashService, IJwtUtils jwtUtils)
+        IMFAHashService mfaHashService, IJwtUtils jwtUtils, IAccountRepository accountRepository)
     {
         _logger = loggerFactory.CreateLogger<MFAService>();
         _mfaSetupRepository = mfaSetupRepository;
         _authenticationConfig = authenticationConfig;
         _mfaHashService = mfaHashService;
         _jwtUtils = jwtUtils;
+        _accountRepository = accountRepository;
     }
     
     public async Task<SetupMFAResponse> SetupMFA(Account account, CancellationToken cancellationToken = default)
@@ -80,7 +83,7 @@ public class MFAService : IMFAService
         };
     }
 
-    public async Task<AuthenticateResponse> VerifyMFA(VerifyMFARequest request, CancellationToken cancellationToken = default)
+    public async Task<AuthenticateResponse> VerifyMFA(VerifyMFARequest request, IPAddress ipAddress, CancellationToken cancellationToken = default)
     {
         var code = request.Code;
 
@@ -108,6 +111,11 @@ public class MFAService : IMFAService
         }
         
         await _mfaHashService.CleanupHash(request.Hash);
+        
+        account.LastIp = ipAddress.ToString();
+        account.LastLogin = DateTime.UtcNow;
+        
+        await _accountRepository.UpdateAsync(account);
         
         return new AuthenticateResponse
         {
@@ -176,6 +184,6 @@ public class MFAService : IMFAService
         
         await _mfaSetupRepository.DeleteAsync(mfaSetup);
         
-        return await this.SetupMFA(account, cancellationToken);
+        return await SetupMFA(account, cancellationToken);
     }
 }

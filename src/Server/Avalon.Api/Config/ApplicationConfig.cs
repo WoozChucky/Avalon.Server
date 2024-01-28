@@ -8,4 +8,5 @@ public class ApplicationConfig
     public EnvironmentConfig? Environment { get; set; }
     public AuthenticationConfig? Authentication { get; set; }
     public DatabaseConfiguration? Database { get; set; }
+    public NotificationConfig? Notification { get; set; }
 }

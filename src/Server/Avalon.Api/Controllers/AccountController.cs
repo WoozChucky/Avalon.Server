@@ -38,6 +38,7 @@ public class AccountController : BaseController
     [HttpPost("register", Name = "Register")]
     public async Task<RegisterResponse> Register([FromBody] RegisterRequest model)
     {
-        return await _accountService.Register(model, IpAddress, CancellationToken);
+        var userAgent = Request.Headers.UserAgent.ToString();
+        return await _accountService.Register(model, userAgent, IpAddress, CancellationToken);
     }
 }

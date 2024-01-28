@@ -45,6 +45,18 @@ public class DatabaseManager : IDatabaseManager
                 .FirstOrDefault(prop => GetDescriptionFromAttribute(prop) == columnName.ToLower()))
         );
         
+        Dapper.SqlMapper.SetTypeMap(typeof(MFASetup), new Dapper.CustomPropertyTypeMap(typeof(MFASetup), 
+            (type, columnName) => type
+                .GetProperties()
+                .FirstOrDefault(prop => GetDescriptionFromAttribute(prop) == columnName.ToLower()))
+        );
+        
+        Dapper.SqlMapper.SetTypeMap(typeof(Device), new Dapper.CustomPropertyTypeMap(typeof(Device), 
+            (type, columnName) => type
+                .GetProperties()
+                .FirstOrDefault(prop => GetDescriptionFromAttribute(prop) == columnName.ToLower()))
+        );
+        
         Dapper.SqlMapper.SetTypeMap(typeof(Character), new Dapper.CustomPropertyTypeMap(typeof(Character), 
             (type, columnName) => type
                 .GetProperties()
