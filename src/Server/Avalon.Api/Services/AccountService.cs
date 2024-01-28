@@ -114,6 +114,7 @@ public class AccountService : IAccountService
             LastUsage = DateTime.UtcNow,
             Trusted = false,
             TrustEnd = DateTime.MinValue,
+            
         });
 
         return new RegisterResponse

@@ -29,7 +29,8 @@ public static class ServiceCollectionExtensions
         return services
             .AddScoped<IAuthDatabase, AuthDatabase>()
             .AddScoped<IAccountRepository, AccountRepository>(_ => new AccountRepository(GenerateConnectionString(configuration.Auth)))
-            .AddScoped<IMFASetupRepository, MFASetupRepository>(_ => new MFASetupRepository(GenerateConnectionString(configuration.Auth)));
+            .AddScoped<IMFASetupRepository, MFASetupRepository>(_ => new MFASetupRepository(GenerateConnectionString(configuration.Auth)))
+            .AddScoped<IDeviceRepository, DeviceRepository>(_ => new DeviceRepository(GenerateConnectionString(configuration.Auth)));
     }
     
     public static IServiceCollection AddCharactersDatabase(this IServiceCollection services, DatabaseConfiguration configuration)
