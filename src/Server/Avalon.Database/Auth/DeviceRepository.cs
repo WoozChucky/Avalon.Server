@@ -95,7 +95,7 @@ public class DeviceRepository : IDeviceRepository
     {
         await using var connection = new MySqlConnection(_connectionString);
         
-        var rows = await connection.ExecuteAsync("UPDATE auth.Device SET (AccountId = @AccountId, Name = @Name, Metadata = @Metadata, Trusted = @Trusted, TrustEnd = @TrustEnd, LastUsage = @LastUsage) WHERE Id = @Id", new
+        var rows = await connection.ExecuteAsync("UPDATE auth.Device SET AccountId = @AccountId, Name = @Name, Metadata = @Metadata, Trusted = @Trusted, TrustEnd = @TrustEnd, LastUsage = @LastUsage WHERE Id = @Id", new
         {
             Id = entity.Id,
             AccountId = entity.AccountId,

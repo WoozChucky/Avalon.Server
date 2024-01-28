@@ -44,8 +44,8 @@ public class NotificationService : INotificationService
                 Name = userAgent,
                 Metadata = JsonSerializer.Serialize(request),
                 Trusted = false,
-                TrustEnd = DateTime.MinValue,
-                LastUsage = DateTime.UtcNow
+                TrustEnd = DateTime.UtcNow,
+                LastUsage = DateTime.UtcNow,
             };
             
             await _deviceRepository.SaveAsync(device);

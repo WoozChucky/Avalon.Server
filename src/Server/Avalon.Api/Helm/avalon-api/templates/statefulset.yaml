@@ -112,6 +112,8 @@ spec:
               value: {{ .Values.database.world.username | quote }}
             - name: Application__Database__World__Password
               value: {{ .Values.database.world.password | quote }}
+            - name: Application__Notification__Subject
+              value: {{ .Values.notification.subject | quote }}
             - name: Application__Notification__PublicKey
               value: {{ .Values.notification.publicKey | quote }}
             - name: Application__Notification__PrivateKey
