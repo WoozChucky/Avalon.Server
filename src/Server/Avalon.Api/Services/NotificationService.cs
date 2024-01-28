@@ -62,23 +62,23 @@ public class NotificationService : INotificationService
 
         var payload = new
         {
-            Notification = new
+            notification = new
             {
-                Title = "Welcome to Avalon",
-                Body = "You will now receive notifications from Avalon",
-                Icon = "https://avatars.githubusercontent.com/u/10047099?s=200&v=4",
-                Vibrate = new[] {100, 50, 100},
-                Data = new
+                title = "Welcome to Avalon",
+                body = "You will now receive notifications from Avalon",
+                icon = "https://avatars.githubusercontent.com/u/10047099?s=200&v=4",
+                vibrate = new[] {100, 50, 100},
+                data = new
                 {
-                    DateOfArrival = DateTime.Now,
-                    PrimaryKey = 1
+                    dateOfArrival = DateTime.Now,
+                    primaryKey = 1
                 },
-                Actions = new[]
+                actions = new[]
                 {
                     new
                     {
-                        Action = "explore",
-                        Title = "Go to the site"
+                        action = "explore",
+                        title = "Go to the site"
                     }
                 }
             }
@@ -120,23 +120,23 @@ public class NotificationService : INotificationService
         
         var payload = new
         {
-            Notification = new
+            notification = new
             {
-                Title = "Avalon",
-                Body = message,
-                Icon = "https://avatars.githubusercontent.com/u/10047099?s=200&v=4",
-                Vibrate = new[] {100, 50, 100},
-                Data = new
+                title = "Avalon",
+                body = message,
+                icon = "https://avatars.githubusercontent.com/u/10047099?s=200&v=4",
+                vibrate = new[] {100, 50, 100},
+                data = new
                 {
-                    DateOfArrival = DateTime.Now,
-                    PrimaryKey = 1
+                    dateOfArrival = DateTime.Now,
+                    primaryKey = 1
                 },
-                Actions = new[]
+                actions = new[]
                 {
                     new
                     {
-                        Action = "explore",
-                        Title = "Go to the site"
+                        action = "explore",
+                        title = "Go to the site"
                     }
                 }
             }
