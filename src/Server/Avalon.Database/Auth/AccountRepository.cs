@@ -72,13 +72,15 @@ namespace Avalon.Database.Auth
                 }
             }
             
-            var rows = await connection.ExecuteAsync("INSERT INTO auth.Account (Username, Email, Salt, Verifier, LastIp) VALUES (@Username, @Email, @Salt, @Verifier, @IpAddress)", new
+            var rows = await connection.ExecuteAsync("INSERT INTO auth.Account (Username, Email, Salt, Verifier, LastIp, LastLogin, JoinDate) VALUES (@Username, @Email, @Salt, @Verifier, @IpAddress, @LastLogin, @JoinDate)", new
             {
                 Username = entity.Username,
                 Email = entity.Email,
                 Salt = entity.Salt, 
                 Verifier = entity.Verifier,
-                IpAddress = entity.LastIp
+                IpAddress = entity.LastIp,
+                LastLogin = entity.LastLogin,
+                JoinDate = entity.JoinDate
             });
             
             if (rows == 0)

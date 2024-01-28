@@ -99,6 +99,7 @@ public class AccountService : IAccountService
             Salt = saltBytes,
             Verifier = hashBytes,
             LastIp = ipAddress.ToString(),
+            LastLogin = DateTime.UtcNow,
             JoinDate = DateTime.UtcNow,
         };
         
