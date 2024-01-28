@@ -93,7 +93,7 @@ namespace Avalon.Database.Auth
         {
             await using var connection = new MySqlConnection(_connectionString);
             
-            var rows = await connection.ExecuteAsync("UPDATE auth.Account SET Username = @Username, Email = @Email, Salt = @Salt, Verifier = @Verifier, LastIp = @IpAddress WHERE Id = @Id", new
+            var rows = await connection.ExecuteAsync("UPDATE auth.Account SET Username = @Username, Email = @Email, Salt = @Salt, Verifier = @Verifier, LastIp = @IpAddress, LastLogin = @LastLogin WHERE Id = @Id", new
             {
                 Id = entity.Id,
                 Username = entity.Username,
@@ -101,6 +101,7 @@ namespace Avalon.Database.Auth
                 Salt = entity.Salt, 
                 Verifier = entity.Verifier,
                 IpAddress = entity.LastIp,
+                LastLogin = entity.LastLogin
             });
             
             if (rows == 0)

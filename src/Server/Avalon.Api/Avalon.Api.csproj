@@ -22,6 +22,7 @@
         <PackageReference Include="OpenTelemetry.AutoInstrumentation.Runtime.Native" Version="1.2.0" />
         <PackageReference Include="OpenTelemetry.AutoInstrumentation.AspNetCoreBootstrapper" Version="1.2.0" />
         <PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.7.0" />
+        <PackageReference Include="WebPush" Version="1.0.12" />
     </ItemGroup>
 
     <ItemGroup>

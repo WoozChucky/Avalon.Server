@@ -27,10 +27,12 @@ public static class ServiceRegistration
     {
         DatabaseManager.RegisterMappings();
         
+        services.AddSingleton<IWorkerService, MFAHashService>();
+        
         services.AddScoped<IAccountService, AccountService>();
         services.AddScoped<IMFAService, MFAService>();
         services.AddSingleton<IMFAHashService, MFAHashService>();
-        services.AddSingleton<IWorkerService, MFAHashService>();
+        services.AddScoped<INotificationService, NotificationService>();
         
         var connectionString = $"Server={config.Database!.Auth!.Host}; " +
                                $"Port={config.Database.Auth.Port}; " +
@@ -41,6 +43,7 @@ public static class ServiceRegistration
                                "ConvertZeroDateTime=True;";
         services.AddScoped<IAccountRepository>(_ => new AccountRepository(connectionString));
         services.AddScoped<IMFASetupRepository>(_ => new MFASetupRepository(connectionString));
+        services.AddScoped<IDeviceRepository>(_ => new DeviceRepository(connectionString));
         
         services.AddScoped<IJwtUtils, JwtUtils>();
     }

@@ -42,6 +42,6 @@ public class MFAController : BaseController
     [HttpPost("verify", Name = "Verify MFA for the logged account")]
     public async Task<AuthenticateResponse> VerifyMFA([FromBody] VerifyMFARequest request)
     {
-        return await _mfaService.VerifyMFA(request, CancellationToken);
+        return await _mfaService.VerifyMFA(request, IpAddress, CancellationToken);
     }
 }

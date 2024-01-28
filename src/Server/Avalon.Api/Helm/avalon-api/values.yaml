@@ -30,6 +30,10 @@ migrator:
     # Overrides the image tag whose default is the chart appVersion.
     tag: latest
 
+notification:
+  publicKey:
+  privateKey:
+
 replicaCount: 1
 
 image:

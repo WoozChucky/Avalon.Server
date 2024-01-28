@@ -38,6 +38,7 @@ var services = builder.Services;
     services.AddSingleton(applicationConfig.Environment!);
     services.AddSingleton(applicationConfig.Authentication!);
     services.AddSingleton(applicationConfig.Database!);
+    services.AddSingleton(applicationConfig.Notification!);
     
     services.Configure<CookiePolicyOptions>(options =>
     {

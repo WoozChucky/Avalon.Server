@@ -3,11 +3,8 @@ using System.Security.Authentication;
 using System.Text;
 using Avalon.Api.Authentication;
 using Avalon.Api.Contract;
-using Avalon.Api.Exceptions;
 using Avalon.Database.Auth;
-using Avalon.Database.Repositories;
 using Avalon.Domain.Auth;
-using OtpNet;
 
 namespace Avalon.Api.Services;
 
@@ -15,7 +12,8 @@ public interface IAccountService
 {
     Task<Account?> FindById(int id);
     Task<AuthenticateResponse> Authenticate(AuthenticateRequest model, IPAddress ipAddress, CancellationToken cancellationToken);
-    Task<RegisterResponse> Register(RegisterRequest model, IPAddress ipAddress, CancellationToken cancellationToken);
+    Task<RegisterResponse> Register(RegisterRequest model, string userAgent, IPAddress ipAddress,
+        CancellationToken cancellationToken);
 }
 
 public class AccountService : IAccountService
@@ -25,17 +23,20 @@ public class AccountService : IAccountService
     private readonly IJwtUtils _jwtUtils;
     private readonly IMFAHashService _mfaHashService;
     private readonly IMFASetupRepository _mfaSetupRepository;
+    private readonly IDeviceRepository _deviceRepository;
     public AccountService(ILoggerFactory loggerFactory, 
         IAccountRepository authRepository, 
         IJwtUtils jwtUtils, 
         IMFAHashService mfaHashService, 
-        IMFASetupRepository mfaSetupRepository)
+        IMFASetupRepository mfaSetupRepository, 
+        IDeviceRepository deviceRepository)
     {
         _logger = loggerFactory.CreateLogger<AccountService>();
         _authRepository = authRepository;
         _jwtUtils = jwtUtils;
         _mfaHashService = mfaHashService;
         _mfaSetupRepository = mfaSetupRepository;
+        _deviceRepository = deviceRepository;
     }
     
     public async Task<Account?> FindById(int id)
@@ -68,6 +69,11 @@ public class AccountService : IAccountService
                 Status = AuthenticationResponseStatus.RequiresMFA
             };
         }
+        
+        account.LastIp = ipAddress.ToString();
+        account.LastLogin = DateTime.UtcNow;
+        
+        await _authRepository.UpdateAsync(account);
 
         return new AuthenticateResponse
         {
@@ -77,7 +83,8 @@ public class AccountService : IAccountService
         };
     }
 
-    public async Task<RegisterResponse> Register(RegisterRequest model, IPAddress ipAddress, CancellationToken cancellationToken)
+    public async Task<RegisterResponse> Register(RegisterRequest model, string userAgent, IPAddress ipAddress,
+        CancellationToken cancellationToken)
     {
         var salt = BCrypt.Net.BCrypt.GenerateSalt();
         var hash = BCrypt.Net.BCrypt.HashPassword(model.Password.Trim(), salt);
@@ -99,6 +106,15 @@ public class AccountService : IAccountService
         
         if (account == null)
             throw new Exception("Failed to insert account");
+        
+        await _deviceRepository.SaveAsync(new Device
+        {
+            AccountId = account.Id!.Value,
+            Name = userAgent,
+            LastUsage = DateTime.UtcNow,
+            Trusted = false,
+            TrustEnd = DateTime.MinValue,
+        });
 
         return new RegisterResponse
         {
