@@ -19,8 +19,4 @@
         <None Include="Scripts\**" CopyToOutputDirectory="Always" />
     </ItemGroup>
 
-    <ItemGroup>
-        <Folder Include="Scripts\01-PushNotifications\Auth\" />
-    </ItemGroup>
-
 </Project>
