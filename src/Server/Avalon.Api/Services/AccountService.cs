@@ -114,8 +114,7 @@ public class AccountService : IAccountService
             Name = userAgent,
             LastUsage = DateTime.UtcNow,
             Trusted = false,
-            TrustEnd = DateTime.MinValue,
-            Metadata = ""
+            TrustEnd = DateTime.UtcNow,
         });
 
         return new RegisterResponse
