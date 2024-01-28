@@ -20,7 +20,7 @@
     </ItemGroup>
 
     <ItemGroup>
-        <Folder Include="Scripts\" />
+        <Folder Include="Scripts\01-PushNotifications\Auth\" />
     </ItemGroup>
 
 </Project>
