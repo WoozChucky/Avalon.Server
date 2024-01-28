@@ -38,7 +38,7 @@ public class Account
     public bool Locked { get; set; }
     
     [Column("LastLogin")]
-    public DateTime? LastLogin { get; set; }
+    public DateTime LastLogin { get; set; }
     
     [Column("Online")]
     public bool Online { get; set; }

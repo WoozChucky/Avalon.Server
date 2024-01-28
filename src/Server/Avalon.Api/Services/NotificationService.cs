@@ -42,7 +42,10 @@ public class NotificationService : INotificationService
             {
                 AccountId = account.Id!.Value,
                 Name = userAgent,
-                Metadata = JsonSerializer.Serialize(request)
+                Metadata = JsonSerializer.Serialize(request),
+                Trusted = false,
+                TrustEnd = DateTime.MinValue,
+                LastUsage = DateTime.UtcNow
             };
             
             await _deviceRepository.SaveAsync(device);
@@ -50,6 +53,7 @@ public class NotificationService : INotificationService
         else
         {
             device.Metadata = JsonSerializer.Serialize(request);
+            device.LastUsage = DateTime.UtcNow;
             
             await _deviceRepository.SaveAsync(device);
         }
