@@ -1,6 +1,7 @@
 using System.Numerics;
 using System.Reflection;
 using Avalon.Database;
+using Avalon.Game.Configuration;
 using Avalon.Game.Creatures;
 using Avalon.Game.Maps;
 using Avalon.Game.Pools;
@@ -66,6 +67,7 @@ public partial class AvalonGame : IAvalonGame
     private readonly IPoolManager _poolManager;
     private readonly IQuestManager _questManager;
     private readonly ICryptoManager _cryptography;
+    private readonly GameConfiguration _gameConfiguration;
     private volatile bool _isRunning;
     private long _loopCounter;
     private DateTime _lastMetricsUpdate = DateTime.UtcNow;
@@ -79,7 +81,8 @@ public partial class AvalonGame : IAvalonGame
         IAIController aiController,
         IPoolManager poolManager,
         IQuestManager questManager,
-        ICryptoManager cryptography)
+        ICryptoManager cryptography,
+        GameConfiguration gameConfiguration)
     {
         _logger = loggerFactory.CreateLogger<AvalonGame>() ?? throw new ArgumentNullException(nameof(loggerFactory));
         _cts = new CancellationTokenSource();
@@ -91,6 +94,7 @@ public partial class AvalonGame : IAvalonGame
         _poolManager = poolManager;
         _questManager = questManager;
         _cryptography = cryptography;
+        _gameConfiguration = gameConfiguration;
         _loopCounter = 0;
         
         _sessionManager.SessionLost += OnSessionLost;

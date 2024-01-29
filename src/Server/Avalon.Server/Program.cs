@@ -219,6 +219,7 @@ namespace Avalon.Server
             services.AddSingleton(AppConfiguration.NetworkDaemon.Tcp!);
             services.AddSingleton(AppConfiguration.Metrics);
             services.AddSingleton(AppConfiguration.Database!);
+            services.AddSingleton(AppConfiguration.Game!);
 
             if (AppConfiguration.Metrics.Enabled)
             {

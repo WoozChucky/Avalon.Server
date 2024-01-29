@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Drawing;
 using Avalon.Domain.World;
+using Avalon.Game.Configuration;
 using Avalon.Game.Creatures;
 using Avalon.Game.Maps.Virtual;
 using Avalon.Network.Packets.Movement;
@@ -29,15 +30,17 @@ public class MapInstance
 
     // Map configuration from database
     private readonly Map _template;
+    private readonly GameConfiguration _gameConfiguration;
     private readonly ILogger<MapInstance> _logger;
     
-    public MapInstance(ILoggerFactory loggerFactory, Map template, VirtualizedMap virtualizedMap)
+    public MapInstance(ILoggerFactory loggerFactory, Map template, VirtualizedMap virtualizedMap, GameConfiguration gameConfiguration)
     {
         _logger = loggerFactory.CreateLogger<MapInstance>();
         InstanceId = Guid.NewGuid();
         Creatures = new ConcurrentDictionary<Guid, Creature>();
         Sessions = new ConcurrentDictionary<int, AvalonSession>();
         _template = template;
+        _gameConfiguration = gameConfiguration;
         VirtualizedMap = virtualizedMap;
     }
     
@@ -69,19 +72,7 @@ public class MapInstance
 
     public async void Update(TimeSpan deltaTime)
     {
-        
-        // Currently we're going trough every session (player) and for each session, we send a packet for every other
-        // player in the map, another packet for every creature in the map and another packet for every event in the map.
-        // This is not optimal, but it's a good start.
-        // Now what i'm going to implement is a way send a less packets with information about referred entities but in a 
-        // radius of the player. This way we can reduce the amount of packets sent and the amount of data sent.
-        // Also the second step is to implement a way to send packets with grouped by entities
-        // (meaning a packet with a group of players, another packet with creatures and another with events).
-        
-        const int radius = 100;
-
         // Broadcast player positions
-        
         foreach (var session in Sessions)
         {
             if (!session.Value.InMap || session.Value.Status != ConnectionStatus.Connected) continue;
@@ -96,9 +87,9 @@ public class MapInstance
             int centerX = playerRectangle.X + playerRectangle.Width / 2;
             int centerY = playerRectangle.Y + playerRectangle.Height / 2;
             
-            int circleDiameter = radius * 2;
-            int circleX = centerX - radius;
-            int circleY = centerY - radius;
+            int circleDiameter = (int) _gameConfiguration.PlayerRadius * 2;
+            int circleX = (int) (centerX - _gameConfiguration.PlayerRadius);
+            int circleY = (int) (centerY - _gameConfiguration.PlayerRadius);
             
             var playerRadiusRectangle = new Rectangle(
                 circleX,
@@ -155,9 +146,9 @@ public class MapInstance
             int centerX = playerRectangle.X + playerRectangle.Width / 2;
             int centerY = playerRectangle.Y + playerRectangle.Height / 2;
             
-            int circleDiameter = radius * 2;
-            int circleX = centerX - radius;
-            int circleY = centerY - radius;
+            int circleDiameter = (int) _gameConfiguration.PlayerRadius * 2;
+            int circleX = (int) (centerX - _gameConfiguration.PlayerRadius);
+            int circleY = (int) (centerY - _gameConfiguration.PlayerRadius);
             
             var playerRadiusRectangle = new Rectangle(
                 circleX,

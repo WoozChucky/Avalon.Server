@@ -1,4 +1,5 @@
 using Avalon.Configuration;
+using Avalon.Game.Configuration;
 using Avalon.Infrastructure.Configuration;
 using Avalon.Metrics;
 
@@ -10,4 +11,5 @@ public class AppConfiguration
     public NetworkDaemonConfiguration? NetworkDaemon { get; set; }
     public MetricsConfiguration? Metrics { get; set; }
     public DatabaseConfiguration? Database { get; set; }
+    public GameConfiguration? Game { get; set; }
 }
