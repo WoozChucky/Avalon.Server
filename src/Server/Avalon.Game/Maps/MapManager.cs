@@ -75,7 +75,7 @@ public class AvalonMapManager : IAvalonMapManager
         {
             _logger.LogInformation("Initializing instance map {MapId} {MapName}", map.Id, map.Name);
             
-            var mapInstance = new MapInstance(map, _virtualTemplates[map.Id]);
+            var mapInstance = new MapInstance(_loggerFactory, map, _virtualTemplates[map.Id]);
             
             // Spawn starting entities
             _poolManager.SpawnStartingEntities(mapInstance);
@@ -96,7 +96,7 @@ public class AvalonMapManager : IAvalonMapManager
             if (!_maps.TryGetValue(mapId, out var mapInstances))
             {
                 // if no instances exist for this map, create the first one
-                var newInstance = new MapInstance(_mapTemplates!.First(map => map.Id == mapId), _virtualTemplates[mapId]);
+                var newInstance = new MapInstance(_loggerFactory, _mapTemplates!.First(map => map.Id == mapId), _virtualTemplates[mapId]);
                 
                 // Spawn starting entities
                 _poolManager.SpawnStartingEntities(newInstance);
@@ -114,7 +114,7 @@ public class AvalonMapManager : IAvalonMapManager
                 return mapInstances.First().Value;
             }
 
-            var mapInstance = new MapInstance(_mapTemplates!.First(map => map.Id == mapId), _virtualTemplates[mapId]);
+            var mapInstance = new MapInstance(_loggerFactory, _mapTemplates!.First(map => map.Id == mapId), _virtualTemplates[mapId]);
             
             // Spawn starting entities
             _poolManager.SpawnStartingEntities(mapInstance);
