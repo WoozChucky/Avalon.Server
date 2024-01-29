@@ -134,7 +134,7 @@ namespace Avalon.VirtualMap
         /// Loads a Tiled map in TMX format and parses it
         /// </summary>
         /// <param name="tmxStream">Stream of opened tmx file</param>
-        /// <param name="tsxStream">Stream of opened tsx file</param>
+        /// <param name="tsxStreams">Streams of opened tsx files</param>
         /// <exception cref="TiledException">Thrown when the map could not be loaded</exception>
         public TiledMap(Stream tmxStream, Stream[] tsxStreams = null)
         {
