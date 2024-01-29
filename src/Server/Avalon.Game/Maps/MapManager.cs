@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using Avalon.Database;
 using Avalon.Domain.World;
+using Avalon.Game.Configuration;
 using Avalon.Game.Maps.Virtual;
 using Avalon.Game.Pools;
 using Microsoft.Extensions.Logging;
@@ -25,6 +26,7 @@ public class AvalonMapManager : IAvalonMapManager
     private readonly IDatabaseManager _databaseManager;
     private readonly IPoolManager _poolManager;
     private readonly IAvalonSessionManager _sessionManager;
+    private readonly GameConfiguration _gameConfiguration;
 
     // MapId, Dictionary<InstanceId, MapInstance>>
     private readonly ConcurrentDictionary<int, ConcurrentDictionary<Guid, MapInstance>> _maps = new();
@@ -41,13 +43,14 @@ public class AvalonMapManager : IAvalonMapManager
     private readonly Dictionary<int, VirtualizedMap> _virtualTemplates = new();
 
     public AvalonMapManager(ILoggerFactory loggerFactory, IDatabaseManager databaseManager,
-        IPoolManager poolManager, IAvalonSessionManager sessionManager)
+        IPoolManager poolManager, IAvalonSessionManager sessionManager, GameConfiguration gameConfiguration)
     {
         _logger = loggerFactory.CreateLogger<AvalonMapManager>();
         _loggerFactory = loggerFactory;
         _databaseManager = databaseManager;
         _poolManager = poolManager;
         _sessionManager = sessionManager;
+        _gameConfiguration = gameConfiguration;
         _sessionManager.SessionLost += (_, session) => RemoveSessionFromMap(session);
         
         
@@ -75,7 +78,7 @@ public class AvalonMapManager : IAvalonMapManager
         {
             _logger.LogInformation("Initializing instance map {MapId} {MapName}", map.Id, map.Name);
             
-            var mapInstance = new MapInstance(_loggerFactory, map, _virtualTemplates[map.Id]);
+            var mapInstance = new MapInstance(_loggerFactory, map, _virtualTemplates[map.Id], _gameConfiguration);
             
             // Spawn starting entities
             _poolManager.SpawnStartingEntities(mapInstance);
@@ -96,7 +99,7 @@ public class AvalonMapManager : IAvalonMapManager
             if (!_maps.TryGetValue(mapId, out var mapInstances))
             {
                 // if no instances exist for this map, create the first one
-                var newInstance = new MapInstance(_loggerFactory, _mapTemplates!.First(map => map.Id == mapId), _virtualTemplates[mapId]);
+                var newInstance = new MapInstance(_loggerFactory, _mapTemplates!.First(map => map.Id == mapId), _virtualTemplates[mapId], _gameConfiguration);
                 
                 // Spawn starting entities
                 _poolManager.SpawnStartingEntities(newInstance);
@@ -114,7 +117,7 @@ public class AvalonMapManager : IAvalonMapManager
                 return mapInstances.First().Value;
             }
 
-            var mapInstance = new MapInstance(_loggerFactory, _mapTemplates!.First(map => map.Id == mapId), _virtualTemplates[mapId]);
+            var mapInstance = new MapInstance(_loggerFactory, _mapTemplates!.First(map => map.Id == mapId), _virtualTemplates[mapId], _gameConfiguration);
             
             // Spawn starting entities
             _poolManager.SpawnStartingEntities(mapInstance);

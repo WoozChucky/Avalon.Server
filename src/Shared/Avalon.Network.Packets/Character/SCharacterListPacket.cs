@@ -55,4 +55,5 @@ public class CharacterInfo
     [ProtoMember(4)] public int Class { get; set; }
     [ProtoMember(5)] public float X { get; set; }
     [ProtoMember(6)] public float Y { get; set; }
+    [ProtoMember(7)] public float Radius { get; set; }
 }

@@ -209,7 +209,8 @@ public partial class AvalonGame
                 Level = character.Level,
                 Class = character.Class,
                 X = character.PositionX,
-                Y = character.PositionY
+                Y = character.PositionY,
+                Radius = _gameConfiguration.PlayerRadius
             },
             new MapInfo
             {

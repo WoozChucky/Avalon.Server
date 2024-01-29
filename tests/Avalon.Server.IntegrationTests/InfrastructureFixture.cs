@@ -3,6 +3,7 @@ using Avalon.Database.Auth;
 using Avalon.Database.Characters;
 using Avalon.Database.World;
 using Avalon.Game;
+using Avalon.Game.Configuration;
 using Avalon.Game.Creatures;
 using Avalon.Game.Maps;
 using Avalon.Game.Pools;
@@ -69,7 +70,8 @@ public class InfrastructureFixture : IDisposable
 			mockedLoggerFactory,
 			DatabaseManager,
 			PoolManager,
-			SessionManager
+			SessionManager,
+			GameConfiguration
 		);
 		
 		QuestManager = new QuestManager(
@@ -88,7 +90,8 @@ public class InfrastructureFixture : IDisposable
 			AIController,
 			PoolManager,
 			QuestManager,
-			CryptoManager
+			CryptoManager,
+			GameConfiguration
 		);
 
 		NetworkDaemon = new AvalonNetworkDaemon(
@@ -145,6 +148,7 @@ public class InfrastructureFixture : IDisposable
 	public ICryptoManager CryptoManager { get; set; }
 	
 	public IAvalonGame Game { get; set; }
+	public GameConfiguration GameConfiguration { get; set; } = new();
     
     public void Dispose()
     {
