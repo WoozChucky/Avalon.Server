@@ -15,8 +15,6 @@ public class Player : IDisposable
     private const float FrameTime = 0.2f;
     
     private const float SPEED = 80f;
-    
-    private const int RADIUS = 100;
 
     private readonly int _id;
     private readonly string _name;
@@ -77,7 +75,7 @@ public class Player : IDisposable
 
         CreateDebugBorder();
         CreateMovementDirectionTexture(FrameHeight, 2, Color.Red);
-        CreateRadiusDirectionTexture(RADIUS, 2, Color.Blue);
+        CreateRadiusDirectionTexture((int)Globals.CharacterRadius, 2, Color.Blue);
     }
 
     private void CreateRadiusDirectionTexture(int radius, int borderWidth, Color borderColor)
@@ -201,10 +199,9 @@ public class Player : IDisposable
         
         int centerX = (int) Position.X + FrameWidth / 2 + 10;
         int centerY = (int) Position.Y + FrameHeight / 2 + 10;
-        
-        int circleDiameter = RADIUS * 2;
-        int circleX = centerX - RADIUS;
-        int circleY = centerY - RADIUS;
+
+        int circleX = (int) (centerX - Globals.CharacterRadius);
+        int circleY = (int) (centerY - Globals.CharacterRadius);
         
         _radiusRect.X = circleX;
         _radiusRect.Y = circleY;
