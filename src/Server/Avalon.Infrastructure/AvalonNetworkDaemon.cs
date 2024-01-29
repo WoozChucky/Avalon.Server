@@ -150,10 +150,10 @@ public class AvalonNetworkDaemon : IAvalonNetworkDaemon
         {
             while (!_cts.IsCancellationRequested)
             {
+                var (client, packet) = await _packetProcessorBuffer.DequeueAsync(_cts.Token);
+                
                 try
                 {
-                    var (client, packet) = await _packetProcessorBuffer.DequeueAsync(_cts.Token);
-
                     var session = _sessionManager.GetSession(client);
 
                     var handler = _packetRegistry.GetHandler(packet.Header.Type);
@@ -187,10 +187,15 @@ public class AvalonNetworkDaemon : IAvalonNetworkDaemon
                             _logger.LogError(ex, "Error processing packet");
                         }
                     });
-                } 
+                }
                 catch (PacketHandlerException e)
                 {
                     _logger.LogWarning(e, "Packet handler exception while handling packet");
+                    if (e.Message.StartsWith("Encrypted", StringComparison.InvariantCultureIgnoreCase))
+                    {
+                        _logger.LogWarning("Disconnecting client {Endpoint} due to invalid session key", client.RemoteAddress);
+                        _sessionManager.RemoveConnection(client);
+                    }
                 }
             }
         }
