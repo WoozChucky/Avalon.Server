@@ -71,6 +71,8 @@ spec:
               value: {{ .Values.server.database.world.username | quote }}
             - name: Database__World__Password
               value: {{ .Values.server.database.world.password | quote }}
+            - name: Game__PlayerRadius
+              value: {{ .Values.server.game.playerRadius | quote }}
         {{- end }}
       containers:
         - name: avalon-{{ .Chart.Name }}
