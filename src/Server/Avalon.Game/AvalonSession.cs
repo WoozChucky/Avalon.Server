@@ -93,7 +93,7 @@ public class AvalonSession : IDisposable
             var newRtt = (now - ticks) / TimeSpan.TicksPerMillisecond;
             if (RoundTripTime - newRtt >  20)
             {
-                _logger.LogInformation("Round trip time changed: {RoundTripTime}ms -> {NewRtt}ms", RoundTripTime, newRtt);
+                _logger.LogInformation("[{CharName}] Round trip time changed: {RoundTripTime}ms -> {NewRtt}ms", Character?.Name ?? AccountId.ToString(), RoundTripTime, newRtt);
             }
             RoundTripTime = (int) newRtt;
         }

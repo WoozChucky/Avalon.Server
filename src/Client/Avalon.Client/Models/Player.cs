@@ -15,6 +15,8 @@ public class Player : IDisposable
     private const float FrameTime = 0.2f;
     
     private const float SPEED = 80f;
+    
+    private const int RADIUS = 100;
 
     private readonly int _id;
     private readonly string _name;
@@ -44,6 +46,9 @@ public class Player : IDisposable
     private MovementDirection _movementDirection;
     private Texture2D _movementDirectionTexture;
     private Rectangle _movementDirectionRect;
+    
+    private Rectangle _radiusRect;
+    private Texture2D _radiusTexture;
 
     public Player(int id, string name, Texture2D texture, Vector2 position)
     {
@@ -72,12 +77,48 @@ public class Player : IDisposable
 
         CreateDebugBorder();
         CreateMovementDirectionTexture(FrameHeight, 2, Color.Red);
+        CreateRadiusDirectionTexture(RADIUS, 2, Color.Blue);
+    }
+
+    private void CreateRadiusDirectionTexture(int radius, int borderWidth, Color borderColor)
+    {
+        _radiusTexture = new Texture2D(Globals.GraphicsDevice, radius, radius);
+        
+        Color[] data = new Color[radius * radius];
+
+        for (int y = 0; y < radius; y++)
+        {
+            for (int x = 0; x < radius; x++)
+            {
+                if (x < borderWidth || x >= radius - borderWidth || y < borderWidth || y >= radius - borderWidth)
+                {
+                    // This pixel is part of the border
+                    data[y * radius + x] = borderColor;
+                }
+                else
+                {
+                    // This pixel is in the middle
+                    data[y * radius + x] = Color.Transparent;
+                }
+            }
+        }
+        
+        _radiusTexture.SetData(data);
+        
+        int centerX = (int) Position.X + FrameWidth / 2;
+        int centerY = (int) Position.Y + FrameHeight / 2;
+            
+        int circleDiameter = radius * 2;
+        int circleX = centerX - radius;
+        int circleY = centerY - radius;
+        
+        _radiusRect = new Rectangle(circleX, circleY, circleDiameter, circleDiameter);
     }
     
     private void CreateMovementDirectionTexture(int size, int borderWidth, Color borderColor)
     {
         _movementDirectionTexture = new Texture2D(Globals.GraphicsDevice, size, size);
-
+        
         Color[] data = new Color[size * size];
 
         for (int y = 0; y < size; y++)
@@ -134,6 +175,9 @@ public class Player : IDisposable
         Position += Velocity * Globals.Time * SPEED * (InputManager.Instance.KeyDown(Keys.Space) ? 1.75f : 1);
         Position = Vector2.Clamp(Position, _minPos, _maxPos);
         
+        _radiusRect.X = (int)Position.X - FrameWidth;
+        _radiusRect.Y = (int)Position.Y - FrameHeight;
+        
         // Update the movement direction rect position depending on the current movement direction
         switch (_movementDirection)
         {
@@ -154,6 +198,16 @@ public class Player : IDisposable
                 _movementDirectionRect.Y = (int)Position.Y;
                 break;
         }
+        
+        int centerX = (int) Position.X + FrameWidth / 2 + 10;
+        int centerY = (int) Position.Y + FrameHeight / 2 + 10;
+        
+        int circleDiameter = RADIUS * 2;
+        int circleX = centerX - RADIUS;
+        int circleY = centerY - RADIUS;
+        
+        _radiusRect.X = circleX;
+        _radiusRect.Y = circleY;
 
         // Calculate the rectangle that encompasses the sprite with the border
         BoundingBox.X = (int)(Position.X);
@@ -216,6 +270,9 @@ public class Player : IDisposable
         
         // Draw the movement direction texture
         spriteBatch.Draw(_movementDirectionTexture, _movementDirectionRect, null, Color.White, 0f, _sprite.Origin, SpriteEffects.None, 0f);
+        
+        // Draw the radius texture
+        spriteBatch.Draw(_radiusTexture, _radiusRect, null, Color.White, 0f, _sprite.Origin, SpriteEffects.None, 0f);
     }
     
     private void UpdateMovement()
