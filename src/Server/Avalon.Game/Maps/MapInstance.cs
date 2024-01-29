@@ -85,8 +85,8 @@ public class MapInstance
             
             
             var playerRectangle = new Rectangle(
-                (int)session.Value.Character!.PositionX,
-                (int)session.Value.Character!.PositionY,
+                (int)session.Value.Character!.Movement.Position.X,
+                (int)session.Value.Character!.Movement.Position.Y,
                 32,
                 32);
             
@@ -111,8 +111,8 @@ public class MapInstance
                 if (otherSession.Value.AccountId == session.Value.AccountId) continue;
                 
                 var otherPlayerRectangle = new Rectangle(
-                    (int)otherSession.Value.Character!.PositionX,
-                    (int)otherSession.Value.Character!.PositionY,
+                    (int)otherSession.Value.Character!.Movement.Position.X,
+                    (int)otherSession.Value.Character!.Movement.Position.Y,
                     32,
                     32);
 
@@ -144,8 +144,8 @@ public class MapInstance
             if (!session.Value.InMap || session.Value.Status != ConnectionStatus.Connected) continue;
             
             var playerRectangle = new Rectangle(
-                (int)session.Value.Character!.PositionX,
-                (int)session.Value.Character!.PositionY,
+                (int)session.Value.Character!.Movement.Position.X,
+                (int)session.Value.Character!.Movement.Position.Y,
                 32,
                 32);
             
@@ -166,6 +166,7 @@ public class MapInstance
 
             foreach (var creature in Creatures.Values)
             {
+                
                 var creatureRectangle = new Rectangle(
                     (int) creature.Position.X,
                     (int) creature.Position.Y,
