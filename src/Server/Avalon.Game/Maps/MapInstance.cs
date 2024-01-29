@@ -4,6 +4,7 @@ using Avalon.Domain.World;
 using Avalon.Game.Creatures;
 using Avalon.Game.Maps.Virtual;
 using Avalon.Network.Packets.Movement;
+using Microsoft.Extensions.Logging;
 
 namespace Avalon.Game.Maps;
 
@@ -28,9 +29,11 @@ public class MapInstance
 
     // Map configuration from database
     private readonly Map _template;
+    private readonly ILogger<MapInstance> _logger;
     
-    public MapInstance(Map template, VirtualizedMap virtualizedMap)
+    public MapInstance(ILoggerFactory loggerFactory, Map template, VirtualizedMap virtualizedMap)
     {
+        _logger = loggerFactory.CreateLogger<MapInstance>();
         InstanceId = Guid.NewGuid();
         Creatures = new ConcurrentDictionary<Guid, Creature>();
         Sessions = new ConcurrentDictionary<int, AvalonSession>();
@@ -75,7 +78,7 @@ public class MapInstance
         // Also the second step is to implement a way to send packets with grouped by entities
         // (meaning a packet with a group of players, another packet with creatures and another with events).
         
-        const int radius = 10;
+        const int radius = 100;
 
         // Broadcast player positions
         
