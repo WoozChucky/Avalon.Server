@@ -150,41 +150,48 @@ public class AvalonNetworkDaemon : IAvalonNetworkDaemon
         {
             while (!_cts.IsCancellationRequested)
             {
-                var (client, packet) = await _packetProcessorBuffer.DequeueAsync(_cts.Token);
-
-                var session = _sessionManager.GetSession(client);
-
-                var handler = _packetRegistry.GetHandler(packet.Header.Type);
-                
-                var deserializedPacket = GetInnerPacket(packet, session);
-
-                _ = Task.Run(async () =>
+                try
                 {
-                    try
+                    var (client, packet) = await _packetProcessorBuffer.DequeueAsync(_cts.Token);
+
+                    var session = _sessionManager.GetSession(client);
+
+                    var handler = _packetRegistry.GetHandler(packet.Header.Type);
+                
+                    var deserializedPacket = GetInnerPacket(packet, session);
+
+                    _ = Task.Run(async () =>
                     {
-                        var watch = Stopwatch.StartNew();
+                        try
+                        {
+                            var watch = Stopwatch.StartNew();
                         
-                        using var activity = DiagnosticsConfig.Server.Source
-                            .StartActivity("Packet Handler Loop", ActivityKind.Server);
+                            using var activity = DiagnosticsConfig.Server.Source
+                                .StartActivity("Packet Handler Loop", ActivityKind.Server);
                         
-                        activity?.SetTag("network.packet.type", packet.Header.Type.ToString());
-                        activity?.SetTag("network.packet.size", packet.Size);
-                        activity?.SetTag("network.client.address", client.RemoteAddress);
-                        activity?.SetTag("network.client.rtt", client.RoundTripTime);
+                            activity?.SetTag("network.packet.type", packet.Header.Type.ToString());
+                            activity?.SetTag("network.packet.size", packet.Size);
+                            activity?.SetTag("network.client.address", client.RemoteAddress);
+                            activity?.SetTag("network.client.rtt", client.RoundTripTime);
                         
-                        await handler.Handle(client, deserializedPacket).ConfigureAwait(false);
+                            await handler.Handle(client, deserializedPacket).ConfigureAwait(false);
                         
-                        watch.Stop();
-                        var elapsedMs = watch.ElapsedMilliseconds;
-                        if (elapsedMs > 0)
-                            _logger.LogInformation("Packet {HeaderType} processing took {ElapsedMs} ms", packet.Header.Type, elapsedMs);
-                    }
-                    catch (Exception ex)
-                    {
-                        // Log the error, don't let it crash your process.
-                        _logger.LogError(ex, "Error processing packet");
-                    }
-                });
+                            watch.Stop();
+                            var elapsedMs = watch.ElapsedMilliseconds;
+                            if (elapsedMs > 0)
+                                _logger.LogInformation("Packet {HeaderType} processing took {ElapsedMs} ms", packet.Header.Type, elapsedMs);
+                        }
+                        catch (Exception ex)
+                        {
+                            // Log the error, don't let it crash your process.
+                            _logger.LogError(ex, "Error processing packet");
+                        }
+                    });
+                } 
+                catch (PacketHandlerException e)
+                {
+                    _logger.LogWarning(e, "Packet handler exception while handling packet");
+                }
             }
         }
         catch (OperationCanceledException)

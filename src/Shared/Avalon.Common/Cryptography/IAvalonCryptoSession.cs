@@ -47,6 +47,9 @@ public class AvalonCryptoSession : IAvalonCryptoSession
         if (_initialized) throw new InvalidOperationException("Crypto session already initialized");
         _initialized = true;
         
+        if (otherEndPublicKeyBytes == null || otherEndPublicKeyBytes.Length == 0) 
+            throw new ArgumentException("Invalid public key", nameof(otherEndPublicKeyBytes));
+        
         // Parse the byte array to reconstruct the public key
         _otherEndPublicKey = AsymmetricCipher.GetPublicKeyFromBytes(otherEndPublicKeyBytes);
         
