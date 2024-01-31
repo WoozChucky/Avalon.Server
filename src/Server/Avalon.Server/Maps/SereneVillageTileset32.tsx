@@ -1,6 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <tileset version="1.10" tiledversion="1.10.1" name="SereneVillageTileset32" tilewidth="32" tileheight="32" tilecount="855" columns="19">
  <image source="Serene_Village_32x32.png" width="608" height="1440"/>
+ <tile id="235">
+  <objectgroup draworder="index" id="2">
+   <object id="1" x="2.27273" y="18.2727" width="27.4545" height="10.9091"/>
+  </objectgroup>
+ </tile>
  <tile id="363">
   <objectgroup draworder="index" id="2">
    <object id="1" x="31.8125" y="18.1875">
