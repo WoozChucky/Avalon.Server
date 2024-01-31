@@ -1,3 +1,5 @@
+using System.Drawing;
+
 namespace Avalon.VirtualMap
 {
     /// <summary>
@@ -366,6 +368,11 @@ namespace Avalon.VirtualMap
         /// The height in pixels from the tile in the source image
         /// </summary>
         public int height;
+
+        /// <summary>
+        /// The tile's collision rectangles
+        /// </summary>
+        public Rectangle[]? collisionRectangles;
     }
 
     /// <summary>
