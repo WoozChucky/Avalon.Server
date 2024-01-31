@@ -69,7 +69,7 @@ public class Player : IDisposable
         BoundingBox = new Rectangle(
             (int)(Position.X),
             (int)(Position.Y),
-            FrameWidth / 2,
+            FrameWidth,
             FrameHeight
         );
 
