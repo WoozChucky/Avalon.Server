@@ -2,12 +2,11 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
 using Avalon.Api.Config;
-using Avalon.Database.Auth;
 using Avalon.Domain.Auth;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 
-namespace Avalon.Api.Authentication;
+namespace Avalon.Api.Authentication.Jwt;
 
 public interface IJwtUtils
 {
