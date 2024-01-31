@@ -1,5 +1,6 @@
 using Avalon.Api.Contract;
 using Avalon.Api.Services;
+using Avalon.Domain.Auth;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -24,6 +25,18 @@ public class NotificationController : BaseController
         // get user agent to register along with subscription
         var userAgent = Request.Headers.UserAgent.ToString();
         await _notificationService.RegisterSubscriptionAsync(Account!, userAgent, request, CancellationToken);
+        return Ok();
+    }
+    
+    [AllowAnonymous]
+    [HttpGet]
+    public async Task<IActionResult> GetNotificationsAsync()
+    {
+        await _notificationService.SendNotificationAsync(new Account
+        {
+            Id = 4
+        }, "Get rekt!");
+        
         return Ok();
     }
 }
