@@ -2,6 +2,8 @@
 using System.Security.Claims;
 using System.Text;
 using Avalon.Api.Authentication;
+using Avalon.Api.Authentication.AV;
+using Avalon.Api.Authentication.Jwt;
 using Avalon.Api.Config;
 using Avalon.Api.Services;
 using Avalon.Common.Telemetry;
@@ -106,6 +108,7 @@ public static class ServiceRegistration
             options.DefaultScheme = JwtBearerDefaults.AuthenticationScheme;
         }).AddJwtBearer(x =>
         {
+            x.SaveToken = true;
             x.Events = new JwtBearerEvents
             {
                 OnMessageReceived = context =>
@@ -139,11 +142,16 @@ public static class ServiceRegistration
             };
             
             x.Validate(JwtBearerDefaults.AuthenticationScheme);
-        });
+        })
+        .AddScheme<AvalonAuthenticationSchemeOptions, AvalonAuthenticationHandler>(
+            AvalonAuthenticationSchemeOptions.SchemeName, 
+            AvalonAuthenticationSchemeOptions.SchemeName,
+            options => { }
+        );
     
         services.AddAuthorization(options =>
         {
-            options.DefaultPolicy = new AuthorizationPolicyBuilder(JwtBearerDefaults.AuthenticationScheme)
+            options.DefaultPolicy = new AuthorizationPolicyBuilder(JwtBearerDefaults.AuthenticationScheme, AvalonAuthenticationSchemeOptions.SchemeName)
                 .RequireAuthenticatedUser()
                 .AddRequirements(new AvalonAuthRequirement())
                 .Build();
