@@ -116,7 +116,8 @@ public class NotificationService : INotificationService
 
     private async Task SendNotificationAsync(Device device, string message, CancellationToken cancellationToken)
     {
-        var subscription = JsonSerializer.Deserialize<PushSubscription>(device.Metadata);
+        var deviceMetadata = JsonSerializer.Deserialize<PushSubscriptionRequest>(device.Metadata);
+        var subscription = new PushSubscription(deviceMetadata.Endpoint, deviceMetadata.Keys.P256DH, deviceMetadata.Keys.Auth);
         
         var payload = new
         {
