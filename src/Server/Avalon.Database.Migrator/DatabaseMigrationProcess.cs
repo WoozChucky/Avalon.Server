@@ -96,24 +96,55 @@ internal class DatabaseMigrationProcess
         // In this case, we need to check if the local migrations are ahead of the remote migrations.
         // We also need to check if the local migrations are behind the remote migrations.
         // If the local migrations are behind, we throw an exception.
-            
-        var localMigrationsBehind = localRecords.Except(remoteRecords, new MigrationRecordComparer()).ToList();
-            
-        if (localMigrationsBehind.Any())
+
+        // Check if any missing local migration
+        foreach (var remoteRecord in remoteRecords)
         {
-            var remoteMigrationNames = AggregateNames(remoteRecords);
-            var remoteMigrationHashes = AggregateHashes(remoteRecords);
+            var foundRecord = false;
             
-            var localMigrationNames = AggregateNames(localMigrationsBehind);
-            var localMigrationHashes = AggregateHashes(localMigrationsBehind);
+            foreach (var localRecord in localRecords)
+            {
+                if (!remoteRecord.Name.Equals(localRecord.Name, StringComparison.InvariantCultureIgnoreCase)) continue;
                 
-            throw new DatabaseMigrationException(
-                $"Local migrations ('{localMigrationNames}' - {localMigrationHashes}) are behind remote migrations ('{remoteMigrationNames}' - {remoteMigrationHashes}).\n" +
-                $"Please make sure local migrations are updated for '{_connectionDetails.Database}' database."
-            );
+                if (remoteRecord.Hash.SequenceEqual(localRecord.Hash))
+                {
+                    foundRecord = true;
+                    break;
+                }
+
+                _logger.LogWarning("Migration {Migration} has a different hash locally. Remote has {RemoteHash} and local has {LocalHash}", 
+                    remoteRecord.Name, 
+                    BitConverter.ToString(remoteRecord.Hash.ToArray()).Replace("-", ""), 
+                    BitConverter.ToString(localRecord.Hash.ToArray()).Replace("-", "")
+                );
+            }
+
+            if (foundRecord == false)
+            {
+                throw new DatabaseMigrationException($"Local migration is missing locally. Remote has {remoteRecord.Name}");
+            }
         }
+
+        var localMigrationsAhead = new List<MigrationRecord>();
         
-        var localMigrationsAhead = remoteRecords.Except(localRecords, new MigrationRecordComparer()).ToList();
+        // Check if any missing remote migration
+        foreach (var localRecord in localRecords)
+        {
+            var foundRecord = false;
+            
+            foreach (var remoteRecord in remoteRecords)
+            {
+                if (!localRecord.Name.Equals(remoteRecord.Name, StringComparison.InvariantCultureIgnoreCase)) continue;
+                if (!localRecord.Hash.SequenceEqual(remoteRecord.Hash)) continue;
+                foundRecord = true;
+                break;
+            }
+
+            if (foundRecord == false)
+            {
+                localMigrationsAhead.Add(localRecord);
+            }
+        }
         
         if (localMigrationsAhead.Any())
         {
@@ -175,6 +206,8 @@ internal class DatabaseMigrationProcess
         {
             var scripts = await ScriptReaderSystem.ListMigrationScriptsAsync(migrationFolder);
             scripts = scripts.Where(s => s.Database!.Equals(_databaseName, StringComparison.InvariantCultureIgnoreCase)).ToList();
+            
+            if (!scripts.Any()) continue;
             
             var record = new MigrationRecord
             {
@@ -253,19 +286,6 @@ internal class DatabaseMigrationProcess
         using var sha1 = SHA1.Create();
         var result = sha1.ComputeHash(bytes);
         return result;
-    }
-    
-    private static string AggregateNames(IEnumerable<MigrationRecord> records)
-    {
-        return records.Select(m => m.Name).Aggregate(new StringBuilder(), (a, b) => a.Append(b)).ToString();
-    }
-
-    private static string AggregateHashes(IEnumerable<MigrationRecord> records)
-    {
-        var aggregatedHash = records.Select(m => m.Hash)
-            .Aggregate(new List<byte>(), (a, b) => { a.AddRange(b); return a; });
-
-        return BitConverter.ToString(aggregatedHash.ToArray()).Replace("-", "");
     }
 
     public async Task AcquireLockAsync()
