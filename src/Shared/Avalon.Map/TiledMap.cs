@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Drawing;
 using System.Globalization;
 using System.IO;
 using System.IO.Compression;
@@ -740,6 +741,7 @@ namespace Avalon.VirtualMap
                     result.y = tileVert * tileset.TileHeight;
                     result.width = tileset.TileWidth;
                     result.height = tileset.TileHeight;
+                    result.collisionRectangles = ExtractCollisionFromTile(tileset, i);
 
                     return result;
                 }
@@ -755,6 +757,35 @@ namespace Avalon.VirtualMap
             }
 
             return null;
+        }
+
+        private Rectangle[]? ExtractCollisionFromTile(TiledTileset tileset, int i)
+        {
+            if (i == 0) return null;
+            
+            var tileInfo = tileset.Tiles.FirstOrDefault(t => t.id == i);
+            
+            if (tileInfo == null)
+            {
+                return null;
+            }
+            
+            if (!tileInfo.objects.Any())
+            {
+                return null;
+            }
+            
+            var collisionRectangles = new List<Rectangle>();
+
+            for (var n = 0; n < tileInfo.objects.Length; n++)
+            {
+                var tileObject = tileInfo.objects[n];
+                if (tileObject.width == 0 || tileObject.height == 0) continue;
+                var rect = new Rectangle((int)tileObject.x, (int)tileObject.y, (int)tileObject.width, (int)tileObject.height);
+                collisionRectangles.Add(rect);
+            }
+            
+            return collisionRectangles.ToArray();
         }
 
         /// <summary>
