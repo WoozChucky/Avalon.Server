@@ -372,7 +372,23 @@ namespace Avalon.VirtualMap
         /// <summary>
         /// The tile's collision rectangles
         /// </summary>
-        public Rectangle[]? collisionRectangles;
+        public TiledRectangle[]? collisionRectangles;
+    }
+
+    public class TiledRectangle
+    {
+        public float x;
+        public float y;
+        public float width;
+        public float height;
+        
+        public TiledRectangle(float x, float y, float width, float height)
+        {
+            this.x = x;
+            this.y = y;
+            this.width = width;
+            this.height = height;
+        }
     }
 
     /// <summary>

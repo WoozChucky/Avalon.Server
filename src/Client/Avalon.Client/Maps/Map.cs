@@ -112,7 +112,9 @@ public class Map : IDisposable
                     var source = new Rectangle(rect.x, rect.y, rect.width, rect.height);
                     var destination = new Rectangle(tileX, tileY, TileWidth, TileHeight);
                     
-                    layerTiles[x, y] = new Tile(x, y, TileWidth, TileHeight, source, destination, collidable);
+                    var collisionRects = rect.collisionRectangles?.Select(r => new AvalonRectangle(r.x, r.y, r.width, r.height)).ToArray();
+                    
+                    layerTiles[x, y] = new Tile(x, y, TileWidth, TileHeight, source, destination, collidable, collisionRects);
                 }
             }
             
@@ -134,7 +136,18 @@ public class Map : IDisposable
             {
                 if (tile is { IsCollidable: true })
                 {
-                    if (boundingBox.Intersects(tile.Bounds))
+                    if (tile.HasMultipleCollisionRects)
+                    {
+                        foreach (var collisionRectangle in tile.CollisionRectangles)
+                        {
+                            if (collisionRectangle.Intersects(boundingBox))
+                            {
+                                tile.MarkAsCollided(true);
+                                return true;
+                            }
+                        }
+                    }
+                    else if (boundingBox.Intersects(tile.Bounds))
                     {
                         tile.MarkAsCollided(true);
                         return true;
