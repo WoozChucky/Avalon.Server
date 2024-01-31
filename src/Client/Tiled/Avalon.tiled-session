@@ -3,7 +3,7 @@
         "height": 4300,
         "width": 2
     },
-    "activeFile": "Tutorial.tmx",
+    "activeFile": "Village.tmx",
     "expandedProjectPaths": [
         "."
     ],
@@ -22,10 +22,10 @@
                 5
             ],
             "scale": 1.5,
-            "selectedLayer": 10,
+            "selectedLayer": 8,
             "viewCenter": {
-                "x": 477.99999999999994,
-                "y": 912
+                "x": 1023.6666666666665,
+                "y": 768
             }
         },
         "Village.tmx": {
@@ -35,28 +35,31 @@
             "scale": 1.5,
             "selectedLayer": 4,
             "viewCenter": {
-                "x": 528,
-                "y": 370.6666666666667
+                "x": 479.66666666666663,
+                "y": 320
             }
         }
     },
+    "last.exportedFilePath": "C:/local/Personal/Avalon.Server/src/Client/Tiled",
     "last.imagePath": "C:/local/Personal/Avalon.Client/Tiled",
     "map.height": 48,
+    "map.lastUsedExportFilter": "JSON map files (*.tmj *.json)",
     "map.lastUsedFormat": "tmx",
     "map.tileHeight": 32,
     "map.tileWidth": 32,
     "map.width": 64,
     "openFiles": [
         "SereneVillageTileset32.tsx",
-        "Tutorial.tmx"
+        "Tutorial.tmx",
+        "Village.tmx"
     ],
     "project": "Avalon.tiled-project",
     "property.type": "int",
     "recentFiles": [
         "SereneVillageTileset32.tsx",
         "Tutorial.tmx",
-        "SereneVillageTileset.tsx",
-        "Village.tmx"
+        "Village.tmx",
+        "SereneVillageTileset.tsx"
     ],
     "tileset.lastUsedFormat": "tsx",
     "tileset.tileSize": {

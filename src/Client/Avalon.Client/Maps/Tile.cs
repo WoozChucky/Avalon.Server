@@ -8,12 +8,15 @@ public class Tile : IDisposable
 {
     
     public Rectangle Bounds => _destinationRectangle;
+    public AvalonRectangle[] CollisionRectangles => _collisionRectangles;
+    public bool HasMultipleCollisionRects => _collisionRectangles is {Length: > 0};
     
     private bool isColliding;
     private Texture2D _collidingTexture;
     
     private readonly Rectangle _sourceRectangle;
     private readonly Rectangle _destinationRectangle;
+    private readonly AvalonRectangle[] _collisionRectangles;
     private readonly Vector2 _origin;
     private readonly SpriteFont _font;
 
@@ -46,7 +49,7 @@ public class Tile : IDisposable
     private Texture2D OutlineTexture { get; set; }
     
 
-    public Tile(int x, int y, int width, int height, Rectangle sourceRectangle, Rectangle destinationRectangle, bool collidable = false)
+    public Tile(int x, int y, int width, int height, Rectangle sourceRectangle, Rectangle destinationRectangle, bool collidable = false, AvalonRectangle[] collisionRectangles = null)
     {
         Column = x;
         Row = y;
@@ -55,6 +58,15 @@ public class Tile : IDisposable
 
         _sourceRectangle = sourceRectangle;
         _destinationRectangle = destinationRectangle;
+        _collisionRectangles = collisionRectangles;
+        if (_collisionRectangles != null)
+        {
+            for (var i = 0; i < _collisionRectangles.Length; i++)
+            {
+                _collisionRectangles[i].X += _destinationRectangle.X;
+                _collisionRectangles[i].Y += _destinationRectangle.Y;
+            }
+        }
         _origin = new Vector2(_destinationRectangle.Width / 2f, _destinationRectangle.Height / 2f);
         IsCollidable = collidable;
 

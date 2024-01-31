@@ -759,7 +759,7 @@ namespace Avalon.VirtualMap
             return null;
         }
 
-        private Rectangle[]? ExtractCollisionFromTile(TiledTileset tileset, int i)
+        private TiledRectangle[]? ExtractCollisionFromTile(TiledTileset tileset, int i)
         {
             if (i == 0) return null;
             
@@ -775,13 +775,13 @@ namespace Avalon.VirtualMap
                 return null;
             }
             
-            var collisionRectangles = new List<Rectangle>();
+            var collisionRectangles = new List<TiledRectangle>();
 
             for (var n = 0; n < tileInfo.objects.Length; n++)
             {
                 var tileObject = tileInfo.objects[n];
                 if (tileObject.width == 0 || tileObject.height == 0) continue;
-                var rect = new Rectangle((int)tileObject.x, (int)tileObject.y, (int)tileObject.width, (int)tileObject.height);
+                var rect = new TiledRectangle(tileObject.x, tileObject.y, tileObject.width, tileObject.height);
                 collisionRectangles.Add(rect);
             }
             

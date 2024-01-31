@@ -1,4 +1,6 @@
-namespace Avalon.Common.Math;
+using Microsoft.Xna.Framework;
+
+namespace Avalon.Client.Maps;
 
 public class AvalonRectangle
 {
@@ -16,6 +18,14 @@ public class AvalonRectangle
     }
     
     public bool Intersects(AvalonRectangle other)
+    {
+        return X < other.X + other.Width &&
+               X + Width > other.X &&
+               Y < other.Y + other.Height &&
+               Y + Height > other.Y;
+    }
+    
+    public bool Intersects(Rectangle other)
     {
         return X < other.X + other.Width &&
                X + Width > other.X &&
