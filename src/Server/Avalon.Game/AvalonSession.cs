@@ -162,7 +162,7 @@ public class AvalonSession : IDisposable
             case NetworkProtocol.Both:
                 throw new NotSupportedException("Cannot send Both packet types to a remote source.");
             default:
-            case NetworkProtocol.None:
+            case NetworkProtocol.Invalid:
                 throw new InvalidOperationException("Cannot send a packet with no protocol specified.");
         }
     }

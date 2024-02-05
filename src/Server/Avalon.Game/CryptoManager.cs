@@ -22,7 +22,7 @@ public class CryptoManager : ICryptoManager
 
     public CryptoManager()
     {
-        _keyPair = AsymmetricCipher.GenerateECDHKeyPair();
+        _keyPair = AsymmetricCipher.GenerateECDHKeyPair(256);
         _publicKey = AsymmetricCipher.GetPublicKeyFromKeyPair(_keyPair);
         _publicKeyBytes = AsymmetricCipher.GetPublicKeyBytes(_publicKey);
         _secureRandom = new SecureRandom();

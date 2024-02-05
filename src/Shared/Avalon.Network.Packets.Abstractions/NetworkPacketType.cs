@@ -15,11 +15,13 @@ public enum NetworkPacketType : short
     CMSG_CLIENT_HANDSHAKE = 0x1002,
     
     // Authentication
-    
     CMSG_AUTH = 0x2000,
     CMSG_AUTH_PATCH = 0x2001,
     CMSG_LOGOUT = 0x2002,
     CMSG_REGISTER = 0x2003,
+    
+    // Audio
+    CMSG_AUDIO_RECORD = 0x2050,
     
     // Character
     CMSG_CHARACTER_LIST = 0x2010,
@@ -62,6 +64,9 @@ public enum NetworkPacketType : short
     SMSG_AUTH_RESULT = 0x3010,
     SMSG_LOGOUT = 0x3011,
     SMSG_REGISTER_RESULT = 0x3012,
+    
+    // Audio
+    SMSG_AUDIO_RECORD = 0x3050,
 
     // Character
     SMSG_CHARACTER_CONNECTED = 0x3020,
