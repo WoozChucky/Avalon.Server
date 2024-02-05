@@ -13,7 +13,7 @@ namespace Avalon.Common.Cryptography;
 
 public class AsymmetricCipher
 {
-    public static AsymmetricCipherKeyPair GenerateECDHKeyPair(int bits = 128)
+    public static AsymmetricCipherKeyPair GenerateECDHKeyPair(int bits = 256)
     {
         switch (bits)
         {

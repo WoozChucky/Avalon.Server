@@ -9,6 +9,7 @@ using Avalon.Game.Quests;
 using Avalon.Game.Scripts;
 using Avalon.Network;
 using Avalon.Network.Packets.Abstractions;
+using Avalon.Network.Packets.Audio;
 using Avalon.Network.Packets.Auth;
 using Avalon.Network.Packets.Character;
 using Avalon.Network.Packets.Generic;
@@ -53,6 +54,7 @@ public interface IAvalonGame
     Task HandleClientInfoPacket(IRemoteSource source, CClientInfoPacket packet);
     Task HandleHandshakePacket(IRemoteSource source, CHandshakePacket packet);
     Task HandleRegisterPacket(IRemoteSource source, CRegisterPacket packet);
+    Task HandleAudioRecordPacket(IRemoteSource source, CAudioRecordPacket packet);
 }
 
 public partial class AvalonGame : IAvalonGame
@@ -388,6 +390,16 @@ public partial class AvalonGame : IAvalonGame
         var result = SHandshakeResultPacket.Create(true, session.Encrypt);
         
         await source.SendAsync(result);
+    }
+
+    public async Task HandleAudioRecordPacket(IRemoteSource source, CAudioRecordPacket packet)
+    {
+        var sessions = _sessionManager.GetSessions();
+        foreach (var (_, session) in sessions)
+        {
+            var result = SAudioRecordPacket.Create(packet.SoundBuffer, null);
+            await session.SendAsync(result);
+        }
     }
 
     public async Task HandlePingPacket(IRemoteSource source, CPingPacket packet)

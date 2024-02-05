@@ -4,6 +4,7 @@ using System.Text;
 using Avalon.Api.Authentication;
 using Avalon.Api.Authentication.Jwt;
 using Avalon.Api.Contract;
+using Avalon.Api.Exceptions;
 using Avalon.Database.Auth;
 using Avalon.Domain.Auth;
 
@@ -20,20 +21,20 @@ public interface IAccountService
 public class AccountService : IAccountService
 {
     private readonly ILogger<AccountService> _logger;
-    private readonly IAccountRepository _authRepository;
+    private readonly IAccountRepository _accountRepository;
     private readonly IJwtUtils _jwtUtils;
     private readonly IMFAHashService _mfaHashService;
     private readonly IMFASetupRepository _mfaSetupRepository;
     private readonly IDeviceRepository _deviceRepository;
     public AccountService(ILoggerFactory loggerFactory, 
-        IAccountRepository authRepository, 
+        IAccountRepository accountRepository, 
         IJwtUtils jwtUtils, 
         IMFAHashService mfaHashService, 
         IMFASetupRepository mfaSetupRepository, 
         IDeviceRepository deviceRepository)
     {
         _logger = loggerFactory.CreateLogger<AccountService>();
-        _authRepository = authRepository;
+        _accountRepository = accountRepository;
         _jwtUtils = jwtUtils;
         _mfaHashService = mfaHashService;
         _mfaSetupRepository = mfaSetupRepository;
@@ -42,13 +43,13 @@ public class AccountService : IAccountService
     
     public async Task<Account?> FindById(int id)
     {
-        return await _authRepository.FindByIdAsync(id);
+        return await _accountRepository.FindByIdAsync(id);
     }
 
     public async Task<AuthenticateResponse> Authenticate(AuthenticateRequest model, IPAddress ipAddress, 
         CancellationToken cancellationToken)
     {
-        var account = await _authRepository.FindByUsernameAsync(model.Username);
+        var account = await _accountRepository.FindByUsernameAsync(model.Username);
         if (account == null)
             throw new AuthenticationException("Invalid username or password");
 
@@ -74,7 +75,7 @@ public class AccountService : IAccountService
         account.LastIp = ipAddress.ToString();
         account.LastLogin = DateTime.UtcNow;
         
-        await _authRepository.UpdateAsync(account);
+        await _accountRepository.UpdateAsync(account);
 
         return new AuthenticateResponse
         {
@@ -87,6 +88,14 @@ public class AccountService : IAccountService
     public async Task<RegisterResponse> Register(RegisterRequest model, string userAgent, IPAddress ipAddress,
         CancellationToken cancellationToken)
     {
+        var existingAccount = await _accountRepository.FindByUsernameAsync(model.Username);
+        if (existingAccount != null)
+            throw new BusinessException("Username already exists");
+        
+        existingAccount = await _accountRepository.FindByEmailAsync(model.Email);
+        if (existingAccount != null)
+            throw new BusinessException("Email already exists");
+        
         var salt = BCrypt.Net.BCrypt.GenerateSalt();
         var hash = BCrypt.Net.BCrypt.HashPassword(model.Password.Trim(), salt);
 
@@ -104,7 +113,7 @@ public class AccountService : IAccountService
             JoinDate = DateTime.UtcNow,
         };
         
-        account = await _authRepository.SaveAsync(account);
+        account = await _accountRepository.SaveAsync(account);
         
         if (account == null)
             throw new Exception("Failed to insert account");
@@ -121,6 +130,7 @@ public class AccountService : IAccountService
         return new RegisterResponse
         {
             Token = _jwtUtils.GenerateJwtToken(account),
+            RefreshToken = "",
             ExpiresAt = DateTimeOffset.UtcNow.AddHours(1).ToUnixTimeSeconds(),
         };
     }
