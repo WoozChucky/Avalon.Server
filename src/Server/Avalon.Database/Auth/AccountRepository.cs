@@ -15,6 +15,7 @@ namespace Avalon.Database.Auth
     public interface IAccountRepository : IRepository<Account, int>
     {
         Task<Account?> FindByUsernameAsync(string username);
+        Task<Account?> FindByEmailAsync(string email);
     }
     
     public class AccountRepository : IAccountRepository
@@ -128,6 +129,13 @@ namespace Avalon.Database.Auth
             await using var connection = new MySqlConnection(_connectionString);
             
             return await connection.QueryFirstOrDefaultAsync<Account>("SELECT * FROM auth.Account WHERE Username = @Username", new { Username = username });
+        }
+
+        public async Task<Account?> FindByEmailAsync(string email)
+        {
+            await using var connection = new MySqlConnection(_connectionString);
+            
+            return await connection.QueryFirstOrDefaultAsync<Account>("SELECT * FROM auth.Account WHERE Email = @Email", new { Email = email });
         }
     }
 }

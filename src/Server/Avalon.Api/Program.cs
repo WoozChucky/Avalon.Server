@@ -2,6 +2,7 @@ using Avalon.Api;
 using Avalon.Api.Config;
 using Avalon.Api.Middlewares;
 using Avalon.Api.Services;
+using Microsoft.AspNetCore.HttpOverrides;
 using Serilog;
 using Serilog.Events;
 using Serilog.Sinks.SystemConsole.Themes;
@@ -73,6 +74,11 @@ var app = builder.Build();
 
     app.UseMiddleware<ExceptionHandlerMiddleware>();
     app.UseMiddleware<RequestLoggingMiddleware>();
+    
+    app.UseForwardedHeaders(new ForwardedHeadersOptions
+    {
+        ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
+    });
     
     app.UseSwagger();
     app.UseSwaggerUI();

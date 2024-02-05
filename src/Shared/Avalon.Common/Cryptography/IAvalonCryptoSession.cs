@@ -39,7 +39,7 @@ public class AvalonCryptoSession : IAvalonCryptoSession
         var tempBytes = new byte[16];
         _secureRandom.NextBytes(tempBytes);
         _secureRandom.NextBytes(_nonce);
-        _ownKeyPair = keyPair ?? AsymmetricCipher.GenerateECDHKeyPair();
+        _ownKeyPair = keyPair ?? AsymmetricCipher.GenerateECDHKeyPair(256);
     }
     
     public void Initialize(byte[] otherEndPublicKeyBytes)

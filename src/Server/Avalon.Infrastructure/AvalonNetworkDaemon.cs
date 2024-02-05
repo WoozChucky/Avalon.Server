@@ -7,6 +7,7 @@ using Avalon.Metrics;
 using Avalon.Network;
 using Avalon.Network.Packets;
 using Avalon.Network.Packets.Abstractions;
+using Avalon.Network.Packets.Audio;
 using Avalon.Network.Packets.Auth;
 using Avalon.Network.Packets.Character;
 using Avalon.Network.Packets.Generic;
@@ -101,6 +102,9 @@ public class AvalonNetworkDaemon : IAvalonNetworkDaemon
         _packetRegistry.RegisterHandler<CAuthPacket>(NetworkPacketType.CMSG_AUTH, _game.HandleAuthPacket);
         _packetRegistry.RegisterHandler<CLogoutPacket>(NetworkPacketType.CMSG_LOGOUT, _game.HandleLogoutPacket);
         _packetRegistry.RegisterHandler<CRegisterPacket>(NetworkPacketType.CMSG_REGISTER, _game.HandleRegisterPacket);
+        
+        // Audio handlers
+        _packetRegistry.RegisterHandler<CAudioRecordPacket>(NetworkPacketType.CMSG_AUDIO_RECORD, _game.HandleAudioRecordPacket);
         
         // Character handlers
         _packetRegistry.RegisterHandler<CCharacterListPacket>(NetworkPacketType.CMSG_CHARACTER_LIST, _game.HandleCharacterListPacket);
@@ -436,6 +440,8 @@ public class AvalonNetworkDaemon : IAvalonNetworkDaemon
             NetworkPacketType.CMSG_AUTH_PATCH => _packetDeserializer.Deserialize<CAuthPatchPacket>(packet.Header.Type, packet.Payload, decryptFunc),
             NetworkPacketType.CMSG_LOGOUT => _packetDeserializer.Deserialize<CLogoutPacket>(packet.Header.Type, packet.Payload, decryptFunc),
             NetworkPacketType.CMSG_REGISTER => _packetDeserializer.Deserialize<CRegisterPacket>(packet.Header.Type, packet.Payload, decryptFunc),
+            
+            NetworkPacketType.CMSG_AUDIO_RECORD => _packetDeserializer.Deserialize<CAudioRecordPacket>(packet.Header.Type, packet.Payload, decryptFunc),
             
             NetworkPacketType.CMSG_CHARACTER_LIST => _packetDeserializer.Deserialize<CCharacterListPacket>(packet.Header.Type, packet.Payload, decryptFunc),
             NetworkPacketType.CMSG_CHARACTER_SELECTED => _packetDeserializer.Deserialize<CCharacterSelectedPacket>(packet.Header.Type, packet.Payload, decryptFunc),
