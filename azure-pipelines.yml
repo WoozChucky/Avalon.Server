@@ -156,46 +156,43 @@ jobs:
     displayName: '.NET Publish Server'
     inputs:
       command: 'publish'
-      arguments: 'src/Server/Avalon.Server/Avalon.Server.csproj -c Release --no-restore'
+      arguments: 'src/Server/Avalon.Server.World/Avalon.Server.World.csproj -c Release --no-restore'
       publishWebProjects: false
       zipAfterPublish: false
       modifyOutputPath: false
   
   - task: Bash@3
-    displayName: 'Docker Build - game-server - $(Build.BuildNumber)'
+    displayName: 'Docker Build - world-server - $(Build.BuildNumber)'
     inputs:
       targetType: 'inline'
       script: |
         #!/bin/bash
-        docker build --no-cache -t $(registryUrl)/avalon/game-server:$(Build.BuildNumber) -f src/Server/Avalon.Server/Dockerfile src/Server/Avalon.Server
-        docker tag $(registryUrl)/avalon/game-server:$(Build.BuildNumber) $(registryUrl)/avalon/game-server:latest
-    #parameters:
-    #  imageRepository: '$(registryUrl)/avalon/game-server'
-    #  dockerfilePath: 'src/Server/Avalon.Server/Dockerfile'
+        docker build --no-cache -t $(registryUrl)/avalon/world-server:$(Build.BuildNumber) -f src/Server/Avalon.Server.World/Dockerfile src/Server/Avalon.Server.World
+        docker tag $(registryUrl)/avalon/world-server:$(Build.BuildNumber) $(registryUrl)/avalon/world-server:latest
 
   - task: Bash@3
-    displayName:  Docker Push - game-server - $(Build.BuildNumber)
+    displayName:  'Docker Push - world-server - $(Build.BuildNumber)'
     inputs:
       targetType: 'inline'
       script: |
         #!/bin/bash
-        docker push $(registryUrl)/avalon/game-server:$(Build.BuildNumber)
-        docker push $(registryUrl)/avalon/game-server:latest
+        docker push $(registryUrl)/avalon/world-server:$(Build.BuildNumber)
+        docker push $(registryUrl)/avalon/world-server:latest
         
   - template: 'helm/package.yml@BuildSteps'
     parameters:
       helmName: 'game-server'
-      helmChartPath: '$(Build.SourcesDirectory)/src/Server/Avalon.Server/Helm'
+      helmChartPath: '$(Build.SourcesDirectory)/src/Server/Avalon.Server.World/Helm'
 
   - task: Bash@3
-    displayName:  'Helm OCI Publish - game-server - $(Build.BuildNumber)'
+    displayName:  'Helm OCI Publish - world-server - $(Build.BuildNumber)'
     inputs:
       targetType: 'bash'
       scriptLocation: 'inlineScript'
       script: |
         ls
-        helm push game-server-$(Build.BuildNumber)-helm.tgz oci://$(registryUrl)/avalon
-        helm push game-server-0.0-latest.tgz oci://$(registryUrl)/avalon
+        helm push world-server-$(Build.BuildNumber)-helm.tgz oci://$(registryUrl)/avalon
+        helm push world-server-0.0-latest.tgz oci://$(registryUrl)/avalon
   # Game Server End
      
   # Database Migrator Start   

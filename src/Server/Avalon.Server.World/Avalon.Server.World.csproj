@@ -9,18 +9,18 @@
         
         <ApplicationIcon>App.ico</ApplicationIcon>
 
-        <Product>Avalon Game Server Executable</Product>
+        <Product>Avalon World Server</Product>
         <ProductName>Avalon</ProductName>
         <ProductVersion>0.1.0</ProductVersion>
         
         <Version>0.1.0</Version>
-        <Description>Avalon Game Server Executable</Description>
+        <Description>Avalon World Server Executable</Description>
         <Copyright>Private</Copyright>
         
         <Authors>Nuno Levezinho</Authors>
         <Company>Nuno Levezinho's Games</Company>
         
-        <AssemblyName>Avalon</AssemblyName>
+        <AssemblyName>AvalonWorldServer</AssemblyName>
         <AssemblyVersion>0.1.0</AssemblyVersion>
         
         <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
@@ -32,6 +32,8 @@
         <AssemblyOriginatorKeyFile>..\..\..\sgKey.snk</AssemblyOriginatorKeyFile>
         
         <PublicSign>true</PublicSign>
+        
+        <RootNamespace>Avalon.Server.World</RootNamespace>
     </PropertyGroup>
 
     <!--
