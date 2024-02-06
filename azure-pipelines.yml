@@ -181,7 +181,7 @@ jobs:
         
   - template: 'helm/package.yml@BuildSteps'
     parameters:
-      helmName: 'game-server'
+      helmName: 'world-server'
       helmChartPath: '$(Build.SourcesDirectory)/src/Server/Avalon.Server.World/Helm'
 
   - task: Bash@3
