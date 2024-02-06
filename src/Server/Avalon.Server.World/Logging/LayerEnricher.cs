@@ -1,3 +1,4 @@
+using Avalon.Server.World;
 using Serilog.Core;
 using Serilog.Events;
 
@@ -32,7 +33,7 @@ public class LayerEnricher : ILogEventEnricher
 
     private readonly IList<string> _serverNamespaces = new List<string>()
     {
-        typeof(Avalon.Server.Program).FullName!,
+        typeof(Program).FullName!,
         typeof(Avalon.Infrastructure.AvalonInfrastructure).FullName!,
     };
     

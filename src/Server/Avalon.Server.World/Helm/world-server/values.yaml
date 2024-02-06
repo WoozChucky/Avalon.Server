@@ -52,7 +52,7 @@ migrator:
 replicaCount: 1
 
 image:
-  repository: avalon/game-server
+  repository: avalon/world-server
   pullPolicy: Always
   # Overrides the image tag whose default is the chart appVersion.
   tag: latest

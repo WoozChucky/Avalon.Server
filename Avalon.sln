@@ -33,7 +33,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Shared", "Shared", "{44F4FA
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Network", "Network", "{06868A4F-3DE6-415F-9A78-E2C07F300C19}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Avalon.Server", "src\Server\Avalon.Server\Avalon.Server.csproj", "{99201A33-E8DD-4BA7-ADCC-569F39818ADA}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Avalon.Server.World", "src\Server\Avalon.Server.World\Avalon.Server.World.csproj", "{99201A33-E8DD-4BA7-ADCC-569F39818ADA}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Database", "Database", "{0C56F203-0A21-4680-9F9D-987BA111B125}"
 EndProject

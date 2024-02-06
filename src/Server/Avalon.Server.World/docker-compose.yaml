@@ -1,8 +1,8 @@
 version: '3.4'
 services:
   avalon-server:
-    image: registry.nunolevezinho.xyz/avalon/game-server:latest
-    container_name: avalon-server
+    image: registry.nunolevezinho.xyz/avalon/world-server:latest
+    container_name: world-server
     privileged: true
     network_mode: host
     environment:
