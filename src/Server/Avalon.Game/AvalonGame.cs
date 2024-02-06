@@ -397,6 +397,7 @@ public partial class AvalonGame : IAvalonGame
         var sessions = _sessionManager.GetSessions();
         foreach (var (_, session) in sessions)
         {
+            if (session.Connection?.RemoteAddress == source.RemoteAddress) continue;
             var result = SAudioRecordPacket.Create(packet.SoundBuffer, null);
             await session.SendAsync(result);
         }
