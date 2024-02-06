@@ -53,6 +53,7 @@ public class AvalonSession : IDisposable
     private readonly ILogger<AvalonSession> _logger;
     private readonly CancellationTokenSource _cts;
     private readonly IAvalonCryptoSession _cryptography;
+    private readonly SemaphoreSlim _sendSemaphore = new SemaphoreSlim(1, 1);
     private bool _verified;
 
     public AvalonSession(ILoggerFactory loggerFactory, AsymmetricCipherKeyPair serverKeyPair, byte[] clientPublicKey)
@@ -120,6 +121,7 @@ public class AvalonSession : IDisposable
                         continue;
                     }
                 
+                    await _sendSemaphore.WaitAsync();
                     await SendQueuedPacketAsync(packet);
                 }
                 catch (IOException ex)
@@ -150,7 +152,10 @@ public class AvalonSession : IDisposable
             case NetworkProtocol.Tcp:
                 if (Connection != null)
                 {
-                    await Connection.SendAsync(packet);
+                    await Connection.SendAsync(packet).ContinueWith(_ =>
+                    {
+                        _sendSemaphore.Release();
+                    });
                 }
                 else
                 {
