@@ -9,7 +9,6 @@
 
     <ItemGroup>
       <ProjectReference Include="..\..\Shared\Avalon.Network.Tcp\Avalon.Network.Tcp.csproj" />
-      <ProjectReference Include="..\..\Shared\Avalon.Network.Udp\Avalon.Network.Udp.csproj" />
     </ItemGroup>
 
     <ItemGroup>

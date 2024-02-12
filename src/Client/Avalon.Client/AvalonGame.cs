@@ -1,10 +1,8 @@
 ﻿using System;
 using System.Diagnostics;
-using System.Runtime.InteropServices;
 using Avalon.Client.Managers;
 using Avalon.Client.Scenes;
 using Avalon.Network.Tcp;
-using Avalon.Network.Udp;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
