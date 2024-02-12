@@ -37,7 +37,6 @@ public class AvalonNetworkDaemon : IAvalonNetworkDaemon
     private readonly ILogger<AvalonNetworkDaemon> _logger;
     private readonly CancellationTokenSource _cts;
     private readonly IAvalonTcpServer _tcpServer;
-    private readonly IAvalonUdpServer _udpServer;
     private readonly IPacketDeserializer _packetDeserializer;
     private readonly IPacketSerializer _packetSerializer;
     private readonly IPacketRegistry _packetRegistry;
@@ -58,8 +57,7 @@ public class AvalonNetworkDaemon : IAvalonNetworkDaemon
     public AvalonNetworkDaemon(
         ILoggerFactory loggerFactory, 
         CancellationTokenSource cts,
-        IAvalonTcpServer tcpServer, 
-        IAvalonUdpServer udpServer,
+        IAvalonTcpServer tcpServer,
         IPacketDeserializer packetDeserializer,
         IPacketSerializer packetSerializer,
         IPacketRegistry packetRegistry,
@@ -78,11 +76,6 @@ public class AvalonNetworkDaemon : IAvalonNetworkDaemon
         _metrics = metrics;
         
         _packetProcessorBuffer = new RingBuffer<(IRemoteSource, NetworkPacket)>("RECV",1024);
-
-        _udpServer = udpServer;
-        _udpServer.OnPacketReceived += UdpServerOnOnPacketReceived;
-        _udpServer.OnClientDisconnected += UdpServerOnClientDisconnected;
-        _udpServer.OnClientTimeout += UdpServerOnClientTimeout;
 
         _tcpServer = tcpServer;
         _tcpServer.ClientConnected += TcpServerOnClientConnected;
@@ -143,7 +136,6 @@ public class AvalonNetworkDaemon : IAvalonNetworkDaemon
         
         _sessionManager.Start();
         
-        Task.Run(_udpServer.RunAsync).ConfigureAwait(false);
         Task.Run(_tcpServer.RunAsync).ConfigureAwait(false);
         Task.Run(UpdateMetricsAsync).ConfigureAwait(false);
     }
@@ -295,7 +287,6 @@ public class AvalonNetworkDaemon : IAvalonNetworkDaemon
         
         _sessionManager.Stop();
         
-        await _udpServer.StopAsync().ConfigureAwait(false);
         await _tcpServer.StopAsync().ConfigureAwait(false);
     }
     
@@ -469,7 +460,6 @@ public class AvalonNetworkDaemon : IAvalonNetworkDaemon
     {
         _sessionManager.Dispose();
         _tcpServer.Dispose();
-        _udpServer.Dispose();
         
         GC.SuppressFinalize(this);
     }

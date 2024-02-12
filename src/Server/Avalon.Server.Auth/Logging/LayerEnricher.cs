@@ -1,7 +1,7 @@
 using Serilog.Core;
 using Serilog.Events;
 
-namespace Avalon.Server.World.Logging;
+namespace Avalon.Server.Auth.Logging;
 
 public class LayerEnricher : ILogEventEnricher
 {

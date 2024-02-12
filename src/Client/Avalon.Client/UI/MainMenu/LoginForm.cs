@@ -1,6 +1,4 @@
 using Avalon.Network.Packets.Auth;
-using Avalon.Network.Tcp;
-using Avalon.Network.Udp;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
