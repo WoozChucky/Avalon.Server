@@ -1,9 +1,8 @@
 using Avalon.Configuration;
-using Avalon.Game.Configuration;
 using Avalon.Infrastructure.Configuration;
 using Avalon.Metrics;
 
-namespace Avalon.Server.World.Configuration;
+namespace Avalon.Server.Auth.Configuration;
 
 public class AppConfiguration
 {
@@ -11,5 +10,4 @@ public class AppConfiguration
     public NetworkDaemonConfiguration? NetworkDaemon { get; set; }
     public MetricsConfiguration? Metrics { get; set; }
     public DatabaseConfiguration? Database { get; set; }
-    public GameConfiguration? Game { get; set; }
 }

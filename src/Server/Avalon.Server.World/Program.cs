@@ -18,9 +18,8 @@ using Avalon.Network.Packets.Internal;
 using Avalon.Network.Packets.Internal.Deserialization;
 using Avalon.Network.Packets.Serialization;
 using Avalon.Network.Tcp;
-using Avalon.Network.Udp;
-using Avalon.Server.Configuration;
-using Avalon.Server.Logging;
+using Avalon.Server.World.Configuration;
+using Avalon.Server.World.Logging;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -177,7 +176,7 @@ namespace Avalon.Server.World
                         .CreateLogger()
                     )
                     .SetMinimumLevel(LogLevel.Debug);
-                if (AppConfiguration.Metrics.Export)
+                if (AppConfiguration.Metrics!.Export)
                 {
                     builder.AddOpenTelemetry(options =>
                     {
@@ -195,7 +194,7 @@ namespace Avalon.Server.World
                 }
             });
 
-            if (AppConfiguration.Metrics.Export)
+            if (AppConfiguration.Metrics!.Export)
             {
                 services.AddOpenTelemetry()
                     .ConfigureResource(builder =>
@@ -242,8 +241,7 @@ namespace Avalon.Server.World
             services.AddSingleton(AppConfiguration);
             services.AddSingleton(AppConfiguration.Infrastructure!);
             services.AddSingleton(AppConfiguration.NetworkDaemon!);
-            services.AddSingleton(AppConfiguration.NetworkDaemon!.Udp!);
-            services.AddSingleton(AppConfiguration.NetworkDaemon.Tcp!);
+            services.AddSingleton(AppConfiguration.NetworkDaemon!.Tcp!);
             services.AddSingleton(AppConfiguration.Metrics);
             services.AddSingleton(AppConfiguration.Database!);
             services.AddSingleton(AppConfiguration.Game!);
@@ -261,7 +259,6 @@ namespace Avalon.Server.World
             services.AddSingleton<IDatabaseManager, DatabaseManager>();
             
             services.AddSingleton<IAvalonTcpServer, AvalonTcpServer>();
-            services.AddSingleton<IAvalonUdpServer, ENetUdpServer>();
             services.AddSingleton<IAvalonSessionManager, AvalonSessionManager>();
             services.AddSingleton<IPacketDeserializer, NetworkPacketDeserializer>();
             services.AddSingleton<IPacketSerializer, NetworkPacketSerializer>();

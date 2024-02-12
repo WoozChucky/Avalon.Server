@@ -30,7 +30,6 @@ public class InfrastructureFixture : IDisposable
 		
 		MetricsManager = Substitute.For<IMetricsManager>();
 		TcpServer = Substitute.For<IAvalonTcpServer>();
-		UdpServer = Substitute.For<IAvalonUdpServer>();
 		PacketSerializer = new NetworkPacketSerializer();
 		PacketDeserializer = new NetworkPacketDeserializer();
 		PacketRegistry = new PacketRegistry();
@@ -98,7 +97,6 @@ public class InfrastructureFixture : IDisposable
 			mockedLoggerFactory,
 			CancellationTokenSource,
 			TcpServer,
-			UdpServer,
 			PacketDeserializer,
 			PacketSerializer,
 			PacketRegistry,
@@ -128,7 +126,6 @@ public class InfrastructureFixture : IDisposable
 	public IMetricsManager MetricsManager { get; set; }
 	
 	public IAvalonTcpServer TcpServer { get; set; }
-	public IAvalonUdpServer UdpServer { get; set; }
 	public IAvalonSessionManager SessionManager { get; set; }
 	
 	public IPacketSerializer PacketSerializer { get; set; }

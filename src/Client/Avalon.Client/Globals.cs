@@ -1,7 +1,5 @@
-﻿using System;
-using Avalon.Network.Packets.Character;
+﻿using Avalon.Network.Packets.Character;
 using Avalon.Network.Tcp;
-using Avalon.Network.Udp;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Content;
 using Microsoft.Xna.Framework.Graphics;

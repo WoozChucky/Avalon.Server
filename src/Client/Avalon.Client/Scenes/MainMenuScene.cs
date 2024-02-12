@@ -3,8 +3,6 @@ using Avalon.Client.Managers;
 using Avalon.Client.Models;
 using Avalon.Client.UI;
 using Avalon.Client.UI.MainMenu;
-using Avalon.Network.Tcp;
-using Avalon.Network.Udp;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Steamworks;
