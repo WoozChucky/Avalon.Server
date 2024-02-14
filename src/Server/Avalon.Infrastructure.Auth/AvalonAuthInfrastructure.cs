@@ -1,59 +1,43 @@
-﻿using System.Diagnostics;
+﻿using Avalon.Auth;
 using Avalon.Common.Utils;
-using Avalon.Game;
 using Avalon.Infrastructure.Configuration;
-using Avalon.Metrics;
 using Microsoft.Extensions.Logging;
 using Timer = Avalon.Common.Utils.Timer;
 
-namespace Avalon.Infrastructure;
+namespace Avalon.Infrastructure.Auth;
 
-public interface IAvalonInfrastructure : IDisposable
-{
-    void Start();
-    void Stop();
-    void Update(CancellationTokenSource cancellationTokenSource);
-}
-
-public class AvalonInfrastructure : IAvalonInfrastructure
+public class AvalonAuthInfrastructure : IAvalonInfrastructure
 {
     private readonly CancellationTokenSource _cts;
     private readonly InfrastructureConfiguration _infrastructureConfiguration;
-    private readonly ILogger<AvalonInfrastructure> _logger;
+    private readonly ILogger<AvalonAuthInfrastructure> _logger;
     private readonly IAvalonNetworkDaemon _networkDaemon;
-    private readonly IAvalonGame _gameServer;
-    private readonly IMetricsManager _metricsManager;
+    private readonly IAvalonAuth _authServer;
 
-    public AvalonInfrastructure(
+    public AvalonAuthInfrastructure(
         ILoggerFactory loggerFactory,
         CancellationTokenSource cts,
         InfrastructureConfiguration infrastructureConfiguration,
         IAvalonNetworkDaemon networkDaemon,
-        IAvalonGame gameServer,
-        IMetricsManager metricsManager)
+        IAvalonAuth authServer)
     {
-        _logger = loggerFactory.CreateLogger<AvalonInfrastructure>();
+        _logger = loggerFactory.CreateLogger<AvalonAuthInfrastructure>();
         _cts = cts;
         _infrastructureConfiguration = infrastructureConfiguration;
         _networkDaemon = networkDaemon;
-        _gameServer = gameServer;
-        _metricsManager = metricsManager;
+        _authServer = authServer;
     }
 
     public void Start()
     {
-        _gameServer.Start();
+        _authServer.Start();
         _networkDaemon.Start();
-        
-        _metricsManager.QueueEvent("AvalonInfrastructureStatus", "Online");
     }
 
     public void Stop()
     {
-        _gameServer.Stop();
+        _authServer.Stop();
         _networkDaemon.Stop();
-        
-        _metricsManager.Stop();
         _cts.Cancel();
     }
 
@@ -62,21 +46,10 @@ public class AvalonInfrastructure : IAvalonInfrastructure
         var halfMaxCoreStuckTime = _infrastructureConfiguration.MaxCoreStuckTime / 2;
         
         var previousTime = Timer.CurrentTimeMillis();
-
-        var timer = new System.Timers.Timer(60000);
-        timer.Elapsed += (sender, args) =>
-        {
-            var numberOfThreads = Process.GetCurrentProcess().Threads.Count;
-            if (numberOfThreads > 1)
-            {
-                _logger.LogTrace("Game UpdateLoop running on {NumberOfThreads} threads", numberOfThreads);
-            }
-        };
-        timer.Start();
         
-        while (_gameServer.IsRunning())
+        while (_authServer.IsRunning())
         {
-            _gameServer.IncrementLoopCounter();
+            _authServer.IncrementLoopCounter();
             
             var currentTime = Timer.CurrentTimeMillis();
             var diff = Timer.GetDiff(previousTime, currentTime);
@@ -87,7 +60,7 @@ public class AvalonInfrastructure : IAvalonInfrastructure
                 if (sleepTime >= halfMaxCoreStuckTime)
                 {
                     _logger.LogWarning(
-                        "Game UpdateLoop waiting for {SleepTime}ms with MaxCoreStruckTime set to {MaxCoreStuckTime}ms",
+                        "Auth UpdateLoop waiting for {SleepTime}ms with MaxCoreStruckTime set to {MaxCoreStuckTime}ms",
                         sleepTime, 
                         _infrastructureConfiguration.MaxCoreStuckTime
                     );
@@ -96,11 +69,9 @@ public class AvalonInfrastructure : IAvalonInfrastructure
                 continue;
             }
             
-            _gameServer.Update(diff.ToTimeSpan());
+            _authServer.Update(diff.ToTimeSpan());
             
             previousTime = currentTime;
-            
-            _metricsManager.QueueMetric("server.loop.counter", _gameServer.GetLoopCounter());
 
             if (cts.IsCancellationRequested)
             {
@@ -111,10 +82,8 @@ public class AvalonInfrastructure : IAvalonInfrastructure
 
     public void Dispose()
     {
-        _logger.LogInformation("Game looped {LoopCounter} times", _gameServer.GetLoopCounter());
         _logger.LogInformation("Disposing AvalonInfrastructure...");
         _cts.Dispose();
-        _metricsManager.QueueEvent("AvalonInfrastructureStatus", "Offline");
         GC.SuppressFinalize(this);
     }
 }

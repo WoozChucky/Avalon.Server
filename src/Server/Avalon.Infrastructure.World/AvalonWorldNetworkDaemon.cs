@@ -24,17 +24,12 @@ using Avalon.Network.Packets.World;
 using Microsoft.Extensions.Logging;
 using TcpClient = Avalon.Network.TcpClient;
 
-namespace Avalon.Infrastructure;
+namespace Avalon.Infrastructure.World;
 
-public interface IAvalonNetworkDaemon : IDisposable
-{
-    void Start();
-    void Stop();
-}
 
-public class AvalonNetworkDaemon : IAvalonNetworkDaemon
+public class AvalonWorldNetworkDaemon : IAvalonNetworkDaemon
 {
-    private readonly ILogger<AvalonNetworkDaemon> _logger;
+    private readonly ILogger<AvalonWorldNetworkDaemon> _logger;
     private readonly CancellationTokenSource _cts;
     private readonly IAvalonTcpServer _tcpServer;
     private readonly IPacketDeserializer _packetDeserializer;
@@ -47,14 +42,9 @@ public class AvalonNetworkDaemon : IAvalonNetworkDaemon
     private readonly RingBuffer<(IRemoteSource, NetworkPacket)> _packetProcessorBuffer;
     
     private long _bytesReceived;
-    private long _udpBytesReceived;
-    private long _tcpBytesReceived;
-    
     private long _packetsReceived;
-    private long _udpPacketsReceived;
-    private long _tcpPacketsReceived;
 
-    public AvalonNetworkDaemon(
+    public AvalonWorldNetworkDaemon(
         ILoggerFactory loggerFactory, 
         CancellationTokenSource cts,
         IAvalonTcpServer tcpServer,
@@ -65,7 +55,7 @@ public class AvalonNetworkDaemon : IAvalonNetworkDaemon
         IAvalonSessionManager sessionManager,
         IMetricsManager metrics)
     {
-        _logger = loggerFactory.CreateLogger<AvalonNetworkDaemon>();
+        _logger = loggerFactory.CreateLogger<AvalonWorldNetworkDaemon>();
         _cts = cts;
 
         _packetDeserializer = packetDeserializer;
@@ -137,7 +127,7 @@ public class AvalonNetworkDaemon : IAvalonNetworkDaemon
         _sessionManager.Start();
         
         Task.Run(_tcpServer.RunAsync).ConfigureAwait(false);
-        Task.Run(UpdateMetricsAsync).ConfigureAwait(false);
+        //Task.Run(UpdateMetricsAsync).ConfigureAwait(false);
     }
 
     private async Task ProcessPacketsAsync()
@@ -218,22 +208,12 @@ public class AvalonNetworkDaemon : IAvalonNetworkDaemon
             if (false)
             {
                 var currentBytesReceived = Interlocked.Read(ref _bytesReceived);
-                var currentTcpBytesReceived = Interlocked.Read(ref _tcpBytesReceived);
-                var currentUdpBytesReceived = Interlocked.Read(ref _udpBytesReceived);
                 var currentPacketsReceived = Interlocked.Read(ref _packetsReceived);
                 
                 // Bytes conversion to Mb
                 var kbBytesReceived = currentBytesReceived / 1024;
                 var mgBytesReceived = currentBytesReceived / (1024 * 1024);
                 var gbBytesReceived = currentBytesReceived / (1024 * 1024 * 1024);
-                
-                var kbBytesReceivedUdp = currentUdpBytesReceived / 1024;
-                var mgBytesReceivedUdp = currentUdpBytesReceived / (1024 * 1024);
-                var gbBytesReceivedUdp = currentUdpBytesReceived / (1024 * 1024 * 1024);
-                
-                var kbBytesReceivedTcp = currentTcpBytesReceived / 1024;
-                var mgBytesReceivedTcp = currentTcpBytesReceived / (1024 * 1024);
-                var gbBytesReceivedTcp = currentTcpBytesReceived / (1024 * 1024 * 1024);
                 
                 // Byte rate calculation
                 var bytesInLastSecond = currentBytesReceived - previousBytesReceived;
@@ -262,12 +242,8 @@ public class AvalonNetworkDaemon : IAvalonNetworkDaemon
             }
             
             _metrics.QueueMetric("network.bytes_received", Interlocked.Read(ref _bytesReceived));
-            _metrics.QueueMetric("network.bytes_received.udp", Interlocked.Read(ref _udpBytesReceived));
-            _metrics.QueueMetric("network.bytes_received.tcp", Interlocked.Read(ref _tcpBytesReceived));
             
             _metrics.QueueMetric("network.packets_received", Interlocked.Read(ref _packetsReceived));
-            _metrics.QueueMetric("network.packets_received.udp", Interlocked.Read(ref _udpPacketsReceived));
-            _metrics.QueueMetric("network.packets_received.tcp", Interlocked.Read(ref _tcpPacketsReceived));
         }
     }
 
@@ -323,10 +299,7 @@ public class AvalonNetworkDaemon : IAvalonNetworkDaemon
                             nameof(NetworkPacketType), packet.Header.Type
                         ));
 
-                        Interlocked.Increment(ref _tcpPacketsReceived);
                         Interlocked.Increment(ref _packetsReceived);
-
-                        Interlocked.Add(ref _tcpBytesReceived, packet.Size);
                         Interlocked.Add(ref _bytesReceived, packet.Size);
                     }
                     catch (PacketHandlerException e)
@@ -364,60 +337,12 @@ public class AvalonNetworkDaemon : IAvalonNetworkDaemon
         }).ConfigureAwait(false);
     }
     
-    private void UdpServerOnOnPacketReceived(object? sender, UdpClientPacket clientPacket)
-    {
-        Task.Run(async () =>
-        {
-            await using var stream = new MemoryStream(clientPacket.Buffer);
-        
-            var packet = await _packetDeserializer.DeserializeFromNetwork<NetworkPacket>(stream);
-
-            try
-            {
-                if (packet == null)
-                {
-                    _logger.LogWarning("Received null udp packet from client {Endpoint}", clientPacket.RemoteAddress);
-                    return;
-                }
-                
-                _packetProcessorBuffer.Enqueue((clientPacket, packet));
-                
-                Interlocked.Increment(ref _udpPacketsReceived);
-                Interlocked.Increment(ref _packetsReceived);
-                        
-                Interlocked.Add(ref _udpBytesReceived, packet.Size);
-                Interlocked.Add(ref _bytesReceived, packet.Size);
-            }
-            catch (PacketHandlerException e)
-            {
-                _logger.LogWarning(e, "Packet handler exception while handling packet {@Packet}", packet);
-            }
-            catch (Exception e)
-            {
-                _logger.LogWarning(e, "Exception while handling packet {@Packet}", packet);
-            }
-
-        }).ConfigureAwait(false);
-    }
-    
-    private void UdpServerOnClientTimeout(object? sender, UdpClientPacket clientPacket)
-    {
-        _logger.LogInformation("UdpServerOnClientTimeout {Endpoint} timed out", clientPacket.RemoteAddress);
-        //_connectionManager.RemoveConnection(clientPacket.RemoteAddress);
-    }
-
-    private void UdpServerOnClientDisconnected(object? sender, UdpClientPacket clientPacket)
-    {
-        _logger.LogInformation("UdpServerOnClientDisconnected {Endpoint} disconnected", clientPacket.RemoteAddress);
-        _sessionManager.RemoveConnection(clientPacket);
-    }
-    
     private Packet GetInnerPacket(NetworkPacket packet, AvalonSession? session)
     {
         if (packet.Header.Flags == NetworkPacketFlags.Encrypted && session == null)
             throw new PacketHandlerException("Encrypted packet received without session key");
         
-        Func<byte[], byte[]>? decryptFunc = null;
+        DecryptFunc? decryptFunc = null;
         if (packet.Header.Flags == NetworkPacketFlags.Encrypted)
             decryptFunc = session!.Decrypt;
         
