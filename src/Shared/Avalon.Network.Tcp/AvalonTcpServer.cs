@@ -10,32 +10,26 @@ namespace Avalon.Network.Tcp;
 
 public class AvalonTcpServer : IAvalonTcpServer
 {
-    private readonly ILogger<AvalonTcpServer> _logger;
-    private readonly AvalonTcpServerConfiguration _configuration;
-    private readonly CancellationTokenSource _cts;
-    private readonly X509Certificate2 _certificate;
-    private readonly Socket _socket;
-    
-    private volatile bool _isRunning;
+    protected readonly ILogger<AvalonTcpServer> Logger;
+    protected readonly AvalonTcpServerConfiguration Configuration;
+    protected readonly CancellationTokenSource Cts;
+    protected readonly Socket Socket;
+    protected volatile bool Running;
     
     public event TcpClientConnectedHandler? ClientConnected;
 
     public AvalonTcpServer(ILogger<AvalonTcpServer> logger, AvalonTcpServerConfiguration configuration, CancellationTokenSource cts)
     {
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-        _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
-        _cts = cts ?? throw new ArgumentNullException(nameof(cts));
+        Logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        Configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
+        Cts = cts ?? throw new ArgumentNullException(nameof(cts));
         
-        if (!_configuration.Enabled) return;
+        if (!Configuration.Enabled) return;
         
-        _isRunning = false;
-        _socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-        _socket.NoDelay = true;
-        _socket.Bind(new IPEndPoint(IPAddress.Any, _configuration.ListenPort));
-        var serverCertBytes = File.ReadAllBytesAsync(
-                _configuration.CertificatePath ?? throw new ArgumentNullException(nameof(configuration.CertificatePath))
-                ).ConfigureAwait(true).GetAwaiter().GetResult();
-        _certificate = new X509Certificate2(serverCertBytes, _configuration.CertificatePassword);
+        Running = false;
+        Socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+        Socket.NoDelay = true;
+        Socket.Bind(new IPEndPoint(IPAddress.Any, Configuration.ListenPort));
     }
     
     ~AvalonTcpServer()
@@ -43,38 +37,38 @@ public class AvalonTcpServer : IAvalonTcpServer
         Dispose(false);
     }
     
-    public bool IsRunning => _isRunning;
+    public bool IsRunning => Running;
     
     public async Task RunAsync()
     {
-        if (!_configuration.Enabled) return;
+        if (!Configuration.Enabled) return;
         
-        if (_isRunning)
+        if (Running)
         {
             throw new InvalidOperationException("Server is already running.");
         }
         
-        _socket.Listen(_configuration.Backlog);
-        _isRunning = true;
+        Socket.Listen(Configuration.Backlog);
+        Running = true;
         
-        _logger.LogInformation("Listening at {EndPoint}", _socket.LocalEndPoint);
+        Logger.LogInformation("Listening at {EndPoint}", Socket.LocalEndPoint);
         
 #pragma warning disable CS4014
-        Task.Factory.StartNew(InternalServerLoop, _cts.Token, TaskCreationOptions.LongRunning, TaskScheduler.Default);
+        Task.Factory.StartNew(InternalServerLoop, Cts.Token, TaskCreationOptions.LongRunning, TaskScheduler.Default);
 #pragma warning restore CS4014
     }
 
     public Task StopAsync()
     {
-        if (!_configuration.Enabled) return Task.CompletedTask;
+        if (!Configuration.Enabled) return Task.CompletedTask;
         
-        if (!_isRunning) throw new InvalidOperationException("Server is not running.");
+        if (!Running) throw new InvalidOperationException("Server is not running.");
 
-        _isRunning = false;
+        Running = false;
 
         //TODO(Nuno): Close all connections.
         //TODO(Nuno): Send the connection disconnect packet to all clients.
-        _logger.LogInformation("Server stopped");
+        Logger.LogInformation("Server stopped");
         
         return Task.CompletedTask;
     }
@@ -83,108 +77,51 @@ public class AvalonTcpServer : IAvalonTcpServer
     {
         Dispose(true);
         GC.SuppressFinalize(this);
-        _logger.LogDebug("Disposed AvalonTcpServer");
+        Logger.LogDebug("Disposed AvalonTcpServer");
     }
 
     private async Task InternalServerLoop()
     {
         try
         {
-            while (!_cts.IsCancellationRequested)
+            while (!Cts.IsCancellationRequested)
             {
-                var client = await _socket.AcceptAsync().ConfigureAwait(true);
-                if (_socket == null) continue;
+                var client = await Socket.AcceptAsync().ConfigureAwait(true);
+                if (Socket == null) continue;
                 await HandleNewConnection(client).ConfigureAwait(false);
             }
         }
         catch (OperationCanceledException)
         {
-            _logger.LogWarning("Server loop cancelled");
+            Logger.LogWarning("Server loop cancelled");
         }
     }
 
-    private async Task HandleNewConnection(Socket client)
+    protected virtual async Task HandleNewConnection(Socket client)
     {
-        var sslStream = new SslStream(new NetworkStream(client), false, OnClientCertificateValidation);
         try
         {
-            await sslStream.AuthenticateAsServerAsync(_certificate, false, SslProtocols.Tls12, false).ConfigureAwait(true);
+            var networkStream = new NetworkStream(client, true);
             
-            ClientConnected?.Invoke(this, new TcpClient(client, sslStream));
+            ClientConnected?.Invoke(this, new TcpClient(client, networkStream));
         }
         catch (AuthenticationException e)
         {
-            _logger.LogWarning(e, "Failed to authenticate: {Message}", e.Message);
+            Logger.LogWarning(e, "Failed to authenticate: {Message}", e.Message);
         }
         catch (Exception e)
         {
-            _logger.LogWarning(e, "Failed to handle new connection: {Message}", e.Message);
+            Logger.LogWarning(e, "Failed to handle new connection: {Message}", e.Message);
         }
     }
 
-    private bool OnClientCertificateValidation(object sender, X509Certificate? certificate, X509Chain? chain, SslPolicyErrors sslpolicyerrors)
-    {
-        return true;
-        if (certificate == null)
-        {
-            _logger.LogWarning("Client certificate is null");
-            return false;
-        }
-        
-        var expiryDate = DateTime.Parse(certificate.GetExpirationDateString());
-        
-        if (expiryDate < DateTime.UtcNow)
-        {
-            _logger.LogWarning("Client certificate is expired");
-            return false;
-        }
-
-        if (!certificate.GetSerialNumberString().Equals(_certificate.GetSerialNumberString()))
-        {
-            _logger.LogWarning("Client certificate serial number does not match server certificate serial number");
-            return false;
-        }
-        
-        if (!certificate.Issuer.Equals(_certificate.Issuer))
-        {
-            _logger.LogWarning("Client certificate issuer does not match server certificate issuer");
-            return false;
-        }
-        
-        if (!certificate.Subject.Equals(_certificate.Subject))
-        {
-            _logger.LogWarning("Client certificate subject does not match server certificate subject");
-            return false;
-        }
-
-        //TODO(Nuno): Make this a configuration variable to enable or disable this checks.
-        if (false) {
-            // Check if the client certificate chain is valid
-            if (chain != null && chain.ChainStatus.Any(o => o.Status != X509ChainStatusFlags.UntrustedRoot))
-            {
-                _logger.LogWarning("Client certificate chain is invalid");
-                return false;
-            }
-
-            // Check if the SSL policy errors indicate a problem
-            if (sslpolicyerrors != SslPolicyErrors.None)
-            {
-                _logger.LogWarning("SSL policy errors encountered during client certificate validation: {SslPolicyErrors}", sslpolicyerrors);
-                return false;
-            }
-        }
-        
-        return true;
-    }
-
-    private void Dispose(bool disposing)
+    protected virtual void Dispose(bool disposing)
     {
         if (disposing)
         {
-            _certificate.Dispose();
-            _logger.LogTrace("Disposed Certificate");
-            _socket.Dispose();
-            _logger.LogTrace("Disposed Socket");
+            Logger.LogTrace("Disposed Certificate");
+            Socket.Dispose();
+            Logger.LogTrace("Disposed Socket");
         }
     }
 }

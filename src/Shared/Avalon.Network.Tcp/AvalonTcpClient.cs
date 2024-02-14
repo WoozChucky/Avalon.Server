@@ -304,7 +304,7 @@ public class AvalonTcpClient : IDisposable
     
     private Packet GetInnerPacket(NetworkPacket packet)
     {
-        Func<byte[], byte[]>? decryptFunc = null;
+        DecryptFunc? decryptFunc = null;
         if (packet.Header.Flags == NetworkPacketFlags.Encrypted)
             decryptFunc = _cryptography!.Decrypt;
         

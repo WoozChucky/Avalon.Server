@@ -10,6 +10,7 @@ using Avalon.Game.Pools;
 using Avalon.Game.Quests;
 using Avalon.Game.Scripts;
 using Avalon.Infrastructure;
+using Avalon.Infrastructure.World;
 using Avalon.Metrics;
 using Avalon.Network;
 using Avalon.Network.Packets;
@@ -263,7 +264,7 @@ namespace Avalon.Server.World
             services.AddSingleton<IPacketDeserializer, NetworkPacketDeserializer>();
             services.AddSingleton<IPacketSerializer, NetworkPacketSerializer>();
             services.AddSingleton<IPacketRegistry, PacketRegistry>();
-            services.AddSingleton<IAvalonNetworkDaemon, AvalonNetworkDaemon>();
+            services.AddSingleton<IAvalonNetworkDaemon, AvalonWorldNetworkDaemon>();
             services.AddSingleton<IAvalonMapManager, AvalonMapManager>();
             services.AddSingleton<ICreatureSpawner, CreatureSpawner>();
             services.AddSingleton<IPoolManager, PoolManager>();
@@ -271,7 +272,7 @@ namespace Avalon.Server.World
             services.AddSingleton<IQuestManager, QuestManager>();
             services.AddSingleton<IAvalonGame, AvalonGame>();
             services.AddSingleton<ICryptoManager, CryptoManager>();
-            services.AddSingleton<IAvalonInfrastructure, AvalonInfrastructure>();
+            services.AddSingleton<IAvalonInfrastructure, AvalonWorldInfrastructure>();
             services.AddSingleton<CancellationTokenSource>(s => new CancellationTokenSource());
             
             ServiceProvider = services.BuildServiceProvider();

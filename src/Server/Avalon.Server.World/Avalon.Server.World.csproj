@@ -35,12 +35,6 @@
         
         <RootNamespace>Avalon.Server.World</RootNamespace>
     </PropertyGroup>
-
-    <!--
-	<ItemGroup>
-		<FlatSharpSchema Include="Monster.fbs" />
-	</ItemGroup>
-	-->
     
     <ItemGroup>
       <ProjectReference Include="..\..\Shared\Avalon.Common\Avalon.Common.csproj" />
@@ -50,7 +44,7 @@
       <ProjectReference Include="..\..\Shared\Avalon.Network.Tcp\Avalon.Network.Tcp.csproj" />
       <ProjectReference Include="..\..\Shared\Avalon.Network\Avalon.Network.csproj" />
       <ProjectReference Include="..\Avalon.Database\Avalon.Database.csproj" />
-      <ProjectReference Include="..\Avalon.Infrastructure\Avalon.Infrastructure.csproj" />
+      <ProjectReference Include="..\Avalon.Infrastructure.World\Avalon.Infrastructure.World.csproj" />
     </ItemGroup>
 
     <ItemGroup>
