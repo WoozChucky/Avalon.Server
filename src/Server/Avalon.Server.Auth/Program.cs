@@ -1,11 +1,13 @@
 ﻿
 using System.Diagnostics;
 using System.Reflection;
+using Avalon.Auth;
 using Avalon.Common.Telemetry;
 using Avalon.Database;
 using Avalon.Database.Extensions;
 using Avalon.Game;
 using Avalon.Infrastructure;
+using Avalon.Infrastructure.Auth;
 using Avalon.Metrics;
 using Avalon.Network;
 using Avalon.Network.Packets.Internal;
@@ -34,6 +36,7 @@ public class Program
     private static CancellationTokenSource CancellationTokenSource { get; set; } = null!;
     private static IServiceProvider ServiceProvider { get; set; } = null!;
     private static IConfigurationRoot Configuration { get; set; } = null!;
+    private static IAvalonInfrastructure Infrastructure { get; set; } = null!;
     private static ILogger<Program> Logger { get; set; } = null!;
     private static AppConfiguration AppConfiguration { get; set; } = null!;
     
@@ -56,7 +59,16 @@ public class Program
             Logger.LogWarning("Failed to set process priority, defaulting to Normal priority");
         }
         
-        
+        Infrastructure.Start();
+            
+        Infrastructure.Update(CancellationTokenSource);
+            
+        Logger.LogInformation("Stopping application...");
+            
+        Infrastructure.Stop();
+        Infrastructure.Dispose();
+            
+        Logger.LogInformation("Terminated successfully");
     }
     
     private static void ConsoleOnCancelKeyPress(object? sender, ConsoleCancelEventArgs e)
@@ -192,19 +204,21 @@ public class Program
         services.AddDatabases(AppConfiguration.Database!);
         services.AddSingleton<IDatabaseManager, DatabaseManager>();
         
-        services.AddSingleton<IAvalonTcpServer, AvalonTcpServer>();
+        services.AddSingleton<IAvalonTcpServer, AvalonSslTcpServer>();
         services.AddSingleton<IAvalonSessionManager, AvalonSessionManager>();
         services.AddSingleton<IPacketDeserializer, NetworkPacketDeserializer>();
         services.AddSingleton<IPacketSerializer, NetworkPacketSerializer>();
         services.AddSingleton<IPacketRegistry, PacketRegistry>();
-        services.AddSingleton<IAvalonNetworkDaemon, AvalonNetworkDaemon>();
+        services.AddSingleton<IAvalonNetworkDaemon, AvalonAuthNetworkDaemon>();
         services.AddSingleton<ICryptoManager, CryptoManager>();
-        services.AddSingleton<IAvalonInfrastructure, AvalonInfrastructure>();
+        services.AddSingleton<IAvalonInfrastructure, AvalonAuthInfrastructure>();
+        services.AddSingleton<IAvalonAuth, AvalonAuth>();
         services.AddSingleton<CancellationTokenSource>(s => new CancellationTokenSource());
         
         ServiceProvider = services.BuildServiceProvider();
         
         Logger = ServiceProvider.GetService<ILogger<Program>>() ?? throw new InvalidOperationException();
+        Infrastructure = ServiceProvider.GetService<IAvalonInfrastructure>() ?? throw new InvalidOperationException();
         CancellationTokenSource = ServiceProvider.GetService<CancellationTokenSource>() ?? throw new InvalidOperationException();
     }
 }

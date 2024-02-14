@@ -11,6 +11,7 @@ using Avalon.Game.Quests;
 using Avalon.Game.Scripts;
 using Avalon.Infrastructure;
 using Avalon.Infrastructure.Configuration;
+using Avalon.Infrastructure.World;
 using Avalon.Metrics;
 using Avalon.Network;
 using Avalon.Network.Packets.Internal;
@@ -93,7 +94,7 @@ public class InfrastructureFixture : IDisposable
 			GameConfiguration
 		);
 
-		NetworkDaemon = new AvalonNetworkDaemon(
+		NetworkDaemon = new AvalonWorldNetworkDaemon(
 			mockedLoggerFactory,
 			CancellationTokenSource,
 			TcpServer,
@@ -105,7 +106,7 @@ public class InfrastructureFixture : IDisposable
 			MetricsManager
 		);
 		
-		Infrastructure = new AvalonInfrastructure(
+		Infrastructure = new AvalonWorldInfrastructure(
 			mockedLoggerFactory,
 			CancellationTokenSource,
 			new InfrastructureConfiguration

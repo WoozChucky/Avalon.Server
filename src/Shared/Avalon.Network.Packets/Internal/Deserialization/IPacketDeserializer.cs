@@ -3,9 +3,11 @@ using Avalon.Network.Packets.Abstractions;
 
 namespace Avalon.Network.Packets.Internal.Deserialization;
 
+public delegate byte[] DecryptFunc(byte[] input);
+
 public interface IPacketDeserializer
 {
-    T Deserialize<T>(NetworkPacketType packetType, byte[] data, Func<byte[], byte[]>? decryptFunc = null) where T : class;
+    T Deserialize<T>(NetworkPacketType packetType, byte[] data, DecryptFunc? decryptFunc = null) where T : class;
     
     Task<T?> DeserializeFromNetwork<T>(Stream source) where T : class;
     

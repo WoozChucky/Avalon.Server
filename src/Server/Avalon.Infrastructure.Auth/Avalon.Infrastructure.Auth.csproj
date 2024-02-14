@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>netstandard2.1</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <LangVersion>latest</LangVersion>
+        <SignAssembly>true</SignAssembly>
+        <AssemblyOriginatorKeyFile>..\..\..\sgKey.snk</AssemblyOriginatorKeyFile>
+        <PublicSign>true</PublicSign>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.0" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\Shared\Avalon.Common\Avalon.Common.csproj" />
+        <ProjectReference Include="..\..\Shared\Avalon.Network.Packets\Avalon.Network.Packets.csproj" />
+        <ProjectReference Include="..\..\Shared\Avalon.Network.Tcp\Avalon.Network.Tcp.csproj" />
+        <ProjectReference Include="..\..\Shared\Avalon.Network\Avalon.Network.csproj" />
+        <ProjectReference Include="..\Avalon.Auth\Avalon.Auth.csproj" />
+        <ProjectReference Include="..\Avalon.Infrastructure\Avalon.Infrastructure.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <None Include="..\..\..\sgKey.snk">
+            <Link>sgKey.snk</Link>
+        </None>
+    </ItemGroup>
+</Project>
