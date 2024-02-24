@@ -93,6 +93,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Avalon.Infrastructure.World
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Avalon.Auth", "src\Server\Avalon.Auth\Avalon.Auth.csproj", "{79AA9FCA-E87E-4930-9457-8995974C91EE}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Avalon.Client.Native", "src\Client\Avalon.Client.Native\Avalon.Client.Native.csproj", "{FA7E6D3D-A462-4BEF-BCA4-A0608921263C}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -227,6 +229,10 @@ Global
 		{79AA9FCA-E87E-4930-9457-8995974C91EE}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{79AA9FCA-E87E-4930-9457-8995974C91EE}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{79AA9FCA-E87E-4930-9457-8995974C91EE}.Release|Any CPU.Build.0 = Release|Any CPU
+		{FA7E6D3D-A462-4BEF-BCA4-A0608921263C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{FA7E6D3D-A462-4BEF-BCA4-A0608921263C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{FA7E6D3D-A462-4BEF-BCA4-A0608921263C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{FA7E6D3D-A462-4BEF-BCA4-A0608921263C}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -271,6 +277,7 @@ Global
 		{7103A31B-FFA2-42F6-AD93-4E079A334375} = {68F7CA33-8489-4C26-AF99-CF4FA13327F9}
 		{86A190F9-7EE4-4089-999C-B6532FA732C2} = {68F7CA33-8489-4C26-AF99-CF4FA13327F9}
 		{79AA9FCA-E87E-4930-9457-8995974C91EE} = {DE7B6B83-9A16-4CC0-997A-F4BF25845897}
+		{FA7E6D3D-A462-4BEF-BCA4-A0608921263C} = {9F6C14A1-30AF-456A-A846-29885214DD7D}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {20CD880E-2A9B-4B75-A2C1-3145230B285E}

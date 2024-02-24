@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using Avalon.Infrastructure;
 using Avalon.Network;
 using Avalon.Network.Packets.Generic;
 using Microsoft.Extensions.Logging;
@@ -20,17 +21,17 @@ public interface IAvalonSessionManager : IDisposable
     void RemoveConnection(IRemoteSource source);
     void AddSession(IRemoteSource source, AsymmetricCipherKeyPair serverKeyPair, byte[] clientPublicKey);
     bool PatchSession(IRemoteSource source, int accountId);
-    AvalonSession? GetSession(int accountId);
-    AvalonSession? GetSession(IRemoteSource source);
-    SemaphoreSlim GetSessionLock(AvalonSession session);
-    ConcurrentDictionary<int, AvalonSession> GetSessions();
-    ICollection<AvalonSession> GetInGameSessions();
+    AvalonWorldSession? GetSession(int accountId);
+    AvalonWorldSession? GetSession(IRemoteSource source);
+    SemaphoreSlim GetSessionLock(AvalonWorldSession session);
+    ConcurrentDictionary<int, AvalonWorldSession> GetSessions();
+    ICollection<AvalonWorldSession> GetInGameSessions();
 }
 
-public delegate void SessionConnectedHandler(object? sender, AvalonSession session);
-public delegate void SessionLostHandler(object? sender, AvalonSession session);
-public delegate void SessionTimedOutHandler(object? sender, AvalonSession session);
-public delegate void SessionReconnectedHandler(object? sender, AvalonSession session);
+public delegate void SessionConnectedHandler(object? sender, AvalonWorldSession session);
+public delegate void SessionLostHandler(object? sender, AvalonWorldSession session);
+public delegate void SessionTimedOutHandler(object? sender, AvalonWorldSession session);
+public delegate void SessionReconnectedHandler(object? sender, AvalonWorldSession session);
 
 public class AvalonSessionManager : IAvalonSessionManager
 {
@@ -41,9 +42,9 @@ public class AvalonSessionManager : IAvalonSessionManager
     
     private readonly ILoggerFactory _loggerFactory;
     private readonly ILogger<AvalonSessionManager> _logger;
-    private readonly ConcurrentDictionary<int, AvalonSession> _sessions;
-    private readonly ConcurrentDictionary<string, AvalonSession> _handshakingSessions;
-    private readonly ConcurrentDictionary<AvalonSession, SemaphoreSlim> _sessionLocks;
+    private readonly ConcurrentDictionary<int, AvalonWorldSession> _sessions;
+    private readonly ConcurrentDictionary<string, AvalonWorldSession> _handshakingSessions;
+    private readonly ConcurrentDictionary<AvalonWorldSession, SemaphoreSlim> _sessionLocks;
     private readonly CancellationTokenSource _cts;
     
     private const int MonitorInterval = 100;
@@ -57,9 +58,9 @@ public class AvalonSessionManager : IAvalonSessionManager
     {
         _loggerFactory = loggerFactory;
         _logger = loggerFactory.CreateLogger<AvalonSessionManager>();
-        _sessions = new ConcurrentDictionary<int, AvalonSession>();
-        _handshakingSessions = new ConcurrentDictionary<string, AvalonSession>();
-        _sessionLocks = new ConcurrentDictionary<AvalonSession, SemaphoreSlim>();
+        _sessions = new ConcurrentDictionary<int, AvalonWorldSession>();
+        _handshakingSessions = new ConcurrentDictionary<string, AvalonWorldSession>();
+        _sessionLocks = new ConcurrentDictionary<AvalonWorldSession, SemaphoreSlim>();
         _cts = new CancellationTokenSource();
     }
     
@@ -207,8 +208,7 @@ public class AvalonSessionManager : IAvalonSessionManager
             }
         }
         
-        var connectingSession = new AvalonSession(_loggerFactory, serverKeyPair, clientPublicKey);
-        connectingSession.SetConnection(source);
+        var connectingSession = new AvalonWorldSession(_loggerFactory, source, serverKeyPair, clientPublicKey);
         connectingSession.Status = ConnectionStatus.Handshake;
         
         if (!_handshakingSessions.TryAdd(source.RemoteAddress, connectingSession))
@@ -244,12 +244,12 @@ public class AvalonSessionManager : IAvalonSessionManager
         return true;
     }
 
-    public AvalonSession? GetSession(int accountId)
+    public AvalonWorldSession? GetSession(int accountId)
     {
-        return _sessions.TryGetValue(accountId, out var session) ? session : null;
+        return _sessions.GetValueOrDefault(accountId);
     }
 
-    public AvalonSession? GetSession(IRemoteSource source)
+    public AvalonWorldSession? GetSession(IRemoteSource source)
     {
         return source switch
         {
@@ -260,17 +260,17 @@ public class AvalonSessionManager : IAvalonSessionManager
         };
     }
 
-    public SemaphoreSlim GetSessionLock(AvalonSession session)
+    public SemaphoreSlim GetSessionLock(AvalonWorldSession session)
     {
         return _sessionLocks.GetOrAdd(session, new SemaphoreSlim(1, 1));
     }
 
-    public ConcurrentDictionary<int, AvalonSession> GetSessions()
+    public ConcurrentDictionary<int, AvalonWorldSession> GetSessions()
     {
         return _sessions;
     }
 
-    public ICollection<AvalonSession> GetInGameSessions()
+    public ICollection<AvalonWorldSession> GetInGameSessions()
     {
         return _sessions.Where(s => s.Value.InGame).Select(s => s.Value).ToList();
     }
@@ -291,7 +291,7 @@ public class AvalonSessionManager : IAvalonSessionManager
 
     public void RemoveConnection(IRemoteSource source)
     {
-        AvalonSession? session = null;
+        AvalonWorldSession? session = null;
         
         if (source is TcpClient)
         {

@@ -13,10 +13,10 @@ public interface IAvalonMapManager
     void LoadMaps();
     MapInstance GenerateInstance(int mapId);
     MapInstance? GetInstance(int mapId, Guid instanceId);
-    MapInstance? GetInstance(int mapId, AvalonSession session);
+    MapInstance? GetInstance(int mapId, AvalonWorldSession session);
     ConcurrentDictionary<int, ConcurrentDictionary<Guid, MapInstance>> GetInstances();
-    MapInstance? AddSessionToMap(int mapId, AvalonSession session, bool initialLoad = false);
-    bool RemoveSessionFromMap(AvalonSession session);
+    MapInstance? AddSessionToMap(int mapId, AvalonWorldSession session, bool initialLoad = false);
+    bool RemoveSessionFromMap(AvalonWorldSession session);
 }
 
 public class AvalonMapManager : IAvalonMapManager
@@ -134,7 +134,7 @@ public class AvalonMapManager : IAvalonMapManager
         }
     }
 
-    public MapInstance? GetInstance(int mapId, AvalonSession session)
+    public MapInstance? GetInstance(int mapId, AvalonWorldSession session)
     {
         _lock.EnterReadLock();
         try
@@ -201,7 +201,7 @@ public class AvalonMapManager : IAvalonMapManager
         }
     }
 
-    public MapInstance? AddSessionToMap(int mapId, AvalonSession session, bool initialLoad = false)
+    public MapInstance? AddSessionToMap(int mapId, AvalonWorldSession session, bool initialLoad = false)
     {
         _lock.EnterWriteLock();
         try
@@ -231,7 +231,7 @@ public class AvalonMapManager : IAvalonMapManager
         }
     }
 
-    public bool RemoveSessionFromMap(AvalonSession session)
+    public bool RemoveSessionFromMap(AvalonWorldSession session)
     {
         _lock.EnterWriteLock();
         try

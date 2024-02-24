@@ -1,5 +1,6 @@
 using System.Text;
 using Avalon.Domain.Auth;
+using Avalon.Infrastructure;
 using Avalon.Network;
 using Avalon.Network.Packets.Auth;
 using Microsoft.Extensions.Logging;

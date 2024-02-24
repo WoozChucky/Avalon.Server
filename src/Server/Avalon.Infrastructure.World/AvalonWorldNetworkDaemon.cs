@@ -337,7 +337,7 @@ public class AvalonWorldNetworkDaemon : IAvalonNetworkDaemon
         }).ConfigureAwait(false);
     }
     
-    private Packet GetInnerPacket(NetworkPacket packet, AvalonSession? session)
+    private Packet GetInnerPacket(NetworkPacket packet, AvalonWorldSession? session)
     {
         if (packet.Header.Flags == NetworkPacketFlags.Encrypted && session == null)
             throw new PacketHandlerException("Encrypted packet received without session key");

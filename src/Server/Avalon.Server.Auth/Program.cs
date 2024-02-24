@@ -2,10 +2,10 @@
 using System.Diagnostics;
 using System.Reflection;
 using Avalon.Auth;
+using Avalon.Common.Cryptography;
 using Avalon.Common.Telemetry;
 using Avalon.Database;
 using Avalon.Database.Extensions;
-using Avalon.Game;
 using Avalon.Infrastructure;
 using Avalon.Infrastructure.Auth;
 using Avalon.Metrics;
@@ -205,7 +205,7 @@ public class Program
         services.AddSingleton<IDatabaseManager, DatabaseManager>();
         
         services.AddSingleton<IAvalonTcpServer, AvalonSslTcpServer>();
-        services.AddSingleton<IAvalonSessionManager, AvalonSessionManager>();
+        services.AddSingleton<IAuthSessionManager, AuthSessionManager>();
         services.AddSingleton<IPacketDeserializer, NetworkPacketDeserializer>();
         services.AddSingleton<IPacketSerializer, NetworkPacketSerializer>();
         services.AddSingleton<IPacketRegistry, PacketRegistry>();

@@ -2,7 +2,6 @@ using System.Diagnostics;
 using Avalon.Auth;
 using Avalon.Common.Telemetry;
 using Avalon.Common.Threading;
-using Avalon.Game;
 using Avalon.Network;
 using Avalon.Network.Packets;
 using Avalon.Network.Packets.Abstractions;
@@ -26,7 +25,7 @@ public class AvalonAuthNetworkDaemon : IAvalonNetworkDaemon
     private readonly IPacketSerializer _packetSerializer;
     private readonly IPacketRegistry _packetRegistry;
     private readonly IAvalonAuth _authServer;
-    private readonly IAvalonSessionManager _sessionManager;
+    private readonly IAuthSessionManager _sessionManager;
 
     private readonly RingBuffer<(IRemoteSource, NetworkPacket)> _packetProcessorBuffer;
 
@@ -38,7 +37,7 @@ public class AvalonAuthNetworkDaemon : IAvalonNetworkDaemon
         IPacketSerializer packetSerializer,
         IPacketRegistry packetRegistry,
         IAvalonAuth authServer,
-        IAvalonSessionManager sessionManager)
+        IAuthSessionManager sessionManager)
     {
         _logger = loggerFactory.CreateLogger<AvalonAuthNetworkDaemon>();
         _cts = cts;
@@ -60,13 +59,32 @@ public class AvalonAuthNetworkDaemon : IAvalonNetworkDaemon
         _packetSerializer.RegisterPacketSerializers();
         _packetDeserializer.RegisterPacketDeserializers();
         
+        // Handshake handlers
+        _packetRegistry.RegisterHandler<CRequestServerInfoPacket>(NetworkPacketType.CMSG_SERVER_INFO, _authServer.HandleServerInfoPacket);
+        _packetRegistry.RegisterHandler<CClientInfoPacket>(NetworkPacketType.CMSG_CLIENT_INFO, _authServer.HandleClientInfoPacket);
+        _packetRegistry.RegisterHandler<CHandshakePacket>(NetworkPacketType.CMSG_CLIENT_HANDSHAKE, _authServer.HandleHandshakePacket);
+        
+        // Auth handlers
+        _packetRegistry.RegisterHandler<CAuthPacket>(NetworkPacketType.CMSG_AUTH, _authServer.HandleAuthPacket);
+        _packetRegistry.RegisterHandler<CLogoutPacket>(NetworkPacketType.CMSG_LOGOUT, _authServer.HandleLogoutPacket);
+        _packetRegistry.RegisterHandler<CRegisterPacket>(NetworkPacketType.CMSG_REGISTER, _authServer.HandleRegisterPacket);
+        
         _logger.LogInformation("Starting network daemon");
         
         Task.Run(ProcessPacketsAsync).ConfigureAwait(false);
-        
-        _sessionManager.Start();
-        
         Task.Run(_tcpServer.RunAsync).ConfigureAwait(false);
+    }
+    
+    public void Stop()
+    {
+        _logger.LogInformation("Stopping network daemon");
+        
+        _tcpServer.StopAsync().ConfigureAwait(false).GetAwaiter().GetResult();
+    }
+    
+    private void TcpServerOnClientConnected(object? sender, TcpClient client)
+    {
+        
     }
     
     private async Task ProcessPacketsAsync()
@@ -133,22 +151,8 @@ public class AvalonAuthNetworkDaemon : IAvalonNetworkDaemon
             _logger.LogError(e, "Error processing packet");
         }
     }
-
-    public void Stop()
-    {
-        _logger.LogInformation("Stopping network daemon");
-        
-        _sessionManager.Stop();
-        
-        _tcpServer.StopAsync().ConfigureAwait(false).GetAwaiter().GetResult();
-    }
     
-    private void TcpServerOnClientConnected(object? sender, TcpClient client)
-    {
-        
-    }
-    
-    private Packet GetInnerPacket(NetworkPacket packet, AvalonSession? session)
+    private Packet GetInnerPacket(NetworkPacket packet, AvalonAuthSession? session)
     {
         if (packet.Header.Flags == NetworkPacketFlags.Encrypted && session == null)
             throw new PacketHandlerException("Encrypted packet received without session key");
