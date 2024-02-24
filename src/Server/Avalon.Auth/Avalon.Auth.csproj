@@ -17,7 +17,10 @@
 
     <ItemGroup>
         <ProjectReference Include="..\..\Shared\Avalon.Common\Avalon.Common.csproj" />
+        <ProjectReference Include="..\..\Shared\Avalon.Domain\Avalon.Domain.csproj" />
         <ProjectReference Include="..\..\Shared\Avalon.Network.Packets\Avalon.Network.Packets.csproj" />
+        <ProjectReference Include="..\Avalon.Database\Avalon.Database.csproj" />
+        <ProjectReference Include="..\Avalon.Infrastructure\Avalon.Infrastructure.csproj" />
     </ItemGroup>
 
     <ItemGroup>

@@ -15,12 +15,12 @@ public class LayerEnricher : ILogEventEnricher
     [
         typeof(Avalon.Infrastructure.Auth.AvalonAuthNetworkDaemon).FullName!,
         typeof(Avalon.Network.Tcp.AvalonSslTcpServer).FullName!,
-        typeof(Avalon.Game.AvalonSessionManager).FullName!
+        typeof(Avalon.Auth.AuthSessionManager).FullName!
     ];
 
     private readonly List<string> _authNamespaces =
     [
-        typeof(Avalon.Game.AvalonSession).FullName!,
+        typeof(Avalon.Auth.AvalonAuthSession).FullName!,
         typeof(Avalon.Auth.AvalonAuth).FullName!
     ];
 

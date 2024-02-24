@@ -1,3 +1,4 @@
+using Avalon.Common.Cryptography;
 using Avalon.Database;
 using Avalon.Database.Auth;
 using Avalon.Database.Characters;

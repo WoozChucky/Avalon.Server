@@ -1,5 +1,6 @@
 using System.Numerics;
 using System.Reflection;
+using Avalon.Common.Cryptography;
 using Avalon.Database;
 using Avalon.Game.Configuration;
 using Avalon.Game.Creatures;
@@ -7,6 +8,7 @@ using Avalon.Game.Maps;
 using Avalon.Game.Pools;
 using Avalon.Game.Quests;
 using Avalon.Game.Scripts;
+using Avalon.Infrastructure;
 using Avalon.Network;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Audio;
@@ -162,7 +164,7 @@ public partial class AvalonGame : IAvalonGame
 
     #region Player Events
 
-    private async void OnSessionLost(object? sender, AvalonSession session)
+    private async void OnSessionLost(object? sender, AvalonWorldSession session)
     {
         if (!session.InGame) return;
         
@@ -170,7 +172,7 @@ public partial class AvalonGame : IAvalonGame
         
         var availableSessions = _sessionManager.GetSessions().Values.Where(
             s => 
-                s.AccountId != session.AccountId 
+                s.AccountId != session.AccountId
                 && s is { Status: ConnectionStatus.Connected, Character: not null }
         );
 
@@ -179,12 +181,12 @@ public partial class AvalonGame : IAvalonGame
         await Task.WhenAll(tasks);
     }
     
-    private void OnPlayerTimedOut(object? sender, AvalonSession session)
+    private void OnPlayerTimedOut(object? sender, AvalonWorldSession session)
     {
         _logger.LogWarning("TODO: Handle session timeout");
     }
     
-    private async void OnPlayerReconnected(object? sender, AvalonSession session)
+    private async void OnPlayerReconnected(object? sender, AvalonWorldSession session)
     {
         _logger.LogWarning("TODO: Handle session reconnected");
     }

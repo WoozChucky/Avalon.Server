@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Reflection;
+using Avalon.Common.Cryptography;
 using Avalon.Common.Telemetry;
 using Avalon.Database;
 using Avalon.Database.Extensions;
