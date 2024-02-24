@@ -84,7 +84,11 @@ public class Program
     
     struct Vertex
     {
-        public static int Size => 3 + 2;
+        public static int Size => PositionSize + TextureCoordSize;
+        public static int PositionSize => 3;
+        public static int TextureCoordSize => 2;
+        public static int PositionOffset => 0;
+        public static int TextureCoordOffset => 3;
         
         public Vector3 Position;
         public Vector2 TextureCoord;
@@ -210,11 +214,11 @@ void main()
         
         const uint positionLoc = 0;
         _gl.EnableVertexAttribArray(positionLoc);
-        _gl.VertexAttribPointer(positionLoc, 3, VertexAttribPointerType.Float, false, 5 * sizeof(float), (void *)0);
+        _gl.VertexAttribPointer(positionLoc, Vertex.PositionSize, VertexAttribPointerType.Float, false, (uint)Vertex.Size * sizeof(float), (void *)Vertex.PositionOffset);
         
         const uint texCoordLoc = 1;
         _gl.EnableVertexAttribArray(texCoordLoc);
-        _gl.VertexAttribPointer(texCoordLoc, 2, VertexAttribPointerType.Float, false, 5 * sizeof(float), (void*)(3 * sizeof(float)));
+        _gl.VertexAttribPointer(texCoordLoc, Vertex.TextureCoordSize, VertexAttribPointerType.Float, false, (uint)Vertex.Size * sizeof(float), (void*)(Vertex.TextureCoordOffset * sizeof(float)));
         
         _gl.BindVertexArray(0);
         _gl.BindBuffer(BufferTargetARB.ArrayBuffer, 0);
