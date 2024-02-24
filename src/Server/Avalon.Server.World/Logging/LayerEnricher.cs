@@ -21,7 +21,7 @@ public class LayerEnricher : ILogEventEnricher
     private readonly List<string> _gameNamespaces =
     [
         typeof(Avalon.Game.AvalonGame).FullName!,
-        typeof(Avalon.Game.AvalonSession).FullName!,
+        typeof(Avalon.Game.AvalonWorldSession).FullName!,
         typeof(Avalon.Game.Maps.AvalonMapManager).FullName!,
         typeof(Avalon.Game.Quests.QuestManager).FullName!,
         typeof(Avalon.Game.Creatures.CreatureSpawner).FullName!,

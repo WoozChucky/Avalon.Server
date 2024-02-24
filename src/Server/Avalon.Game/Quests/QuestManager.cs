@@ -43,7 +43,7 @@ public class QuestManager : IQuestManager
         return _questTemplates.FirstOrDefault(q => q.Id == id);
     }
     
-    public IEnumerable<QuestTemplate> GetQuestsAvailable(AvalonSession session)
+    public IEnumerable<QuestTemplate> GetQuestsAvailable(AvalonWorldSession session)
     {
         var mapId = session.Character?.Map;
         return _questTemplates.Where(q => q.LevelRequirement <= session.Character!.Level);

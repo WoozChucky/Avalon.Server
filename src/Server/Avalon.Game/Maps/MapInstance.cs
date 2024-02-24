@@ -4,6 +4,7 @@ using Avalon.Domain.World;
 using Avalon.Game.Configuration;
 using Avalon.Game.Creatures;
 using Avalon.Game.Maps.Virtual;
+using Avalon.Infrastructure;
 using Avalon.Network.Packets.Movement;
 using Microsoft.Extensions.Logging;
 
@@ -24,7 +25,7 @@ public class MapInstance
 
     public ConcurrentDictionary<Guid, Creature> Creatures { get; }
     
-    public ConcurrentDictionary<int, AvalonSession> Sessions { get; }
+    public ConcurrentDictionary<int, AvalonWorldSession> Sessions { get; }
     
     public IEnumerable<MapEvent> Events => VirtualizedMap.Events;
 
@@ -38,13 +39,13 @@ public class MapInstance
         _logger = loggerFactory.CreateLogger<MapInstance>();
         InstanceId = Guid.NewGuid();
         Creatures = new ConcurrentDictionary<Guid, Creature>();
-        Sessions = new ConcurrentDictionary<int, AvalonSession>();
+        Sessions = new ConcurrentDictionary<int, AvalonWorldSession>();
         _template = template;
         _gameConfiguration = gameConfiguration;
         VirtualizedMap = virtualizedMap;
     }
     
-    public bool AddSession(AvalonSession session, bool initialLoad = false)
+    public bool AddSession(AvalonWorldSession session, bool initialLoad = false)
     {
         if (initialLoad)
         {
@@ -60,12 +61,12 @@ public class MapInstance
         return Sessions.Count == 0;
     }
     
-    public bool RemoveSession(AvalonSession session)
+    public bool RemoveSession(AvalonWorldSession session)
     {
         return Sessions.TryRemove(session.AccountId, out _);
     }
 
-    public bool ContainsSession(AvalonSession session)
+    public bool ContainsSession(AvalonWorldSession session)
     {
         return session.InMap && Sessions.ContainsKey(session.AccountId);
     }
