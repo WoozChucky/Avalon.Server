@@ -3,13 +3,16 @@ using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Avalon.Client.Native.Graphics;
+using Avalon.Client.Native.Graphics.Primitive;
+using Avalon.Client.Native.Math;
 using Silk.NET.Input;
 using Silk.NET.Maths;
 using Silk.NET.OpenGL;
 using Silk.NET.SDL;
 using Silk.NET.Windowing;
 using Color = System.Drawing.Color;
-using Texture = Avalon.Client.Native.Graphics.Texture;
+using Shader = Avalon.Client.Native.Graphics.Shader;
+using Texture = Avalon.Client.Native.Graphics.Primitive.Texture;
 using Timer = System.Timers.Timer;
 using Vertex = Avalon.Client.Native.Graphics.Vertex;
 using Window = Silk.NET.Windowing.Window;
@@ -25,7 +28,19 @@ public class Program
     private static VertexBufferObject _vbo;
     private static ElementBufferObject _ebo;
     private static Texture _texture;
-    private static uint _shader;
+    private static Shader _shader;
+    private static Transform[] _transforms = new Transform[4];
+
+    private static int Width => 1366;
+    private static int Height => 768;
+    
+    private static IKeyboard primaryKeyboard;
+    
+    //Setup the camera's location, and relative up and right directions
+    private static Camera3D Camera;
+
+    //Used to track change in mouse movement to allow for moving of the Camera
+    private static Vector2 LastMousePosition;
     
     public static void Main(string[] args)
     {
@@ -34,9 +49,9 @@ public class Program
         WindowOptions options = WindowOptions.Default with
         {
             Title = "Avalon",
-            Size = new Vector2D<int>(1366, 768),
+            Size = new Vector2D<int>(Width, Height),
             VSync = false,
-            VideoMode = new VideoMode(new Vector2D<int>(1920, 1080), 60),
+            VideoMode = new VideoMode(new Vector2D<int>(Width, Height), 60),
             WindowBorder = WindowBorder.Fixed,
             WindowState = WindowState.Normal,
             API = GraphicsAPI.Default,
@@ -71,6 +86,7 @@ public class Program
         _input = _window!.CreateInput();
         
         _input.ConnectionChanged += InputOnConnectionChanged;
+        primaryKeyboard = _input.Keyboards.FirstOrDefault()!;
         foreach (var keyboard in _input.Keyboards)
         {
             keyboard.KeyDown += KOnKeyDown;
@@ -89,12 +105,15 @@ public class Program
 
         _gl = _window.CreateOpenGL();
         _gl.ClearColor(Color.CornflowerBlue);
+        
+        AssetsManager.Instance.Initialize(_gl);
 
         _vao = new VertexArrayObject(_gl);
         _vao.Bind();
 
         _vbo = new VertexBufferObject(_gl, new[]
         {
+            // Front face
             new Vertex // Top Left
             {
                 Position = new Vector3D<float>(0.5f, 0.5f, 0.0f),
@@ -118,6 +137,131 @@ public class Program
                 Position = new Vector3D<float>(-0.5f, 0.5f, 0.0f),
                 Color = new Vector4D<float>(1.0f, 1.0f, 1.0f, 1.0f),
                 TextureCoord = new Vector2D<float>(0.0f, 1.0f)
+            },
+            // Back face
+            new Vertex // Top Left
+            {
+                Position = new Vector3D<float>(0.5f, 0.5f, -1.0f),
+                Color = new Vector4D<float>(1.0f, 0.0f, 0.0f, 1.0f),
+                TextureCoord = new Vector2D<float>(1.0f, 1.0f),
+            },
+            new Vertex // Top Right
+            {
+                Position = new Vector3D<float>(0.5f, -0.5f, -1.0f),
+                Color = new Vector4D<float>(1.0f, 1.0f, 0.0f, 1.0f),
+                TextureCoord = new Vector2D<float>(1.0f, 0.0f)
+            },
+            new Vertex // Bottom Left
+            {
+                Position = new Vector3D<float>(-0.5f, -0.5f, -1.0f),
+                Color = new Vector4D<float>(1.0f, 0.0f, 1.0f, 1.0f),
+                TextureCoord = new Vector2D<float>(0.0f, 0.0f)
+            },
+            new Vertex // Bottom Right
+            {
+                Position = new Vector3D<float>(-0.5f, 0.5f, -1.0f),
+                Color = new Vector4D<float>(1.0f, 1.0f, 1.0f, 1.0f),
+                TextureCoord = new Vector2D<float>(0.0f, 1.0f)
+            },
+            // Top face
+            new Vertex // Top Left
+            {
+                Position = new Vector3D<float>(0.5f, 0.5f, 0.0f),
+                Color = new Vector4D<float>(1.0f, 0.0f, 0.0f, 1.0f),
+                TextureCoord = new Vector2D<float>(1.0f, 1.0f),
+            },
+            new Vertex // Top Right
+            {
+                Position = new Vector3D<float>(0.5f, 0.5f, -1.0f),
+                Color = new Vector4D<float>(1.0f, 1.0f, 0.0f, 1.0f),
+                TextureCoord = new Vector2D<float>(1.0f, 0.0f)
+            },
+            new Vertex // Bottom Left
+            {
+                Position = new Vector3D<float>(-0.5f, 0.5f, -1.0f),
+                Color = new Vector4D<float>(1.0f, 0.0f, 1.0f, 1.0f),
+                TextureCoord = new Vector2D<float>(0.0f, 0.0f)
+            },
+            new Vertex // Bottom Right
+            {
+                Position = new Vector3D<float>(-0.5f, 0.5f, 0.0f),
+                Color = new Vector4D<float>(1.0f, 1.0f, 1.0f, 1.0f),
+                TextureCoord = new Vector2D<float>(0.0f, 1.0f)
+            },
+            // Bottom face
+            new Vertex // Top Left
+            {
+                Position = new Vector3D<float>(0.5f, -0.5f, 0.0f),
+                Color = new Vector4D<float>(1.0f, 0.0f, 0.0f, 1.0f),
+                TextureCoord = new Vector2D<float>(1.0f, 1.0f),
+            },
+            new Vertex // Top Right
+            {
+                Position = new Vector3D<float>(0.5f, -0.5f, -1.0f),
+                Color = new Vector4D<float>(1.0f, 1.0f, 0.0f, 1.0f),
+                TextureCoord = new Vector2D<float>(1.0f, 0.0f)
+            },
+            new Vertex // Bottom Left
+            {
+                Position = new Vector3D<float>(-0.5f, -0.5f, -1.0f),
+                Color = new Vector4D<float>(1.0f, 0.0f, 1.0f, 1.0f),
+                TextureCoord = new Vector2D<float>(0.0f, 0.0f)
+            },
+            new Vertex // Bottom Right
+            {
+                Position = new Vector3D<float>(-0.5f, -0.5f, 0.0f),
+                Color = new Vector4D<float>(1.0f, 1.0f, 1.0f, 1.0f),
+                TextureCoord = new Vector2D<float>(0.0f, 1.0f)
+            },
+            // Left face
+            new Vertex // Top Left
+            {
+                Position = new Vector3D<float>(-0.5f, 0.5f, 0.0f),
+                Color = new Vector4D<float>(1.0f, 0.0f, 0.0f, 1.0f),
+                TextureCoord = new Vector2D<float>(1.0f, 1.0f),
+            },
+            new Vertex // Top Right
+            {
+                Position = new Vector3D<float>(-0.5f, 0.5f, -1.0f),
+                Color = new Vector4D<float>(1.0f, 1.0f, 0.0f, 1.0f),
+                TextureCoord = new Vector2D<float>(1.0f, 0.0f)
+            },
+            new Vertex // Bottom Left
+            {
+                Position = new Vector3D<float>(-0.5f, -0.5f, -1.0f),
+                Color = new Vector4D<float>(1.0f, 0.0f, 1.0f, 1.0f),
+                TextureCoord = new Vector2D<float>(0.0f, 0.0f)
+            },
+            new Vertex // Bottom Right
+            {
+                Position = new Vector3D<float>(-0.5f, -0.5f, 0.0f),
+                Color = new Vector4D<float>(1.0f, 1.0f, 1.0f, 1.0f),
+                TextureCoord = new Vector2D<float>(0.0f, 1.0f)
+            },
+            // Right face
+            new Vertex // Top Left
+            {
+                Position = new Vector3D<float>(0.5f, 0.5f, 0.0f),
+                Color = new Vector4D<float>(1.0f, 0.0f, 0.0f, 1.0f),
+                TextureCoord = new Vector2D<float>(1.0f, 1.0f),
+            },
+            new Vertex // Top Right
+            {
+                Position = new Vector3D<float>(0.5f, 0.5f, -1.0f),
+                Color = new Vector4D<float>(1.0f, 1.0f, 0.0f, 1.0f),
+                TextureCoord = new Vector2D<float>(1.0f, 0.0f)
+            },
+            new Vertex // Bottom Left
+            {
+                Position = new Vector3D<float>(0.5f, -0.5f, -1.0f),
+                Color = new Vector4D<float>(1.0f, 0.0f, 1.0f, 1.0f),
+                TextureCoord = new Vector2D<float>(0.0f, 0.0f)
+            },
+            new Vertex // Bottom Right
+            {
+                Position = new Vector3D<float>(0.5f, -0.5f, 0.0f),
+                Color = new Vector4D<float>(1.0f, 1.0f, 1.0f, 1.0f),
+                TextureCoord = new Vector2D<float>(0.0f, 1.0f)
             }
         });
         
@@ -133,12 +277,16 @@ layout (location = 0) in vec3 aPosition;
 layout (location = 1) in vec4 aColor;
 layout (location = 2) in vec2 aTextureCoord;
 
+uniform mat4 uModel;
+uniform mat4 uView;
+uniform mat4 uProjection;
+
 out vec2 frag_texCoords;
 out vec4 frag_color;
 
 void main()
 {
-    gl_Position = vec4(aPosition, 1.0);
+    gl_Position = uProjection * uView * uModel * vec4(aPosition, 1.0);
     frag_texCoords = aTextureCoord;
     frag_color = aColor;
 }";
@@ -158,74 +306,82 @@ void main()
     out_color = texture(uTexture, frag_texCoords);
 }";
         
-        var vertexShader = _gl.CreateShader(ShaderType.VertexShader);
-        _gl.ShaderSource(vertexShader, vertexCode);
-        _gl.CompileShader(vertexShader);
-        _gl.GetShader(vertexShader, ShaderParameterName.CompileStatus, out int vStatus);
-        if (vStatus != (int) GLEnum.True)
-            throw new Exception("Vertex shader failed to compile: " + _gl.GetShaderInfoLog(vertexShader));
-        
-        var fragmentShader = _gl.CreateShader(ShaderType.FragmentShader);
-        _gl.ShaderSource(fragmentShader, fragmentCode);
-        _gl.CompileShader(fragmentShader);
-        _gl.GetShader(fragmentShader, ShaderParameterName.CompileStatus, out int fStatus);
-        if (fStatus != (int) GLEnum.True)
-            throw new Exception("Fragment shader failed to compile: " + _gl.GetShaderInfoLog(fragmentShader));
-        
-        _shader = _gl.CreateProgram();
-        _gl.AttachShader(_shader, vertexShader);
-        _gl.AttachShader(_shader, fragmentShader);
-        _gl.LinkProgram(_shader);
-        
-        _gl.GetProgram(_shader, ProgramPropertyARB.LinkStatus, out int lStatus);
-        if (lStatus != (int) GLEnum.True)
-            throw new Exception("Program failed to link: " + _gl.GetProgramInfoLog(_shader));
-        
-        _gl.DetachShader(_shader, vertexShader);
-        _gl.DetachShader(_shader, fragmentShader);
-        _gl.DeleteShader(vertexShader);
-        _gl.DeleteShader(fragmentShader);
+        _shader = new Shader(_gl);
+        _shader.Create(vertexCode, fragmentCode);
         
         _vao.ConfigureAttributes(_vbo);
         
         _vao.Unbind();
         _vbo.Unbind();
         _ebo.Unbind();
+
+        _texture = AssetsManager.Instance.GetTexture(Texture.Name.Enemy);
         
-        _texture = new Texture(_gl);
-        _texture.Bind();
-        _texture.Load("Logo.png");
-        _texture.Unbind();
-        
+        Camera = new Camera3D(Vector3.UnitZ * 6, Vector3.UnitZ * -1, Vector3.UnitY, Width / Height);
+
         _gl.Enable(EnableCap.Blend);
         _gl.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
     }
     
     private static void WindowOnUpdate(double deltaTime)
     {
-        
+        var moveSpeed = 2.5f * (float) deltaTime;
+
+        if (primaryKeyboard.IsKeyPressed(Key.W))
+        {
+            //Move forwards
+            Camera.Position += moveSpeed * Camera.Front;
+        }
+        if (primaryKeyboard.IsKeyPressed(Key.S))
+        {
+            //Move backwards
+            Camera.Position -= moveSpeed * Camera.Front;
+        }
+        if (primaryKeyboard.IsKeyPressed(Key.A))
+        {
+            //Move left
+            Camera.Position -= Vector3.Normalize(Vector3.Cross(Camera.Front, Camera.Up)) * moveSpeed;
+        }
+        if (primaryKeyboard.IsKeyPressed(Key.D))
+        {
+            //Move right
+            Camera.Position += Vector3.Normalize(Vector3.Cross(Camera.Front, Camera.Up)) * moveSpeed;
+        }
     }
     
     private static unsafe void WindowOnRender(double deltaTime)
     {
-        _gl.Clear(ClearBufferMask.ColorBufferBit);
+        _gl.Enable(EnableCap.DepthTest);
+        _gl.Clear((uint) (ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit));
         
-        _gl.UseProgram(_shader);
-        
-        int location = _gl.GetUniformLocation(_shader, "uTexture");
-        _gl.Uniform1(location, 0);
-        
+        // Part of the renderer
+        _shader.Bind();
         _gl.ActiveTexture(TextureUnit.Texture0);
         
+        // Part of the sprite batch
         _vao.Bind();
         _texture.Bind();
         
-        _gl.DrawElements(PrimitiveType.Triangles, 6, DrawElementsType.UnsignedInt, (void*) 0);
+        // Part of the renderer
+        _shader.SetUniform("uTexture", 0);
         
+        //Use elapsed time to convert to radians to allow our cube to rotate over time
+        var difference = (float) (_window.Time * 100);
+        
+        _shader.SetUniform("uModel", Matrix4x4.CreateRotationY(MathHelper.DegreesToRadians(25f)));
+        _shader.SetUniform("uView", Camera.GetViewMatrix());
+        _shader.SetUniform("uProjection", Camera.GetProjectionMatrix());
+        
+        // Part of the sprite batch
+        _gl.DrawArrays(PrimitiveType.Triangles, 0, 36);
+        //_gl.DrawElements(PrimitiveType.Triangles, 6, DrawElementsType.UnsignedInt, (void*) 0);
+        
+        // Part of the sprite batch
         _texture.Unbind();
         _vao.Unbind();
         
-        _gl.UseProgram(0);
+        // Part of the renderer
+        _shader.Unbind();
     }
     
     private static void WindowOnClosing()
@@ -233,6 +389,7 @@ void main()
         _vao.Unbind();
         _vbo.Unbind();
         _ebo.Unbind();
+        _shader.Unbind();
         
         _ebo.Dispose();
         Console.WriteLine("EBO Disposed!");
@@ -240,17 +397,17 @@ void main()
         Console.WriteLine("VBO Disposed!");
         _vao.Dispose();
         Console.WriteLine("VAO Disposed!");
-        _texture.Dispose();
-        Console.WriteLine("Texture Disposed!");
-        
-        Console.WriteLine("Window Disposed!");
+        AssetsManager.Instance.Dispose();
+        Console.WriteLine("Textures Disposed!");
+        _shader.Dispose();
+        Console.WriteLine("Shader Disposed!");
         _input!.Dispose();
         Console.WriteLine("Input Disposed!");
     }
     
-    private static void OnMouseScroll(IMouse arg1, ScrollWheel arg2)
+    private static void OnMouseScroll(IMouse arg1, ScrollWheel scrollWheel)
     {
-        Console.WriteLine("Mouse Scrolled!");
+        Camera.ModifyZoom(scrollWheel.Y);
     }
 
     private static void OnMouseDoubleClick(IMouse arg1, MouseButton arg2, Vector2 arg3)
@@ -263,9 +420,18 @@ void main()
         Console.WriteLine("Mouse Clicked!");
     }
 
-    private static void OnMouseMove(IMouse arg1, Vector2 arg2)
+    private static void OnMouseMove(IMouse arg1, Vector2 position)
     {
-        
+        var lookSensitivity = 0.1f;
+        if (LastMousePosition == default) { LastMousePosition = position; }
+        else
+        {
+            var xOffset = (position.X - LastMousePosition.X) * lookSensitivity;
+            var yOffset = (position.Y - LastMousePosition.Y) * lookSensitivity;
+            LastMousePosition = position;
+
+            Camera.ModifyDirection(xOffset, yOffset);
+        }
     }
 
     private static void OnMouseButtonUp(IMouse arg1, MouseButton arg2)
