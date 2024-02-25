@@ -1,12 +1,18 @@
 ﻿using System.Diagnostics;
-using System.Drawing;
 using System.Numerics;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using Avalon.Client.Native.Graphics;
 using Silk.NET.Input;
 using Silk.NET.Maths;
 using Silk.NET.OpenGL;
+using Silk.NET.SDL;
 using Silk.NET.Windowing;
+using Color = System.Drawing.Color;
+using Texture = Avalon.Client.Native.Graphics.Texture;
 using Timer = System.Timers.Timer;
+using Vertex = Avalon.Client.Native.Graphics.Vertex;
+using Window = Silk.NET.Windowing.Window;
 
 namespace Avalon.Client.Native;
 
@@ -15,9 +21,10 @@ public class Program
     private static IWindow? _window;
     private static IInputContext? _input;
     private static GL _gl;
-    private static uint _vao;
-    private static uint _vbo;
-    private static uint _ebo;
+    private static VertexArrayObject _vao;
+    private static VertexBufferObject _vbo;
+    private static ElementBufferObject _ebo;
+    private static Texture _texture;
     private static uint _shader;
     
     public static void Main(string[] args)
@@ -27,7 +34,7 @@ public class Program
         WindowOptions options = WindowOptions.Default with
         {
             Title = "Avalon",
-            Size = new Vector2D<int>(1920, 1080),
+            Size = new Vector2D<int>(1366, 768),
             VSync = false,
             VideoMode = new VideoMode(new Vector2D<int>(1920, 1080), 60),
             WindowBorder = WindowBorder.Fixed,
@@ -36,62 +43,27 @@ public class Program
         };
         
         _window = Window.Create(options);
+
+        Silk.NET.SDL.Vertex x = new Silk.NET.SDL.Vertex()
+        {
+            Color = new Silk.NET.SDL.Color(),
+            Position = new FPoint(),
+            TexCoord = new FPoint()
+        };
         
         _window.Load += WindowOnLoad;
         _window.Update += WindowOnUpdate;
         _window.Render += WindowOnRender;
         _window.Closing += WindowOnClosing;
+        _window.FramebufferResize += OnResize;
         _window.Run();
         
         Console.WriteLine("Goodbye World!");
     }
-
-    struct VertexBuffer : IDisposable
-    {
-        public int Size => Vertices.Length * Vertex.Size * sizeof(float);
-        
-        public Vertex[] Vertices;
-        
-        private IntPtr _buffer;
-
-        public unsafe float* GetMemory()
-        {
-            if (_buffer == IntPtr.Zero)
-            {
-                _buffer = Marshal.AllocHGlobal(Size);
-            
-                var buffer = (float*) _buffer;
-                for (var i = 0; i < Vertices.Length; i++)
-                {
-                    buffer[i * 5] = Vertices[i].Position.X;
-                    buffer[i * 5 + 1] = Vertices[i].Position.Y;
-                    buffer[i * 5 + 2] = Vertices[i].Position.Z;
-                    buffer[i * 5 + 3] = Vertices[i].TextureCoord.X;
-                    buffer[i * 5 + 4] = Vertices[i].TextureCoord.Y;
-                }
-                return buffer;
-            }
-
-            return (float*) _buffer;
-        }
-
-        public void Dispose()
-        {
-            if (_buffer != IntPtr.Zero)
-                Marshal.FreeHGlobal(_buffer);
-        }
-    }
     
-    struct Vertex
+    private static void OnResize(Vector2D<int> size)
     {
-        public static int Size => PositionSize + TextureCoordSize;
-        public static int PositionSize => 3;
-        public static int TextureCoordSize => 2;
-        public static int PositionOffset => 0;
-        public static int TextureCoordOffset => 3;
-        
-        public Vector3 Position;
-        public Vector2 TextureCoord;
+        _gl.Viewport(0, 0, (uint) size.X, (uint) size.Y);
     }
     
     private static unsafe void WindowOnLoad()
@@ -117,71 +89,73 @@ public class Program
 
         _gl = _window.CreateOpenGL();
         _gl.ClearColor(Color.CornflowerBlue);
-        
-        _vao = _gl.GenVertexArray();
-        _gl.BindVertexArray(_vao);
-        
-        float[] vertices =
-        {
-            // aPosition          // aTextureCoord
-            0.5f,  0.5f, 0.0f,    1.0f, 1.0f,
-            0.5f, -0.5f, 0.0f,    1.0f, 0.0f,
-            -0.5f, -0.5f, 0.0f,   0.0f, 0.0f,
-            -0.5f,  0.5f, 0.0f,   0.0f, 1.0f
-        };
-        
-        var vertexBuffer = new VertexBuffer
-        {
-            Vertices =
-            [
-                new Vertex { Position = new Vector3(0.5f, 0.5f, 0.0f), TextureCoord = new Vector2(1.0f, 1.0f) },
-                new Vertex { Position = new Vector3(0.5f, -0.5f, 0.0f), TextureCoord = new Vector2(1.0f, 0.0f) },
-                new Vertex { Position = new Vector3(-0.5f, -0.5f, 0.0f), TextureCoord = new Vector2(0.0f, 0.0f) },
-                new Vertex { Position = new Vector3(-0.5f, 0.5f, 0.0f), TextureCoord = new Vector2(0.0f, 1.0f) }
-            ]
-        };
-        
-        //fixed (float* buf = vertices)
-        //    _gl.BufferData(BufferTargetARB.ArrayBuffer, (nuint) (vertices.Length * sizeof(float)), buf, BufferUsageARB.StaticDraw);
 
-        
-        _vbo = _gl.GenBuffer();
-        _gl.BindBuffer(BufferTargetARB.ArrayBuffer, _vbo);
-        _gl.BufferData(BufferTargetARB.ArrayBuffer, (nuint) vertexBuffer.Size, vertexBuffer.GetMemory(), BufferUsageARB.StaticDraw);
+        _vao = new VertexArrayObject(_gl);
+        _vao.Bind();
 
-        uint[] indices =
+        _vbo = new VertexBufferObject(_gl, new[]
         {
+            new Vertex // Top Left
+            {
+                Position = new Vector3D<float>(0.5f, 0.5f, 0.0f),
+                Color = new Vector4D<float>(1.0f, 0.0f, 0.0f, 1.0f),
+                TextureCoord = new Vector2D<float>(1.0f, 1.0f),
+            },
+            new Vertex // Top Right
+            {
+                Position = new Vector3D<float>(0.5f, -0.5f, 0.0f),
+                Color = new Vector4D<float>(1.0f, 1.0f, 0.0f, 1.0f),
+                TextureCoord = new Vector2D<float>(1.0f, 0.0f)
+            },
+            new Vertex // Bottom Left
+            {
+                Position = new Vector3D<float>(-0.5f, -0.5f, 0.0f),
+                Color = new Vector4D<float>(1.0f, 0.0f, 1.0f, 1.0f),
+                TextureCoord = new Vector2D<float>(0.0f, 0.0f)
+            },
+            new Vertex // Bottom Right
+            {
+                Position = new Vector3D<float>(-0.5f, 0.5f, 0.0f),
+                Color = new Vector4D<float>(1.0f, 1.0f, 1.0f, 1.0f),
+                TextureCoord = new Vector2D<float>(0.0f, 1.0f)
+            }
+        });
+        
+        _ebo = new ElementBufferObject(_gl, [
             0u, 1u, 3u,
             1u, 2u, 3u
-        };
-        
-        _ebo = _gl.GenBuffer();
-        _gl.BindBuffer(BufferTargetARB.ElementArrayBuffer, _ebo);
-        _gl.BufferData(BufferTargetARB.ElementArrayBuffer, (nuint) (indices.Length * sizeof(uint)), indices.AsSpan().GetPinnableReference(), BufferUsageARB.StaticDraw);
+        ]);
         
         const string vertexCode = @"
 #version 330 core
 
 layout (location = 0) in vec3 aPosition;
-layout (location = 1) in vec2 aTextureCoord;
+layout (location = 1) in vec4 aColor;
+layout (location = 2) in vec2 aTextureCoord;
 
 out vec2 frag_texCoords;
+out vec4 frag_color;
 
 void main()
 {
     gl_Position = vec4(aPosition, 1.0);
     frag_texCoords = aTextureCoord;
+    frag_color = aColor;
 }";
         const string fragmentCode = @"
 #version 330 core
 
 in vec2 frag_texCoords;
+in vec4 frag_color;
 
 out vec4 out_color;
 
+uniform sampler2D uTexture;
+
 void main()
 {
-    out_color = vec4(frag_texCoords.x, frag_texCoords.y, 0.0, 1.0);
+    //out_color = frag_color;
+    out_color = texture(uTexture, frag_texCoords);
 }";
         
         var vertexShader = _gl.CreateShader(ShaderType.VertexShader);
@@ -212,24 +186,19 @@ void main()
         _gl.DeleteShader(vertexShader);
         _gl.DeleteShader(fragmentShader);
         
-        const uint positionLoc = 0;
-        _gl.EnableVertexAttribArray(positionLoc);
-        _gl.VertexAttribPointer(positionLoc, Vertex.PositionSize, VertexAttribPointerType.Float, false, (uint)Vertex.Size * sizeof(float), (void *)Vertex.PositionOffset);
+        _vao.ConfigureAttributes(_vbo);
         
-        const uint texCoordLoc = 1;
-        _gl.EnableVertexAttribArray(texCoordLoc);
-        _gl.VertexAttribPointer(texCoordLoc, Vertex.TextureCoordSize, VertexAttribPointerType.Float, false, (uint)Vertex.Size * sizeof(float), (void*)(Vertex.TextureCoordOffset * sizeof(float)));
+        _vao.Unbind();
+        _vbo.Unbind();
+        _ebo.Unbind();
         
-        _gl.BindVertexArray(0);
-        _gl.BindBuffer(BufferTargetARB.ArrayBuffer, 0);
-        _gl.BindBuffer(BufferTargetARB.ElementArrayBuffer, 0);
+        _texture = new Texture(_gl);
+        _texture.Bind();
+        _texture.Load("Logo.png");
+        _texture.Unbind();
         
-        var timer = new Timer(150);
-        timer.Elapsed += (_, _) =>
-        {
-            //_window!.Title = $"Avalon | FPS: {_window.FramesPerSecond} | UPS: {_window.UpdatesPerSecond}";
-        };
-        timer.Start();
+        _gl.Enable(EnableCap.Blend);
+        _gl.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
     }
     
     private static void WindowOnUpdate(double deltaTime)
@@ -241,13 +210,39 @@ void main()
     {
         _gl.Clear(ClearBufferMask.ColorBufferBit);
         
-        _gl.BindVertexArray(_vao);
         _gl.UseProgram(_shader);
+        
+        int location = _gl.GetUniformLocation(_shader, "uTexture");
+        _gl.Uniform1(location, 0);
+        
+        _gl.ActiveTexture(TextureUnit.Texture0);
+        
+        _vao.Bind();
+        _texture.Bind();
+        
         _gl.DrawElements(PrimitiveType.Triangles, 6, DrawElementsType.UnsignedInt, (void*) 0);
+        
+        _texture.Unbind();
+        _vao.Unbind();
+        
+        _gl.UseProgram(0);
     }
     
     private static void WindowOnClosing()
     {
+        _vao.Unbind();
+        _vbo.Unbind();
+        _ebo.Unbind();
+        
+        _ebo.Dispose();
+        Console.WriteLine("EBO Disposed!");
+        _vbo.Dispose();
+        Console.WriteLine("VBO Disposed!");
+        _vao.Dispose();
+        Console.WriteLine("VAO Disposed!");
+        _texture.Dispose();
+        Console.WriteLine("Texture Disposed!");
+        
         Console.WriteLine("Window Disposed!");
         _input!.Dispose();
         Console.WriteLine("Input Disposed!");
@@ -270,7 +265,7 @@ void main()
 
     private static void OnMouseMove(IMouse arg1, Vector2 arg2)
     {
-        Console.WriteLine("Mouse Moved!");
+        
     }
 
     private static void OnMouseButtonUp(IMouse arg1, MouseButton arg2)
