@@ -1,6 +1,6 @@
 using Silk.NET.OpenGL;
 
-namespace Avalon.Client.Native.Graphics;
+namespace Avalon.Client.Native.Graphics.Primitive;
 
 public class VertexArrayObject : IDisposable
 {
@@ -25,7 +25,7 @@ public class VertexArrayObject : IDisposable
 
     public void Dispose()
     {
-        _gl.DeleteVertexArrays(1, ref vaoHandle);
+        _gl.DeleteVertexArrays(1, in vaoHandle);
     }
 
     // Method to configure vertex attribute pointers

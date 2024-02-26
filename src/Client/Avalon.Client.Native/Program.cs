@@ -5,16 +5,21 @@ using System.Runtime.InteropServices;
 using Avalon.Client.Native.Graphics;
 using Avalon.Client.Native.Graphics.Primitive;
 using Avalon.Client.Native.Math;
+using ImGuiNET;
+using Silk.NET.GLFW;
 using Silk.NET.Input;
 using Silk.NET.Maths;
 using Silk.NET.OpenGL;
+using Silk.NET.OpenGL.Extensions.ImGui;
 using Silk.NET.SDL;
 using Silk.NET.Windowing;
 using Color = System.Drawing.Color;
+using MouseButton = Silk.NET.Input.MouseButton;
 using Shader = Avalon.Client.Native.Graphics.Shader;
 using Texture = Avalon.Client.Native.Graphics.Primitive.Texture;
 using Timer = System.Timers.Timer;
 using Vertex = Avalon.Client.Native.Graphics.Vertex;
+using VideoMode = Silk.NET.Windowing.VideoMode;
 using Window = Silk.NET.Windowing.Window;
 
 namespace Avalon.Client.Native;
@@ -29,7 +34,11 @@ public class Program
     private static ElementBufferObject<uint> _ebo;
     private static Texture _texture;
     private static Shader _shader;
+    private static ImGuiController _controller;
     private static Transform[] _transforms = new Transform[4];
+    private static bool _shouldClose = false;
+    private static bool _showImGui = false;
+    private static bool _mouseCaptured = false;
     
     private static readonly uint[] Indices =
     [
@@ -52,6 +61,7 @@ public class Program
     private static int Height => 768;
     
     private static IKeyboard _primaryKeyboard;
+    private static IMouse _primaryMouse;
     
     //Setup the camera's location, and relative up and right directions
     private static Camera3D Camera;
@@ -71,8 +81,8 @@ public class Program
             VideoMode = new VideoMode(new Vector2D<int>(Width, Height), 60),
             WindowBorder = WindowBorder.Fixed,
             WindowState = WindowState.Normal,
-            API = GraphicsAPI.Default,
-            PreferredDepthBufferBits = 24,
+            API = new GraphicsAPI(ContextAPI.OpenGL, ContextProfile.Core, ContextFlags.ForwardCompatible, new APIVersion(4, 1)),
+            PreferredDepthBufferBits = 32,
         };
         
         _window = Window.Create(options);
@@ -82,14 +92,12 @@ public class Program
         _window.Render += WindowOnRender;
         _window.Closing += WindowOnClosing;
         _window.FramebufferResize += OnResize;
+        
         _window.Run();
         
+        _window.Dispose();
+        
         Console.WriteLine("Goodbye World!");
-    }
-    
-    private static void OnResize(Vector2D<int> size)
-    {
-        _gl.Viewport(0, 0, (uint) size.X, (uint) size.Y);
     }
     
     private static unsafe void WindowOnLoad()
@@ -97,25 +105,33 @@ public class Program
         _input = _window!.CreateInput();
         
         _input.ConnectionChanged += InputOnConnectionChanged;
+        
         _primaryKeyboard = _input.Keyboards.FirstOrDefault()!;
-        foreach (var keyboard in _input.Keyboards)
-        {
-            keyboard.KeyDown += KOnKeyDown;
-            keyboard.KeyUp += KOnKeyUp;
-            keyboard.KeyChar += KOnChar;
-        }
-        foreach (var mouse in _input.Mice)
-        {
-            mouse.MouseDown += OnMouseButtonDown;
-            mouse.MouseUp += OnMouseButtonUp;
-            mouse.MouseMove += OnMouseMove;
-            mouse.Click += OnMouseClick;
-            mouse.DoubleClick += OnMouseDoubleClick;
-            mouse.Scroll += OnMouseScroll;
-        }
+        _primaryKeyboard.KeyDown += KOnKeyDown;
+        _primaryKeyboard.KeyUp += KOnKeyUp;
+        _primaryKeyboard.KeyChar += KOnChar;
+        
+        _primaryMouse = _input.Mice.FirstOrDefault() ?? throw new Exception("No mouse found!"); //TODO: Proper fix
+        _primaryMouse.Cursor.CursorMode = CursorMode.Disabled;
+        _mouseCaptured = true;
+        _primaryMouse.MouseDown += OnMouseButtonDown;
+        _primaryMouse.MouseUp += OnMouseButtonUp;
+        _primaryMouse.MouseMove += OnMouseMove;
+        _primaryMouse.Click += OnMouseClick;
+        _primaryMouse.DoubleClick += OnMouseDoubleClick;
+        _primaryMouse.Scroll += OnMouseScroll;
 
         _gl = _window.CreateOpenGL();
         _gl.ClearColor(Color.CornflowerBlue);
+        _gl.DebugMessageCallback(Callback, null);
+
+        void Callback(GLEnum source, GLEnum type, int id, GLEnum severity, int length, IntPtr message, IntPtr userparam)
+        {
+            var msg = Marshal.PtrToStringAnsi(message, length);
+            Debug.WriteLine($"[{severity}] {type} {source} {id}: {msg}");
+        }
+
+        _controller = new ImGuiController(_gl, _window, _input);
         
         AssetsManager.Instance.Initialize(_gl);
 
@@ -393,44 +409,64 @@ void main()
         _gl.DepthFunc(DepthFunction.Less);
     }
     
+    private static void OnResize(Vector2D<int> size)
+    {
+        _gl.Viewport(0, 0, (uint) size.X, (uint) size.Y);
+    }
+    
     private static void WindowOnUpdate(double deltaTime)
     {
         var moveSpeed = 2.5f * (float) deltaTime;
 
-        if (_primaryKeyboard.IsKeyPressed(Key.W))
+        if (_mouseCaptured)
         {
-            //Move forwards
-            Camera.Position += moveSpeed * Camera.Front;
+            if (_primaryKeyboard.IsKeyPressed(Key.W))
+            {
+                //Move forwards
+                Camera.Position += moveSpeed * Camera.Front;
+            }
+            if (_primaryKeyboard.IsKeyPressed(Key.S))
+            {
+                //Move backwards
+                Camera.Position -= moveSpeed * Camera.Front;
+            }
+            if (_primaryKeyboard.IsKeyPressed(Key.A))
+            {
+                //Move left
+                Camera.Position -= Vector3.Normalize(Vector3.Cross(Camera.Front, Camera.Up)) * moveSpeed;
+            }
+            if (_primaryKeyboard.IsKeyPressed(Key.D))
+            {
+                //Move right
+                Camera.Position += Vector3.Normalize(Vector3.Cross(Camera.Front, Camera.Up)) * moveSpeed;
+            }
+            if (_primaryKeyboard.IsKeyPressed(Key.Space))
+            {
+                //Move up
+                Camera.Position += moveSpeed * Camera.Up;
+            }
+            if (_primaryKeyboard.IsKeyPressed(Key.ShiftLeft))
+            {
+                //Move down
+                Camera.Position -= moveSpeed * Camera.Up;
+            }
         }
-        if (_primaryKeyboard.IsKeyPressed(Key.S))
+        
+        if (_primaryKeyboard.IsKeyPressed(Key.F5))
         {
-            //Move backwards
-            Camera.Position -= moveSpeed * Camera.Front;
-        }
-        if (_primaryKeyboard.IsKeyPressed(Key.A))
-        {
-            //Move left
-            Camera.Position -= Vector3.Normalize(Vector3.Cross(Camera.Front, Camera.Up)) * moveSpeed;
-        }
-        if (_primaryKeyboard.IsKeyPressed(Key.D))
-        {
-            //Move right
-            Camera.Position += Vector3.Normalize(Vector3.Cross(Camera.Front, Camera.Up)) * moveSpeed;
-        }
-        if (_primaryKeyboard.IsKeyPressed(Key.Space))
-        {
-            //Move up
-            Camera.Position += moveSpeed * Camera.Up;
-        }
-        if (_primaryKeyboard.IsKeyPressed(Key.ShiftLeft))
-        {
-            //Move down
-            Camera.Position -= moveSpeed * Camera.Up;
+            _showImGui = !_showImGui;
         }
     }
     
     private static unsafe void WindowOnRender(double deltaTime)
     {
+        if (_shouldClose) { 
+            _window!.Close();
+            return;
+        }
+        
+        _controller.Update((float) deltaTime);
+        
         _gl.ClearDepth(1.0f);
         _gl.Clear((uint) (ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit));
         
@@ -459,6 +495,35 @@ void main()
         
         // Part of the renderer
         _shader.Unbind();
+
+        if (_showImGui)
+        {
+            if (ImGui.BeginMainMenuBar())
+            {
+                if (ImGui.BeginMenu("File"))
+                {
+                    if (ImGui.MenuItem("Exit"))
+                    {
+                        _shouldClose = true;
+                    }
+                    ImGui.EndMenu();
+                }
+                ImGui.EndMainMenuBar();
+            }
+
+            ImGui.Begin("Avalon Debugging");
+            ImGui.NewLine();
+            ImGui.SeparatorText("Graphics");
+            ImGui.NewLine();
+            ImGui.Text($"Resolution: {Width} x {Height}");
+            ImGui.RadioButton("1280 × 720", false);
+            ImGui.RadioButton("1366 × 768", true);
+            ImGui.RadioButton("1920 × 1080", false);
+        
+            ImGui.End();
+        
+            _controller.Render();
+        }
     }
     
     private static void WindowOnClosing()
@@ -478,12 +543,18 @@ void main()
         Console.WriteLine("Textures Disposed!");
         _shader.Dispose();
         Console.WriteLine("Shader Disposed!");
+        
+        _controller.Dispose();
+        
         _input!.Dispose();
         Console.WriteLine("Input Disposed!");
+        
+        _gl.Dispose();
     }
     
     private static void OnMouseScroll(IMouse arg1, ScrollWheel scrollWheel)
     {
+        if (!_mouseCaptured) return;
         Camera.ModifyZoom(scrollWheel.Y);
     }
 
@@ -499,6 +570,8 @@ void main()
 
     private static void OnMouseMove(IMouse arg1, Vector2 position)
     {
+        if (!_mouseCaptured) return;
+        
         var lookSensitivity = 0.1f;
         if (LastMousePosition == default) { LastMousePosition = position; }
         else
@@ -535,7 +608,16 @@ void main()
     {
         if (key == Key.Escape)
         {
-            _window!.Close();
+            if (_primaryMouse.Cursor.CursorMode == CursorMode.Disabled)
+            {
+                _primaryMouse.Cursor.CursorMode = CursorMode.Normal;
+                _mouseCaptured = false;
+            }
+            else
+            {
+                _primaryMouse.Cursor.CursorMode = CursorMode.Disabled;
+                _mouseCaptured = true;
+            }
         }
     }
 
