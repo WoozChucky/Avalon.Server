@@ -11,9 +11,11 @@ public class Camera3D
     public Vector3 Up { get; private set; }
     public float AspectRatio { get; set; }
 
+    // Yaw means rotation around the y-axis
     public float Yaw { get; set; } = -90f;
+    // Pitch means rotation around the x-axis
     public float Pitch { get; set; }
-
+    
     private float Zoom = 45f;
 
     public Camera3D(Vector3 position, Vector3 front, Vector3 up, float aspectRatio)
