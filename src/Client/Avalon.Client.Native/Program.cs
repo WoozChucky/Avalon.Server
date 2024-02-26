@@ -368,8 +368,8 @@ void main()
 {
     //out_color = frag_color;
     float depth = LinearizeDepth(gl_FragCoord.z) / far;
-    out_color = texture(uTexture, frag_texCoords);
-    //out_color = frag_color * texture(uTexture, frag_texCoords);
+    //out_color = texture(uTexture, frag_texCoords);
+    out_color = frag_color * texture(uTexture, frag_texCoords);
     
 }";
         
@@ -382,7 +382,7 @@ void main()
         _vbo.Unbind();
         _ebo.Unbind();
 
-        _texture = AssetsManager.Instance.GetTexture(Texture.Name.Bullet);
+        _texture = AssetsManager.Instance.GetTexture(Texture.Name.Player);
         
         Camera = new Camera3D(Vector3.UnitZ * 6, Vector3.UnitZ * -1, Vector3.UnitY, Width / Height);
 
@@ -416,6 +416,16 @@ void main()
         {
             //Move right
             Camera.Position += Vector3.Normalize(Vector3.Cross(Camera.Front, Camera.Up)) * moveSpeed;
+        }
+        if (_primaryKeyboard.IsKeyPressed(Key.Space))
+        {
+            //Move up
+            Camera.Position += moveSpeed * Camera.Up;
+        }
+        if (_primaryKeyboard.IsKeyPressed(Key.ShiftLeft))
+        {
+            //Move down
+            Camera.Position -= moveSpeed * Camera.Up;
         }
     }
     
