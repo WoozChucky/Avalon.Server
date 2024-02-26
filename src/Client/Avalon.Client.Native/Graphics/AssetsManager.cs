@@ -74,7 +74,7 @@ public class AssetsManager : IDisposable
         {
             Texture.Name.Player => "Logo.png",
             Texture.Name.Enemy => "silk.png",
-            Texture.Name.Bullet => "expr",
+            Texture.Name.Bullet => "yellow.jpg",
             Texture.Name.Background => "expr",
             Texture.Name.Explosion => "expr",
             _ => throw new InvalidOperationException("Texture not found.")
