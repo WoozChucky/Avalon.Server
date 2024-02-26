@@ -1,60 +1,36 @@
-using System.Runtime.InteropServices;
 using Silk.NET.OpenGL;
 
-namespace Avalon.Client.Native.Graphics;
+namespace Avalon.Client.Native.Graphics.Primitive;
 
-public class ElementBufferObject : IDisposable
+public class ElementBufferObject<TDataType> : IDisposable
+    where TDataType : unmanaged
 {
-    private uint _eboHandle;
-    private uint[] _indices;
-    private IntPtr _buffer;
-    private GL _gl;
-    
-    private int Size => _indices.Length * sizeof(uint);
+    private readonly uint _eboHandle;
+    private readonly GL _gl;
+    private readonly BufferTargetARB _bufferType;
 
-    public unsafe ElementBufferObject(GL gl, uint[] indices)
+    public unsafe ElementBufferObject(GL gl, Span<TDataType> data, BufferTargetARB bufferType)
     {
         _gl = gl;
-        _indices = indices;
+        _bufferType = bufferType;
         gl.GenBuffers(1, out _eboHandle);
-        gl.BindBuffer(GLEnum.ElementArrayBuffer, _eboHandle);
-        fixed (uint* buf = indices)
-            gl.BufferData(GLEnum.ElementArrayBuffer, (uint)Size, buf/*_indices.AsSpan().GetPinnableReference()*/, GLEnum.StaticDraw);
+        gl.BindBuffer(bufferType, _eboHandle);
+        fixed (void* buf = data)
+            gl.BufferData(_bufferType, (uint)(data.Length * sizeof(TDataType)), buf, GLEnum.StaticDraw);
     }
 
     public void Bind()
     {
-        _gl.BindBuffer(GLEnum.ElementArrayBuffer, _eboHandle);
+        _gl.BindBuffer(_bufferType, _eboHandle);
     }
 
     public void Unbind()
     {
-        _gl.BindBuffer(GLEnum.ElementArrayBuffer, 0);
-    }
-    
-    private unsafe uint* GetMemory()
-    {
-        if (_buffer == IntPtr.Zero)
-        {
-            _buffer = Marshal.AllocHGlobal(Size);
-            
-            var buffer = (uint*) _buffer;
-            for (var i = 0; i < _indices.Length; i++)
-            {
-                buffer[i] = _indices[i];
-            }
-            return buffer;
-        }
-
-        return (uint*) _buffer;
+        _gl.BindBuffer(_bufferType, 0);
     }
 
     public void Dispose()
     {
-        _gl.DeleteBuffers(1, in _eboHandle);
-        if (_buffer != IntPtr.Zero)
-        {
-            Marshal.FreeHGlobal(_buffer);
-        }
+        _gl.DeleteBuffer(_eboHandle);
     }
 }
