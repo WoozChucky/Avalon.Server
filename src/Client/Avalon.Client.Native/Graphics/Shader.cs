@@ -1,4 +1,5 @@
 using System.Numerics;
+using Silk.NET.Maths;
 using Silk.NET.OpenGL;
 
 namespace Avalon.Client.Native.Graphics;
@@ -81,6 +82,16 @@ public class Shader : IDisposable
             throw new Exception($"{name} uniform not found on shader.");
         }
         _gl.Uniform1(location, value);
+    }
+    
+    public void SetUniform(string name, Vector3D<float> value)
+    {
+        int location = _gl.GetUniformLocation(_program, name);
+        if (location == -1)
+        {
+            throw new Exception($"{name} uniform not found on shader.");
+        }
+        _gl.Uniform3(location, value.X, value.Y, value.Z);
     }
     
     public void Bind()

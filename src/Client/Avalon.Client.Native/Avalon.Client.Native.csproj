@@ -11,9 +11,25 @@
     <ItemGroup>
       <PackageReference Include="Silk.NET.Input" Version="2.20.0" />
       <PackageReference Include="Silk.NET.OpenGL" Version="2.20.0" />
+      <PackageReference Include="Silk.NET.OpenGL.Extensions.ImGui" Version="2.20.0" />
       <PackageReference Include="Silk.NET.Vulkan" Version="2.20.0" />
       <PackageReference Include="Silk.NET.Windowing" Version="2.20.0" />
       <PackageReference Include="StbImageSharp" Version="2.27.13" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <None Update="Logo.png">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </None>
+      <None Update="2.png">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </None>
+      <None Update="Graphics\Shaders\shader.frag">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </None>
+      <None Update="Graphics\Shaders\shader.vert">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </None>
     </ItemGroup>
 
 </Project>
