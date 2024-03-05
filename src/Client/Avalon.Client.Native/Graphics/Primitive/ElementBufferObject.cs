@@ -1,3 +1,4 @@
+using System;
 using Silk.NET.OpenGL;
 
 namespace Avalon.Client.Native.Graphics.Primitive;
