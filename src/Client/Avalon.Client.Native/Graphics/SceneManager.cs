@@ -1,0 +1,6 @@
+namespace Avalon.Client.Native.Graphics;
+
+public class SceneManager
+{
+    
+}

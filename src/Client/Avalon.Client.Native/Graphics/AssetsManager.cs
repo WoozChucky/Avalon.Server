@@ -9,6 +9,7 @@ public class AssetsManager : IDisposable
     public static AssetsManager Instance { get; } = new AssetsManager();
     
     private readonly Dictionary<Texture.Name, Texture> _textures = new();
+    private readonly Dictionary<Shader.Name, string> _shaders = new();
     private GL? _gl;
     
     static AssetsManager()
@@ -19,9 +20,36 @@ public class AssetsManager : IDisposable
     public void Initialize(GL gl)
     {
         _gl = gl;
-        // Preload all textures
+        // Preload
+        LoadTexture(Texture.Name.Player);
+        LoadTexture(Texture.Name.Background);
+        
+        LoadShader(Shader.Name.DefaultVertex);
+        LoadShader(Shader.Name.DefaultFragment);
     }
     
+    public string GetShader(Shader.Name name)
+    {
+        var item = _shaders.FirstOrDefault(x => x.Key == name);
+        if (item.Value == null)
+        {
+            var loaded = LoadShader(name);
+            _shaders.Add(name, loaded);
+            return loaded;
+        }
+        return item.Value;
+    }
+
+    private string LoadShader(Shader.Name name)
+    {
+        return name switch
+        {
+            Shader.Name.DefaultVertex => File.ReadAllText("Graphics/Shaders/shader.vert"),
+            Shader.Name.DefaultFragment => File.ReadAllText("Graphics/Shaders/shader.frag"),
+            _ => throw new InvalidOperationException("Shader not found.")
+        };
+    }
+
     public Texture GetTexture(Texture.Name name)
     {
         var item = _textures.FirstOrDefault(x => x.Key == name);
@@ -32,6 +60,15 @@ public class AssetsManager : IDisposable
             return loaded;
         }
         return item.Value;
+    }
+    
+    public void Dispose()
+    {
+        foreach (var texture in _textures)
+        {
+            texture.Value.Dispose();
+        }
+        _textures.Clear();
     }
     
     private unsafe Texture LoadTexture(Texture.Name name)
@@ -81,12 +118,5 @@ public class AssetsManager : IDisposable
         };
     }
 
-    public void Dispose()
-    {
-        foreach (var texture in _textures)
-        {
-            texture.Value.Dispose();
-        }
-        _textures.Clear();
-    }
+    
 }

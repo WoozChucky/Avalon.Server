@@ -6,6 +6,12 @@ namespace Avalon.Client.Native.Graphics;
 
 public class Shader : IDisposable
 {
+    public enum Name
+    {
+        DefaultVertex,
+        DefaultFragment,
+    }
+    
     private GL _gl;
     
     private uint _program;
