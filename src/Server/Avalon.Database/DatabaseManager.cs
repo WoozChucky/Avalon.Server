@@ -92,6 +92,12 @@ public class DatabaseManager : IDatabaseManager
                 .GetProperties()
                 .FirstOrDefault(prop => GetDescriptionFromAttribute(prop) == columnName.ToLower()))
         );
+        
+        Dapper.SqlMapper.SetTypeMap(typeof(Domain.Auth.World), new Dapper.CustomPropertyTypeMap(typeof(Domain.Auth.World), 
+            (type, columnName) => type
+                .GetProperties()
+                .FirstOrDefault(prop => GetDescriptionFromAttribute(prop) == columnName.ToLower()))
+        );
     }
 
     private static string? GetDescriptionFromAttribute(MemberInfo? member)

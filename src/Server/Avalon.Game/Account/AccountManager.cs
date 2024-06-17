@@ -163,7 +163,7 @@ public partial class AvalonGame
             case < 3:
                 await session.SendAsync(SRegisterResultPacket.Create(RegisterResult.PasswordTooShort, session.Encrypt));
                 return;
-            case > 12:
+            case > 16:
                 await session.SendAsync(SRegisterResultPacket.Create(RegisterResult.PasswordTooLong, session.Encrypt));
                 return;
         }
@@ -186,7 +186,7 @@ public partial class AvalonGame
             Online = false,
             Locale = "en",
             Locked = false,
-            Role = "Player",
+            AccessLevel = AccountAccessLevel.Player,
             OS = "Windows",
             LastLogin = DateTime.UnixEpoch,
             MuteBy = "",

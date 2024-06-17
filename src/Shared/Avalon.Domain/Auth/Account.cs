@@ -61,6 +61,16 @@ public class Account
     [Column("TotalTime")]
     public long TotalTime { get; set; }
 
-    [Column("Role")]
-    public string Role { get; set; }
+    [Column("AccessLevel")]
+    public AccountAccessLevel AccessLevel { get; set; }
+}
+
+[Flags]
+public enum AccountAccessLevel : short
+{
+    Player = 0,
+    GameMaster = 1,
+    Administrator = 2,
+    Tournament = 4,
+    PTR = 8,
 }

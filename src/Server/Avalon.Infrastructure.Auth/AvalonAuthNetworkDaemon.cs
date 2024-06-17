@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Net.Sockets;
 using Avalon.Auth;
 using Avalon.Common.Telemetry;
 using Avalon.Common.Threading;
@@ -13,6 +14,7 @@ using Avalon.Network.Packets.Internal.Deserialization;
 using Avalon.Network.Packets.Internal.Exceptions;
 using Avalon.Network.Packets.Serialization;
 using Microsoft.Extensions.Logging;
+using TcpClient = Avalon.Network.TcpClient;
 
 namespace Avalon.Infrastructure.Auth;
 
@@ -28,6 +30,9 @@ public class AvalonAuthNetworkDaemon : IAvalonNetworkDaemon
     private readonly IAuthSessionManager _sessionManager;
 
     private readonly RingBuffer<(IRemoteSource, NetworkPacket)> _packetProcessorBuffer;
+    
+    private long _bytesReceived;
+    private long _packetsReceived;
 
     public AvalonAuthNetworkDaemon(
         ILoggerFactory loggerFactory,
@@ -84,7 +89,72 @@ public class AvalonAuthNetworkDaemon : IAvalonNetworkDaemon
     
     private void TcpServerOnClientConnected(object? sender, TcpClient client)
     {
-        
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                while (!_cts.IsCancellationRequested)
+                {
+                    var packet = await _packetDeserializer.DeserializeFromNetwork<NetworkPacket>(client.Stream);
+
+                    try
+                    {
+                        if (!client.Connected)
+                        {
+                            _sessionManager.RemoveConnection(client);
+                            break;
+                        }
+                        
+                        if (packet == null)
+                        {
+                            _logger.LogWarning("Client {Endpoint} connection was closed abruptly", client.RemoteAddress);
+                            _sessionManager.RemoveConnection(client);
+                            break;
+                        }
+ 
+                        _packetProcessorBuffer.Enqueue((client, packet));
+                        
+                        DiagnosticsConfig.Server.BytesReceived.Add(packet.Size);
+                        DiagnosticsConfig.Server.PacketsReceived.Add(1, new KeyValuePair<string, object?>(
+                            nameof(NetworkPacketType), packet.Header.Type
+                        ));
+
+                        Interlocked.Increment(ref _packetsReceived);
+                        Interlocked.Add(ref _bytesReceived, packet.Size);
+                    }
+                    catch (PacketHandlerException e)
+                    {
+                        _logger.LogWarning(e, "Packet handler exception while handling packet {@Packet}", packet);
+                    }
+                    catch (Exception e)
+                    {
+                        _logger.LogWarning(e, "Exception while handling packet {@Packet}", packet);
+                    }
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                _logger.LogInformation("Operation cancelled");
+            }
+            catch (IOException e)
+            {
+                if (e.InnerException is SocketException &&
+                    e.InnerException.Message.Contains("An existing connection was forcibly closed by the remote host"))
+                {
+                    _logger.LogInformation("Client {Endpoint} disconnected", client.RemoteAddress);
+                    _sessionManager.RemoveConnection(client);
+                }
+                else
+                {
+                    _logger.LogWarning(e, "IOException while reading from client stream");
+                }
+            }
+            finally
+            {
+                await client.Stream.DisposeAsync();
+            }
+
+        }).ConfigureAwait(false);
     }
     
     private async Task ProcessPacketsAsync()
