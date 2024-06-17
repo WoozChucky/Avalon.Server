@@ -2,6 +2,7 @@ using System.Text;
 using Avalon.Common.Cryptography;
 using Avalon.Database;
 using Avalon.Domain.Auth;
+using Avalon.Infrastructure;
 using Avalon.Network;
 using Avalon.Network.Packets.Auth;
 using Avalon.Network.Packets.Handshake;
@@ -11,20 +12,21 @@ namespace Avalon.Auth;
 
 public class AvalonAuth : IAvalonAuth
 {
-    
     private readonly ILogger<AvalonAuth> _logger;
     private readonly CancellationTokenSource _cts;
     private readonly ICryptoManager _cryptography;
     private readonly IDatabaseManager _databaseManager;
     private readonly IAuthSessionManager _sessionManager;
+    private readonly IReplicatedCache _cache;
     private volatile bool _isRunning;
     private long _loopCounter;
     
-    public AvalonAuth(ILoggerFactory loggerFactory, ICryptoManager cryptography, IDatabaseManager databaseManager, IAuthSessionManager sessionManager)
+    public AvalonAuth(ILoggerFactory loggerFactory, ICryptoManager cryptography, IDatabaseManager databaseManager, IAuthSessionManager sessionManager, IReplicatedCache cache)
     {
         _cryptography = cryptography;
         _databaseManager = databaseManager;
         _sessionManager = sessionManager;
+        _cache = cache;
         _logger = loggerFactory.CreateLogger<AvalonAuth>();
         _cts = new CancellationTokenSource();
     }
@@ -281,5 +283,84 @@ public class AvalonAuth : IAvalonAuth
             _logger.LogError(e, "Failed to save account");
             return;
         }
+    }
+
+    public async Task HandleWorldListPacket(IRemoteSource source, CWorldListPacket packet)
+    {
+        var worlds = await _databaseManager.Auth.World.FindAllAsync();
+        
+        var session = _sessionManager.GetSession(source);
+        if (session == null)
+        {
+            _logger.LogWarning("Session not found for client {EndPoint}", source.RemoteAddress);
+            return;
+        }
+        
+        var account = await _databaseManager.Auth.Account.FindByIdAsync(session.AccountId);
+        if (account == null)
+        {
+            _logger.LogWarning("Account not found for session {Session}", session.AccountId);
+            return;
+        }
+        
+        worlds = worlds.Where(w => w.AccessLevelRequired <= account.AccessLevel).ToList();
+        
+        var worldsInfo = worlds.Select(w => new WorldInfo
+        {
+            Id = w.Id!.Value,
+            Name = w.Name,
+            Type = (short) w.Type,
+            AccessLevelRequired = (short) w.AccessLevelRequired,
+            Host = w.Host,
+            Port = w.Port,
+            MinVersion = w.MinVersion,
+            Version = w.Version,
+            Status = (short) w.Status,
+        }).ToArray();
+
+        await session.SendAsync(SWorldListPacket.Create(worldsInfo, session.Encrypt));
+    }
+
+    public async Task HandleWorldSelectPacket(IRemoteSource source, CWorldSelectPacket packet)
+    {
+        var session = _sessionManager.GetSession(source);
+        if (session == null)
+        {
+            _logger.LogWarning("Session not found for client {EndPoint}", source.RemoteAddress);
+            return;
+        }
+        
+        var account = await _databaseManager.Auth.Account.FindByIdAsync(session.AccountId);
+        if (account == null)
+        {
+            _logger.LogWarning("Account not found for session {Session}", session.AccountId);
+            return;
+        }
+        
+        var world = await _databaseManager.Auth.World.FindByIdAsync(packet.WorldId);
+        if (world == null)
+        {
+            _logger.LogWarning("World not found for id {WorldId}", packet.WorldId);
+            return;
+        }
+        
+        if (world.AccessLevelRequired > account.AccessLevel)
+        {
+            _logger.LogWarning("Account {AccountId} tried to access world {WorldId} without the required access level", account.Id, world.Id);
+            return;
+        }
+        
+        //TODO: Check if account already in a world
+        //TODO: Properly generate world key
+        // generate random data
+        var worldKey = new byte[32];
+        new Random().NextBytes(worldKey);
+        
+        var worldKeyBase64 = Convert.ToBase64String(worldKey);
+        
+        await _cache.SetAsync($"world:{world.Id}:account:{account.Id}:worldKey", worldKeyBase64, TimeSpan.FromMinutes(5));
+        await _cache.PublishAsync($"world:{world.Id}:select", $"account:{account.Id}:worldKey:{worldKeyBase64}");
+
+        await session.SendAsync(SWorldSelectPacket.Create(worldKey, session.Encrypt));
     }
 }

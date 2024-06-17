@@ -12,4 +12,5 @@ public class AppConfiguration
     public MetricsConfiguration? Metrics { get; set; }
     public DatabaseConfiguration? Database { get; set; }
     public GameConfiguration? Game { get; set; }
+    public CacheConfiguration? Cache { get; set; }
 }

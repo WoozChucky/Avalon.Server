@@ -12,6 +12,7 @@ public class AvalonAuthInfrastructure : IAvalonInfrastructure
     private readonly InfrastructureConfiguration _infrastructureConfiguration;
     private readonly ILogger<AvalonAuthInfrastructure> _logger;
     private readonly IAvalonNetworkDaemon _networkDaemon;
+    private readonly IReplicatedCache _cache;
     private readonly IAvalonAuth _authServer;
 
     public AvalonAuthInfrastructure(
@@ -19,18 +20,21 @@ public class AvalonAuthInfrastructure : IAvalonInfrastructure
         CancellationTokenSource cts,
         InfrastructureConfiguration infrastructureConfiguration,
         IAvalonNetworkDaemon networkDaemon,
+        IReplicatedCache cache,
         IAvalonAuth authServer)
     {
         _logger = loggerFactory.CreateLogger<AvalonAuthInfrastructure>();
         _cts = cts;
         _infrastructureConfiguration = infrastructureConfiguration;
         _networkDaemon = networkDaemon;
+        _cache = cache;
         _authServer = authServer;
     }
 
     public void Start()
     {
         _authServer.Start();
+        _cache.ConnectAsync().Wait(); // TODO: async
         _networkDaemon.Start();
     }
 

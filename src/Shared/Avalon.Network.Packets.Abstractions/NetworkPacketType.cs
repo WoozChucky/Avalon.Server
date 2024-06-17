@@ -20,6 +20,10 @@ public enum NetworkPacketType : short
     CMSG_LOGOUT = 0x2002,
     CMSG_REGISTER = 0x2003,
     
+    // Worlds
+    CMSG_WORLD_LIST = 0x201A,
+    CMSG_WORLD_SELECT = 0x201B,
+    
     // Audio
     CMSG_AUDIO_RECORD = 0x2050,
     
@@ -64,6 +68,10 @@ public enum NetworkPacketType : short
     SMSG_AUTH_RESULT = 0x3010,
     SMSG_LOGOUT = 0x3011,
     SMSG_REGISTER_RESULT = 0x3012,
+    
+    // Worlds
+    SMSG_WORLD_LIST = 0x301A,
+    SMSG_WORLD_SELECT = 0x301B,
     
     // Audio
     SMSG_AUDIO_RECORD = 0x3050,

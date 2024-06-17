@@ -10,6 +10,13 @@ public class LayerEnricher : ILogEventEnricher
     
     private readonly ScalarValue _serverLayer = new("SERVER");
     private readonly ScalarValue _networkLayer = new("NET");
+    private readonly ScalarValue _cacheLayer = new("CACHE");
+    
+    private readonly List<string> _cacheNamespaces =
+    [
+        typeof(Avalon.Infrastructure.IReplicatedCache).FullName!,
+        typeof(Avalon.Infrastructure.ReplicatedCache).FullName!
+    ];
     
     private readonly List<string> _networkNamespaces =
     [
@@ -56,6 +63,13 @@ public class LayerEnricher : ILogEventEnricher
         if (_serverNamespaces.Contains(fullNamespace))
         {
             var layerProperty = new LogEventProperty(LayerPropertyName, _serverLayer);
+            logEvent.AddPropertyIfAbsent(layerProperty);
+            return;
+        }
+        
+        if (_cacheNamespaces.Contains(fullNamespace))
+        {
+            var layerProperty = new LogEventProperty(LayerPropertyName, _cacheLayer);
             logEvent.AddPropertyIfAbsent(layerProperty);
             return;
         }

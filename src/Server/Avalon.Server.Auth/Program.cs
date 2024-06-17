@@ -190,6 +190,7 @@ public class Program
         services.AddSingleton(AppConfiguration.NetworkDaemon!);
         services.AddSingleton(AppConfiguration.NetworkDaemon!.Tcp!);
         services.AddSingleton(AppConfiguration.Metrics);
+        services.AddSingleton(AppConfiguration.Cache!);
         services.AddSingleton(AppConfiguration.Database!);
 
         if (AppConfiguration.Metrics.Enabled)
@@ -214,6 +215,7 @@ public class Program
         services.AddSingleton<IAvalonInfrastructure, AvalonAuthInfrastructure>();
         services.AddSingleton<IAvalonAuth, AvalonAuth>();
         services.AddSingleton<CancellationTokenSource>(s => new CancellationTokenSource());
+        services.AddScoped<IReplicatedCache, ReplicatedCache>();
         
         ServiceProvider = services.BuildServiceProvider();
         
