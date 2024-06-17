@@ -268,7 +268,6 @@ public class AvalonWorldNetworkDaemon : IAvalonNetworkDaemon
     
     private void TcpServerOnClientConnected(object? sender, TcpClient client)
     {
-
         _ = Task.Run(async () =>
         {
             try

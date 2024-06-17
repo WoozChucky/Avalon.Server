@@ -30,7 +30,8 @@ public static class ServiceCollectionExtensions
             .AddScoped<IAuthDatabase, AuthDatabase>()
             .AddScoped<IAccountRepository, AccountRepository>(_ => new AccountRepository(GenerateConnectionString(configuration.Auth)))
             .AddScoped<IMFASetupRepository, MFASetupRepository>(_ => new MFASetupRepository(GenerateConnectionString(configuration.Auth)))
-            .AddScoped<IDeviceRepository, DeviceRepository>(_ => new DeviceRepository(GenerateConnectionString(configuration.Auth)));
+            .AddScoped<IDeviceRepository, DeviceRepository>(_ => new DeviceRepository(GenerateConnectionString(configuration.Auth)))
+            .AddScoped<IWorldRepository, WorldRepository>(_ => new WorldRepository(GenerateConnectionString(configuration.Auth)));
     }
     
     public static IServiceCollection AddCharactersDatabase(this IServiceCollection services, DatabaseConfiguration configuration)
