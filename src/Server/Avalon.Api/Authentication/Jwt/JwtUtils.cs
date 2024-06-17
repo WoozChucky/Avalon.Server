@@ -37,7 +37,7 @@ public class JwtUtils : IJwtUtils
                     new Claim(ClaimTypes.NameIdentifier, account.Id.ToString() ?? throw new InvalidOperationException()), 
                     new Claim(JwtRegisteredClaimNames.Name, account.Username),
                     new Claim(JwtRegisteredClaimNames.Email, account.Email),
-                    new Claim(ClaimTypes.GroupSid, account.Role),
+                    new Claim(ClaimTypes.GroupSid, account.AccessLevel.ToString()),
                 },
             JwtBearerDefaults.AuthenticationScheme
             ),
