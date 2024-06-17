@@ -41,6 +41,8 @@ public class InfrastructureFixture : IDisposable
 		WorldDatabase = Substitute.For<IWorldDatabase>();
 		
 		var mockedLoggerFactory = Substitute.For<LoggerFactory>();
+		
+		var mockedCache = Substitute.For<IReplicatedCache>();
 
 		DatabaseManager = new DatabaseManager(
 			AuthDatabase,
@@ -117,6 +119,7 @@ public class InfrastructureFixture : IDisposable
 			},
 			NetworkDaemon, 
 			Game, 
+			mockedCache,
 			MetricsManager
 		);
 	}
@@ -124,6 +127,7 @@ public class InfrastructureFixture : IDisposable
 	public CancellationTokenSource CancellationTokenSource { get; set; }
 	
 	public IAvalonInfrastructure Infrastructure { get; set; }
+	public IReplicatedCache Cache { get; set; }
 	public IAvalonNetworkDaemon NetworkDaemon { get; set; }
 	public IMetricsManager MetricsManager { get; set; }
 	
