@@ -1,0 +1,101 @@
+using Avalon.Infrastructure.Configuration;
+using Microsoft.Extensions.Logging;
+using StackExchange.Redis;
+
+namespace Avalon.Infrastructure;
+
+public interface IReplicatedCache
+{
+    Task ConnectAsync();
+    Task DisconnectAsync();
+    Task<bool> SetAsync(string key, string value, TimeSpan? expiry);
+    Task<string?> GetAsync(string key);
+    Task<bool> RemoveAsync(string key);
+    Task<bool> KeyExistsAsync(string key);
+    Task<bool> KeyExpireAsync(string key, TimeSpan expiry);
+    Task<bool> KeyExpireAsync(string key, DateTime expiry);
+    Task SubscribeAsync(string channel, Action<RedisChannel, RedisValue> handler);
+    Task UnsubscribeAsync(string channel, Action<RedisChannel, RedisValue> handler);
+    Task PublishAsync(string channel, string message);
+}
+
+public class ReplicatedCache : IReplicatedCache
+{
+    private readonly ILogger<ReplicatedCache> _logger;
+    private readonly CacheConfiguration _configuration;
+    
+    private ConnectionMultiplexer _redis = null!;
+    
+    
+    public ReplicatedCache(ILoggerFactory loggerFactory, CacheConfiguration configuration)
+    {
+        _logger = loggerFactory.CreateLogger<ReplicatedCache>();
+        _configuration = configuration;
+    }
+
+    public async Task ConnectAsync()
+    {
+        _redis = await ConnectionMultiplexer.ConnectAsync(new ConfigurationOptions
+        {
+            EndPoints = new EndPointCollection() { _configuration.Host },
+            AllowAdmin = true,
+            Password = _configuration.Password
+        });
+        
+        _logger.LogInformation("Connected to Redis at {Host}", _configuration.Host);
+    }
+
+    public async Task DisconnectAsync()
+    {
+        await _redis.CloseAsync();
+        _logger.LogInformation("Disconnected from Redis at {Host}", _configuration.Host);
+    }
+
+    public async Task<bool> SetAsync(string key, string value, TimeSpan? expiry)
+    {
+        return await _redis.GetDatabase().StringSetAsync(key, value, expiry);
+    }
+    
+    public async Task<string?> GetAsync(string key)
+    {
+        return await _redis.GetDatabase().StringGetAsync(key);
+    }
+
+    public async Task<bool> RemoveAsync(string key)
+    {
+        return await _redis.GetDatabase().KeyDeleteAsync(key);
+    }
+
+    public async Task<bool> KeyExistsAsync(string key)
+    {
+        return await _redis.GetDatabase().KeyExistsAsync(key);
+    }
+
+    public async Task<bool> KeyExpireAsync(string key, TimeSpan expiry)
+    {
+        return await _redis.GetDatabase().KeyExpireAsync(key, expiry);
+    }
+
+    public async Task<bool> KeyExpireAsync(string key, DateTime expiry)
+    {
+        return await _redis.GetDatabase().KeyExpireAsync(key, expiry);
+    }
+
+    public async Task SubscribeAsync(string channel, Action<RedisChannel, RedisValue> handler)
+    {
+        var sub = _redis.GetSubscriber();
+        await sub.SubscribeAsync(channel, handler);
+    }
+
+    public async Task UnsubscribeAsync(string channel, Action<RedisChannel, RedisValue> handler)
+    {
+        var sub = _redis.GetSubscriber();
+        await sub.UnsubscribeAsync(channel, handler);
+    }
+
+    public async Task PublishAsync(string channel, string message)
+    {
+        var sub = _redis.GetSubscriber();
+        await sub.PublishAsync(channel, message);
+    }
+}

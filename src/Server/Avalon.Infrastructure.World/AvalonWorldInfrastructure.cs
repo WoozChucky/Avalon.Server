@@ -15,6 +15,7 @@ public class AvalonWorldInfrastructure : IAvalonInfrastructure
     private readonly ILogger<AvalonWorldInfrastructure> _logger;
     private readonly IAvalonNetworkDaemon _networkDaemon;
     private readonly IAvalonGame _gameServer;
+    private readonly IReplicatedCache _cache;
     private readonly IMetricsManager _metricsManager;
 
     public AvalonWorldInfrastructure(
@@ -23,6 +24,7 @@ public class AvalonWorldInfrastructure : IAvalonInfrastructure
         InfrastructureConfiguration infrastructureConfiguration,
         IAvalonNetworkDaemon networkDaemon,
         IAvalonGame gameServer,
+        IReplicatedCache cache,
         IMetricsManager metricsManager)
     {
         _logger = loggerFactory.CreateLogger<AvalonWorldInfrastructure>();
@@ -30,11 +32,13 @@ public class AvalonWorldInfrastructure : IAvalonInfrastructure
         _infrastructureConfiguration = infrastructureConfiguration;
         _networkDaemon = networkDaemon;
         _gameServer = gameServer;
+        _cache = cache;
         _metricsManager = metricsManager;
     }
 
     public void Start()
     {
+        _cache.ConnectAsync().Wait(); // TODO: async
         _gameServer.Start();
         _networkDaemon.Start();
         

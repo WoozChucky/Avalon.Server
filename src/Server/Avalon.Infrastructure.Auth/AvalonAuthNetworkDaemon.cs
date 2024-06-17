@@ -74,6 +74,10 @@ public class AvalonAuthNetworkDaemon : IAvalonNetworkDaemon
         _packetRegistry.RegisterHandler<CLogoutPacket>(NetworkPacketType.CMSG_LOGOUT, _authServer.HandleLogoutPacket);
         _packetRegistry.RegisterHandler<CRegisterPacket>(NetworkPacketType.CMSG_REGISTER, _authServer.HandleRegisterPacket);
         
+        // World handlers
+        _packetRegistry.RegisterHandler<CWorldListPacket>(NetworkPacketType.CMSG_WORLD_LIST, _authServer.HandleWorldListPacket);
+        _packetRegistry.RegisterHandler<CWorldSelectPacket>(NetworkPacketType.CMSG_WORLD_SELECT, _authServer.HandleWorldSelectPacket);
+        
         _logger.LogInformation("Starting network daemon");
         
         Task.Run(ProcessPacketsAsync).ConfigureAwait(false);
@@ -241,6 +245,9 @@ public class AvalonAuthNetworkDaemon : IAvalonNetworkDaemon
             NetworkPacketType.CMSG_AUTH_PATCH => _packetDeserializer.Deserialize<CAuthPatchPacket>(packet.Header.Type, packet.Payload, decryptFunc),
             NetworkPacketType.CMSG_LOGOUT => _packetDeserializer.Deserialize<CLogoutPacket>(packet.Header.Type, packet.Payload, decryptFunc),
             NetworkPacketType.CMSG_REGISTER => _packetDeserializer.Deserialize<CRegisterPacket>(packet.Header.Type, packet.Payload, decryptFunc),
+            
+            NetworkPacketType.CMSG_WORLD_LIST => _packetDeserializer.Deserialize<CWorldListPacket>(packet.Header.Type, packet.Payload, decryptFunc),
+            NetworkPacketType.CMSG_WORLD_SELECT => _packetDeserializer.Deserialize<CWorldSelectPacket>(packet.Header.Type, packet.Payload, decryptFunc),
             
             NetworkPacketType.CMSG_PING => _packetDeserializer.Deserialize<CPingPacket>(packet.Header.Type, packet.Payload, decryptFunc),
             NetworkPacketType.CMSG_PONG => _packetDeserializer.Deserialize<CPongPacket>(packet.Header.Type, packet.Payload, decryptFunc),

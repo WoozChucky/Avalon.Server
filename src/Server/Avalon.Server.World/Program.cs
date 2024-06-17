@@ -246,6 +246,7 @@ namespace Avalon.Server.World
             services.AddSingleton(AppConfiguration.NetworkDaemon!.Tcp!);
             services.AddSingleton(AppConfiguration.Metrics);
             services.AddSingleton(AppConfiguration.Database!);
+            services.AddSingleton(AppConfiguration.Cache!);
             services.AddSingleton(AppConfiguration.Game!);
 
             if (AppConfiguration.Metrics.Enabled)
@@ -275,6 +276,7 @@ namespace Avalon.Server.World
             services.AddSingleton<ICryptoManager, CryptoManager>();
             services.AddSingleton<IAvalonInfrastructure, AvalonWorldInfrastructure>();
             services.AddSingleton<CancellationTokenSource>(s => new CancellationTokenSource());
+            services.AddScoped<IReplicatedCache, ReplicatedCache>();
             
             ServiceProvider = services.BuildServiceProvider();
             

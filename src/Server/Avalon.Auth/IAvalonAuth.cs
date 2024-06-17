@@ -19,4 +19,6 @@ public interface IAvalonAuth
     Task HandleAuthPacket(IRemoteSource source, CAuthPacket packet);
     Task HandleLogoutPacket(IRemoteSource source, CLogoutPacket packet);
     Task HandleRegisterPacket(IRemoteSource source, CRegisterPacket packet);
+    Task HandleWorldListPacket(IRemoteSource source, CWorldListPacket packet);
+    Task HandleWorldSelectPacket(IRemoteSource source, CWorldSelectPacket packet);
 }
