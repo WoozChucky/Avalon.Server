@@ -77,14 +77,11 @@ public class AvalonWorldNetworkDaemon : IAvalonNetworkDaemon
         _packetDeserializer.RegisterPacketDeserializers();
         
         // Handshake handlers
-        _packetRegistry.RegisterHandler<CRequestServerInfoPacket>(NetworkPacketType.CMSG_SERVER_INFO, _game.HandleServerInfoPacket);
-        _packetRegistry.RegisterHandler<CClientInfoPacket>(NetworkPacketType.CMSG_CLIENT_INFO, _game.HandleClientInfoPacket);
-        _packetRegistry.RegisterHandler<CHandshakePacket>(NetworkPacketType.CMSG_CLIENT_HANDSHAKE, _game.HandleHandshakePacket);
+        _packetRegistry.RegisterHandler<CExchangeWorldKeyPacket>(NetworkPacketType.CMSG_EXCHANGE_WORLD_KEY, _game.HandleExchangeWorldKeyPacket);
+        _packetRegistry.RegisterHandler<CWorldHandshakePacket>(NetworkPacketType.CMSG_WORLD_HANDSHAKE, _game.HandleWorldHandshakePacket);
         
         // Auth handlers
-        _packetRegistry.RegisterHandler<CAuthPacket>(NetworkPacketType.CMSG_AUTH, _game.HandleAuthPacket);
         _packetRegistry.RegisterHandler<CLogoutPacket>(NetworkPacketType.CMSG_LOGOUT, _game.HandleLogoutPacket);
-        _packetRegistry.RegisterHandler<CRegisterPacket>(NetworkPacketType.CMSG_REGISTER, _game.HandleRegisterPacket);
         
         // Audio handlers
         _packetRegistry.RegisterHandler<CAudioRecordPacket>(NetworkPacketType.CMSG_AUDIO_RECORD, _game.HandleAudioRecordPacket);
@@ -347,14 +344,10 @@ public class AvalonWorldNetworkDaemon : IAvalonNetworkDaemon
         
         return packet.Header.Type switch
         {
-            NetworkPacketType.CMSG_SERVER_INFO => _packetDeserializer.Deserialize<CRequestServerInfoPacket>(packet.Header.Type, packet.Payload, decryptFunc),
-            NetworkPacketType.CMSG_CLIENT_INFO => _packetDeserializer.Deserialize<CClientInfoPacket>(packet.Header.Type, packet.Payload, decryptFunc),
-            NetworkPacketType.CMSG_CLIENT_HANDSHAKE => _packetDeserializer.Deserialize<CHandshakePacket>(packet.Header.Type, packet.Payload, decryptFunc),
+            NetworkPacketType.CMSG_EXCHANGE_WORLD_KEY => _packetDeserializer.Deserialize<CExchangeWorldKeyPacket>(packet.Header.Type, packet.Payload),
+            NetworkPacketType.CMSG_WORLD_HANDSHAKE => _packetDeserializer.Deserialize<CWorldHandshakePacket>(packet.Header.Type, packet.Payload, decryptFunc),
             
-            NetworkPacketType.CMSG_AUTH => _packetDeserializer.Deserialize<CAuthPacket>(packet.Header.Type, packet.Payload, decryptFunc),
-            NetworkPacketType.CMSG_AUTH_PATCH => _packetDeserializer.Deserialize<CAuthPatchPacket>(packet.Header.Type, packet.Payload, decryptFunc),
             NetworkPacketType.CMSG_LOGOUT => _packetDeserializer.Deserialize<CLogoutPacket>(packet.Header.Type, packet.Payload, decryptFunc),
-            NetworkPacketType.CMSG_REGISTER => _packetDeserializer.Deserialize<CRegisterPacket>(packet.Header.Type, packet.Payload, decryptFunc),
             
             NetworkPacketType.CMSG_AUDIO_RECORD => _packetDeserializer.Deserialize<CAudioRecordPacket>(packet.Header.Type, packet.Payload, decryptFunc),
             

@@ -10,54 +10,90 @@ namespace Avalon.Game;
 
 public partial class AvalonGame
 {
-    public async Task HandleAuthPacket(IRemoteSource source, CAuthPacket packet)
+    public async Task HandleExchangeWorldKeyPacket(IRemoteSource source, CExchangeWorldKeyPacket packet)
     {
-        _logger.LogDebug("Handling auth packet from {EndPoint}", source.RemoteAddress);
+        var worldKeyBase64 = Convert.ToBase64String(packet.WorldKey!);
         
-        var session = _sessionManager.GetSession(source);
+        var id = await _cache.GetAsync($"world:{_gameConfiguration.WorldId}:keys:{worldKeyBase64}");
+        if (id == null)
+        {
+            _logger.LogWarning("Client {EndPoint} sent an invalid world key", source.RemoteAddress);
+            return;
+        }
+        
+        await _cache.RemoveAsync($"world:{_gameConfiguration.WorldId}:keys:{worldKeyBase64}");
+        
+        if (!int.TryParse(id, out var accountId))
+        {
+            _logger.LogWarning("Client {EndPoint} sent an invalid world key", source.RemoteAddress);
+            return;
+        }
 
+        var account = await _databaseManager.Auth.Account.FindByIdAsync(accountId);
+        if (account == null)
+        {
+            _logger.LogWarning("Client {EndPoint} sent an invalid world key", source.RemoteAddress);
+            return;
+        }
+        
+        if (packet.PublicKey == null || packet.PublicKey.Length == 0)
+        {
+            _logger.LogWarning("Client {EndPoint} sent an invalid public key", source.RemoteAddress);
+            return;
+        }
+        
+        if (packet.PublicKey.Length != _cryptography.GetValidKeySize())
+        {
+            _logger.LogWarning("Client {EndPoint} sent an invalid public key size", source.RemoteAddress);
+            return;
+        }
+        
+        _sessionManager.AddSession(source, _cryptography.GetKeyPair(), packet.PublicKey);
+
+        var session = _sessionManager.GetSession(source);
+        
         if (session == null)
         {
             _logger.LogWarning("Session not found for client {EndPoint}", source.RemoteAddress);
             return;
         }
         
-        if (string.IsNullOrWhiteSpace(packet.Username) || string.IsNullOrWhiteSpace(packet.Password))
-        {
-            await session.SendAsync(SAuthResultPacket.Create(null, null, AuthResult.INVALID_CREDENTIALS, session.Encrypt));
-            return;
-        }
-
-        var account =
-            await _databaseManager.Auth.Account.FindByUsernameAsync(packet.Username.ToUpperInvariant().Trim());
-
-        if (account == null)
-        {
-            await session.SendAsync(SAuthResultPacket.Create(null, null, AuthResult.INVALID_CREDENTIALS, session.Encrypt));
-            return;
-        }
+        session.AccountId = accountId;
         
-        var verifier = Encoding.UTF8.GetString(account.Verifier);
-
-        if (!BCrypt.Net.BCrypt.Verify(packet.Password.Trim(), verifier))
-        {
-            //TODO: Increment failed login attempts
-            
-            await session.SendAsync(SAuthResultPacket.Create(null, null, AuthResult.INVALID_CREDENTIALS, session.Encrypt));
-            return;
-        }
+        var result = SExchangeWorldKeyPacket.Create(
+            _cryptography.GetPublicKey()
+        );
         
-        // TODO: Check if account is locked
-        
-        if (!_sessionManager.PatchSession(source, account.Id!.Value))
-        {
-            //TODO: Fix this EXCEPTION properly
-            throw new Exception("Failed to patch session");
-        }
-        
-        await session.SendAsync(SAuthResultPacket.Create(account.Id, null, AuthResult.SUCCESS, session.Encrypt));
+        await source.SendAsync(result);
     }
-    
+
+    public async Task HandleWorldHandshakePacket(IRemoteSource source, CWorldHandshakePacket packet)
+    {
+        var session = _sessionManager.GetSession(source);
+        if (session == null)
+        {
+            _logger.LogWarning("Session not found for client {EndPoint}", source.RemoteAddress);
+            return;
+        }
+
+        session.VerifyHandshakeData(session.GenerateHandshakeData());
+        
+        //TODO: Check if client version is allowed within this world build
+        
+        var result = SWorldHandshakePacket.Create(
+            session.AccountId, // TODO: Get version from configuration
+            true,
+            session.Encrypt
+        );
+
+        if (!_sessionManager.PatchSession(source, session.AccountId))
+        {
+            _logger.LogWarning("Failed to patch session for client {EndPoint}", source.RemoteAddress);
+            return;
+        }
+        
+        await session.SendAsync(result);
+    }
     
     public async Task HandleLogoutPacket(IRemoteSource source, CLogoutPacket packet)
     {
@@ -133,82 +169,6 @@ public partial class AvalonGame
         finally
         {
             sessionLock.Release();
-        }
-    }
-
-    public async Task HandleRegisterPacket(IRemoteSource source, CRegisterPacket packet)
-    {
-        var session = _sessionManager.GetSession(source);
-        
-        if (session == null)
-        {
-            _logger.LogWarning("Session not found for client {EndPoint}", source.RemoteAddress);
-            return;
-        }
-        
-        if (string.IsNullOrWhiteSpace(packet.Username))
-        {
-            await session.SendAsync(SRegisterResultPacket.Create(RegisterResult.EmptyUsername, session.Encrypt));
-            return;
-        }
-        
-        if (string.IsNullOrWhiteSpace(packet.Password))
-        {
-            await session.SendAsync(SRegisterResultPacket.Create(RegisterResult.EmptyPassword, session.Encrypt));
-            return;
-        }
-        
-        switch (packet.Password.Length)
-        {
-            case < 3:
-                await session.SendAsync(SRegisterResultPacket.Create(RegisterResult.PasswordTooShort, session.Encrypt));
-                return;
-            case > 16:
-                await session.SendAsync(SRegisterResultPacket.Create(RegisterResult.PasswordTooLong, session.Encrypt));
-                return;
-        }
-        
-        var salt = BCrypt.Net.BCrypt.GenerateSalt();
-        var hash = BCrypt.Net.BCrypt.HashPassword(packet.Password.Trim(), salt);
-
-        var saltBytes = Encoding.UTF8.GetBytes(salt);
-        var hashBytes = Encoding.UTF8.GetBytes(hash);
-
-        var account = new Account
-        {
-            Username = packet.Username.Trim(),
-            Email = "Email",
-            FailedLogins = 0,
-            JoinDate = DateTime.UtcNow,
-            LastIp = session.Connection!.RemoteAddress.Split(':')[0],
-            Salt = saltBytes,
-            Verifier = hashBytes,
-            Online = false,
-            Locale = "en",
-            Locked = false,
-            AccessLevel = AccountAccessLevel.Player,
-            OS = "Windows",
-            LastLogin = DateTime.UnixEpoch,
-            MuteBy = "",
-            MuteReason = "",
-            MuteTime = null,
-            TotalTime = 0,
-            LastAttemptIp = ""
-        };
-
-        try
-        {
-            await _databaseManager.Auth.Account.SaveAsync(account);
-        
-            await session.SendAsync(SRegisterResultPacket.Create(RegisterResult.Ok, session.Encrypt));
-        
-            _logger.LogInformation("Account {Username} registered", packet.Username);
-        }
-        catch (Exception e)
-        {
-            await session.SendAsync(SRegisterResultPacket.Create(RegisterResult.UnknownError, session.Encrypt));
-            _logger.LogError(e, "Failed to save account");
-            return;
         }
     }
 }
