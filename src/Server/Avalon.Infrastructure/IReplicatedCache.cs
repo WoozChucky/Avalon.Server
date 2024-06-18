@@ -6,6 +6,7 @@ namespace Avalon.Infrastructure;
 
 public interface IReplicatedCache
 {
+    IDatabase Database { get; }
     Task ConnectAsync();
     Task DisconnectAsync();
     Task<bool> SetAsync(string key, string value, TimeSpan? expiry);
@@ -32,6 +33,8 @@ public class ReplicatedCache : IReplicatedCache
         _logger = loggerFactory.CreateLogger<ReplicatedCache>();
         _configuration = configuration;
     }
+
+    public IDatabase Database => _redis.GetDatabase();
 
     public async Task ConnectAsync()
     {

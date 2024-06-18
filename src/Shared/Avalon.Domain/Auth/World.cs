@@ -34,8 +34,8 @@ public class World
     [Column("CreatedAt")] 
     public DateTime CreatedAt { get; set; }
     
-    [Column("ExpiresAt")] 
-    public DateTime ExpiresAt { get; set; }
+    [Column("UpdatedAt")] 
+    public DateTime UpdatedAt { get; set; }
 }
 
 public enum WorldType : short

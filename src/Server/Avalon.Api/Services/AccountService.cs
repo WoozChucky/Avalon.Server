@@ -1,12 +1,12 @@
 using System.Net;
 using System.Security.Authentication;
 using System.Text;
-using Avalon.Api.Authentication;
 using Avalon.Api.Authentication.Jwt;
 using Avalon.Api.Contract;
 using Avalon.Api.Exceptions;
 using Avalon.Database.Auth;
 using Avalon.Domain.Auth;
+using Avalon.Infrastructure.Services;
 
 namespace Avalon.Api.Services;
 
@@ -111,6 +111,8 @@ public class AccountService : IAccountService
             LastIp = ipAddress.ToString(),
             LastLogin = DateTime.UtcNow,
             JoinDate = DateTime.UtcNow,
+            Locale = "en",
+            OS = "UNK",
         };
         
         account = await _accountRepository.SaveAsync(account);

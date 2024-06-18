@@ -10,16 +10,14 @@ public class SLogoutPacket : Packet
     public static NetworkProtocol Protocol = NetworkProtocol.Tcp;
     public static NetworkPacketFlags Flags = NetworkPacketFlags.Encrypted;
     
-    [ProtoMember(1)] public int AccountId { get; set; }
-    [ProtoMember(2)] public LogoutResult Result { get; set; }
+    [ProtoMember(1)] public LogoutResult Result { get; set; }
 
-    public static NetworkPacket Create(int accountId, LogoutResult result, Func<byte[], byte[]> encryptFunc)
+    public static NetworkPacket Create(LogoutResult result, Func<byte[], byte[]> encryptFunc)
     {
         using var memoryStream = new MemoryStream();
         
         var authPacket = new SLogoutPacket()
         {
-            AccountId = accountId,
             Result = result
         };
         
@@ -48,4 +46,5 @@ public enum LogoutResult : short
     NotInGame,
     NotSameAccount,
     InternalError,
+    ConnectedElsewhere
 }

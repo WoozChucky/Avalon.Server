@@ -3,6 +3,7 @@ using System.Net.Sockets;
 using System.Security.Authentication.ExtendedProtection;
 using Avalon.Common.Telemetry;
 using Avalon.Network.Packets.Abstractions;
+using Microsoft.Extensions.Logging;
 using ProtoBuf;
 
 namespace Avalon.Network;
@@ -19,8 +20,13 @@ public class TcpClient : IRemoteSource
     
     public bool Connected => Stream.CanWrite;
     
-    public TcpClient(Socket socket, Stream stream)
+    private readonly ILogger<TcpClient> _logger;
+    
+    private const string Direction = "OUT";
+    
+    public TcpClient(ILoggerFactory loggerFactory, Socket socket, Stream stream)
     {
+        _logger = loggerFactory.CreateLogger<TcpClient>();
         Socket = socket ?? throw new ArgumentNullException(nameof(socket));
         Stream = stream ?? throw new ArgumentNullException(nameof(stream));
         Authenticated = false;
@@ -38,12 +44,15 @@ public class TcpClient : IRemoteSource
             nameof(NetworkPacketType), packet.Header.Type
         ));
         
+        _logger.LogDebug("[{Direction}] {PacketType}", Direction, packet.Header.Type);
+        
         Serializer.SerializeWithLengthPrefix(Stream, packet, PrefixStyle.Base128);
         return Task.CompletedTask;
     }
 
     public void Dispose()
     {
+        Socket.Shutdown(SocketShutdown.Both);
         Socket.Dispose();
         Stream.Dispose();
     }
