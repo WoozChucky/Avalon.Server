@@ -23,6 +23,8 @@ public enum NetworkPacketType : short
     // Worlds
     CMSG_WORLD_LIST = 0x201A,
     CMSG_WORLD_SELECT = 0x201B,
+    CMSG_EXCHANGE_WORLD_KEY = 0x201C,
+    CMSG_WORLD_HANDSHAKE = 0x201D,
     
     // Audio
     CMSG_AUDIO_RECORD = 0x2050,
@@ -72,6 +74,8 @@ public enum NetworkPacketType : short
     // Worlds
     SMSG_WORLD_LIST = 0x301A,
     SMSG_WORLD_SELECT = 0x301B,
+    SMSG_EXCHANGE_WORLD_KEY = 0x301C,
+    SMSG_WORLD_HANDSHAKE = 0x301D,
     
     // Audio
     SMSG_AUDIO_RECORD = 0x3050,

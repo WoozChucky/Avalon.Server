@@ -415,7 +415,7 @@ public class AvalonAuth : IAvalonAuth
         
         var worldKeyBase64 = Convert.ToBase64String(worldKey);
         
-        await _cache.SetAsync($"world:{world.Id}:account:{account.Id}:worldKey", worldKeyBase64, TimeSpan.FromMinutes(5));
+        await _cache.SetAsync($"world:{world.Id}:keys:{worldKeyBase64}", account.Id.ToString(), TimeSpan.FromMinutes(5));
         await _cache.PublishAsync($"world:{world.Id}:select", $"account:{account.Id}:worldKey:{worldKeyBase64}");
 
         await session.SendAsync(SWorldSelectPacket.Create(worldKey, session.Encrypt));

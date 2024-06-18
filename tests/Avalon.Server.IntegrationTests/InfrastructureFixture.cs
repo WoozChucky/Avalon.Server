@@ -94,7 +94,8 @@ public class InfrastructureFixture : IDisposable
 			PoolManager,
 			QuestManager,
 			CryptoManager,
-			GameConfiguration
+			GameConfiguration,
+			mockedCache
 		);
 
 		NetworkDaemon = new AvalonWorldNetworkDaemon(
