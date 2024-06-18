@@ -13,7 +13,7 @@ public class AvalonSslTcpServer : AvalonTcpServer, IAvalonTcpServer
     
     public new event TcpClientConnectedHandler? ClientConnected;
     
-    public AvalonSslTcpServer(ILogger<AvalonSslTcpServer> logger, AvalonTcpServerConfiguration configuration, CancellationTokenSource cts) : base(logger, configuration, cts)
+    public AvalonSslTcpServer(ILoggerFactory loggerFactory, AvalonTcpServerConfiguration configuration, CancellationTokenSource cts) : base(loggerFactory, configuration, cts)
     {
         var serverCertBytes = File.ReadAllBytesAsync(
             Configuration.CertificatePath ?? throw new ArgumentNullException(nameof(configuration.CertificatePath))
@@ -28,7 +28,7 @@ public class AvalonSslTcpServer : AvalonTcpServer, IAvalonTcpServer
         {
             await sslStream.AuthenticateAsServerAsync(_certificate, false, SslProtocols.Tls12, false).ConfigureAwait(true);
             
-            ClientConnected?.Invoke(this, new TcpClient(client, sslStream));
+            ClientConnected?.Invoke(this, new TcpClient(LoggerFactory, client, sslStream));
         }
         catch (AuthenticationException e)
         {

@@ -55,39 +55,6 @@ namespace Avalon.Server.World
             Console.CancelKeyPress += ConsoleOnCancelKeyPress;
             //AssemblyLoadContext.Default.Unloading += SigTermEventHandler;
 
-            if (false)
-            {
-                // Get all types that inherit from Packet
-                var packetTypes = Assembly.GetAssembly(typeof(Packet))?.GetTypes()
-                    .Where(t => t.IsClass && !t.IsAbstract && t.IsSubclassOf(typeof(Packet)))
-                    .ToList() ?? new List<Type>();
-            
-                // Serializer.GetProto<T>() generates a proto definition for a given type
-                // So we need to use this method via reflection to generate proto definitions for all packet types
-                // Get the method named "GetProto" that returns a string
-                MethodInfo getProtoMethod = typeof(Serializer).GetMethods()
-                    .FirstOrDefault(m => m.Name == "GetProto" && m.ReturnType == typeof(string) && m.IsGenericMethod);
-            
-                // Generate proto definitions for all packet types
-                // Save each proto definition to a file
-                foreach (var packetType in packetTypes)
-                {
-                    // Construct the Serializer.GetProto<T>() method using reflection
-                    MethodInfo genericGetProtoMethod = getProtoMethod.MakeGenericMethod(packetType);
-                
-                    // Invoke the generic method to get the proto definition
-                    var proto = (string)genericGetProtoMethod.Invoke(null, null);
-
-                    var filePath = $"./proto/{packetType.Name}.proto";
-                    File.WriteAllText(filePath, proto);
-                    Console.WriteLine($"Proto definition for {packetType.Name} saved to {filePath}");
-                }
-
-                File.WriteAllText($"./proto/network-packet.proto", Serializer.GetProto<NetworkPacket>());
-            
-                //var proto = Serializer.GetProto<CRequestServerInfoPacket>();
-            }
-
             ConfigureConfiguration(args);
             ConfigureDependencyInjection();
             

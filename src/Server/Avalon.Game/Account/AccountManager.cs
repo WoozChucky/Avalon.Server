@@ -24,7 +24,7 @@ public partial class AvalonGame
         
         if (string.IsNullOrWhiteSpace(packet.Username) || string.IsNullOrWhiteSpace(packet.Password))
         {
-            await session.SendAsync(SAuthResultPacket.Create(null, AuthResult.INVALID_CREDENTIALS, session.Encrypt));
+            await session.SendAsync(SAuthResultPacket.Create(null, null, AuthResult.INVALID_CREDENTIALS, session.Encrypt));
             return;
         }
 
@@ -33,7 +33,7 @@ public partial class AvalonGame
 
         if (account == null)
         {
-            await session.SendAsync(SAuthResultPacket.Create(null, AuthResult.INVALID_CREDENTIALS, session.Encrypt));
+            await session.SendAsync(SAuthResultPacket.Create(null, null, AuthResult.INVALID_CREDENTIALS, session.Encrypt));
             return;
         }
         
@@ -43,7 +43,7 @@ public partial class AvalonGame
         {
             //TODO: Increment failed login attempts
             
-            await session.SendAsync(SAuthResultPacket.Create(null, AuthResult.INVALID_CREDENTIALS, session.Encrypt));
+            await session.SendAsync(SAuthResultPacket.Create(null, null, AuthResult.INVALID_CREDENTIALS, session.Encrypt));
             return;
         }
         
@@ -55,7 +55,7 @@ public partial class AvalonGame
             throw new Exception("Failed to patch session");
         }
         
-        await session.SendAsync(SAuthResultPacket.Create(account.Id, AuthResult.SUCCESS, session.Encrypt));
+        await session.SendAsync(SAuthResultPacket.Create(account.Id, null, AuthResult.SUCCESS, session.Encrypt));
     }
     
     
@@ -78,14 +78,14 @@ public partial class AvalonGame
             if (!session.InGame)
             {
                 _logger.LogWarning("Session {AccountId} is not in game", packet.AccountId);
-                await session.SendAsync(SLogoutPacket.Create(session.AccountId, LogoutResult.NotInGame, session.Encrypt));
+                await session.SendAsync(SLogoutPacket.Create(LogoutResult.NotInGame, session.Encrypt));
                 return;
             }
 
             if (session.AccountId != packet.AccountId)
             {
                 _logger.LogWarning("Session {AccountId} is not the same as the packet {PacketAccountId}", session.AccountId, packet.AccountId);
-                await session.SendAsync(SLogoutPacket.Create(session.AccountId, LogoutResult.NotSameAccount, session.Encrypt));
+                await session.SendAsync(SLogoutPacket.Create(LogoutResult.NotSameAccount, session.Encrypt));
             }
 
             if (session.InMap)
@@ -110,7 +110,7 @@ public partial class AvalonGame
             catch (Exception e)
             {
                 _logger.LogWarning(e, "Failed to save character {CharacterId} progress to the database", character.Name);
-                await session.SendAsync(SLogoutPacket.Create(session.AccountId, LogoutResult.InternalError, session.Encrypt));
+                await session.SendAsync(SLogoutPacket.Create(LogoutResult.InternalError, session.Encrypt));
             }
     
             _logger.LogInformation("Character {CharacterId} logged out at {Position}", character.Name, character.Movement);
@@ -128,7 +128,7 @@ public partial class AvalonGame
             
             session.Character = null;
     
-            await session.SendAsync(SLogoutPacket.Create(session.AccountId, LogoutResult.Success, session.Encrypt));
+            await session.SendAsync(SLogoutPacket.Create(LogoutResult.Success, session.Encrypt));
         }
         finally
         {

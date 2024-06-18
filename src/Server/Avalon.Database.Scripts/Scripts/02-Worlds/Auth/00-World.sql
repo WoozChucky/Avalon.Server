@@ -12,6 +12,6 @@ CREATE TABLE IF NOT EXISTS `World` (
     `Version` VARCHAR(32) NOT NULL COMMENT 'Expected Client Version',
     `Status` TINYINT(3) UNSIGNED NOT NULL COMMENT 'World Status', -- 0 = Offline, 1 = Online, 2 = Maintenance
     `CreatedAt` datetime NOT NULL DEFAULT current_timestamp(),
-    `ExpiresAt` datetime NOT NULL,
+    `UpdatedAt` datetime NOT NULL,
     PRIMARY KEY (`Id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Game Worlds';

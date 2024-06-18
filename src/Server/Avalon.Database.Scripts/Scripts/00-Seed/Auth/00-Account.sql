@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS `Account` (
     `MuteTime` datetime NOT NULL DEFAULT '0000-00-00 00:00:00',
     `MuteReason` varchar(255) NOT NULL DEFAULT '',
     `MuteBy` varchar(32) NOT NULL DEFAULT '',
-    `Locale` tinyint(3) unsigned NOT NULL DEFAULT 0,
+    `Locale` varchar(16) NOT NULL DEFAULT 'en-US',
     `OS` varchar(3) NOT NULL DEFAULT '',
     `TotalTime` int(10) unsigned NOT NULL DEFAULT 0,
     `Role` varchar(32) NOT NULL DEFAULT 'Player',

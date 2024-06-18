@@ -1,13 +1,13 @@
 using System.Net;
 using System.Security.Authentication;
 using System.Text;
-using Avalon.Api.Authentication;
 using Avalon.Api.Authentication.Jwt;
 using Avalon.Api.Config;
 using Avalon.Api.Contract;
 using Avalon.Api.Exceptions;
 using Avalon.Database.Auth;
 using Avalon.Domain.Auth;
+using Avalon.Infrastructure.Services;
 using OtpNet;
 
 namespace Avalon.Api.Services;
@@ -88,10 +88,16 @@ public class MFAService : IMFAService
     {
         var code = request.Code;
 
-        var account = await _mfaHashService.GetAccountAsync(request.Hash);
-        if (account == null)
+        var accountId = await _mfaHashService.GetAccountIdAsync(request.Hash);
+        if (accountId == null)
         {
             throw new AuthenticationException("Login expired");
+        }
+        
+        var account = await _accountRepository.FindByIdAsync(accountId.Value);
+        if (account == null)
+        {
+            throw new AuthenticationException("Account not found");
         }
         
         var mfaSetup = await _mfaSetupRepository.FindByAccountIdAsync(account.Id!.Value);

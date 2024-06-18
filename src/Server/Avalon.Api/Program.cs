@@ -2,6 +2,7 @@ using Avalon.Api;
 using Avalon.Api.Config;
 using Avalon.Api.Middlewares;
 using Avalon.Api.Services;
+using Avalon.Infrastructure;
 using Microsoft.AspNetCore.HttpOverrides;
 using Serilog;
 using Serilog.Events;
@@ -40,6 +41,7 @@ var services = builder.Services;
     services.AddSingleton(applicationConfig.Authentication!);
     services.AddSingleton(applicationConfig.Database!);
     services.AddSingleton(applicationConfig.Notification!);
+    services.AddSingleton(applicationConfig.Cache!);
     
     services.Configure<CookiePolicyOptions>(options =>
     {
@@ -108,8 +110,11 @@ var cts = new CancellationTokenSource();
 foreach (var workerService in workerServices)
 {
     logger.LogInformation("Starting worker {Worker}", workerService.GetType().Name);
-    workerService.StartWorker(cts.Token);
+    await workerService.StartWorker(cts.Token);
 }
+
+var cache = app.Services.GetRequiredService<IReplicatedCache>();
+await cache.ConnectAsync();
 
 AppDomain.CurrentDomain.UnhandledException += (_, eventArgs) =>
 {
