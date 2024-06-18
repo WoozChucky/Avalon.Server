@@ -40,7 +40,6 @@ public interface IAvalonGame
     Task HandleChatMessagePacket(IRemoteSource source, CChatMessagePacket packet);
     Task HandleOpenChatPacket(IRemoteSource source, COpenChatPacket packet);
     Task HandleCloseChatPacket(IRemoteSource source, CCloseChatPacket packet);
-    Task HandleAuthPacket(IRemoteSource source, CAuthPacket packet);
     Task HandleGroupInviteResultPacket(IRemoteSource source, CGroupInviteResultPacket packet);
     Task HandleCharacterSelectedPacket(IRemoteSource source, CCharacterSelectedPacket packet);
     Task HandleCharacterListPacket(IRemoteSource source, CCharacterListPacket packet);
@@ -52,11 +51,9 @@ public interface IAvalonGame
     Task HandleInteractPacket(IRemoteSource source, CInteractPacket packet);
     Task HandleQuestListPacket(IRemoteSource source, CQuestStatusPacket packet);
     Task HandleQuestStatusPacket(IRemoteSource source, CQuestStatusPacket packet);
-    Task HandleServerInfoPacket(IRemoteSource source, CRequestServerInfoPacket packet);
-    Task HandleClientInfoPacket(IRemoteSource source, CClientInfoPacket packet);
-    Task HandleHandshakePacket(IRemoteSource source, CHandshakePacket packet);
-    Task HandleRegisterPacket(IRemoteSource source, CRegisterPacket packet);
     Task HandleAudioRecordPacket(IRemoteSource source, CAudioRecordPacket packet);
+    Task HandleExchangeWorldKeyPacket(IRemoteSource source, CExchangeWorldKeyPacket packet);
+    Task HandleWorldHandshakePacket(IRemoteSource source, CWorldHandshakePacket packet);
 }
 
 public partial class AvalonGame : IAvalonGame
@@ -72,6 +69,7 @@ public partial class AvalonGame : IAvalonGame
     private readonly IQuestManager _questManager;
     private readonly ICryptoManager _cryptography;
     private readonly GameConfiguration _gameConfiguration;
+    private readonly IReplicatedCache _cache;
     private volatile bool _isRunning;
     private long _loopCounter;
     private DateTime _lastMetricsUpdate = DateTime.UtcNow;
@@ -86,7 +84,8 @@ public partial class AvalonGame : IAvalonGame
         IPoolManager poolManager,
         IQuestManager questManager,
         ICryptoManager cryptography,
-        GameConfiguration gameConfiguration)
+        GameConfiguration gameConfiguration,
+        IReplicatedCache cache)
     {
         _logger = loggerFactory.CreateLogger<AvalonGame>() ?? throw new ArgumentNullException(nameof(loggerFactory));
         _cts = new CancellationTokenSource();
@@ -99,6 +98,7 @@ public partial class AvalonGame : IAvalonGame
         _questManager = questManager;
         _cryptography = cryptography;
         _gameConfiguration = gameConfiguration;
+        _cache = cache;
         _loopCounter = 0;
         
         _sessionManager.SessionLost += OnSessionLost;
@@ -318,25 +318,6 @@ public partial class AvalonGame : IAvalonGame
         session.Character.PositionY = y;
 
         await _databaseManager.Characters.Character.UpdateAsync(session.Character);
-    }
-
-    public async Task HandleServerInfoPacket(IRemoteSource source, CRequestServerInfoPacket packet)
-    {
-        _logger.LogDebug("Handling server info packet from {EndPoint}", source.RemoteAddress);
-        
-        if (packet.ClientVersion != "TODO")
-        {
-            _logger.LogWarning("Client {EndPoint} is using an invalid version", source.RemoteAddress);
-            source.Dispose();
-            throw new NotImplementedException("Invalid client version not implemented yet");
-        }
-        
-        var result = SServerInfoPacket.Create(
-            1_000_000, // TODO: Hardcoded server version
-            _cryptography.GetPublicKey()
-        );
-
-        await source.SendAsync(result);
     }
 
     public async Task HandleClientInfoPacket(IRemoteSource source, CClientInfoPacket packet)
