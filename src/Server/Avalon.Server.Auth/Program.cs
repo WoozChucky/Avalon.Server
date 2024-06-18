@@ -8,6 +8,7 @@ using Avalon.Database;
 using Avalon.Database.Extensions;
 using Avalon.Infrastructure;
 using Avalon.Infrastructure.Auth;
+using Avalon.Infrastructure.Services;
 using Avalon.Metrics;
 using Avalon.Network;
 using Avalon.Network.Packets.Internal;
@@ -215,6 +216,7 @@ public class Program
         services.AddSingleton<IAvalonInfrastructure, AvalonAuthInfrastructure>();
         services.AddSingleton<IAvalonAuth, AvalonAuth>();
         services.AddSingleton<CancellationTokenSource>(s => new CancellationTokenSource());
+        services.AddSingleton<IMFAHashService, MFAHashService>();
         services.AddScoped<IReplicatedCache, ReplicatedCache>();
         
         ServiceProvider = services.BuildServiceProvider();

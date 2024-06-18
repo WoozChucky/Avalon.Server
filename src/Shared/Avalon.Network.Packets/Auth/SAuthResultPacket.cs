@@ -12,8 +12,9 @@ public class SAuthResultPacket : Packet
     
     [ProtoMember(1)] public int AccountId { get; set; }
     [ProtoMember(2)] public AuthResult Result { get; set; }
+    [ProtoMember(3)] public string? MfaHash { get; set; }
     
-    public static NetworkPacket Create(int? accountId, AuthResult result, Func<byte[], byte[]> encryptFunc)
+    public static NetworkPacket Create(int? accountId, string? hash, AuthResult result, Func<byte[], byte[]> encryptFunc)
     {
         using var memoryStream = new MemoryStream();
         
@@ -21,6 +22,7 @@ public class SAuthResultPacket : Packet
         {
             AccountId = accountId ?? 0,
             Result = result,
+            MfaHash = hash
         };
         
         Serializer.Serialize(memoryStream, packet);
@@ -45,6 +47,8 @@ public enum AuthResult : ushort
 {
     INVALID_CREDENTIALS,
     WRONG_KEY,
+    MFA_REQUIRED,
     LOCKED,
-    SUCCESS
+    SUCCESS,
+    ALREADY_CONNECTED
 }

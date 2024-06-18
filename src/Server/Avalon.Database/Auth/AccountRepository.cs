@@ -73,7 +73,10 @@ namespace Avalon.Database.Auth
                 }
             }
             
-            var rows = await connection.ExecuteAsync("INSERT INTO auth.Account (Username, Email, Salt, Verifier, LastIp, LastLogin, JoinDate) VALUES (@Username, @Email, @Salt, @Verifier, @IpAddress, @LastLogin, @JoinDate)", new
+            var rows = await connection.ExecuteAsync(
+                "INSERT INTO auth.Account (Username, Email, Salt, Verifier, LastIp, LastLogin, JoinDate, Locale, OS, AccessLevel, FailedLogins, Locked)" +
+                   " VALUES " +
+                   "(@Username, @Email, @Salt, @Verifier, @IpAddress, @LastLogin, @JoinDate, @Locale, @OS, @AccessLevel, @FailedLogins, @Locked)", new
             {
                 Username = entity.Username,
                 Email = entity.Email,
@@ -81,7 +84,12 @@ namespace Avalon.Database.Auth
                 Verifier = entity.Verifier,
                 IpAddress = entity.LastIp,
                 LastLogin = entity.LastLogin,
-                JoinDate = entity.JoinDate
+                JoinDate = entity.JoinDate,
+                Locale = entity.Locale,
+                OS = entity.OS,
+                AccessLevel = entity.AccessLevel,
+                FailedLogins = entity.FailedLogins,
+                Locked = entity.Locked
             });
             
             if (rows == 0)
@@ -96,15 +104,24 @@ namespace Avalon.Database.Auth
         {
             await using var connection = new MySqlConnection(_connectionString);
             
-            var rows = await connection.ExecuteAsync("UPDATE auth.Account SET Username = @Username, Email = @Email, Salt = @Salt, Verifier = @Verifier, LastIp = @IpAddress, LastLogin = @LastLogin WHERE Id = @Id", new
+            var rows = await connection.ExecuteAsync(
+                "UPDATE auth.Account " +
+                "SET Username = @Username, Email = @Email, Salt = @Salt, Verifier = @Verifier, SessionKey = @SessionKey, LastIp = @IpAddress, LastLogin = @LastLogin, AccessLevel = @AccessLevel, FailedLogins = @FailedLogins, Locked = @Locked, Online = @Online" +
+                " WHERE Id = @Id"
+                , new
             {
                 Id = entity.Id,
                 Username = entity.Username,
                 Email = entity.Email,
-                Salt = entity.Salt, 
+                Salt = entity.Salt,
+                SessionKey = entity.SessionKey,
                 Verifier = entity.Verifier,
                 IpAddress = entity.LastIp,
-                LastLogin = entity.LastLogin
+                LastLogin = entity.LastLogin,
+                AccessLevel = entity.AccessLevel,
+                FailedLogins = entity.FailedLogins,
+                Locked = entity.Locked,
+                Online = entity.Online
             });
             
             if (rows == 0)
@@ -121,7 +138,7 @@ namespace Avalon.Database.Auth
             
             var rows = await connection.ExecuteAsync("DELETE FROM auth.Account WHERE Id = @Id", new { Id = entity.Id });
 
-            return rows >= 1;
+            return rows > 0;
         }
 
         public async Task<Account?> FindByUsernameAsync(string username)

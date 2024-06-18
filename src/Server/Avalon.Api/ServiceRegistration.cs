@@ -9,7 +9,8 @@ using Avalon.Api.Services;
 using Avalon.Common.Telemetry;
 using Avalon.Database;
 using Avalon.Database.Auth;
-using Avalon.Database.Repositories;
+using Avalon.Infrastructure;
+using Avalon.Infrastructure.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.IdentityModel.Tokens;
@@ -29,11 +30,10 @@ public static class ServiceRegistration
     {
         DatabaseManager.RegisterMappings();
         
-        services.AddSingleton<IWorkerService, MFAHashService>();
-        
         services.AddScoped<IAccountService, AccountService>();
         services.AddScoped<IMFAService, MFAService>();
-        services.AddSingleton<IMFAHashService, MFAHashService>();
+        services.AddSingleton<IReplicatedCache, ReplicatedCache>();
+        services.AddScoped<IMFAHashService, MFAHashService>();
         services.AddScoped<INotificationService, NotificationService>();
         
         var connectionString = $"Server={config.Database!.Auth!.Host}; " +

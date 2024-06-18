@@ -15,12 +15,14 @@ public class AvalonTcpServer : IAvalonTcpServer
     protected readonly CancellationTokenSource Cts;
     protected readonly Socket Socket;
     protected volatile bool Running;
+    protected readonly ILoggerFactory LoggerFactory;
     
     public event TcpClientConnectedHandler? ClientConnected;
 
-    public AvalonTcpServer(ILogger<AvalonTcpServer> logger, AvalonTcpServerConfiguration configuration, CancellationTokenSource cts)
+    public AvalonTcpServer(ILoggerFactory loggerFactory, AvalonTcpServerConfiguration configuration, CancellationTokenSource cts)
     {
-        Logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        LoggerFactory = loggerFactory ?? throw new ArgumentNullException(nameof(loggerFactory));
+        Logger = LoggerFactory.CreateLogger<AvalonTcpServer>();
         Configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
         Cts = cts ?? throw new ArgumentNullException(nameof(cts));
         
@@ -103,7 +105,7 @@ public class AvalonTcpServer : IAvalonTcpServer
         {
             var networkStream = new NetworkStream(client, true);
             
-            ClientConnected?.Invoke(this, new TcpClient(client, networkStream));
+            ClientConnected?.Invoke(this, new TcpClient(LoggerFactory, client, networkStream));
         }
         catch (AuthenticationException e)
         {

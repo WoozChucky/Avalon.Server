@@ -38,8 +38,8 @@ public class AvalonWorldInfrastructure : IAvalonInfrastructure
 
     public void Start()
     {
-        _cache.ConnectAsync().Wait(); // TODO: async
         _gameServer.Start();
+        _cache.ConnectAsync().Wait(); // TODO: async
         _networkDaemon.Start();
         
         _metricsManager.QueueEvent("AvalonInfrastructureStatus", "Online");
@@ -48,6 +48,7 @@ public class AvalonWorldInfrastructure : IAvalonInfrastructure
     public void Stop()
     {
         _gameServer.Stop();
+        _cache.DisconnectAsync().Wait(); // TODO: async
         _networkDaemon.Stop();
         
         _metricsManager.Stop();

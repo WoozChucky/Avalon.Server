@@ -455,7 +455,7 @@ public class AvalonTcpClient : IDisposable
 
     public async Task RequestServerInfoPacket()
     {
-        var packet = CRequestServerInfoPacket.Create(1_000_000);
+        var packet = CRequestServerInfoPacket.Create("TODO");
         
         await SendPacket(packet);
     }

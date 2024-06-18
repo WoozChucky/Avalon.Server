@@ -10,9 +10,9 @@ public class CRequestServerInfoPacket : Packet
     public static NetworkProtocol Protocol = NetworkProtocol.Tcp;
     public static NetworkPacketFlags Flags = NetworkPacketFlags.ClearText;
     
-    [ProtoMember(1)] public int ClientVersion { get; set; }
+    [ProtoMember(1)] public string ClientVersion { get; set; }
 
-    public static NetworkPacket Create(int clientVersion)
+    public static NetworkPacket Create(string clientVersion)
     {
         using var memoryStream = new MemoryStream();
         

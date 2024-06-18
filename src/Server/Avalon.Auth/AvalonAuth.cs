@@ -3,10 +3,12 @@ using Avalon.Common.Cryptography;
 using Avalon.Database;
 using Avalon.Domain.Auth;
 using Avalon.Infrastructure;
+using Avalon.Infrastructure.Services;
 using Avalon.Network;
 using Avalon.Network.Packets.Auth;
 using Avalon.Network.Packets.Handshake;
 using Microsoft.Extensions.Logging;
+using OtpNet;
 
 namespace Avalon.Auth;
 
@@ -17,15 +19,23 @@ public class AvalonAuth : IAvalonAuth
     private readonly ICryptoManager _cryptography;
     private readonly IDatabaseManager _databaseManager;
     private readonly IAuthSessionManager _sessionManager;
+    private readonly IMFAHashService _mfaHashService;
     private readonly IReplicatedCache _cache;
     private volatile bool _isRunning;
     private long _loopCounter;
     
-    public AvalonAuth(ILoggerFactory loggerFactory, ICryptoManager cryptography, IDatabaseManager databaseManager, IAuthSessionManager sessionManager, IReplicatedCache cache)
+    public AvalonAuth(
+        ILoggerFactory loggerFactory, 
+        ICryptoManager cryptography, 
+        IDatabaseManager databaseManager,
+        IReplicatedCache cache,
+        IAuthSessionManager sessionManager, 
+        IMFAHashService mfaHashService)
     {
         _cryptography = cryptography;
         _databaseManager = databaseManager;
         _sessionManager = sessionManager;
+        _mfaHashService = mfaHashService;
         _cache = cache;
         _logger = loggerFactory.CreateLogger<AvalonAuth>();
         _cts = new CancellationTokenSource();
@@ -72,7 +82,7 @@ public class AvalonAuth : IAvalonAuth
     {
         _logger.LogDebug("Handling server info packet from {EndPoint}", source.RemoteAddress);
         
-        if (packet.ClientVersion != 1_000_000)
+        if (packet.ClientVersion != "0.0.1") // TODO: Hardcoded client version
         {
             _logger.LogWarning("Client {EndPoint} is using an invalid version", source.RemoteAddress);
             source.Dispose();
@@ -156,7 +166,7 @@ public class AvalonAuth : IAvalonAuth
         
         if (string.IsNullOrWhiteSpace(packet.Username) || string.IsNullOrWhiteSpace(packet.Password))
         {
-            await session.SendAsync(SAuthResultPacket.Create(null, AuthResult.INVALID_CREDENTIALS, session.Encrypt));
+            await session.SendAsync(SAuthResultPacket.Create(null, null, AuthResult.INVALID_CREDENTIALS, session.Encrypt));
             return;
         }
 
@@ -165,7 +175,13 @@ public class AvalonAuth : IAvalonAuth
 
         if (account == null)
         {
-            await session.SendAsync(SAuthResultPacket.Create(null, AuthResult.INVALID_CREDENTIALS, session.Encrypt));
+            await session.SendAsync(SAuthResultPacket.Create(null, null, AuthResult.INVALID_CREDENTIALS, session.Encrypt));
+            return;
+        }
+        
+        if (account.Locked)
+        {
+            await session.SendAsync(SAuthResultPacket.Create(null, null, AuthResult.LOCKED, session.Encrypt));
             return;
         }
         
@@ -173,13 +189,41 @@ public class AvalonAuth : IAvalonAuth
 
         if (!BCrypt.Net.BCrypt.Verify(packet.Password.Trim(), verifier))
         {
-            //TODO: Increment failed login attempts
+            account.LastAttemptIp = source.RemoteAddress.Split(':')[0];
+            account.FailedLogins++;
+            if (account.FailedLogins >= 5) // TODO: Move this to a configuration
+            {
+                account.Locked = true;
+            }
             
-            await session.SendAsync(SAuthResultPacket.Create(null, AuthResult.INVALID_CREDENTIALS, session.Encrypt));
+            await _databaseManager.Auth.Account.SaveAsync(account);
+            
+            await session.SendAsync(SAuthResultPacket.Create(null, null, account.Locked ? AuthResult.LOCKED : AuthResult.INVALID_CREDENTIALS, session.Encrypt));
             return;
         }
         
-        // TODO: Check if account is locked
+        var mfa = await _databaseManager.Auth.MFASetup.FindByAccountIdAsync(account.Id!.Value);
+        if (mfa is { Status: Status.Confirmed })
+        {
+            var mfaHash = await _mfaHashService.GenerateHashAsync(account);
+            await session.SendAsync(SAuthResultPacket.Create(null, mfaHash, AuthResult.MFA_REQUIRED, session.Encrypt));
+            return;
+        }
+        
+        if (account.Online) //TODO: Properly implement this + broadcast to other servers
+        {
+            var connectedAccount = _sessionManager.GetSession(account.Id!.Value);
+            if (connectedAccount != null)
+            {
+                await connectedAccount.SendAsync(SLogoutPacket.Create(LogoutResult.ConnectedElsewhere, connectedAccount.Encrypt));
+                _sessionManager.RemoveConnection(connectedAccount.Connection);
+                
+                await _cache.PublishAsync($"world:accounts:require_disconnect", account.Id!.Value.ToString());
+            }
+            
+            await session.SendAsync(SAuthResultPacket.Create(null, null, AuthResult.ALREADY_CONNECTED, session.Encrypt));
+            return;
+        }
         
         if (!_sessionManager.PatchSession(source, account.Id!.Value))
         {
@@ -187,7 +231,16 @@ public class AvalonAuth : IAvalonAuth
             throw new Exception("Failed to patch session");
         }
         
-        await session.SendAsync(SAuthResultPacket.Create(account.Id, AuthResult.SUCCESS, session.Encrypt));
+        // account.Online = true;
+        account.LastIp = source.RemoteAddress.Split(':')[0];
+        account.LastLogin = DateTime.UtcNow;
+        account.FailedLogins = 0;
+        
+        await _databaseManager.Auth.Account.SaveAsync(account);
+
+        await _cache.PublishAsync($"auth:accounts:online", account.Id!.Value.ToString());
+        
+        await session.SendAsync(SAuthResultPacket.Create(account.Id, null, AuthResult.SUCCESS, session.Encrypt));
     }
 
     public async Task HandleLogoutPacket(IRemoteSource source, CLogoutPacket packet)
@@ -204,7 +257,9 @@ public class AvalonAuth : IAvalonAuth
         
         await sessionLock.WaitAsync();
         
-        await session.SendAsync(SLogoutPacket.Create(session.AccountId, LogoutResult.Success, session.Encrypt));
+        await session.SendAsync(SLogoutPacket.Create(LogoutResult.Success, session.Encrypt));
+        
+        _sessionManager.RemoveConnection(session.Connection);
 
         sessionLock.Release();
     }
@@ -281,7 +336,6 @@ public class AvalonAuth : IAvalonAuth
         {
             await session.SendAsync(SRegisterResultPacket.Create(RegisterResult.UnknownError, session.Encrypt));
             _logger.LogError(e, "Failed to save account");
-            return;
         }
     }
 
@@ -355,6 +409,9 @@ public class AvalonAuth : IAvalonAuth
         // generate random data
         var worldKey = new byte[32];
         new Random().NextBytes(worldKey);
+        
+        account.SessionKey = worldKey;
+        await _databaseManager.Auth.Account.SaveAsync(account);
         
         var worldKeyBase64 = Convert.ToBase64String(worldKey);
         

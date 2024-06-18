@@ -45,6 +45,7 @@ public class AvalonSession : IDisposable
     
     public virtual void Dispose()
     {
+        _cts.Cancel();
         Connection.Dispose();
     }
     

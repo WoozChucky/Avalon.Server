@@ -324,7 +324,7 @@ public partial class AvalonGame : IAvalonGame
     {
         _logger.LogDebug("Handling server info packet from {EndPoint}", source.RemoteAddress);
         
-        if (packet.ClientVersion != 1_000_000)
+        if (packet.ClientVersion != "TODO")
         {
             _logger.LogWarning("Client {EndPoint} is using an invalid version", source.RemoteAddress);
             source.Dispose();

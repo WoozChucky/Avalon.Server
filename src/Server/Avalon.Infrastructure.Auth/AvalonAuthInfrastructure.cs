@@ -41,6 +41,7 @@ public class AvalonAuthInfrastructure : IAvalonInfrastructure
     public void Stop()
     {
         _authServer.Stop();
+        _cache.DisconnectAsync().Wait(); // TODO: async
         _networkDaemon.Stop();
         _cts.Cancel();
     }

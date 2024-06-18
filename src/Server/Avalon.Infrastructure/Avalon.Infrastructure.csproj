@@ -13,10 +13,12 @@
     <ItemGroup>
       <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.0" />
       <PackageReference Include="StackExchange.Redis" Version="2.7.33" />
+      <PackageReference Include="Otp.NET" Version="1.3.0" />
     </ItemGroup>
 
     <ItemGroup>
       <ProjectReference Include="..\..\Shared\Avalon.Common\Avalon.Common.csproj" />
+      <ProjectReference Include="..\..\Shared\Avalon.Domain\Avalon.Domain.csproj" />
       <ProjectReference Include="..\..\Shared\Avalon.Metrics\Avalon.Metrics.csproj" />
       <ProjectReference Include="..\..\Shared\Avalon.Network.Packets\Avalon.Network.Packets.csproj" />
       <ProjectReference Include="..\..\Shared\Avalon.Network.Tcp\Avalon.Network.Tcp.csproj" />

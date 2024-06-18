@@ -72,9 +72,9 @@ public class WorldRepository : IWorldRepository
         }
         
         var rows = await connection.ExecuteAsync(
-            "INSERT INTO auth.World (Name, Type, AccessLevelRequired, Host, Port, MinVersion, Version, Status, CreatedAt, ExpiresAt) " +
+            "INSERT INTO auth.World (Name, Type, AccessLevelRequired, Host, Port, MinVersion, Version, Status, CreatedAt, UpdatedAt) " +
             "VALUES " +
-            "(@Name, @Type, @AccessLevelRequired, @Host, @Port, @MinVersion, @Version, @Status, @CreatedAt, @ExpiresAt)", new
+            "(@Name, @Type, @AccessLevelRequired, @Host, @Port, @MinVersion, @Version, @Status, @CreatedAt, @UpdatedAt)", new
             {
                 Name = entity.Name,
                 Type = entity.Type,
@@ -85,7 +85,7 @@ public class WorldRepository : IWorldRepository
                 Version = entity.Version,
                 Status = entity.Status,
                 CreatedAt = entity.CreatedAt,
-                ExpiresAt = entity.ExpiresAt
+                UpdatedAt = entity.UpdatedAt
             });
         
         if (rows == 0)
@@ -101,7 +101,7 @@ public class WorldRepository : IWorldRepository
         await using var connection = new MySqlConnection(_connectionString);
         
         var rows = await connection.ExecuteAsync(
-            "UPDATE auth.World SET Name = @Name, Type = @Type, AccessLevelRequired = @AccessLevelRequired, Host = @Host, Port = @Port, MinVersion = @MinVersion, Version = @Version, Status = @Status, CreatedAt = @CreatedAt, ExpiresAt = @ExpiresAt WHERE Id = @Id", new
+            "UPDATE auth.World SET Name = @Name, Type = @Type, AccessLevelRequired = @AccessLevelRequired, Host = @Host, Port = @Port, MinVersion = @MinVersion, Version = @Version, Status = @Status, CreatedAt = @CreatedAt, UpdatedAt = @UpdatedAt WHERE Id = @Id", new
             {
                 Id = entity.Id,
                 Name = entity.Name,
@@ -113,7 +113,7 @@ public class WorldRepository : IWorldRepository
                 Version = entity.Version,
                 Status = entity.Status,
                 CreatedAt = entity.CreatedAt,
-                ExpiresAt = entity.ExpiresAt
+                UpdatedAt = entity.UpdatedAt
             });
         
         if (rows == 0)
