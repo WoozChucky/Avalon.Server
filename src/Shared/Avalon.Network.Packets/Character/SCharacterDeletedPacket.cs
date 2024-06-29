@@ -10,20 +10,18 @@ public class SCharacterDeletedPacket : Packet
     public static NetworkProtocol Protocol = NetworkProtocol.Tcp;
     public static NetworkPacketFlags Flags = NetworkPacketFlags.Encrypted;
     
-    [ProtoMember(1)] public int AccountId { get; set; }
-    [ProtoMember(2)] public SCharacterDeletedResult Result { get; set; }
+    [ProtoMember(1)] public SCharacterDeletedResult Result { get; set; }
 
-    public static NetworkPacket Create(int accountId, SCharacterDeletedResult result, Func<byte[], byte[]> encryptFunc)
+    public static NetworkPacket Create(SCharacterDeletedResult result, Func<byte[], byte[]> encryptFunc)
     {
         using var memoryStream = new MemoryStream();
         
-        var authPacket = new SCharacterDeletedPacket()
+        var p = new SCharacterDeletedPacket()
         {
-            AccountId = accountId,
             Result = result
         };
         
-        Serializer.Serialize(memoryStream, authPacket);
+        Serializer.Serialize(memoryStream, p);
         
         var buffer = encryptFunc(memoryStream.ToArray());
         

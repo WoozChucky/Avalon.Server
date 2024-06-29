@@ -48,8 +48,8 @@ public class AvalonSessionManager : IAvalonSessionManager
     private readonly CancellationTokenSource _cts;
     
     private const int MonitorInterval = 100;
-    private const int PingInterval = 2500;
-    private const int PingTimeoutThreshold = 10000;
+    private const int PingInterval = 15000;
+    private const int PingTimeoutThreshold = 20000;
     private const int PingTimeoutThresholdInSec = PingTimeoutThreshold / 1000;
     private const int PingDisconnectThreshold = 30000;
     private const int PingDisconnectThresholdInSec = PingDisconnectThreshold / 1000;
@@ -92,7 +92,7 @@ public class AvalonSessionManager : IAvalonSessionManager
                     if (connection.Status == ConnectionStatus.Connected)
                     {
                         // check if the connection has timed out
-                        if (connection.RoundTripTime > PingTimeoutThreshold || DateTime.UtcNow - connection.LastUpdateAt > TimeSpan.FromSeconds(PingTimeoutThresholdInSec))
+                        if (connection.Latency > PingTimeoutThreshold || DateTime.UtcNow - connection.LastUpdateAt > TimeSpan.FromSeconds(PingTimeoutThresholdInSec))
                         {
                             _logger.LogInformation("Account {Id} has timed out", connection.AccountId);
                             connection.Status = ConnectionStatus.TimedOut;
@@ -110,7 +110,7 @@ public class AvalonSessionManager : IAvalonSessionManager
                     else if (connection.Status == ConnectionStatus.TimedOut)
                     {
                         // check if the connection has reconnected
-                        if (connection.RoundTripTime < PingTimeoutThreshold && DateTime.UtcNow - connection.LastUpdateAt < TimeSpan.FromSeconds(PingTimeoutThresholdInSec))
+                        if (connection.Latency < PingTimeoutThreshold && DateTime.UtcNow - connection.LastUpdateAt < TimeSpan.FromSeconds(PingTimeoutThresholdInSec))
                         {
                             _logger.LogInformation("Account {Id} has reconnected", connection.AccountId);
                             connection.Status = ConnectionStatus.Connected;
@@ -128,7 +128,7 @@ public class AvalonSessionManager : IAvalonSessionManager
                             // Resend all queued packets
                             // await connection.SendQueuedPacketsAsync();
                         }
-                        else if (connection.RoundTripTime > PingDisconnectThreshold || DateTime.UtcNow - connection.LastUpdateAt > TimeSpan.FromSeconds(PingDisconnectThresholdInSec))
+                        else if (connection.Latency > PingDisconnectThreshold || DateTime.UtcNow - connection.LastUpdateAt > TimeSpan.FromSeconds(PingDisconnectThresholdInSec))
                         {
                             _logger.LogInformation("Client {Id} has disconnected", connection.AccountId);
                             connection.Status = ConnectionStatus.Disconnected;
@@ -277,14 +277,14 @@ public class AvalonSessionManager : IAvalonSessionManager
 
     public Task HandlePongPacket(IRemoteSource source, CPongPacket packet)
     {
-        
-        if (!_sessions.TryGetValue(packet.AccountId, out var connection))
+        var session = GetSession(source);
+        if (session == null)
         {
-            _logger.LogWarning("Received pong packet from unknown client {Id}", packet.AccountId);
+            _logger.LogWarning("Received pong packet from unknown client {Id}", source.RemoteAddress);
             return Task.CompletedTask;
         }
 
-        connection.OnPong(packet.SequenceNumber, packet.Ticks);
+        session.OnPong(packet.LastServerTimestamp, packet.ClientReceivedTimestamp, packet.ClientSentTimestamp);
         
         return Task.CompletedTask;
     }

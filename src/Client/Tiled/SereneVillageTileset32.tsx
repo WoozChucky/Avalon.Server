@@ -1,6 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<tileset version="1.10" tiledversion="1.10.1" name="SereneVillageTileset32" tilewidth="32" tileheight="32" tilecount="855" columns="19">
+<tileset version="1.10" tiledversion="1.10.2" name="SereneVillageTileset32" tilewidth="32" tileheight="32" tilecount="855" columns="19">
  <image source="Serene_Village_32x32.png" width="608" height="1440"/>
+ <tile id="31">
+  <objectgroup draworder="index" id="2">
+   <object id="1" x="0" y="0" width="32" height="32"/>
+  </objectgroup>
+ </tile>
  <tile id="49">
   <objectgroup draworder="index" id="2">
    <object id="1" x="2.07861" y="0.106596" width="29.8468" height="21.9054"/>
@@ -19,20 +24,104 @@
    <object id="7" x="28.0346" y="0.0532978" width="1.86542" height="17.8548"/>
   </objectgroup>
  </tile>
+ <tile id="69">
+  <objectgroup draworder="index" id="2">
+   <object id="1" x="4.51742" y="-0.00189538" width="27.4998" height="13.9689"/>
+  </objectgroup>
+ </tile>
+ <tile id="70">
+  <objectgroup draworder="index" id="2">
+   <object id="1" x="0" y="0.0434783" width="32" height="13.9565"/>
+  </objectgroup>
+ </tile>
+ <tile id="71">
+  <objectgroup draworder="index" id="2">
+   <object id="1" x="0" y="0.0434783" width="32" height="13.9565"/>
+  </objectgroup>
+ </tile>
  <tile id="107">
   <objectgroup draworder="index" id="2">
-   <object id="1" x="3.94404" y="13.964" width="27.9813" height="14.0173"/>
+   <object id="1" x="3.94404" y="13.964" width="27.9813" height="4.06078"/>
   </objectgroup>
  </tile>
  <tile id="108">
   <objectgroup draworder="index" id="2">
-   <object id="1" x="0.106596" y="13.7508" width="31.8188" height="14.1772"/>
+   <object id="1" x="0.106596" y="13.7508" width="31.8188" height="4.26416"/>
   </objectgroup>
  </tile>
  <tile id="109">
   <objectgroup draworder="index" id="2">
-   <object id="1" x="0" y="14.0173" width="21.9587" height="13.964"/>
-   <object id="2" x="21.9587" y="13.6975" width="7.94137" height="4.26382"/>
+   <object id="3" x="0" y="12.087" width="30" height="5.86957"/>
+  </objectgroup>
+ </tile>
+ <tile id="133">
+  <objectgroup draworder="index" id="2">
+   <object id="1" x="10" y="12" width="22" height="20"/>
+  </objectgroup>
+ </tile>
+ <tile id="134">
+  <objectgroup draworder="index" id="2">
+   <object id="1" x="0" y="10" width="32" height="22"/>
+  </objectgroup>
+ </tile>
+ <tile id="135">
+  <objectgroup draworder="index" id="2">
+   <object id="1" x="0" y="10" width="32" height="22"/>
+  </objectgroup>
+ </tile>
+ <tile id="136">
+  <objectgroup draworder="index" id="2">
+   <object id="1" x="0" y="10" width="32" height="22"/>
+  </objectgroup>
+ </tile>
+ <tile id="137">
+  <objectgroup draworder="index" id="2">
+   <object id="1" x="0" y="10" width="32" height="22"/>
+  </objectgroup>
+ </tile>
+ <tile id="138">
+  <objectgroup draworder="index" id="2">
+   <object id="1" x="0" y="12" width="22" height="20"/>
+  </objectgroup>
+ </tile>
+ <tile id="152">
+  <objectgroup draworder="index" id="2">
+   <object id="2" x="6" y="0" width="26" height="32"/>
+  </objectgroup>
+ </tile>
+ <tile id="157">
+  <objectgroup draworder="index" id="2">
+   <object id="1" x="0" y="0" width="26" height="32"/>
+  </objectgroup>
+ </tile>
+ <tile id="171">
+  <objectgroup draworder="index" id="2">
+   <object id="4" x="8.12653" y="0" width="23.8735" height="32"/>
+  </objectgroup>
+ </tile>
+ <tile id="176">
+  <objectgroup draworder="index" id="2">
+   <object id="1" x="0" y="0" width="26" height="32"/>
+  </objectgroup>
+ </tile>
+ <tile id="190">
+  <objectgroup draworder="index" id="2">
+   <object id="4" x="7.91281" y="0" width="24.0872" height="32"/>
+  </objectgroup>
+ </tile>
+ <tile id="191">
+  <objectgroup draworder="index" id="2">
+   <object id="3" x="0" y="0" width="32" height="32"/>
+  </objectgroup>
+ </tile>
+ <tile id="194">
+  <objectgroup draworder="index" id="2">
+   <object id="1" x="0" y="0" width="32" height="32"/>
+  </objectgroup>
+ </tile>
+ <tile id="195">
+  <objectgroup draworder="index" id="2">
+   <object id="1" x="0" y="0" width="26" height="32"/>
   </objectgroup>
  </tile>
  <tile id="235">

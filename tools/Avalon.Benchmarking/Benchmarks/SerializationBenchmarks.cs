@@ -38,7 +38,7 @@ public class SerializationBenchmarks
         _cryptoSession128.Initialize(serverPublicKeyBytes128);
         
         _encryptedPacket_Aes128 = new MemoryStream();
-        Serializer.SerializeWithLengthPrefix(_encryptedPacket_Aes128, CCharacterListPacket.Create(1, _cryptoSession128.Encrypt), PrefixStyle.Base128);
+        Serializer.SerializeWithLengthPrefix(_encryptedPacket_Aes128, CCharacterListPacket.Create(_cryptoSession128.Encrypt), PrefixStyle.Base128);
         _encryptedPacket_Aes128.Seek(0, SeekOrigin.Begin);
     }
     
@@ -56,7 +56,7 @@ public class SerializationBenchmarks
     public void Serialize_Aes128()
     {
 
-        var packet = CCharacterListPacket.Create(1, _cryptoSession128.Encrypt);
+        var packet = CCharacterListPacket.Create(_cryptoSession128.Encrypt);
         
         using var memoryStream = new MemoryStream();
     
@@ -89,7 +89,7 @@ public class SerializationBenchmarks
         
         using var memoryStream = new MemoryStream(packet.Payload);
         var innerPacket = Serializer.Deserialize<CCharacterListPacket>(memoryStream);
-        if (innerPacket is not { AccountId: 1 })
+        if (innerPacket is null)
         {
             throw new Exception("Failed to deserialize packet");
         }

@@ -15,7 +15,8 @@ public class LayerEnricher : ILogEventEnricher
     [
         typeof(Avalon.Infrastructure.World.AvalonWorldNetworkDaemon).FullName!,
         typeof(Avalon.Network.Tcp.AvalonTcpServer).FullName!,
-        typeof(Avalon.Game.AvalonSessionManager).FullName!
+        typeof(Avalon.Game.AvalonSessionManager).FullName!,
+        typeof(Avalon.Network.TcpClient).FullName!,
     ];
 
     private readonly List<string> _gameNamespaces =

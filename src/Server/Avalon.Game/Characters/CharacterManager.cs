@@ -19,7 +19,7 @@ public partial class AvalonGame
         var session = _sessionManager.GetSession(source);
         if (session == null)
         {
-            _logger.LogWarning("Session not found for account {AccountId}", packet.AccountId);
+            _logger.LogWarning("Session not found from {Address}", source.RemoteAddress);
             return;
         }
         
@@ -47,7 +47,6 @@ public partial class AvalonGame
         }).ToArray();
         
         var responsePacket = SCharacterListPacket.Create(
-            session.AccountId, 
             characterInfo.Length, 
             MaxCharactersPerAccount, 
             characterInfo, 
@@ -62,7 +61,7 @@ public partial class AvalonGame
         var session = _sessionManager.GetSession(source);
         if (session == null)
         {
-            _logger.LogWarning("Session not found for account {AccountId}", packet.AccountId);
+            _logger.LogWarning("Session not found for connection {Source}", source.RemoteAddress);
             return;
         }
         
@@ -72,21 +71,21 @@ public partial class AvalonGame
         
         if (session.InGame)
         {
-            _logger.LogWarning("Session {AccountId} is already in game", packet.AccountId);
-            await session.SendAsync(SCharacterCreatedPacket.Create(packet.AccountId, SCharacterCreateResult.AlreadyInGame, session.Encrypt));
+            _logger.LogWarning("Session {AccountId} is already in game", session.AccountId);
+            await session.SendAsync(SCharacterCreatedPacket.Create(SCharacterCreateResult.AlreadyInGame, session.Encrypt));
             return;
         }
         
         sessionLock.Release();
         
-        var characters = await _databaseManager.Characters.Character.FindByAccountAsync(packet.AccountId);
+        var characters = await _databaseManager.Characters.Character.FindByAccountAsync(session.AccountId);
         
         var currentCharacterCount = characters.Count();
         
         if (currentCharacterCount == MaxCharactersPerAccount || currentCharacterCount + 1 > MaxCharactersPerAccount)
         {
-            _logger.LogDebug("Account {AccountId} already has {CharacterCount} characters", packet.AccountId, currentCharacterCount);
-            await session.SendAsync(SCharacterCreatedPacket.Create(packet.AccountId, SCharacterCreateResult.MaxCharactersReached, session.Encrypt));
+            _logger.LogDebug("Account {AccountId} already has {CharacterCount} characters", session.AccountId, currentCharacterCount);
+            await session.SendAsync(SCharacterCreatedPacket.Create(SCharacterCreateResult.MaxCharactersReached, session.Encrypt));
             return;
         }
         
@@ -94,21 +93,21 @@ public partial class AvalonGame
         if (duplicateCharacter != null)
         {
             _logger.LogDebug("Character {Name} already exists", packet.Name);
-            await session.SendAsync(SCharacterCreatedPacket.Create(packet.AccountId, SCharacterCreateResult.NameAlreadyExists, session.Encrypt));
+            await session.SendAsync(SCharacterCreatedPacket.Create(SCharacterCreateResult.NameAlreadyExists, session.Encrypt));
             return;
         }
         
         if (packet.Name.Length < 3)
         {
             _logger.LogDebug("Character name {Name} is too short", packet.Name);
-            await session.SendAsync(SCharacterCreatedPacket.Create(packet.AccountId, SCharacterCreateResult.NameTooShort, session.Encrypt));
+            await session.SendAsync(SCharacterCreatedPacket.Create(SCharacterCreateResult.NameTooShort, session.Encrypt));
             return;
         }
         
         if (packet.Name.Length > 12)
         {
             _logger.LogDebug("Character name {Name} is too long", packet.Name);
-            await session.SendAsync(SCharacterCreatedPacket.Create(packet.AccountId, SCharacterCreateResult.NameTooLong, session.Encrypt));
+            await session.SendAsync(SCharacterCreatedPacket.Create(SCharacterCreateResult.NameTooLong, session.Encrypt));
             return;
         }
         
@@ -127,14 +126,14 @@ public partial class AvalonGame
         try
         {
             await _databaseManager.Characters.Character.SaveAsync(character);
-            _logger.LogInformation("Character {Name} created for account {AccountId}", packet.Name, packet.AccountId);
+            _logger.LogInformation("Character {Name} created for account {AccountId}", packet.Name, session.AccountId);
             
-            await session.SendAsync(SCharacterCreatedPacket.Create(packet.AccountId, SCharacterCreateResult.Success, session.Encrypt));
+            await session.SendAsync(SCharacterCreatedPacket.Create(SCharacterCreateResult.Success, session.Encrypt));
         }
         catch (Exception e)
         {
             _logger.LogWarning(e, "Failed to create character {Name}", packet.Name);
-            await session.SendAsync(SCharacterCreatedPacket.Create(packet.AccountId, SCharacterCreateResult.InternalDatabaseError, session.Encrypt));
+            await session.SendAsync(SCharacterCreatedPacket.Create(SCharacterCreateResult.InternalDatabaseError, session.Encrypt));
         }
     }
     
@@ -201,7 +200,7 @@ public partial class AvalonGame
             };
             
             character.Online = true;
-            character.Latency = session.RoundTripTime;
+            character.Latency = session.Latency;
 
             await session.SendAsync(SCharacterSelectedPacket.Create(new CharacterInfo
             {
@@ -262,7 +261,7 @@ public partial class AvalonGame
         if (session.InGame)
         {
             _logger.LogWarning("Session {AccountId} is already in game", session.AccountId);
-            await session.SendAsync(SCharacterDeletedPacket.Create(session.AccountId, SCharacterDeletedResult.InGame, session.Encrypt));
+            await session.SendAsync(SCharacterDeletedPacket.Create(SCharacterDeletedResult.InGame, session.Encrypt));
             return;
         }
         
@@ -270,19 +269,19 @@ public partial class AvalonGame
         if (character == null)
         {
             _logger.LogWarning("Character {CharacterId} not found for account {AccountId}", packet.CharacterId, session.AccountId);
-            await session.SendAsync(SCharacterDeletedPacket.Create(session.AccountId, SCharacterDeletedResult.InternalError, session.Encrypt));
+            await session.SendAsync(SCharacterDeletedPacket.Create(SCharacterDeletedResult.InternalError, session.Encrypt));
             return;
         }
         
         if (!await _databaseManager.Characters.Character.DeleteAsync(character))
         {
             _logger.LogWarning("Failed to delete character {CharacterId} for account {AccountId}", packet.CharacterId, session.AccountId);
-            await session.SendAsync(SCharacterDeletedPacket.Create(session.AccountId, SCharacterDeletedResult.InternalError, session.Encrypt));
+            await session.SendAsync(SCharacterDeletedPacket.Create(SCharacterDeletedResult.InternalError, session.Encrypt));
             return;
         }
         
         _logger.LogInformation("Character {CharacterId} deleted for account {AccountId}", packet.CharacterId, session.AccountId);
-        await session.SendAsync(SCharacterDeletedPacket.Create(session.AccountId, SCharacterDeletedResult.Success, session.Encrypt));
+        await session.SendAsync(SCharacterDeletedPacket.Create(SCharacterDeletedResult.Success, session.Encrypt));
     }
 
     public async Task HandleCharacterLoadedPacket(IRemoteSource source, CCharacterLoadedPacket packet)

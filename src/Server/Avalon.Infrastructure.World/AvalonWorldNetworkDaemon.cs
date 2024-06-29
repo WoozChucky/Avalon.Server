@@ -161,8 +161,7 @@ public class AvalonWorldNetworkDaemon : IAvalonNetworkDaemon
                         
                             watch.Stop();
                             var elapsedMs = watch.ElapsedMilliseconds;
-                            if (elapsedMs > 0)
-                                _logger.LogInformation("Packet {HeaderType} processing took {ElapsedMs} ms", packet.Header.Type, elapsedMs);
+                            _logger.LogDebug("[{In}] {HeaderType} processing took {ElapsedMs} ms", "IN", packet.Header.Type, elapsedMs);
                         }
                         catch (Exception ex)
                         {

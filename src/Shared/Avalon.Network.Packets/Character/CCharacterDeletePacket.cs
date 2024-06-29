@@ -16,12 +16,12 @@ public class CCharacterDeletePacket : Packet
     {
         using var memoryStream = new MemoryStream();
         
-        var authPacket = new CCharacterDeletePacket()
+        var p = new CCharacterDeletePacket()
         {
             CharacterId = characterId
         };
         
-        Serializer.Serialize(memoryStream, authPacket);
+        Serializer.Serialize(memoryStream, p);
         
         var buffer = encryptFunc(memoryStream.ToArray());
         

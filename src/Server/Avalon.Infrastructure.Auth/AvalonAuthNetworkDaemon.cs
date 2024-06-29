@@ -195,7 +195,7 @@ public class AvalonAuthNetworkDaemon : IAvalonNetworkDaemon
                         
                             watch.Stop();
                             var elapsedMs = watch.ElapsedMilliseconds;
-                            _logger.LogDebug("Received packet {HeaderType} processing took {ElapsedMs} ms", packet.Header.Type, elapsedMs);
+                            _logger.LogDebug("[{In}] {HeaderType} processing took {ElapsedMs} ms", "IN", packet.Header.Type, elapsedMs);
                         }
                         catch (Exception ex)
                         {
