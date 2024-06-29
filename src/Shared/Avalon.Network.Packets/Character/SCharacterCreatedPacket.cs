@@ -10,20 +10,18 @@ public class SCharacterCreatedPacket : Packet
     public static NetworkProtocol Protocol = NetworkProtocol.Tcp;
     public static NetworkPacketFlags Flags = NetworkPacketFlags.Encrypted;
     
-    [ProtoMember(1)] public int AccountId { get; set; }
-    [ProtoMember(2)] public SCharacterCreateResult Result { get; set; }
+    [ProtoMember(1)] public SCharacterCreateResult Result { get; set; }
 
-    public static NetworkPacket Create(int accountId, SCharacterCreateResult result, Func<byte[], byte[]> encrypt)
+    public static NetworkPacket Create(SCharacterCreateResult result, Func<byte[], byte[]> encrypt)
     {
         using var memoryStream = new MemoryStream();
         
-        var authPacket = new SCharacterCreatedPacket()
+        var p = new SCharacterCreatedPacket()
         {
-            AccountId = accountId,
             Result = result
         };
         
-        Serializer.Serialize(memoryStream, authPacket);
+        Serializer.Serialize(memoryStream, p);
         
         var buffer = encrypt(memoryStream.ToArray());
         

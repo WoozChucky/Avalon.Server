@@ -250,8 +250,8 @@ public class AvalonTcpClient : IDisposable
                     case SPingPacket p:
                         Send(() =>
                         {
-                            var pongPacket = CPongPacket.Create(p.SequenceNumber, AccountId, p.Ticks);
-                            SendPacket(pongPacket);
+                            //var pongPacket = CPongPacket.Create(p.SequenceNumber, p.ServerTimestamp);
+                            //SendPacket(pongPacket);
                         });
                         break;
                     
@@ -404,9 +404,9 @@ public class AvalonTcpClient : IDisposable
         await SendPacket(packet);
     }
 
-    public async Task SendCharacterListPacket(int accountId)
+    public async Task SendCharacterListPacket()
     {
-        var packet = CCharacterListPacket.Create(accountId, _cryptography.Encrypt);
+        var packet = CCharacterListPacket.Create(_cryptography.Encrypt);
         
         await SendPacket(packet);
     }
@@ -418,9 +418,9 @@ public class AvalonTcpClient : IDisposable
         await SendPacket(packet);
     }
 
-    public async Task SendCharacterCreatePacket(int accountId, string name, int @class)
+    public async Task SendCharacterCreatePacket(string name, int @class)
     {
-        var packet = CCharacterCreatePacket.Create(accountId, name, @class, _cryptography.Encrypt);
+        var packet = CCharacterCreatePacket.Create(name, @class, _cryptography.Encrypt);
         
         await SendPacket(packet);
     }

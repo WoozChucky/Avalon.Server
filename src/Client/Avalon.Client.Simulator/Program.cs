@@ -109,7 +109,7 @@ namespace Avalon.Client.Simulator
 
             private async void OnCharacterCreated(object sender, SCharacterCreatedPacket packet)
             {
-                await _tcp.SendCharacterListPacket(_accountId);
+                await _tcp.SendCharacterListPacket();
             }
 
             private async void OnCharacterList(object sender, SCharacterListPacket packet)
@@ -164,14 +164,14 @@ namespace Avalon.Client.Simulator
                     if (_isLogged)
                     {
                         _isLogged = false;
-                        await _tcp.SendCharacterListPacket(_accountId);
+                        await _tcp.SendCharacterListPacket();
                     }
                     
                     if (_needsFirstCharacter)
                     {
                         _needsFirstCharacter = false;
                         // use username as character name
-                        await _tcp.SendCharacterCreatePacket(_accountId, _username, 1);
+                        await _tcp.SendCharacterCreatePacket(_username, 1);
                     }
 
                     if (_characterSelected)

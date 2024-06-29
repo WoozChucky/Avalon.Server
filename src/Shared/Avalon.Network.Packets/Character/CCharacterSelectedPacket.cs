@@ -10,18 +10,18 @@ public class CCharacterSelectedPacket : Packet
     public static NetworkProtocol Protocol = NetworkProtocol.Tcp;
     public static NetworkPacketFlags Flags = NetworkPacketFlags.Encrypted;
     
-    [ProtoMember(2)] public int CharacterId { get; set; }
+    [ProtoMember(1)] public int CharacterId { get; set; }
 
     public static NetworkPacket Create(int characterId, Func<byte[], byte[]> encrypt)
     {
         using var memoryStream = new MemoryStream();
         
-        var authPacket = new CCharacterSelectedPacket()
+        var p = new CCharacterSelectedPacket()
         {
             CharacterId = characterId
         };
         
-        Serializer.Serialize(memoryStream, authPacket);
+        Serializer.Serialize(memoryStream, p);
         
         var buffer = encrypt(memoryStream.ToArray());
         

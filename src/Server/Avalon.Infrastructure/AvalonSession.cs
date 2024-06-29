@@ -18,7 +18,8 @@ public class AvalonSession : IDisposable
 {
     public int AccountId { get; set; }
     public IRemoteSource Connection { get; }
-    public int RoundTripTime { get; protected set; }
+    public long RoundTripTime { get; protected set; }
+    public int Latency { get; protected set; }
     public ConnectionStatus Status { get; set; }
     public DateTime LastUpdateAt { get; set; } = DateTime.UtcNow;
     
@@ -34,6 +35,8 @@ public class AvalonSession : IDisposable
         _packetQueue = new RingBuffer<NetworkPacket>("SEND", 1024);
         _sendSemaphore = new SemaphoreSlim(1, 1);
         Connection = connection;
+        RoundTripTime = 0;
+        Latency = 0;
         Task.Run(ProcessPacketsAsync);
     }
     
@@ -67,6 +70,11 @@ public class AvalonSession : IDisposable
                 
                     await _sendSemaphore.WaitAsync();
                     await SendQueuedPacketAsync(packet);
+                }
+                catch (OperationCanceledException)
+                {
+                    _logger.LogWarning("Session {SessionId} was cancelled", AccountId);
+                    break;
                 }
                 catch (IOException ex)
                 {

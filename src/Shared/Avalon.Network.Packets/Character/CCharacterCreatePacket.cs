@@ -10,22 +10,20 @@ public class CCharacterCreatePacket : Packet
     public static NetworkProtocol Protocol = NetworkProtocol.Tcp;
     public static NetworkPacketFlags Flags = NetworkPacketFlags.Encrypted;
     
-    [ProtoMember(1)] public int AccountId { get; set; }
-    [ProtoMember(2)] public string Name { get; set; }
-    [ProtoMember(3)] public int Class { get; set; }
+    [ProtoMember(1)] public string Name { get; set; }
+    [ProtoMember(2)] public int Class { get; set; }
 
-    public static NetworkPacket Create(int accountId, string name, int @class, Func<byte[], byte[]> encrypt)
+    public static NetworkPacket Create(string name, int @class, Func<byte[], byte[]> encrypt)
     {
         using var memoryStream = new MemoryStream();
         
-        var authPacket = new CCharacterCreatePacket()
+        var p = new CCharacterCreatePacket()
         {
-            AccountId = accountId,
             Name = name,
             Class = @class
         };
         
-        Serializer.Serialize(memoryStream, authPacket);
+        Serializer.Serialize(memoryStream, p);
         
         var buffer = encrypt(memoryStream.ToArray());
         
