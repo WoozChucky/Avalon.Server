@@ -33,7 +33,9 @@ public class AvalonWorldSession : AvalonSession
     private readonly ILogger<AvalonWorldSession> _logger;
     
     private byte[] _handshakeData = Array.Empty<byte>();
-    private long _lastTicks;
+    private long _lastClientTicks = 0;
+    private long _lastServerTicks = 0;
+    private long _timeSyncOffset = 0;
     private long _sequenceNumber = 0;
     private bool _verified;
     
@@ -50,9 +52,10 @@ public class AvalonWorldSession : AvalonSession
     
     public async Task PingAsync()
     {
-        _lastTicks = DateTime.UtcNow.Ticks;
-        var sequenceNumber = Interlocked.Increment(ref _sequenceNumber);
-        var packet = SPingPacket.Create(sequenceNumber, _lastTicks);
+        Interlocked.Increment(ref _sequenceNumber);
+        
+        _lastServerTicks = DateTime.UtcNow.Ticks;
+        var packet = SPingPacket.Create(_lastServerTicks, _lastClientTicks, RoundTripTime, _timeSyncOffset);
         try
         {
             await SendAsync(packet);
@@ -64,19 +67,23 @@ public class AvalonWorldSession : AvalonSession
         }
     }
     
-    public void OnPong(long sequenceNumber, long ticks)
+    public void OnPong(long lastServerTimestamp, long clientReceivedTimestamp, long clientSentTimestamp)
     {
-        if (sequenceNumber == _sequenceNumber)
+        var rtt = ((clientReceivedTimestamp - lastServerTimestamp) + (DateTime.UtcNow.Ticks - clientSentTimestamp));
+        var latency = rtt / TimeSpan.TicksPerMillisecond;
+        
+        _timeSyncOffset = _lastServerTicks + (rtt / 2) - _lastClientTicks;
+        
+        if (Latency - latency >  20)
         {
-            LastUpdateAt = DateTime.UtcNow;
-            var now = DateTime.UtcNow.Ticks;
-            var newRtt = (now - ticks) / TimeSpan.TicksPerMillisecond;
-            if (RoundTripTime - newRtt >  20)
-            {
-                _logger.LogInformation("[{CharName}] Round trip time changed: {RoundTripTime}ms -> {NewRtt}ms", Character?.Name ?? AccountId.ToString(), RoundTripTime, newRtt);
-            }
-            RoundTripTime = (int) newRtt;
+            _logger.LogInformation("[{CharName}] Latency changed: {Latency}ms -> {NewLatency}ms", Character?.Name ?? AccountId.ToString(), Latency, latency);
         }
+        
+        _lastClientTicks = clientReceivedTimestamp;
+        RoundTripTime = (int) rtt;
+        Latency = (int) latency;
+        _logger.LogDebug("[{CharName}] RTT: {Rtt}ticks, Latency: {Latency}ms", Character?.Name ?? AccountId.ToString(), RoundTripTime, Latency);
+        LastUpdateAt = DateTime.UtcNow;
     }
     
     public byte[] Decrypt(byte[] arg)

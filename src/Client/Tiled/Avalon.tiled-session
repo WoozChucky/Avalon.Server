@@ -8,24 +8,43 @@
         "."
     ],
     "fileStates": {
+        "C:/dev/Avalon/Assets/Tiled/Tutorial.tmx": {
+            "expandedObjectLayers": [
+                10
+            ],
+            "scale": 1.5,
+            "selectedLayer": 8,
+            "viewCenter": {
+                "x": 492,
+                "y": 1131.3333333333333
+            }
+        },
+        "CollisionTestuntitled.tmx": {
+            "scale": 0.75,
+            "selectedLayer": 1,
+            "viewCenter": {
+                "x": 1110,
+                "y": 774.6666666666665
+            }
+        },
         "SereneVillageTileset.tsx": {
             "scaleInDock": 1,
             "scaleInEditor": 1
         },
         "SereneVillageTileset32.tsx": {
             "scaleInDock": 1,
-            "scaleInEditor": 1
+            "scaleInEditor": 2
         },
         "Tutorial.tmx": {
             "expandedObjectLayers": [
-                10,
-                5
+                5,
+                10
             ],
             "scale": 1.5,
             "selectedLayer": 8,
             "viewCenter": {
-                "x": 1023.6666666666665,
-                "y": 768
+                "x": 602,
+                "y": 1153.3333333333333
             }
         },
         "Village.tmx": {
@@ -35,8 +54,8 @@
             "scale": 1.5,
             "selectedLayer": 4,
             "viewCenter": {
-                "x": 479.66666666666663,
-                "y": 320
+                "x": 448,
+                "y": 395.33333333333326
             }
         }
     },
@@ -54,11 +73,11 @@
         "Village.tmx"
     ],
     "project": "Avalon.tiled-project",
-    "property.type": "int",
+    "property.type": "bool",
     "recentFiles": [
-        "SereneVillageTileset32.tsx",
         "Tutorial.tmx",
         "Village.tmx",
+        "SereneVillageTileset32.tsx",
         "SereneVillageTileset.tsx"
     ],
     "tileset.lastUsedFormat": "tsx",

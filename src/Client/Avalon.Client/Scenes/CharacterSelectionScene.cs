@@ -77,7 +77,7 @@ public class CharacterSelectionScene : Scene
         
         _cursor = new Cursor(Globals.Content.Load<Texture2D>("Images/Icons/Mouse"), false);
         
-        await Globals.Tcp.SendCharacterListPacket(Globals.AccountId);
+        await Globals.Tcp.SendCharacterListPacket();
     }
 
     public override void Unload()
@@ -182,7 +182,7 @@ public class CharacterSelectionScene : Scene
             var ach = new Achievement("ACH_FIRST_CHARACTER");
             ach.Trigger();
             _gotCharacterList = false;
-            await Globals.Tcp.SendCharacterListPacket(Globals.AccountId);    
+            await Globals.Tcp.SendCharacterListPacket();    
         }
         else
         {
@@ -194,7 +194,7 @@ public class CharacterSelectionScene : Scene
     {
         _gotCharacterList = false;
         _characterSelected = false;
-        await Globals.Tcp.SendCharacterListPacket(Globals.AccountId);
+        await Globals.Tcp.SendCharacterListPacket();
     }
     
     private void OnCharacterSelected(object sender, SCharacterSelectedPacket packet)
@@ -267,7 +267,7 @@ public class CharacterSelectionScene : Scene
         }
         
         var @class = 1;
-        await Globals.Tcp.SendCharacterCreatePacket(Globals.AccountId, name, @class);
+        await Globals.Tcp.SendCharacterCreatePacket(name, @class);
     }
 
     #endregion
