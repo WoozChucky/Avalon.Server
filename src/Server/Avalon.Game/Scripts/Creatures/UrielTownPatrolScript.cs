@@ -18,10 +18,27 @@ public class UrielTownPatrolScript : AIScript
 
     private State _state;
     private Random _random = new();
+    
+    private const int Up = 0;
+    private const int Right = 1;
+    private const int Down = 2;
+    private const int Left = 3;
+    
+    private static readonly Vector2[] Directions =
+    [
+        new Vector2(0, -1),    // Up
+        new Vector2(1, 0),     // Right
+        new Vector2(0, 1),     // Down
+        new Vector2(-1, 0),    // Left
+        new Vector2(-1, -1).Normalized(), // Up-Left
+        new Vector2(1, -1).Normalized(),  // Up-Right
+        new Vector2(-1, 1).Normalized(),  // Down-Left
+        new Vector2(1, 1).Normalized()    // Down-Right
+    ];
 
     public UrielTownPatrolScript(Creature creature, MapInstance map) : base(creature, map)
     {
-        Creature.Velocity = new Vector2(1, 0);
+        Creature.Velocity = Directions[Right];
         _state = State.Moving;
     }
 
@@ -49,18 +66,41 @@ public class UrielTownPatrolScript : AIScript
 
     private void InvertDirection()
     {
-        var directions = new Vector2[] {
-            new Vector2(0, -1),    // Up
-            new Vector2(1, 0),     // Right
-            new Vector2(0, 1),     // Down
-            new Vector2(-1, 0),    // Left
-            new Vector2(-1, -1).Normalized(), // Up-Left
-            new Vector2(1, -1).Normalized(),  // Up-Right
-            new Vector2(-1, 1).Normalized(),  // Down-Left
-            new Vector2(1, 1).Normalized()    // Down-Right
-        };
+        var currentDirection = Creature.Velocity;
         
-        var index = _random.Next(directions.Length);
-        Creature.Velocity = directions[index];
+        if (currentDirection == Directions[0]) // Up
+        {
+            Creature.Velocity = Directions[2]; // Down
+        }
+        else if (currentDirection == Directions[1]) // Right
+        {
+            Creature.Velocity = Directions[3]; // Left
+        }
+        else if (currentDirection == Directions[2]) // Down
+        {
+            Creature.Velocity = Directions[0]; // Up
+        }
+        else if (currentDirection == Directions[3]) // Left
+        {
+            Creature.Velocity = Directions[1]; // Right
+        }
+        else if (currentDirection == Directions[4]) // Up-Left
+        {
+            Creature.Velocity = Directions[6]; // Down-Left
+        }
+        else if (currentDirection == Directions[5]) // Up-Right
+        {
+            Creature.Velocity = Directions[7]; // Down-Right
+        }
+        else if (currentDirection == Directions[6]) // Down-Left
+        {
+            Creature.Velocity = Directions[4]; // Up-Left
+        }
+        else if (currentDirection == Directions[7]) // Down-Right
+        {
+            Creature.Velocity = Directions[5]; // Up-Right
+        }
+        
+        Console.WriteLine("Uriel: I've hit a wall! I'm going to change direction.");
     }
 }

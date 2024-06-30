@@ -434,7 +434,7 @@ public class AvalonTcpClient : IDisposable
 
     public async Task SendCharacterLoadedPacket()
     {
-        var packet = CCharacterLoadedPacket.Create(AccountId, _cryptography.Encrypt);
+        var packet = CCharacterLoadedPacket.Create(_cryptography.Encrypt);
         
         await SendPacket(packet);
     }

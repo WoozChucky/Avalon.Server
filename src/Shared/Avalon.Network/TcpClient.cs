@@ -44,7 +44,8 @@ public class TcpClient : IRemoteSource
             nameof(NetworkPacketType), packet.Header.Type
         ));
         
-        _logger.LogDebug("[{Direction}] {PacketType}", Direction, packet.Header.Type);
+        if (packet.Header.Type != NetworkPacketType.SMSG_NPC_UPDATE)
+            _logger.LogDebug("[{Direction}] {PacketType}", Direction, packet.Header.Type);
         
         Serializer.SerializeWithLengthPrefix(Stream, packet, PrefixStyle.Base128);
         return Task.CompletedTask;
