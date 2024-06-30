@@ -10,18 +10,13 @@ public class CCharacterLoadedPacket : Packet
     public static NetworkProtocol Protocol = NetworkProtocol.Tcp;
     public static NetworkPacketFlags Flags = NetworkPacketFlags.Encrypted;
     
-    [ProtoMember(1)] public int AccountId { get; set; }
-    
-    public static NetworkPacket Create(int accountId, Func<byte[], byte[]> encrypt)
+    public static NetworkPacket Create(Func<byte[], byte[]> encrypt)
     {
         using var memoryStream = new MemoryStream();
         
-        var authPacket = new CCharacterLoadedPacket()
-        {
-            AccountId = accountId,
-        };
+        var p = new CCharacterLoadedPacket();
         
-        Serializer.Serialize(memoryStream, authPacket);
+        Serializer.Serialize(memoryStream, p);
         
         var buffer = encrypt(memoryStream.ToArray());
         
