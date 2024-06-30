@@ -11,6 +11,7 @@ public class SNpcUpdatePacket : Packet
     public static NetworkPacketFlags Flags = NetworkPacketFlags.Encrypted;
 
     [ProtoMember(1)] public CreaturePacket[] Creatures { get; set; }
+    [ProtoMember(2)] public long ServerTicks { get; set; }
     
     public static NetworkPacket Create(CreaturePacket[] creatures, Func<byte[], byte[]> encryptFunc)
     {
@@ -18,7 +19,8 @@ public class SNpcUpdatePacket : Packet
         
         var packet = new SNpcUpdatePacket()
         {
-            Creatures = creatures
+            Creatures = creatures,
+            ServerTicks = DateTime.UtcNow.Ticks
         };
         
         Serializer.Serialize(memoryStream, packet);

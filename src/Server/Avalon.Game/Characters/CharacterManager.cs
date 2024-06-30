@@ -286,10 +286,10 @@ public partial class AvalonGame
 
     public async Task HandleCharacterLoadedPacket(IRemoteSource source, CCharacterLoadedPacket packet)
     {
-        var session = _sessionManager.GetSession(packet.AccountId);
+        var session = _sessionManager.GetSession(source);
         if (session == null)
         {
-            _logger.LogWarning("Session not found for account {AccountId}", packet.AccountId);
+            _logger.LogWarning("Session not found for account {AccountId}", source.RemoteAddress);
             return;
         }
         
@@ -302,7 +302,7 @@ public partial class AvalonGame
 
             if (!session.InGame)
             {
-                _logger.LogWarning("Session {AccountId} is not in game", packet.AccountId);
+                _logger.LogWarning("Session {AccountId} is not in game", session.AccountId);
                 return;
             }
         

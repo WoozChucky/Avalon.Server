@@ -75,7 +75,7 @@ public class SerializationBenchmarks
         using var memoryStream = new MemoryStream(decryptedBytes);
         
         var innerPacket = Serializer.Deserialize<CCharacterLoadedPacket>(memoryStream);
-        if (innerPacket is not { AccountId: 1 })
+        if (innerPacket is null)
         {
             throw new Exception("Failed to deserialize packet");
         }

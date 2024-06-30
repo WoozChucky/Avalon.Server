@@ -71,7 +71,21 @@ public class MapInstance
         return session.InMap && Sessions.ContainsKey(session.AccountId);
     }
 
+    private const float BroadcastInterval = 0.1f;
+    private float _lastBroadcastTime;
+
     public async void Update(TimeSpan deltaTime)
+    {
+        _lastBroadcastTime += (float) deltaTime.TotalSeconds;
+        if (_lastBroadcastTime >= BroadcastInterval)
+        {
+            _lastBroadcastTime = 0;
+            await BroadcastPlayersAsync(deltaTime).ConfigureAwait(false);
+            await BroadcastCreaturesAsync(deltaTime).ConfigureAwait(false);
+        }
+    }
+
+    private async Task BroadcastPlayersAsync(TimeSpan deltaTime)
     {
         // Broadcast player positions
         foreach (var session in Sessions)
@@ -82,8 +96,8 @@ public class MapInstance
             var playerRectangle = new Rectangle(
                 (int)session.Value.Character!.Movement.Position.X,
                 (int)session.Value.Character!.Movement.Position.Y,
-                32,
-                32);
+                VirtualizedMap.TileWidth,
+                VirtualizedMap.TileHeight);
             
             int centerX = playerRectangle.X + playerRectangle.Width / 2;
             int centerY = playerRectangle.Y + playerRectangle.Height / 2;
@@ -108,8 +122,8 @@ public class MapInstance
                 var otherPlayerRectangle = new Rectangle(
                     (int)otherSession.Value.Character!.Movement.Position.X,
                     (int)otherSession.Value.Character!.Movement.Position.Y,
-                    32,
-                    32);
+                    VirtualizedMap.TileWidth,
+                    VirtualizedMap.TileHeight);
 
                 if (playerRadiusRectangle.IntersectsWith(otherPlayerRectangle))
                 {
@@ -132,7 +146,10 @@ public class MapInstance
             
             await session.Value.SendAsync(SPlayerPositionUpdatePacket.Create(playerPackets.ToArray(), session.Value.Encrypt));
         }
-        
+    }
+
+    private async Task BroadcastCreaturesAsync(TimeSpan deltaTime)
+    {
         // Broadcast Creature positions
         foreach (var session in Sessions)
         {
@@ -141,8 +158,8 @@ public class MapInstance
             var playerRectangle = new Rectangle(
                 (int)session.Value.Character!.Movement.Position.X,
                 (int)session.Value.Character!.Movement.Position.Y,
-                32,
-                32);
+                VirtualizedMap.TileWidth,
+                VirtualizedMap.TileHeight);
             
             int centerX = playerRectangle.X + playerRectangle.Width / 2;
             int centerY = playerRectangle.Y + playerRectangle.Height / 2;
@@ -165,8 +182,8 @@ public class MapInstance
                 var creatureRectangle = new Rectangle(
                     (int) creature.Position.X,
                     (int) creature.Position.Y,
-                    32,
-                    32);
+                    VirtualizedMap.TileWidth,
+                    VirtualizedMap.TileHeight);
 
                 if (playerRadiusRectangle.IntersectsWith(creatureRectangle))
                 {
