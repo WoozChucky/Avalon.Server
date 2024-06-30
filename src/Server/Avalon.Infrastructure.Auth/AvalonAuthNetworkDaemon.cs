@@ -146,7 +146,7 @@ public class AvalonAuthNetworkDaemon : IAvalonNetworkDaemon
                     e.InnerException.Message.Contains("An existing connection was forcibly closed by the remote host"))
                 {
                     _logger.LogInformation("Client {Endpoint} disconnected", client.RemoteAddress);
-                    _sessionManager.RemoveConnection(client);
+                    _sessionManager.RemoveConnectionAbrupty(client);
                 }
                 else
                 {

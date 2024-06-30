@@ -17,6 +17,7 @@ public interface IAuthSessionManager : IDisposable
     SemaphoreSlim GetSessionLock(AvalonAuthSession session);
     ConcurrentDictionary<int, AvalonAuthSession> GetSessions();
     void RemoveConnection(IRemoteSource source);
+    void RemoveConnectionAbrupty(IRemoteSource source);
 }
 
 public class AuthSessionManager : IAuthSessionManager
@@ -131,12 +132,45 @@ public class AuthSessionManager : IAuthSessionManager
         
         if (session == null)
         {
-            _logger.LogWarning("Received disconnect packet from unknown client {ConnectionId}", session?.AccountId);
+            _logger.LogWarning("Disconnect from client ({ConnectionId}) without handshake", source.RemoteAddress);
             return;
         }
 
         session.Status = ConnectionStatus.Disconnected;
 
+        _logger.LogInformation("Called One time ?");
+        
+        if (_sessions.TryRemove(session.AccountId, out _))
+        {
+            _logger.LogInformation("Client {Id} has disconnected", session.AccountId);
+            
+            session.Dispose();
+        }
+    }
+
+    public void RemoveConnectionAbrupty(IRemoteSource source)
+    {
+        AvalonAuthSession? session = null;
+        
+        session = _sessions.Values.FirstOrDefault(c => c.Connection?.RemoteAddress == source.RemoteAddress);
+        
+        if (session == null)
+        {
+            session = _handshakingSessions.Values.FirstOrDefault(c => c.Connection?.RemoteAddress == source.RemoteAddress);
+            
+            if (session == null)
+            {
+                _logger.LogWarning("Disconnect from client ({ConnectionId}) without handshake", source.RemoteAddress);
+                return;
+            }
+        }
+        
+        // TODO: Here exactly
+
+        session.Status = ConnectionStatus.Disconnected;
+
+        _logger.LogInformation("Called One time ?");
+        
         if (_sessions.TryRemove(session.AccountId, out _))
         {
             _logger.LogInformation("Client {Id} has disconnected", session.AccountId);
