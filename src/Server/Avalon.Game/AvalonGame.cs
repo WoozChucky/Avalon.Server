@@ -199,7 +199,6 @@ public partial class AvalonGame : IAvalonGame
     {
         var session = _sessionManager.GetSession(source);
         if (session is not { InGame: true }) return Task.CompletedTask;
-        if (session.AccountId != packet.AccountId) return Task.CompletedTask;
         
         Vector2 velocity;
         
