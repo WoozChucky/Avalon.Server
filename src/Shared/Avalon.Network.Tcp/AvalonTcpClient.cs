@@ -508,7 +508,7 @@ public class AvalonTcpClient : IDisposable
             Console.WriteLine("No movement detected, skipping...");
         }
 
-        await SendPacket(CPlayerMovementPacket.Create(AccountId, CharacterId, time, posX, posY, velX, velY, _cryptography.Encrypt));
+        await SendPacket(CPlayerMovementPacket.Create(CharacterId, time, posX, posY, velX, velY, _cryptography.Encrypt));
     }
 
     public async Task SendRegisterPacket(string username, string password)

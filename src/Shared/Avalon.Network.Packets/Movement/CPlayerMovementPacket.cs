@@ -10,21 +10,19 @@ public class CPlayerMovementPacket : Packet
     public static NetworkProtocol Protocol = NetworkProtocol.Tcp;
     public static NetworkPacketFlags Flags = NetworkPacketFlags.Encrypted;
     
-    [ProtoMember(1)] public int AccountId { get; set; }
-    [ProtoMember(2)] public int CharacterId { get; set; }
-    [ProtoMember(3)] public float ElapsedGameTime { get; set; }
-    [ProtoMember(4)] public float X { get; set; }
-    [ProtoMember(5)] public float Y { get; set; }
-    [ProtoMember(6)] public float VelocityX { get; set; }
-    [ProtoMember(7)] public float VelocityY { get; set; }
+    [ProtoMember(1)] public int CharacterId { get; set; }
+    [ProtoMember(2)] public float ElapsedGameTime { get; set; }
+    [ProtoMember(3)] public float X { get; set; }
+    [ProtoMember(4)] public float Y { get; set; }
+    [ProtoMember(5)] public float VelocityX { get; set; }
+    [ProtoMember(6)] public float VelocityY { get; set; }
 
-    public static NetworkPacket Create(int accountId, int characterId, float time, float x, float y, float velX, float velY, Func<byte[], byte[]> encryptFunc)
+    public static NetworkPacket Create(int characterId, float time, float x, float y, float velX, float velY, Func<byte[], byte[]> encryptFunc)
     {
         using var memoryStream = new MemoryStream();
         
-        var movementPacket = new CPlayerMovementPacket()
+        var p = new CPlayerMovementPacket()
         {
-            AccountId = accountId,
             CharacterId = characterId,
             ElapsedGameTime = time,
             X = x,
@@ -33,7 +31,7 @@ public class CPlayerMovementPacket : Packet
             VelocityY = velY
         };
         
-        Serializer.Serialize(memoryStream, movementPacket);
+        Serializer.Serialize(memoryStream, p);
         
         var buffer = encryptFunc(memoryStream.ToArray());
         

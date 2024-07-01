@@ -93,6 +93,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Avalon.Infrastructure.World
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Avalon.Auth", "src\Server\Avalon.Auth\Avalon.Auth.csproj", "{79AA9FCA-E87E-4930-9457-8995974C91EE}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Avalon.Hosting", "src\Server\Avalon.Hosting\Avalon.Hosting.csproj", "{78E421D5-8A7C-4DFD-A19F-105B69F0E055}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Weikio.PluginFramework.Microsoft.DependencyInjection", "vendor\Weikio.PluginFramework.Microsoft.DependencyInjection\Weikio.PluginFramework.Microsoft.DependencyInjection.csproj", "{394326C0-76E2-47AA-AD6B-5CC9E0BD719F}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -227,6 +231,14 @@ Global
 		{79AA9FCA-E87E-4930-9457-8995974C91EE}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{79AA9FCA-E87E-4930-9457-8995974C91EE}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{79AA9FCA-E87E-4930-9457-8995974C91EE}.Release|Any CPU.Build.0 = Release|Any CPU
+		{78E421D5-8A7C-4DFD-A19F-105B69F0E055}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{78E421D5-8A7C-4DFD-A19F-105B69F0E055}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{78E421D5-8A7C-4DFD-A19F-105B69F0E055}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{78E421D5-8A7C-4DFD-A19F-105B69F0E055}.Release|Any CPU.Build.0 = Release|Any CPU
+		{394326C0-76E2-47AA-AD6B-5CC9E0BD719F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{394326C0-76E2-47AA-AD6B-5CC9E0BD719F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{394326C0-76E2-47AA-AD6B-5CC9E0BD719F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{394326C0-76E2-47AA-AD6B-5CC9E0BD719F}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -271,6 +283,8 @@ Global
 		{7103A31B-FFA2-42F6-AD93-4E079A334375} = {68F7CA33-8489-4C26-AF99-CF4FA13327F9}
 		{86A190F9-7EE4-4089-999C-B6532FA732C2} = {68F7CA33-8489-4C26-AF99-CF4FA13327F9}
 		{79AA9FCA-E87E-4930-9457-8995974C91EE} = {DE7B6B83-9A16-4CC0-997A-F4BF25845897}
+		{78E421D5-8A7C-4DFD-A19F-105B69F0E055} = {487F1AE2-1995-411B-8080-6434ACA40E86}
+		{394326C0-76E2-47AA-AD6B-5CC9E0BD719F} = {239CE5E2-D8E0-4A35-A2EF-498451DA02CB}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {20CD880E-2A9B-4B75-A2C1-3145230B285E}
