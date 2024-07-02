@@ -279,6 +279,17 @@ public class AvalonAuth : IAvalonAuth
             await session.SendAsync(SRegisterResultPacket.Create(RegisterResult.EmptyUsername, session.Encrypt));
             return;
         }
+
+        // TODO: Validate if username already picked
+
+        if (string.IsNullOrWhiteSpace(packet.Email))
+        {
+            await session.SendAsync(SRegisterResultPacket.Create(RegisterResult.EmptyEmail, session.Encrypt));
+            return;
+        }
+
+        // TODO: Validate if email already picked
+        // TODO: Validate if valid email address
         
         if (string.IsNullOrWhiteSpace(packet.Password))
         {
@@ -305,7 +316,7 @@ public class AvalonAuth : IAvalonAuth
         var account = new Account
         {
             Username = packet.Username.Trim(),
-            Email = "Email",
+            Email = packet.Email.Trim(),
             FailedLogins = 0,
             JoinDate = DateTime.UtcNow,
             LastIp = session.Connection!.RemoteAddress.Split(':')[0],
@@ -315,7 +326,7 @@ public class AvalonAuth : IAvalonAuth
             Locale = "en",
             Locked = false,
             AccessLevel = AccountAccessLevel.Player,
-            OS = "Windows",
+            OS = "WIN",
             LastLogin = DateTime.UnixEpoch,
             MuteBy = "",
             MuteReason = "",

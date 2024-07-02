@@ -511,9 +511,9 @@ public class AvalonTcpClient : IDisposable
         await SendPacket(CPlayerMovementPacket.Create(CharacterId, time, posX, posY, velX, velY, _cryptography.Encrypt));
     }
 
-    public async Task SendRegisterPacket(string username, string password)
+    public async Task SendRegisterPacket(string username, string email, string password)
     {
-        var packet = CRegisterPacket.Create(username, password, _cryptography.Encrypt);
+        var packet = CRegisterPacket.Create(username, email, password, _cryptography.Encrypt);
         
         await SendPacket(packet);
     }

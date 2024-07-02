@@ -48,7 +48,7 @@ public enum NetworkPacketType : short
     CMSG_INTERACT = 0x2030,
     
     CMSG_REQUEST_SERVER_VERSION = 0x2021,
-    CMSG_REQUEST_LOBBY_LIST = 0x2003,
+    
     CMSG_MOVEMENT = 0x2004,
     CMSG_PING = 0x2005,
     CMSG_PONG = 0x2006,
