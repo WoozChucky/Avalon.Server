@@ -91,6 +91,7 @@ internal class ScriptReaderSystem
         return directories
             .Select(directory => directory.Name)
             .Where(f => !f.Equals(CreateFolder, StringComparison.InvariantCultureIgnoreCase))
+            .OrderBy(d => d)
             .ToList();
     }
 }
