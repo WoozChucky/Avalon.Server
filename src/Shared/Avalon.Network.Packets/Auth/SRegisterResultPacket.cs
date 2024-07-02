@@ -43,6 +43,7 @@ public enum RegisterResult : ushort
 {
     UnknownError,
     EmptyUsername,
+    EmptyEmail,
     EmptyPassword,
     DuplicateUsername,
     DuplicateEmail,
