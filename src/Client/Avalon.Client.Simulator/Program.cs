@@ -158,7 +158,7 @@ namespace Avalon.Client.Simulator
                     if (_needsAccount)
                     {
                         _needsAccount = false;
-                        await _tcp.SendRegisterPacket(_username, _password);
+                        await _tcp.SendRegisterPacket(_username, _username, _password);
                     }
                     
                     if (_isLogged)

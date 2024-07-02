@@ -11,19 +11,21 @@ public class CRegisterPacket : Packet
     public static NetworkPacketFlags Flags = NetworkPacketFlags.Encrypted;
     
     [ProtoMember(1)] public string Username { get; set; }
-    [ProtoMember(2)] public string Password { get; set; }
+    [ProtoMember(2)] public string Email { get; set; }
+    [ProtoMember(3)] public string Password { get; set; }
 
-    public static NetworkPacket Create(string username, string password, Func<byte[], byte[]> encryptFunc)
+    public static NetworkPacket Create(string username, string email, string password, Func<byte[], byte[]> encryptFunc)
     {
         using var memoryStream = new MemoryStream();
         
-        var authPacket = new CRegisterPacket()
+        var p = new CRegisterPacket()
         {
             Username = username,
+            Email = email,
             Password = password
         };
         
-        Serializer.Serialize(memoryStream, authPacket);
+        Serializer.Serialize(memoryStream, p);
         
         var buffer = encryptFunc(memoryStream.ToArray());
         
