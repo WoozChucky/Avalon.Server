@@ -13,6 +13,7 @@ namespace Avalon.Hosting;
 public class PluginExecutor
 {
     private readonly ImmutableDictionary<Type, object[]> _allPlugins;
+    private readonly ImmutableDictionary<Type, ILogger> _allLoggers;
 
     public PluginExecutor(IEnumerable<IPluginCatalog> catalogs, IServiceProvider provider)
     {
@@ -25,6 +26,7 @@ public class PluginExecutor
         // all interfaces defined in the API assembly
         var pluginInterfaces = typeof(ISingletonPlugin).Assembly.GetExportedTypes().Where(x => x.IsInterface).ToArray();
         var dict = pluginInterfaces.ToDictionary(type => type, _ => new List<object>());
+        var loggerFactory = provider.GetRequiredService<ILoggerFactory>();
 
         foreach (var type in allPlugins)
         {
@@ -37,12 +39,14 @@ public class PluginExecutor
             }
         }
         _allPlugins = dict.ToImmutableDictionary(x => x.Key, x => x.Value.ToArray());
+        _allLoggers = dict.ToImmutableDictionary(x => x.Key, x => loggerFactory.CreateLogger(x.Key));
     }
 
-    public async Task ExecutePlugins<T>(ILogger logger, Func<T, Task> action)
+    public async Task ExecutePlugins<T>(Func<T, Task> action)
     {
         if (_allPlugins.TryGetValue(typeof(T), out var plugins) && plugins.Length > 0)
         {
+            _allLoggers.TryGetValue(typeof(T), out var logger);
             // prevent allocations as much as possible
             var taskArr = new Task[plugins.Length];
             for (var i = 0; i < plugins.Length; i++)
@@ -53,7 +57,7 @@ public class PluginExecutor
                 }
                 catch (Exception e)
                 {
-                    logger.LogError(e, "The plugin {PluginType} for {Interface} failed executing", plugins[i], typeof(T));
+                    logger?.LogError(e, "The plugin {PluginType} for {Interface} failed executing", plugins[i], typeof(T));
                     // exception is thrown before any await
                     taskArr[i] = Task.CompletedTask;
                 }
@@ -65,7 +69,7 @@ public class PluginExecutor
             }
             catch (AggregateException e)
             {
-                logger.LogError(e, "Some plugins failed executing");
+                logger?.LogError(e, "Some plugins failed executing");
             }
         }
     }
