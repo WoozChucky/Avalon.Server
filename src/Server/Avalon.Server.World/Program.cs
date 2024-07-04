@@ -11,6 +11,7 @@ using Avalon.Game.Pools;
 using Avalon.Game.Quests;
 using Avalon.Game.Scripts;
 using Avalon.Infrastructure;
+using Avalon.Infrastructure.Configuration;
 using Avalon.Infrastructure.World;
 using Avalon.Metrics;
 using Avalon.Network;
@@ -23,10 +24,10 @@ using Avalon.Server.World.Logging;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using OpenTelemetry.Exporter;
 using OpenTelemetry.Logs;
 using OpenTelemetry.Metrics;
-using OpenTelemetry.ResourceDetectors.Container;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using Serilog;
@@ -169,17 +170,17 @@ namespace Avalon.Server.World
                             .AddService(DiagnosticsConfig.Server.ServiceName)
                             .AddAttributes(new Dictionary<string, object>()
                             {
-                                {"Host", Environment.MachineName },
-                                {"OS", Environment.OSVersion.VersionString },
-                                {"SystemPageSize", Environment.SystemPageSize.ToString() },
-                                {"ProcessorCount", Environment.ProcessorCount.ToString() },
-                                {"UserDomainName", Environment.UserDomainName },
-                                {"UserName", Environment.UserName },
-                                {"Version", Environment.Version.ToString() },
-                                {"WorkingSet", Environment.WorkingSet.ToString() },
-                                {"Application", Assembly.GetExecutingAssembly().GetName().Name! },
+                                {"Host", Environment.MachineName},
+                                {"OS", Environment.OSVersion.VersionString},
+                                {"SystemPageSize", Environment.SystemPageSize.ToString()},
+                                {"ProcessorCount", Environment.ProcessorCount.ToString()},
+                                {"UserDomainName", Environment.UserDomainName},
+                                {"UserName", Environment.UserName},
+                                {"Version", Environment.Version.ToString()},
+                                {"WorkingSet", Environment.WorkingSet.ToString()},
+                                {"Application", Assembly.GetExecutingAssembly().GetName().Name!},
                             })
-                            .AddDetector(new ContainerResourceDetector());
+                            .AddContainerDetector();
                     })
                     .WithMetrics(builder =>
                     {
@@ -240,7 +241,11 @@ namespace Avalon.Server.World
             services.AddSingleton<ICryptoManager, CryptoManager>();
             services.AddSingleton<IAvalonInfrastructure, AvalonWorldInfrastructure>();
             services.AddSingleton<CancellationTokenSource>(s => new CancellationTokenSource());
-            services.AddScoped<IReplicatedCache, ReplicatedCache>();
+            services.AddScoped<IReplicatedCache, ReplicatedCache>(provider =>
+            {
+                var options = provider.GetRequiredService<IOptionsSnapshot<CacheConfiguration>>();
+                return new ReplicatedCache(provider.GetRequiredService<ILoggerFactory>(), options);
+            });
             
             ServiceProvider = services.BuildServiceProvider();
             

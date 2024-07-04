@@ -1,9 +1,11 @@
 using Avalon.Network.Packets.Abstractions;
+using Avalon.Network.Packets.Abstractions.Attributes;
 using ProtoBuf;
 
 namespace Avalon.Network.Packets.Handshake;
 
 [ProtoContract]
+[Packet(HandleOn = ComponentType.Auth, Type = NetworkPacketType.CMSG_SERVER_INFO)]
 public class CRequestServerInfoPacket : Packet
 {
     public static NetworkPacketType PacketType = NetworkPacketType.CMSG_SERVER_INFO;

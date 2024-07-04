@@ -32,11 +32,6 @@ public class NotificationController : BaseController
     [HttpGet]
     public async Task<IActionResult> GetNotificationsAsync()
     {
-        await _notificationService.SendNotificationAsync(new Account
-        {
-            Id = 4
-        }, "Get rekt!");
-        
         return Ok();
     }
 }

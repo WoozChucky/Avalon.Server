@@ -55,12 +55,12 @@
       <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="8.0.0" />
       <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.0" />
       <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="8.0.0" />
-      <PackageReference Include="OpenTelemetry" Version="1.7.0" />
-      <PackageReference Include="OpenTelemetry.AutoInstrumentation.Runtime.Managed" Version="1.2.0" />
-      <PackageReference Include="OpenTelemetry.AutoInstrumentation.Runtime.Native" Version="1.2.0" />
-      <PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.7.0" />
+      <PackageReference Include="OpenTelemetry" Version="1.9.0" />
+      <PackageReference Include="OpenTelemetry.AutoInstrumentation.Runtime.Managed" Version="1.7.0" />
+      <PackageReference Include="OpenTelemetry.AutoInstrumentation.Runtime.Native" Version="1.7.0" />
+      <PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.9.0" />
       <PackageReference Include="protobuf-net" Version="3.2.30" />
-      <PackageReference Include="QuixStreams.Streaming" Version="0.6.1" />
+      <PackageReference Include="Serilog.Enrichers.Thread" Version="4.0.0" />
       <PackageReference Include="Serilog.Extensions.Logging" Version="8.0.0" />
       <PackageReference Include="Serilog.Sinks.Console" Version="5.0.1" />
     </ItemGroup>
