@@ -1,4 +1,4 @@
-namespace Avalon.Hosting.Network;
+namespace Avalon.Hosting.Networking;
 
 public interface IWorldConnection : IConnection
 {

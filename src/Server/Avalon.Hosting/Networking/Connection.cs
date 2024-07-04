@@ -1,4 +1,3 @@
-
 using System;
 using System.Collections.Concurrent;
 using System.IO;
@@ -6,47 +5,63 @@ using System.Net.Sockets;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using Avalon.Common.Cryptography;
+using Avalon.Hosting.Extensions;
+using Avalon.Hosting.PluginTypes;
+using Avalon.Network.Packets;
+using Avalon.Network.Packets.Abstractions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
-namespace Avalon.Hosting.Network;
+namespace Avalon.Hosting.Networking;
 
 public interface IConnection
 {
     Guid Id { get; }
-    Task ExecuteTask { get; }
+    Task? ExecuteTask { get; }
+    public string RemoteEndPoint { get; }
+    public IAvalonCryptoSession CryptoSession { get; }
+    public ICryptoManager ServerCrypto { get; }
+    
     void Close(bool expected = true);
-    void Send<T>(T packet) where T : IPacketSerializable;
+    void Send(NetworkPacket packet);
     Task StartAsync(CancellationToken token = default);
 }
 
 public abstract class Connection : BackgroundService, IConnection
 {
+    public Guid Id { get; }
+    public string RemoteEndPoint { get; private set; }
+    public IAvalonCryptoSession CryptoSession { get; private set; }
+    public ICryptoManager ServerCrypto  => Server.Crypto;
+
     private readonly ILogger _logger;
     private readonly PluginExecutor _pluginExecutor;
-    private readonly ConcurrentQueue<object> _packetsToSend = new();
+    private readonly ConcurrentQueue<NetworkPacket> _packetsToSend = new();
     private readonly IPacketReader _packetReader;
 
     private TcpClient? _client;
     private Stream? _stream;
-    private long _lastHandshakeTime;
     private CancellationTokenSource? _cts;
 
-    public Guid Id { get; }
-    public uint Handshake { get; private set; }
-    public bool Handshaking { get; private set; }
+    
+    
+    protected readonly IServerBase Server;
 
-    protected Connection(ILogger logger, PluginExecutor pluginExecutor, IPacketReader packetReader)
+    protected Connection(ILogger logger, IServerBase server, PluginExecutor pluginExecutor, IPacketReader packetReader)
     {
         _logger = logger;
         _pluginExecutor = pluginExecutor;
         _packetReader = packetReader;
+        Server = server;
+        CryptoSession = new AvalonCryptoSession(ServerCrypto.GetKeyPair());
         Id = Guid.NewGuid();
     }
 
-    public void Init(TcpClient client)
+    protected void Init(TcpClient client)
     {
         _client = client;
+        RemoteEndPoint = client.Client.RemoteEndPoint?.ToString() ?? "Unknown";
         _cts = new CancellationTokenSource();
         Task.Factory.StartNew(SendPacketsWhenAvailable, TaskCreationOptions.LongRunning);
     }
@@ -57,11 +72,11 @@ public abstract class Connection : BackgroundService, IConnection
 
     protected abstract Task OnClose(bool expected = true);
 
-    protected abstract Task OnReceive(IPacketSerializable packet);
+    protected abstract Task OnReceive(NetworkPacket packet, Packet? payload);
 
     protected abstract long GetServerTime();
 
-    protected async override Task ExecuteAsync(CancellationToken stoppingToken)
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         if (_client is null)
         {
@@ -72,17 +87,25 @@ public abstract class Connection : BackgroundService, IConnection
         _logger.LogInformation("New connection from {RemoteEndPoint}", _client.Client.RemoteEndPoint?.ToString());
 
         _stream = await GetStream(_client);
-        StartHandshake();
+        
+        OnHandshakeFinished();
 
         try
         {
             await foreach (var packet in _packetReader.EnumerateAsync(_stream, stoppingToken))
             {
-                _logger.LogDebug(" IN: {Type} {Data}", packet.GetType(), JsonSerializer.Serialize(packet));
+                _logger.LogDebug("IN: {Type} => {Data}", packet.Header.Type, JsonSerializer.Serialize(packet));
                 await _pluginExecutor.ExecutePlugins<IPacketOperationListener>(
                     x => x.OnPrePacketReceivedAsync(packet, Array.Empty<byte>(), stoppingToken));
 
-                await OnReceive((IPacketSerializable) packet);
+                if (packet.Header.Flags.HasFlag(NetworkPacketFlags.Encrypted))
+                {
+                    _packetReader.Decrypt(packet, CryptoSession.Decrypt);
+                }
+
+                var payload = _packetReader.Read(packet);
+
+                await OnReceive(packet, payload);
 
                 await _pluginExecutor.ExecutePlugins<IPacketOperationListener>(
                     x => x.OnPostPacketReceivedAsync(packet, Array.Empty<byte>(), stoppingToken));
@@ -109,7 +132,7 @@ public abstract class Connection : BackgroundService, IConnection
         OnClose(expected);
     }
 
-    public void Send<T>(T packet) where T : IPacketSerializable
+    public void Send(NetworkPacket packet)
     {
         _packetsToSend.Enqueue(packet);
     }
@@ -126,15 +149,8 @@ public abstract class Connection : BackgroundService, IConnection
         {
             try
             {
-                if (_packetsToSend.TryDequeue(out var obj))
+                if (_packetsToSend.TryDequeue(out var packet))
                 {
-                    var packet = (IPacketSerializable) obj;
-                    var size = packet.GetSize();
-                    var bytes = ArrayPool<byte>.Shared.Rent(size);
-                    Array.Clear(bytes, 0, size);
-                    packet.Serialize(bytes);
-                    var bytesToSend = bytes.AsMemory(0, size);
-
                     try
                     {
                         if (_stream is null)
@@ -145,21 +161,17 @@ public abstract class Connection : BackgroundService, IConnection
                         }
 
                         await _pluginExecutor
-                            .ExecutePlugins<IPacketOperationListener>(_logger,
-                                x => x.OnPrePacketSentAsync(obj, CancellationToken.None)).ConfigureAwait(false);
-                        await _stream.WriteAsync(bytesToSend).ConfigureAwait(false);
+                            .ExecutePlugins<IPacketOperationListener>(x => x.OnPrePacketSentAsync(packet, CancellationToken.None)).ConfigureAwait(false);
+                        await _stream.WriteAsync(packet).ConfigureAwait(false);
                         await _stream.FlushAsync().ConfigureAwait(false);
-                        await _pluginExecutor.ExecutePlugins<IPacketOperationListener>(_logger,
-                                x => x.OnPostPacketReceivedAsync(obj, bytes, CancellationToken.None))
+                        await _pluginExecutor.ExecutePlugins<IPacketOperationListener>(x => x.OnPostPacketSentAsync(packet, Array.Empty<byte>(), CancellationToken.None))
                             .ConfigureAwait(false);
                     }
                     catch (Exception e)
                     {
                         _logger.LogError(e, "Failed to send packet");
                     }
-
-                    ArrayPool<byte>.Shared.Return(bytes);
-                    _logger.LogDebug("OUT: {Type} => {Packet}", packet.GetType(), JsonSerializer.Serialize(obj));
+                    _logger.LogDebug("OUT: {Type} => {Packet}", packet.Header.Type, JsonSerializer.Serialize(packet));
                 }
                 else
                 {
@@ -172,78 +184,5 @@ public abstract class Connection : BackgroundService, IConnection
                 break;
             }
         }
-    }
-
-    public void StartHandshake()
-    {
-        if (Handshaking)
-        {
-            _logger.LogDebug("Already handshaking");
-            return;
-        }
-
-        // Generate random handshake and start the handshaking
-        Handshake = CoreRandom.GenerateUInt32();
-        Handshaking = true;
-        this.SetPhase(EPhases.Handshake);
-        SendHandshake();
-    }
-
-    public bool HandleHandshake(GCHandshakeData handshake)
-    {
-        if (!Handshaking)
-        {
-            // We wasn't handshaking!
-            _logger.LogInformation("Received handshake while not handshaking!");
-            _client?.Close();
-            return false;
-        }
-
-        if (handshake.Handshake != Handshake)
-        {
-            // We received a wrong handshake
-            _logger.LogInformation("Received wrong handshake ({Handshake} != {HandshakeHandshake})", Handshake,
-                handshake.Handshake);
-            _client?.Close();
-            return false;
-        }
-
-        var time = GetServerTime();
-        var difference = time - (handshake.Time + handshake.Delta);
-        if (difference >= 0 && difference <= 50)
-        {
-            // if we difference is less than or equal to 50ms the handshake is done and client time is synced enough
-            _logger.LogInformation("Handshake done");
-            Handshaking = false;
-
-            OnHandshakeFinished();
-        }
-        else
-        {
-            // calculate new delta
-            var delta = (time - handshake.Time) / 2;
-            if (delta < 0)
-            {
-                delta = (time - _lastHandshakeTime) / 2;
-                _logger.LogDebug($"Delta is too low, retry with last send time");
-            }
-
-            SendHandshake((uint) time, (uint) delta);
-        }
-
-        return true;
-    }
-
-    private void SendHandshake()
-    {
-        var time = GetServerTime();
-        _lastHandshakeTime = time;
-        Send(new GCHandshake(Handshake, (uint) time, 0));
-    }
-
-    private void SendHandshake(uint time, uint delta)
-    {
-        _lastHandshakeTime = time;
-        Send(new GCHandshake(Handshake, time, delta));
     }
 }

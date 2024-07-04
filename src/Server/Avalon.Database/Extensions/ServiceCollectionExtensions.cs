@@ -9,6 +9,13 @@ namespace Avalon.Database.Extensions;
 
 public static class ServiceCollectionExtensions
 {
+    public static IServiceCollection AddAvalonDatabases(this IServiceCollection services)
+    {
+        services.AddOptions<DatabaseConfiguration>()
+            .BindConfiguration("Database");
+
+        return services;
+    }
     
     public static IServiceCollection AddDatabases(this IServiceCollection services, DatabaseConfiguration configuration)
     {

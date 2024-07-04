@@ -1,4 +1,4 @@
-namespace Avalon.Hosting.Network;
+namespace Avalon.Hosting.Networking;
 
 public struct AuthPacketContext<TPacket>
 {

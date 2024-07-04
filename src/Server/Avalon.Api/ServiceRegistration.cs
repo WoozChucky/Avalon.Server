@@ -18,7 +18,6 @@ using Microsoft.Net.Http.Headers;
 using Microsoft.OpenApi.Models;
 using OpenTelemetry.Exporter;
 using OpenTelemetry.Metrics;
-using OpenTelemetry.ResourceDetectors.Container;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 
@@ -59,17 +58,17 @@ public static class ServiceRegistration
                     .AddService(DiagnosticsConfig.Api.ServiceName)
                     .AddAttributes(new Dictionary<string, object>()
                     {
-                        {"Host", Environment.MachineName },
-                        {"OS", Environment.OSVersion.VersionString },
-                        {"SystemPageSize", Environment.SystemPageSize.ToString() },
-                        {"ProcessorCount", Environment.ProcessorCount.ToString() },
-                        {"UserDomainName", Environment.UserDomainName },
-                        {"UserName", Environment.UserName },
-                        {"Version", Environment.Version.ToString() },
-                        {"WorkingSet", Environment.WorkingSet.ToString() },
-                        {"Application", Assembly.GetExecutingAssembly().GetName().Name! },
+                        {"Host", Environment.MachineName},
+                        {"OS", Environment.OSVersion.VersionString},
+                        {"SystemPageSize", Environment.SystemPageSize.ToString()},
+                        {"ProcessorCount", Environment.ProcessorCount.ToString()},
+                        {"UserDomainName", Environment.UserDomainName},
+                        {"UserName", Environment.UserName},
+                        {"Version", Environment.Version.ToString()},
+                        {"WorkingSet", Environment.WorkingSet.ToString()},
+                        {"Application", Assembly.GetExecutingAssembly().GetName().Name!},
                     })
-                    .AddDetector(new ContainerResourceDetector());
+                    .AddContainerDetector();
             })
             .WithMetrics(builder =>
             {
