@@ -1,6 +1,9 @@
-namespace Avalon.Hosting.Network;
+namespace Avalon.Hosting.Networking;
 
 public interface IAuthConnection : IConnection
 {
-    public uint? AccountId { get; set; }
+    public int? AccountId { get; set; }
+    
+    byte[] GenerateHandshakeData();
+    bool VerifyHandshakeData(byte[] handshakeData);
 }

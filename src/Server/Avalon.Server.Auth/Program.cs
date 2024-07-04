@@ -1,29 +1,34 @@
-﻿
-using System.Diagnostics;
-using System.Reflection;
+﻿using System.Reflection;
 using Avalon.Auth;
+using Avalon.Auth.Database;
+using Avalon.Auth.Database.Extensions;
 using Avalon.Common.Cryptography;
 using Avalon.Common.Telemetry;
 using Avalon.Database;
 using Avalon.Database.Extensions;
+using Avalon.Hosting;
+using Avalon.Hosting.Auth;
 using Avalon.Infrastructure;
 using Avalon.Infrastructure.Auth;
+using Avalon.Infrastructure.Extensions;
 using Avalon.Infrastructure.Services;
 using Avalon.Metrics;
 using Avalon.Network;
+using Avalon.Network.Packets.Abstractions.Attributes;
 using Avalon.Network.Packets.Internal;
 using Avalon.Network.Packets.Internal.Deserialization;
 using Avalon.Network.Packets.Serialization;
 using Avalon.Network.Tcp;
 using Avalon.Server.Auth.Configuration;
 using Avalon.Server.Auth.Logging;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using OpenTelemetry.Exporter;
 using OpenTelemetry.Logs;
 using OpenTelemetry.Metrics;
-using OpenTelemetry.ResourceDetectors.Container;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using Serilog;
@@ -43,13 +48,35 @@ public class Program
     
     private static async Task Main(string[] args)
     {
+        var hostBuilder = await AvalonHostBuilder.CreateHostAsync(args, ComponentType.Auth);
+        hostBuilder.Services.AddHostedService<AuthServer>();
+        hostBuilder.Services.AddAuthDatabase();
+        hostBuilder.Services.AddCache();
+        hostBuilder.Services.AddMfaService();
+        
+        var host = hostBuilder.Build();
+        
+        await using (var scope = host.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
+            var logger = host.Services.GetRequiredService<ILogger<Program>>();
+            logger.LogInformation("Migrating database if necessary...");
+            await db.Database.MigrateAsync();
+            
+            var cache = scope.ServiceProvider.GetRequiredService<IReplicatedCache>();
+            await cache.ConnectAsync();
+        }
+        
+
+        await AvalonHostBuilder.RunAsync<Program>(host);
+        /*
         AppDomain.CurrentDomain.UnhandledException += OnUnhandledExceptionOccurred;
         AppDomain.CurrentDomain.ProcessExit += OnProcessExit;
         Console.CancelKeyPress += ConsoleOnCancelKeyPress;
-        
+
         ConfigureConfiguration(args);
         ConfigureDependencyInjection();
-        
+
         try
         {
             Process.GetCurrentProcess().PriorityClass = ProcessPriorityClass.RealTime;
@@ -59,17 +86,18 @@ public class Program
         {
             Logger.LogWarning("Failed to set process priority, defaulting to Normal priority");
         }
-        
+
         Infrastructure.Start();
-            
+
         Infrastructure.Update(CancellationTokenSource);
-            
+
         Logger.LogInformation("Stopping application...");
-            
+
         Infrastructure.Stop();
         Infrastructure.Dispose();
-            
+
         Logger.LogInformation("Terminated successfully");
+        */
     }
     
     private static void ConsoleOnCancelKeyPress(object? sender, ConsoleCancelEventArgs e)
@@ -133,10 +161,10 @@ public class Program
                                 .CreateDefault()
                                 .AddService(DiagnosticsConfig.Server.ServiceName)
                         )
-                        .AddOtlpExporter(options =>
+                        .AddOtlpExporter(oltpOptions =>
                         {
-                            options.Protocol = OtlpExportProtocol.Grpc;
-                            options.Endpoint = new Uri("http://192.168.1.227:4317");
+                            oltpOptions.Protocol = OtlpExportProtocol.Grpc;
+                            oltpOptions.Endpoint = new Uri("http://192.168.1.227:4317");
                         });
                 });
             }
@@ -151,17 +179,17 @@ public class Program
                         .AddService(DiagnosticsConfig.Server.ServiceName)
                         .AddAttributes(new Dictionary<string, object>()
                         {
-                            {"Host", Environment.MachineName },
-                            {"OS", Environment.OSVersion.VersionString },
-                            {"SystemPageSize", Environment.SystemPageSize.ToString() },
-                            {"ProcessorCount", Environment.ProcessorCount.ToString() },
-                            {"UserDomainName", Environment.UserDomainName },
-                            {"UserName", Environment.UserName },
-                            {"Version", Environment.Version.ToString() },
-                            {"WorkingSet", Environment.WorkingSet.ToString() },
-                            {"Application", Assembly.GetExecutingAssembly().GetName().Name! },
+                            {"Host", Environment.MachineName},
+                            {"OS", Environment.OSVersion.VersionString},
+                            {"SystemPageSize", Environment.SystemPageSize.ToString()},
+                            {"ProcessorCount", Environment.ProcessorCount.ToString()},
+                            {"UserDomainName", Environment.UserDomainName},
+                            {"UserName", Environment.UserName},
+                            {"Version", Environment.Version.ToString()},
+                            {"WorkingSet", Environment.WorkingSet.ToString()},
+                            {"Application", Assembly.GetExecutingAssembly().GetName().Name!},
                         })
-                        .AddDetector(new ContainerResourceDetector());
+                        .AddContainerDetector();
                 })
                 .WithMetrics(builder =>
                 {

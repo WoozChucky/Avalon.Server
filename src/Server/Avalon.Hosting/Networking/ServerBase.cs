@@ -1,24 +1,27 @@
-
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Net;
 using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
+using Avalon.Common.Cryptography;
 using Avalon.Hosting.PluginTypes;
+using Avalon.Network.Packets;
+using Avalon.Network.Packets.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 
-namespace Avalon.Hosting.Network;
+namespace Avalon.Hosting.Networking;
 
 public interface IServerBase
 {
     Task RemoveConnection(IConnection connection);
-    Task CallListener(IConnection connection, IPacketSerializable packet);
+    Task CallListener(IConnection connection, NetworkPacket packet, Packet? payload);
     long ServerTime { get; }
+    public ICryptoManager Crypto { get; }
     void CallConnectionListener(IConnection connection);
 }
 
@@ -37,19 +40,19 @@ public abstract class ServerBase<T> : BackgroundService, IServerBase where T : I
     public int Port { get; }
 
     public ServerBase(IPacketManager packetManager, ILogger logger, PluginExecutor pluginExecutor,
-        IServiceProvider serviceProvider, IOptions<HostingOptions> hostingOptions)
+        IServiceProvider serviceProvider)
     {
         _logger = logger;
         _pluginExecutor = pluginExecutor;
         _serviceProvider = serviceProvider;
         PacketManager = packetManager;
-        Port = hostingOptions.Value.Port;
+        Port = 21000; // TODO: Get from configuration
+        Crypto = new CryptoManager();
 
         // Start server timer
         _serverTimer.Start();
 
-        var localAddr = IPAddress.Parse(hostingOptions.Value.IpAddress ?? "127.0.0.1");
-        IpUtils.PublicIP = localAddr;
+        var localAddr = IPAddress.Parse("0.0.0.0"); // TODO: Get from configuration
         Listener = new TcpListener(localAddr, Port);
         Listener.Server.NoDelay = true;
         
@@ -57,8 +60,9 @@ public abstract class ServerBase<T> : BackgroundService, IServerBase where T : I
     }
 
     public long ServerTime => _serverTimer.ElapsedMilliseconds;
+    public ICryptoManager Crypto { get; }
 
-    protected abstract object GetContextPacket(IConnection connection, object packet, Type packetType);
+    protected abstract object GetContextPacket(IConnection connection, object? packet, Type packetType);
 
     public async Task RemoveConnection(IConnection connection)
     {
@@ -96,7 +100,7 @@ public abstract class ServerBase<T> : BackgroundService, IServerBase where T : I
         Listener.BeginAcceptTcpClient(OnClientAccepted, Listener);
 
         await connection.StartAsync(_stoppingToken.Token);
-        await connection.ExecuteTask.ConfigureAwait(false);
+        await connection.ExecuteTask!.ConfigureAwait(false);
     }
 
     public void ForAllConnections(Action<IConnection> callback)
@@ -112,15 +116,15 @@ public abstract class ServerBase<T> : BackgroundService, IServerBase where T : I
         _connectionListeners.Add(listener);
     }
 
-    public async Task CallListener(IConnection connection, IPacketSerializable packet)
+    public async Task CallListener(IConnection connection, NetworkPacket packet, Packet? payload)
     {
         if (!PacketManager.TryGetPacketInfo(packet, out var details) || details.PacketHandlerType is null)
         {
-            _logger.LogWarning("Could not find a handler for packet {PacketType}", packet.GetType());
+            _logger.LogWarning("Could not find a handler for packet {PacketType}", packet.Header.Type);
             return;
         }
 
-        object context = GetContextPacket(connection, packet, details.PacketType);
+        var context = GetContextPacket(connection, payload, details.PacketType);
 
         try
         {
@@ -128,7 +132,7 @@ public abstract class ServerBase<T> : BackgroundService, IServerBase where T : I
 
             var packetHandler = ActivatorUtilities.CreateInstance(scope.ServiceProvider, details.PacketHandlerType);
             var handlerExecuteMethod = details.PacketHandlerType.GetMethod("ExecuteAsync")!;
-            await (Task) handlerExecuteMethod.Invoke(packetHandler, new[] {context, new CancellationToken()})!;
+            await ((Task) handlerExecuteMethod.Invoke(packetHandler, new[] {context, _stoppingToken.Token})!).ConfigureAwait(false);
         }
         catch (Exception e)
         {
@@ -151,20 +155,6 @@ public abstract class ServerBase<T> : BackgroundService, IServerBase where T : I
         return context;
     }
 
-    private static object GetAuthContextPacket(IConnection connection, object packet, Type packetType)
-    {
-        // TODO caching
-        var contextPacketProperty = typeof(AuthPacketContext<>).MakeGenericType(packetType)
-            .GetProperty(nameof(AuthPacketContext<object>.Packet))!;
-        var contextConnectionProperty = typeof(AuthPacketContext<>).MakeGenericType(packetType)
-            .GetProperty(nameof(AuthPacketContext<object>.Connection))!;
-
-        var context = Activator.CreateInstance(typeof(AuthPacketContext<>).MakeGenericType(packetType))!;
-        contextPacketProperty.SetValue(context, packet);
-        contextConnectionProperty.SetValue(context, connection);
-        return context;
-    }
-
     public void CallConnectionListener(IConnection connection)
     {
         foreach (var listener in _connectionListeners) listener(connection);
@@ -176,7 +166,7 @@ public abstract class ServerBase<T> : BackgroundService, IServerBase where T : I
         Listener.BeginAcceptTcpClient(OnClientAccepted, Listener);
     }
 
-    public async override Task StopAsync(CancellationToken cancellationToken)
+    public override async Task StopAsync(CancellationToken cancellationToken)
     {
         await _stoppingToken.CancelAsync();
         await base.StopAsync(cancellationToken);

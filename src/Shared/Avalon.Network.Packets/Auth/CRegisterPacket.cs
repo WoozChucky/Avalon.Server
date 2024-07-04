@@ -1,9 +1,11 @@
 using Avalon.Network.Packets.Abstractions;
+using Avalon.Network.Packets.Abstractions.Attributes;
 using ProtoBuf;
 
 namespace Avalon.Network.Packets.Auth;
 
 [ProtoContract]
+[Packet(HandleOn = ComponentType.Auth, Type = NetworkPacketType.CMSG_REGISTER)]
 public class CRegisterPacket : Packet
 {
     public static NetworkPacketType PacketType = NetworkPacketType.CMSG_REGISTER;

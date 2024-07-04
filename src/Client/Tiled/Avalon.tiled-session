@@ -23,8 +23,8 @@
             "scale": 0.75,
             "selectedLayer": 1,
             "viewCenter": {
-                "x": 1110,
-                "y": 774.6666666666665
+                "x": 1108,
+                "y": 773.3333333333334
             }
         },
         "SereneVillageTileset.tsx": {
@@ -37,14 +37,14 @@
         },
         "Tutorial.tmx": {
             "expandedObjectLayers": [
-                5,
-                10
+                10,
+                5
             ],
             "scale": 1.5,
             "selectedLayer": 8,
             "viewCenter": {
-                "x": 602,
-                "y": 1153.3333333333333
+                "x": 601.3333333333333,
+                "y": 1152.6666666666665
             }
         },
         "Village.tmx": {
@@ -54,8 +54,8 @@
             "scale": 1.5,
             "selectedLayer": 4,
             "viewCenter": {
-                "x": 448,
-                "y": 395.33333333333326
+                "x": 446.6666666666667,
+                "y": 394
             }
         }
     },
@@ -64,6 +64,7 @@
     "map.height": 48,
     "map.lastUsedExportFilter": "JSON map files (*.tmj *.json)",
     "map.lastUsedFormat": "tmx",
+    "map.orientation": null,
     "map.tileHeight": 32,
     "map.tileWidth": 32,
     "map.width": 64,
@@ -75,6 +76,7 @@
     "project": "Avalon.tiled-project",
     "property.type": "bool",
     "recentFiles": [
+        "CollisionTestuntitled.tmx",
         "Tutorial.tmx",
         "Village.tmx",
         "SereneVillageTileset32.tsx",

@@ -1,5 +1,6 @@
 using Avalon.Infrastructure.Configuration;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using StackExchange.Redis;
 
 namespace Avalon.Infrastructure;
@@ -28,10 +29,10 @@ public class ReplicatedCache : IReplicatedCache
     private ConnectionMultiplexer _redis = null!;
     
     
-    public ReplicatedCache(ILoggerFactory loggerFactory, CacheConfiguration configuration)
+    public ReplicatedCache(ILoggerFactory loggerFactory, IOptions<CacheConfiguration> configuration)
     {
         _logger = loggerFactory.CreateLogger<ReplicatedCache>();
-        _configuration = configuration;
+        _configuration = string.IsNullOrWhiteSpace(configuration.Value.Host) ? new CacheConfiguration { Host = "localhost", Password = "123"} : configuration.Value;
     }
 
     public IDatabase Database => _redis.GetDatabase();

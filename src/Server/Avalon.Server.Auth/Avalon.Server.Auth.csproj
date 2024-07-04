@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
 
     <PropertyGroup>
         <OutputType>Exe</OutputType>
@@ -43,12 +43,18 @@
         <ProjectReference Include="..\..\Shared\Avalon.Network.Packets\Avalon.Network.Packets.csproj" />
         <ProjectReference Include="..\..\Shared\Avalon.Network.Tcp\Avalon.Network.Tcp.csproj" />
         <ProjectReference Include="..\..\Shared\Avalon.Network\Avalon.Network.csproj" />
+        <ProjectReference Include="..\Avalon.Auth.Database\Avalon.Auth.Database.csproj" />
         <ProjectReference Include="..\Avalon.Database\Avalon.Database.csproj" />
+        <ProjectReference Include="..\Avalon.Hosting\Avalon.Hosting.csproj" />
         <ProjectReference Include="..\Avalon.Infrastructure.Auth\Avalon.Infrastructure.Auth.csproj" />
         <ProjectReference Include="..\Avalon.Infrastructure\Avalon.Infrastructure.csproj" />
     </ItemGroup>
 
     <ItemGroup>
+        <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.6">
+          <PrivateAssets>all</PrivateAssets>
+          <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
         <PackageReference Include="Microsoft.Extensions.Configuration" Version="8.0.0" />
         <PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="8.0.1" />
         <PackageReference Include="Microsoft.Extensions.Configuration.CommandLine" Version="8.0.0" />
@@ -56,14 +62,14 @@
         <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="8.0.0" />
         <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.0" />
         <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="8.0.0" />
-        <PackageReference Include="OpenTelemetry" Version="1.7.0" />
-        <PackageReference Include="OpenTelemetry.AutoInstrumentation.Runtime.Managed" Version="1.2.0" />
-        <PackageReference Include="OpenTelemetry.AutoInstrumentation.Runtime.Native" Version="1.2.0" />
-        <PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.7.0" />
+        <PackageReference Include="OpenTelemetry" Version="1.9.0" />
+        <PackageReference Include="OpenTelemetry.AutoInstrumentation.Runtime.Managed" Version="1.7.0" />
+        <PackageReference Include="OpenTelemetry.AutoInstrumentation.Runtime.Native" Version="1.7.0" />
+        <PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.9.0" />
         <PackageReference Include="protobuf-net" Version="3.2.30" />
-        <PackageReference Include="QuixStreams.Streaming" Version="0.6.1" />
+        <PackageReference Include="Serilog.Enrichers.Thread" Version="4.0.0" />
         <PackageReference Include="Serilog.Extensions.Logging" Version="8.0.0" />
-        <PackageReference Include="Serilog.Sinks.Console" Version="5.0.1" />
+        <PackageReference Include="Serilog.Sinks.Console" Version="6.0.0" />
     </ItemGroup>
 
     <ItemGroup>
@@ -71,12 +77,9 @@
             <Link>sgKey.snk</Link>
         </None>
         <None Update="appsettings.json">
-            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+            <CopyToOutputDirectory>Always</CopyToOutputDirectory>
         </None>
         <None Include="cert-tcp.pfx" CopyToOutputDirectory="PreserveNewest" />
-        <None Update="appsettings.json">
-          <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-        </None>
     </ItemGroup>
 
 </Project>
