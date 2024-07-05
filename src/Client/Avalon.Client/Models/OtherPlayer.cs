@@ -20,8 +20,8 @@ public class OtherPlayer
 
     private int direction = 0;
 
-    private readonly int _accountId;
-    private readonly int _characterId;
+    private readonly ulong _accountId;
+    private readonly ulong _characterId;
     private readonly string _name;
     private Vector2 currentPosition;
     private Vector2 previousPosition;
@@ -48,7 +48,7 @@ public class OtherPlayer
 
     private volatile bool _chatting;
 
-    public OtherPlayer(int accountId, int characterId, string name, Texture2D texture, Vector2 position, bool debug = false)
+    public OtherPlayer(ulong accountId, ulong characterId, string name, Texture2D texture, Vector2 position, bool debug = false)
     {
         _accountId = accountId;
         _characterId = characterId;

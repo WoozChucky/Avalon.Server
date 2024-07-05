@@ -6,9 +6,8 @@ using Avalon.Api.Authentication.AV;
 using Avalon.Api.Authentication.Jwt;
 using Avalon.Api.Config;
 using Avalon.Api.Services;
+using Avalon.Auth.Database.Extensions;
 using Avalon.Common.Telemetry;
-using Avalon.Database;
-using Avalon.Database.Auth;
 using Avalon.Infrastructure;
 using Avalon.Infrastructure.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -27,25 +26,13 @@ public static class ServiceRegistration
 {
     public static void AddInfrastructure(this IServiceCollection services, ApplicationConfig config)
     {
-        DatabaseManager.RegisterMappings();
+        services.AddAuthDatabase();
         
         services.AddScoped<IAccountService, AccountService>();
         services.AddScoped<IMFAService, MFAService>();
         services.AddSingleton<IReplicatedCache, ReplicatedCache>();
         services.AddScoped<IMFAHashService, MFAHashService>();
         services.AddScoped<INotificationService, NotificationService>();
-        
-        var connectionString = $"Server={config.Database!.Auth!.Host}; " +
-                               $"Port={config.Database.Auth.Port}; " +
-                               $"Database={config.Database.Auth.Database}; " +
-                               $"userid={config.Database.Auth.Username}; " +
-                               $"Pwd={config.Database.Auth.Password};" +
-                               "AllowZeroDateTime=True;" +
-                               "ConvertZeroDateTime=True;";
-        services.AddScoped<IAccountRepository>(_ => new AccountRepository(connectionString));
-        services.AddScoped<IMFASetupRepository>(_ => new MFASetupRepository(connectionString));
-        services.AddScoped<IDeviceRepository>(_ => new DeviceRepository(connectionString));
-        
         services.AddScoped<IJwtUtils, JwtUtils>();
     }
 
