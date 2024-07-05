@@ -1,4 +1,5 @@
 using Avalon.Common.Cryptography;
+using Avalon.Domain.Auth;
 using Avalon.Domain.Characters;
 using Avalon.Infrastructure;
 using Avalon.Network;
@@ -12,7 +13,7 @@ public class PartyGroup
 {
     public bool Active { get; set; }
     public bool Leader { get; set; }
-    public List<int> Members { get; set; } = new();
+    public List<ulong> Members { get; set; } = new();
     
     public PartyGroup()
     {
@@ -22,7 +23,7 @@ public class PartyGroup
 
 public class AvalonWorldSession : AvalonSession
 {
-    public int AccountId { get; set; }
+    public AccountId AccountId { get; set; }
     public Character? Character { get; set; }
     public PartyGroup Party { get; set; }
     

@@ -20,23 +20,18 @@ public class LayerEnricher : ILogEventEnricher
     
     private readonly List<string> _networkNamespaces =
     [
-        typeof(Avalon.Infrastructure.Auth.AvalonAuthNetworkDaemon).FullName!,
         typeof(Avalon.Network.Tcp.AvalonSslTcpServer).FullName!,
-        typeof(Avalon.Auth.AuthSessionManager).FullName!,
         typeof(Avalon.Infrastructure.AvalonSession).FullName!,
         typeof(Avalon.Network.TcpClient).FullName!
     ];
 
     private readonly List<string> _authNamespaces =
     [
-        typeof(Avalon.Auth.AvalonAuthSession).FullName!,
-        typeof(Avalon.Auth.AvalonAuth).FullName!
     ];
 
     private readonly List<string> _serverNamespaces =
     [
         typeof(Program).FullName!,
-        typeof(Avalon.Infrastructure.Auth.AvalonAuthInfrastructure).FullName!
     ];
     
     public void Enrich(LogEvent logEvent, ILogEventPropertyFactory propertyFactory)

@@ -10,7 +10,7 @@ public class QuestRewardTemplate
 }
 
 // 0 = None, 1 = Item, 2 = Gold, 3 = Experience, 4 = Skill, 5 = Title, 6 = Other
-public enum QuestRewardType : uint
+public enum QuestRewardType : ushort
 {
     None,
     Item,

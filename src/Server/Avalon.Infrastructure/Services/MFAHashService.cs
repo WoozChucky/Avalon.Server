@@ -8,7 +8,7 @@ namespace Avalon.Infrastructure.Services;
 public interface IMFAHashService
 {
     Task<string> GenerateHashAsync(Account account);
-    Task<int?> GetAccountIdAsync(string hash);
+    Task<AccountId?> GetAccountIdAsync(string hash);
     Task CleanupHash(string hash);
 }
 
@@ -55,7 +55,7 @@ public class MFAHashService : IMFAHashService
         return hash;
     }
     
-    public async Task<int?> GetAccountIdAsync(string hash)
+    public async Task<AccountId?> GetAccountIdAsync(string hash)
     {
         var keys = await _cache.Database.ExecuteAsync("keys", "auth:account:*:mfa");
         foreach (var (key, _) in keys.ToDictionary())
@@ -63,7 +63,7 @@ public class MFAHashService : IMFAHashService
             var value = await _cache.Database.HashGetAsync(key, "hash");
             if (value != hash) continue;
             var accountId = await _cache.Database.HashGetAsync(key, "accountId");
-            return int.Parse(accountId!);
+            return ulong.Parse(accountId!);
         }
         return null;
     }

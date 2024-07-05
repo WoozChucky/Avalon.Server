@@ -1,104 +1,112 @@
+using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 using System.Numerics;
-using Avalon.Domain.Attributes;
+using Avalon.Common;
+using Avalon.Domain.Auth;
 
 namespace Avalon.Domain.Characters;
 
-public class Character
+public class Character : IDbEntity<CharacterId>
 {
-    [Column("Id")]
-    public int? Id { get; set; }
+    [Key]
+    [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
+    public CharacterId Id { get; set; }
     
-    [Column("Account")]
-    public int Account { get; set; }
+    [Required]
+    public AccountId AccountId { get; set; }
     
-    [Column("Name")]
-    public string Name { get; set; }
+    [Required]
+    public string Name { get; set; } = string.Empty;
     
+    [Required]
+    public CharacterClass Class { get; set; }
     
-    [Column("Class")]
-    public int Class { get; set; }
+    [Required]
+    public CharacterGender Gender { get; set; }
     
-    [Column("Gender")]
-    public int Gender { get; set; }
+    [Required]
+    public ushort Level { get; set; } = 1;
     
-    [Column("Level")]
-    public int Level { get; set; }
+    [Required]
+    public ulong Experience { get; set; } = 0;
     
-    [Column("XP")]
-    public int XP { get; set; }
+    public float X { get; set; }
     
+    public float Y { get; set; }
     
-    [Column("PositionX")]
-    public float PositionX { get; set; }
-    
-    [Column("PositionY")]
-    public float PositionY { get; set; }
-    
-    [Column("Map")]
     public int Map { get; set; }
-
-    [Column("InstanceId")]
+    
     public string? InstanceId { get; set; }
-
-    [Column("online")]
+    
     public bool Online { get; set; }
-
-    [Column("TotalTime")]
+    
     public int TotalTime { get; set; }
-
-    [Column("LevelTime")]
+    
     public int LevelTime { get; set; }
-
-    [Column("LogoutTime")]
+    
     public int LogoutTime { get; set; }
-
-    [Column("IsLogoutResting")]
+    
     public bool IsLogoutResting { get; set; }
-
-    [Column("RestBonus")]
+    
     public float RestBonus { get; set; }
-
-    [Column("TotalKills")]
+    
     public int TotalKills { get; set; }
     
-    [Column("TodayKills")]
     public int TodayKills { get; set; }
     
-    [Column("YesterdayKills")]
     public int YesterdayKills { get; set; }
     
-    [Column("ChosenTitle")]
     public int ChosenTitle { get; set; }
     
-    [Column("Health")]
     public int Health { get; set; }
     
-    [Column("Power1")]
     public int Power1 { get; set; }
     
-    [Column("Power2")]
     public int Power2 { get; set; }
     
-    [Column("Latency")]
     public int Latency { get; set; }
     
-    [Column("ActionBars")]
     public int ActionBars { get; set; }
     
-    [Column("Order")]
     public int Order { get; set; }
     
-    [Column("CreationDate")]
     public DateTime CreationDate { get; set; }
     
-    [Column("DeleteDate")]
     public int DeleteDate { get; set; }
 
     // Non database properties
+    [NotMapped]
     public bool IsChatting { get; set; }
+    [NotMapped]
     public float ElapsedGameTime { get; set; }
+    [NotMapped]
     public CharacterMovement Movement { get; set; }
+}
+
+public class CharacterId : ValueObject<ulong>
+{
+    public CharacterId(ulong value) : base(value)
+    {
+    }
     
+    public static implicit operator CharacterId(ulong value)
+    {
+        return new CharacterId(value);
+    }
+}
+
+public enum CharacterClass : ushort
+{
+    Warrior = 1,
+    Wizard = 2,
+    Hunter = 3,
+    Healer = 4,
+}
+
+public enum CharacterGender : byte
+{
+    Male = 0,
+    Female = 1,
 }
 
 public class CharacterMovement

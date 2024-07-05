@@ -4,15 +4,16 @@ using System.Text;
 using Avalon.Api.Authentication.Jwt;
 using Avalon.Api.Contract;
 using Avalon.Api.Exceptions;
-using Avalon.Database.Auth;
+using Avalon.Auth.Database.Repositories;
 using Avalon.Domain.Auth;
 using Avalon.Infrastructure.Services;
+using OperatingSystem = Avalon.Domain.Auth.OperatingSystem;
 
 namespace Avalon.Api.Services;
 
 public interface IAccountService
 {
-    Task<Account?> FindById(int id);
+    Task<Account?> FindById(AccountId id);
     Task<AuthenticateResponse> Authenticate(AuthenticateRequest model, IPAddress ipAddress, CancellationToken cancellationToken);
     Task<RegisterResponse> Register(RegisterRequest model, string userAgent, IPAddress ipAddress,
         CancellationToken cancellationToken);
@@ -24,13 +25,13 @@ public class AccountService : IAccountService
     private readonly IAccountRepository _accountRepository;
     private readonly IJwtUtils _jwtUtils;
     private readonly IMFAHashService _mfaHashService;
-    private readonly IMFASetupRepository _mfaSetupRepository;
+    private readonly IMfaSetupRepository _mfaSetupRepository;
     private readonly IDeviceRepository _deviceRepository;
     public AccountService(ILoggerFactory loggerFactory, 
         IAccountRepository accountRepository, 
         IJwtUtils jwtUtils, 
         IMFAHashService mfaHashService, 
-        IMFASetupRepository mfaSetupRepository, 
+        IMfaSetupRepository mfaSetupRepository, 
         IDeviceRepository deviceRepository)
     {
         _logger = loggerFactory.CreateLogger<AccountService>();
@@ -41,7 +42,7 @@ public class AccountService : IAccountService
         _deviceRepository = deviceRepository;
     }
     
-    public async Task<Account?> FindById(int id)
+    public async Task<Account?> FindById(AccountId id)
     {
         return await _accountRepository.FindByIdAsync(id);
     }
@@ -49,7 +50,7 @@ public class AccountService : IAccountService
     public async Task<AuthenticateResponse> Authenticate(AuthenticateRequest model, IPAddress ipAddress, 
         CancellationToken cancellationToken)
     {
-        var account = await _accountRepository.FindByUsernameAsync(model.Username);
+        var account = await _accountRepository.FindByUserNameAsync(model.Username);
         if (account == null)
             throw new AuthenticationException("Invalid username or password");
 
@@ -60,8 +61,8 @@ public class AccountService : IAccountService
             throw new AuthenticationException("Invalid username or password");
         }
         
-        var mfaSetup = await _mfaSetupRepository.FindByAccountIdAsync(account.Id!.Value);
-        if (mfaSetup is { Status: Status.Confirmed } )
+        var mfaSetup = await _mfaSetupRepository.FindByAccountIdAsync(account.Id);
+        if (mfaSetup is { Status: MfaSetupStatus.Confirmed } )
         {
             return new AuthenticateResponse
             {
@@ -88,7 +89,7 @@ public class AccountService : IAccountService
     public async Task<RegisterResponse> Register(RegisterRequest model, string userAgent, IPAddress ipAddress,
         CancellationToken cancellationToken)
     {
-        var existingAccount = await _accountRepository.FindByUsernameAsync(model.Username);
+        var existingAccount = await _accountRepository.FindByUserNameAsync(model.Username);
         if (existingAccount != null)
             throw new BusinessException("Username already exists");
         
@@ -111,18 +112,18 @@ public class AccountService : IAccountService
             LastIp = ipAddress.ToString(),
             LastLogin = DateTime.UtcNow,
             JoinDate = DateTime.UtcNow,
-            Locale = "en",
-            OS = "UNK",
+            Locale = AccountLocale.enUS,
+            Os = OperatingSystem.Windows,
         };
         
-        account = await _accountRepository.SaveAsync(account);
+        account = await _accountRepository.CreateAsync(account);
         
         if (account == null)
             throw new Exception("Failed to insert account");
         
-        await _deviceRepository.SaveAsync(new Device
+        await _deviceRepository.CreateAsync(new Device
         {
-            AccountId = account.Id!.Value,
+            AccountId = account.Id,
             Name = userAgent,
             LastUsage = DateTime.UtcNow,
             Trusted = false,

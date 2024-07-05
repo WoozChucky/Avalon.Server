@@ -16,8 +16,8 @@ public static class Globals
     public static AvalonTcpClient Tcp { get; set; }
     //public static AvalonUdpClient Udp { get; set; }
     
-    public static int AccountId { get; set; }
-    public static int CharacterId { get; set; }
+    public static ulong AccountId { get; set; }
+    public static ulong CharacterId { get; set; }
     public static string CharacterName { get; set; }
     public static float CharacterRadius { get; set; }
 

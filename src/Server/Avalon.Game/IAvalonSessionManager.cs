@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using Avalon.Domain.Auth;
 using Avalon.Infrastructure;
 using Avalon.Network;
 using Avalon.Network.Packets.Generic;
@@ -20,11 +21,11 @@ public interface IAvalonSessionManager : IDisposable
     Task HandlePongPacket(IRemoteSource source, CPongPacket packet);
     void RemoveConnection(IRemoteSource source);
     void AddSession(IRemoteSource source, AsymmetricCipherKeyPair serverKeyPair, byte[] clientPublicKey);
-    bool PatchSession(IRemoteSource source, int accountId);
-    AvalonWorldSession? GetSession(int accountId);
+    bool PatchSession(IRemoteSource source, AccountId accountId);
+    AvalonWorldSession? GetSession(AccountId accountId);
     AvalonWorldSession? GetSession(IRemoteSource source);
     SemaphoreSlim GetSessionLock(AvalonWorldSession session);
-    ConcurrentDictionary<int, AvalonWorldSession> GetSessions();
+    ConcurrentDictionary<AccountId, AvalonWorldSession> GetSessions();
     ICollection<AvalonWorldSession> GetInGameSessions();
 }
 
@@ -42,7 +43,7 @@ public class AvalonSessionManager : IAvalonSessionManager
     
     private readonly ILoggerFactory _loggerFactory;
     private readonly ILogger<AvalonSessionManager> _logger;
-    private readonly ConcurrentDictionary<int, AvalonWorldSession> _sessions;
+    private readonly ConcurrentDictionary<AccountId, AvalonWorldSession> _sessions;
     private readonly ConcurrentDictionary<string, AvalonWorldSession> _handshakingSessions;
     private readonly ConcurrentDictionary<AvalonWorldSession, SemaphoreSlim> _sessionLocks;
     private readonly CancellationTokenSource _cts;
@@ -58,7 +59,7 @@ public class AvalonSessionManager : IAvalonSessionManager
     {
         _loggerFactory = loggerFactory;
         _logger = loggerFactory.CreateLogger<AvalonSessionManager>();
-        _sessions = new ConcurrentDictionary<int, AvalonWorldSession>();
+        _sessions = new ConcurrentDictionary<AccountId, AvalonWorldSession>();
         _handshakingSessions = new ConcurrentDictionary<string, AvalonWorldSession>();
         _sessionLocks = new ConcurrentDictionary<AvalonWorldSession, SemaphoreSlim>();
         _cts = new CancellationTokenSource();
@@ -218,7 +219,7 @@ public class AvalonSessionManager : IAvalonSessionManager
         }
     }
 
-    public bool PatchSession(IRemoteSource source, int accountId)
+    public bool PatchSession(IRemoteSource source, AccountId accountId)
     {
         var session = _handshakingSessions
             .Values
@@ -244,7 +245,7 @@ public class AvalonSessionManager : IAvalonSessionManager
         return true;
     }
 
-    public AvalonWorldSession? GetSession(int accountId)
+    public AvalonWorldSession? GetSession(AccountId accountId)
     {
         return _sessions.GetValueOrDefault(accountId);
     }
@@ -265,7 +266,7 @@ public class AvalonSessionManager : IAvalonSessionManager
         return _sessionLocks.GetOrAdd(session, new SemaphoreSlim(1, 1));
     }
 
-    public ConcurrentDictionary<int, AvalonWorldSession> GetSessions()
+    public ConcurrentDictionary<AccountId, AvalonWorldSession> GetSessions()
     {
         return _sessions;
     }

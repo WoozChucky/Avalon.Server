@@ -1,16 +1,9 @@
 ﻿using System.Reflection;
-using Avalon.Auth;
 using Avalon.Auth.Database;
-using Avalon.Auth.Database.Extensions;
 using Avalon.Common.Cryptography;
 using Avalon.Common.Telemetry;
-using Avalon.Database;
-using Avalon.Database.Extensions;
 using Avalon.Hosting;
-using Avalon.Hosting.Auth;
 using Avalon.Infrastructure;
-using Avalon.Infrastructure.Auth;
-using Avalon.Infrastructure.Extensions;
 using Avalon.Infrastructure.Services;
 using Avalon.Metrics;
 using Avalon.Network;
@@ -20,12 +13,9 @@ using Avalon.Network.Packets.Internal.Deserialization;
 using Avalon.Network.Packets.Serialization;
 using Avalon.Network.Tcp;
 using Avalon.Server.Auth.Configuration;
+using Avalon.Server.Auth.Extensions;
 using Avalon.Server.Auth.Logging;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
 using OpenTelemetry.Exporter;
 using OpenTelemetry.Logs;
 using OpenTelemetry.Metrics;
@@ -50,9 +40,7 @@ public class Program
     {
         var hostBuilder = await AvalonHostBuilder.CreateHostAsync(args, ComponentType.Auth);
         hostBuilder.Services.AddHostedService<AuthServer>();
-        hostBuilder.Services.AddAuthDatabase();
-        hostBuilder.Services.AddCache();
-        hostBuilder.Services.AddMfaService();
+        hostBuilder.Services.AddAuthServices();
         
         var host = hostBuilder.Build();
         
@@ -230,19 +218,12 @@ public class Program
         {
             services.AddSingleton<IMetricsManager, FakeMetricsManager>();
         }
-
-        services.AddDatabases(AppConfiguration.Database!);
-        services.AddSingleton<IDatabaseManager, DatabaseManager>();
         
         services.AddSingleton<IAvalonTcpServer, AvalonSslTcpServer>();
-        services.AddSingleton<IAuthSessionManager, AuthSessionManager>();
         services.AddSingleton<IPacketDeserializer, NetworkPacketDeserializer>();
         services.AddSingleton<IPacketSerializer, NetworkPacketSerializer>();
         services.AddSingleton<IPacketRegistry, PacketRegistry>();
-        services.AddSingleton<IAvalonNetworkDaemon, AvalonAuthNetworkDaemon>();
         services.AddSingleton<ICryptoManager, CryptoManager>();
-        services.AddSingleton<IAvalonInfrastructure, AvalonAuthInfrastructure>();
-        services.AddSingleton<IAvalonAuth, AvalonAuth>();
         services.AddSingleton<CancellationTokenSource>(s => new CancellationTokenSource());
         services.AddSingleton<IMFAHashService, MFAHashService>();
         services.AddScoped<IReplicatedCache, ReplicatedCache>();

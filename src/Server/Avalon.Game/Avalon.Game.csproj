@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <TargetFramework>netstandard2.1</TargetFramework>
+        <TargetFramework>net8.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <LangVersion>latest</LangVersion>
@@ -20,6 +20,9 @@
       <ProjectReference Include="..\..\Shared\Avalon.Common\Avalon.Common.csproj" />
       <ProjectReference Include="..\..\Shared\Avalon.Network.Packets\Avalon.Network.Packets.csproj" />
       <ProjectReference Include="..\..\Shared\Avalon.Map\Avalon.Map.csproj" />
+      <ProjectReference Include="..\Avalon.Database.Auth\Avalon.Database.Auth.csproj" />
+      <ProjectReference Include="..\Avalon.Database.Character\Avalon.Database.Character.csproj" />
+      <ProjectReference Include="..\Avalon.Database.World\Avalon.Database.World.csproj" />
       <ProjectReference Include="..\Avalon.Database\Avalon.Database.csproj" />
       <ProjectReference Include="..\Avalon.Infrastructure\Avalon.Infrastructure.csproj" />
     </ItemGroup>

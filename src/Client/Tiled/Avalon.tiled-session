@@ -3,7 +3,7 @@
         "height": 4300,
         "width": 2
     },
-    "activeFile": "Village.tmx",
+    "activeFile": "",
     "expandedProjectPaths": [
         "."
     ],
@@ -76,10 +76,10 @@
     "project": "Avalon.tiled-project",
     "property.type": "bool",
     "recentFiles": [
-        "CollisionTestuntitled.tmx",
+        "SereneVillageTileset32.tsx",
         "Tutorial.tmx",
         "Village.tmx",
-        "SereneVillageTileset32.tsx",
+        "CollisionTestuntitled.tmx",
         "SereneVillageTileset.tsx"
     ],
     "tileset.lastUsedFormat": "tsx",

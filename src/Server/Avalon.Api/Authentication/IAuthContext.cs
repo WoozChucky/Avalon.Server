@@ -1,5 +1,4 @@
-﻿using Avalon.Database.Auth;
-using Avalon.Domain.Auth;
+﻿using Avalon.Domain.Auth;
 
 namespace Avalon.Api.Authentication;
 

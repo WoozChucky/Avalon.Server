@@ -1,0 +1,1 @@
+dotnet ef migrations add Initial --context WorldDbContext --output-dir Migrations --startup-project ../Avalon.Server.World -- --Database:World:ConnectionString "Server=localhost;Database=world;Uid=root;Pwd=123;ConvertZeroDatetime=True;AllowZeroDateTime=True;"

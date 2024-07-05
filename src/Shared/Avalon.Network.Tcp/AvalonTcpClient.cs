@@ -65,8 +65,8 @@ public class AvalonTcpClient : IDisposable
     
     private long _packetsReceived;
 
-    public int AccountId { get; set; }
-    public int CharacterId { get; set; }
+    public ulong AccountId { get; set; }
+    public ulong CharacterId { get; set; }
 
     public AvalonTcpClient(AvalonTcpClientSettings settings)
     {
@@ -371,7 +371,7 @@ public class AvalonTcpClient : IDisposable
 
     public async Task SendChatMessage(string message)
     {
-        var packet = CChatMessagePacket.Create(AccountId, CharacterId, message, DateTime.UtcNow, _cryptography.Encrypt);
+        var packet = CChatMessagePacket.Create(message, DateTime.UtcNow, _cryptography.Encrypt);
 
         await SendPacket(packet);
     }
@@ -390,7 +390,7 @@ public class AvalonTcpClient : IDisposable
         await SendPacket(packet);
     }
 
-    public async Task SendCharacterSelectedPacket(int characterId)
+    public async Task SendCharacterSelectedPacket(ulong characterId)
     {
         var packet = CCharacterSelectedPacket.Create(characterId, _cryptography.Encrypt);
         
@@ -411,7 +411,7 @@ public class AvalonTcpClient : IDisposable
         await SendPacket(packet);
     }
 
-    public async Task SendCharacterDeletePacket(int characterId)
+    public async Task SendCharacterDeletePacket(ulong characterId)
     {
         var packet = CCharacterDeletePacket.Create(characterId, _cryptography.Encrypt);
         
@@ -425,7 +425,7 @@ public class AvalonTcpClient : IDisposable
         await SendPacket(packet);
     }
     
-    public async Task SendLogoutPacket(int accountId)
+    public async Task SendLogoutPacket(ulong accountId)
     {
         var packet = CLogoutPacket.Create(accountId, _cryptography.Encrypt);
         
@@ -508,7 +508,7 @@ public class AvalonTcpClient : IDisposable
             Console.WriteLine("No movement detected, skipping...");
         }
 
-        await SendPacket(CPlayerMovementPacket.Create(CharacterId, time, posX, posY, velX, velY, _cryptography.Encrypt));
+        await SendPacket(CPlayerMovementPacket.Create(time, posX, posY, velX, velY, _cryptography.Encrypt));
     }
 
     public async Task SendRegisterPacket(string username, string email, string password)
