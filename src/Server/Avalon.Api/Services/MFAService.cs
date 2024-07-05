@@ -5,7 +5,7 @@ using Avalon.Api.Authentication.Jwt;
 using Avalon.Api.Config;
 using Avalon.Api.Contract;
 using Avalon.Api.Exceptions;
-using Avalon.Database.Auth;
+using Avalon.Auth.Database.Repositories;
 using Avalon.Domain.Auth;
 using Avalon.Infrastructure.Services;
 using OtpNet;
@@ -23,13 +23,13 @@ public interface IMFAService
 public class MFAService : IMFAService
 {
     private readonly ILogger<MFAService> _logger;
-    private readonly IMFASetupRepository _mfaSetupRepository;
+    private readonly IMfaSetupRepository _mfaSetupRepository;
     private readonly AuthenticationConfig _authenticationConfig;
     private readonly IMFAHashService _mfaHashService;
     private readonly IJwtUtils _jwtUtils;
     private readonly IAccountRepository _accountRepository;
 
-    public MFAService(ILoggerFactory loggerFactory, IMFASetupRepository mfaSetupRepository, AuthenticationConfig authenticationConfig,
+    public MFAService(ILoggerFactory loggerFactory, IMfaSetupRepository mfaSetupRepository, AuthenticationConfig authenticationConfig,
         IMFAHashService mfaHashService, IJwtUtils jwtUtils, IAccountRepository accountRepository)
     {
         _logger = loggerFactory.CreateLogger<MFAService>();
@@ -42,23 +42,23 @@ public class MFAService : IMFAService
     
     public async Task<SetupMFAResponse> SetupMFA(Account account, CancellationToken cancellationToken = default)
     {
-        var existingMfaSetup = await _mfaSetupRepository.FindByAccountIdAsync(account.Id!.Value);
+        var existingMfaSetup = await _mfaSetupRepository.FindByAccountIdAsync(account.Id);
         
         if (existingMfaSetup != null)
         {
-            if (existingMfaSetup.Status == Status.Confirmed)
+            if (existingMfaSetup.Status == MfaSetupStatus.Confirmed)
             {
                 throw new BusinessException("MFA already setup");
             }
             
-            if (existingMfaSetup.Status == Status.Setup && existingMfaSetup.CreatedAt.AddMinutes(5) >= DateTime.UtcNow)
+            if (existingMfaSetup.Status == MfaSetupStatus.Setup && existingMfaSetup.CreatedAt.AddMinutes(5) >= DateTime.UtcNow)
             {
                 throw new BusinessException("MFA setup already in progress");
             }
             
-            if (existingMfaSetup.Status == Status.Setup && existingMfaSetup.CreatedAt.AddMinutes(5) < DateTime.UtcNow)
+            if (existingMfaSetup.Status == MfaSetupStatus.Setup && existingMfaSetup.CreatedAt.AddMinutes(5) < DateTime.UtcNow)
             {
-                await _mfaSetupRepository.DeleteAsync(existingMfaSetup);
+                await _mfaSetupRepository.DeleteAsync(existingMfaSetup.Id);
             }
         }
         
@@ -68,13 +68,13 @@ public class MFAService : IMFAService
             RecoveryCode1 = Guid.NewGuid().ToByteArray(),
             RecoveryCode2 = Guid.NewGuid().ToByteArray(),
             RecoveryCode3 = Guid.NewGuid().ToByteArray(),
-            AccountId = account.Id!.Value,
-            Status = Status.Setup,
+            AccountId = account.Id,
+            Status = MfaSetupStatus.Setup,
             CreatedAt = DateTime.UtcNow,
             ConfirmedAt = DateTime.MinValue,
         };
         
-        mfaSetup = await _mfaSetupRepository.SaveAsync(mfaSetup);
+        mfaSetup = await _mfaSetupRepository.CreateAsync(mfaSetup);
         
         var uriString = new OtpUri(OtpType.Totp, mfaSetup.Secret, account.Email, _authenticationConfig.Issuer).ToString();
         
@@ -87,7 +87,7 @@ public class MFAService : IMFAService
     public async Task<AuthenticateResponse> VerifyMFA(VerifyMFARequest request, IPAddress ipAddress, CancellationToken cancellationToken = default)
     {
         var code = request.Code;
-
+        
         var accountId = await _mfaHashService.GetAccountIdAsync(request.Hash);
         if (accountId == null)
         {
@@ -100,12 +100,12 @@ public class MFAService : IMFAService
             throw new AuthenticationException("Account not found");
         }
         
-        var mfaSetup = await _mfaSetupRepository.FindByAccountIdAsync(account.Id!.Value);
+        var mfaSetup = await _mfaSetupRepository.FindByAccountIdAsync(account.Id);
         
         if (mfaSetup == null)
             throw new BusinessException("MFA not found");
         
-        if (mfaSetup.Status != Status.Confirmed)
+        if (mfaSetup.Status != MfaSetupStatus.Confirmed)
         {
             throw new BusinessException("MFA not confirmed");
         }
@@ -134,19 +134,19 @@ public class MFAService : IMFAService
 
     public async Task<ConfirmMFAResponse> ConfirmMFA(string code, Account account, CancellationToken cancellationToken = default)
     {
-        var mfaSetup = await _mfaSetupRepository.FindByAccountIdAsync(account.Id!.Value);
+        var mfaSetup = await _mfaSetupRepository.FindByAccountIdAsync(account.Id);
         
         if (mfaSetup == null)
             throw new BusinessException("MFA setup not found");
         
-        if (mfaSetup.Status != Status.Setup)
+        if (mfaSetup.Status != MfaSetupStatus.Setup)
         {
             throw new BusinessException("MFA setup already confirmed");
         }
         
         if (mfaSetup.CreatedAt.AddMinutes(5) < DateTime.UtcNow)
         {
-            await _mfaSetupRepository.DeleteAsync(mfaSetup);
+            await _mfaSetupRepository.DeleteAsync(mfaSetup.Id);
             throw new BusinessException("MFA setup expired");
         }
         
@@ -157,10 +157,10 @@ public class MFAService : IMFAService
             throw new BusinessException("Invalid code");
         }
         
-        mfaSetup.Status = Status.Confirmed;
+        mfaSetup.Status = MfaSetupStatus.Confirmed;
         mfaSetup.ConfirmedAt = DateTime.UtcNow;
         
-        await _mfaSetupRepository.SaveAsync(mfaSetup);
+        await _mfaSetupRepository.UpdateAsync(mfaSetup);
         
         return new ConfirmMFAResponse
         {
@@ -172,12 +172,12 @@ public class MFAService : IMFAService
 
     public async Task<SetupMFAResponse> ResetMFA(ResetMFARequest request, Account account, CancellationToken cancellationToken = default)
     {
-        var mfaSetup = await _mfaSetupRepository.FindByAccountIdAsync(account.Id!.Value);
+        var mfaSetup = await _mfaSetupRepository.FindByAccountIdAsync(account.Id);
         
         if (mfaSetup == null)
             throw new BusinessException("MFA setup not found");
         
-        if (mfaSetup.Status != Status.Confirmed)
+        if (mfaSetup.Status != MfaSetupStatus.Confirmed)
         {
             throw new BusinessException("MFA not confirmed");
         }
@@ -189,7 +189,7 @@ public class MFAService : IMFAService
             throw new BusinessException("Invalid recovery codes");
         }
         
-        await _mfaSetupRepository.DeleteAsync(mfaSetup);
+        await _mfaSetupRepository.DeleteAsync(mfaSetup.Id);
         
         return await SetupMFA(account, cancellationToken);
     }

@@ -43,7 +43,7 @@ public class SWorldListPacket : Packet
 [ProtoContract]
 public class WorldInfo
 {
-    [ProtoMember(1)] public int Id { get; set; }
+    [ProtoMember(1)] public ushort Id { get; set; }
     [ProtoMember(2)] public string Name { get; set; }
     [ProtoMember(3)] public short Type { get; set; }
     [ProtoMember(4)] public short AccessLevelRequired { get; set; }

@@ -47,10 +47,10 @@ public class SCharacterListPacket : Packet
 [ProtoContract]
 public class CharacterInfo
 {
-    [ProtoMember(1)] public int CharacterId { get; set; }
+    [ProtoMember(1)] public ulong CharacterId { get; set; }
     [ProtoMember(2)] public string Name { get; set; }
     [ProtoMember(3)] public int Level { get; set; }
-    [ProtoMember(4)] public int Class { get; set; }
+    [ProtoMember(4)] public ushort Class { get; set; }
     [ProtoMember(5)] public float X { get; set; }
     [ProtoMember(6)] public float Y { get; set; }
     [ProtoMember(7)] public float Radius { get; set; }

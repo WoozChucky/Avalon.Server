@@ -23,11 +23,6 @@ public class LayerEnricher : ILogEventEnricher
     [
         typeof(Avalon.Game.AvalonGame).FullName!,
         typeof(Avalon.Game.AvalonWorldSession).FullName!,
-        typeof(Avalon.Game.Maps.AvalonMapManager).FullName!,
-        typeof(Avalon.Game.Quests.QuestManager).FullName!,
-        typeof(Avalon.Game.Creatures.CreatureSpawner).FullName!,
-        typeof(Avalon.Game.Pools.PoolManager).FullName!,
-        typeof(Avalon.Game.Scripts.AIController).FullName!
     ];
 
     private readonly List<string> _serverNamespaces =

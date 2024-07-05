@@ -1,17 +1,20 @@
 using System;
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.IO;
 using System.Net.Sockets;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalon.Common.Cryptography;
+using Avalon.Common.Threading;
 using Avalon.Hosting.Extensions;
 using Avalon.Hosting.PluginTypes;
 using Avalon.Network.Packets;
 using Avalon.Network.Packets.Abstractions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using ProtoBuf;
 
 namespace Avalon.Hosting.Networking;
 
@@ -35,14 +38,14 @@ public abstract class Connection : BackgroundService, IConnection
     public IAvalonCryptoSession CryptoSession { get; private set; }
     public ICryptoManager ServerCrypto  => Server.Crypto;
 
-    private readonly ILogger _logger;
+    protected readonly ILogger _logger;
     private readonly PluginExecutor _pluginExecutor;
-    private readonly ConcurrentQueue<NetworkPacket> _packetsToSend = new();
+    private readonly RingBuffer<NetworkPacket> _packetsToSend = new(string.Empty, 100);
     private readonly IPacketReader _packetReader;
 
     private TcpClient? _client;
     private Stream? _stream;
-    private CancellationTokenSource? _cts;
+    protected CancellationTokenSource? CancellationTokenSource;
 
     
     
@@ -62,7 +65,7 @@ public abstract class Connection : BackgroundService, IConnection
     {
         _client = client;
         RemoteEndPoint = client.Client.RemoteEndPoint?.ToString() ?? "Unknown";
-        _cts = new CancellationTokenSource();
+        CancellationTokenSource = new CancellationTokenSource();
         Task.Factory.StartNew(SendPacketsWhenAvailable, TaskCreationOptions.LongRunning);
     }
 
@@ -95,8 +98,7 @@ public abstract class Connection : BackgroundService, IConnection
             await foreach (var packet in _packetReader.EnumerateAsync(_stream, stoppingToken))
             {
                 _logger.LogDebug("IN: {Type} => {Data}", packet.Header.Type, JsonSerializer.Serialize(packet));
-                await _pluginExecutor.ExecutePlugins<IPacketOperationListener>(
-                    x => x.OnPrePacketReceivedAsync(packet, Array.Empty<byte>(), stoppingToken));
+                await _pluginExecutor.ExecutePlugins<IPacketOperationListener>(x => x.OnPrePacketReceivedAsync(packet, Array.Empty<byte>(), stoppingToken));
 
                 if (packet.Header.Flags.HasFlag(NetworkPacketFlags.Encrypted))
                 {
@@ -107,8 +109,7 @@ public abstract class Connection : BackgroundService, IConnection
 
                 await OnReceive(packet, payload);
 
-                await _pluginExecutor.ExecutePlugins<IPacketOperationListener>(
-                    x => x.OnPostPacketReceivedAsync(packet, Array.Empty<byte>(), stoppingToken));
+                await _pluginExecutor.ExecutePlugins<IPacketOperationListener>(x => x.OnPostPacketReceivedAsync(packet, Array.Empty<byte>(), stoppingToken));
             }
         }
         catch (IOException e)
@@ -127,7 +128,7 @@ public abstract class Connection : BackgroundService, IConnection
 
     public void Close(bool expected = true)
     {
-        _cts?.Cancel();
+        CancellationTokenSource?.Cancel();
         _client?.Close();
         OnClose(expected);
     }
@@ -145,27 +146,28 @@ public abstract class Connection : BackgroundService, IConnection
             return;
         }
 
-        while (_cts?.IsCancellationRequested != true)
+        while (CancellationTokenSource?.IsCancellationRequested != true)
         {
             try
             {
-                if (_packetsToSend.TryDequeue(out var packet))
+                var packet = await _packetsToSend.DequeueAsync(CancellationTokenSource!.Token).ConfigureAwait(false);
+                if (packet != null)
                 {
                     try
                     {
                         if (_stream is null)
                         {
-                            _cts?.Cancel();
+                            CancellationTokenSource?.Cancel();
                             _logger.LogCritical("Stream unexpectedly became null. This shouldn't happen");
                             break;
                         }
-
-                        await _pluginExecutor
-                            .ExecutePlugins<IPacketOperationListener>(x => x.OnPrePacketSentAsync(packet, CancellationToken.None)).ConfigureAwait(false);
+                        
+                        await _pluginExecutor.ExecutePlugins<IPacketOperationListener>(x => x.OnPrePacketSentAsync(packet, CancellationToken.None)).ConfigureAwait(false);
                         await _stream.WriteAsync(packet).ConfigureAwait(false);
                         await _stream.FlushAsync().ConfigureAwait(false);
                         await _pluginExecutor.ExecutePlugins<IPacketOperationListener>(x => x.OnPostPacketSentAsync(packet, Array.Empty<byte>(), CancellationToken.None))
                             .ConfigureAwait(false);
+                        
                     }
                     catch (Exception e)
                     {

@@ -10,20 +10,18 @@ public class CPlayerMovementPacket : Packet
     public static NetworkProtocol Protocol = NetworkProtocol.Tcp;
     public static NetworkPacketFlags Flags = NetworkPacketFlags.Encrypted;
     
-    [ProtoMember(1)] public int CharacterId { get; set; }
-    [ProtoMember(2)] public float ElapsedGameTime { get; set; }
-    [ProtoMember(3)] public float X { get; set; }
-    [ProtoMember(4)] public float Y { get; set; }
-    [ProtoMember(5)] public float VelocityX { get; set; }
-    [ProtoMember(6)] public float VelocityY { get; set; }
+    [ProtoMember(1)] public float ElapsedGameTime { get; set; }
+    [ProtoMember(2)] public float X { get; set; }
+    [ProtoMember(3)] public float Y { get; set; }
+    [ProtoMember(4)] public float VelocityX { get; set; }
+    [ProtoMember(5)] public float VelocityY { get; set; }
 
-    public static NetworkPacket Create(int characterId, float time, float x, float y, float velX, float velY, Func<byte[], byte[]> encryptFunc)
+    public static NetworkPacket Create(float time, float x, float y, float velX, float velY, Func<byte[], byte[]> encryptFunc)
     {
         using var memoryStream = new MemoryStream();
         
         var p = new CPlayerMovementPacket()
         {
-            CharacterId = characterId,
             ElapsedGameTime = time,
             X = x,
             Y = y,

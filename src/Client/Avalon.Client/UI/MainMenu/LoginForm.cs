@@ -5,7 +5,7 @@ using Microsoft.Xna.Framework.Graphics;
 namespace Avalon.Client.UI.MainMenu;
 
 public delegate void LoginFailedEventHandler(string message);
-public delegate void LoginSuccessEventHandler(int accountId);
+public delegate void LoginSuccessEventHandler(ulong accountId);
 public delegate void RegisterClickedEventHandler();
 
 public class LoginForm : IGameComponent

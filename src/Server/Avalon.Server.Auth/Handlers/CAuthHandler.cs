@@ -1,6 +1,5 @@
 using System.Text;
 using Avalon.Auth.Database.Repositories;
-using Avalon.Hosting.Networking;
 using Avalon.Infrastructure;
 using Avalon.Infrastructure.Services;
 using Avalon.Network.Packets.Auth;
@@ -90,7 +89,7 @@ public class CAuthHandler : IAuthPacketHandler<CAuthPacket>
         
         await _accountRepository.UpdateAsync(account);
 
-        await _cache.PublishAsync($"auth:accounts:online", account.Id!.Value.ToString());
+        await _cache.PublishAsync($"auth:accounts:online", account.Id.ToString());
         
         ctx.Connection.Send(SAuthResultPacket.Create(account.Id, null, AuthResult.SUCCESS, ctx.Connection.CryptoSession.Encrypt));
     }
