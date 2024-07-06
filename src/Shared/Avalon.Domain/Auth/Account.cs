@@ -1,76 +1,106 @@
-using Avalon.Domain.Attributes;
+using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
+using Avalon.Common;
 
 namespace Avalon.Domain.Auth;
 
-public class Account
+public class Account : IDbEntity<AccountId>
 {
-    [Column("Id")]
-    public int? Id { get; set; }
+    [Key]
+    [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
+    public AccountId Id { get; set; } = 0;
     
-    [Column("Username")]
-    public string Username { get; set; }
+    [Required]
+    public required string Username { get; init; }
     
-    [Column("Salt")]
-    public byte[] Salt { get; set; }
+    [Required]
+    public required byte[] Salt { get; init; }
     
-    [Column("Verifier")]
-    public byte[] Verifier { get; set; }
+    [Required]
+    public required byte[] Verifier { get; init; }
     
     [Column("SessionKey")]
-    public byte[] SessionKey { get; set; }
+    public byte[] SessionKey { get; set; } = [];
     
-    [Column("Email")]
-    public string Email { get; set; }
+    [Required]
+    public required string Email { get; init; }
     
-    [Column("JoinDate")]
-    public DateTime JoinDate { get; set; }
+    [Required]
+    public required DateTime JoinDate { get; init; } = DateTime.UtcNow;
     
-    [Column("LastIp")]
-    public string LastIp { get; set; }
+    public string LastIp { get; set; } = string.Empty;
     
-    [Column("LastAttemptIp")]
-    public string LastAttemptIp { get; set; }
+    public string LastAttemptIp { get; set; } = string.Empty;
     
-    [Column("FailedLogins")]
     public int FailedLogins { get; set; }
+
+    public bool Locked { get; set; } = false;
     
-    [Column("Locked")]
-    public bool Locked { get; set; }
-    
-    [Column("LastLogin")]
     public DateTime LastLogin { get; set; }
+
+    public bool Online { get; set; } = false;
     
-    [Column("Online")]
-    public bool Online { get; set; }
-    
-    [Column("MuteTime")]
     public DateTime? MuteTime { get; set; }
     
-    [Column("MuteReason")]
-    public string MuteReason { get; set; }
+    public string MuteReason { get; set; } = string.Empty;
     
-    [Column("MuteBy")]
-    public string MuteBy { get; set; }
+    public string MuteBy { get; set; } = string.Empty;
     
-    [Column("Locale")]
-    public string Locale { get; set; }
+    public AccountLocale Locale { get; set; } = AccountLocale.enUS;
     
-    [Column("OS")]
-    public string OS { get; set; }
-    
-    [Column("TotalTime")]
-    public long TotalTime { get; set; }
+    public OperatingSystem Os { get; set; } = OperatingSystem.Windows;
 
-    [Column("AccessLevel")]
-    public AccountAccessLevel AccessLevel { get; set; }
+    public long TotalTime { get; set; } = 0;
+
+    public AccountAccessLevel AccessLevel { get; set; } = AccountAccessLevel.Player;
+}
+
+public class AccountId : ValueObject<ulong>
+{
+    public AccountId(ulong value) : base(value)
+    {
+    }
+    
+    public static implicit operator ulong(AccountId accountId) => accountId.Value;
+    public static implicit operator AccountId(ulong value) => new AccountId(value);
 }
 
 [Flags]
-public enum AccountAccessLevel : short
+public enum AccountAccessLevel : ushort
 {
     Player = 0,
     GameMaster = 1,
     Administrator = 2,
     Tournament = 4,
     PTR = 8,
+}
+
+public enum AccountLocale : ushort
+{
+    enUS,
+    enGB,
+    deDE,
+    esES,
+    esMX,
+    frFR,
+    itIT,
+    plPL,
+    ptBR,
+    ptPT,
+    ruRU,
+    koKR,
+    zhCN,
+    zhTW,
+    jaJP,
+    thTH,
+    viVN,
+    idID,
+    msMY
+}
+
+public enum OperatingSystem : ushort
+{
+    Windows,
+    MacOS,
+    Linux
 }

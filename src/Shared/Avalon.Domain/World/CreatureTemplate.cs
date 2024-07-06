@@ -1,74 +1,84 @@
-using Avalon.Domain.Attributes;
+using System.ComponentModel.DataAnnotations;
+using Avalon.Common;
 
 namespace Avalon.Domain.World;
 
-public class CreatureTemplate
+public class CreatureTemplate : IDbEntity<CreatureTemplateId>
 {
-    [Column("Id")]
-    public int Id { get; set; }
-    [Column("Name")]
+    [Key]
+    [Required]
+    public CreatureTemplateId Id { get; set; }
+    
     public string Name { get; set; } = string.Empty;
-    [Column("SubName")]
+    
     public string SubName { get; set; } = string.Empty;
-    [Column("IconName")]
+    
     public string IconName { get; set; } = string.Empty;
-    [Column("MinLevel")]
+
     public short MinLevel { get; set; }
-    [Column("MaxLevel")]
+
     public short MaxLevel { get; set; }
-    [Column("SpeedWalk")]
+
     public float SpeedWalk { get; set; }
-    [Column("SpeedRun")]
+
     public float SpeedRun { get; set; }
-    [Column("SpeedSwim")]
+
     public float SpeedSwim { get; set; }
-    [Column("Rank")]
+
     public short Rank { get; set; }
-    [Column("UnitClass")]
-    public UnitClass UnitClass { get; set; }
-    [Column("Family")]
+
     public CreatureFamily Family { get; set; }
-    [Column("Type")]
+
     public CreatureType Type { get; set; }
-    [Column("Exp")]
+
     public short Exp { get; set; }
-    [Column("LootId")]
+
     public int LootId { get; set; }
-    [Column("MinGold")]
+
     public int MinGold { get; set; }
-    [Column("MaxGold")]
+
     public int MaxGold { get; set; }
-    [Column("AIName")]
+
     public string AIName { get; set; } = string.Empty;
-    [Column("MovementType")]
+
     public short MovementType { get; set; }
-    [Column("DetectionRange")]
+
     public float DetectionRange { get; set; }
-    [Column("MovementId")]
+
     public int MovementId { get; set; }
-    [Column("ScriptName")]
+
     public string ScriptName { get; set; } = string.Empty;
-    [Column("HealthModifier")]
+
     public float HealthModifier { get; set; }
-    [Column("ManaModifier")]
+
     public float ManaModifier { get; set; }
-    [Column("ArmorModifier")]
+
     public float ArmorModifier { get; set; }
-    [Column("ExperienceModifier")]
+
     public float ExperienceModifier { get; set; }
-    [Column("RegenHealth")]
+
     public short RegenHealth { get; set; }
-    [Column("DmgSchool")]
+
     public short DmgSchool { get; set; }
-    [Column("DamageModifier")]
+
     public float DamageModifier { get; set; }
-    [Column("BaseAttackTime")]
+
     public int BaseAttackTime { get; set; }
-    [Column("RangeAttackTime")]
+
     public int RangeAttackTime { get; set; }
 }
 
-public enum CreatureType : short
+public class CreatureTemplateId : ValueObject<ulong>
+{
+    public CreatureTemplateId(ulong value) : base(value) {}
+    
+    public static implicit operator CreatureTemplateId(ulong value)
+    {
+        return new CreatureTemplateId(value);
+    }
+}
+
+public enum CreatureType : ushort
 {
     None = 0,
     Beast = 1,
@@ -86,7 +96,7 @@ public enum CreatureType : short
     GasCloud = 13,
 }
 
-public enum CreatureFamily : short
+public enum CreatureFamily : ushort
 {
     None = 0,
     Wolf = 1,
@@ -130,12 +140,5 @@ public enum CreatureFamily : short
     Wasp = 44,
     CoreHound = 45,
     SpiritBeast = 46,
-}
-
-public enum UnitClass : short
-{
-    Warrior = 1,
-    Paladin = 2,
-    Rogue = 4,
-    Mage = 8,
+    Humanoid = 47,
 }

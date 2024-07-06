@@ -1,9 +1,11 @@
 using Avalon.Network.Packets.Abstractions;
+using Avalon.Network.Packets.Abstractions.Attributes;
 using ProtoBuf;
 
 namespace Avalon.Network.Packets.Character;
 
 [ProtoContract]
+[Packet(HandleOn = ComponentType.World, Type = NetworkPacketType.CMSG_CHARACTER_LIST)]
 public class CCharacterListPacket : Packet
 {
     public static NetworkPacketType PacketType = NetworkPacketType.CMSG_CHARACTER_LIST;

@@ -1,29 +1,42 @@
-using Avalon.Domain.Attributes;
+
+using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace Avalon.Domain.Auth;
 
-public class MFASetup {
-    [Column("Id")]
-    public Guid? Id { get; set; }
-    [Column("AccountId")]
-    public int AccountId { get; set; }
-    [Column("Secret")]
+public class MFASetup : IDbEntity<Guid>
+{
+    [Key]
+    [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
+    public Guid Id { get; set; }
+
+    [Required]
+    public Account Account { get; set; }
+    
+    public AccountId AccountId { get; set; }
+
+    [Required]
     public byte[] Secret { get; set; }
-    [Column("RecoveryCode1")]
+
+    [Required]
     public byte[] RecoveryCode1 { get; set; }
-    [Column("RecoveryCode2")]
+
+    [Required]
     public byte[] RecoveryCode2 { get; set; }
-    [Column("RecoveryCode3")]
+
+    [Required]
     public byte[] RecoveryCode3 { get; set; }
-    [Column("Status")]
-    public Status Status { get; set; }
-    [Column("CreatedAt")]
-    public DateTime CreatedAt { get; set; }
-    [Column("ConfirmedAt")]
+
+    [Required]
+    public MfaSetupStatus Status { get; set; }
+
+    [Required]
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
     public DateTime ConfirmedAt { get; set; }
 }
 
-public enum Status : ushort {
+public enum MfaSetupStatus : ushort {
     Confirmed = 0,
     Setup = 1,
     Reset = 2

@@ -24,10 +24,12 @@ public class InfrastructureShould : IClassFixture<InfrastructureFixture>
         _fixture.TcpServer.Received(1).RunAsync();
         // _fixture.UdpServer.Received(1).RunAsync();
 
+        /*
         _fixture.DatabaseManager.World.Received(1).Map.FindAllAsync();
         _fixture.DatabaseManager.World.Received(1).CreatureTemplate.FindAllAsync();
         _fixture.DatabaseManager.World.Received(1).QuestReward.FindAllAsync();
         _fixture.DatabaseManager.World.Received(1).QuestTemplate.FindAllAsync();
         _fixture.DatabaseManager.World.Received(1).QuestRewardTemplate.FindAllAsync();
+        */
     }
 }

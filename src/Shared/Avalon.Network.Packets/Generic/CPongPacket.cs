@@ -1,9 +1,11 @@
 using Avalon.Network.Packets.Abstractions;
+using Avalon.Network.Packets.Abstractions.Attributes;
 using ProtoBuf;
 
 namespace Avalon.Network.Packets.Generic;
 
 [ProtoContract]
+[Packet(HandleOn = ComponentType.World, Type = NetworkPacketType.CMSG_PONG)]
 public class CPongPacket : Packet
 {
     public static NetworkPacketType PacketType = NetworkPacketType.CMSG_PONG;

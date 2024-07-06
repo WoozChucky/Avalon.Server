@@ -119,7 +119,7 @@ public class MainMenuScene : Scene
         // Show dialog with message
     }
 
-    private void OnLoginSuccess(int accountId)
+    private void OnLoginSuccess(ulong accountId)
     {
         _loginForm?.ToggleVisibility();
         

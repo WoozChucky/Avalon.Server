@@ -1,6 +1,5 @@
 using System.Text;
 using Avalon.Auth.Database.Repositories;
-using Avalon.Hosting.Networking;
 using Avalon.Infrastructure;
 using Avalon.Infrastructure.Services;
 using Avalon.Network.Packets.Auth;
@@ -75,22 +74,34 @@ public class CAuthHandler : IAuthPacketHandler<CAuthPacket>
         
         if (account.Online) 
         {
-            //TODO: Properly implement this + broadcast to other servers
-            
             ctx.Connection.Send(SAuthResultPacket.Create(null, null, AuthResult.ALREADY_CONNECTED, ctx.Connection.CryptoSession.Encrypt));
+
+            await _cache.PublishAsync("world:accounts:disconnect", account.Id.ToString());
+
+            var connectedSession = ctx.Connection.Server.Connections.FirstOrDefault(c => c.AccountId == account.Id);
+            if (connectedSession != null)
+            {
+                connectedSession.Close();
+            }
+            else
+            {
+                _logger.LogWarning("Account {AccountId} is online but no connection was found", account.Id);
+                account.Online = false;
+                await _accountRepository.UpdateAsync(account);
+            }
             return;
         }
         
         ctx.Connection.AccountId = account.Id;
         
-        // account.Online = true;
+        account.Online = true;
         account.LastIp = ctx.Connection.RemoteEndPoint.Split(':')[0];
         account.LastLogin = DateTime.UtcNow;
         account.FailedLogins = 0;
         
         await _accountRepository.UpdateAsync(account);
 
-        await _cache.PublishAsync($"auth:accounts:online", account.Id!.Value.ToString());
+        await _cache.PublishAsync($"auth:accounts:online", account.Id.ToString());
         
         ctx.Connection.Send(SAuthResultPacket.Create(account.Id, null, AuthResult.SUCCESS, ctx.Connection.CryptoSession.Encrypt));
     }

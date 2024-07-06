@@ -1,15 +1,23 @@
-using Avalon.Domain.Attributes;
+using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace Avalon.Domain.Auth;
 
-public class RefreshToken
+public class RefreshToken : IDbEntity<Guid>
 {
-    [Column("Id")] public Guid Id { get; set; }
-    [Column("AccountId")] public int AccountId { get; set; }
-    [Column("Index")] public uint Index { get; set; } = 0;
-    [Column("Hash")] public byte[] Hash { get; set; } = Array.Empty<byte>();
-    [Column("Revoked")] public bool Revoked { get; set; }
-    [Column("Usages")] public uint Usages { get; set; } = 0;
-    [Column("CreatedAt")] public DateTime CreatedAt { get; set; }
-    [Column("ExpiresAt")] public DateTime ExpiresAt { get; set; }
+    [Key]
+    [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
+    public Guid Id { get; set; }
+    
+    [Required]
+    public Account Account { get; set; }
+    
+    public AccountId AccountId { get; set; }
+    
+    public uint Index { get; set; } = 0;
+    public byte[] Hash { get; set; } = [];
+    public bool Revoked { get; set; }
+    public uint Usages { get; set; } = 0;
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime ExpiresAt { get; set; }
 }

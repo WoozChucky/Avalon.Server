@@ -9,11 +9,11 @@ public class SPlayerConnectedPacket : Packet
     public static NetworkPacketType PacketType = NetworkPacketType.SMSG_CHARACTER_CONNECTED;
     private const NetworkProtocol Protocol = NetworkProtocol.Tcp;
     public static NetworkPacketFlags Flags = NetworkPacketFlags.Encrypted;
-    [ProtoMember(1)] public int AccountId { get; set; }
-    [ProtoMember(2)] public int CharacterId { get; set; }
+    [ProtoMember(1)] public ulong AccountId { get; set; }
+    [ProtoMember(2)] public ulong CharacterId { get; set; }
     [ProtoMember(3)] public string Name { get; set; }
     
-    public static NetworkPacket Create(int accountId, int characterId, string name, Func<byte[], byte[]> encryptFunc)
+    public static NetworkPacket Create(ulong accountId, ulong characterId, string name, Func<byte[], byte[]> encryptFunc)
     {
         using var memoryStream = new MemoryStream();
         

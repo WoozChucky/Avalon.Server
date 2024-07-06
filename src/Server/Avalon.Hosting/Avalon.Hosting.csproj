@@ -23,6 +23,7 @@
 
     <ItemGroup>
       <ProjectReference Include="..\..\..\vendor\Weikio.PluginFramework.Microsoft.DependencyInjection\Weikio.PluginFramework.Microsoft.DependencyInjection.csproj" />
+      <ProjectReference Include="..\..\Shared\Avalon.Configuration\Avalon.Configuration.csproj" />
       <ProjectReference Include="..\..\Shared\Avalon.Network.Packets.Abstractions\Avalon.Network.Packets.Abstractions.csproj" />
       <ProjectReference Include="..\..\Shared\Avalon.Network.Packets\Avalon.Network.Packets.csproj" />
     </ItemGroup>

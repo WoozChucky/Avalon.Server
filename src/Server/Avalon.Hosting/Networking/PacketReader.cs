@@ -1,6 +1,7 @@
 using System;
 using System.Buffers;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -85,7 +86,7 @@ public class PacketReader : IPacketReader
                     _logger.LogDebug("Operation was canceled while reading a packet size. This may be fine");
                     break;
                 }
-
+                
                 if (packetSize > _bufferSize)
                 {
                     _logger.LogError("Packet size {PacketSize} exceeds buffer capacity {BufferSize}", packetSize, _bufferSize);
@@ -109,6 +110,7 @@ public class PacketReader : IPacketReader
                 }
             
                 var packetBuffer = buffer.AsMemory(offset, packetSize);
+                
                 yield return NetworkPacket.Deserialize(packetBuffer);
             }
         }

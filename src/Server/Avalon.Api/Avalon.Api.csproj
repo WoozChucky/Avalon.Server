@@ -14,7 +14,7 @@
         <PackageReference Include="Serilog.AspNetCore" Version="8.0.1" />
         <PackageReference Include="Serilog.Enrichers.Thread" Version="4.0.0" />
         <PackageReference Include="Serilog.Extensions.Logging" Version="8.0.0" />
-        <PackageReference Include="Serilog.Sinks.Console" Version="5.0.1" />
+        <PackageReference Include="Serilog.Sinks.Console" Version="6.0.0" />
         <PackageReference Include="StackExchange.Redis" Version="2.8.0" />
         <PackageReference Include="Swashbuckle.AspNetCore" Version="6.6.2" />
         <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="7.6.2" />
@@ -36,6 +36,7 @@
     <ItemGroup>
       <ProjectReference Include="..\..\Shared\Avalon.Common\Avalon.Common.csproj" />
       <ProjectReference Include="..\..\Shared\Avalon.Configuration\Avalon.Configuration.csproj" />
+      <ProjectReference Include="..\Avalon.Database.Auth\Avalon.Database.Auth.csproj" />
       <ProjectReference Include="..\Avalon.Database\Avalon.Database.csproj" />
       <ProjectReference Include="..\Avalon.Infrastructure\Avalon.Infrastructure.csproj" />
     </ItemGroup>

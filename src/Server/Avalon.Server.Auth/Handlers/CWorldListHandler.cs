@@ -1,5 +1,4 @@
 using Avalon.Auth.Database.Repositories;
-using Avalon.Hosting.Networking;
 using Avalon.Network.Packets.Auth;
 
 namespace Avalon.Server.Auth.Handlers;
@@ -19,7 +18,7 @@ public class CWorldListHandler : IAuthPacketHandler<CWorldListPacket>
     
     public async Task ExecuteAsync(AuthPacketContext<CWorldListPacket> ctx, CancellationToken token = default)
     {
-        var worlds = await _worldRepository.GetAllAsync();
+        var worlds = await _worldRepository.FindAllAsync();
         
         var account = await _accountRepository.FindByIdAsync(ctx.Connection.AccountId ?? 0);
         if (account == null)

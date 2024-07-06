@@ -11,26 +11,22 @@ public class SMapTeleportPacket : Packet
     public static NetworkProtocol Protocol = NetworkProtocol.Tcp;
     public static NetworkPacketFlags Flags = NetworkPacketFlags.Encrypted;
     
-    [ProtoMember(1)] public int AccountId { get; set; }
-    [ProtoMember(2)] public int CharacterId { get; set; }
-    [ProtoMember(3)] public MapInfo Map { get; set; }
-    [ProtoMember(4)] public float X { get; set; }
-    [ProtoMember(5)] public float Y { get; set; }
+    [ProtoMember(1)] public MapInfo Map { get; set; }
+    [ProtoMember(2)] public float X { get; set; }
+    [ProtoMember(3)] public float Y { get; set; }
 
-    public static NetworkPacket Create(int accountId, int characterId, MapInfo mapInfo, float x, float y, Func<byte[], byte[]> encryptFunc)
+    public static NetworkPacket Create(MapInfo mapInfo, float x, float y, Func<byte[], byte[]> encryptFunc)
     {
         using var memoryStream = new MemoryStream();
         
-        var authPacket = new SMapTeleportPacket()
+        var p = new SMapTeleportPacket
         {
-            AccountId = accountId,
-            CharacterId = characterId,
             Map = mapInfo,
             X = x,
             Y = y
         };
         
-        Serializer.Serialize(memoryStream, authPacket);
+        Serializer.Serialize(memoryStream, p);
         
         var buffer = encryptFunc(memoryStream.ToArray());
         

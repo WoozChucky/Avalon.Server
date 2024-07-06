@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using System.Reflection;
+using Avalon.Configuration;
 using Avalon.Hosting.Networking;
 using Avalon.Hosting.PluginTypes;
 using Avalon.Network.Packets;
@@ -25,6 +26,7 @@ public static class ServiceCollectionExtensions
         IConfiguration configuration, ComponentType component)
     {
         services.AddCustomLogging(configuration);
+        services.AddOptions<HostingConfiguration>().BindConfiguration("Hosting");
         services.AddSingleton<IPacketManager>(provider =>
         {
             var packetTypes = typeof(Packet).Assembly.GetExportedTypes().Where(type =>

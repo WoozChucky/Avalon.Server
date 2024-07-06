@@ -2,7 +2,7 @@ namespace Avalon.Domain.World;
 
 public class QuestTemplate
 {
-    public int Id { get; set; }
+    public uint Id { get; set; }
     public QuestEnvironmentType Environment { get; set; }
     public QuestType Type { get; set; }
     public QuestRarity Rarity { get; set; }
@@ -16,9 +16,10 @@ public class QuestTemplate
     public int LevelRequirement { get; set; }
     public int RequiredQuestId { get; set; }
     public int ClassRequirement { get; set; }
+    public ICollection<QuestReward> Rewards { get; set; } = new List<QuestReward>();
 }
 
-public enum QuestEnvironmentType : short
+public enum QuestEnvironmentType : ushort
 {
     None,
     PvE,
@@ -26,7 +27,7 @@ public enum QuestEnvironmentType : short
     Dungeon
 }
 
-public enum QuestType : short
+public enum QuestType : ushort
 {
     None,
     Kill,
@@ -34,7 +35,7 @@ public enum QuestType : short
     Exploration
 }
 
-public enum QuestRarity : short
+public enum QuestRarity : ushort
 {
     None,
     Main,
@@ -42,7 +43,7 @@ public enum QuestRarity : short
     Legendary
 }
 
-public enum QuestRepeatFrequency : short
+public enum QuestRepeatFrequency : ushort
 {
     None,
     Daily,
