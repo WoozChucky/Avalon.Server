@@ -3,18 +3,20 @@ using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Reflection;
 using Avalon.Configuration;
+using Avalon.Domain.Auth;
 using Avalon.Hosting;
 using Avalon.Hosting.Networking;
 using Avalon.Hosting.PluginTypes;
-using Avalon.World;
+using Avalon.Infrastructure;
 using Avalon.World.Entities;
 using Avalon.World.Maps;
 using Avalon.World.Pools;
 using Avalon.World.Scripts;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using StackExchange.Redis;
 
-namespace Avalon.Server.World;
+namespace Avalon.World;
 
 public interface IWorldServer
 {
@@ -22,7 +24,19 @@ public interface IWorldServer
     IWorld World { get; }
 }
 
-public class WorldServer : ServerBase<WorldConnection>, IWorldServer
+public class WorldServer(
+    IPacketManager packetManager,
+    ILoggerFactory loggerFactory,
+    PluginExecutor pluginExecutor,
+    IServiceProvider serviceProvider,
+    IOptions<HostingConfiguration> hostingOptions,
+    IWorld world,
+    IAiController aiController,
+    ICreatureSpawner creatureSpawner,
+    IReplicatedCache cache)
+    : ServerBase<WorldConnection>(packetManager, loggerFactory.CreateLogger<WorldServer>(), pluginExecutor,
+        serviceProvider,
+        hostingOptions), IWorldServer
 {
     public new ImmutableArray<IWorldConnection> Connections =>
         [..base.Connections.Values.Cast<WorldConnection>()];
@@ -30,56 +44,31 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
     public IWorld World => _world;
 
     private readonly ConcurrentDictionary<Type, (PropertyInfo packetProperty, PropertyInfo connectionProperty)> _propertyCache = new();
-    private readonly ILogger<WorldServer> _logger;
-    private readonly PluginExecutor _pluginExecutor;
-    private readonly IAvalonMapManager _mapManager;
-    private readonly IPoolManager _poolManager;
-    private readonly IAiController _aiController;
-    private readonly ICreatureSpawner _creatureSpawner;
-    private readonly Avalon.World.World _world;
+    private readonly ILogger<WorldServer> _logger = loggerFactory.CreateLogger<WorldServer>();
+    private readonly PluginExecutor _pluginExecutor = pluginExecutor;
+    private readonly World _world = world as World ?? throw new InvalidOperationException("Invalid world instance");
 
     #region Server Timers
-
     private readonly Stopwatch _gameTime = new Stopwatch();
     private long _previousTicks = 0;
     private TimeSpan _accumulatedElapsedTime;
     private readonly TimeSpan _targetElapsedTime = TimeSpan.FromTicks(TimeSpan.TicksPerSecond / 60); // 60hz
     private readonly TimeSpan _maxElapsedTime = TimeSpan.FromMilliseconds(500);
     private readonly Stopwatch _serverTimer = new();
-
     #endregion
     
-
-    public WorldServer(IPacketManager packetManager, ILoggerFactory loggerFactory, PluginExecutor pluginExecutor,
-        IServiceProvider serviceProvider,
-        IOptions<HostingConfiguration> hostingOptions, IWorld world, IAvalonMapManager mapManager, IPoolManager poolManager,
-        IAiController aiController, ICreatureSpawner creatureSpawner)
-        : base(packetManager, loggerFactory.CreateLogger<WorldServer>(), pluginExecutor, serviceProvider,
-            hostingOptions)
-    {
-        _logger = loggerFactory.CreateLogger<WorldServer>();
-        _pluginExecutor = pluginExecutor;
-        _mapManager = mapManager;
-        _poolManager = poolManager;
-        _aiController = aiController;
-        _creatureSpawner = creatureSpawner;
-        _world = world as Avalon.World.World ?? throw new InvalidOperationException("Invalid world instance");
-    }
-
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        await Task.WhenAll(
+            aiController.LoadAsync(),
+            creatureSpawner.LoadAsync()
+        );
+        
+        await _world.LoadAsync();
+
+        await CacheSubscribeAsync();
+        
         RegisterNewConnectionListener(NewConnection);
-
-        {
-            await Task.WhenAll(
-                _aiController.LoadAsync(),
-                _creatureSpawner.LoadAsync()
-            );
-
-            await _mapManager.LoadAsync();
-            
-            await _world.LoadAsync();
-        }
         
         _serverTimer.Start();
         
@@ -91,9 +80,9 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         {
             try
             {
-                // await _pluginExecutor.ExecutePlugins<IGameTickListener>(x => x.PreUpdateAsync(stoppingToken));
+                await _pluginExecutor.ExecutePlugins<IGameTickListener>(x => x.PreUpdateAsync(stoppingToken));
                 await Tick();
-                // await _pluginExecutor.ExecutePlugins<IGameTickListener>(x => x.PostUpdateAsync(stoppingToken));
+                await _pluginExecutor.ExecutePlugins<IGameTickListener>(x => x.PostUpdateAsync(stoppingToken));
             }
             catch (Exception e)
             {
@@ -102,6 +91,16 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         }
         
         _logger.LogInformation("World server stopped... Ran for {Minutes}mins", (int) _serverTimer.Elapsed.TotalMinutes);
+    }
+    
+    protected override Task OnStoppingAsync(CancellationToken stoppingToken)
+    {
+        foreach (var connection in Connections)
+        {
+            // TODO: Send a disconnect packet
+            connection.Close();
+        }
+        return Task.CompletedTask;
     }
     
     private async ValueTask Tick()
@@ -127,15 +126,15 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         {
             _accumulatedElapsedTime -= _targetElapsedTime;
             
-            Update(_targetElapsedTime.TotalMilliseconds);
+            await Update(TimeSpan.FromMilliseconds(_targetElapsedTime.TotalMilliseconds));
         }
 
         // todo detect lags
     }
     
-    private void Update(double elapsedTime)
+    private async Task Update(TimeSpan elapsedTime)
     {
-        // Update the world ...
+        await _world.Update(elapsedTime);
     }
     
     private bool NewConnection(IConnection connection)
@@ -168,4 +167,20 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
     
         return context;
     }
+
+    #region Cache Subscriptions
+    private async Task CacheSubscribeAsync()
+    {
+        await cache.SubscribeAsync("world:accounts:disconnect", DelayedDisconnect);
+    }
+
+    private void DelayedDisconnect(RedisChannel channel, RedisValue value)
+    {
+        _logger.LogInformation("Disconnecting account {AccountId}", value);
+        var accountId = new AccountId(ulong.Parse(value.ToString()));
+        
+        // TODO: Send in game packet telling the player they are being disconnected
+        Connections.FirstOrDefault(c => c.AccountId == accountId)?.Close();
+    }
+    #endregion
 }

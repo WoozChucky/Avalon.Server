@@ -1,5 +1,6 @@
 using System.Drawing;
 using System.Numerics;
+using Avalon.Common.Extensions;
 using Avalon.Domain.World;
 using Avalon.World.Scripts;
 
@@ -12,8 +13,19 @@ public class Creature : IGameEntity<Guid>
     public CreatureTemplateId TemplateId { get; set; } = null!;
 
     public string Name { get; set; } = string.Empty;
+
+    public Vector2 Position
+    {
+        set
+        {
+            _position = value;
+            Bounds = new Rectangle(value.ToPoint(), Bounds.Size);
+        }
+        get => _position;
+    }
     
-    public Vector2 Position { get; set; }
+    private Vector2 _position;
+
     public Vector2 Velocity { get; set; }
     
     public Rectangle Bounds { get; set; }
@@ -22,4 +34,5 @@ public class Creature : IGameEntity<Guid>
     public string ScriptName { get; set; } = string.Empty;
 
     public AiScript? Script { get; set; }
+
 }

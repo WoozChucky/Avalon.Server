@@ -67,4 +67,9 @@ public class EntityFrameworkRepository<TEntity, TKey> : IRepository<TEntity, TKe
         Context.Set<TEntity>().Remove(entity);
         await Context.SaveChangesAsync();
     }
+
+    public void DisposeContext()
+    {
+        Context.Dispose();
+    }
 }

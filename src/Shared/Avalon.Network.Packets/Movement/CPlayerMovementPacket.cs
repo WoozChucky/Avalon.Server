@@ -1,22 +1,24 @@
 using Avalon.Network.Packets.Abstractions;
+using Avalon.Network.Packets.Abstractions.Attributes;
 using ProtoBuf;
 
 namespace Avalon.Network.Packets.Movement;
 
 [ProtoContract]
+[Packet(HandleOn = ComponentType.World, Type = NetworkPacketType.CMSG_MOVEMENT)]
 public class CPlayerMovementPacket : Packet
 {
     public static NetworkPacketType PacketType = NetworkPacketType.CMSG_MOVEMENT;
     public static NetworkProtocol Protocol = NetworkProtocol.Tcp;
     public static NetworkPacketFlags Flags = NetworkPacketFlags.Encrypted;
     
-    [ProtoMember(1)] public float ElapsedGameTime { get; set; }
+    [ProtoMember(1)] public double ElapsedGameTime { get; set; }
     [ProtoMember(2)] public float X { get; set; }
     [ProtoMember(3)] public float Y { get; set; }
     [ProtoMember(4)] public float VelocityX { get; set; }
     [ProtoMember(5)] public float VelocityY { get; set; }
 
-    public static NetworkPacket Create(float time, float x, float y, float velX, float velY, Func<byte[], byte[]> encryptFunc)
+    public static NetworkPacket Create(double time, float x, float y, float velX, float velY, Func<byte[], byte[]> encryptFunc)
     {
         using var memoryStream = new MemoryStream();
         

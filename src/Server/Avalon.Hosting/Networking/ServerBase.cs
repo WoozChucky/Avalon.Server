@@ -50,7 +50,7 @@ public abstract class ServerBase<T> : BackgroundService, IServerBase where T : I
     private readonly PluginExecutor _pluginExecutor;
     private readonly IServiceProvider _serviceProvider;
 
-    public ServerBase(IPacketManager packetManager, ILogger logger, PluginExecutor pluginExecutor,
+    protected ServerBase(IPacketManager packetManager, ILogger logger, PluginExecutor pluginExecutor,
         IServiceProvider serviceProvider, IOptions<HostingConfiguration> hostingOptions)
     {
         _logger = logger;
@@ -75,6 +75,7 @@ public abstract class ServerBase<T> : BackgroundService, IServerBase where T : I
     public ICryptoManager Crypto { get; }
 
     protected abstract object GetContextPacket(IConnection connection, object? packet, Type packetType);
+    protected abstract Task OnStoppingAsync(CancellationToken stoppingToken);
 
     public async Task RemoveConnection(IConnection connection)
     {
@@ -186,6 +187,7 @@ public abstract class ServerBase<T> : BackgroundService, IServerBase where T : I
 
     public override async Task StopAsync(CancellationToken cancellationToken)
     {
+        await OnStoppingAsync(cancellationToken);
         await _stoppingToken.CancelAsync();
         await base.StopAsync(cancellationToken);
         _stoppingToken.Dispose();

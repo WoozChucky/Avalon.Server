@@ -3,6 +3,7 @@ using System.Drawing;
 using Avalon.Domain.Auth;
 using Avalon.Domain.World;
 using Avalon.Game.Configuration;
+using Avalon.Network.Packets.Auth;
 using Avalon.Network.Packets.Movement;
 using Avalon.World.Entities;
 using Avalon.World.Maps.Virtual;
@@ -50,11 +51,11 @@ public class MapInstance
     {
         if (initialLoad)
         {
-            return Connections.TryAdd(connection.AccountId, connection);
+            return Connections.TryAdd(connection.AccountId!, connection);
         }
         
         // Only add the session if it's in game
-        return connection.InGame && Connections.TryAdd(connection.AccountId, connection);
+        return connection.InGame && Connections.TryAdd(connection.AccountId!, connection);
     }
     
     public bool RemoveSession(IWorldConnection connection)
@@ -70,8 +71,12 @@ public class MapInstance
     private const float BroadcastInterval = 0.1f;
     private float _lastBroadcastTime;
 
-    public async void Update(TimeSpan deltaTime)
+    public async Task Update(TimeSpan deltaTime)
     {
+        var creatureUpdates = Creatures.Values.Where(c => c.Script != null).Select(c => c.Script!.Update(deltaTime));
+        
+        await Task.WhenAll(creatureUpdates);
+        
         _lastBroadcastTime += (float) deltaTime.TotalSeconds;
         if (_lastBroadcastTime >= BroadcastInterval)
         {
@@ -203,5 +208,27 @@ public class MapInstance
     public void AddCreature(Creature creature)
     {
         Creatures.TryAdd(creature.Id, creature);
+    }
+
+    public void OnConnectionEntered(IWorldConnection connection)
+    {
+        foreach (var (_, conn) in Connections)
+        {
+            if (conn.Id != connection.Id && conn.InMap)
+            {
+                conn.Send(SPlayerConnectedPacket.Create(connection.AccountId!, connection.CharacterId!, connection.Character!.Name, conn.CryptoSession.Encrypt));
+            }
+        }
+    }
+
+    public void OnConnectionLeft(IWorldConnection connection)
+    {
+        foreach (var (_, conn) in Connections)
+        {
+            if (conn.Id != connection.Id && conn.InMap)
+            {
+                conn.Send(SPlayerDisconnectedPacket.Create(connection.AccountId!, connection.CharacterId!, conn.CryptoSession.Encrypt));
+            }
+        }
     }
 }

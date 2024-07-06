@@ -81,6 +81,8 @@ public class Character : IDbEntity<CharacterId>
     public float ElapsedGameTime { get; set; }
     [NotMapped]
     public CharacterMovement Movement { get; set; }
+    [NotMapped]
+    public DateTime EnteredWorld { get; set; }
 }
 
 public class CharacterId : ValueObject<ulong>

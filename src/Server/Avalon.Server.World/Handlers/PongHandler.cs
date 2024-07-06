@@ -1,4 +1,5 @@
 using Avalon.Network.Packets.Generic;
+using Avalon.World;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.Server.World.Handlers;

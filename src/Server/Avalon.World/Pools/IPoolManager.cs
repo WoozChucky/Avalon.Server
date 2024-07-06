@@ -1,5 +1,6 @@
 using Avalon.World.Entities;
 using Avalon.World.Scripts;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using ICreatureSpawner = Avalon.World.Entities.ICreatureSpawner;
 using MapInstance = Avalon.World.Maps.MapInstance;
@@ -17,18 +18,22 @@ public class PoolManager : IPoolManager
     private readonly ILogger<PoolManager> _logger;
     private readonly ICreatureSpawner _creatureSpawner;
     private readonly IAiController _aiController;
+    private readonly IServiceProvider _serviceProvider;
 
-    public PoolManager(ILoggerFactory loggerFactory, ICreatureSpawner creatureSpawner, IAiController aiController)
+    public PoolManager(ILoggerFactory loggerFactory, ICreatureSpawner creatureSpawner, IAiController aiController, IServiceProvider serviceProvider)
     {
         _logger = loggerFactory.CreateLogger<PoolManager>();
         _creatureSpawner = creatureSpawner;
         _aiController = aiController;
+        _serviceProvider = serviceProvider;
     }
 
 
     public void SpawnStartingEntities(MapInstance instance)
     {
         _logger.LogInformation("Spawning starting entities for map {MapId}", instance.MapId);
+        
+        
 
         foreach (var virtualCreature in instance.VirtualizedMap.Creatures)
         {
@@ -37,11 +42,8 @@ public class PoolManager : IPoolManager
             var scriptType = _aiController.GetScriptTemplate(creature.ScriptName);
             if (scriptType is not null)
             {
-                var script = scriptType.GetConstructor(new[] {typeof(Creature), typeof(MapInstance)})?.Invoke(new object[] {creature, instance});
-                if (script is not null)
-                {
-                    creature.Script = (AiScript) script;
-                }
+                var script = ActivatorUtilities.CreateInstance(_serviceProvider, scriptType, [creature, instance]);
+                creature.Script = (AiScript) script;
             }
             
             instance.AddCreature(creature);
