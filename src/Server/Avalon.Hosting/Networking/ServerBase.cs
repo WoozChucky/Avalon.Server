@@ -4,15 +4,18 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
+using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalon.Common.Cryptography;
+using Avalon.Configuration;
 using Avalon.Hosting.PluginTypes;
 using Avalon.Network.Packets;
 using Avalon.Network.Packets.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Avalon.Hosting.Networking;
 
@@ -25,34 +28,42 @@ public interface IServerBase
     void CallConnectionListener(IConnection connection);
 }
 
+public class PacketHandlerCache
+{
+    public MethodInfo ExecuteMethod { get; set; }
+    public Func<IServiceProvider, object> HandlerFactory { get; set; }
+}
+
 public abstract class ServerBase<T> : BackgroundService, IServerBase where T : IConnection
 {
-    private readonly ILogger _logger;
+    public ushort Port { get; }
+    
+    protected TcpListener Listener { get; }
     protected IPacketManager PacketManager { get; }
-    private readonly List<Func<IConnection, bool>> _connectionListeners = new();
     protected readonly ConcurrentDictionary<Guid, IConnection> Connections = new();
+    
+    private readonly ILogger _logger;
+    private readonly Dictionary<Type, PacketHandlerCache> _handlerCache = new();
+    private readonly List<Func<IConnection, bool>> _connectionListeners = new();
     private readonly Stopwatch _serverTimer = new();
     private readonly CancellationTokenSource _stoppingToken = new();
-    protected TcpListener Listener { get; }
-
     private readonly PluginExecutor _pluginExecutor;
     private readonly IServiceProvider _serviceProvider;
-    public int Port { get; }
 
-    public ServerBase(IPacketManager packetManager, ILogger logger, PluginExecutor pluginExecutor,
-        IServiceProvider serviceProvider)
+    protected ServerBase(IPacketManager packetManager, ILogger logger, PluginExecutor pluginExecutor,
+        IServiceProvider serviceProvider, IOptions<HostingConfiguration> hostingOptions)
     {
         _logger = logger;
         _pluginExecutor = pluginExecutor;
         _serviceProvider = serviceProvider;
         PacketManager = packetManager;
-        Port = 21000; // TODO: Get from configuration
+        Port = hostingOptions.Value.Port;
         Crypto = new CryptoManager();
 
         // Start server timer
         _serverTimer.Start();
 
-        var localAddr = IPAddress.Parse("0.0.0.0"); // TODO: Get from configuration
+        var localAddr = IPAddress.Parse(hostingOptions.Value.Host);
         Listener = new TcpListener(localAddr, Port);
         Listener.Server.NoDelay = true;
         
@@ -60,9 +71,11 @@ public abstract class ServerBase<T> : BackgroundService, IServerBase where T : I
     }
 
     public long ServerTime => _serverTimer.ElapsedMilliseconds;
+    public long ServerTicks => _serverTimer.ElapsedTicks;
     public ICryptoManager Crypto { get; }
 
     protected abstract object GetContextPacket(IConnection connection, object? packet, Type packetType);
+    protected abstract Task OnStoppingAsync(CancellationToken stoppingToken);
 
     public async Task RemoveConnection(IConnection connection)
     {
@@ -123,36 +136,42 @@ public abstract class ServerBase<T> : BackgroundService, IServerBase where T : I
             _logger.LogWarning("Could not find a handler for packet {PacketType}", packet.Header.Type);
             return;
         }
+        
+        if (!_handlerCache.TryGetValue(details.PacketType, out var handlerCache))
+        {
+            // Cache reflection information
+            var handlerExecuteMethod = details.PacketHandlerType.GetMethod("ExecuteAsync")
+                                       ?? throw new InvalidOperationException($"Method 'ExecuteAsync' not found in {details.PacketHandlerType}");
 
+            // Create factory delegate for packet handler instances
+            var objectFactory = ActivatorUtilities.CreateFactory(details.PacketHandlerType, Array.Empty<Type>());
+            
+            // Wrap ObjectFactory in a Func<IServiceProvider, object>
+            object HandlerFactory(IServiceProvider sp) => objectFactory(sp, null);
+
+            handlerCache = new PacketHandlerCache
+            {
+                ExecuteMethod = handlerExecuteMethod,
+                HandlerFactory = HandlerFactory
+            };
+
+            _handlerCache[details.PacketType] = handlerCache;
+        }
+        
         var context = GetContextPacket(connection, payload, details.PacketType);
 
         try
         {
             await using var scope = _serviceProvider.CreateAsyncScope();
-
-            var packetHandler = ActivatorUtilities.CreateInstance(scope.ServiceProvider, details.PacketHandlerType);
-            var handlerExecuteMethod = details.PacketHandlerType.GetMethod("ExecuteAsync")!;
-            await ((Task) handlerExecuteMethod.Invoke(packetHandler, new[] {context, _stoppingToken.Token})!).ConfigureAwait(false);
+            
+            var packetHandler = handlerCache.HandlerFactory(scope.ServiceProvider);
+            await ((Task) handlerCache.ExecuteMethod.Invoke(packetHandler, new[] {context, _stoppingToken.Token})!).ConfigureAwait(false);
         }
         catch (Exception e)
         {
             _logger.LogError(e, "Failed to execute packet handler");
             connection.Close();
         }
-    }
-
-    private static object GetWorldContextPacket(IConnection connection, object packet, Type packetType)
-    {
-        // TODO caching
-        var contextPacketProperty = typeof(WorldPacketContext<>).MakeGenericType(packetType)
-            .GetProperty(nameof(WorldPacketContext<object>.Packet))!;
-        var contextConnectionProperty = typeof(WorldPacketContext<>).MakeGenericType(packetType)
-            .GetProperty(nameof(WorldPacketContext<object>.Connection))!;
-
-        var context = Activator.CreateInstance(typeof(WorldPacketContext<>).MakeGenericType(packetType))!;
-        contextPacketProperty.SetValue(context, packet);
-        contextConnectionProperty.SetValue(context, connection);
-        return context;
     }
 
     public void CallConnectionListener(IConnection connection)
@@ -168,6 +187,7 @@ public abstract class ServerBase<T> : BackgroundService, IServerBase where T : I
 
     public override async Task StopAsync(CancellationToken cancellationToken)
     {
+        await OnStoppingAsync(cancellationToken);
         await _stoppingToken.CancelAsync();
         await base.StopAsync(cancellationToken);
         _stoppingToken.Dispose();

@@ -1,7 +1,7 @@
 using System.Text.Json;
 using Avalon.Api.Config;
 using Avalon.Api.Contract;
-using Avalon.Database.Auth;
+using Avalon.Auth.Database.Repositories;
 using Avalon.Domain.Auth;
 using WebPush;
 
@@ -20,6 +20,10 @@ public class NotificationService : INotificationService
     private readonly VapidDetails _vapidDetails;
     private readonly IDeviceRepository _deviceRepository;
     private readonly ILogger<NotificationService> _logger;
+    private readonly JsonSerializerOptions _jsonSerializerOptions = new()
+    {
+        WriteIndented = true
+    };
 
     public NotificationService(ILoggerFactory loggerFactory, NotificationConfig config, IDeviceRepository deviceRepository)
     {
@@ -33,14 +37,14 @@ public class NotificationService : INotificationService
         CancellationToken cancellationToken)
     {
 
-        var devices = await _deviceRepository.FindByAccountIdAsync(account.Id!.Value);
+        var devices = await _deviceRepository.FindByAsync(d => d.AccountId == account.Id);
         var device = devices.FirstOrDefault(x => x.Name == userAgent);
         
         if (device == null)
         {
             device = new Device
             {
-                AccountId = account.Id!.Value,
+                AccountId = account.Id,
                 Name = userAgent,
                 Metadata = JsonSerializer.Serialize(request),
                 Trusted = false,
@@ -48,14 +52,14 @@ public class NotificationService : INotificationService
                 LastUsage = DateTime.UtcNow,
             };
             
-            await _deviceRepository.SaveAsync(device);
+            await _deviceRepository.CreateAsync(device);
         }
         else
         {
             device.Metadata = JsonSerializer.Serialize(request);
             device.LastUsage = DateTime.UtcNow;
             
-            await _deviceRepository.SaveAsync(device);
+            await _deviceRepository.UpdateAsync(device);
         }
         
         var webPushClient = new WebPushClient();
@@ -96,7 +100,7 @@ public class NotificationService : INotificationService
 
     public async Task SendNotificationAsync(Account account, string message, CancellationToken cancellationToken = default)
     {
-        var devices = await _deviceRepository.FindByAccountIdAsync(account.Id!.Value);
+        var devices = await _deviceRepository.FindByAsync(d => d.AccountId == account.Id);
         
         var webPushClient = new WebPushClient();
         webPushClient.SetVapidDetails(_vapidDetails);
@@ -117,6 +121,10 @@ public class NotificationService : INotificationService
     private async Task SendNotificationAsync(Device device, string message, CancellationToken cancellationToken)
     {
         var deviceMetadata = JsonSerializer.Deserialize<PushSubscriptionRequest>(device.Metadata);
+        if (deviceMetadata == null)
+        {
+            throw new InvalidOperationException("Device metadata is missing");
+        }
         var subscription = new PushSubscription(deviceMetadata.Endpoint, deviceMetadata.Keys.P256DH, deviceMetadata.Keys.Auth);
         
         var payload = new
@@ -143,10 +151,7 @@ public class NotificationService : INotificationService
             }
         };
         
-        var notification = JsonSerializer.Serialize(payload, new JsonSerializerOptions
-        {
-            WriteIndented = true
-        });
+        var notification = JsonSerializer.Serialize(payload, _jsonSerializerOptions);
         
         var webPushClient = new WebPushClient();
         

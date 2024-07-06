@@ -16,7 +16,7 @@ public class Player : IDisposable
     
     private const float SPEED = 80f;
 
-    private readonly int _id;
+    private readonly ulong _id;
     private readonly string _name;
     public Vector2 Position;
     public Rectangle BoundingBox;
@@ -48,7 +48,7 @@ public class Player : IDisposable
     private Rectangle _radiusRect;
     private Texture2D _radiusTexture;
 
-    public Player(int id, string name, Texture2D texture, Vector2 position)
+    public Player(ulong id, string name, Texture2D texture, Vector2 position)
     {
         
         Velocity = Vector2.Zero;
@@ -160,7 +160,7 @@ public class Player : IDisposable
     }
 
     public void Update(Func<Rectangle, bool> collisionCheckingFunction, ConcurrentDictionary<Guid, GameCreature> npcs,
-        ConcurrentDictionary<int, OtherPlayer> otherPlayers, bool ignoreMovement)
+        ConcurrentDictionary<ulong, OtherPlayer> otherPlayers, bool ignoreMovement)
     {
         if (!ignoreMovement)
         {

@@ -43,10 +43,9 @@
         <ProjectReference Include="..\..\Shared\Avalon.Network.Packets\Avalon.Network.Packets.csproj" />
         <ProjectReference Include="..\..\Shared\Avalon.Network.Tcp\Avalon.Network.Tcp.csproj" />
         <ProjectReference Include="..\..\Shared\Avalon.Network\Avalon.Network.csproj" />
-        <ProjectReference Include="..\Avalon.Auth.Database\Avalon.Auth.Database.csproj" />
+        <ProjectReference Include="..\Avalon.Database.Auth\Avalon.Database.Auth.csproj" />
         <ProjectReference Include="..\Avalon.Database\Avalon.Database.csproj" />
         <ProjectReference Include="..\Avalon.Hosting\Avalon.Hosting.csproj" />
-        <ProjectReference Include="..\Avalon.Infrastructure.Auth\Avalon.Infrastructure.Auth.csproj" />
         <ProjectReference Include="..\Avalon.Infrastructure\Avalon.Infrastructure.csproj" />
     </ItemGroup>
 

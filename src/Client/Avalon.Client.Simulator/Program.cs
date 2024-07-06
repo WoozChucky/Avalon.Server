@@ -36,8 +36,8 @@ namespace Avalon.Client.Simulator
             private readonly string _password;
             private readonly AvalonTcpClient _tcp;
 
-            private int _accountId;
-            private int _characterId;
+            private ulong _accountId;
+            private ulong _characterId;
 
             private volatile bool _isLogged;
             private volatile bool _needsFirstCharacter;

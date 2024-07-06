@@ -37,7 +37,7 @@ public class TutorialScene : Scene
     
     private PartyInviteDialog _partyInviteDialog;
 
-    private ConcurrentDictionary<int, OtherPlayer> _otherPlayers;
+    private ConcurrentDictionary<ulong, OtherPlayer> _otherPlayers;
     private ConcurrentDictionary<Guid, GameCreature> _npcs;
     
     private Timer _timer;
@@ -62,7 +62,7 @@ public class TutorialScene : Scene
     {
         _loaded = false;
         
-        _otherPlayers = new ConcurrentDictionary<int, OtherPlayer>();
+        _otherPlayers = new ConcurrentDictionary<ulong, OtherPlayer>();
         _npcs = new ConcurrentDictionary<Guid, GameCreature>();
 
         Globals.CameraPosition = Vector2.Zero;

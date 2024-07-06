@@ -1,5 +1,4 @@
 using System.Numerics;
-using Avalon.Database.Characters;
 using Avalon.Domain.Characters;
 using Avalon.Infrastructure;
 using Avalon.Network;
@@ -35,7 +34,7 @@ public partial class AvalonGame
         
         sessionLock.Release();
 
-        var characters = await _databaseManager.Characters.Character.FindByAccountAsync(session.AccountId);
+        var characters = await _characterRepository.FindByAccountAsync(session.AccountId);
 
         var characterInfo = characters.Select<Character, CharacterInfo>(
             character => new CharacterInfo
@@ -43,7 +42,7 @@ public partial class AvalonGame
             CharacterId = character.Id!.Value,
             Name = character.Name,
             Level = character.Level,
-            Class = character.Class
+            Class = (ushort) character.Class
         }).ToArray();
         
         var responsePacket = SCharacterListPacket.Create(
@@ -78,7 +77,7 @@ public partial class AvalonGame
         
         sessionLock.Release();
         
-        var characters = await _databaseManager.Characters.Character.FindByAccountAsync(session.AccountId);
+        var characters = await _characterRepository.FindByAccountAsync(session.AccountId);
         
         var currentCharacterCount = characters.Count();
         
@@ -89,7 +88,7 @@ public partial class AvalonGame
             return;
         }
         
-        var duplicateCharacter = await _databaseManager.Characters.Character.FindByNameAsync(packet.Name);
+        var duplicateCharacter = await _characterRepository.FindByNameAsync(packet.Name);
         if (duplicateCharacter != null)
         {
             _logger.LogDebug("Character {Name} already exists", packet.Name);
@@ -115,17 +114,17 @@ public partial class AvalonGame
         
         var character = new Character
         {
-            Account = session.AccountId,
+            AccountId = session.AccountId,
             Name = packet.Name, // TODO: Sanitize name
             Level = 1,
-            Class = packet.Class,
-            PositionX = 326, // TODO: Get starting position from starting map
-            PositionY = 1450 // TODO: Get starting position from starting map
+            Class = (CharacterClass) packet.Class,
+            X = 326, // TODO: Get starting position from starting map
+            Y = 1450 // TODO: Get starting position from starting map
         };
 
         try
         {
-            await _databaseManager.Characters.Character.SaveAsync(character);
+            await _characterRepository.CreateAsync(character);
             _logger.LogInformation("Character {Name} created for account {AccountId}", packet.Name, session.AccountId);
             
             await session.SendAsync(SCharacterCreatedPacket.Create(SCharacterCreateResult.Success, session.Encrypt));
@@ -139,6 +138,7 @@ public partial class AvalonGame
     
     public async Task HandleCharacterSelectedPacket(IRemoteSource source, CCharacterSelectedPacket packet)
     {
+        /*
         var session = _sessionManager.GetSession(source);
         if (session == null)
         {
@@ -158,7 +158,7 @@ public partial class AvalonGame
                 return;
             }
 
-            var character = await _databaseManager.Characters.Character.FindByIdAndAccountAsync(packet.CharacterId, session.AccountId);
+            var character = await _characterRepository.FindByIdAndAccountAsync(packet.CharacterId, session.AccountId);
             
             if (character == null)
             {
@@ -167,7 +167,7 @@ public partial class AvalonGame
             }
             
             // Try to find the map instance for this character
-            var mapInstance = _mapManager.GetInstance(character.Map, Guid.Parse(character.InstanceId!));
+            var mapInstance = _mapManager.GetInstance(character.Map, Guid.TryParse(character.InstanceId, out var instanceId) ? instanceId : Guid.Empty);
             if (mapInstance == null)
             {
                 // Specific map instance not found, try to find a other instance of the same map
@@ -195,7 +195,7 @@ public partial class AvalonGame
 
             character.Movement = new CharacterMovement
             {
-                Position = new Vector2(character.PositionX, character.PositionY),
+                Position = new Vector2(character.X, character.Y),
                 Velocity = Vector2.Zero
             };
             
@@ -207,9 +207,9 @@ public partial class AvalonGame
                 CharacterId = character.Id!.Value,
                 Name = character.Name,
                 Level = character.Level,
-                Class = character.Class,
-                X = character.PositionX,
-                Y = character.PositionY,
+                Class = (ushort) character.Class,
+                X = character.X,
+                Y = character.Y,
                 Radius = _gameConfiguration.PlayerRadius
             },
             new MapInfo
@@ -225,7 +225,7 @@ public partial class AvalonGame
             }, session.Encrypt));
 
             // save the character to the database
-            await _databaseManager.Characters.Character.UpdateAsync(character);
+            await _characterRepository.UpdateAsync(character);
 
             session.Character = character;
             
@@ -247,6 +247,7 @@ public partial class AvalonGame
         {
             sessionLock.Release();
         }
+        */
     }
 
     public async Task HandleCharacterDeletePacket(IRemoteSource source, CCharacterDeletePacket packet)
@@ -265,20 +266,15 @@ public partial class AvalonGame
             return;
         }
         
-        var character = await _databaseManager.Characters.Character.FindByIdAndAccountAsync(packet.CharacterId, session.AccountId);
+        var character = await _characterRepository.FindByIdAndAccountAsync(packet.CharacterId, session.AccountId);
         if (character == null)
         {
             _logger.LogWarning("Character {CharacterId} not found for account {AccountId}", packet.CharacterId, session.AccountId);
             await session.SendAsync(SCharacterDeletedPacket.Create(SCharacterDeletedResult.InternalError, session.Encrypt));
             return;
         }
-        
-        if (!await _databaseManager.Characters.Character.DeleteAsync(character))
-        {
-            _logger.LogWarning("Failed to delete character {CharacterId} for account {AccountId}", packet.CharacterId, session.AccountId);
-            await session.SendAsync(SCharacterDeletedPacket.Create(SCharacterDeletedResult.InternalError, session.Encrypt));
-            return;
-        }
+
+        await _characterRepository.DeleteAsync(character.Id);
         
         _logger.LogInformation("Character {CharacterId} deleted for account {AccountId}", packet.CharacterId, session.AccountId);
         await session.SendAsync(SCharacterDeletedPacket.Create(SCharacterDeletedResult.Success, session.Encrypt));

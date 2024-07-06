@@ -10,14 +10,14 @@ public class CInteractPacket : Packet
     public static NetworkProtocol Protocol = NetworkProtocol.Tcp;
     public static NetworkPacketFlags Flags = NetworkPacketFlags.Encrypted;
     
-    [ProtoMember(1)] public int AccountId { get; set; }
-    [ProtoMember(2)] public int PlayerId { get; set; }
+    [ProtoMember(1)] public ulong AccountId { get; set; }
+    [ProtoMember(2)] public ulong PlayerId { get; set; }
     [ProtoMember(3)] public int X { get; set; }
     [ProtoMember(4)] public int Y { get; set; }
     [ProtoMember(5)] public int Width { get; set; }
     [ProtoMember(6)] public int Height { get; set; }
     
-    public static NetworkPacket Create(int accountId, int playerId, int x, int y, int width, int height, Func<byte[], byte[]> encryptFunc)
+    public static NetworkPacket Create(ulong accountId, ulong playerId, int x, int y, int width, int height, Func<byte[], byte[]> encryptFunc)
     {
         using var memoryStream = new MemoryStream();
         

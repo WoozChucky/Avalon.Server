@@ -23,20 +23,20 @@ public partial class AvalonGame
         
         await _cache.RemoveAsync($"world:{_gameConfiguration.WorldId}:keys:{worldKeyBase64}");
         
-        if (!int.TryParse(id, out var accountId))
+        if (!ulong.TryParse(id, out var accountId))
         {
             _logger.LogWarning("Client {EndPoint} sent an invalid world key", source.RemoteAddress);
             return;
         }
 
-        var account = await _databaseManager.Auth.Account.FindByIdAsync(accountId);
+        var account = await _accountRepository.FindByIdAsync(accountId);
         if (account == null)
         {
             _logger.LogWarning("Client {EndPoint} sent an invalid world key", source.RemoteAddress);
             return;
         }
         
-        if (packet.PublicKey == null || packet.PublicKey.Length == 0)
+        if (packet.PublicKey.Length == 0)
         {
             _logger.LogWarning("Client {EndPoint} sent an invalid public key", source.RemoteAddress);
             return;
@@ -126,10 +126,12 @@ public partial class AvalonGame
 
             if (session.InMap)
             {
+                /*
                 if (!_mapManager.RemoveSessionFromMap(session))
                 {
                     _logger.LogWarning("Failed to remove session {AccountId} from map", session.AccountId);
                 }
+                */
             }
     
             // Save character progress to the database
@@ -141,7 +143,7 @@ public partial class AvalonGame
 
             try
             {
-                await _databaseManager.Characters.Character.UpdateAsync(character);
+                await _characterRepository.UpdateAsync(character);
             }
             catch (Exception e)
             {
