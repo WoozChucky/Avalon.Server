@@ -16,9 +16,10 @@ public interface IAvalonMapManager
     MapInstance GenerateInstance(int mapId);
     MapInstance? GetInstance(int mapId, Guid instanceId);
     MapInstance? GetInstance(int mapId, IWorldConnection connection);
-    ConcurrentDictionary<int, ConcurrentDictionary<Guid, MapInstance>> GetInstances();
-    MapInstance? AddSessionToMap(int mapId, IWorldConnection connection, bool initialLoad = false);
+    ConcurrentDictionary<int, IList<MapInstance>> GetInstances();
+    MapInstance? AddConnectionToMap(int mapId, IWorldConnection connection, bool initialLoad = false);
     bool RemoveSessionFromMap(IWorldConnection connection);
+    Task Update(TimeSpan deltaTime);
 }
 
 public class AvalonMapManager : IAvalonMapManager
@@ -30,7 +31,7 @@ public class AvalonMapManager : IAvalonMapManager
     private readonly IMapTemplateRepository _mapTemplateRepository;
 
     // MapId, Dictionary<InstanceId, MapInstance>>
-    private readonly ConcurrentDictionary<int, ConcurrentDictionary<Guid, Avalon.World.Maps.MapInstance>> _maps = new();
+    private readonly ConcurrentDictionary<int, IList<MapInstance>> _maps = new();
 
     private readonly ReaderWriterLockSlim _lock;
     
@@ -59,7 +60,7 @@ public class AvalonMapManager : IAvalonMapManager
     {
         _logger.LogInformation("Loading maps...");
 
-        _mapTemplates = _mapTemplateRepository.FindAllAsync().GetAwaiter().GetResult();
+        _mapTemplates = await _mapTemplateRepository.FindAllAsync();
         
         _logger.LogInformation("Loaded {MapCount} maps from database", _mapTemplates.Count());
 
@@ -82,7 +83,7 @@ public class AvalonMapManager : IAvalonMapManager
             _poolManager.SpawnStartingEntities(mapInstance);
             
             // This can be done the way it is , because we're sure that no other instance of this map exists, since this is server startup logic
-            _maps.TryAdd(map.Id, new ConcurrentDictionary<Guid, MapInstance> { [mapInstance.InstanceId] = mapInstance });
+            _maps.TryAdd(map.Id, [mapInstance]);
             _villageMaps.Add(map.Id);
             
             _logger.LogInformation("Map {MapId} '{MapName}' instanced {InstanceId}", mapInstance.MapId, mapInstance.Name, mapInstance.InstanceId);
@@ -104,7 +105,7 @@ public class AvalonMapManager : IAvalonMapManager
         
                 _logger.LogInformation("Map {MapId} '{MapName}' instanced {InstanceId}", newInstance.MapId, newInstance.Name, newInstance.InstanceId);
             
-                _maps.TryAdd(mapId, new ConcurrentDictionary<Guid, Avalon.World.Maps.MapInstance>() { [newInstance.InstanceId] = newInstance});
+                _maps.TryAdd(mapId, [newInstance]);
 
                 return newInstance;
             }
@@ -112,7 +113,7 @@ public class AvalonMapManager : IAvalonMapManager
             if (_villageMaps.Contains(mapId))
             {
                 // do not generate a new instance for village maps, those are made sure to only have a single instance
-                return mapInstances.First().Value;
+                return mapInstances.First();
             }
 
             var mapInstance = new MapInstance(_loggerFactory, _mapTemplates!.First(map => map.Id == mapId), _virtualTemplates[mapId], _gameConfiguration);
@@ -122,7 +123,7 @@ public class AvalonMapManager : IAvalonMapManager
         
             _logger.LogInformation("Map {MapId} '{MapName}' instanced {InstanceId}", mapInstance.MapId, mapInstance.Name, mapInstance.InstanceId);
         
-            mapInstances.TryAdd(mapInstance.InstanceId, mapInstance);
+            mapInstances.Add(mapInstance);
 
             return mapInstance;
         }
@@ -143,16 +144,18 @@ public class AvalonMapManager : IAvalonMapManager
             // There are some reserved maps ids that have a single instance, so we can just return that
             if (_villageMaps.Contains(mapId))
             {
-                return mapInstances.First().Value;
+                return mapInstances.First();
             }
-
-            if (!mapInstances.TryGetValue(Guid.Parse(connection.Character!.InstanceId!), out var instance))
+            
+            if (mapInstances.Count == 0)
             {
                 return null;
             }
-
-            if (!instance.ContainsConnection(connection))
+            
+            var instance = mapInstances.FirstOrDefault(map => map.ContainsConnection(connection));
+            if (instance == null)
             {
+                _logger.LogWarning("Session {SessionId} not found in map {MapId}", connection.AccountId, mapId);
                 return null;
             }
 
@@ -164,7 +167,7 @@ public class AvalonMapManager : IAvalonMapManager
         }
     }
 
-    public ConcurrentDictionary<int, ConcurrentDictionary<Guid, MapInstance>> GetInstances()
+    public ConcurrentDictionary<int, IList<MapInstance>> GetInstances()
     {
         _lock.EnterReadLock();
         try
@@ -183,14 +186,14 @@ public class AvalonMapManager : IAvalonMapManager
         try
         {
             var mapInstances = GetMapInstances(mapId);
-            if (mapInstances == null) return null;
+            if (mapInstances == null || mapInstances.Count == 0) return null;
         
             if (_villageMaps.Contains(mapId))
             {
-                return mapInstances.First().Value;
+                return mapInstances.First();
             }
 
-            mapInstances.TryGetValue(instanceId, out var instance);
+            var instance = mapInstances.FirstOrDefault(map => map.InstanceId == instanceId);
             return instance;
         }
         finally
@@ -199,7 +202,7 @@ public class AvalonMapManager : IAvalonMapManager
         }
     }
 
-    public MapInstance? AddSessionToMap(int mapId, IWorldConnection connection, bool initialLoad = false)
+    public MapInstance? AddConnectionToMap(int mapId, IWorldConnection connection, bool initialLoad = false)
     {
         _lock.EnterWriteLock();
         try
@@ -246,7 +249,8 @@ public class AvalonMapManager : IAvalonMapManager
                 return false;
             }
 
-            if (!mapInstances.TryGetValue(Guid.Parse(connection.Character!.InstanceId!), out var instance))
+            var instance = mapInstances.FirstOrDefault(map => map.InstanceId == Guid.Parse(connection.Character!.InstanceId!));
+            if (instance == null)
             {
                 _logger.LogWarning("Session {SessionId} is not found in instance {InstanceId} of map {MapId}",
                     connection.AccountId, connection.Character.InstanceId, connection.Character!.Map);
@@ -260,10 +264,12 @@ public class AvalonMapManager : IAvalonMapManager
                 return false;
             }
             
+            instance.OnConnectionLeft(connection);
+            
             if (instance.IsEmpty && !_villageMaps.Contains(connection.Character!.Map))
             {
-                mapInstances.TryRemove(instance.InstanceId, out _);
                 _logger.LogInformation("Removed empty instance {InstanceId} from map {MapId} since all sessions left", instance.InstanceId, connection.Character!.Map);
+                return mapInstances.Remove(instance);
             }
         
             return true;
@@ -274,7 +280,24 @@ public class AvalonMapManager : IAvalonMapManager
         }
     }
 
-    private ConcurrentDictionary<Guid, MapInstance>? GetMapInstances(int mapId)
+    public async Task Update(TimeSpan deltaTime)
+    {
+        //_lock.EnterReadLock();
+        try
+        {
+            var maps = _maps.Values.SelectMany(m => m).ToList();
+            
+            var updateTasks = maps.Select(mapInstance => mapInstance.Update(deltaTime));
+            
+            await Task.WhenAll(updateTasks);
+        }
+        finally
+        {
+            //_lock.ExitReadLock();
+        }
+    }
+
+    private IList<MapInstance>? GetMapInstances(int mapId)
     {
         if (!_maps.TryGetValue(mapId, out var mapInstances))
         {
@@ -282,7 +305,7 @@ public class AvalonMapManager : IAvalonMapManager
             return null;
         }
 
-        if (mapInstances.IsEmpty)
+        if (mapInstances.Count == 0)
         {
             _logger.LogDebug("Map {MapId} has no instances", mapId);
             return null;

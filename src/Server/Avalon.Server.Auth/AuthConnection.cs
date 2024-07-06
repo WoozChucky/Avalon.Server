@@ -2,6 +2,7 @@ using System.Net.Security;
 using System.Net.Sockets;
 using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
+using Avalon.Auth.Database.Repositories;
 using Avalon.Domain.Auth;
 using Avalon.Hosting;
 using Avalon.Hosting.Networking;
@@ -16,18 +17,26 @@ public interface IAuthConnection : IConnection
     
     byte[] GenerateHandshakeData();
     bool VerifyHandshakeData(byte[] handshakeData);
+    
+    AuthServer Server { get; }
 }
 
 public class AuthConnection : Connection, IAuthConnection
 {
+    private readonly IServiceScopeFactory _serviceScopeFactory;
+    private readonly ILogger<AuthConnection> _logger;
     public AccountId? AccountId { get; set; }
-
+    public new AuthServer Server { get; }
+    
     private byte[] _handshakeData = [];
     
     public AuthConnection(IServerBase server, TcpClient client, ILoggerFactory loggerFactory, 
-        PluginExecutor pluginExecutor, IPacketReader packetReader) 
+        PluginExecutor pluginExecutor, IPacketReader packetReader, IServiceScopeFactory serviceScopeFactory) 
         : base(loggerFactory.CreateLogger<AuthConnection>(), server, pluginExecutor, packetReader)
     {
+        _logger = loggerFactory.CreateLogger<AuthConnection>();
+        _serviceScopeFactory = serviceScopeFactory;
+        Server = (server as AuthServer)!;
         Init(client);
     }
 
@@ -52,7 +61,7 @@ public class AuthConnection : Connection, IAuthConnection
         var networkStream = new NetworkStream(client.Client);
         var sslStream = new SslStream(networkStream, false, OnClientCertificateValidation);
 
-        var certificate = (Server as AuthServer)!.Certificate;
+        var certificate = Server!.Certificate;
         
         await sslStream.AuthenticateAsServerAsync(certificate, false, SslProtocols.Tls12, false);
         
@@ -61,7 +70,24 @@ public class AuthConnection : Connection, IAuthConnection
 
     protected override async Task OnClose(bool expected = true)
     {
+        await SaveDisconnectedAccountAsync();
         await Server.RemoveConnection(this);
+    }
+    
+    private async Task SaveDisconnectedAccountAsync()
+    {
+        if (AccountId == null) return;
+        
+        await using var scope = _serviceScopeFactory.CreateAsyncScope();
+        var accountRepository = scope.ServiceProvider.GetRequiredService<IAccountRepository>();
+        
+        var account = await accountRepository.FindByIdAsync(AccountId);
+        if (account != null)
+        {
+            account.Online = false;
+            account.TotalTime += (int) (DateTime.UtcNow - account.LastLogin).TotalSeconds;
+            await accountRepository.UpdateAsync(account);
+        }
     }
 
     protected override async Task OnReceive(NetworkPacket packet, Packet? payload)

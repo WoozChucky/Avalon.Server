@@ -1,6 +1,4 @@
-using Avalon.World;
-
-namespace Avalon.Server.World;
+namespace Avalon.World;
 
 public struct WorldPacketContext<TPacket>
 {

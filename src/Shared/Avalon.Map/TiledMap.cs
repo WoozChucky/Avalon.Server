@@ -142,6 +142,7 @@ namespace Avalon.VirtualMap
             _tsxStreams = tsxStreams;
             var streamReader = new StreamReader(tmxStream);
             var content = streamReader.ReadToEnd();
+            tmxStream.Dispose();
             ParseXml(content);
         }
 

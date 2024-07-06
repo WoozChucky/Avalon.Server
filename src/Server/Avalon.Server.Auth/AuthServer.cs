@@ -1,28 +1,37 @@
 using System.Collections.Concurrent;
+using System.Collections.Immutable;
 using System.Reflection;
 using System.Security.Cryptography.X509Certificates;
+using Avalon.Auth.Database.Repositories;
 using Avalon.Configuration;
+using Avalon.Domain.Auth;
 using Avalon.Hosting;
 using Avalon.Hosting.Networking;
+using Avalon.Infrastructure;
 using Avalon.Server.Auth.Configuration;
 using Microsoft.Extensions.Options;
 
 namespace Avalon.Server.Auth;
 
-public class AuthServer : ServerBase<AuthConnection>
+public class AuthServer(
+    IServiceProvider serviceProvider,
+    IPacketManager packetManager,
+    ILoggerFactory loggerFactory,
+    PluginExecutor pluginExecutor,
+    IAccountRepository accountRepository,
+    IReplicatedCache cache,
+    IOptions<HostingConfiguration> hostingOptions,
+    IOptions<HostingSecurity> securityOptions)
+    : ServerBase<AuthConnection>(packetManager, loggerFactory.CreateLogger<AuthServer>(), pluginExecutor,
+        serviceProvider, hostingOptions)
 {
+    public new ImmutableArray<IAuthConnection> Connections =>
+        [..base.Connections.Values.Cast<AuthConnection>()];
+    
     public X509Certificate2 Certificate { get; private set; }
 
-    private readonly HostingSecurity _securityOptions;
+    private readonly HostingSecurity _securityOptions = securityOptions.Value;
     private readonly ConcurrentDictionary<Type, (PropertyInfo packetProperty, PropertyInfo connectionProperty)> _propertyCache = new();
-
-    public AuthServer(IPacketManager packetManager, ILoggerFactory loggerFactory, PluginExecutor pluginExecutor,
-        IServiceProvider serviceProvider,
-        IOptions<HostingConfiguration> hostingOptions, IOptions<HostingSecurity> securityOptions)
-        : base(packetManager, loggerFactory.CreateLogger<AuthServer>(), pluginExecutor, serviceProvider, hostingOptions)
-    {
-        _securityOptions = securityOptions.Value;
-    }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -31,6 +40,16 @@ public class AuthServer : ServerBase<AuthConnection>
         Certificate = new X509Certificate2(serverCertBytes, _securityOptions.CertificatePassword);
         
         RegisterNewConnectionListener(NewConnection);
+    }
+    
+    protected override Task OnStoppingAsync(CancellationToken stoppingToken)
+    {
+        foreach (var connection in Connections)
+        {
+            // TODO: Send a disconnect packet
+            connection.Close();
+        }
+        return Task.CompletedTask;
     }
     
     private bool NewConnection(IConnection connection)

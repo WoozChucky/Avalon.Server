@@ -1,5 +1,6 @@
 using Avalon.Database.Character.Repositories;
 using Avalon.Network.Packets.Character;
+using Avalon.World;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.Server.World.Handlers;
