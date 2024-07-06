@@ -1,28 +1,28 @@
-using System.Diagnostics;
 using System.Reflection;
 using Avalon.Common.Cryptography;
 using Avalon.Common.Telemetry;
-using Avalon.Database;
-using Avalon.Database.Extensions;
+using Avalon.Database.Character;
 using Avalon.Game;
-using Avalon.Game.Creatures;
-using Avalon.Game.Maps;
-using Avalon.Game.Pools;
-using Avalon.Game.Quests;
-using Avalon.Game.Scripts;
+using Avalon.Hosting;
 using Avalon.Infrastructure;
 using Avalon.Infrastructure.Configuration;
 using Avalon.Infrastructure.World;
 using Avalon.Metrics;
 using Avalon.Network;
+using Avalon.Network.Packets.Abstractions.Attributes;
 using Avalon.Network.Packets.Internal;
 using Avalon.Network.Packets.Internal.Deserialization;
 using Avalon.Network.Packets.Serialization;
 using Avalon.Network.Tcp;
 using Avalon.Server.World.Configuration;
+using Avalon.Server.World.Extensions;
 using Avalon.Server.World.Logging;
+using Avalon.World;
+using Avalon.World.Database;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using OpenTelemetry.Exporter;
@@ -48,6 +48,29 @@ namespace Avalon.Server.World
 
         private static async Task Main(string[] args)
         {
+            var hostBuilder = await AvalonHostBuilder.CreateHostAsync(args, ComponentType.World);
+            hostBuilder.Services.AddWorldServices();
+            hostBuilder.Services.AddHostedService<WorldServer>();
+            hostBuilder.Services.AddSingleton<IWorldServer>(provider =>
+                provider.GetServices<IHostedService>().OfType<WorldServer>().Single());
+        
+            var host = hostBuilder.Build();
+        
+            await using (var scope = host.Services.CreateAsyncScope())
+            {
+                var characterDb = scope.ServiceProvider.GetRequiredService<CharacterDbContext>();
+                var worldDb = scope.ServiceProvider.GetRequiredService<WorldDbContext>();
+                var logger = host.Services.GetRequiredService<ILogger<Program>>();
+                logger.LogInformation("Migrating database if necessary...");
+                await characterDb.Database.MigrateAsync();
+                await worldDb.Database.MigrateAsync();
+            
+                var cache = scope.ServiceProvider.GetRequiredService<IReplicatedCache>();
+                await cache.ConnectAsync();
+            }
+
+            await AvalonHostBuilder.RunAsync<Program>(host);
+            /*
             AppDomain.CurrentDomain.UnhandledException += OnUnhandledExceptionOccurred;
             AppDomain.CurrentDomain.ProcessExit += OnProcessExit;
             Console.CancelKeyPress += ConsoleOnCancelKeyPress;
@@ -89,6 +112,7 @@ namespace Avalon.Server.World
             Infrastructure.Dispose();
             
             Logger.LogInformation("Terminated successfully");
+            */
         }
 
         private static void ConsoleOnCancelKeyPress(object? sender, ConsoleCancelEventArgs e)
@@ -222,9 +246,6 @@ namespace Avalon.Server.World
             {
                 services.AddSingleton<IMetricsManager, FakeMetricsManager>();
             }
-
-            services.AddDatabases(AppConfiguration.Database!);
-            services.AddSingleton<IDatabaseManager, DatabaseManager>();
             
             services.AddSingleton<IAvalonTcpServer, AvalonTcpServer>();
             services.AddSingleton<IAvalonSessionManager, AvalonSessionManager>();
@@ -232,11 +253,6 @@ namespace Avalon.Server.World
             services.AddSingleton<IPacketSerializer, NetworkPacketSerializer>();
             services.AddSingleton<IPacketRegistry, PacketRegistry>();
             services.AddSingleton<IAvalonNetworkDaemon, AvalonWorldNetworkDaemon>();
-            services.AddSingleton<IAvalonMapManager, AvalonMapManager>();
-            services.AddSingleton<ICreatureSpawner, CreatureSpawner>();
-            services.AddSingleton<IPoolManager, PoolManager>();
-            services.AddSingleton<IAIController, AIController>();
-            services.AddSingleton<IQuestManager, QuestManager>();
             services.AddSingleton<IAvalonGame, AvalonGame>();
             services.AddSingleton<ICryptoManager, CryptoManager>();
             services.AddSingleton<IAvalonInfrastructure, AvalonWorldInfrastructure>();

@@ -1,16 +1,10 @@
 using System.Numerics;
-using System.Reflection;
+using Avalon.Auth.Database.Repositories;
 using Avalon.Common.Cryptography;
-using Avalon.Database;
+using Avalon.Database.Character.Repositories;
 using Avalon.Game.Configuration;
-using Avalon.Game.Creatures;
-using Avalon.Game.Maps;
-using Avalon.Game.Pools;
-using Avalon.Game.Quests;
-using Avalon.Game.Scripts;
 using Avalon.Infrastructure;
 using Avalon.Network;
-using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Audio;
 using Avalon.Network.Packets.Auth;
 using Avalon.Network.Packets.Character;
@@ -19,7 +13,6 @@ using Avalon.Network.Packets.Handshake;
 using Avalon.Network.Packets.Map;
 using Avalon.Network.Packets.Movement;
 using Avalon.Network.Packets.Quest;
-using Avalon.Network.Packets.Serialization;
 using Avalon.Network.Packets.Social;
 using Avalon.Network.Packets.World;
 using Microsoft.Extensions.Logging;
@@ -61,12 +54,8 @@ public partial class AvalonGame : IAvalonGame
     private readonly ILogger<AvalonGame> _logger;
     private readonly CancellationTokenSource _cts;
     private readonly IAvalonSessionManager _sessionManager;
-    private readonly IDatabaseManager _databaseManager;
-    private readonly IAvalonMapManager _mapManager;
-    private readonly ICreatureSpawner _creatureSpawner;
-    private readonly IAIController _aiController;
-    private readonly IPoolManager _poolManager;
-    private readonly IQuestManager _questManager;
+    private readonly IAccountRepository _accountRepository;
+    private readonly ICharacterRepository _characterRepository;
     private readonly ICryptoManager _cryptography;
     private readonly GameConfiguration _gameConfiguration;
     private readonly IReplicatedCache _cache;
@@ -77,12 +66,8 @@ public partial class AvalonGame : IAvalonGame
 
     public AvalonGame(ILoggerFactory loggerFactory,
         IAvalonSessionManager sessionManager,
-        IDatabaseManager databaseManager,
-        IAvalonMapManager mapManager,
-        ICreatureSpawner creatureSpawner,
-        IAIController aiController,
-        IPoolManager poolManager,
-        IQuestManager questManager,
+        IAccountRepository accountRepository,
+        ICharacterRepository characterRepository,
         ICryptoManager cryptography,
         GameConfiguration gameConfiguration,
         IReplicatedCache cache)
@@ -90,12 +75,8 @@ public partial class AvalonGame : IAvalonGame
         _logger = loggerFactory.CreateLogger<AvalonGame>() ?? throw new ArgumentNullException(nameof(loggerFactory));
         _cts = new CancellationTokenSource();
         _sessionManager = sessionManager;
-        _databaseManager = databaseManager;
-        _mapManager = mapManager;
-        _creatureSpawner = creatureSpawner;
-        _aiController = aiController;
-        _poolManager = poolManager;
-        _questManager = questManager;
+        _accountRepository = accountRepository;
+        _characterRepository = characterRepository;
         _cryptography = cryptography;
         _gameConfiguration = gameConfiguration;
         _cache = cache;
@@ -110,10 +91,12 @@ public partial class AvalonGame : IAvalonGame
     {
         _logger.LogInformation("Loading game data");
         
+        /*
         _aiController.LoadScripts();
         _creatureSpawner.LoadCreatures();
         _mapManager.LoadMaps();
         _questManager.LoadQuests();
+        */
         
         _logger.LogInformation("Finished loading game data");
         
@@ -151,6 +134,7 @@ public partial class AvalonGame : IAvalonGame
         // Process AvalonSession packets
         
         // Process Map updates
+        /*
         foreach (var (_, mapInstances) in _mapManager.GetInstances())
         {
             foreach (var (_, mapInstance) in mapInstances)
@@ -160,6 +144,7 @@ public partial class AvalonGame : IAvalonGame
                 mapInstance.Update(deltaTime);
             }
         }
+        */
     }
 
     #region Player Events
@@ -213,13 +198,14 @@ public partial class AvalonGame : IAvalonGame
         
         session.Character!.Movement.Position = new Vector2(packet.X, packet.Y);
         session.Character!.Movement.Velocity = velocity;
-        session.Character!.ElapsedGameTime = packet.ElapsedGameTime;
+        // session.Character!.ElapsedGameTime = packet.ElapsedGameTime;
         
         return Task.CompletedTask;
     }
 
     public async Task HandleMapTeleportPacket(IRemoteSource source, CMapTeleportPacket packet)
     {
+        /*
         var session = _sessionManager.GetSession(packet.AccountId);
         
         if (session == null)
@@ -271,7 +257,7 @@ public partial class AvalonGame : IAvalonGame
         }
 
         // Teleport the player
-        await session.SendAsync(SMapTeleportPacket.Create(session.AccountId, packet.CharacterId, new MapInfo
+        await session.SendAsync(SMapTeleportPacket.Create(new MapInfo
         {
             InstanceId = newInstance.InstanceId,
             Atlas = newInstance.Atlas,
@@ -313,10 +299,11 @@ public partial class AvalonGame : IAvalonGame
         session.Character.Map = packet.MapId;
         session.Character.InstanceId = newInstance.InstanceId.ToString();
         session.Character.Movement.Position = new Vector2(x, y);
-        session.Character.PositionX = x;
-        session.Character.PositionY = y;
+        session.Character.X = x;
+        session.Character.Y = y;
 
-        await _databaseManager.Characters.Character.UpdateAsync(session.Character);
+        await _characterRepository.UpdateAsync(session.Character);
+        */
     }
 
     public async Task HandleClientInfoPacket(IRemoteSource source, CClientInfoPacket packet)

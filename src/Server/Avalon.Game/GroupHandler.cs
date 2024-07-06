@@ -37,7 +37,7 @@ public partial class AvalonGame
         
         // Create a new group and add both players to it
         inviterSession.Party.Active = true;
-        inviterSession.Party.Members.Add(invitedSession.Character!.Id!.Value);
+        inviterSession.Party.Members.Add(invitedSession.Character!.Id);
         inviterSession.Party.Leader = true;
         
         invitedSession.Party.Active = true;

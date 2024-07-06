@@ -1,5 +1,4 @@
 using System.Net;
-using Avalon.Database.Auth;
 using Avalon.Domain.Auth;
 using Microsoft.AspNetCore.Mvc;
 

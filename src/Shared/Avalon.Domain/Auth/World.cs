@@ -1,51 +1,63 @@
-using Avalon.Domain.Attributes;
+using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
+using Avalon.Common;
 
 namespace Avalon.Domain.Auth;
 
-public class World
+public class World : IDbEntity<WorldId>
 {
-    [Column("Id")]
-    public int? Id { get; set; }
+    [Key]
+    [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
+    public WorldId Id { get; set; }
     
-    [Column("Name")]
+    [Required]
     public string Name { get; set; }
     
-    [Column("Type")]
-    public WorldType Type { get; set; }
+    [Required]
+    public WorldType Type { get; set; } = WorldType.PvE;
     
-    [Column("AccessLevelRequired")]
-    public AccountAccessLevel AccessLevelRequired { get; set; }
+    [Required]
+    public AccountAccessLevel AccessLevelRequired { get; set; } = AccountAccessLevel.Player;
     
-    [Column("Host")]
+    [Required]
     public string Host { get; set; }
     
-    [Column("Port")]
+    [Required]
     public int Port { get; set; }
     
-    [Column("MinVersion")]
+    [Required]
     public string MinVersion { get; set; }
     
-    [Column("Version")]
+    [Required]
     public string Version { get; set; }
     
-    [Column("Status")]
-    public WorldStatus Status { get; set; }
+    [Required]
+    public WorldStatus Status { get; set; } = WorldStatus.Offline;
     
-    [Column("CreatedAt")] 
-    public DateTime CreatedAt { get; set; }
+    [Required]
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     
-    [Column("UpdatedAt")] 
+    [Required]
     public DateTime UpdatedAt { get; set; }
 }
 
-public enum WorldType : short
+public class WorldId : ValueObject<ushort>
+{
+    public WorldId(ushort value) : base(value) {}
+    public static implicit operator WorldId(ushort value)
+    {
+        return new WorldId(value);
+    }
+}
+
+public enum WorldType : ushort
 {
     PvE,
     PvP,
     Event
 }
 
-public enum WorldStatus : short
+public enum WorldStatus : ushort
 {
     Offline,
     Online,

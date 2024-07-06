@@ -1,33 +1,31 @@
 using Avalon.Network.Packets.Abstractions;
+using Avalon.Network.Packets.Abstractions.Attributes;
 using ProtoBuf;
 
 namespace Avalon.Network.Packets.Social;
 
 [ProtoContract]
+[Packet(HandleOn = ComponentType.World, Type = NetworkPacketType.CMSG_CHAT_MESSAGE)]
 public class CChatMessagePacket : Packet
 {
     public static NetworkPacketType PacketType = NetworkPacketType.CMSG_CHAT_MESSAGE;
     public static NetworkProtocol Protocol = NetworkProtocol.Tcp;
     public static NetworkPacketFlags Flags = NetworkPacketFlags.Encrypted;
     
-    [ProtoMember(1)] public int AccountId { get; set; }
-    [ProtoMember(2)] public int PlayerId { get; set; }
-    [ProtoMember(3)] public string Message { get; set; }
-    [ProtoMember(4)] public DateTime DateTime { get; set; }
+    [ProtoMember(1)] public string Message { get; set; }
+    [ProtoMember(2)] public DateTime DateTime { get; set; }
 
-    public static NetworkPacket Create(int accountId, int playerId, string message, DateTime dateTime, Func<byte[], byte[]> encryptFunc)
+    public static NetworkPacket Create(string message, DateTime dateTime, Func<byte[], byte[]> encryptFunc)
     {
         using var memoryStream = new MemoryStream();
         
-        var movementPacket = new CChatMessagePacket()
+        var p = new CChatMessagePacket()
         {
-            AccountId = accountId,
-            PlayerId = playerId,
             Message = message,
             DateTime = dateTime
         };
         
-        Serializer.Serialize(memoryStream, movementPacket);
+        Serializer.Serialize(memoryStream, p);
         
         var buffer = encryptFunc(memoryStream.ToArray());
         

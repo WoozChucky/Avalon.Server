@@ -1,11 +1,8 @@
-using System.Net.Http.Headers;
 using System.Security.Authentication;
 using System.Security.Claims;
 using Avalon.Api.Services;
-using Avalon.Database.Auth;
 using Avalon.Domain.Auth;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.Net.Http.Headers;
 
 namespace Avalon.Api.Authentication;
@@ -61,7 +58,7 @@ public class AvalonAuthHandler : IAuthorizationHandler
         
         _logger.LogInformation("Loading account {AccountId}", accountId);
         
-        var account = await _accountService.FindById(int.Parse(accountId));
+        var account = await _accountService.FindById(ulong.Parse(accountId));
         
         if (account == null)
         {
