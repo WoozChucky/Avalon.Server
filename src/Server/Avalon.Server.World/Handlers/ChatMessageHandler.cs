@@ -1,4 +1,5 @@
 using Avalon.Network.Packets.Social;
+using Avalon.World;
 
 namespace Avalon.Server.World.Handlers;
 

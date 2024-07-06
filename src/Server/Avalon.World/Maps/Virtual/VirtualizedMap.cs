@@ -41,9 +41,11 @@ public class VirtualizedMap
         _events = new List<MapEvent>();
         _creaturePools = new List<MapCreaturePool>();
         TmxData = File.ReadAllBytes($"{directory}{name}");
-        TsxData = Array.Empty<byte[]>();
+        TsxData = [];
         Load(new TiledMap(TmxData.ToMemoryStream()));
     }
+    
+    public bool [,] WalkableMap { get; private set; }
 
     public IMapElement? this[MapElementType type, int layer, int x, int y]
     {
@@ -130,10 +132,12 @@ public class VirtualizedMap
     private void Load(TiledMap map)
     {
         // Load the map
-        TileWidth = map.TileWidth;
-        TileHeight = map.TileHeight;
+        TileWidth = 1; //map.TileWidth;
+        TileHeight = 1; //map.TileHeight;
         Columns = map.Width;
         Rows = map.Height;
+
+        var internalTileWidth = map.TileWidth;
 
         Size = new Point(Columns * TileWidth, Rows * TileHeight);
         
@@ -165,7 +169,7 @@ public class VirtualizedMap
                 foreach (var tileObject in creatureLayer.objects)
                 {
                     var id = ulong.Parse(tileObject.properties.FirstOrDefault(p => p.type == TiledPropertyType.Int && p.name == "TemplateId")?.value ?? "0");
-                    _creatures.Add(new MapCreature(id, (int) tileObject.x, (int) tileObject.y, (int) tileObject.width));
+                    _creatures.Add(new MapCreature(id, (int) tileObject.x / internalTileWidth, (int) tileObject.y / internalTileWidth, TileWidth /*(int) tileObject.width*/));
                 }
             }
 
@@ -185,7 +189,7 @@ public class VirtualizedMap
                         properties.Add(objectProperties.name, objectProperties.value);
                     }
 
-                    _events.Add(new MapEvent(mapEvent.id, mapEvent.name, mapEvent.@class, (int) mapEvent.x, (int) mapEvent.y, (int) mapEvent.width, (int) mapEvent.height));
+                    _events.Add(new MapEvent(mapEvent.id, mapEvent.name, mapEvent.@class, (int) mapEvent.x / internalTileWidth, (int) mapEvent.y / internalTileWidth, TileWidth /*(int) mapEvent.width*/, TileHeight /*(int) mapEvent.height*/));
                 }
             }
         }
@@ -221,6 +225,15 @@ public class VirtualizedMap
                     }
                 }
                 _layers.Add(new TileLayer(layerTiles, collidable));
+            }
+            
+            WalkableMap = new bool[Columns, Rows];
+            for (var y = 0; y < Rows; y++)
+            {
+                for (var x = 0; x < Columns; x++)
+                {
+                    WalkableMap[x, y] = _layers.All(l => !l[x, y]?.IsCollidable ?? true);
+                }
             }
         }
     }

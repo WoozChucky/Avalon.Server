@@ -52,7 +52,7 @@ public class CharacterSelectHandler : IWorldPacketHandler<CCharacterSelectedPack
         {
             // Specific map instance not found, try to find a other instance of the same map
             // If no instance found, (internally will create a new one) add the session to it
-            mapInstance = _mapManager.GetInstance(character.Map, ctx.Connection) ?? _mapManager.AddSessionToMap(character.Map, ctx.Connection, true);
+            mapInstance = _mapManager.GetInstance(character.Map, ctx.Connection) ?? _mapManager.AddConnectionToMap(character.Map, ctx.Connection, true);
             
             if (mapInstance == null)
             {
@@ -81,6 +81,7 @@ public class CharacterSelectHandler : IWorldPacketHandler<CCharacterSelectedPack
         
         character.Online = true;
         character.Latency = (int) ctx.Connection.Latency;
+        character.EnteredWorld = DateTime.UtcNow;
 
         ctx.Connection.Send(SCharacterSelectedPacket.Create(new CharacterInfo
         {
@@ -97,17 +98,21 @@ public class CharacterSelectHandler : IWorldPacketHandler<CCharacterSelectedPack
             MapId = mapInstance.MapId,
             InstanceId = mapInstance.InstanceId,
             Name = mapInstance.Name,
-            Description = mapInstance.Description,
-            Atlas = mapInstance.Atlas,
-            Directory = mapInstance.Directory,
-            Data = mapInstance.VirtualizedMap.TmxData,
-            TilesetsData = mapInstance.VirtualizedMap.TsxData
+            Description = mapInstance.Description
         }, ctx.Connection.CryptoSession.Encrypt));
 
         // save the character to the database
         await _characterRepository.UpdateAsync(character);
 
         ctx.Connection.Character = character;
+        ctx.Connection.CharacterId = character.Id;
+        ctx.Connection.Character.Movement = new CharacterMovement
+        {
+            Position = new Vector2(character.X, character.Y),
+            Velocity = Vector2.Zero
+        };
+        
+        mapInstance.OnConnectionEntered(ctx.Connection);
         
         _logger.LogInformation("Character {CharacterId} logged in for account {AccountId} at {Position}", character.Name, ctx.Connection.AccountId, character.Movement);
     }

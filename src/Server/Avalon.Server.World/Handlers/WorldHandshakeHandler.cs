@@ -22,6 +22,7 @@ public class WorldHandshakeHandler : IWorldPacketHandler<CWorldHandshakePacket>
         var minSupportedVersion = _world.MinVersion;
         var maxSupportedVersion = _world.CurrentVersion;
         
+        /*
         if (!Version.TryParse(clientVersion, out var clientSemVer))
         {
             _logger.LogWarning("Client {EndPoint} sent an invalid version", ctx.Connection.RemoteEndPoint);
@@ -41,6 +42,9 @@ public class WorldHandshakeHandler : IWorldPacketHandler<CWorldHandshakePacket>
         }
         
         var allowed = clientSemVer >= minSemVer && clientSemVer <= maxSemVer;
+        */
+        
+        var allowed = true;
         
         var result = SWorldHandshakePacket.Create(
             ctx.Connection.AccountId ?? throw new InvalidOperationException("Invalid connection state, missing account id"),

@@ -39,15 +39,15 @@ public abstract class Connection : BackgroundService, IConnection
     public ICryptoManager ServerCrypto  => Server.Crypto;
 
     protected readonly ILogger _logger;
+    protected CancellationTokenSource? CancellationTokenSource;
+    
     private readonly PluginExecutor _pluginExecutor;
     private readonly RingBuffer<NetworkPacket> _packetsToSend = new(string.Empty, 100);
     private readonly IPacketReader _packetReader;
 
     private TcpClient? _client;
     private Stream? _stream;
-    protected CancellationTokenSource? CancellationTokenSource;
-
-    
+    private bool _closed = false;
     
     protected readonly IServerBase Server;
 
@@ -97,7 +97,8 @@ public abstract class Connection : BackgroundService, IConnection
         {
             await foreach (var packet in _packetReader.EnumerateAsync(_stream, stoppingToken))
             {
-                _logger.LogDebug("IN: {Type} => {Data}", packet.Header.Type, JsonSerializer.Serialize(packet));
+                if (packet.Header.Type != NetworkPacketType.CMSG_MOVEMENT && packet.Header.Type != NetworkPacketType.CMSG_PONG)
+                    _logger.LogDebug("IN: {Type} => {Data}", packet.Header.Type, JsonSerializer.Serialize(packet));
                 await _pluginExecutor.ExecutePlugins<IPacketOperationListener>(x => x.OnPrePacketReceivedAsync(packet, Array.Empty<byte>(), stoppingToken));
 
                 if (packet.Header.Flags.HasFlag(NetworkPacketFlags.Encrypted))
@@ -128,8 +129,10 @@ public abstract class Connection : BackgroundService, IConnection
 
     public void Close(bool expected = true)
     {
+        if (_closed) return;
         CancellationTokenSource?.Cancel();
         _client?.Close();
+        _closed = true;
         OnClose(expected);
     }
 
@@ -161,19 +164,31 @@ public abstract class Connection : BackgroundService, IConnection
                             _logger.LogCritical("Stream unexpectedly became null. This shouldn't happen");
                             break;
                         }
-                        
-                        await _pluginExecutor.ExecutePlugins<IPacketOperationListener>(x => x.OnPrePacketSentAsync(packet, CancellationToken.None)).ConfigureAwait(false);
+
+                        await _pluginExecutor
+                            .ExecutePlugins<IPacketOperationListener>(x =>
+                                x.OnPrePacketSentAsync(packet, CancellationToken.None)).ConfigureAwait(false);
                         await _stream.WriteAsync(packet).ConfigureAwait(false);
                         await _stream.FlushAsync().ConfigureAwait(false);
-                        await _pluginExecutor.ExecutePlugins<IPacketOperationListener>(x => x.OnPostPacketSentAsync(packet, Array.Empty<byte>(), CancellationToken.None))
+                        await _pluginExecutor.ExecutePlugins<IPacketOperationListener>(x =>
+                                x.OnPostPacketSentAsync(packet, Array.Empty<byte>(), CancellationToken.None))
                             .ConfigureAwait(false);
-                        
+
+                    }
+                    catch (SocketException e)
+                    {
+                        if (e.SocketErrorCode == SocketError.ConnectionReset)
+                        {
+                            break;
+                        }
+                        _logger.LogError(e, "Failed to send packet");
                     }
                     catch (Exception e)
                     {
                         _logger.LogError(e, "Failed to send packet");
                     }
-                    _logger.LogDebug("OUT: {Type} => {Packet}", packet.Header.Type, JsonSerializer.Serialize(packet));
+                    if (packet.Header.Type != NetworkPacketType.SMSG_NPC_UPDATE && packet.Header.Type != NetworkPacketType.SMSG_PING)
+                        _logger.LogDebug("OUT: {Type} => {Packet}", packet.Header.Type, JsonSerializer.Serialize(packet));
                 }
                 else
                 {

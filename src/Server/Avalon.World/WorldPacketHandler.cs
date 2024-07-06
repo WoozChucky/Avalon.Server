@@ -1,6 +1,6 @@
 using Avalon.Hosting.Networking;
 
-namespace Avalon.Server.World;
+namespace Avalon.World;
 
 public interface IWorldPacketHandler<T> : IPacketHandlerNew
 {

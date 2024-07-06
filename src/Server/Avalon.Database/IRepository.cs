@@ -15,4 +15,5 @@ public interface IRepository<TEntity, in TKey> where TEntity : class, IDbEntity<
     Task<TEntity> CreateAsync(TEntity entity);
     Task<TEntity> UpdateAsync(TEntity entity);
     Task DeleteAsync(TKey id);
+    void DisposeContext();
 }

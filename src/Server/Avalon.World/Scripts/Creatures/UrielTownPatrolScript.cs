@@ -4,6 +4,7 @@ using Avalon.Common.Extensions;
 using Avalon.Domain.Characters;
 using Avalon.World.Entities;
 using Avalon.World.Maps;
+using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Scripts.Creatures;
 
@@ -34,28 +35,35 @@ public class UrielTownPatrolScript : AiScript
         new Vector2(-1, 1).Normalized(),  // Down-Left
         new Vector2(1, 1).Normalized()    // Down-Right
     ];
+    
+    private readonly ILogger<UrielTownPatrolScript> _logger;
 
-    public UrielTownPatrolScript(Creature creature, MapInstance map) : base(creature, map)
+    public UrielTownPatrolScript(ILoggerFactory loggerFactory, Creature creature, MapInstance map) : base(creature, map)
     {
+        _logger = loggerFactory.CreateLogger<UrielTownPatrolScript>();
         Creature.Velocity = Directions[Right];
         _state = State.Moving;
     }
 
-    public override void Update(TimeSpan deltaTime)
+    public override Task Update(TimeSpan deltaTime)
     {
         Creature.Position += Creature.Velocity * Creature.Speed * (float)deltaTime.TotalSeconds;
-        Creature.Bounds = new Rectangle(Creature.Position.ToPoint(), Creature.Bounds.Size);
+        // Creature.Bounds = new Rectangle(Creature.Position.ToPoint(), Creature.Bounds.Size);
 
         if (Map.VirtualizedMap.IsObjectColliding(Creature.Bounds))
         {
             MoveAwayFromCollision();
             InvertDirection();
         }
+        
+        // _logger.LogDebug("Uriel: I'm at {Position}", Creature.Position);
+        
+        return Task.CompletedTask;
     }
 
     public override void OnCharacterInteraction(Character character)
     {
-        Console.WriteLine($"Uriel: Hello {character.Name}!");
+        _logger.LogDebug("Uriel: Hello {Name}!", character.Name);
     }
 
     private void MoveAwayFromCollision()
@@ -99,7 +107,6 @@ public class UrielTownPatrolScript : AiScript
         {
             Creature.Velocity = Directions[5]; // Up-Right
         }
-        
-        Console.WriteLine("Uriel: I've hit a wall! I'm going to change direction.");
+        _logger.LogDebug("Uriel: I've hit a wall! I'm going to change direction");
     }
 }
