@@ -1,7 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
-using System.Numerics;
 using Avalon.Common;
+using Avalon.Common.Mathematics;
 using Avalon.Domain.Auth;
 
 namespace Avalon.Domain.Characters;
@@ -33,6 +33,7 @@ public class Character : IDbEntity<CharacterId>
     public float X { get; set; }
     
     public float Y { get; set; }
+    public float Z { get; set; }
     
     public int Map { get; set; }
     
@@ -40,9 +41,9 @@ public class Character : IDbEntity<CharacterId>
     
     public bool Online { get; set; }
     
-    public int TotalTime { get; set; }
+    public ulong TotalTime { get; set; }
     
-    public int LevelTime { get; set; }
+    public ulong LevelTime { get; set; }
     
     public int LogoutTime { get; set; }
     
@@ -72,7 +73,7 @@ public class Character : IDbEntity<CharacterId>
     
     public DateTime CreationDate { get; set; }
     
-    public int DeleteDate { get; set; }
+    public ulong DeleteDate { get; set; }
 
     // Non database properties
     [NotMapped]
@@ -113,11 +114,11 @@ public enum CharacterGender : byte
 
 public class CharacterMovement
 {
-    public Vector2 Position { get; set; }
-    public Vector2 Velocity { get; set; }
+    public Vector3 Position { get; set; }
+    public Vector3 Velocity { get; set; }
 
     public override string ToString()
     {
-        return $"Position: X-{Position.X} Y-{Position.Y} Velocity: X-{Velocity.X} Y-{Velocity.Y}";
+        return $"(Position: {Position} Velocity: {Velocity})";
     }
 }

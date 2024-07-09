@@ -47,7 +47,7 @@ public class Uriel : IEntity
         
         Position += Velocity * Speed * (float)deltaTime.TotalSeconds;
         PreviousPosition = Position;
-        Bounds = new Rectangle(Position.ToPoint(), new Size(32, 32));
+        //Bounds = new Rectangle(Position.ToPoint(), new Size(32, 32));
     }
 
     public void InvertDirection()

@@ -83,19 +83,18 @@ namespace Avalon.World.Database.Migrations
                         .Annotation("MySql:CharSet", "utf8mb4"),
                     Description = table.Column<string>(type: "longtext", nullable: false)
                         .Annotation("MySql:CharSet", "utf8mb4"),
-                    Atlas = table.Column<string>(type: "longtext", nullable: false)
-                        .Annotation("MySql:CharSet", "utf8mb4"),
                     Directory = table.Column<string>(type: "longtext", nullable: false)
                         .Annotation("MySql:CharSet", "utf8mb4"),
                     InstanceType = table.Column<int>(type: "int", nullable: false),
                     PvP = table.Column<bool>(type: "tinyint(1)", nullable: false),
-                    MinLevel = table.Column<int>(type: "int", nullable: false),
-                    MaxLevel = table.Column<int>(type: "int", nullable: false),
+                    MinLevel = table.Column<ushort>(type: "smallint unsigned", nullable: true),
+                    MaxLevel = table.Column<ushort>(type: "smallint unsigned", nullable: true),
                     AreaTableId = table.Column<int>(type: "int", nullable: false),
                     LoadingScreenId = table.Column<int>(type: "int", nullable: false),
-                    CorpseX = table.Column<float>(type: "float", nullable: false),
-                    CorpseY = table.Column<float>(type: "float", nullable: false),
-                    MaxPlayers = table.Column<int>(type: "int", nullable: false)
+                    CorpseX = table.Column<float>(type: "float", nullable: true),
+                    CorpseY = table.Column<float>(type: "float", nullable: true),
+                    CorpseZ = table.Column<float>(type: "float", nullable: true),
+                    MaxPlayers = table.Column<ushort>(type: "smallint unsigned", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -186,12 +185,8 @@ namespace Avalon.World.Database.Migrations
 
             migrationBuilder.InsertData(
                 table: "MapTemplates",
-                columns: new[] { "Id", "AreaTableId", "Atlas", "CorpseX", "CorpseY", "Description", "Directory", "InstanceType", "LoadingScreenId", "MaxLevel", "MaxPlayers", "MinLevel", "Name", "PvP" },
-                values: new object[,]
-                {
-                    { (ushort)1, 0, "Serene_Village_32x32", 0f, 0f, "Glimmerdell", "Maps/", 0, 0, 60, 32, 1, "Tutorial.tmx", false },
-                    { (ushort)2, 0, "Serene_Village_32x32", 0f, 0f, "Ebonheart Woods", "Maps/", 2, 0, 20, 5, 1, "Village.tmx", false }
-                });
+                columns: new[] { "Id", "AreaTableId", "CorpseX", "CorpseY", "CorpseZ", "Description", "Directory", "InstanceType", "LoadingScreenId", "MaxLevel", "MaxPlayers", "MinLevel", "Name", "PvP" },
+                values: new object[] { (ushort)1, 0, 0f, 0f, null, "Glimmerdell", "Maps/", 0, 0, (ushort)60, (ushort)32, (ushort)1, "world.bin", false });
 
             migrationBuilder.CreateIndex(
                 name: "IX_QuestRewards_RewardId",

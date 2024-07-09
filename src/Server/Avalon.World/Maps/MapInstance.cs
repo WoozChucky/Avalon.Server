@@ -1,25 +1,16 @@
 using System.Collections.Concurrent;
-using System.Drawing;
 using Avalon.Domain.Auth;
 using Avalon.Domain.World;
 using Avalon.Game.Configuration;
 using Avalon.Network.Packets.Auth;
-using Avalon.Network.Packets.Movement;
 using Avalon.World.Entities;
-using Avalon.World.Maps.Virtual;
+using Avalon.World.Maps.Virtualized;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Maps;
 
 public class MapInstance
 {
-    public Guid InstanceId { get; set; }
-    public int MapId => _template.Id;
-    public string Name => _template.Name;
-    public string Atlas => _template.Atlas;
-    public string Directory => _template.Directory;
-    public string Description => _template.Description;
-    public bool IsEmpty => Connections.IsEmpty;
     
     // Map tiles virtual representation
     // Contains all the layers (tiles, creatures, objects, events) information
@@ -29,7 +20,6 @@ public class MapInstance
     
     public ConcurrentDictionary<AccountId, IWorldConnection> Connections { get; }
     
-    public IEnumerable<MapEvent> Events => VirtualizedMap.Events;
 
     // Map configuration from database
     private readonly MapTemplate _template;
@@ -39,7 +29,6 @@ public class MapInstance
     public MapInstance(ILoggerFactory loggerFactory, MapTemplate template, VirtualizedMap virtualizedMap, GameConfiguration gameConfiguration)
     {
         _logger = loggerFactory.CreateLogger<MapInstance>();
-        InstanceId = Guid.NewGuid();
         Creatures = new ConcurrentDictionary<Guid, Creature>();
         Connections = new ConcurrentDictionary<AccountId, IWorldConnection>();
         _template = template;
@@ -91,6 +80,7 @@ public class MapInstance
         // Broadcast player positions
         foreach (var connection in Connections)
         {
+            /*
             if (!connection.Value.InMap) continue;
             
             var playerRectangle = new Rectangle(
@@ -145,6 +135,7 @@ public class MapInstance
             if (playerPackets.Count == 0) continue;
             
             connection.Value.Send(SPlayerPositionUpdatePacket.Create(playerPackets.ToArray(), connection.Value.CryptoSession.Encrypt));
+            */
         }
     }
 
@@ -153,6 +144,7 @@ public class MapInstance
         // Broadcast Creature positions
         foreach (var connection in Connections)
         {
+            /*
             if (!connection.Value.InMap) continue;
             
             var playerRectangle = new Rectangle(
@@ -180,8 +172,8 @@ public class MapInstance
             {
                 
                 var creatureRectangle = new Rectangle(
-                    (int) creature.Position.X,
-                    (int) creature.Position.Y,
+                    (int) creature.Position.x,
+                    (int) creature.Position.y,
                     VirtualizedMap.TileWidth,
                     VirtualizedMap.TileHeight);
 
@@ -191,10 +183,10 @@ public class MapInstance
                     {
                         Id = creature.Id,
                         Name = creature.Name,
-                        PositionX = creature.Position.X,
-                        PositionY = creature.Position.Y,
-                        VelocityX = creature.Velocity.X,
-                        VelocityY = creature.Velocity.Y
+                        PositionX = creature.Position.x,
+                        PositionY = creature.Position.y,
+                        VelocityX = creature.Velocity.x,
+                        VelocityY = creature.Velocity.y
                     });
                 }
             }
@@ -202,6 +194,7 @@ public class MapInstance
             if (creaturePackets.Count == 0) continue;
             
             connection.Value.Send(SNpcUpdatePacket.Create(creaturePackets.ToArray(), connection.Value.CryptoSession.Encrypt));
+            */
         }
     }
 

@@ -8,8 +8,10 @@ using Avalon.Api.Config;
 using Avalon.Api.Services;
 using Avalon.Auth.Database.Extensions;
 using Avalon.Common.Telemetry;
+using Avalon.Database.Character.Extensions;
 using Avalon.Infrastructure;
 using Avalon.Infrastructure.Services;
+using Avalon.World.Database.Extensions;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.IdentityModel.Tokens;
@@ -27,6 +29,8 @@ public static class ServiceRegistration
     public static void AddInfrastructure(this IServiceCollection services, ApplicationConfig config)
     {
         services.AddAuthDatabase();
+        services.AddCharacterDatabase();
+        services.AddWorldDatabase();
         
         services.AddScoped<IAccountService, AccountService>();
         services.AddScoped<IMFAService, MFAService>();

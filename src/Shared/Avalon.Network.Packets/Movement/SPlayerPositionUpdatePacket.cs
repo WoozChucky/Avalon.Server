@@ -46,8 +46,10 @@ public class SPlayerPacket
     [ProtoMember(2)] public ulong CharacterId { get; set; }
     [ProtoMember(3)] public float PositionX { get; set; }
     [ProtoMember(4)] public float PositionY { get; set; }
-    [ProtoMember(5)] public float VelocityX { get; set; }
-    [ProtoMember(6)] public float VelocityY { get; set; }
-    [ProtoMember(7)] public bool Chatting { get; set; }
-    [ProtoMember(8)] public float Elapsed { get; set; }
+    [ProtoMember(5)] public float PositionZ { get; set; }
+    [ProtoMember(6)] public float VelocityX { get; set; }
+    [ProtoMember(7)] public float VelocityY { get; set; }
+    [ProtoMember(8)] public float VelocityZ { get; set; }
+    [ProtoMember(9)] public bool Chatting { get; set; }
+    [ProtoMember(10)] public float Elapsed { get; set; }
 }

@@ -48,6 +48,8 @@ public class CreaturePacket
     [ProtoMember(2)] public string Name { get; set; }
     [ProtoMember(3)] public float PositionX { get; set; }
     [ProtoMember(4)] public float PositionY { get; set; }
-    [ProtoMember(5)] public float VelocityX { get; set; }
-    [ProtoMember(6)] public float VelocityY { get; set; }
+    [ProtoMember(5)] public float PositionZ { get; set; }
+    [ProtoMember(6)] public float VelocityX { get; set; }
+    [ProtoMember(7)] public float VelocityY { get; set; }
+    [ProtoMember(8)] public float VelocityZ { get; set; }
 }

@@ -45,8 +45,8 @@ namespace Avalon.Database.Character.Migrations
                     b.Property<DateTime>("CreationDate")
                         .HasColumnType("datetime(6)");
 
-                    b.Property<int>("DeleteDate")
-                        .HasColumnType("int");
+                    b.Property<ulong>("DeleteDate")
+                        .HasColumnType("bigint unsigned");
 
                     b.Property<ulong>("Experience")
                         .HasColumnType("bigint unsigned");
@@ -69,8 +69,8 @@ namespace Avalon.Database.Character.Migrations
                     b.Property<ushort>("Level")
                         .HasColumnType("smallint unsigned");
 
-                    b.Property<int>("LevelTime")
-                        .HasColumnType("int");
+                    b.Property<ulong>("LevelTime")
+                        .HasColumnType("bigint unsigned");
 
                     b.Property<int>("LogoutTime")
                         .HasColumnType("int");
@@ -103,8 +103,8 @@ namespace Avalon.Database.Character.Migrations
                     b.Property<int>("TotalKills")
                         .HasColumnType("int");
 
-                    b.Property<int>("TotalTime")
-                        .HasColumnType("int");
+                    b.Property<ulong>("TotalTime")
+                        .HasColumnType("bigint unsigned");
 
                     b.Property<float>("X")
                         .HasColumnType("float");
@@ -114,6 +114,9 @@ namespace Avalon.Database.Character.Migrations
 
                     b.Property<int>("YesterdayKills")
                         .HasColumnType("int");
+
+                    b.Property<float>("Z")
+                        .HasColumnType("float");
 
                     b.HasKey("Id");
 

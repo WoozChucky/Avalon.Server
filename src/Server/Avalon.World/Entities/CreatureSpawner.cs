@@ -1,9 +1,9 @@
 using System.Drawing;
-using System.Numerics;
+using Avalon.Common.Mathematics;
 using Avalon.Domain.World;
 using Avalon.World.Database.Repositories;
+using Avalon.World.Maps.Virtualized;
 using Microsoft.Extensions.Logging;
-using MapCreature = Avalon.World.Maps.Virtual.MapCreature;
 
 namespace Avalon.World.Entities;
 
@@ -11,8 +11,8 @@ public interface ICreatureSpawner
 {
     Task LoadAsync();
 
-    Creature Spawn(MapCreature virtualCreature);
-    Creature Spawn(CreatureTemplateId templateId);
+    Creature Spawn(CreatureInfo virtualCreature);
+    //Creature Spawn(CreatureTemplateId templateId);
 }
 
 public class CreatureSpawner : ICreatureSpawner
@@ -35,25 +35,23 @@ public class CreatureSpawner : ICreatureSpawner
         _logger.LogInformation("Loaded {CreatureCount} creatures template from database", _templates.Count());
     }
 
-    public Creature Spawn(MapCreature virtualCreature)
+    
+    public Creature Spawn(CreatureInfo virtualCreature)
     {
-        var creature = Spawn(virtualCreature.TemplateId);
+        var creature = Spawn(virtualCreature.PrototypeIndex);
 
-        creature.Position = new Vector2(
-            virtualCreature.Position.X, 
-            virtualCreature.Position.Y
-        );
+        creature.Position = virtualCreature.Position;
 
         creature.Bounds = new Rectangle(
-            virtualCreature.Bounds.X, 
-            virtualCreature.Bounds.Y,
-            virtualCreature.Bounds.Width, 
-            virtualCreature.Bounds.Height
+            (int) virtualCreature.Position.x, 
+            (int) virtualCreature.Position.z, 
+            1, 
+            1
         );
         
         return creature;
     }
-
+    
     public Creature Spawn(CreatureTemplateId templateId)
     {
         var template = _templates.FirstOrDefault(t => t.Id == templateId);

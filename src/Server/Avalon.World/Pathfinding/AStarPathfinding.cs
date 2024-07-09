@@ -1,7 +1,39 @@
+using Avalon.Common.Mathematics;
+
 namespace Avalon.World.Pathfinding;
 
 public class AStarPathfinding
 {
+	/// <summary>
+	/// Asynchronously generates a path from start to end on a polygon map (3D world).
+	/// Start and End represent cordinates in the 3d world
+	/// </summary>
+	/// <param name="start">The start position in world space</param>
+	/// <param name="end">The end position in world space</param>
+	/// <param name="indices">The indices composing the map geometry</param>
+	/// <param name="vertices">The vertices composing the map geomatry</param>
+	/// <param name="areas">For future use</param>
+	/// <returns></returns>
+	public static async Task<List<Vector3>?> GeneratePath(Vector3 start, Vector3 end, int[] indices, Vector3[] vertices, int[] areas)
+	{
+		return await Task.Run(() => AStarPolygonMap.GeneratePath(start, end, indices, vertices, areas));
+	}
+	
+	/// <summary>
+	/// Synchronously generates a path from start to end on a polygon map (3D world).
+	/// Start and End represent cordinates in the 3d world
+	/// </summary>
+	/// <param name="start">The start position in world space</param>
+	/// <param name="end">The end position in world space</param>
+	/// <param name="indices">The indices composing the map geometry</param>
+	/// <param name="vertices">The vertices composing the map geomatry</param>
+	/// <param name="areas">For future use</param>
+	/// <returns></returns>
+	public static List<Vector3>? GeneratePathSync(Vector3 start, Vector3 end, int[] indices, Vector3[] vertices, int[] areas)
+	{
+		return AStarPolygonMap.GeneratePath(start, end, indices, vertices, areas);
+	}
+	
 	/// <summary>
 	/// Asynchronously generates a path from (startX, startY) to (goalX, goalY) on the 2D walkableMap bool array.
 	/// Start and Goal represent cordinates in the walkableMap, 

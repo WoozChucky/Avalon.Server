@@ -1,4 +1,6 @@
+using System.Numerics;
 using System.Reflection;
+using System.Runtime.Serialization.Formatters.Binary;
 using Avalon.Common.Cryptography;
 using Avalon.Common.Telemetry;
 using Avalon.Database.Character;
@@ -45,7 +47,7 @@ namespace Avalon.Server.World
         private static ILogger<Program> Logger { get; set; } = null!;
         private static IMetricsManager MetricsManager { get; set; } = null!;
         private static AppConfiguration AppConfiguration { get; set; } = null!;
-
+        
         private static async Task Main(string[] args)
         {
             var hostBuilder = await AvalonHostBuilder.CreateHostAsync(args, ComponentType.World);

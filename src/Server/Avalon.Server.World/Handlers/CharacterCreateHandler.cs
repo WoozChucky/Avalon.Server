@@ -76,8 +76,9 @@ public class CharacterCreateHandler : IWorldPacketHandler<CCharacterCreatePacket
             Name = ctx.Packet.Name, // TODO: Sanitize name
             Level = 1,
             Class = (CharacterClass) ctx.Packet.Class,
-            X = 8, // TODO: Get starting position from starting map
-            Y = 35, // TODO: Get starting position from starting map
+            X = 25, // TODO: Get starting position from starting map
+            Y = 100, // TODO: Get starting position from starting map
+            Z = 25, // TODO: Get starting position from starting map
             Map = 1 // TODO: Get starting map from configuration
         };
 

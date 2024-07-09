@@ -24,19 +24,7 @@ public interface IWorldServer
     IWorld World { get; }
 }
 
-public class WorldServer(
-    IPacketManager packetManager,
-    ILoggerFactory loggerFactory,
-    PluginExecutor pluginExecutor,
-    IServiceProvider serviceProvider,
-    IOptions<HostingConfiguration> hostingOptions,
-    IWorld world,
-    IAiController aiController,
-    ICreatureSpawner creatureSpawner,
-    IReplicatedCache cache)
-    : ServerBase<WorldConnection>(packetManager, loggerFactory.CreateLogger<WorldServer>(), pluginExecutor,
-        serviceProvider,
-        hostingOptions), IWorldServer
+public class WorldServer : ServerBase<WorldConnection>, IWorldServer
 {
     public new ImmutableArray<IWorldConnection> Connections =>
         [..base.Connections.Values.Cast<WorldConnection>()];
@@ -44,9 +32,9 @@ public class WorldServer(
     public IWorld World => _world;
 
     private readonly ConcurrentDictionary<Type, (PropertyInfo packetProperty, PropertyInfo connectionProperty)> _propertyCache = new();
-    private readonly ILogger<WorldServer> _logger = loggerFactory.CreateLogger<WorldServer>();
-    private readonly PluginExecutor _pluginExecutor = pluginExecutor;
-    private readonly World _world = world as World ?? throw new InvalidOperationException("Invalid world instance");
+    private readonly ILogger<WorldServer> _logger;
+    private readonly PluginExecutor _pluginExecutor;
+    private readonly World _world;
 
     #region Server Timers
     private readonly Stopwatch _gameTime = new Stopwatch();
@@ -55,16 +43,40 @@ public class WorldServer(
     private readonly TimeSpan _targetElapsedTime = TimeSpan.FromTicks(TimeSpan.TicksPerSecond / 60); // 60hz
     private readonly TimeSpan _maxElapsedTime = TimeSpan.FromMilliseconds(500);
     private readonly Stopwatch _serverTimer = new();
+    private readonly IAiController _aiController;
+    private readonly ICreatureSpawner _creatureSpawner;
+    private readonly IReplicatedCache _cache;
+
+    public WorldServer(IPacketManager packetManager,
+        ILoggerFactory loggerFactory,
+        PluginExecutor pluginExecutor,
+        IServiceProvider serviceProvider,
+        IOptions<HostingConfiguration> hostingOptions,
+        IWorld world,
+        IAiController aiController,
+        ICreatureSpawner creatureSpawner,
+        IReplicatedCache cache) : base(packetManager, loggerFactory.CreateLogger<WorldServer>(), pluginExecutor,
+        serviceProvider,
+        hostingOptions)
+    {
+        _aiController = aiController;
+        _creatureSpawner = creatureSpawner;
+        _cache = cache;
+        _logger = loggerFactory.CreateLogger<WorldServer>();
+        _pluginExecutor = pluginExecutor;
+        _world = world as World ?? throw new InvalidOperationException("Invalid world instance");
+    }
+
     #endregion
     
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         await Task.WhenAll(
-            aiController.LoadAsync(),
-            creatureSpawner.LoadAsync()
+            _aiController.LoadAsync(),
+            _creatureSpawner.LoadAsync()
         );
         
-        await _world.LoadAsync();
+        await _world.LoadAsync(stoppingToken);
 
         await CacheSubscribeAsync();
         
@@ -171,7 +183,7 @@ public class WorldServer(
     #region Cache Subscriptions
     private async Task CacheSubscribeAsync()
     {
-        await cache.SubscribeAsync("world:accounts:disconnect", DelayedDisconnect);
+        await _cache.SubscribeAsync("world:accounts:disconnect", DelayedDisconnect);
     }
 
     private void DelayedDisconnect(RedisChannel channel, RedisValue value)

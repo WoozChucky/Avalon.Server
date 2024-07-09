@@ -1,112 +1,42 @@
-using System.Drawing;
-using System.Numerics;
-using Avalon.Common.Extensions;
-using Avalon.Domain.Characters;
+using Avalon.Common.Mathematics;
 using Avalon.World.Entities;
-using Avalon.World.Maps;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Scripts.Creatures;
 
 public class UrielTownPatrolScript : AiScript
 {
-    private enum State
-    {
-        Collided,
-        Moving
-    }
-
-    private State _state;
-    private Random _random = new();
-    
-    private const int Up = 0;
-    private const int Right = 1;
-    private const int Down = 2;
-    private const int Left = 3;
-    
-    private static readonly Vector2[] Directions =
-    [
-        new Vector2(0, -1),    // Up
-        new Vector2(1, 0),     // Right
-        new Vector2(0, 1),     // Down
-        new Vector2(-1, 0),    // Left
-        new Vector2(-1, -1).Normalized(), // Up-Left
-        new Vector2(1, -1).Normalized(),  // Up-Right
-        new Vector2(-1, 1).Normalized(),  // Down-Left
-        new Vector2(1, 1).Normalized()    // Down-Right
-    ];
-    
     private readonly ILogger<UrielTownPatrolScript> _logger;
+    
+    private Vector3[] _waypoints = new Vector3[]
+    {
+        new Vector3(3, 100.5f, 35),
+        new Vector3(25, 100.5f, 35)
+    };
 
-    public UrielTownPatrolScript(ILoggerFactory loggerFactory, Creature creature, MapInstance map) : base(creature, map)
+    public UrielTownPatrolScript(ILoggerFactory loggerFactory, Creature creature, Chunk chunk) : base(creature, chunk)
     {
         _logger = loggerFactory.CreateLogger<UrielTownPatrolScript>();
-        Creature.Velocity = Directions[Right];
-        _state = State.Moving;
     }
-
+    
     public override Task Update(TimeSpan deltaTime)
     {
-        Creature.Position += Creature.Velocity * Creature.Speed * (float)deltaTime.TotalSeconds;
-        // Creature.Bounds = new Rectangle(Creature.Position.ToPoint(), Creature.Bounds.Size);
-
-        if (Map.VirtualizedMap.IsObjectColliding(Creature.Bounds))
+        // This will simply go back and forth between two points
+        
+        var currentPosition = Creature.Position;
+        var targetPosition = _waypoints[0];
+        
+        if (Vector3.Distance(currentPosition, targetPosition) < 0.1f)
         {
-            MoveAwayFromCollision();
-            InvertDirection();
+            _logger.LogInformation("Reached waypoint {Waypoint}", targetPosition);
+            _waypoints = _waypoints.Reverse().ToArray();
+            targetPosition = _waypoints[0];
         }
         
-        // _logger.LogDebug("Uriel: I'm at {Position}", Creature.Position);
+        var direction = Vector3.Normalize(targetPosition - currentPosition);
+        
+        Creature.Position += direction * Creature.Speed * (float)deltaTime.TotalSeconds;
         
         return Task.CompletedTask;
-    }
-
-    public override void OnCharacterInteraction(Character character)
-    {
-        _logger.LogDebug("Uriel: Hello {Name}!", character.Name);
-    }
-
-    private void MoveAwayFromCollision()
-    {
-        Creature.Position -= Creature.Velocity * Creature.Speed / 15f; // You may want to use a smaller value here instead of Creature.Speed to prevent the creature from moving too far away from the collision.
-    }
-
-    private void InvertDirection()
-    {
-        var currentDirection = Creature.Velocity;
-        
-        if (currentDirection == Directions[0]) // Up
-        {
-            Creature.Velocity = Directions[2]; // Down
-        }
-        else if (currentDirection == Directions[1]) // Right
-        {
-            Creature.Velocity = Directions[3]; // Left
-        }
-        else if (currentDirection == Directions[2]) // Down
-        {
-            Creature.Velocity = Directions[0]; // Up
-        }
-        else if (currentDirection == Directions[3]) // Left
-        {
-            Creature.Velocity = Directions[1]; // Right
-        }
-        else if (currentDirection == Directions[4]) // Up-Left
-        {
-            Creature.Velocity = Directions[6]; // Down-Left
-        }
-        else if (currentDirection == Directions[5]) // Up-Right
-        {
-            Creature.Velocity = Directions[7]; // Down-Right
-        }
-        else if (currentDirection == Directions[6]) // Down-Left
-        {
-            Creature.Velocity = Directions[4]; // Up-Left
-        }
-        else if (currentDirection == Directions[7]) // Down-Right
-        {
-            Creature.Velocity = Directions[5]; // Up-Right
-        }
-        _logger.LogDebug("Uriel: I've hit a wall! I'm going to change direction");
     }
 }

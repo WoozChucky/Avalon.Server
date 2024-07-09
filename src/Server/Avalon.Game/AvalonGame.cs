@@ -196,8 +196,8 @@ public partial class AvalonGame : IAvalonGame
             velocity = new Vector2(packet.VelocityX, packet.VelocityY);
         }
         
-        session.Character!.Movement.Position = new Vector2(packet.X, packet.Y);
-        session.Character!.Movement.Velocity = velocity;
+        // session.Character!.Movement.Position = new Vector2(packet.X, packet.Y);
+        // session.Character!.Movement.Velocity = velocity;
         // session.Character!.ElapsedGameTime = packet.ElapsedGameTime;
         
         return Task.CompletedTask;

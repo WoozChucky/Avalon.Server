@@ -53,5 +53,5 @@ public class CharacterInfo
     [ProtoMember(4)] public ushort Class { get; set; }
     [ProtoMember(5)] public float X { get; set; }
     [ProtoMember(6)] public float Y { get; set; }
-    [ProtoMember(7)] public float Radius { get; set; }
+    [ProtoMember(7)] public float Z { get; set; }
 }
