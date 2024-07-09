@@ -1,6 +1,3 @@
-[submodule "vendor/hazel-networking"]
-	path = vendor/hazel-networking
-	url = https://github.com/willardf/Hazel-Networking
-[submodule "vendor/Facepunch.Steamworks"]
-	path = vendor/Facepunch.Steamworks
-	url = https://github.com/WoozChucky/Facepunch.Steamworks
+[submodule "vendor/DotRecast"]
+	path = vendor/DotRecast
+	url = https://github.com/ikpil/DotRecast
