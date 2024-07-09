@@ -37,6 +37,7 @@
     </PropertyGroup>
     
     <ItemGroup>
+      <ProjectReference Include="..\..\..\vendor\DotRecast\src\DotRecast.Recast\DotRecast.Recast.csproj" />
       <ProjectReference Include="..\..\Shared\Avalon.Common\Avalon.Common.csproj" />
       <ProjectReference Include="..\..\Shared\Avalon.Configuration\Avalon.Configuration.csproj" />
       <ProjectReference Include="..\..\Shared\Avalon.Metrics\Avalon.Metrics.csproj" />
