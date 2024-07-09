@@ -30,12 +30,13 @@ namespace Avalon.Database.Character.Migrations
                     Experience = table.Column<ulong>(type: "bigint unsigned", nullable: false),
                     X = table.Column<float>(type: "float", nullable: false),
                     Y = table.Column<float>(type: "float", nullable: false),
+                    Z = table.Column<float>(type: "float", nullable: false),
                     Map = table.Column<int>(type: "int", nullable: false),
                     InstanceId = table.Column<string>(type: "longtext", nullable: true)
                         .Annotation("MySql:CharSet", "utf8mb4"),
                     Online = table.Column<bool>(type: "tinyint(1)", nullable: false),
-                    TotalTime = table.Column<int>(type: "int", nullable: false),
-                    LevelTime = table.Column<int>(type: "int", nullable: false),
+                    TotalTime = table.Column<ulong>(type: "bigint unsigned", nullable: false),
+                    LevelTime = table.Column<ulong>(type: "bigint unsigned", nullable: false),
                     LogoutTime = table.Column<int>(type: "int", nullable: false),
                     IsLogoutResting = table.Column<bool>(type: "tinyint(1)", nullable: false),
                     RestBonus = table.Column<float>(type: "float", nullable: false),
@@ -50,7 +51,7 @@ namespace Avalon.Database.Character.Migrations
                     ActionBars = table.Column<int>(type: "int", nullable: false),
                     Order = table.Column<int>(type: "int", nullable: false),
                     CreationDate = table.Column<DateTime>(type: "datetime(6)", nullable: false),
-                    DeleteDate = table.Column<int>(type: "int", nullable: false)
+                    DeleteDate = table.Column<ulong>(type: "bigint unsigned", nullable: false)
                 },
                 constraints: table =>
                 {

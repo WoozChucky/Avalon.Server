@@ -2,15 +2,14 @@ using Avalon.World.Entities;
 using Avalon.World.Scripts;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using ICreatureSpawner = Avalon.World.Entities.ICreatureSpawner;
-using MapInstance = Avalon.World.Maps.MapInstance;
 
 namespace Avalon.World.Pools;
 
 public interface IPoolManager
 {
-    void SpawnStartingEntities(MapInstance instance);
-    void Update(TimeSpan deltaTime, MapInstance instance);
+    void SpawnStartingEntities(Chunk chunk);
+    
+    // TODO: Add methods to manage the creature pools
 }
 
 public class PoolManager : IPoolManager
@@ -29,29 +28,22 @@ public class PoolManager : IPoolManager
     }
 
 
-    public void SpawnStartingEntities(MapInstance instance)
+    public void SpawnStartingEntities(Chunk chunk)
     {
-        _logger.LogInformation("Spawning starting entities for map {MapId}", instance.MapId);
+        _logger.LogDebug("Spawning starting entities for Chunk {ChunkId}", chunk.Id);
         
-        
-
-        foreach (var virtualCreature in instance.VirtualizedMap.Creatures)
+        foreach (var virtualCreature in chunk.Metadata.Creatures)
         {
             var creature = _creatureSpawner.Spawn(virtualCreature);
             
             var scriptType = _aiController.GetScriptTemplate(creature.ScriptName);
             if (scriptType is not null)
             {
-                var script = ActivatorUtilities.CreateInstance(_serviceProvider, scriptType, [creature, instance]);
+                var script = ActivatorUtilities.CreateInstance(_serviceProvider, scriptType, [creature, chunk]);
                 creature.Script = (AiScript) script;
             }
-            
-            instance.AddCreature(creature);
-        }
-    }
 
-    public void Update(TimeSpan deltaTime, MapInstance instance)
-    {
-        
+            chunk.AddCreature(creature);
+        }
     }
 }

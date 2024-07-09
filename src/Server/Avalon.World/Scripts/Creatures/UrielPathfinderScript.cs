@@ -1,10 +1,7 @@
-using System.Drawing;
-using System.Numerics;
-using Avalon.Common.Extensions;
+using Avalon.Common.Mathematics;
 using Avalon.Domain.Characters;
 using Avalon.World.Entities;
 using Avalon.World.Pathfinding;
-using MapInstance = Avalon.World.Maps.MapInstance;
 
 namespace Avalon.World.Scripts.Creatures;
 
@@ -12,26 +9,26 @@ public class UrielPathfinderScript : AiScript
 {
     private bool _isPathfinding = false;
     private bool _hasWaypoints = false;
-    private (int, int)[]? _waypoints;
+    private List<Vector3>? _waypoints;
     private ushort _currentWaypointIndex = 0;
     private Character _target;
-    private Vector2 _initialTargetPosition;
+    private Vector3 _initialTargetPosition;
     
     private const float WaypointTolerance = 0.1f;
     private const float TargetTolerance = 0.25f;
     
-    public UrielPathfinderScript(Creature creature, MapInstance map) : base(creature, map)
+    public UrielPathfinderScript(Creature creature, Chunk chunk) : base(creature, chunk)
     {
         
     }
+    
     
     public override async Task Update(TimeSpan deltaTime)
     {
         if (!_isPathfinding)
         {
-            if (Map.Connections.IsEmpty) return;
-            var kvp = Map.Connections.FirstOrDefault();
-            var connection = kvp.Value;
+            if (Chunk.GetConnections().Count == 0) return;
+            var connection = Chunk.GetConnections().FirstOrDefault()!;
             if (connection.Character == null) return;
             
             _isPathfinding = true;
@@ -41,34 +38,34 @@ public class UrielPathfinderScript : AiScript
         else
         {
             // Check if target has moved beyond TargetTolerance
-            if (Vector2.Distance(_target.Movement.Position, _initialTargetPosition) > TargetTolerance)
+            if (Vector3.Distance(_target.Movement.Position, _initialTargetPosition) > TargetTolerance)
             {
                 // Reset pathfinding and regenerate path but continue smoothly
                 _initialTargetPosition = _target.Movement.Position;
 
                 var currentPosition = Creature.Position;
 
-                var newWaypoints = await AStarPathfinding.GeneratePath(
-                    (int)currentPosition.X, 
-                    (int)currentPosition.Y, 
-                    (int)_target.Movement.Position.X, 
-                    (int)_target.Movement.Position.Y,
-                    Map.VirtualizedMap.WalkableMap
+                // Generate smooth path from NavMesh
+                var path = await AStarPathfinding.GeneratePath(
+                    currentPosition, 
+                    _target.Movement.Position,
+                    Chunk.Metadata.NavMesh.Indices,
+                    Chunk.Metadata.NavMesh.Vertices,
+                    Chunk.Metadata.NavMesh.Areas
                 );
 
-                if (newWaypoints.Length > 0)
-                {
-                    _waypoints = newWaypoints;
-                    _currentWaypointIndex = 1;
-                    _hasWaypoints = true;
-                }
-                else
+                if (path == null)
                 {
                     _hasWaypoints = false;
+                    return;
                 }
+
+                _waypoints = path;
+                _currentWaypointIndex = 1;
+                _hasWaypoints = true;
             }
 
-            if (_hasWaypoints && _waypoints != null && _currentWaypointIndex < _waypoints.Length)
+            if (_hasWaypoints && _waypoints != null && _currentWaypointIndex < _waypoints.Count)
             {
                 MoveAlongPath(deltaTime);
             }
@@ -78,29 +75,28 @@ public class UrielPathfinderScript : AiScript
                 _hasWaypoints = false;
                 _currentWaypointIndex = 0;
             }
-            
         }
     }
 
     private void MoveAlongPath(TimeSpan deltaTime)
     {
         var currentPosition = Creature.Position;
-        var targetPosition = new Vector2(_waypoints![_currentWaypointIndex].Item1, _waypoints[_currentWaypointIndex].Item2);
-        var direction = (targetPosition - currentPosition).Normalized();
-        var distance = Vector2.Distance(currentPosition, targetPosition);
+        var targetPosition = _waypoints![_currentWaypointIndex];
+        var direction = (targetPosition - currentPosition).normalized;
+        var distance = Vector3.Distance(currentPosition, targetPosition);
         
         if (distance <= WaypointTolerance)
         {
             _currentWaypointIndex++;
-            if (_currentWaypointIndex >= _waypoints.Length)
+            if (_currentWaypointIndex >= _waypoints.Count)
             {
                 Console.WriteLine("Reached the end of the path");
-                Creature.Velocity = Vector2.Zero;
+                Creature.Velocity = Vector3.zero;
                 return;
             }
-            targetPosition = new Vector2(_waypoints[_currentWaypointIndex].Item1, _waypoints[_currentWaypointIndex].Item2);
-            direction = (targetPosition - currentPosition).Normalized();
-            distance = Vector2.Distance(currentPosition, targetPosition);
+            targetPosition = _waypoints[_currentWaypointIndex];
+            direction = (targetPosition - currentPosition).normalized;
+            distance = Vector3.Distance(currentPosition, targetPosition);
         }
         
         var movementDelta = direction * Creature.Speed * (float)deltaTime.TotalSeconds;
@@ -108,21 +104,21 @@ public class UrielPathfinderScript : AiScript
         if (CheckCollision(movementDelta))
         {
             // Attempt to adjust movement by checking individual axes
-            var moveDeltaX = movementDelta with {Y = 0};
-            var moveDeltaY = movementDelta with {X = 0};
+            var moveDeltaX = movementDelta with {z = 0 };
+            var moveDeltaZ = movementDelta with {x = 0};
             
             if (!CheckCollision(moveDeltaX))
             {
                 Creature.Position += moveDeltaX;
             }
-            else if (!CheckCollision(moveDeltaY))
+            else if (!CheckCollision(moveDeltaZ))
             {
-                Creature.Position += moveDeltaY;
+                Creature.Position += moveDeltaZ;
             }
             else
             {
-                Console.WriteLine("Collision detected at: {0}, {1}", currentPosition.X, currentPosition.Y);
-                Creature.Velocity = Vector2.Zero;
+                Console.WriteLine("Collision detected at: {0}", currentPosition);
+                Creature.Velocity = Vector3.zero;
             }
         }
         else
@@ -140,9 +136,7 @@ public class UrielPathfinderScript : AiScript
 
     private bool CheckCollision(Vector2 movementDelta)
     {
-        var newPosition = Creature.Position + movementDelta;
-        var boundingBox = new Rectangle(newPosition.ToPoint(), Creature.Bounds.Size / 2);
-        
-        return Map.VirtualizedMap.IsObjectColliding(boundingBox);
+        // TODO: Implement collision detection
+        return false;
     }
 }

@@ -215,11 +215,10 @@ public class WorldDbContext : DbContext
             new MapTemplate
             {
                 Id = 1,
-                Name = "Tutorial.tmx",
+                Name = "world.bin",
                 Description = "Glimmerdell",
-                Atlas = "Serene_Village_32x32",
                 Directory = "Maps/",
-                InstanceType = MapInstanceType.Village,
+                InstanceType = MapInstanceType.OpenWorld,
                 PvP = false,
                 MinLevel = 1,
                 MaxLevel = 60,
@@ -229,23 +228,6 @@ public class WorldDbContext : DbContext
                 CorpseY = 0,
                 MaxPlayers = 32
             },
-            new MapTemplate
-            {
-                Id = 2,
-                Name = "Village.tmx",
-                Description = "Ebonheart Woods",
-                Atlas = "Serene_Village_32x32",
-                Directory = "Maps/",
-                InstanceType = MapInstanceType.OpenWorld,
-                PvP = false,
-                MinLevel = 1,
-                MaxLevel = 20,
-                AreaTableId = 0,
-                LoadingScreenId = 0,
-                CorpseX = 0,
-                CorpseY = 0,
-                MaxPlayers = 5
-            }
         ]);
     }
 }
