@@ -45,6 +45,7 @@ public class CharacterListHandler : IWorldPacketHandler<CCharacterListPacket>
                 Class = (ushort) character.Class,
                 X = character.X,
                 Y = character.Y,
+                Z = character.Z,
             }).ToArray();
         
         var result = SCharacterListPacket.Create(

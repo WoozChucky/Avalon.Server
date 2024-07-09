@@ -1,4 +1,4 @@
-using System.Numerics;
+using Avalon.Common.Mathematics;
 using Avalon.Database.Character.Repositories;
 using Avalon.Domain.Characters;
 using Avalon.Network.Packets.Character;
@@ -46,43 +46,34 @@ public class CharacterSelectHandler : IWorldPacketHandler<CCharacterSelectedPack
             return;
         }
         
-        // Try to find the map instance for this character
-        var mapInstance = _mapManager.GetInstance(character.Map, Guid.TryParse(character.InstanceId, out var instanceId) ? instanceId : Guid.Empty);
-        if (mapInstance == null)
-        {
-            // Specific map instance not found, try to find a other instance of the same map
-            // If no instance found, (internally will create a new one) add the session to it
-            mapInstance = _mapManager.GetInstance(character.Map, ctx.Connection) ?? _mapManager.AddConnectionToMap(character.Map, ctx.Connection, true);
-            
-            if (mapInstance == null)
-            {
-                _logger.LogWarning("Failed to find or create map instance for character {CharacterId} for account {AccountId}", ctx.Connection.CharacterId, ctx.Connection.AccountId);
-                return;
-            }
-        }
-        else
-        {
-            // Map instance found, add the session to it
-            if (!mapInstance.AddConnection(ctx.Connection, true))
-            {
-                _logger.LogWarning("Failed to add session {AccountId} to map instance {InstanceId}", ctx.Connection.AccountId, mapInstance.InstanceId);
-                return;
-            }
-        }
-        
-        // Update the current map instance
-        character.InstanceId = mapInstance.InstanceId.ToString();
+        //TODO: Fix
+        character.InstanceId = Guid.NewGuid().ToString();
 
         character.Movement = new CharacterMovement
         {
-            Position = new Vector2(character.X, character.Y),
-            Velocity = Vector2.Zero
+            Position = new Vector3(character.X, character.Y, character.Z),
+            Velocity = Vector3.zero
         };
         
         character.Online = true;
         character.Latency = (int) ctx.Connection.Latency;
         character.EnteredWorld = DateTime.UtcNow;
+        
+        ctx.Connection.Character = character;
+        ctx.Connection.CharacterId = character.Id;
 
+        try
+        {
+            await _world.SpawnPlayerAsync(ctx.Connection);
+        }
+        catch (Exception e)
+        {
+            ctx.Connection.Character = null;
+            ctx.Connection.CharacterId = null;
+            _logger.LogError(e, "Error while spawning player {CharacterId}", character.Id);
+            return;
+        }
+        
         ctx.Connection.Send(SCharacterSelectedPacket.Create(new CharacterInfo
         {
             CharacterId = character.Id!.Value,
@@ -91,28 +82,18 @@ public class CharacterSelectHandler : IWorldPacketHandler<CCharacterSelectedPack
             Class = (ushort) character.Class,
             X = character.X,
             Y = character.Y,
-            Radius = _world.Configuration.PlayerRadius
+            Z = character.Z
         },
         new MapInfo
         {
-            MapId = mapInstance.MapId,
-            InstanceId = mapInstance.InstanceId,
-            Name = mapInstance.Name,
-            Description = mapInstance.Description
+            MapId = 1,
+            InstanceId = Guid.Parse(character.InstanceId),
+            Name = "Test Map",
+            Description = "Test Map Description",
         }, ctx.Connection.CryptoSession.Encrypt));
 
         // save the character to the database
         await _characterRepository.UpdateAsync(character);
-
-        ctx.Connection.Character = character;
-        ctx.Connection.CharacterId = character.Id;
-        ctx.Connection.Character.Movement = new CharacterMovement
-        {
-            Position = new Vector2(character.X, character.Y),
-            Velocity = Vector2.Zero
-        };
-        
-        mapInstance.OnConnectionEntered(ctx.Connection);
         
         _logger.LogInformation("Character {CharacterId} logged in for account {AccountId} at {Position}", character.Name, ctx.Connection.AccountId, character.Movement);
     }

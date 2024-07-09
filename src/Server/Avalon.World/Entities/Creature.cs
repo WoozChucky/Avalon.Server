@@ -1,6 +1,5 @@
 using System.Drawing;
-using System.Numerics;
-using Avalon.Common.Extensions;
+using Avalon.Common.Mathematics;
 using Avalon.Domain.World;
 using Avalon.World.Scripts;
 
@@ -14,19 +13,19 @@ public class Creature : IGameEntity<Guid>
 
     public string Name { get; set; } = string.Empty;
 
-    public Vector2 Position
+    public Vector3 Position
     {
         set
         {
             _position = value;
-            Bounds = new Rectangle(value.ToPoint(), Bounds.Size);
+            Bounds = new Rectangle((int)value.x, (int)value.y, 1, 1);
         }
         get => _position;
     }
     
-    private Vector2 _position;
+    private Vector3 _position;
 
-    public Vector2 Velocity { get; set; }
+    public Vector3 Velocity { get; set; }
     
     public Rectangle Bounds { get; set; }
     public float Speed { get; set; }

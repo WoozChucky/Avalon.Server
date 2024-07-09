@@ -1,20 +1,19 @@
 using Avalon.Domain.Characters;
 using Avalon.World.Entities;
-using MapInstance = Avalon.World.Maps.MapInstance;
 
 namespace Avalon.World.Scripts;
 
 public abstract class AiScript {
     
     protected Creature Creature { get; }
-    protected MapInstance Map { get; }
+    protected Chunk Chunk { get; }
     
     protected List<AiScript> ChainedScripts { get; } = new();
     
-    protected AiScript(Creature creature, MapInstance map)
+    protected AiScript(Creature creature, Chunk chunk)
     {
         Creature = creature;
-        Map = map;
+        Chunk = chunk;
     }
     
     public AiScript Chain(AiScript script)

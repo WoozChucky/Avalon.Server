@@ -1,1 +1,1 @@
-dotnet ef migrations add Initial --context AuthDbContext --output-dir Migrations --startup-project ../Avalon.Server.Auth -- --Database:Auth:ConnectionString "Server=localhost;Database=auth;Uid=root;Pwd=123;ConvertZeroDatetime=True;AllowZeroDateTime=True;"
+dotnet ef migrations add Initial --context AuthDbContext --output-dir Migrations --startup-project ../Avalon.Api -- --Database:Auth:ConnectionString "Server=localhost;Database=auth;Uid=root;Pwd=123;ConvertZeroDatetime=True;AllowZeroDateTime=True;"

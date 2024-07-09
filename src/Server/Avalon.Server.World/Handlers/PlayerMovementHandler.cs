@@ -1,4 +1,4 @@
-using System.Numerics;
+using Avalon.Common.Mathematics;
 using Avalon.Network.Packets.Movement;
 using Avalon.World;
 using Microsoft.Extensions.Logging;
@@ -27,6 +27,7 @@ public class PlayerMovementHandler : IWorldPacketHandler<CPlayerMovementPacket>
             return Task.CompletedTask;
         }
         
+        /*
         var clientMillis = ctx.Packet.ElapsedGameTime - ctx.Connection.Latency;
         var intendedPosition = new Vector2(ctx.Packet.X, ctx.Packet.Y);
         var direction = new Vector2(ctx.Packet.VelocityX, ctx.Packet.VelocityY);
@@ -56,6 +57,10 @@ public class PlayerMovementHandler : IWorldPacketHandler<CPlayerMovementPacket>
             ctx.Connection.Character.Movement.Position = new Vector2(intendedPosition.X, intendedPosition.Y);
             ctx.Connection.Character.Movement.Velocity = new Vector2(direction.X, direction.Y);
         }
+        */
+        
+        ctx.Connection.Character!.Movement.Position = new Vector3(ctx.Packet.X, ctx.Packet.Y, ctx.Packet.Z);
+        ctx.Connection.Character.Movement.Velocity = new Vector3(ctx.Packet.VelocityX, ctx.Packet.VelocityY, ctx.Packet.VelocityZ);
         
         return Task.CompletedTask;
     }
