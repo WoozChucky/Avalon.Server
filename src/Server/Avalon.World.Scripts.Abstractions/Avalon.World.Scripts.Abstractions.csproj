@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net8.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <LangVersion>latest</LangVersion>
+        <SignAssembly>true</SignAssembly>
+        <AssemblyOriginatorKeyFile>..\..\..\sgKey.snk</AssemblyOriginatorKeyFile>
+        <PublicSign>true</PublicSign>
+        <RootNamespace>Avalon.World.Scripts.Abstractions</RootNamespace>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <None Include="..\..\..\sgKey.snk">
+            <Link>sgKey.snk</Link>
+        </None>
+    </ItemGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\Avalon.World.Public\Avalon.World.Public.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <PackageReference Include="Microsoft.CodeAnalysis.Common" Version="4.10.0" />
+      <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.10.0" />
+    </ItemGroup>
+
+</Project>

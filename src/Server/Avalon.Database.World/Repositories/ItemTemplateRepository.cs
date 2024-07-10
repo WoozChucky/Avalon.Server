@@ -1,3 +1,4 @@
+using Avalon.Common.ValueObjects;
 using Avalon.Database;
 using Avalon.Domain.World;
 

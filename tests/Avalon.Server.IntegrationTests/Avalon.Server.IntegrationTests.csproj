@@ -28,8 +28,6 @@
 
     <ItemGroup>
       <ProjectReference Include="..\..\src\Server\Avalon.Database\Avalon.Database.csproj" />
-      <ProjectReference Include="..\..\src\Server\Avalon.Game\Avalon.Game.csproj" />
-      <ProjectReference Include="..\..\src\Server\Avalon.Infrastructure.World\Avalon.Infrastructure.World.csproj" />
       <ProjectReference Include="..\..\src\Server\Avalon.Infrastructure\Avalon.Infrastructure.csproj" />
       <ProjectReference Include="..\..\src\Server\Avalon.World\Avalon.World.csproj" />
       <ProjectReference Include="..\..\src\Shared\Avalon.Common\Avalon.Common.csproj" />

@@ -1,7 +1,7 @@
 using Avalon.Configuration;
-using Avalon.Game.Configuration;
 using Avalon.Infrastructure.Configuration;
 using Avalon.Metrics;
+using Avalon.World.Configuration;
 
 namespace Avalon.Server.World.Configuration;
 

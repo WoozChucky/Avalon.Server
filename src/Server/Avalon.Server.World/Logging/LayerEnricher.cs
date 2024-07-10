@@ -13,22 +13,17 @@ public class LayerEnricher : ILogEventEnricher
     
     private readonly List<string> _networkNamespaces =
     [
-        typeof(Avalon.Infrastructure.World.AvalonWorldNetworkDaemon).FullName!,
         typeof(Avalon.Network.Tcp.AvalonTcpServer).FullName!,
-        typeof(Avalon.Game.AvalonSessionManager).FullName!,
         typeof(Avalon.Network.TcpClient).FullName!,
     ];
 
     private readonly List<string> _gameNamespaces =
     [
-        typeof(Avalon.Game.AvalonGame).FullName!,
-        typeof(Avalon.Game.AvalonWorldSession).FullName!,
     ];
 
     private readonly List<string> _serverNamespaces =
     [
         typeof(Program).FullName!,
-        typeof(Avalon.Infrastructure.World.AvalonWorldInfrastructure).FullName!
     ];
     
     public void Enrich(LogEvent logEvent, ILogEventPropertyFactory propertyFactory)

@@ -5,6 +5,7 @@ using Avalon.Api.Authentication.Jwt;
 using Avalon.Api.Contract;
 using Avalon.Api.Exceptions;
 using Avalon.Auth.Database.Repositories;
+using Avalon.Common.ValueObjects;
 using Avalon.Domain.Auth;
 using Avalon.Infrastructure.Services;
 using OperatingSystem = Avalon.Domain.Auth.OperatingSystem;

@@ -1,8 +1,11 @@
 using System.Drawing;
 using Avalon.Common.Mathematics;
+using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.World.Database.Repositories;
-using Avalon.World.Maps.Virtualized;
+using Avalon.World.Public;
+using Avalon.World.Public.Creatures;
+using Avalon.World.Public.Maps;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Entities;
@@ -11,7 +14,7 @@ public interface ICreatureSpawner
 {
     Task LoadAsync();
 
-    Creature Spawn(CreatureInfo virtualCreature);
+    ICreature Spawn(CreatureInfo virtualCreature);
     //Creature Spawn(CreatureTemplateId templateId);
 }
 
@@ -36,23 +39,16 @@ public class CreatureSpawner : ICreatureSpawner
     }
 
     
-    public Creature Spawn(CreatureInfo virtualCreature)
+    public ICreature Spawn(CreatureInfo virtualCreature)
     {
         var creature = Spawn(virtualCreature.PrototypeIndex);
 
         creature.Position = virtualCreature.Position;
-
-        creature.Bounds = new Rectangle(
-            (int) virtualCreature.Position.x, 
-            (int) virtualCreature.Position.z, 
-            1, 
-            1
-        );
         
         return creature;
     }
     
-    public Creature Spawn(CreatureTemplateId templateId)
+    public ICreature Spawn(CreatureTemplateId templateId)
     {
         var template = _templates.FirstOrDefault(t => t.Id == templateId);
         if (template == null)

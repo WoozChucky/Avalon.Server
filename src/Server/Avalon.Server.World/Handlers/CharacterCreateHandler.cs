@@ -2,6 +2,7 @@ using Avalon.Database.Character.Repositories;
 using Avalon.Domain.Characters;
 using Avalon.Network.Packets.Character;
 using Avalon.World;
+using Avalon.World.Public.Enums;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.Server.World.Handlers;

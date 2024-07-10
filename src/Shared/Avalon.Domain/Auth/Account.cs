@@ -1,6 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using Avalon.Common;
+using Avalon.Common.ValueObjects;
 
 namespace Avalon.Domain.Auth;
 
@@ -55,15 +56,7 @@ public class Account : IDbEntity<AccountId>
     public AccountAccessLevel AccessLevel { get; set; } = AccountAccessLevel.Player;
 }
 
-public class AccountId : ValueObject<ulong>
-{
-    public AccountId(ulong value) : base(value)
-    {
-    }
-    
-    public static implicit operator ulong(AccountId accountId) => accountId.Value;
-    public static implicit operator AccountId(ulong value) => new AccountId(value);
-}
+
 
 [Flags]
 public enum AccountAccessLevel : ushort

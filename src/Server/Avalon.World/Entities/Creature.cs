@@ -1,16 +1,18 @@
 using System.Drawing;
 using Avalon.Common.Mathematics;
-using Avalon.Domain.World;
-using Avalon.World.Scripts;
+using Avalon.Common.ValueObjects;
+using Avalon.World.Public;
+using Avalon.World.Public.Creatures;
 
 namespace Avalon.World.Entities;
 
-public class Creature : IGameEntity<Guid>
+public class Creature : ICreature
 {
     public Guid Id { get; set; }
     
     public CreatureTemplateId TemplateId { get; set; } = null!;
 
+    public ICreatureMetadata Metadata { get; set; }
     public string Name { get; set; } = string.Empty;
 
     public Vector3 Position
@@ -22,7 +24,9 @@ public class Creature : IGameEntity<Guid>
         }
         get => _position;
     }
-    
+
+    public Vector3 Orientation { get; set; }
+
     private Vector3 _position;
 
     public Vector3 Velocity { get; set; }

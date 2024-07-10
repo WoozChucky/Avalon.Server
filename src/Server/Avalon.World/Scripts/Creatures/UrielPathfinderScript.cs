@@ -1,7 +1,10 @@
 using Avalon.Common.Mathematics;
 using Avalon.Domain.Characters;
 using Avalon.World.Entities;
+using Avalon.World.Maps;
 using Avalon.World.Pathfinding;
+using Avalon.World.Public;
+using Avalon.World.Public.Characters;
 
 namespace Avalon.World.Scripts.Creatures;
 
@@ -11,7 +14,7 @@ public class UrielPathfinderScript : AiScript
     private bool _hasWaypoints = false;
     private List<Vector3>? _waypoints;
     private ushort _currentWaypointIndex = 0;
-    private Character _target;
+    private ICharacter _target;
     private Vector3 _initialTargetPosition;
     
     private const float WaypointTolerance = 0.1f;
@@ -33,22 +36,22 @@ public class UrielPathfinderScript : AiScript
             
             _isPathfinding = true;
             _target = connection.Character;
-            _initialTargetPosition = _target.Movement.Position;
+            _initialTargetPosition = _target.Position;
         }
         else
         {
             // Check if target has moved beyond TargetTolerance
-            if (Vector3.Distance(_target.Movement.Position, _initialTargetPosition) > TargetTolerance)
+            if (Vector3.Distance(_target.Position, _initialTargetPosition) > TargetTolerance)
             {
                 // Reset pathfinding and regenerate path but continue smoothly
-                _initialTargetPosition = _target.Movement.Position;
+                _initialTargetPosition = _target.Position;
 
                 var currentPosition = Creature.Position;
 
                 // Generate smooth path from NavMesh
                 var path = await AStarPathfinding.GeneratePath(
                     currentPosition, 
-                    _target.Movement.Position,
+                    _target.Position,
                     Chunk.Metadata.NavMesh.Indices,
                     Chunk.Metadata.NavMesh.Vertices,
                     Chunk.Metadata.NavMesh.Areas

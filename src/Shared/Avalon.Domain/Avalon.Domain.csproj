@@ -15,6 +15,7 @@
     </ItemGroup>
 
     <ItemGroup>
+      <ProjectReference Include="..\..\Server\Avalon.World.Public\Avalon.World.Public.csproj" />
       <ProjectReference Include="..\Avalon.Common\Avalon.Common.csproj" />
     </ItemGroup>
 

@@ -1,4 +1,5 @@
 using System.Text;
+using Avalon.Common.ValueObjects;
 using Avalon.Configuration;
 using Avalon.Domain.Auth;
 using Microsoft.EntityFrameworkCore;
@@ -21,7 +22,7 @@ public class AuthDbContext : DbContext
     public DbSet<MFASetup> MfaSetups { get; set; } = null!;
     public DbSet<RefreshToken> RefreshTokens { get; set; } = null!;
     public DbSet<AvalonToken> Tokens { get; set; } = null!;
-    public DbSet<World> Worlds { get; set; } = null!;
+    public DbSet<Domain.Auth.World> Worlds { get; set; } = null!;
 
     public AuthDbContext(ILoggerFactory loggerFactory, IOptions<DatabaseConfiguration> opts)
     {
@@ -47,7 +48,7 @@ public class AuthDbContext : DbContext
         Configure(modelBuilder.Entity<MFASetup>());
         Configure(modelBuilder.Entity<RefreshToken>());
         Configure(modelBuilder.Entity<AvalonToken>());
-        Configure(modelBuilder.Entity<World>());
+        Configure(modelBuilder.Entity<Domain.Auth.World>());
     }
     
     private static void Configure(EntityTypeBuilder<Account> builder)
@@ -160,7 +161,7 @@ public class AuthDbContext : DbContext
             .OnDelete(DeleteBehavior.Cascade);
     }
 
-    private static void Configure(EntityTypeBuilder<World> builder)
+    private static void Configure(EntityTypeBuilder<Domain.Auth.World> builder)
     {
         builder.Property(b => b.Id)
             .HasConversion(
@@ -169,7 +170,7 @@ public class AuthDbContext : DbContext
             ).IsRequired();
         
         builder.HasData([
-            new World
+            new Domain.Auth.World
             {
                 Id = 1,
                 Host = "127.0.0.1",
@@ -183,7 +184,7 @@ public class AuthDbContext : DbContext
                 CreatedAt = new DateTime(2021, 1, 1),
                 UpdatedAt = new DateTime(2021, 1, 1)
             },
-            new World
+            new Domain.Auth.World
             {
                 Id = 2,
                 Host = "asthoria.avalon.monster",
@@ -197,7 +198,7 @@ public class AuthDbContext : DbContext
                 CreatedAt = new DateTime(2021, 1, 1),
                 UpdatedAt = new DateTime(2021, 1, 1)
             },
-            new World
+            new Domain.Auth.World
             {
                 Id = 3,
                 Host = "ptr.avalon.monster",
