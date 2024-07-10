@@ -3,6 +3,7 @@ using Avalon.Database.Character.Repositories;
 using Avalon.Domain.Characters;
 using Avalon.Network.Packets.Character;
 using Avalon.World;
+using Avalon.World.Entities;
 using Avalon.World.Maps;
 using Microsoft.Extensions.Logging;
 
@@ -49,18 +50,21 @@ public class CharacterSelectHandler : IWorldPacketHandler<CCharacterSelectedPack
         //TODO: Fix
         character.InstanceId = Guid.NewGuid().ToString();
 
-        character.Movement = new CharacterMovement
-        {
-            Position = new Vector3(character.X, character.Y, character.Z),
-            Velocity = Vector3.zero
-        };
+
         
         character.Online = true;
         character.Latency = (int) ctx.Connection.Latency;
-        character.EnteredWorld = DateTime.UtcNow;
         
-        ctx.Connection.Character = character;
-        ctx.Connection.CharacterId = character.Id;
+        var entity = new CharacterEntity
+        {
+            Data = character,
+            Position = new Vector3(character.X, character.Y, character.Z),
+            Velocity = Vector3.zero,
+            Orientation = Vector3.zero,
+            EnteredWorld = DateTime.UtcNow,
+        };
+        
+        ctx.Connection.Character = entity;
 
         try
         {
@@ -95,6 +99,6 @@ public class CharacterSelectHandler : IWorldPacketHandler<CCharacterSelectedPack
         // save the character to the database
         await _characterRepository.UpdateAsync(character);
         
-        _logger.LogInformation("Character {CharacterId} logged in for account {AccountId} at {Position}", character.Name, ctx.Connection.AccountId, character.Movement);
+        _logger.LogInformation("Character {CharacterId} logged in for account {AccountId} at {Position}", character.Name, ctx.Connection.AccountId, ctx.Connection.Character.Position);
     }
 }

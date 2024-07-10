@@ -1,5 +1,6 @@
+using System.Reflection;
+using Avalon.World.Public;
 using Microsoft.Extensions.Logging;
-using MapInstance = Avalon.World.Maps.MapInstance;
 
 namespace Avalon.World.Scripts;
 
@@ -8,8 +9,6 @@ public interface IAiController
     Task LoadAsync();
 
     Type? GetScriptTemplate(string name);
-
-    Task Update(MapInstance instance, TimeSpan deltaTime);
 }
 
 public class AiController : IAiController
@@ -26,16 +25,47 @@ public class AiController : IAiController
     
     public Task LoadAsync()
     {
-        var aiScripts = typeof(AiScript)
-            .Assembly.GetTypes()
-            .Where(t => t.IsSubclassOf(typeof(AiScript)) && !t.IsAbstract)
-            .ToList();
+        var aiScripts = FindScriptTypes<AiScript>();
         
         _logger.LogInformation("Loaded {Count} AI scripts", aiScripts.Count);
         
         _templateScripts = aiScripts.ToDictionary(t => t.Name, t => t);
         
         return Task.CompletedTask;
+    }
+
+    private List<Type> FindScriptTypes<TBaseType>()
+    {
+        var baseType = typeof(TBaseType);
+        var assemblies = AppDomain.CurrentDomain.GetAssemblies();
+        
+        var inheritedTypes = new List<Type>();
+        
+        foreach (var assembly in assemblies)
+        {
+            try
+            {
+                var types = assembly.GetTypes();
+                foreach (var type in types)
+                {
+                    if (type.IsSubclassOf(baseType) && !type.IsAbstract)
+                    {
+                        inheritedTypes.Add(type);
+                    }
+                }
+            }
+            catch (ReflectionTypeLoadException e)
+            {
+                _logger.LogError(e, "Failed to load types from assembly {Assembly}", assembly.FullName);
+                foreach (var loaderException in e.LoaderExceptions)
+                {
+                    _logger.LogError(loaderException, "Loader exception");
+                }
+            }
+            
+        }
+        
+        return inheritedTypes;
     }
     
     public Type? GetScriptTemplate(string name)
@@ -44,13 +74,5 @@ public class AiController : IAiController
         if (_templateScripts.TryGetValue(name, out var template)) return template;
         _logger.LogWarning("AI script {Name} not found", name);
         return null;
-    }
-
-    public async Task Update(MapInstance instance, TimeSpan deltaTime)
-    {
-        foreach (var (_, creature) in instance.Creatures)
-        {
-            creature.Script?.Update(deltaTime);
-        }
     }
 }

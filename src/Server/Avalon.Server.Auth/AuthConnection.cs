@@ -3,6 +3,7 @@ using System.Net.Sockets;
 using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
 using Avalon.Auth.Database.Repositories;
+using Avalon.Common.ValueObjects;
 using Avalon.Domain.Auth;
 using Avalon.Hosting;
 using Avalon.Hosting.Networking;
