@@ -1,4 +1,6 @@
 using Avalon.World.Entities;
+using Avalon.World.Maps;
+using Avalon.World.Public;
 using Avalon.World.Scripts;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;

@@ -3,11 +3,11 @@ using Avalon.Domain.Auth;
 
 namespace Avalon.Auth.Database.Repositories;
 
-public interface IWorldRepository : IRepository<World, WorldId>
+public interface IWorldRepository : IRepository<Domain.Auth.World, WorldId>
 {
 }
 
-public class WorldRepository : EntityFrameworkRepository<World, WorldId>, IWorldRepository
+public class WorldRepository : EntityFrameworkRepository<Domain.Auth.World, WorldId>, IWorldRepository
 {
     public WorldRepository(AuthDbContext db)
         : base(db)

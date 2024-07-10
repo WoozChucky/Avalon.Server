@@ -2,16 +2,16 @@ using System.Collections.Concurrent;
 using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Reflection;
+using Avalon.Common.ValueObjects;
 using Avalon.Configuration;
-using Avalon.Domain.Auth;
 using Avalon.Hosting;
 using Avalon.Hosting.Networking;
 using Avalon.Hosting.PluginTypes;
 using Avalon.Infrastructure;
 using Avalon.World.Entities;
-using Avalon.World.Maps;
-using Avalon.World.Pools;
+using Avalon.World.Public;
 using Avalon.World.Scripts;
+using Avalon.World.Scripts.Abstractions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using StackExchange.Redis;
@@ -46,6 +46,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
     private readonly IAiController _aiController;
     private readonly ICreatureSpawner _creatureSpawner;
     private readonly IReplicatedCache _cache;
+    private readonly IScriptHotReloader _scriptHotReloader;
 
     public WorldServer(IPacketManager packetManager,
         ILoggerFactory loggerFactory,
@@ -55,13 +56,15 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         IWorld world,
         IAiController aiController,
         ICreatureSpawner creatureSpawner,
-        IReplicatedCache cache) : base(packetManager, loggerFactory.CreateLogger<WorldServer>(), pluginExecutor,
+        IReplicatedCache cache,
+        IScriptHotReloader scriptHotReloader) : base(packetManager, loggerFactory.CreateLogger<WorldServer>(), pluginExecutor,
         serviceProvider,
         hostingOptions)
     {
         _aiController = aiController;
         _creatureSpawner = creatureSpawner;
         _cache = cache;
+        _scriptHotReloader = scriptHotReloader;
         _logger = loggerFactory.CreateLogger<WorldServer>();
         _pluginExecutor = pluginExecutor;
         _world = world as World ?? throw new InvalidOperationException("Invalid world instance");
@@ -77,6 +80,9 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         );
         
         await _world.LoadAsync(stoppingToken);
+        
+        _scriptHotReloader.ScriptsHotReloaded += OnScriptsHotReloaded;
+        _scriptHotReloader.Start();
 
         await CacheSubscribeAsync();
         
@@ -104,7 +110,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         
         _logger.LogInformation("World server stopped... Ran for {Minutes}mins", (int) _serverTimer.Elapsed.TotalMinutes);
     }
-    
+
     protected override Task OnStoppingAsync(CancellationToken stoppingToken)
     {
         foreach (var connection in Connections)
@@ -178,6 +184,11 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         cachedProperties.connectionProperty.SetValue(context, connection);
     
         return context;
+    }
+    
+    private void OnScriptsHotReloaded(List<Type> types)
+    {
+        World.OnScriptsHotReload(types);
     }
 
     #region Cache Subscriptions

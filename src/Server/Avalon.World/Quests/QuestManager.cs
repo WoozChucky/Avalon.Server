@@ -1,5 +1,5 @@
 using Avalon.Domain.World;
-using Avalon.Game;
+using Avalon.World.Public;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Quests;
@@ -50,7 +50,7 @@ public class QuestManager : IQuestManager
         return _questTemplates.FirstOrDefault(q => q.Id == id);
     }
     
-    public IEnumerable<QuestTemplate> GetQuestsAvailable(AvalonWorldSession session)
+    public IEnumerable<QuestTemplate> GetQuestsAvailable(IWorldConnection session)
     {
         var mapId = session.Character?.Map;
         return _questTemplates.Where(q => q.LevelRequirement <= session.Character!.Level);

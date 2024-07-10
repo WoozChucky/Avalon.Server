@@ -1,11 +1,11 @@
-using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
 using Avalon.Domain.World;
-using Avalon.Game.Configuration;
+using Avalon.World.Configuration;
 using Avalon.World.Database.Repositories;
 using Avalon.World.Entities;
 using Avalon.World.Maps.Virtualized;
 using Avalon.World.Pools;
+using Avalon.World.Public.Enums;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -25,9 +25,6 @@ public class AvalonMapManager : IAvalonMapManager
     private readonly IPoolManager _poolManager;
     private readonly GameConfiguration _gameConfiguration;
     private readonly IMapTemplateRepository _mapTemplateRepository;
-
-    // MapId, Dictionary<InstanceId, MapInstance>>
-    private readonly ConcurrentDictionary<int, IList<MapInstance>> _maps = new();
 
     private readonly ReaderWriterLockSlim _lock;
 

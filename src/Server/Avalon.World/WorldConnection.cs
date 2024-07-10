@@ -1,38 +1,53 @@
 using System.Net.Sockets;
-using Avalon.Domain.Auth;
-using Avalon.Domain.Characters;
+using Avalon.Common.ValueObjects;
 using Avalon.Hosting;
 using Avalon.Hosting.Networking;
 using Avalon.Network.Packets;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Generic;
+using Avalon.World.Entities;
+using Avalon.World.Public;
+using Avalon.World.Public.Characters;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.World;
 
-public interface IWorldConnection : IConnection
-{
-    public AccountId? AccountId { get; set; }
-    public CharacterId? CharacterId { get; set; }
-    public Character? Character { get; set; }
-    public long Latency { get; }
-    public long RoundTripTime { get; }
-    
-    public bool InGame { get; }
-    public bool InMap { get; }
-    void EnableTimeSyncWorker();
-    void OnPongReceived(long packetLastServerTimestamp, long packetClientReceivedTimestamp, long packetClientSentTimestamp);
-}
-
 public class WorldConnection : Connection, IWorldConnection
 {
     public AccountId? AccountId { get; set; }
-    public CharacterId? CharacterId { get; set; }
-    public Character? Character { get; set; }
+
+    public CharacterId? CharacterId
+    {
+        get => _characterEntity?.Id;
+        set
+        {
+            if (value == null)
+            {
+                _characterEntity = null;
+                return;
+            }
+
+            if (_characterEntity != null)
+                _characterEntity.Id = value.Value;
+        }
+    }
+
+    public ICharacter? Character
+    {
+        get => _characterEntity;
+        set
+        {
+            _characterEntity = value as CharacterEntity;
+            CharacterId = _characterEntity?.Id;
+        }
+    }
+    
     public long Latency { get; private set; }
     public long RoundTripTime { get; private set; }
     public bool InGame => Character != null;
-    public bool InMap => InGame && Character!.InstanceId != null;
+    public bool InMap => InGame && _characterEntity?.Data?.InstanceId != null;
+    
+    private CharacterEntity? _characterEntity;
     
     private long _lastClientTicks = 0;
     private long _lastServerTicks = 0;

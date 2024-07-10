@@ -1,3 +1,5 @@
+using Avalon.World.Public.Enums;
+
 namespace Avalon.Domain.World;
 
 public class QuestTemplate
@@ -17,36 +19,4 @@ public class QuestTemplate
     public int RequiredQuestId { get; set; }
     public int ClassRequirement { get; set; }
     public ICollection<QuestReward> Rewards { get; set; } = new List<QuestReward>();
-}
-
-public enum QuestEnvironmentType : ushort
-{
-    None,
-    PvE,
-    PvP,
-    Dungeon
-}
-
-public enum QuestType : ushort
-{
-    None,
-    Kill,
-    Collect,
-    Exploration
-}
-
-public enum QuestRarity : ushort
-{
-    None,
-    Main,
-    Side,
-    Legendary
-}
-
-public enum QuestRepeatFrequency : ushort
-{
-    None,
-    Daily,
-    Weekly,
-    Monthly
 }

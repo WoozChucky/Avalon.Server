@@ -1,6 +1,7 @@
 using Avalon.Common.Mathematics;
 using Avalon.World.Maps.Virtualized;
 using Avalon.World.Pathfinding;
+using Avalon.World.Public.Maps;
 
 namespace Avalon.Server.IntegrationTests.World;
 

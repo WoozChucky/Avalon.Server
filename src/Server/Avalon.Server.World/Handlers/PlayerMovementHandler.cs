@@ -59,8 +59,8 @@ public class PlayerMovementHandler : IWorldPacketHandler<CPlayerMovementPacket>
         }
         */
         
-        ctx.Connection.Character!.Movement.Position = new Vector3(ctx.Packet.X, ctx.Packet.Y, ctx.Packet.Z);
-        ctx.Connection.Character.Movement.Velocity = new Vector3(ctx.Packet.VelocityX, ctx.Packet.VelocityY, ctx.Packet.VelocityZ);
+        ctx.Connection.Character!.Position = new Vector3(ctx.Packet.X, ctx.Packet.Y, ctx.Packet.Z);
+        ctx.Connection.Character.Velocity = new Vector3(ctx.Packet.VelocityX, ctx.Packet.VelocityY, ctx.Packet.VelocityZ);
         
         return Task.CompletedTask;
     }

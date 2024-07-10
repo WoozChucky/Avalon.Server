@@ -1,4 +1,5 @@
 using Avalon.Common.Mathematics;
+using Avalon.World.Public.Maps;
 
 namespace Avalon.World.Maps.Virtualized;
 
@@ -8,41 +9,6 @@ public class VirtualizedMap
     public ushort Id { get; set; }
     public Vector3 Size;
     public List<ChunkMetadata> Chunks;
-}
-
-[Serializable]
-public class ChunkMetadata
-{
-    public string Name;
-    public Vector3 Position;
-    public Vector3 Size;
-    public List<TreeInfo> Trees; // Possibly collidable objects
-    public List<CreatureInfo> Creatures; // Creatures
-    public float[,] Heightmap; // Heightmap data
-    public NavMeshInfo NavMesh;
-}
-
-[Serializable]
-public class TreeInfo
-{
-    public Vector3 Position;
-    public Vector3 Size;
-    public int PrototypeIndex;
-}
-
-[Serializable]
-public class CreatureInfo
-{
-    public Vector3 Position;
-    public ulong PrototypeIndex;
-}
-
-[Serializable]
-public class NavMeshInfo
-{
-    public Vector3[] Vertices;
-    public int[] Indices;
-    public int[] Areas;
 }
 
 

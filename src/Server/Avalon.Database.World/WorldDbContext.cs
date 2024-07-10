@@ -1,7 +1,8 @@
+using Avalon.Common.ValueObjects;
 using Avalon.Configuration;
 using Avalon.Domain.World;
+using Avalon.World.Public.Enums;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;

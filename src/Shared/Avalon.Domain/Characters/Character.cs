@@ -1,8 +1,8 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
-using Avalon.Common;
 using Avalon.Common.Mathematics;
-using Avalon.Domain.Auth;
+using Avalon.Common.ValueObjects;
+using Avalon.World.Public.Enums;
 
 namespace Avalon.Domain.Characters;
 
@@ -35,7 +35,7 @@ public class Character : IDbEntity<CharacterId>
     public float Y { get; set; }
     public float Z { get; set; }
     
-    public int Map { get; set; }
+    public ushort Map { get; set; }
     
     public string? InstanceId { get; set; }
     
@@ -74,42 +74,6 @@ public class Character : IDbEntity<CharacterId>
     public DateTime CreationDate { get; set; }
     
     public ulong DeleteDate { get; set; }
-
-    // Non database properties
-    [NotMapped]
-    public bool IsChatting { get; set; }
-    [NotMapped]
-    public float ElapsedGameTime { get; set; }
-    [NotMapped]
-    public CharacterMovement Movement { get; set; }
-    [NotMapped]
-    public DateTime EnteredWorld { get; set; }
-}
-
-public class CharacterId : ValueObject<ulong>
-{
-    public CharacterId(ulong value) : base(value)
-    {
-    }
-    
-    public static implicit operator CharacterId(ulong value)
-    {
-        return new CharacterId(value);
-    }
-}
-
-public enum CharacterClass : ushort
-{
-    Warrior = 1,
-    Wizard = 2,
-    Hunter = 3,
-    Healer = 4,
-}
-
-public enum CharacterGender : byte
-{
-    Male = 0,
-    Female = 1,
 }
 
 public class CharacterMovement
