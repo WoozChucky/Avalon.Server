@@ -1,1 +1,1 @@
-dotnet ef migrations add Initial --context CharacterDbContext --output-dir Migrations --startup-project ../Avalon.Api -- --Database:Characters:ConnectionString "Server=localhost;Database=characters;Uid=root;Pwd=123;ConvertZeroDatetime=True;AllowZeroDateTime=True;"
+dotnet ef migrations add V2 --context CharacterDbContext --output-dir Migrations --startup-project ../Avalon.Api -- --Database:Characters:ConnectionString "Server=localhost;Database=characters;Uid=root;Pwd=123;ConvertZeroDatetime=True;AllowZeroDateTime=True;"

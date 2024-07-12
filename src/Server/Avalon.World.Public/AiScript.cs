@@ -27,9 +27,14 @@ public abstract class AiScript {
     {
         foreach (var script in ChainedScripts)
         {
-            await script.Update(deltaTime);
+            if (script.ShouldRun())
+                await script.Update(deltaTime);
         }
     }
+    
+    public abstract object State { get; set; }
+    
+    protected abstract bool ShouldRun();
     
     public virtual void OnCharacterInteraction(ICharacter character)
     {

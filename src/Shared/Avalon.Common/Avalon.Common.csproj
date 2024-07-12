@@ -23,4 +23,8 @@
         </None>
     </ItemGroup>
 
+    <ItemGroup>
+      <ProjectReference Include="..\..\..\vendor\DotRecast\src\DotRecast.Core\DotRecast.Core.csproj" />
+    </ItemGroup>
+
 </Project>

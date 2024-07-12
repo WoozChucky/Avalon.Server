@@ -103,6 +103,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DotRecast.Detour.TileCache"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Avalon.World.Public", "src\Server\Avalon.World.Public\Avalon.World.Public.csproj", "{EB8DBEE4-F223-4F43-A804-30B6A12925B0}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DotRecast.Recast.Demo", "vendor\DotRecast\src\DotRecast.Recast.Demo\DotRecast.Recast.Demo.csproj", "{3AAF7689-BC44-4546-9781-51B96D75C4C9}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -265,6 +267,10 @@ Global
 		{EB8DBEE4-F223-4F43-A804-30B6A12925B0}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{EB8DBEE4-F223-4F43-A804-30B6A12925B0}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{EB8DBEE4-F223-4F43-A804-30B6A12925B0}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3AAF7689-BC44-4546-9781-51B96D75C4C9}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3AAF7689-BC44-4546-9781-51B96D75C4C9}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3AAF7689-BC44-4546-9781-51B96D75C4C9}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3AAF7689-BC44-4546-9781-51B96D75C4C9}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -314,6 +320,7 @@ Global
 		{DF502241-A7F2-49DE-B49E-A2177C44622C} = {239CE5E2-D8E0-4A35-A2EF-498451DA02CB}
 		{A13D4BA6-83E9-447D-A72F-B8517BCF9CE3} = {239CE5E2-D8E0-4A35-A2EF-498451DA02CB}
 		{EB8DBEE4-F223-4F43-A804-30B6A12925B0} = {C28EDB2B-FDA2-44DA-B255-F57E127EEF6C}
+		{3AAF7689-BC44-4546-9781-51B96D75C4C9} = {239CE5E2-D8E0-4A35-A2EF-498451DA02CB}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {20CD880E-2A9B-4B75-A2C1-3145230B285E}

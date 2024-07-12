@@ -4,6 +4,7 @@ using System.Reflection;
 using Avalon.Common.Mathematics;
 using Avalon.Hosting;
 using Avalon.World.Public;
+using Avalon.World.Public.Maps;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.Extensions.Logging;
@@ -27,7 +28,8 @@ public class ScriptCompiler : IScriptCompiler
     private FileSystemWatcher _watcher;
     private readonly ConcurrentDictionary<string, DateTime> _debounceDictionary = new();
     
-    private const string ScriptsPath = "Scripts\\HotReload";
+    //private const string ScriptsPath = "Scripts\\HotReload";
+    private const string ScriptsPath = "C:\\dev\\Avalon.Server\\src\\Server\\Avalon.World\\Scripts\\Creatures";
     private const string ScriptExtension = ".cs";
     private const int DebounceDelayMs = 500; // Delay in milliseconds to wait before compiling the script
     private bool _firstRun = true;
@@ -36,7 +38,8 @@ public class ScriptCompiler : IScriptCompiler
     {
         _logger = loggerFactory.CreateLogger<ScriptCompiler>();
         
-        var path = Path.Combine(Directory.GetCurrentDirectory(), ScriptsPath);
+        //var path = Path.Combine(Directory.GetCurrentDirectory(), ScriptsPath);
+        var path = Path.Combine("C:\\dev\\Avalon.Server\\src\\Server\\Avalon.World\\Scripts\\Creatures");
         
         _watcher = new FileSystemWatcher(path, $"*{ScriptExtension}")
         {
@@ -63,6 +66,7 @@ public class ScriptCompiler : IScriptCompiler
         MetadataReference.CreateFromFile(typeof(Vector3).Assembly.Location),
         MetadataReference.CreateFromFile(typeof(PluginExecutor).Assembly.Location),
         MetadataReference.CreateFromFile(typeof(ILoggerFactory).Assembly.Location),
+        MetadataReference.CreateFromFile(typeof(ChunkMetadata).Assembly.Location),
         MetadataReference.CreateFromFile(Assembly.Load("System.Runtime").Location),
         MetadataReference.CreateFromFile(Assembly.Load("netstandard").Location),
         MetadataReference.CreateFromFile(typeof(Task).Assembly.Location),
@@ -167,7 +171,8 @@ public class ScriptCompiler : IScriptCompiler
             {
                 if (diagnostic.Severity == DiagnosticSeverity.Error)
                 {
-                    _logger.LogError("Error {Error} in script {File}", diagnostic.GetMessage(), diagnostic.Location.GetLineSpan().Path);
+                    
+                    _logger.LogError("Error {Error} in script {File}", diagnostic.GetMessage(), diagnostic.Location.GetLineSpan().ToString());
                 }
             }
 
