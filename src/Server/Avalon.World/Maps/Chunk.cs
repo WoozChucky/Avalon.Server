@@ -1,8 +1,11 @@
+using Avalon.Common.Mathematics;
 using Avalon.Network.Packets.Movement;
+using Avalon.World.Maps.Navigation;
 using Avalon.World.Pools;
 using Avalon.World.Public;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Maps;
+using DotRecast.Detour.Crowd;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Maps;
@@ -12,6 +15,7 @@ public class Chunk : IChunk
     public uint Id { get; set; }
     public bool Enabled { get; set; }
     public required ChunkMetadata Metadata { get; init; }
+    public IChunkNavigator Navigator { get; private set; }
     public List<IChunk> Neighbors { get; set; } = [];
     
     private readonly List<ICreature> _creatures = [];
@@ -23,12 +27,21 @@ public class Chunk : IChunk
     
     private IPoolManager _poolManager;
     private float _lastBroadcastTime;
+    
+    private DtCrowd? _crowd;
 
     public Chunk(ILoggerFactory loggerFactory)
     {
         _logger = loggerFactory.CreateLogger<Chunk>();
+        Navigator = new ChunkNavigator(loggerFactory);
+        //_crowd = new DtCrowd(new DtCrowdConfig(0.5f), Navigator.Mesh as DtNavMesh);
     }
-    
+
+    public async Task InitializeAsync()
+    {
+        await Navigator.LoadAsync(Metadata.MeshFile);
+    }
+
     public IReadOnlyList<IWorldConnection> GetConnections()
     {
         _lock.EnterReadLock();
@@ -90,6 +103,7 @@ public class Chunk : IChunk
         _lock.EnterWriteLock();
         try
         {
+            connection.Character!.ChunkId = Id;
             _connections.Add(connection);
             Enabled = true;
             foreach (var neighbor in Neighbors)
@@ -108,7 +122,9 @@ public class Chunk : IChunk
         _lock.EnterWriteLock();
         try
         {
+            
             _connections.Remove(connection);
+            connection.Character!.ChunkId = 0;
             if (_connections.Count == 0)
             {
                 _logger.LogInformation("Chunk {ChunkId} is now disabled", Id);
@@ -126,6 +142,58 @@ public class Chunk : IChunk
         finally
         {
             _lock.ExitWriteLock();
+        }
+    }
+
+    public void SendState(IWorldConnection connection)
+    {
+        var playerPackets = new List<SPlayerPacket>();
+        var creaturePackets = new List<CreaturePacket>();
+
+        var connections = GetConnections();
+        var creatures = GetCreatures();
+        
+        foreach (var otherConnection in connections)
+        {
+            if (otherConnection.AccountId == connection.AccountId) continue;
+
+            playerPackets.Add(new SPlayerPacket
+            {
+                AccountId = otherConnection.AccountId!,
+                CharacterId = otherConnection.Character!.Id,
+                PositionX = otherConnection.Character.Position.x,
+                PositionY = otherConnection.Character.Position.y,
+                PositionZ = otherConnection.Character.Position.z,
+                VelocityX = otherConnection.Character.Velocity.x,
+                VelocityY = otherConnection.Character.Velocity.y,
+                VelocityZ = otherConnection.Character.Velocity.z,
+                Chatting = false,
+                Elapsed = 0 // TODO: Calculate elapsed time
+            });
+        }
+        
+        foreach (var creature in creatures)
+        {
+            creaturePackets.Add(new CreaturePacket
+            {
+                Id = creature.Id,
+                Name = creature.Name,
+                PositionX = creature.Position.x,
+                PositionY = creature.Position.y,
+                PositionZ = creature.Position.z,
+                VelocityX = creature.Velocity.x,
+                VelocityY = creature.Velocity.y,
+                VelocityZ = creature.Velocity.z
+            });
+        }
+        
+        if (playerPackets.Count > 0)
+        {
+            connection.Send(SPlayerPositionUpdatePacket.Create(playerPackets.ToArray(), connection.CryptoSession.Encrypt));
+        }
+        if (creaturePackets.Count > 0)
+        {
+            connection.Send(SNpcUpdatePacket.Create(creaturePackets.ToArray(), connection.CryptoSession.Encrypt));
         }
     }
 
@@ -219,6 +287,7 @@ public class Chunk : IChunk
     
     private Task SendPlayerUpdateAsync(IWorldConnection connection, List<SPlayerPacket> playerPackets)
     {
+        if (playerPackets.Count == 0) return Task.CompletedTask;
         connection.Send(SPlayerPositionUpdatePacket.Create(playerPackets.ToArray(), connection.CryptoSession.Encrypt));
         return Task.CompletedTask;
     }
@@ -243,6 +312,8 @@ public class Chunk : IChunk
             });
         }
         
+        if (creaturePackets.Count == 0) return Task.CompletedTask;
+        
         Parallel.ForEach(connectionsSnapshot, connection =>
         {
             connection.Send(SNpcUpdatePacket.Create(creaturePackets.ToArray(), connection.CryptoSession.Encrypt));
@@ -251,4 +322,96 @@ public class Chunk : IChunk
         return Task.CompletedTask;
     }
 
+    public void OnPlayerMoved(IWorldConnection connection)
+    {
+        var currentPosition = connection.Character!.Position;
+        var updateThresholdDistance = 10f;
+
+        // Check if player is near the border of the current chunk
+        var nearBorder = IsNearChunkBorder(currentPosition, Metadata, updateThresholdDistance);
+        
+        // If the player is near the border, send the state of the neighboring chunks
+        if (nearBorder)
+        {
+            var nearbyChunks = GetNearbyChunks(currentPosition, Metadata, updateThresholdDistance);
+            foreach (var neighbor in nearbyChunks)
+            {
+                _logger.LogInformation("Player {CharacterId} is near the border of chunk {ChunkId}, sending state of neighbor {NeighborId}", connection.Character.Name, Id, neighbor.Id);
+                neighbor.SendState(connection);
+            }
+        }
+
+        // Check if the player has moved to a different chunk
+        foreach (var neighbor in Neighbors)
+        {
+            if (IsWithinChunk(currentPosition, neighbor.Metadata))
+            {
+                if (neighbor.Id != Id)
+                {
+                    _logger.LogInformation("Player {CharacterId} moved to chunk {ChunkId}", connection.Character.Name, neighbor.Id);
+                    // Handle chunk change logic
+                    RemovePlayer(connection);
+                    neighbor.AddPlayer(connection);
+                    connection.Character.ChunkId = neighbor.Id;
+                    break;
+                }
+            }
+        }
+    }
+    
+    private List<IChunk> GetNearbyChunks(Vector3 position, ChunkMetadata chunkMetadata, float threshold)
+    {
+        var nearbyChunks = new List<IChunk>();
+
+        var minX = chunkMetadata.Position.x;
+        var maxX = chunkMetadata.Position.x + chunkMetadata.Size.x;
+        var minZ = chunkMetadata.Position.z;
+        var maxZ = chunkMetadata.Position.z + chunkMetadata.Size.z;
+
+        var nearLeftBorder = position.x <= minX + threshold;
+        var nearRightBorder = position.x >= maxX - threshold;
+        var nearBottomBorder = position.z <= minZ + threshold;
+        var nearTopBorder = position.z >= maxZ - threshold;
+
+        foreach (var neighbor in Neighbors)
+        {
+            var neighborMinX = neighbor.Metadata.Position.x;
+            var neighborMaxX = neighbor.Metadata.Position.x + neighbor.Metadata.Size.x;
+            var neighborMinZ = neighbor.Metadata.Position.z;
+            var neighborMaxZ = neighbor.Metadata.Position.z + neighbor.Metadata.Size.z;
+
+            if (
+                (nearLeftBorder && Mathf.Approximately(neighborMaxX, minX)) ||
+                (nearRightBorder && Mathf.Approximately(neighborMinX, maxX)) ||
+                (nearBottomBorder && Mathf.Approximately(neighborMaxZ, minZ)) ||
+                (nearTopBorder && Mathf.Approximately(neighborMinZ, maxZ)) ||
+                (nearLeftBorder && nearBottomBorder && Mathf.Approximately(neighborMaxX, minX) && Mathf.Approximately(neighborMaxZ, minZ)) ||
+                (nearRightBorder && nearBottomBorder && Mathf.Approximately(neighborMinX, maxX) && Mathf.Approximately(neighborMaxZ, minZ)) ||
+                (nearLeftBorder && nearTopBorder && Mathf.Approximately(neighborMaxX, minX) && Mathf.Approximately(neighborMinZ, maxZ)) ||
+                (nearRightBorder && nearTopBorder && Mathf.Approximately(neighborMinX, maxX) && Mathf.Approximately(neighborMinZ, maxZ))
+            )
+            {
+                nearbyChunks.Add(neighbor);
+            }
+        }
+
+        return nearbyChunks;
+    }
+    
+    private bool IsNearChunkBorder(Vector3 position, ChunkMetadata chunkMetadata, float threshold)
+    {
+        var minX = chunkMetadata.Position.x;
+        var maxX = chunkMetadata.Position.x + chunkMetadata.Size.x;
+        var minZ = chunkMetadata.Position.z;
+        var maxZ = chunkMetadata.Position.z + chunkMetadata.Size.z;
+
+        return position.x < minX + threshold || position.x > maxX - threshold ||
+               position.z < minZ + threshold || position.z > maxZ - threshold;
+    }
+
+    private bool IsWithinChunk(Vector3 position, ChunkMetadata chunkMetadata)
+    {
+        return chunkMetadata.Position.x <= position.x && position.x < chunkMetadata.Position.x + chunkMetadata.Size.x &&
+               chunkMetadata.Position.z <= position.z && position.z < chunkMetadata.Position.z + chunkMetadata.Size.z;
+    }
 }

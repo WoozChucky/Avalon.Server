@@ -1,6 +1,7 @@
 using Avalon.Common.Mathematics;
 using Avalon.Domain.Characters;
 using Avalon.World.Public.Characters;
+using Avalon.World.Public.Creatures;
 
 namespace Avalon.World.Entities;
 
@@ -19,7 +20,19 @@ public class CharacterEntity : ICharacter
     }
     
     public Vector3 Position { get; set; }
-    public Vector3 Orientation { get; set; }
+
+    public Vector3 Orientation
+    {
+        get => new(0, Data?.Rotation ?? 0, 0);
+        set
+        {
+            if (Data != null)
+            {
+                Data.Rotation = value.y;
+            }
+        }
+    }
+    
     public Vector3 Velocity { get; set; }
     
     public Character? Data { get; set; }
@@ -59,9 +72,29 @@ public class CharacterEntity : ICharacter
             }
         }
     }
-    
-    // Non database properties
-    public bool IsChatting { get; set; }
-    public float ElapsedGameTime { get; set; }
+
+    public void OnHit(ICharacter attacker, int damage)
+    {
+        throw new NotImplementedException();
+    }
+
+    public void OnHit(ICreature attacker, int damage)
+    {
+        throw new NotImplementedException();
+    }
+
+    public ICharacterInventory Inventory { get; init; }
+    public uint ChunkId { get; set; }
+
     public DateTime EnteredWorld { get; set; }
+}
+
+
+public class CharacterInventory : ICharacterInventory
+{
+    
+    public Task LoadAsync()
+    {
+        return Task.CompletedTask;
+    }
 }

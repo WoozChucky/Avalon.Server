@@ -20,6 +20,8 @@ public interface IWorld
     string MinVersion { get; }
     string CurrentVersion { get; }
     GameConfiguration Configuration { get; }
+    
+    WorldGrid Grid { get; }
 
     Task Update(TimeSpan deltaTime);
     Task SpawnPlayerAsync(IWorldConnection connection);
@@ -70,7 +72,7 @@ public class World : IWorld
 
         Grid = new WorldGrid();
 
-        var chunkId = 0U;
+        var chunkId = 1U;
         
         await foreach (var (virtualMap, mapTemplate) in _mapManager.EnumerateOpenWorldAsync(token))
         {
@@ -87,6 +89,8 @@ public class World : IWorld
                     Metadata = chunkMetadata,
                     Neighbors = [] // Fills after loading all chunks
                 };
+
+                await chunk.InitializeAsync();
                 
                 var key = new Vector2(chunkMetadata.Position.x, chunkMetadata.Position.z);
                 chunks[key] = chunk;

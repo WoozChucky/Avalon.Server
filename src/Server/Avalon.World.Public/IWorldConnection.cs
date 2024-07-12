@@ -9,6 +9,7 @@ public interface IWorldConnection : IConnection
     public AccountId? AccountId { get; set; }
     public CharacterId? CharacterId { get; set; }
     public ICharacter? Character { get; set; }
+    
     public long Latency { get; }
     public long RoundTripTime { get; }
     

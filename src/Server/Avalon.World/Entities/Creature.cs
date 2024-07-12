@@ -2,6 +2,7 @@ using System.Drawing;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.World.Public;
+using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
 
 namespace Avalon.World.Entities;
@@ -37,5 +38,14 @@ public class Creature : ICreature
     public string ScriptName { get; set; } = string.Empty;
 
     public AiScript? Script { get; set; }
+    
+    public void OnHit(ICreature attacker, uint damage)
+    {
+        throw new NotImplementedException();
+    }
 
+    public void OnHit(ICharacter attacker, uint damage)
+    {
+        throw new NotImplementedException();
+    }
 }

@@ -14,4 +14,10 @@ public class TestAiScript : AiScript
         _logger = loggerFactory.CreateLogger<TestAiScript>();
         _logger.LogInformation("TestAiScript instanciated");
     }
+
+    public override object State { get; set; }
+    protected override bool ShouldRun()
+    {
+        return false;
+    }
 }

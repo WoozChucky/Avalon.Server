@@ -52,11 +52,6 @@ public class AvalonMapManager : IAvalonMapManager
         _logger.LogInformation("Loaded {MapCount} maps from database", _mapTemplates.Count());
     }
     
-    /*
-     *  // Spawn starting entities
-        _poolManager.SpawnStartingEntities(newInstance);
-     */
-    
     public async IAsyncEnumerable<(VirtualizedMap map, MapTemplate metadata)> EnumerateOpenWorldAsync([EnumeratorCancellation] CancellationToken token = default)
     {
         var tasks = _mapTemplates

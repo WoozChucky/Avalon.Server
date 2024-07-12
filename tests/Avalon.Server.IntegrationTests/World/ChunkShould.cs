@@ -63,20 +63,8 @@ public class ChunkShould
             Size = new Vector3(50, 1, 50),
             Trees = new List<TreeInfo>(),
             Creatures = new List<CreatureInfo>(),
-            Heightmap = new float[5, 5],
-            NavMesh = new NavMeshInfo
-            {
-                Vertices = GenerateVertices(),
-                Indices = GenerateIndices(),
-                Areas = new int[2] // Ignored for now
-            }
         };
 
-        // Act
-        var path = AStarPathfinding.GeneratePathSync(start, end, chunk.NavMesh.Indices, chunk.NavMesh.Vertices, chunk.NavMesh.Areas);
         
-        // Assert
-        Assert.NotNull(path);
-        Assert.NotEmpty(path);
     }
 }

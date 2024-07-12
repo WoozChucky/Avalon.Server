@@ -9,6 +9,7 @@ using Avalon.Hosting.Networking;
 using Avalon.Hosting.PluginTypes;
 using Avalon.Infrastructure;
 using Avalon.World.Entities;
+using Avalon.World.Maps.Navigation;
 using Avalon.World.Public;
 using Avalon.World.Scripts;
 using Avalon.World.Scripts.Abstractions;
@@ -47,6 +48,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
     private readonly ICreatureSpawner _creatureSpawner;
     private readonly IReplicatedCache _cache;
     private readonly IScriptHotReloader _scriptHotReloader;
+    private readonly INavigationMeshBaker _navigationMeshBaker;
 
     public WorldServer(IPacketManager packetManager,
         ILoggerFactory loggerFactory,
@@ -57,7 +59,8 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         IAiController aiController,
         ICreatureSpawner creatureSpawner,
         IReplicatedCache cache,
-        IScriptHotReloader scriptHotReloader) : base(packetManager, loggerFactory.CreateLogger<WorldServer>(), pluginExecutor,
+        IScriptHotReloader scriptHotReloader,
+        INavigationMeshBaker navigationMeshBaker) : base(packetManager, loggerFactory.CreateLogger<WorldServer>(), pluginExecutor,
         serviceProvider,
         hostingOptions)
     {
@@ -65,6 +68,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         _creatureSpawner = creatureSpawner;
         _cache = cache;
         _scriptHotReloader = scriptHotReloader;
+        _navigationMeshBaker = navigationMeshBaker;
         _logger = loggerFactory.CreateLogger<WorldServer>();
         _pluginExecutor = pluginExecutor;
         _world = world as World ?? throw new InvalidOperationException("Invalid world instance");
@@ -75,6 +79,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         await Task.WhenAll(
+            _navigationMeshBaker.ExecuteAsync(),
             _aiController.LoadAsync(),
             _creatureSpawner.LoadAsync()
         );

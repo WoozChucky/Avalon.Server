@@ -7,11 +7,18 @@ public interface IChunk
 {
     public uint Id { get; }
     public bool Enabled { get; set; }
-    public ChunkMetadata Metadata { get; init; }
+    public ChunkMetadata Metadata { get; }
+    public IChunkNavigator Navigator { get; }
     public List<IChunk> Neighbors { get; set; }
 
+    public Task InitializeAsync();
+    
     IReadOnlyList<IWorldConnection> GetConnections();
     IReadOnlyList<ICreature> GetCreatures();
+    
+    void AddPlayer(IWorldConnection connection);
+    void RemovePlayer(IWorldConnection connection);
+    void SendState(IWorldConnection connection);
 }
 
 [Serializable]
@@ -22,8 +29,8 @@ public class ChunkMetadata
     public Vector3 Size;
     public List<TreeInfo> Trees; // Possibly collidable objects
     public List<CreatureInfo> Creatures; // Creatures
-    public float[,] Heightmap; // Heightmap data
-    public NavMeshInfo NavMesh;
+    public string GeometryFile;
+    public string MeshFile;
 }
 
 [Serializable]

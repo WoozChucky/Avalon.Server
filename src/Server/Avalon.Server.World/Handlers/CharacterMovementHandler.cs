@@ -5,17 +5,17 @@ using Microsoft.Extensions.Logging;
 
 namespace Avalon.Server.World.Handlers;
 
-public class PlayerMovementHandler : IWorldPacketHandler<CPlayerMovementPacket>
+public class CharacterMovementHandler : IWorldPacketHandler<CPlayerMovementPacket>
 {
-    private readonly IWorldServer _worldServer;
-    private readonly ILogger<PlayerMovementHandler> _logger;
+    private readonly IWorld _world;
+    private readonly ILogger<CharacterMovementHandler> _logger;
     
     private const float AllowedDeviation = 0.1f;
     
-    public PlayerMovementHandler(ILoggerFactory loggerFactory, IWorldServer worldServer)
+    public CharacterMovementHandler(ILoggerFactory loggerFactory, IWorld world)
     {
-        _worldServer = worldServer;
-        _logger = loggerFactory.CreateLogger<PlayerMovementHandler>();
+        _world = world;
+        _logger = loggerFactory.CreateLogger<CharacterMovementHandler>();
     }
     
     public Task ExecuteAsync(WorldPacketContext<CPlayerMovementPacket> ctx, CancellationToken token = default)
@@ -61,6 +61,8 @@ public class PlayerMovementHandler : IWorldPacketHandler<CPlayerMovementPacket>
         
         ctx.Connection.Character!.Position = new Vector3(ctx.Packet.X, ctx.Packet.Y, ctx.Packet.Z);
         ctx.Connection.Character.Velocity = new Vector3(ctx.Packet.VelocityX, ctx.Packet.VelocityY, ctx.Packet.VelocityZ);
+        
+        _world.Grid.OnPlayerMoved(ctx.Connection);
         
         return Task.CompletedTask;
     }

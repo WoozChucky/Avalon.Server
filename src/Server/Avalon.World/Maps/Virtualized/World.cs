@@ -69,44 +69,11 @@ public static class BinaryDeserializationHelper
             creatures.Add(ReadCreatureInfo(reader));
         }
         
-        // Read Heightmap
-        int heightmapWidth = reader.ReadInt32();
-        int heightmapHeight = reader.ReadInt32();
-        float[,] heightmap = new float[heightmapWidth, heightmapHeight];
-        for (int x = 0; x < heightmapWidth; x++)
-        {
-            for (int y = 0; y < heightmapHeight; y++)
-            {
-                heightmap[x, y] = reader.ReadSingle();
-            }
-        }
+        // Read Geometry file name
+        var geometryFile = reader.ReadString();
         
-        // Read NavMesh
-        int vertexCount = reader.ReadInt32();
-        if (vertexCount == 0)
-        {
-            return new ChunkMetadata { Name = name, Position = position, Size = size, Trees = trees, Creatures = creatures, Heightmap = heightmap, NavMesh = null };
-        }
-
-        Vector3[] vertices = new Vector3[vertexCount];
-        for (int i = 0; i < vertexCount; i++)
-        {
-            vertices[i] = ReadVector3(reader);
-        }
-
-        int indexCount = reader.ReadInt32();
-        int[] indices = new int[indexCount];
-        for (int i = 0; i < indexCount; i++)
-        {
-            indices[i] = reader.ReadInt32();
-        }
-
-        int areaCount = reader.ReadInt32();
-        int[] areas = new int[areaCount];
-        for (int i = 0; i < areaCount; i++)
-        {
-            areas[i] = reader.ReadInt32();
-        }
+        // Read Mesh file name
+        var meshFile = reader.ReadString();
 
         return new ChunkMetadata
         {
@@ -115,8 +82,8 @@ public static class BinaryDeserializationHelper
             Size = size, 
             Trees = trees,
             Creatures = creatures,
-            Heightmap = heightmap, 
-            NavMesh = new NavMeshInfo { Vertices = vertices, Indices = indices, Areas = areas }
+            GeometryFile = geometryFile,
+            MeshFile = meshFile,
         };
     }
 

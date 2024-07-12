@@ -19,7 +19,7 @@ namespace Avalon.Hosting.Extensions;
 
 public static class ServiceCollectionExtensions
 {
-    private const string MessageTemplate = "[{Timestamp:HH:mm:ss.fff}][{Level:u3}]{Message:lj} " +
+    private const string MessageTemplate = "[{Timestamp:HH:mm:ss.fff}][{ThreadId}][{Level:u3}]{Message:lj} " +
                                            "{NewLine:1}{Exception:1}";
     
     public static IServiceCollection AddCoreServices(this IServiceCollection services, IPluginCatalog pluginCatalog,
@@ -98,12 +98,14 @@ public static class ServiceCollectionExtensions
         // add process information
         config.Enrich.WithProcessId()
             .Enrich.WithProcessName();
+        
+        config.Enrich.WithThreadId();
 
         // add assembly information
         // TODO: uncomment if needed
-        config.Enrich.WithAssemblyName() // {AssemblyName}
-            .Enrich.WithAssemblyVersion(true) // {AssemblyVersion}
-            .Enrich.WithAssemblyInformationalVersion();
+        //config.Enrich.WithAssemblyName() // {AssemblyName}
+        //    .Enrich.WithAssemblyVersion(true) // {AssemblyVersion}
+        //    .Enrich.WithAssemblyInformationalVersion();
 
         // add exception information
         config.Enrich.WithExceptionData();

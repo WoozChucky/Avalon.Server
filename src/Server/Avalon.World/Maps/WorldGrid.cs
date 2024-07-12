@@ -88,4 +88,23 @@ public class WorldGrid
             map.SpawnStartingEntities(poolManager);
         }
     }
+    
+    public void OnPlayerMoved(IWorldConnection connection)
+    {
+        if (connection.Character == null)
+        {
+            throw new InvalidOperationException("Character not found in connection");
+        }
+        
+        var chunk = GetChunk(connection.Character.ChunkId);
+        
+        if (chunk == null)
+        {
+            throw new InvalidOperationException($"Invalid movement, chunk {connection.Character.ChunkId} not found");
+        }
+        
+        chunk.OnPlayerMoved(connection);
+    }
+    
+    private Chunk? GetChunk(uint chunkId) => Maps.SelectMany(m => m.Chunks.Values).FirstOrDefault(c => c.Id == chunkId);
 }

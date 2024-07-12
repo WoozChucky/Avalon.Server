@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Numerics;
 using System.Runtime.CompilerServices;
+using DotRecast.Core.Numerics;
 
 namespace Avalon.Common.Mathematics;
 
@@ -718,15 +719,28 @@ public struct Vector3 : IEquatable<Vector3>, IFormattable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static bool operator !=(Vector3 lhs, Vector3 rhs) => !(lhs == rhs);
     
-    // Implicit conversions
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static implicit operator Vector3(System.Numerics.Vector3 numVec)
     {
       return new Vector3(numVec.X, numVec.Y, numVec.Z);
     }
-
+    
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static implicit operator System.Numerics.Vector3(Vector3 customVec)
     {
       return new System.Numerics.Vector3(customVec.x, customVec.y, customVec.z);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static implicit operator Vector3(RcVec3f customVec)
+    {
+      return new Vector3(customVec.X, customVec.Y, customVec.Z);
+    }
+    
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static implicit operator RcVec3f(Vector3 customVec)
+    {
+      return new RcVec3f(customVec.x, customVec.y, customVec.z);
     }
 
     /// <summary>
