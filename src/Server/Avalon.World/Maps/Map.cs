@@ -70,6 +70,7 @@ public class Map
             foreach (var otherChunk in Chunks.Values)
             {
                 if (chunk == otherChunk) continue;
+                chunk.Neighbors.Clear();
 
                 // Calculate the distance between chunks in the X and Z directions
                 var deltaX = Mathf.Abs(chunk.Metadata.Position.x - otherChunk.Metadata.Position.x);

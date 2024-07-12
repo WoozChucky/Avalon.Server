@@ -1,15 +1,22 @@
 using Avalon.Common.Mathematics;
-using Avalon.Domain.Characters;
-using Avalon.World.Entities;
-using Avalon.World.Maps;
-using Avalon.World.Pathfinding;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
+using Avalon.World.Public.Creatures;
+using Avalon.World.Public.Maps;
+using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Scripts.Creatures;
 
+internal enum UrielState
+{
+    Patrolling,
+    Attacking
+}
+
 public class UrielPathfinderScript : AiScript
 {
+    private readonly ILogger<UrielPathfinderScript> _logger;
+    
     private bool _isPathfinding = false;
     private bool _hasWaypoints = false;
     private List<Vector3>? _waypoints;
@@ -20,11 +27,20 @@ public class UrielPathfinderScript : AiScript
     private const float WaypointTolerance = 0.1f;
     private const float TargetTolerance = 0.25f;
     
-    public UrielPathfinderScript(Creature creature, Chunk chunk) : base(creature, chunk)
+    public UrielPathfinderScript(ILoggerFactory loggerFactory, ICreature creature, IChunk chunk) : base(creature, chunk)
     {
-        
+        _logger = loggerFactory.CreateLogger<UrielPathfinderScript>();
+        creature.Speed = 3.0f;
+        State = UrielState.Patrolling;
+
+        Chain(this);
     }
     
+    public override object State { get; set; }
+    protected override bool ShouldRun()
+    {
+        throw new NotImplementedException();
+    }
     
     public override async Task Update(TimeSpan deltaTime)
     {
@@ -49,15 +65,9 @@ public class UrielPathfinderScript : AiScript
                 var currentPosition = Creature.Position;
 
                 // Generate smooth path from NavMesh
-                var path = await AStarPathfinding.GeneratePath(
-                    currentPosition, 
-                    _target.Position,
-                    Chunk.Metadata.NavMesh.Indices,
-                    Chunk.Metadata.NavMesh.Vertices,
-                    Chunk.Metadata.NavMesh.Areas
-                );
+                var path = Chunk.Navigator.FindPath(currentPosition, _target.Position);
 
-                if (path == null)
+                if (path.Count == 0)
                 {
                     _hasWaypoints = false;
                     return;
@@ -93,7 +103,7 @@ public class UrielPathfinderScript : AiScript
             _currentWaypointIndex++;
             if (_currentWaypointIndex >= _waypoints.Count)
             {
-                Console.WriteLine("Reached the end of the path");
+                _logger.LogDebug("Reached final waypoint");
                 Creature.Velocity = Vector3.zero;
                 return;
             }
@@ -120,12 +130,13 @@ public class UrielPathfinderScript : AiScript
             }
             else
             {
-                Console.WriteLine("Collision detected at: {0}", currentPosition);
+                _logger.LogDebug("Collision detected at: {Position}", currentPosition);
                 Creature.Velocity = Vector3.zero;
             }
         }
         else
         {
+            Creature.Velocity = direction;
             Creature.Position += movementDelta;
         }
         

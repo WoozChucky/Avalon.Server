@@ -75,8 +75,8 @@ namespace Avalon.Database.Character.Migrations
                     b.Property<int>("LogoutTime")
                         .HasColumnType("int");
 
-                    b.Property<int>("Map")
-                        .HasColumnType("int");
+                    b.Property<ushort>("Map")
+                        .HasColumnType("smallint unsigned");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -95,6 +95,9 @@ namespace Avalon.Database.Character.Migrations
                         .HasColumnType("int");
 
                     b.Property<float>("RestBonus")
+                        .HasColumnType("float");
+
+                    b.Property<float>("Rotation")
                         .HasColumnType("float");
 
                     b.Property<int>("TodayKills")

@@ -47,11 +47,8 @@ public class CharacterSelectHandler : IWorldPacketHandler<CCharacterSelectedPack
             return;
         }
         
-        //TODO: Fix
+        //TODO: Implement when instances are a thing
         character.InstanceId = Guid.NewGuid().ToString();
-
-
-        
         character.Online = true;
         character.Latency = (int) ctx.Connection.Latency;
         
@@ -60,8 +57,9 @@ public class CharacterSelectHandler : IWorldPacketHandler<CCharacterSelectedPack
             Data = character,
             Position = new Vector3(character.X, character.Y, character.Z),
             Velocity = Vector3.zero,
-            Orientation = Vector3.zero,
+            Orientation = new Vector3(0, character.Rotation, 0),
             EnteredWorld = DateTime.UtcNow,
+            Inventory = new CharacterInventory(),
         };
         
         ctx.Connection.Character = entity;
@@ -100,5 +98,7 @@ public class CharacterSelectHandler : IWorldPacketHandler<CCharacterSelectedPack
         await _characterRepository.UpdateAsync(character);
         
         _logger.LogInformation("Character {CharacterId} logged in for account {AccountId} at {Position}", character.Name, ctx.Connection.AccountId, ctx.Connection.Character.Position);
+        
+        //TODO: Load the character's inventory
     }
 }

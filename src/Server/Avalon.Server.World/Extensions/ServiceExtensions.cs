@@ -6,6 +6,7 @@ using Avalon.World.Configuration;
 using Avalon.World.Database.Extensions;
 using Avalon.World.Entities;
 using Avalon.World.Maps;
+using Avalon.World.Maps.Navigation;
 using Avalon.World.Pools;
 using Avalon.World.Quests;
 using Avalon.World.Scripts;
@@ -29,6 +30,7 @@ public static class ServiceExtensions
             .AddCache();
 
         services.AddSingleton<IWorld, Avalon.World.World>();
+        services.AddSingleton<INavigationMeshBaker, NavigationMeshBaker>();
         services.AddSingleton<IAvalonMapManager, AvalonMapManager>();
         services.AddSingleton<IPoolManager, PoolManager>();
         services.AddSingleton<IAiController, AiController>();

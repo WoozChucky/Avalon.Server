@@ -35,6 +35,8 @@ public class Character : IDbEntity<CharacterId>
     public float Y { get; set; }
     public float Z { get; set; }
     
+    public float Rotation { get; set; } // Around Y axis
+    
     public ushort Map { get; set; }
     
     public string? InstanceId { get; set; }

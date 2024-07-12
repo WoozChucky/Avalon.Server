@@ -1,3 +1,5 @@
+using Avalon.World.Public.Characters;
+
 namespace Avalon.World.Public.Creatures;
 
 public interface ICreature : IGameEntity<Guid>
@@ -7,4 +9,7 @@ public interface ICreature : IGameEntity<Guid>
     public float Speed { get; set; }
     public string ScriptName { get; set; }
     public AiScript? Script { get; set; }
+    
+    void OnHit(ICreature attacker, uint damage);
+    void OnHit(ICharacter attacker, uint damage);
 }
