@@ -2,8 +2,12 @@ using Avalon.Api;
 using Avalon.Api.Config;
 using Avalon.Api.Middlewares;
 using Avalon.Api.Services;
+using Avalon.Auth.Database;
+using Avalon.Database.Character;
 using Avalon.Infrastructure;
+using Avalon.World.Database;
 using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.EntityFrameworkCore;
 using Serilog;
 using Serilog.Events;
 using Serilog.Sinks.SystemConsole.Themes;
@@ -104,8 +108,18 @@ var app = builder.Build();
 
 var logger = app.Services.GetRequiredService<ILogger<Program>>();
 
-var workerServices = app.Services.GetServices<IWorkerService>();
+await using (var scope = app.Services.CreateAsyncScope())
+{
+    var authDb = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
+    var characterDb = scope.ServiceProvider.GetRequiredService<CharacterDbContext>();
+    var worldDb = scope.ServiceProvider.GetRequiredService<WorldDbContext>();
+    logger.LogInformation("Migrating database if necessary...");
+    await authDb.Database.MigrateAsync();
+    await characterDb.Database.MigrateAsync();
+    await worldDb.Database.MigrateAsync();
+}
 
+var workerServices = app.Services.GetServices<IWorkerService>();
 var cts = new CancellationTokenSource();
 foreach (var workerService in workerServices)
 {
@@ -131,4 +145,4 @@ Console.CancelKeyPress += (_, _) =>
     logger.LogInformation("Ctrl+C was pressed, stopping application...");
 };
 
-app.Run();
+await app.RunAsync();
