@@ -1,5 +1,8 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using Avalon.Api;
 using Avalon.Api.Config;
+using Avalon.Api.Converters;
 using Avalon.Api.Middlewares;
 using Avalon.Api.Services;
 using Avalon.Auth.Database;
@@ -26,7 +29,8 @@ builder.Host.UseSerilog((context, hostConfig) =>
         .MinimumLevel.Verbose()
         .MinimumLevel.Override("Microsoft", LogEventLevel.Information)
         .MinimumLevel.Override("Microsoft.AspNetCore", LogEventLevel.Warning)
-        .MinimumLevel.Override("Microsoft.AspNetCore.Diagnostics.ExceptionHandlerMiddleware]", LogEventLevel.Fatal)
+        .MinimumLevel.Override("Microsoft.AspNetCore.Diagnostics.ExceptionHandlerMiddleware", LogEventLevel.Fatal)
+        .MinimumLevel.Override("Microsoft.EntityFrameworkCore.Database.Command", LogEventLevel.Warning)
         .Enrich.FromLogContext()
         .WriteTo.Console(LogEventLevel.Debug,
             outputTemplate:
@@ -56,12 +60,20 @@ var services = builder.Services;
     services.AddCors();
 
     services.AddHttpContextAccessor();
-    services.AddControllers();
+    services.AddControllers()
+        .AddJsonOptions(options =>
+        {
+            options.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
+            options.JsonSerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
+            options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+            options.JsonSerializerOptions.Converters.Add(new ValueObjectJsonConverterFactory());
+        });
 
     services.AddTelemetry(applicationConfig);
     services.AddAuth(applicationConfig);
     services.AddSwagger();
     services.AddInfrastructure(applicationConfig);
+    services.AddAutoMapper(typeof(Program));
 }
 
 var app = builder.Build();

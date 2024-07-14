@@ -124,13 +124,14 @@ public class AccountService : IAccountService
         
         await _deviceRepository.CreateAsync(new Device
         {
+            Account = account,
             AccountId = account.Id,
             Name = userAgent,
             LastUsage = DateTime.UtcNow,
             Trusted = false,
             TrustEnd = DateTime.UtcNow,
         });
-
+        
         return new RegisterResponse
         {
             Token = _jwtUtils.GenerateJwtToken(account),

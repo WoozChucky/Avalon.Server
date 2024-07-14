@@ -61,6 +61,7 @@ public class CreatureSpawner : ICreatureSpawner
         {
             Id = Guid.NewGuid(),
             TemplateId = template.Id,
+            Metadata = template,
             Name = template.Name,
             Bounds = new Rectangle(0, 0, 0, 0),
             Position = new Vector2(0, 0),

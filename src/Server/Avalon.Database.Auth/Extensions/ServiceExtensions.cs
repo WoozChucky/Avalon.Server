@@ -8,9 +8,9 @@ namespace Avalon.Auth.Database.Extensions;
 
 public static class ServiceExtensions
 {
-    public static IServiceCollection AddAuthDatabase(this IServiceCollection services)
+    public static IServiceCollection AddAuthDatabase(this IServiceCollection services, string databaseSection = "Database")
     {
-        services.AddAvalonDatabases();
+        services.AddAvalonDatabases(databaseSection);
         services.AddScoped<AuthDbContext>(provider =>
         {
             var loggerFactory = provider.GetRequiredService<ILoggerFactory>();

@@ -12,6 +12,10 @@ public interface ICharacter : IGameEntity<ulong>
     
     ushort Map { get; set; }
     ushort Level { get; set; }
+    int Health { get; set; }
+    int CurrentHealth { get; set; }
+    int Mana { get; set; }
+    int CurrentMana { get; set; }
     
     void OnHit(ICharacter attacker, int damage);
     void OnHit(ICreature attacker, int damage);

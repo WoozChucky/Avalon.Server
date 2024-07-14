@@ -40,4 +40,14 @@ public abstract class AiScript {
     {
         
     }
+    
+    public virtual void OnHit(ICreature attacker, uint damage)
+    {
+        
+    }
+    
+    public virtual void OnHit(ICharacter attacker, uint damage)
+    {
+        
+    }
 }

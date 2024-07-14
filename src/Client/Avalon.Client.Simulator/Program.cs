@@ -218,7 +218,7 @@ namespace Avalon.Client.Simulator
                             _currentYVelocity = persistentYDirection;
 
                             // Broadcast the movement updates
-                            await _tcp.BroadcastMovementUpdates(0f, _currentXPosition, _currentYPosition, _currentXVelocity, _currentYVelocity);
+                            // await _tcp.BroadcastMovementUpdates(0f, _currentXPosition, _currentYPosition, _currentXVelocity, _currentYVelocity);
 
                             // Introduce a small delay to simulate more natural movement
                             Thread.Sleep(50);
