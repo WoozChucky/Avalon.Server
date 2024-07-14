@@ -4,6 +4,7 @@ using Avalon.World.Database;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Avalon.World.Database.Migrations
 {
     [DbContext(typeof(WorldDbContext))]
-    partial class WorldDbContextModelSnapshot : ModelSnapshot
+    [Migration("20240713221112_V2")]
+    partial class V2
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -634,164 +637,10 @@ namespace Avalon.World.Database.Migrations
                         });
                 });
 
-            modelBuilder.Entity("Avalon.Domain.World.ItemInstance", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("char(36)");
-
-                    b.Property<ulong>("CharacterId")
-                        .HasColumnType("bigint unsigned");
-
-                    b.Property<uint>("Charges")
-                        .HasColumnType("int unsigned");
-
-                    b.Property<uint>("Count")
-                        .HasColumnType("int unsigned");
-
-                    b.Property<uint>("Durability")
-                        .HasColumnType("int unsigned");
-
-                    b.Property<int>("Flags")
-                        .HasColumnType("int");
-
-                    b.Property<ulong>("TemplateId")
-                        .HasColumnType("bigint unsigned");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("TemplateId")
-                        .IsUnique();
-
-                    b.ToTable("ItemInstances");
-                });
-
             modelBuilder.Entity("Avalon.Domain.World.ItemTemplate", b =>
                 {
                     b.Property<ulong>("Id")
                         .HasColumnType("bigint unsigned");
-
-                    b.Property<string>("AllowedClasses")
-                        .IsRequired()
-                        .HasColumnType("longtext");
-
-                    b.Property<uint>("BuyPrice")
-                        .HasColumnType("int unsigned");
-
-                    b.Property<int>("Class")
-                        .HasColumnType("int");
-
-                    b.Property<uint?>("DamageMax1")
-                        .HasColumnType("int unsigned");
-
-                    b.Property<uint?>("DamageMax2")
-                        .HasColumnType("int unsigned");
-
-                    b.Property<uint?>("DamageMin1")
-                        .HasColumnType("int unsigned");
-
-                    b.Property<uint?>("DamageMin2")
-                        .HasColumnType("int unsigned");
-
-                    b.Property<int?>("DamageType1")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("DamageType2")
-                        .HasColumnType("int");
-
-                    b.Property<uint>("DisplayId")
-                        .HasColumnType("int unsigned");
-
-                    b.Property<int>("Flags")
-                        .HasColumnType("int");
-
-                    b.Property<ushort?>("ItemPower")
-                        .HasColumnType("smallint unsigned");
-
-                    b.Property<uint>("MaxStackSize")
-                        .HasColumnType("int unsigned");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasColumnType("longtext");
-
-                    b.Property<int>("Rarity")
-                        .HasColumnType("int");
-
-                    b.Property<ushort?>("RequiredLevel")
-                        .HasColumnType("smallint unsigned");
-
-                    b.Property<uint>("SellPrice")
-                        .HasColumnType("int unsigned");
-
-                    b.Property<int?>("Slot")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("StatType1")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("StatType10")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("StatType2")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("StatType3")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("StatType4")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("StatType5")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("StatType6")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("StatType7")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("StatType8")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("StatType9")
-                        .HasColumnType("int");
-
-                    b.Property<uint?>("StatValue1")
-                        .HasColumnType("int unsigned");
-
-                    b.Property<uint?>("StatValue10")
-                        .HasColumnType("int unsigned");
-
-                    b.Property<uint?>("StatValue2")
-                        .HasColumnType("int unsigned");
-
-                    b.Property<uint?>("StatValue3")
-                        .HasColumnType("int unsigned");
-
-                    b.Property<uint?>("StatValue4")
-                        .HasColumnType("int unsigned");
-
-                    b.Property<uint?>("StatValue5")
-                        .HasColumnType("int unsigned");
-
-                    b.Property<uint?>("StatValue6")
-                        .HasColumnType("int unsigned");
-
-                    b.Property<uint?>("StatValue7")
-                        .HasColumnType("int unsigned");
-
-                    b.Property<uint?>("StatValue8")
-                        .HasColumnType("int unsigned");
-
-                    b.Property<uint?>("StatValue9")
-                        .HasColumnType("int unsigned");
-
-                    b.Property<int>("SubClass")
-                        .HasColumnType("int");
 
                     b.HasKey("Id");
 
@@ -961,17 +810,6 @@ namespace Avalon.World.Database.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("QuestTemplates");
-                });
-
-            modelBuilder.Entity("Avalon.Domain.World.ItemInstance", b =>
-                {
-                    b.HasOne("Avalon.Domain.World.ItemTemplate", "Template")
-                        .WithOne()
-                        .HasForeignKey("Avalon.Domain.World.ItemInstance", "TemplateId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Template");
                 });
 
             modelBuilder.Entity("Avalon.Domain.World.QuestReward", b =>

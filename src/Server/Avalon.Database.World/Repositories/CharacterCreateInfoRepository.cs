@@ -1,0 +1,36 @@
+using Avalon.Domain.World;
+using Avalon.World.Public.Enums;
+using Microsoft.EntityFrameworkCore;
+
+namespace Avalon.World.Database.Repositories;
+
+public interface ICharacterCreateInfoRepository
+{
+    Task<IReadOnlyCollection<CharacterCreateInfo>> GetAllAsync();
+    Task<CharacterCreateInfo?> GetByClassAsync(CharacterClass @class);
+}
+
+public class CharacterCreateInfoRepository : ICharacterCreateInfoRepository
+{
+    private readonly WorldDbContext _dbContext;
+
+    public CharacterCreateInfoRepository(WorldDbContext dbContext)
+    {
+        _dbContext = dbContext;
+    }
+    
+    public async Task<IReadOnlyCollection<CharacterCreateInfo>> GetAllAsync()
+    {
+        return await _dbContext.CharacterCreateInfos
+            .AsNoTracking()
+            .ToListAsync();
+    }
+
+    public async Task<CharacterCreateInfo?> GetByClassAsync(CharacterClass @class)
+    {
+        return await _dbContext.CharacterCreateInfos
+            .AsNoTracking()
+            .FirstOrDefaultAsync(entity => entity.Class == @class);
+    }
+    
+}

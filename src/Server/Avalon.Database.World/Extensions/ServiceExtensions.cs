@@ -9,9 +9,9 @@ namespace Avalon.World.Database.Extensions;
 
 public static class ServiceExtensions
 {
-    public static IServiceCollection AddWorldDatabase(this IServiceCollection services)
+    public static IServiceCollection AddWorldDatabase(this IServiceCollection services, string databaseSection = "Database")
     {
-        services.AddAvalonDatabases();
+        services.AddAvalonDatabases(databaseSection);
         services.AddScoped<WorldDbContext>(provider =>
         {
             var loggerFactory = provider.GetRequiredService<ILoggerFactory>();
@@ -22,7 +22,10 @@ public static class ServiceExtensions
         services
             .AddScoped<ICreatureTemplateRepository, CreatureTemplateRepository>()
             .AddScoped<IMapTemplateRepository, MapTemplateRepository>()
-            .AddScoped<IItemTemplateRepository, ItemTemplateRepository>();
+            .AddScoped<IItemTemplateRepository, ItemTemplateRepository>()
+            .AddScoped<IClassLevelStatRepository, ClassLevelStatRepository>()
+            .AddScoped<ICharacterCreateInfoRepository, CharacterCreateInfoRepository>()
+            .AddScoped<ICharacterLevelExperienceRepository, CharacterLevelExperienceRepository>();
 
         return services;
     }

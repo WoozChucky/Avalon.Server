@@ -34,6 +34,8 @@ public class Creature : ICreature
     
     public Rectangle Bounds { get; set; }
     public float Speed { get; set; }
+    public uint Health { get; set; }
+    public uint CurrentHealth { get; set; }
 
     public string ScriptName { get; set; } = string.Empty;
 
@@ -41,11 +43,11 @@ public class Creature : ICreature
     
     public void OnHit(ICreature attacker, uint damage)
     {
-        throw new NotImplementedException();
+        Script?.OnHit(attacker, damage);
     }
 
     public void OnHit(ICharacter attacker, uint damage)
     {
-        throw new NotImplementedException();
+        Script?.OnHit(attacker, damage);
     }
 }

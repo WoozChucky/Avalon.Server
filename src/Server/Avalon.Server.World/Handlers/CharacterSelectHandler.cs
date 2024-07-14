@@ -88,7 +88,7 @@ public class CharacterSelectHandler : IWorldPacketHandler<CCharacterSelectedPack
         },
         new MapInfo
         {
-            MapId = 1,
+            MapId = character.Map,
             InstanceId = Guid.Parse(character.InstanceId),
             Name = "Test Map",
             Description = "Test Map Description",

@@ -5,6 +5,7 @@ using Avalon.Api.Authentication;
 using Avalon.Api.Authentication.AV;
 using Avalon.Api.Authentication.Jwt;
 using Avalon.Api.Config;
+using Avalon.Api.Converters;
 using Avalon.Api.Services;
 using Avalon.Auth.Database.Extensions;
 using Avalon.Common.Telemetry;
@@ -28,11 +29,12 @@ public static class ServiceRegistration
 {
     public static void AddInfrastructure(this IServiceCollection services, ApplicationConfig config)
     {
-        services.AddAuthDatabase();
-        services.AddCharacterDatabase();
-        services.AddWorldDatabase();
+        services.AddAuthDatabase("Application:Database");
+        services.AddCharacterDatabase("Application:Database");
+        services.AddWorldDatabase("Application:Database");
         
         services.AddScoped<IAccountService, AccountService>();
+        services.AddScoped<ICharacterService, CharacterService>();
         services.AddScoped<IMFAService, MFAService>();
         services.AddSingleton<IReplicatedCache, ReplicatedCache>();
         services.AddScoped<IMFAHashService, MFAHashService>();
@@ -188,7 +190,17 @@ public static class ServiceRegistration
                 Type = SecuritySchemeType.ApiKey,
                 Scheme = "Bearer"
             });
-
+            options.AddSecurityDefinition("Avalon", new OpenApiSecurityScheme
+            {
+                Description = @"Avalon Authentication header using AVToken scheme. <br>
+                          Enter 'AVToken' [space] and then your token in the text input below.
+                          <br>Example: 'AVToken 12345abcdef'",
+                Name = "Authorization",
+                In = ParameterLocation.Header,
+                Type = SecuritySchemeType.ApiKey,
+                Scheme = "AVToken"
+            });
+            
             options.AddSecurityRequirement(new OpenApiSecurityRequirement()
             {
                 {
@@ -206,6 +218,25 @@ public static class ServiceRegistration
                     new List<string>()
                 }
             });
+            options.AddSecurityRequirement(new OpenApiSecurityRequirement()
+            {
+                {
+                    new OpenApiSecurityScheme
+                    {
+                        Reference = new OpenApiReference
+                        {
+                            Type = ReferenceType.SecurityScheme,
+                            Id = "Avalon"
+                        },
+                        Scheme = "AVToken",
+                        Name = "Authorization",
+                        In = ParameterLocation.Header,
+                    },
+                    new List<string>()
+                }
+            });
+            
+            options.SchemaFilter<ValueObjectSchemaFilter>();
         });
     }
 }

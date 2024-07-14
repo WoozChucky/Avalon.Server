@@ -42,18 +42,16 @@ public class EntityFrameworkRepository<TEntity, TKey> : IRepository<TEntity, TKe
 
     public async Task<TEntity> CreateAsync(TEntity entity)
     {
-        Context.Set<TEntity>().Add(entity);
+        var entry = Context.Set<TEntity>().Add(entity);
         await Context.SaveChangesAsync();
-
-        return entity;
+        return entry.Entity;
     }
 
     public async Task<TEntity> UpdateAsync(TEntity entity)
     {
-        Context.Set<TEntity>().Update(entity);
+        var entry = Context.Set<TEntity>().Update(entity);
         await Context.SaveChangesAsync();
-
-        return entity;
+        return entry.Entity;
     }
 
     public async Task DeleteAsync(TKey id)

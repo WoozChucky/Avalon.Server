@@ -501,14 +501,14 @@ public class AvalonTcpClient : IDisposable
         return _cryptography.GetPublicKey();
     }
 
-    public async Task BroadcastMovementUpdates(float time, float posX, float posY, float velX, float velY)
+    public async Task BroadcastMovementUpdates(double time, float x, float y, float z, float velX, float velY, float velZ, float rotation)
     {
         if (velX == 0 && velY == 0)
         {
             Console.WriteLine("No movement detected, skipping...");
         }
 
-        await SendPacket(CPlayerMovementPacket.Create(time, posX, posY, velX, velY, _cryptography.Encrypt));
+        await SendPacket(CPlayerMovementPacket.Create(time, x, y, z, velX, velY, velZ, rotation, _cryptography.Encrypt));
     }
 
     public async Task SendRegisterPacket(string username, string email, string password)

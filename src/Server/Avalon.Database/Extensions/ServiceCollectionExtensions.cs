@@ -5,10 +5,10 @@ namespace Avalon.Database.Extensions;
 
 public static class ServiceCollectionExtensions
 {
-    public static IServiceCollection AddAvalonDatabases(this IServiceCollection services)
+    public static IServiceCollection AddAvalonDatabases(this IServiceCollection services, string configurationSection = "Database")
     {
         services.AddOptions<DatabaseConfiguration>()
-            .BindConfiguration("Database");
+            .BindConfiguration(configurationSection);
 
         return services;
     }
