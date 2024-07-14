@@ -1,6 +1,5 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
-using Avalon.Common;
 using Avalon.Common.ValueObjects;
 
 namespace Avalon.Domain.Auth;
@@ -9,7 +8,7 @@ public class Account : IDbEntity<AccountId>
 {
     [Key]
     [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
-    public AccountId Id { get; set; } = 0;
+    public AccountId Id { get; set; }
     
     [Required]
     public required string Username { get; init; }

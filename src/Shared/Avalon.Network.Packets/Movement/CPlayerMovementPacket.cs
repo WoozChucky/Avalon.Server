@@ -19,18 +19,22 @@ public class CPlayerMovementPacket : Packet
     [ProtoMember(5)] public float VelocityX { get; set; }
     [ProtoMember(6)] public float VelocityY { get; set; }
     [ProtoMember(7)] public float VelocityZ { get; set; }
+    [ProtoMember(8)] public float Rotation { get; set; }
 
-    public static NetworkPacket Create(double time, float x, float y, float velX, float velY, Func<byte[], byte[]> encryptFunc)
+    public static NetworkPacket Create(double time, float x, float y, float z, float velX, float velY, float velZ, float rotation, Func<byte[], byte[]> encryptFunc)
     {
         using var memoryStream = new MemoryStream();
         
-        var p = new CPlayerMovementPacket()
+        var p = new CPlayerMovementPacket
         {
             ElapsedGameTime = time,
             X = x,
             Y = y,
+            Z = z,
             VelocityX = velX,
-            VelocityY = velY
+            VelocityY = velY,
+            VelocityZ = velZ,
+            Rotation = rotation
         };
         
         Serializer.Serialize(memoryStream, p);

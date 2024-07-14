@@ -61,6 +61,7 @@ public class CharacterMovementHandler : IWorldPacketHandler<CPlayerMovementPacke
         
         ctx.Connection.Character!.Position = new Vector3(ctx.Packet.X, ctx.Packet.Y, ctx.Packet.Z);
         ctx.Connection.Character.Velocity = new Vector3(ctx.Packet.VelocityX, ctx.Packet.VelocityY, ctx.Packet.VelocityZ);
+        ctx.Connection.Character.Orientation = new Vector3(0, ctx.Packet.Rotation, 0);
         
         _world.Grid.OnPlayerMoved(ctx.Connection);
         

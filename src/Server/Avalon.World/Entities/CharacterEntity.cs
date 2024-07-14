@@ -18,8 +18,48 @@ public class CharacterEntity : ICharacter
             }
         }
     }
+
+    public int Health
+    {
+        get => Data?.Health ?? 0;
+        set
+        {
+            if (Data != null)
+            {
+                Data.Health = value;
+            }
+        }
+    }
     
-    public Vector3 Position { get; set; }
+    public int CurrentHealth { get; set; }
+    
+    public int Mana
+    {
+        get => Data?.Power1 ?? 0;
+        set
+        {
+            if (Data != null)
+            {
+                Data.Power1 = value;
+            }
+        }
+    }
+    
+    public int CurrentMana { get; set; }
+
+    public Vector3 Position
+    {
+        get => new(Data?.X ?? 0, Data?.Y ?? 0, Data?.Z ?? 0);
+        set
+        {
+            if (Data == null) return;
+            Data.X = value.x;
+            Data.Y = value.y;
+            Data.Z = value.z;
+        }
+    }
+    
+    public Vector3 Velocity { get; set; }
 
     public Vector3 Orientation
     {
@@ -33,9 +73,7 @@ public class CharacterEntity : ICharacter
         }
     }
     
-    public Vector3 Velocity { get; set; }
-    
-    public Character? Data { get; set; }
+    public Character? Data { get; init; }
 
     public string Name
     {

@@ -9,9 +9,9 @@ namespace Avalon.Database.Character.Extensions;
 
 public static class ServiceExtensions
 {
-    public static IServiceCollection AddCharacterDatabase(this IServiceCollection services)
+    public static IServiceCollection AddCharacterDatabase(this IServiceCollection services, string databaseSection = "Database")
     {
-        services.AddAvalonDatabases();
+        services.AddAvalonDatabases(databaseSection);
         services.AddScoped<CharacterDbContext>(provider =>
         {
             var loggerFactory = provider.GetRequiredService<ILoggerFactory>();

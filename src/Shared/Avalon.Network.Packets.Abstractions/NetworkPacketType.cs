@@ -47,8 +47,6 @@ public enum NetworkPacketType : short
     // World
     CMSG_INTERACT = 0x2030,
     
-    CMSG_REQUEST_SERVER_VERSION = 0x2021,
-    
     CMSG_MOVEMENT = 0x2004,
     CMSG_PING = 0x2005,
     CMSG_PONG = 0x2006,
@@ -56,6 +54,9 @@ public enum NetworkPacketType : short
     CMSG_CHAT_OPEN = 0x2008,
     CMSG_CHAT_CLOSE = 0x2009,
     CMSG_GROUP_INVITE_RESULT = 0x200A,
+    
+    // Combat
+    CMSG_ATTACK = 0x2100,
     
     /**************************************************************************
      * Server Packets
