@@ -23,9 +23,11 @@ public static class ServiceExtensions
             .AddScoped<ICreatureTemplateRepository, CreatureTemplateRepository>()
             .AddScoped<IMapTemplateRepository, MapTemplateRepository>()
             .AddScoped<IItemTemplateRepository, ItemTemplateRepository>()
+            .AddScoped<IItemInstanceRepository, ItemInstanceRepository>()
             .AddScoped<IClassLevelStatRepository, ClassLevelStatRepository>()
             .AddScoped<ICharacterCreateInfoRepository, CharacterCreateInfoRepository>()
-            .AddScoped<ICharacterLevelExperienceRepository, CharacterLevelExperienceRepository>();
+            .AddScoped<ICharacterLevelExperienceRepository, CharacterLevelExperienceRepository>()
+            .AddScoped<ISpellTemplateRepository, SpellTemplateRepository>();
 
         return services;
     }

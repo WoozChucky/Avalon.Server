@@ -28,10 +28,10 @@ public class PacketManager : IPacketManager
     public PacketManager(ILoggerFactory loggerFactory, IEnumerable<Type> packetTypes, Type[]? packetHandlerTypes = null)
     {
         var logger = loggerFactory.CreateLogger<PacketManager>();
-        const BindingFlags flags = BindingFlags.Static | BindingFlags.Public;
+        const BindingFlags flags = BindingFlags.Public | BindingFlags.Static;
         foreach (var packetType in packetTypes)
         {
-            var networkPacketTypeInfo = packetType.GetFields(BindingFlags.Public | BindingFlags.Static)
+            var networkPacketTypeInfo = packetType.GetFields(flags)
                 .FirstOrDefault(field => field.FieldType == typeof(NetworkPacketType));
             if (networkPacketTypeInfo == null)
             {

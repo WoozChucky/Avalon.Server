@@ -2,6 +2,7 @@ using Avalon.Common.Mathematics;
 using Avalon.World.Entities;
 using Avalon.World.Maps;
 using Avalon.World.Public;
+using Avalon.World.Public.Characters;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Scripts.Creatures;

@@ -1,5 +1,8 @@
 using Avalon.Common.Mathematics;
+using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Movement;
+using Avalon.Network.Packets.World;
+using Avalon.World.Entities;
 using Avalon.World.Maps.Navigation;
 using Avalon.World.Pools;
 using Avalon.World.Public;
@@ -9,6 +12,21 @@ using DotRecast.Detour.Crowd;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Maps;
+
+public class ObjectPool<T> where T : new()
+{
+    private readonly Stack<T> _objects = new Stack<T>();
+
+    public T Get()
+    {
+        return _objects.Count > 0 ? _objects.Pop() : new T();
+    }
+
+    public void Return(T obj)
+    {
+        _objects.Push(obj);
+    }
+}
 
 public class Chunk : IChunk
 {
@@ -22,6 +40,8 @@ public class Chunk : IChunk
     private readonly List<IWorldConnection> _connections = [];
     private readonly ReaderWriterLockSlim _lock = new(LockRecursionPolicy.SupportsRecursion);
     private readonly ILogger<Chunk> _logger;
+    private readonly ObjectPool<List<CreatureStateNew>> _listNewPool = new ObjectPool<List<CreatureStateNew>>();
+    private readonly ObjectPool<List<CreatureStateUpdate>> _listUpdatePool = new ObjectPool<List<CreatureStateUpdate>>();
     
     private const float BroadcastInterval = 0.1f;
     
@@ -75,27 +95,79 @@ public class Chunk : IChunk
         var connectionsSnapshot = GetConnections();
         var creaturesSnapshot = GetCreatures();
         
-        /*
-        _lock.EnterReadLock();
-        try
-        {*/
-            var creatureUpdates = _creatures.Where(c => c.Script != null).Select(c => c.Script!.Update(deltaTime));
+        var creatureUpdates = _creatures.Where(c => c.Script != null).Select(c => c.Script!.Update(deltaTime));
         
-            await Task.WhenAll(creatureUpdates);
-            
-            _lastBroadcastTime += (float) deltaTime.TotalSeconds;
-            if (_lastBroadcastTime >= BroadcastInterval)
-            {
-                _lastBroadcastTime = 0;
-                await BroadcastPlayersAsync(connectionsSnapshot).ConfigureAwait(false);
-                await BroadcastCreaturesAsync(connectionsSnapshot, creaturesSnapshot).ConfigureAwait(false);
-            }
-        /*}
-        finally
+        await Task.WhenAll(creatureUpdates);
+
+        _lastBroadcastTime += (float) deltaTime.TotalSeconds;
+        
+        /*
+        foreach (var connection in connectionsSnapshot)
         {
-            _lock.ExitReadLock();
+            bool hasNewEntities = false;
+            var newCreatures = _listNewPool.Get();
+            var updatedCreatures = _listUpdatePool.Get();
+        
+            foreach (var creature in creaturesSnapshot)
+            {
+                if (!connection.GameState.KnownEntities.Contains(creature.Id))
+                {
+                    // Mark the creature as known and collect it as a new entity
+                    connection.GameState.KnownEntities.Add(creature.Id);
+                    newCreatures.Add(new CreatureStateNew
+                    {
+                        Id = creature.Id,
+                        Name = creature.Name,
+                        Position = creature.Position,
+                        Velocity = creature.Velocity,
+                        Rotation = creature.Orientation.y,
+                        Health = creature.Health,
+                        Level = 1
+                    });
+                    hasNewEntities = true;
+                }
+                else
+                {
+                    // Collect creature updates
+                    updatedCreatures.Add(new CreatureStateUpdate
+                    {
+                        Id = creature.Id,
+                        Position = creature.Position,
+                        Velocity = creature.Velocity,
+                        Rotation = creature.Orientation.y,
+                        Health = creature.Health
+                    });
+                }
+            }
+        
+            // Send new entities
+            if (hasNewEntities)
+            {
+                var newEntitiesPacket = SWorldGameStatePacket.Create(newCreatures, connection.CryptoSession.Encrypt);
+                connection.Send(newEntitiesPacket);
+            }
+
+            // Send updates for known entities
+            if (updatedCreatures.Any())
+            {
+                if (_lastBroadcastTime >= BroadcastInterval)
+                {
+                    var updateEntitiesPacket = SWorldGameStatePacket.Create(updatedCreatures, connection.CryptoSession.Encrypt);
+                    connection.Send(updateEntitiesPacket);
+                }
+            }
+            
+            _listNewPool.Return(newCreatures);
+            _listUpdatePool.Return(updatedCreatures);
         }
         */
+        
+        if (_lastBroadcastTime >= BroadcastInterval)
+        {
+            _lastBroadcastTime = 0;
+            await BroadcastPlayersAsync(connectionsSnapshot).ConfigureAwait(false);
+            await BroadcastCreaturesAsync(connectionsSnapshot, creaturesSnapshot).ConfigureAwait(false);
+        }
     }
 
     public void AddPlayer(IWorldConnection connection)

@@ -2,11 +2,38 @@ using Avalon.Common.Mathematics;
 using Avalon.Domain.Characters;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
+using Avalon.World.Public.Enums;
+using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Entities;
 
 public class CharacterEntity : ICharacter
 {
+    public ICharacterInventory this[InventoryType type] => type switch
+    {
+        InventoryType.Equipment => _equipment,
+        InventoryType.Bag => _bag,
+        InventoryType.Bank => _bank,
+        _ => throw new ArgumentOutOfRangeException(nameof(type), type, null)
+    };
+
+    public ICharacterSpells Spells => _spells;
+
+    private readonly ICharacterInventory _equipment;
+    private readonly ICharacterInventory _bag;
+    private readonly ICharacterInventory _bank;
+    private readonly ICharacterSpells _spells;
+    private readonly ILogger<CharacterEntity> _logger;
+    
+    public CharacterEntity(ILoggerFactory loggerFactory)
+    {
+        _logger = loggerFactory.CreateLogger<CharacterEntity>();
+        _equipment = new CharacterInventoryContainer(loggerFactory, InventoryType.Equipment);
+        _bag = new CharacterInventoryContainer(loggerFactory, InventoryType.Bag);
+        _bank = new CharacterInventoryContainer(loggerFactory, InventoryType.Bank);
+        _spells = new CharacterSpellContainer(loggerFactory);
+    }
+
     public ulong Id
     {
         get => Data?.Id ?? 0;
@@ -118,21 +145,61 @@ public class CharacterEntity : ICharacter
 
     public void OnHit(ICreature attacker, int damage)
     {
-        throw new NotImplementedException();
+        _logger.LogInformation("{Name} has been hit by {Attacker} for {Damage} damage", Name, attacker.Name, damage);
+        CurrentHealth -= damage;
+        if (CurrentHealth <= 0)
+        {
+            _logger.LogInformation("{Name} has died", Name);
+            CurrentHealth = Health; // reset health while developing
+        }
     }
 
-    public ICharacterInventory Inventory { get; init; }
     public uint ChunkId { get; set; }
 
     public DateTime EnteredWorld { get; set; }
 }
 
-
-public class CharacterInventory : ICharacterInventory
+public class CharacterInventoryContainer : ICharacterInventory
 {
+    private readonly InventoryType Type;
     
-    public Task LoadAsync()
+    private readonly ILogger<CharacterInventoryContainer> _logger;
+    
+    private ushort MaxSlots => Type switch
     {
+        InventoryType.Equipment => 14,
+        InventoryType.Bag => 30,
+        InventoryType.Bank => 30,
+        _ => throw new ArgumentOutOfRangeException()
+    };
+    
+    public CharacterInventoryContainer(ILoggerFactory loggerFactory, InventoryType type)
+    {
+        _logger = loggerFactory.CreateLogger<CharacterInventoryContainer>();
+        Type = type;
+    }
+    
+    public Task LoadAsync(IReadOnlyCollection<object> items)
+    {
+        var castedItems = items.Cast<CharacterInventory>().ToList();
+        _logger.LogInformation("Loading {Count} items into {Type} inventory", castedItems.Count, Type);
+        return Task.CompletedTask;
+    }
+}
+
+public class CharacterSpellContainer : ICharacterSpells
+{
+    private readonly ILogger<CharacterSpellContainer> _logger;
+    
+    public CharacterSpellContainer(ILoggerFactory loggerFactory)
+    {
+        _logger = loggerFactory.CreateLogger<CharacterSpellContainer>();
+    }
+    
+    public Task LoadAsync(IReadOnlyCollection<object> spells)
+    {
+        var castedSpells = spells.Cast<CharacterSpell>().ToList();
+        _logger.LogInformation("Loading {Count} spells into character", castedSpells.Count);
         return Task.CompletedTask;
     }
 }

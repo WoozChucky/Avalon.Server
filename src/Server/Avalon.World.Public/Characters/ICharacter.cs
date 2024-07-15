@@ -1,10 +1,13 @@
 using Avalon.World.Public.Creatures;
+using Avalon.World.Public.Enums;
 
 namespace Avalon.World.Public.Characters;
 
 public interface ICharacter : IGameEntity<ulong>
 {
-    ICharacterInventory Inventory { get; }
+    ICharacterInventory this[InventoryType type] { get; }
+    
+    ICharacterSpells Spells { get; }
     
     uint ChunkId { get; set; }
     
@@ -23,5 +26,10 @@ public interface ICharacter : IGameEntity<ulong>
 
 public interface ICharacterInventory
 {
-    Task LoadAsync();
+    Task LoadAsync(IReadOnlyCollection<object> items);
+}
+
+public interface ICharacterSpells
+{
+    Task LoadAsync(IReadOnlyCollection<object> spells);
 }
