@@ -4,14 +4,12 @@ using System.Diagnostics;
 using System.Reflection;
 using Avalon.Common.ValueObjects;
 using Avalon.Configuration;
-using Avalon.Database.Character.Repositories;
 using Avalon.Hosting;
 using Avalon.Hosting.Networking;
 using Avalon.Hosting.PluginTypes;
 using Avalon.Infrastructure;
 using Avalon.Network.Packets;
 using Avalon.Network.Packets.Abstractions;
-using Avalon.Network.Packets.Character;
 using Avalon.World.Entities;
 using Avalon.World.Filters;
 using Avalon.World.Maps.Navigation;
@@ -40,13 +38,13 @@ public abstract class WorldPacketHandler<TPacket> : IWorldPacketHandler where TP
     }
 }
 
-public class CharacterListHandler(ICharacterRepository characterRepository) : WorldPacketHandler<CCharacterListPacket>
+public class PacketHandlerAttribute : Attribute
 {
-    
-    public override void Execute(WorldConnection connection, CCharacterListPacket packet)
+    public NetworkPacketType PacketType { get; }
+
+    public PacketHandlerAttribute(NetworkPacketType packetType)
     {
-        characterRepository.FindAllAsync();
-        Console.WriteLine("CharacterListHandler");
+        PacketType = packetType;
     }
 }
 
@@ -108,12 +106,21 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         _pluginExecutor = pluginExecutor;
         _world = world as World ?? throw new InvalidOperationException("Invalid world instance");
 
-        var a = ActivatorUtilities.CreateInstance<CharacterListHandler>(serviceProvider);
-        
         PacketHandlers = new Dictionary<NetworkPacketType, IWorldPacketHandler>()
         {
-            {NetworkPacketType.CMSG_CHARACTER_LIST, a},
+            //{NetworkPacketType.CMSG_CHARACTER_LIST, a},
         };
+
+        var packetHandlers = typeof(WorldServer).Assembly.GetTypes()
+            .Where(x => x.GetCustomAttribute<PacketHandlerAttribute>() != null)
+            .ToDictionary(x => x.GetCustomAttribute<PacketHandlerAttribute>()!.PacketType, x => x);
+
+        foreach (var (packetType, handlerType) in packetHandlers) 
+        {
+            var handler = ActivatorUtilities.CreateInstance(serviceProvider, handlerType);
+            PacketHandlers.Add(packetType, (IWorldPacketHandler)handler);
+            _logger.LogInformation("Registered packet handler {HandlerType} for packet type {PacketType}", handlerType, packetType);
+        }
     }
 
     #endregion
