@@ -27,7 +27,7 @@ public class CharacterListHandler : IWorldPacketHandler<CCharacterListPacket>
             return;       
         }
 
-        if (ctx.Connection.CharacterId != null)
+        if (ctx.Connection.Character != null)
         {
             _logger.LogWarning("Connection tried to request character list while already having a character selected");
             ctx.Connection.Close();

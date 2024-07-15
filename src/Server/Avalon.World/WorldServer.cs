@@ -4,25 +4,58 @@ using System.Diagnostics;
 using System.Reflection;
 using Avalon.Common.ValueObjects;
 using Avalon.Configuration;
+using Avalon.Database.Character.Repositories;
 using Avalon.Hosting;
 using Avalon.Hosting.Networking;
 using Avalon.Hosting.PluginTypes;
 using Avalon.Infrastructure;
+using Avalon.Network.Packets;
+using Avalon.Network.Packets.Abstractions;
+using Avalon.Network.Packets.Character;
 using Avalon.World.Entities;
+using Avalon.World.Filters;
 using Avalon.World.Maps.Navigation;
 using Avalon.World.Public;
 using Avalon.World.Scripts;
 using Avalon.World.Scripts.Abstractions;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using StackExchange.Redis;
 
 namespace Avalon.World;
 
+public interface IWorldPacketHandler
+{
+    void Execute(WorldConnection connection, Packet packet);
+}
+
+public abstract class WorldPacketHandler<TPacket> : IWorldPacketHandler where TPacket : Packet
+{
+    public abstract void Execute(WorldConnection connection, TPacket packet);
+    
+    void IWorldPacketHandler.Execute(WorldConnection connection, Packet packet)
+    {
+        Execute(connection, (TPacket)packet);
+    }
+}
+
+public class CharacterListHandler(ICharacterRepository characterRepository) : WorldPacketHandler<CCharacterListPacket>
+{
+    
+    public override void Execute(WorldConnection connection, CCharacterListPacket packet)
+    {
+        characterRepository.FindAllAsync();
+        Console.WriteLine("CharacterListHandler");
+    }
+}
+
+
 public interface IWorldServer
 {
     ImmutableArray<IWorldConnection> Connections { get; }
     IWorld World { get; }
+    Dictionary<NetworkPacketType, IWorldPacketHandler> PacketHandlers { get; }
 }
 
 public class WorldServer : ServerBase<WorldConnection>, IWorldServer
@@ -31,6 +64,8 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         [..base.Connections.Values.Cast<WorldConnection>()];
 
     public IWorld World => _world;
+    public Dictionary<NetworkPacketType, IWorldPacketHandler> PacketHandlers { get; }
+    public new Dictionary<Type, PacketHandlerCache> HandlerCache => base.HandlerCache;
 
     private readonly ConcurrentDictionary<Type, (PropertyInfo packetProperty, PropertyInfo connectionProperty)> _propertyCache = new();
     private readonly ILogger<WorldServer> _logger;
@@ -72,6 +107,13 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         _logger = loggerFactory.CreateLogger<WorldServer>();
         _pluginExecutor = pluginExecutor;
         _world = world as World ?? throw new InvalidOperationException("Invalid world instance");
+
+        var a = ActivatorUtilities.CreateInstance<CharacterListHandler>(serviceProvider);
+        
+        PacketHandlers = new Dictionary<NetworkPacketType, IWorldPacketHandler>()
+        {
+            {NetworkPacketType.CMSG_CHARACTER_LIST, a},
+        };
     }
 
     #endregion
@@ -157,6 +199,14 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
     
     private async Task Update(TimeSpan elapsedTime)
     {
+
+        foreach (var worldConnection in Connections)
+        {
+            var filter = new WorldSessionFilter(worldConnection);
+
+            worldConnection.Update(elapsedTime, filter);
+        }
+        
         await _world.Update(elapsedTime);
     }
     

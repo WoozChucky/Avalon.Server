@@ -2,6 +2,7 @@ using Avalon.Common.Mathematics;
 using Avalon.Domain.World;
 using Avalon.World.Pools;
 using Avalon.World.Public;
+using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Maps;
 using Microsoft.Extensions.Logging;
 
@@ -114,5 +115,22 @@ public class Map
         {
             chunk.Value.SpawnStartingEntities(poolManager);
         }
+    }
+
+    public ICreature? FindCreature(Guid creatureId)
+    {
+        foreach (var chunk in Chunks.Values)
+        {
+            var creatures = chunk.GetCreatures();
+            foreach (var creature in creatures)
+            {
+                if (creature.Id == creatureId)
+                {
+                    return creature;
+                }
+            }
+        }
+        
+        return null;
     }
 }

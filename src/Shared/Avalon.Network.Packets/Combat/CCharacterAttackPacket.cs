@@ -6,23 +6,25 @@ using ProtoBuf;
 
 [ProtoContract]
 [Packet(HandleOn = ComponentType.World, Type = NetworkPacketType.CMSG_ATTACK)]
-public class CPlayerAttackPacket : Packet
+public class CCharacterAttackPacket : Packet
 {
     public static NetworkPacketType PacketType = NetworkPacketType.CMSG_ATTACK;
     public static NetworkProtocol Protocol = NetworkProtocol.Tcp;
     public static NetworkPacketFlags Flags = NetworkPacketFlags.Encrypted;
     
     [ProtoMember(1)] public Guid Target { get; set; }
-    [ProtoMember(2)] public uint Damage { get; set; }
+    [ProtoMember(2)] public bool AutoAttack { get; set; }
+    [ProtoMember(3)] public uint? SpellId { get; set; }
 
-    public static NetworkPacket Create(Guid target, uint damage, Func<byte[], byte[]> encryptFunc)
+    public static NetworkPacket Create(Guid target, bool autoAttack, uint? spellId, Func<byte[], byte[]> encryptFunc)
     {
         using var memoryStream = new MemoryStream();
         
-        var p = new CPlayerAttackPacket
+        var p = new CCharacterAttackPacket
         {
             Target = target,
-            Damage = damage
+            AutoAttack = autoAttack,
+            SpellId = spellId
         };
         
         Serializer.Serialize(memoryStream, p);

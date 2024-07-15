@@ -27,6 +27,7 @@ public class WorldDbContext : DbContext
     public DbSet<ClassLevelStat> ClassLevelStats { get; set; } = null!;
     public DbSet<CharacterLevelExperience> CharacterLevelExperiences { get; set; } = null!;
     public DbSet<CharacterCreateInfo> CharacterCreateInfos { get; set; } = null!;
+    public DbSet<SpellTemplate> SpellTemplates { get; set; } = null!;
 
     public WorldDbContext(ILoggerFactory loggerFactory, IOptions<DatabaseConfiguration> opts)
     {
@@ -36,7 +37,9 @@ public class WorldDbContext : DbContext
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
-        optionsBuilder.UseLoggerFactory(_loggerFactory);
+        optionsBuilder
+            .UseLoggerFactory(_loggerFactory)
+            .EnableSensitiveDataLogging();
         
         optionsBuilder.UseMySql(_connectionString, ServerVersion.AutoDetect(_connectionString), mysql =>
         {
@@ -57,6 +60,7 @@ public class WorldDbContext : DbContext
         Configure(modelBuilder.Entity<ClassLevelStat>());
         Configure(modelBuilder.Entity<CharacterLevelExperience>());
         Configure(modelBuilder.Entity<CharacterCreateInfo>());
+        Configure(modelBuilder.Entity<SpellTemplate>());
     }
     
     private static void Configure(EntityTypeBuilder<CharacterLevelExperience> builder)
@@ -146,6 +150,34 @@ public class WorldDbContext : DbContext
     {
         builder.HasKey(b => b.Class);
         
+        var itemIdConverter = new ValueConverter<List<ItemTemplateId>, string>(
+            v => string.Join(",", v.Select(i => i.Value)),
+            v => v.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries)
+                .Select(val => new ItemTemplateId(ulong.Parse(val))).ToList());
+
+        var itemIdComparer = new ValueComparer<List<ItemTemplateId>>(
+            (c1, c2) => c1.SequenceEqual(c2),
+            c => c.Aggregate(0, (a, v) => HashCode.Combine(a, v.GetHashCode())),
+            c => c.ToList());
+        
+        builder.Property(b => b.StartingItems)
+            .HasConversion(itemIdConverter)
+            .Metadata.SetValueComparer(itemIdComparer);
+        
+        var spellIdConverter = new ValueConverter<List<SpellId>, string>(
+            v => string.Join(",", v.Select(i => i.Value)),
+            v => v.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries)
+                .Select(val => new SpellId(uint.Parse(val))).ToList());
+        
+        var spellIdComparer = new ValueComparer<List<SpellId>>(
+            (c1, c2) => c1.SequenceEqual(c2),
+            c => c.Aggregate(0, (a, v) => System.HashCode.Combine(a, v.GetHashCode())),
+            c => c.ToList());
+        
+        builder.Property(b => b.StartingSpells)
+            .HasConversion(spellIdConverter)
+            .Metadata.SetValueComparer(spellIdComparer);
+        
         builder.HasData([
             new CharacterCreateInfo
             {
@@ -154,7 +186,9 @@ public class WorldDbContext : DbContext
                 X = 25,
                 Y = 51,
                 Z = 25,
-                Rotation = 0
+                Rotation = 0,
+                StartingItems = [1, 2, 3],
+                StartingSpells = [1]
             },
             new CharacterCreateInfo
             {
@@ -163,7 +197,9 @@ public class WorldDbContext : DbContext
                 X = 25,
                 Y = 51,
                 Z = 25,
-                Rotation = 0
+                Rotation = 0,
+                StartingItems = [1, 2],
+                StartingSpells = [2]
             },
             new CharacterCreateInfo
             {
@@ -172,7 +208,9 @@ public class WorldDbContext : DbContext
                 X = 25,
                 Y = 51,
                 Z = 25,
-                Rotation = 0
+                Rotation = 0,
+                StartingItems = [1, 2],
+                StartingSpells = []
             },
             new CharacterCreateInfo
             {
@@ -181,7 +219,9 @@ public class WorldDbContext : DbContext
                 X = 25,
                 Y = 51,
                 Z = 25,
-                Rotation = 0
+                Rotation = 0,
+                StartingItems = [1, 2],
+                StartingSpells = []
             }
         ]);
     }
@@ -612,6 +652,74 @@ public class WorldDbContext : DbContext
             .Property(e => e.AllowedClasses)
             .HasConversion(characterClassConverter)
             .Metadata.SetValueComparer(characterClassComparer);
+
+        builder.HasData([
+            new ItemTemplate
+            {
+                Id = 1,
+                Name = "Health Potion",
+                Class = ItemClass.Consumable,
+                SubClass = ItemSubClass.Potion,
+                Flags = ItemTemplateFlags.NoSell,
+                MaxStackSize = 40,
+                DisplayId = 1,
+                Rarity = ItemRarity.Common,
+                BuyPrice = 10,
+                SellPrice = 5,
+                Slot = null,
+            },
+            new ItemTemplate
+            {
+                Id = 2,
+                Name = "Mana Potion",
+                Class = ItemClass.Consumable,
+                SubClass = ItemSubClass.Potion,
+                Flags = ItemTemplateFlags.NoSell,
+                MaxStackSize = 40,
+                DisplayId = 2,
+                Rarity = ItemRarity.Common,
+                BuyPrice = 13,
+                SellPrice = 6,
+                Slot = null,
+            },
+            new ItemTemplate
+            {
+                Id = 3,
+                Name = "Town Portal Scroll",
+                Class = ItemClass.Consumable,
+                SubClass = ItemSubClass.Scroll,
+                Flags = ItemTemplateFlags.NoSell,
+                MaxStackSize = 40,
+                DisplayId = 3,
+                Rarity = ItemRarity.Common,
+                BuyPrice = 100,
+                SellPrice = 50,
+                Slot = null,
+            },
+            new ItemTemplate()
+            {
+                Id = 4,
+                Name = "Rusted Sword",
+                Class = ItemClass.Weapon,
+                SubClass = ItemSubClass.OneHanded,
+                Flags = ItemTemplateFlags.NoSell,
+                MaxStackSize = 1,
+                DisplayId = 4,
+                Rarity = ItemRarity.Common,
+                BuyPrice = 100,
+                SellPrice = 50,
+                Slot = ItemSlotType.MainHand,
+                AllowedClasses = [CharacterClass.Warrior],
+                ItemPower = 2,
+                RequiredLevel = 1,
+                DamageMin1 = 1,
+                DamageMax1 = 3,
+                DamageType1 = DamageType.Physical,
+                StatType1 = StatType.AttackSpeed,
+                StatValue1 = 13, // 1.3 seconds
+            }
+        
+        ]);
     }
     
     private static void Configure(EntityTypeBuilder<MapTemplate> builder)
@@ -641,6 +749,42 @@ public class WorldDbContext : DbContext
                 CorpseY = 0,
                 MaxPlayers = 32
             },
+        ]);
+    }
+
+    private static void Configure(EntityTypeBuilder<SpellTemplate> builder)
+    {
+        builder.Property(b => b.Id)
+            .HasConversion(
+                v => v.Value,
+                v => new SpellId(v)
+            ).IsRequired();
+
+        builder.HasData([
+            new SpellTemplate
+            {
+                Id = 1,
+                Name = "Strike",
+                CastTime = 0,
+                Cooldown = 2500,
+                Cost = 25,
+                Range = SpellRange.Melee,
+                Effects = SpellEffect.Damage,
+                EffectValue = 10,
+                AllowedClasses = [CharacterClass.Warrior]
+            },
+            new SpellTemplate
+            {
+                Id = 2,
+                Name = "Lightning Bolt",
+                CastTime = 1000,
+                Cooldown = 1000,
+                Cost = 10,
+                Range = SpellRange.Medium,
+                Effects = SpellEffect.Damage,
+                EffectValue = 10,
+                AllowedClasses = [CharacterClass.Wizard]
+            }
         ]);
     }
 }

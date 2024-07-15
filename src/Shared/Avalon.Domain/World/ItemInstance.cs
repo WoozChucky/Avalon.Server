@@ -5,7 +5,7 @@ using Avalon.Common.ValueObjects;
 
 namespace Avalon.Domain.World;
 
-public class ItemInstance
+public class ItemInstance : IDbEntity<ItemInstanceId>
 {
     [Key]
     [DatabaseGenerated(DatabaseGeneratedOption.Identity)]

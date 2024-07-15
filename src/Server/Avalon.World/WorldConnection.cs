@@ -1,11 +1,15 @@
+using System.Collections.Concurrent;
 using System.Net.Sockets;
+using Avalon.Common.Threading;
 using Avalon.Common.ValueObjects;
 using Avalon.Hosting;
 using Avalon.Hosting.Networking;
 using Avalon.Network.Packets;
 using Avalon.Network.Packets.Abstractions;
+using Avalon.Network.Packets.Character;
 using Avalon.Network.Packets.Generic;
 using Avalon.World.Entities;
+using Avalon.World.Filters;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using Microsoft.Extensions.Logging;
@@ -14,23 +18,14 @@ namespace Avalon.World;
 
 public class WorldConnection : Connection, IWorldConnection
 {
-    public AccountId? AccountId { get; set; }
-
-    public CharacterId? CharacterId
+    private class WorldPacket
     {
-        get => _characterEntity?.Id;
-        set
-        {
-            if (value == null)
-            {
-                _characterEntity = null;
-                return;
-            }
-
-            if (_characterEntity != null)
-                _characterEntity.Id = value.Value;
-        }
+        public NetworkPacketType Type { get; set; }
+        public Packet? Payload { get; set; }
     }
+    
+    private readonly IWorldServer _server;
+    public AccountId? AccountId { get; set; }
 
     public ICharacter? Character
     {
@@ -38,10 +33,10 @@ public class WorldConnection : Connection, IWorldConnection
         set
         {
             _characterEntity = value as CharacterEntity;
-            CharacterId = _characterEntity?.Id;
         }
     }
-    
+
+    public IGameState GameState { get; }
     public long Latency { get; private set; }
     public long RoundTripTime { get; private set; }
     public bool InGame => Character != null;
@@ -53,11 +48,25 @@ public class WorldConnection : Connection, IWorldConnection
     private long _lastServerTicks = 0;
     private long _timeSyncOffset = 0;
 
-    public WorldConnection(IServerBase server, TcpClient client, ILoggerFactory loggerFactory, 
+    #region Filters
+
+    private readonly WorldSessionFilter _worldSessionFilter;
+    private readonly MapSessionFilter _worldMapFilter;
+
+    #endregion
+
+    private readonly LockedQueue<WorldPacket> _receiveQueue;
+
+    public WorldConnection(IWorldServer server, TcpClient client, ILoggerFactory loggerFactory, 
         PluginExecutor pluginExecutor, IPacketReader packetReader) 
-        : base(loggerFactory.CreateLogger<WorldConnection>(), server, pluginExecutor, packetReader)
+        : base(loggerFactory.CreateLogger<WorldConnection>(), (server as IServerBase)!, pluginExecutor, packetReader)
     {
+        _server = server;
+        _receiveQueue = new LockedQueue<WorldPacket>();
+        _worldSessionFilter = new WorldSessionFilter(this);
+        _worldMapFilter = new MapSessionFilter(this);
         Init(client);
+        GameState = new GameState();
     }
     
     public void EnableTimeSyncWorker()
@@ -82,6 +91,66 @@ public class WorldConnection : Connection, IWorldConnection
         _lastClientTicks = clientReceivedTimestamp;
         RoundTripTime = rtt;
         Latency = latency;
+    }
+    
+    public void Query(Task task, Action callback)
+    {
+        // Query processing
+    }
+
+    private ConcurrentQueue<Action> _callbackQueue = new ConcurrentQueue<Action>();
+    
+    public void Update(TimeSpan deltaTime, PacketFilter filter)
+    {
+        const uint MaxPacketsPerUpdate = 150;
+        uint processedPackets = 0;
+        List<WorldPacket> requeuePackets = [];
+
+        WorldPacket? packet = null;
+        
+        while (IsConnected && _receiveQueue.Next(out packet, worldPacket => filter.CanProcess(worldPacket.Type)))
+        {
+            if (packet == null)
+            {
+                _logger.LogWarning("Received null packet");
+                break;
+            }
+            
+            var handler = _server.PacketHandlers[packet.Type];
+            if (handler == null)
+            {
+                _logger.LogWarning("No handler for packet {PacketType}", packet.Type);
+                break;
+            }
+            
+            handler.Execute(this, packet.Payload!);
+            
+            // Sample Query using a db lookup and callback
+            /*
+            Task.Run(() =>
+            {
+
+            }).ContinueWith(t =>
+            {
+                _callbackQueue.Enqueue(() => ());
+            });
+            */
+            
+            processedPackets++;
+            if (processedPackets > MaxPacketsPerUpdate)
+            {
+                break;
+            }
+        }
+        
+        _receiveQueue.Readd(requeuePackets);
+        
+        ProcessQueryCallbacks();
+    }
+    
+    private void ProcessQueryCallbacks()
+    {
+        // Process query callbacks
     }
 
     private async Task TimeSyncWorker()
@@ -123,11 +192,25 @@ public class WorldConnection : Connection, IWorldConnection
 
     protected override async Task OnReceive(NetworkPacket packet, Packet? payload)
     {
-        await Server.CallListener(this, packet, payload);
+        if (_worldSessionFilter.CanProcess(packet.Header.Type) || _worldMapFilter.CanProcess(packet.Header.Type))
+        {
+            _receiveQueue.Add(new WorldPacket { Type = packet.Header.Type, Payload = payload });
+        }
+        else
+        {
+            await Server.CallListener(this, packet, payload);
+        }
     }
 
     protected override long GetServerTime()
     {
         return Server.ServerTime;
     }
+}
+
+public class GameState : IGameState
+{
+    public ISet<Guid> KnownEntities { get; } = new HashSet<Guid>();
+    public ISet<CharacterId> KnownCharacters { get; } = new HashSet<CharacterId>();
+    public ISet<object> KnownObjects { get; } = new HashSet<object>();
 }

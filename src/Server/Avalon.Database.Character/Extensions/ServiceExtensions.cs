@@ -18,9 +18,12 @@ public static class ServiceExtensions
             var options = provider.GetRequiredService<IOptionsSnapshot<DatabaseConfiguration>>();
             return new CharacterDbContext(loggerFactory, options);
         });
-
+        
         services
-            .AddScoped<ICharacterRepository, CharacterRepository>();
+            .AddScoped<ICharacterRepository, CharacterRepository>()
+            .AddScoped<ICharacterStatsRepository, CharacterStatsRepository>()
+            .AddScoped<ICharacterSpellRepository, CharacterSpellRepository>()
+            .AddScoped<ICharacterInventoryRepository, CharacterInventoryRepository>();
 
         return services;
     }

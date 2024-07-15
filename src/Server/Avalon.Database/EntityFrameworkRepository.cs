@@ -25,7 +25,15 @@ public class EntityFrameworkRepository<TEntity, TKey> : IRepository<TEntity, TKe
             .ToListAsync();
     }
 
-    public async Task<TEntity?> FindByIdAsync(TKey id)
+    public async Task<TEntity?> FindByIdAsync(TKey id, bool track = false)
+    {
+        return track
+            ? await Context.Set<TEntity>()
+                .FirstOrDefaultAsync(entity => EF.Property<TKey>(entity, nameof(IDbEntity<TKey>.Id))!.Equals(id))
+            : await FindByIdNoTrackingAsync(id);
+    }
+    
+    private async Task<TEntity?> FindByIdNoTrackingAsync(TKey id)
     {
         return await Context.Set<TEntity>()
             .AsNoTracking()
