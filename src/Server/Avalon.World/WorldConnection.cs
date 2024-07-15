@@ -6,7 +6,6 @@ using Avalon.Hosting;
 using Avalon.Hosting.Networking;
 using Avalon.Network.Packets;
 using Avalon.Network.Packets.Abstractions;
-using Avalon.Network.Packets.Character;
 using Avalon.Network.Packets.Generic;
 using Avalon.World.Entities;
 using Avalon.World.Filters;
@@ -56,6 +55,8 @@ public class WorldConnection : Connection, IWorldConnection
     #endregion
 
     private readonly LockedQueue<WorldPacket> _receiveQueue;
+    private readonly ConcurrentQueue<(Task<object>, Action<object>)> _genericTaskQueue = new();
+    private readonly ConcurrentQueue<(Task, Action)> _taskQueue = new();
 
     public WorldConnection(IWorldServer server, TcpClient client, ILoggerFactory loggerFactory, 
         PluginExecutor pluginExecutor, IPacketReader packetReader) 
@@ -68,6 +69,62 @@ public class WorldConnection : Connection, IWorldConnection
         Init(client);
         GameState = new GameState();
     }
+
+    #region Callback Processing
+
+    public void AddQueryCallback<T>(Task<T> task, Action<T> callback)
+    {
+        Task<object> wrappedTask = task.ContinueWith(t => (object)t.Result, TaskContinuationOptions.ExecuteSynchronously);
+        Action<object> wrappedCallback = result => callback((T)result);
+
+        _genericTaskQueue.Enqueue((wrappedTask, wrappedCallback));
+    }
+
+    public void AddQueryCallback(Task task, Action callback)
+    {
+        _taskQueue.Enqueue((task, callback));
+    }
+
+    public void ProcessQueryCallbacks()
+    {
+        while (_taskQueue.TryDequeue(out var item))
+        {
+            var (task, callback) = item;
+            if (task.IsCompleted)
+            {
+                callback?.Invoke();
+            }
+            else
+            {
+                // Re-enqueue the task if it is not completed yet
+                _taskQueue.Enqueue(item);
+            }
+        }
+
+        while (_genericTaskQueue.TryDequeue(out var item))
+        {
+            var (task, callback) = item;
+            if (task.IsCompleted)
+            {
+                if (task.IsCompletedSuccessfully)
+                {
+                    callback?.Invoke(task.Result);
+                }
+                else
+                {
+                    // Handle errors
+                    _logger.LogError($"Error processing task: {task.Exception}");
+                }
+            }
+            else
+            {
+                // Re-enqueue the task if it is not completed yet
+                _genericTaskQueue.Enqueue(item);
+            }
+        }
+    }
+
+    #endregion
     
     public void EnableTimeSyncWorker()
     {
@@ -93,12 +150,6 @@ public class WorldConnection : Connection, IWorldConnection
         Latency = latency;
     }
     
-    public void Query(Task task, Action callback)
-    {
-        // Query processing
-    }
-
-    private ConcurrentQueue<Action> _callbackQueue = new ConcurrentQueue<Action>();
     
     public void Update(TimeSpan deltaTime, PacketFilter filter)
     {
@@ -115,26 +166,22 @@ public class WorldConnection : Connection, IWorldConnection
                 _logger.LogWarning("Received null packet");
                 break;
             }
-            
-            var handler = _server.PacketHandlers[packet.Type];
-            if (handler == null)
-            {
-                _logger.LogWarning("No handler for packet {PacketType}", packet.Type);
-                break;
-            }
-            
-            handler.Execute(this, packet.Payload!);
-            
-            // Sample Query using a db lookup and callback
-            /*
-            Task.Run(() =>
-            {
 
-            }).ContinueWith(t =>
+            try 
             {
-                _callbackQueue.Enqueue(() => ());
-            });
-            */
+                var handler = _server.PacketHandlers[packet.Type];
+                if (handler == null)
+                {
+                    _logger.LogWarning("No handler for packet {PacketType}", packet.Type);
+                    break;
+                }
+                
+                handler.Execute(this, packet.Payload!);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error processing packet {PacketType}", packet.Type);
+            }
             
             processedPackets++;
             if (processedPackets > MaxPacketsPerUpdate)
@@ -146,11 +193,6 @@ public class WorldConnection : Connection, IWorldConnection
         _receiveQueue.Readd(requeuePackets);
         
         ProcessQueryCallbacks();
-    }
-    
-    private void ProcessQueryCallbacks()
-    {
-        // Process query callbacks
     }
 
     private async Task TimeSyncWorker()
