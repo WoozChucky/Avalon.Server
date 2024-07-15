@@ -68,6 +68,8 @@ public abstract class Connection : BackgroundService, IConnection
         CancellationTokenSource = new CancellationTokenSource();
         Task.Factory.StartNew(SendPacketsWhenAvailable, TaskCreationOptions.LongRunning);
     }
+    
+    protected bool IsConnected => _client?.Connected == true;
 
     protected abstract void OnHandshakeFinished();
 

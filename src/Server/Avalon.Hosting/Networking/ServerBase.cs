@@ -39,11 +39,13 @@ public abstract class ServerBase<T> : BackgroundService, IServerBase where T : I
     public ushort Port { get; }
     
     protected TcpListener Listener { get; }
-    protected IPacketManager PacketManager { get; }
+    public IPacketManager PacketManager { get; }
+    public readonly Dictionary<Type, PacketHandlerCache> HandlerCache = new();
+    
     protected readonly ConcurrentDictionary<Guid, IConnection> Connections = new();
     
     private readonly ILogger _logger;
-    private readonly Dictionary<Type, PacketHandlerCache> _handlerCache = new();
+    
     private readonly List<Func<IConnection, bool>> _connectionListeners = new();
     private readonly Stopwatch _serverTimer = new();
     private readonly CancellationTokenSource _stoppingToken = new();
@@ -137,14 +139,14 @@ public abstract class ServerBase<T> : BackgroundService, IServerBase where T : I
             return;
         }
         
-        if (!_handlerCache.TryGetValue(details.PacketType, out var handlerCache))
+        if (!HandlerCache.TryGetValue(details.PacketType, out var handlerCache))
         {
             // Cache reflection information
             var handlerExecuteMethod = details.PacketHandlerType.GetMethod("ExecuteAsync")
                                        ?? throw new InvalidOperationException($"Method 'ExecuteAsync' not found in {details.PacketHandlerType}");
 
             // Create factory delegate for packet handler instances
-            var objectFactory = ActivatorUtilities.CreateFactory(details.PacketHandlerType, Array.Empty<Type>());
+            var objectFactory = ActivatorUtilities.CreateFactory(details.PacketHandlerType, []);
             
             // Wrap ObjectFactory in a Func<IServiceProvider, object>
             object HandlerFactory(IServiceProvider sp) => objectFactory(sp, null);
@@ -155,7 +157,7 @@ public abstract class ServerBase<T> : BackgroundService, IServerBase where T : I
                 HandlerFactory = HandlerFactory
             };
 
-            _handlerCache[details.PacketType] = handlerCache;
+            HandlerCache[details.PacketType] = handlerCache;
         }
         
         var context = GetContextPacket(connection, payload, details.PacketType);
@@ -163,7 +165,7 @@ public abstract class ServerBase<T> : BackgroundService, IServerBase where T : I
         try
         {
             await using var scope = _serviceProvider.CreateAsyncScope();
-            
+
             var packetHandler = handlerCache.HandlerFactory(scope.ServiceProvider);
             await ((Task) handlerCache.ExecuteMethod.Invoke(packetHandler, new[] {context, _stoppingToken.Token})!).ConfigureAwait(false);
         }

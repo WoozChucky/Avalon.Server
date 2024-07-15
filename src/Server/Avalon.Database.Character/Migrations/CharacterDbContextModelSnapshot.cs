@@ -126,6 +126,45 @@ namespace Avalon.Database.Character.Migrations
                     b.ToTable("Characters");
                 });
 
+            modelBuilder.Entity("Avalon.Domain.Characters.CharacterInventory", b =>
+                {
+                    b.Property<ulong>("CharacterId")
+                        .HasColumnType("bigint unsigned");
+
+                    b.Property<ushort>("Container")
+                        .HasColumnType("smallint unsigned");
+
+                    b.Property<ushort>("Slot")
+                        .HasColumnType("smallint unsigned");
+
+                    b.Property<Guid>("ItemId")
+                        .HasColumnType("char(36)");
+
+                    b.HasKey("CharacterId", "Container", "Slot");
+
+                    b.HasIndex("CharacterId");
+
+                    b.ToTable("CharacterInventory");
+                });
+
+            modelBuilder.Entity("Avalon.Domain.Characters.CharacterSpell", b =>
+                {
+                    b.Property<ulong>("CharacterId")
+                        .HasColumnType("bigint unsigned");
+
+                    b.Property<uint>("SpellId")
+                        .HasColumnType("int unsigned");
+
+                    b.Property<uint>("Cooldown")
+                        .HasColumnType("int unsigned");
+
+                    b.HasKey("CharacterId", "SpellId");
+
+                    b.HasIndex("CharacterId");
+
+                    b.ToTable("CharacterSpells");
+                });
+
             modelBuilder.Entity("Avalon.Domain.Characters.CharacterStats", b =>
                 {
                     b.Property<ulong>("CharacterId")
@@ -172,10 +211,34 @@ namespace Avalon.Database.Character.Migrations
 
                     b.HasKey("CharacterId");
 
+                    b.HasIndex("CharacterId");
+
                     b.ToTable("CharacterStats", t =>
                         {
                             t.HasCheckConstraint("CK_CharacterStats_MinValues", "MaxHealth >= 0 AND Stamina >= 0 AND Strength >= 0 AND Agility >= 0 AND Intellect >= 0");
                         });
+                });
+
+            modelBuilder.Entity("Avalon.Domain.Characters.CharacterInventory", b =>
+                {
+                    b.HasOne("Avalon.Domain.Characters.Character", "Character")
+                        .WithMany()
+                        .HasForeignKey("CharacterId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Character");
+                });
+
+            modelBuilder.Entity("Avalon.Domain.Characters.CharacterSpell", b =>
+                {
+                    b.HasOne("Avalon.Domain.Characters.Character", "Character")
+                        .WithMany()
+                        .HasForeignKey("CharacterId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Character");
                 });
 
             modelBuilder.Entity("Avalon.Domain.Characters.CharacterStats", b =>

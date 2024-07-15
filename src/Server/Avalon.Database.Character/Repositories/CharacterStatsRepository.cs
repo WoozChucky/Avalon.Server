@@ -4,14 +4,14 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Avalon.Database.Character.Repositories;
 
-public interface ICreatureStatsRepository
+public interface ICharacterStatsRepository
 {
     Task<CharacterStats> CreateAsync(CharacterStats stats);
     Task<CharacterStats> UpdateAsync(CharacterStats stats);
     Task<CharacterStats?> GetByCharacterIdAsync(CharacterId characterId);
 }
 
-public class CharacterStatsRepository : ICreatureStatsRepository
+public class CharacterStatsRepository : ICharacterStatsRepository
 {
     private readonly CharacterDbContext _dbContext;
     

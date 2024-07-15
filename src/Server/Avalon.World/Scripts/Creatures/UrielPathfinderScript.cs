@@ -41,7 +41,19 @@ public class UrielPathfinderScript : AiScript
     {
         throw new NotImplementedException();
     }
-    
+
+    public override void OnHit(ICharacter attacker, uint damage)
+    {
+        _logger.LogInformation("{Name} has been hit by {Attacker} for {Damage} damage. Current Health: {Current}", Creature.Name, attacker.Name, damage, Creature.CurrentHealth);
+        Creature.CurrentHealth -= damage;
+        if (Creature.CurrentHealth <= 0)
+        {
+            _logger.LogInformation("{Name} has died", Creature.Name);
+            Creature.CurrentHealth = Creature.Health; // reset health while developing
+        }
+        base.OnHit(attacker, damage);
+    }
+
     public override async Task Update(TimeSpan deltaTime)
     {
         if (!_isPathfinding)

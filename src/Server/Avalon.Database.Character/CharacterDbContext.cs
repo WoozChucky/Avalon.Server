@@ -16,6 +16,8 @@ public class CharacterDbContext : DbContext
     
     public DbSet<Domain.Characters.Character> Characters { get; set; } = null!;
     public DbSet<CharacterStats> CharacterStats { get; set; } = null!;
+    public DbSet<CharacterInventory> CharacterInventory { get; set; } = null!;
+    public DbSet<CharacterSpell> CharacterSpells { get; set; } = null!;
 
     public CharacterDbContext(ILoggerFactory loggerFactory, IOptions<DatabaseConfiguration> opts)
     {
@@ -25,7 +27,9 @@ public class CharacterDbContext : DbContext
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
-        optionsBuilder.UseLoggerFactory(_loggerFactory);
+        optionsBuilder
+            .UseLoggerFactory(_loggerFactory)
+            .EnableSensitiveDataLogging();
         
         optionsBuilder.UseMySql(_connectionString, ServerVersion.AutoDetect(_connectionString), mysql =>
         {
@@ -38,6 +42,8 @@ public class CharacterDbContext : DbContext
     {
         Configure(modelBuilder.Entity<Domain.Characters.Character>());
         Configure(modelBuilder.Entity<CharacterStats>());
+        Configure(modelBuilder.Entity<CharacterInventory>());
+        Configure(modelBuilder.Entity<CharacterSpell>());
     }
     
     private static void Configure(EntityTypeBuilder<Domain.Characters.Character> builder)
@@ -78,5 +84,55 @@ public class CharacterDbContext : DbContext
                 "CK_CharacterStats_MinValues", 
                 "MaxHealth >= 0 AND Stamina >= 0 AND Strength >= 0 AND Agility >= 0 AND Intellect >= 0"
                 ));
+        
+        builder.HasIndex(b => b.CharacterId);
+    }
+    
+    private static void Configure(EntityTypeBuilder<CharacterInventory> builder)
+    {
+        builder.HasKey(b => new { b.CharacterId, b.Container, b.Slot });
+        
+        builder.Property(b => b.CharacterId)
+            .HasConversion(
+                v => v.Value,
+                v => new CharacterId(v)
+            ).IsRequired();
+        
+        builder.Property(b => b.ItemId)
+            .HasConversion(
+                v => v.Value,
+                v => new ItemInstanceId(v)
+            );
+        
+        builder.HasOne(e => e.Character)
+            .WithMany()
+            .HasForeignKey(e => e.CharacterId)
+            .OnDelete(DeleteBehavior.Cascade);
+        
+        builder.HasIndex(b => b.CharacterId);
+    }
+    
+    private static void Configure(EntityTypeBuilder<CharacterSpell> builder)
+    {
+        builder.HasKey(b => new { b.CharacterId, b.SpellId });
+        
+        builder.Property(b => b.CharacterId)
+            .HasConversion(
+                v => v.Value,
+                v => new CharacterId(v)
+            ).IsRequired();
+        
+        builder.Property(b => b.SpellId)
+            .HasConversion(
+                v => v.Value,
+                v => new SpellId(v)
+            );
+        
+        builder.HasOne(e => e.Character)
+            .WithMany()
+            .HasForeignKey(e => e.CharacterId)
+            .OnDelete(DeleteBehavior.Cascade);
+        
+        builder.HasIndex(b => b.CharacterId);
     }
 }

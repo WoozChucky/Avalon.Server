@@ -25,7 +25,7 @@ public class CharacterDeleteHandler : IWorldPacketHandler<CCharacterDeletePacket
             return;       
         }
 
-        if (ctx.Connection.CharacterId != null)
+        if (ctx.Connection.Character != null)
         {
             _logger.LogWarning("Connection tried to delete a character while already having a character selected");
             ctx.Connection.Close();

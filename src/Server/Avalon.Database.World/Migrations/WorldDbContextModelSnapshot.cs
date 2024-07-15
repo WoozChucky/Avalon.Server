@@ -33,6 +33,14 @@ namespace Avalon.World.Database.Migrations
                     b.Property<float>("Rotation")
                         .HasColumnType("float");
 
+                    b.Property<string>("StartingItems")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("StartingSpells")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
                     b.Property<float>("X")
                         .HasColumnType("float");
 
@@ -52,6 +60,8 @@ namespace Avalon.World.Database.Migrations
                             Class = (ushort)1,
                             Map = (ushort)1,
                             Rotation = 0f,
+                            StartingItems = "1,2,3",
+                            StartingSpells = "1",
                             X = 25f,
                             Y = 51f,
                             Z = 25f
@@ -61,6 +71,8 @@ namespace Avalon.World.Database.Migrations
                             Class = (ushort)2,
                             Map = (ushort)1,
                             Rotation = 0f,
+                            StartingItems = "1,2",
+                            StartingSpells = "2",
                             X = 25f,
                             Y = 51f,
                             Z = 25f
@@ -70,6 +82,8 @@ namespace Avalon.World.Database.Migrations
                             Class = (ushort)3,
                             Map = (ushort)1,
                             Rotation = 0f,
+                            StartingItems = "1,2",
+                            StartingSpells = "",
                             X = 25f,
                             Y = 51f,
                             Z = 25f
@@ -79,6 +93,8 @@ namespace Avalon.World.Database.Migrations
                             Class = (ushort)4,
                             Map = (ushort)1,
                             Rotation = 0f,
+                            StartingItems = "1,2",
+                            StartingSpells = "",
                             X = 25f,
                             Y = 51f,
                             Z = 25f
@@ -727,8 +743,8 @@ namespace Avalon.World.Database.Migrations
                     b.Property<uint>("SellPrice")
                         .HasColumnType("int unsigned");
 
-                    b.Property<int?>("Slot")
-                        .HasColumnType("int");
+                    b.Property<ushort?>("Slot")
+                        .HasColumnType("smallint unsigned");
 
                     b.Property<int?>("StatType1")
                         .HasColumnType("int");
@@ -796,6 +812,72 @@ namespace Avalon.World.Database.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("ItemTemplates");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1ul,
+                            AllowedClasses = "Warrior,Wizard,Hunter,Healer",
+                            BuyPrice = 10u,
+                            Class = 0,
+                            DisplayId = 1u,
+                            Flags = 256,
+                            MaxStackSize = 40u,
+                            Name = "Health Potion",
+                            Rarity = 1,
+                            SellPrice = 5u,
+                            SubClass = 0
+                        },
+                        new
+                        {
+                            Id = 2ul,
+                            AllowedClasses = "Warrior,Wizard,Hunter,Healer",
+                            BuyPrice = 13u,
+                            Class = 0,
+                            DisplayId = 2u,
+                            Flags = 256,
+                            MaxStackSize = 40u,
+                            Name = "Mana Potion",
+                            Rarity = 1,
+                            SellPrice = 6u,
+                            SubClass = 0
+                        },
+                        new
+                        {
+                            Id = 3ul,
+                            AllowedClasses = "Warrior,Wizard,Hunter,Healer",
+                            BuyPrice = 100u,
+                            Class = 0,
+                            DisplayId = 3u,
+                            Flags = 256,
+                            MaxStackSize = 40u,
+                            Name = "Town Portal Scroll",
+                            Rarity = 1,
+                            SellPrice = 50u,
+                            SubClass = 2
+                        },
+                        new
+                        {
+                            Id = 4ul,
+                            AllowedClasses = "Warrior",
+                            BuyPrice = 100u,
+                            Class = 1,
+                            DamageMax1 = 3u,
+                            DamageMin1 = 1u,
+                            DamageType1 = 0,
+                            DisplayId = 4u,
+                            Flags = 256,
+                            ItemPower = (ushort)2,
+                            MaxStackSize = 1u,
+                            Name = "Rusted Sword",
+                            Rarity = 1,
+                            RequiredLevel = (ushort)1,
+                            SellPrice = 50u,
+                            Slot = (ushort)9,
+                            StatType1 = 12,
+                            StatValue1 = 13u,
+                            SubClass = 100
+                        });
                 });
 
             modelBuilder.Entity("Avalon.Domain.World.MapTemplate", b =>
@@ -961,6 +1043,68 @@ namespace Avalon.World.Database.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("QuestTemplates");
+                });
+
+            modelBuilder.Entity("Avalon.Domain.World.SpellTemplate", b =>
+                {
+                    b.Property<uint>("Id")
+                        .HasColumnType("int unsigned");
+
+                    b.Property<string>("AllowedClasses")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<uint>("CastTime")
+                        .HasColumnType("int unsigned");
+
+                    b.Property<uint>("Cooldown")
+                        .HasColumnType("int unsigned");
+
+                    b.Property<uint>("Cost")
+                        .HasColumnType("int unsigned");
+
+                    b.Property<uint>("EffectValue")
+                        .HasColumnType("int unsigned");
+
+                    b.Property<ushort>("Effects")
+                        .HasColumnType("smallint unsigned");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<ushort>("Range")
+                        .HasColumnType("smallint unsigned");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("SpellTemplates");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1u,
+                            AllowedClasses = "[1]",
+                            CastTime = 0u,
+                            Cooldown = 2500u,
+                            Cost = 25u,
+                            EffectValue = 10u,
+                            Effects = (ushort)1,
+                            Name = "Strike",
+                            Range = (ushort)1
+                        },
+                        new
+                        {
+                            Id = 2u,
+                            AllowedClasses = "[2]",
+                            CastTime = 1000u,
+                            Cooldown = 1000u,
+                            Cost = 10u,
+                            EffectValue = 10u,
+                            Effects = (ushort)1,
+                            Name = "Lightning Bolt",
+                            Range = (ushort)10
+                        });
                 });
 
             modelBuilder.Entity("Avalon.Domain.World.ItemInstance", b =>

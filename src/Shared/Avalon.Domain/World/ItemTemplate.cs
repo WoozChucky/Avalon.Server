@@ -127,6 +127,10 @@ public enum StatType
     CritPct,
     AttackDamage,
     AbilityDamage,
+    Health,
+    Power,
+    AttackSpeed,
+    MovementSpeed,
 }
 
 public enum DamageType
@@ -154,7 +158,7 @@ public enum ItemTemplateFlags
     NoTrade = 1024,
 }
 
-public enum ItemSlotType
+public enum ItemSlotType : ushort
 {
     Head,
     Neck,
@@ -171,6 +175,7 @@ public enum ItemSlotType
 
 public enum ItemRarity
 {
+    Junk,
     Common,
     Uncommon,
     Rare,

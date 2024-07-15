@@ -1,5 +1,6 @@
 using Avalon.Database.Character.Repositories;
 using Avalon.Domain.Characters;
+using Avalon.Domain.World;
 using Avalon.Network.Packets.Character;
 using Avalon.World;
 using Avalon.World.Database.Repositories;
@@ -13,7 +14,11 @@ public class CharacterCreateHandler(
     ICharacterRepository characterRepository,
     ICharacterCreateInfoRepository createInfoRepository,
     IClassLevelStatRepository classLevelStatRepository,
-    ICreatureStatsRepository characterStatsRepository,
+    ICharacterStatsRepository characterStatsRepository,
+    ICharacterSpellRepository characterSpellRepository,
+    ICharacterInventoryRepository characterInventoryRepository,
+    IItemTemplateRepository itemTemplateRepository,
+    IItemInstanceRepository itemInstanceRepository,
     IWorld world)
     : IWorldPacketHandler<CCharacterCreatePacket>
 {
@@ -24,10 +29,10 @@ public class CharacterCreateHandler(
         {
             logger.LogWarning("Connection tried to create a character without being authenticated");
             ctx.Connection.Close();
-            return;       
+            return;
         }
 
-        if (ctx.Connection.CharacterId != null)
+        if (ctx.Connection.Character != null)
         {
             logger.LogWarning("Connection tried to create a character while already having a character selected");
             ctx.Connection.Close();
@@ -131,7 +136,63 @@ public class CharacterCreateHandler(
             
             await characterStatsRepository.CreateAsync(characterStats);
             
-            logger.LogInformation("Character {Name} created for account {AccountId}", ctx.Packet.Name, encrypt);
+            var characterSpellIds = createInfo.StartingSpells;
+            
+            foreach (var spellId in characterSpellIds)
+            {
+                var characterSpell = new CharacterSpell
+                {
+                    CharacterId = character.Id,
+                    SpellId = spellId,
+                };
+                
+                var spell = await characterSpellRepository.CreateAsync(characterSpell);
+            }
+            
+            var startingItems = createInfo.StartingItems;
+            var currentSlot = 0;
+            foreach (var itemId in startingItems)
+            {
+                var itemTemplate = await itemTemplateRepository.FindByIdAsync(itemId, true);
+                if (itemTemplate == null)
+                {
+                    logger.LogWarning("Item template {ItemId} does not exist", itemId);
+                    continue;
+                }
+                
+                var durability = itemTemplate.Class switch
+                {
+                    ItemClass.Weapon => 42U,
+                    ItemClass.Armor => 69U,
+                    _ => 0U
+                };
+                
+                var itemInstance = new ItemInstance
+                {
+                    Template = itemTemplate,
+                    TemplateId = itemId,
+                    CharacterId = character.Id,
+                    Count = itemTemplate.Stackable ? itemTemplate.MaxStackSize : 1,
+                    Charges = 0, // For future use
+                    Durability = durability,
+                    Flags = ItemInstanceFlags.None,
+                    UpdatedAt = DateTime.UtcNow,
+                };
+                
+                var item = await itemInstanceRepository.CreateAsync(itemInstance);
+                
+                var characterItem = new CharacterInventory
+                {
+                    CharacterId = character.Id,
+                    ItemId = item.Id,
+                    Container = InventoryType.Bag,
+                    Slot = (ushort) currentSlot++,
+                };
+                
+                await characterInventoryRepository.CreateAsync(characterItem);
+            }
+            
+            logger.LogInformation("Character {Name} created for account {AccountId}", ctx.Packet.Name, character.AccountId);
             
             ctx.Connection.Send(SCharacterCreatedPacket.Create(SCharacterCreateResult.Success, encrypt));
         }

@@ -1,29 +1,23 @@
 using Avalon.Common.Mathematics;
 using Avalon.Database.Character.Repositories;
-using Avalon.Domain.Characters;
 using Avalon.Network.Packets.Character;
 using Avalon.World;
 using Avalon.World.Entities;
-using Avalon.World.Maps;
+using Avalon.World.Public.Enums;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.Server.World.Handlers;
 
-public class CharacterSelectHandler : IWorldPacketHandler<CCharacterSelectedPacket>
+public class CharacterSelectHandler(
+    ILoggerFactory loggerFactory,
+    IWorld world,
+    ICharacterRepository characterRepository,
+    ICharacterInventoryRepository characterInventoryRepository,
+    ICharacterSpellRepository characterSpellRepository)
+    : IWorldPacketHandler<CCharacterSelectedPacket>
 {
-    private readonly ILogger<CharacterSelectHandler> _logger;
-    private readonly ICharacterRepository _characterRepository;
-    private readonly IAvalonMapManager _mapManager;
-    private readonly IWorld _world;
-    
-    public CharacterSelectHandler(ILogger<CharacterSelectHandler> logger, ICharacterRepository characterRepository, IAvalonMapManager mapManager, IWorld world)
-    {
-        _logger = logger;
-        _characterRepository = characterRepository;
-        _mapManager = mapManager;
-        _world = world;
-    }
-    
+    private readonly ILogger<CharacterSelectHandler> _logger = loggerFactory.CreateLogger<CharacterSelectHandler>();
+
     public async Task ExecuteAsync(WorldPacketContext<CCharacterSelectedPacket> ctx, CancellationToken token = default)
     {
         if (ctx.Connection.AccountId == null)
@@ -33,14 +27,14 @@ public class CharacterSelectHandler : IWorldPacketHandler<CCharacterSelectedPack
             return;       
         }
 
-        if (ctx.Connection.CharacterId != null)
+        if (ctx.Connection.Character != null)
         {
             _logger.LogWarning("Connection tried to select a character list while already having a character selected");
             ctx.Connection.Close();
             return;
         }
        
-        var character = await _characterRepository.FindByIdAndAccountAsync(ctx.Packet.CharacterId, ctx.Connection.AccountId);
+        var character = await characterRepository.FindByIdAndAccountAsync(ctx.Packet.CharacterId, ctx.Connection.AccountId);
         if (character == null)
         {
             _logger.LogWarning("Character {CharacterId} not found for account {AccountId}", ctx.Packet.CharacterId, ctx.Connection.AccountId);
@@ -52,26 +46,24 @@ public class CharacterSelectHandler : IWorldPacketHandler<CCharacterSelectedPack
         character.Online = true;
         character.Latency = (int) ctx.Connection.Latency;
         
-        var entity = new CharacterEntity
+        var entity = new CharacterEntity(loggerFactory)
         {
             Data = character,
             Position = new Vector3(character.X, character.Y, character.Z),
             Velocity = Vector3.zero,
             Orientation = new Vector3(0, character.Rotation, 0),
             EnteredWorld = DateTime.UtcNow,
-            Inventory = new CharacterInventory(),
         };
         
         ctx.Connection.Character = entity;
 
         try
         {
-            await _world.SpawnPlayerAsync(ctx.Connection);
+            await world.SpawnPlayerAsync(ctx.Connection);
         }
         catch (Exception e)
         {
             ctx.Connection.Character = null;
-            ctx.Connection.CharacterId = null;
             _logger.LogError(e, "Error while spawning player {CharacterId}", character.Id);
             return;
         }
@@ -95,10 +87,20 @@ public class CharacterSelectHandler : IWorldPacketHandler<CCharacterSelectedPack
         }, ctx.Connection.CryptoSession.Encrypt));
 
         // save the character to the database
-        await _characterRepository.UpdateAsync(character);
+        await characterRepository.UpdateAsync(character);
         
         _logger.LogInformation("Character {CharacterId} logged in for account {AccountId} at {Position}", character.Name, ctx.Connection.AccountId, ctx.Connection.Character.Position);
         
-        //TODO: Load the character's inventory
+        var items = await characterInventoryRepository.GetByCharacterIdAsync(character.Id);
+        
+        await entity[InventoryType.Equipment].LoadAsync(items.Where(i => i.Container == InventoryType.Equipment).ToList());
+        await entity[InventoryType.Bag].LoadAsync(items.Where(i => i.Container == InventoryType.Bag).ToList());
+        await entity[InventoryType.Bank].LoadAsync(items.Where(i => i.Container == InventoryType.Bank).ToList());
+        
+        var spells = await characterSpellRepository.GetCharacterSpellsAsync(character.Id);
+        
+        await entity.Spells.LoadAsync(spells);
+        
+        //TODO: Send the inventory to the client
     }
 }
