@@ -18,7 +18,14 @@ public class EntityFrameworkRepository<TEntity, TKey> : IRepository<TEntity, TKe
         Context = dbContext;
     }
 
-    public async Task<IList<TEntity>> FindAllAsync()
+    public async Task<IList<TEntity>> FindAllAsync(bool track = false)
+    {
+        return track
+            ? await Context.Set<TEntity>().ToListAsync()
+            : await FindAllNoTrackingAsync();
+    }
+    
+    private async Task<IList<TEntity>> FindAllNoTrackingAsync()
     {
         return await Context.Set<TEntity>()
             .AsNoTracking()
@@ -50,9 +57,24 @@ public class EntityFrameworkRepository<TEntity, TKey> : IRepository<TEntity, TKe
 
     public async Task<TEntity> CreateAsync(TEntity entity)
     {
-        var entry = Context.Set<TEntity>().Add(entity);
+        var entry = await Context.Set<TEntity>().AddAsync(entity);
         await Context.SaveChangesAsync();
         return entry.Entity;
+    }
+
+    public async Task<IList<TEntity>> CreateAsync(IList<TEntity> entities)
+    {
+        var entityList = new List<TEntity>();
+        
+        foreach (var entity in entities)
+        {
+            var entry = await Context.Set<TEntity>().AddAsync(entity);
+            entityList.Add(entry.Entity);
+        }
+        
+        await Context.SaveChangesAsync();
+
+        return entityList;
     }
 
     public async Task<TEntity> UpdateAsync(TEntity entity)

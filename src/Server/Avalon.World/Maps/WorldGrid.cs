@@ -107,11 +107,11 @@ public class WorldGrid
         chunk.OnPlayerMoved(connection);
     }
     
-    private Chunk? GetChunk(uint chunkId) => Maps.SelectMany(m => m.Chunks.Values).FirstOrDefault(c => c.Id == chunkId);
+    private Chunk? GetChunk(uint chunkId) => Maps.SelectMany(m => m.Chunks).FirstOrDefault(c => c.Id == chunkId);
 
     public ICreature? FindCreature(Guid creatureId, uint chunkId)
     {
-        var chunk = Maps.FirstOrDefault(m => m.Chunks.Values.FirstOrDefault(c => c.Id == chunkId) != null);
+        var chunk = Maps.FirstOrDefault(m => m.Chunks.FirstOrDefault(c => c.Id == chunkId) != null);
 
         return chunk?.FindCreature(creatureId);
     }

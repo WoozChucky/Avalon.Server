@@ -206,7 +206,7 @@ public class WorldConnection : Connection, IWorldConnection
                 
                 Send(SPingPacket.Create(_lastServerTicks, _lastClientTicks, RoundTripTime, _timeSyncOffset));
             
-                await Task.Delay(TimeSpan.FromSeconds(firstIteration ? 2 : 15), CancellationTokenSource!.Token);
+                await Task.Delay(TimeSpan.FromSeconds(firstIteration ? 2 : 10), CancellationTokenSource!.Token);
                 firstIteration = false;
             }
         }

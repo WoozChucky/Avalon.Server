@@ -59,7 +59,7 @@ public class CharacterSelectHandler(
 
         try
         {
-            await world.SpawnPlayerAsync(ctx.Connection);
+            world.SpawnPlayer(ctx.Connection);
         }
         catch (Exception e)
         {
@@ -93,13 +93,13 @@ public class CharacterSelectHandler(
         
         var items = await characterInventoryRepository.GetByCharacterIdAsync(character.Id);
         
-        await entity[InventoryType.Equipment].LoadAsync(items.Where(i => i.Container == InventoryType.Equipment).ToList());
-        await entity[InventoryType.Bag].LoadAsync(items.Where(i => i.Container == InventoryType.Bag).ToList());
-        await entity[InventoryType.Bank].LoadAsync(items.Where(i => i.Container == InventoryType.Bank).ToList());
+        entity[InventoryType.Equipment].Load(items.Where(i => i.Container == InventoryType.Equipment).ToList());
+        entity[InventoryType.Bag].Load(items.Where(i => i.Container == InventoryType.Bag).ToList());
+        entity[InventoryType.Bank].Load(items.Where(i => i.Container == InventoryType.Bank).ToList());
         
         var spells = await characterSpellRepository.GetCharacterSpellsAsync(character.Id);
         
-        await entity.Spells.LoadAsync(spells);
+        entity.Spells.Load(spells);
         
         //TODO: Send the inventory to the client
     }
