@@ -6,7 +6,7 @@ namespace Avalon.World.Database.Repositories;
 
 public interface IClassLevelStatRepository
 {
-    Task<IReadOnlyCollection<ClassLevelStat>> GetAllAsync();
+    Task<IReadOnlyCollection<ClassLevelStat>> FindAllAsync();
     Task<ClassLevelStat?> GetByLevelAsync(CharacterClass @class, ushort level);
 }
 
@@ -19,7 +19,7 @@ public class ClassLevelStatRepository : IClassLevelStatRepository
         _dbContext = dbContext;
     }
     
-    public async Task<IReadOnlyCollection<ClassLevelStat>> GetAllAsync()
+    public async Task<IReadOnlyCollection<ClassLevelStat>> FindAllAsync()
     {
         return await _dbContext.ClassLevelStats
             .AsNoTracking()

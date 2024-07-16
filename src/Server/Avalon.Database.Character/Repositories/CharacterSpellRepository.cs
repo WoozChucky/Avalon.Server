@@ -7,6 +7,7 @@ namespace Avalon.Database.Character.Repositories;
 public interface ICharacterSpellRepository
 {
     Task<CharacterSpell> CreateAsync(CharacterSpell spell);
+    Task<IList<CharacterSpell>> CreateAsync(IList<CharacterSpell> spells);
     Task<IReadOnlyCollection<CharacterSpell>> GetCharacterSpellsAsync(CharacterId characterId);
 }
 
@@ -24,6 +25,18 @@ public class CharacterSpellRepository : ICharacterSpellRepository
         var entity = await _dbContext.CharacterSpells.AddAsync(spell);
         await _dbContext.SaveChangesAsync();
         return entity.Entity;
+    }
+    
+    public async Task<IList<CharacterSpell>> CreateAsync(IList<CharacterSpell> spells)
+    {
+        var entityList = new List<CharacterSpell>();
+        foreach (var spell in spells)
+        {
+            var entity = await _dbContext.CharacterSpells.AddAsync(spell);
+            entityList.Add(entity.Entity);
+        }
+        await _dbContext.SaveChangesAsync();
+        return entityList;
     }
     
     public async Task<IReadOnlyCollection<CharacterSpell>> GetCharacterSpellsAsync(CharacterId characterId)

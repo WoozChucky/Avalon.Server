@@ -13,7 +13,8 @@ public class Map
     public ushort Id { get; set; }
     public MapTemplate Metadata { get; set; }
     public Vector3 Size { get; set; }
-    public Dictionary<Vector2, Chunk> Chunks { get; set; }
+    // public Dictionary<Vector2, Chunk> Chunks { get; set; }
+    public IReadOnlyCollection<Chunk> Chunks { get; set; }
     
     private readonly ILogger<Map> _logger;
     
@@ -64,11 +65,11 @@ public class Map
     
     public void DetectNeighbors()
     {
-        foreach (var chunk in Chunks.Values)
+        foreach (var chunk in Chunks)
         {
             // Find the neighbors of the chunk
             var neighbors = new List<IChunk>();
-            foreach (var otherChunk in Chunks.Values)
+            foreach (var otherChunk in Chunks)
             {
                 if (chunk == otherChunk) continue;
                 chunk.Neighbors.Clear();
@@ -93,9 +94,8 @@ public class Map
     
     public Chunk? GetChunk(Vector3 position)
     {
-        foreach (var key in Chunks.Keys)
+        foreach (var chunk in Chunks)
         {
-            var chunk = Chunks[key];
             // Calculate the chunk bounds
             var min = chunk.Metadata.Position;
             var max = chunk.Metadata.Position + new Vector3(chunk.Metadata.Size.x, 0, chunk.Metadata.Size.z);
@@ -113,13 +113,13 @@ public class Map
     {
         foreach (var chunk in Chunks)
         {
-            chunk.Value.SpawnStartingEntities(poolManager);
+            chunk.SpawnStartingEntities(poolManager);
         }
     }
 
     public ICreature? FindCreature(Guid creatureId)
     {
-        foreach (var chunk in Chunks.Values)
+        foreach (var chunk in Chunks)
         {
             var creatures = chunk.GetCreatures();
             foreach (var creature in creatures)

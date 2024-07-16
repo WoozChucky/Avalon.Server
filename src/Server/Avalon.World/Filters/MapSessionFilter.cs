@@ -5,7 +5,11 @@ namespace Avalon.World.Filters;
 
 public class MapSessionFilter : PacketFilter
 {
-    public MapSessionFilter(IWorldConnection connection) : base(connection) { }
+    private readonly IWorldConnection _connection;
+    public MapSessionFilter(IWorldConnection connection) : base(connection)
+    {
+        _connection = connection;
+    }
     
     public override bool Process(NetworkPacket packet)
     {
@@ -14,6 +18,9 @@ public class MapSessionFilter : PacketFilter
 
     public override bool CanProcess(NetworkPacketType type)
     {
+        if (_connection.Character == null) return false;
+        if (_connection.Character.Map < 1)  return false;
+        
         return type switch
         {
             NetworkPacketType.CMSG_MOVEMENT => true,

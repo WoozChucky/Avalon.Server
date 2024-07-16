@@ -210,7 +210,7 @@ public class Packet
 
 public class PacketHeader
 {
-    internal NetworkPacketType Type { get; set; }
+    internal NetworkPacketTypeEx Type { get; set; }
     internal NetworkPacketFlags Flags { get; set; }
     internal NetworkProtocol Protocol { get; set; }
     internal ushort Version { get; set; }
@@ -218,7 +218,7 @@ public class PacketHeader
     public uint Size => 2 + 2 + 2 + 2;
 }
 
-public enum NetworkPacketType : ushort
+public enum NetworkPacketTypeEx : ushort
 {
     // Add your packet types here
 }

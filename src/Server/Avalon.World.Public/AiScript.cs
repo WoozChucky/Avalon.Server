@@ -23,12 +23,12 @@ public abstract class AiScript {
         return this;
     }
     
-    public virtual async Task Update(TimeSpan deltaTime)
+    public virtual void Update(TimeSpan deltaTime)
     {
         foreach (var script in ChainedScripts)
         {
             if (script.ShouldRun())
-                await script.Update(deltaTime);
+                script.Update(deltaTime);
         }
     }
     

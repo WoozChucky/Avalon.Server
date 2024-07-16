@@ -26,10 +26,10 @@ public interface ICharacter : IGameEntity<ulong>
 
 public interface ICharacterInventory
 {
-    Task LoadAsync(IReadOnlyCollection<object> items);
+    void Load(IReadOnlyCollection<object> items);
 }
 
 public interface ICharacterSpells
 {
-    Task LoadAsync(IReadOnlyCollection<object> spells);
+    void Load(IReadOnlyCollection<object> spells);
 }
