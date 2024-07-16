@@ -231,7 +231,6 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
     
     private async Task Update(TimeSpan elapsedTime)
     {
-
         foreach (var worldConnection in Connections)
         {
             var filter = new WorldSessionFilter(worldConnection);

@@ -39,7 +39,7 @@ public class WorldConnection : Connection, IWorldConnection
     public long Latency { get; private set; }
     public long RoundTripTime { get; private set; }
     public bool InGame => Character != null;
-    public bool InMap => InGame && _characterEntity?.Data?.InstanceId != null;
+    public bool InMap => InGame && _characterEntity?.Map > 0;
     
     private CharacterEntity? _characterEntity;
     
@@ -169,14 +169,14 @@ public class WorldConnection : Connection, IWorldConnection
 
             try 
             {
-                var handler = _server.PacketHandlers[packet.Type];
-                if (handler == null)
+                if (_server.PacketHandlers.TryGetValue(packet.Type, out var handler))
+                {
+                    handler.Execute(this, packet.Payload!);
+                }
+                else
                 {
                     _logger.LogWarning("No handler for packet {PacketType}", packet.Type);
-                    break;
                 }
-                
-                handler.Execute(this, packet.Payload!);
             }
             catch (Exception ex)
             {
