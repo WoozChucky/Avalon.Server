@@ -2,7 +2,9 @@ using Avalon.Auth.Database.Repositories;
 using Avalon.Common.Mathematics;
 using Avalon.Database.Character.Repositories;
 using Avalon.Domain.Auth;
+using Avalon.Domain.World;
 using Avalon.World.Configuration;
+using Avalon.World.Database.Repositories;
 using Avalon.World.Entities;
 using Avalon.World.Maps;
 using Avalon.World.Pools;
@@ -23,10 +25,11 @@ public interface IWorld
     
     WorldGrid Grid { get; }
 
-    Task Update(TimeSpan deltaTime);
-    Task SpawnPlayerAsync(IWorldConnection connection);
+    void Update(TimeSpan deltaTime);
+    void SpawnPlayer(IWorldConnection connection);
     Task DespawnPlayerAsync(IWorldConnection connection);
     void OnScriptsHotReload(List<Type> aiScriptTypes);
+    StaticData Data { get; }
 }
 
 public class World : IWorld
@@ -36,6 +39,7 @@ public class World : IWorld
     public string CurrentVersion => _world?.Version ?? throw new InvalidOperationException("World not loaded.");
     public GameConfiguration Configuration => _configuration.Value;
     public WorldGrid Grid { get; private set; }
+    public StaticData Data { get; private set; }
 
     private Avalon.Domain.Auth.World? _world;
     private readonly ILogger<World> _logger;
@@ -51,7 +55,10 @@ public class World : IWorld
         IWorldRepository worldRepository, 
         IAvalonMapManager mapManager,
         IPoolManager poolManager,
-        IServiceScopeFactory serviceScopeFactory)
+        IServiceScopeFactory serviceScopeFactory,
+        ICharacterCreateInfoRepository characterCreateInfoRepository,
+        IClassLevelStatRepository classLevelStatRepository,
+        IItemTemplateRepository itemTemplateRepository)
     {
         _logger = loggerFactory.CreateLogger<World>();
         _loggerFactory = loggerFactory;
@@ -60,6 +67,7 @@ public class World : IWorld
         _mapManager = mapManager;
         _poolManager = poolManager;
         _serviceScopeFactory = serviceScopeFactory;
+        Data = new StaticData(characterCreateInfoRepository, classLevelStatRepository, itemTemplateRepository);
     }
 
     public async Task LoadAsync(CancellationToken token)
@@ -67,6 +75,8 @@ public class World : IWorld
         var world = await _worldRepository.FindByIdAsync(Id);
 
         _world = world ?? throw new InvalidOperationException($"World {Id} not found.");
+        
+        await Data.LoadAsync();
 
         await _mapManager.LoadAsync();
 
@@ -78,11 +88,15 @@ public class World : IWorld
         {
             var chunksMetadata = virtualMap.Chunks;
 
-            var chunks = new Dictionary<Vector2, Chunk>();
+            //var chunks = new Dictionary<Vector2, Chunk>();
+            var chunks = new List<Chunk>();
             
             foreach (var chunkMetadata in chunksMetadata)
             {
-                var chunk = new Chunk(_loggerFactory)
+                var chunk = new Chunk(
+                    _loggerFactory, 
+                    virtualMap.Id,
+                    new Vector2(chunkMetadata.Position.x, chunkMetadata.Position.z))
                 {
                     Id = chunkId++,
                     Enabled = false,
@@ -92,8 +106,9 @@ public class World : IWorld
 
                 await chunk.InitializeAsync();
                 
-                var key = new Vector2(chunkMetadata.Position.x, chunkMetadata.Position.z);
-                chunks[key] = chunk;
+                //var key = new Vector2(chunkMetadata.Position.x, chunkMetadata.Position.z);
+                //chunks[key] = chunk;
+                chunks.Add(chunk);
             }
             
             var map = new Map(_loggerFactory)
@@ -112,22 +127,38 @@ public class World : IWorld
         Grid.SpawnStartingEntities(_poolManager);
     }
     
-    public async Task Update(TimeSpan deltaTime)
+    public void Update(TimeSpan deltaTime)
     {
-        var tasks = Grid.Maps
-            .AsParallel()                                     // Process maps in parallel
-            .SelectMany(map => map.Chunks.Values.AsParallel() // Process chunks in parallel within each map
-                .Where(chunk => chunk.Enabled)                // Only process enabled chunks
-                .Select(chunk => chunk.Update(deltaTime)))
-            .ToList();
-
-        await Task.WhenAll(tasks);
+        
+        Parallel.ForEach(Grid.Maps, map =>
+        {
+            Parallel.ForEach(map.Chunks, chunk =>
+            {
+                if (chunk.Enabled)
+                {
+                    chunk.Update(deltaTime); // This might become a problem due to possible race conditions with db context operations
+                }
+            });
+        });
+        
+        
+        /*
+        foreach (var gridMap in Grid.Maps)
+        {
+            foreach (var chunk in gridMap.Chunks)
+            {
+                if (chunk.Enabled)
+                {
+                    chunk.Update(deltaTime);
+                }
+            }
+        }
+        */
     }
 
-    public Task SpawnPlayerAsync(IWorldConnection connection)
+    public void SpawnPlayer(IWorldConnection connection)
     {
         Grid.AddPlayer(connection);
-        return Task.CompletedTask;
     }
 
     public async Task DespawnPlayerAsync(IWorldConnection connection)
@@ -161,7 +192,7 @@ public class World : IWorld
 
     public void OnScriptsHotReload(List<Type> aiScriptTypes)
     {
-        var chunks = Grid.Maps.AsParallel().SelectMany(map => map.Chunks.Values);
+        var chunks = Grid.Maps.AsParallel().SelectMany(map => map.Chunks);
         var scriptTypeDict = aiScriptTypes.ToDictionary(t => t.Name, StringComparer.InvariantCultureIgnoreCase);
         var serviceProvider = _serviceScopeFactory.CreateScope().ServiceProvider;
         
@@ -187,4 +218,5 @@ public class World : IWorld
         });
         
     }
+    
 }

@@ -30,7 +30,6 @@ public class UrielPathfinderScript : AiScript
     public UrielPathfinderScript(ILoggerFactory loggerFactory, ICreature creature, IChunk chunk) : base(creature, chunk)
     {
         _logger = loggerFactory.CreateLogger<UrielPathfinderScript>();
-        creature.Speed = 3.0f;
         State = UrielState.Patrolling;
 
         Chain(this);
@@ -54,7 +53,7 @@ public class UrielPathfinderScript : AiScript
         base.OnHit(attacker, damage);
     }
 
-    public override async Task Update(TimeSpan deltaTime)
+    public override void Update(TimeSpan deltaTime)
     {
         if (!_isPathfinding)
         {

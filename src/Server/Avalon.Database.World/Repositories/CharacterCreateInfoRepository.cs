@@ -6,7 +6,7 @@ namespace Avalon.World.Database.Repositories;
 
 public interface ICharacterCreateInfoRepository
 {
-    Task<IReadOnlyCollection<CharacterCreateInfo>> GetAllAsync();
+    Task<IReadOnlyCollection<CharacterCreateInfo>> FindAllAsync();
     Task<CharacterCreateInfo?> GetByClassAsync(CharacterClass @class);
 }
 
@@ -19,7 +19,7 @@ public class CharacterCreateInfoRepository : ICharacterCreateInfoRepository
         _dbContext = dbContext;
     }
     
-    public async Task<IReadOnlyCollection<CharacterCreateInfo>> GetAllAsync()
+    public async Task<IReadOnlyCollection<CharacterCreateInfo>> FindAllAsync()
     {
         return await _dbContext.CharacterCreateInfos
             .AsNoTracking()

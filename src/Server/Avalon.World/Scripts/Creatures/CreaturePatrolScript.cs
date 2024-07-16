@@ -31,23 +31,24 @@ public sealed class CreaturePatrolScript : AiScript
         return State is PatrolState.Patrolling;
     }
 
-    public override async Task Update(TimeSpan deltaTime)
+    public override void Update(TimeSpan deltaTime)
     {
         var currentPosition = Creature.Position;
         var targetPosition = _waypoints[_currentWaypointIndex];
         
         if (Vector3.Distance(currentPosition, targetPosition) < 0.1f)
         {
-            _logger.LogInformation("Reached waypoint {Waypoint}", targetPosition);
             _currentWaypointIndex = (_currentWaypointIndex + 1) % (uint)_waypoints.Length;
             State = PatrolState.Idle;
         }
         else
         {
             var direction = Vector3.Normalize(targetPosition - currentPosition);
+            
+            var movementDelta = direction * Creature.Speed * (float)deltaTime.TotalSeconds;
         
             Creature.Velocity = direction;
-            Creature.Position += direction * Creature.Speed * (float)deltaTime.TotalSeconds;
+            Creature.Position += movementDelta;
         }
     }
 }

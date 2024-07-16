@@ -20,7 +20,7 @@ public class CreatureIdleScript : AiScript
         return State is true;
     }
     
-    public override async Task Update(TimeSpan deltaTime)
+    public override void Update(TimeSpan deltaTime)
     {
         Creature.Velocity = Vector3.zero;
         

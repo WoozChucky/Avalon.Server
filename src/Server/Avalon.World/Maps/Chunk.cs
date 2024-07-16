@@ -1,8 +1,7 @@
 using Avalon.Common.Mathematics;
-using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Movement;
 using Avalon.Network.Packets.World;
-using Avalon.World.Entities;
+using Avalon.World.Filters;
 using Avalon.World.Maps.Navigation;
 using Avalon.World.Pools;
 using Avalon.World.Public;
@@ -31,7 +30,9 @@ public class ObjectPool<T> where T : new()
 public class Chunk : IChunk
 {
     public uint Id { get; set; }
+    public ushort MapId { get; private set; }
     public bool Enabled { get; set; }
+    public Vector2 Position { get; private set; }
     public required ChunkMetadata Metadata { get; init; }
     public IChunkNavigator Navigator { get; private set; }
     public List<IChunk> Neighbors { get; set; } = [];
@@ -50,9 +51,11 @@ public class Chunk : IChunk
     
     private DtCrowd? _crowd;
 
-    public Chunk(ILoggerFactory loggerFactory)
+    public Chunk(ILoggerFactory loggerFactory, ushort mapId, Vector2 position)
     {
         _logger = loggerFactory.CreateLogger<Chunk>();
+        MapId = mapId;
+        Position = position;
         Navigator = new ChunkNavigator(loggerFactory);
         //_crowd = new DtCrowd(new DtCrowdConfig(0.5f), Navigator.Mesh as DtNavMesh);
     }
@@ -88,16 +91,34 @@ public class Chunk : IChunk
         }
     }
 
-    public async Task Update(TimeSpan deltaTime)
+    public void Update(TimeSpan deltaTime)
     {
         if (!Enabled) return;
         
+        // Step 1: Update DynamicMapTree
+        
+        // Step 2: Process character packets
         var connectionsSnapshot = GetConnections();
+        
+        foreach (var connection in connectionsSnapshot)
+        {
+            if (connection.Character == null || connection.Character.Map != MapId) continue;
+            
+            var filter = new MapSessionFilter(connection);
+            connection.Update(deltaTime, filter);
+        }
+        
+        // Step 3: Run CreatureRespawnScheduler
+        
+        // Step 4: Update characters at tick rate
+        
+        
         var creaturesSnapshot = GetCreatures();
         
-        var creatureUpdates = _creatures.Where(c => c.Script != null).Select(c => c.Script!.Update(deltaTime));
-        
-        await Task.WhenAll(creatureUpdates);
+        Parallel.ForEach(_creatures, creature =>
+        {
+            creature.Script?.Update(deltaTime);
+        });
 
         _lastBroadcastTime += (float) deltaTime.TotalSeconds;
         
@@ -165,8 +186,8 @@ public class Chunk : IChunk
         if (_lastBroadcastTime >= BroadcastInterval)
         {
             _lastBroadcastTime = 0;
-            await BroadcastPlayersAsync(connectionsSnapshot).ConfigureAwait(false);
-            await BroadcastCreaturesAsync(connectionsSnapshot, creaturesSnapshot).ConfigureAwait(false);
+            BroadcastPlayers(connectionsSnapshot);
+            BroadcastCreatures(connectionsSnapshot, creaturesSnapshot);
         }
     }
 
@@ -318,10 +339,8 @@ public class Chunk : IChunk
         }
     }
     
-    private async Task BroadcastPlayersAsync(IReadOnlyList<IWorldConnection> connectionsSnapshot)
+    private void BroadcastPlayers(IReadOnlyList<IWorldConnection> connectionsSnapshot)
     {
-        var tasks = new List<Task>();
-
         Parallel.ForEach(connectionsSnapshot, connection =>
         {
             if (!connection.InMap) return;
@@ -350,21 +369,12 @@ public class Chunk : IChunk
 
             if (playerPackets.Count > 0)
             {
-                tasks.Add(SendPlayerUpdateAsync(connection, playerPackets));
+                connection.Send(SPlayerPositionUpdatePacket.Create(playerPackets.ToArray(), connection.CryptoSession.Encrypt));
             }
         });
-
-        await Task.WhenAll(tasks);
-    }
-    
-    private Task SendPlayerUpdateAsync(IWorldConnection connection, List<SPlayerPacket> playerPackets)
-    {
-        if (playerPackets.Count == 0) return Task.CompletedTask;
-        connection.Send(SPlayerPositionUpdatePacket.Create(playerPackets.ToArray(), connection.CryptoSession.Encrypt));
-        return Task.CompletedTask;
     }
 
-    private Task BroadcastCreaturesAsync(IReadOnlyList<IWorldConnection> connectionsSnapshot, IReadOnlyList<ICreature> creaturesSnapshot)
+    private void BroadcastCreatures(IReadOnlyList<IWorldConnection> connectionsSnapshot, IReadOnlyList<ICreature> creaturesSnapshot)
     {
         // Broadcast Creature positions
         var creaturePackets = new List<CreaturePacket>();
@@ -384,14 +394,12 @@ public class Chunk : IChunk
             });
         }
         
-        if (creaturePackets.Count == 0) return Task.CompletedTask;
+        if (creaturePackets.Count == 0) return;
         
         Parallel.ForEach(connectionsSnapshot, connection =>
         {
             connection.Send(SNpcUpdatePacket.Create(creaturePackets.ToArray(), connection.CryptoSession.Encrypt));
         });
-        
-        return Task.CompletedTask;
     }
 
     public void OnPlayerMoved(IWorldConnection connection)

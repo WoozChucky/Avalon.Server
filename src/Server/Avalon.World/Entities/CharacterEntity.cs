@@ -179,11 +179,10 @@ public class CharacterInventoryContainer : ICharacterInventory
         Type = type;
     }
     
-    public Task LoadAsync(IReadOnlyCollection<object> items)
+    public void Load(IReadOnlyCollection<object> items)
     {
         var castedItems = items.Cast<CharacterInventory>().ToList();
         _logger.LogInformation("Loading {Count} items into {Type} inventory", castedItems.Count, Type);
-        return Task.CompletedTask;
     }
 }
 
@@ -196,10 +195,9 @@ public class CharacterSpellContainer : ICharacterSpells
         _logger = loggerFactory.CreateLogger<CharacterSpellContainer>();
     }
     
-    public Task LoadAsync(IReadOnlyCollection<object> spells)
+    public void Load(IReadOnlyCollection<object> spells)
     {
         var castedSpells = spells.Cast<CharacterSpell>().ToList();
         _logger.LogInformation("Loading {Count} spells into character", castedSpells.Count);
-        return Task.CompletedTask;
     }
 }

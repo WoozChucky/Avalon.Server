@@ -38,7 +38,7 @@ public class UrielTownPatrolScript : AiScript
         Chain(_idleScript);
     }
     
-    public override async Task Update(TimeSpan deltaTime)
+    public override void Update(TimeSpan deltaTime)
     {
         switch (_currentScript)
         {
@@ -59,7 +59,7 @@ public class UrielTownPatrolScript : AiScript
                 break;
         }
         
-        await base.Update(deltaTime); // Will call Update on all chained scripts, and they will run if ShouldRun returns true
+        base.Update(deltaTime); // Will call Update on all chained scripts, and they will run if ShouldRun returns true
     }
 
     public override object State { get; set; }

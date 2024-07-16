@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Reflection;
+using Avalon.Common.Utils;
 using Avalon.Common.ValueObjects;
 using Avalon.Configuration;
 using Avalon.Hosting;
@@ -174,9 +175,33 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         }
         return Task.CompletedTask;
     }
+
+    private uint minUpdateDiff = 1;
+    private uint realCurrentTime = 0;
+    private uint realPreviousTime = TimeUtils.GetMSTime();
+
+    private uint maxCoreStuckTime = 60000;
+    private uint halfMaxCoreStuckTime = 30000;
     
     private async ValueTask Tick()
     {
+        realCurrentTime = TimeUtils.GetMSTime();
+
+        var diff = TimeUtils.GetMSTimeDiff(realPreviousTime, realCurrentTime);
+        if (diff < minUpdateDiff)
+        {
+            var sleepTime = minUpdateDiff - diff;
+            if (sleepTime >= halfMaxCoreStuckTime)
+                _logger.LogWarning("WorldUpdateLoop waiting for {SleepTime}ms with MaxCoreStuckTime set to {MaxCoreStuckTime}ms", sleepTime, maxCoreStuckTime);
+            
+            await Task.Delay((int)sleepTime);
+        }
+        
+        await Update(TimeSpan.FromMilliseconds(diff));
+        
+        realPreviousTime = realCurrentTime;
+
+        /*
         var currentTicks = _gameTime.Elapsed.Ticks;
         _accumulatedElapsedTime += TimeSpan.FromTicks(currentTicks - _previousTicks);
         _previousTicks = currentTicks;
@@ -193,15 +218,15 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
             _logger.LogWarning("Server is running slow. Accumulated time: {AccumulatedTime}ms", _accumulatedElapsedTime);
             _accumulatedElapsedTime = _maxElapsedTime;
         }
-        
+
         while (_accumulatedElapsedTime >= _targetElapsedTime)
         {
             _accumulatedElapsedTime -= _targetElapsedTime;
-            
+
             await Update(TimeSpan.FromMilliseconds(_targetElapsedTime.TotalMilliseconds));
         }
-
         // todo detect lags
+        */
     }
     
     private async Task Update(TimeSpan elapsedTime)
@@ -214,7 +239,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
             worldConnection.Update(elapsedTime, filter);
         }
         
-        await _world.Update(elapsedTime);
+        _world.Update(elapsedTime);
     }
     
     private bool NewConnection(IConnection connection)
