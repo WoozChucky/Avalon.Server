@@ -14,11 +14,15 @@ public class UrielTownPatrolScript : AiScript
     private Vector3[] _waypoints = new Vector3[]
     {
         new Vector3(28.15f, 50.0f, 90.10f),
-        new Vector3(56.65f, 50.0f, 90.03f)
+        new Vector3(56.65f, 50.0f, 90.03f),
+        new Vector3(64.01f, 50.0f, 72.14f),
+        new Vector3(45.85f, 50.0f, 58.63f),
+        new Vector3(28.15f, 50.0f, 90.10f),
     };
     
     private readonly AiScript _patrolScript;
     private readonly AiScript _idleScript;
+    private readonly AiScript _combatScript;
     
     private AiScript _currentScript;
 
@@ -32,10 +36,20 @@ public class UrielTownPatrolScript : AiScript
         _idleScript = new CreatureIdleScript(creature, chunk);
         _idleScript.State = false;
         
+        _combatScript = new CreatureCombatScript(loggerFactory, creature, chunk);
+        _combatScript.State = CreatureCombatScript.CombatState.None;
+        
         _currentScript = _patrolScript;
         
         Chain(_patrolScript);
         Chain(_idleScript);
+        Chain(_combatScript);
+    }
+    
+    public override object State { get; set; }
+    protected override bool ShouldRun()
+    {
+        return true;
     }
     
     public override void Update(TimeSpan deltaTime)
@@ -43,15 +57,24 @@ public class UrielTownPatrolScript : AiScript
         switch (_currentScript)
         {
             case CreaturePatrolScript patrolScript:
-                if (patrolScript.State is CreaturePatrolScript.PatrolState.Idle)
+                if (patrolScript.State is CreaturePatrolScript.PatrolState.Idle && _combatScript.State is CreatureCombatScript.CombatState.None)
                 {
                     _currentScript = _idleScript;
                     _idleScript.State = true;
                 }
-                
                 break;
+            
             case CreatureIdleScript idleScript:
-                if (idleScript.State is false)
+                if (idleScript.State is false && _combatScript.State is CreatureCombatScript.CombatState.None)
+                {
+                    _currentScript = _patrolScript;
+                    _patrolScript.State = CreaturePatrolScript.PatrolState.Patrolling;
+                }
+                break;
+                
+            case CreatureCombatScript combatScript:
+                _logger.LogInformation("Combat state: {State}", combatScript.State);
+                if (combatScript.State is CreatureCombatScript.CombatState.None)
                 {
                     _currentScript = _patrolScript;
                     _patrolScript.State = CreaturePatrolScript.PatrolState.Patrolling;
@@ -62,9 +85,9 @@ public class UrielTownPatrolScript : AiScript
         base.Update(deltaTime); // Will call Update on all chained scripts, and they will run if ShouldRun returns true
     }
 
-    public override object State { get; set; }
-    protected override bool ShouldRun()
+    public override void OnHit(ICharacter attacker, uint damage)
     {
-        return true;
+        //_combatScript.OnHit(attacker, damage);
+        base.OnHit(attacker, damage); // Will call OnHit on all chained scripts, and they will run if ShouldRun returns true
     }
 }

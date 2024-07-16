@@ -276,7 +276,8 @@ public class Chunk : IChunk
                 PositionZ = creature.Position.z,
                 VelocityX = creature.Velocity.x,
                 VelocityY = creature.Velocity.y,
-                VelocityZ = creature.Velocity.z
+                VelocityZ = creature.Velocity.z,
+                Orientation = creature.Orientation.y,
             });
         }
         
@@ -390,8 +391,10 @@ public class Chunk : IChunk
                 PositionZ = creature.Position.z,
                 VelocityX = creature.Velocity.x,
                 VelocityY = creature.Velocity.y,
-                VelocityZ = creature.Velocity.z
+                VelocityZ = creature.Velocity.z,
+                Orientation = creature.Orientation.y,
             });
+            
         }
         
         if (creaturePackets.Count == 0) return;

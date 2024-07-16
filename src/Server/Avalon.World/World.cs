@@ -1,11 +1,13 @@
 using Avalon.Auth.Database.Repositories;
 using Avalon.Common.Mathematics;
+using Avalon.Common.Utils;
 using Avalon.Database.Character.Repositories;
 using Avalon.Domain.Auth;
-using Avalon.Domain.World;
+using Avalon.Hosting.Networking;
 using Avalon.World.Configuration;
 using Avalon.World.Database.Repositories;
 using Avalon.World.Entities;
+using Avalon.World.Filters;
 using Avalon.World.Maps;
 using Avalon.World.Pools;
 using Avalon.World.Public;
@@ -41,7 +43,10 @@ public class World : IWorld
     public WorldGrid Grid { get; private set; }
     public StaticData Data { get; private set; }
 
+    private const ushort WorldTimersCount = 5;
+    
     private Avalon.Domain.Auth.World? _world;
+    
     private readonly ILogger<World> _logger;
     private readonly ILoggerFactory _loggerFactory;
     private readonly IOptions<GameConfiguration> _configuration;
@@ -49,9 +54,10 @@ public class World : IWorld
     private readonly IAvalonMapManager _mapManager;
     private readonly IPoolManager _poolManager;
     private readonly IServiceScopeFactory _serviceScopeFactory;
+    private readonly IntervalTimer[] _timers = new IntervalTimer[WorldTimersCount];
 
     public World(ILoggerFactory loggerFactory,
-        IOptions<GameConfiguration> configuration, 
+        IOptions<GameConfiguration> configuration,
         IWorldRepository worldRepository, 
         IAvalonMapManager mapManager,
         IPoolManager poolManager,
@@ -68,6 +74,12 @@ public class World : IWorld
         _poolManager = poolManager;
         _serviceScopeFactory = serviceScopeFactory;
         Data = new StaticData(characterCreateInfoRepository, classLevelStatRepository, itemTemplateRepository);
+        
+        for (var i = 0; i < WorldTimersCount; ++i)
+        {
+            _timers[i] = new IntervalTimer();
+            _timers[i].SetInterval(5000);
+        }
     }
 
     public async Task LoadAsync(CancellationToken token)
@@ -129,6 +141,19 @@ public class World : IWorld
     
     public void Update(TimeSpan deltaTime)
     {
+        for (var i = 0; i < WorldTimersCount; ++i)
+        {
+            if (_timers[i].GetCurrent() >= 0)
+                _timers[i].Update((long) deltaTime.TotalMilliseconds);
+            else
+                _timers[i].SetCurrent(0);
+        }
+
+        if (_timers[0].Passed())
+        {
+            // do something...
+            _timers[0].Reset();
+        }
         
         Parallel.ForEach(Grid.Maps, map =>
         {
