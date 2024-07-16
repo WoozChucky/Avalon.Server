@@ -79,7 +79,21 @@ public class EntityFrameworkRepository<TEntity, TKey> : IRepository<TEntity, TKe
 
     public async Task<TEntity> UpdateAsync(TEntity entity)
     {
-        var entry = Context.Set<TEntity>().Update(entity);
+        // Detach existing entity if tracked
+        var existingEntity = await Context.Set<TEntity>().FindAsync(entity.Id);
+        if (existingEntity != null)
+        {
+            Context.Entry(existingEntity).State = EntityState.Detached;
+        }
+
+        // Attach and set state to modified
+        var entry = Context.Entry(entity);
+        if (entry.State == EntityState.Detached)
+        {
+            Context.Set<TEntity>().Attach(entity);
+        }
+        entry.State = EntityState.Modified;
+        
         await Context.SaveChangesAsync();
         return entry.Entity;
     }
@@ -94,10 +108,5 @@ public class EntityFrameworkRepository<TEntity, TKey> : IRepository<TEntity, TKe
 
         Context.Set<TEntity>().Remove(entity);
         await Context.SaveChangesAsync();
-    }
-
-    public void DisposeContext()
-    {
-        Context.Dispose();
     }
 }

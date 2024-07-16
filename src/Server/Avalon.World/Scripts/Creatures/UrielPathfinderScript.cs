@@ -31,8 +31,6 @@ public class UrielPathfinderScript : AiScript
     {
         _logger = loggerFactory.CreateLogger<UrielPathfinderScript>();
         State = UrielState.Patrolling;
-
-        Chain(this);
     }
     
     public override object State { get; set; }
@@ -43,11 +41,11 @@ public class UrielPathfinderScript : AiScript
 
     public override void OnHit(ICharacter attacker, uint damage)
     {
-        _logger.LogInformation("{Name} has been hit by {Attacker} for {Damage} damage. Current Health: {Current}", Creature.Name, attacker.Name, damage, Creature.CurrentHealth);
+        //_logger.LogInformation("{Name} has been hit by {Attacker} for {Damage} damage. Current Health: {Current}", Creature.Name, attacker.Name, damage, Creature.CurrentHealth);
         Creature.CurrentHealth -= damage;
         if (Creature.CurrentHealth <= 0)
         {
-            _logger.LogInformation("{Name} has died", Creature.Name);
+            //_logger.LogInformation("{Name} has died", Creature.Name);
             Creature.CurrentHealth = Creature.Health; // reset health while developing
         }
         base.OnHit(attacker, damage);

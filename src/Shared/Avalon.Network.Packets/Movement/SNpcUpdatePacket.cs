@@ -52,4 +52,5 @@ public class CreaturePacket
     [ProtoMember(6)] public float VelocityX { get; set; }
     [ProtoMember(7)] public float VelocityY { get; set; }
     [ProtoMember(8)] public float VelocityZ { get; set; }
+    [ProtoMember(9)] public float Orientation { get; set; }
 }

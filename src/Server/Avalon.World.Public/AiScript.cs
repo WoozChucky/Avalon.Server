@@ -36,18 +36,19 @@ public abstract class AiScript {
     
     protected abstract bool ShouldRun();
     
-    public virtual void OnCharacterInteraction(ICharacter character)
-    {
-        
-    }
-    
     public virtual void OnHit(ICreature attacker, uint damage)
     {
-        
+        foreach (var script in ChainedScripts)
+        {
+            script.OnHit(attacker, damage);
+        }
     }
     
     public virtual void OnHit(ICharacter attacker, uint damage)
     {
-        
+        foreach (var script in ChainedScripts)
+        {
+            script.OnHit(attacker, damage);
+        }
     }
 }
