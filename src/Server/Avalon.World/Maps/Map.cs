@@ -1,4 +1,5 @@
 using Avalon.Common.Mathematics;
+using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.World.Pools;
 using Avalon.World.Public;
@@ -40,7 +41,7 @@ public class Map
             throw new InvalidOperationException($"Chunk not found for position {position}");
         }
         
-        chunk.AddPlayer(connection);
+        chunk.AddCharacter(connection);
         _logger.LogInformation("Player {CharacterId} added to chunk {ChunkId} of map {MapId}", connection.Character.Name, chunk.Id, Id);
     }
 
@@ -59,7 +60,7 @@ public class Map
             throw new InvalidOperationException($"Chunk not found for position {position}");
         }
         
-        chunk.RemovePlayer(connection);
+        chunk.RemoveCharacter(connection);
         _logger.LogInformation("Player {CharacterId} removed from chunk {ChunkId} of map {MapId}", connection.Character.Name, chunk.Id, Id);
     }
     
@@ -117,11 +118,11 @@ public class Map
         }
     }
 
-    public ICreature? FindCreature(Guid creatureId)
+    public ICreature? FindCreature(CreatureId creatureId)
     {
         foreach (var chunk in Chunks)
         {
-            var creatures = chunk.GetCreatures();
+            var creatures = chunk.Creatures.Values;
             foreach (var creature in creatures)
             {
                 if (creature.Id == creatureId)

@@ -1,3 +1,4 @@
+using Avalon.Common.ValueObjects;
 using Avalon.Network.Packets.Abstractions;
 using ProtoBuf;
 
@@ -10,10 +11,10 @@ public class SCreatureAttackAnimationPacket : Packet
     public static NetworkProtocol Protocol = NetworkProtocol.Tcp;
     public static NetworkPacketFlags Flags = NetworkPacketFlags.Encrypted;
     
-    [ProtoMember(1)] public Guid Attacker { get; set; }
+    [ProtoMember(1)] public ulong Attacker { get; set; }
     [ProtoMember(2)] public ushort AnimationId { get; set; }
     
-    public static NetworkPacket Create(Guid attacker, ushort animationId, Func<byte[], byte[]> encryptFunc)
+    public static NetworkPacket Create(CreatureId attacker, ushort animationId, Func<byte[], byte[]> encryptFunc)
     {
         using var memoryStream = new MemoryStream();
         

@@ -14,7 +14,6 @@ using Avalon.Network.Packets;
 using Avalon.Network.Packets.Abstractions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using ProtoBuf;
 
 namespace Avalon.Hosting.Networking;
 
@@ -189,7 +188,7 @@ public abstract class Connection : BackgroundService, IConnection
                     {
                         _logger.LogError(e, "Failed to send packet");
                     }
-                    if (packet.Header.Type != NetworkPacketType.SMSG_NPC_UPDATE && packet.Header.Type != NetworkPacketType.SMSG_PING)
+                    if (packet.Header.Type != NetworkPacketType.SMSG_CREATURE_UPDATE && packet.Header.Type != NetworkPacketType.SMSG_PING)
                         _logger.LogDebug("OUT: {Type} => {Packet}", packet.Header.Type, JsonSerializer.Serialize(packet));
                 }
                 else
