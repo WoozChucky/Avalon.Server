@@ -76,7 +76,6 @@ public class Chunk : IChunk
         foreach (var character in _characters.Values)
         {
             // Update visibility of game entities
-            var a = _creatures.Values;
             character.GameState.Update(_creatures, _characters);
         }
         
@@ -149,8 +148,7 @@ public class Chunk : IChunk
                 Orientation = updatedCreature.Orientation.y,
                 MoveState = updatedCreature.MoveState,
                 Alive = updatedCreature.CurrentHealth > 0
-            });
-                    
+            });     
         }
                 
         foreach (var removedCreatureId in character.GameState.RemovedCreatures)
@@ -163,18 +161,64 @@ public class Chunk : IChunk
             character.Connection.Send(SCreatureAddedPacket.Create(addedCreatures, character.Connection.CryptoSession.Encrypt));
         }
         
-        if (_lastBroadcastTime >= BroadcastInterval)
+        if (updatedCreatures.Count > 0)
         {
-            if (updatedCreatures.Count > 0)
-            {
-                character.Connection.Send(SCreatureUpdatedPacket.Create(updatedCreatures, character.Connection.CryptoSession.Encrypt));
-            }
+            character.Connection.Send(SCreatureUpdatedPacket.Create(updatedCreatures, character.Connection.CryptoSession.Encrypt));
         }
         
         if (removedCreatures.Count > 0)
         {
             character.Connection.Send(SCreatureRemovedPacket.Create(removedCreatures, character.Connection.CryptoSession.Encrypt));
         }
+    }
+
+    private CreatureFields GetChangedFields(ICreature original, ICreature updated)
+    {
+        var fields = CreatureFields.None;
+        
+        if (original.Position != updated.Position)
+        {
+            fields |= CreatureFields.Position;
+        }
+        
+        if (original.CurrentHealth != updated.CurrentHealth)
+        {
+            fields |= CreatureFields.CurrentHealth;
+        }
+        
+        if (original.CurrentPower != updated.CurrentPower)
+        {
+            fields |= CreatureFields.CurrentPower;
+        }
+        
+        if (original.Velocity != updated.Velocity)
+        {
+            fields |= CreatureFields.Velocity;
+        }
+        
+        if (original.Orientation != updated.Orientation)
+        {
+            fields |= CreatureFields.Orientation;
+        }
+        
+        if (original.MoveState != updated.MoveState)
+        {
+            fields |= CreatureFields.MoveState;
+        }
+        
+        return fields;
+    }
+
+    [Flags]
+    public enum CreatureFields
+    {
+        None = 1 << 0,
+        Position = 1 << 1,
+        CurrentHealth = 1 << 2,
+        CurrentPower = 1 << 3,
+        Velocity = 1 << 4,
+        Orientation = 1 << 5,
+        MoveState = 1 << 6
     }
 
     public void AddCharacter(IWorldConnection connection)
