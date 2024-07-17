@@ -41,6 +41,13 @@ public class SNpcUpdatePacket : Packet
     }
 }
 
+public enum MoveState
+{
+    Idle,
+    Walking,
+    Running,
+}
+
 [ProtoContract]
 public class CreaturePacket
 {
@@ -53,4 +60,5 @@ public class CreaturePacket
     [ProtoMember(7)] public float VelocityY { get; set; }
     [ProtoMember(8)] public float VelocityZ { get; set; }
     [ProtoMember(9)] public float Orientation { get; set; }
+    [ProtoMember(10)] public MoveState MoveState { get; set; }
 }

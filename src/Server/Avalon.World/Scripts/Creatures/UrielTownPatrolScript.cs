@@ -1,8 +1,8 @@
 using Avalon.Common.Mathematics;
-using Avalon.World.Entities;
 using Avalon.World.Maps;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
+using Avalon.World.Public.Creatures;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Scripts.Creatures;
@@ -26,7 +26,7 @@ public class UrielTownPatrolScript : AiScript
     
     private AiScript _currentScript;
 
-    public UrielTownPatrolScript(ILoggerFactory loggerFactory, Creature creature, Chunk chunk) : base(creature, chunk)
+    public UrielTownPatrolScript(ILoggerFactory loggerFactory, ICreature creature, Chunk chunk) : base(creature, chunk)
     {
         _logger = loggerFactory.CreateLogger<UrielTownPatrolScript>();
         
@@ -83,11 +83,5 @@ public class UrielTownPatrolScript : AiScript
         }
         
         base.Update(deltaTime); // Will call Update on all chained scripts, and they will run if ShouldRun returns true
-    }
-
-    public override void OnHit(ICharacter attacker, uint damage)
-    {
-        //_combatScript.OnHit(attacker, damage);
-        base.OnHit(attacker, damage); // Will call OnHit on all chained scripts, and they will run if ShouldRun returns true
     }
 }

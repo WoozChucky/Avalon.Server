@@ -46,7 +46,7 @@ public class CharacterSelectHandler(
         character.Online = true;
         character.Latency = (int) ctx.Connection.Latency;
         
-        var entity = new CharacterEntity(loggerFactory)
+        var entity = new CharacterEntity(loggerFactory, ctx.Connection)
         {
             Data = character,
             Position = new Vector3(character.X, character.Y, character.Z),

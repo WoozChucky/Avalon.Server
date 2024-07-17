@@ -21,7 +21,7 @@ public class ChunkNavigator : IChunkNavigator
     private const int MaxPolys = 256;
     
     private static readonly RcVec3f PolyPickExt = new(2, 4, 2);
-    
+
     public object? Mesh => _navMesh;
     
     public ChunkNavigator(ILoggerFactory loggerFactory)
@@ -198,6 +198,58 @@ public class ChunkNavigator : IChunkNavigator
         {
             _logger.LogError(e, "Failed to find path");
             return [];
+        }
+    }
+    
+    public bool HasVisibility(Vector3 start, Vector3 end)
+    {
+        try
+        {
+            if (_navMesh == null)
+            {
+                throw new Exception("NavMesh is not loaded");
+            }
+
+            var query = new DtNavMeshQuery(_navMesh);
+
+            var startPos = new RcVec3f(-start.x, start.y, start.z);
+            var endPos = new RcVec3f(-end.x, end.y, end.z);
+
+            // Find the nearest polygons to the start and end points
+            var status = query.FindNearestPoly(startPos, PolyPickExt, _queryFilter, out var startRef, out _, out _);
+            CheckStatus(status);
+            if (startRef == 0)
+            {
+                _logger.LogWarning("Failed to find start polygon");
+                return false;
+            }
+
+            status = query.FindNearestPoly(endPos, PolyPickExt, _queryFilter, out var endRef, out _, out _);
+            CheckStatus(status);
+            if (endRef == 0)
+            {
+                _logger.LogWarning("Failed to find end polygon");
+                return false;
+            }
+
+            List<long> path = [];
+
+            // Perform the raycast
+            var hitResult = query.Raycast(startRef, startPos, endPos, _queryFilter, out var hit, out _, ref path);
+            
+            if (hitResult.Failed() || hit < 1.0f)
+            {
+                // There is an obstacle between start and end
+                return false;
+            }
+
+            // No obstacles found, point A has visibility to point B
+            return true;
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Raycast failed");
+            return false;
         }
     }
 

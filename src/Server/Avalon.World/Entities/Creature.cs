@@ -1,9 +1,11 @@
 using System.Drawing;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
+using Avalon.Network.Packets.Movement;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
+using Avalon.World.Public.Maps;
 
 namespace Avalon.World.Entities;
 
@@ -40,7 +42,25 @@ public class Creature : ICreature
     public string ScriptName { get; set; } = string.Empty;
 
     public AiScript? Script { get; set; }
+    public MoveState MoveState { get; set; } = MoveState.Idle;
+
+    public void LookAt(Vector3 target)
+    {
+        var direction = Vector3.Normalize(target - Position);
+        var yawRadians = Mathf.Atan2(direction.x, direction.z);
+        var yawDegrees = yawRadians * Mathf.Rad2Deg;
+        Orientation = new Vector3(0.0f, yawDegrees, 0.0f);
+    }
     
+    public bool IsLookingAt(Vector3 target, float threshold = 0.1f)
+    {
+        var direction = Vector3.Normalize(target - Position);
+        var yawRadians = Mathf.Atan2(direction.x, direction.z);
+        var yawDegrees = yawRadians * Mathf.Rad2Deg;
+        var orientation = new Vector3(0.0f, yawDegrees, 0.0f);
+        return Mathf.Abs(Orientation.y - orientation.y) < threshold;
+    }
+
     public void OnHit(ICreature attacker, uint damage)
     {
         Script?.OnHit(attacker, damage);

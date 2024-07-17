@@ -51,4 +51,12 @@ public abstract class AiScript {
             script.OnHit(attacker, damage);
         }
     }
+    
+    public virtual void OnEnteredRange(ICharacter character)
+    {
+        foreach (var script in ChainedScripts)
+        {
+            script.OnEnteredRange(character);
+        }
+    }
 }

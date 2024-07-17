@@ -1,4 +1,5 @@
 using Avalon.Common.Mathematics;
+using Avalon.Network.Packets.Movement;
 using Avalon.World.Public;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Maps;
@@ -22,6 +23,7 @@ public class CreatureIdleScript : AiScript
     
     public override void Update(TimeSpan deltaTime)
     {
+        Creature.MoveState = MoveState.Idle;
         Creature.Velocity = Vector3.zero;
         
         _timeElapsed += (float)deltaTime.TotalSeconds;
