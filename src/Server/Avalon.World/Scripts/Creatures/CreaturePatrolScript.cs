@@ -1,4 +1,5 @@
 using Avalon.Common.Mathematics;
+using Avalon.Network.Packets.Movement;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
@@ -27,7 +28,7 @@ public sealed class CreaturePatrolScript : AiScript
         _currentPath = new Queue<Vector3>();
     }
 
-    public override object State { get; set; }
+    public override object State { get; set; } = PatrolState.Patrolling;
     
     protected override bool ShouldRun()
     {
@@ -36,6 +37,11 @@ public sealed class CreaturePatrolScript : AiScript
 
     public override void Update(TimeSpan deltaTime)
     {
+        if (_waypoints.Length == 0)
+        {
+            return;
+        }
+        
         if (_currentPath.Count == 0)
         {
             var currentPosition = Creature.Position;
@@ -76,15 +82,20 @@ public sealed class CreaturePatrolScript : AiScript
             {
                 _currentWaypointIndex = (_currentWaypointIndex + 1) % (uint) _waypoints.Length;
                 State = PatrolState.Idle;
+                Creature.MoveState = MoveState.Idle;
                 return;
             }
             targetPosition = _currentPath.Peek();
         }
+
+        Creature.Speed = Creature.Metadata.SpeedWalk;
         
         var direction = Vector3.Normalize(targetPosition - currentPosition);
         var movementDelta = direction * Creature.Speed * (float) deltaTime.TotalSeconds;
 
+        Creature.MoveState = MoveState.Walking;
         Creature.Velocity = direction;
         Creature.Position += movementDelta;
+        Creature.LookAt(targetPosition);
     }
 }

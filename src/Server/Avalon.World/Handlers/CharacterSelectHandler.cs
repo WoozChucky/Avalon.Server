@@ -34,8 +34,6 @@ public class CharacterSelectHandler(
             return;
         }
         
-        logger.LogWarning("HERE ?");
-        
         connection.AddQueryCallback(characterRepository.FindByIdAndAccountAsync(packet.CharacterId, connection.AccountId), character =>
         {
             OnCharacterReceived(connection, character);
@@ -44,7 +42,6 @@ public class CharacterSelectHandler(
 
     private void OnCharacterReceived(WorldConnection connection, Character? character)
     {
-        logger.LogWarning("HERE 2?");
         if (character == null)
         {
             logger.LogWarning("Character not found for account {AccountId}", connection.AccountId);
@@ -56,7 +53,7 @@ public class CharacterSelectHandler(
         character.Online = true;
         character.Latency = (int) connection.Latency;
         
-        var entity = new CharacterEntity(loggerFactory)
+        var entity = new CharacterEntity(loggerFactory, connection)
         {
             Data = character,
             Position = new Vector3(character.X, character.Y, character.Z),
@@ -100,10 +97,8 @@ public class CharacterSelectHandler(
         
         connection.Send(SCharacterSelectedPacket.Create(characterInfo, mapInfo, connection.CryptoSession.Encrypt));
 
-        logger.LogWarning("HERE 3?");
         connection.AddQueryCallback(characterRepository.UpdateAsync(character), _ =>
         {
-            logger.LogWarning("HERE 4?");
             logger.LogInformation("Character {CharacterId} logged in for account {AccountId} at {Position}", character.Name, connection.AccountId, connection.Character.Position);
             
             connection.AddQueryCallback(characterInventoryRepository.GetByCharacterIdAsync(character.Id), items =>

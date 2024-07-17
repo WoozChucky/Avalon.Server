@@ -1,4 +1,5 @@
 using Avalon.Common.Mathematics;
+using Avalon.Network.Packets.Movement;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
@@ -25,8 +26,10 @@ public class CreatureCombatScript : AiScript
     
     // This is the position distance at which the creature will stop chasing the target if no hits were received in the meantime, and if the creature itself didn't hit the target
     private const float MaxChaseDistance = 40.0f;
-    private const float AttackRange = 1.0f;
+    private const float AttackRange = 1.5f;
     private const float PathRecalculationThreshold = 1.5f; // Threshold to recalculate the path
+    private const float AttackCooldown = 2.25f; // Cooldown between attacks
+    private float _attackCooldownTimer = 0.0f;
     
     private Queue<Vector3> _currentPath;
     
@@ -43,10 +46,28 @@ public class CreatureCombatScript : AiScript
         return State is CombatState.Combat or CombatState.Chase or CombatState.Returning;
     }
     
+    public override void OnEnteredRange(ICharacter character)
+    {
+        if (State is CombatState.None)
+        {
+            _target = character;
+            _initialPosition = Creature.Position;
+            _lastKnownTargetPosition = character.Position;
+            State = CombatState.Combat;
+        }
+    }
+    
     public override void OnHit(ICharacter attacker, uint damage)
     {
         if (State is not CombatState.Returning)
         {
+            Creature.CurrentHealth -= damage;
+            if (Creature.CurrentHealth <= 0)
+            {
+                _logger.LogInformation("{Name} has died", Creature.Name);
+                Creature.CurrentHealth = Creature.Health; //TODO: reset health while developing
+            }
+            
             _target = attacker;
             if (_initialPosition == Vector3.zero)
             {
@@ -54,6 +75,7 @@ public class CreatureCombatScript : AiScript
             }
             _lastKnownTargetPosition = attacker.Position;
             State = CombatState.Combat;
+            Chunk.BroadcastCreatureHit(attacker.Id, Creature.Id, (int) Creature.CurrentHealth, (int) damage);
         }
     }
 
@@ -70,9 +92,12 @@ public class CreatureCombatScript : AiScript
                 _initialPosition = Vector3.zero;
                 _currentPath.Clear();
                 Creature.Velocity = Vector3.zero;
+                Creature.MoveState = MoveState.Idle;
             }
             else
             {
+                Creature.MoveState = MoveState.Running;
+                Creature.Speed = Creature.Metadata.SpeedRun;
                 FollowPath(deltaTime);
             }
             return;
@@ -90,14 +115,17 @@ public class CreatureCombatScript : AiScript
             _target = null;
             State = CombatState.Returning;
             _currentPath = GeneratePath(currentPosition, _initialPosition);
-            Creature.Health = 100; // Reset health while developing
+            Creature.Health = 100; //TODO: Reset health while developing
+            Creature.CurrentHealth = Creature.Health;
             return;
         }
         
         if (_target != null && Vector3.Distance(currentPosition, targetPosition) <= AttackRange)
         {
             Creature.Velocity = Vector3.zero;
-            AttackTarget();
+            Creature.MoveState = MoveState.Idle;
+            Creature.LookAt(targetPosition);
+            AttackTarget(deltaTime);
         }
         else
         {
@@ -106,14 +134,27 @@ public class CreatureCombatScript : AiScript
                 _currentPath = GeneratePath(currentPosition, targetPosition);
                 _lastKnownTargetPosition = targetPosition;
             }
+            
+            Creature.MoveState = MoveState.Running;
+            Creature.Speed = Creature.Metadata.SpeedRun;
 
             FollowPath(deltaTime);
         }
     }
 
-    private void AttackTarget()
+    private void AttackTarget(TimeSpan deltaTime)
     {
         // Logic to attack the target
+        if (_attackCooldownTimer <= 0.0f)
+        {
+            Chunk.BroadcastAttackAnimation(Creature.Id, 1); // TODO: Animation ID
+            _target?.OnHit(Creature, 10);
+            _attackCooldownTimer = AttackCooldown;
+        }
+        else
+        {
+            _attackCooldownTimer -= (float)deltaTime.TotalSeconds;
+        }
     }
 
     private Queue<Vector3> GeneratePath(Vector3 start, Vector3 end)
@@ -152,7 +193,8 @@ public class CreatureCombatScript : AiScript
 
         var direction = Vector3.Normalize(nextPosition - currentPosition);
         var movementDelta = direction * Creature.Speed * (float)deltaTime.TotalSeconds;
-
+        
+        Creature.LookAt(nextPosition);
         Creature.Velocity = direction;
         Creature.Position += movementDelta;
     }

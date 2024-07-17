@@ -1,4 +1,3 @@
-using Avalon.Common.Threading;
 using Avalon.Common.ValueObjects;
 using Avalon.Hosting.Networking;
 using Avalon.Network.Packets.Abstractions;
@@ -23,8 +22,7 @@ public interface IWorldConnection : IConnection
     void OnPongReceived(long packetLastServerTimestamp, long packetClientReceivedTimestamp, long packetClientSentTimestamp);
     
     void Update(TimeSpan deltaTime, PacketFilter filter);
-    
-    
+
 }
 
 public interface IGameState

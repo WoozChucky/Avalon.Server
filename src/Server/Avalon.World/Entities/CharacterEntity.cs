@@ -1,5 +1,7 @@
 using Avalon.Common.Mathematics;
 using Avalon.Domain.Characters;
+using Avalon.Network.Packets.Combat;
+using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
@@ -9,6 +11,8 @@ namespace Avalon.World.Entities;
 
 public class CharacterEntity : ICharacter
 {
+    
+
     public ICharacterInventory this[InventoryType type] => type switch
     {
         InventoryType.Equipment => _equipment,
@@ -19,15 +23,18 @@ public class CharacterEntity : ICharacter
 
     public ICharacterSpells Spells => _spells;
 
+    private readonly ILogger<CharacterEntity> _logger;
+    private readonly IWorldConnection _connection;
     private readonly ICharacterInventory _equipment;
     private readonly ICharacterInventory _bag;
     private readonly ICharacterInventory _bank;
     private readonly ICharacterSpells _spells;
-    private readonly ILogger<CharacterEntity> _logger;
     
-    public CharacterEntity(ILoggerFactory loggerFactory)
+    
+    public CharacterEntity(ILoggerFactory loggerFactory, IWorldConnection connection)
     {
         _logger = loggerFactory.CreateLogger<CharacterEntity>();
+        _connection = connection;
         _equipment = new CharacterInventoryContainer(loggerFactory, InventoryType.Equipment);
         _bag = new CharacterInventoryContainer(loggerFactory, InventoryType.Bag);
         _bank = new CharacterInventoryContainer(loggerFactory, InventoryType.Bank);
@@ -152,6 +159,7 @@ public class CharacterEntity : ICharacter
             _logger.LogInformation("{Name} has died", Name);
             CurrentHealth = Health; // reset health while developing
         }
+        _connection.Send(SCharacterDamagePacket.Create(attacker.Id, Id, CurrentHealth, damage, null, _connection.CryptoSession.Encrypt));
     }
 
     public uint ChunkId { get; set; }
