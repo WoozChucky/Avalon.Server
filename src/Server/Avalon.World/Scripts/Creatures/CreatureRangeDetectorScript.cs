@@ -1,12 +1,13 @@
 using Avalon.Common.Mathematics;
 using Avalon.World.Public;
+using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Maps;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Scripts.Creatures;
 
-public delegate void CharacterDetectedEventHandler(IWorldConnection connection);
+public delegate void CharacterDetectedEventHandler(ICharacter character);
 
 public class CreatureRangeDetectorScript : AiScript
 {
@@ -43,16 +44,16 @@ public class CreatureRangeDetectorScript : AiScript
         
         _searchTimer = 0.0f;
         
-        var connections = Chunk.GetConnections();
-        foreach (var connection in connections)
+        var characters = Chunk.Characters.Values;
+        foreach (var character in characters)
         {
-            var characterPosition = connection.Character!.Position;
+            var characterPosition = character.Position;
             var distance = Vector3.Distance(Creature.Position, characterPosition);
             if (distance <= _aggroRange)
             {
                 if (!Chunk.Navigator.HasVisibility(Creature.Position, characterPosition)) continue;
                 State = RangeDetectionState.Detected;
-                CharacterDetected?.Invoke(connection);
+                CharacterDetected?.Invoke(character);
                 break;
             }
         }

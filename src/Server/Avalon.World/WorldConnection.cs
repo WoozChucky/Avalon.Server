@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Net.Sockets;
+using Avalon.Common.Mathematics;
 using Avalon.Common.Threading;
 using Avalon.Common.ValueObjects;
 using Avalon.Hosting;
@@ -7,10 +8,12 @@ using Avalon.Hosting.Networking;
 using Avalon.Network.Packets;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Generic;
+using Avalon.Network.Packets.Movement;
 using Avalon.World.Entities;
 using Avalon.World.Filters;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
+using Avalon.World.Public.Creatures;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.World;
@@ -34,8 +37,6 @@ public class WorldConnection : Connection, IWorldConnection
             _characterEntity = value as CharacterEntity;
         }
     }
-
-    public IGameState GameState { get; }
     public long Latency { get; private set; }
     public long RoundTripTime { get; private set; }
     public bool InGame => Character != null;
@@ -67,7 +68,6 @@ public class WorldConnection : Connection, IWorldConnection
         _worldSessionFilter = new WorldSessionFilter(this);
         _worldMapFilter = new MapSessionFilter(this);
         Init(client);
-        GameState = new GameState();
     }
 
     #region Callback Processing
@@ -252,7 +252,145 @@ public class WorldConnection : Connection, IWorldConnection
 
 public class GameState : IGameState
 {
-    public ISet<Guid> KnownEntities { get; } = new HashSet<Guid>();
-    public ISet<CharacterId> KnownCharacters { get; } = new HashSet<CharacterId>();
-    public ISet<object> KnownObjects { get; } = new HashSet<object>();
+    public ISet<CreatureId> NewCreatures { get; } = new HashSet<CreatureId>();
+    public ISet<CreatureId> UpdatedCreatures { get; } = new HashSet<CreatureId>();
+    public ISet<CreatureId> RemovedCreatures { get; } = new HashSet<CreatureId>();
+    
+    public ISet<CharacterId> NewCharacters { get; } = new HashSet<CharacterId>();
+    public ISet<CharacterId> UpdatedCharacters { get; } = new HashSet<CharacterId>();
+    public ISet<CharacterId> RemovedCharacters { get; } = new HashSet<CharacterId>();
+    
+    private readonly EntityTrackingSystem _creatureTrackingSystem;
+    private readonly EntityTrackingSystem _characterTrackingSystem;
+    
+    public GameState()
+    {
+        _creatureTrackingSystem = new EntityTrackingSystem(100);
+        _creatureTrackingSystem.EntityAdded += OnCreatureFound;
+        _creatureTrackingSystem.EntityUpdated += OnCreatureUpdated;
+        _creatureTrackingSystem.EntityRemoved += OnCreatureRemoved;
+        
+        _characterTrackingSystem = new EntityTrackingSystem(100);
+        _characterTrackingSystem.EntityAdded += OnCharacterFound;
+        _characterTrackingSystem.EntityUpdated += OnCharacterUpdated;
+        _characterTrackingSystem.EntityRemoved += OnCharacterRemoved;
+    }
+
+    private void OnCharacterRemoved(IGameEntity obj)
+    {
+        RemovedCharacters.Add(obj.Id);
+    }
+
+    private void OnCharacterUpdated(IGameEntity obj)
+    {
+        UpdatedCharacters.Add(obj.Id);
+    }
+
+    private void OnCharacterFound(IGameEntity obj)
+    {
+        NewCharacters.Add(obj.Id);
+    }
+
+    private void OnCreatureRemoved(IGameEntity obj)
+    {
+        RemovedCreatures.Add(obj.Id);   
+    }
+
+    private void OnCreatureUpdated(IGameEntity obj)
+    {
+        UpdatedCreatures.Add(obj.Id);
+    }
+
+    private void OnCreatureFound(IGameEntity obj)
+    {
+        NewCreatures.Add(obj.Id);
+    }
+
+    public void Update(Dictionary<CreatureId, ICreature> creatures, Dictionary<CharacterId, ICharacter> characters)
+    {
+        NewCreatures.Clear();
+        UpdatedCreatures.Clear();
+        RemovedCreatures.Clear();
+        
+        NewCharacters.Clear();
+        UpdatedCharacters.Clear();
+        RemovedCharacters.Clear();
+        
+        _creatureTrackingSystem.Update(creatures.Values);
+        _characterTrackingSystem.Update(characters.Values);
+    }
+}
+
+public class EntityTrackingSystem
+{
+    public event Action<IGameEntity>? EntityAdded;
+    public event Action<IGameEntity>? EntityRemoved;
+    public event Action<IGameEntity>? EntityUpdated;
+    
+    private readonly IDictionary<ulong, IGameEntity> _entities;
+    
+    public EntityTrackingSystem(int capacity)
+    {
+        _entities = new Dictionary<ulong, IGameEntity>(capacity);
+    }
+
+    public void Update(IEnumerable<IGameEntity> entities)
+    {
+        var newEntityIds = new HashSet<ulong>();
+
+        // First pass: Identify new and updated entities
+        foreach (var gameEntity in entities)
+        {
+            newEntityIds.Add(gameEntity.Id);
+
+            if (!_entities.TryGetValue(gameEntity.Id, out var existingEntity))
+            {
+                _entities[gameEntity.Id] = new Creature
+                {
+                    Id = gameEntity.Id,
+                    Position = gameEntity.Position,
+                    Orientation = gameEntity.Orientation,
+                    Velocity = gameEntity.Velocity,
+                    MoveState = gameEntity.MoveState
+                };
+                EntityAdded?.Invoke(gameEntity);
+            }
+            else if (EntityChanged(existingEntity, gameEntity))
+            {
+                _entities[gameEntity.Id].Position = gameEntity.Position;
+                _entities[gameEntity.Id].Orientation = gameEntity.Orientation;
+                _entities[gameEntity.Id].Velocity = gameEntity.Velocity;
+                _entities[gameEntity.Id].MoveState = gameEntity.MoveState;
+                EntityUpdated?.Invoke(gameEntity);
+            }
+        }
+
+        // Second pass: Identify removed entities
+        var removedEntityIds = new List<ulong>();
+        foreach (var existingEntityId in _entities.Keys)
+        {
+            if (!newEntityIds.Contains(existingEntityId))
+            {
+                removedEntityIds.Add(existingEntityId);
+            }
+        }
+
+        foreach (var removedEntityId in removedEntityIds)
+        {
+            if (_entities.TryGetValue(removedEntityId, out var removedEntity))
+            {
+                EntityRemoved?.Invoke(removedEntity);
+                _entities.Remove(removedEntityId);
+            }
+        }
+    }
+
+    private bool EntityChanged(IGameEntity existingEntity, IGameEntity gameEntity)
+    {
+        return true;
+        return existingEntity.Position != gameEntity.Position || 
+               existingEntity.Orientation != gameEntity.Orientation ||
+               existingEntity.Velocity != gameEntity.Velocity ||
+               existingEntity.MoveState != gameEntity.MoveState;
+    }
 }

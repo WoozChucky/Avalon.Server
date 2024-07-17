@@ -1,43 +1,30 @@
 using System.Drawing;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
-using Avalon.Network.Packets.Movement;
+using Avalon.Network.Packets.State;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
-using Avalon.World.Public.Maps;
 
 namespace Avalon.World.Entities;
 
 public class Creature : ICreature
 {
-    public Guid Id { get; set; }
+    public ulong Id { get; set; }
     
     public CreatureTemplateId TemplateId { get; set; } = null!;
 
     public ICreatureMetadata Metadata { get; set; }
     public string Name { get; set; } = string.Empty;
-
-    public Vector3 Position
-    {
-        set
-        {
-            _position = value;
-            Bounds = new Rectangle((int)value.x, (int)value.y, 1, 1);
-        }
-        get => _position;
-    }
-
+    public ushort Level { get; set; }
+    public Vector3 Position { get; set; }
     public Vector3 Orientation { get; set; }
-
-    private Vector3 _position;
-
     public Vector3 Velocity { get; set; }
-    
-    public Rectangle Bounds { get; set; }
     public float Speed { get; set; }
     public uint Health { get; set; }
     public uint CurrentHealth { get; set; }
+    public uint Power { get; set; }
+    public uint CurrentPower { get; set; }
 
     public string ScriptName { get; set; } = string.Empty;
 

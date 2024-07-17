@@ -11,7 +11,6 @@ public delegate void PlayerConnectedHandler(object sender, SPlayerConnectedPacke
 public delegate void PlayerDisconnectedHandler(object sender, SPlayerDisconnectedPacket packet);
 public delegate void PlayerMovedHandler(object sender, SPlayerPositionUpdatePacket packet);
 public delegate void LatencyUpdatedHandler(object sender, double latency);
-public delegate void NpcUpdatedHandler(object sender, SNpcUpdatePacket packet);
 public delegate void ChatMessageHandler(object sender, SChatMessagePacket packet);
 public delegate void AuthResultHandler(object sender, SAuthResultPacket packet);
 public delegate void GroupInviteHandler(object sender, SGroupInvitePacket packet);

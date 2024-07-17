@@ -1,5 +1,6 @@
 using Avalon.Common.Mathematics;
 using Avalon.Network.Packets.Movement;
+using Avalon.Network.Packets.State;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
@@ -75,7 +76,7 @@ public class CreatureCombatScript : AiScript
             }
             _lastKnownTargetPosition = attacker.Position;
             State = CombatState.Combat;
-            Chunk.BroadcastCreatureHit(attacker.Id, Creature.Id, (int) Creature.CurrentHealth, (int) damage);
+            Chunk.BroadcastCreatureHit(attacker.Id, Creature.Id, Creature.CurrentHealth, damage);
         }
     }
 

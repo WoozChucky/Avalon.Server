@@ -11,11 +11,11 @@ public class SCreatureDamagePacket : Packet
     public static NetworkPacketFlags Flags = NetworkPacketFlags.Encrypted;
     
     [ProtoMember(1)] public ulong Attacker { get; set; }
-    [ProtoMember(2)] public Guid Target { get; set; }
-    [ProtoMember(3)] public int CurrentHealth { get; set; }
-    [ProtoMember(4)] public int Damage { get; set; }
+    [ProtoMember(2)] public ulong Target { get; set; }
+    [ProtoMember(3)] public uint CurrentHealth { get; set; }
+    [ProtoMember(4)] public uint Damage { get; set; }
     
-    public static NetworkPacket Create(ulong attacker, Guid target, int currentHealth, int damage, Func<byte[], byte[]> encryptFunc)
+    public static NetworkPacket Create(ulong attacker, ulong target, uint currentHealth, uint damage, Func<byte[], byte[]> encryptFunc)
     {
         using var memoryStream = new MemoryStream();
         

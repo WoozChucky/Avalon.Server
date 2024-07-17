@@ -1,3 +1,4 @@
+using Avalon.Common.ValueObjects;
 using Avalon.World.Pools;
 using Avalon.World.Public;
 using Avalon.World.Public.Creatures;
@@ -109,14 +110,14 @@ public class WorldGrid
     
     private Chunk? GetChunk(uint chunkId) => Maps.SelectMany(m => m.Chunks).FirstOrDefault(c => c.Id == chunkId);
 
-    public ICreature? FindCreature(Guid creatureId, uint chunkId)
+    public ICreature? FindCreature(CreatureId creatureId, uint chunkId)
     {
         var chunk = Maps.FirstOrDefault(m => m.Chunks.FirstOrDefault(c => c.Id == chunkId) != null);
 
         return chunk?.FindCreature(creatureId);
     }
     
-    public ICreature? FindCreature(Guid creatureId)
+    public ICreature? FindCreature(CreatureId creatureId)
     {
         var maps = Maps;
         foreach (var map in maps)

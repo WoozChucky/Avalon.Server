@@ -2,6 +2,7 @@ using Avalon.Common.ValueObjects;
 using Avalon.Hosting.Networking;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.World.Public.Characters;
+using Avalon.World.Public.Creatures;
 
 namespace Avalon.World.Public;
 
@@ -9,8 +10,6 @@ public interface IWorldConnection : IConnection
 {
     public AccountId? AccountId { get; set; }
     public ICharacter? Character { get; set; }
-    
-    public IGameState GameState { get; }
     
     
     public long Latency { get; }
@@ -27,10 +26,14 @@ public interface IWorldConnection : IConnection
 
 public interface IGameState
 {
-    public ISet<Guid> KnownEntities { get; }
-    public ISet<CharacterId> KnownCharacters { get; }
-    
-    public ISet<object> KnownObjects { get; }
+    ISet<CreatureId> NewCreatures { get; }
+    ISet<CreatureId> UpdatedCreatures { get; }
+    ISet<CreatureId> RemovedCreatures { get; }
+    ISet<CharacterId> NewCharacters { get; }
+    ISet<CharacterId> UpdatedCharacters { get; }
+    ISet<CharacterId> RemovedCharacters { get; }
+
+    void Update(Dictionary<CreatureId, ICreature> creatures, Dictionary<CharacterId, ICharacter> characters);
 }
 
 public abstract class PacketFilter

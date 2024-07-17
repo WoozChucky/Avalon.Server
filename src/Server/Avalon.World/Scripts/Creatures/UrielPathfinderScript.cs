@@ -1,5 +1,6 @@
 using Avalon.Common.Mathematics;
 using Avalon.World.Public;
+using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Maps;
 using Microsoft.Extensions.Logging;
@@ -10,25 +11,30 @@ public class UrielPathfinderScript : AiScript
 {
     private readonly ILogger<UrielPathfinderScript> _logger;
     
+    private readonly Vector3[] _waypoints =
+    [
+        new Vector3(91, 50, 93.51f),
+        new Vector3(92.49f, 50, 62.89f),
+        new Vector3(92.40f, 50, 24.23f),
+    ];
+    
     private readonly AiScript _detectorScript;
     private readonly AiScript _combatScript;
     private readonly AiScript _patrolScript;
+    
+    private const float AggroRange = 10.0f;
     
     public UrielPathfinderScript(ILoggerFactory loggerFactory, ICreature creature, IChunk chunk) : base(creature, chunk)
     {
         _logger = loggerFactory.CreateLogger<UrielPathfinderScript>();
         
-        var detectorScript = new CreatureRangeDetectorScript(loggerFactory, creature, chunk, 10.0f);
+        var detectorScript = new CreatureRangeDetectorScript(loggerFactory, creature, chunk, AggroRange);
         detectorScript.CharacterDetected += OnCharacterEnteredRange;
         _detectorScript = detectorScript;
         
         _combatScript = new CreatureCombatScript(loggerFactory, creature, chunk);
         
-        _patrolScript = new CreaturePatrolScript(loggerFactory, creature, chunk, [
-            new Vector3(91, 50, 93.51f),
-            new Vector3(92.49f, 50, 62.89f),
-            new Vector3(92.40f, 50, 24.23f),
-        ]);
+        _patrolScript = new CreaturePatrolScript(loggerFactory, creature, chunk, _waypoints);
         _patrolScript.State = CreaturePatrolScript.PatrolState.Patrolling;
         
         Chain(_detectorScript);
@@ -42,9 +48,9 @@ public class UrielPathfinderScript : AiScript
         return true;
     }
 
-    private void OnCharacterEnteredRange(IWorldConnection connection)
+    private void OnCharacterEnteredRange(ICharacter character)
     {
-        _combatScript.OnEnteredRange(connection.Character!);
+        _combatScript.OnEnteredRange(character);
     }
 
     public override void Update(TimeSpan deltaTime)

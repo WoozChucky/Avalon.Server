@@ -1,3 +1,5 @@
+using Avalon.Common.ValueObjects;
+
 namespace Avalon.Network.Packets.Combat;
 
 using Abstractions;
@@ -12,11 +14,11 @@ public class CCharacterAttackPacket : Packet
     public static NetworkProtocol Protocol = NetworkProtocol.Tcp;
     public static NetworkPacketFlags Flags = NetworkPacketFlags.Encrypted;
     
-    [ProtoMember(1)] public Guid Target { get; set; }
+    [ProtoMember(1)] public ulong Target { get; set; }
     [ProtoMember(2)] public bool AutoAttack { get; set; }
     [ProtoMember(3)] public uint? SpellId { get; set; }
 
-    public static NetworkPacket Create(Guid target, bool autoAttack, uint? spellId, Func<byte[], byte[]> encryptFunc)
+    public static NetworkPacket Create(CreatureId target, bool autoAttack, uint? spellId, Func<byte[], byte[]> encryptFunc)
     {
         using var memoryStream = new MemoryStream();
         

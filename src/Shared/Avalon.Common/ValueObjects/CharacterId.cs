@@ -6,8 +6,6 @@ public class CharacterId : ValueObject<ulong>, IHideObjectMembers
     {
     }
     
-    public static implicit operator CharacterId(ulong value)
-    {
-        return new CharacterId(value);
-    }
+    public static implicit operator ulong(CharacterId characterId) => characterId.Value;
+    public static implicit operator CharacterId(ulong value) => new CharacterId(value);
 }
