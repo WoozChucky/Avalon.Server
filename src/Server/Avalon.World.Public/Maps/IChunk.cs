@@ -1,26 +1,25 @@
 using Avalon.Common.Mathematics;
+using Avalon.Common.ValueObjects;
+using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
 
 namespace Avalon.World.Public.Maps;
 
 public interface IChunk
 {
-    public uint Id { get; }
-    public bool Enabled { get; set; }
-    public ChunkMetadata Metadata { get; }
-    public IChunkNavigator Navigator { get; }
-    public List<IChunk> Neighbors { get; set; }
-
-    public Task InitializeAsync();
+    uint Id { get; }
+    bool Enabled { get; set; }
+    ChunkMetadata Metadata { get; }
+    IChunkNavigator Navigator { get; }
+    List<IChunk> Neighbors { get; set; }
+    IReadOnlyDictionary<CharacterId, ICharacter> Characters { get; }
+    IReadOnlyDictionary<CreatureId, ICreature> Creatures { get; }
     
-    IReadOnlyList<IWorldConnection> GetConnections();
-    IReadOnlyList<ICreature> GetCreatures();
-    
-    void AddPlayer(IWorldConnection connection);
-    void RemovePlayer(IWorldConnection connection);
-    void SendState(IWorldConnection connection);
-    void BroadcastAttackAnimation(Guid creatureId, ushort animationId);
-    void BroadcastCreatureHit(ulong attackerId, Guid creatureId, int currentHealth, int damage);
+    void AddCharacter(IWorldConnection connection);
+    void RemoveCharacter(IWorldConnection connection);
+    void BroadcastChunkStateTo(ICharacter character);
+    void BroadcastAttackAnimation(CreatureId creatureId, ushort animationId);
+    void BroadcastCreatureHit(CharacterId attackerId, CreatureId creatureId, uint currentHealth, uint damage);
 }
 
 [Serializable]

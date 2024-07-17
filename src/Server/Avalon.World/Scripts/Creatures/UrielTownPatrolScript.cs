@@ -1,7 +1,6 @@
 using Avalon.Common.Mathematics;
 using Avalon.World.Maps;
 using Avalon.World.Public;
-using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
 using Microsoft.Extensions.Logging;
 
@@ -10,15 +9,17 @@ namespace Avalon.World.Scripts.Creatures;
 public class UrielTownPatrolScript : AiScript
 {
     private readonly ILogger<UrielTownPatrolScript> _logger;
+
+    private const float IdleTime = 5.0f;
     
-    private Vector3[] _waypoints = new Vector3[]
-    {
+    private readonly Vector3[] _waypoints =
+    [
         new Vector3(28.15f, 50.0f, 90.10f),
         new Vector3(56.65f, 50.0f, 90.03f),
         new Vector3(64.01f, 50.0f, 72.14f),
         new Vector3(45.85f, 50.0f, 58.63f),
-        new Vector3(28.15f, 50.0f, 90.10f),
-    };
+        new Vector3(28.15f, 50.0f, 90.10f)
+    ];
     
     private readonly AiScript _patrolScript;
     private readonly AiScript _idleScript;
@@ -33,7 +34,7 @@ public class UrielTownPatrolScript : AiScript
         _patrolScript = new CreaturePatrolScript(loggerFactory, creature, chunk, _waypoints);
         _patrolScript.State = CreaturePatrolScript.PatrolState.Patrolling;
         
-        _idleScript = new CreatureIdleScript(creature, chunk);
+        _idleScript = new CreatureIdleScript(creature, chunk, IdleTime);
         _idleScript.State = false;
         
         _combatScript = new CreatureCombatScript(loggerFactory, creature, chunk);

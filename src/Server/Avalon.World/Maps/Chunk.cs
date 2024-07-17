@@ -1,33 +1,17 @@
 using Avalon.Common.Mathematics;
+using Avalon.Common.ValueObjects;
 using Avalon.Network.Packets.Combat;
-using Avalon.Network.Packets.Movement;
-using Avalon.Network.Packets.World;
-using Avalon.World.Entities;
+using Avalon.Network.Packets.State;
 using Avalon.World.Filters;
 using Avalon.World.Maps.Navigation;
 using Avalon.World.Pools;
 using Avalon.World.Public;
+using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Maps;
-using DotRecast.Detour.Crowd;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Maps;
-
-public class ObjectPool<T> where T : new()
-{
-    private readonly Stack<T> _objects = new Stack<T>();
-
-    public T Get()
-    {
-        return _objects.Count > 0 ? _objects.Pop() : new T();
-    }
-
-    public void Return(T obj)
-    {
-        _objects.Push(obj);
-    }
-}
 
 public class Chunk : IChunk
 {
@@ -39,19 +23,18 @@ public class Chunk : IChunk
     public IChunkNavigator Navigator { get; private set; }
     public List<IChunk> Neighbors { get; set; } = [];
     
-    private readonly List<ICreature> _creatures = [];
-    private readonly List<IWorldConnection> _connections = [];
-    private readonly ReaderWriterLockSlim _lock = new(LockRecursionPolicy.SupportsRecursion);
+    public IReadOnlyDictionary<CharacterId, ICharacter> Characters => _characters;
+    public IReadOnlyDictionary<CreatureId, ICreature> Creatures => _creatures;
+    
+    
+    private readonly Dictionary<CharacterId, ICharacter> _characters = [];
+    private readonly Dictionary<CreatureId, ICreature> _creatures = [];
     private readonly ILogger<Chunk> _logger;
-    private readonly ObjectPool<List<CreatureStateNew>> _listNewPool = new ObjectPool<List<CreatureStateNew>>();
-    private readonly ObjectPool<List<CreatureStateUpdate>> _listUpdatePool = new ObjectPool<List<CreatureStateUpdate>>();
     
     private const float BroadcastInterval = 0.1f;
     
     private IPoolManager _poolManager;
     private float _lastBroadcastTime;
-    
-    private DtCrowd? _crowd;
 
     public Chunk(ILoggerFactory loggerFactory, ushort mapId, Vector2 position)
     {
@@ -59,7 +42,6 @@ public class Chunk : IChunk
         MapId = mapId;
         Position = position;
         Navigator = new ChunkNavigator(loggerFactory);
-        //_crowd = new DtCrowd(new DtCrowdConfig(0.5f), Navigator.Mesh as DtNavMesh);
     }
 
     public async Task InitializeAsync()
@@ -67,248 +49,181 @@ public class Chunk : IChunk
         await Navigator.LoadAsync(Metadata.MeshFile);
     }
 
-    public IReadOnlyList<IWorldConnection> GetConnections()
-    {
-        _lock.EnterReadLock();
-        try
-        {
-            return _connections.ToList(); // Return a copy to avoid modifying the original list
-        }
-        finally
-        {
-            _lock.ExitReadLock();
-        }
-    }
-
-    public IReadOnlyList<ICreature> GetCreatures()
-    {
-        _lock.EnterReadLock();
-        try
-        {
-            return _creatures.ToList(); // Return a copy to avoid modifying the original list
-        }
-        finally
-        {
-            _lock.ExitReadLock();
-        }
-    }
-
     public void Update(TimeSpan deltaTime)
     {
         if (!Enabled) return;
+        _lastBroadcastTime += (float) deltaTime.TotalSeconds;
         
         // Step 1: Update DynamicMapTree
         
         // Step 2: Process character packets
-        var connectionsSnapshot = GetConnections();
-        
-        foreach (var connection in connectionsSnapshot)
+        foreach (var character in _characters.Values)
         {
-            if (connection.Character == null || connection.Character.Map != MapId) continue;
+            if (character.Map != MapId) continue;
             
-            var filter = new MapSessionFilter(connection);
-            connection.Update(deltaTime, filter);
+            var filter = new MapSessionFilter(character.Connection);
+            character.Connection.Update(deltaTime, filter);
         }
         
         // Step 3: Run CreatureRespawnScheduler
         
         // Step 4: Update characters at tick rate
-        
-        
-        var creaturesSnapshot = GetCreatures();
-        
-        Parallel.ForEach(_creatures, creature =>
+        Parallel.ForEach(_creatures.Values, creature =>
         {
             creature.Script?.Update(deltaTime);
         });
 
-        _lastBroadcastTime += (float) deltaTime.TotalSeconds;
-        
-        /*
-        foreach (var connection in connectionsSnapshot)
+        foreach (var character in _characters.Values)
         {
-            bool hasNewEntities = false;
-            var newCreatures = _listNewPool.Get();
-            var updatedCreatures = _listUpdatePool.Get();
-        
-            foreach (var creature in creaturesSnapshot)
-            {
-                if (!connection.GameState.KnownEntities.Contains(creature.Id))
-                {
-                    // Mark the creature as known and collect it as a new entity
-                    connection.GameState.KnownEntities.Add(creature.Id);
-                    newCreatures.Add(new CreatureStateNew
-                    {
-                        Id = creature.Id,
-                        Name = creature.Name,
-                        Position = creature.Position,
-                        Velocity = creature.Velocity,
-                        Rotation = creature.Orientation.y,
-                        Health = creature.Health,
-                        Level = 1
-                    });
-                    hasNewEntities = true;
-                }
-                else
-                {
-                    // Collect creature updates
-                    updatedCreatures.Add(new CreatureStateUpdate
-                    {
-                        Id = creature.Id,
-                        Position = creature.Position,
-                        Velocity = creature.Velocity,
-                        Rotation = creature.Orientation.y,
-                        Health = creature.Health
-                    });
-                }
-            }
-        
-            // Send new entities
-            if (hasNewEntities)
-            {
-                var newEntitiesPacket = SWorldGameStatePacket.Create(newCreatures, connection.CryptoSession.Encrypt);
-                connection.Send(newEntitiesPacket);
-            }
-
-            // Send updates for known entities
-            if (updatedCreatures.Any())
-            {
-                if (_lastBroadcastTime >= BroadcastInterval)
-                {
-                    var updateEntitiesPacket = SWorldGameStatePacket.Create(updatedCreatures, connection.CryptoSession.Encrypt);
-                    connection.Send(updateEntitiesPacket);
-                }
-            }
-            
-            _listNewPool.Return(newCreatures);
-            _listUpdatePool.Return(updatedCreatures);
+            // Update visibility of game entities
+            var a = _creatures.Values;
+            character.GameState.Update(_creatures, _characters);
         }
-        */
+        
+        Parallel.ForEach(_characters.Values, BroadcastChunkStateTo);
         
         if (_lastBroadcastTime >= BroadcastInterval)
         {
             _lastBroadcastTime = 0;
-            BroadcastPlayers(connectionsSnapshot);
-            BroadcastCreatures(connectionsSnapshot, creaturesSnapshot);
-        }
-    }
-
-    public void AddPlayer(IWorldConnection connection)
-    {
-        _lock.EnterWriteLock();
-        try
-        {
-            connection.Character!.ChunkId = Id;
-            _connections.Add(connection);
-            Enabled = true;
-            foreach (var neighbor in Neighbors)
-            {
-                neighbor.Enabled = true;
-            }
-        }
-        finally
-        {
-            _lock.ExitWriteLock();
         }
     }
     
-    public void RemovePlayer(IWorldConnection connection)
+    public void BroadcastChunkStateTo(ICharacter character)
     {
-        _lock.EnterWriteLock();
-        try
+        foreach (var newCharacterId in character.GameState.NewCharacters)
         {
-            
-            _connections.Remove(connection);
-            connection.Character!.ChunkId = 0;
-            if (_connections.Count == 0)
+        
+        }
+                
+        foreach (var updatedCharacterId in character.GameState.UpdatedCharacters)
+        {
+        
+        }
+                
+        foreach (var removedCharacterId in character.GameState.RemovedCharacters)
+        {
+        
+        }
+        
+        var addedCreatures = new List<CreatureAdd>();
+        var updatedCreatures = new List<CreatureUpdate>();
+        var removedCreatures = new List<ulong>();
+        
+        foreach (var newCreatureId in character.GameState.NewCreatures)
+        {
+            var newCreature = _creatures[newCreatureId];
+            addedCreatures.Add(new CreatureAdd
             {
-                _logger.LogInformation("Chunk {ChunkId} is now disabled", Id);
-                Enabled = false;
-                foreach (var neighbor in Neighbors)
+                Id = newCreature.Id,
+                TemplateId = newCreature.Metadata.Id,
+                Name = newCreature.Name,
+                Health = newCreature.Health,
+                Power = newCreature.Power,
+                Level = newCreature.Level,
+                PositionX = newCreature.Position.x,
+                PositionY = newCreature.Position.y,
+                PositionZ = newCreature.Position.z,
+                VelocityX = newCreature.Velocity.x,
+                VelocityY = newCreature.Velocity.y,
+                VelocityZ = newCreature.Velocity.z,
+                Orientation = newCreature.Orientation.y,
+                MoveState = newCreature.MoveState
+            });
+        }
+        
+        foreach (var updatedCreatureId in character.GameState.UpdatedCreatures)
+        {
+            //TODO: Send only the updated field indices and values
+            var updatedCreature = _creatures[updatedCreatureId];
+            updatedCreatures.Add(new CreatureUpdate
+            {
+                Id = updatedCreature.Id,
+                CurrentHealth = updatedCreature.CurrentHealth,
+                CurrentPower = updatedCreature.CurrentPower,
+                PositionX = updatedCreature.Position.x,
+                PositionY = updatedCreature.Position.y,
+                PositionZ = updatedCreature.Position.z,
+                VelocityX = updatedCreature.Velocity.x,
+                VelocityY = updatedCreature.Velocity.y,
+                VelocityZ = updatedCreature.Velocity.z,
+                Orientation = updatedCreature.Orientation.y,
+                MoveState = updatedCreature.MoveState,
+                Alive = updatedCreature.CurrentHealth > 0
+            });
+                    
+        }
+                
+        foreach (var removedCreatureId in character.GameState.RemovedCreatures)
+        {
+            removedCreatures.Add(_creatures[removedCreatureId].Id);
+        }
+        
+        if (addedCreatures.Count > 0)
+        {
+            character.Connection.Send(SCreatureAddedPacket.Create(addedCreatures, character.Connection.CryptoSession.Encrypt));
+        }
+        
+        if (_lastBroadcastTime >= BroadcastInterval)
+        {
+            if (updatedCreatures.Count > 0)
+            {
+                character.Connection.Send(SCreatureUpdatedPacket.Create(updatedCreatures, character.Connection.CryptoSession.Encrypt));
+            }
+        }
+        
+        if (removedCreatures.Count > 0)
+        {
+            character.Connection.Send(SCreatureRemovedPacket.Create(removedCreatures, character.Connection.CryptoSession.Encrypt));
+        }
+    }
+
+    public void AddCharacter(IWorldConnection connection)
+    {
+        connection.Character!.ChunkId = Id;
+        
+        _characters[connection.Character.Id] = connection.Character;
+        
+        Enabled = true;
+        foreach (var neighbor in Neighbors)
+        {
+            neighbor.Enabled = true;
+        }
+    }
+    
+    public void RemoveCharacter(IWorldConnection connection)
+    {
+        connection.Character!.ChunkId = 0;
+            
+        _characters.Remove(connection.Character.Id);
+        
+        if (_characters.Count == 0)
+        {
+            _logger.LogInformation("Chunk {ChunkId} is now disabled", Id);
+            Enabled = false;
+            foreach (var neighbor in Neighbors)
+            {
+                if (neighbor.Characters.Count == 0)
                 {
-                    if (neighbor.GetConnections().Count == 0)
-                    {
-                        _logger.LogInformation("Neighbor chunk {ChunkId} is now disabled", neighbor.Id);
-                        neighbor.Enabled = false;
-                    }
+                    _logger.LogInformation("Neighbor chunk {ChunkId} is now disabled", neighbor.Id);
+                    neighbor.Enabled = false;
                 }
             }
         }
-        finally
-        {
-            _lock.ExitWriteLock();
-        }
     }
 
-    public void SendState(IWorldConnection connection)
+    public void BroadcastAttackAnimation(CreatureId creatureId, ushort animationId)
     {
-        var playerPackets = new List<SPlayerPacket>();
-        var creaturePackets = new List<CreaturePacket>();
-
-        var connections = GetConnections();
-        var creatures = GetCreatures();
-        
-        foreach (var otherConnection in connections)
+        Parallel.ForEach(_characters.Values, character =>
         {
-            if (otherConnection.AccountId == connection.AccountId) continue;
-
-            playerPackets.Add(new SPlayerPacket
-            {
-                AccountId = otherConnection.AccountId!,
-                CharacterId = otherConnection.Character!.Id,
-                PositionX = otherConnection.Character.Position.x,
-                PositionY = otherConnection.Character.Position.y,
-                PositionZ = otherConnection.Character.Position.z,
-                VelocityX = otherConnection.Character.Velocity.x,
-                VelocityY = otherConnection.Character.Velocity.y,
-                VelocityZ = otherConnection.Character.Velocity.z,
-                Chatting = false,
-                Elapsed = 0 // TODO: Calculate elapsed time
-            });
-        }
-        
-        foreach (var creature in creatures)
-        {
-            creaturePackets.Add(new CreaturePacket
-            {
-                Id = creature.Id,
-                Name = creature.Name,
-                PositionX = creature.Position.x,
-                PositionY = creature.Position.y,
-                PositionZ = creature.Position.z,
-                VelocityX = creature.Velocity.x,
-                VelocityY = creature.Velocity.y,
-                VelocityZ = creature.Velocity.z,
-                Orientation = creature.Orientation.y,
-                MoveState = creature.MoveState
-            });
-        }
-        
-        if (playerPackets.Count > 0)
-        {
-            connection.Send(SPlayerPositionUpdatePacket.Create(playerPackets.ToArray(), connection.CryptoSession.Encrypt));
-        }
-        if (creaturePackets.Count > 0)
-        {
-            connection.Send(SNpcUpdatePacket.Create(creaturePackets.ToArray(), connection.CryptoSession.Encrypt));
-        }
-    }
-
-    public void BroadcastAttackAnimation(Guid creatureId, ushort animationId)
-    {
-        var connections = GetConnections();
-        Parallel.ForEach(connections, connection =>
-        {
-            connection.Send(SCreatureAttackAnimationPacket.Create(creatureId, animationId, connection.CryptoSession.Encrypt));
+            character.Connection.Send(SCreatureAttackAnimationPacket.Create(creatureId, animationId, character.Connection.CryptoSession.Encrypt));
         });
     }
     
-    public void BroadcastCreatureHit(ulong attackerId, Guid creatureId, int currentHealth, int damage)
+    public void BroadcastCreatureHit(CharacterId attackerId, CreatureId creatureId, uint currentHealth, uint damage)
     {
-        var connections = GetConnections();
-        Parallel.ForEach(connections, connection =>
+        Parallel.ForEach(_characters.Values, character =>
         {
-            connection.Send(SCreatureDamagePacket.Create(attackerId, creatureId, currentHealth, damage, connection.CryptoSession.Encrypt));
+            character.Connection.Send(SCreatureDamagePacket.Create(attackerId, creatureId, currentHealth, damage, character.Connection.CryptoSession.Encrypt));
         });
     }
 
@@ -320,111 +235,17 @@ public class Chunk : IChunk
 
     public void AddCreature(ICreature creature)
     {
-        _lock.EnterWriteLock();
-        try
-        {
-            _creatures.Add(creature);
-        }
-        finally
-        {
-            _lock.ExitWriteLock();
-        }
+        _creatures.Add(creature.Id, creature);
     }
     
     public void RemoveCreature(ICreature creature)
     {
-        _lock.EnterWriteLock();
-        try
-        {
-            _creatures.Remove(creature);
-        }
-        finally
-        {
-            _lock.ExitWriteLock();
-        }
+        RemoveCreature(creature.Id);
     }
 
-    public void RemoveCreature(Guid id)
+    public void RemoveCreature(ulong id)
     {
-        _lock.EnterWriteLock();
-        try
-        {
-            var creature = _creatures.FirstOrDefault(c => c.Id == id);
-            if (creature != null)
-            {
-                _creatures.Remove(creature);
-            }
-        }
-        finally
-        {
-            _lock.ExitWriteLock();
-        }
-    }
-    
-    private void BroadcastPlayers(IReadOnlyList<IWorldConnection> connectionsSnapshot)
-    {
-        Parallel.ForEach(connectionsSnapshot, connection =>
-        {
-            if (!connection.InMap) return;
-
-            var playerPackets = new List<SPlayerPacket>();
-
-            foreach (var otherSession in connectionsSnapshot)
-            {
-                if (!otherSession.InMap) continue;
-                if (otherSession.AccountId == connection.AccountId) continue;
-
-                playerPackets.Add(new SPlayerPacket
-                {
-                    AccountId = otherSession.AccountId!,
-                    CharacterId = otherSession.Character!.Id,
-                    PositionX = otherSession.Character.Position.x,
-                    PositionY = otherSession.Character.Position.y,
-                    PositionZ = otherSession.Character.Position.z,
-                    VelocityX = otherSession.Character.Velocity.x,
-                    VelocityY = otherSession.Character.Velocity.y,
-                    VelocityZ = otherSession.Character.Velocity.z,
-                    Chatting = false,
-                    Elapsed = 0 // TODO: Calculate elapsed time
-                });
-            }
-
-            if (playerPackets.Count > 0)
-            {
-                connection.Send(SPlayerPositionUpdatePacket.Create(playerPackets.ToArray(), connection.CryptoSession.Encrypt));
-            }
-        });
-    }
-
-    private void BroadcastCreatures(IReadOnlyList<IWorldConnection> connectionsSnapshot, IReadOnlyList<ICreature> creaturesSnapshot)
-    {
-        // Broadcast Creature positions
-        var creaturePackets = new List<CreaturePacket>();
-
-        foreach (var creature in creaturesSnapshot)
-        {
-            creaturePackets.Add(new CreaturePacket
-            {
-                Id = creature.Id,
-                Name = creature.Name,
-                PositionX = creature.Position.x,
-                PositionY = creature.Position.y,
-                PositionZ = creature.Position.z,
-                VelocityX = creature.Velocity.x,
-                VelocityY = creature.Velocity.y,
-                VelocityZ = creature.Velocity.z,
-                Orientation = creature.Orientation.y,
-                MoveState = creature.MoveState
-            });
-            
-        }
-        
-        if (creaturePackets.Count == 0) return;
-        
-        Parallel.ForEach(connectionsSnapshot, connection =>
-        {
-            connection.Send(SNpcUpdatePacket.Create(creaturePackets.ToArray(), connection.CryptoSession.Encrypt));
-        });
+        _creatures.Remove(id);
     }
 
     public void OnPlayerMoved(IWorldConnection connection)
@@ -442,7 +263,7 @@ public class Chunk : IChunk
             foreach (var neighbor in nearbyChunks)
             {
                 _logger.LogInformation("Player {CharacterId} is near the border of chunk {ChunkId}, sending state of neighbor {NeighborId}", connection.Character.Name, Id, neighbor.Id);
-                neighbor.SendState(connection);
+                neighbor.BroadcastChunkStateTo(connection.Character);
             }
         }
 
@@ -455,8 +276,8 @@ public class Chunk : IChunk
                 {
                     _logger.LogInformation("Player {CharacterId} moved to chunk {ChunkId}", connection.Character.Name, neighbor.Id);
                     // Handle chunk change logic
-                    RemovePlayer(connection);
-                    neighbor.AddPlayer(connection);
+                    RemoveCharacter(connection);
+                    neighbor.AddCharacter(connection);
                     connection.Character.ChunkId = neighbor.Id;
                     break;
                 }

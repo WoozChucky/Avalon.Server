@@ -39,7 +39,6 @@ public class AvalonTcpClient : IDisposable
     public event AuthResultHandler? AuthResult;
     public event GroupInviteHandler? GroupInvite;
     public event GroupResultHandler? GroupInviteResult;
-    public event NpcUpdatedHandler? NpcUpdated;
     public event PlayerMovedHandler? PlayerMoved;
     public event CharacterListHandler? CharacterList;
     public event CharacterSelectedHandler? CharacterSelected;
@@ -206,9 +205,6 @@ public class AvalonTcpClient : IDisposable
                     case SPlayerPositionUpdatePacket p:
                         Send(() => PlayerMoved?.Invoke(this, p));
                         break;
-                    case SNpcUpdatePacket p:
-                        Send(() => NpcUpdated?.Invoke(this, p));
-                        break;
                     case SPlayerConnectedPacket p:
                         Console.WriteLine("Received player connected packet");
                         Send(() => PlayerConnected?.Invoke(this, p));
@@ -328,9 +324,6 @@ public class AvalonTcpClient : IDisposable
             NetworkPacketType.SMSG_CHARACTER_CONNECTED => _packetDeserializer.Deserialize<SPlayerConnectedPacket>(packet.Header.Type, packet.Payload, decryptFunc),
             NetworkPacketType.SMSG_CHARACTER_DISCONNECTED => _packetDeserializer.Deserialize<SPlayerDisconnectedPacket>(packet.Header.Type, packet.Payload, decryptFunc),
             NetworkPacketType.SMSG_PLAYER_POSITION_UPDATE => _packetDeserializer.Deserialize<SPlayerPositionUpdatePacket>(packet.Header.Type, packet.Payload, decryptFunc),
-            
-            // TODO: Refactor this packet type and packet name
-            NetworkPacketType.SMSG_NPC_UPDATE => _packetDeserializer.Deserialize<SNpcUpdatePacket>(packet.Header.Type, packet.Payload, decryptFunc),
 
             // Character
             NetworkPacketType.SMSG_CHARACTER_LIST => _packetDeserializer.Deserialize<SCharacterListPacket>(packet.Header.Type, packet.Payload, decryptFunc),

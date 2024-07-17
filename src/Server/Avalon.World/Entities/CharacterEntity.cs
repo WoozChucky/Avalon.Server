@@ -1,6 +1,7 @@
 using Avalon.Common.Mathematics;
 using Avalon.Domain.Characters;
 using Avalon.Network.Packets.Combat;
+using Avalon.Network.Packets.State;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
@@ -11,7 +12,8 @@ namespace Avalon.World.Entities;
 
 public class CharacterEntity : ICharacter
 {
-    
+    public IWorldConnection Connection => _connection;
+    public IGameState GameState { get; }
 
     public ICharacterInventory this[InventoryType type] => type switch
     {
@@ -39,6 +41,7 @@ public class CharacterEntity : ICharacter
         _bag = new CharacterInventoryContainer(loggerFactory, InventoryType.Bag);
         _bank = new CharacterInventoryContainer(loggerFactory, InventoryType.Bank);
         _spells = new CharacterSpellContainer(loggerFactory);
+        GameState = new GameState();
     }
 
     public ulong Id
@@ -53,33 +56,33 @@ public class CharacterEntity : ICharacter
         }
     }
 
-    public int Health
+    public uint Health
     {
-        get => Data?.Health ?? 0;
+        get => (uint) (Data?.Health ?? 0);
         set
         {
             if (Data != null)
             {
-                Data.Health = value;
+                Data.Health = (int) value;
             }
         }
     }
     
-    public int CurrentHealth { get; set; }
-    
-    public int Mana
+    public uint CurrentHealth { get; set; }
+
+    public uint Power
     {
-        get => Data?.Power1 ?? 0;
+        get => (uint) (Data?.Power1 ?? 0);
         set
         {
             if (Data != null)
             {
-                Data.Power1 = value;
+                Data.Power1 = (int) value;
             }
         }
     }
-    
-    public int CurrentMana { get; set; }
+    public uint CurrentPower { get; set; }
+    public MoveState MoveState { get; set; } = MoveState.Idle;
 
     public Vector3 Position
     {
@@ -145,12 +148,12 @@ public class CharacterEntity : ICharacter
         }
     }
 
-    public void OnHit(ICharacter attacker, int damage)
+    public void OnHit(ICharacter attacker, uint damage)
     {
         throw new NotImplementedException();
     }
 
-    public void OnHit(ICreature attacker, int damage)
+    public void OnHit(ICreature attacker, uint damage)
     {
         _logger.LogInformation("{Name} has been hit by {Attacker} for {Damage} damage", Name, attacker.Name, damage);
         CurrentHealth -= damage;

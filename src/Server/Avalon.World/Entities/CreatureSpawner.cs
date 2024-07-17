@@ -1,7 +1,7 @@
-using System.Drawing;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
+using Avalon.Network.Packets.State;
 using Avalon.World.Database.Repositories;
 using Avalon.World.Public;
 using Avalon.World.Public.Creatures;
@@ -15,7 +15,6 @@ public interface ICreatureSpawner
     Task LoadAsync();
 
     ICreature Spawn(CreatureInfo virtualCreature);
-    //Creature Spawn(CreatureTemplateId templateId);
 }
 
 public class CreatureSpawner : ICreatureSpawner
@@ -59,15 +58,20 @@ public class CreatureSpawner : ICreatureSpawner
 
         var creature = new Creature
         {
-            Id = Guid.NewGuid(),
+            Id = IGameEntity.GenerateId(),
             TemplateId = template.Id,
             Metadata = template,
             Name = template.Name,
-            Bounds = new Rectangle(0, 0, 0, 0),
             Position = new Vector2(0, 0),
             Speed = template.SpeedWalk,
             Velocity = new Vector2(0, 0),
-            ScriptName = template.ScriptName
+            ScriptName = template.ScriptName,
+            MoveState = MoveState.Idle,
+            Level = 1,
+            Health = 100,
+            CurrentHealth = 100,
+            Power = 0,
+            CurrentPower = 0
         };
         
         return creature;

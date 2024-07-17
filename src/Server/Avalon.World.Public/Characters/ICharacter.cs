@@ -1,10 +1,13 @@
+using Avalon.Common.ValueObjects;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
 
 namespace Avalon.World.Public.Characters;
 
-public interface ICharacter : IGameEntity<ulong>
+public interface ICharacter : IGameEntity
 {
+    IWorldConnection Connection { get; }
+    IGameState GameState { get; }
     ICharacterInventory this[InventoryType type] { get; }
     
     ICharacterSpells Spells { get; }
@@ -14,14 +17,9 @@ public interface ICharacter : IGameEntity<ulong>
     string Name { get; set; }
     
     ushort Map { get; set; }
-    ushort Level { get; set; }
-    int Health { get; set; }
-    int CurrentHealth { get; set; }
-    int Mana { get; set; }
-    int CurrentMana { get; set; }
     
-    void OnHit(ICharacter attacker, int damage);
-    void OnHit(ICreature attacker, int damage);
+    void OnHit(ICharacter attacker, uint damage);
+    void OnHit(ICreature attacker, uint damage);
 }
 
 public interface ICharacterInventory

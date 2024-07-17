@@ -94,6 +94,9 @@ public enum NetworkPacketType : short
     
     // World
     SMSG_WORLD_STATE = 0x3040,
+    SMSG_CREATURE_ADD = 0x3041,
+    SMSG_CREATURE_UPDATE = 0x3042,
+    SMSG_CREATURE_REMOVE = 0x3043,
     
     // Combat
     SMSG_CHARACTER_DAMAGED = 0x3100,
@@ -106,7 +109,6 @@ public enum NetworkPacketType : short
     
     SMSG_SERVER_VERSION = 0x3002,
     SMSG_PLAYER_POSITION_UPDATE = 0x3005,
-    SMSG_NPC_UPDATE = 0x3008,
     SMSG_CHAT_MESSAGE = 0x3009,
     SMSG_CHAT_OPEN = 0x300A,
     SMSG_CHAT_CLOSE = 0x300B,

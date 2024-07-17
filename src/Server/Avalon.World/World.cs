@@ -223,7 +223,7 @@ public class World : IWorld
         
         Parallel.ForEach(chunks, chunk =>
         {
-            var creatures = chunk.GetCreatures();
+            var creatures = chunk.Creatures.Values;
             var entitiesNeedingUpdate = new List<(ICreature, Type)>();
             foreach (var entity in creatures) // GetCreatures() return a copy of the list
             {

@@ -10,13 +10,13 @@ public class SCharacterDamagePacket : Packet
     public static NetworkProtocol Protocol = NetworkProtocol.Tcp;
     public static NetworkPacketFlags Flags = NetworkPacketFlags.Encrypted;
     
-    [ProtoMember(1)] public Guid Attacker { get; set; }
+    [ProtoMember(1)] public ulong Attacker { get; set; }
     [ProtoMember(2)] public ulong Target { get; set; }
-    [ProtoMember(3)] public int CurrentHealth { get; set; }
-    [ProtoMember(4)] public int Damage { get; set; }
+    [ProtoMember(3)] public uint CurrentHealth { get; set; }
+    [ProtoMember(4)] public uint Damage { get; set; }
     [ProtoMember(5)] public uint? SpellId { get; set; }
     
-    public static NetworkPacket Create(Guid attacker, ulong target, int currentHealth, int damage, uint? spellId, Func<byte[], byte[]> encryptFunc)
+    public static NetworkPacket Create(ulong attacker, ulong target, uint currentHealth, uint damage, uint? spellId, Func<byte[], byte[]> encryptFunc)
     {
         using var memoryStream = new MemoryStream();
         
