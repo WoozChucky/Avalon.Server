@@ -1,13 +1,9 @@
 using System.Runtime.CompilerServices;
 using Avalon.Domain.World;
-using Avalon.World.Configuration;
 using Avalon.World.Database.Repositories;
-using Avalon.World.Entities;
 using Avalon.World.Maps.Virtualized;
-using Avalon.World.Pools;
 using Avalon.World.Public.Enums;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 
 namespace Avalon.World.Maps;
 
@@ -15,15 +11,11 @@ public interface IAvalonMapManager
 {
     Task LoadAsync();
     IAsyncEnumerable<(VirtualizedMap map, MapTemplate metadata)> EnumerateOpenWorldAsync(CancellationToken token = default);
-    Task SpawnMapCreaturesAsync(Map map, CancellationToken token = default);
 }
 
 public class AvalonMapManager : IAvalonMapManager
 {
     private readonly ILogger<AvalonMapManager> _logger;
-    private readonly ILoggerFactory _loggerFactory;
-    private readonly IPoolManager _poolManager;
-    private readonly GameConfiguration _gameConfiguration;
     private readonly IMapTemplateRepository _mapTemplateRepository;
 
     private readonly ReaderWriterLockSlim _lock;
@@ -31,13 +23,9 @@ public class AvalonMapManager : IAvalonMapManager
     // Map template loaded from database
     private IList<MapTemplate> _mapTemplates = null!;
 
-    public AvalonMapManager(ILoggerFactory loggerFactory, IPoolManager poolManager,
-        IOptions<GameConfiguration> gameConfiguration, IMapTemplateRepository mapTemplateRepository)
+    public AvalonMapManager(ILoggerFactory loggerFactory, IMapTemplateRepository mapTemplateRepository)
     {
         _logger = loggerFactory.CreateLogger<AvalonMapManager>();
-        _loggerFactory = loggerFactory;
-        _poolManager = poolManager;
-        _gameConfiguration = gameConfiguration.Value;
         _mapTemplateRepository = mapTemplateRepository;
         
         _lock = new ReaderWriterLockSlim(LockRecursionPolicy.SupportsRecursion);
@@ -82,20 +70,6 @@ public class AvalonMapManager : IAvalonMapManager
             
             yield return (virtualizedMap, _mapTemplates.First(m => m.Id == virtualizedMap.Id));
         }
-    }
-
-    public Task SpawnMapCreaturesAsync(Map map, CancellationToken token = default)
-    {
-        var creatures = new List<Creature>();
-        
-        //foreach (var creature in chunk.Creatures)
-        //{
-            //_poolManager.SpawnStartingEntities();
-            
-            //creatures.Add(newCreature);
-        //}
-        
-        return Task.FromResult(creatures);
     }
 
     private async Task<VirtualizedMap> LoadMapAsync(MapTemplate template, CancellationToken token)

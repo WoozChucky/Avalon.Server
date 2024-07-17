@@ -95,6 +95,11 @@ public enum NetworkPacketType : short
     // World
     SMSG_WORLD_STATE = 0x3040,
     
+    // Combat
+    SMSG_CHARACTER_DAMAGED = 0x3100,
+    SMSG_CREATURE_ATTACK_ANIMATION = 0x3101,
+    SMSG_CREATURE_DAMAGED = 0x3102,
+    
     
     SMSG_PONG = 0x3006,
     SMSG_PING = 0x3007,

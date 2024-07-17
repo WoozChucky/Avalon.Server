@@ -19,6 +19,8 @@ public interface IChunk
     void AddPlayer(IWorldConnection connection);
     void RemovePlayer(IWorldConnection connection);
     void SendState(IWorldConnection connection);
+    void BroadcastAttackAnimation(Guid creatureId, ushort animationId);
+    void BroadcastCreatureHit(ulong attackerId, Guid creatureId, int currentHealth, int damage);
 }
 
 [Serializable]

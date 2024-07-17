@@ -1,6 +1,8 @@
 using Avalon.Common.Mathematics;
+using Avalon.Network.Packets.Combat;
 using Avalon.Network.Packets.Movement;
 using Avalon.Network.Packets.World;
+using Avalon.World.Entities;
 using Avalon.World.Filters;
 using Avalon.World.Maps.Navigation;
 using Avalon.World.Pools;
@@ -278,6 +280,7 @@ public class Chunk : IChunk
                 VelocityY = creature.Velocity.y,
                 VelocityZ = creature.Velocity.z,
                 Orientation = creature.Orientation.y,
+                MoveState = creature.MoveState
             });
         }
         
@@ -289,6 +292,24 @@ public class Chunk : IChunk
         {
             connection.Send(SNpcUpdatePacket.Create(creaturePackets.ToArray(), connection.CryptoSession.Encrypt));
         }
+    }
+
+    public void BroadcastAttackAnimation(Guid creatureId, ushort animationId)
+    {
+        var connections = GetConnections();
+        Parallel.ForEach(connections, connection =>
+        {
+            connection.Send(SCreatureAttackAnimationPacket.Create(creatureId, animationId, connection.CryptoSession.Encrypt));
+        });
+    }
+    
+    public void BroadcastCreatureHit(ulong attackerId, Guid creatureId, int currentHealth, int damage)
+    {
+        var connections = GetConnections();
+        Parallel.ForEach(connections, connection =>
+        {
+            connection.Send(SCreatureDamagePacket.Create(attackerId, creatureId, currentHealth, damage, connection.CryptoSession.Encrypt));
+        });
     }
 
     public void SpawnStartingEntities(IPoolManager poolManager)
@@ -393,6 +414,7 @@ public class Chunk : IChunk
                 VelocityY = creature.Velocity.y,
                 VelocityZ = creature.Velocity.z,
                 Orientation = creature.Orientation.y,
+                MoveState = creature.MoveState
             });
             
         }
