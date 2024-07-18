@@ -47,7 +47,6 @@ var services = builder.Services;
     services.AddSingleton(applicationConfig);
     services.AddSingleton(applicationConfig.Environment!);
     services.AddSingleton(applicationConfig.Authentication!);
-    services.AddSingleton(applicationConfig.Database!);
     services.AddSingleton(applicationConfig.Notification!);
     services.AddSingleton(applicationConfig.Cache!);
     
