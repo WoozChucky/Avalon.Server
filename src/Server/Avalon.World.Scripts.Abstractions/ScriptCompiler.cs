@@ -28,8 +28,8 @@ public class ScriptCompiler : IScriptCompiler
     private FileSystemWatcher _watcher;
     private readonly ConcurrentDictionary<string, DateTime> _debounceDictionary = new();
     
-    //private const string ScriptsPath = "Scripts\\HotReload";
-    private const string ScriptsPath = "C:\\dev\\Avalon.Server\\src\\Server\\Avalon.World\\Scripts\\Creatures";
+    private const string ScriptsPath = "Scripts\\HotReload";
+    //private const string ScriptsPath = "C:\\dev\\Avalon.Server\\src\\Server\\Avalon.World\\Scripts\\Creatures";
     private const string ScriptExtension = ".cs";
     private const int DebounceDelayMs = 500; // Delay in milliseconds to wait before compiling the script
     private bool _firstRun = true;
@@ -38,8 +38,9 @@ public class ScriptCompiler : IScriptCompiler
     {
         _logger = loggerFactory.CreateLogger<ScriptCompiler>();
         
-        //var path = Path.Combine(Directory.GetCurrentDirectory(), ScriptsPath);
-        var path = Path.Combine("C:\\dev\\Avalon.Server\\src\\Server\\Avalon.World\\Scripts\\Creatures");
+        var path = Path.Combine(Directory.GetCurrentDirectory(), ScriptsPath);
+        //var path = Path.Combine("C:\\dev\\Avalon.Server\\src\\Server\\Avalon.World\\Scripts\\Creatures");
+        Directory.CreateDirectory(path);
         
         _watcher = new FileSystemWatcher(path, $"*{ScriptExtension}")
         {
