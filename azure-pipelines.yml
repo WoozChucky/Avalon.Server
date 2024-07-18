@@ -187,7 +187,6 @@ jobs:
   
   # Auth Server Start
   - task: DotNetCoreCLI@2
-    enabled: false
     displayName: '.NET Publish Server'
     inputs:
       command: 'publish'
@@ -197,7 +196,6 @@ jobs:
       modifyOutputPath: false
 
   - task: Bash@3
-    enabled: false
     displayName: 'Docker Build - auth-server - $(Build.BuildNumber)'
     inputs:
       targetType: 'inline'
@@ -207,7 +205,6 @@ jobs:
         docker tag $(registryUrl)/avalon/auth-server:$(Build.BuildNumber) $(registryUrl)/avalon/auth-server:latest
 
   - task: Bash@3
-    enabled: false
     displayName: 'Docker Push - world-server - $(Build.BuildNumber)'
     inputs:
       targetType: 'inline'
@@ -216,10 +213,10 @@ jobs:
         docker push $(registryUrl)/avalon/auth-server:$(Build.BuildNumber)
         docker push $(registryUrl)/avalon/auth-server:latest
 
-  #- template: 'helm/package.yml@BuildSteps'
-  #  parameters:
-  #    helmName: 'auth-server'
-  #    helmChartPath: '$(Build.SourcesDirectory)/src/Server/Avalon.Server.Auth/Helm'
+  - template: 'helm/package.yml@BuildSteps'
+    parameters:
+      helmName: 'auth-server'
+      helmChartPath: '$(Build.SourcesDirectory)/src/Server/Avalon.Server.Auth/Helm'
 
   - task: Bash@3
     enabled: false
