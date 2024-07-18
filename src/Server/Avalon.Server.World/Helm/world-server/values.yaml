@@ -1,41 +1,21 @@
 server:
-  infra:
-    minUpdateDiff: 1
-    maxCoreStuckTime: 60000
-  network:
-    tcp:
-      enabled: true
-      backlog: 128
-    udp:
-      enabled: false
-      backlog: 128
-  metrics:
-    enabled: false
-    apiUrl: localhost
-    apiKey: apiKey
-    automatic: false
-    export: false
+  hosting:
+    host: "0.0.0.0"
+    port: 21001
+  cache:
+    host:
+    password:
   database:
     auth:
-      host:
-      port:
-      database:
-      username:
-      password:
+      connectionString:
     characters:
-      host:
-      port:
-      database:
-      username:
-      password:
+      connectionString:
     world:
-      host:
-      port:
-      database:
-      username:
-      password:
+      connectionString:
   game:
-    playerRadius: 200
+    worldId: 1
+    playerRadius: 2000
+    maxPlayersPerAccount: 5
 
 replicaCount: 1
 
