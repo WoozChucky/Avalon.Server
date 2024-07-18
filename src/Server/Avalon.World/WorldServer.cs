@@ -136,7 +136,6 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         
         await _world.LoadAsync(stoppingToken);
         
-        _scriptHotReloader.ScriptsHotReloaded += OnScriptsHotReloaded;
         _scriptHotReloader.Start();
 
         await CacheSubscribeAsync();
@@ -183,6 +182,10 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
     private uint maxCoreStuckTime = 60000;
     private uint halfMaxCoreStuckTime = 30000;
     
+    private int tickCount = 0;
+    private DateTime lastTpsCalculationTime = DateTime.Now;
+    private double ticksPerSecond = 0;
+    
     private async ValueTask Tick()
     {
         realCurrentTime = TimeUtils.GetMSTime();
@@ -201,32 +204,20 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         
         realPreviousTime = realCurrentTime;
 
-        /*
-        var currentTicks = _gameTime.Elapsed.Ticks;
-        _accumulatedElapsedTime += TimeSpan.FromTicks(currentTicks - _previousTicks);
-        _previousTicks = currentTicks;
-
-        if (_accumulatedElapsedTime < _targetElapsedTime)
+        if (false)
         {
-            var sleepTime = (_targetElapsedTime - _accumulatedElapsedTime).TotalMilliseconds;
-            await Task.Delay((int) sleepTime).ConfigureAwait(false);
-            return;
+            // Increment the tick counter
+            tickCount++;
+    
+            // Calculate TPS every second
+            if ((DateTime.Now - lastTpsCalculationTime).TotalSeconds >= 1)
+            {
+                ticksPerSecond = tickCount / (DateTime.Now - lastTpsCalculationTime).TotalSeconds;
+                // _logger.LogInformation("Ticks Per Second (TPS): {TPS}", ticksPerSecond);
+                tickCount = 0;
+                lastTpsCalculationTime = DateTime.Now;
+            }
         }
-
-        if (_accumulatedElapsedTime > _maxElapsedTime)
-        {
-            _logger.LogWarning("Server is running slow. Accumulated time: {AccumulatedTime}ms", _accumulatedElapsedTime);
-            _accumulatedElapsedTime = _maxElapsedTime;
-        }
-
-        while (_accumulatedElapsedTime >= _targetElapsedTime)
-        {
-            _accumulatedElapsedTime -= _targetElapsedTime;
-
-            await Update(TimeSpan.FromMilliseconds(_targetElapsedTime.TotalMilliseconds));
-        }
-        // todo detect lags
-        */
     }
     
     private async Task Update(TimeSpan elapsedTime)
@@ -270,11 +261,6 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         cachedProperties.connectionProperty.SetValue(context, connection);
     
         return context;
-    }
-    
-    private void OnScriptsHotReloaded(List<Type> types)
-    {
-        World.OnScriptsHotReload(types);
     }
 
     #region Cache Subscriptions
