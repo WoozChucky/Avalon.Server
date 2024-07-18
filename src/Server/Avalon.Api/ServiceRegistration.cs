@@ -11,6 +11,7 @@ using Avalon.Auth.Database.Extensions;
 using Avalon.Common.Telemetry;
 using Avalon.Database.Character.Extensions;
 using Avalon.Infrastructure;
+using Avalon.Infrastructure.Configuration;
 using Avalon.Infrastructure.Services;
 using Avalon.World.Database.Extensions;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -32,6 +33,9 @@ public static class ServiceRegistration
         services.AddAuthDatabase();
         services.AddCharacterDatabase();
         services.AddWorldDatabase();
+        
+        services.AddOptions<CacheConfiguration>()
+            .BindConfiguration("Application:Cache");
         
         services.AddScoped<IAccountService, AccountService>();
         services.AddScoped<ICharacterService, CharacterService>();
