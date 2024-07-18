@@ -26,54 +26,6 @@ spec:
       {{- end }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
-      initContainers:
-        # an init container that runs the migrations
-        {{- if .Values.migrator.enabled }}
-        - name: {{ .Values.migrator.image.name }}
-          image: "registry.nunolevezinho.xyz/{{ .Values.migrator.image.repository }}:{{ .Values.migrator.image.tag | default .Chart.AppVersion }}"
-          imagePullPolicy: Always
-          env:
-            # Migrator Configuration
-            - name: Migrator__Enabled
-              value: {{ .Values.migrator.enabled | default true | quote }}
-            - name: Migrator__DryRun
-              value: {{ .Values.migrator.dryRun | default false | quote }}
-            - name: Migrator__CreateDatabases
-              value: {{ .Values.migrator.createDatabases | default true | quote }}
-            - name: Migrator__ApplyMigrations
-              value: {{ .Values.migrator.applyMigrations | default true | quote }}
-            # Database configuration
-            - name: Database__Auth__Host
-              value: {{ .Values.database.auth.host | quote }}
-            - name: Database__Auth__Port
-              value: {{ .Values.database.auth.port | quote }}
-            - name: Database__Auth__Database
-              value: {{ .Values.database.auth.database | quote }}
-            - name: Database__Auth__Username
-              value: {{ .Values.database.auth.username | quote }}
-            - name: Database__Auth__Password
-              value: {{ .Values.database.auth.password | quote }}
-            - name: Database__Characters__Host
-              value: {{ .Values.database.characters.host | quote }}
-            - name: Database__Characters__Port
-              value: {{ .Values.database.characters.port | quote }}
-            - name: Database__Characters__Database
-              value: {{ .Values.database.characters.database | quote }}
-            - name: Database__Characters__Username
-              value: {{ .Values.database.characters.username | quote }}
-            - name: Database__Characters__Password
-              value: {{ .Values.database.characters.password | quote }}
-            - name: Database__World__Host
-              value: {{ .Values.database.world.host | quote }}
-            - name: Database__World__Port
-              value: {{ .Values.database.world.port | quote }}
-            - name: Database__World__Database
-              value: {{ .Values.database.world.database | quote }}
-            - name: Database__World__Username
-              value: {{ .Values.database.world.username | quote }}
-            - name: Database__World__Password
-              value: {{ .Values.database.world.password | quote }}
-        {{- end }}
       containers:
         - name: {{ .Chart.Name }}
           securityContext:
@@ -82,36 +34,16 @@ spec:
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           env:
             # Database configuration
-            - name: Application__Database__Auth__Host
-              value: {{ .Values.database.auth.host | quote }}
-            - name: Application__Database__Auth__Port
-              value: {{ .Values.database.auth.port | quote }}
-            - name: Application__Database__Auth__Database
-              value: {{ .Values.database.auth.database | quote }}
-            - name: Application__Database__Auth__Username
-              value: {{ .Values.database.auth.username | quote }}
-            - name: Application__Database__Auth__Password
-              value: {{ .Values.database.auth.password | quote }}
-            - name: Application__Database__Characters__Host
-              value: {{ .Values.database.characters.host | quote }}
-            - name: Application__Database__Characters__Port
-              value: {{ .Values.database.characters.port | quote }}
-            - name: Application__Database__Characters__Database
-              value: {{ .Values.database.characters.database | quote }}
-            - name: Application__Database__Characters__Username
-              value: {{ .Values.database.characters.username | quote }}
-            - name: Application__Database__Characters__Password
-              value: {{ .Values.database.characters.password | quote }}
-            - name: Application__Database__World__Host
-              value: {{ .Values.database.world.host | quote }}
-            - name: Application__Database__World__Port
-              value: {{ .Values.database.world.port | quote }}
-            - name: Application__Database__World__Database
-              value: {{ .Values.database.world.database | quote }}
-            - name: Application__Database__World__Username
-              value: {{ .Values.database.world.username | quote }}
-            - name: Application__Database__World__Password
-              value: {{ .Values.database.world.password | quote }}
+            - name: Database__Auth__ConnectionString
+              value: {{ .Values.database.auth.connectionString | quote }}
+            - name: Database__Characters__ConnectionString
+              value: {{ .Values.database.characters.connectionString | quote }}
+            - name: Database__World__ConnectionString
+              value: {{ .Values.database.world.connectionString | quote }}
+            - name: Application__Cache__Host
+              value: {{ .Values.cache.host | quote }}
+            - name: Application__Cache__Password
+              value: {{ .Values.cache.password | quote }}
             - name: Application__Notification__Subject
               value: {{ .Values.notification.subject | quote }}
             - name: Application__Notification__PublicKey

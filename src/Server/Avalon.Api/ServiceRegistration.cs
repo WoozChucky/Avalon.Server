@@ -29,9 +29,9 @@ public static class ServiceRegistration
 {
     public static void AddInfrastructure(this IServiceCollection services, ApplicationConfig config)
     {
-        services.AddAuthDatabase("Application:Database");
-        services.AddCharacterDatabase("Application:Database");
-        services.AddWorldDatabase("Application:Database");
+        services.AddAuthDatabase();
+        services.AddCharacterDatabase();
+        services.AddWorldDatabase();
         
         services.AddScoped<IAccountService, AccountService>();
         services.AddScoped<ICharacterService, CharacterService>();
