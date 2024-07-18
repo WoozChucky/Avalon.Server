@@ -8,6 +8,7 @@ using Avalon.World.Pools;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
+using Avalon.World.Public.Enums;
 using Avalon.World.Public.Maps;
 using Microsoft.Extensions.Logging;
 
@@ -68,10 +69,16 @@ public class Chunk : IChunk
         // Step 3: Run CreatureRespawnScheduler
         
         // Step 4: Update characters at tick rate
+        foreach (var creature in _creatures.Values)
+        {
+            creature.Script?.Update(deltaTime);
+        }
+        /*
         Parallel.ForEach(_creatures.Values, creature =>
         {
             creature.Script?.Update(deltaTime);
         });
+        */
 
         foreach (var character in _characters.Values)
         {
@@ -79,7 +86,11 @@ public class Chunk : IChunk
             character.GameState.Update(_creatures, _characters);
         }
         
-        Parallel.ForEach(_characters.Values, BroadcastChunkStateTo);
+        // Parallel.ForEach(_characters.Values, BroadcastChunkStateTo);
+        foreach (var character in _characters.Values)
+        {
+            BroadcastChunkStateTo(character);
+        }
         
         if (_lastBroadcastTime >= BroadcastInterval)
         {
@@ -105,8 +116,10 @@ public class Chunk : IChunk
         }
         
         var addedCreatures = new List<CreatureAdd>();
-        var updatedCreatures = new List<CreatureUpdate>();
+        //var updatedCreatures = new List<CreatureUpdate>();
         var removedCreatures = new List<ulong>();
+        using var memoryStream = new MemoryStream();
+        using var writer = new BinaryWriter(memoryStream);
         
         foreach (var newCreatureId in character.GameState.NewCreatures)
         {
@@ -130,25 +143,18 @@ public class Chunk : IChunk
             });
         }
         
-        foreach (var updatedCreatureId in character.GameState.UpdatedCreatures)
+        var updatedCreatures = new List<(CreatureId creatureId, byte[] data)>();
+        
+        foreach (var updatedCreature in character.GameState.UpdatedCreatures)
         {
-            //TODO: Send only the updated field indices and values
-            var updatedCreature = _creatures[updatedCreatureId];
-            updatedCreatures.Add(new CreatureUpdate
-            {
-                Id = updatedCreature.Id,
-                CurrentHealth = updatedCreature.CurrentHealth,
-                CurrentPower = updatedCreature.CurrentPower,
-                PositionX = updatedCreature.Position.x,
-                PositionY = updatedCreature.Position.y,
-                PositionZ = updatedCreature.Position.z,
-                VelocityX = updatedCreature.Velocity.x,
-                VelocityY = updatedCreature.Velocity.y,
-                VelocityZ = updatedCreature.Velocity.z,
-                Orientation = updatedCreature.Orientation.y,
-                MoveState = updatedCreature.MoveState,
-                Alive = updatedCreature.CurrentHealth > 0
-            });     
+            var updated = _creatures[updatedCreature.creatureId];
+            // TODO: Use code below to filter out fields that have not changed (for now, all fields are sent)
+            // var fields = updatedCreature.fields;
+            var fields = GameEntityFields.All;
+            
+            var data = SerializeFields(memoryStream, writer, updated, fields);
+            
+            updatedCreatures.Add((updated.Id, data));
         }
                 
         foreach (var removedCreatureId in character.GameState.RemovedCreatures)
@@ -161,9 +167,12 @@ public class Chunk : IChunk
             character.Connection.Send(SCreatureAddedPacket.Create(addedCreatures, character.Connection.CryptoSession.Encrypt));
         }
         
-        if (updatedCreatures.Count > 0)
+        if (_lastBroadcastTime >= BroadcastInterval)
         {
-            character.Connection.Send(SCreatureUpdatedPacket.Create(updatedCreatures, character.Connection.CryptoSession.Encrypt));
+            if (updatedCreatures.Count > 0)
+            {
+                character.Connection.Send(SCreatureUpdatedPacket.Create(updatedCreatures, character.Connection.CryptoSession.Encrypt));
+            }
         }
         
         if (removedCreatures.Count > 0)
@@ -171,54 +180,49 @@ public class Chunk : IChunk
             character.Connection.Send(SCreatureRemovedPacket.Create(removedCreatures, character.Connection.CryptoSession.Encrypt));
         }
     }
-
-    private CreatureFields GetChangedFields(ICreature original, ICreature updated)
+    
+    byte[] SerializeFields(MemoryStream stream, BinaryWriter streamWriter, IGameEntity entity, GameEntityFields changedFields)
     {
-        var fields = CreatureFields.None;
-        
-        if (original.Position != updated.Position)
-        {
-            fields |= CreatureFields.Position;
-        }
-        
-        if (original.CurrentHealth != updated.CurrentHealth)
-        {
-            fields |= CreatureFields.CurrentHealth;
-        }
-        
-        if (original.CurrentPower != updated.CurrentPower)
-        {
-            fields |= CreatureFields.CurrentPower;
-        }
-        
-        if (original.Velocity != updated.Velocity)
-        {
-            fields |= CreatureFields.Velocity;
-        }
-        
-        if (original.Orientation != updated.Orientation)
-        {
-            fields |= CreatureFields.Orientation;
-        }
-        
-        if (original.MoveState != updated.MoveState)
-        {
-            fields |= CreatureFields.MoveState;
-        }
-        
-        return fields;
-    }
+        stream.SetLength(0);
+        stream.Position = 0;
+        streamWriter.Seek(0, SeekOrigin.Begin);
+            
+        // Write the bitmask
+        streamWriter.Write((int)changedFields);
 
-    [Flags]
-    public enum CreatureFields
-    {
-        None = 1 << 0,
-        Position = 1 << 1,
-        CurrentHealth = 1 << 2,
-        CurrentPower = 1 << 3,
-        Velocity = 1 << 4,
-        Orientation = 1 << 5,
-        MoveState = 1 << 6
+        // Write the updated fields
+        if (changedFields.HasFlag(GameEntityFields.Position))
+        {
+            streamWriter.Write(entity.Position.x);
+            streamWriter.Write(entity.Position.y);
+            streamWriter.Write(entity.Position.z);
+        }
+        if (changedFields.HasFlag(GameEntityFields.Velocity))
+        {
+            streamWriter.Write(entity.Velocity.x);
+            streamWriter.Write(entity.Velocity.y);
+            streamWriter.Write(entity.Velocity.z);
+        }
+        if (changedFields.HasFlag(GameEntityFields.Orientation))
+        {
+            streamWriter.Write(entity.Orientation.y);
+        }
+        
+        if (changedFields.HasFlag(GameEntityFields.CurrentHealth))
+        {
+            streamWriter.Write(entity.CurrentHealth);
+        }
+        if (changedFields.HasFlag(GameEntityFields.CurrentPower))
+        {
+            streamWriter.Write(entity.CurrentPower);
+        }
+        
+        if (changedFields.HasFlag(GameEntityFields.MoveState))
+        {
+            streamWriter.Write((int) entity.MoveState);
+        }
+        
+        return stream.ToArray();
     }
 
     public void AddCharacter(IWorldConnection connection)
@@ -268,6 +272,14 @@ public class Chunk : IChunk
         Parallel.ForEach(_characters.Values, character =>
         {
             character.Connection.Send(SCreatureDamagePacket.Create(attackerId, creatureId, currentHealth, damage, character.Connection.CryptoSession.Encrypt));
+        });
+    }
+
+    public void BroadcastCreatureDeath(CreatureId creatureId)
+    {
+        Parallel.ForEach(_characters.Values, _ =>
+        {
+            // character.Connection.Send(SCreatureDeathPacket.Create(creatureId, character.Connection.CryptoSession.Encrypt));
         });
     }
 

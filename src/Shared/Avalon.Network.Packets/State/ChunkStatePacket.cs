@@ -1,3 +1,4 @@
+using Avalon.Common.ValueObjects;
 using Avalon.Network.Packets.Abstractions;
 using ProtoBuf;
 
@@ -48,13 +49,17 @@ public class SCreatureUpdatedPacket : Packet
     
     [ProtoMember(1)] public List<CreatureUpdate> Updates { get; set; }
 
-    public static NetworkPacket Create(List<CreatureUpdate> updates, Func<byte[], byte[]> encryptFunc)
+    public static NetworkPacket Create(List<(CreatureId creatureId, byte[] data)> updates, Func<byte[], byte[]> encryptFunc)
     {
         using var memoryStream = new MemoryStream();
 
         var p = new SCreatureUpdatedPacket()
         {
-            Updates = updates
+            Updates = updates.Select(x => new CreatureUpdate
+            {
+                Id = x.creatureId,
+                Fields = x.data
+            }).ToList()
         };
 
         Serializer.Serialize(memoryStream, p);
@@ -73,6 +78,13 @@ public class SCreatureUpdatedPacket : Packet
             Payload = buffer
         };
     }
+}
+
+[ProtoContract]
+public class CreatureUpdate
+{
+    [ProtoMember(1)] public ulong Id { get; set; }
+    [ProtoMember(2)] public byte[] Fields { get; set; }
 }
 
 [ProtoContract]
@@ -129,7 +141,8 @@ public class CreatureAdd
     [ProtoMember(13)] public float Orientation { get; set; }
     [ProtoMember(14)] public MoveState MoveState { get; set; }
 }
-    
+
+/*
 [ProtoContract]
 public class CreatureUpdate
 {
@@ -146,6 +159,7 @@ public class CreatureUpdate
     [ProtoMember(11)] public MoveState MoveState { get; set; }
     [ProtoMember(12)] public bool Alive { get; set; }
 }
+*/
 
 public enum MoveState
 {

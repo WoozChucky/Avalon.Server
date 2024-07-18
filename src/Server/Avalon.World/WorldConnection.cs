@@ -3,6 +3,7 @@ using System.Net.Sockets;
 using Avalon.Common.Mathematics;
 using Avalon.Common.Threading;
 using Avalon.Common.ValueObjects;
+using Avalon.Domain.Characters;
 using Avalon.Hosting;
 using Avalon.Hosting.Networking;
 using Avalon.Network.Packets;
@@ -14,6 +15,7 @@ using Avalon.World.Filters;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
+using Avalon.World.Public.Enums;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.World;
@@ -252,13 +254,13 @@ public class WorldConnection : Connection, IWorldConnection
 
 public class GameState : IGameState
 {
-    public ISet<CreatureId> NewCreatures { get; } = new HashSet<CreatureId>();
-    public ISet<CreatureId> UpdatedCreatures { get; } = new HashSet<CreatureId>();
-    public ISet<CreatureId> RemovedCreatures { get; } = new HashSet<CreatureId>();
+    public ISet<CreatureId> NewCreatures { get; } = new HashSet<CreatureId>(100);
+    public ISet<(CreatureId creatureId, GameEntityFields fields)> UpdatedCreatures { get; } = new HashSet<(CreatureId creatureId, GameEntityFields fields)>(100);
+    public ISet<CreatureId> RemovedCreatures { get; } = new HashSet<CreatureId>(100);
     
-    public ISet<CharacterId> NewCharacters { get; } = new HashSet<CharacterId>();
-    public ISet<CharacterId> UpdatedCharacters { get; } = new HashSet<CharacterId>();
-    public ISet<CharacterId> RemovedCharacters { get; } = new HashSet<CharacterId>();
+    public ISet<CharacterId> NewCharacters { get; } = new HashSet<CharacterId>(100);
+    public ISet<(CharacterId creatureId, GameEntityFields fields)> UpdatedCharacters { get; } = new HashSet<(CharacterId creatureId, GameEntityFields fields)>(100);
+    public ISet<CharacterId> RemovedCharacters { get; } = new HashSet<CharacterId>(100);
     
     private readonly EntityTrackingSystem _creatureTrackingSystem;
     private readonly EntityTrackingSystem _characterTrackingSystem;
@@ -281,9 +283,9 @@ public class GameState : IGameState
         RemovedCharacters.Add(obj.Id);
     }
 
-    private void OnCharacterUpdated(IGameEntity obj)
+    private void OnCharacterUpdated(IGameEntity obj, GameEntityFields fields)
     {
-        UpdatedCharacters.Add(obj.Id);
+        UpdatedCharacters.Add((obj.Id, fields));
     }
 
     private void OnCharacterFound(IGameEntity obj)
@@ -296,9 +298,9 @@ public class GameState : IGameState
         RemovedCreatures.Add(obj.Id);   
     }
 
-    private void OnCreatureUpdated(IGameEntity obj)
+    private void OnCreatureUpdated(IGameEntity obj, GameEntityFields fields)
     {
-        UpdatedCreatures.Add(obj.Id);
+        UpdatedCreatures.Add((obj.Id, fields));
     }
 
     private void OnCreatureFound(IGameEntity obj)
@@ -318,79 +320,5 @@ public class GameState : IGameState
         
         _creatureTrackingSystem.Update(creatures.Values);
         _characterTrackingSystem.Update(characters.Values);
-    }
-}
-
-public class EntityTrackingSystem
-{
-    public event Action<IGameEntity>? EntityAdded;
-    public event Action<IGameEntity>? EntityRemoved;
-    public event Action<IGameEntity>? EntityUpdated;
-    
-    private readonly IDictionary<ulong, IGameEntity> _entities;
-    
-    public EntityTrackingSystem(int capacity)
-    {
-        _entities = new Dictionary<ulong, IGameEntity>(capacity);
-    }
-
-    public void Update(IEnumerable<IGameEntity> entities)
-    {
-        var newEntityIds = new HashSet<ulong>();
-
-        // First pass: Identify new and updated entities
-        foreach (var gameEntity in entities)
-        {
-            newEntityIds.Add(gameEntity.Id);
-
-            if (!_entities.TryGetValue(gameEntity.Id, out var existingEntity))
-            {
-                _entities[gameEntity.Id] = new Creature
-                {
-                    Id = gameEntity.Id,
-                    Position = gameEntity.Position,
-                    Orientation = gameEntity.Orientation,
-                    Velocity = gameEntity.Velocity,
-                    MoveState = gameEntity.MoveState
-                };
-                EntityAdded?.Invoke(gameEntity);
-            }
-            else if (EntityChanged(existingEntity, gameEntity))
-            {
-                _entities[gameEntity.Id].Position = gameEntity.Position;
-                _entities[gameEntity.Id].Orientation = gameEntity.Orientation;
-                _entities[gameEntity.Id].Velocity = gameEntity.Velocity;
-                _entities[gameEntity.Id].MoveState = gameEntity.MoveState;
-                EntityUpdated?.Invoke(gameEntity);
-            }
-        }
-
-        // Second pass: Identify removed entities
-        var removedEntityIds = new List<ulong>();
-        foreach (var existingEntityId in _entities.Keys)
-        {
-            if (!newEntityIds.Contains(existingEntityId))
-            {
-                removedEntityIds.Add(existingEntityId);
-            }
-        }
-
-        foreach (var removedEntityId in removedEntityIds)
-        {
-            if (_entities.TryGetValue(removedEntityId, out var removedEntity))
-            {
-                EntityRemoved?.Invoke(removedEntity);
-                _entities.Remove(removedEntityId);
-            }
-        }
-    }
-
-    private bool EntityChanged(IGameEntity existingEntity, IGameEntity gameEntity)
-    {
-        return true;
-        return existingEntity.Position != gameEntity.Position || 
-               existingEntity.Orientation != gameEntity.Orientation ||
-               existingEntity.Velocity != gameEntity.Velocity ||
-               existingEntity.MoveState != gameEntity.MoveState;
     }
 }

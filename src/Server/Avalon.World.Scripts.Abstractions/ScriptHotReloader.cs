@@ -9,6 +9,8 @@ public interface IScriptHotReloader
     event ScriptsHotReloadedEventHandler? ScriptsHotReloaded;
     void Start();
     void Stop();
+    
+    void Update(out List<Type> scriptTypes);
 }
 
 public delegate void ScriptsHotReloadedEventHandler(List<Type> types);
@@ -16,6 +18,8 @@ public delegate void ScriptsHotReloadedEventHandler(List<Type> types);
 public class ScriptHotReloader : IScriptHotReloader
 {
     public event ScriptsHotReloadedEventHandler? ScriptsHotReloaded;
+    
+    private readonly List<Type> _scriptTypes = [];
     
     private readonly IScriptCompiler _scriptCompiler;
     private readonly ILogger<ScriptHotReloader> _logger;
@@ -46,6 +50,11 @@ public class ScriptHotReloader : IScriptHotReloader
         
         _logger.LogDebug("HotReloading {Count} AI scripts...", types.Count);
         ScriptsHotReloaded?.Invoke(types);
+        lock (_scriptTypes)
+        {
+            _scriptTypes.Clear();
+            _scriptTypes.AddRange(types);
+        }
     }
 
     public void Stop()
@@ -55,7 +64,21 @@ public class ScriptHotReloader : IScriptHotReloader
         _scriptCompiler.ScriptCompiled -= OnScriptCompiled;
         _scriptCompiler.Stop();
     }
-    
+
+    public void Update(out List<Type> scriptTypes)
+    {
+        lock (_scriptTypes)
+        {
+            if (_scriptTypes.Count == 0)
+            {
+                scriptTypes = [];
+                return;
+            }
+            scriptTypes = [.._scriptTypes];
+            _scriptTypes.Clear();
+        }
+    }
+
     private List<Type> FindScriptTypes<TBaseType>(Assembly assembly)
     {
         var baseType = typeof(TBaseType);

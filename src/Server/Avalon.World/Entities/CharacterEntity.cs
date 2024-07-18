@@ -31,7 +31,16 @@ public class CharacterEntity : ICharacter
     private readonly ICharacterInventory _bag;
     private readonly ICharacterInventory _bank;
     private readonly ICharacterSpells _spells;
-    
+
+    public CharacterEntity()
+    {
+        _logger = null!;
+        _connection = null!;
+        _equipment = null!;
+        _bag = null!;
+        _bank = null!;
+        _spells = null!;
+    }
     
     public CharacterEntity(ILoggerFactory loggerFactory, IWorldConnection connection)
     {

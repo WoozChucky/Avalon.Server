@@ -12,6 +12,7 @@ using Avalon.World.Maps;
 using Avalon.World.Pools;
 using Avalon.World.Public;
 using Avalon.World.Public.Creatures;
+using Avalon.World.Scripts.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -54,6 +55,7 @@ public class World : IWorld
     private readonly IAvalonMapManager _mapManager;
     private readonly IPoolManager _poolManager;
     private readonly IServiceScopeFactory _serviceScopeFactory;
+    private readonly IScriptHotReloader _scriptHotReloader;
     private readonly IntervalTimer[] _timers = new IntervalTimer[WorldTimersCount];
 
     public World(ILoggerFactory loggerFactory,
@@ -64,7 +66,8 @@ public class World : IWorld
         IServiceScopeFactory serviceScopeFactory,
         ICharacterCreateInfoRepository characterCreateInfoRepository,
         IClassLevelStatRepository classLevelStatRepository,
-        IItemTemplateRepository itemTemplateRepository)
+        IItemTemplateRepository itemTemplateRepository,
+        IScriptHotReloader scriptHotReloader)
     {
         _logger = loggerFactory.CreateLogger<World>();
         _loggerFactory = loggerFactory;
@@ -73,6 +76,7 @@ public class World : IWorld
         _mapManager = mapManager;
         _poolManager = poolManager;
         _serviceScopeFactory = serviceScopeFactory;
+        _scriptHotReloader = scriptHotReloader;
         Data = new StaticData(characterCreateInfoRepository, classLevelStatRepository, itemTemplateRepository);
         
         for (var i = 0; i < WorldTimersCount; ++i)
@@ -141,6 +145,8 @@ public class World : IWorld
     
     public void Update(TimeSpan deltaTime)
     {
+        // TODO: Name the timers with 'constant' identifiers
+        
         for (var i = 0; i < WorldTimersCount; ++i)
         {
             if (_timers[i].GetCurrent() >= 0)
@@ -149,12 +155,18 @@ public class World : IWorld
                 _timers[i].SetCurrent(0);
         }
 
-        if (_timers[0].Passed())
+        if (_timers[0].Passed()) // Hot reload scripts timer
         {
-            // do something...
+            _scriptHotReloader.Update(out var scriptTypes);
+            if (scriptTypes.Count > 0)
+            {
+                OnScriptsHotReload(scriptTypes);
+                _logger.LogInformation("Hot reloaded {Count} AI scripts", scriptTypes.Count);
+            }
             _timers[0].Reset();
         }
         
+        /*
         Parallel.ForEach(Grid.Maps, map =>
         {
             Parallel.ForEach(map.Chunks, chunk =>
@@ -165,9 +177,8 @@ public class World : IWorld
                 }
             });
         });
+        */
         
-        
-        /*
         foreach (var gridMap in Grid.Maps)
         {
             foreach (var chunk in gridMap.Chunks)
@@ -178,7 +189,6 @@ public class World : IWorld
                 }
             }
         }
-        */
     }
 
     public void SpawnPlayer(IWorldConnection connection)

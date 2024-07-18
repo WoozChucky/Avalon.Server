@@ -3,6 +3,7 @@ using Avalon.Hosting.Networking;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
+using Avalon.World.Public.Enums;
 
 namespace Avalon.World.Public;
 
@@ -27,10 +28,10 @@ public interface IWorldConnection : IConnection
 public interface IGameState
 {
     ISet<CreatureId> NewCreatures { get; }
-    ISet<CreatureId> UpdatedCreatures { get; }
+    ISet<(CreatureId creatureId, GameEntityFields fields)> UpdatedCreatures { get; }
     ISet<CreatureId> RemovedCreatures { get; }
     ISet<CharacterId> NewCharacters { get; }
-    ISet<CharacterId> UpdatedCharacters { get; }
+    ISet<(CharacterId creatureId, GameEntityFields fields)> UpdatedCharacters { get; }
     ISet<CharacterId> RemovedCharacters { get; }
 
     void Update(Dictionary<CreatureId, ICreature> creatures, Dictionary<CharacterId, ICharacter> characters);
