@@ -1,34 +1,14 @@
 database:
   auth:
-    host:
-    port:
-    database:
-    username:
-    password:
+    connectionString:
   characters:
-    host:
-    port:
-    database:
-    username:
-    password:
+    connectionString:
   world:
-    host:
-    port:
-    database:
-    username:
-    password:
-
-migrator:
-  enabled:
-  dryRun:
-  createDatabases:
-  applyMigrations:
-  image:
-    name: database-migrator
-    repository: avalon/database-migrator
-    pullPolicy: Always
-    # Overrides the image tag whose default is the chart appVersion.
-    tag: latest
+    connectionString:
+      
+cache:
+  host:
+  password:
 
 notification:
   subject:
