@@ -3,11 +3,9 @@ using Avalon.Common.Mathematics;
 using Avalon.Common.Utils;
 using Avalon.Database.Character.Repositories;
 using Avalon.Domain.Auth;
-using Avalon.Hosting.Networking;
 using Avalon.World.Configuration;
 using Avalon.World.Database.Repositories;
 using Avalon.World.Entities;
-using Avalon.World.Filters;
 using Avalon.World.Maps;
 using Avalon.World.Pools;
 using Avalon.World.Public;
@@ -45,6 +43,7 @@ public class World : IWorld
     public StaticData Data { get; private set; }
 
     private const ushort WorldTimersCount = 5;
+    private const ushort HotReloadTimer = 0;
     
     private Avalon.Domain.Auth.World? _world;
     
@@ -112,7 +111,8 @@ public class World : IWorld
                 var chunk = new Chunk(
                     _loggerFactory, 
                     virtualMap.Id,
-                    new Vector2(chunkMetadata.Position.x, chunkMetadata.Position.z))
+                    new Vector2(chunkMetadata.Position.x, chunkMetadata.Position.z),
+                    _poolManager)
                 {
                     Id = chunkId++,
                     Enabled = false,
@@ -122,8 +122,6 @@ public class World : IWorld
 
                 await chunk.InitializeAsync();
                 
-                //var key = new Vector2(chunkMetadata.Position.x, chunkMetadata.Position.z);
-                //chunks[key] = chunk;
                 chunks.Add(chunk);
             }
             
@@ -140,7 +138,7 @@ public class World : IWorld
         
         Grid.DetectNeighbors();
         
-        Grid.SpawnStartingEntities(_poolManager);
+        Grid.SpawnStartingEntities();
     }
     
     public void Update(TimeSpan deltaTime)
@@ -155,7 +153,7 @@ public class World : IWorld
                 _timers[i].SetCurrent(0);
         }
 
-        if (_timers[0].Passed()) // Hot reload scripts timer
+        if (_timers[HotReloadTimer].Passed()) // Hot reload scripts timer
         {
             _scriptHotReloader.Update(out var scriptTypes);
             if (scriptTypes.Count > 0)
@@ -163,7 +161,7 @@ public class World : IWorld
                 OnScriptsHotReload(scriptTypes);
                 _logger.LogInformation("Hot reloaded {Count} AI scripts", scriptTypes.Count);
             }
-            _timers[0].Reset();
+            _timers[HotReloadTimer].Reset();
         }
         
         /*

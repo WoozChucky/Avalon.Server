@@ -83,11 +83,11 @@ public class WorldGrid
         }
     }
 
-    public void SpawnStartingEntities(IPoolManager poolManager)
+    public void SpawnStartingEntities()
     {
         foreach (var map in Maps)
         {
-            map.SpawnStartingEntities(poolManager);
+            map.SpawnStartingEntities();
         }
     }
     
