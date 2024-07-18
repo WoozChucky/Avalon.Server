@@ -32,7 +32,8 @@ public class ReplicatedCache : IReplicatedCache
     public ReplicatedCache(ILoggerFactory loggerFactory, IOptions<CacheConfiguration> configuration)
     {
         _logger = loggerFactory.CreateLogger<ReplicatedCache>();
-        _configuration = string.IsNullOrWhiteSpace(configuration.Value.Host) ? new CacheConfiguration { Host = "localhost", Password = "123"} : configuration.Value;
+        _configuration = string.IsNullOrWhiteSpace(configuration.Value.Host) ? throw new Exception("Invalid IOptions<CacheConfiguration>!"): configuration.Value;
+        _logger.LogInformation("ReplicatedCache initialized with configuration: {@Configuration}", _configuration);
     }
 
     public IDatabase Database => _redis.GetDatabase();
