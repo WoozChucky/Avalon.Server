@@ -35,7 +35,7 @@ spec:
             - name: Hosting__Host
               value: {{ .Values.server.hosting.host | quote }}
             - name: Hosting__Port
-              value: {{ .Values.service.port }}
+              value: {{ .Values.service.port | quote }}
             # Cache configuration
             - name: Cache__Host
               value: {{ .Values.server.cache.host | quote }}
@@ -50,11 +50,11 @@ spec:
               value: {{ .Values.server.database.world.connectionString | quote }}
             # Game configuration
             - name: Game__WorldId
-              value: {{ .Values.server.game.worldId }}
+              value: {{ .Values.server.game.worldId | quote }}
             - name: Game__PlayerRadius
-              value: {{ .Values.server.game.playerRadius }}
+              value: {{ .Values.server.game.playerRadius | quote }}
             - name: Game__MaxPlayersPerAccount
-              value: {{ .Values.server.game.maxPlayersPerAccount }}
+              value: {{ .Values.server.game.maxPlayersPerAccount | quote }}
           ports:
             - name: server-tcp
               containerPort: {{ .Values.service.port }}
