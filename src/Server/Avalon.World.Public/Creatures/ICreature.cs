@@ -4,21 +4,23 @@ using Avalon.World.Public.Characters;
 
 namespace Avalon.World.Public.Creatures;
 
+public delegate void CreatureKilledDelegate(ICreature creature, IGameEntity killer);
+
 public interface ICreature : IGameEntity
 {
-    public ICreatureMetadata Metadata { get; set; }
-    public string Name { get; set; }
-    public float Speed { get; set; }
-    public string ScriptName { get; set; }
-    public AiScript? Script { get; set; }
-    MoveState MoveState { get; set; }
+    ICreatureMetadata Metadata { get; set; }
+    string Name { get; set; }
+    float Speed { get; set; }
+    string ScriptName { get; set; }
+    AiScript? Script { get; set; }
 
     void LookAt(Vector3 target);
     bool IsLookingAt(Vector3 target, float threshold = 0.1f);
-
+    void Died(IGameEntity killer);
+    
     #region Events
     void OnHit(ICreature attacker, uint damage);
     void OnHit(ICharacter attacker, uint damage);
     #endregion
-    
+
 }
