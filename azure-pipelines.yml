@@ -184,32 +184,3 @@ jobs:
         helm push world-server-$(Build.BuildNumber)-helm.tgz oci://$(registryUrl)/avalon
         helm push world-server-0.0-latest.tgz oci://$(registryUrl)/avalon
   # Game Server End
-     
-  # Database Migrator Start   
-  - task: DotNetCoreCLI@2
-    displayName: '.NET Publish Database Migrator'
-    inputs:
-      command: 'publish'
-      arguments: 'tools/Avalon.Database.Migrator.Console/Avalon.Database.Migrator.Console.csproj -c Release --no-restore'
-      publishWebProjects: false
-      zipAfterPublish: false
-      modifyOutputPath: false
-
-  - task: Bash@3
-    displayName: 'Docker Build - database-migrator - $(Build.BuildNumber)'
-    inputs:
-      targetType: 'inline'
-      script: |
-        #!/bin/bash
-        docker build --no-cache -t $(registryUrl)/avalon/database-migrator:$(Build.BuildNumber) -f tools/Avalon.Database.Migrator.Console/Dockerfile tools/Avalon.Database.Migrator.Console
-        docker tag $(registryUrl)/avalon/database-migrator:$(Build.BuildNumber) $(registryUrl)/avalon/database-migrator:latest
-
-  - task: Bash@3
-    displayName:  Docker Push - database-migrator - $(Build.BuildNumber)
-    inputs:
-      targetType: 'inline'
-      script: |
-        #!/bin/bash
-        docker push $(registryUrl)/avalon/database-migrator:$(Build.BuildNumber)
-        docker push $(registryUrl)/avalon/database-migrator:latest
-  # Database Migrator End

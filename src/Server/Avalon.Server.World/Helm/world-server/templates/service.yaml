@@ -11,9 +11,5 @@ spec:
       targetPort: server-tcp
       protocol: TCP
       name: server-tcp
-    - port: {{ .Values.service.port }}
-      targetPort: server-udp
-      protocol: UDP
-      name: server-udp
   selector:
     {{- include "avalon-server.selectorLabels" . | nindent 4 }}
