@@ -1,7 +1,9 @@
 using Avalon.Common.Mathematics;
+using Avalon.Common.Utils;
 using Avalon.Common.ValueObjects;
 using Avalon.Network.Packets.Combat;
 using Avalon.Network.Packets.State;
+using Avalon.World.Entities;
 using Avalon.World.Filters;
 using Avalon.World.Maps.Navigation;
 using Avalon.World.Pools;
@@ -16,6 +18,12 @@ namespace Avalon.World.Maps;
 
 public class Chunk : IChunk
 {
+    private enum ChunkTimerType
+    {
+        CreatureRemoval,
+        CreatureRespawn
+    }
+
     public uint Id { get; set; }
     public ushort MapId { get; private set; }
     public bool Enabled { get; set; }
@@ -37,12 +45,30 @@ public class Chunk : IChunk
     private IPoolManager _poolManager;
     private float _lastBroadcastTime;
 
+    private readonly ICreatureRespanwer _creatureRespawner;
+
     public Chunk(ILoggerFactory loggerFactory, ushort mapId, Vector2 position)
     {
         _logger = loggerFactory.CreateLogger<Chunk>();
         MapId = mapId;
         Position = position;
         Navigator = new ChunkNavigator(loggerFactory);
+        Creature.OnCreatureKilled += OnCreatureKilled;
+        _creatureRespawner = new CreatureRespawner(this);
+    }
+
+    private void OnCreatureKilled(ICreature creature, IGameEntity killer)
+    {
+        if (!Enabled || !_creatures.ContainsKey(creature.Id)) return;
+
+        // Step 1: Stop the creature scripts
+        creature.Script = null; // TODO: Double check if this has to be schuduled to run on the main thread
+        
+        // Step 2: Schedule the creature to be respawned
+        _creatureRespawner.ScheduleRespawn(creature);
+
+        // Step 4: Schedule the loot to be spawned
+        
     }
 
     public async Task InitializeAsync()
@@ -55,7 +81,8 @@ public class Chunk : IChunk
         if (!Enabled) return;
         _lastBroadcastTime += (float) deltaTime.TotalSeconds;
         
-        // Step 1: Update DynamicMapTree
+        // Step 1: Update creature respawns
+        _creatureRespawner.Update(deltaTime);
         
         // Step 2: Process character packets
         foreach (var character in _characters.Values)
@@ -299,9 +326,18 @@ public class Chunk : IChunk
         RemoveCreature(creature.Id);
     }
 
-    public void RemoveCreature(ulong id)
+    public void RemoveCreature(CreatureId id)
     {
         _creatures.Remove(id);
+        BroadcastCreatureRemoval(id);
+    }
+
+    private void BroadcastCreatureRemoval(CreatureId creatureId)
+    {
+        Parallel.ForEach(_characters.Values, character =>
+        {
+            // character.Connection.Send(SCreatureRemovedPacket.Create(creatureId, character.Connection.CryptoSession.Encrypt));
+        });
     }
 
     public void OnPlayerMoved(IWorldConnection connection)
