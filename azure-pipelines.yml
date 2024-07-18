@@ -184,3 +184,51 @@ jobs:
         helm push world-server-$(Build.BuildNumber)-helm.tgz oci://$(registryUrl)/avalon
         helm push world-server-0.0-latest.tgz oci://$(registryUrl)/avalon
   # Game Server End
+  
+  # Auth Server Start
+  - task: DotNetCoreCLI@2
+    enabled: false
+    displayName: '.NET Publish Server'
+    inputs:
+      command: 'publish'
+      arguments: 'src/Server/Avalon.Server.Auth/Avalon.Server.Auth.csproj -c Release --no-restore'
+      publishWebProjects: false
+      zipAfterPublish: false
+      modifyOutputPath: false
+
+  - task: Bash@3
+    enabled: false
+    displayName: 'Docker Build - auth-server - $(Build.BuildNumber)'
+    inputs:
+      targetType: 'inline'
+      script: |
+        #!/bin/bash
+        docker build --no-cache -t $(registryUrl)/avalon/auth-server:$(Build.BuildNumber) -f src/Server/Avalon.Server.Auth/Dockerfile src/Server/Avalon.Server.Auth
+        docker tag $(registryUrl)/avalon/auth-server:$(Build.BuildNumber) $(registryUrl)/avalon/auth-server:latest
+
+  - task: Bash@3
+    enabled: false
+    displayName: 'Docker Push - world-server - $(Build.BuildNumber)'
+    inputs:
+      targetType: 'inline'
+      script: |
+        #!/bin/bash
+        docker push $(registryUrl)/avalon/auth-server:$(Build.BuildNumber)
+        docker push $(registryUrl)/avalon/auth-server:latest
+
+  #- template: 'helm/package.yml@BuildSteps'
+  #  parameters:
+  #    helmName: 'auth-server'
+  #    helmChartPath: '$(Build.SourcesDirectory)/src/Server/Avalon.Server.Auth/Helm'
+
+  - task: Bash@3
+    enabled: false
+    displayName: 'Helm OCI Publish - auth-server - $(Build.BuildNumber)'
+    inputs:
+      targetType: 'bash'
+      scriptLocation: 'inlineScript'
+      script: |
+        ls
+        helm push auth-server-$(Build.BuildNumber)-helm.tgz oci://$(registryUrl)/avalon
+        helm push auth-server-0.0-latest.tgz oci://$(registryUrl)/avalon
+  # Auth Server End
