@@ -219,7 +219,6 @@ jobs:
       helmChartPath: '$(Build.SourcesDirectory)/src/Server/Avalon.Server.Auth/Helm'
 
   - task: Bash@3
-    enabled: false
     displayName: 'Helm OCI Publish - auth-server - $(Build.BuildNumber)'
     inputs:
       targetType: 'bash'
