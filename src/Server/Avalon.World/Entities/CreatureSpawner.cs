@@ -43,6 +43,7 @@ public class CreatureSpawner : ICreatureSpawner
         var creature = Spawn(virtualCreature.PrototypeIndex);
 
         creature.Position = virtualCreature.Position;
+        creature.Metadata.StartPosition = virtualCreature.Position;
         
         return creature;
     }

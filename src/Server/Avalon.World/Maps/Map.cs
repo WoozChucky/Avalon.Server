@@ -110,11 +110,11 @@ public class Map
         return null;
     }
 
-    public void SpawnStartingEntities(IPoolManager poolManager)
+    public void SpawnStartingEntities()
     {
         foreach (var chunk in Chunks)
         {
-            chunk.SpawnStartingEntities(poolManager);
+            chunk.SpawnStartingEntities();
         }
     }
 

@@ -1,6 +1,7 @@
 using Avalon.World.Entities;
 using Avalon.World.Maps;
 using Avalon.World.Public;
+using Avalon.World.Public.Creatures;
 using Avalon.World.Scripts;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -11,7 +12,7 @@ public interface IPoolManager
 {
     void SpawnStartingEntities(Chunk chunk);
     
-    // TODO: Add methods to manage the creature pools
+    void SpawnEntity(Chunk chunk, ICreature creature);
 }
 
 public class PoolManager : IPoolManager
@@ -46,6 +47,28 @@ public class PoolManager : IPoolManager
             }
 
             chunk.AddCreature(creature);
+        }
+    }
+
+    public void SpawnEntity(Chunk chunk, ICreature creature)
+    {
+        foreach (var virtualCreature in chunk.Metadata.Creatures)
+        {
+            if (virtualCreature.Position != creature.Metadata.StartPosition) continue;
+            
+            _logger.LogDebug("Spawning entity {CreatureId} for Chunk {ChunkId}", virtualCreature.PrototypeIndex, chunk.Id);
+            
+            var newCreature = _creatureSpawner.Spawn(virtualCreature);
+            
+            var scriptType = _aiController.GetScriptTemplate(newCreature.ScriptName);
+            if (scriptType is not null)
+            {
+                var script = ActivatorUtilities.CreateInstance(_serviceProvider, scriptType, [newCreature, chunk]);
+                newCreature.Script = (AiScript) script;
+            }
+
+            chunk.AddCreature(newCreature);
+            break;
         }
     }
 }

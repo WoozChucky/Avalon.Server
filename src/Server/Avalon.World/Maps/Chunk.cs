@@ -18,12 +18,6 @@ namespace Avalon.World.Maps;
 
 public class Chunk : IChunk
 {
-    private enum ChunkTimerType
-    {
-        CreatureRemoval,
-        CreatureRespawn
-    }
-
     public uint Id { get; set; }
     public ushort MapId { get; private set; }
     public bool Enabled { get; set; }
@@ -45,10 +39,11 @@ public class Chunk : IChunk
     private IPoolManager _poolManager;
     private float _lastBroadcastTime;
 
-    private readonly ICreatureRespanwer _creatureRespawner;
+    private readonly ICreatureRespawner _creatureRespawner;
 
-    public Chunk(ILoggerFactory loggerFactory, ushort mapId, Vector2 position)
+    public Chunk(ILoggerFactory loggerFactory, ushort mapId, Vector2 position, IPoolManager poolManager)
     {
+        _poolManager = poolManager;
         _logger = loggerFactory.CreateLogger<Chunk>();
         MapId = mapId;
         Position = position;
@@ -186,7 +181,7 @@ public class Chunk : IChunk
                 
         foreach (var removedCreatureId in character.GameState.RemovedCreatures)
         {
-            removedCreatures.Add(_creatures[removedCreatureId].Id);
+            removedCreatures.Add(removedCreatureId);
         }
         
         if (addedCreatures.Count > 0)
@@ -310,9 +305,13 @@ public class Chunk : IChunk
         });
     }
 
-    public void SpawnStartingEntities(IPoolManager poolManager)
+    public void RespawnCreature(ICreature creature)
     {
-        _poolManager = poolManager;
+        _poolManager.SpawnEntity(this, creature);
+    }
+
+    public void SpawnStartingEntities()
+    {
         _poolManager.SpawnStartingEntities(this);
     }
 

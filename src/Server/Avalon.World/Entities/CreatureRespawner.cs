@@ -5,13 +5,13 @@ using Avalon.World.Public.Maps;
 
 namespace Avalon.World.Entities;
 
-public interface ICreatureRespanwer
+public interface ICreatureRespawner
 {
     void ScheduleRespawn(ICreature creature);
     void Update(TimeSpan deltaTime);
 }
 
-public class CreatureRespawner : ICreatureRespanwer
+public class CreatureRespawner : ICreatureRespawner
 {
     private readonly IDictionary<IntervalTimer, ICreature> _respawnTimers = new Dictionary<IntervalTimer, ICreature>();
     private readonly IDictionary<IntervalTimer, ICreature> _removeTimers = new Dictionary<IntervalTimer, ICreature>();
@@ -40,27 +40,36 @@ public class CreatureRespawner : ICreatureRespanwer
         var timersToRemove = new List<IntervalTimer>();
         foreach (var (timer, creature) in _removeTimers)
         {
-            timer.Update((long)deltaTime.TotalMilliseconds);
-            if (timer.Passed())
-            {
-                _chunk.RemoveCreature(creature);
-                timersToRemove.Add(timer);
-            }
+            if (timer.GetCurrent() >= 0)
+                timer.Update((long)deltaTime.TotalMilliseconds);
+
+            if (!timer.Passed()) continue;
+            
+            _chunk.RemoveCreature(creature);
+            timersToRemove.Add(timer);
         }
 
         foreach (var timer in timersToRemove)
         {
             _removeTimers.Remove(timer);
         }
+        
+        var timersToRespawn = new List<IntervalTimer>();
 
         foreach (var (timer, creature) in _respawnTimers)
         {
-            timer.Update((long)deltaTime.TotalMilliseconds);
-            if (timer.Passed())
-            {
-                // respawn
-                //_chunk.RespawnCreature(creature);
-            }
+            if (timer.GetCurrent() >= 0)
+                timer.Update((long)deltaTime.TotalMilliseconds);
+
+            if (!timer.Passed()) continue;
+            
+            _chunk.RespawnCreature(creature);
+            timersToRespawn.Add(timer);
+        }
+        
+        foreach (var timer in timersToRespawn)
+        {
+            _respawnTimers.Remove(timer);
         }
 
     }
