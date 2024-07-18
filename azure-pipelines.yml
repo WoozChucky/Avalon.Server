@@ -205,7 +205,7 @@ jobs:
         docker tag $(registryUrl)/avalon/auth-server:$(Build.BuildNumber) $(registryUrl)/avalon/auth-server:latest
 
   - task: Bash@3
-    displayName: 'Docker Push - world-server - $(Build.BuildNumber)'
+    displayName: 'Docker Push - auth-server - $(Build.BuildNumber)'
     inputs:
       targetType: 'inline'
       script: |
