@@ -33,6 +33,8 @@ public class CreatureCombatScript : AiScript
     private float _attackCooldownTimer = 0.0f;
     
     private Queue<Vector3> _currentPath;
+
+    private bool _dead = false;
     
     public CreatureCombatScript(ILoggerFactory loggerFactory,ICreature creature, IChunk chunk) : base(creature, chunk)
     {
@@ -66,7 +68,11 @@ public class CreatureCombatScript : AiScript
             if (Creature.CurrentHealth <= 0)
             {
                 _logger.LogInformation("{Name} has died", Creature.Name);
-                Creature.CurrentHealth = Creature.Health; //TODO: reset health while developing
+                Creature.CurrentHealth = 0;
+                _dead = true;
+                Chunk.BroadcastCreatureDeath(Creature.Id);
+                // TODO: Drop loot
+                return;
             }
             
             _target = attacker;
@@ -82,6 +88,8 @@ public class CreatureCombatScript : AiScript
 
     public override void Update(TimeSpan deltaTime)
     {
+        if (_dead) return;
+        
         var currentPosition = Creature.Position;
 
         if (State is CombatState.Returning)
@@ -116,7 +124,6 @@ public class CreatureCombatScript : AiScript
             _target = null;
             State = CombatState.Returning;
             _currentPath = GeneratePath(currentPosition, _initialPosition);
-            Creature.Health = 100; //TODO: Reset health while developing
             Creature.CurrentHealth = Creature.Health;
             return;
         }
