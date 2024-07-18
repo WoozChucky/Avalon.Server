@@ -37,18 +37,6 @@ server:
   game:
     playerRadius: 200
 
-migrator:
-  enabled:
-  dryRun:
-  createDatabases:
-  applyMigrations:
-  image:
-    name: database-migrator
-    repository: avalon/database-migrator
-    pullPolicy: Always
-    # Overrides the image tag whose default is the chart appVersion.
-    tag: latest
-
 replicaCount: 1
 
 image:
@@ -77,7 +65,7 @@ securityContext: {}
 
 service:
   type: ClusterIP
-  port: 21000
+  port: 21001
 
 resources: {}
   # We usually recommend not to specify default resources and to leave this as a conscious
