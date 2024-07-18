@@ -1,4 +1,6 @@
 using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
+using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
@@ -68,4 +70,7 @@ public class CreatureTemplate : IDbEntity<CreatureTemplateId>, ICreatureMetadata
     public int BaseAttackTime { get; set; }
 
     public int RangeAttackTime { get; set; }
+    
+    [NotMapped]
+    public Vector3 StartPosition { get; set; }
 }

@@ -22,6 +22,7 @@ public interface IChunk
     void BroadcastAttackAnimation(CreatureId creatureId, ushort animationId);
     void BroadcastCreatureHit(CharacterId attackerId, CreatureId creatureId, uint currentHealth, uint damage);
     void BroadcastCreatureDeath(CreatureId creatureId);
+    void RespawnCreature(ICreature creature);
 }
 
 [Serializable]
