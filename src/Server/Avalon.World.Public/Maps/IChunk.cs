@@ -17,6 +17,7 @@ public interface IChunk
     
     void AddCharacter(IWorldConnection connection);
     void RemoveCharacter(IWorldConnection connection);
+    void RemoveCreature(ICreature creature);
     void BroadcastChunkStateTo(ICharacter character);
     void BroadcastAttackAnimation(CreatureId creatureId, ushort animationId);
     void BroadcastCreatureHit(CharacterId attackerId, CreatureId creatureId, uint currentHealth, uint damage);

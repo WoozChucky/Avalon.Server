@@ -5,6 +5,7 @@ using Avalon.Network.Packets.State;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
+using Avalon.World.Scripts;
 
 namespace Avalon.World.Entities;
 
@@ -57,4 +58,11 @@ public class Creature : ICreature
     {
         Script?.OnHit(attacker, damage);
     }
+
+    public void Died(IGameEntity killer)
+    {
+        OnCreatureKilled?.Invoke(this, killer);
+    }
+
+    public static event CreatureKilledDelegate? OnCreatureKilled;
 }

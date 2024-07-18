@@ -36,7 +36,7 @@ public class CreatureCombatScript : AiScript
 
     private bool _dead = false;
     
-    public CreatureCombatScript(ILoggerFactory loggerFactory,ICreature creature, IChunk chunk) : base(creature, chunk)
+    public CreatureCombatScript(ILoggerFactory loggerFactory, ICreature creature, IChunk chunk) : base(creature, chunk)
     {
         _logger = loggerFactory.CreateLogger<CreatureCombatScript>();
         _currentPath = new Queue<Vector3>();
@@ -71,7 +71,7 @@ public class CreatureCombatScript : AiScript
                 Creature.CurrentHealth = 0;
                 _dead = true;
                 Chunk.BroadcastCreatureDeath(Creature.Id);
-                // TODO: Drop loot
+                Creature.Died(attacker);
                 return;
             }
             
