@@ -624,8 +624,8 @@ public class WorldDbContext : DbContext
             );
         
         builder.HasOne(b => b.Template)
-            .WithOne()
-            .HasForeignKey<ItemInstance>(b => b.TemplateId)
+            .WithMany()
+            .HasForeignKey(b => b.TemplateId)
             .OnDelete(DeleteBehavior.Cascade);
     }
     

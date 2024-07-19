@@ -259,7 +259,7 @@ public class GameState : IGameState
     public ISet<CreatureId> RemovedCreatures { get; } = new HashSet<CreatureId>(100);
     
     public ISet<CharacterId> NewCharacters { get; } = new HashSet<CharacterId>(100);
-    public ISet<(CharacterId creatureId, GameEntityFields fields)> UpdatedCharacters { get; } = new HashSet<(CharacterId creatureId, GameEntityFields fields)>(100);
+    public ISet<(CharacterId characterId, GameEntityFields fields)> UpdatedCharacters { get; } = new HashSet<(CharacterId creatureId, GameEntityFields fields)>(100);
     public ISet<CharacterId> RemovedCharacters { get; } = new HashSet<CharacterId>(100);
     
     private readonly EntityTrackingSystem _creatureTrackingSystem;
