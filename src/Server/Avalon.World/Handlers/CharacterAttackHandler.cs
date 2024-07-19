@@ -10,6 +10,10 @@ namespace Avalon.World.Handlers;
 [PacketHandler(NetworkPacketType.CMSG_ATTACK)]
 public class CharacterAttackHandler(ILogger<CharacterAttackHandler> logger, IWorld world) : WorldPacketHandler<CCharacterAttackPacket>
 {
+    
+    private const float MAxMeleeAttackRange = 1.5f;
+    private const uint MaxAngle = 65;
+    
     public override void Execute(WorldConnection connection, CCharacterAttackPacket packet)
     {
         var attacker = connection.Character!;
@@ -32,7 +36,7 @@ public class CharacterAttackHandler(ILogger<CharacterAttackHandler> logger, IWor
         
         if (!IsFacingTarget(connection.Character!, target))
         {
-            logger.LogTrace("Character is not facing the target");
+            logger.LogTrace("Character {Name} is not facing the target {Target}", connection.Character!.Name, target.Name);
             return;
         }
 
@@ -41,9 +45,9 @@ public class CharacterAttackHandler(ILogger<CharacterAttackHandler> logger, IWor
             // Auto attack
             
             var distance = Vector3.Distance(connection.Character!.Position, target.Position);
-            if (distance >= 1.5f)
+            if (distance >= MAxMeleeAttackRange)
             {
-                logger.LogTrace("Target out of range");
+                logger.LogTrace("Target {Target} out of range ({Distance})", target.Name, distance);
                 return;
             }
             
@@ -65,14 +69,17 @@ public class CharacterAttackHandler(ILogger<CharacterAttackHandler> logger, IWor
     private bool IsFacingTarget(ICharacter character, ICreature target)
     {
         var direction = target.Position - character.Position;
-        direction.Normalize(); // Should it be normalized?
+        direction.Normalize();
         
-        // Orientation is in degrees (basically the Y rotation)
+        // Orientation is in degrees (the Y rotation)
         var characterOrientation = character.Orientation.y;
-        var forward = new Vector3(Mathf.Sin(characterOrientation * Mathf.Rad2Deg), 0, Mathf.Cos(characterOrientation * Mathf.Rad2Deg));
-        var dot = Vector3.Dot(forward, direction);
-        var angle = Mathf.Acos(dot) * Mathf.Rad2Deg;
+        var radians = characterOrientation * Mathf.Deg2Rad;
+        var forward = new Vector3(Mathf.Sin(radians), 0, Mathf.Cos(radians));
+    
+        var angle = Vector3.Angle(forward, direction);
         
-        return angle < 45;
+        logger.LogTrace("Angle: {Angle}", angle);
+        
+        return angle < MaxAngle;
     }
 }
