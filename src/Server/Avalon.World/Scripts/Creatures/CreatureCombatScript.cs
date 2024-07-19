@@ -47,7 +47,7 @@ public class CreatureCombatScript : AiScript
 
     private void OnCharacterDisconnected(ICharacter character)
     {
-        if (_target == character)
+        if (_target == character && !_dead)
         {
             _target = null;
             State = CombatState.Returning;
