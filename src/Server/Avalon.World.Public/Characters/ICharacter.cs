@@ -4,8 +4,11 @@ using Avalon.World.Public.Enums;
 
 namespace Avalon.World.Public.Characters;
 
+public delegate void CharacterDisconnectedDelegate(ICharacter character);
+
 public interface ICharacter : IGameEntity
 {
+    public static event CharacterDisconnectedDelegate? CharacterDisconnected;
     IWorldConnection Connection { get; }
     IGameState GameState { get; }
     ICharacterInventory this[InventoryType type] { get; }
@@ -20,6 +23,7 @@ public interface ICharacter : IGameEntity
     
     void OnHit(ICharacter attacker, uint damage);
     void OnHit(ICreature attacker, uint damage);
+    void OnDisconnected();
 }
 
 public interface ICharacterInventory

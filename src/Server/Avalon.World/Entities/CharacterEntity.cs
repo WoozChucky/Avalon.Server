@@ -12,6 +12,7 @@ namespace Avalon.World.Entities;
 
 public class CharacterEntity : ICharacter
 {
+    public static event CharacterDisconnectedDelegate? CharacterDisconnected;
     public IWorldConnection Connection => _connection;
     public IGameState GameState { get; }
 
@@ -172,6 +173,11 @@ public class CharacterEntity : ICharacter
             CurrentHealth = Health; // reset health while developing
         }
         _connection.Send(SCharacterDamagePacket.Create(attacker.Id, Id, CurrentHealth, damage, null, _connection.CryptoSession.Encrypt));
+    }
+
+    public void OnDisconnected()
+    {
+        CharacterDisconnected?.Invoke(this);
     }
 
     public uint ChunkId { get; set; }
