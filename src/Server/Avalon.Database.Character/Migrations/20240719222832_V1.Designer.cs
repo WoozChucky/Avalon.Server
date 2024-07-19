@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Avalon.Database.Character.Migrations
 {
     [DbContext(typeof(CharacterDbContext))]
-    [Migration("20240715040559_V1")]
+    [Migration("20240719222832_V1")]
     partial class V1
     {
         /// <inheritdoc />

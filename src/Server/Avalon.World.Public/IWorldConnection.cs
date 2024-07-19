@@ -31,7 +31,7 @@ public interface IGameState
     ISet<(CreatureId creatureId, GameEntityFields fields)> UpdatedCreatures { get; }
     ISet<CreatureId> RemovedCreatures { get; }
     ISet<CharacterId> NewCharacters { get; }
-    ISet<(CharacterId creatureId, GameEntityFields fields)> UpdatedCharacters { get; }
+    ISet<(CharacterId characterId, GameEntityFields fields)> UpdatedCharacters { get; }
     ISet<CharacterId> RemovedCharacters { get; }
 
     void Update(Dictionary<CreatureId, ICreature> creatures, Dictionary<CharacterId, ICharacter> characters);

@@ -381,9 +381,9 @@ namespace Avalon.World.Database.Migrations
                 columns: new[] { "Id", "AIName", "ArmorModifier", "BaseAttackTime", "DamageModifier", "DetectionRange", "DmgSchool", "Exp", "ExperienceModifier", "Family", "HealthModifier", "IconName", "LootId", "ManaModifier", "MaxGold", "MaxLevel", "MinGold", "MinLevel", "MovementId", "MovementType", "Name", "RangeAttackTime", "Rank", "RegenHealth", "ScriptName", "SpeedRun", "SpeedSwim", "SpeedWalk", "SubName", "Type" },
                 values: new object[,]
                 {
-                    { 1ul, "", 1f, 1, 1f, 20f, (short)0, (short)0, 1f, (ushort)0, 1f, "", 0, 1f, 0, (short)1, 0, (short)1, 0, (short)0, "Uriel", 0, (short)0, (short)1, "UrielTownPatrolScript", 35f, 18f, 30f, "", (ushort)7 },
-                    { 2ul, "", 1f, 1, 1f, 20f, (short)0, (short)0, 1f, (ushort)0, 1f, "", 0, 1f, 0, (short)1, 0, (short)1, 0, (short)0, "Borin Stoutbeard", 0, (short)0, (short)1, "", 35f, 18f, 30f, "", (ushort)7 },
-                    { 3ul, "", 1f, 1, 1f, 20f, (short)0, (short)0, 1f, (ushort)0, 1f, "", 0, 1f, 0, (short)1, 0, (short)1, 0, (short)0, "Innkeeper", 0, (short)0, (short)1, "", 35f, 18f, 30f, "", (ushort)7 }
+                    { 1ul, "", 1f, 1, 1f, 20f, (short)0, (short)0, 1f, (ushort)0, 1f, "", 0, 1f, 0, (short)1, 0, (short)1, 0, (short)0, "Uriel", 0, (short)0, (short)1, "UrielTownPatrolScript", 3f, 1.2f, 1.4f, "", (ushort)7 },
+                    { 2ul, "", 1f, 1, 1f, 20f, (short)0, (short)0, 1f, (ushort)0, 1f, "", 0, 1f, 0, (short)1, 0, (short)1, 0, (short)0, "Borin Stoutbeard", 0, (short)0, (short)1, "UrielPathfinderScript", 3f, 1.2f, 1.4f, "", (ushort)7 },
+                    { 3ul, "", 1f, 1, 1f, 20f, (short)0, (short)0, 1f, (ushort)0, 1f, "", 0, 1f, 0, (short)1, 0, (short)1, 0, (short)0, "Innkeeper", 0, (short)0, (short)1, "", 3f, 1.2f, 1.4f, "", (ushort)7 }
                 });
 
             migrationBuilder.InsertData(
@@ -414,8 +414,7 @@ namespace Avalon.World.Database.Migrations
             migrationBuilder.CreateIndex(
                 name: "IX_ItemInstances_TemplateId",
                 table: "ItemInstances",
-                column: "TemplateId",
-                unique: true);
+                column: "TemplateId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_QuestRewards_RewardId",

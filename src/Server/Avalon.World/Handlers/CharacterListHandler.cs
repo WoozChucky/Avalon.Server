@@ -29,7 +29,7 @@ public class CharacterListHandler(
             return;
         }
 
-        connection.AddQueryCallback<IList<Character>>(characterRepository.FindAllAsync(), characters =>
+        connection.AddQueryCallback(characterRepository.FindByAccountAsync(connection.AccountId), characters =>
         {
             OnCharactersReceived(connection, characters);
         });
@@ -37,7 +37,7 @@ public class CharacterListHandler(
 
     private void OnCharactersReceived(WorldConnection connection, IList<Character> characters)
     {
-        var characterInfo = characters.Select<Avalon.Domain.Characters.Character, CharacterInfo>(
+        var characterInfo = characters.Select<Character, CharacterInfo>(
             character => new CharacterInfo
             {
                 CharacterId = character.Id!.Value,
