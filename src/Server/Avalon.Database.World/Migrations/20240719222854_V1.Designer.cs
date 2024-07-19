@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Avalon.World.Database.Migrations
 {
     [DbContext(typeof(WorldDbContext))]
-    [Migration("20240715032617_V1")]
+    [Migration("20240719222854_V1")]
     partial class V1
     {
         /// <inheritdoc />
@@ -579,9 +579,9 @@ namespace Avalon.World.Database.Migrations
                             Rank = (short)0,
                             RegenHealth = (short)1,
                             ScriptName = "UrielTownPatrolScript",
-                            SpeedRun = 35f,
-                            SpeedSwim = 18f,
-                            SpeedWalk = 30f,
+                            SpeedRun = 3f,
+                            SpeedSwim = 1.2f,
+                            SpeedWalk = 1.4f,
                             SubName = "",
                             Type = (ushort)7
                         },
@@ -611,10 +611,10 @@ namespace Avalon.World.Database.Migrations
                             RangeAttackTime = 0,
                             Rank = (short)0,
                             RegenHealth = (short)1,
-                            ScriptName = "",
-                            SpeedRun = 35f,
-                            SpeedSwim = 18f,
-                            SpeedWalk = 30f,
+                            ScriptName = "UrielPathfinderScript",
+                            SpeedRun = 3f,
+                            SpeedSwim = 1.2f,
+                            SpeedWalk = 1.4f,
                             SubName = "",
                             Type = (ushort)7
                         },
@@ -645,9 +645,9 @@ namespace Avalon.World.Database.Migrations
                             Rank = (short)0,
                             RegenHealth = (short)1,
                             ScriptName = "",
-                            SpeedRun = 35f,
-                            SpeedSwim = 18f,
-                            SpeedWalk = 30f,
+                            SpeedRun = 3f,
+                            SpeedSwim = 1.2f,
+                            SpeedWalk = 1.4f,
                             SubName = "",
                             Type = (ushort)7
                         });
@@ -682,8 +682,7 @@ namespace Avalon.World.Database.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("TemplateId")
-                        .IsUnique();
+                    b.HasIndex("TemplateId");
 
                     b.ToTable("ItemInstances");
                 });
@@ -1113,8 +1112,8 @@ namespace Avalon.World.Database.Migrations
             modelBuilder.Entity("Avalon.Domain.World.ItemInstance", b =>
                 {
                     b.HasOne("Avalon.Domain.World.ItemTemplate", "Template")
-                        .WithOne()
-                        .HasForeignKey("Avalon.Domain.World.ItemInstance", "TemplateId")
+                        .WithMany()
+                        .HasForeignKey("TemplateId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 

@@ -188,7 +188,8 @@ public abstract class Connection : BackgroundService, IConnection
                     {
                         _logger.LogError(e, "Failed to send packet");
                     }
-                    if (packet.Header.Type != NetworkPacketType.SMSG_CREATURE_UPDATE && packet.Header.Type != NetworkPacketType.SMSG_PING)
+                    if (packet.Header.Type != NetworkPacketType.SMSG_CREATURE_UPDATE && packet.Header.Type != NetworkPacketType.SMSG_PING
+                        && packet.Header.Type != NetworkPacketType.SMGS_CHARACTER_UPDATE)
                         _logger.LogDebug("OUT: {Type} => {Packet}", packet.Header.Type, JsonSerializer.Serialize(packet));
                 }
                 else

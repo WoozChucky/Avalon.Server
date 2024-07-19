@@ -51,6 +51,7 @@ public class CreatureCombatScript : AiScript
         {
             _target = null;
             State = CombatState.Returning;
+            Creature.CurrentHealth = Creature.Health;
             _currentPath = GeneratePath(Creature.Position, _initialPosition);
         }
     }
@@ -82,7 +83,6 @@ public class CreatureCombatScript : AiScript
                 _logger.LogInformation("{Name} has died", Creature.Name);
                 Creature.CurrentHealth = 0;
                 _dead = true;
-                Chunk.BroadcastCreatureDeath(Creature.Id);
                 Creature.Died(attacker);
                 return;
             }
