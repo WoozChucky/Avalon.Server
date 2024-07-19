@@ -1,6 +1,7 @@
 using Avalon.Common.Mathematics;
 using Avalon.Network.Packets.Movement;
 using Avalon.Network.Packets.State;
+using Avalon.World.Entities;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
@@ -41,7 +42,18 @@ public class CreatureCombatScript : AiScript
         _logger = loggerFactory.CreateLogger<CreatureCombatScript>();
         _currentPath = new Queue<Vector3>();
         _initialPosition = Vector3.zero;
-    } 
+        CharacterEntity.CharacterDisconnected += OnCharacterDisconnected;
+    }
+
+    private void OnCharacterDisconnected(ICharacter character)
+    {
+        if (_target == character)
+        {
+            _target = null;
+            State = CombatState.Returning;
+            _currentPath = GeneratePath(Creature.Position, _initialPosition);
+        }
+    }
 
     public override object State { get; set; } = CombatState.None;
     protected override bool ShouldRun()
