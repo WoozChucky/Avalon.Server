@@ -262,7 +262,9 @@ public class Chunk : IChunk
     
     public void RemoveCharacter(IWorldConnection connection)
     {
-        connection.Character!.ChunkId = 0;
+        connection.Character!.OnDisconnected();
+        
+        connection.Character.ChunkId = 0;
             
         _characters.Remove(connection.Character.Id);
         
