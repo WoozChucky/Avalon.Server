@@ -22,6 +22,8 @@ public interface IWorldConnection : IConnection
     void OnPongReceived(long packetLastServerTimestamp, long packetClientReceivedTimestamp, long packetClientSentTimestamp);
     
     void Update(TimeSpan deltaTime, PacketFilter filter);
+    
+    public double LastMovementTime { get; }
 
 }
 

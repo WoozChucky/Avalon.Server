@@ -25,6 +25,7 @@ public class MapSessionFilter : PacketFilter
         {
             NetworkPacketType.CMSG_MOVEMENT => true,
             NetworkPacketType.CMSG_ATTACK => true,
+            NetworkPacketType.CMSG_CHARACTER_RUN_WALK => true,
             _ => false
         };
     }

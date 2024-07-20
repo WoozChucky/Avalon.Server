@@ -158,6 +158,20 @@ public class CharacterEntity : ICharacter
         }
     }
 
+    private bool Running
+    {
+        get => Data?.Running ?? false;
+        set
+        {
+            if (Data != null)
+            {
+                Data.Running = value;
+            }
+        }
+    }
+    
+    private float MovementSpeed { get; set; }
+
     public void OnHit(ICharacter attacker, uint damage)
     {
         throw new NotImplementedException();
@@ -178,6 +192,27 @@ public class CharacterEntity : ICharacter
     public void OnDisconnected()
     {
         CharacterDisconnected?.Invoke(this);
+    }
+
+    public float GetMovementSpeed()
+    {
+        return MovementSpeed;
+    }
+
+    public void SetRunning(bool running)
+    {
+        Running = running;
+        CalculateMovementSpeed();
+    }
+
+    private void CalculateMovementSpeed()
+    {
+        const float defaultRunSpeed = 1.0f;
+        const float defaultWalkSpeed = 0.4f;
+        
+        // In the future, speed modifiers will be applied here
+        
+        MovementSpeed = Running ? defaultRunSpeed : defaultWalkSpeed;
     }
 
     public uint ChunkId { get; set; }

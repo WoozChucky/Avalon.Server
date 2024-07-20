@@ -197,6 +197,8 @@ public class WorldConnection : Connection, IWorldConnection
         ProcessQueryCallbacks();
     }
 
+    public double LastMovementTime { get; set; }
+
     private async Task TimeSyncWorker()
     {
         var firstIteration = true;

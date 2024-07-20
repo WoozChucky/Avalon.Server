@@ -24,6 +24,8 @@ public interface ICharacter : IGameEntity
     void OnHit(ICharacter attacker, uint damage);
     void OnHit(ICreature attacker, uint damage);
     void OnDisconnected();
+    float GetMovementSpeed();
+    void SetRunning(bool running);
 }
 
 public interface ICharacterInventory

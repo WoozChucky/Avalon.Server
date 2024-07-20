@@ -70,8 +70,6 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
     private readonly ILogger<WorldServer> _logger;
     private readonly PluginExecutor _pluginExecutor;
     private readonly World _world;
-
-    #region Server Timers
     private readonly Stopwatch _gameTime = new Stopwatch();
     private long _previousTicks = 0;
     private TimeSpan _accumulatedElapsedTime;
@@ -123,8 +121,6 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
             _logger.LogInformation("Registered packet handler {HandlerType} for packet type {PacketType}", handlerType, packetType);
         }
     }
-
-    #endregion
     
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -186,11 +182,17 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
     private DateTime lastTpsCalculationTime = DateTime.Now;
     private double ticksPerSecond = 0;
     
+    private static readonly TimeSpan MinUpdateInterval = TimeSpan.FromMilliseconds(10); // Example minimum interval
+    private readonly Stopwatch _stopwatch = Stopwatch.StartNew();
+    
     private async ValueTask Tick()
     {
         realCurrentTime = TimeUtils.GetMSTime();
-
         var diff = TimeUtils.GetMSTimeDiff(realPreviousTime, realCurrentTime);
+        
+        const int MinDeltaTime = 1; // Minimum delta time in milliseconds
+        
+        /* Unthrottled tick
         if (diff < minUpdateDiff)
         {
             var sleepTime = minUpdateDiff - diff;
@@ -199,8 +201,29 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
             
             await Task.Delay((int)sleepTime);
         }
+        */
         
-        await Update(TimeSpan.FromMilliseconds(diff));
+        // Throttle the update loop if the diff is less than the minimum update interval
+        if (diff < MinUpdateInterval.TotalMilliseconds)
+        {
+            var targetTime = _stopwatch.ElapsedMilliseconds + (MinUpdateInterval.TotalMilliseconds - diff);
+
+            while (_stopwatch.ElapsedMilliseconds < targetTime)
+            {
+                await Task.Delay(1); // Using 1ms to yield control and prevent tight loop, actual wait time is determined by _stopwatch
+            }
+
+            realCurrentTime = TimeUtils.GetMSTime();
+            diff = TimeUtils.GetMSTimeDiff(realPreviousTime, realCurrentTime);
+        }
+
+        // Ensure delta time is at least the minimum threshold
+        if (diff < MinDeltaTime)
+        {
+            diff = MinDeltaTime;
+        }
+        
+        Update(TimeSpan.FromMilliseconds(diff));
         
         realPreviousTime = realCurrentTime;
 
@@ -220,7 +243,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         }
     }
     
-    private async Task Update(TimeSpan elapsedTime)
+    private void Update(TimeSpan elapsedTime)
     {
         foreach (var worldConnection in Connections)
         {

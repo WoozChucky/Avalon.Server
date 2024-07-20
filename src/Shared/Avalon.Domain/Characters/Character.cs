@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using Avalon.Common.Mathematics;
@@ -34,6 +35,8 @@ public class Character : IDbEntity<CharacterId>
     
     public float Y { get; set; }
     public float Z { get; set; }
+    
+    public bool Running { get; set; }
     
     public float Rotation { get; set; } // Around Y axis
     
