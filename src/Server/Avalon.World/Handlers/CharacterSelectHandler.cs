@@ -78,13 +78,15 @@ public class CharacterSelectHandler(
         
         var characterInfo = new CharacterInfo
         {
-            CharacterId = character.Id!.Value,
+            CharacterId = character.Id,
             Name = character.Name,
             Level = character.Level,
             Class = (ushort) character.Class,
             X = character.X,
             Y = character.Y,
-            Z = character.Z
+            Z = character.Z,
+            Orientation = character.Rotation,
+            Running = character.Running,
         };
         
         var mapInfo = new MapInfo

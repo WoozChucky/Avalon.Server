@@ -12,7 +12,7 @@ public class CPlayerMovementPacket : Packet
     public static NetworkProtocol Protocol = NetworkProtocol.Tcp;
     public static NetworkPacketFlags Flags = NetworkPacketFlags.Encrypted;
     
-    [ProtoMember(1)] public double ElapsedGameTime { get; set; }
+    [ProtoMember(1)] public double Timestamp { get; set; }
     [ProtoMember(2)] public float X { get; set; }
     [ProtoMember(3)] public float Y { get; set; }
     [ProtoMember(4)] public float Z { get; set; }
@@ -20,6 +20,7 @@ public class CPlayerMovementPacket : Packet
     [ProtoMember(6)] public float VelocityY { get; set; }
     [ProtoMember(7)] public float VelocityZ { get; set; }
     [ProtoMember(8)] public float Rotation { get; set; }
+    // [ProtoMember(9)] public float Strafe { get; set; } // -1.0f to 1.0f (left to right)
 
     public static NetworkPacket Create(double time, float x, float y, float z, float velX, float velY, float velZ, float rotation, Func<byte[], byte[]> encryptFunc)
     {
@@ -27,7 +28,7 @@ public class CPlayerMovementPacket : Packet
         
         var p = new CPlayerMovementPacket
         {
-            ElapsedGameTime = time,
+            Timestamp = time,
             X = x,
             Y = y,
             Z = z,
