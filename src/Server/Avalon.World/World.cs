@@ -143,6 +143,7 @@ public class World : IWorld
     
     public void Update(TimeSpan deltaTime)
     {
+        GameTime.UpdateGameTimers(deltaTime);
         // TODO: Name the timers with 'constant' identifiers
         
         for (var i = 0; i < WorldTimersCount; ++i)

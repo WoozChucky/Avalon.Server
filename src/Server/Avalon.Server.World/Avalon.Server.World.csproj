@@ -102,7 +102,7 @@
       <None Update="appsettings.json">
         <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       </None>
-      <None Include="Maps\**" CopyToOutputDirectory="PreserveNewest" />
+      <None Include="Maps\**" CopyToOutputDirectory="Always" />
       <None Include="cert-tcp.pfx" CopyToOutputDirectory="PreserveNewest" />
     </ItemGroup>
 

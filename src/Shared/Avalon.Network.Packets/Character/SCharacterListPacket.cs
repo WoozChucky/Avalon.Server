@@ -54,4 +54,7 @@ public class CharacterInfo
     [ProtoMember(5)] public float X { get; set; }
     [ProtoMember(6)] public float Y { get; set; }
     [ProtoMember(7)] public float Z { get; set; }
+    [ProtoMember(8)] public float Orientation { get; set; }
+    [ProtoMember(9)] public bool Running { get; set; }
+    
 }

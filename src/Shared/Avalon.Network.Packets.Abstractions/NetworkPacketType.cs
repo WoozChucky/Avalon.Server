@@ -35,6 +35,7 @@ public enum NetworkPacketType : short
     CMSG_CHARACTER_DELETE = 0x2012,
     CMSG_CHARACTER_SELECTED = 0x2013,
     CMSG_CHARACTER_LOADED = 0x2014,
+    CMSG_CHARACTER_RUN_WALK = 0x2015,
     
     // Map
     CMSG_MAP_TELEPORT = 0x2020,

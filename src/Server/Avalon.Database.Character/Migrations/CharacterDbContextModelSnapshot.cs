@@ -100,6 +100,9 @@ namespace Avalon.Database.Character.Migrations
                     b.Property<float>("Rotation")
                         .HasColumnType("float");
 
+                    b.Property<bool>("Running")
+                        .HasColumnType("tinyint(1)");
+
                     b.Property<int>("TodayKills")
                         .HasColumnType("int");
 

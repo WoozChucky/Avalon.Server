@@ -241,7 +241,7 @@ public class Chunk : IChunk
             character.Connection.Send(SCreatureAddedPacket.Create(addedCreatures, character.Connection.CryptoSession.Encrypt));
         }
         
-        if (true) // _lastBroadcastTime >= BroadcastInterval
+        if (_lastBroadcastTime >= BroadcastInterval) // _lastBroadcastTime >= BroadcastInterval
         {
             if (updatedCreatures.Count > 0)
             {
