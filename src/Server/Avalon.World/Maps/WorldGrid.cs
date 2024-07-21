@@ -1,7 +1,9 @@
 using Avalon.Common.ValueObjects;
 using Avalon.World.Pools;
 using Avalon.World.Public;
+using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
+using Avalon.World.Public.Spells;
 
 namespace Avalon.World.Maps;
 
@@ -130,5 +132,16 @@ public class WorldGrid
         }
         
         return null;
+    }
+
+    public bool QueueSpell(ICharacter character, ICreature target, ISpell spell)
+    {
+        var chunk = GetChunk(character.ChunkId);
+        if (chunk == null)
+        {
+            throw new InvalidOperationException($"Invalid spell queue, chunk {character.ChunkId} not found");
+        }
+        
+        return chunk.QueueSpell(character, target, spell);
     }
 }

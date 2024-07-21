@@ -4,6 +4,7 @@ using Avalon.Network.Packets.Abstractions;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
+using Avalon.World.Public.Spells;
 
 namespace Avalon.World.Public;
 
@@ -36,7 +37,8 @@ public interface IGameState
     ISet<(CharacterId characterId, GameEntityFields fields)> UpdatedCharacters { get; }
     ISet<CharacterId> RemovedCharacters { get; }
 
-    void Update(Dictionary<CreatureId, ICreature> creatures, Dictionary<CharacterId, ICharacter> characters);
+    void Update(Dictionary<CreatureId, ICreature> creatures, Dictionary<CharacterId, ICharacter> characters,
+        List<ISpellProjectile> activeSpells);
 }
 
 public abstract class PacketFilter

@@ -64,17 +64,12 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
 
     public IWorld World => _world;
     public Dictionary<NetworkPacketType, IWorldPacketHandler> PacketHandlers { get; }
-    public new Dictionary<Type, PacketHandlerCache> HandlerCache => base.HandlerCache;
 
     private readonly ConcurrentDictionary<Type, (PropertyInfo packetProperty, PropertyInfo connectionProperty)> _propertyCache = new();
     private readonly ILogger<WorldServer> _logger;
     private readonly PluginExecutor _pluginExecutor;
     private readonly World _world;
-    private readonly Stopwatch _gameTime = new Stopwatch();
-    private long _previousTicks = 0;
-    private TimeSpan _accumulatedElapsedTime;
-    private readonly TimeSpan _targetElapsedTime = TimeSpan.FromTicks(TimeSpan.TicksPerSecond / 60); // 60hz
-    private readonly TimeSpan _maxElapsedTime = TimeSpan.FromMilliseconds(500);
+    private readonly Stopwatch _gameTime = new();
     private readonly Stopwatch _serverTimer = new();
     private readonly IAiController _aiController;
     private readonly ICreatureSpawner _creatureSpawner;
@@ -105,10 +100,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         _pluginExecutor = pluginExecutor;
         _world = world as World ?? throw new InvalidOperationException("Invalid world instance");
 
-        PacketHandlers = new Dictionary<NetworkPacketType, IWorldPacketHandler>()
-        {
-            //{NetworkPacketType.CMSG_CHARACTER_LIST, a},
-        };
+        PacketHandlers = new Dictionary<NetworkPacketType, IWorldPacketHandler>();
 
         var packetHandlers = typeof(WorldServer).Assembly.GetTypes()
             .Where(x => x.GetCustomAttribute<PacketHandlerAttribute>() != null)

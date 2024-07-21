@@ -12,10 +12,12 @@ using Avalon.Network.Packets.Generic;
 using Avalon.Network.Packets.Movement;
 using Avalon.World.Entities;
 using Avalon.World.Filters;
+using Avalon.World.Maps;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
+using Avalon.World.Public.Spells;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.World;
@@ -310,7 +312,8 @@ public class GameState : IGameState
         NewCreatures.Add(obj.Id);
     }
 
-    public void Update(Dictionary<CreatureId, ICreature> creatures, Dictionary<CharacterId, ICharacter> characters)
+    public void Update(Dictionary<CreatureId, ICreature> creatures, Dictionary<CharacterId, ICharacter> characters,
+        List<ISpellProjectile> activeSpells)
     {
         NewCreatures.Clear();
         UpdatedCreatures.Clear();

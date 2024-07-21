@@ -6,6 +6,7 @@ using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
+using Avalon.World.Spells;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Entities;
@@ -244,21 +245,5 @@ public class CharacterInventoryContainer : ICharacterInventory
     {
         var castedItems = items.Cast<CharacterInventory>().ToList();
         _logger.LogInformation("Loading {Count} items into {Type} inventory", castedItems.Count, Type);
-    }
-}
-
-public class CharacterSpellContainer : ICharacterSpells
-{
-    private readonly ILogger<CharacterSpellContainer> _logger;
-    
-    public CharacterSpellContainer(ILoggerFactory loggerFactory)
-    {
-        _logger = loggerFactory.CreateLogger<CharacterSpellContainer>();
-    }
-    
-    public void Load(IReadOnlyCollection<object> spells)
-    {
-        var castedSpells = spells.Cast<CharacterSpell>().ToList();
-        _logger.LogInformation("Loading {Count} spells into character", castedSpells.Count);
     }
 }

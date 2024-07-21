@@ -1,6 +1,7 @@
 using Avalon.Common.ValueObjects;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
+using Avalon.World.Public.Spells;
 
 namespace Avalon.World.Public.Characters;
 
@@ -31,9 +32,4 @@ public interface ICharacter : IGameEntity
 public interface ICharacterInventory
 {
     void Load(IReadOnlyCollection<object> items);
-}
-
-public interface ICharacterSpells
-{
-    void Load(IReadOnlyCollection<object> spells);
 }
