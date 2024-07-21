@@ -57,11 +57,34 @@ public class CharacterAttackHandler(ILogger<CharacterAttackHandler> logger, IWor
         else
         {
             // Cast spell
-            
             if (packet.SpellId == null)
             {
                 logger.LogWarning("SpellId is null");
                 return;
+            }
+
+            var spell = connection.Character!.Spells[packet.SpellId];
+            if (spell == null)
+            {
+                logger.LogWarning("Spell not found");
+                return;
+            }
+            
+            var powerPrediction = (int) connection.Character!.CurrentPower - spell.PowerCost;
+            
+            if (powerPrediction < 0)
+            {
+                logger.LogWarning("Not enough power to cast spell");
+                return;
+            }
+
+            if (spell.CooldownTimer <= 0 && world.Grid.QueueSpell(connection.Character!, target, spell))
+            {
+                // Send spell start cast packet
+            }
+            else
+            {
+                // Send spell not ready packet
             }
         }
     }
