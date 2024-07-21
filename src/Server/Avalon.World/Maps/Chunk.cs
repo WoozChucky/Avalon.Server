@@ -1,5 +1,4 @@
 using Avalon.Common.Mathematics;
-using Avalon.Common.Utils;
 using Avalon.Common.ValueObjects;
 using Avalon.Network.Packets.Combat;
 using Avalon.Network.Packets.State;
@@ -12,9 +11,74 @@ using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Maps;
+using Avalon.World.Public.Spells;
+using Avalon.World.Spells;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Maps;
+
+public class ChunkSpellSystem(ILoggerFactory factory)
+{
+    private readonly ILogger<ChunkSpellSystem> _logger = factory.CreateLogger<ChunkSpellSystem>();
+    
+    private readonly HashSet<(ICharacter character, ICreature target, ISpell spell)> _spellQueue = [];
+    private readonly List<ISpellProjectile> _activeSpells = [];
+    private readonly HashSet<ulong> _removeScheduled = [];
+    
+    public bool QueueSpell(ICharacter character, ICreature target, ISpell spell)
+    {
+        return _spellQueue.Add((character, target, spell));
+    }
+    
+    public void Update(TimeSpan deltaTime, out List<ISpellProjectile> activeSpells)
+    {
+        foreach (var (character, target, spell) in _spellQueue)
+        {
+            spell.CastTimeTimer -= (float) deltaTime.TotalSeconds;
+            
+            if (!(spell.CastTimeTimer <= 0)) continue;
+            
+            spell.CastTimeTimer = spell.CastTime;
+            _spellQueue.Remove((character, target, spell));
+                
+            var projectile = new SpellProjectile
+            {
+                Id = IGameEntity.GenerateId(),
+                Spell = spell,
+                Caster = character,
+                Target = target,
+                Position = character.Position + new Vector3(0, 0.5f, 0),
+                Speed = 5f,
+                Velocity = Vector3.Normalize(target.Position - character.Position)
+            };
+                
+            _activeSpells.Add(projectile);
+                
+            _logger.LogInformation("Finished spell {SpellId} cast by {CharacterId} on {CreatureId}", spell.SpellId, character.Id, target.Id);
+        }
+
+        foreach (var projectile in _activeSpells)
+        {
+            projectile.Update(deltaTime);
+            
+            if (Vector3.Distance(projectile.Position, projectile.Target.Position + ISpellProjectile.HeightOffset) < 0.5f)
+            {
+                _logger.LogInformation("Spell {SpellId} hit {CreatureId}", projectile.Spell.SpellId, projectile.Target.Id);
+                projectile.Target.OnHit(projectile.Caster, 0);
+                _removeScheduled.Add(projectile.Id);
+            }
+        }
+        
+        foreach (var id in _removeScheduled)
+        {
+            _activeSpells.RemoveAll(p => p.Id == id);
+        }
+        
+        _removeScheduled.Clear();
+        
+        activeSpells = _activeSpells;
+    }
+}
 
 public class Chunk : IChunk
 {
@@ -40,6 +104,8 @@ public class Chunk : IChunk
     private float _lastBroadcastTime;
 
     private readonly ICreatureRespawner _creatureRespawner;
+    
+    private ChunkSpellSystem _spellSystem;
 
     public Chunk(ILoggerFactory loggerFactory, ushort mapId, Vector2 position, IPoolManager poolManager)
     {
@@ -48,8 +114,14 @@ public class Chunk : IChunk
         MapId = mapId;
         Position = position;
         Navigator = new ChunkNavigator(loggerFactory);
+        _spellSystem = new ChunkSpellSystem(loggerFactory);
         Creature.OnCreatureKilled += OnCreatureKilled;
         _creatureRespawner = new CreatureRespawner(this);
+    }
+    
+    public bool QueueSpell(ICharacter character, ICreature target, ISpell spell)
+    {
+        return _spellSystem.QueueSpell(character, target, spell);
     }
 
     private void OnCreatureKilled(ICreature creature, IGameEntity killer)
@@ -63,8 +135,6 @@ public class Chunk : IChunk
         _creatureRespawner.ScheduleRespawn(creature);
 
         // Step 4: Schedule the loot to be spawned
-        
-        
         
         Parallel.ForEach(_characters.Values, _ =>
         {
@@ -94,7 +164,8 @@ public class Chunk : IChunk
             character.Connection.Update(deltaTime, filter);
         }
         
-        // Step 3: Run CreatureRespawnScheduler
+        // Step 3: Spell queue
+        _spellSystem.Update(deltaTime, out var projectiles);
         
         // Step 4: Update characters at tick rate
         foreach (var creature in _creatures.Values)
@@ -111,7 +182,7 @@ public class Chunk : IChunk
         foreach (var character in _characters.Values)
         {
             // Update visibility of game entities
-            character.GameState.Update(_creatures, _characters);
+            character.GameState.Update(_creatures, _characters, projectiles);
         }
         
         // Parallel.ForEach(_characters.Values, BroadcastChunkStateTo);

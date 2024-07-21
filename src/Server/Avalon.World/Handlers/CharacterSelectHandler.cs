@@ -5,6 +5,7 @@ using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Character;
 using Avalon.World.Entities;
 using Avalon.World.Public.Enums;
+using Avalon.World.Spells;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Handlers;
@@ -61,6 +62,10 @@ public class CharacterSelectHandler(
             Orientation = new Vector3(0, character.Rotation, 0),
             EnteredWorld = DateTime.UtcNow,
         };
+        
+        entity.CurrentHealth = entity.Health;
+        entity.CurrentPower = entity.Power;
+        
         
         connection.Character = entity;
 
@@ -131,7 +136,31 @@ public class CharacterSelectHandler(
     
     private void OnSpellsReceived(WorldConnection connection, IReadOnlyCollection<CharacterSpell> spells)
     {
-        connection.Character!.Spells.Load(spells);
+        var gameSpells = new List<GameSpell>();
+
+        foreach (var characterSpell in spells)
+        {
+            var template = world.Data.SpellTemplates.FirstOrDefault(sp => sp.Id == characterSpell.SpellId);
+            if (template == null)
+            {
+                logger.LogWarning("Spell template not found for spell {SpellId}", characterSpell.SpellId);
+                continue;
+            }
+
+            var gameSpell = new GameSpell
+            {
+                SpellId = characterSpell.SpellId,
+                CastTime = (float) template.CastTime / 1000,
+                CastTimeTimer = (float) template.CastTime / 1000,
+                Cooldown = (float) template.Cooldown / 1000,
+                CooldownTimer = characterSpell.Cooldown,
+                PowerCost = template.Cost
+            };
+
+            gameSpells.Add(gameSpell);
+        }
+        
+        connection.Character!.Spells.Load(gameSpells);
         
         // TODO: Send spells to the client
     }

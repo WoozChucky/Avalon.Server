@@ -66,6 +66,7 @@ public class World : IWorld
         ICharacterCreateInfoRepository characterCreateInfoRepository,
         IClassLevelStatRepository classLevelStatRepository,
         IItemTemplateRepository itemTemplateRepository,
+        ISpellTemplateRepository spellTemplateRepository,
         IScriptHotReloader scriptHotReloader)
     {
         _logger = loggerFactory.CreateLogger<World>();
@@ -76,7 +77,7 @@ public class World : IWorld
         _poolManager = poolManager;
         _serviceScopeFactory = serviceScopeFactory;
         _scriptHotReloader = scriptHotReloader;
-        Data = new StaticData(characterCreateInfoRepository, classLevelStatRepository, itemTemplateRepository);
+        Data = new StaticData(characterCreateInfoRepository, classLevelStatRepository, itemTemplateRepository, spellTemplateRepository);
         
         for (var i = 0; i < WorldTimersCount; ++i)
         {
