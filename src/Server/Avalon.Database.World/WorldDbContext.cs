@@ -188,7 +188,7 @@ public class WorldDbContext : DbContext
                 Z = 25,
                 Rotation = 0,
                 StartingItems = [1, 2, 3],
-                StartingSpells = [1]
+                StartingSpells = [1, 2]
             },
             new CharacterCreateInfo
             {
@@ -771,19 +771,21 @@ public class WorldDbContext : DbContext
                 Range = SpellRange.Melee,
                 Effects = SpellEffect.Damage,
                 EffectValue = 10,
-                AllowedClasses = [CharacterClass.Warrior]
+                AllowedClasses = [CharacterClass.Warrior],
+                SpellScript = "StrikeSpellScript"
             },
             new SpellTemplate
             {
                 Id = 2,
-                Name = "Lightning Bolt",
-                CastTime = 1000,
+                Name = "Fireball",
+                CastTime = 2000,
                 Cooldown = 1000,
                 Cost = 10,
                 Range = SpellRange.Medium,
                 Effects = SpellEffect.Damage,
                 EffectValue = 10,
-                AllowedClasses = [CharacterClass.Wizard]
+                AllowedClasses = [CharacterClass.Warrior, CharacterClass.Wizard],
+                SpellScript = "FireballSpellScript"
             }
         ]);
     }

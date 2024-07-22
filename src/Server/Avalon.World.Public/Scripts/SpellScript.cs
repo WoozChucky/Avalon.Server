@@ -1,9 +1,16 @@
+using Avalon.Common;
+using Avalon.Common.Mathematics;
 using Avalon.World.Public.Spells;
 
 namespace Avalon.World.Public.Scripts;
 
-public abstract class SpellScript
+public abstract class SpellScript : IWorldObject
 {
+    public abstract Vector3 Position { get; set; }
+    public abstract Vector3 Velocity { get; set; }
+    public abstract Vector3 Orientation { get; set; }
+    public abstract ObjectGuid Guid { get; init; }
+
     protected IUnit Caster { get; }
     
     protected IUnit? Target { get; }
@@ -14,6 +21,7 @@ public abstract class SpellScript
     
     protected SpellScript(ISpell spell, IUnit caster, IUnit? target)
     {
+        Spell = spell;
         Caster = caster;
         Target = target;
     }
@@ -34,6 +42,5 @@ public abstract class SpellScript
     }
     
     public abstract object State { get; set; }
-    
     protected abstract bool ShouldRun();
 }
