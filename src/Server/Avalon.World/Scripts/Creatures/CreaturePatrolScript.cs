@@ -5,6 +5,7 @@ using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Maps;
+using Avalon.World.Public.Scripts;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Scripts.Creatures;
@@ -53,7 +54,7 @@ public sealed class CreaturePatrolScript : AiScript
         FollowPath(deltaTime);
     }
 
-    public override void OnHit(ICharacter attacker, uint damage)
+    public override void OnHit(IUnit attacker, uint damage)
     {
         State = PatrolState.Idle;
     }

@@ -1,11 +1,14 @@
+using Avalon.Common;
 using Avalon.Common.ValueObjects;
 using Avalon.Network.Packets.Abstractions;
 using ProtoBuf;
+using NetworkPacketFlags = Avalon.Network.Packets.Abstractions.NetworkPacketFlags;
+using NetworkProtocol = Avalon.Network.Packets.Abstractions.NetworkProtocol;
 
 namespace Avalon.Network.Packets.Combat;
 
 [ProtoContract]
-public class SCreatureAttackAnimationPacket : Packet
+public class SUnitAttackAnimationPacket : Packet
 {
     public static NetworkPacketType PacketType = NetworkPacketType.SMSG_CREATURE_ATTACK_ANIMATION;
     public static NetworkProtocol Protocol = NetworkProtocol.Tcp;
@@ -14,13 +17,13 @@ public class SCreatureAttackAnimationPacket : Packet
     [ProtoMember(1)] public ulong Attacker { get; set; }
     [ProtoMember(2)] public ushort AnimationId { get; set; }
     
-    public static NetworkPacket Create(CreatureId attacker, ushort animationId, Func<byte[], byte[]> encryptFunc)
+    public static NetworkPacket Create(ObjectGuid attacker, ushort animationId, Func<byte[], byte[]> encryptFunc)
     {
         using var memoryStream = new MemoryStream();
         
-        var p = new SCreatureAttackAnimationPacket
+        var p = new SUnitAttackAnimationPacket
         {
-            Attacker = attacker,
+            Attacker = attacker.RawValue,
             AnimationId = animationId
         };
         

@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Avalon.Database.Character.Migrations
 {
     [DbContext(typeof(CharacterDbContext))]
-    [Migration("20240719222832_V1")]
+    [Migration("20240721024459_V1")]
     partial class V1
     {
         /// <inheritdoc />
@@ -27,11 +27,11 @@ namespace Avalon.Database.Character.Migrations
 
             modelBuilder.Entity("Avalon.Domain.Characters.Character", b =>
                 {
-                    b.Property<ulong>("Id")
+                    b.Property<uint>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("bigint unsigned");
+                        .HasColumnType("int unsigned");
 
-                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<ulong>("Id"));
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<uint>("Id"));
 
                     b.Property<ulong>("AccountId")
                         .HasColumnType("bigint unsigned");
@@ -103,6 +103,9 @@ namespace Avalon.Database.Character.Migrations
                     b.Property<float>("Rotation")
                         .HasColumnType("float");
 
+                    b.Property<bool>("Running")
+                        .HasColumnType("tinyint(1)");
+
                     b.Property<int>("TodayKills")
                         .HasColumnType("int");
 
@@ -131,8 +134,8 @@ namespace Avalon.Database.Character.Migrations
 
             modelBuilder.Entity("Avalon.Domain.Characters.CharacterInventory", b =>
                 {
-                    b.Property<ulong>("CharacterId")
-                        .HasColumnType("bigint unsigned");
+                    b.Property<uint>("CharacterId")
+                        .HasColumnType("int unsigned");
 
                     b.Property<ushort>("Container")
                         .HasColumnType("smallint unsigned");
@@ -152,8 +155,8 @@ namespace Avalon.Database.Character.Migrations
 
             modelBuilder.Entity("Avalon.Domain.Characters.CharacterSpell", b =>
                 {
-                    b.Property<ulong>("CharacterId")
-                        .HasColumnType("bigint unsigned");
+                    b.Property<uint>("CharacterId")
+                        .HasColumnType("int unsigned");
 
                     b.Property<uint>("SpellId")
                         .HasColumnType("int unsigned");
@@ -170,8 +173,8 @@ namespace Avalon.Database.Character.Migrations
 
             modelBuilder.Entity("Avalon.Domain.Characters.CharacterStats", b =>
                 {
-                    b.Property<ulong>("CharacterId")
-                        .HasColumnType("bigint unsigned");
+                    b.Property<uint>("CharacterId")
+                        .HasColumnType("int unsigned");
 
                     b.Property<uint>("AbilityDamage")
                         .HasColumnType("int unsigned");

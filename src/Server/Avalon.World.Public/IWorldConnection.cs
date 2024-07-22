@@ -1,3 +1,4 @@
+using Avalon.Common;
 using Avalon.Common.ValueObjects;
 using Avalon.Hosting.Networking;
 using Avalon.Network.Packets.Abstractions;
@@ -30,14 +31,11 @@ public interface IWorldConnection : IConnection
 
 public interface IGameState
 {
-    ISet<CreatureId> NewCreatures { get; }
-    ISet<(CreatureId creatureId, GameEntityFields fields)> UpdatedCreatures { get; }
-    ISet<CreatureId> RemovedCreatures { get; }
-    ISet<CharacterId> NewCharacters { get; }
-    ISet<(CharacterId characterId, GameEntityFields fields)> UpdatedCharacters { get; }
-    ISet<CharacterId> RemovedCharacters { get; }
+    ISet<ObjectGuid> NewObjects { get; }
+    ISet<(ObjectGuid Guid, GameEntityFields Fields)> UpdatedObjects { get; }
+    ISet<ObjectGuid> RemovedObjects { get; }
 
-    void Update(Dictionary<CreatureId, ICreature> creatures, Dictionary<CharacterId, ICharacter> characters,
+    void Update(Dictionary<ObjectGuid, ICreature> creatures, Dictionary<ObjectGuid, ICharacter> characters,
         List<ISpellProjectile> activeSpells);
 }
 

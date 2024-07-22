@@ -54,7 +54,7 @@ public class CharacterSelectHandler(
         character.Online = true;
         character.Latency = (int) connection.Latency;
         
-        var entity = new CharacterEntity(loggerFactory, connection)
+        var entity = new CharacterEntity(loggerFactory, connection, character)
         {
             Data = character,
             Position = new Vector3(character.X, character.Y, character.Z),
@@ -154,7 +154,8 @@ public class CharacterSelectHandler(
                 CastTimeTimer = (float) template.CastTime / 1000,
                 Cooldown = (float) template.Cooldown / 1000,
                 CooldownTimer = characterSpell.Cooldown,
-                PowerCost = template.Cost
+                PowerCost = template.Cost,
+                ScriptName = template.SpellScript
             };
 
             gameSpells.Add(gameSpell);

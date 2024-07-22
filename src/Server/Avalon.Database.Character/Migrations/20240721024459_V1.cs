@@ -19,7 +19,7 @@ namespace Avalon.Database.Character.Migrations
                 name: "Characters",
                 columns: table => new
                 {
-                    Id = table.Column<ulong>(type: "bigint unsigned", nullable: false)
+                    Id = table.Column<uint>(type: "int unsigned", nullable: false)
                         .Annotation("MySql:ValueGenerationStrategy", MySqlValueGenerationStrategy.IdentityColumn),
                     AccountId = table.Column<ulong>(type: "bigint unsigned", nullable: false),
                     Name = table.Column<string>(type: "longtext", nullable: false)
@@ -31,6 +31,7 @@ namespace Avalon.Database.Character.Migrations
                     X = table.Column<float>(type: "float", nullable: false),
                     Y = table.Column<float>(type: "float", nullable: false),
                     Z = table.Column<float>(type: "float", nullable: false),
+                    Running = table.Column<bool>(type: "tinyint(1)", nullable: false),
                     Rotation = table.Column<float>(type: "float", nullable: false),
                     Map = table.Column<ushort>(type: "smallint unsigned", nullable: false),
                     InstanceId = table.Column<string>(type: "longtext", nullable: true)
@@ -64,7 +65,7 @@ namespace Avalon.Database.Character.Migrations
                 name: "CharacterInventory",
                 columns: table => new
                 {
-                    CharacterId = table.Column<ulong>(type: "bigint unsigned", nullable: false),
+                    CharacterId = table.Column<uint>(type: "int unsigned", nullable: false),
                     Container = table.Column<ushort>(type: "smallint unsigned", nullable: false),
                     Slot = table.Column<ushort>(type: "smallint unsigned", nullable: false),
                     ItemId = table.Column<Guid>(type: "char(36)", nullable: false, collation: "ascii_general_ci")
@@ -85,7 +86,7 @@ namespace Avalon.Database.Character.Migrations
                 name: "CharacterSpells",
                 columns: table => new
                 {
-                    CharacterId = table.Column<ulong>(type: "bigint unsigned", nullable: false),
+                    CharacterId = table.Column<uint>(type: "int unsigned", nullable: false),
                     SpellId = table.Column<uint>(type: "int unsigned", nullable: false),
                     Cooldown = table.Column<uint>(type: "int unsigned", nullable: false)
                 },
@@ -105,7 +106,7 @@ namespace Avalon.Database.Character.Migrations
                 name: "CharacterStats",
                 columns: table => new
                 {
-                    CharacterId = table.Column<ulong>(type: "bigint unsigned", nullable: false),
+                    CharacterId = table.Column<uint>(type: "int unsigned", nullable: false),
                     MaxHealth = table.Column<uint>(type: "int unsigned", nullable: false),
                     MaxPower1 = table.Column<uint>(type: "int unsigned", nullable: false),
                     MaxPower2 = table.Column<uint>(type: "int unsigned", nullable: false),

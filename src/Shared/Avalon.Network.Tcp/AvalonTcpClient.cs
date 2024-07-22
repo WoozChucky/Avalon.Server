@@ -383,7 +383,7 @@ public class AvalonTcpClient : IDisposable
         await SendPacket(packet);
     }
 
-    public async Task SendCharacterSelectedPacket(ulong characterId)
+    public async Task SendCharacterSelectedPacket(uint characterId)
     {
         var packet = CCharacterSelectedPacket.Create(characterId, _cryptography.Encrypt);
         
@@ -404,7 +404,7 @@ public class AvalonTcpClient : IDisposable
         await SendPacket(packet);
     }
 
-    public async Task SendCharacterDeletePacket(ulong characterId)
+    public async Task SendCharacterDeletePacket(uint characterId)
     {
         var packet = CCharacterDeletePacket.Create(characterId, _cryptography.Encrypt);
         

@@ -71,7 +71,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
     private readonly World _world;
     private readonly Stopwatch _gameTime = new();
     private readonly Stopwatch _serverTimer = new();
-    private readonly IAiController _aiController;
+    private readonly IScriptManager _scriptManager;
     private readonly ICreatureSpawner _creatureSpawner;
     private readonly IReplicatedCache _cache;
     private readonly IScriptHotReloader _scriptHotReloader;
@@ -83,7 +83,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         IServiceProvider serviceProvider,
         IOptions<HostingConfiguration> hostingOptions,
         IWorld world,
-        IAiController aiController,
+        IScriptManager scriptManager,
         ICreatureSpawner creatureSpawner,
         IReplicatedCache cache,
         IScriptHotReloader scriptHotReloader,
@@ -91,7 +91,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         serviceProvider,
         hostingOptions)
     {
-        _aiController = aiController;
+        _scriptManager = scriptManager;
         _creatureSpawner = creatureSpawner;
         _cache = cache;
         _scriptHotReloader = scriptHotReloader;
@@ -118,7 +118,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
     {
         await Task.WhenAll(
             _navigationMeshBaker.ExecuteAsync(),
-            _aiController.LoadAsync(),
+            Task.Run(() =>_scriptManager.Load(), stoppingToken),
             _creatureSpawner.LoadAsync()
         );
         

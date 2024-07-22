@@ -1,6 +1,7 @@
 using Avalon.World.Public;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Maps;
+using Avalon.World.Public.Scripts;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Scripts;

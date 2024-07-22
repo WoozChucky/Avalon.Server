@@ -1,18 +1,17 @@
-using System.Drawing;
+using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Network.Packets.State;
 using Avalon.World.Public;
-using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
-using Avalon.World.Scripts;
+using Avalon.World.Public.Scripts;
 
 namespace Avalon.World.Entities;
 
 public class Creature : ICreature
 {
-    public ulong Id { get; set; }
-    
+    public ObjectGuid Guid { get; init; }
+
     public CreatureTemplateId TemplateId { get; set; } = null!;
 
     public ICreatureMetadata Metadata { get; set; }
@@ -24,8 +23,9 @@ public class Creature : ICreature
     public float Speed { get; set; }
     public uint Health { get; set; }
     public uint CurrentHealth { get; set; }
-    public uint Power { get; set; }
-    public uint CurrentPower { get; set; }
+    public PowerType PowerType { get; set; }
+    public uint? Power { get; set; }
+    public uint? CurrentPower { get; set; }
 
     public string ScriptName { get; set; } = string.Empty;
 
@@ -49,19 +49,14 @@ public class Creature : ICreature
         return Mathf.Abs(Orientation.y - orientation.y) < threshold;
     }
 
-    public void OnHit(ICreature attacker, uint damage)
-    {
-        Script?.OnHit(attacker, damage);
-    }
-
-    public void OnHit(ICharacter attacker, uint damage)
-    {
-        Script?.OnHit(attacker, damage);
-    }
-
-    public void Died(IGameEntity killer)
+    public void Died(IUnit killer)
     {
         OnCreatureKilled?.Invoke(this, killer);
+    }
+
+    public void OnHit(IUnit attacker, uint damage)
+    {
+        Script?.OnHit(attacker, damage);
     }
 
     public static event CreatureKilledDelegate? OnCreatureKilled;

@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Avalon.World.Database.Migrations
 {
     [DbContext(typeof(WorldDbContext))]
-    [Migration("20240719222854_V1")]
+    [Migration("20240721024447_V1")]
     partial class V1
     {
         /// <inheritdoc />
@@ -579,9 +579,9 @@ namespace Avalon.World.Database.Migrations
                             Rank = (short)0,
                             RegenHealth = (short)1,
                             ScriptName = "UrielTownPatrolScript",
-                            SpeedRun = 3f,
-                            SpeedSwim = 1.2f,
-                            SpeedWalk = 1.4f,
+                            SpeedRun = 5f,
+                            SpeedSwim = 1.6f,
+                            SpeedWalk = 2f,
                             SubName = "",
                             Type = (ushort)7
                         },
@@ -612,9 +612,9 @@ namespace Avalon.World.Database.Migrations
                             Rank = (short)0,
                             RegenHealth = (short)1,
                             ScriptName = "UrielPathfinderScript",
-                            SpeedRun = 3f,
-                            SpeedSwim = 1.2f,
-                            SpeedWalk = 1.4f,
+                            SpeedRun = 5f,
+                            SpeedSwim = 1.6f,
+                            SpeedWalk = 2f,
                             SubName = "",
                             Type = (ushort)7
                         },
@@ -645,9 +645,9 @@ namespace Avalon.World.Database.Migrations
                             Rank = (short)0,
                             RegenHealth = (short)1,
                             ScriptName = "",
-                            SpeedRun = 3f,
-                            SpeedSwim = 1.2f,
-                            SpeedWalk = 1.4f,
+                            SpeedRun = 5f,
+                            SpeedSwim = 1.6f,
+                            SpeedWalk = 2f,
                             SubName = "",
                             Type = (ushort)7
                         });
@@ -659,8 +659,8 @@ namespace Avalon.World.Database.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("char(36)");
 
-                    b.Property<ulong>("CharacterId")
-                        .HasColumnType("bigint unsigned");
+                    b.Property<uint>("CharacterId")
+                        .HasColumnType("int unsigned");
 
                     b.Property<uint>("Charges")
                         .HasColumnType("int unsigned");

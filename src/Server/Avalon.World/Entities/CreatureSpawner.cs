@@ -1,3 +1,4 @@
+using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
@@ -59,7 +60,7 @@ public class CreatureSpawner : ICreatureSpawner
 
         var creature = new Creature
         {
-            Id = IGameEntity.GenerateId(),
+            Guid = new ObjectGuid(ObjectType.Creature, IObject.GenerateId()),
             TemplateId = template.Id,
             Metadata = template,
             Name = template.Name,

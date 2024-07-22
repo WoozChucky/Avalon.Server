@@ -1,4 +1,5 @@
 using Avalon.World.Public;
+using Avalon.World.Public.Scripts;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Scripts.Abstractions;

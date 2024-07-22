@@ -1,10 +1,10 @@
+using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Domain.Characters;
 using Avalon.Network.Packets.Combat;
 using Avalon.Network.Packets.State;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
-using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
 using Avalon.World.Spells;
 using Microsoft.Extensions.Logging;
@@ -44,28 +44,20 @@ public class CharacterEntity : ICharacter
         _spells = null!;
     }
     
-    public CharacterEntity(ILoggerFactory loggerFactory, IWorldConnection connection)
+    public CharacterEntity(ILoggerFactory loggerFactory, IWorldConnection connection, Character character)
     {
         _logger = loggerFactory.CreateLogger<CharacterEntity>();
         _connection = connection;
+        Data = character;
         _equipment = new CharacterInventoryContainer(loggerFactory, InventoryType.Equipment);
         _bag = new CharacterInventoryContainer(loggerFactory, InventoryType.Bag);
         _bank = new CharacterInventoryContainer(loggerFactory, InventoryType.Bank);
         _spells = new CharacterSpellContainer(loggerFactory);
-        GameState = new GameState();
+        GameState = new CharacterGameState();
+        Guid = new ObjectGuid(ObjectType.Character, character.Id);
     }
 
-    public ulong Id
-    {
-        get => Data?.Id ?? 0;
-        set
-        {
-            if (Data != null)
-            {
-                Data.Id = value;
-            }
-        }
-    }
+    public ObjectGuid Guid { get; init; }
 
     public uint Health
     {
@@ -80,8 +72,10 @@ public class CharacterEntity : ICharacter
     }
     
     public uint CurrentHealth { get; set; }
-
-    public uint Power
+    
+    public PowerType PowerType { get; set; }
+    
+    public uint? Power
     {
         get => (uint) (Data?.Power1 ?? 0);
         set
@@ -92,8 +86,21 @@ public class CharacterEntity : ICharacter
             }
         }
     }
-    public uint CurrentPower { get; set; }
+    
+    public uint? CurrentPower { get; set; }
     public MoveState MoveState { get; set; } = MoveState.Idle;
+    
+    public void OnHit(IUnit attacker, uint damage)
+    {
+        _logger.LogInformation("{Name} has been hit by unit {Attacker} for {Damage} damage", Name, attacker.Guid, damage);
+        CurrentHealth -= damage;
+        if (CurrentHealth <= 0)
+        {
+            _logger.LogInformation("{Name} has died", Name);
+            CurrentHealth = Health; // reset health while developing
+        }
+        _connection.Send(SCharacterDamagePacket.Create(attacker.Guid.RawValue, Guid.RawValue, CurrentHealth, damage, null, _connection.CryptoSession.Encrypt));
+    }
 
     public Vector3 Position
     {
@@ -172,23 +179,6 @@ public class CharacterEntity : ICharacter
     }
     
     private float MovementSpeed { get; set; }
-
-    public void OnHit(ICharacter attacker, uint damage)
-    {
-        throw new NotImplementedException();
-    }
-
-    public void OnHit(ICreature attacker, uint damage)
-    {
-        _logger.LogInformation("{Name} has been hit by {Attacker} for {Damage} damage", Name, attacker.Name, damage);
-        CurrentHealth -= damage;
-        if (CurrentHealth <= 0)
-        {
-            _logger.LogInformation("{Name} has died", Name);
-            CurrentHealth = Health; // reset health while developing
-        }
-        _connection.Send(SCharacterDamagePacket.Create(attacker.Id, Id, CurrentHealth, damage, null, _connection.CryptoSession.Encrypt));
-    }
 
     public void OnDisconnected()
     {

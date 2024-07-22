@@ -1,15 +1,11 @@
-using Avalon.Common.ValueObjects;
-using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
-using Avalon.World.Public.Spells;
 
 namespace Avalon.World.Public.Characters;
 
 public delegate void CharacterDisconnectedDelegate(ICharacter character);
 
-public interface ICharacter : IGameEntity
+public interface ICharacter : IUnit
 {
-    public static event CharacterDisconnectedDelegate? CharacterDisconnected;
     IWorldConnection Connection { get; }
     IGameState GameState { get; }
     ICharacterInventory this[InventoryType type] { get; }
@@ -22,8 +18,6 @@ public interface ICharacter : IGameEntity
     
     ushort Map { get; set; }
     
-    void OnHit(ICharacter attacker, uint damage);
-    void OnHit(ICreature attacker, uint damage);
     void OnDisconnected();
     float GetMovementSpeed();
     void SetRunning(bool running);

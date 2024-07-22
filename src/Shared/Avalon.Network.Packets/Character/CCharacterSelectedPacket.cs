@@ -12,9 +12,9 @@ public class CCharacterSelectedPacket : Packet
     public static NetworkProtocol Protocol = NetworkProtocol.Tcp;
     public static NetworkPacketFlags Flags = NetworkPacketFlags.Encrypted;
     
-    [ProtoMember(1)] public ulong CharacterId { get; set; }
+    [ProtoMember(1)] public uint CharacterId { get; set; }
 
-    public static NetworkPacket Create(ulong characterId, Func<byte[], byte[]> encrypt)
+    public static NetworkPacket Create(uint characterId, Func<byte[], byte[]> encrypt)
     {
         using var memoryStream = new MemoryStream();
         
