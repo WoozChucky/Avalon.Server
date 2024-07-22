@@ -1,8 +1,10 @@
+using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Combat;
+using Avalon.World.Public;
 using Avalon.World.Public.Characters;
-using Avalon.World.Public.Creatures;
+using Avalon.World.Public.Maps;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Handlers;
@@ -10,46 +12,75 @@ namespace Avalon.World.Handlers;
 [PacketHandler(NetworkPacketType.CMSG_ATTACK)]
 public class CharacterAttackHandler(ILogger<CharacterAttackHandler> logger, IWorld world) : WorldPacketHandler<CCharacterAttackPacket>
 {
-    
     private const float MAxMeleeAttackRange = 1.5f;
     private const uint MaxAngle = 65;
+    
+    private IUnit? GetTarget(IChunk chunk, ObjectGuid targetGuid)
+    {
+        IUnit? target = null;
+
+        switch (targetGuid.Type)
+        {
+            case ObjectType.Creature:
+                if (chunk.Creatures.TryGetValue(targetGuid, out var creature))
+                {
+                    target = creature;
+                }
+                break;
+            case ObjectType.Character:
+                if (chunk.Characters.TryGetValue(targetGuid, out var character))
+                {
+                    target = character;
+                }
+                break;
+            default:
+                logger.LogWarning("Invalid target type");
+                break;
+        }
+        
+        return target;
+    }
     
     public override void Execute(WorldConnection connection, CCharacterAttackPacket packet)
     {
         var attacker = connection.Character!;
 
         var attackerChunkId = attacker.ChunkId;
+        
+        var chunk = world.Grid.GetChunk(attackerChunkId);
+        if (chunk == null)
+        {
+            logger.LogWarning("Chunk not found");
+            return;
+        }
 
-        var target = world.Grid.FindCreature(packet.Target, attackerChunkId);
+        var targetGuid = new ObjectGuid(packet.Target);
+        
+        var target = GetTarget(chunk, targetGuid);
         if (target == null)
         {
             logger.LogDebug("Target not found");
-
-            target = world.Grid.FindCreature(packet.Target);
-            if (target != null)
-            {
-                logger.LogDebug("Target found in another chunk");
-            }
-            
             return;
         }
         
-        if (!IsFacingTarget(connection.Character!, target))
+        if (!IsFacingTarget(attacker, target))
         {
-            logger.LogTrace("Character {Name} is not facing the target {Target}", connection.Character!.Name, target.Name);
+            logger.LogTrace("Character {Name} is not facing the target {Target}", attacker.Name, target.Guid);
             return;
         }
-
+        
         if (packet.AutoAttack)
         {
             // Auto attack
             
-            var distance = Vector3.Distance(connection.Character!.Position, target.Position);
+            var distance = Vector3.Distance(attacker.Position, target.Position);
             if (distance >= MAxMeleeAttackRange)
             {
-                logger.LogTrace("Target {Target} out of range ({Distance})", target.Name, distance);
+                logger.LogTrace("Target {Target} out of range ({Distance})", target.Guid, distance);
                 return;
             }
+            
+            chunk.BroadcastUnitAttackAnimation(attacker, 1);
             
             // For now, just attack without any additional logic
             target.OnHit(attacker, 10);
@@ -62,34 +93,36 @@ public class CharacterAttackHandler(ILogger<CharacterAttackHandler> logger, IWor
                 logger.LogWarning("SpellId is null");
                 return;
             }
-
-            var spell = connection.Character!.Spells[packet.SpellId];
+            
+            var spell = attacker.Spells[packet.SpellId];
             if (spell == null)
             {
                 logger.LogWarning("Spell not found");
                 return;
             }
             
-            var powerPrediction = (int) connection.Character!.CurrentPower - spell.PowerCost;
+            var powerPrediction = (int) (attacker.CurrentPower! - spell.PowerCost);
             
             if (powerPrediction < 0)
             {
                 logger.LogWarning("Not enough power to cast spell");
                 return;
             }
-
-            if (spell.CooldownTimer <= 0 && world.Grid.QueueSpell(connection.Character!, target, spell))
+            
+            if (spell.CooldownTimer <= 0 && chunk.QueueSpell(attacker, target, spell))
             {
                 // Send spell start cast packet
+                chunk.BroadcastUniStartCast(attacker, spell.CastTime);
             }
             else
             {
                 // Send spell not ready packet
+                attacker.Connection.Send(SSpellNotReadyPacket.Create(packet.SpellId.Value, spell.CooldownTimer, attacker.Connection.CryptoSession.Encrypt));
             }
         }
     }
     
-    private bool IsFacingTarget(ICharacter character, ICreature target)
+    private bool IsFacingTarget(ICharacter character, IUnit target)
     {
         var direction = target.Position - character.Position;
         direction.Normalize();

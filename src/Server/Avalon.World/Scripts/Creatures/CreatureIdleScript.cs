@@ -4,6 +4,7 @@ using Avalon.Network.Packets.State;
 using Avalon.World.Public;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Maps;
+using Avalon.World.Public.Scripts;
 
 namespace Avalon.World.Scripts.Creatures;
 

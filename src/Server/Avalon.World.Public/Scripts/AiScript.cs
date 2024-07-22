@@ -2,7 +2,7 @@ using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Maps;
 
-namespace Avalon.World.Public;
+namespace Avalon.World.Public.Scripts;
 
 public abstract class AiScript {
     
@@ -36,15 +36,7 @@ public abstract class AiScript {
     
     protected abstract bool ShouldRun();
     
-    public virtual void OnHit(ICreature attacker, uint damage)
-    {
-        foreach (var script in ChainedScripts)
-        {
-            script.OnHit(attacker, damage);
-        }
-    }
-    
-    public virtual void OnHit(ICharacter attacker, uint damage)
+    public virtual void OnHit(IUnit attacker, uint damage)
     {
         foreach (var script in ChainedScripts)
         {

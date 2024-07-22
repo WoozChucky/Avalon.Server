@@ -125,7 +125,7 @@ public class Map
             var creatures = chunk.Creatures.Values;
             foreach (var creature in creatures)
             {
-                if (creature.Id == creatureId)
+                if (creature.Guid.Id == creatureId)
                 {
                     return creature;
                 }

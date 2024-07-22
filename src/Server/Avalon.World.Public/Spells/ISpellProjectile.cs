@@ -1,6 +1,5 @@
 using Avalon.Common.Mathematics;
 using Avalon.World.Public.Characters;
-using Avalon.World.Public.Creatures;
 
 namespace Avalon.World.Public.Spells;
 
@@ -11,7 +10,7 @@ public interface ISpellProjectile
     ulong Id { get; set; }
     ISpell Spell { get; set; }
     ICharacter Caster { get; set; }
-    ICreature Target { get; set; }
+    IUnit Target { get; set; }
     Vector3 Position { get; set; }
     float Speed { get; set; }
     Vector3 Velocity { get; set; }

@@ -34,4 +34,5 @@ public class GameSpell : ISpell
     public required float CastTime { get; init; }
     public required float CastTimeTimer { get; set; }
     public required uint PowerCost { get; init; }
+    public required string ScriptName { get; init; }
 }

@@ -80,14 +80,3 @@ public class Character : IDbEntity<CharacterId>
     
     public ulong DeleteDate { get; set; }
 }
-
-public class CharacterMovement
-{
-    public Vector3 Position { get; set; }
-    public Vector3 Velocity { get; set; }
-
-    public override string ToString()
-    {
-        return $"(Position: {Position} Velocity: {Velocity})";
-    }
-}

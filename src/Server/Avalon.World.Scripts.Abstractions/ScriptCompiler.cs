@@ -5,6 +5,7 @@ using Avalon.Common.Mathematics;
 using Avalon.Hosting;
 using Avalon.World.Public;
 using Avalon.World.Public.Maps;
+using Avalon.World.Public.Scripts;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.Extensions.Logging;

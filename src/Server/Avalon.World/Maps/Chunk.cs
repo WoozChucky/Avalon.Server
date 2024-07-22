@@ -1,5 +1,6 @@
+using System.Buffers;
+using Avalon.Common;
 using Avalon.Common.Mathematics;
-using Avalon.Common.ValueObjects;
 using Avalon.Network.Packets.Combat;
 using Avalon.Network.Packets.State;
 using Avalon.World.Entities;
@@ -11,64 +12,89 @@ using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Maps;
+using Avalon.World.Public.Scripts;
 using Avalon.World.Public.Spells;
-using Avalon.World.Spells;
+using Avalon.World.Scripts;
+using Avalon.World.Serialization;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Maps;
 
-public class ChunkSpellSystem(ILoggerFactory factory)
+public class SpellInstance
+{
+    public IUnit Caster { get; set; }
+    public IUnit Target { get; set; }
+    public ISpell SpellInfo { get; set; }
+    public Vector3 CastStartPosition { get; set; }
+}
+
+public class ChunkSpellSystem(ILoggerFactory factory, IServiceProvider serviceProvider, IScriptManager scriptManager)
 {
     private readonly ILogger<ChunkSpellSystem> _logger = factory.CreateLogger<ChunkSpellSystem>();
     
-    private readonly HashSet<(ICharacter character, ICreature target, ISpell spell)> _spellQueue = [];
-    private readonly List<ISpellProjectile> _activeSpells = [];
+    private readonly HashSet<SpellInstance> _spellQueue = [];
+    private readonly List<SpellScript> _activeSpells = [];
     private readonly HashSet<ulong> _removeScheduled = [];
     
-    public bool QueueSpell(ICharacter character, ICreature target, ISpell spell)
+    public bool QueueSpell(ICharacter character, IUnit target, ISpell spell)
     {
-        return _spellQueue.Add((character, target, spell));
+        //TODO: Power cost deduction
+        var spellInstance = new SpellInstance
+        {
+            Caster = character,
+            Target = target,
+            SpellInfo = spell,
+            CastStartPosition = character.Position
+        };
+        return _spellQueue.Add(spellInstance);
     }
     
     public void Update(TimeSpan deltaTime, out List<ISpellProjectile> activeSpells)
     {
-        foreach (var (character, target, spell) in _spellQueue)
+        foreach (var spellInstance in _spellQueue)
         {
-            spell.CastTimeTimer -= (float) deltaTime.TotalSeconds;
+            spellInstance.SpellInfo.CastTimeTimer -= (float) deltaTime.TotalSeconds;
             
-            if (!(spell.CastTimeTimer <= 0)) continue;
-            
-            spell.CastTimeTimer = spell.CastTime;
-            _spellQueue.Remove((character, target, spell));
-                
-            var projectile = new SpellProjectile
+            //TODO: This should be applied only on spells that are not instant cast
+            if (spellInstance.CastStartPosition != spellInstance.Caster.Position)
             {
-                Id = IGameEntity.GenerateId(),
-                Spell = spell,
-                Caster = character,
-                Target = target,
-                Position = character.Position + new Vector3(0, 0.5f, 0),
-                Speed = 5f,
-                Velocity = Vector3.Normalize(target.Position - character.Position)
-            };
+                _logger.LogWarning("Spell cast interrupted by movement");
+                _spellQueue.Remove(spellInstance);
+                continue;
+            }
+            
+            if (!(spellInstance.SpellInfo.CastTimeTimer <= 0)) continue;
+            
+            spellInstance.SpellInfo.CastTimeTimer = spellInstance.SpellInfo.CastTime;
+            _spellQueue.Remove(spellInstance);
+            
+            var scriptType = scriptManager.GetSpellScript(spellInstance.SpellInfo.ScriptName);
+            if (scriptType is null)
+            {
+                _logger.LogWarning("Spell script {ScriptName} not found", spellInstance.SpellInfo.ScriptName);
+                continue;
+            }
+
+            if (ActivatorUtilities.CreateInstance(serviceProvider, scriptType, [spellInstance.SpellInfo, spellInstance.Caster, spellInstance.Target]) is not SpellScript spellScript)
+            {
+                _logger.LogWarning("Failed to create spell script {ScriptName}", spellInstance.SpellInfo.ScriptName);
+                continue;
+            }
+            
+            //TODO: Send finish cast packet
                 
-            _activeSpells.Add(projectile);
+            _activeSpells.Add(spellScript);
                 
-            _logger.LogInformation("Finished spell {SpellId} cast by {CharacterId} on {CreatureId}", spell.SpellId, character.Id, target.Id);
+            _logger.LogDebug("Finished spell {SpellId} cast by {CharacterId} on {CreatureId}", spellInstance.SpellInfo.SpellId, spellInstance.Caster.Guid, spellInstance.Target.Guid);
         }
 
-        foreach (var projectile in _activeSpells)
+        foreach (var spell in _activeSpells)
         {
-            projectile.Update(deltaTime);
-            
-            if (Vector3.Distance(projectile.Position, projectile.Target.Position + ISpellProjectile.HeightOffset) < 0.5f)
-            {
-                _logger.LogInformation("Spell {SpellId} hit {CreatureId}", projectile.Spell.SpellId, projectile.Target.Id);
-                projectile.Target.OnHit(projectile.Caster, 0);
-                _removeScheduled.Add(projectile.Id);
-            }
+            spell.Update(deltaTime);
         }
         
+        /*
         foreach (var id in _removeScheduled)
         {
             _activeSpells.RemoveAll(p => p.Id == id);
@@ -77,6 +103,8 @@ public class ChunkSpellSystem(ILoggerFactory factory)
         _removeScheduled.Clear();
         
         activeSpells = _activeSpells;
+        */
+        activeSpells = [];
     }
 }
 
@@ -86,16 +114,16 @@ public class Chunk : IChunk
     public ushort MapId { get; private set; }
     public bool Enabled { get; set; }
     public Vector2 Position { get; private set; }
-    public required ChunkMetadata Metadata { get; init; }
+    public required ChunkMetadata Metadata { get; set; }
     public IChunkNavigator Navigator { get; private set; }
     public List<IChunk> Neighbors { get; set; } = [];
     
-    public IReadOnlyDictionary<CharacterId, ICharacter> Characters => _characters;
-    public IReadOnlyDictionary<CreatureId, ICreature> Creatures => _creatures;
+    public IReadOnlyDictionary<ObjectGuid, ICharacter> Characters => _characters;
+    public IReadOnlyDictionary<ObjectGuid, ICreature> Creatures => _creatures;
     
     
-    private readonly Dictionary<CharacterId, ICharacter> _characters = [];
-    private readonly Dictionary<CreatureId, ICreature> _creatures = [];
+    private readonly Dictionary<ObjectGuid, ICharacter> _characters = [];
+    private readonly Dictionary<ObjectGuid, ICreature> _creatures = [];
     private readonly ILogger<Chunk> _logger;
     
     private const float BroadcastInterval = 0.1f;
@@ -107,26 +135,26 @@ public class Chunk : IChunk
     
     private ChunkSpellSystem _spellSystem;
 
-    public Chunk(ILoggerFactory loggerFactory, ushort mapId, Vector2 position, IPoolManager poolManager)
+    public Chunk(ILoggerFactory loggerFactory, IServiceProvider serviceProvider, ushort mapId, Vector2 position, IPoolManager poolManager)
     {
         _poolManager = poolManager;
         _logger = loggerFactory.CreateLogger<Chunk>();
         MapId = mapId;
         Position = position;
         Navigator = new ChunkNavigator(loggerFactory);
-        _spellSystem = new ChunkSpellSystem(loggerFactory);
+        _spellSystem = new ChunkSpellSystem(loggerFactory, serviceProvider, serviceProvider.GetRequiredService<IScriptManager>());
         Creature.OnCreatureKilled += OnCreatureKilled;
         _creatureRespawner = new CreatureRespawner(this);
     }
     
-    public bool QueueSpell(ICharacter character, ICreature target, ISpell spell)
+    public bool QueueSpell(ICharacter character, IUnit target, ISpell spell)
     {
         return _spellSystem.QueueSpell(character, target, spell);
     }
 
-    private void OnCreatureKilled(ICreature creature, IGameEntity killer)
+    private void OnCreatureKilled(ICreature creature, IUnit killer)
     {
-        if (!Enabled || !_creatures.ContainsKey(creature.Id)) return;
+        if (!Enabled || !_creatures.ContainsKey(creature.Guid)) return;
 
         // Step 1: Stop the creature scripts
         creature.Script = null; // TODO: Double check if this has to be schuduled to run on the main thread
@@ -199,182 +227,101 @@ public class Chunk : IChunk
     
     public void BroadcastChunkStateTo(ICharacter character)
     {
-        using var memoryStream = new MemoryStream();
-        using var writer = new BinaryWriter(memoryStream);
-        
-        var addedCharacters = new List<CharacterAdd>();
-        var updatedCharacters = new List<(CharacterId characterId, byte[] data)>();
-        var removedCharacters = new List<ulong>();
-        
-        foreach (var newCharacterId in character.GameState.NewCharacters)
+        var buffer = ArrayPool<byte>.Shared.Rent(4096);
+        using var writer = new WorldObjectWriter(buffer); // Wrapper around BinaryWriter
+
+        var addedObjects = new List<ObjectAdd>();
+        var updatedObjects = new List<ObjectUpdate>();
+
+        foreach (var addedObjectGuid in character.GameState.NewObjects)
         {
-            if (newCharacterId == character.Id) continue;
-            addedCharacters.Add(new CharacterAdd
+            
+            switch (addedObjectGuid.Type)
             {
-                Id = newCharacterId,
-                Name = _characters[newCharacterId].Name,
-                Level = _characters[newCharacterId].Level,
-                PositionX = _characters[newCharacterId].Position.x,
-                PositionY = _characters[newCharacterId].Position.y,
-                PositionZ = _characters[newCharacterId].Position.z,
-                VelocityX = _characters[newCharacterId].Velocity.x,
-                VelocityY = _characters[newCharacterId].Velocity.y,
-                VelocityZ = _characters[newCharacterId].Velocity.z,
-                Orientation = _characters[newCharacterId].Orientation.y,
-                MoveState = _characters[newCharacterId].MoveState
-            });
-        }
-                
-        foreach (var updatedCharacter in character.GameState.UpdatedCharacters)
-        {
-            if (updatedCharacter.characterId == character.Id) continue;
-            var updated = _characters[updatedCharacter.characterId];
-            // TODO: Use code below to filter out fields that have not changed (for now, all fields are sent)
-            // var fields = updatedCharacter.fields;
-            var fields = GameEntityFields.All;
-            
-            var data = SerializeFields(memoryStream, writer, updated, fields);
-            
-            updatedCharacters.Add((updated.Id, data));
-        }
-                
-        foreach (var removedCharacterId in character.GameState.RemovedCharacters)
-        {
-            if (removedCharacterId == character.Id) continue;
-            removedCharacters.Add(removedCharacterId);
-        }
-        
-        var addedCreatures = new List<CreatureAdd>();
-        //var updatedCreatures = new List<CreatureUpdate>();
-        var removedCreatures = new List<ulong>();
-        
-        foreach (var newCreatureId in character.GameState.NewCreatures)
-        {
-            var newCreature = _creatures[newCreatureId];
-            addedCreatures.Add(new CreatureAdd
-            {
-                Id = newCreature.Id,
-                TemplateId = newCreature.Metadata.Id,
-                Name = newCreature.Name,
-                Health = newCreature.Health,
-                Power = newCreature.Power,
-                Level = newCreature.Level,
-                PositionX = newCreature.Position.x,
-                PositionY = newCreature.Position.y,
-                PositionZ = newCreature.Position.z,
-                VelocityX = newCreature.Velocity.x,
-                VelocityY = newCreature.Velocity.y,
-                VelocityZ = newCreature.Velocity.z,
-                Orientation = newCreature.Orientation.y,
-                MoveState = newCreature.MoveState
-            });
-        }
-        
-        var updatedCreatures = new List<(CreatureId creatureId, byte[] data)>();
-        
-        foreach (var updatedCreature in character.GameState.UpdatedCreatures)
-        {
-            var updated = _creatures[updatedCreature.creatureId];
-            // TODO: Use code below to filter out fields that have not changed (for now, all fields are sent)
-            // var fields = updatedCreature.fields;
-            var fields = GameEntityFields.All;
-            
-            var data = SerializeFields(memoryStream, writer, updated, fields);
-            
-            updatedCreatures.Add((updated.Id, data));
-        }
-                
-        foreach (var removedCreatureId in character.GameState.RemovedCreatures)
-        {
-            removedCreatures.Add(removedCreatureId);
-        }
-        
-        if (addedCharacters.Count > 0)
-        {
-            character.Connection.Send(SCharacterAddedPacket.Create(addedCharacters, character.Connection.CryptoSession.Encrypt));
-        }
-        
-        if (true) // _lastBroadcastTime >= BroadcastInterval
-        {
-            if (updatedCharacters.Count > 0)
-            {
-                character.Connection.Send(SCharacterUpdatedPacket.Create(updatedCharacters, character.Connection.CryptoSession.Encrypt));
+                case ObjectType.Character:
+                    if (character.Guid == addedObjectGuid) continue;
+                    writer.Write(_characters[addedObjectGuid]);
+                    break;
+                case ObjectType.Creature:
+                    writer.Write(_creatures[addedObjectGuid]);
+                    break;
+                default:
+                    _logger.LogWarning("Unknown object type {ObjectType} on NewObjects serialization", addedObjectGuid.Type);
+                    continue;
             }
+                    
+            var bytesWritten = writer.BaseStream.Position;
+            
+            var obj = new ObjectAdd
+            {
+                Guid = addedObjectGuid.RawValue,
+                Fields = new byte[bytesWritten]
+            };
+            
+            buffer.AsSpan(0, (int)bytesWritten).CopyTo(obj.Fields);
+            
+            addedObjects.Add(obj);
+            
+            writer.Reset();
+        }
+
+        foreach (var updatedObject in character.GameState.UpdatedObjects)
+        {
+            switch (updatedObject.Guid.Type)
+            {
+                case ObjectType.Character:
+                    if (character.Guid == updatedObject.Guid) continue;
+                    writer.Write(_characters[updatedObject.Guid], GameEntityFields.CharacterUpdate); // can and should pass updatedObject.Fields
+                    break;
+                case ObjectType.Creature:
+                    writer.Write(_creatures[updatedObject.Guid], GameEntityFields.CreatureUpdate); // an and should pass updatedObject.Fields
+                    break;
+                default:
+                    _logger.LogWarning("Unknown object type {ObjectType} on UpdatedObjects serialization", updatedObject.Guid.Type);
+                    continue;
+            }
+            
+            var bytesWritten = writer.BaseStream.Position;
+            
+            var obj = new ObjectUpdate
+            {
+                Guid = updatedObject.Guid.RawValue,
+                Fields = new byte[bytesWritten]
+            };
+            
+            buffer.AsSpan(0, (int)bytesWritten).CopyTo(obj.Fields);
+            
+            updatedObjects.Add(obj);
+            
+            writer.Reset();
         }
         
-        if (removedCharacters.Count > 0)
-        {
-            character.Connection.Send(SCharacterRemovedPacket.Create(removedCharacters, character.Connection.CryptoSession.Encrypt));
-        }
+        ArrayPool<byte>.Shared.Return(buffer);
         
-        if (addedCreatures.Count > 0)
+        if (addedObjects.Count > 0)
         {
-            character.Connection.Send(SCreatureAddedPacket.Create(addedCreatures, character.Connection.CryptoSession.Encrypt));
+            character.Connection.Send(SChunkStateAddPacket.Create(addedObjects, character.Connection.CryptoSession.Encrypt));
         }
         
         if (_lastBroadcastTime >= BroadcastInterval) // _lastBroadcastTime >= BroadcastInterval
         {
-            if (updatedCreatures.Count > 0)
+            if (updatedObjects.Count > 0)
             {
-                character.Connection.Send(SCreatureUpdatedPacket.Create(updatedCreatures, character.Connection.CryptoSession.Encrypt));
+                character.Connection.Send(SChunkStateUpdatePacket.Create(updatedObjects, character.Connection.CryptoSession.Encrypt));
             }
         }
         
-        if (removedCreatures.Count > 0)
+        if (character.GameState.RemovedObjects.Count > 0)
         {
-            character.Connection.Send(SCreatureRemovedPacket.Create(removedCreatures, character.Connection.CryptoSession.Encrypt));
+            character.Connection.Send(SChunkStateRemovePacket.Create(character.GameState.RemovedObjects, character.Connection.CryptoSession.Encrypt));
         }
-    }
-    
-    byte[] SerializeFields(MemoryStream stream, BinaryWriter streamWriter, IGameEntity entity, GameEntityFields changedFields)
-    {
-        stream.SetLength(0);
-        stream.Position = 0;
-        streamWriter.Seek(0, SeekOrigin.Begin);
-            
-        // Write the bitmask
-        streamWriter.Write((int)changedFields);
-
-        // Write the updated fields
-        if (changedFields.HasFlag(GameEntityFields.Position))
-        {
-            streamWriter.Write(entity.Position.x);
-            streamWriter.Write(entity.Position.y);
-            streamWriter.Write(entity.Position.z);
-        }
-        if (changedFields.HasFlag(GameEntityFields.Velocity))
-        {
-            streamWriter.Write(entity.Velocity.x);
-            streamWriter.Write(entity.Velocity.y);
-            streamWriter.Write(entity.Velocity.z);
-        }
-        if (changedFields.HasFlag(GameEntityFields.Orientation))
-        {
-            streamWriter.Write(entity.Orientation.y);
-        }
-        
-        if (changedFields.HasFlag(GameEntityFields.CurrentHealth))
-        {
-            streamWriter.Write(entity.CurrentHealth);
-        }
-        if (changedFields.HasFlag(GameEntityFields.CurrentPower))
-        {
-            streamWriter.Write(entity.CurrentPower);
-        }
-        
-        if (changedFields.HasFlag(GameEntityFields.MoveState))
-        {
-            streamWriter.Write((int) entity.MoveState);
-        }
-        
-        return stream.ToArray();
     }
 
     public void AddCharacter(IWorldConnection connection)
     {
         connection.Character!.ChunkId = Id;
         
-        _characters[connection.Character.Id] = connection.Character;
+        _characters[connection.Character.Guid] = connection.Character;
         
         Enabled = true;
         foreach (var neighbor in Neighbors)
@@ -389,7 +336,7 @@ public class Chunk : IChunk
         
         connection.Character.ChunkId = 0;
             
-        _characters.Remove(connection.Character.Id);
+        _characters.Remove(connection.Character.Guid);
         
         if (_characters.Count == 0)
         {
@@ -406,19 +353,23 @@ public class Chunk : IChunk
         }
     }
 
-    public void BroadcastAttackAnimation(CreatureId creatureId, ushort animationId)
+    public void BroadcastUnitAttackAnimation(IUnit attacker, ushort animationId)
     {
         Parallel.ForEach(_characters.Values, character =>
         {
-            character.Connection.Send(SCreatureAttackAnimationPacket.Create(creatureId, animationId, character.Connection.CryptoSession.Encrypt));
+            if (attacker is ICharacter attackerChar)
+            {
+                // if (attackerChar.Guid == character.Guid) return;
+            }
+            character.Connection.Send(SUnitAttackAnimationPacket.Create(attacker.Guid, animationId, character.Connection.CryptoSession.Encrypt));
         });
     }
     
-    public void BroadcastCreatureHit(CharacterId attackerId, CreatureId creatureId, uint currentHealth, uint damage)
+    public void BroadcastUnitHit(IUnit attacker, IUnit target, uint currentHealth, uint damage)
     {
         Parallel.ForEach(_characters.Values, character =>
         {
-            character.Connection.Send(SCreatureDamagePacket.Create(attackerId, creatureId, currentHealth, damage, character.Connection.CryptoSession.Encrypt));
+            character.Connection.Send(SUnitDamagePacket.Create(attacker.Guid, target.Guid.RawValue, currentHealth, damage, character.Connection.CryptoSession.Encrypt));
         });
     }
 
@@ -434,25 +385,24 @@ public class Chunk : IChunk
 
     public void AddCreature(ICreature creature)
     {
-        _creatures.Add(creature.Id, creature);
+        _creatures.Add(creature.Guid, creature);
     }
     
     public void RemoveCreature(ICreature creature)
     {
-        RemoveCreature(creature.Id);
+        RemoveCreature(creature.Guid);
     }
 
-    public void RemoveCreature(CreatureId id)
+    public void RemoveCreature(ObjectGuid id)
     {
         _creatures.Remove(id);
-        BroadcastCreatureRemoval(id);
     }
-
-    private void BroadcastCreatureRemoval(CreatureId creatureId)
+    
+    public void BroadcastUniStartCast(IUnit caster, float spellCastTime)
     {
         Parallel.ForEach(_characters.Values, character =>
         {
-            // character.Connection.Send(SCreatureRemovedPacket.Create(creatureId, character.Connection.CryptoSession.Encrypt));
+            character.Connection.Send(SUnitStartCastPacket.Create(caster.Guid, spellCastTime, character.Connection.CryptoSession.Encrypt));
         });
     }
 

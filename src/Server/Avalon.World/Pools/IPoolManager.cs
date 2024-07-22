@@ -2,6 +2,7 @@ using Avalon.World.Entities;
 using Avalon.World.Maps;
 using Avalon.World.Public;
 using Avalon.World.Public.Creatures;
+using Avalon.World.Public.Scripts;
 using Avalon.World.Scripts;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -19,14 +20,14 @@ public class PoolManager : IPoolManager
 {
     private readonly ILogger<PoolManager> _logger;
     private readonly ICreatureSpawner _creatureSpawner;
-    private readonly IAiController _aiController;
+    private readonly IScriptManager _scriptManager;
     private readonly IServiceProvider _serviceProvider;
 
-    public PoolManager(ILoggerFactory loggerFactory, ICreatureSpawner creatureSpawner, IAiController aiController, IServiceProvider serviceProvider)
+    public PoolManager(ILoggerFactory loggerFactory, ICreatureSpawner creatureSpawner, IScriptManager scriptManager, IServiceProvider serviceProvider)
     {
         _logger = loggerFactory.CreateLogger<PoolManager>();
         _creatureSpawner = creatureSpawner;
-        _aiController = aiController;
+        _scriptManager = scriptManager;
         _serviceProvider = serviceProvider;
     }
 
@@ -39,7 +40,7 @@ public class PoolManager : IPoolManager
         {
             var creature = _creatureSpawner.Spawn(virtualCreature);
             
-            var scriptType = _aiController.GetScriptTemplate(creature.ScriptName);
+            var scriptType = _scriptManager.GetAiScript(creature.ScriptName);
             if (scriptType is not null)
             {
                 var script = ActivatorUtilities.CreateInstance(_serviceProvider, scriptType, [creature, chunk]);
@@ -60,7 +61,7 @@ public class PoolManager : IPoolManager
             
             var newCreature = _creatureSpawner.Spawn(virtualCreature);
             
-            var scriptType = _aiController.GetScriptTemplate(newCreature.ScriptName);
+            var scriptType = _scriptManager.GetAiScript(newCreature.ScriptName);
             if (scriptType is not null)
             {
                 var script = ActivatorUtilities.CreateInstance(_serviceProvider, scriptType, [newCreature, chunk]);

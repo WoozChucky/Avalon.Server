@@ -47,7 +47,7 @@ public class SCharacterListPacket : Packet
 [ProtoContract]
 public class CharacterInfo
 {
-    [ProtoMember(1)] public ulong CharacterId { get; set; }
+    [ProtoMember(1)] public uint CharacterId { get; set; }
     [ProtoMember(2)] public string Name { get; set; }
     [ProtoMember(3)] public int Level { get; set; }
     [ProtoMember(4)] public ushort Class { get; set; }
