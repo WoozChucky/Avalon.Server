@@ -4,6 +4,7 @@ using Avalon.World.Database;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Avalon.World.Database.Migrations
 {
     [DbContext(typeof(WorldDbContext))]
-    partial class WorldDbContextModelSnapshot : ModelSnapshot
+    [Migration("20240722171950_V2")]
+    partial class V2
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -61,7 +64,7 @@ namespace Avalon.World.Database.Migrations
                             Map = (ushort)1,
                             Rotation = 0f,
                             StartingItems = "1,2,3",
-                            StartingSpells = "1,2",
+                            StartingSpells = "1",
                             X = 25f,
                             Y = 51f,
                             Z = 25f
@@ -1093,21 +1096,19 @@ namespace Avalon.World.Database.Migrations
                             EffectValue = 10u,
                             Effects = (ushort)1,
                             Name = "Strike",
-                            Range = (ushort)1,
-                            SpellScript = "StrikeSpellScript"
+                            Range = (ushort)1
                         },
                         new
                         {
                             Id = 2u,
-                            AllowedClasses = "[1,2]",
-                            CastTime = 2000u,
+                            AllowedClasses = "[2]",
+                            CastTime = 1000u,
                             Cooldown = 1000u,
                             Cost = 10u,
                             EffectValue = 10u,
                             Effects = (ushort)1,
-                            Name = "Fireball",
-                            Range = (ushort)10,
-                            SpellScript = "FireballSpellScript"
+                            Name = "Lightning Bolt",
+                            Range = (ushort)10
                         });
                 });
 

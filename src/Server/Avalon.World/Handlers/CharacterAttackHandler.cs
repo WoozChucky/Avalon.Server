@@ -112,7 +112,9 @@ public class CharacterAttackHandler(ILogger<CharacterAttackHandler> logger, IWor
             if (spell.CooldownTimer <= 0 && chunk.QueueSpell(attacker, target, spell))
             {
                 // Send spell start cast packet
-                chunk.BroadcastUniStartCast(attacker, spell.CastTime);
+                if (spell.CastTime > 0) {
+                    chunk.BroadcastUniStartCast(attacker, spell.CastTime);
+                }
             }
             else
             {
