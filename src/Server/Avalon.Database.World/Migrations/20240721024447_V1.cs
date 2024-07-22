@@ -272,7 +272,7 @@ namespace Avalon.World.Database.Migrations
                 {
                     Id = table.Column<Guid>(type: "char(36)", nullable: false, collation: "ascii_general_ci"),
                     TemplateId = table.Column<ulong>(type: "bigint unsigned", nullable: false),
-                    CharacterId = table.Column<ulong>(type: "bigint unsigned", nullable: false),
+                    CharacterId = table.Column<uint>(type: "int unsigned", nullable: false),
                     Count = table.Column<uint>(type: "int unsigned", nullable: false),
                     Durability = table.Column<uint>(type: "int unsigned", nullable: false),
                     Charges = table.Column<uint>(type: "int unsigned", nullable: false),
@@ -381,9 +381,9 @@ namespace Avalon.World.Database.Migrations
                 columns: new[] { "Id", "AIName", "ArmorModifier", "BaseAttackTime", "DamageModifier", "DetectionRange", "DmgSchool", "Exp", "ExperienceModifier", "Family", "HealthModifier", "IconName", "LootId", "ManaModifier", "MaxGold", "MaxLevel", "MinGold", "MinLevel", "MovementId", "MovementType", "Name", "RangeAttackTime", "Rank", "RegenHealth", "ScriptName", "SpeedRun", "SpeedSwim", "SpeedWalk", "SubName", "Type" },
                 values: new object[,]
                 {
-                    { 1ul, "", 1f, 1, 1f, 20f, (short)0, (short)0, 1f, (ushort)0, 1f, "", 0, 1f, 0, (short)1, 0, (short)1, 0, (short)0, "Uriel", 0, (short)0, (short)1, "UrielTownPatrolScript", 3f, 1.2f, 1.4f, "", (ushort)7 },
-                    { 2ul, "", 1f, 1, 1f, 20f, (short)0, (short)0, 1f, (ushort)0, 1f, "", 0, 1f, 0, (short)1, 0, (short)1, 0, (short)0, "Borin Stoutbeard", 0, (short)0, (short)1, "UrielPathfinderScript", 3f, 1.2f, 1.4f, "", (ushort)7 },
-                    { 3ul, "", 1f, 1, 1f, 20f, (short)0, (short)0, 1f, (ushort)0, 1f, "", 0, 1f, 0, (short)1, 0, (short)1, 0, (short)0, "Innkeeper", 0, (short)0, (short)1, "", 3f, 1.2f, 1.4f, "", (ushort)7 }
+                    { 1ul, "", 1f, 1, 1f, 20f, (short)0, (short)0, 1f, (ushort)0, 1f, "", 0, 1f, 0, (short)1, 0, (short)1, 0, (short)0, "Uriel", 0, (short)0, (short)1, "UrielTownPatrolScript", 5f, 1.6f, 2f, "", (ushort)7 },
+                    { 2ul, "", 1f, 1, 1f, 20f, (short)0, (short)0, 1f, (ushort)0, 1f, "", 0, 1f, 0, (short)1, 0, (short)1, 0, (short)0, "Borin Stoutbeard", 0, (short)0, (short)1, "UrielPathfinderScript", 5f, 1.6f, 2f, "", (ushort)7 },
+                    { 3ul, "", 1f, 1, 1f, 20f, (short)0, (short)0, 1f, (ushort)0, 1f, "", 0, 1f, 0, (short)1, 0, (short)1, 0, (short)0, "Innkeeper", 0, (short)0, (short)1, "", 5f, 1.6f, 2f, "", (ushort)7 }
                 });
 
             migrationBuilder.InsertData(

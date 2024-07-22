@@ -33,7 +33,7 @@ public static class ServiceExtensions
         services.AddSingleton<INavigationMeshBaker, NavigationMeshBaker>();
         services.AddSingleton<IAvalonMapManager, AvalonMapManager>();
         services.AddSingleton<IPoolManager, PoolManager>();
-        services.AddSingleton<IAiController, AiController>();
+        services.AddSingleton<IScriptManager, ScriptManager>();
         services.AddSingleton<ICreatureSpawner, CreatureSpawner>();
         // Scripting
         services.AddSingleton<IScriptCompiler, ScriptCompiler>();

@@ -12,4 +12,5 @@ public interface ISpell
     float CastTime { get; } // in seconds
     float CastTimeTimer { get; set; } // in seconds (remaining time until spell is cast)
     uint PowerCost { get; }
+    string ScriptName { get; }
 }

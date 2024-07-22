@@ -1,117 +1,130 @@
+using Avalon.Common;
 using Avalon.World.Public;
-using Avalon.World.Public.Characters;
-using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
 
 namespace Avalon.World.Entities;
 
 public class EntityTrackingSystem
 {
-    public event Action<IGameEntity>? EntityAdded;
-    public event Action<IGameEntity>? EntityRemoved;
-    public event Action<IGameEntity, GameEntityFields>? EntityUpdated;
+    private readonly Func<IWorldObject, IWorldObject> _createObjectHandler;
+    private readonly Func<IWorldObject, IWorldObject, IWorldObject> _updateObjectHandler;
+    private readonly Func<IWorldObject, IWorldObject, GameEntityFields> _changedFieldsHandler;
+    public event Action<ObjectGuid>? EntityAdded;
+    public event Action<ObjectGuid>? EntityRemoved;
+    public event Action<ObjectGuid, GameEntityFields>? EntityUpdated;
     
-    private readonly IDictionary<ulong, IGameEntity> _entities;
+    private readonly IDictionary<ObjectGuid, IWorldObject> _objects;
     
-    public EntityTrackingSystem(int capacity)
+    public EntityTrackingSystem(int capacity, 
+        Func<IWorldObject, IWorldObject> createObjectHandler,
+        Func<IWorldObject, IWorldObject, IWorldObject> updateObjectHandler,
+        Func<IWorldObject, IWorldObject, GameEntityFields> changedFieldsHandler)
     {
-        _entities = new Dictionary<ulong, IGameEntity>(capacity);
+        _createObjectHandler = createObjectHandler;
+        _updateObjectHandler = updateObjectHandler;
+        _changedFieldsHandler = changedFieldsHandler;
+        _objects = new Dictionary<ObjectGuid, IWorldObject>(capacity);
     }
 
-    public void Update(IEnumerable<IGameEntity> entities)
+    public void Update(IEnumerable<IWorldObject> objects)
     {
-        var newEntityIds = new HashSet<ulong>();
+        var newObjectIds = new HashSet<ObjectGuid>();
 
-        // First pass: Identify new and updated entities
-        foreach (var gameEntity in entities)
+        // First pass: Identify new and updated objects
+        foreach (var worldObject in objects)
         {
-            newEntityIds.Add(gameEntity.Id);
+            newObjectIds.Add(worldObject.Guid);
 
-            if (!_entities.TryGetValue(gameEntity.Id, out var existingEntity))
+            if (!_objects.TryGetValue(worldObject.Guid, out var existingObject))
             {
-                switch (gameEntity)
+                _objects[worldObject.Guid] = _createObjectHandler(worldObject);
+                EntityAdded?.Invoke(worldObject.Guid);
+                /*
+                switch (worldObject)
                 {
                     case ICharacter character:
-                        _entities[gameEntity.Id] = new CharacterEntity
+                        _objects[character.Guid] = new CharacterEntity
                         {
-                            Id = gameEntity.Id,
-                            Position = gameEntity.Position,
-                            Orientation = gameEntity.Orientation,
-                            Velocity = gameEntity.Velocity,
-                            MoveState = gameEntity.MoveState
+                            Guid = character.Guid,
+                            Position = character.Position,
+                            Orientation = character.Orientation,
+                            Velocity = character.Velocity,
+                            MoveState = character.MoveState
                         };
                         
                         break;
                     case ICreature creature:
-                        _entities[gameEntity.Id] = new Creature
+                        _objects[creature.Guid] = new Creature
                         {
-                            Id = gameEntity.Id,
-                            Position = gameEntity.Position,
-                            Orientation = gameEntity.Orientation,
-                            Velocity = gameEntity.Velocity,
-                            MoveState = gameEntity.MoveState
+                            Guid = creature.Guid,
+                            Position = creature.Position,
+                            Orientation = creature.Orientation,
+                            Velocity = creature.Velocity,
+                            MoveState = creature.MoveState
                         };
                         break;
                 }
-                EntityAdded?.Invoke(gameEntity);
+                */
             }
             else // if (EntityChanged(existingEntity, gameEntity, out var fields))
             {
-                var fields = GetChangedFields(existingEntity, gameEntity);
-                switch (gameEntity)
+                var fields = _changedFieldsHandler(existingObject, worldObject);
+                _objects[worldObject.Guid] = _updateObjectHandler(existingObject, worldObject);
+                EntityUpdated?.Invoke(worldObject.Guid, fields);
+                /*
+                switch (worldObject)
                 {
                     case ICharacter character:
-                        _entities[gameEntity.Id].Position = gameEntity.Position;
-                        _entities[gameEntity.Id].Orientation = gameEntity.Orientation;
-                        _entities[gameEntity.Id].Velocity = gameEntity.Velocity;
-                        _entities[gameEntity.Id].MoveState = gameEntity.MoveState;
-                        _entities[gameEntity.Id].CurrentHealth = gameEntity.CurrentHealth;
-                        _entities[gameEntity.Id].CurrentPower = gameEntity.CurrentPower;
-                        _entities[gameEntity.Id].Level = gameEntity.Level;
+                        _units[character.Guid].Position = character.Position;
+                        _units[character.Guid].Orientation = character.Orientation;
+                        _units[character.Guid].Velocity = character.Velocity;
+                        _units[character.Guid].MoveState = character.MoveState;
+                        _units[character.Guid].CurrentHealth = character.CurrentHealth;
+                        _units[character.Guid].CurrentPower = character.CurrentPower;
+                        _units[character.Guid].Level = character.Level;
                         break;
                     case ICreature creature:
-                        _entities[gameEntity.Id].Position = gameEntity.Position;
-                        _entities[gameEntity.Id].Orientation = gameEntity.Orientation;
-                        _entities[gameEntity.Id].Velocity = gameEntity.Velocity;
-                        _entities[gameEntity.Id].MoveState = gameEntity.MoveState;
-                        _entities[gameEntity.Id].CurrentHealth = gameEntity.CurrentHealth;
-                        _entities[gameEntity.Id].CurrentPower = gameEntity.CurrentPower;
-                        _entities[gameEntity.Id].Level = gameEntity.Level;
+                        _units[worldObject.Guid].Position = worldObject.Position;
+                        _units[worldObject.Guid].Orientation = worldObject.Orientation;
+                        _units[worldObject.Guid].Velocity = worldObject.Velocity;
+                        _units[worldObject.Guid].MoveState = worldObject.MoveState;
+                        _units[worldObject.Guid].CurrentHealth = worldObject.CurrentHealth;
+                        _units[worldObject.Guid].CurrentPower = worldObject.CurrentPower;
+                        _units[worldObject.Guid].Level = worldObject.Level;
                         break;
                 }
-                
-                EntityUpdated?.Invoke(gameEntity, fields);
+                */
             }
         }
 
         // Second pass: Identify removed entities
-        var removedEntityIds = new List<ulong>();
-        foreach (var existingEntityId in _entities.Keys)
+        var removedObjectIds = new List<ObjectGuid>();
+        foreach (var existingObjectIds in _objects.Keys)
         {
-            if (!newEntityIds.Contains(existingEntityId))
+            if (!newObjectIds.Contains(existingObjectIds))
             {
-                removedEntityIds.Add(existingEntityId);
+                removedObjectIds.Add(existingObjectIds);
             }
         }
 
-        foreach (var removedEntityId in removedEntityIds)
+        foreach (var removedObjectId in removedObjectIds)
         {
-            if (_entities.TryGetValue(removedEntityId, out var removedEntity))
+            if (_objects.TryGetValue(removedObjectId, out var removedEntity))
             {
-                EntityRemoved?.Invoke(removedEntity);
-                _entities.Remove(removedEntityId);
+                _objects.Remove(removedObjectId);
+                EntityRemoved?.Invoke(removedEntity.Guid);
             }
         }
     }
 
-    private bool EntityChanged(IGameEntity existingEntity, IGameEntity gameEntity, out GameEntityFields fields)
+    private bool EntityChanged(IUnit existingObject, IUnit worldObject, out GameEntityFields fields)
     {
-        fields = GetChangedFields(existingEntity, gameEntity);
+        fields = GetChangedFields(existingObject, worldObject);
         var changed = fields != GameEntityFields.None;
         return changed;
     }
     
-    private GameEntityFields GetChangedFields(IGameEntity original, IGameEntity updated)
+    private GameEntityFields GetChangedFields(IUnit original, IUnit updated)
     {
         GameEntityFields fields = 0;
         

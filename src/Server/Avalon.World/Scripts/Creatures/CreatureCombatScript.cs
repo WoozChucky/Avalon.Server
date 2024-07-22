@@ -6,6 +6,7 @@ using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Maps;
+using Avalon.World.Public.Scripts;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Scripts.Creatures;
@@ -22,7 +23,7 @@ public class CreatureCombatScript : AiScript
         Returning
     }
     
-    private ICharacter? _target;
+    private IUnit? _target;
     private Vector3 _initialPosition;
     private Vector3 _lastKnownTargetPosition;
     
@@ -73,7 +74,7 @@ public class CreatureCombatScript : AiScript
         }
     }
     
-    public override void OnHit(ICharacter attacker, uint damage)
+    public override void OnHit(IUnit attacker, uint damage)
     {
         if (State is not CombatState.Returning)
         {
@@ -94,7 +95,7 @@ public class CreatureCombatScript : AiScript
             }
             _lastKnownTargetPosition = attacker.Position;
             State = CombatState.Combat;
-            Chunk.BroadcastCreatureHit(attacker.Id, Creature.Id, Creature.CurrentHealth, damage);
+            Chunk.BroadcastUnitHit(attacker, Creature, Creature.CurrentHealth, damage);
         }
     }
 
@@ -167,7 +168,7 @@ public class CreatureCombatScript : AiScript
         // Logic to attack the target
         if (_attackCooldownTimer <= 0.0f)
         {
-            Chunk.BroadcastAttackAnimation(Creature.Id, 1); // TODO: Animation ID
+            Chunk.BroadcastUnitAttackAnimation(Creature, 1); // TODO: Animation ID
             _target?.OnHit(Creature, 10);
             _attackCooldownTimer = AttackCooldown;
         }

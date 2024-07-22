@@ -1,12 +1,12 @@
 using System.Collections.Concurrent;
 using System.Net.Sockets;
+using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Common.Threading;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.Characters;
 using Avalon.Hosting;
 using Avalon.Hosting.Networking;
-using Avalon.Network.Packets;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Generic;
 using Avalon.Network.Packets.Movement;
@@ -19,6 +19,7 @@ using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Spells;
 using Microsoft.Extensions.Logging;
+using Packet = Avalon.Network.Packets.Packet;
 
 namespace Avalon.World;
 
@@ -253,77 +254,5 @@ public class WorldConnection : Connection, IWorldConnection
     protected override long GetServerTime()
     {
         return Server.ServerTime;
-    }
-}
-
-public class GameState : IGameState
-{
-    public ISet<CreatureId> NewCreatures { get; } = new HashSet<CreatureId>(100);
-    public ISet<(CreatureId creatureId, GameEntityFields fields)> UpdatedCreatures { get; } = new HashSet<(CreatureId creatureId, GameEntityFields fields)>(100);
-    public ISet<CreatureId> RemovedCreatures { get; } = new HashSet<CreatureId>(100);
-    
-    public ISet<CharacterId> NewCharacters { get; } = new HashSet<CharacterId>(100);
-    public ISet<(CharacterId characterId, GameEntityFields fields)> UpdatedCharacters { get; } = new HashSet<(CharacterId creatureId, GameEntityFields fields)>(100);
-    public ISet<CharacterId> RemovedCharacters { get; } = new HashSet<CharacterId>(100);
-    
-    private readonly EntityTrackingSystem _creatureTrackingSystem;
-    private readonly EntityTrackingSystem _characterTrackingSystem;
-    
-    public GameState()
-    {
-        _creatureTrackingSystem = new EntityTrackingSystem(100);
-        _creatureTrackingSystem.EntityAdded += OnCreatureFound;
-        _creatureTrackingSystem.EntityUpdated += OnCreatureUpdated;
-        _creatureTrackingSystem.EntityRemoved += OnCreatureRemoved;
-        
-        _characterTrackingSystem = new EntityTrackingSystem(100);
-        _characterTrackingSystem.EntityAdded += OnCharacterFound;
-        _characterTrackingSystem.EntityUpdated += OnCharacterUpdated;
-        _characterTrackingSystem.EntityRemoved += OnCharacterRemoved;
-    }
-
-    private void OnCharacterRemoved(IGameEntity obj)
-    {
-        RemovedCharacters.Add(obj.Id);
-    }
-
-    private void OnCharacterUpdated(IGameEntity obj, GameEntityFields fields)
-    {
-        UpdatedCharacters.Add((obj.Id, fields));
-    }
-
-    private void OnCharacterFound(IGameEntity obj)
-    {
-        NewCharacters.Add(obj.Id);
-    }
-
-    private void OnCreatureRemoved(IGameEntity obj)
-    {
-        RemovedCreatures.Add(obj.Id);   
-    }
-
-    private void OnCreatureUpdated(IGameEntity obj, GameEntityFields fields)
-    {
-        UpdatedCreatures.Add((obj.Id, fields));
-    }
-
-    private void OnCreatureFound(IGameEntity obj)
-    {
-        NewCreatures.Add(obj.Id);
-    }
-
-    public void Update(Dictionary<CreatureId, ICreature> creatures, Dictionary<CharacterId, ICharacter> characters,
-        List<ISpellProjectile> activeSpells)
-    {
-        NewCreatures.Clear();
-        UpdatedCreatures.Clear();
-        RemovedCreatures.Clear();
-        
-        NewCharacters.Clear();
-        UpdatedCharacters.Clear();
-        RemovedCharacters.Clear();
-        
-        _creatureTrackingSystem.Update(creatures.Values);
-        _characterTrackingSystem.Update(characters.Values);
     }
 }

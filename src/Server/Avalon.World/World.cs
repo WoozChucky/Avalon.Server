@@ -10,6 +10,7 @@ using Avalon.World.Maps;
 using Avalon.World.Pools;
 using Avalon.World.Public;
 using Avalon.World.Public.Creatures;
+using Avalon.World.Public.Scripts;
 using Avalon.World.Scripts.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -50,6 +51,7 @@ public class World : IWorld
     private readonly ILogger<World> _logger;
     private readonly ILoggerFactory _loggerFactory;
     private readonly IOptions<GameConfiguration> _configuration;
+    private readonly IServiceProvider _serviceProvider;
     private readonly IWorldRepository _worldRepository;
     private readonly IAvalonMapManager _mapManager;
     private readonly IPoolManager _poolManager;
@@ -59,6 +61,7 @@ public class World : IWorld
 
     public World(ILoggerFactory loggerFactory,
         IOptions<GameConfiguration> configuration,
+        IServiceProvider serviceProvider,
         IWorldRepository worldRepository, 
         IAvalonMapManager mapManager,
         IPoolManager poolManager,
@@ -72,6 +75,7 @@ public class World : IWorld
         _logger = loggerFactory.CreateLogger<World>();
         _loggerFactory = loggerFactory;
         _configuration = configuration;
+        _serviceProvider = serviceProvider;
         _worldRepository = worldRepository;
         _mapManager = mapManager;
         _poolManager = poolManager;
@@ -109,6 +113,20 @@ public class World : IWorld
             
             foreach (var chunkMetadata in chunksMetadata)
             {
+                var position = new Vector2(chunkMetadata.Position.x, chunkMetadata.Position.z);
+
+                if (ActivatorUtilities.CreateInstance(_serviceProvider, typeof(Chunk), [virtualMap.Id, position]) is not Chunk chunk)
+                {
+                    _logger.LogError("Failed to create chunk for map {MapId} at position {Position}", virtualMap.Id, position);
+                    continue;
+                }
+                
+                chunk.Id = chunkId++;
+                chunk.Enabled = false;
+                chunk.Metadata = chunkMetadata;
+                chunk.Neighbors = [];
+                
+                /*
                 var chunk = new Chunk(
                     _loggerFactory, 
                     virtualMap.Id,
@@ -120,6 +138,7 @@ public class World : IWorld
                     Metadata = chunkMetadata,
                     Neighbors = [] // Fills after loading all chunks
                 };
+                */
 
                 await chunk.InitializeAsync();
                 
@@ -221,7 +240,7 @@ public class World : IWorld
         catch (InvalidOperationException) { } // Ignore if character is not found
         catch (Exception e)
         {
-            _logger.LogError(e, "Failed to save character {CharacterId} on world despawn", connection.Character!.Id);
+            _logger.LogError(e, "Failed to save character {CharacterId} on world despawn", connection.Character!.Guid);
         }
     }
 
@@ -245,7 +264,7 @@ public class World : IWorld
             
             foreach (var (entity, scriptType) in entitiesNeedingUpdate)
             {
-                chunk.RemoveCreature(entity.Id);
+                chunk.RemoveCreature(entity.Guid);
                 var script = ActivatorUtilities.CreateInstance(serviceProvider, scriptType, [entity, chunk]) as AiScript;
                 entity.Script = script;
                 chunk.AddCreature(entity);

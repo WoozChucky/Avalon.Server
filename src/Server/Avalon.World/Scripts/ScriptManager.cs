@@ -1,39 +1,53 @@
 using System.Reflection;
-using Avalon.World.Public;
+using Avalon.World.Public.Scripts;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Scripts;
 
-public interface IAiController
+public interface IScriptManager
 {
-    Task LoadAsync();
-
-    Type? GetScriptTemplate(string name);
+    void Load();
+    Type? GetAiScript(string name);
+    Type? GetSpellScript(string name);
 }
 
-public class AiController : IAiController
+public class ScriptManager : IScriptManager
 {
-    private readonly ILogger<AiController> _logger;
-
-    private Dictionary<string, Type> _templateScripts;
-
-    public AiController(ILoggerFactory loggerFactory)
+    private readonly ILogger<ScriptManager> _logger;
+    
+    private IDictionary<string, Type> _aiScripts;
+    private IDictionary<string, Type> _spellScripts;
+    
+    public ScriptManager(ILoggerFactory loggerFactory)
     {
-        _logger = loggerFactory.CreateLogger<AiController>();
-        _templateScripts = new Dictionary<string, Type>();
+        _logger = loggerFactory.CreateLogger<ScriptManager>();
     }
     
-    public Task LoadAsync()
+    public void Load()
     {
         var aiScripts = FindScriptTypes<AiScript>();
         
         _logger.LogInformation("Loaded {Count} AI scripts", aiScripts.Count);
         
-        _templateScripts = aiScripts.ToDictionary(t => t.Name, t => t);
+        _aiScripts = aiScripts.ToDictionary(t => t.Name, t => t);
         
-        return Task.CompletedTask;
+        var spellScripts = FindScriptTypes<SpellScript>();
+        
+        _logger.LogInformation("Loaded {Count} spell scripts", spellScripts.Count);
+        
+        _spellScripts = spellScripts.ToDictionary(t => t.Name, t => t);
     }
 
+    public Type? GetAiScript(string name)
+    {
+        return _aiScripts.TryGetValue(name, out var scriptType) ? scriptType : null;
+    }
+
+    public Type? GetSpellScript(string name)
+    {
+        return _spellScripts.TryGetValue(name, out var scriptType) ? scriptType : null;
+    }
+    
     private List<Type> FindScriptTypes<TBaseType>()
     {
         var baseType = typeof(TBaseType);
@@ -66,13 +80,5 @@ public class AiController : IAiController
         }
         
         return inheritedTypes;
-    }
-    
-    public Type? GetScriptTemplate(string name)
-    {
-        if (string.IsNullOrWhiteSpace(name)) return null;
-        if (_templateScripts.TryGetValue(name, out var template)) return template;
-        _logger.LogWarning("AI script {Name} not found", name);
-        return null;
     }
 }

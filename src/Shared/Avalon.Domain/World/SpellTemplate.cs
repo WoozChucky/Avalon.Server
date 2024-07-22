@@ -15,7 +15,9 @@ public class SpellTemplate : IDbEntity<SpellId>
     
     public uint Cooldown { get; set; } // in milliseconds
     
-    public uint Cost { get; set; } // in power points (mana or fury)
+    public uint Cost { get; set; } // in power points
+    
+    public string? SpellScript { get; set; }
     
     public SpellRange Range { get; set; } // in meters
     

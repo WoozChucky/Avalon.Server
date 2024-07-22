@@ -10,6 +10,15 @@ public enum GameEntityFields
     Velocity = 1 << 4,
     Orientation = 1 << 5,
     MoveState = 1 << 6,
+    Level = 1 << 7,
+    Power = 1 << 8,
+    Health = 1 << 9,
+    PowerType = 1 << 10,
+    CreatureMetadataId = 1 << 11,
+    Name = 1 << 12,
     
-    All = Position | CurrentHealth | CurrentPower | Velocity | Orientation | MoveState
+    CreatureUpdate = Position | CurrentHealth | CurrentPower | Velocity | Orientation | MoveState,
+    CharacterUpdate = Position | CurrentHealth | CurrentPower | Velocity | Orientation | MoveState | Level | Health | Power,
+    All = Position | CurrentHealth | CurrentPower | Velocity | Orientation | MoveState | Level | Power | Health | PowerType | CreatureMetadataId | Name,
+    
 }

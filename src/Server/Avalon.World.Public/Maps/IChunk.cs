@@ -1,3 +1,4 @@
+using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.World.Public.Characters;
@@ -12,15 +13,15 @@ public interface IChunk
     ChunkMetadata Metadata { get; }
     IChunkNavigator Navigator { get; }
     List<IChunk> Neighbors { get; set; }
-    IReadOnlyDictionary<CharacterId, ICharacter> Characters { get; }
-    IReadOnlyDictionary<CreatureId, ICreature> Creatures { get; }
+    IReadOnlyDictionary<ObjectGuid, ICharacter> Characters { get; }
+    IReadOnlyDictionary<ObjectGuid, ICreature> Creatures { get; }
     
     void AddCharacter(IWorldConnection connection);
     void RemoveCharacter(IWorldConnection connection);
     void RemoveCreature(ICreature creature);
     void BroadcastChunkStateTo(ICharacter character);
-    void BroadcastAttackAnimation(CreatureId creatureId, ushort animationId);
-    void BroadcastCreatureHit(CharacterId attackerId, CreatureId creatureId, uint currentHealth, uint damage);
+    void BroadcastUnitAttackAnimation(IUnit attacker, ushort animationId);
+    void BroadcastUnitHit(IUnit attacker, IUnit target, uint currentHealth, uint damage);
     void RespawnCreature(ICreature creature);
 }
 

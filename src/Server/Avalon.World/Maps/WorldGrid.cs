@@ -110,7 +110,7 @@ public class WorldGrid
         chunk.OnPlayerMoved(connection);
     }
     
-    private Chunk? GetChunk(uint chunkId) => Maps.SelectMany(m => m.Chunks).FirstOrDefault(c => c.Id == chunkId);
+    public Chunk? GetChunk(uint chunkId) => Maps.SelectMany(m => m.Chunks).FirstOrDefault(c => c.Id == chunkId);
 
     public ICreature? FindCreature(CreatureId creatureId, uint chunkId)
     {
@@ -134,7 +134,7 @@ public class WorldGrid
         return null;
     }
 
-    public bool QueueSpell(ICharacter character, ICreature target, ISpell spell)
+    public bool QueueSpell(ICharacter character, IUnit target, ISpell spell)
     {
         var chunk = GetChunk(character.ChunkId);
         if (chunk == null)
