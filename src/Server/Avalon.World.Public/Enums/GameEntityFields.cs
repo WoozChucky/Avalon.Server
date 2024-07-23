@@ -17,6 +17,7 @@ public enum GameEntityFields
     CreatureMetadataId = 1 << 11,
     Name = 1 << 12,
     
+    WorldObjectUpdate = Position | Velocity | Orientation,
     CreatureUpdate = Position | CurrentHealth | CurrentPower | Velocity | Orientation | MoveState,
     CharacterUpdate = Position | CurrentHealth | CurrentPower | Velocity | Orientation | MoveState | Level | Health | Power,
     All = Position | CurrentHealth | CurrentPower | Velocity | Orientation | MoveState | Level | Power | Health | PowerType | CreatureMetadataId | Name,

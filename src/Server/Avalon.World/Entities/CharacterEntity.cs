@@ -5,7 +5,9 @@ using Avalon.Network.Packets.Combat;
 using Avalon.Network.Packets.State;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
+using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
+using Avalon.World.Public.Spells;
 using Avalon.World.Spells;
 using Microsoft.Extensions.Logging;
 
@@ -13,7 +15,10 @@ namespace Avalon.World.Entities;
 
 public class CharacterEntity : ICharacter
 {
+    public static event UnitFinishedCastAnimationDelegate? OnUnitFinishedCastAnimation;
+    public static event UnitAttackAnimationDelegate? OnUnitAttackAnimation;
     public static event CharacterDisconnectedDelegate? CharacterDisconnected;
+    
     public IWorldConnection Connection => _connection;
     public IGameState GameState { get; }
 
@@ -57,7 +62,7 @@ public class CharacterEntity : ICharacter
         Guid = new ObjectGuid(ObjectType.Character, character.Id);
     }
 
-    public ObjectGuid Guid { get; init; }
+    public ObjectGuid Guid { get; set; }
 
     public uint Health
     {
@@ -100,6 +105,16 @@ public class CharacterEntity : ICharacter
             CurrentHealth = Health; // reset health while developing
         }
         _connection.Send(SCharacterDamagePacket.Create(attacker.Guid.RawValue, Guid.RawValue, CurrentHealth, damage, null, _connection.CryptoSession.Encrypt));
+    }
+
+    public void SendAttackAnimation(ISpell spell)
+    {
+        OnUnitAttackAnimation?.Invoke(this, spell);
+    }
+
+    public void SendFinishCastAnimation(ISpell spell)
+    {
+        OnUnitFinishedCastAnimation?.Invoke(this, spell);
     }
 
     public Vector3 Position
@@ -194,6 +209,11 @@ public class CharacterEntity : ICharacter
     {
         Running = running;
         CalculateMovementSpeed();
+    }
+
+    public void Update(TimeSpan deltaTime)
+    {
+        Spells.Update(deltaTime);
     }
 
     private void CalculateMovementSpeed()

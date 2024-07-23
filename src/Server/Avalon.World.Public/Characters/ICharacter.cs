@@ -21,6 +21,8 @@ public interface ICharacter : IUnit
     void OnDisconnected();
     float GetMovementSpeed();
     void SetRunning(bool running);
+
+    void Update(TimeSpan deltaTime);
 }
 
 public interface ICharacterInventory

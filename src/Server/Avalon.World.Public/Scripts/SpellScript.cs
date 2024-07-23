@@ -6,10 +6,16 @@ namespace Avalon.World.Public.Scripts;
 
 public abstract class SpellScript : IWorldObject
 {
+    public enum SpellState
+    {
+        Executing,
+        Finished
+    }
+    
     public abstract Vector3 Position { get; set; }
     public abstract Vector3 Velocity { get; set; }
     public abstract Vector3 Orientation { get; set; }
-    public abstract ObjectGuid Guid { get; init; }
+    public abstract ObjectGuid Guid { get; set; }
 
     protected IUnit Caster { get; }
     
@@ -25,6 +31,8 @@ public abstract class SpellScript : IWorldObject
         Caster = caster;
         Target = target;
     }
+
+    public abstract void Prepare();
     
     public SpellScript Chain(SpellScript script)
     {
@@ -43,4 +51,6 @@ public abstract class SpellScript : IWorldObject
     
     public abstract object State { get; set; }
     protected abstract bool ShouldRun();
+    
+    public abstract SpellScript Clone(); //TODO: This can probably be implemented in this class
 }

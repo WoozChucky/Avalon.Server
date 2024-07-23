@@ -5,6 +5,7 @@ using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Character;
 using Avalon.World.Entities;
 using Avalon.World.Public.Enums;
+using Avalon.World.Public.Spells;
 using Avalon.World.Spells;
 using Microsoft.Extensions.Logging;
 
@@ -150,12 +151,19 @@ public class CharacterSelectHandler(
             var gameSpell = new GameSpell
             {
                 SpellId = characterSpell.SpellId,
-                CastTime = (float) template.CastTime / 1000,
+                Metadata = new SpellMetadata
+                {
+                    Name = template.Name,
+                    Cooldown = (float) template.Cooldown / 1000,
+                    CastTime = (float) template.CastTime / 1000,
+                    Cost = template.Cost,
+                    Range = template.Range,
+                    Effects = template.Effects,
+                    EffectValue = template.EffectValue,
+                    ScriptName = template.SpellScript,
+                },
                 CastTimeTimer = (float) template.CastTime / 1000,
-                Cooldown = (float) template.Cooldown / 1000,
                 CooldownTimer = characterSpell.Cooldown,
-                PowerCost = template.Cost,
-                ScriptName = template.SpellScript
             };
 
             gameSpells.Add(gameSpell);

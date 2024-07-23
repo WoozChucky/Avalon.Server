@@ -5,6 +5,7 @@ public enum ObjectType
     None,
     Character,
     Creature,
+    Spell,
     SpellProjectile
 }
 

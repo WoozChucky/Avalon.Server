@@ -58,6 +58,24 @@ public class WorldObjectWriter(byte[] buffer) : BinaryWriter(new MemoryStream(bu
         Seek(0, SeekOrigin.Begin);
     }
 
+    public void Write(IWorldObject worldObject, GameEntityFields fields)
+    {
+        Write((int)fields);
+        
+        if (fields.HasFlag(GameEntityFields.Position))
+        {
+            Write(worldObject.Position);
+        }
+        if (fields.HasFlag(GameEntityFields.Velocity))
+        {
+            Write(worldObject.Velocity);
+        }
+        if (fields.HasFlag(GameEntityFields.Orientation))
+        {
+            Write(worldObject.Orientation.y);
+        }
+    }
+
     public void Write(IUnit worldObject, GameEntityFields fields)
     {
         Write((int)fields);

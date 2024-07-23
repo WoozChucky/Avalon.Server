@@ -7,23 +7,21 @@ using NetworkProtocol = Avalon.Network.Packets.Abstractions.NetworkProtocol;
 namespace Avalon.Network.Packets.Combat;
 
 [ProtoContract]
-public class SUnitStartCastPacket : Packet
+public class SUnitFinishCastPacket : Packet
 {
-    public static NetworkPacketType PacketType = NetworkPacketType.SMSG_UNIT_START_CAST;
+    public static NetworkPacketType PacketType = NetworkPacketType.SMSG_UNIT_FINISH_CAST;
     public static NetworkProtocol Protocol = NetworkProtocol.Tcp;
     public static NetworkPacketFlags Flags = NetworkPacketFlags.Encrypted;
     
     [ProtoMember(1)] public ulong Caster { get; set; }
-    [ProtoMember(2)] public float CastTime { get; set; }
     
-    public static NetworkPacket Create(ObjectGuid caster, float castTime, Func<byte[], byte[]> encryptFunc)
+    public static NetworkPacket Create(ObjectGuid caster, Func<byte[], byte[]> encryptFunc)
     {
         using var memoryStream = new MemoryStream();
         
-        var p = new SUnitStartCastPacket
+        var p = new SUnitFinishCastPacket
         {
             Caster = caster.RawValue,
-            CastTime = castTime
         };
         
         Serializer.Serialize(memoryStream, p);

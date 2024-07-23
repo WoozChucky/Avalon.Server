@@ -8,4 +8,6 @@ public interface ICharacterSpells
     void Load(IReadOnlyCollection<ISpell> spells);
     
     ISpell? this[SpellId spellId] { get; }
+    
+    void Update(TimeSpan deltaTime);
 }

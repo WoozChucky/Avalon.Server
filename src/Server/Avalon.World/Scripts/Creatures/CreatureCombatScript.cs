@@ -7,6 +7,7 @@ using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Maps;
 using Avalon.World.Public.Scripts;
+using Avalon.World.Spells;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Scripts.Creatures;
@@ -168,7 +169,7 @@ public class CreatureCombatScript : AiScript
         // Logic to attack the target
         if (_attackCooldownTimer <= 0.0f)
         {
-            Chunk.BroadcastUnitAttackAnimation(Creature, 1); // TODO: Animation ID
+            Creature.SendAttackAnimation(null); // TODO: spells for creatures
             _target?.OnHit(Creature, 10);
             _attackCooldownTimer = AttackCooldown;
         }

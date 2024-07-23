@@ -54,6 +54,7 @@ public class CharacterAttackHandler(ILogger<CharacterAttackHandler> logger, IWor
             return;
         }
 
+        // TODO: Some attacks might not require a target (e.g. AoE spells)
         var targetGuid = new ObjectGuid(packet.Target);
         
         var target = GetTarget(chunk, targetGuid);
@@ -80,8 +81,6 @@ public class CharacterAttackHandler(ILogger<CharacterAttackHandler> logger, IWor
                 return;
             }
             
-            chunk.BroadcastUnitAttackAnimation(attacker, 1);
-            
             // For now, just attack without any additional logic
             target.OnHit(attacker, 10);
         }
@@ -101,7 +100,7 @@ public class CharacterAttackHandler(ILogger<CharacterAttackHandler> logger, IWor
                 return;
             }
             
-            var powerPrediction = (int) (attacker.CurrentPower! - spell.PowerCost);
+            var powerPrediction = (int) (attacker.CurrentPower! - spell.Metadata.Cost);
             
             if (powerPrediction < 0)
             {
@@ -109,11 +108,13 @@ public class CharacterAttackHandler(ILogger<CharacterAttackHandler> logger, IWor
                 return;
             }
             
-            if (spell.CooldownTimer <= 0 && chunk.QueueSpell(attacker, target, spell))
+            logger.LogWarning("Spell cooldown: {Cooldown} Current: {Timer}", spell.Metadata.Cooldown, spell.CooldownTimer);
+            
+            if (spell is {CooldownTimer: <= 0, Casting: false} && chunk.QueueSpell(attacker, target, spell))
             {
                 // Send spell start cast packet
-                if (spell.CastTime > 0) {
-                    chunk.BroadcastUniStartCast(attacker, spell.CastTime);
+                if (spell.Metadata.CastTime > 0) {
+                    chunk.BroadcastUniStartCast(attacker, spell.Metadata.CastTime);
                 }
             }
             else

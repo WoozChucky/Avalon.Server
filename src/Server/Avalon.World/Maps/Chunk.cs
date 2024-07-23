@@ -23,10 +23,10 @@ namespace Avalon.World.Maps;
 
 public class SpellInstance
 {
-    public IUnit Caster { get; set; }
-    public IUnit Target { get; set; }
-    public ISpell SpellInfo { get; set; }
-    public Vector3 CastStartPosition { get; set; }
+    public required IUnit Caster { get; init; }
+    public IUnit? Target { get; set; }
+    public required ISpell SpellInfo { get; init; }
+    public required Vector3 CastStartPosition { get; init; }
 }
 
 public class ChunkSpellSystem(ILoggerFactory factory, IServiceProvider serviceProvider, IScriptManager scriptManager)
@@ -35,11 +35,13 @@ public class ChunkSpellSystem(ILoggerFactory factory, IServiceProvider servicePr
     
     private readonly HashSet<SpellInstance> _spellQueue = [];
     private readonly List<SpellScript> _activeSpells = [];
-    private readonly HashSet<ulong> _removeScheduled = [];
+    private readonly HashSet<ObjectGuid> _removeScheduled = [];
     
-    public bool QueueSpell(ICharacter character, IUnit target, ISpell spell)
+    public bool QueueSpell(ICharacter character, IUnit? target, ISpell spell)
     {
         //TODO: Power cost deduction
+        
+        spell.Casting = true;
         var spellInstance = new SpellInstance
         {
             Caster = character,
@@ -50,7 +52,7 @@ public class ChunkSpellSystem(ILoggerFactory factory, IServiceProvider servicePr
         return _spellQueue.Add(spellInstance);
     }
     
-    public void Update(TimeSpan deltaTime, out List<ISpellProjectile> activeSpells)
+    public void Update(TimeSpan deltaTime, List<IWorldObject> objects)
     {
         foreach (var spellInstance in _spellQueue)
         {
@@ -60,51 +62,71 @@ public class ChunkSpellSystem(ILoggerFactory factory, IServiceProvider servicePr
             if (spellInstance.CastStartPosition != spellInstance.Caster.Position)
             {
                 _logger.LogWarning("Spell cast interrupted by movement");
+                spellInstance.SpellInfo.Casting = false;
+                if (spellInstance.Caster is ICharacter character)
+                {
+                    character.Connection.Send(SCharacterInterruptedCastPacket.Create(character.Connection.CryptoSession.Encrypt));
+                }
                 _spellQueue.Remove(spellInstance);
                 continue;
             }
             
             if (!(spellInstance.SpellInfo.CastTimeTimer <= 0)) continue;
             
-            spellInstance.SpellInfo.CastTimeTimer = spellInstance.SpellInfo.CastTime;
+            spellInstance.SpellInfo.Casting = false;
+            spellInstance.SpellInfo.CooldownTimer = spellInstance.SpellInfo.Metadata.Cooldown;
+            spellInstance.SpellInfo.CastTimeTimer = spellInstance.SpellInfo.Metadata.CastTime;
             _spellQueue.Remove(spellInstance);
             
-            var scriptType = scriptManager.GetSpellScript(spellInstance.SpellInfo.ScriptName);
+            var scriptType = scriptManager.GetSpellScript(spellInstance.SpellInfo.Metadata.ScriptName);
             if (scriptType is null)
             {
-                _logger.LogWarning("Spell script {ScriptName} not found", spellInstance.SpellInfo.ScriptName);
-                continue;
-            }
-
-            if (ActivatorUtilities.CreateInstance(serviceProvider, scriptType, [spellInstance.SpellInfo, spellInstance.Caster, spellInstance.Target]) is not SpellScript spellScript)
-            {
-                _logger.LogWarning("Failed to create spell script {ScriptName}", spellInstance.SpellInfo.ScriptName);
+                _logger.LogWarning("Spell script {ScriptName} not found", spellInstance.SpellInfo.Metadata.ScriptName);
                 continue;
             }
             
-            //TODO: Send finish cast packet
-                
+            var info = spellInstance.SpellInfo.Clone();
+            
+            if (ActivatorUtilities.CreateInstance(serviceProvider, scriptType, [info, spellInstance.Caster, spellInstance.Target]) is not SpellScript spellScript)
+            {
+                _logger.LogWarning("Failed to create spell script {ScriptName}", spellInstance.SpellInfo.Metadata.ScriptName);
+                continue;
+            }
+            
+            spellInstance.Caster.SendFinishCastAnimation(spellInstance.SpellInfo);
+            
+            spellScript.Prepare();
             _activeSpells.Add(spellScript);
                 
-            _logger.LogDebug("Finished spell {SpellId} cast by {CharacterId} on {CreatureId}", spellInstance.SpellInfo.SpellId, spellInstance.Caster.Guid, spellInstance.Target.Guid);
+            _logger.LogDebug("Finished spell {SpellId} cast by {CharacterId} on {CreatureId}", spellInstance.SpellInfo.SpellId, spellInstance.Caster.Guid, spellInstance.Target?.Guid);
         }
 
         foreach (var spell in _activeSpells)
         {
             spell.Update(deltaTime);
+
+            if (spell.State is SpellScript.SpellState.Finished)
+            {
+                _removeScheduled.Add(spell.Guid);
+            }
+            
+            if (spell.Guid.Type == ObjectType.SpellProjectile)
+            {
+                objects.Add(spell);
+            }
         }
         
-        /*
+        
         foreach (var id in _removeScheduled)
         {
-            _activeSpells.RemoveAll(p => p.Id == id);
+            _activeSpells.RemoveAll(p => p.Guid == id);
         }
-        
         _removeScheduled.Clear();
-        
-        activeSpells = _activeSpells;
-        */
-        activeSpells = [];
+    }
+
+    public IWorldObject? GetSpell(ObjectGuid guid)
+    {
+        return _activeSpells.Find(p => p.Guid == guid) ?? null;
     }
 }
 
@@ -144,10 +166,14 @@ public class Chunk : IChunk
         Navigator = new ChunkNavigator(loggerFactory);
         _spellSystem = new ChunkSpellSystem(loggerFactory, serviceProvider, serviceProvider.GetRequiredService<IScriptManager>());
         Creature.OnCreatureKilled += OnCreatureKilled;
+        Creature.OnUnitAttackAnimation += BroadcastUnitAttackAnimation;
+        Creature.OnUnitFinishedCastAnimation += BroadcastFinishCastAnimation;
+        CharacterEntity.OnUnitAttackAnimation += BroadcastUnitAttackAnimation;
+        CharacterEntity.OnUnitFinishedCastAnimation += BroadcastFinishCastAnimation;
         _creatureRespawner = new CreatureRespawner(this);
     }
     
-    public bool QueueSpell(ICharacter character, IUnit target, ISpell spell)
+    public bool QueueSpell(ICharacter character, IUnit? target, ISpell spell)
     {
         return _spellSystem.QueueSpell(character, target, spell);
     }
@@ -190,10 +216,14 @@ public class Chunk : IChunk
             
             var filter = new MapSessionFilter(character.Connection);
             character.Connection.Update(deltaTime, filter);
+            
+            character.Update(deltaTime);
         }
         
-        // Step 3: Spell queue
-        _spellSystem.Update(deltaTime, out var projectiles);
+        var objectSpells = new List<IWorldObject>();
+        
+        // Step 3: Spell system update
+        _spellSystem.Update(deltaTime, objectSpells);
         
         // Step 4: Update characters at tick rate
         foreach (var creature in _creatures.Values)
@@ -210,7 +240,7 @@ public class Chunk : IChunk
         foreach (var character in _characters.Values)
         {
             // Update visibility of game entities
-            character.GameState.Update(_creatures, _characters, projectiles);
+            character.GameState.Update(_creatures, _characters, objectSpells);
         }
         
         // Parallel.ForEach(_characters.Values, BroadcastChunkStateTo);
@@ -245,6 +275,11 @@ public class Chunk : IChunk
                 case ObjectType.Creature:
                     writer.Write(_creatures[addedObjectGuid]);
                     break;
+                case ObjectType.SpellProjectile:
+                    var spell = _spellSystem.GetSpell(addedObjectGuid);
+                    if (spell is null) continue;
+                    writer.Write(spell);
+                    break;
                 default:
                     _logger.LogWarning("Unknown object type {ObjectType} on NewObjects serialization", addedObjectGuid.Type);
                     continue;
@@ -275,6 +310,11 @@ public class Chunk : IChunk
                     break;
                 case ObjectType.Creature:
                     writer.Write(_creatures[updatedObject.Guid], GameEntityFields.CreatureUpdate); // an and should pass updatedObject.Fields
+                    break;
+                case ObjectType.SpellProjectile:
+                    var spell = _spellSystem.GetSpell(updatedObject.Guid);
+                    if (spell is null) continue;
+                    writer.Write(spell, updatedObject.Fields); // an and should pass updatedObject.Fields
                     break;
                 default:
                     _logger.LogWarning("Unknown object type {ObjectType} on UpdatedObjects serialization", updatedObject.Guid.Type);
@@ -313,6 +353,7 @@ public class Chunk : IChunk
         
         if (character.GameState.RemovedObjects.Count > 0)
         {
+            _logger.LogInformation("Found {Count} removed objects", character.GameState.RemovedObjects.Count);
             character.Connection.Send(SChunkStateRemovePacket.Create(character.GameState.RemovedObjects, character.Connection.CryptoSession.Encrypt));
         }
     }
@@ -353,15 +394,29 @@ public class Chunk : IChunk
         }
     }
 
-    public void BroadcastUnitAttackAnimation(IUnit attacker, ushort animationId)
+    private void BroadcastUnitAttackAnimation(IUnit attacker, ISpell spell)
     {
+        // Check if unit is part of this chunk's characters or creatures
+        var valid = Creatures.TryGetValue(attacker.Guid, out _) || Characters.TryGetValue(attacker.Guid, out _);
+        if (!valid) return;
+        
         Parallel.ForEach(_characters.Values, character =>
         {
-            if (attacker is ICharacter attackerChar)
-            {
-                // if (attackerChar.Guid == character.Guid) return;
-            }
-            character.Connection.Send(SUnitAttackAnimationPacket.Create(attacker.Guid, animationId, character.Connection.CryptoSession.Encrypt));
+            //TODO: Extract animation id from spell
+            character.Connection.Send(SUnitAttackAnimationPacket.Create(attacker.Guid, 1, character.Connection.CryptoSession.Encrypt));
+        });
+    }
+    
+    private void BroadcastFinishCastAnimation(IUnit attacker, ISpell spell)
+    {
+        // Check if unit is part of this chunk's characters or creatures
+        var valid = Creatures.TryGetValue(attacker.Guid, out _) || Characters.TryGetValue(attacker.Guid, out _);
+        if (!valid) return;
+        
+        Parallel.ForEach(_characters.Values, character =>
+        {
+            //TODO: Extract animation id from spell
+            character.Connection.Send(SUnitFinishCastPacket.Create(attacker.Guid, character.Connection.CryptoSession.Encrypt));
         });
     }
     

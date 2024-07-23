@@ -133,15 +133,4 @@ public class WorldGrid
         
         return null;
     }
-
-    public bool QueueSpell(ICharacter character, IUnit target, ISpell spell)
-    {
-        var chunk = GetChunk(character.ChunkId);
-        if (chunk == null)
-        {
-            throw new InvalidOperationException($"Invalid spell queue, chunk {character.ChunkId} not found");
-        }
-        
-        return chunk.QueueSpell(character, target, spell);
-    }
 }

@@ -1,6 +1,7 @@
 using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Network.Packets.State;
+using Avalon.World.Public.Spells;
 
 namespace Avalon.World.Public;
 
@@ -14,7 +15,7 @@ public enum PowerType
 
 public interface IObject
 {
-    ObjectGuid Guid { get; init; }
+    ObjectGuid Guid { get; set; }
     
     static uint GenerateId()
     {
@@ -54,4 +55,6 @@ public interface IUnit : IWorldObject
     MoveState MoveState { get; set; }
     
     void OnHit(IUnit attacker, uint damage);
+    void SendAttackAnimation(ISpell? spell);
+    void SendFinishCastAnimation(ISpell spell);
 }

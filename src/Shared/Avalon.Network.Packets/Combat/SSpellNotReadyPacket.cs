@@ -11,7 +11,7 @@ public class SSpellNotReadyPacket : Packet
     public static NetworkPacketFlags Flags = NetworkPacketFlags.Encrypted;
     
     [ProtoMember(1)] public uint SpellId { get; set; }
-    [ProtoMember(1)] public float Cooldown { get; set; }
+    [ProtoMember(2)] public float Cooldown { get; set; }
     
     public static NetworkPacket Create(uint spellId, float cooldown, Func<byte[], byte[]> encryptFunc)
     {

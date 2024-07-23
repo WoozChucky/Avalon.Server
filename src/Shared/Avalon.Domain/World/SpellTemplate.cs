@@ -17,7 +17,7 @@ public class SpellTemplate : IDbEntity<SpellId>
     
     public uint Cost { get; set; } // in power points
     
-    public string? SpellScript { get; set; }
+    public string SpellScript { get; set; }
     
     public SpellRange Range { get; set; } // in meters
     
