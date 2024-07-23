@@ -58,14 +58,15 @@ public class ChunkSpellSystem(ILoggerFactory factory, IServiceProvider servicePr
         {
             spellInstance.SpellInfo.CastTimeTimer -= (float) deltaTime.TotalSeconds;
             
-            //TODO: This should be applied only on spells that are not instant cast
-            if (spellInstance.CastStartPosition != spellInstance.Caster.Position)
+            // Check if the spell was interrupted by movement
+            if (spellInstance.CastStartPosition != spellInstance.Caster.Position && spellInstance.SpellInfo.Metadata.CastTime > 0)
             {
                 _logger.LogWarning("Spell cast interrupted by movement");
+                spellInstance.SpellInfo.CastTimeTimer = spellInstance.SpellInfo.Metadata.CastTime;
                 spellInstance.SpellInfo.Casting = false;
                 if (spellInstance.Caster is ICharacter character)
                 {
-                    character.Connection.Send(SCharacterInterruptedCastPacket.Create(character.Connection.CryptoSession.Encrypt));
+                    character.SendInterruptedCastAnimation(spellInstance.SpellInfo);
                 }
                 _spellQueue.Remove(spellInstance);
                 continue;
@@ -168,8 +169,10 @@ public class Chunk : IChunk
         Creature.OnCreatureKilled += OnCreatureKilled;
         Creature.OnUnitAttackAnimation += BroadcastUnitAttackAnimation;
         Creature.OnUnitFinishedCastAnimation += BroadcastFinishCastAnimation;
+        Creature.OnUnitInterruptedCastAnimation += BroadcastInterruptedCastAnimation;
         CharacterEntity.OnUnitAttackAnimation += BroadcastUnitAttackAnimation;
         CharacterEntity.OnUnitFinishedCastAnimation += BroadcastFinishCastAnimation;
+        CharacterEntity.OnUnitInterruptedCastAnimation += BroadcastInterruptedCastAnimation;
         _creatureRespawner = new CreatureRespawner(this);
     }
     
@@ -419,7 +422,19 @@ public class Chunk : IChunk
             character.Connection.Send(SUnitFinishCastPacket.Create(attacker.Guid, character.Connection.CryptoSession.Encrypt));
         });
     }
-    
+
+    private void BroadcastInterruptedCastAnimation(IUnit attacker, ISpell spell)
+    {
+        // Check if unit is part of this chunk's characters or creatures
+        var valid = Creatures.TryGetValue(attacker.Guid, out _) || Characters.TryGetValue(attacker.Guid, out _);
+        if (!valid) return;
+
+        Parallel.ForEach(_characters.Values, character =>
+        {
+            character.Connection.Send(SCharacterInterruptedCastPacket.Create(attacker.Guid, character.Connection.CryptoSession.Encrypt));
+        });
+    }
+
     public void BroadcastUnitHit(IUnit attacker, IUnit target, uint currentHealth, uint damage)
     {
         Parallel.ForEach(_characters.Values, character =>

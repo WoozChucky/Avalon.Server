@@ -8,6 +8,7 @@ public delegate void CreatureKilledDelegate(ICreature creature, IUnit killer);
 
 public delegate void UnitAttackAnimationDelegate(IUnit unit, ISpell spell);
 public delegate void UnitFinishedCastAnimationDelegate(IUnit unit, ISpell spell);
+public delegate void UnitInterruptedCastAnimationDelegate(IUnit unit, ISpell spell);
 
 public interface ICreature : IUnit
 {

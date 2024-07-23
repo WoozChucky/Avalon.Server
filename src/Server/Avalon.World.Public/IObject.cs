@@ -57,4 +57,5 @@ public interface IUnit : IWorldObject
     void OnHit(IUnit attacker, uint damage);
     void SendAttackAnimation(ISpell? spell);
     void SendFinishCastAnimation(ISpell spell);
+    void SendInterruptedCastAnimation(ISpell spell);
 }
