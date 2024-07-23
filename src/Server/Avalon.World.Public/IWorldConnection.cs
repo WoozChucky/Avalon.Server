@@ -35,8 +35,10 @@ public interface IGameState
     ISet<(ObjectGuid Guid, GameEntityFields Fields)> UpdatedObjects { get; }
     ISet<ObjectGuid> RemovedObjects { get; }
 
-    void Update(Dictionary<ObjectGuid, ICreature> creatures, Dictionary<ObjectGuid, ICharacter> characters,
-        List<ISpellProjectile> activeSpells);
+    void Update(
+        Dictionary<ObjectGuid, ICreature> creatures, 
+        Dictionary<ObjectGuid, ICharacter> characters,
+        List<IWorldObject> chunkObjects);
 }
 
 public abstract class PacketFilter
