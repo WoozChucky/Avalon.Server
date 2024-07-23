@@ -1,5 +1,8 @@
+using Avalon.Common;
 using Avalon.Network.Packets.Abstractions;
 using ProtoBuf;
+using NetworkPacketFlags = Avalon.Network.Packets.Abstractions.NetworkPacketFlags;
+using NetworkProtocol = Avalon.Network.Packets.Abstractions.NetworkProtocol;
 
 namespace Avalon.Network.Packets.Combat;
 
@@ -10,11 +13,16 @@ public class SCharacterInterruptedCastPacket : Packet
     public static NetworkProtocol Protocol = NetworkProtocol.Tcp;
     public static NetworkPacketFlags Flags = NetworkPacketFlags.Encrypted;
     
-    public static NetworkPacket Create(Func<byte[], byte[]> encryptFunc)
+    [ProtoMember(1)] public ulong Caster { get; set; }
+    
+    public static NetworkPacket Create(ObjectGuid caster, Func<byte[], byte[]> encryptFunc)
     {
         using var memoryStream = new MemoryStream();
         
-        var p = new SCharacterInterruptedCastPacket();
+        var p = new SCharacterInterruptedCastPacket
+        {
+            Caster = caster.RawValue
+        };
         
         Serializer.Serialize(memoryStream, p);
         

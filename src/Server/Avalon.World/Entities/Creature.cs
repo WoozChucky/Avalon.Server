@@ -70,7 +70,13 @@ public class Creature : ICreature
         OnUnitFinishedCastAnimation?.Invoke(this, spell);
     }
 
+    public void SendInterruptedCastAnimation(ISpell spell)
+    {
+        OnUnitInterruptedCastAnimation?.Invoke(this, spell);
+    }
+
     public static event CreatureKilledDelegate? OnCreatureKilled;
     public static event UnitAttackAnimationDelegate? OnUnitAttackAnimation;
     public static event UnitFinishedCastAnimationDelegate? OnUnitFinishedCastAnimation;
+    public static event UnitInterruptedCastAnimationDelegate? OnUnitInterruptedCastAnimation;
 }

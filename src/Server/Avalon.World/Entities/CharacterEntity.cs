@@ -18,6 +18,7 @@ public class CharacterEntity : ICharacter
     public static event UnitFinishedCastAnimationDelegate? OnUnitFinishedCastAnimation;
     public static event UnitAttackAnimationDelegate? OnUnitAttackAnimation;
     public static event CharacterDisconnectedDelegate? CharacterDisconnected;
+    public static event UnitInterruptedCastAnimationDelegate? OnUnitInterruptedCastAnimation;
     
     public IWorldConnection Connection => _connection;
     public IGameState GameState { get; }
@@ -115,6 +116,11 @@ public class CharacterEntity : ICharacter
     public void SendFinishCastAnimation(ISpell spell)
     {
         OnUnitFinishedCastAnimation?.Invoke(this, spell);
+    }
+
+    public void SendInterruptedCastAnimation(ISpell spell)
+    {
+        OnUnitInterruptedCastAnimation?.Invoke(this, spell);
     }
 
     public Vector3 Position
