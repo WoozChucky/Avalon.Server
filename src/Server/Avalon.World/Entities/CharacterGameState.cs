@@ -3,7 +3,7 @@ using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
-using Avalon.World.Public.Spells;
+using Avalon.World.Public.Scripts;
 
 namespace Avalon.World.Entities;
 
@@ -15,6 +15,7 @@ public class CharacterGameState : IGameState
     
     private readonly EntityTrackingSystem _creatureTrackingSystem;
     private readonly EntityTrackingSystem _characterTrackingSystem;
+    private readonly EntityTrackingSystem _worldObjectTrackingSystem;
     
     public CharacterGameState()
     {
@@ -24,9 +25,9 @@ public class CharacterGameState : IGameState
             UpdateCreature, 
             GetUnitChangedFields
         );
-        _creatureTrackingSystem.EntityAdded += OnCreatureFound;
-        _creatureTrackingSystem.EntityUpdated += OnCreatureUpdated;
-        _creatureTrackingSystem.EntityRemoved += OnCreatureRemoved;
+        _creatureTrackingSystem.EntityAdded += OnWorldObjectFound;
+        _creatureTrackingSystem.EntityUpdated += OnWorldObjectUpdated;
+        _creatureTrackingSystem.EntityRemoved += OnWorldObjectRemoved;
         
         _characterTrackingSystem = new EntityTrackingSystem(
             100,
@@ -34,47 +35,25 @@ public class CharacterGameState : IGameState
             UpdateCharacter,
             GetUnitChangedFields
         );
-        _characterTrackingSystem.EntityAdded += OnCharacterFound;
-        _characterTrackingSystem.EntityUpdated += OnCharacterUpdated;
-        _characterTrackingSystem.EntityRemoved += OnCharacterRemoved;
+        _characterTrackingSystem.EntityAdded += OnWorldObjectFound;
+        _characterTrackingSystem.EntityUpdated += OnWorldObjectUpdated;
+        _characterTrackingSystem.EntityRemoved += OnWorldObjectRemoved;
+        
+        _worldObjectTrackingSystem = new EntityTrackingSystem(
+            100,
+            CreateChunkObject,
+            UpdateChunkObject,
+            GetWorldObjectChangedFields
+        );
+        _worldObjectTrackingSystem.EntityAdded += OnWorldObjectFound;
+        _worldObjectTrackingSystem.EntityUpdated += OnWorldObjectUpdated;
+        _worldObjectTrackingSystem.EntityRemoved += OnWorldObjectRemoved;
     }
-
-    #region Events
-
-    private void OnCharacterRemoved(ObjectGuid obj)
-    {
-        RemovedObjects.Add(obj);
-    }
-
-    private void OnCharacterUpdated(ObjectGuid obj, GameEntityFields fields)
-    {
-        UpdatedObjects.Add((obj, fields));
-    }
-
-    private void OnCharacterFound(ObjectGuid obj)
-    {
-        NewObjects.Add(obj);
-    }
-
-    private void OnCreatureRemoved(ObjectGuid obj)
-    {
-        RemovedObjects.Add(obj);   
-    }
-
-    private void OnCreatureUpdated(ObjectGuid obj, GameEntityFields fields)
-    {
-        UpdatedObjects.Add((obj, fields));
-    }
-
-    private void OnCreatureFound(ObjectGuid obj)
-    {
-        NewObjects.Add(obj);
-    }
-
-    #endregion
-
-    public void Update(Dictionary<ObjectGuid, ICreature> creatures, Dictionary<ObjectGuid, ICharacter> characters,
-        List<ISpellProjectile> activeSpells)
+    
+    public void Update(
+        Dictionary<ObjectGuid, ICreature> creatures, 
+        Dictionary<ObjectGuid, ICharacter> characters,
+        List<IWorldObject> chunkObjects)
     {
         NewObjects.Clear();
         UpdatedObjects.Clear();
@@ -82,7 +61,27 @@ public class CharacterGameState : IGameState
         
         _creatureTrackingSystem.Update(creatures.Values);
         _characterTrackingSystem.Update(characters.Values);
+        _worldObjectTrackingSystem.Update(chunkObjects);
     }
+    
+    #region Events
+
+    private void OnWorldObjectRemoved(ObjectGuid obj)
+    {
+        RemovedObjects.Add(obj);
+    }
+
+    private void OnWorldObjectUpdated(ObjectGuid obj, GameEntityFields fields)
+    {
+        UpdatedObjects.Add((obj, fields));
+    }
+
+    private void OnWorldObjectFound(ObjectGuid obj)
+    {
+        NewObjects.Add(obj);
+    }
+
+    #endregion
     
     private IWorldObject CreateCreature(IWorldObject obj)
     {
@@ -183,6 +182,49 @@ public class CharacterGameState : IGameState
         if (existingUnit.MoveState != updatedUnit.MoveState)
         {
             fields |= GameEntityFields.MoveState;
+        }
+        
+        return fields;
+    }
+    
+    private IWorldObject CreateChunkObject(IWorldObject obj)
+    {
+        if (obj is not SpellScript spell) throw new InvalidCastException("Object is not a spell");
+        return spell.Clone();
+    }
+    
+    private IWorldObject UpdateChunkObject(IWorldObject existingObj, IWorldObject updatedObj)
+    {
+        if (existingObj is not SpellScript existingSpell) throw new InvalidCastException("Object is not a spell");
+        if (updatedObj is not SpellScript updatedSpell) throw new InvalidCastException("Object is not a spell");
+        
+        existingSpell.Position = updatedSpell.Position;
+        existingSpell.Velocity = updatedSpell.Velocity;
+        existingSpell.Orientation = updatedSpell.Orientation;
+        
+        return existingSpell;
+    }
+    
+    private GameEntityFields GetWorldObjectChangedFields(IWorldObject existing, IWorldObject updated)
+    {
+        var existingUnit = (existing as SpellScript) ?? throw new InvalidCastException("Object is not a spell");
+        var updatedUnit = (updated as SpellScript) ?? throw new InvalidCastException("Object is not a spell");
+        
+        GameEntityFields fields = 0;
+        
+        if (existingUnit.Position != updatedUnit.Position)
+        {
+            fields |= GameEntityFields.Position;
+        }
+        
+        if (existingUnit.Velocity != updatedUnit.Velocity)
+        {
+            fields |= GameEntityFields.Velocity;
+        }
+        
+        if (existingUnit.Orientation != updatedUnit.Orientation)
+        {
+            fields |= GameEntityFields.Orientation;
         }
         
         return fields;

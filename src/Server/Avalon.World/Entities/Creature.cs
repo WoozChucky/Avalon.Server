@@ -5,12 +5,13 @@ using Avalon.Network.Packets.State;
 using Avalon.World.Public;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Scripts;
+using Avalon.World.Public.Spells;
 
 namespace Avalon.World.Entities;
 
 public class Creature : ICreature
 {
-    public ObjectGuid Guid { get; init; }
+    public ObjectGuid Guid { get; set; }
 
     public CreatureTemplateId TemplateId { get; set; } = null!;
 
@@ -59,5 +60,17 @@ public class Creature : ICreature
         Script?.OnHit(attacker, damage);
     }
 
+    public void SendAttackAnimation(ISpell spell)
+    {
+        OnUnitAttackAnimation?.Invoke(this, spell);
+    }
+
+    public void SendFinishCastAnimation(ISpell spell)
+    {
+        OnUnitFinishedCastAnimation?.Invoke(this, spell);
+    }
+
     public static event CreatureKilledDelegate? OnCreatureKilled;
+    public static event UnitAttackAnimationDelegate? OnUnitAttackAnimation;
+    public static event UnitFinishedCastAnimationDelegate? OnUnitFinishedCastAnimation;
 }
