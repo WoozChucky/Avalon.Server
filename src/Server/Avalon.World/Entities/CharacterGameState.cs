@@ -93,7 +93,12 @@ public class CharacterGameState : IGameState
             Position = creature.Position,
             Orientation = creature.Orientation,
             Velocity = creature.Velocity,
-            MoveState = creature.MoveState
+            MoveState = creature.MoveState,
+            Health = creature.Health,
+            CurrentHealth = creature.CurrentHealth,
+            PowerType = creature.PowerType,
+            Power = creature.Power,
+            CurrentPower = creature.CurrentPower,
         };
         
         return entity;
@@ -108,9 +113,13 @@ public class CharacterGameState : IGameState
         existing.Orientation = updated.Orientation;
         existing.Velocity = updated.Velocity;
         existing.MoveState = updated.MoveState;
+        existing.Health = updated.Health;
         existing.CurrentHealth = updated.CurrentHealth;
+        existing.PowerType = updated.PowerType;
+        existing.Power = updated.Power;
         existing.CurrentPower = updated.CurrentPower;
         existing.Level = updated.Level;
+        
         
         return existing;
     }
@@ -125,7 +134,13 @@ public class CharacterGameState : IGameState
             Position = character.Position,
             Orientation = character.Orientation,
             Velocity = character.Velocity,
-            MoveState = character.MoveState
+            MoveState = character.MoveState,
+            Health = character.Health,
+            CurrentHealth = character.CurrentHealth,
+            PowerType = character.PowerType,
+            Power = character.Power,
+            CurrentPower = character.CurrentPower,
+            Level = character.Level
         };
         
         return entity;
@@ -140,7 +155,10 @@ public class CharacterGameState : IGameState
         existing.Orientation = updated.Orientation;
         existing.Velocity = updated.Velocity;
         existing.MoveState = updated.MoveState;
+        existing.Health = updated.Health;
         existing.CurrentHealth = updated.CurrentHealth;
+        existing.PowerType = updated.PowerType;
+        existing.Power = updated.Power;
         existing.CurrentPower = updated.CurrentPower;
         existing.Level = updated.Level;
         

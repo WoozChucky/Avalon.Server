@@ -32,15 +32,13 @@ public class WorldObjectWriter(byte[] buffer) : BinaryWriter(new MemoryStream(bu
 
     public void Write(ICharacter character)
     {
-        Write((int)GameEntityFields.All);
-        Write(character as IUnit);
+        Write(character, GameEntityFields.All);
         Write(character.Name);
     }
 
     public void Write(ICreature creature)
     {
-        Write((int)GameEntityFields.All);
-        Write(creature as IUnit);
+        Write(creature, GameEntityFields.All);
         Write(creature.Metadata.Id);
         Write(creature.Name);
     }
@@ -111,15 +109,19 @@ public class WorldObjectWriter(byte[] buffer) : BinaryWriter(new MemoryStream(bu
                 Write(worldObject.CurrentHealth);
             }
 
-            if (worldObject.PowerType != PowerType.None)
+            if (fields.HasFlag(GameEntityFields.PowerType))
             {
-                if (fields.HasFlag(GameEntityFields.Power))
+                Write((byte)worldObject.PowerType);
+                if (worldObject.PowerType != PowerType.None)
                 {
-                    Write(worldObject.Power!.Value);
-                }
-                if (fields.HasFlag(GameEntityFields.CurrentPower))
-                {
-                    Write(worldObject.CurrentPower!.Value);
+                    if (fields.HasFlag(GameEntityFields.Power))
+                    {
+                        Write(worldObject.Power!.Value);
+                    }
+                    if (fields.HasFlag(GameEntityFields.CurrentPower))
+                    {
+                        Write(worldObject.CurrentPower!.Value);
+                    }
                 }
             }
         }
