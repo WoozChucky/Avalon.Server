@@ -4,6 +4,7 @@ using Avalon.Domain.Characters;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Character;
 using Avalon.World.Entities;
+using Avalon.World.Public;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Spells;
 using Avalon.World.Spells;
@@ -66,7 +67,13 @@ public class CharacterSelectHandler(
         
         entity.CurrentHealth = entity.Health;
         entity.CurrentPower = entity.Power;
-        
+        entity.PowerType = character.Class switch
+        {
+            CharacterClass.Warrior => PowerType.Fury,
+            CharacterClass.Wizard or CharacterClass.Healer => PowerType.Mana,
+            CharacterClass.Hunter => PowerType.Energy,
+            _ => PowerType.None
+        };
         
         connection.Character = entity;
 
@@ -128,6 +135,8 @@ public class CharacterSelectHandler(
         entity[InventoryType.Equipment].Load(items.Where(i => i.Container == InventoryType.Equipment).ToList());
         entity[InventoryType.Bag].Load(items.Where(i => i.Container == InventoryType.Bag).ToList());
         entity[InventoryType.Bank].Load(items.Where(i => i.Container == InventoryType.Bank).ToList());
+        
+        //TODO: Send inventory to the client
         
         connection.AddQueryCallback(characterSpellRepository.GetCharacterSpellsAsync(character.Id), spells =>
         {

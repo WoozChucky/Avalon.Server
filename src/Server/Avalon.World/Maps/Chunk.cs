@@ -173,9 +173,10 @@ public class Chunk : IChunk
         CharacterEntity.OnUnitAttackAnimation += BroadcastUnitAttackAnimation;
         CharacterEntity.OnUnitFinishedCastAnimation += BroadcastFinishCastAnimation;
         CharacterEntity.OnUnitInterruptedCastAnimation += BroadcastInterruptedCastAnimation;
+        CharacterEntity.OnUnitDamaged += OnCharacterHit;
         _creatureRespawner = new CreatureRespawner(this);
     }
-    
+
     public bool QueueSpell(ICharacter character, IUnit? target, ISpell spell)
     {
         return _spellSystem.QueueSpell(character, target, spell);
@@ -272,7 +273,7 @@ public class Chunk : IChunk
             switch (addedObjectGuid.Type)
             {
                 case ObjectType.Character:
-                    if (character.Guid == addedObjectGuid) continue;
+                    //if (character.Guid == addedObjectGuid) continue;
                     writer.Write(_characters[addedObjectGuid]);
                     break;
                 case ObjectType.Creature:
@@ -308,11 +309,11 @@ public class Chunk : IChunk
             switch (updatedObject.Guid.Type)
             {
                 case ObjectType.Character:
-                    if (character.Guid == updatedObject.Guid) continue;
+                    //if (character.Guid == updatedObject.Guid) continue;
                     writer.Write(_characters[updatedObject.Guid], GameEntityFields.CharacterUpdate); // can and should pass updatedObject.Fields
                     break;
                 case ObjectType.Creature:
-                    writer.Write(_creatures[updatedObject.Guid], GameEntityFields.CreatureUpdate); // an and should pass updatedObject.Fields
+                    writer.Write(_creatures[updatedObject.Guid], GameEntityFields.CreatureUpdate); // an and should pass updatedObject.Fields or GameEntityFields.CreatureUpdate
                     break;
                 case ObjectType.SpellProjectile:
                     var spell = _spellSystem.GetSpell(updatedObject.Guid);
@@ -441,6 +442,11 @@ public class Chunk : IChunk
         {
             character.Connection.Send(SUnitDamagePacket.Create(attacker.Guid, target.Guid.RawValue, currentHealth, damage, character.Connection.CryptoSession.Encrypt));
         });
+    }
+    
+    private void OnCharacterHit(IUnit unit, IUnit attacker, uint damage)
+    {
+        BroadcastUnitHit(attacker, unit, unit.CurrentHealth, damage);
     }
 
     public void RespawnCreature(ICreature creature)
