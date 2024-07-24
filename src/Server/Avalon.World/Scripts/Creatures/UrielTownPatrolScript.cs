@@ -31,6 +31,8 @@ public class UrielTownPatrolScript : AiScript
     public UrielTownPatrolScript(ILoggerFactory loggerFactory, ICreature creature, Chunk chunk) : base(creature, chunk)
     {
         _logger = loggerFactory.CreateLogger<UrielTownPatrolScript>();
+        Creature.Health = 120;
+        Creature.CurrentHealth = Creature.Health;
         
         _patrolScript = new CreaturePatrolScript(loggerFactory, creature, chunk, _waypoints);
         _patrolScript.State = CreaturePatrolScript.PatrolState.Patrolling;

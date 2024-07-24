@@ -19,6 +19,7 @@ public class CharacterEntity : ICharacter
     public static event UnitAttackAnimationDelegate? OnUnitAttackAnimation;
     public static event CharacterDisconnectedDelegate? CharacterDisconnected;
     public static event UnitInterruptedCastAnimationDelegate? OnUnitInterruptedCastAnimation;
+    public static event UnitDamagedDelegate? OnUnitDamaged;
     
     public IWorldConnection Connection => _connection;
     public IGameState GameState { get; }
@@ -105,7 +106,10 @@ public class CharacterEntity : ICharacter
             _logger.LogInformation("{Name} has died", Name);
             CurrentHealth = Health; // reset health while developing
         }
+        // Send to self
         _connection.Send(SCharacterDamagePacket.Create(attacker.Guid.RawValue, Guid.RawValue, CurrentHealth, damage, null, _connection.CryptoSession.Encrypt));
+        // Send to chunk
+        OnUnitDamaged?.Invoke(this, attacker, damage);
     }
 
     public void SendAttackAnimation(ISpell spell)
