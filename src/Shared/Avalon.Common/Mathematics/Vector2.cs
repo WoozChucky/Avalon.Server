@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Globalization;
 using System.Runtime.CompilerServices;
+#pragma warning disable CS8625 // Cannot convert null literal to non-nullable reference type.
 
 namespace Avalon.Common.Mathematics;
 
@@ -170,8 +171,6 @@ public struct Vector2
     /// <summary>
     ///   <para>Returns a formatted string for this vector.</para>
     /// </summary>
-    /// <param name="format">A numeric format string.</param>
-    /// <param name="formatProvider">An object that specifies culture-specific formatting.</param>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public override string ToString() => this.ToString((string) null, (IFormatProvider) null);
 
@@ -179,7 +178,6 @@ public struct Vector2
     ///   <para>Returns a formatted string for this vector.</para>
     /// </summary>
     /// <param name="format">A numeric format string.</param>
-    /// <param name="formatProvider">An object that specifies culture-specific formatting.</param>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public string ToString(string format) => this.ToString(format, (IFormatProvider) null);
 

@@ -15,9 +15,4 @@ public static class Extensions
     {
         return (TcpClient) source;
     }
-    
-    public static UdpClientPacket AsUdpClient(this IRemoteSource source)
-    {
-        return (UdpClientPacket) source;
-    }
 }

@@ -79,7 +79,7 @@ public class WorldConnection : Connection, IWorldConnection
 
     public void AddQueryCallback<T>(Task<T> task, Action<T> callback)
     {
-        Task<object> wrappedTask = task.ContinueWith(t => (object)t.Result, TaskContinuationOptions.ExecuteSynchronously);
+        Task<object> wrappedTask = task.ContinueWith(t => (object)t.Result, TaskContinuationOptions.ExecuteSynchronously)!;
         Action<object> wrappedCallback = result => callback((T)result);
 
         _genericTaskQueue.Enqueue((wrappedTask, wrappedCallback));
