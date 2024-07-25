@@ -26,11 +26,9 @@ public interface IWorld
     GameConfiguration Configuration { get; }
     
     WorldGrid Grid { get; }
-
-    void Update(TimeSpan deltaTime);
+    
     void SpawnPlayer(IWorldConnection connection);
     Task DespawnPlayerAsync(IWorldConnection connection);
-    void OnScriptsHotReload(List<Type> aiScriptTypes);
     StaticData Data { get; }
 }
 
@@ -70,6 +68,7 @@ public class World : IWorld
         IClassLevelStatRepository classLevelStatRepository,
         IItemTemplateRepository itemTemplateRepository,
         ISpellTemplateRepository spellTemplateRepository,
+        ICharacterLevelExperienceRepository characterLevelExperienceRepository,
         IScriptHotReloader scriptHotReloader)
     {
         _logger = loggerFactory.CreateLogger<World>();
@@ -81,7 +80,7 @@ public class World : IWorld
         _poolManager = poolManager;
         _serviceScopeFactory = serviceScopeFactory;
         _scriptHotReloader = scriptHotReloader;
-        Data = new StaticData(characterCreateInfoRepository, classLevelStatRepository, itemTemplateRepository, spellTemplateRepository);
+        Data = new StaticData(characterCreateInfoRepository, classLevelStatRepository, itemTemplateRepository, spellTemplateRepository, characterLevelExperienceRepository);
         
         for (var i = 0; i < WorldTimersCount; ++i)
         {

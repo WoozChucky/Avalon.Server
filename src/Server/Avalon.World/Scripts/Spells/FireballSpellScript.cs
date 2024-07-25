@@ -50,7 +50,7 @@ public class FireballSpellScript : SpellScript
         if (Vector3.Distance(Position, Target!.Position + SpellHeightOffset) < 0.1f)
         {
             _logger.LogInformation("Spell {SpellId} hit {CreatureId}", Spell.SpellId, Target.Guid);
-            Target.OnHit(Caster, 0);
+            Target.OnHit(Caster, Spell.Metadata.EffectValue);
             State = SpellState.Finished;
             return;
         }
