@@ -178,7 +178,21 @@ public class CharacterEntity : ICharacter
             }
         }
     }
-    
+
+    public ulong Experience 
+    {
+        get => Data?.Experience ?? 0;
+        set
+        {
+            if (Data != null)
+            {
+                Data.Experience = value;
+            }
+        }
+    }
+
+    public ulong RequiredExperience { get; set; }
+
     public ushort Level
     {
         get => Data?.Level ?? 0;

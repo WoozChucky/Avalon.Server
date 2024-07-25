@@ -17,6 +17,8 @@ public interface ICharacter : IUnit
     string Name { get; set; }
     
     ushort Map { get; set; }
+    ulong Experience { get; set; }
+    ulong RequiredExperience { get; set; }
     
     void OnDisconnected();
     float GetMovementSpeed();

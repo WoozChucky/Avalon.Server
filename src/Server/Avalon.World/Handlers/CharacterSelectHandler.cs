@@ -55,6 +55,9 @@ public class CharacterSelectHandler(
         character.InstanceId = Guid.NewGuid().ToString();
         character.Online = true;
         character.Latency = (int) connection.Latency;
+
+        var requiredExperience = world.Data.CharacterLevelExperiences.FirstOrDefault(c => c.Level == character.Level)
+            ?.Experience ?? 0;
         
         var entity = new CharacterEntity(loggerFactory, connection, character)
         {
@@ -63,6 +66,7 @@ public class CharacterSelectHandler(
             Velocity = Vector3.zero,
             Orientation = new Vector3(0, character.Rotation, 0),
             EnteredWorld = DateTime.UtcNow,
+            RequiredExperience = requiredExperience
         };
         
         entity.CurrentHealth = entity.Health;
@@ -100,6 +104,8 @@ public class CharacterSelectHandler(
             Z = character.Z,
             Orientation = character.Rotation,
             Running = character.Running,
+            Experience = character.Experience,
+            RequiredExperience = entity.RequiredExperience,
         };
         
         var mapInfo = new MapInfo
@@ -180,6 +186,16 @@ public class CharacterSelectHandler(
         
         connection.Character!.Spells.Load(gameSpells);
         
-        // TODO: Send spells to the client
+        var spellInfos = gameSpells.Select(s => new SpellInfo
+        {
+            SpellId = s.SpellId,
+            Name = s.Metadata.Name,
+            Cooldown = s.Metadata.Cooldown,
+            CastTime = s.Metadata.CastTime,
+            Cost = s.Metadata.Cost,
+            Range = (ushort)s.Metadata.Range,
+        }).ToArray();
+        
+        connection.Send(SCharacterSpellsPacket.Create(spellInfos, connection.CryptoSession.Encrypt));
     }
 }

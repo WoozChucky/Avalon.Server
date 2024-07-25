@@ -9,5 +9,7 @@ public interface ICharacterSpells
     
     ISpell? this[SpellId spellId] { get; }
     
+    bool IsCasting { get; }
+    
     void Update(TimeSpan deltaTime);
 }

@@ -19,6 +19,8 @@ public class CharacterSpellContainer : ICharacterSpells
     
     public ISpell? this[SpellId spellId] => _spells.FirstOrDefault(x => x.SpellId == spellId);
     
+    public bool IsCasting => _spells.Any(x => x.Casting);
+
     public void Load(IReadOnlyCollection<ISpell> spells)
     {
         _spells = spells;

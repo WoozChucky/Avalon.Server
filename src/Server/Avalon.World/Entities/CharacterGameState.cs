@@ -140,7 +140,9 @@ public class CharacterGameState : IGameState
             PowerType = character.PowerType,
             Power = character.Power,
             CurrentPower = character.CurrentPower,
-            Level = character.Level
+            Level = character.Level,
+            Experience = character.Experience,
+            RequiredExperience = character.RequiredExperience,
         };
         
         return entity;
@@ -161,6 +163,8 @@ public class CharacterGameState : IGameState
         existing.Power = updated.Power;
         existing.CurrentPower = updated.CurrentPower;
         existing.Level = updated.Level;
+        existing.Experience = updated.Experience;
+        existing.RequiredExperience = updated.RequiredExperience;
         
         return existing;
     }
@@ -200,6 +204,35 @@ public class CharacterGameState : IGameState
         if (existingUnit.MoveState != updatedUnit.MoveState)
         {
             fields |= GameEntityFields.MoveState;
+        }
+        
+        if (existingUnit.Level != updatedUnit.Level)
+        {
+            fields |= GameEntityFields.Level;
+        }
+        
+        if (existingUnit.Power != updatedUnit.Power)
+        {
+            fields |= GameEntityFields.Power;
+        }
+        
+        if (existingUnit.Health != updatedUnit.Health)
+        {
+            fields |= GameEntityFields.Health;
+        }
+        
+        // Character specific fields
+        if (existingUnit is ICharacter existingCharacter && updatedUnit is ICharacter updatedCharacter)
+        {
+            if (existingCharacter.Experience != updatedCharacter.Experience)
+            {
+                fields |= GameEntityFields.Experience;
+            }
+            
+            if (existingCharacter.RequiredExperience != updatedCharacter.RequiredExperience)
+            {
+                fields |= GameEntityFields.RequiredExperience;
+            }
         }
         
         return fields;
