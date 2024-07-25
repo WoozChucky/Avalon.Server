@@ -1,16 +1,11 @@
-﻿using System.Diagnostics;
-using System.Net.Http.Json;
+﻿using System.Net.Http.Json;
 using System.Security.Cryptography;
-using System.Text.Json;
 
 namespace Avalon.Client.Patcher
 {
     internal class Program
     {
-        private static Guid ClientId;
-        
-        
-        private static async Task Main(string[] args)
+        private static async Task Main()
         {
             AppDomain.CurrentDomain.UnhandledException += CurrentDomainOnUnhandledException;
             AppDomain.CurrentDomain.ProcessExit += OnProcessExit;
@@ -105,7 +100,7 @@ namespace Avalon.Client.Patcher
 
                 // Create a stream to save the downloaded file
                 if (!Directory.Exists(Path.GetDirectoryName(savePath)))
-                    Directory.CreateDirectory(Path.GetDirectoryName(savePath));
+                    Directory.CreateDirectory(Path.GetDirectoryName(savePath)!);
                 await using Stream fileStream = File.Create(savePath);
                 
                 // Get the response content stream
@@ -121,7 +116,7 @@ namespace Avalon.Client.Patcher
                     bytesDownloaded += bytesRead;
 
                     // Calculate the progress percentage
-                    int progressPercentage = (int)((double)bytesDownloaded / totalBytes * 100);
+                    int progressPercentage = (int)((double)bytesDownloaded / totalBytes * 100)!;
 
                     Console.WriteLine($"Downloading {filename} {bytesDownloaded}/{totalBytes} bytes ({progressPercentage}%).");
                 }
@@ -177,7 +172,7 @@ namespace Avalon.Client.Patcher
             return BitConverter.ToString(cryptoProvider.ComputeHash(bs));
         }
 
-        private static void OnProcessExit(object sender, EventArgs e)
+        private static void OnProcessExit(object? sender, EventArgs e)
         {
             Console.WriteLine("Process exit");
         }
@@ -186,7 +181,7 @@ namespace Avalon.Client.Patcher
         {
             var ex = e.ExceptionObject as Exception;
 
-            File.WriteAllText("patcher.txt", ex + "\n\n" + ex?.StackTrace ?? "Unknown exception");
+            File.WriteAllText("patcher.txt", ex + "\n\n" + ex?.StackTrace);
         }
     }
 }
