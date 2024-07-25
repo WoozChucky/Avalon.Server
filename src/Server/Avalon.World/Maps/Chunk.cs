@@ -61,7 +61,6 @@ public class ChunkSpellSystem(ILoggerFactory factory, IServiceProvider servicePr
             // Check if the spell was interrupted by movement
             if (spellInstance.CastStartPosition != spellInstance.Caster.Position && spellInstance.SpellInfo.Metadata.CastTime > 0)
             {
-                _logger.LogWarning("Spell cast interrupted by movement");
                 spellInstance.SpellInfo.CastTimeTimer = spellInstance.SpellInfo.Metadata.CastTime;
                 spellInstance.SpellInfo.Casting = false;
                 if (spellInstance.Caster is ICharacter character)
@@ -152,15 +151,17 @@ public class Chunk : IChunk
     private const float BroadcastInterval = 0.1f;
     
     private IPoolManager _poolManager;
+    private readonly IWorld _world;
     private float _lastBroadcastTime;
 
     private readonly ICreatureRespawner _creatureRespawner;
     
     private ChunkSpellSystem _spellSystem;
 
-    public Chunk(ILoggerFactory loggerFactory, IServiceProvider serviceProvider, ushort mapId, Vector2 position, IPoolManager poolManager)
+    public Chunk(ILoggerFactory loggerFactory, IServiceProvider serviceProvider, ushort mapId, Vector2 position, IPoolManager poolManager, IWorld world)
     {
         _poolManager = poolManager;
+        _world = world;
         _logger = loggerFactory.CreateLogger<Chunk>();
         MapId = mapId;
         Position = position;
@@ -194,10 +195,29 @@ public class Chunk : IChunk
 
         // Step 4: Schedule the loot to be spawned
         
-        Parallel.ForEach(_characters.Values, _ =>
+        // Step 5: Update the killer's experience
+        if (killer is ICharacter character)
         {
-            // character.Connection.Send(SCreatureDeathPacket.Create(creatureId, character.Connection.CryptoSession.Encrypt));
-        });
+            var expRequirement = _world.Data.CharacterLevelExperiences.FirstOrDefault(exp => exp.Level == character.Level);
+            if (expRequirement is null)
+            {
+                _logger.LogWarning("Experience requirement for level {Level} not found", character.Level);
+                return;
+            }
+
+            const uint creatureExperience = 20U; // TODO: Extract from creature template
+            if (character.Experience + creatureExperience >= expRequirement.Experience)
+            {
+                var diff = character.Experience + creatureExperience - expRequirement.Experience;
+                character.Level++;
+                character.Experience = diff;
+                character.RequiredExperience = _world.Data.CharacterLevelExperiences.FirstOrDefault(exp => exp.Level == character.Level)?.Experience ?? 0;
+            }
+            else
+            {
+                character.Experience += creatureExperience;
+            }
+        }
     }
 
     public async Task InitializeAsync()
@@ -274,10 +294,10 @@ public class Chunk : IChunk
             {
                 case ObjectType.Character:
                     //if (character.Guid == addedObjectGuid) continue;
-                    writer.Write(_characters[addedObjectGuid]);
+                    writer.Write(_characters[addedObjectGuid], GameEntityFields.All);
                     break;
                 case ObjectType.Creature:
-                    writer.Write(_creatures[addedObjectGuid]);
+                    writer.Write(_creatures[addedObjectGuid], GameEntityFields.All);
                     break;
                 case ObjectType.SpellProjectile:
                     var spell = _spellSystem.GetSpell(addedObjectGuid);
@@ -420,7 +440,7 @@ public class Chunk : IChunk
         Parallel.ForEach(_characters.Values, character =>
         {
             //TODO: Extract animation id from spell
-            character.Connection.Send(SUnitFinishCastPacket.Create(attacker.Guid, character.Connection.CryptoSession.Encrypt));
+            character.Connection.Send(SUnitFinishCastPacket.Create(attacker.Guid, spell.SpellId, character.Connection.CryptoSession.Encrypt));
         });
     }
 
@@ -432,7 +452,7 @@ public class Chunk : IChunk
 
         Parallel.ForEach(_characters.Values, character =>
         {
-            character.Connection.Send(SCharacterInterruptedCastPacket.Create(attacker.Guid, character.Connection.CryptoSession.Encrypt));
+            character.Connection.Send(SCharacterInterruptedCastPacket.Create(attacker.Guid, spell.SpellId, character.Connection.CryptoSession.Encrypt));
         });
     }
 

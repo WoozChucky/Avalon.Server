@@ -35,11 +35,11 @@ public class StrikeSpellScript : SpellScript
     {
         if (State is SpellState.Finished) return;
         
-        if (Vector3.Distance(Position, Target!.Position) <= 1.5f)
+        if (Vector3.Distance(Position, Target!.Position) <= (uint) Spell.Metadata.Range + 1)
         {
             Caster.SendAttackAnimation(Spell);
             _logger.LogInformation("Spell {SpellId} hit {CreatureId}", Spell.SpellId, Target.Guid);
-            Target.OnHit(Caster, 0);
+            Target.OnHit(Caster, Spell.Metadata.EffectValue);
             State = SpellState.Finished;
         }
     }

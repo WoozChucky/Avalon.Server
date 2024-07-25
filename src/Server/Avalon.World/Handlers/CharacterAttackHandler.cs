@@ -110,7 +110,7 @@ public class CharacterAttackHandler(ILogger<CharacterAttackHandler> logger, IWor
             
             logger.LogWarning("Spell cooldown: {Cooldown} Current: {Timer}", spell.Metadata.Cooldown, spell.CooldownTimer);
             
-            if (spell is {CooldownTimer: <= 0, Casting: false} && chunk.QueueSpell(attacker, target, spell))
+            if (!attacker.Spells.IsCasting && spell is {CooldownTimer: <= 0, Casting: false} && chunk.QueueSpell(attacker, target, spell))
             {
                 // Send spell start cast packet
                 if (spell.Metadata.CastTime > 0) {

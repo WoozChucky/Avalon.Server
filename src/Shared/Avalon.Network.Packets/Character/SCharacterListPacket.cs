@@ -56,5 +56,7 @@ public class CharacterInfo
     [ProtoMember(7)] public float Z { get; set; }
     [ProtoMember(8)] public float Orientation { get; set; }
     [ProtoMember(9)] public bool Running { get; set; }
+    [ProtoMember(10)] public ulong Experience { get; set; }
+    [ProtoMember(11)] public ulong RequiredExperience { get; set; }
     
 }

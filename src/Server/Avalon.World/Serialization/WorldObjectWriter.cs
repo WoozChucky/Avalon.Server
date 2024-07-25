@@ -14,34 +14,6 @@ public class WorldObjectWriter(byte[] buffer) : BinaryWriter(new MemoryStream(bu
         Write(worldObject.Velocity);
         Write(worldObject.Orientation.y);
     }
-    
-    public void Write(IUnit unit)
-    {
-        Write(unit as IWorldObject);
-        Write((byte)unit.MoveState);
-        Write(unit.Health);
-        Write(unit.CurrentHealth);
-        Write((byte)unit.PowerType);
-        if (unit.PowerType != PowerType.None)
-        {
-            Write(unit.Power!.Value);
-            Write(unit.CurrentPower!.Value);
-        }
-        Write(unit.Level);
-    }
-
-    public void Write(ICharacter character)
-    {
-        Write(character, GameEntityFields.All);
-        Write(character.Name);
-    }
-
-    public void Write(ICreature creature)
-    {
-        Write(creature, GameEntityFields.All);
-        Write(creature.Metadata.Id);
-        Write(creature.Name);
-    }
 
     private void Write(Vector3 vector)
     {
@@ -73,8 +45,31 @@ public class WorldObjectWriter(byte[] buffer) : BinaryWriter(new MemoryStream(bu
             Write(worldObject.Orientation.y);
         }
     }
+    
+    public void Write(ICreature creature, GameEntityFields fields)
+    {
+        Write(creature as IUnit, fields);
+        Write(creature.Metadata.Id);
+        Write(creature.Name);
+    }
 
-    public void Write(IUnit worldObject, GameEntityFields fields)
+    public void Write(ICharacter character, GameEntityFields fields)
+    {
+        Write(character as IUnit, fields);
+        
+        if (fields.HasFlag(GameEntityFields.Experience))
+        {
+            Write(character.Experience);
+        }
+        if (fields.HasFlag(GameEntityFields.RequiredExperience))
+        {
+            Write(character.RequiredExperience);
+        }
+        
+        Write(character.Name);
+    }
+
+    private void Write(IUnit worldObject, GameEntityFields fields)
     {
         Write((int)fields);
         // Positioning
