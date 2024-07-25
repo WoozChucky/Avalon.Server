@@ -18,8 +18,6 @@ public class AuthServer(
     IPacketManager packetManager,
     ILoggerFactory loggerFactory,
     PluginExecutor pluginExecutor,
-    IAccountRepository accountRepository,
-    IReplicatedCache cache,
     IOptions<HostingConfiguration> hostingOptions,
     IOptions<HostingSecurity> securityOptions)
     : ServerBase<AuthConnection>(packetManager, loggerFactory.CreateLogger<AuthServer>(), pluginExecutor,
