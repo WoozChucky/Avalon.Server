@@ -1,7 +1,6 @@
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
-using Avalon.World.Pools;
 using Avalon.World.Public;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Maps;
@@ -14,12 +13,9 @@ public class Map
     public ushort Id { get; set; }
     public MapTemplate Metadata { get; set; }
     public Vector3 Size { get; set; }
-    // public Dictionary<Vector2, Chunk> Chunks { get; set; }
     public IReadOnlyCollection<Chunk> Chunks { get; set; }
     
     private readonly ILogger<Map> _logger;
-    
-    private IPoolManager _poolManager;
     
     public Map(ILoggerFactory loggerFactory)
     {

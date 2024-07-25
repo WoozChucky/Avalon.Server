@@ -73,7 +73,7 @@ namespace Avalon.Common.Queues
         /// <summary>
         /// Given an item of type T, returns the existing SimpleNode in the queue
         /// </summary>
-        private SimpleNode GetExistingNode(TItem item)
+        private SimpleNode? GetExistingNode(TItem item)
         {
             if (item == null)
             {
@@ -388,7 +388,7 @@ namespace Avalon.Common.Queues
                 }
             }
 
-            first = default(TItem);
+            first = default(TItem)!;
             return false;
         }
 
@@ -414,7 +414,7 @@ namespace Avalon.Common.Queues
                 }
             }
             
-            first = default(TItem);
+            first = default(TItem)!;
             return false;
         }
 
@@ -497,7 +497,7 @@ namespace Avalon.Common.Queues
                 SimpleNode findMe = GetExistingNode(item);
                 if(findMe == null)
                 {
-                    priority = default(TPriority);
+                    priority = default(TPriority)!;
                     return false;
                 }
                 priority = findMe.Priority;

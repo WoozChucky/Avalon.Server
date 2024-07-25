@@ -27,11 +27,4 @@ public class NotificationController : BaseController
         await _notificationService.RegisterSubscriptionAsync(Account!, userAgent, request, CancellationToken);
         return Ok();
     }
-    
-    [AllowAnonymous]
-    [HttpGet]
-    public async Task<IActionResult> GetNotificationsAsync()
-    {
-        return Ok();
-    }
 }

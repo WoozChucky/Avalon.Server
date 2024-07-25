@@ -86,7 +86,7 @@ public class MetricsManager : IMetricsManager
             {
                 await Task.Delay(1000, _cancellationTokenSource.Token);
             }
-            catch (OperationCanceledException e)
+            catch (OperationCanceledException)
             {
                 _logger.LogInformation("Metrics Manager Worker Task cancelled");
             }

@@ -89,6 +89,7 @@ public class ReplicatedCache : IReplicatedCache
     public async Task SubscribeAsync(string channel, Action<RedisChannel, RedisValue> handler)
     {
         var sub = _redis.GetSubscriber();
+        // await sub.SubscribeAsync(new RedisChannel(channel, RedisChannel.PatternMode.Auto));
         await sub.SubscribeAsync(channel, handler);
     }
 

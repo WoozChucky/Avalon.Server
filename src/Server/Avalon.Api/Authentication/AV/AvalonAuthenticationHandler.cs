@@ -19,10 +19,10 @@ public class AvalonAuthenticationHandler : AuthenticationHandler<AvalonAuthentic
     {
         if (!Request.Headers.TryGetValue(HeaderNames.Authorization, out var value))
         {
-            return AuthenticateResult.Fail("Header Not Found.");
+            return await Task.FromResult(AuthenticateResult.Fail("Header Not Found."));
         }
         
-        if (Context.User.Identity.IsAuthenticated) return AuthenticateResult.NoResult();
+        if (Context.User.Identity?.IsAuthenticated ?? false) return AuthenticateResult.NoResult();
         
         var header = value.ToString();
         var segments = header.Split(' ');
@@ -33,7 +33,7 @@ public class AvalonAuthenticationHandler : AuthenticationHandler<AvalonAuthentic
         
         // TODO: validate token
         
-        var claims = new Claim[] {
+        var claims = new[] {
             new Claim("test", "value"),
         };
         

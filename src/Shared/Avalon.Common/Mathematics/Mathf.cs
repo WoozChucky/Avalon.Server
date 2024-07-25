@@ -659,7 +659,7 @@ public struct Mathf
       {
         return Math.Round(v, digits);
       }
-      catch (ArgumentOutOfRangeException ex)
+      catch (ArgumentOutOfRangeException)
       {
         return 0.0;
       }

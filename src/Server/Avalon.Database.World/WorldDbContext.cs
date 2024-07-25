@@ -156,7 +156,7 @@ public class WorldDbContext : DbContext
                 .Select(val => new ItemTemplateId(ulong.Parse(val))).ToList());
 
         var itemIdComparer = new ValueComparer<List<ItemTemplateId>>(
-            (c1, c2) => c1.SequenceEqual(c2),
+            (c1, c2) => c1!.SequenceEqual(c2!),
             c => c.Aggregate(0, (a, v) => HashCode.Combine(a, v.GetHashCode())),
             c => c.ToList());
         
@@ -170,8 +170,8 @@ public class WorldDbContext : DbContext
                 .Select(val => new SpellId(uint.Parse(val))).ToList());
         
         var spellIdComparer = new ValueComparer<List<SpellId>>(
-            (c1, c2) => c1.SequenceEqual(c2),
-            c => c.Aggregate(0, (a, v) => System.HashCode.Combine(a, v.GetHashCode())),
+            (c1, c2) => c1!.SequenceEqual(c2!),
+            c => c.Aggregate(0, (a, v) => HashCode.Combine(a, v.GetHashCode())),
             c => c.ToList());
         
         builder.Property(b => b.StartingSpells)
@@ -473,6 +473,7 @@ public class WorldDbContext : DbContext
         ]);
     }
     
+    // ReSharper disable once UnusedParameter.Local
     private static void Configure(EntityTypeBuilder<QuestRewardTemplate> builder)
     {
     }
@@ -644,7 +645,7 @@ public class WorldDbContext : DbContext
             v => v.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(e => (CharacterClass)Enum.Parse(typeof(CharacterClass), e)).ToList());
         
         var characterClassComparer = new ValueComparer<List<CharacterClass>>(
-            (c1, c2) => c1.SequenceEqual(c2),
+            (c1, c2) => c1!.SequenceEqual(c2!),
             c => c.Aggregate(0, (a, v) => HashCode.Combine(a, v.GetHashCode())),
             c => c.ToList());
         

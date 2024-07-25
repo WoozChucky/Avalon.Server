@@ -76,7 +76,7 @@ internal class ScriptReaderSystem
         return scripts.OrderBy(s => s.Name).ToList();
     }
     
-    public static async Task<ICollection<string>> ListMigrationDirectoriesAsync(string path = ScriptsPath)
+    public static ICollection<string> ListMigrationDirectories(string path = ScriptsPath)
     {
         var directoryPath = $"{Directory.GetCurrentDirectory()}/{path}";
         var directoryInfo = new DirectoryInfo(directoryPath);

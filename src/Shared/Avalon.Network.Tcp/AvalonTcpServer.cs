@@ -41,9 +41,9 @@ public class AvalonTcpServer : IAvalonTcpServer
     
     public bool IsRunning => Running;
     
-    public async Task RunAsync()
+    public Task RunAsync()
     {
-        if (!Configuration.Enabled) return;
+        if (!Configuration.Enabled) return Task.CompletedTask;
         
         if (Running)
         {
@@ -58,6 +58,7 @@ public class AvalonTcpServer : IAvalonTcpServer
 #pragma warning disable CS4014
         Task.Factory.StartNew(InternalServerLoop, Cts.Token, TaskCreationOptions.LongRunning, TaskScheduler.Default);
 #pragma warning restore CS4014
+        return Task.CompletedTask;
     }
 
     public Task StopAsync()
@@ -99,7 +100,7 @@ public class AvalonTcpServer : IAvalonTcpServer
         }
     }
 
-    protected virtual async Task HandleNewConnection(Socket client)
+    protected virtual Task HandleNewConnection(Socket client)
     {
         try
         {
@@ -115,6 +116,8 @@ public class AvalonTcpServer : IAvalonTcpServer
         {
             Logger.LogWarning(e, "Failed to handle new connection: {Message}", e.Message);
         }
+        
+        return Task.CompletedTask;
     }
 
     protected virtual void Dispose(bool disposing)
