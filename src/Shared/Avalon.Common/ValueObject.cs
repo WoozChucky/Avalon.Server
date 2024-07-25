@@ -19,7 +19,7 @@ public abstract class ValueObject<TValue> : IEquatable<ValueObject<TValue>>
 
     public bool Equals(ValueObject<TValue>? other)
     {
-        return other != null && EqualityComparer<TValue>.Default.Equals(Value, other.Value);
+        return other! != null! && EqualityComparer<TValue>.Default.Equals(Value, other.Value);
     }
 
     public override int GetHashCode()
@@ -35,10 +35,12 @@ public abstract class ValueObject<TValue> : IEquatable<ValueObject<TValue>>
     // Implement the equality operators
     public static bool operator ==(ValueObject<TValue>? left, ValueObject<TValue>? right)
     {
-        return EqualityComparer<ValueObject<TValue>>.Default.Equals(left, right);
+        if (left is null && right is null)
+            return true;
+        return EqualityComparer<ValueObject<TValue>>.Default.Equals(left!, right!);
     }
 
-    public static bool operator !=(ValueObject<TValue>? left, ValueObject<TValue>? right)
+    public static bool operator !=(ValueObject<TValue> left, ValueObject<TValue> right)
     {
         return !(left == right);
     }

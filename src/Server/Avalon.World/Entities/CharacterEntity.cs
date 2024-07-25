@@ -89,7 +89,7 @@ public class CharacterEntity : ICharacter
         {
             if (Data != null)
             {
-                Data.Power1 = (int) value;
+                Data.Power1 = (int) value!;
             }
         }
     }

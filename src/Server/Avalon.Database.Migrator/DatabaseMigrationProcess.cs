@@ -198,7 +198,7 @@ internal class DatabaseMigrationProcess
     
     private async Task<ICollection<MigrationRecord>> GetLocalMigrationRecordAsync()
     {
-        var migrationFolders = await ScriptReaderSystem.ListMigrationDirectoriesAsync();
+        var migrationFolders = ScriptReaderSystem.ListMigrationDirectories();
 
         var result = new List<MigrationRecord>();
         

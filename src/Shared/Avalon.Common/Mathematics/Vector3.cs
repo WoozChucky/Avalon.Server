@@ -2,6 +2,9 @@ using System.Globalization;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using DotRecast.Core.Numerics;
+// ReSharper disable ConditionIsAlwaysTrueOrFalseAccordingToNullableAPIContract
+// ReSharper disable InconsistentNaming
+#pragma warning disable CS8625 // Cannot convert null literal to non-nullable reference type.
 
 namespace Avalon.Common.Mathematics;
 
@@ -746,8 +749,6 @@ public struct Vector3 : IEquatable<Vector3>, IFormattable
     /// <summary>
     ///   <para>Returns a formatted string for this vector.</para>
     /// </summary>
-    /// <param name="format">A numeric format string.</param>
-    /// <param name="formatProvider">An object that specifies culture-specific formatting.</param>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public override string ToString() => this.ToString((string) null, (IFormatProvider) null);
 
@@ -755,7 +756,6 @@ public struct Vector3 : IEquatable<Vector3>, IFormattable
     ///   <para>Returns a formatted string for this vector.</para>
     /// </summary>
     /// <param name="format">A numeric format string.</param>
-    /// <param name="formatProvider">An object that specifies culture-specific formatting.</param>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public string ToString(string format) => this.ToString(format, (IFormatProvider) null);
 

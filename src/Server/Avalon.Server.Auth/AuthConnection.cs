@@ -4,7 +4,6 @@ using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
 using Avalon.Auth.Database.Repositories;
 using Avalon.Common.ValueObjects;
-using Avalon.Domain.Auth;
 using Avalon.Hosting;
 using Avalon.Hosting.Networking;
 using Avalon.Network.Packets;
@@ -25,7 +24,6 @@ public interface IAuthConnection : IConnection
 public class AuthConnection : Connection, IAuthConnection
 {
     private readonly IServiceScopeFactory _serviceScopeFactory;
-    private readonly ILogger<AuthConnection> _logger;
     public AccountId? AccountId { get; set; }
     public new AuthServer Server { get; }
     
@@ -35,7 +33,6 @@ public class AuthConnection : Connection, IAuthConnection
         PluginExecutor pluginExecutor, IPacketReader packetReader, IServiceScopeFactory serviceScopeFactory) 
         : base(loggerFactory.CreateLogger<AuthConnection>(), server, pluginExecutor, packetReader)
     {
-        _logger = loggerFactory.CreateLogger<AuthConnection>();
         _serviceScopeFactory = serviceScopeFactory;
         Server = (server as AuthServer)!;
         Init(client);
@@ -62,7 +59,7 @@ public class AuthConnection : Connection, IAuthConnection
         var networkStream = new NetworkStream(client.Client);
         var sslStream = new SslStream(networkStream, false, OnClientCertificateValidation);
 
-        var certificate = Server!.Certificate;
+        var certificate = Server.Certificate;
         
         await sslStream.AuthenticateAsServerAsync(certificate, false, SslProtocols.Tls12, false);
         

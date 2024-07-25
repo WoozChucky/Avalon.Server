@@ -15,13 +15,11 @@ public interface ICharacterService
 
 public class CharacterService : ICharacterService
 {
-    private ILogger<CharacterService> _logger;
-    private ICharacterRepository _characterRepository;
+    private readonly ICharacterRepository _characterRepository;
     private readonly IAuthContext _authContext;
 
-    public CharacterService(ILoggerFactory loggerFactory, ICharacterRepository characterRepository, IAuthContext authContext)
+    public CharacterService(ICharacterRepository characterRepository, IAuthContext authContext)
     {
-        _logger = loggerFactory.CreateLogger<CharacterService>();
         _characterRepository = characterRepository;
         _authContext = authContext;
     }
@@ -34,7 +32,7 @@ public class CharacterService : ICharacterService
         }
         else
         {
-            if (_authContext.Account?.Id != id && !_authContext.Account!.AccessLevel.HasFlag(AccountAccessLevel.GameMaster))
+            if (_authContext.Account?.Id.Value != id && !_authContext.Account!.AccessLevel.HasFlag(AccountAccessLevel.GameMaster))
             {
                 throw new BusinessException("Unauthorized");
             }

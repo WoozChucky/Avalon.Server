@@ -43,56 +43,6 @@ public class AvalonSslTcpServer : AvalonTcpServer, IAvalonTcpServer
     private bool OnClientCertificateValidation(object sender, X509Certificate? certificate, X509Chain? chain, SslPolicyErrors sslpolicyerrors)
     {
         return true;
-        if (certificate == null)
-        {
-            Logger.LogWarning("Client certificate is null");
-            return false;
-        }
-        
-        var expiryDate = DateTime.Parse(certificate.GetExpirationDateString());
-        
-        if (expiryDate < DateTime.UtcNow)
-        {
-            Logger.LogWarning("Client certificate is expired");
-            return false;
-        }
-
-        if (!certificate.GetSerialNumberString().Equals(_certificate.GetSerialNumberString()))
-        {
-            Logger.LogWarning("Client certificate serial number does not match server certificate serial number");
-            return false;
-        }
-        
-        if (!certificate.Issuer.Equals(_certificate.Issuer))
-        {
-            Logger.LogWarning("Client certificate issuer does not match server certificate issuer");
-            return false;
-        }
-        
-        if (!certificate.Subject.Equals(_certificate.Subject))
-        {
-            Logger.LogWarning("Client certificate subject does not match server certificate subject");
-            return false;
-        }
-
-        //TODO(Nuno): Make this a configuration variable to enable or disable this checks.
-        if (false) {
-            // Check if the client certificate chain is valid
-            if (chain != null && chain.ChainStatus.Any(o => o.Status != X509ChainStatusFlags.UntrustedRoot))
-            {
-                Logger.LogWarning("Client certificate chain is invalid");
-                return false;
-            }
-
-            // Check if the SSL policy errors indicate a problem
-            if (sslpolicyerrors != SslPolicyErrors.None)
-            {
-                Logger.LogWarning("SSL policy errors encountered during client certificate validation: {SslPolicyErrors}", sslpolicyerrors);
-                return false;
-            }
-        }
-        
-        return true;
     }
     
     protected override void Dispose(bool disposing)

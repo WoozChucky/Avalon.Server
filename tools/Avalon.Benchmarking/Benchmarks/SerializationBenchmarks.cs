@@ -9,18 +9,12 @@ using ProtoBuf;
 namespace Avalon.Benchmarking.Benchmarks;
 
 [MemoryDiagnoser]
-[SimpleJob(RuntimeMoniker.Net70)]
 [SimpleJob(RuntimeMoniker.Net80)]
 [RPlotExporter]
 public class SerializationBenchmarks
 {
     private MemoryStream _unencryptedPacket;
-    private MemoryStream _encryptedPacket_Aes128;
-    private MemoryStream _encryptedPacket_Aes128_Std;
-    private MemoryStream _encryptedPacket_Aes256_Std;
-
-    private IAvalonCryptoSession _cryptoSessionStd256;
-    private IAvalonCryptoSession _cryptoSessionStd128;
+    private MemoryStream _encryptedPacketAes128;
     private IAvalonCryptoSession _cryptoSession128;
     
     [GlobalSetup]
@@ -37,9 +31,9 @@ public class SerializationBenchmarks
         _cryptoSession128 = new AvalonCryptoSession();
         _cryptoSession128.Initialize(serverPublicKeyBytes128);
         
-        _encryptedPacket_Aes128 = new MemoryStream();
-        Serializer.SerializeWithLengthPrefix(_encryptedPacket_Aes128, CCharacterListPacket.Create(_cryptoSession128.Encrypt), PrefixStyle.Base128);
-        _encryptedPacket_Aes128.Seek(0, SeekOrigin.Begin);
+        _encryptedPacketAes128 = new MemoryStream();
+        Serializer.SerializeWithLengthPrefix(_encryptedPacketAes128, CCharacterListPacket.Create(_cryptoSession128.Encrypt), PrefixStyle.Base128);
+        _encryptedPacketAes128.Seek(0, SeekOrigin.Begin);
     }
     
     [Benchmark]
@@ -66,9 +60,9 @@ public class SerializationBenchmarks
     [Benchmark]
     public void Deserialize_Aes128()
     {
-        _encryptedPacket_Aes128.Seek(0, SeekOrigin.Begin);
+        _encryptedPacketAes128.Seek(0, SeekOrigin.Begin);
         
-        var packet = Serializer.DeserializeWithLengthPrefix<NetworkPacket>(_encryptedPacket_Aes128, PrefixStyle.Base128);
+        var packet = Serializer.DeserializeWithLengthPrefix<NetworkPacket>(_encryptedPacketAes128, PrefixStyle.Base128);
         
         var decryptedBytes = _cryptoSession128.Decrypt(packet.Payload);
         

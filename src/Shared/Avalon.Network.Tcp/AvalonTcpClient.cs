@@ -453,9 +453,10 @@ public class AvalonTcpClient : IDisposable
         await SendPacket(packet);
     }
     
-    private async Task SendPacket(NetworkPacket packet)
+    private Task SendPacket(NetworkPacket packet)
     {
         _sendPacketBuffer.Enqueue(packet);
+        return Task.CompletedTask;
     }
     
     private async Task ProcessPacketsAsync()
