@@ -27,10 +27,10 @@ public class AuthServer(
         [..base.Connections.Values.Cast<AuthConnection>()];
     
     public X509Certificate2 Certificate { get; private set; }
-
+    
     private readonly HostingSecurity _securityOptions = securityOptions.Value;
     private readonly ConcurrentDictionary<Type, (PropertyInfo packetProperty, PropertyInfo connectionProperty)> _propertyCache = new();
-
+    
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         var serverCertBytes = await File.ReadAllBytesAsync(_securityOptions.CertificatePath, stoppingToken);
