@@ -50,6 +50,8 @@ spec:
               value: {{ .Values.notification.publicKey | quote }}
             - name: Application__Notification__PrivateKey
               value: {{ .Values.notification.privateKey | quote }}
+            - name: DOTNET_HOSTBUILDER__RELOADCONFIGONCHANGE
+              value: "false"
           ports:
             - name: http
               containerPort: {{ .Values.service.port }}

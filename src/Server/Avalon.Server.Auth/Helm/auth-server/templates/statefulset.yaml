@@ -48,6 +48,8 @@ spec:
               value: {{ .Values.server.database.characters.connectionString | quote }}
             - name: Database__World__ConnectionString
               value: {{ .Values.server.database.world.connectionString | quote }}
+            - name: DOTNET_HOSTBUILDER__RELOADCONFIGONCHANGE
+              value: "false"
           ports:
             - name: server-tcp
               containerPort: {{ .Values.service.port }}
