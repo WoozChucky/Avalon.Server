@@ -55,6 +55,8 @@ spec:
               value: {{ .Values.server.game.playerRadius | quote }}
             - name: Game__MaxPlayersPerAccount
               value: {{ .Values.server.game.maxPlayersPerAccount | quote }}
+            - name: DOTNET_HOSTBUILDER__RELOADCONFIGONCHANGE
+              value: "false"
           ports:
             - name: server-tcp
               containerPort: {{ .Values.service.port }}
