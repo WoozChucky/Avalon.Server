@@ -4,17 +4,11 @@ namespace Avalon.Common.Utils;
 
 public static class TimeUtils
 {
-    private static readonly Stopwatch ApplicationStartTime = Stopwatch.StartNew();
+    private static readonly Stopwatch s_applicationStartTime = Stopwatch.StartNew();
 
-    public static TimeSpan GetApplicationStartTime()
-    {
-        return ApplicationStartTime.Elapsed;
-    }
+    public static TimeSpan GetApplicationStartTime() => s_applicationStartTime.Elapsed;
 
-    public static TimeSpan GetTimeMS()
-    {
-        return ApplicationStartTime.Elapsed;
-    }
+    public static TimeSpan GetTimeMS() => s_applicationStartTime.Elapsed;
 
     public static TimeSpan GetMSTimeDiff(TimeSpan oldMSTime, TimeSpan newMSTime)
     {
@@ -22,48 +16,32 @@ public static class TimeUtils
         {
             return oldMSTime - newMSTime;
         }
-        else
-        {
-            return newMSTime - oldMSTime;
-        }
+
+        return newMSTime - oldMSTime;
     }
 
-    public static uint GetMSTime()
-    {
-        return (uint)ApplicationStartTime.ElapsedMilliseconds;
-    }
+    public static uint GetMsTime() => (uint)s_applicationStartTime.ElapsedMilliseconds;
 
-    public static uint GetMSTimeDiff(uint oldMSTime, uint newMSTime)
+    public static uint GetMsTimeDiff(uint oldMsTime, uint newMsTime)
     {
         // getMSTime() have limited data range and this is case when it overflow in this tick
-        if (oldMSTime > newMSTime)
+        if (oldMsTime > newMsTime)
         {
-            return (0xFFFFFFFF - oldMSTime) + newMSTime;
+            return 0xFFFFFFFF - oldMsTime + newMsTime;
         }
-        else
-        {
-            return newMSTime - oldMSTime;
-        }
+
+        return newMsTime - oldMsTime;
     }
 
-    public static uint GetMSTimeDiff(uint oldMSTime, TimeSpan newTime)
+    public static uint GetMsTimeDiff(uint oldMsTime, TimeSpan newTime)
     {
         uint newMSTime = (uint)newTime.TotalMilliseconds;
-        return GetMSTimeDiff(oldMSTime, newMSTime);
+        return GetMsTimeDiff(oldMsTime, newMSTime);
     }
 
-    public static uint GetMSTimeDiffToNow(uint oldMSTime)
-    {
-        return GetMSTimeDiff(oldMSTime, GetMSTime());
-    }
+    public static uint GetMsTimeDiffToNow(uint oldMsTime) => GetMsTimeDiff(oldMsTime, GetMsTime());
 
-    public static TimeSpan GetMSTimeDiffToNow(TimeSpan oldMSTime)
-    {
-        return GetMSTimeDiff(oldMSTime, GetTimeMS());
-    }
+    public static TimeSpan GetMsTimeDiffToNow(TimeSpan oldMsTime) => GetMSTimeDiff(oldMsTime, GetTimeMS());
 
-    public static long GetEpochTime()
-    {
-        return DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-    }
+    public static long GetEpochTime() => DateTimeOffset.UtcNow.ToUnixTimeSeconds();
 }
