@@ -1,6 +1,4 @@
 using System;
-using System.Collections.Concurrent;
-using System.Diagnostics;
 using System.IO;
 using System.Net.Sockets;
 using System.Text.Json;
@@ -9,7 +7,6 @@ using System.Threading.Tasks;
 using Avalon.Common.Cryptography;
 using Avalon.Common.Threading;
 using Avalon.Hosting.Extensions;
-using Avalon.Hosting.PluginTypes;
 using Avalon.Network.Packets;
 using Avalon.Network.Packets.Abstractions;
 using Microsoft.Extensions.Hosting;
@@ -32,22 +29,17 @@ public interface IConnection
 
 public abstract class Connection : BackgroundService, IConnection
 {
-    public Guid Id { get; }
-    public string RemoteEndPoint { get; private set; }
-    public IAvalonCryptoSession CryptoSession { get; private set; }
-    public ICryptoManager ServerCrypto => Server.Crypto;
-
     protected readonly ILogger _logger;
-    protected CancellationTokenSource? CancellationTokenSource;
-
-    private readonly RingBuffer<NetworkPacket> _packetsToSend = new(string.Empty, 100);
     private readonly IPacketReader _packetReader;
 
-    private TcpClient? _client;
-    private Stream? _stream;
-    private bool _closed = false;
+    private readonly RingBuffer<NetworkPacket> _packetsToSend = new(string.Empty, 100);
 
     protected readonly IServerBase Server;
+
+    private TcpClient? _client;
+    private bool _closed;
+    private Stream? _stream;
+    protected CancellationTokenSource? CancellationTokenSource;
 
     protected Connection(ILogger logger, IServerBase server, IPacketReader packetReader)
     {
@@ -58,6 +50,27 @@ public abstract class Connection : BackgroundService, IConnection
         Id = Guid.NewGuid();
     }
 
+    protected bool IsConnected => _client?.Connected == true;
+    public Guid Id { get; }
+    public string RemoteEndPoint { get; private set; }
+    public IAvalonCryptoSession CryptoSession { get; }
+    public ICryptoManager ServerCrypto => Server.Crypto;
+
+    public void Close(bool expected = true)
+    {
+        if (_closed)
+        {
+            return;
+        }
+
+        CancellationTokenSource?.Cancel();
+        _client?.Close();
+        _closed = true;
+        OnClose(expected);
+    }
+
+    public void Send(NetworkPacket packet) => _packetsToSend.Enqueue(packet);
+
     protected void Init(TcpClient client)
     {
         _client = client;
@@ -65,8 +78,6 @@ public abstract class Connection : BackgroundService, IConnection
         CancellationTokenSource = new CancellationTokenSource();
         Task.Factory.StartNew(SendPacketsWhenAvailable, TaskCreationOptions.LongRunning);
     }
-
-    protected bool IsConnected => _client?.Connected == true;
 
     protected abstract void OnHandshakeFinished();
 
@@ -94,17 +105,20 @@ public abstract class Connection : BackgroundService, IConnection
 
         try
         {
-            await foreach (var packet in _packetReader.EnumerateAsync(_stream, stoppingToken))
+            await foreach (NetworkPacket packet in _packetReader.EnumerateAsync(_stream, stoppingToken))
             {
-                if (packet.Header.Type != NetworkPacketType.CMSG_MOVEMENT && packet.Header.Type != NetworkPacketType.CMSG_PONG)
+                if (packet.Header.Type != NetworkPacketType.CMSG_MOVEMENT &&
+                    packet.Header.Type != NetworkPacketType.CMSG_PONG)
+                {
                     _logger.LogDebug("IN: {Type} => {Data}", packet.Header.Type, JsonSerializer.Serialize(packet));
+                }
 
                 if (packet.Header.Flags.HasFlag(NetworkPacketFlags.Encrypted))
                 {
                     _packetReader.Decrypt(packet, CryptoSession.Decrypt);
                 }
 
-                var payload = _packetReader.Read(packet);
+                Packet? payload = _packetReader.Read(packet);
 
                 await OnReceive(packet, payload);
             }
@@ -123,20 +137,6 @@ public abstract class Connection : BackgroundService, IConnection
         Close(false);
     }
 
-    public void Close(bool expected = true)
-    {
-        if (_closed) return;
-        CancellationTokenSource?.Cancel();
-        _client?.Close();
-        _closed = true;
-        OnClose(expected);
-    }
-
-    public void Send(NetworkPacket packet)
-    {
-        _packetsToSend.Enqueue(packet);
-    }
-
     private async Task SendPacketsWhenAvailable()
     {
         if (_client?.Connected != true)
@@ -149,7 +149,8 @@ public abstract class Connection : BackgroundService, IConnection
         {
             try
             {
-                var packet = await _packetsToSend.DequeueAsync(CancellationTokenSource!.Token).ConfigureAwait(false);
+                NetworkPacket? packet =
+                    await _packetsToSend.DequeueAsync(CancellationTokenSource!.Token).ConfigureAwait(false);
                 if (packet != null)
                 {
                     try
@@ -170,14 +171,20 @@ public abstract class Connection : BackgroundService, IConnection
                         {
                             break;
                         }
+
                         _logger.LogError(e, "Failed to send packet");
                     }
                     catch (Exception e)
                     {
                         _logger.LogError(e, "Failed to send packet");
                     }
-                    if (packet.Header.Type != NetworkPacketType.SMSG_WORLD_STATE_UPDATE && packet.Header.Type != NetworkPacketType.SMSG_PING)
-                        _logger.LogTrace("OUT: {Type} => {Packet}", packet.Header.Type, JsonSerializer.Serialize(packet));
+
+                    if (packet.Header.Type != NetworkPacketType.SMSG_WORLD_STATE_UPDATE &&
+                        packet.Header.Type != NetworkPacketType.SMSG_PING)
+                    {
+                        _logger.LogTrace("OUT: {Type} => {Packet}", packet.Header.Type,
+                            JsonSerializer.Serialize(packet));
+                    }
                 }
                 else
                 {

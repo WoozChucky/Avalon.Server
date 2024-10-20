@@ -1,6 +1,7 @@
 using System.Buffers;
 using Avalon.Common;
 using Avalon.Common.Mathematics;
+using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Combat;
 using Avalon.Network.Packets.State;
@@ -60,7 +61,7 @@ public class Chunk : IChunk
 
     public ushort MapId { get; }
     public Vector2 Position { get; private set; }
-    public uint Id { get; set; }
+    public ChunkId Id { get; set; }
     public bool Enabled { get; set; }
     public required ChunkMetadata Metadata { get; set; }
     public IChunkNavigator Navigator { get; }
