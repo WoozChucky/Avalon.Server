@@ -1,5 +1,8 @@
 namespace Avalon.Common;
 
+/// <summary>
+///     Represents the type of an object.
+/// </summary>
 public enum ObjectType
 {
     None,
@@ -9,77 +12,115 @@ public enum ObjectType
     SpellProjectile
 }
 
+/// <summary>
+///     Represents a globally unique identifier for an object.
+/// </summary>
 public class ObjectGuid
 {
-    private const int TYPE_SHIFT = 56;
-    private const ulong TYPE_MASK = 0xFF00000000000000;
-    private const ulong ID_MASK = 0x000000FFFFFFFFFF;
+    private const int TypeShift = 56;
+    private const ulong TypeMask = 0xFF00000000000000;
+    private const ulong IdMask = 0x000000FFFFFFFFFF;
 
-    private ulong _guid;
+    /// <summary>
+    ///     Initializes a new instance of the <see cref="ObjectGuid" /> class with a default value.
+    /// </summary>
+    public ObjectGuid() => RawValue = 0;
 
-    public ObjectGuid()
-    {
-        _guid = 0;
-    }
+    /// <summary>
+    ///     Initializes a new instance of the <see cref="ObjectGuid" /> class with a specified raw value.
+    /// </summary>
+    /// <param name="raw">The raw value of the GUID.</param>
+    public ObjectGuid(ulong raw) => RawValue = raw;
 
-    public ObjectGuid(ulong raw)
-    {
-        _guid = raw;
-    }
+    /// <summary>
+    ///     Initializes a new instance of the <see cref="ObjectGuid" /> class with a specified type and ID.
+    /// </summary>
+    /// <param name="type">The type of the object.</param>
+    /// <param name="id">The ID of the object.</param>
+    public ObjectGuid(ObjectType type, uint id) => RawValue = ((ulong)type << TypeShift) | (id & IdMask);
 
-    public ObjectGuid(ObjectType type, uint id)
-    {
-        _guid = ((ulong)type << TYPE_SHIFT) | (id & ID_MASK);
-    }
+    /// <summary>
+    ///     Gets the raw value of the GUID.
+    /// </summary>
+    public ulong RawValue { get; private set; }
 
-    public void Set(ObjectType type, uint id)
-    {
-        _guid = ((ulong)type << TYPE_SHIFT) | (id & ID_MASK);
-    }
+    /// <summary>
+    ///     Gets the type of the object.
+    /// </summary>
+    public ObjectType Type => (ObjectType)((RawValue & TypeMask) >> TypeShift);
 
-    public ulong RawValue => _guid;
+    /// <summary>
+    ///     Gets the ID of the object.
+    /// </summary>
+    public uint Id => (uint)(RawValue & IdMask);
 
-    public ObjectType Type => (ObjectType)((_guid & TYPE_MASK) >> TYPE_SHIFT);
+    /// <summary>
+    ///     Gets a value indicating whether the GUID is empty.
+    /// </summary>
+    public bool IsEmpty => RawValue == 0;
 
-    public uint Id => (uint)(_guid & ID_MASK);
+    /// <summary>
+    ///     Sets the type and ID of the object.
+    /// </summary>
+    /// <param name="type">The type of the object.</param>
+    /// <param name="id">The ID of the object.</param>
+    public void Set(ObjectType type, uint id) => RawValue = ((ulong)type << TypeShift) | (id & IdMask);
 
-    public bool IsEmpty => _guid == 0;
-
+    /// <summary>
+    ///     Determines whether the specified object is equal to the current object.
+    /// </summary>
+    /// <param name="obj">The object to compare with the current object.</param>
+    /// <returns>true if the specified object is equal to the current object; otherwise, false.</returns>
     public override bool Equals(object? obj)
     {
         if (obj is ObjectGuid guid)
         {
-            return _guid == guid._guid;
+            return RawValue == guid.RawValue;
         }
+
         return false;
     }
 
-    public override int GetHashCode()
-    {
+    /// <summary>
+    ///     Serves as the default hash function.
+    /// </summary>
+    /// <returns>A hash code for the current object.</returns>
+    public override int GetHashCode() =>
         // ReSharper disable once NonReadonlyMemberInGetHashCode
-        return _guid.GetHashCode();
-    }
+        RawValue.GetHashCode();
 
+    /// <summary>
+    ///     Determines whether two specified GUIDs are equal.
+    /// </summary>
+    /// <param name="a">The first GUID to compare.</param>
+    /// <param name="b">The second GUID to compare.</param>
+    /// <returns>true if the two GUIDs are equal; otherwise, false.</returns>
     public static bool operator ==(ObjectGuid? a, ObjectGuid? b)
     {
         if (ReferenceEquals(a, b))
         {
             return true;
         }
+
         if ((object)a == null || (object)b == null)
         {
             return false;
         }
-        return a._guid == b._guid;
+
+        return a.RawValue == b.RawValue;
     }
 
-    public static bool operator !=(ObjectGuid? a, ObjectGuid? b)
-    {
-        return !(a == b);
-    }
+    /// <summary>
+    ///     Determines whether two specified GUIDs are not equal.
+    /// </summary>
+    /// <param name="a">The first GUID to compare.</param>
+    /// <param name="b">The second GUID to compare.</param>
+    /// <returns>true if the two GUIDs are not equal; otherwise, false.</returns>
+    public static bool operator !=(ObjectGuid? a, ObjectGuid? b) => !(a == b);
 
-    public override string ToString()
-    {
-        return $"Type: {Type}, Id: {Id}";
-    }
+    /// <summary>
+    ///     Returns a string that represents the current object.
+    /// </summary>
+    /// <returns>A string that represents the current object.</returns>
+    public override string ToString() => $"Type: {Type}, Id: {Id}";
 }
