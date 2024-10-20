@@ -1,7 +1,4 @@
-using Avalon.Database;
-using Avalon.Domain.World;
-
-namespace Avalon.World.Database.Repositories;
+namespace Avalon.Database.World.Repositories;
 
 /*
 public interface IQuestRewardRepository : IRepository<QuestReward, int>

@@ -1,5 +1,5 @@
+using Avalon.Database.World.Repositories;
 using Avalon.Domain.World;
-using Avalon.World.Database.Repositories;
 
 namespace Avalon.World;
 

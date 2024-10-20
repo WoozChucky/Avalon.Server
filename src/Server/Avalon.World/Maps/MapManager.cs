@@ -1,6 +1,6 @@
 using System.Runtime.CompilerServices;
+using Avalon.Database.World.Repositories;
 using Avalon.Domain.World;
-using Avalon.World.Database.Repositories;
 using Avalon.World.Maps.Virtualized;
 using Avalon.World.Public.Enums;
 using Microsoft.Extensions.Logging;
