@@ -5,9 +5,7 @@ using System.Reflection;
 using Avalon.Common.Utils;
 using Avalon.Common.ValueObjects;
 using Avalon.Configuration;
-using Avalon.Hosting;
 using Avalon.Hosting.Networking;
-using Avalon.Hosting.PluginTypes;
 using Avalon.Infrastructure;
 using Avalon.Network.Packets;
 using Avalon.Network.Packets.Abstractions;
@@ -157,38 +155,23 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         }
         return Task.CompletedTask;
     }
-
-    private uint minUpdateDiff = 1;
-    private uint realCurrentTime = 0;
-    private uint realPreviousTime = TimeUtils.GetMSTime();
-
-    private uint maxCoreStuckTime = 60000;
-    private uint halfMaxCoreStuckTime = 30000;
     
-    private int tickCount = 0;
-    private DateTime lastTpsCalculationTime = DateTime.Now;
-    private double ticksPerSecond = 0;
+    private uint _realCurrentTime = 0;
+    private uint _realPreviousTime = TimeUtils.GetMSTime();
+    
+    private int _tickCount = 0;
+    private DateTime _lastTpsCalculationTime = DateTime.Now;
+    private double _ticksPerSecond = 0;
     
     private static readonly TimeSpan MinUpdateInterval = TimeSpan.FromMilliseconds(10); // Example minimum interval
     private readonly Stopwatch _stopwatch = Stopwatch.StartNew();
     
     private async ValueTask Tick()
     {
-        realCurrentTime = TimeUtils.GetMSTime();
-        var diff = TimeUtils.GetMSTimeDiff(realPreviousTime, realCurrentTime);
+        _realCurrentTime = TimeUtils.GetMSTime();
+        var diff = TimeUtils.GetMSTimeDiff(_realPreviousTime, _realCurrentTime);
         
-        const int MinDeltaTime = 1; // Minimum delta time in milliseconds
-        
-        /* Unthrottled tick
-        if (diff < minUpdateDiff)
-        {
-            var sleepTime = minUpdateDiff - diff;
-            if (sleepTime >= halfMaxCoreStuckTime)
-                _logger.LogWarning("WorldUpdateLoop waiting for {SleepTime}ms with MaxCoreStuckTime set to {MaxCoreStuckTime}ms", sleepTime, maxCoreStuckTime);
-            
-            await Task.Delay((int)sleepTime);
-        }
-        */
+        const int minDeltaTime = 1; // Minimum delta time in milliseconds
         
         // Throttle the update loop if the diff is less than the minimum update interval
         if (diff < MinUpdateInterval.TotalMilliseconds)
@@ -200,32 +183,32 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
                 await Task.Delay(1); // Using 1ms to yield control and prevent tight loop, actual wait time is determined by _stopwatch
             }
 
-            realCurrentTime = TimeUtils.GetMSTime();
-            diff = TimeUtils.GetMSTimeDiff(realPreviousTime, realCurrentTime);
+            _realCurrentTime = TimeUtils.GetMSTime();
+            diff = TimeUtils.GetMSTimeDiff(_realPreviousTime, _realCurrentTime);
         }
 
         // Ensure delta time is at least the minimum threshold
-        if (diff < MinDeltaTime)
+        if (diff < minDeltaTime)
         {
-            diff = MinDeltaTime;
+            diff = minDeltaTime;
         }
         
         Update(TimeSpan.FromMilliseconds(diff));
         
-        realPreviousTime = realCurrentTime;
+        _realPreviousTime = _realCurrentTime;
 
-        if (false)
+        if (false /* Throttle TPS calculation */)
         {
             // Increment the tick counter
-            tickCount++;
+            _tickCount++;
     
             // Calculate TPS every second
-            if ((DateTime.Now - lastTpsCalculationTime).TotalSeconds >= 1)
+            if ((DateTime.Now - _lastTpsCalculationTime).TotalSeconds >= 1)
             {
-                ticksPerSecond = tickCount / (DateTime.Now - lastTpsCalculationTime).TotalSeconds;
+                _ticksPerSecond = _tickCount / (DateTime.Now - _lastTpsCalculationTime).TotalSeconds;
                 // _logger.LogInformation("Ticks Per Second (TPS): {TPS}", ticksPerSecond);
-                tickCount = 0;
-                lastTpsCalculationTime = DateTime.Now;
+                _tickCount = 0;
+                _lastTpsCalculationTime = DateTime.Now;
             }
         }
     }
@@ -282,7 +265,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
     private void DelayedDisconnect(RedisChannel channel, RedisValue value)
     {
         _logger.LogInformation("Disconnecting account {AccountId}", value);
-        var accountId = new AccountId(ulong.Parse(value.ToString()));
+        AccountId accountId = value.ToString();
         
         // TODO: Send in game packet telling the player they are being disconnected
         Connections.FirstOrDefault(c => c.AccountId == accountId)?.Close();

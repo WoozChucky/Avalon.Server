@@ -16,6 +16,7 @@ using Avalon.World.Public.Scripts;
 using Avalon.World.Public.Spells;
 using Avalon.World.Scripts;
 using Avalon.World.Serialization;
+using Avalon.World.Spells;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -27,107 +28,6 @@ public class SpellInstance
     public IUnit? Target { get; set; }
     public required ISpell SpellInfo { get; init; }
     public required Vector3 CastStartPosition { get; init; }
-}
-
-public class ChunkSpellSystem(ILoggerFactory factory, IServiceProvider serviceProvider, IScriptManager scriptManager)
-{
-    private readonly ILogger<ChunkSpellSystem> _logger = factory.CreateLogger<ChunkSpellSystem>();
-    
-    private readonly HashSet<SpellInstance> _spellQueue = [];
-    private readonly List<SpellScript> _activeSpells = [];
-    private readonly HashSet<ObjectGuid> _removeScheduled = [];
-    
-    public bool QueueSpell(ICharacter character, IUnit? target, ISpell spell)
-    {
-        //TODO: Power cost deduction
-        
-        spell.Casting = true;
-        var spellInstance = new SpellInstance
-        {
-            Caster = character,
-            Target = target,
-            SpellInfo = spell,
-            CastStartPosition = character.Position
-        };
-        return _spellQueue.Add(spellInstance);
-    }
-    
-    public void Update(TimeSpan deltaTime, List<IWorldObject> objects)
-    {
-        foreach (var spellInstance in _spellQueue)
-        {
-            spellInstance.SpellInfo.CastTimeTimer -= (float) deltaTime.TotalSeconds;
-            
-            // Check if the spell was interrupted by movement
-            if (spellInstance.CastStartPosition != spellInstance.Caster.Position && spellInstance.SpellInfo.Metadata.CastTime > 0)
-            {
-                spellInstance.SpellInfo.CastTimeTimer = spellInstance.SpellInfo.Metadata.CastTime;
-                spellInstance.SpellInfo.Casting = false;
-                if (spellInstance.Caster is ICharacter character)
-                {
-                    character.SendInterruptedCastAnimation(spellInstance.SpellInfo);
-                }
-                _spellQueue.Remove(spellInstance);
-                continue;
-            }
-            
-            if (!(spellInstance.SpellInfo.CastTimeTimer <= 0)) continue;
-            
-            spellInstance.SpellInfo.Casting = false;
-            spellInstance.SpellInfo.CooldownTimer = spellInstance.SpellInfo.Metadata.Cooldown;
-            spellInstance.SpellInfo.CastTimeTimer = spellInstance.SpellInfo.Metadata.CastTime;
-            _spellQueue.Remove(spellInstance);
-            
-            var scriptType = scriptManager.GetSpellScript(spellInstance.SpellInfo.Metadata.ScriptName);
-            if (scriptType is null)
-            {
-                _logger.LogWarning("Spell script {ScriptName} not found", spellInstance.SpellInfo.Metadata.ScriptName);
-                continue;
-            }
-            
-            var info = spellInstance.SpellInfo.Clone();
-            
-            if (ActivatorUtilities.CreateInstance(serviceProvider, scriptType, [info, spellInstance.Caster, spellInstance.Target]) is not SpellScript spellScript)
-            {
-                _logger.LogWarning("Failed to create spell script {ScriptName}", spellInstance.SpellInfo.Metadata.ScriptName);
-                continue;
-            }
-            
-            spellInstance.Caster.SendFinishCastAnimation(spellInstance.SpellInfo);
-            
-            spellScript.Prepare();
-            _activeSpells.Add(spellScript);
-                
-            _logger.LogDebug("Finished spell {SpellId} cast by {CharacterId} on {CreatureId}", spellInstance.SpellInfo.SpellId, spellInstance.Caster.Guid, spellInstance.Target?.Guid);
-        }
-
-        foreach (var spell in _activeSpells)
-        {
-            spell.Update(deltaTime);
-
-            if (spell.State is SpellScript.SpellState.Finished)
-            {
-                _removeScheduled.Add(spell.Guid);
-            }
-            
-            if (spell.Guid.Type == ObjectType.SpellProjectile)
-            {
-                objects.Add(spell);
-            }
-        }
-        
-        
-        foreach (var id in _removeScheduled)
-        {
-            _activeSpells.RemoveAll(p => p.Guid == id);
-        }
-        _removeScheduled.Clear();
-    }
-
-    public IWorldObject? GetSpell(ObjectGuid guid)
-    {
-        return _activeSpells.Find(p => p.Guid == guid) ?? null;
-    }
 }
 
 public class Chunk : IChunk
@@ -148,15 +48,14 @@ public class Chunk : IChunk
     private readonly Dictionary<ObjectGuid, ICreature> _creatures = [];
     private readonly ILogger<Chunk> _logger;
     
-    private const float BroadcastInterval = 0.1f;
+    private const float BROADCAST_INTERVAL = 0.1f;
     
     private IPoolManager _poolManager;
     private readonly IWorld _world;
     private float _lastBroadcastTime;
 
     private readonly ICreatureRespawner _creatureRespawner;
-    
-    private ChunkSpellSystem _spellSystem;
+    private readonly ISpellQueueSystem _spellSystem;
 
     public Chunk(ILoggerFactory loggerFactory, IServiceProvider serviceProvider, ushort mapId, Vector2 position, IPoolManager poolManager, IWorld world)
     {
@@ -188,7 +87,7 @@ public class Chunk : IChunk
         if (!Enabled || !_creatures.ContainsKey(creature.Guid)) return;
 
         // Step 1: Stop the creature scripts
-        creature.Script = null; // TODO: Double check if this has to be schuduled to run on the main thread
+        creature.Script = null; // TODO: Double check if this has to be scheduled to run on the main thread
         
         // Step 2: Schedule the creature to be respawned
         _creatureRespawner.ScheduleRespawn(creature);
@@ -204,7 +103,7 @@ public class Chunk : IChunk
                 _logger.LogWarning("Experience requirement for level {Level} not found", character.Level);
                 return;
             }
-
+            
             const uint creatureExperience = 20U; // TODO: Extract from creature template
             if (character.Experience + creatureExperience >= expRequirement.Experience)
             {
@@ -273,7 +172,7 @@ public class Chunk : IChunk
             BroadcastChunkStateTo(character);
         }
         
-        if (_lastBroadcastTime >= BroadcastInterval)
+        if (_lastBroadcastTime >= BROADCAST_INTERVAL)
         {
             _lastBroadcastTime = 0;
         }
@@ -367,7 +266,7 @@ public class Chunk : IChunk
             character.Connection.Send(SChunkStateAddPacket.Create(addedObjects, character.Connection.CryptoSession.Encrypt));
         }
         
-        if (_lastBroadcastTime >= BroadcastInterval) // _lastBroadcastTime >= BroadcastInterval
+        if (_lastBroadcastTime >= BROADCAST_INTERVAL) // _lastBroadcastTime >= BroadcastInterval
         {
             if (updatedObjects.Count > 0)
             {

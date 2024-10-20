@@ -7,16 +7,11 @@ using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Spells;
 
-public class CharacterSpellContainer : ICharacterSpells
+public class CharacterSpellContainer(ILoggerFactory loggerFactory) : ICharacterSpells
 {
-    private readonly ILogger<CharacterSpellContainer> _logger;
+    private readonly ILogger<CharacterSpellContainer> _logger = loggerFactory.CreateLogger<CharacterSpellContainer>();
     private IReadOnlyCollection<ISpell> _spells;
-    
-    public CharacterSpellContainer(ILoggerFactory loggerFactory)
-    {
-        _logger = loggerFactory.CreateLogger<CharacterSpellContainer>();
-    }
-    
+
     public ISpell? this[SpellId spellId] => _spells.FirstOrDefault(x => x.SpellId == spellId);
     
     public bool IsCasting => _spells.Any(x => x.Casting);
@@ -37,26 +32,5 @@ public class CharacterSpellContainer : ICharacterSpells
                 spell.CooldownTimer -= (float)deltaTime.TotalSeconds;
             }
         }
-    }
-}
-
-public class GameSpell : ISpell
-{
-    public required SpellId SpellId { get; init; }
-    
-    public required SpellMetadata Metadata { get; init; }
-    public required float CooldownTimer { get; set; }
-    public required float CastTimeTimer { get; set; }
-    public bool Casting { get; set; }
-
-    public ISpell Clone()
-    {
-        return new GameSpell
-        {
-            SpellId = SpellId,
-            Metadata = Metadata.Clone(),
-            CooldownTimer = CooldownTimer,
-            CastTimeTimer = CastTimeTimer
-        };
     }
 }

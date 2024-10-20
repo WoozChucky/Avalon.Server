@@ -8,4 +8,5 @@ public class AccountId : ValueObject<ulong>, IHideObjectMembers
     
     public static implicit operator ulong(AccountId accountId) => accountId.Value;
     public static implicit operator AccountId(ulong value) => new AccountId(value);
+    public static implicit operator AccountId(string value) => new AccountId(ulong.Parse(value));
 }
