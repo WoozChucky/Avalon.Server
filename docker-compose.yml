@@ -1,3 +1,4 @@
+name: avalon
 services:
   redis:
     image: redis:latest
@@ -16,4 +17,35 @@ services:
       - MARIADB_ROOT_PASSWORD=123
     ports:
       - "3306:3306"
+    restart: unless-stopped
+
+  code-server:
+    image: codercom/code-server:latest
+    container_name: code-server
+    environment:
+      - PASSWORD=123
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./src/Server/Avalon.World.Scripts:/home/coder/project
+    restart: unless-stopped
+
+  code-server-linux:
+    image: lscr.io/linuxserver/code-server:latest
+    container_name: code-server-linux
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Etc/UTC
+      - PASSWORD=123 #optional
+      #- HASHED_PASSWORD= #optional
+      #- SUDO_PASSWORD=password #optional
+      #- SUDO_PASSWORD_HASH= #optional
+      #- PROXY_DOMAIN=code-server.my.domain #optional
+      - DEFAULT_WORKSPACE=/config/workspace #optional
+    volumes:
+      #- /path/to/code-server/config:/config
+      - ./src/Server/Avalon.World.Scripts:/config/workspace
+    ports:
+      - 8443:8443
     restart: unless-stopped

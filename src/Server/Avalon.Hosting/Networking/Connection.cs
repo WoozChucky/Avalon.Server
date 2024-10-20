@@ -39,8 +39,7 @@ public abstract class Connection : BackgroundService, IConnection
 
     protected readonly ILogger _logger;
     protected CancellationTokenSource? CancellationTokenSource;
-    
-    private readonly PluginExecutor _pluginExecutor;
+
     private readonly RingBuffer<NetworkPacket> _packetsToSend = new(string.Empty, 100);
     private readonly IPacketReader _packetReader;
 
@@ -50,10 +49,9 @@ public abstract class Connection : BackgroundService, IConnection
     
     protected readonly IServerBase Server;
 
-    protected Connection(ILogger logger, IServerBase server, PluginExecutor pluginExecutor, IPacketReader packetReader)
+    protected Connection(ILogger logger, IServerBase server, IPacketReader packetReader)
     {
         _logger = logger;
-        _pluginExecutor = pluginExecutor;
         _packetReader = packetReader;
         Server = server;
         CryptoSession = new AvalonCryptoSession(ServerCrypto.GetKeyPair());
@@ -100,7 +98,6 @@ public abstract class Connection : BackgroundService, IConnection
             {
                 if (packet.Header.Type != NetworkPacketType.CMSG_MOVEMENT && packet.Header.Type != NetworkPacketType.CMSG_PONG)
                     _logger.LogDebug("IN: {Type} => {Data}", packet.Header.Type, JsonSerializer.Serialize(packet));
-                await _pluginExecutor.ExecutePlugins<IPacketOperationListener>(x => x.OnPrePacketReceivedAsync(packet, Array.Empty<byte>(), stoppingToken));
 
                 if (packet.Header.Flags.HasFlag(NetworkPacketFlags.Encrypted))
                 {
@@ -110,8 +107,6 @@ public abstract class Connection : BackgroundService, IConnection
                 var payload = _packetReader.Read(packet);
 
                 await OnReceive(packet, payload);
-
-                await _pluginExecutor.ExecutePlugins<IPacketOperationListener>(x => x.OnPostPacketReceivedAsync(packet, Array.Empty<byte>(), stoppingToken));
             }
         }
         catch (IOException e)
@@ -166,15 +161,8 @@ public abstract class Connection : BackgroundService, IConnection
                             break;
                         }
 
-                        await _pluginExecutor
-                            .ExecutePlugins<IPacketOperationListener>(x =>
-                                x.OnPrePacketSentAsync(packet, CancellationToken.None)).ConfigureAwait(false);
                         await _stream.WriteAsync(packet).ConfigureAwait(false);
                         await _stream.FlushAsync().ConfigureAwait(false);
-                        await _pluginExecutor.ExecutePlugins<IPacketOperationListener>(x =>
-                                x.OnPostPacketSentAsync(packet, Array.Empty<byte>(), CancellationToken.None))
-                            .ConfigureAwait(false);
-
                     }
                     catch (SocketException e)
                     {
