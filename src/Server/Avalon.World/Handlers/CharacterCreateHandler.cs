@@ -1,9 +1,9 @@
 using Avalon.Database.Character.Repositories;
+using Avalon.Database.World.Repositories;
 using Avalon.Domain.Characters;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Character;
-using Avalon.World.Database.Repositories;
 using Avalon.World.Public.Enums;
 using Microsoft.Extensions.Logging;
 

@@ -2,6 +2,7 @@
 using Avalon.Auth.Database;
 using Avalon.Common.Cryptography;
 using Avalon.Common.Telemetry;
+using Avalon.Database.Auth;
 using Avalon.Hosting;
 using Avalon.Infrastructure;
 using Avalon.Infrastructure.Services;

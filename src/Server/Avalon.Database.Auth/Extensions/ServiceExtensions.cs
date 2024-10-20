@@ -4,7 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-namespace Avalon.Auth.Database.Extensions;
+namespace Avalon.Database.Auth.Extensions;
 
 public static class ServiceExtensions
 {

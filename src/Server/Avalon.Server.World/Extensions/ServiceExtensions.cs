@@ -1,9 +1,9 @@
-using Avalon.Auth.Database.Extensions;
+using Avalon.Database.Auth.Extensions;
 using Avalon.Database.Character.Extensions;
+using Avalon.Database.World.Extensions;
 using Avalon.Infrastructure.Extensions;
 using Avalon.World;
 using Avalon.World.Configuration;
-using Avalon.World.Database.Extensions;
 using Avalon.World.Entities;
 using Avalon.World.Maps;
 using Avalon.World.Maps.Navigation;

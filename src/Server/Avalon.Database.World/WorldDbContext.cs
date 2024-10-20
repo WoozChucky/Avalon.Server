@@ -10,7 +10,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Pomelo.EntityFrameworkCore.MySql.Infrastructure;
 
-namespace Avalon.World.Database;
+namespace Avalon.Database.World;
 
 public class WorldDbContext : DbContext
 {

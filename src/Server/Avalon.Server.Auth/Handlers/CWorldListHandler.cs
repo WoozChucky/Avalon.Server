@@ -1,4 +1,4 @@
-using Avalon.Auth.Database.Repositories;
+using Avalon.Database.Auth.Repositories;
 using Avalon.Network.Packets.Auth;
 
 namespace Avalon.Server.Auth.Handlers;

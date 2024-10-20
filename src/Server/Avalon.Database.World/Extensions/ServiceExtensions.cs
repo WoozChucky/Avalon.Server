@@ -1,11 +1,11 @@
 using Avalon.Configuration;
 using Avalon.Database.Extensions;
-using Avalon.World.Database.Repositories;
+using Avalon.Database.World.Repositories;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-namespace Avalon.World.Database.Extensions;
+namespace Avalon.Database.World.Extensions;
 
 public static class ServiceExtensions
 {

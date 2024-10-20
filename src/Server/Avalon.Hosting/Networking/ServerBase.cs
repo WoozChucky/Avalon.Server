@@ -77,9 +77,10 @@ public abstract class ServerBase<T> : BackgroundService, IServerBase where T : I
     protected abstract object GetContextPacket(IConnection connection, object? packet, Type packetType);
     protected abstract Task OnStoppingAsync(CancellationToken stoppingToken);
 
-    public async Task RemoveConnection(IConnection connection)
+    public Task RemoveConnection(IConnection connection)
     {
         Connections.Remove(connection.Id, out _);
+        return Task.CompletedTask;
     }
     
     public override Task StartAsync(CancellationToken token)

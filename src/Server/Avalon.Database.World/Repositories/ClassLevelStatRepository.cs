@@ -2,7 +2,7 @@ using Avalon.Domain.World;
 using Avalon.World.Public.Enums;
 using Microsoft.EntityFrameworkCore;
 
-namespace Avalon.World.Database.Repositories;
+namespace Avalon.Database.World.Repositories;
 
 public interface IClassLevelStatRepository
 {

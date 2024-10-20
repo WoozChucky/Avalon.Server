@@ -10,12 +10,12 @@ using Microsoft.Extensions.Options;
 using Pomelo.EntityFrameworkCore.MySql.Infrastructure;
 using OperatingSystem = Avalon.Domain.Auth.OperatingSystem;
 
-namespace Avalon.Auth.Database;
+namespace Avalon.Database.Auth;
 
-public class AuthDbContext : DbContext
+public class AuthDbContext(ILoggerFactory loggerFactory, IOptions<DatabaseConfiguration> opts)
+    : DbContext
 {
-    private readonly ILoggerFactory _loggerFactory;
-    private readonly string _connectionString;
+    private readonly string _connectionString = opts.Value.Auth!.ConnectionString;
     
     public DbSet<Account> Accounts { get; set; } = null!;
     public DbSet<Device> Devices { get; set; } = null!;
@@ -24,15 +24,9 @@ public class AuthDbContext : DbContext
     public DbSet<AvalonToken> Tokens { get; set; } = null!;
     public DbSet<Domain.Auth.World> Worlds { get; set; } = null!;
 
-    public AuthDbContext(ILoggerFactory loggerFactory, IOptions<DatabaseConfiguration> opts)
-    {
-        _loggerFactory = loggerFactory;
-        _connectionString = opts.Value.Auth!.ConnectionString;
-    }
-
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
-        optionsBuilder.UseLoggerFactory(_loggerFactory);
+        optionsBuilder.UseLoggerFactory(loggerFactory);
         
         optionsBuilder.UseMySql(_connectionString, ServerVersion.AutoDetect(_connectionString), mysql =>
         {

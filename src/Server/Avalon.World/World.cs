@@ -1,10 +1,10 @@
-using Avalon.Auth.Database.Repositories;
 using Avalon.Common.Mathematics;
 using Avalon.Common.Utils;
+using Avalon.Database.Auth.Repositories;
 using Avalon.Database.Character.Repositories;
+using Avalon.Database.World.Repositories;
 using Avalon.Domain.Auth;
 using Avalon.World.Configuration;
-using Avalon.World.Database.Repositories;
 using Avalon.World.Entities;
 using Avalon.World.Maps;
 using Avalon.World.Pools;
@@ -243,7 +243,7 @@ public class World : IWorld
         }
     }
 
-    public void OnScriptsHotReload(List<Type> aiScriptTypes)
+    private void OnScriptsHotReload(List<Type> aiScriptTypes)
     {
         var chunks = Grid.Maps.AsParallel().SelectMany(map => map.Chunks);
         var scriptTypeDict = aiScriptTypes.ToDictionary(t => t.Name, StringComparer.InvariantCultureIgnoreCase);
@@ -269,7 +269,6 @@ public class World : IWorld
                 chunk.AddCreature(entity);
             }
         });
-        
     }
     
 }

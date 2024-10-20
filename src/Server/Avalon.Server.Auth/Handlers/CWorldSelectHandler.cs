@@ -1,4 +1,4 @@
-using Avalon.Auth.Database.Repositories;
+using Avalon.Database.Auth.Repositories;
 using Avalon.Hosting.Networking;
 using Avalon.Infrastructure;
 using Avalon.Network.Packets.Auth;

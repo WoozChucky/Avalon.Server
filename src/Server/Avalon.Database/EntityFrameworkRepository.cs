@@ -8,15 +8,10 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Avalon.Database;
 
-public class EntityFrameworkRepository<TEntity, TKey> : IRepository<TEntity, TKey>
+public abstract class EntityFrameworkRepository<TEntity, TKey>(DbContext dbContext) : IRepository<TEntity, TKey>
     where TEntity : class, IDbEntity<TKey>
 {
-    protected readonly DbContext Context;
-
-    protected EntityFrameworkRepository(DbContext dbContext)
-    {
-        Context = dbContext;
-    }
+    protected readonly DbContext Context = dbContext;
 
     public async Task<IList<TEntity>> FindAllAsync(bool track = false)
     {

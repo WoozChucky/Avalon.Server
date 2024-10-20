@@ -1,7 +1,7 @@
 using Avalon.Domain.World;
 using Microsoft.EntityFrameworkCore;
 
-namespace Avalon.World.Database.Repositories;
+namespace Avalon.Database.World.Repositories;
 
 public interface ICharacterLevelExperienceRepository
 {

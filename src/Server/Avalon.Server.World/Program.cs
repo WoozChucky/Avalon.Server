@@ -1,4 +1,5 @@
 using Avalon.Database.Character;
+using Avalon.Database.World;
 using Avalon.Hosting;
 using Avalon.Infrastructure;
 using Avalon.Network.Packets.Abstractions.Attributes;
