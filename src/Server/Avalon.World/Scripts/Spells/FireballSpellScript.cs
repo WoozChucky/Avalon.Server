@@ -1,6 +1,7 @@
 using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.World.Public;
+using Avalon.World.Public.Enums;
 using Avalon.World.Public.Scripts;
 using Avalon.World.Public.Spells;
 using Avalon.World.Public.Units;

@@ -2,6 +2,7 @@
 // Avalon MMORPG Game licenses this file to you under the MIT license.
 
 using Avalon.Network.Packets.State;
+using Avalon.World.Public.Enums;
 using Avalon.World.Public.Spells;
 
 namespace Avalon.World.Public.Units;

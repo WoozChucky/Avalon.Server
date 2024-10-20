@@ -3,6 +3,7 @@ using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Network.Packets.State;
 using Avalon.World.Public.Creatures;
+using Avalon.World.Public.Enums;
 using Avalon.World.Public.Scripts;
 using Avalon.World.Public.Spells;
 using Avalon.World.Public.Units;
@@ -45,7 +46,7 @@ public class Creature : ICreature
         Vector3 direction = Vector3.Normalize(target - Position);
         float yawRadians = Mathf.Atan2(direction.x, direction.z);
         float yawDegrees = yawRadians * Mathf.Rad2Deg;
-        Vector3 orientation = new Vector3(0.0f, yawDegrees, 0.0f);
+        Vector3 orientation = new(0.0f, yawDegrees, 0.0f);
         return Mathf.Abs(Orientation.y - orientation.y) < threshold;
     }
 

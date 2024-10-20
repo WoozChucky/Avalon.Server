@@ -1,3 +1,4 @@
+using Avalon.Common.ValueObjects;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Units;
 
@@ -13,11 +14,11 @@ public interface ICharacter : IUnit
 
     ICharacterSpells Spells { get; }
 
-    uint ChunkId { get; set; }
+    ChunkId ChunkId { get; set; }
 
     string Name { get; set; }
 
-    ushort Map { get; set; }
+    MapId Map { get; set; }
     ulong Experience { get; set; }
     ulong RequiredExperience { get; set; }
 
