@@ -197,7 +197,9 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         
         _realPreviousTime = _realCurrentTime;
 
+        //TODO(Nuno): Make this configurable
         if (false /* Throttle TPS calculation */)
+#pragma warning disable CS0162 // Unreachable code detected
         {
             // Increment the tick counter
             _tickCount++;
@@ -211,6 +213,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
                 _lastTpsCalculationTime = DateTime.Now;
             }
         }
+#pragma warning restore CS0162 // Unreachable code detected
     }
     
     private void Update(TimeSpan elapsedTime)
