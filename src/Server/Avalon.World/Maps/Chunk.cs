@@ -317,7 +317,7 @@ public class Chunk : IChunk
         }
     }
 
-    private void BroadcastUnitAttackAnimation(IUnit attacker, ISpell spell)
+    private void BroadcastUnitAttackAnimation(IUnit attacker, ISpell? spell)
     {
         // Check if unit is part of this chunk's characters or creatures
         var valid = Creatures.TryGetValue(attacker.Guid, out _) || Characters.TryGetValue(attacker.Guid, out _);
