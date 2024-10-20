@@ -16,7 +16,7 @@ namespace Avalon.Hosting.Extensions;
 
 public static class ServiceCollectionExtensions
 {
-    private const string MessageTemplate = "[{Timestamp:HH:mm:ss.fff}][{ThreadId}][{Level:u3}]{Message:lj} {NewLine:1}{Exception:1}";
+    private const string MESSAGE_TEMPLATE = "[{Timestamp:HH:mm:ss.fff}][{ThreadId}][{Level:u3}]{Message:lj} {NewLine:1}{Exception:1}";
     
     public static IServiceCollection AddCoreServices(this IServiceCollection services,
         IConfiguration configuration, ComponentType component)
@@ -102,7 +102,7 @@ public static class ServiceCollectionExtensions
         config.Enrich.WithExceptionData();
 
         // sink to console
-        config.WriteTo.Console(outputTemplate: MessageTemplate);
+        config.WriteTo.Console(outputTemplate: MESSAGE_TEMPLATE);
 
         config.ReadFrom.Configuration(configuration);
 

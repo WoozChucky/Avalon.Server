@@ -112,7 +112,7 @@ public class CharacterEntity : ICharacter
         OnUnitDamaged?.Invoke(this, attacker, damage);
     }
 
-    public void SendAttackAnimation(ISpell spell)
+    public void SendAttackAnimation(ISpell? spell)
     {
         OnUnitAttackAnimation?.Invoke(this, spell);
     }
