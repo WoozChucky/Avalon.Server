@@ -49,14 +49,12 @@ public abstract class ServerBase<T> : BackgroundService, IServerBase where T : I
     private readonly List<Func<IConnection, bool>> _connectionListeners = new();
     private readonly Stopwatch _serverTimer = new();
     private readonly CancellationTokenSource _stoppingToken = new();
-    private readonly PluginExecutor _pluginExecutor;
     private readonly IServiceProvider _serviceProvider;
 
-    protected ServerBase(IPacketManager packetManager, ILogger logger, PluginExecutor pluginExecutor,
+    protected ServerBase(IPacketManager packetManager, ILogger logger,
         IServiceProvider serviceProvider, IOptions<HostingConfiguration> hostingOptions)
     {
         _logger = logger;
-        _pluginExecutor = pluginExecutor;
         _serviceProvider = serviceProvider;
         PacketManager = packetManager;
         Port = hostingOptions.Value.Port;
@@ -82,8 +80,6 @@ public abstract class ServerBase<T> : BackgroundService, IServerBase where T : I
     public async Task RemoveConnection(IConnection connection)
     {
         Connections.Remove(connection.Id, out _);
-
-        await _pluginExecutor.ExecutePlugins<IConnectionLifetimeListener>(x => x.OnDisconnectedAsync(_stoppingToken.Token));
     }
     
     public override Task StartAsync(CancellationToken token)
@@ -108,8 +104,6 @@ public abstract class ServerBase<T> : BackgroundService, IServerBase where T : I
         // cannot inject tcp client here
         var connection = ActivatorUtilities.CreateInstance<T>(scope.ServiceProvider, client, this);
         Connections.TryAdd(connection.Id, connection);
-
-        await _pluginExecutor.ExecutePlugins<IConnectionLifetimeListener>(x => x.OnConnectedAsync(_stoppingToken.Token));
 
         // accept new connections on another thread
         Listener.BeginAcceptTcpClient(OnClientAccepted, Listener);

@@ -17,10 +17,9 @@ public class AuthServer(
     IServiceProvider serviceProvider,
     IPacketManager packetManager,
     ILoggerFactory loggerFactory,
-    PluginExecutor pluginExecutor,
     IOptions<HostingConfiguration> hostingOptions,
     IOptions<HostingSecurity> securityOptions)
-    : ServerBase<AuthConnection>(packetManager, loggerFactory.CreateLogger<AuthServer>(), pluginExecutor,
+    : ServerBase<AuthConnection>(packetManager, loggerFactory.CreateLogger<AuthServer>(),
         serviceProvider, hostingOptions)
 {
     public new ImmutableArray<IAuthConnection> Connections =>

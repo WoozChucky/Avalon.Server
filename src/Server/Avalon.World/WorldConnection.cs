@@ -64,9 +64,8 @@ public class WorldConnection : Connection, IWorldConnection
     private readonly ConcurrentQueue<(Task<object>, Action<object>)> _genericTaskQueue = new();
     private readonly ConcurrentQueue<(Task, Action)> _taskQueue = new();
 
-    public WorldConnection(IWorldServer server, TcpClient client, ILoggerFactory loggerFactory, 
-        PluginExecutor pluginExecutor, IPacketReader packetReader) 
-        : base(loggerFactory.CreateLogger<WorldConnection>(), (server as IServerBase)!, pluginExecutor, packetReader)
+    public WorldConnection(IWorldServer server, TcpClient client, ILoggerFactory loggerFactory,IPacketReader packetReader)
+        : base(loggerFactory.CreateLogger<WorldConnection>(), (server as IServerBase)!, packetReader)
     {
         _server = server;
         _receiveQueue = new LockedQueue<WorldPacket>();

@@ -67,7 +67,6 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
 
     private readonly ConcurrentDictionary<Type, (PropertyInfo packetProperty, PropertyInfo connectionProperty)> _propertyCache = new();
     private readonly ILogger<WorldServer> _logger;
-    private readonly PluginExecutor _pluginExecutor;
     private readonly World _world;
     private readonly Stopwatch _gameTime = new();
     private readonly Stopwatch _serverTimer = new();
@@ -79,7 +78,6 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
 
     public WorldServer(IPacketManager packetManager,
         ILoggerFactory loggerFactory,
-        PluginExecutor pluginExecutor,
         IServiceProvider serviceProvider,
         IOptions<HostingConfiguration> hostingOptions,
         IWorld world,
@@ -87,7 +85,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         ICreatureSpawner creatureSpawner,
         IReplicatedCache cache,
         IScriptHotReloader scriptHotReloader,
-        INavigationMeshBaker navigationMeshBaker) : base(packetManager, loggerFactory.CreateLogger<WorldServer>(), pluginExecutor,
+        INavigationMeshBaker navigationMeshBaker) : base(packetManager, loggerFactory.CreateLogger<WorldServer>(),
         serviceProvider,
         hostingOptions)
     {
@@ -97,7 +95,6 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         _scriptHotReloader = scriptHotReloader;
         _navigationMeshBaker = navigationMeshBaker;
         _logger = loggerFactory.CreateLogger<WorldServer>();
-        _pluginExecutor = pluginExecutor;
         _world = world as World ?? throw new InvalidOperationException("Invalid world instance");
 
         PacketHandlers = new Dictionary<NetworkPacketType, IWorldPacketHandler>();
@@ -140,9 +137,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         {
             try
             {
-                await _pluginExecutor.ExecutePlugins<IGameTickListener>(x => x.PreUpdateAsync(stoppingToken));
                 await Tick();
-                await _pluginExecutor.ExecutePlugins<IGameTickListener>(x => x.PostUpdateAsync(stoppingToken));
             }
             catch (Exception e)
             {

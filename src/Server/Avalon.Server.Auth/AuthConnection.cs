@@ -29,9 +29,9 @@ public class AuthConnection : Connection, IAuthConnection
     
     private byte[] _handshakeData = [];
     
-    public AuthConnection(IServerBase server, TcpClient client, ILoggerFactory loggerFactory, 
-        PluginExecutor pluginExecutor, IPacketReader packetReader, IServiceScopeFactory serviceScopeFactory) 
-        : base(loggerFactory.CreateLogger<AuthConnection>(), server, pluginExecutor, packetReader)
+    public AuthConnection(IServerBase server, TcpClient client, ILoggerFactory loggerFactory,
+        IPacketReader packetReader, IServiceScopeFactory serviceScopeFactory)
+        : base(loggerFactory.CreateLogger<AuthConnection>(), server, packetReader)
     {
         _serviceScopeFactory = serviceScopeFactory;
         Server = (server as AuthServer)!;
