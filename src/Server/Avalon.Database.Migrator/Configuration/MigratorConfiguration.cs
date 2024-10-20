@@ -12,7 +12,7 @@ public class MigratorConfiguration
     /// <c>true</c> if enabled; otherwise, <c>false</c>.
     /// </value>
     public bool Enabled { get; set; }
-    
+
     /// <summary>
     /// Gets or sets a value indicating whether the process is in dry run mode.
     /// </summary>

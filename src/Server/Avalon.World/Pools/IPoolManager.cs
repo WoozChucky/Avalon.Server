@@ -12,7 +12,7 @@ namespace Avalon.World.Pools;
 public interface IPoolManager
 {
     void SpawnStartingEntities(Chunk chunk);
-    
+
     void SpawnEntity(Chunk chunk, ICreature creature);
 }
 
@@ -35,16 +35,16 @@ public class PoolManager : IPoolManager
     public void SpawnStartingEntities(Chunk chunk)
     {
         _logger.LogDebug("Spawning starting entities for Chunk {ChunkId}", chunk.Id);
-        
+
         foreach (var virtualCreature in chunk.Metadata.Creatures)
         {
             var creature = _creatureSpawner.Spawn(virtualCreature);
-            
+
             var scriptType = _scriptManager.GetAiScript(creature.ScriptName);
             if (scriptType is not null)
             {
                 var script = ActivatorUtilities.CreateInstance(_serviceProvider, scriptType, [creature, chunk]);
-                creature.Script = (AiScript) script;
+                creature.Script = (AiScript)script;
             }
 
             chunk.AddCreature(creature);
@@ -56,16 +56,16 @@ public class PoolManager : IPoolManager
         foreach (var virtualCreature in chunk.Metadata.Creatures)
         {
             if (virtualCreature.Position != creature.Metadata.StartPosition) continue;
-            
+
             _logger.LogDebug("Spawning entity {CreatureId} for Chunk {ChunkId}", virtualCreature.PrototypeIndex, chunk.Id);
-            
+
             var newCreature = _creatureSpawner.Spawn(virtualCreature);
-            
+
             var scriptType = _scriptManager.GetAiScript(newCreature.ScriptName);
             if (scriptType is not null)
             {
                 var script = ActivatorUtilities.CreateInstance(_serviceProvider, scriptType, [newCreature, chunk]);
-                newCreature.Script = (AiScript) script;
+                newCreature.Script = (AiScript)script;
             }
 
             chunk.AddCreature(newCreature);

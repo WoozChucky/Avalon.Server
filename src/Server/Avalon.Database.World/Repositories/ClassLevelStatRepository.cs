@@ -18,7 +18,7 @@ public class ClassLevelStatRepository : IClassLevelStatRepository
     {
         _dbContext = dbContext;
     }
-    
+
     public async Task<IReadOnlyCollection<ClassLevelStat>> FindAllAsync()
     {
         return await _dbContext.ClassLevelStats

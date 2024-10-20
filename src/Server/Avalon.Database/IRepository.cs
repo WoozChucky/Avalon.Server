@@ -11,7 +11,7 @@ public interface IRepository<TEntity, in TKey> where TEntity : class, IDbEntity<
     Task<IList<TEntity>> FindAllAsync(bool track = false);
     Task<TEntity?> FindByIdAsync(TKey id, bool track = false);
     Task<IList<TEntity>> FindByAsync(Expression<Func<TEntity, bool>> predicate);
-    
+
     Task<TEntity> CreateAsync(TEntity entity);
     Task<IList<TEntity>> CreateAsync(IList<TEntity> entities);
     Task<TEntity> UpdateAsync(TEntity entity);

@@ -9,7 +9,7 @@ public class ChatMessageHandler : IWorldPacketHandler<CChatMessagePacket>
     {
         var message = ctx.Packet.Message;
         var dateTime = ctx.Packet.DateTime;
-        
+
         /*
          *
         var message = packet.Message.Trim();
@@ -65,7 +65,7 @@ public class ChatMessageHandler : IWorldPacketHandler<CChatMessagePacket>
             await Task.WhenAll(tasks);
         }
         */
-        
+
         return Task.CompletedTask;
     }
 }

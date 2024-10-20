@@ -13,24 +13,24 @@ public class SUnitFinishCastPacket : Packet
     public static NetworkPacketType PacketType = NetworkPacketType.SMSG_UNIT_FINISH_CAST;
     public static NetworkProtocol Protocol = NetworkProtocol.Tcp;
     public static NetworkPacketFlags Flags = NetworkPacketFlags.Encrypted;
-    
+
     [ProtoMember(1)] public ulong Caster { get; set; }
     [ProtoMember(2)] public uint SpellId { get; set; }
-    
+
     public static NetworkPacket Create(ObjectGuid caster, SpellId spell, Func<byte[], byte[]> encryptFunc)
     {
         using var memoryStream = new MemoryStream();
-        
+
         var p = new SUnitFinishCastPacket
         {
             Caster = caster.RawValue,
             SpellId = spell.Value
         };
-        
+
         Serializer.Serialize(memoryStream, p);
-        
+
         var buffer = encryptFunc(memoryStream.ToArray());
-        
+
         return new NetworkPacket
         {
             Header = new NetworkPacketHeader

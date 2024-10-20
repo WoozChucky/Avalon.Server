@@ -18,9 +18,9 @@ public interface IAvalonCryptoSession
 public class AvalonCryptoSession : IAvalonCryptoSession
 {
     private readonly object _lock = new object();
-    
+
     private volatile bool _initialized;
-    
+
     private readonly AsymmetricCipherKeyPair _ownKeyPair;
     private ECPublicKeyParameters _otherEndPublicKey;
     private ECPublicKeyParameters _ownPublicKey;
@@ -30,7 +30,7 @@ public class AvalonCryptoSession : IAvalonCryptoSession
     private readonly SecureRandom _secureRandom;
     private byte[] _sessionKey;
     private readonly byte[] _nonce = new byte[12];
-    
+
     public AvalonCryptoSession(AsymmetricCipherKeyPair? keyPair = null)
     {
         _initialized = false;
@@ -41,26 +41,26 @@ public class AvalonCryptoSession : IAvalonCryptoSession
         _secureRandom.NextBytes(_nonce);
         _ownKeyPair = keyPair ?? AsymmetricCipher.GenerateECDHKeyPair(256);
     }
-    
+
     public void Initialize(byte[] otherEndPublicKeyBytes)
     {
         if (_initialized) throw new InvalidOperationException("Crypto session already initialized");
         _initialized = true;
-        
-        if (otherEndPublicKeyBytes == null || otherEndPublicKeyBytes.Length == 0) 
+
+        if (otherEndPublicKeyBytes == null || otherEndPublicKeyBytes.Length == 0)
             throw new ArgumentException("Invalid public key", nameof(otherEndPublicKeyBytes));
-        
+
         // Parse the byte array to reconstruct the public key
         _otherEndPublicKey = AsymmetricCipher.GetPublicKeyFromBytes(otherEndPublicKeyBytes);
-        
+
         _otherEndPublicKeyBytes = AsymmetricCipher.GetPublicKeyBytes(_otherEndPublicKey);
-        
+
         _sessionKey = AsymmetricCipher.CalculateSharedSecret(_ownKeyPair, _otherEndPublicKey);
-        
+
         _ownPublicKey = AsymmetricCipher.GetPublicKeyFromKeyPair(_ownKeyPair);
-        
+
         _ownPublicKeyBytes = AsymmetricCipher.GetPublicKeyBytes(_ownPublicKey);
-        
+
         _encryptCipher = CipherUtilities.GetCipher("AES/GCM/NoPadding");
     }
 
@@ -68,7 +68,7 @@ public class AvalonCryptoSession : IAvalonCryptoSession
     {
         return _ownPublicKeyBytes;
     }
-    
+
     public byte[] GetOtherEndPublicKey()
     {
         return _otherEndPublicKeyBytes;
@@ -77,7 +77,7 @@ public class AvalonCryptoSession : IAvalonCryptoSession
     public byte[] Encrypt(byte[] data)
     {
         if (!_initialized) throw new InvalidOperationException("Crypto session not initialized");
-        
+
         lock (_lock)
         {
             // Generate a random 96-bit nonce (IV)
@@ -87,15 +87,15 @@ public class AvalonCryptoSession : IAvalonCryptoSession
             // Create an AES-GCM cipher
             var parameters = new ParametersWithIV(new KeyParameter(_sessionKey), nonce);
             _encryptCipher.Init(true, parameters);
-        
+
             // Encrypt the data
             var ciphertext = _encryptCipher.DoFinal(data);
-        
+
             _encryptCipher.Reset();
 
             // Combine the nonce and ciphertext
             var encryptedData = nonce.Concat(ciphertext).ToArray();
-        
+
             return encryptedData;
         }
     }
@@ -116,7 +116,7 @@ public class AvalonCryptoSession : IAvalonCryptoSession
 
             // Decrypt the data
             var decryptedData = _encryptCipher.DoFinal(ciphertext);
-        
+
             _encryptCipher.Reset();
 
             return decryptedData;

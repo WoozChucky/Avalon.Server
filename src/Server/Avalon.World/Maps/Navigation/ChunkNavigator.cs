@@ -13,22 +13,22 @@ public class ChunkNavigator : IChunkNavigator
     private DtNavMesh? _navMesh;
     private DtFindPathOption _findPathOption;
     private IDtQueryFilter _queryFilter;
-    
+
     private const bool EnableRaycast = true;
     private const float StepSize = 0.5f;
     private const float Slop = 0.01f;
     private const int MaxSmooth = 2048;
     private const int MaxPolys = 256;
-    
+
     private static readonly RcVec3f PolyPickExt = new(2, 4, 2);
 
     public object? Mesh => _navMesh;
-    
+
     public ChunkNavigator(ILoggerFactory loggerFactory)
     {
         _logger = loggerFactory.CreateLogger<ChunkNavigator>();
     }
-    
+
     public async Task LoadAsync(string meshFilename)
     {
         var path = Path.Combine(Directory.GetCurrentDirectory(), "Maps", meshFilename);
@@ -54,7 +54,7 @@ public class ChunkNavigator : IChunkNavigator
             var startPos = new RcVec3f(-start.x, start.y, start.z); // new RcVec3f(-23.1f, 100, 40.5f);
             var endPos = new RcVec3f(-end.x, end.y, end.z); // RcVec3f(-5.6f, 100, 31f);
             var path = new List<long>();
-        
+
             var status = query.FindNearestPoly(startPos, PolyPickExt, _queryFilter, out var startRef, out _, out _);
             CheckStatus(status);
             if (startRef == 0)
@@ -62,7 +62,7 @@ public class ChunkNavigator : IChunkNavigator
                 _logger.LogWarning("Failed to find start polygon");
                 return [];
             }
-            
+
             status = query.FindNearestPoly(endPos, PolyPickExt, _queryFilter, out var endRef, out _, out _);
             CheckStatus(status);
             if (endRef == 0)
@@ -70,7 +70,7 @@ public class ChunkNavigator : IChunkNavigator
                 _logger.LogWarning("Failed to find end polygon");
                 return [];
             }
-            
+
             status = query.FindPath(startRef, endRef, startPos, endPos, _queryFilter, ref path, _findPathOption);
             CheckStatus(status);
             if (path.Count == 0)
@@ -80,16 +80,16 @@ public class ChunkNavigator : IChunkNavigator
             }
 
             var pathCount = path.Count;
-            
+
             query.ClosestPointOnPoly(startRef, startPos, out var iterPos, out _);
             query.ClosestPointOnPoly(path[pathCount - 1], endPos, out var targetPos, out _);
-            
+
             var smoothPath = new List<RcVec3f>();
             smoothPath.Add(iterPos);
-            
+
             Span<long> visited = stackalloc long[16];
             var nvisited = 0;
-            
+
             while (0 < pathCount && smoothPath.Count < MaxSmooth)
             {
                 // Find location to steer towards.
@@ -191,7 +191,7 @@ public class ChunkNavigator : IChunkNavigator
                     smoothPath.Add(iterPos);
                 }
             }
-        
+
             return smoothPath.Select(v => new Vector3(-v.X, v.Y, v.Z)).ToList();
         }
         catch (Exception e)
@@ -200,7 +200,7 @@ public class ChunkNavigator : IChunkNavigator
             return [];
         }
     }
-    
+
     public bool HasVisibility(Vector3 start, Vector3 end)
     {
         try
@@ -236,7 +236,7 @@ public class ChunkNavigator : IChunkNavigator
 
             // Perform the raycast
             var hitResult = query.Raycast(startRef, startPos, endPos, _queryFilter, out var hit, out _, ref path);
-            
+
             if (hitResult.Failed() || hit < 1.0f)
             {
                 // There is an obstacle between start and end
@@ -261,17 +261,17 @@ public class ChunkNavigator : IChunkNavigator
             {
                 throw new Exception("In progress");
             }
-                
+
             if (status.Failed())
             {
                 throw new Exception("Failed");
             }
-                
+
             if (status.IsEmpty())
             {
                 throw new Exception("Empty");
             }
-                
+
             if (status.IsPartial())
             {
                 throw new Exception("Partial");

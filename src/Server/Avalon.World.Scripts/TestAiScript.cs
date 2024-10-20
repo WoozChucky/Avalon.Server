@@ -9,7 +9,7 @@ namespace Avalon.World.Scripts;
 public class TestAiScript : AiScript
 {
     private readonly ILogger<TestAiScript> _logger;
-    
+
     public TestAiScript(ILoggerFactory loggerFactory, ICreature creature, IChunk chunk) : base(creature, chunk)
     {
         _logger = loggerFactory.CreateLogger<TestAiScript>();

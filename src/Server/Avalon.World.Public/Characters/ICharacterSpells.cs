@@ -6,10 +6,10 @@ namespace Avalon.World.Public.Characters;
 public interface ICharacterSpells
 {
     void Load(IReadOnlyCollection<ISpell> spells);
-    
+
     ISpell? this[SpellId spellId] { get; }
-    
+
     bool IsCasting { get; }
-    
+
     void Update(TimeSpan deltaTime);
 }

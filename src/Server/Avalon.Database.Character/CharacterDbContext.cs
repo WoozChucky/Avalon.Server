@@ -13,7 +13,7 @@ public class CharacterDbContext : DbContext
 {
     private readonly ILoggerFactory _loggerFactory;
     private readonly string _connectionString;
-    
+
     public DbSet<Domain.Characters.Character> Characters { get; set; } = null!;
     public DbSet<CharacterStats> CharacterStats { get; set; } = null!;
     public DbSet<CharacterInventory> CharacterInventory { get; set; } = null!;
@@ -30,7 +30,7 @@ public class CharacterDbContext : DbContext
         optionsBuilder
             .UseLoggerFactory(_loggerFactory)
             .EnableSensitiveDataLogging();
-        
+
         optionsBuilder.UseMySql(_connectionString, ServerVersion.AutoDetect(_connectionString), mysql =>
         {
             // because MySQL does not support schemas: https://github.com/PomeloFoundation/Pomelo.EntityFrameworkCore.MySql/issues/1100
@@ -45,7 +45,7 @@ public class CharacterDbContext : DbContext
         Configure(modelBuilder.Entity<CharacterInventory>());
         Configure(modelBuilder.Entity<CharacterSpell>());
     }
-    
+
     private static void Configure(EntityTypeBuilder<Domain.Characters.Character> builder)
     {
         builder.HasKey(b => b.Id);
@@ -63,76 +63,76 @@ public class CharacterDbContext : DbContext
                 v => new AccountId(v)
             );
     }
-    
+
     private static void Configure(EntityTypeBuilder<CharacterStats> builder)
     {
         builder.HasKey(b => b.CharacterId);
-        
+
         builder.Property(b => b.CharacterId)
             .HasConversion(
                 v => v.Value,
                 v => new CharacterId(v)
             ).IsRequired();
-        
+
         builder.HasOne(e => e.Character)
             .WithOne()
             .HasForeignKey<CharacterStats>(e => e.CharacterId)
             .OnDelete(DeleteBehavior.Cascade);
-        
+
         builder
             .ToTable(t => t.HasCheckConstraint(
-                "CK_CharacterStats_MinValues", 
+                "CK_CharacterStats_MinValues",
                 "MaxHealth >= 0 AND Stamina >= 0 AND Strength >= 0 AND Agility >= 0 AND Intellect >= 0"
                 ));
-        
+
         builder.HasIndex(b => b.CharacterId);
     }
-    
+
     private static void Configure(EntityTypeBuilder<CharacterInventory> builder)
     {
         builder.HasKey(b => new { b.CharacterId, b.Container, b.Slot });
-        
+
         builder.Property(b => b.CharacterId)
             .HasConversion(
                 v => v.Value,
                 v => new CharacterId(v)
             ).IsRequired();
-        
+
         builder.Property(b => b.ItemId)
             .HasConversion(
                 v => v.Value,
                 v => new ItemInstanceId(v)
             );
-        
+
         builder.HasOne(e => e.Character)
             .WithMany()
             .HasForeignKey(e => e.CharacterId)
             .OnDelete(DeleteBehavior.Cascade);
-        
+
         builder.HasIndex(b => b.CharacterId);
     }
-    
+
     private static void Configure(EntityTypeBuilder<CharacterSpell> builder)
     {
         builder.HasKey(b => new { b.CharacterId, b.SpellId });
-        
+
         builder.Property(b => b.CharacterId)
             .HasConversion(
                 v => v.Value,
                 v => new CharacterId(v)
             ).IsRequired();
-        
+
         builder.Property(b => b.SpellId)
             .HasConversion(
                 v => v.Value,
                 v => new SpellId(v)
             );
-        
+
         builder.HasOne(e => e.Character)
             .WithMany()
             .HasForeignKey(e => e.CharacterId)
             .OnDelete(DeleteBehavior.Cascade);
-        
+
         builder.HasIndex(b => b.CharacterId);
     }
 }

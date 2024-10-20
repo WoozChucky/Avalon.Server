@@ -15,7 +15,7 @@ public interface IChunk
     List<IChunk> Neighbors { get; set; }
     IReadOnlyDictionary<ObjectGuid, ICharacter> Characters { get; }
     IReadOnlyDictionary<ObjectGuid, ICreature> Creatures { get; }
-    
+
     void AddCharacter(IWorldConnection connection);
     void RemoveCharacter(IWorldConnection connection);
     void RemoveCreature(ICreature creature);

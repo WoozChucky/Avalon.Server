@@ -18,7 +18,7 @@ public class StaticData(
         SpellTemplates = (await spellTemplateRepository.FindAllAsync()).AsReadOnly();
         CharacterLevelExperiences = await characterLevelExperienceRepository.GetAllAsync();
     }
-    
+
     public IReadOnlyCollection<CharacterCreateInfo> CharacterCreateInfos { get; private set; }
     public IReadOnlyCollection<ClassLevelStat> ClassLevelStats { get; private set; }
     public IReadOnlyCollection<ItemTemplate> ItemTemplates { get; private set; }

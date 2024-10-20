@@ -22,21 +22,21 @@ public class AccountController : BaseController
         _authContext = authContext;
         _mapper = mapper;
     }
-    
+
     [HttpGet(Name = "GetAccount")]
     public async Task<AccountDto> Get()
     {
         var mapped = _mapper.Map<AccountDto>(_authContext.Account ?? throw new Exception("Account not loaded"));
         return await Task.FromResult(mapped);
     }
-    
+
     [AllowAnonymous]
     [HttpPost("authenticate", Name = "Authenticate")]
     public async Task<AuthenticateResponse> Authenticate([FromBody] AuthenticateRequest model)
     {
         return await _accountService.Authenticate(model, IpAddress, CancellationToken);
     }
-    
+
     [AllowAnonymous]
     [HttpPost("register", Name = "Register")]
     public async Task<RegisterResponse> Register([FromBody] RegisterRequest model)

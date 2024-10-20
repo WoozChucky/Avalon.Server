@@ -16,7 +16,7 @@ public class AuthDbContext(ILoggerFactory loggerFactory, IOptions<DatabaseConfig
     : DbContext
 {
     private readonly string _connectionString = opts.Value.Auth!.ConnectionString;
-    
+
     public DbSet<Account> Accounts { get; set; } = null!;
     public DbSet<Device> Devices { get; set; } = null!;
     public DbSet<MFASetup> MfaSetups { get; set; } = null!;
@@ -27,7 +27,7 @@ public class AuthDbContext(ILoggerFactory loggerFactory, IOptions<DatabaseConfig
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
         optionsBuilder.UseLoggerFactory(loggerFactory);
-        
+
         optionsBuilder.UseMySql(_connectionString, ServerVersion.AutoDetect(_connectionString), mysql =>
         {
             // because MySQL does not support schemas: https://github.com/PomeloFoundation/Pomelo.EntityFrameworkCore.MySql/issues/1100
@@ -44,7 +44,7 @@ public class AuthDbContext(ILoggerFactory loggerFactory, IOptions<DatabaseConfig
         Configure(modelBuilder.Entity<AvalonToken>());
         Configure(modelBuilder.Entity<Domain.Auth.World>());
     }
-    
+
     private static void Configure(EntityTypeBuilder<Account> builder)
     {
         builder.Property(b => b.Id)
@@ -52,7 +52,7 @@ public class AuthDbContext(ILoggerFactory loggerFactory, IOptions<DatabaseConfig
                 v => v.Value,
                 v => new AccountId(v)
             ).IsRequired();
-        
+
         builder.Property(b => b.Locale)
             .HasConversion(new EnumToStringConverter<AccountLocale>());
         builder.Property(b => b.Os)
@@ -63,7 +63,7 @@ public class AuthDbContext(ILoggerFactory loggerFactory, IOptions<DatabaseConfig
 
         var saltBytes = Encoding.UTF8.GetBytes(salt);
         var hashBytes = Encoding.UTF8.GetBytes(hash);
-        
+
         builder.HasData([
             new Account
             {
@@ -94,61 +94,61 @@ public class AuthDbContext(ILoggerFactory loggerFactory, IOptions<DatabaseConfig
     private static void Configure(EntityTypeBuilder<Device> builder)
     {
         builder.HasKey(b => b.Id);
-        
+
         builder.Property(b => b.AccountId)
             .HasConversion(
                 v => v.Value,
                 v => new AccountId(v)
             ).IsRequired();
-        
+
         builder.HasOne(e => e.Account)
             .WithMany()
             .HasForeignKey(e => e.AccountId)
             .OnDelete(DeleteBehavior.Cascade);
     }
-    
+
     private static void Configure(EntityTypeBuilder<MFASetup> builder)
     {
         builder.HasKey(b => b.Id);
-        
+
         builder.Property(b => b.AccountId)
             .HasConversion(
                 v => v.Value,
                 v => new AccountId(v)
             ).IsRequired();
-        
+
         builder.HasOne(e => e.Account)
             .WithMany()
             .HasForeignKey(e => e.AccountId)
             .OnDelete(DeleteBehavior.Cascade);
     }
-    
+
     private static void Configure(EntityTypeBuilder<RefreshToken> builder)
     {
         builder.HasKey(b => b.Id);
-        
+
         builder.Property(b => b.AccountId)
             .HasConversion(
                 v => v.Value,
                 v => new AccountId(v)
             ).IsRequired();
-        
+
         builder.HasOne(e => e.Account)
             .WithMany()
             .HasForeignKey(e => e.AccountId)
             .OnDelete(DeleteBehavior.Cascade);
     }
-    
+
     private static void Configure(EntityTypeBuilder<AvalonToken> builder)
     {
         builder.HasKey(b => b.Id);
-        
+
         builder.Property(b => b.AccountId)
             .HasConversion(
                 v => v.Value,
                 v => new AccountId(v)
             ).IsRequired();
-        
+
         builder.HasOne(e => e.Account)
             .WithMany()
             .HasForeignKey(e => e.AccountId)
@@ -162,7 +162,7 @@ public class AuthDbContext(ILoggerFactory loggerFactory, IOptions<DatabaseConfig
                 v => v.Value,
                 v => new WorldId(v)
             ).IsRequired();
-        
+
         builder.HasData([
             new Domain.Auth.World
             {

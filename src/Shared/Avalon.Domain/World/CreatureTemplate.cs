@@ -12,11 +12,11 @@ public class CreatureTemplate : IDbEntity<CreatureTemplateId>, ICreatureMetadata
     [Key]
     [Required]
     public CreatureTemplateId Id { get; set; }
-    
+
     public string Name { get; set; } = string.Empty;
-    
+
     public string SubName { get; set; } = string.Empty;
-    
+
     public string IconName { get; set; } = string.Empty;
 
     public short MinLevel { get; set; }
@@ -70,7 +70,7 @@ public class CreatureTemplate : IDbEntity<CreatureTemplateId>, ICreatureMetadata
     public int BaseAttackTime { get; set; }
 
     public int RangeAttackTime { get; set; }
-    
+
     [NotMapped]
     public Vector3 StartPosition { get; set; }
 }

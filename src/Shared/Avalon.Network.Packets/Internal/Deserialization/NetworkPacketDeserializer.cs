@@ -9,7 +9,7 @@ namespace Avalon.Network.Packets.Internal.Deserialization;
 public class NetworkPacketDeserializer : IPacketDeserializer
 {
     private const string PacketTypeFieldName = "PacketType";
-    
+
     private readonly ConcurrentDictionary<NetworkPacketType, Func<byte[], Type, object>> _packetDeserializerFactories;
     private readonly ConcurrentDictionary<Type, MethodInfo> _packetDeserializerMethods;
 
@@ -18,15 +18,15 @@ public class NetworkPacketDeserializer : IPacketDeserializer
         _packetDeserializerFactories = new ConcurrentDictionary<NetworkPacketType, Func<byte[], Type, object>>();
         _packetDeserializerMethods = new ConcurrentDictionary<Type, MethodInfo>();
     }
-    
+
     public T Deserialize<T>(NetworkPacketType packetType, byte[] data, DecryptFunc? decryptFunc) where T : class
     {
         if (!_packetDeserializerFactories.ContainsKey(packetType))
             throw new PacketDeserializationException($"Packet deserializer not registered for type ({packetType}).");
-        
+
         if (decryptFunc != null)
             data = decryptFunc(data);
-        
+
         return _packetDeserializerFactories[packetType](data, typeof(T)) as T ?? throw new PacketDeserializationException("Packet deserialization failed.");
     }
 
@@ -40,13 +40,13 @@ public class NetworkPacketDeserializer : IPacketDeserializer
     {
         _packetDeserializerFactories.TryAdd(packetType, deserializer);
     }
-    
+
     public void RegisterPacketDeserializers(Assembly? assembly = null)
     {
         var packetTypes = assembly == null
             ? GetNetworkPacketTypes(typeof(NetworkPacketDeserializer).Assembly)
             : GetNetworkPacketTypes(assembly);
-        
+
         var serializerType = typeof(Serializer);
 
         var genericDeserializeMethod = serializerType.GetMethods()
@@ -70,8 +70,8 @@ public class NetworkPacketDeserializer : IPacketDeserializer
     private object InternalDeserialization(byte[] arg, Type type)
     {
         using var ms = new MemoryStream(arg);
-        
-        return _packetDeserializerMethods[type].Invoke(null, new object?[]{ms}) 
+
+        return _packetDeserializerMethods[type].Invoke(null, new object?[] { ms })
                ?? throw new PacketDeserializationException("Packet deserialization failed.");
     }
 

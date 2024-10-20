@@ -33,10 +33,10 @@ public static class ServiceRegistration
         services.AddAuthDatabase();
         services.AddCharacterDatabase();
         services.AddWorldDatabase();
-        
+
         services.AddOptions<CacheConfiguration>()
             .BindConfiguration("Application:Cache");
-        
+
         services.AddScoped<IAccountService, AccountService>();
         services.AddScoped<ICharacterService, CharacterService>();
         services.AddScoped<IMFAService, MFAService>();
@@ -94,7 +94,7 @@ public static class ServiceRegistration
                     });
             });
     }
-    
+
     public static void AddAuth(this IServiceCollection services, ApplicationConfig config)
     {
         services.AddAuthentication(options =>
@@ -121,63 +121,63 @@ public static class ServiceRegistration
                     return Task.CompletedTask;
                 }
             };
-            
+
             x.TokenValidationParameters = new TokenValidationParameters
             {
                 ValidIssuer = config.Authentication!.Issuer,
                 ValidateIssuer = config.Authentication.ValidateIssuer,
-            
+
                 IssuerSigningKey = new SymmetricSecurityKey(Encoding.ASCII.GetBytes(config.Authentication.IssuerSigningKey)),
                 ValidateIssuerSigningKey = config.Authentication.ValidateIssuerKey,
-            
+
                 ValidAudience = config.Authentication.Audience,
                 ValidateAudience = config.Authentication.ValidateAudience,
-            
+
                 ValidateLifetime = false,
                 ClockSkew = TimeSpan.FromMinutes(config.Authentication.ClockSkewInMinutes)
             };
-            
+
             x.Validate(JwtBearerDefaults.AuthenticationScheme);
         })
         .AddScheme<AvalonAuthenticationSchemeOptions, AvalonAuthenticationHandler>(
-            AvalonAuthenticationSchemeOptions.SchemeName, 
+            AvalonAuthenticationSchemeOptions.SchemeName,
             AvalonAuthenticationSchemeOptions.SchemeName,
             options => { }
         );
-    
+
         services.AddAuthorization(options =>
         {
             options.DefaultPolicy = new AuthorizationPolicyBuilder(JwtBearerDefaults.AuthenticationScheme, AvalonAuthenticationSchemeOptions.SchemeName)
                 .RequireAuthenticatedUser()
                 .AddRequirements(new AvalonAuthRequirement())
                 .Build();
-        
+
             options.AddPolicy(AvalonRoles.Console, policy => policy
                 .RequireClaim(ClaimTypes.GroupSid, AvalonRoles.Console)
                 .Combine(options.DefaultPolicy)
             );
-            
+
             options.AddPolicy(AvalonRoles.Admin, policy => policy
                 .RequireClaim(ClaimTypes.GroupSid, AvalonRoles.Admin, AvalonRoles.Console)
                 .Combine(options.DefaultPolicy)
             );
-            
+
             options.AddPolicy(AvalonRoles.GameMaster, policy => policy
                 .RequireClaim(ClaimTypes.GroupSid, AvalonRoles.GameMaster, AvalonRoles.Admin, AvalonRoles.Console)
                 .Combine(options.DefaultPolicy)
             );
-            
+
             options.AddPolicy(AvalonRoles.Player, policy => policy
                 .RequireClaim(ClaimTypes.GroupSid, AvalonRoles.Player, AvalonRoles.GameMaster, AvalonRoles.Admin, AvalonRoles.Console)
                 .Combine(options.DefaultPolicy)
             );
-        
+
         });
 
         services.AddScoped<IAuthContext, AuthContext>();
         services.AddScoped<IAuthorizationHandler, AvalonAuthHandler>();
     }
-    
+
     public static void AddSwagger(this IServiceCollection services)
     {
         services.AddEndpointsApiExplorer();
@@ -204,7 +204,7 @@ public static class ServiceRegistration
                 Type = SecuritySchemeType.ApiKey,
                 Scheme = "AVToken"
             });
-            
+
             options.AddSecurityRequirement(new OpenApiSecurityRequirement()
             {
                 {
@@ -239,7 +239,7 @@ public static class ServiceRegistration
                     new List<string>()
                 }
             });
-            
+
             options.SchemaFilter<ValueObjectSchemaFilter>();
         });
     }

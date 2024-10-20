@@ -22,7 +22,7 @@ public static class ServiceExtensions
         services
             .AddOptions<GameConfiguration>()
             .BindConfiguration("Game");
-        
+
         services
             .AddAuthDatabase() //TODO: World should not depend on Auth database
             .AddCharacterDatabase()
@@ -39,9 +39,9 @@ public static class ServiceExtensions
         services.AddSingleton<IScriptCompiler, ScriptCompiler>();
         services.AddSingleton<IScriptHotReloader, ScriptHotReloader>();
         services.AddSingleton<IScriptDatabase, ScriptDatabase>();
-        
+
         //services.AddSingleton<IQuestManager, QuestManager>();
-        
+
         return services;
     }
 }

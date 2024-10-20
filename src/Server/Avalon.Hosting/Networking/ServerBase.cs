@@ -37,15 +37,15 @@ public class PacketHandlerCache
 public abstract class ServerBase<T> : BackgroundService, IServerBase where T : IConnection
 {
     public ushort Port { get; }
-    
+
     protected TcpListener Listener { get; }
     public IPacketManager PacketManager { get; }
     public readonly Dictionary<Type, PacketHandlerCache> HandlerCache = new();
-    
+
     protected readonly ConcurrentDictionary<Guid, IConnection> Connections = new();
-    
+
     private readonly ILogger _logger;
-    
+
     private readonly List<Func<IConnection, bool>> _connectionListeners = new();
     private readonly Stopwatch _serverTimer = new();
     private readonly CancellationTokenSource _stoppingToken = new();
@@ -66,7 +66,7 @@ public abstract class ServerBase<T> : BackgroundService, IServerBase where T : I
         var localAddr = IPAddress.Parse(hostingOptions.Value.Host);
         Listener = new TcpListener(localAddr, Port);
         Listener.Server.NoDelay = true;
-        
+
         _logger.LogInformation("Initialize tcp server listening on {IP}:{Port}", localAddr, Port);
     }
 
@@ -82,7 +82,7 @@ public abstract class ServerBase<T> : BackgroundService, IServerBase where T : I
         Connections.Remove(connection.Id, out _);
         return Task.CompletedTask;
     }
-    
+
     public override Task StartAsync(CancellationToken token)
     {
         base.StartAsync(token);
@@ -96,7 +96,7 @@ public abstract class ServerBase<T> : BackgroundService, IServerBase where T : I
 
     private async void OnClientAccepted(IAsyncResult ar)
     {
-        var listener = (TcpListener) ar.AsyncState!;
+        var listener = (TcpListener)ar.AsyncState!;
         var client = listener.EndAcceptTcpClient(ar);
 
         // will dispose once connection finished executing (canceled or disconnect)
@@ -133,7 +133,7 @@ public abstract class ServerBase<T> : BackgroundService, IServerBase where T : I
             _logger.LogWarning("Could not find a handler for packet {PacketType}", packet.Header.Type);
             return;
         }
-        
+
         if (!HandlerCache.TryGetValue(details.PacketType, out var handlerCache))
         {
             // Cache reflection information
@@ -142,7 +142,7 @@ public abstract class ServerBase<T> : BackgroundService, IServerBase where T : I
 
             // Create factory delegate for packet handler instances
             var objectFactory = ActivatorUtilities.CreateFactory(details.PacketHandlerType, []);
-            
+
             // Wrap ObjectFactory in a Func<IServiceProvider, object>
             object HandlerFactory(IServiceProvider sp) => objectFactory(sp, null);
 
@@ -154,7 +154,7 @@ public abstract class ServerBase<T> : BackgroundService, IServerBase where T : I
 
             HandlerCache[details.PacketType] = handlerCache;
         }
-        
+
         var context = GetContextPacket(connection, payload, details.PacketType);
 
         try
@@ -162,7 +162,7 @@ public abstract class ServerBase<T> : BackgroundService, IServerBase where T : I
             await using var scope = _serviceProvider.CreateAsyncScope();
 
             var packetHandler = handlerCache.HandlerFactory(scope.ServiceProvider);
-            await ((Task) handlerCache.ExecuteMethod.Invoke(packetHandler, new[] {context, _stoppingToken.Token})!).ConfigureAwait(false);
+            await ((Task)handlerCache.ExecuteMethod.Invoke(packetHandler, new[] { context, _stoppingToken.Token })!).ConfigureAwait(false);
         }
         catch (Exception e)
         {

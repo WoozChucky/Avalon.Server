@@ -9,12 +9,12 @@ public class RefreshToken : IDbEntity<Guid>
     [Key]
     [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
     public Guid Id { get; set; }
-    
+
     [Required]
     public Account Account { get; set; }
-    
+
     public AccountId AccountId { get; set; }
-    
+
     public uint Index { get; set; } = 0;
     public byte[] Hash { get; set; } = [];
     public bool Revoked { get; set; }

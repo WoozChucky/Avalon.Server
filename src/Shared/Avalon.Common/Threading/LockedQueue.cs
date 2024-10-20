@@ -159,7 +159,7 @@ internal class Deque<T>
         _list.RemoveFirst();
         return value;
     }
-    
+
     // Peeks at the item from the front of the deque without removing it.
     public T Peek()
     {

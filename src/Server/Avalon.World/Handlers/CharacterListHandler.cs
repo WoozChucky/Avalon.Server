@@ -12,14 +12,14 @@ public class CharacterListHandler(
     ICharacterRepository characterRepository,
     IWorld world) : WorldPacketHandler<CCharacterListPacket>
 {
-    
+
     public override void Execute(WorldConnection connection, CCharacterListPacket packet)
     {
         if (connection.AccountId == null)
         {
             logger.LogWarning("Connection tried to request character list without being authenticated");
             connection.Close();
-            return;       
+            return;
         }
 
         if (connection.Character != null)
@@ -43,19 +43,19 @@ public class CharacterListHandler(
                 CharacterId = character.Id!.Value,
                 Name = character.Name,
                 Level = character.Level,
-                Class = (ushort) character.Class,
+                Class = (ushort)character.Class,
                 X = character.X,
                 Y = character.Y,
                 Z = character.Z,
             }).ToArray();
-        
+
         var result = SCharacterListPacket.Create(
-            characterInfo.Length, 
-            world.Configuration.MaxCharactersPerAccount, 
-            characterInfo, 
+            characterInfo.Length,
+            world.Configuration.MaxCharactersPerAccount,
+            characterInfo,
             connection.CryptoSession.Encrypt
         );
-        
+
         connection.Send(result);
     }
 }

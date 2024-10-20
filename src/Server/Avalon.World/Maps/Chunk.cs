@@ -12,7 +12,6 @@ using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Maps;
-using Avalon.World.Public.Scripts;
 using Avalon.World.Public.Spells;
 using Avalon.World.Scripts;
 using Avalon.World.Serialization;
@@ -39,17 +38,17 @@ public class Chunk : IChunk
     public required ChunkMetadata Metadata { get; set; }
     public IChunkNavigator Navigator { get; private set; }
     public List<IChunk> Neighbors { get; set; } = [];
-    
+
     public IReadOnlyDictionary<ObjectGuid, ICharacter> Characters => _characters;
     public IReadOnlyDictionary<ObjectGuid, ICreature> Creatures => _creatures;
-    
-    
+
+
     private readonly Dictionary<ObjectGuid, ICharacter> _characters = [];
     private readonly Dictionary<ObjectGuid, ICreature> _creatures = [];
     private readonly ILogger<Chunk> _logger;
-    
+
     private const float BROADCAST_INTERVAL = 0.1f;
-    
+
     private IPoolManager _poolManager;
     private readonly IWorld _world;
     private float _lastBroadcastTime;
@@ -88,12 +87,12 @@ public class Chunk : IChunk
 
         // Step 1: Stop the creature scripts
         creature.Script = null; // TODO: Double check if this has to be scheduled to run on the main thread
-        
+
         // Step 2: Schedule the creature to be respawned
         _creatureRespawner.ScheduleRespawn(creature);
 
         // Step 4: Schedule the loot to be spawned
-        
+
         // Step 5: Update the killer's experience
         if (killer is ICharacter character)
         {
@@ -103,7 +102,7 @@ public class Chunk : IChunk
                 _logger.LogWarning("Experience requirement for level {Level} not found", character.Level);
                 return;
             }
-            
+
             const uint creatureExperience = 20U; // TODO: Extract from creature template
             if (character.Experience + creatureExperience >= expRequirement.Experience)
             {
@@ -127,27 +126,27 @@ public class Chunk : IChunk
     public void Update(TimeSpan deltaTime)
     {
         if (!Enabled) return;
-        _lastBroadcastTime += (float) deltaTime.TotalSeconds;
-        
+        _lastBroadcastTime += (float)deltaTime.TotalSeconds;
+
         // Step 1: Update creature respawns
         _creatureRespawner.Update(deltaTime);
-        
+
         // Step 2: Process character packets
         foreach (var character in _characters.Values)
         {
             if (character.Map != MapId) continue;
-            
+
             var filter = new MapSessionFilter(character.Connection);
             character.Connection.Update(deltaTime, filter);
-            
+
             character.Update(deltaTime);
         }
-        
+
         var objectSpells = new List<IWorldObject>();
-        
+
         // Step 3: Spell system update
         _spellSystem.Update(deltaTime, objectSpells);
-        
+
         // Step 4: Update characters at tick rate
         foreach (var creature in _creatures.Values)
         {
@@ -165,19 +164,19 @@ public class Chunk : IChunk
             // Update visibility of game entities
             character.GameState.Update(_creatures, _characters, objectSpells);
         }
-        
+
         // Parallel.ForEach(_characters.Values, BroadcastChunkStateTo);
         foreach (var character in _characters.Values)
         {
             BroadcastChunkStateTo(character);
         }
-        
+
         if (_lastBroadcastTime >= BROADCAST_INTERVAL)
         {
             _lastBroadcastTime = 0;
         }
     }
-    
+
     public void BroadcastChunkStateTo(ICharacter character)
     {
         var buffer = ArrayPool<byte>.Shared.Rent(4096);
@@ -188,7 +187,7 @@ public class Chunk : IChunk
 
         foreach (var addedObjectGuid in character.GameState.NewObjects)
         {
-            
+
             switch (addedObjectGuid.Type)
             {
                 case ObjectType.Character:
@@ -207,19 +206,19 @@ public class Chunk : IChunk
                     _logger.LogWarning("Unknown object type {ObjectType} on NewObjects serialization", addedObjectGuid.Type);
                     continue;
             }
-                    
+
             var bytesWritten = writer.BaseStream.Position;
-            
+
             var obj = new ObjectAdd
             {
                 Guid = addedObjectGuid.RawValue,
                 Fields = new byte[bytesWritten]
             };
-            
+
             buffer.AsSpan(0, (int)bytesWritten).CopyTo(obj.Fields);
-            
+
             addedObjects.Add(obj);
-            
+
             writer.Reset();
         }
 
@@ -243,29 +242,29 @@ public class Chunk : IChunk
                     _logger.LogWarning("Unknown object type {ObjectType} on UpdatedObjects serialization", updatedObject.Guid.Type);
                     continue;
             }
-            
+
             var bytesWritten = writer.BaseStream.Position;
-            
+
             var obj = new ObjectUpdate
             {
                 Guid = updatedObject.Guid.RawValue,
                 Fields = new byte[bytesWritten]
             };
-            
+
             buffer.AsSpan(0, (int)bytesWritten).CopyTo(obj.Fields);
-            
+
             updatedObjects.Add(obj);
-            
+
             writer.Reset();
         }
-        
+
         ArrayPool<byte>.Shared.Return(buffer);
-        
+
         if (addedObjects.Count > 0)
         {
             character.Connection.Send(SChunkStateAddPacket.Create(addedObjects, character.Connection.CryptoSession.Encrypt));
         }
-        
+
         if (_lastBroadcastTime >= BROADCAST_INTERVAL) // _lastBroadcastTime >= BroadcastInterval
         {
             if (updatedObjects.Count > 0)
@@ -273,7 +272,7 @@ public class Chunk : IChunk
                 character.Connection.Send(SChunkStateUpdatePacket.Create(updatedObjects, character.Connection.CryptoSession.Encrypt));
             }
         }
-        
+
         if (character.GameState.RemovedObjects.Count > 0)
         {
             _logger.LogInformation("Found {Count} removed objects", character.GameState.RemovedObjects.Count);
@@ -284,24 +283,24 @@ public class Chunk : IChunk
     public void AddCharacter(IWorldConnection connection)
     {
         connection.Character!.ChunkId = Id;
-        
+
         _characters[connection.Character.Guid] = connection.Character;
-        
+
         Enabled = true;
         foreach (var neighbor in Neighbors)
         {
             neighbor.Enabled = true;
         }
     }
-    
+
     public void RemoveCharacter(IWorldConnection connection)
     {
         connection.Character!.OnDisconnected();
-        
+
         connection.Character.ChunkId = 0;
-            
+
         _characters.Remove(connection.Character.Guid);
-        
+
         if (_characters.Count == 0)
         {
             _logger.LogInformation("Chunk {ChunkId} is now disabled", Id);
@@ -322,20 +321,20 @@ public class Chunk : IChunk
         // Check if unit is part of this chunk's characters or creatures
         var valid = Creatures.TryGetValue(attacker.Guid, out _) || Characters.TryGetValue(attacker.Guid, out _);
         if (!valid) return;
-        
+
         Parallel.ForEach(_characters.Values, character =>
         {
             //TODO: Extract animation id from spell
             character.Connection.Send(SUnitAttackAnimationPacket.Create(attacker.Guid, 1, character.Connection.CryptoSession.Encrypt));
         });
     }
-    
+
     private void BroadcastFinishCastAnimation(IUnit attacker, ISpell spell)
     {
         // Check if unit is part of this chunk's characters or creatures
         var valid = Creatures.TryGetValue(attacker.Guid, out _) || Characters.TryGetValue(attacker.Guid, out _);
         if (!valid) return;
-        
+
         Parallel.ForEach(_characters.Values, character =>
         {
             //TODO: Extract animation id from spell
@@ -362,7 +361,7 @@ public class Chunk : IChunk
             character.Connection.Send(SUnitDamagePacket.Create(attacker.Guid, target.Guid.RawValue, currentHealth, damage, character.Connection.CryptoSession.Encrypt));
         });
     }
-    
+
     private void OnCharacterHit(IUnit unit, IUnit attacker, uint damage)
     {
         BroadcastUnitHit(attacker, unit, unit.CurrentHealth, damage);
@@ -382,7 +381,7 @@ public class Chunk : IChunk
     {
         _creatures.Add(creature.Guid, creature);
     }
-    
+
     public void RemoveCreature(ICreature creature)
     {
         RemoveCreature(creature.Guid);
@@ -392,7 +391,7 @@ public class Chunk : IChunk
     {
         _creatures.Remove(id);
     }
-    
+
     public void BroadcastUniStartCast(IUnit caster, float spellCastTime)
     {
         Parallel.ForEach(_characters.Values, character =>
@@ -408,7 +407,7 @@ public class Chunk : IChunk
 
         // Check if player is near the border of the current chunk
         var nearBorder = IsNearChunkBorder(currentPosition, Metadata, updateThresholdDistance);
-        
+
         // If the player is near the border, send the state of the neighboring chunks
         if (nearBorder)
         {
@@ -437,7 +436,7 @@ public class Chunk : IChunk
             }
         }
     }
-    
+
     private List<IChunk> GetNearbyChunks(Vector3 position, ChunkMetadata chunkMetadata, float threshold)
     {
         var nearbyChunks = new List<IChunk>();
@@ -476,7 +475,7 @@ public class Chunk : IChunk
 
         return nearbyChunks;
     }
-    
+
     private bool IsNearChunkBorder(Vector3 position, ChunkMetadata chunkMetadata, float threshold)
     {
         var minX = chunkMetadata.Position.x;

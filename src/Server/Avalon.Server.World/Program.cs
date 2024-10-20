@@ -18,15 +18,15 @@ namespace Avalon.Server.World
         private static async Task Main(string[] args)
         {
             Thread.CurrentThread.Name ??= "main";
-            
+
             var hostBuilder = await AvalonHostBuilder.CreateHostAsync(args, ComponentType.World);
             hostBuilder.Services.AddWorldServices();
             hostBuilder.Services.AddHostedService<WorldServer>();
             hostBuilder.Services.AddSingleton<IWorldServer>(provider =>
                 provider.GetServices<IHostedService>().OfType<WorldServer>().Single());
-        
+
             var host = hostBuilder.Build();
-        
+
             await using (var scope = host.Services.CreateAsyncScope())
             {
                 var characterDb = scope.ServiceProvider.GetRequiredService<CharacterDbContext>();
@@ -35,14 +35,14 @@ namespace Avalon.Server.World
                 logger.LogInformation("Migrating database if necessary...");
                 await characterDb.Database.MigrateAsync();
                 await worldDb.Database.MigrateAsync();
-            
+
                 var cache = scope.ServiceProvider.GetRequiredService<IReplicatedCache>();
                 await cache.ConnectAsync();
             }
 
             await AvalonHostBuilder.RunAsync<Program>(host);
         }
-        
+
         /*
         private static void ConfigureDependencyInjection()
         {

@@ -12,10 +12,10 @@ public class EntityTrackingSystem
     public event Action<ObjectGuid>? EntityAdded;
     public event Action<ObjectGuid>? EntityRemoved;
     public event Action<ObjectGuid, GameEntityFields>? EntityUpdated;
-    
+
     private readonly IDictionary<ObjectGuid, IWorldObject> _objects;
-    
-    public EntityTrackingSystem(int capacity, 
+
+    public EntityTrackingSystem(int capacity,
         Func<IWorldObject, IWorldObject> createObjectHandler,
         Func<IWorldObject, IWorldObject, IWorldObject> updateObjectHandler,
         Func<IWorldObject, IWorldObject, GameEntityFields> changedFieldsHandler)
@@ -123,43 +123,43 @@ public class EntityTrackingSystem
         var changed = fields != GameEntityFields.None;
         return changed;
     }
-    
+
     private GameEntityFields GetChangedFields(IUnit original, IUnit updated)
     {
         GameEntityFields fields = 0;
-        
+
         if (original.Position != updated.Position)
         {
             fields |= GameEntityFields.Position;
         }
-        
+
         if (original.CurrentHealth != updated.CurrentHealth)
         {
             fields |= GameEntityFields.CurrentHealth;
         }
-        
+
         if (original.CurrentPower != updated.CurrentPower)
         {
             fields |= GameEntityFields.CurrentPower;
         }
-        
+
         if (original.Velocity != updated.Velocity)
         {
             fields |= GameEntityFields.Velocity;
         }
-        
+
         if (original.Orientation != updated.Orientation)
         {
             fields |= GameEntityFields.Orientation;
         }
-        
+
         if (original.MoveState != updated.MoveState)
         {
             fields |= GameEntityFields.MoveState;
         }
-        
+
         return fields;
     }
 
-    
+
 }

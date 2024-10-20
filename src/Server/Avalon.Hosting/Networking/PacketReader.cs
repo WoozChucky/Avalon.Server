@@ -28,17 +28,17 @@ public class PacketReader : IPacketReader
 {
     private readonly ILogger<PacketReader> _logger;
     private readonly int _bufferSize;
-    
+
     private readonly Dictionary<NetworkPacketType, (Type packet, MethodInfo deserialize)> _packetTypes = new();
-    
+
     public PacketReader(ILoggerFactory loggerFactory, Type[] packetTypes)
     {
         _logger = loggerFactory.CreateLogger<PacketReader>();
         _bufferSize = 4096; //TODO: Get from configuration
-        
+
         var genericDeserializeMethod = typeof(Serializer).GetMethods()
             .Single(m => m is { Name: "Deserialize", IsGenericMethod: true } && m.GetParameters().Length == 3 && m.GetParameters()[0].ParameterType == typeof(ReadOnlyMemory<byte>));
-        
+
         foreach (var packetType in packetTypes)
         {
             var networkPacketTypeInfo = packetType.GetFields(BindingFlags.Public | BindingFlags.Static)
@@ -47,14 +47,14 @@ public class PacketReader : IPacketReader
             {
                 _logger.LogWarning("Packet type {PacketType} does not have a NetworkPacketType field", packetType);
             }
-            
-            var networkPacketType = (NetworkPacketType) networkPacketTypeInfo!.GetValue(null)!;
-            
+
+            var networkPacketType = (NetworkPacketType)networkPacketTypeInfo!.GetValue(null)!;
+
             var closedDeserializeMethod = genericDeserializeMethod.MakeGenericMethod(packetType);
-            _packetTypes.Add(networkPacketType, (packetType, closedDeserializeMethod)); 
+            _packetTypes.Add(networkPacketType, (packetType, closedDeserializeMethod));
         }
     }
-    
+
     public async IAsyncEnumerable<NetworkPacket> EnumerateAsync(Stream stream, [EnumeratorCancellation] CancellationToken token = default)
     {
         var buffer = ArrayPool<byte>.Shared.Rent(_bufferSize);
@@ -66,7 +66,7 @@ public class PacketReader : IPacketReader
                 // read packet size
                 int packetSize;
                 var offset = 0;
-                
+
                 try
                 {
                     (packetSize, offset) = await ReadVarintAsync(stream, buffer, token);
@@ -86,13 +86,13 @@ public class PacketReader : IPacketReader
                     _logger.LogDebug("Operation was canceled while reading a packet size. This may be fine");
                     break;
                 }
-                
+
                 if (packetSize > _bufferSize)
                 {
                     _logger.LogError("Packet size {PacketSize} exceeds buffer capacity {BufferSize}", packetSize, _bufferSize);
                     break;
                 }
-            
+
                 // read packet contents
                 try
                 {
@@ -108,9 +108,9 @@ public class PacketReader : IPacketReader
                     _logger.LogDebug("Connection was most likely closed while reading a packet. This may be fine");
                     break;
                 }
-            
+
                 var packetBuffer = buffer.AsMemory(offset, packetSize);
-                
+
                 yield return NetworkPacket.Deserialize(packetBuffer);
             }
         }
@@ -124,7 +124,7 @@ public class PacketReader : IPacketReader
     {
         packet.Payload = decryptFunc(packet.Payload);
     }
-    
+
     public Packet? Read(NetworkPacket packet)
     {
         if (!_packetTypes.TryGetValue(packet.Header.Type, out var p))
@@ -134,7 +134,7 @@ public class PacketReader : IPacketReader
         }
 
         var payloadMemory = new ReadOnlyMemory<byte>(packet.Payload);
-        var payload = p.deserialize.Invoke(null, new object?[] {payloadMemory, null, null});
+        var payload = p.deserialize.Invoke(null, new object?[] { payloadMemory, null, null });
         return payload as Packet;
     }
 

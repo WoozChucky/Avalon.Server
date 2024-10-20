@@ -10,20 +10,20 @@ public class ItemInstance : IDbEntity<ItemInstanceId>
     [Key]
     [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
     public ItemInstanceId Id { get; set; }
-    
+
     [Required]
     public ItemTemplate Template { get; set; }
     public ItemTemplateId TemplateId { get; set; }
-    
+
     public CharacterId CharacterId { get; set; }
-    
+
     [DefaultValue(1)]
     public uint Count { get; set; }
-    
+
     public uint Durability { get; set; }
-    
+
     public uint Charges { get; set; }
-    
+
     public ItemInstanceFlags Flags { get; set; }
 
     public DateTime UpdatedAt { get; set; }

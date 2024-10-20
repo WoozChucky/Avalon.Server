@@ -22,21 +22,21 @@ public class CharacterStats
     public float CritPct { get; set; }
     public uint AttackDamage { get; set; }
     public uint AbilityDamage { get; set; }
-    
+
     public static uint GetBaseHp(CharacterClass @class, uint stamina, ushort level)
     {
         var baseHp = level * 20;
-        
+
         return @class switch
         {
-            CharacterClass.Warrior => (uint) baseHp + (stamina * 10),
-            CharacterClass.Wizard => (uint) baseHp + (stamina * 5),
-            CharacterClass.Hunter => (uint) baseHp + (stamina * 8),
-            CharacterClass.Healer => (uint) baseHp + (stamina * 7),
+            CharacterClass.Warrior => (uint)baseHp + (stamina * 10),
+            CharacterClass.Wizard => (uint)baseHp + (stamina * 5),
+            CharacterClass.Hunter => (uint)baseHp + (stamina * 8),
+            CharacterClass.Healer => (uint)baseHp + (stamina * 7),
             _ => 0
         };
     }
-    
+
     public static uint GetBasePower(CharacterClass @class, uint intellect, uint agility, uint level)
     {
         var basePower = level * 10;
@@ -50,7 +50,7 @@ public class CharacterStats
             _ => 0
         };
     }
-    
+
     public static float GetBaseBlockPercent(CharacterClass @class)
     {
         return @class switch
@@ -62,7 +62,7 @@ public class CharacterStats
             _ => 0.0f
         };
     }
-    
+
     public static float GetBaseDodgePercent(CharacterClass @class)
     {
         return @class switch
@@ -74,7 +74,7 @@ public class CharacterStats
             _ => 0.0f
         };
     }
-    
+
     public static float GetBaseCritPercent(CharacterClass @class)
     {
         return @class switch
@@ -86,7 +86,7 @@ public class CharacterStats
             _ => 0.0f
         };
     }
-    
+
     public static uint GetBaseAttackDamage(CharacterClass @class, uint strength, uint agility)
     {
         return @class switch
@@ -98,7 +98,7 @@ public class CharacterStats
             _ => 0
         };
     }
-    
+
     public static uint GetBaseAbilityDamage(CharacterClass @class, uint intellect)
     {
         return @class switch

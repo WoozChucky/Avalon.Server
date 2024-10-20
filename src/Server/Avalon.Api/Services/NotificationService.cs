@@ -32,14 +32,14 @@ public class NotificationService : INotificationService
         _deviceRepository = deviceRepository;
         _vapidDetails = new VapidDetails(_config.Subject, _config.PublicKey, _config.PrivateKey);
     }
-    
+
     public async Task RegisterSubscriptionAsync(Account account, string userAgent, PushSubscriptionRequest request,
         CancellationToken cancellationToken)
     {
 
         var devices = await _deviceRepository.FindByAsync(d => d.AccountId == account.Id);
         var device = devices.FirstOrDefault(x => x.Name == userAgent);
-        
+
         if (device == null)
         {
             device = new Device
@@ -51,17 +51,17 @@ public class NotificationService : INotificationService
                 TrustEnd = DateTime.UtcNow,
                 LastUsage = DateTime.UtcNow,
             };
-            
+
             await _deviceRepository.CreateAsync(device);
         }
         else
         {
             device.Metadata = JsonSerializer.Serialize(request);
             device.LastUsage = DateTime.UtcNow;
-            
+
             await _deviceRepository.UpdateAsync(device);
         }
-        
+
         var webPushClient = new WebPushClient();
 
         var payload = new
@@ -71,7 +71,7 @@ public class NotificationService : INotificationService
                 title = "Welcome to Avalon",
                 body = "You will now receive notifications from Avalon",
                 icon = "https://avatars.githubusercontent.com/u/10047099?s=200&v=4",
-                vibrate = new[] {100, 50, 100},
+                vibrate = new[] { 100, 50, 100 },
                 data = new
                 {
                     dateOfArrival = DateTime.Now,
@@ -87,21 +87,21 @@ public class NotificationService : INotificationService
                 }
             }
         };
-        
+
         var subscription = new PushSubscription(request.Endpoint, request.Keys.P256DH, request.Keys.Auth);
-        
+
         var notification = JsonSerializer.Serialize(payload, new JsonSerializerOptions
         {
             WriteIndented = true
         });
-        
+
         await webPushClient.SendNotificationAsync(subscription, notification, _vapidDetails, cancellationToken);
     }
 
     public async Task SendNotificationAsync(Account account, string message, CancellationToken cancellationToken = default)
     {
         var devices = await _deviceRepository.FindByAsync(d => d.AccountId == account.Id);
-        
+
         var webPushClient = new WebPushClient();
         webPushClient.SetVapidDetails(_vapidDetails);
 
@@ -126,7 +126,7 @@ public class NotificationService : INotificationService
             throw new InvalidOperationException("Device metadata is missing");
         }
         var subscription = new PushSubscription(deviceMetadata.Endpoint, deviceMetadata.Keys.P256DH, deviceMetadata.Keys.Auth);
-        
+
         var payload = new
         {
             notification = new
@@ -134,7 +134,7 @@ public class NotificationService : INotificationService
                 title = "Avalon",
                 body = message,
                 icon = "https://avatars.githubusercontent.com/u/10047099?s=200&v=4",
-                vibrate = new[] {100, 50, 100},
+                vibrate = new[] { 100, 50, 100 },
                 data = new
                 {
                     dateOfArrival = DateTime.Now,
@@ -150,11 +150,11 @@ public class NotificationService : INotificationService
                 }
             }
         };
-        
+
         var notification = JsonSerializer.Serialize(payload, _jsonSerializerOptions);
-        
+
         var webPushClient = new WebPushClient();
-        
+
         await webPushClient.SendNotificationAsync(subscription, notification, _vapidDetails, cancellationToken);
     }
 }
