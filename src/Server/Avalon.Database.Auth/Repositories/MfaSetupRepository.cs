@@ -1,8 +1,7 @@
-using Avalon.Database;
 using Avalon.Domain.Auth;
 using Microsoft.EntityFrameworkCore;
 
-namespace Avalon.Auth.Database.Repositories;
+namespace Avalon.Database.Auth.Repositories;
 
 public interface IMfaSetupRepository : IRepository<MFASetup, Guid>
 {

@@ -1,7 +1,7 @@
 using System.Text.Json;
 using Avalon.Api.Config;
 using Avalon.Api.Contract;
-using Avalon.Auth.Database.Repositories;
+using Avalon.Database.Auth.Repositories;
 using Avalon.Domain.Auth;
 using WebPush;
 

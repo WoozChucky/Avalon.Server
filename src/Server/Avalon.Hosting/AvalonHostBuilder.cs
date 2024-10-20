@@ -11,7 +11,7 @@ namespace Avalon.Hosting;
 
 public static class AvalonHostBuilder
 {
-    public static async Task<HostApplicationBuilder> CreateHostAsync(string[] args, ComponentType component)
+    public static Task<HostApplicationBuilder> CreateHostAsync(string[] args, ComponentType component)
     {
         // workaround for https://github.com/dotnet/project-system/issues/3619
         var assemblyPath = Assembly.GetEntryAssembly()?.Location;
@@ -25,7 +25,7 @@ public static class AvalonHostBuilder
         host.Services.Configure<ConsoleLifetimeOptions>(opts => opts.SuppressStatusMessages = true);
         host.Services.AddCoreServices(host.Configuration, component);
 
-        return host;
+        return Task.FromResult(host);
     }
 
     public static async Task RunAsync<T>(IHost host)

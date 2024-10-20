@@ -1,4 +1,4 @@
-using Avalon.Auth.Database.Extensions;
+using Avalon.Database.Auth.Extensions;
 using Avalon.Infrastructure.Extensions;
 using Avalon.Server.Auth.Configuration;
 

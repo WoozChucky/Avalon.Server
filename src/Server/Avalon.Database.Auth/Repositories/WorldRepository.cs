@@ -1,7 +1,6 @@
-using Avalon.Database;
 using Avalon.Domain.Auth;
 
-namespace Avalon.Auth.Database.Repositories;
+namespace Avalon.Database.Auth.Repositories;
 
 public interface IWorldRepository : IRepository<Domain.Auth.World, WorldId>
 {

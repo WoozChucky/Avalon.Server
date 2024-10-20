@@ -1,5 +1,5 @@
 using System.Text;
-using Avalon.Auth.Database.Repositories;
+using Avalon.Database.Auth.Repositories;
 using Avalon.Infrastructure;
 using Avalon.Infrastructure.Services;
 using Avalon.Network.Packets.Auth;
