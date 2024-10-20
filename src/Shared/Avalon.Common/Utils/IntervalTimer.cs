@@ -2,14 +2,8 @@ namespace Avalon.Common.Utils;
 
 public class IntervalTimer
 {
-    private long _interval;
     private long _current;
-
-    public IntervalTimer()
-    {
-        _interval = 0;
-        _current = 0;
-    }
+    private long _interval;
 
     public void Update(long diff)
     {
@@ -20,10 +14,7 @@ public class IntervalTimer
         }
     }
 
-    public bool Passed()
-    {
-        return _current >= _interval;
-    }
+    public bool Passed() => _current >= _interval;
 
     public void Reset()
     {
@@ -33,23 +24,11 @@ public class IntervalTimer
         }
     }
 
-    public void SetCurrent(long current)
-    {
-        _current = current;
-    }
+    public void SetCurrent(long current) => _current = current;
 
-    public void SetInterval(long interval)
-    {
-        _interval = interval;
-    }
+    public void SetInterval(long interval) => _interval = interval;
 
-    public long GetInterval()
-    {
-        return _interval;
-    }
+    public long GetInterval() => _interval;
 
-    public long GetCurrent()
-    {
-        return _current;
-    }
+    public long GetCurrent() => _current;
 }
