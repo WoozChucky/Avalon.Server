@@ -107,9 +107,9 @@ public class WorldGrid
         chunk.OnPlayerMoved(connection);
     }
 
-    public Chunk? GetChunk(uint chunkId) => Maps.SelectMany(m => m.Chunks).FirstOrDefault(c => c.Id == chunkId);
+    public Chunk? GetChunk(ChunkId chunkId) => Maps.SelectMany(m => m.Chunks).FirstOrDefault(c => c.Id == chunkId);
 
-    public ICreature? FindCreature(CreatureId creatureId, uint chunkId)
+    public ICreature? FindCreature(CreatureId creatureId, ChunkId chunkId)
     {
         Map? chunk = Maps.FirstOrDefault(m => m.Chunks.FirstOrDefault(c => c.Id == chunkId) != null);
 

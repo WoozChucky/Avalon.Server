@@ -1,5 +1,6 @@
 using Avalon.Common;
 using Avalon.Common.Mathematics;
+using Avalon.Common.ValueObjects;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Units;
@@ -8,7 +9,7 @@ namespace Avalon.World.Public.Maps;
 
 public interface IChunk
 {
-    uint Id { get; }
+    ChunkId Id { get; }
     bool Enabled { get; set; }
     ChunkMetadata Metadata { get; }
     IChunkNavigator Navigator { get; }

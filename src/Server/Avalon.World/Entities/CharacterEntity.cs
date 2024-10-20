@@ -1,5 +1,6 @@
 using Avalon.Common;
 using Avalon.Common.Mathematics;
+using Avalon.Common.ValueObjects;
 using Avalon.Domain.Characters;
 using Avalon.Network.Packets.Combat;
 using Avalon.Network.Packets.State;
@@ -176,7 +177,7 @@ public class CharacterEntity : ICharacter
         }
     }
 
-    public ushort Map
+    public MapId Map
     {
         get => Data?.Map ?? 0;
         set
@@ -226,7 +227,7 @@ public class CharacterEntity : ICharacter
 
     public void Update(TimeSpan deltaTime) => Spells.Update(deltaTime);
 
-    public uint ChunkId { get; set; }
+    public ChunkId ChunkId { get; set; }
     public static event UnitFinishedCastAnimationDelegate? OnUnitFinishedCastAnimation;
     public static event UnitAttackAnimationDelegate? OnUnitAttackAnimation;
     public static event CharacterDisconnectedDelegate? CharacterDisconnected;
