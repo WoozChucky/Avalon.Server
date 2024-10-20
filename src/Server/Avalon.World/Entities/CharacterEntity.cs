@@ -8,6 +8,7 @@ using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Spells;
+using Avalon.World.Public.Units;
 using Avalon.World.Spells;
 using Microsoft.Extensions.Logging;
 
@@ -15,14 +16,56 @@ namespace Avalon.World.Entities;
 
 public class CharacterEntity : ICharacter
 {
-    public static event UnitFinishedCastAnimationDelegate? OnUnitFinishedCastAnimation;
-    public static event UnitAttackAnimationDelegate? OnUnitAttackAnimation;
-    public static event CharacterDisconnectedDelegate? CharacterDisconnected;
-    public static event UnitInterruptedCastAnimationDelegate? OnUnitInterruptedCastAnimation;
-    public static event UnitDamagedDelegate? OnUnitDamaged;
+    private readonly ICharacterInventory _bag;
+    private readonly ICharacterInventory _bank;
+    private readonly ICharacterInventory _equipment;
 
-    public IWorldConnection Connection => _connection;
-    public IGameState GameState { get; }
+    private readonly ILogger<CharacterEntity> _logger;
+
+    public CharacterEntity()
+    {
+        _logger = null!;
+        Connection = null!;
+        _equipment = null!;
+        _bag = null!;
+        _bank = null!;
+        Spells = null!;
+    }
+
+    public CharacterEntity(ILoggerFactory loggerFactory, IWorldConnection connection, Character character)
+    {
+        _logger = loggerFactory.CreateLogger<CharacterEntity>();
+        Connection = connection;
+        Data = character;
+        _equipment = new CharacterInventoryContainer(loggerFactory, InventoryType.Equipment);
+        _bag = new CharacterInventoryContainer(loggerFactory, InventoryType.Bag);
+        _bank = new CharacterInventoryContainer(loggerFactory, InventoryType.Bank);
+        Spells = new CharacterSpellContainer(loggerFactory);
+        CharacterGameState = new CharacterCharacterGameState();
+        Guid = new ObjectGuid(ObjectType.Character, character.Id);
+    }
+
+    public Character? Data { get; init; }
+
+    private bool Running
+    {
+        get => Data?.Running ?? false;
+        set
+        {
+            if (Data != null)
+            {
+                Data.Running = value;
+            }
+        }
+    }
+
+    private float MovementSpeed { get; set; }
+
+    public DateTime EnteredWorld { get; set; }
+
+    public IWorldConnection Connection { get; }
+
+    public ICharacterGameState CharacterGameState { get; }
 
     public ICharacterInventory this[InventoryType type] => type switch
     {
@@ -32,37 +75,7 @@ public class CharacterEntity : ICharacter
         _ => throw new ArgumentOutOfRangeException(nameof(type), type, null)
     };
 
-    public ICharacterSpells Spells => _spells;
-
-    private readonly ILogger<CharacterEntity> _logger;
-    private readonly IWorldConnection _connection;
-    private readonly ICharacterInventory _equipment;
-    private readonly ICharacterInventory _bag;
-    private readonly ICharacterInventory _bank;
-    private readonly ICharacterSpells _spells;
-
-    public CharacterEntity()
-    {
-        _logger = null!;
-        _connection = null!;
-        _equipment = null!;
-        _bag = null!;
-        _bank = null!;
-        _spells = null!;
-    }
-
-    public CharacterEntity(ILoggerFactory loggerFactory, IWorldConnection connection, Character character)
-    {
-        _logger = loggerFactory.CreateLogger<CharacterEntity>();
-        _connection = connection;
-        Data = character;
-        _equipment = new CharacterInventoryContainer(loggerFactory, InventoryType.Equipment);
-        _bag = new CharacterInventoryContainer(loggerFactory, InventoryType.Bag);
-        _bank = new CharacterInventoryContainer(loggerFactory, InventoryType.Bank);
-        _spells = new CharacterSpellContainer(loggerFactory);
-        GameState = new CharacterGameState();
-        Guid = new ObjectGuid(ObjectType.Character, character.Id);
-    }
+    public ICharacterSpells Spells { get; }
 
     public ObjectGuid Guid { get; set; }
 
@@ -99,40 +112,38 @@ public class CharacterEntity : ICharacter
 
     public void OnHit(IUnit attacker, uint damage)
     {
-        _logger.LogInformation("{Name} has been hit by unit {Attacker} for {Damage} damage", Name, attacker.Guid, damage);
+        _logger.LogInformation("{Name} has been hit by unit {Attacker} for {Damage} damage", Name, attacker.Guid,
+            damage);
         CurrentHealth -= damage;
         if (CurrentHealth <= 0)
         {
             _logger.LogInformation("{Name} has died", Name);
             CurrentHealth = Health; // reset health while developing
         }
+
         // Send to self
-        _connection.Send(SCharacterDamagePacket.Create(attacker.Guid.RawValue, Guid.RawValue, CurrentHealth, damage, null, _connection.CryptoSession.Encrypt));
+        Connection.Send(SCharacterDamagePacket.Create(attacker.Guid.RawValue, Guid.RawValue, CurrentHealth, damage,
+            null, Connection.CryptoSession.Encrypt));
         // Send to chunk
         OnUnitDamaged?.Invoke(this, attacker, damage);
     }
 
-    public void SendAttackAnimation(ISpell? spell)
-    {
-        OnUnitAttackAnimation?.Invoke(this, spell);
-    }
+    public void SendAttackAnimation(ISpell? spell) => OnUnitAttackAnimation?.Invoke(this, spell);
 
-    public void SendFinishCastAnimation(ISpell spell)
-    {
-        OnUnitFinishedCastAnimation?.Invoke(this, spell);
-    }
+    public void SendFinishCastAnimation(ISpell spell) => OnUnitFinishedCastAnimation?.Invoke(this, spell);
 
-    public void SendInterruptedCastAnimation(ISpell spell)
-    {
-        OnUnitInterruptedCastAnimation?.Invoke(this, spell);
-    }
+    public void SendInterruptedCastAnimation(ISpell spell) => OnUnitInterruptedCastAnimation?.Invoke(this, spell);
 
     public Vector3 Position
     {
         get => new(Data?.X ?? 0, Data?.Y ?? 0, Data?.Z ?? 0);
         set
         {
-            if (Data == null) return;
+            if (Data == null)
+            {
+                return;
+            }
+
             Data.X = value.x;
             Data.Y = value.y;
             Data.Z = value.z;
@@ -152,8 +163,6 @@ public class CharacterEntity : ICharacter
             }
         }
     }
-
-    public Character? Data { get; init; }
 
     public string Name
     {
@@ -205,29 +214,9 @@ public class CharacterEntity : ICharacter
         }
     }
 
-    private bool Running
-    {
-        get => Data?.Running ?? false;
-        set
-        {
-            if (Data != null)
-            {
-                Data.Running = value;
-            }
-        }
-    }
+    public void OnDisconnected() => CharacterDisconnected?.Invoke(this);
 
-    private float MovementSpeed { get; set; }
-
-    public void OnDisconnected()
-    {
-        CharacterDisconnected?.Invoke(this);
-    }
-
-    public float GetMovementSpeed()
-    {
-        return MovementSpeed;
-    }
+    public float GetMovementSpeed() => MovementSpeed;
 
     public void SetRunning(bool running)
     {
@@ -235,10 +224,14 @@ public class CharacterEntity : ICharacter
         CalculateMovementSpeed();
     }
 
-    public void Update(TimeSpan deltaTime)
-    {
-        Spells.Update(deltaTime);
-    }
+    public void Update(TimeSpan deltaTime) => Spells.Update(deltaTime);
+
+    public uint ChunkId { get; set; }
+    public static event UnitFinishedCastAnimationDelegate? OnUnitFinishedCastAnimation;
+    public static event UnitAttackAnimationDelegate? OnUnitAttackAnimation;
+    public static event CharacterDisconnectedDelegate? CharacterDisconnected;
+    public static event UnitInterruptedCastAnimationDelegate? OnUnitInterruptedCastAnimation;
+    public static event UnitDamagedDelegate? OnUnitDamaged;
 
     private void CalculateMovementSpeed()
     {
@@ -248,36 +241,5 @@ public class CharacterEntity : ICharacter
         // In the future, speed modifiers will be applied here
 
         MovementSpeed = Running ? defaultRunSpeed : defaultWalkSpeed;
-    }
-
-    public uint ChunkId { get; set; }
-
-    public DateTime EnteredWorld { get; set; }
-}
-
-public class CharacterInventoryContainer : ICharacterInventory
-{
-    private readonly InventoryType Type;
-
-    private readonly ILogger<CharacterInventoryContainer> _logger;
-
-    private ushort MaxSlots => Type switch
-    {
-        InventoryType.Equipment => 14,
-        InventoryType.Bag => 30,
-        InventoryType.Bank => 30,
-        _ => throw new ArgumentOutOfRangeException()
-    };
-
-    public CharacterInventoryContainer(ILoggerFactory loggerFactory, InventoryType type)
-    {
-        _logger = loggerFactory.CreateLogger<CharacterInventoryContainer>();
-        Type = type;
-    }
-
-    public void Load(IReadOnlyCollection<object> items)
-    {
-        var castedItems = items.Cast<CharacterInventory>().ToList();
-        _logger.LogInformation("Loading {Count} items into {Type} inventory", castedItems.Count, Type);
     }
 }

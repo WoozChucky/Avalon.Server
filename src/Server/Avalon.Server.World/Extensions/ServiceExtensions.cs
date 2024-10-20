@@ -8,9 +8,9 @@ using Avalon.World.Entities;
 using Avalon.World.Maps;
 using Avalon.World.Maps.Navigation;
 using Avalon.World.Pools;
-using Avalon.World.Quests;
 using Avalon.World.Scripts;
 using Avalon.World.Scripts.Abstractions;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Avalon.Server.World.Extensions;
@@ -21,7 +21,13 @@ public static class ServiceExtensions
     {
         services
             .AddOptions<GameConfiguration>()
-            .BindConfiguration("Game");
+            .BindConfiguration("Game")
+            .PostConfigure<IConfiguration>((gameConfig, config) =>
+            {
+                gameConfig.WorldId =
+                    config.GetSection("Game:WorldId").Value ??
+                    throw new InvalidOperationException("WorldId is not set in configuration.");
+            });
 
         services
             .AddAuthDatabase() //TODO: World should not depend on Auth database

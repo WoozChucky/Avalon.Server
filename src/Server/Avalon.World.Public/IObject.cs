@@ -1,61 +1,24 @@
 using Avalon.Common;
-using Avalon.Common.Mathematics;
-using Avalon.Network.Packets.State;
-using Avalon.World.Public.Spells;
 
 namespace Avalon.World.Public;
-
-public enum PowerType
-{
-    None,
-    Mana,
-    Fury,
-    Energy
-}
 
 public interface IObject
 {
     ObjectGuid Guid { get; set; }
 
-    static uint GenerateId()
-    {
-        return UniqueObjectIdGenerator.GenerateId();
-    }
+    static uint GenerateId() => UniqueObjectIdGenerator.GenerateId();
 }
 
 internal static class UniqueObjectIdGenerator
 {
-    private static uint _nextId = 1;
-    private static readonly object Lock = new object();
+    private static uint s_nextId = 1;
+    private static readonly object s_lock = new();
 
     public static uint GenerateId()
     {
-        lock (Lock)
+        lock (s_lock)
         {
-            return _nextId++;
+            return s_nextId++;
         }
     }
-}
-
-public interface IWorldObject : IObject
-{
-    Vector3 Position { get; set; }
-    Vector3 Velocity { get; set; }
-    Vector3 Orientation { get; set; }
-}
-
-public interface IUnit : IWorldObject
-{
-    ushort Level { get; set; }
-    uint Health { get; set; }
-    uint CurrentHealth { get; set; }
-    PowerType PowerType { get; set; }
-    uint? Power { get; set; }
-    uint? CurrentPower { get; set; }
-    MoveState MoveState { get; set; }
-
-    void OnHit(IUnit attacker, uint damage);
-    void SendAttackAnimation(ISpell? spell);
-    void SendFinishCastAnimation(ISpell spell);
-    void SendInterruptedCastAnimation(ISpell spell);
 }

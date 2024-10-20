@@ -4,12 +4,15 @@ using Avalon.Database.Auth.Repositories;
 using Avalon.Database.Character.Repositories;
 using Avalon.Database.World.Repositories;
 using Avalon.Domain.Auth;
+using Avalon.Domain.Characters;
+using Avalon.Domain.World;
 using Avalon.World.Configuration;
 using Avalon.World.Entities;
 using Avalon.World.Maps;
-using Avalon.World.Pools;
+using Avalon.World.Maps.Virtualized;
 using Avalon.World.Public;
 using Avalon.World.Public.Creatures;
+using Avalon.World.Public.Maps;
 using Avalon.World.Public.Scripts;
 using Avalon.World.Scripts.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
@@ -26,43 +29,34 @@ public interface IWorld
     GameConfiguration Configuration { get; }
 
     WorldGrid Grid { get; }
+    StaticData Data { get; }
 
     void SpawnPlayer(IWorldConnection connection);
-    Task DespawnPlayerAsync(IWorldConnection connection);
-    StaticData Data { get; }
+    Task DeSpawnPlayerAsync(IWorldConnection connection);
 }
 
 public class World : IWorld
 {
-    public WorldId Id => Configuration.WorldId;
-    public string MinVersion => _world?.MinVersion ?? throw new InvalidOperationException("World not loaded.");
-    public string CurrentVersion => _world?.Version ?? throw new InvalidOperationException("World not loaded.");
-    public GameConfiguration Configuration => _configuration.Value;
-    public WorldGrid Grid { get; private set; }
-    public StaticData Data { get; private set; }
-
     private const ushort WorldTimersCount = 5;
     private const ushort HotReloadTimer = 0;
-
-    private Avalon.Domain.Auth.World? _world;
+    private readonly IOptions<GameConfiguration> _configuration;
 
     private readonly ILogger<World> _logger;
     private readonly ILoggerFactory _loggerFactory;
-    private readonly IOptions<GameConfiguration> _configuration;
-    private readonly IServiceProvider _serviceProvider;
-    private readonly IWorldRepository _worldRepository;
     private readonly IAvalonMapManager _mapManager;
-    private readonly IPoolManager _poolManager;
-    private readonly IServiceScopeFactory _serviceScopeFactory;
     private readonly IScriptHotReloader _scriptHotReloader;
+    private readonly IServiceProvider _serviceProvider;
+    private readonly IServiceScopeFactory _serviceScopeFactory;
     private readonly IntervalTimer[] _timers = new IntervalTimer[WorldTimersCount];
+    private readonly IWorldRepository _worldRepository;
+
+    private Domain.Auth.World? _world;
 
     public World(ILoggerFactory loggerFactory,
         IOptions<GameConfiguration> configuration,
         IServiceProvider serviceProvider,
         IWorldRepository worldRepository,
         IAvalonMapManager mapManager,
-        IPoolManager poolManager,
         IServiceScopeFactory serviceScopeFactory,
         ICharacterCreateInfoRepository characterCreateInfoRepository,
         IClassLevelStatRepository classLevelStatRepository,
@@ -77,21 +71,59 @@ public class World : IWorld
         _serviceProvider = serviceProvider;
         _worldRepository = worldRepository;
         _mapManager = mapManager;
-        _poolManager = poolManager;
         _serviceScopeFactory = serviceScopeFactory;
         _scriptHotReloader = scriptHotReloader;
-        Data = new StaticData(characterCreateInfoRepository, classLevelStatRepository, itemTemplateRepository, spellTemplateRepository, characterLevelExperienceRepository);
+        Data = new StaticData(characterCreateInfoRepository, classLevelStatRepository, itemTemplateRepository,
+            spellTemplateRepository, characterLevelExperienceRepository);
 
-        for (var i = 0; i < WorldTimersCount; ++i)
+        for (int i = 0; i < WorldTimersCount; ++i)
         {
             _timers[i] = new IntervalTimer();
             _timers[i].SetInterval(5000);
         }
     }
 
+    public WorldId Id => Configuration.WorldId;
+    public string MinVersion => _world?.MinVersion ?? throw new InvalidOperationException("World not loaded.");
+    public string CurrentVersion => _world?.Version ?? throw new InvalidOperationException("World not loaded.");
+    public GameConfiguration Configuration => _configuration.Value;
+    public WorldGrid Grid { get; private set; }
+    public StaticData Data { get; }
+
+    public void SpawnPlayer(IWorldConnection connection) => Grid.AddPlayer(connection);
+
+    public async Task DeSpawnPlayerAsync(IWorldConnection connection)
+    {
+        try
+        {
+            Grid.RemovePlayer(connection);
+
+            await using AsyncServiceScope scope = _serviceScopeFactory.CreateAsyncScope();
+            ICharacterRepository characterRepository = scope.ServiceProvider.GetRequiredService<ICharacterRepository>();
+
+            CharacterEntity? entity = connection.Character! as CharacterEntity;
+            Character dbCharacter = entity!.Data!;
+            // This probably should be converted to a logout function
+            dbCharacter.X = entity.Position.x;
+            dbCharacter.Y = entity.Position.y;
+            dbCharacter.Z = entity.Position.z;
+            dbCharacter.Online = false;
+            dbCharacter.LevelTime += (ulong)(DateTime.UtcNow - entity.EnteredWorld).TotalSeconds;
+            dbCharacter.TotalTime += (ulong)(DateTime.UtcNow - entity.EnteredWorld).TotalSeconds;
+            await characterRepository.UpdateAsync(dbCharacter);
+        }
+        catch (InvalidOperationException)
+        {
+        } // Ignore if character is not found
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Failed to save character {CharacterId} on world de-spawn", connection.Character!.Guid);
+        }
+    }
+
     public async Task LoadAsync(CancellationToken token)
     {
-        var world = await _worldRepository.FindByIdAsync(Id);
+        Domain.Auth.World? world = await _worldRepository.FindByIdAsync(Id);
 
         _world = world ?? throw new InvalidOperationException($"World {Id} not found.");
 
@@ -101,22 +133,24 @@ public class World : IWorld
 
         Grid = new WorldGrid();
 
-        var chunkId = 1U;
+        uint chunkId = 1U;
 
-        await foreach (var (virtualMap, mapTemplate) in _mapManager.EnumerateOpenWorldAsync(token))
+        await foreach ((VirtualizedMap virtualMap, MapTemplate mapTemplate) in
+                       _mapManager.EnumerateOpenWorldAsync(token))
         {
-            var chunksMetadata = virtualMap.Chunks;
+            List<ChunkMetadata> chunksMetadata = virtualMap.Chunks;
 
-            //var chunks = new Dictionary<Vector2, Chunk>();
-            var chunks = new List<Chunk>();
+            List<Chunk> chunks = new();
 
-            foreach (var chunkMetadata in chunksMetadata)
+            foreach (ChunkMetadata chunkMetadata in chunksMetadata)
             {
-                var position = new Vector2(chunkMetadata.Position.x, chunkMetadata.Position.z);
+                Vector2 position = new(chunkMetadata.Position.x, chunkMetadata.Position.z);
 
-                if (ActivatorUtilities.CreateInstance(_serviceProvider, typeof(Chunk), [virtualMap.Id, position]) is not Chunk chunk)
+                if (ActivatorUtilities.CreateInstance(_serviceProvider, typeof(Chunk), virtualMap.Id, position) is not
+                    Chunk chunk)
                 {
-                    _logger.LogError("Failed to create chunk for map {MapId} at position {Position}", virtualMap.Id, position);
+                    _logger.LogError("Failed to create chunk for map {MapId} at position {Position}", virtualMap.Id,
+                        position);
                     continue;
                 }
 
@@ -125,31 +159,14 @@ public class World : IWorld
                 chunk.Metadata = chunkMetadata;
                 chunk.Neighbors = [];
 
-                /*
-                var chunk = new Chunk(
-                    _loggerFactory, 
-                    virtualMap.Id,
-                    new Vector2(chunkMetadata.Position.x, chunkMetadata.Position.z),
-                    _poolManager)
-                {
-                    Id = chunkId++,
-                    Enabled = false,
-                    Metadata = chunkMetadata,
-                    Neighbors = [] // Fills after loading all chunks
-                };
-                */
-
                 await chunk.InitializeAsync();
 
                 chunks.Add(chunk);
             }
 
-            var map = new Map(_loggerFactory)
+            Map map = new(_loggerFactory)
             {
-                Id = mapTemplate.Id,
-                Metadata = mapTemplate,
-                Size = virtualMap.Size,
-                Chunks = chunks
+                Id = mapTemplate.Id, Metadata = mapTemplate, Size = virtualMap.Size, Chunks = chunks
             };
 
             Grid.AddMap(map);
@@ -165,22 +182,27 @@ public class World : IWorld
         GameTime.UpdateGameTimers(deltaTime);
         // TODO: Name the timers with 'constant' identifiers
 
-        for (var i = 0; i < WorldTimersCount; ++i)
+        for (int i = 0; i < WorldTimersCount; ++i)
         {
             if (_timers[i].GetCurrent() >= 0)
+            {
                 _timers[i].Update((long)deltaTime.TotalMilliseconds);
+            }
             else
+            {
                 _timers[i].SetCurrent(0);
+            }
         }
 
         if (_timers[HotReloadTimer].Passed()) // Hot reload scripts timer
         {
-            _scriptHotReloader.Update(out var scriptTypes);
+            _scriptHotReloader.Update(out List<Type> scriptTypes);
             if (scriptTypes.Count > 0)
             {
                 OnScriptsHotReload(scriptTypes);
                 _logger.LogInformation("Hot reloaded {Count} AI scripts", scriptTypes.Count);
             }
+
             _timers[HotReloadTimer].Reset();
         }
 
@@ -197,9 +219,9 @@ public class World : IWorld
         });
         */
 
-        foreach (var gridMap in Grid.Maps)
+        foreach (Map gridMap in Grid.Maps)
         {
-            foreach (var chunk in gridMap.Chunks)
+            foreach (Chunk chunk in gridMap.Chunks)
             {
                 if (chunk.Enabled)
                 {
@@ -209,66 +231,34 @@ public class World : IWorld
         }
     }
 
-    public void SpawnPlayer(IWorldConnection connection)
-    {
-        Grid.AddPlayer(connection);
-    }
-
-    public async Task DespawnPlayerAsync(IWorldConnection connection)
-    {
-        _logger.LogDebug("Was called!");
-
-        try
-        {
-            Grid.RemovePlayer(connection);
-
-            await using var scope = _serviceScopeFactory.CreateAsyncScope();
-            var characterRepository = scope.ServiceProvider.GetRequiredService<ICharacterRepository>();
-
-            var entity = connection.Character! as CharacterEntity;
-            var dbCharacter = entity!.Data!;
-            // This probably should be converted to a logout function
-            dbCharacter.X = entity.Position.x;
-            dbCharacter.Y = entity.Position.y;
-            dbCharacter.Z = entity.Position.z;
-            dbCharacter.Online = false;
-            dbCharacter.LevelTime += (ulong)(DateTime.UtcNow - entity.EnteredWorld).TotalSeconds;
-            dbCharacter.TotalTime += (ulong)(DateTime.UtcNow - entity.EnteredWorld).TotalSeconds;
-            await characterRepository.UpdateAsync(dbCharacter);
-        }
-        catch (InvalidOperationException) { } // Ignore if character is not found
-        catch (Exception e)
-        {
-            _logger.LogError(e, "Failed to save character {CharacterId} on world despawn", connection.Character!.Guid);
-        }
-    }
-
     private void OnScriptsHotReload(List<Type> aiScriptTypes)
     {
-        var chunks = Grid.Maps.AsParallel().SelectMany(map => map.Chunks);
-        var scriptTypeDict = aiScriptTypes.ToDictionary(t => t.Name, StringComparer.InvariantCultureIgnoreCase);
-        var serviceProvider = _serviceScopeFactory.CreateScope().ServiceProvider;
+        ParallelQuery<Chunk> chunks = Grid.Maps.AsParallel().SelectMany(map => map.Chunks);
+        Dictionary<string, Type> scriptTypeDict =
+            aiScriptTypes.ToDictionary(t => t.Name, StringComparer.InvariantCultureIgnoreCase);
+        IServiceProvider serviceProvider = _serviceScopeFactory.CreateScope().ServiceProvider;
 
         Parallel.ForEach(chunks, chunk =>
         {
-            var creatures = chunk.Creatures.Values;
-            var entitiesNeedingUpdate = new List<(ICreature, Type)>();
-            foreach (var entity in creatures) // GetCreatures() return a copy of the list
+            IEnumerable<ICreature> creatures = chunk.Creatures.Values;
+            List<(ICreature, Type)> entitiesNeedingUpdate = new();
+            foreach (ICreature entity in creatures) // GetCreatures() return a copy of the list
             {
-                if (!string.IsNullOrWhiteSpace(entity.ScriptName) && scriptTypeDict.TryGetValue(entity.ScriptName, out var scriptType))
+                if (!string.IsNullOrWhiteSpace(entity.ScriptName) &&
+                    scriptTypeDict.TryGetValue(entity.ScriptName, out Type? scriptType))
                 {
                     entitiesNeedingUpdate.Add((entity, scriptType));
                 }
             }
 
-            foreach (var (entity, scriptType) in entitiesNeedingUpdate)
+            foreach ((ICreature entity, Type scriptType) in entitiesNeedingUpdate)
             {
                 chunk.RemoveCreature(entity.Guid);
-                var script = ActivatorUtilities.CreateInstance(serviceProvider, scriptType, [entity, chunk]) as AiScript;
+                AiScript? script =
+                    ActivatorUtilities.CreateInstance(serviceProvider, scriptType, entity, chunk) as AiScript;
                 entity.Script = script;
                 chunk.AddCreature(entity);
             }
         });
     }
-
 }

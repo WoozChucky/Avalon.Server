@@ -4,23 +4,21 @@ using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Scripts;
+using Avalon.World.Public.Units;
 
 namespace Avalon.World.Entities;
 
-public class CharacterGameState : IGameState
+public class CharacterCharacterGameState : ICharacterGameState
 {
-    public ISet<ObjectGuid> NewObjects { get; } = new HashSet<ObjectGuid>(100);
-    public ISet<(ObjectGuid Guid, GameEntityFields Fields)> UpdatedObjects { get; } = new HashSet<(ObjectGuid Guid, GameEntityFields Fields)>(100);
-    public ISet<ObjectGuid> RemovedObjects { get; } = new HashSet<ObjectGuid>(100);
-
-    private readonly EntityTrackingSystem _creatureTrackingSystem;
+    private const int Capacity = 100;
     private readonly EntityTrackingSystem _characterTrackingSystem;
+    private readonly EntityTrackingSystem _creatureTrackingSystem;
     private readonly EntityTrackingSystem _worldObjectTrackingSystem;
 
-    public CharacterGameState()
+    public CharacterCharacterGameState()
     {
         _creatureTrackingSystem = new EntityTrackingSystem(
-            100,
+            Capacity,
             CreateCreature,
             UpdateCreature,
             GetUnitChangedFields
@@ -30,7 +28,7 @@ public class CharacterGameState : IGameState
         _creatureTrackingSystem.EntityRemoved += OnWorldObjectRemoved;
 
         _characterTrackingSystem = new EntityTrackingSystem(
-            100,
+            Capacity,
             CreateCharacter,
             UpdateCharacter,
             GetUnitChangedFields
@@ -40,7 +38,7 @@ public class CharacterGameState : IGameState
         _characterTrackingSystem.EntityRemoved += OnWorldObjectRemoved;
 
         _worldObjectTrackingSystem = new EntityTrackingSystem(
-            100,
+            Capacity,
             CreateChunkObject,
             UpdateChunkObject,
             GetWorldObjectChangedFields
@@ -49,6 +47,13 @@ public class CharacterGameState : IGameState
         _worldObjectTrackingSystem.EntityUpdated += OnWorldObjectUpdated;
         _worldObjectTrackingSystem.EntityRemoved += OnWorldObjectRemoved;
     }
+
+    public ISet<ObjectGuid> NewObjects { get; } = new HashSet<ObjectGuid>(Capacity);
+
+    public ISet<(ObjectGuid Guid, GameEntityFields Fields)> UpdatedObjects { get; } =
+        new HashSet<(ObjectGuid Guid, GameEntityFields Fields)>(Capacity);
+
+    public ISet<ObjectGuid> RemovedObjects { get; } = new HashSet<ObjectGuid>(Capacity);
 
     public void Update(
         Dictionary<ObjectGuid, ICreature> creatures,
@@ -64,30 +69,11 @@ public class CharacterGameState : IGameState
         _worldObjectTrackingSystem.Update(chunkObjects);
     }
 
-    #region Events
-
-    private void OnWorldObjectRemoved(ObjectGuid obj)
-    {
-        RemovedObjects.Add(obj);
-    }
-
-    private void OnWorldObjectUpdated(ObjectGuid obj, GameEntityFields fields)
-    {
-        UpdatedObjects.Add((obj, fields));
-    }
-
-    private void OnWorldObjectFound(ObjectGuid obj)
-    {
-        NewObjects.Add(obj);
-    }
-
-    #endregion
-
     private IWorldObject CreateCreature(IWorldObject obj)
     {
-        var creature = (obj as ICreature)!;
+        ICreature creature = (obj as ICreature)!;
 
-        var entity = new Creature
+        Creature entity = new()
         {
             Guid = creature.Guid,
             Position = creature.Position,
@@ -98,7 +84,7 @@ public class CharacterGameState : IGameState
             CurrentHealth = creature.CurrentHealth,
             PowerType = creature.PowerType,
             Power = creature.Power,
-            CurrentPower = creature.CurrentPower,
+            CurrentPower = creature.CurrentPower
         };
 
         return entity;
@@ -106,8 +92,8 @@ public class CharacterGameState : IGameState
 
     private IWorldObject UpdateCreature(IWorldObject existingObj, IWorldObject updatedObj)
     {
-        var existing = (existingObj as ICreature)!;
-        var updated = (updatedObj as ICreature)!;
+        ICreature existing = (existingObj as ICreature)!;
+        ICreature updated = (updatedObj as ICreature)!;
 
         existing.Position = updated.Position;
         existing.Orientation = updated.Orientation;
@@ -126,9 +112,9 @@ public class CharacterGameState : IGameState
 
     private IWorldObject CreateCharacter(IWorldObject obj)
     {
-        var character = (obj as ICharacter)!;
+        ICharacter character = (obj as ICharacter)!;
 
-        var entity = new CharacterEntity
+        CharacterEntity entity = new()
         {
             Guid = character.Guid,
             Position = character.Position,
@@ -142,7 +128,7 @@ public class CharacterGameState : IGameState
             CurrentPower = character.CurrentPower,
             Level = character.Level,
             Experience = character.Experience,
-            RequiredExperience = character.RequiredExperience,
+            RequiredExperience = character.RequiredExperience
         };
 
         return entity;
@@ -150,8 +136,8 @@ public class CharacterGameState : IGameState
 
     private IWorldObject UpdateCharacter(IWorldObject existingObj, IWorldObject updatedObj)
     {
-        var existing = (existingObj as ICharacter)!;
-        var updated = (updatedObj as ICharacter)!;
+        ICharacter existing = (existingObj as ICharacter)!;
+        ICharacter updated = (updatedObj as ICharacter)!;
 
         existing.Position = updated.Position;
         existing.Orientation = updated.Orientation;
@@ -171,8 +157,8 @@ public class CharacterGameState : IGameState
 
     private GameEntityFields GetUnitChangedFields(IWorldObject existing, IWorldObject updated)
     {
-        var existingUnit = (existing as IUnit)!;
-        var updatedUnit = (updated as IUnit)!;
+        IUnit existingUnit = (existing as IUnit)!;
+        IUnit updatedUnit = (updated as IUnit)!;
 
         GameEntityFields fields = 0;
 
@@ -240,14 +226,25 @@ public class CharacterGameState : IGameState
 
     private IWorldObject CreateChunkObject(IWorldObject obj)
     {
-        if (obj is not SpellScript spell) throw new InvalidCastException("Object is not a spell");
+        if (obj is not SpellScript spell)
+        {
+            throw new InvalidCastException("Object is not a spell");
+        }
+
         return spell.Clone();
     }
 
     private IWorldObject UpdateChunkObject(IWorldObject existingObj, IWorldObject updatedObj)
     {
-        if (existingObj is not SpellScript existingSpell) throw new InvalidCastException("Object is not a spell");
-        if (updatedObj is not SpellScript updatedSpell) throw new InvalidCastException("Object is not a spell");
+        if (existingObj is not SpellScript existingSpell)
+        {
+            throw new InvalidCastException("Object is not a spell");
+        }
+
+        if (updatedObj is not SpellScript updatedSpell)
+        {
+            throw new InvalidCastException("Object is not a spell");
+        }
 
         existingSpell.Position = updatedSpell.Position;
         existingSpell.Velocity = updatedSpell.Velocity;
@@ -258,8 +255,8 @@ public class CharacterGameState : IGameState
 
     private GameEntityFields GetWorldObjectChangedFields(IWorldObject existing, IWorldObject updated)
     {
-        var existingUnit = (existing as SpellScript) ?? throw new InvalidCastException("Object is not a spell");
-        var updatedUnit = (updated as SpellScript) ?? throw new InvalidCastException("Object is not a spell");
+        SpellScript existingUnit = existing as SpellScript ?? throw new InvalidCastException("Object is not a spell");
+        SpellScript updatedUnit = updated as SpellScript ?? throw new InvalidCastException("Object is not a spell");
 
         GameEntityFields fields = 0;
 
@@ -280,4 +277,14 @@ public class CharacterGameState : IGameState
 
         return fields;
     }
+
+    #region Events
+
+    private void OnWorldObjectRemoved(ObjectGuid obj) => RemovedObjects.Add(obj);
+
+    private void OnWorldObjectUpdated(ObjectGuid obj, GameEntityFields fields) => UpdatedObjects.Add((obj, fields));
+
+    private void OnWorldObjectFound(ObjectGuid obj) => NewObjects.Add(obj);
+
+    #endregion
 }

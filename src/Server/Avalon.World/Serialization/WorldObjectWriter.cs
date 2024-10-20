@@ -3,6 +3,7 @@ using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
+using Avalon.World.Public.Units;
 
 namespace Avalon.World.Serialization;
 
@@ -36,10 +37,12 @@ public class WorldObjectWriter(byte[] buffer) : BinaryWriter(new MemoryStream(bu
         {
             Write(worldObject.Position);
         }
+
         if (fields.HasFlag(GameEntityFields.Velocity))
         {
             Write(worldObject.Velocity);
         }
+
         if (fields.HasFlag(GameEntityFields.Orientation))
         {
             Write(worldObject.Orientation.y);
@@ -61,6 +64,7 @@ public class WorldObjectWriter(byte[] buffer) : BinaryWriter(new MemoryStream(bu
         {
             Write(character.Experience);
         }
+
         if (fields.HasFlag(GameEntityFields.RequiredExperience))
         {
             Write(character.RequiredExperience);
@@ -78,10 +82,12 @@ public class WorldObjectWriter(byte[] buffer) : BinaryWriter(new MemoryStream(bu
             {
                 Write(worldObject.Position);
             }
+
             if (fields.HasFlag(GameEntityFields.Velocity))
             {
                 Write(worldObject.Velocity);
             }
+
             if (fields.HasFlag(GameEntityFields.Orientation))
             {
                 Write(worldObject.Orientation.y);
@@ -99,6 +105,7 @@ public class WorldObjectWriter(byte[] buffer) : BinaryWriter(new MemoryStream(bu
             {
                 Write(worldObject.Health);
             }
+
             if (fields.HasFlag(GameEntityFields.CurrentHealth))
             {
                 Write(worldObject.CurrentHealth);
@@ -113,6 +120,7 @@ public class WorldObjectWriter(byte[] buffer) : BinaryWriter(new MemoryStream(bu
                     {
                         Write(worldObject.Power!.Value);
                     }
+
                     if (fields.HasFlag(GameEntityFields.CurrentPower))
                     {
                         Write(worldObject.CurrentPower!.Value);
@@ -125,6 +133,5 @@ public class WorldObjectWriter(byte[] buffer) : BinaryWriter(new MemoryStream(bu
         {
             Write(worldObject.Level);
         }
-
     }
 }

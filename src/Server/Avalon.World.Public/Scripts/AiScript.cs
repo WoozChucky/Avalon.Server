@@ -1,24 +1,20 @@
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Maps;
+using Avalon.World.Public.Units;
 
 namespace Avalon.World.Public.Scripts;
 
-public abstract class AiScript
+public abstract class AiScript(ICreature creature, IChunk chunk)
 {
-
-    protected ICreature Creature { get; }
-    protected IChunk Chunk { get; }
+    protected ICreature Creature { get; } = creature;
+    protected IChunk Chunk { get; } = chunk;
 
     protected List<AiScript> ChainedScripts { get; } = new();
 
-    protected AiScript(ICreature creature, IChunk chunk)
-    {
-        Creature = creature;
-        Chunk = chunk;
-    }
+    public abstract object State { get; set; }
 
-    public AiScript Chain(AiScript script)
+    protected AiScript Chain(AiScript script)
     {
         ChainedScripts.Add(script);
         return this;
@@ -26,20 +22,20 @@ public abstract class AiScript
 
     public virtual void Update(TimeSpan deltaTime)
     {
-        foreach (var script in ChainedScripts)
+        foreach (AiScript script in ChainedScripts)
         {
             if (script.ShouldRun())
+            {
                 script.Update(deltaTime);
+            }
         }
     }
-
-    public abstract object State { get; set; }
 
     protected abstract bool ShouldRun();
 
     public virtual void OnHit(IUnit attacker, uint damage)
     {
-        foreach (var script in ChainedScripts)
+        foreach (AiScript script in ChainedScripts)
         {
             script.OnHit(attacker, damage);
         }
@@ -47,7 +43,7 @@ public abstract class AiScript
 
     public virtual void OnEnteredRange(ICharacter character)
     {
-        foreach (var script in ChainedScripts)
+        foreach (AiScript script in ChainedScripts)
         {
             script.OnEnteredRange(character);
         }
