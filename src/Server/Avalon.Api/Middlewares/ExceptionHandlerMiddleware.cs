@@ -9,13 +9,13 @@ public class ExceptionHandlerMiddleware
 {
     private readonly RequestDelegate _next;
     private readonly ILogger<ExceptionHandlerMiddleware> _logger;
-    
+
     public ExceptionHandlerMiddleware(RequestDelegate next, ILoggerFactory loggerFactory)
     {
         _logger = loggerFactory.CreateLogger<ExceptionHandlerMiddleware>();
         _next = next;
     }
-    
+
     public async Task InvokeAsync(HttpContext httpContext)
     {
         try
@@ -30,7 +30,7 @@ public class ExceptionHandlerMiddleware
     private async Task HandleExceptionAsync(HttpContext context, Exception exception)
     {
         context.Response.ContentType = "application/json";
-        
+
         switch (exception)
         {
             case AuthenticationException ex:
@@ -56,7 +56,7 @@ public class ExceptionHandlerMiddleware
                 }, cancellationToken: context.RequestAborted);
                 return;
         }
-        
+
         _logger.LogError(exception, "An unexpected error occurred");
 
         context.Request.HttpContext.Response.StatusCode = (int)HttpStatusCode.InternalServerError;

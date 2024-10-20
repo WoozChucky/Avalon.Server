@@ -20,7 +20,7 @@ public class CharacterEntity : ICharacter
     public static event CharacterDisconnectedDelegate? CharacterDisconnected;
     public static event UnitInterruptedCastAnimationDelegate? OnUnitInterruptedCastAnimation;
     public static event UnitDamagedDelegate? OnUnitDamaged;
-    
+
     public IWorldConnection Connection => _connection;
     public IGameState GameState { get; }
 
@@ -50,7 +50,7 @@ public class CharacterEntity : ICharacter
         _bank = null!;
         _spells = null!;
     }
-    
+
     public CharacterEntity(ILoggerFactory loggerFactory, IWorldConnection connection, Character character)
     {
         _logger = loggerFactory.CreateLogger<CharacterEntity>();
@@ -68,35 +68,35 @@ public class CharacterEntity : ICharacter
 
     public uint Health
     {
-        get => (uint) (Data?.Health ?? 0);
+        get => (uint)(Data?.Health ?? 0);
         set
         {
             if (Data != null)
             {
-                Data.Health = (int) value;
+                Data.Health = (int)value;
             }
         }
     }
-    
+
     public uint CurrentHealth { get; set; }
-    
+
     public PowerType PowerType { get; set; }
-    
+
     public uint? Power
     {
-        get => (uint) (Data?.Power1 ?? 0);
+        get => (uint)(Data?.Power1 ?? 0);
         set
         {
             if (Data != null)
             {
-                Data.Power1 = (int) value!;
+                Data.Power1 = (int)value!;
             }
         }
     }
-    
+
     public uint? CurrentPower { get; set; }
     public MoveState MoveState { get; set; } = MoveState.Idle;
-    
+
     public void OnHit(IUnit attacker, uint damage)
     {
         _logger.LogInformation("{Name} has been hit by unit {Attacker} for {Damage} damage", Name, attacker.Guid, damage);
@@ -138,7 +138,7 @@ public class CharacterEntity : ICharacter
             Data.Z = value.z;
         }
     }
-    
+
     public Vector3 Velocity { get; set; }
 
     public Vector3 Orientation
@@ -152,7 +152,7 @@ public class CharacterEntity : ICharacter
             }
         }
     }
-    
+
     public Character? Data { get; init; }
 
     public string Name
@@ -166,7 +166,7 @@ public class CharacterEntity : ICharacter
             }
         }
     }
-    
+
     public ushort Map
     {
         get => Data?.Map ?? 0;
@@ -179,7 +179,7 @@ public class CharacterEntity : ICharacter
         }
     }
 
-    public ulong Experience 
+    public ulong Experience
     {
         get => Data?.Experience ?? 0;
         set
@@ -216,7 +216,7 @@ public class CharacterEntity : ICharacter
             }
         }
     }
-    
+
     private float MovementSpeed { get; set; }
 
     public void OnDisconnected()
@@ -244,9 +244,9 @@ public class CharacterEntity : ICharacter
     {
         const float defaultRunSpeed = 1.0f;
         const float defaultWalkSpeed = 0.4f;
-        
+
         // In the future, speed modifiers will be applied here
-        
+
         MovementSpeed = Running ? defaultRunSpeed : defaultWalkSpeed;
     }
 
@@ -258,9 +258,9 @@ public class CharacterEntity : ICharacter
 public class CharacterInventoryContainer : ICharacterInventory
 {
     private readonly InventoryType Type;
-    
+
     private readonly ILogger<CharacterInventoryContainer> _logger;
-    
+
     private ushort MaxSlots => Type switch
     {
         InventoryType.Equipment => 14,
@@ -268,13 +268,13 @@ public class CharacterInventoryContainer : ICharacterInventory
         InventoryType.Bank => 30,
         _ => throw new ArgumentOutOfRangeException()
     };
-    
+
     public CharacterInventoryContainer(ILoggerFactory loggerFactory, InventoryType type)
     {
         _logger = loggerFactory.CreateLogger<CharacterInventoryContainer>();
         Type = type;
     }
-    
+
     public void Load(IReadOnlyCollection<object> items)
     {
         var castedItems = items.Cast<CharacterInventory>().ToList();

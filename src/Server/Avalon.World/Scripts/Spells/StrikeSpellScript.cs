@@ -14,12 +14,12 @@ public class StrikeSpellScript : SpellScript
     public override Vector3 Velocity { get; set; }
     public override Vector3 Orientation { get; set; }
     public override ObjectGuid Guid { get; set; }
-    
+
     public StrikeSpellScript(ILogger<StrikeSpellScript> logger, ISpell spell, IUnit caster, IUnit? target) : base(spell, caster, target)
     {
         _logger = logger;
     }
-    
+
     public override void Prepare()
     {
         Guid = new ObjectGuid(ObjectType.Spell, IObject.GenerateId());
@@ -30,12 +30,12 @@ public class StrikeSpellScript : SpellScript
             State = SpellState.Finished;
         }
     }
-    
+
     public override void Update(TimeSpan deltaTime)
     {
         if (State is SpellState.Finished) return;
-        
-        if (Vector3.Distance(Position, Target!.Position) <= (uint) Spell.Metadata.Range + 1)
+
+        if (Vector3.Distance(Position, Target!.Position) <= (uint)Spell.Metadata.Range + 1)
         {
             Caster.SendAttackAnimation(Spell);
             _logger.LogInformation("Spell {SpellId} hit {CreatureId}", Spell.SpellId, Target.Guid);
@@ -52,7 +52,7 @@ public class StrikeSpellScript : SpellScript
 
     public override SpellScript Clone()
     {
-        var clone =  new StrikeSpellScript(_logger, Spell, Caster, Target)
+        var clone = new StrikeSpellScript(_logger, Spell, Caster, Target)
         {
             Guid = Guid,
             Position = Position,

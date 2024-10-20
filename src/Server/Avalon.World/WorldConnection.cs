@@ -30,7 +30,7 @@ public class WorldConnection : Connection, IWorldConnection
         public NetworkPacketType Type { get; set; }
         public Packet? Payload { get; set; }
     }
-    
+
     private readonly IWorldServer _server;
     public AccountId? AccountId { get; set; }
 
@@ -46,9 +46,9 @@ public class WorldConnection : Connection, IWorldConnection
     public long RoundTripTime { get; private set; }
     public bool InGame => Character != null;
     public bool InMap => InGame && _characterEntity?.Map > 0;
-    
+
     private CharacterEntity? _characterEntity;
-    
+
     private long _lastClientTicks = 0;
     private long _lastServerTicks = 0;
     private long _timeSyncOffset = 0;
@@ -64,7 +64,7 @@ public class WorldConnection : Connection, IWorldConnection
     private readonly ConcurrentQueue<(Task<object>, Action<object>)> _genericTaskQueue = new();
     private readonly ConcurrentQueue<(Task, Action)> _taskQueue = new();
 
-    public WorldConnection(IWorldServer server, TcpClient client, ILoggerFactory loggerFactory,IPacketReader packetReader)
+    public WorldConnection(IWorldServer server, TcpClient client, ILoggerFactory loggerFactory, IPacketReader packetReader)
         : base(loggerFactory.CreateLogger<WorldConnection>(), (server as IServerBase)!, packetReader)
     {
         _server = server;
@@ -129,7 +129,7 @@ public class WorldConnection : Connection, IWorldConnection
     }
 
     #endregion
-    
+
     public void EnableTimeSyncWorker()
     {
         _ = Task.Factory.StartNew(TimeSyncWorker, CancellationTokenSource!.Token, TaskCreationOptions.LongRunning, TaskScheduler.Default);
@@ -139,22 +139,22 @@ public class WorldConnection : Connection, IWorldConnection
     {
         var rtt = clientReceivedTimestamp - lastServerTimestamp + (DateTime.UtcNow.Ticks - clientSentTimestamp);
         var latency = rtt / TimeSpan.TicksPerMillisecond;
-        
+
         _timeSyncOffset = _lastServerTicks + (rtt / 2) - _lastClientTicks;
-        
-        if (Latency - latency >  20)
+
+        if (Latency - latency > 20)
         {
             _logger.LogInformation("[{CharName}] Latency changed: {Latency}ms -> {NewLatency}ms", Character?.Name ?? AccountId?.ToString(), Latency, latency);
         }
-        
+
         _logger.LogTrace("[{CharName}] RTT: {Rtt}ticks, Latency: {Latency}ms", Character?.Name ?? AccountId?.ToString(), rtt, latency);
-        
+
         _lastClientTicks = clientReceivedTimestamp;
         RoundTripTime = rtt;
         Latency = latency;
     }
-    
-    
+
+
     public void Update(TimeSpan deltaTime, PacketFilter filter)
     {
         const uint MaxPacketsPerUpdate = 150;
@@ -162,7 +162,7 @@ public class WorldConnection : Connection, IWorldConnection
         List<WorldPacket> requeuePackets = [];
 
         WorldPacket? packet = null;
-        
+
         while (IsConnected && _receiveQueue.Next(out packet, worldPacket => filter.CanProcess(worldPacket.Type)))
         {
             if (packet == null)
@@ -171,7 +171,7 @@ public class WorldConnection : Connection, IWorldConnection
                 break;
             }
 
-            try 
+            try
             {
                 if (_server.PacketHandlers.TryGetValue(packet.Type, out var handler))
                 {
@@ -186,16 +186,16 @@ public class WorldConnection : Connection, IWorldConnection
             {
                 _logger.LogError(ex, "Error processing packet {PacketType}", packet.Type);
             }
-            
+
             processedPackets++;
             if (processedPackets > MaxPacketsPerUpdate)
             {
                 break;
             }
         }
-        
+
         _receiveQueue.Readd(requeuePackets);
-        
+
         ProcessQueryCallbacks();
     }
 
@@ -209,9 +209,9 @@ public class WorldConnection : Connection, IWorldConnection
             while (!CancellationTokenSource!.Token.IsCancellationRequested)
             {
                 _lastServerTicks = DateTime.UtcNow.Ticks;
-                
+
                 Send(SPingPacket.Create(_lastServerTicks, _lastClientTicks, RoundTripTime, _timeSyncOffset));
-            
+
                 await Task.Delay(TimeSpan.FromSeconds(firstIteration ? 2 : 10), CancellationTokenSource!.Token);
                 firstIteration = false;
             }

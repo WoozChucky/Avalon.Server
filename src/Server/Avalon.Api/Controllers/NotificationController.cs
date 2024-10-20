@@ -11,14 +11,14 @@ namespace Avalon.Api.Controllers;
 [Route("notification")]
 public class NotificationController : BaseController
 {
-    
+
     private readonly INotificationService _notificationService;
 
     public NotificationController(INotificationService notificationService)
     {
         _notificationService = notificationService;
     }
-    
+
     [HttpPost("register")]
     public async Task<IActionResult> RegisterSubscriptionAsync([FromBody] PushSubscriptionRequest request)
     {

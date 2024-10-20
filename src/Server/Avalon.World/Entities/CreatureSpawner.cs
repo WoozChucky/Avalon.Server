@@ -30,25 +30,25 @@ public class CreatureSpawner : ICreatureSpawner
         _logger = loggerFactory.CreateLogger<CreatureSpawner>();
         _templates = new List<CreatureTemplate>();
     }
-    
+
     public async Task LoadAsync()
     {
         _templates = await _creatureTemplateRepository.FindAllAsync();
-        
+
         _logger.LogInformation("Loaded {CreatureCount} creatures template from database", _templates.Count());
     }
 
-    
+
     public ICreature Spawn(CreatureInfo virtualCreature)
     {
         var creature = Spawn(virtualCreature.PrototypeIndex);
 
         creature.Position = virtualCreature.Position;
         creature.Metadata.StartPosition = virtualCreature.Position;
-        
+
         return creature;
     }
-    
+
     public ICreature Spawn(CreatureTemplateId templateId)
     {
         var template = _templates.FirstOrDefault(t => t.Id == templateId);
@@ -75,7 +75,7 @@ public class CreatureSpawner : ICreatureSpawner
             Power = 0,
             CurrentPower = 0
         };
-        
+
         return creature;
     }
 }

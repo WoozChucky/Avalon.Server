@@ -27,9 +27,9 @@ internal class DatabaseMigrationProcess
     private const string DatabaseNameMask = "[[NAME]]";
 
     public DatabaseMigrationProcess(
-        ILoggerFactory loggerFactory, 
-        MigratorConfiguration config, 
-        string databaseName, 
+        ILoggerFactory loggerFactory,
+        MigratorConfiguration config,
+        string databaseName,
         DatabaseConnection connectionDetails
         )
     {
@@ -39,21 +39,21 @@ internal class DatabaseMigrationProcess
         _connectionDetails = connectionDetails;
         _connectionString = GenerateConnectionString(_connectionDetails);
     }
-    
+
     public async Task ValidateDatabaseExists()
     {
         if (await IsDatabaseCreatedAsync()) return;
-        
+
         if (!_config.CreateDatabases) throw new DatabaseMigrationException($"Database {_databaseName} does not exist.");
-        
+
         _logger.LogInformation("Database {Database} does not exist. Creating...", _databaseName);
-                
+
         var scripts = await ScriptReaderSystem.ListCreateScriptsAsync();
-        
+
         var creationScript = scripts.FirstOrDefault(s => s.Name.StartsWith("00"));
-        
+
         scripts.Remove(creationScript);
-        
+
         await using var connection = new MySqlConnection(
             $"Server={_connectionDetails.Host};" +
             $"Port={_connectionDetails.Port};" +
@@ -61,22 +61,22 @@ internal class DatabaseMigrationProcess
             $"Uid={_connectionDetails.Username};" +
             $"Pwd={_connectionDetails.Password};"
         );
-        
+
         await connection.OpenAsync();
-        
+
         await using var transaction = await connection.BeginTransactionAsync();
-        
+
         await CreateDatabaseAsync(connection, transaction, creationScript);
-        
+
         await connection.ExecuteAsync("USE " + _connectionDetails.Database, transaction: transaction);
-        
+
         foreach (var script in scripts)
         {
             await connection.ExecuteAsync(script.Content.Replace(DatabaseNameMask, _connectionDetails.Database), transaction: transaction);
         }
-        
+
         await transaction.CommitAsync();
-                
+
         _logger.LogInformation("Database {Database} created", _databaseName);
     }
 
@@ -84,14 +84,14 @@ internal class DatabaseMigrationProcess
     {
         var remoteRecords = await GetRemoteMigrationRecordAsync();
         var localRecords = await GetLocalMigrationRecordAsync();
-        
+
         if (!remoteRecords.Any())
         {
             _logger.LogInformation("No migrations found in '{Database}'. Applying all migrations...", _databaseName);
             await ApplyAllMigrationsAsync(localRecords);
             return;
         }
-            
+
         // Remote migrations may be behind, in this case we need to apply the missing migrations.
         // In this case, we need to check if the local migrations are ahead of the remote migrations.
         // We also need to check if the local migrations are behind the remote migrations.
@@ -101,20 +101,20 @@ internal class DatabaseMigrationProcess
         foreach (var remoteRecord in remoteRecords)
         {
             var foundRecord = false;
-            
+
             foreach (var localRecord in localRecords)
             {
                 if (!remoteRecord.Name.Equals(localRecord.Name, StringComparison.InvariantCultureIgnoreCase)) continue;
-                
+
                 if (remoteRecord.Hash.SequenceEqual(localRecord.Hash))
                 {
                     foundRecord = true;
                     break;
                 }
 
-                _logger.LogWarning("Migration {Migration} has a different hash locally. Remote has {RemoteHash} and local has {LocalHash}", 
-                    remoteRecord.Name, 
-                    BitConverter.ToString(remoteRecord.Hash.ToArray()).Replace("-", ""), 
+                _logger.LogWarning("Migration {Migration} has a different hash locally. Remote has {RemoteHash} and local has {LocalHash}",
+                    remoteRecord.Name,
+                    BitConverter.ToString(remoteRecord.Hash.ToArray()).Replace("-", ""),
                     BitConverter.ToString(localRecord.Hash.ToArray()).Replace("-", "")
                 );
             }
@@ -126,12 +126,12 @@ internal class DatabaseMigrationProcess
         }
 
         var localMigrationsAhead = new List<MigrationRecord>();
-        
+
         // Check if any missing remote migration
         foreach (var localRecord in localRecords)
         {
             var foundRecord = false;
-            
+
             foreach (var remoteRecord in remoteRecords)
             {
                 if (!localRecord.Name.Equals(remoteRecord.Name, StringComparison.InvariantCultureIgnoreCase)) continue;
@@ -145,24 +145,24 @@ internal class DatabaseMigrationProcess
                 localMigrationsAhead.Add(localRecord);
             }
         }
-        
+
         if (localMigrationsAhead.Any())
         {
             _logger.LogInformation("Local migrations are ahead of remote migrations. Applying missing migrations...");
             await ApplyMissingMigrationsAsync(localMigrationsAhead);
         }
     }
-    
+
     private async Task CreateDatabaseAsync(IDbConnection connection, IDbTransaction transaction, MigrationScript? script)
     {
         if (script == null)
             throw new DatabaseMigrationException($"Database creation script for {_databaseName} not found.");
 
         var sqlScript = script.Content.Replace(DatabaseNameMask, _connectionDetails.Database);
-        
+
         await connection.ExecuteAsync(sqlScript, transaction: transaction);
     }
-    
+
     private async Task<bool> IsDatabaseCreatedAsync()
     {
         try
@@ -184,7 +184,7 @@ internal class DatabaseMigrationProcess
 
         return false;
     }
-    
+
     private async Task<ICollection<MigrationRecord>> GetRemoteMigrationRecordAsync()
     {
         await using var connection = new MySqlConnection(_connectionString);
@@ -195,20 +195,20 @@ internal class DatabaseMigrationProcess
 
         return records.ToList();
     }
-    
+
     private async Task<ICollection<MigrationRecord>> GetLocalMigrationRecordAsync()
     {
         var migrationFolders = ScriptReaderSystem.ListMigrationDirectories();
 
         var result = new List<MigrationRecord>();
-        
+
         foreach (var migrationFolder in migrationFolders)
         {
             var scripts = await ScriptReaderSystem.ListMigrationScriptsAsync(migrationFolder);
             scripts = scripts.Where(s => s.Database!.Equals(_databaseName, StringComparison.InvariantCultureIgnoreCase)).ToList();
-            
+
             if (!scripts.Any()) continue;
-            
+
             var record = new MigrationRecord
             {
                 Name = migrationFolder,
@@ -231,22 +231,22 @@ internal class DatabaseMigrationProcess
         foreach (var migrationRecord in migrationRecords)
         {
             _logger.LogInformation("Applying migration {Migration} to '{Database}'", migrationRecord.Name, _databaseName);
-            
+
             var scripts = await ScriptReaderSystem.ListMigrationScriptsAsync(migrationRecord.Name);
             scripts = scripts.Where(s => s.Database!.Equals(_databaseName, StringComparison.InvariantCultureIgnoreCase)).ToList();
-            
+
             await using var connection = new MySqlConnection(_connectionString);
-            
+
             await connection.OpenAsync();
-            
+
             await using var transaction = await connection.BeginTransactionAsync();
-            
+
             foreach (var script in scripts)
             {
                 _logger.LogInformation("Applying script {Script} to '{Database}'...", script.Name, _databaseName);
                 await connection.ExecuteAsync(script.Content, transaction: transaction);
             }
-            
+
             await connection.ExecuteAsync(
                 "INSERT INTO __MigrationRecord (Id, Name, Hash, ExecutedBy, ExecutedOn) VALUES (@Id, @Name, @Hash, @ExecutedBy, @ExecutedOn)",
                 new
@@ -259,17 +259,17 @@ internal class DatabaseMigrationProcess
                 },
                 transaction: transaction
             );
-            
+
             await transaction.CommitAsync();
-            
-            _logger.LogInformation("Migration {Migration} applied to '{Database}' with Hash='{Hash}'", 
-                migrationRecord.Name, 
-                _databaseName, 
+
+            _logger.LogInformation("Migration {Migration} applied to '{Database}' with Hash='{Hash}'",
+                migrationRecord.Name,
+                _databaseName,
                 BitConverter.ToString(migrationRecord.Hash.ToArray()).Replace("-", "")
             );
         }
     }
-    
+
     private static string GenerateConnectionString(DatabaseConnection database)
     {
         return $"Server={database.Host};" +
@@ -279,7 +279,7 @@ internal class DatabaseMigrationProcess
                $"Pwd={database.Password};" +
                $"Allow User Variables=true";
     }
-    
+
     private static byte[] GetMigrationHash(IEnumerable<MigrationScript> scripts)
     {
         var bytes = Encoding.UTF8.GetBytes(scripts.Select(s => s.Content).Aggregate((a, b) => a + b));
@@ -293,13 +293,13 @@ internal class DatabaseMigrationProcess
         // This should check if theres a lock on the database.
         // If there is, we should wait (lets say 5 seconds) and try again up to a maximum of 10 times.
         // After failing 10 times, we should throw an exception.
-        
+
         var attempts = 0;
-        
+
         while (true)
         {
             await using var connection = new MySqlConnection(_connectionString);
-            
+
             var existingLocks = await connection.QueryAsync<MigrationLock>(
                 "SELECT * FROM __MigrationLock WHERE Locked = 1 AND LockedAt > @LockedAt",
                 new { LockedAt = DateTime.UtcNow.AddSeconds(-5) }
@@ -322,7 +322,7 @@ internal class DatabaseMigrationProcess
                 LockedBy = Environment.UserName,
                 LockedAt = DateTime.UtcNow,
             };
-            
+
             await connection.ExecuteAsync(
                 "INSERT INTO __MigrationLock (Id, Locked, LockedBy, LockedAt) VALUES (@Id, @Locked, @LockedBy, @LockedAt)",
                 new
@@ -342,9 +342,9 @@ internal class DatabaseMigrationProcess
     {
         if (_currentLock == null)
             throw new DatabaseMigrationException($"No lock acquired for '{_databaseName}' database.");
-        
+
         await using var connection = new MySqlConnection(_connectionString);
-        
+
         await connection.ExecuteAsync(
             "DELETE FROM __MigrationLock WHERE Id = @Id",
             new { Id = _currentLock.Id }

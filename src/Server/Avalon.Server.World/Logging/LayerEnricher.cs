@@ -7,10 +7,10 @@ public class LayerEnricher : ILogEventEnricher
 {
     private const string LayerPropertyName = "Layer";
     private const string SourceContextPropertyName = "SourceContext";
-    
+
     private readonly ScalarValue _serverLayer = new("SERVER");
     private readonly ScalarValue _networkLayer = new("NET");
-    
+
     private readonly List<string> _networkNamespaces =
     [
         typeof(Avalon.Network.Tcp.AvalonTcpServer).FullName!,
@@ -25,14 +25,14 @@ public class LayerEnricher : ILogEventEnricher
     [
         typeof(Program).FullName!,
     ];
-    
+
     public void Enrich(LogEvent logEvent, ILogEventPropertyFactory propertyFactory)
     {
         if (!logEvent.Properties.TryGetValue(SourceContextPropertyName, out var sourceObject))
         {
             return;
         }
-        
+
         var fullNamespace = sourceObject.ToString().Trim('"');
 
         if (_networkNamespaces.Contains(fullNamespace))
@@ -41,21 +41,21 @@ public class LayerEnricher : ILogEventEnricher
             logEvent.AddPropertyIfAbsent(layerProperty);
             return;
         }
-        
+
         if (_gameNamespaces.Contains(fullNamespace))
         {
             var layerProperty = new LogEventProperty(LayerPropertyName, new ScalarValue($"GAME/{fullNamespace}"));
             logEvent.AddPropertyIfAbsent(layerProperty);
             return;
         }
-        
+
         if (_serverNamespaces.Contains(fullNamespace))
         {
             var layerProperty = new LogEventProperty(LayerPropertyName, _serverLayer);
             logEvent.AddPropertyIfAbsent(layerProperty);
             return;
         }
-        
+
         var defaultLayerProperty = new LogEventProperty(LayerPropertyName, new ScalarValue($"{fullNamespace} (Not Filtered)"));
         logEvent.AddPropertyIfAbsent(defaultLayerProperty);
     }

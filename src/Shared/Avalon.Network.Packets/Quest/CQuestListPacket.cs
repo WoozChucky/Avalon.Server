@@ -9,7 +9,7 @@ public class CQuestListPacket : Packet
 {
     public static NetworkPacketType PacketType = NetworkPacketType.CMSG_QUEST_LIST;
     public static NetworkProtocol Protocol = NetworkProtocol.Tcp;
-    
+
     [ProtoMember(1)] public int AccountId { get; set; }
     [ProtoMember(2)] public int CharacterId { get; set; }
     [ProtoMember(3)] public int MapId { get; set; }
@@ -17,16 +17,16 @@ public class CQuestListPacket : Packet
     public static NetworkPacket Create(int accountId, int characterId, int mapId, Func<byte[], byte[]> encryptFunc)
     {
         using var memoryStream = new MemoryStream();
-        
+
         var authPacket = new CQuestListPacket()
         {
             AccountId = accountId,
             CharacterId = characterId,
             MapId = mapId
         };
-        
+
         Serializer.Serialize(memoryStream, authPacket);
-        
+
         return new NetworkPacket
         {
             Header = new NetworkPacketHeader

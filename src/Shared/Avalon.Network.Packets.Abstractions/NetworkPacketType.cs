@@ -8,27 +8,27 @@ public enum NetworkPacketType : short
     /**************************************************************************
      * Client Packets
      *************************************************************************/
-    
+
     // Handshake
     CMSG_SERVER_INFO = 0x1000,
     CMSG_CLIENT_INFO = 0x1001,
     CMSG_CLIENT_HANDSHAKE = 0x1002,
-    
+
     // Authentication
     CMSG_AUTH = 0x2000,
     CMSG_AUTH_PATCH = 0x2001,
     CMSG_LOGOUT = 0x2002,
     CMSG_REGISTER = 0x2003,
-    
+
     // Worlds
     CMSG_WORLD_LIST = 0x201A,
     CMSG_WORLD_SELECT = 0x201B,
     CMSG_EXCHANGE_WORLD_KEY = 0x201C,
     CMSG_WORLD_HANDSHAKE = 0x201D,
-    
+
     // Audio
     CMSG_AUDIO_RECORD = 0x2050,
-    
+
     // Character
     CMSG_CHARACTER_LIST = 0x2010,
     CMSG_CHARACTER_CREATE = 0x2011,
@@ -36,18 +36,18 @@ public enum NetworkPacketType : short
     CMSG_CHARACTER_SELECTED = 0x2013,
     CMSG_CHARACTER_LOADED = 0x2014,
     CMSG_CHARACTER_RUN_WALK = 0x2015,
-    
+
     // Map
     CMSG_MAP_TELEPORT = 0x2020,
-    
+
     // Quest
     CMSG_QUEST_STATUS = 0x2040,
     CMSG_QUEST_LIST = 0x2041,
     CMSG_QUEST_QUERY_AVAILABLE = 0x2042,
-    
+
     // World
     CMSG_INTERACT = 0x2030,
-    
+
     CMSG_MOVEMENT = 0x2004,
     CMSG_PING = 0x2005,
     CMSG_PONG = 0x2006,
@@ -55,30 +55,30 @@ public enum NetworkPacketType : short
     CMSG_CHAT_OPEN = 0x2008,
     CMSG_CHAT_CLOSE = 0x2009,
     CMSG_GROUP_INVITE_RESULT = 0x200A,
-    
+
     // Combat
     CMSG_ATTACK = 0x2100,
-    
+
     /**************************************************************************
      * Server Packets
      *************************************************************************/
-    
+
     // Handshake
     SMSG_SERVER_INFO = 0x3000,
     SMSG_SERVER_HANDSHAKE = 0x3002,
     SMSG_SERVER_HANDSHAKE_RESULT = 0x3001,
-    
+
     // Authentication
     SMSG_AUTH_RESULT = 0x3010,
     SMSG_LOGOUT = 0x3011,
     SMSG_REGISTER_RESULT = 0x3012,
-    
+
     // Worlds
     SMSG_WORLD_LIST = 0x301A,
     SMSG_WORLD_SELECT = 0x301B,
     SMSG_EXCHANGE_WORLD_KEY = 0x301C,
     SMSG_WORLD_HANDSHAKE = 0x301D,
-    
+
     // Audio
     SMSG_AUDIO_RECORD = 0x3050,
 
@@ -90,15 +90,15 @@ public enum NetworkPacketType : short
     SMSG_CHARACTER_DELETED = 0x3025,
     SMSG_CHARACTER_SELECTED = 0x3026,
     SMSG_CHARACTER_SPELLS = 0x3027,
-    
+
     // Map
     SMSG_MAP_TELEPORT = 0x3030,
-    
+
     // World
     SMSG_WORLD_STATE_ADD = 0x3040,
     SMSG_WORLD_STATE_UPDATE = 0x3041,
     SMSG_WORLD_STATE_REMOVE = 0x3042,
-    
+
     // Combat
     SMSG_CHARACTER_DAMAGED = 0x3100,
     SMSG_CREATURE_ATTACK_ANIMATION = 0x3101,
@@ -107,11 +107,11 @@ public enum NetworkPacketType : short
     SMSG_SPELL_NOT_READY = 0x3104,
     SMSG_SPELL_INTERRUPTED = 0x3105,
     SMSG_UNIT_FINISH_CAST = 0x3106,
-    
-    
+
+
     SMSG_PONG = 0x3006,
     SMSG_PING = 0x3007,
-    
+
     SMSG_SERVER_VERSION = 0x3002,
     SMSG_PLAYER_POSITION_UPDATE = 0x3005,
     SMSG_CHAT_MESSAGE = 0x3009,

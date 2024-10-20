@@ -16,7 +16,7 @@ public class ValueObjectJsonConverterFactory : JsonConverterFactory
         while (type != null && type != typeof(object))
         {
             var baseType = type.BaseType;
-            if (baseType is {IsGenericType: true} && baseType.GetGenericTypeDefinition() == typeof(ValueObject<>))
+            if (baseType is { IsGenericType: true } && baseType.GetGenericTypeDefinition() == typeof(ValueObject<>))
             {
                 return true;
             }

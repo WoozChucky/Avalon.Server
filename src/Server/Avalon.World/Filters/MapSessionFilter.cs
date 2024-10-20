@@ -10,7 +10,7 @@ public class MapSessionFilter : PacketFilter
     {
         _connection = connection;
     }
-    
+
     public override bool Process(NetworkPacket packet)
     {
         throw new NotImplementedException();
@@ -19,8 +19,8 @@ public class MapSessionFilter : PacketFilter
     public override bool CanProcess(NetworkPacketType type)
     {
         if (_connection.Character == null) return false;
-        if (_connection.Character.Map < 1)  return false;
-        
+        if (_connection.Character.Map < 1) return false;
+
         return type switch
         {
             NetworkPacketType.CMSG_MOVEMENT => true,

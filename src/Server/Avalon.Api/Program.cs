@@ -52,12 +52,12 @@ var services = builder.Services;
     services.AddSingleton(applicationConfig.Authentication!);
     services.AddSingleton(applicationConfig.Notification!);
     services.AddSingleton(applicationConfig.Cache!);
-    
+
     services.Configure<CookiePolicyOptions>(options =>
     {
         options.MinimumSameSitePolicy = SameSiteMode.None;
     });
-    
+
     services.AddHealthChecks();
     services.AddCors();
 
@@ -84,7 +84,7 @@ var app = builder.Build();
 {
     if (app.Environment.IsDevelopment())
     {
-        
+
         app.UseDeveloperExceptionPage();
     }
     else
@@ -94,29 +94,29 @@ var app = builder.Build();
 
     app.UseMiddleware<ExceptionHandlerMiddleware>();
     app.UseMiddleware<RequestLoggingMiddleware>();
-    
+
     app.UseForwardedHeaders(new ForwardedHeadersOptions
     {
         ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
     });
-    
+
     app.UseSwagger();
     app.UseSwaggerUI();
-    
+
     app.UseRouting();
-    
+
     app.UseCors(x => x
         .WithOrigins("http://localhost:4200", "https://avalon.monster", "https://dashboard.avalon.monster")
         .AllowAnyMethod()
         .AllowAnyHeader()
     );
-    
+
     app.UseAuthentication();
 
     app.UseAuthorization();
-    
+
     app.MapHealthChecks("/health");
-    
+
     app.MapControllers();
 }
 

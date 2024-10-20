@@ -10,14 +10,14 @@ public static class GameTime
 
     private static DateTime gameTimeSystemPoint = DateTime.MinValue;
     private static Stopwatch gameTimeSteadyPoint = Stopwatch.StartNew();
-    
+
     private static TimeSpan DeltaTime = TimeSpan.Zero;
 
     public static TimeSpan GetDeltaTime()
     {
         return DeltaTime;
     }
-    
+
     public static DateTime GetStartTime()
     {
         return StartTime;

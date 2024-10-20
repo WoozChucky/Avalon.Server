@@ -22,7 +22,7 @@ public sealed class CreaturePatrolScript : AiScript
     private readonly Vector3[] _waypoints;
     private uint _currentWaypointIndex = 0;
     private Queue<Vector3> _currentPath;
-    
+
     public CreaturePatrolScript(ILoggerFactory loggerFactory, ICreature creature, IChunk chunk, Vector3[] waypoints) : base(creature, chunk)
     {
         _logger = loggerFactory.CreateLogger<CreaturePatrolScript>();
@@ -31,7 +31,7 @@ public sealed class CreaturePatrolScript : AiScript
     }
 
     public override object State { get; set; } = PatrolState.Patrolling;
-    
+
     protected override bool ShouldRun()
     {
         return State is PatrolState.Patrolling;
@@ -43,14 +43,14 @@ public sealed class CreaturePatrolScript : AiScript
         {
             return;
         }
-        
+
         if (_currentPath.Count == 0)
         {
             var currentPosition = Creature.Position;
             var targetPosition = _waypoints[_currentWaypointIndex];
             _currentPath = GeneratePath(currentPosition, targetPosition);
         }
-        
+
         FollowPath(deltaTime);
     }
 
@@ -69,11 +69,11 @@ public sealed class CreaturePatrolScript : AiScript
     {
         if (_currentPath.Count == 0)
         {
-            _currentWaypointIndex = (_currentWaypointIndex + 1) % (uint) _waypoints.Length;
+            _currentWaypointIndex = (_currentWaypointIndex + 1) % (uint)_waypoints.Length;
             State = PatrolState.Idle;
             return;
         }
-        
+
         var currentPosition = Creature.Position;
         var targetPosition = _currentPath.Peek();
 
@@ -82,7 +82,7 @@ public sealed class CreaturePatrolScript : AiScript
             _currentPath.Dequeue();
             if (_currentPath.Count == 0)
             {
-                _currentWaypointIndex = (_currentWaypointIndex + 1) % (uint) _waypoints.Length;
+                _currentWaypointIndex = (_currentWaypointIndex + 1) % (uint)_waypoints.Length;
                 State = PatrolState.Idle;
                 Creature.MoveState = MoveState.Idle;
                 return;
@@ -91,9 +91,9 @@ public sealed class CreaturePatrolScript : AiScript
         }
 
         Creature.Speed = Creature.Metadata.SpeedWalk;
-        
+
         var direction = Vector3.Normalize(targetPosition - currentPosition);
-        var movementDelta = direction * Creature.Speed * (float) deltaTime.TotalSeconds;
+        var movementDelta = direction * Creature.Speed * (float)deltaTime.TotalSeconds;
 
         Creature.MoveState = MoveState.Walking;
         Creature.Velocity = direction;

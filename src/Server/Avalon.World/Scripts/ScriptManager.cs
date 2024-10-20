@@ -14,27 +14,27 @@ public interface IScriptManager
 public class ScriptManager : IScriptManager
 {
     private readonly ILogger<ScriptManager> _logger;
-    
+
     private IDictionary<string, Type> _aiScripts;
     private IDictionary<string, Type> _spellScripts;
-    
+
     public ScriptManager(ILoggerFactory loggerFactory)
     {
         _logger = loggerFactory.CreateLogger<ScriptManager>();
     }
-    
+
     public void Load()
     {
         var aiScripts = FindScriptTypes<AiScript>();
-        
+
         _logger.LogInformation("Loaded {Count} AI scripts", aiScripts.Count);
-        
+
         _aiScripts = aiScripts.ToDictionary(t => t.Name, t => t);
-        
+
         var spellScripts = FindScriptTypes<SpellScript>();
-        
+
         _logger.LogInformation("Loaded {Count} spell scripts", spellScripts.Count);
-        
+
         _spellScripts = spellScripts.ToDictionary(t => t.Name, t => t);
     }
 
@@ -47,14 +47,14 @@ public class ScriptManager : IScriptManager
     {
         return _spellScripts.TryGetValue(name, out var scriptType) ? scriptType : null;
     }
-    
+
     private List<Type> FindScriptTypes<TBaseType>()
     {
         var baseType = typeof(TBaseType);
         var assemblies = AppDomain.CurrentDomain.GetAssemblies();
-        
+
         var inheritedTypes = new List<Type>();
-        
+
         foreach (var assembly in assemblies)
         {
             try
@@ -76,9 +76,9 @@ public class ScriptManager : IScriptManager
                     _logger.LogError(loaderException, "Loader exception");
                 }
             }
-            
+
         }
-        
+
         return inheritedTypes;
     }
 }

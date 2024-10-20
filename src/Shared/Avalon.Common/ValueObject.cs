@@ -4,14 +4,14 @@ public abstract class ValueObject<TValue> : IEquatable<ValueObject<TValue>>
     where TValue : IEquatable<TValue>
 {
     public TValue Value { get; }
-    
+
     protected ValueObject(TValue value)
     {
         if (value == null)
             throw new ArgumentNullException(nameof(value));
         Value = value;
     }
-    
+
     public override bool Equals(object? obj)
     {
         return Equals(obj as ValueObject<TValue>);

@@ -13,21 +13,21 @@ internal class ScriptReaderSystem
     private const string SqlExtension = ".sql";
     private const string SqlExtensionPattern = "*" + SqlExtension;
     private const string CreateFolder = "Create";
-    
+
     public static async Task<ICollection<MigrationScript>> ListCreateScriptsAsync()
     {
         var folderPath = $"{Directory.GetCurrentDirectory()}/{ScriptsPath}/{CreateFolder}";
         var createDirectoryInfo = new DirectoryInfo(folderPath);
-        
+
         if (!createDirectoryInfo.Exists)
         {
             throw new DirectoryNotFoundException($"Directory not found: {folderPath}");
         }
-        
+
         var files = createDirectoryInfo.GetFiles(SqlExtensionPattern);
-        
+
         var scripts = new List<MigrationScript>();
-        
+
         foreach (var file in files)
         {
             scripts.Add(new MigrationScript
@@ -38,28 +38,28 @@ internal class ScriptReaderSystem
                 Content = await File.ReadAllTextAsync($"{folderPath}/{file.Name}")
             });
         }
-        
+
         return scripts.OrderBy(s => s.Name).ToList();
     }
-    
+
     public static async Task<ICollection<MigrationScript>> ListMigrationScriptsAsync(string path)
     {
         var folderPath = $"{Directory.GetCurrentDirectory()}/{ScriptsPath}/{path}";
         var directoryInfo = new DirectoryInfo(folderPath);
-        
+
         if (!directoryInfo.Exists)
         {
             throw new DirectoryNotFoundException($"Directory not found: {folderPath}");
         }
-        
+
         var subDirectories = directoryInfo.GetDirectories();
-        
+
         var scripts = new List<MigrationScript>();
-        
+
         foreach (var subDirectory in subDirectories)
         {
             var files = subDirectory.GetFiles(SqlExtensionPattern);
-            
+
             foreach (var file in files)
             {
                 scripts.Add(new MigrationScript
@@ -72,20 +72,20 @@ internal class ScriptReaderSystem
                 });
             }
         }
-        
+
         return scripts.OrderBy(s => s.Name).ToList();
     }
-    
+
     public static ICollection<string> ListMigrationDirectories(string path = ScriptsPath)
     {
         var directoryPath = $"{Directory.GetCurrentDirectory()}/{path}";
         var directoryInfo = new DirectoryInfo(directoryPath);
-        
+
         if (!directoryInfo.Exists)
         {
             throw new DirectoryNotFoundException($"Directory not found: {path}");
         }
-        
+
         var directories = directoryInfo.GetDirectories();
 
         return directories

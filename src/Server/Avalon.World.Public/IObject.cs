@@ -16,7 +16,7 @@ public enum PowerType
 public interface IObject
 {
     ObjectGuid Guid { get; set; }
-    
+
     static uint GenerateId()
     {
         return UniqueObjectIdGenerator.GenerateId();
@@ -53,7 +53,7 @@ public interface IUnit : IWorldObject
     uint? Power { get; set; }
     uint? CurrentPower { get; set; }
     MoveState MoveState { get; set; }
-    
+
     void OnHit(IUnit attacker, uint damage);
     void SendAttackAnimation(ISpell? spell);
     void SendFinishCastAnimation(ISpell spell);

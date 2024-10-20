@@ -11,7 +11,7 @@ public class CPlayerMovementPacket : Packet
     public static NetworkPacketType PacketType = NetworkPacketType.CMSG_MOVEMENT;
     public static NetworkProtocol Protocol = NetworkProtocol.Tcp;
     public static NetworkPacketFlags Flags = NetworkPacketFlags.Encrypted;
-    
+
     [ProtoMember(1)] public double Timestamp { get; set; }
     [ProtoMember(2)] public float X { get; set; }
     [ProtoMember(3)] public float Y { get; set; }
@@ -25,7 +25,7 @@ public class CPlayerMovementPacket : Packet
     public static NetworkPacket Create(double time, float x, float y, float z, float velX, float velY, float velZ, float rotation, Func<byte[], byte[]> encryptFunc)
     {
         using var memoryStream = new MemoryStream();
-        
+
         var p = new CPlayerMovementPacket
         {
             Timestamp = time,
@@ -37,11 +37,11 @@ public class CPlayerMovementPacket : Packet
             VelocityZ = velZ,
             Rotation = rotation
         };
-        
+
         Serializer.Serialize(memoryStream, p);
-        
+
         var buffer = encryptFunc(memoryStream.ToArray());
-        
+
         return new NetworkPacket
         {
             Header = new NetworkPacketHeader

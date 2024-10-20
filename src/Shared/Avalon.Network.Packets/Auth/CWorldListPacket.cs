@@ -15,15 +15,15 @@ public class CWorldListPacket : Packet
     public static NetworkPacket Create(Func<byte[], byte[]> encryptFunc)
     {
         using var memoryStream = new MemoryStream();
-        
+
         var worldListPacket = new CWorldListPacket()
         {
         };
-        
+
         Serializer.Serialize(memoryStream, worldListPacket);
-        
+
         var buffer = encryptFunc(memoryStream.ToArray());
-        
+
         return new NetworkPacket
         {
             Header = new NetworkPacketHeader

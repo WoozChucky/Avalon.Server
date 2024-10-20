@@ -18,7 +18,7 @@ public class CharacterCreateInfoRepository : ICharacterCreateInfoRepository
     {
         _dbContext = dbContext;
     }
-    
+
     public async Task<IReadOnlyCollection<CharacterCreateInfo>> FindAllAsync()
     {
         return await _dbContext.CharacterCreateInfos
@@ -32,5 +32,5 @@ public class CharacterCreateInfoRepository : ICharacterCreateInfoRepository
             .AsNoTracking()
             .FirstOrDefaultAsync(entity => entity.Class == @class);
     }
-    
+
 }

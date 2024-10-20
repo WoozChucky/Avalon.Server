@@ -17,14 +17,14 @@ public class CreatureRangeDetectorScript : AiScript
         Searching,
         Detected,
     }
-    
+
     public event CharacterDetectedEventHandler? CharacterDetected;
-    
+
     private readonly ILogger<CreatureRangeDetectorScript> _logger;
     private readonly float _aggroRange;
     private const float SearchInterval = 1.0f;
     private float _searchTimer = 0.0f;
-    
+
     public CreatureRangeDetectorScript(ILoggerFactory loggerFactory, ICreature creature, IChunk chunk, float aggroRange) : base(creature, chunk)
     {
         _logger = loggerFactory.CreateLogger<CreatureRangeDetectorScript>();
@@ -36,15 +36,15 @@ public class CreatureRangeDetectorScript : AiScript
     {
         return State is RangeDetectionState.Searching;
     }
-    
+
     public override void Update(TimeSpan deltaTime)
     {
-        _searchTimer += (float) deltaTime.TotalSeconds;
+        _searchTimer += (float)deltaTime.TotalSeconds;
         if (_searchTimer < SearchInterval)
             return;
-        
+
         _searchTimer = 0.0f;
-        
+
         var characters = Chunk.Characters.Values;
         foreach (var character in characters)
         {

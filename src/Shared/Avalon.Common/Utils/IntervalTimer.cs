@@ -4,7 +4,7 @@ public class IntervalTimer
 {
     private long _interval;
     private long _current;
-    
+
     public IntervalTimer()
     {
         _interval = 0;

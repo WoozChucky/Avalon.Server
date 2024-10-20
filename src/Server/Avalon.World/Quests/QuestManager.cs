@@ -19,11 +19,11 @@ public class QuestManager : IQuestManager
     private IEnumerable<QuestTemplate> _questTemplates;
     private IEnumerable<QuestRewardTemplate> _questRewardTemplates;
     private IEnumerable<QuestReward> _questRewards;
-    
-    public QuestManager(ILoggerFactory loggerFactory) 
-        //IQuestTemplateRepository questTemplateRepository, 
-        //IQuestRewardTemplateRepository questRewardTemplateRepository, 
-        //IQuestRewardRepository questRewardRepository)
+
+    public QuestManager(ILoggerFactory loggerFactory)
+    //IQuestTemplateRepository questTemplateRepository, 
+    //IQuestRewardTemplateRepository questRewardTemplateRepository, 
+    //IQuestRewardRepository questRewardRepository)
     {
         //_questTemplateRepository = questTemplateRepository;
         //_questRewardTemplateRepository = questRewardTemplateRepository;
@@ -39,17 +39,17 @@ public class QuestManager : IQuestManager
         //_questTemplates = _questTemplateRepository.FindAllAsync().GetAwaiter().GetResult();
         //_questRewardTemplates = _questRewardTemplateRepository.FindAllAsync().GetAwaiter().GetResult();
         //_questRewards = _questRewardRepository.FindAllAsync().GetAwaiter().GetResult();
-        
+
         _logger.LogInformation("Loaded {Count} quest templates", _questTemplates.Count());
         _logger.LogInformation("Loaded {Count} quest reward templates", _questRewardTemplates.Count());
         _logger.LogInformation("Loaded {Count} quest rewards", _questRewards.Count());
     }
-    
+
     public QuestTemplate? GetQuestTemplate(int id)
     {
         return _questTemplates.FirstOrDefault(q => q.Id == id);
     }
-    
+
     public IEnumerable<QuestTemplate> GetQuestsAvailable(IWorldConnection session)
     {
         var mapId = session.Character?.Map;

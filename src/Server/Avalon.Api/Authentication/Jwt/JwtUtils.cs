@@ -33,8 +33,8 @@ public class JwtUtils : IJwtUtils
         {
             Subject = new ClaimsIdentity(new[]
                 {
-                    new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()), 
-                    new Claim(ClaimTypes.NameIdentifier, account.Id.ToString() ?? throw new InvalidOperationException()), 
+                    new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
+                    new Claim(ClaimTypes.NameIdentifier, account.Id.ToString() ?? throw new InvalidOperationException()),
                     new Claim(JwtRegisteredClaimNames.Name, account.Username),
                     new Claim(JwtRegisteredClaimNames.Email, account.Email),
                     new Claim(ClaimTypes.GroupSid, account.AccessLevel.ToString()),
@@ -47,7 +47,7 @@ public class JwtUtils : IJwtUtils
             Audience = _authenticationConfig.Audience,
             IssuedAt = DateTime.UtcNow
         };
-        
+
         var token = _tokenHandler.CreateToken(tokenDescriptor);
         return _tokenHandler.WriteToken(token);
     }
@@ -56,7 +56,7 @@ public class JwtUtils : IJwtUtils
     {
         if (token == null)
             return null;
-        
+
         try
         {
             _tokenHandler.ValidateToken(token, new TokenValidationParameters
@@ -71,7 +71,7 @@ public class JwtUtils : IJwtUtils
                 ClockSkew = TimeSpan.FromMinutes(1)
             }, out var validatedToken);
 
-            var jwtToken = (JwtSecurityToken) validatedToken;
+            var jwtToken = (JwtSecurityToken)validatedToken;
             var accountId = int.Parse(jwtToken.Claims.First(x => x.Type == JwtRegisteredClaimNames.Sub).Value);
 
             // return account id from JWT token if validation successful

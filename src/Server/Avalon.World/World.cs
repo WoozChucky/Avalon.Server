@@ -24,9 +24,9 @@ public interface IWorld
     string MinVersion { get; }
     string CurrentVersion { get; }
     GameConfiguration Configuration { get; }
-    
+
     WorldGrid Grid { get; }
-    
+
     void SpawnPlayer(IWorldConnection connection);
     Task DespawnPlayerAsync(IWorldConnection connection);
     StaticData Data { get; }
@@ -43,9 +43,9 @@ public class World : IWorld
 
     private const ushort WorldTimersCount = 5;
     private const ushort HotReloadTimer = 0;
-    
+
     private Avalon.Domain.Auth.World? _world;
-    
+
     private readonly ILogger<World> _logger;
     private readonly ILoggerFactory _loggerFactory;
     private readonly IOptions<GameConfiguration> _configuration;
@@ -60,7 +60,7 @@ public class World : IWorld
     public World(ILoggerFactory loggerFactory,
         IOptions<GameConfiguration> configuration,
         IServiceProvider serviceProvider,
-        IWorldRepository worldRepository, 
+        IWorldRepository worldRepository,
         IAvalonMapManager mapManager,
         IPoolManager poolManager,
         IServiceScopeFactory serviceScopeFactory,
@@ -81,7 +81,7 @@ public class World : IWorld
         _serviceScopeFactory = serviceScopeFactory;
         _scriptHotReloader = scriptHotReloader;
         Data = new StaticData(characterCreateInfoRepository, classLevelStatRepository, itemTemplateRepository, spellTemplateRepository, characterLevelExperienceRepository);
-        
+
         for (var i = 0; i < WorldTimersCount; ++i)
         {
             _timers[i] = new IntervalTimer();
@@ -94,7 +94,7 @@ public class World : IWorld
         var world = await _worldRepository.FindByIdAsync(Id);
 
         _world = world ?? throw new InvalidOperationException($"World {Id} not found.");
-        
+
         await Data.LoadAsync();
 
         await _mapManager.LoadAsync();
@@ -102,14 +102,14 @@ public class World : IWorld
         Grid = new WorldGrid();
 
         var chunkId = 1U;
-        
+
         await foreach (var (virtualMap, mapTemplate) in _mapManager.EnumerateOpenWorldAsync(token))
         {
             var chunksMetadata = virtualMap.Chunks;
 
             //var chunks = new Dictionary<Vector2, Chunk>();
             var chunks = new List<Chunk>();
-            
+
             foreach (var chunkMetadata in chunksMetadata)
             {
                 var position = new Vector2(chunkMetadata.Position.x, chunkMetadata.Position.z);
@@ -119,12 +119,12 @@ public class World : IWorld
                     _logger.LogError("Failed to create chunk for map {MapId} at position {Position}", virtualMap.Id, position);
                     continue;
                 }
-                
+
                 chunk.Id = chunkId++;
                 chunk.Enabled = false;
                 chunk.Metadata = chunkMetadata;
                 chunk.Neighbors = [];
-                
+
                 /*
                 var chunk = new Chunk(
                     _loggerFactory, 
@@ -140,10 +140,10 @@ public class World : IWorld
                 */
 
                 await chunk.InitializeAsync();
-                
+
                 chunks.Add(chunk);
             }
-            
+
             var map = new Map(_loggerFactory)
             {
                 Id = mapTemplate.Id,
@@ -151,24 +151,24 @@ public class World : IWorld
                 Size = virtualMap.Size,
                 Chunks = chunks
             };
-            
+
             Grid.AddMap(map);
         }
-        
+
         Grid.DetectNeighbors();
-        
+
         Grid.SpawnStartingEntities();
     }
-    
+
     public void Update(TimeSpan deltaTime)
     {
         GameTime.UpdateGameTimers(deltaTime);
         // TODO: Name the timers with 'constant' identifiers
-        
+
         for (var i = 0; i < WorldTimersCount; ++i)
         {
             if (_timers[i].GetCurrent() >= 0)
-                _timers[i].Update((long) deltaTime.TotalMilliseconds);
+                _timers[i].Update((long)deltaTime.TotalMilliseconds);
             else
                 _timers[i].SetCurrent(0);
         }
@@ -183,7 +183,7 @@ public class World : IWorld
             }
             _timers[HotReloadTimer].Reset();
         }
-        
+
         /*
         Parallel.ForEach(Grid.Maps, map =>
         {
@@ -196,7 +196,7 @@ public class World : IWorld
             });
         });
         */
-        
+
         foreach (var gridMap in Grid.Maps)
         {
             foreach (var chunk in gridMap.Chunks)
@@ -232,8 +232,8 @@ public class World : IWorld
             dbCharacter.Y = entity.Position.y;
             dbCharacter.Z = entity.Position.z;
             dbCharacter.Online = false;
-            dbCharacter.LevelTime += (ulong) (DateTime.UtcNow - entity.EnteredWorld).TotalSeconds;
-            dbCharacter.TotalTime += (ulong) (DateTime.UtcNow - entity.EnteredWorld).TotalSeconds;
+            dbCharacter.LevelTime += (ulong)(DateTime.UtcNow - entity.EnteredWorld).TotalSeconds;
+            dbCharacter.TotalTime += (ulong)(DateTime.UtcNow - entity.EnteredWorld).TotalSeconds;
             await characterRepository.UpdateAsync(dbCharacter);
         }
         catch (InvalidOperationException) { } // Ignore if character is not found
@@ -248,7 +248,7 @@ public class World : IWorld
         var chunks = Grid.Maps.AsParallel().SelectMany(map => map.Chunks);
         var scriptTypeDict = aiScriptTypes.ToDictionary(t => t.Name, StringComparer.InvariantCultureIgnoreCase);
         var serviceProvider = _serviceScopeFactory.CreateScope().ServiceProvider;
-        
+
         Parallel.ForEach(chunks, chunk =>
         {
             var creatures = chunk.Creatures.Values;
@@ -260,7 +260,7 @@ public class World : IWorld
                     entitiesNeedingUpdate.Add((entity, scriptType));
                 }
             }
-            
+
             foreach (var (entity, scriptType) in entitiesNeedingUpdate)
             {
                 chunk.RemoveCreature(entity.Guid);
@@ -270,5 +270,5 @@ public class World : IWorld
             }
         });
     }
-    
+
 }

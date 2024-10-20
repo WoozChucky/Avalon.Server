@@ -28,11 +28,11 @@ public class AccountService : IAccountService
     private readonly IMFAHashService _mfaHashService;
     private readonly IMfaSetupRepository _mfaSetupRepository;
     private readonly IDeviceRepository _deviceRepository;
-    public AccountService(ILoggerFactory loggerFactory, 
-        IAccountRepository accountRepository, 
-        IJwtUtils jwtUtils, 
-        IMFAHashService mfaHashService, 
-        IMfaSetupRepository mfaSetupRepository, 
+    public AccountService(ILoggerFactory loggerFactory,
+        IAccountRepository accountRepository,
+        IJwtUtils jwtUtils,
+        IMFAHashService mfaHashService,
+        IMfaSetupRepository mfaSetupRepository,
         IDeviceRepository deviceRepository)
     {
         _logger = loggerFactory.CreateLogger<AccountService>();
@@ -42,13 +42,13 @@ public class AccountService : IAccountService
         _mfaSetupRepository = mfaSetupRepository;
         _deviceRepository = deviceRepository;
     }
-    
+
     public async Task<Account?> FindById(AccountId id)
     {
         return await _accountRepository.FindByIdAsync(id);
     }
 
-    public async Task<AuthenticateResponse> Authenticate(AuthenticateRequest model, IPAddress ipAddress, 
+    public async Task<AuthenticateResponse> Authenticate(AuthenticateRequest model, IPAddress ipAddress,
         CancellationToken cancellationToken)
     {
         var account = await _accountRepository.FindByUserNameAsync(model.Username);
@@ -61,9 +61,9 @@ public class AccountService : IAccountService
         {
             throw new AuthenticationException("Invalid username or password");
         }
-        
+
         var mfaSetup = await _mfaSetupRepository.FindByAccountIdAsync(account.Id);
-        if (mfaSetup is { Status: MfaSetupStatus.Confirmed } )
+        if (mfaSetup is { Status: MfaSetupStatus.Confirmed })
         {
             return new AuthenticateResponse
             {
@@ -73,10 +73,10 @@ public class AccountService : IAccountService
                 Status = AuthenticationResponseStatus.RequiresMFA
             };
         }
-        
+
         account.LastIp = ipAddress.ToString();
         account.LastLogin = DateTime.UtcNow;
-        
+
         await _accountRepository.UpdateAsync(account);
 
         return new AuthenticateResponse
@@ -93,11 +93,11 @@ public class AccountService : IAccountService
         var existingAccount = await _accountRepository.FindByUserNameAsync(model.Username);
         if (existingAccount != null)
             throw new BusinessException("Username already exists");
-        
+
         existingAccount = await _accountRepository.FindByEmailAsync(model.Email);
         if (existingAccount != null)
             throw new BusinessException("Email already exists");
-        
+
         var salt = BCrypt.Net.BCrypt.GenerateSalt();
         var hash = BCrypt.Net.BCrypt.HashPassword(model.Password.Trim(), salt);
 
@@ -116,12 +116,12 @@ public class AccountService : IAccountService
             Locale = AccountLocale.enUS,
             Os = OperatingSystem.Windows,
         };
-        
+
         account = await _accountRepository.CreateAsync(account);
-        
+
         if (account == null)
             throw new Exception("Failed to insert account");
-        
+
         await _deviceRepository.CreateAsync(new Device
         {
             Account = account,
@@ -131,7 +131,7 @@ public class AccountService : IAccountService
             Trusted = false,
             TrustEnd = DateTime.UtcNow,
         });
-        
+
         return new RegisterResponse
         {
             Token = _jwtUtils.GenerateJwtToken(account),

@@ -31,7 +31,7 @@ public class CharacterRepository : EntityFrameworkRepository<Domain.Characters.C
         return await Context.Set<Domain.Characters.Character>()
             .AsNoTracking()
             .FirstOrDefaultAsync(entity => entity.Id == id && entity.AccountId == accountId);
-        
+
     }
 
     public async Task<IList<Domain.Characters.Character>> FindByAccountAsync(AccountId accountId)

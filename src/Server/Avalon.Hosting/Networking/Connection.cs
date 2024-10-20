@@ -24,7 +24,7 @@ public interface IConnection
     public string RemoteEndPoint { get; }
     public IAvalonCryptoSession CryptoSession { get; }
     public ICryptoManager ServerCrypto { get; }
-    
+
     void Close(bool expected = true);
     void Send(NetworkPacket packet);
     Task StartAsync(CancellationToken token = default);
@@ -35,7 +35,7 @@ public abstract class Connection : BackgroundService, IConnection
     public Guid Id { get; }
     public string RemoteEndPoint { get; private set; }
     public IAvalonCryptoSession CryptoSession { get; private set; }
-    public ICryptoManager ServerCrypto  => Server.Crypto;
+    public ICryptoManager ServerCrypto => Server.Crypto;
 
     protected readonly ILogger _logger;
     protected CancellationTokenSource? CancellationTokenSource;
@@ -46,7 +46,7 @@ public abstract class Connection : BackgroundService, IConnection
     private TcpClient? _client;
     private Stream? _stream;
     private bool _closed = false;
-    
+
     protected readonly IServerBase Server;
 
     protected Connection(ILogger logger, IServerBase server, IPacketReader packetReader)
@@ -65,7 +65,7 @@ public abstract class Connection : BackgroundService, IConnection
         CancellationTokenSource = new CancellationTokenSource();
         Task.Factory.StartNew(SendPacketsWhenAvailable, TaskCreationOptions.LongRunning);
     }
-    
+
     protected bool IsConnected => _client?.Connected == true;
 
     protected abstract void OnHandshakeFinished();
@@ -89,7 +89,7 @@ public abstract class Connection : BackgroundService, IConnection
         _logger.LogInformation("New connection from {RemoteEndPoint}", _client.Client.RemoteEndPoint?.ToString());
 
         _stream = await GetStream(_client);
-        
+
         OnHandshakeFinished();
 
         try

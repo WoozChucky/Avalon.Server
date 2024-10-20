@@ -27,26 +27,26 @@ public class AvalonMapManager : IAvalonMapManager
     {
         _logger = loggerFactory.CreateLogger<AvalonMapManager>();
         _mapTemplateRepository = mapTemplateRepository;
-        
+
         _lock = new ReaderWriterLockSlim(LockRecursionPolicy.SupportsRecursion);
     }
-    
+
     public async Task LoadAsync()
     {
         _logger.LogInformation("Loading maps...");
 
         _mapTemplates = await _mapTemplateRepository.FindAllAsync();
-        
+
         _logger.LogInformation("Loaded {MapCount} maps from database", _mapTemplates.Count());
     }
-    
+
     public async IAsyncEnumerable<(VirtualizedMap map, MapTemplate metadata)> EnumerateOpenWorldAsync([EnumeratorCancellation] CancellationToken token = default)
     {
         var tasks = _mapTemplates
             .Where(m => m.InstanceType == MapInstanceType.OpenWorld)
             .Select(template => LoadMapAsync(template, token))
             .ToList();
-        
+
         if (token.IsCancellationRequested)
         {
             yield break;
@@ -56,18 +56,18 @@ public class AvalonMapManager : IAvalonMapManager
         {
             // Wait for any of the tasks to complete
             var completedTask = await Task.WhenAny(tasks);
-        
+
             // Remove the completed task from the list
             tasks.Remove(completedTask);
-            
+
             // Yield the result of the completed task
             var virtualizedMap = await completedTask;
-            
+
             if (token.IsCancellationRequested)
             {
                 yield break;
             }
-            
+
             yield return (virtualizedMap, _mapTemplates.First(m => m.Id == virtualizedMap.Id));
         }
     }

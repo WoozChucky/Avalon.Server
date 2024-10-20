@@ -11,24 +11,24 @@ public class CCharacterCreatePacket : Packet
     public static NetworkPacketType PacketType = NetworkPacketType.CMSG_CHARACTER_CREATE;
     public static NetworkProtocol Protocol = NetworkProtocol.Tcp;
     public static NetworkPacketFlags Flags = NetworkPacketFlags.Encrypted;
-    
+
     [ProtoMember(1)] public string Name { get; set; }
     [ProtoMember(2)] public int Class { get; set; }
 
     public static NetworkPacket Create(string name, int @class, Func<byte[], byte[]> encrypt)
     {
         using var memoryStream = new MemoryStream();
-        
+
         var p = new CCharacterCreatePacket()
         {
             Name = name,
             Class = @class
         };
-        
+
         Serializer.Serialize(memoryStream, p);
-        
+
         var buffer = encrypt(memoryStream.ToArray());
-        
+
         return new NetworkPacket
         {
             Header = new NetworkPacketHeader

@@ -9,7 +9,7 @@ public class SCharacterListPacket : Packet
     public static NetworkPacketType PacketType = NetworkPacketType.SMSG_CHARACTER_LIST;
     public static NetworkProtocol Protocol = NetworkProtocol.Tcp;
     public static NetworkPacketFlags Flags = NetworkPacketFlags.Encrypted;
-    
+
     [ProtoMember(1)] public int CharacterCount { get; set; }
     [ProtoMember(2)] public int MaxCharacterCount { get; set; }
     [ProtoMember(3)] public CharacterInfo[] Characters { get; set; }
@@ -18,18 +18,18 @@ public class SCharacterListPacket : Packet
         CharacterInfo[] characters, Func<byte[], byte[]> encrypt)
     {
         using var memoryStream = new MemoryStream();
-        
+
         var p = new SCharacterListPacket()
         {
             CharacterCount = characterCount,
             MaxCharacterCount = maxCharacterCount,
             Characters = characters
         };
-        
+
         Serializer.Serialize(memoryStream, p);
-        
+
         var encrypted = encrypt(memoryStream.ToArray());
-        
+
         return new NetworkPacket
         {
             Header = new NetworkPacketHeader
@@ -58,5 +58,5 @@ public class CharacterInfo
     [ProtoMember(9)] public bool Running { get; set; }
     [ProtoMember(10)] public ulong Experience { get; set; }
     [ProtoMember(11)] public ulong RequiredExperience { get; set; }
-    
+
 }

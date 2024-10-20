@@ -13,7 +13,7 @@ public class CharacterSpellContainer(ILoggerFactory loggerFactory) : ICharacterS
     private IReadOnlyCollection<ISpell> _spells;
 
     public ISpell? this[SpellId spellId] => _spells.FirstOrDefault(x => x.SpellId == spellId);
-    
+
     public bool IsCasting => _spells.Any(x => x.Casting);
 
     public void Load(IReadOnlyCollection<ISpell> spells)
@@ -21,7 +21,7 @@ public class CharacterSpellContainer(ILoggerFactory loggerFactory) : ICharacterS
         _spells = spells;
         _logger.LogInformation("Loading {Count} spells into character", _spells.Count);
     }
-    
+
     public void Update(TimeSpan deltaTime)
     {
         foreach (var spell in _spells)

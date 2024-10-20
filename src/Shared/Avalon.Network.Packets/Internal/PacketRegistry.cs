@@ -6,19 +6,19 @@ namespace Avalon.Network.Packets.Internal;
 public class PacketRegistry : IPacketRegistry
 {
     private readonly Dictionary<NetworkPacketType, IPacketHandler> _handlers;
-    
+
     public PacketRegistry()
     {
         _handlers = new Dictionary<NetworkPacketType, IPacketHandler>();
     }
-    
+
     public void RegisterHandler<T>(NetworkPacketType packetType, PacketHandler<IRemoteSource, T> handler) where T : Packet
     {
         if (_handlers.ContainsKey(packetType))
         {
             throw new PacketHandlerException("Handler already registered for packet type: " + packetType + "");
         }
-        
+
         _handlers.Add(packetType, new PacketHandlerWrapper<T>(handler));
     }
 
@@ -30,7 +30,7 @@ public class PacketRegistry : IPacketRegistry
         }
         return _handlers[type];
     }
-    
+
     private class PacketHandlerWrapper<T> : IPacketHandler where T : Packet
     {
         private readonly PacketHandler<IRemoteSource, T> _handler;

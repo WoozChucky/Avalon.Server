@@ -9,7 +9,7 @@ public class CGroupInviteResultPacket : Packet
     public static NetworkPacketType PacketType = NetworkPacketType.CMSG_GROUP_INVITE_RESULT;
     public static NetworkProtocol Protocol = NetworkProtocol.Tcp;
     public static NetworkPacketFlags Flags = NetworkPacketFlags.Encrypted;
-    
+
     [ProtoMember(1)] public ulong AccountId { get; set; }
     [ProtoMember(2)] public ulong CharacterId { get; set; }
     [ProtoMember(3)] public ulong InviterAccountId { get; set; }
@@ -19,7 +19,7 @@ public class CGroupInviteResultPacket : Packet
     public static NetworkPacket Create(ulong accountId, ulong characterId, ulong inviterAccountId, ulong inviterCharacterId, bool accepted, Func<byte[], byte[]> encryptFunc)
     {
         using var memoryStream = new MemoryStream();
-        
+
         var movementPacket = new CGroupInviteResultPacket()
         {
             AccountId = accountId,
@@ -28,9 +28,9 @@ public class CGroupInviteResultPacket : Packet
             InviterCharacterId = inviterCharacterId,
             Accepted = accepted
         };
-        
+
         Serializer.Serialize(memoryStream, movementPacket);
-        
+
         return new NetworkPacket
         {
             Header = new NetworkPacketHeader

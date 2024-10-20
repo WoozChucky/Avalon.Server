@@ -14,8 +14,8 @@ namespace Avalon.World.Handlers;
 
 [PacketHandler(NetworkPacketType.CMSG_CHARACTER_SELECTED)]
 public class CharacterSelectHandler(
-    ILogger<CharacterSelectHandler> logger, 
-    ILoggerFactory loggerFactory, 
+    ILogger<CharacterSelectHandler> logger,
+    ILoggerFactory loggerFactory,
     ICharacterRepository characterRepository,
     ICharacterInventoryRepository characterInventoryRepository,
     ICharacterSpellRepository characterSpellRepository,
@@ -27,7 +27,7 @@ public class CharacterSelectHandler(
         {
             logger.LogWarning("Connection tried to select a character list without being authenticated");
             connection.Close();
-            return;       
+            return;
         }
 
         if (connection.Character != null)
@@ -36,7 +36,7 @@ public class CharacterSelectHandler(
             connection.Close();
             return;
         }
-        
+
         connection.AddQueryCallback(characterRepository.FindByIdAndAccountAsync(packet.CharacterId, connection.AccountId), character =>
         {
             OnCharacterReceived(connection, character);
@@ -50,15 +50,15 @@ public class CharacterSelectHandler(
             logger.LogWarning("Character not found for account {AccountId}", connection.AccountId);
             return;
         }
-        
+
         //TODO: Implement when instances are a thing
         character.InstanceId = Guid.NewGuid().ToString();
         character.Online = true;
-        character.Latency = (int) connection.Latency;
+        character.Latency = (int)connection.Latency;
 
         var requiredExperience = world.Data.CharacterLevelExperiences.FirstOrDefault(c => c.Level == character.Level)
             ?.Experience ?? 0;
-        
+
         var entity = new CharacterEntity(loggerFactory, connection, character)
         {
             Data = character,
@@ -68,7 +68,7 @@ public class CharacterSelectHandler(
             EnteredWorld = DateTime.UtcNow,
             RequiredExperience = requiredExperience
         };
-        
+
         entity.CurrentHealth = entity.Health;
         entity.CurrentPower = entity.Power;
         entity.PowerType = character.Class switch
@@ -78,7 +78,7 @@ public class CharacterSelectHandler(
             CharacterClass.Hunter => PowerType.Energy,
             _ => PowerType.None
         };
-        
+
         connection.Character = entity;
 
         try
@@ -92,13 +92,13 @@ public class CharacterSelectHandler(
             logger.LogError(e, "Error while spawning player {CharacterId}", character.Id);
             return;
         }
-        
+
         var characterInfo = new CharacterInfo
         {
             CharacterId = character.Id,
             Name = character.Name,
             Level = character.Level,
-            Class = (ushort) character.Class,
+            Class = (ushort)character.Class,
             X = character.X,
             Y = character.Y,
             Z = character.Z,
@@ -107,7 +107,7 @@ public class CharacterSelectHandler(
             Experience = character.Experience,
             RequiredExperience = entity.RequiredExperience,
         };
-        
+
         var mapInfo = new MapInfo
         {
             MapId = character.Map,
@@ -115,13 +115,13 @@ public class CharacterSelectHandler(
             Name = "Test Map",
             Description = "Test Map Description",
         };
-        
+
         connection.Send(SCharacterSelectedPacket.Create(characterInfo, mapInfo, connection.CryptoSession.Encrypt));
 
         connection.AddQueryCallback(characterRepository.UpdateAsync(character), _ =>
         {
             logger.LogInformation("Character {CharacterId} logged in for account {AccountId} at {Position}", character.Name, connection.AccountId, connection.Character.Position);
-            
+
             connection.AddQueryCallback(characterInventoryRepository.GetByCharacterIdAsync(character.Id), items =>
             {
                 OnInventoryReceived(connection, character, items);
@@ -137,19 +137,19 @@ public class CharacterSelectHandler(
             logger.LogWarning("Character entity is null for account {AccountId}", connection.AccountId);
             return;
         }
-        
+
         entity[InventoryType.Equipment].Load(items.Where(i => i.Container == InventoryType.Equipment).ToList());
         entity[InventoryType.Bag].Load(items.Where(i => i.Container == InventoryType.Bag).ToList());
         entity[InventoryType.Bank].Load(items.Where(i => i.Container == InventoryType.Bank).ToList());
-        
+
         //TODO: Send inventory to the client
-        
+
         connection.AddQueryCallback(characterSpellRepository.GetCharacterSpellsAsync(character.Id), spells =>
         {
             OnSpellsReceived(connection, spells);
         });
     }
-    
+
     private void OnSpellsReceived(WorldConnection connection, IReadOnlyCollection<CharacterSpell> spells)
     {
         var gameSpells = new List<GameSpell>();
@@ -169,23 +169,23 @@ public class CharacterSelectHandler(
                 Metadata = new SpellMetadata
                 {
                     Name = template.Name,
-                    Cooldown = (float) template.Cooldown / 1000,
-                    CastTime = (float) template.CastTime / 1000,
+                    Cooldown = (float)template.Cooldown / 1000,
+                    CastTime = (float)template.CastTime / 1000,
                     Cost = template.Cost,
                     Range = template.Range,
                     Effects = template.Effects,
                     EffectValue = template.EffectValue,
                     ScriptName = template.SpellScript,
                 },
-                CastTimeTimer = (float) template.CastTime / 1000,
+                CastTimeTimer = (float)template.CastTime / 1000,
                 CooldownTimer = characterSpell.Cooldown,
             };
 
             gameSpells.Add(gameSpell);
         }
-        
+
         connection.Character!.Spells.Load(gameSpells);
-        
+
         var spellInfos = gameSpells.Select(s => new SpellInfo
         {
             SpellId = s.SpellId,
@@ -195,7 +195,7 @@ public class CharacterSelectHandler(
             Cost = s.Metadata.Cost,
             Range = (ushort)s.Metadata.Range,
         }).ToArray();
-        
+
         connection.Send(SCharacterSpellsPacket.Create(spellInfos, connection.CryptoSession.Encrypt));
     }
 }

@@ -4,25 +4,26 @@ using Avalon.World.Public.Maps;
 
 namespace Avalon.World.Public.Scripts;
 
-public abstract class AiScript {
-    
+public abstract class AiScript
+{
+
     protected ICreature Creature { get; }
     protected IChunk Chunk { get; }
-    
+
     protected List<AiScript> ChainedScripts { get; } = new();
-    
+
     protected AiScript(ICreature creature, IChunk chunk)
     {
         Creature = creature;
         Chunk = chunk;
     }
-    
+
     public AiScript Chain(AiScript script)
     {
         ChainedScripts.Add(script);
         return this;
     }
-    
+
     public virtual void Update(TimeSpan deltaTime)
     {
         foreach (var script in ChainedScripts)
@@ -31,11 +32,11 @@ public abstract class AiScript {
                 script.Update(deltaTime);
         }
     }
-    
+
     public abstract object State { get; set; }
-    
+
     protected abstract bool ShouldRun();
-    
+
     public virtual void OnHit(IUnit attacker, uint damage)
     {
         foreach (var script in ChainedScripts)
@@ -43,7 +44,7 @@ public abstract class AiScript {
             script.OnHit(attacker, damage);
         }
     }
-    
+
     public virtual void OnEnteredRange(ICharacter character)
     {
         foreach (var script in ChainedScripts)

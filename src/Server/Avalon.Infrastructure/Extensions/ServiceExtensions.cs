@@ -20,5 +20,5 @@ public static class ServiceExtensions
         services.AddScoped<IMFAHashService, MFAHashService>();
         return services;
     }
-    
+
 }
