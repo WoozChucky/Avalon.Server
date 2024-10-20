@@ -1,4 +1,5 @@
 using Avalon.World.Public.Enums;
+using Avalon.World.Public.Units;
 
 namespace Avalon.World.Public.Characters;
 
@@ -7,7 +8,7 @@ public delegate void CharacterDisconnectedDelegate(ICharacter character);
 public interface ICharacter : IUnit
 {
     IWorldConnection Connection { get; }
-    IGameState GameState { get; }
+    ICharacterGameState CharacterGameState { get; }
     ICharacterInventory this[InventoryType type] { get; }
 
     ICharacterSpells Spells { get; }
@@ -25,9 +26,4 @@ public interface ICharacter : IUnit
     void SetRunning(bool running);
 
     void Update(TimeSpan deltaTime);
-}
-
-public interface ICharacterInventory
-{
-    void Load(IReadOnlyCollection<object> items);
 }

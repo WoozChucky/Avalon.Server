@@ -4,17 +4,16 @@ namespace Avalon.World.Scripts.Abstractions;
 
 public class ScriptMonitor
 {
-    private readonly ILogger<ScriptMonitor> _logger;
-    private readonly FileSystemWatcher _watcher;
-
     private const string ScriptsPath = "Scripts";
     private const string ScriptExtension = ".dll";
+    private readonly ILogger<ScriptMonitor> _logger;
+    private readonly FileSystemWatcher _watcher;
 
     public ScriptMonitor(ILoggerFactory loggerFactory)
     {
         _logger = loggerFactory.CreateLogger<ScriptMonitor>();
 
-        var path = Path.Combine(Directory.GetCurrentDirectory(), ScriptsPath);
+        string path = Path.Combine(Directory.GetCurrentDirectory(), ScriptsPath);
 
         _watcher = new FileSystemWatcher(path, $"*{ScriptExtension}")
         {
@@ -51,13 +50,7 @@ public class ScriptMonitor
         }
     }
 
-    public void Start()
-    {
-        _watcher.EnableRaisingEvents = true;
-    }
+    public void Start() => _watcher.EnableRaisingEvents = true;
 
-    public void Stop()
-    {
-        _watcher.EnableRaisingEvents = false;
-    }
+    public void Stop() => _watcher.EnableRaisingEvents = false;
 }

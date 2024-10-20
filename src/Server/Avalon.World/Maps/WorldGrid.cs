@@ -1,14 +1,14 @@
 using Avalon.Common.ValueObjects;
-using Avalon.World.Pools;
 using Avalon.World.Public;
-using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
-using Avalon.World.Public.Spells;
 
 namespace Avalon.World.Maps;
 
 public class WorldGrid
 {
+    private readonly IList<Map> _maps = [];
+    private readonly object _mapsLock = new();
+
     public IList<Map> Maps
     {
         get
@@ -20,9 +20,6 @@ public class WorldGrid
         }
     }
 
-    private readonly IList<Map> _maps = [];
-    private readonly object _mapsLock = new object();
-
     public void AddPlayer(IWorldConnection connection)
     {
         if (connection.Character == null)
@@ -30,7 +27,7 @@ public class WorldGrid
             throw new InvalidOperationException("Character not found in connection");
         }
 
-        var mapId = connection.Character.Map;
+        ushort mapId = connection.Character.Map;
 
         Map? map;
         lock (_mapsLock)
@@ -53,7 +50,7 @@ public class WorldGrid
             throw new InvalidOperationException("Character not found in connection");
         }
 
-        var mapId = connection.Character.Map;
+        ushort mapId = connection.Character.Map;
 
         Map? map;
         lock (_mapsLock)
@@ -79,7 +76,7 @@ public class WorldGrid
 
     public void DetectNeighbors()
     {
-        foreach (var map in Maps)
+        foreach (Map map in Maps)
         {
             map.DetectNeighbors();
         }
@@ -87,7 +84,7 @@ public class WorldGrid
 
     public void SpawnStartingEntities()
     {
-        foreach (var map in Maps)
+        foreach (Map map in Maps)
         {
             map.SpawnStartingEntities();
         }
@@ -100,7 +97,7 @@ public class WorldGrid
             throw new InvalidOperationException("Character not found in connection");
         }
 
-        var chunk = GetChunk(connection.Character.ChunkId);
+        Chunk? chunk = GetChunk(connection.Character.ChunkId);
 
         if (chunk == null)
         {
@@ -114,17 +111,17 @@ public class WorldGrid
 
     public ICreature? FindCreature(CreatureId creatureId, uint chunkId)
     {
-        var chunk = Maps.FirstOrDefault(m => m.Chunks.FirstOrDefault(c => c.Id == chunkId) != null);
+        Map? chunk = Maps.FirstOrDefault(m => m.Chunks.FirstOrDefault(c => c.Id == chunkId) != null);
 
         return chunk?.FindCreature(creatureId);
     }
 
     public ICreature? FindCreature(CreatureId creatureId)
     {
-        var maps = Maps;
-        foreach (var map in maps)
+        IList<Map> maps = Maps;
+        foreach (Map map in maps)
         {
-            var creature = map.FindCreature(creatureId);
+            ICreature? creature = map.FindCreature(creatureId);
             if (creature != null)
             {
                 return creature;

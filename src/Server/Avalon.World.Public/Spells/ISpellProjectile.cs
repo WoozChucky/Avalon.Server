@@ -1,5 +1,6 @@
 using Avalon.Common.Mathematics;
 using Avalon.World.Public.Characters;
+using Avalon.World.Public.Units;
 
 namespace Avalon.World.Public.Spells;
 

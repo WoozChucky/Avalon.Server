@@ -3,33 +3,25 @@ using Avalon.Common.Mathematics;
 using Avalon.World.Public;
 using Avalon.World.Public.Scripts;
 using Avalon.World.Public.Spells;
+using Avalon.World.Public.Units;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Scripts.Spells;
 
-public class FireballSpellScript : SpellScript
+public class FireballSpellScript(ILogger<FireballSpellScript> logger, ISpell spell, IUnit caster, IUnit? target)
+    : SpellScript(spell, caster, target)
 {
+    private const float ProjectileSpeed = 5f;
+
+    private static readonly Vector3 SpellHeightOffset = new(0, 0.5f, 0);
     public override Vector3 Position { get; set; }
     public override Vector3 Velocity { get; set; }
     public override Vector3 Orientation { get; set; }
     public override ObjectGuid Guid { get; set; }
 
-    private const float ProjectileSpeed = 5f;
-
-    private static readonly Vector3 SpellHeightOffset = new(0, 0.5f, 0);
-
-    private readonly ILogger<FireballSpellScript> _logger;
-
-    public FireballSpellScript(ILogger<FireballSpellScript> logger, ISpell spell, IUnit caster, IUnit? target) : base(spell, caster, target)
-    {
-        _logger = logger;
-    }
-
     public override object State { get; set; } = SpellState.Executing;
-    protected override bool ShouldRun()
-    {
-        return true;
-    }
+
+    protected override bool ShouldRun() => true;
 
     public override void Prepare()
     {
@@ -37,19 +29,23 @@ public class FireballSpellScript : SpellScript
         Position = Caster.Position + SpellHeightOffset;
         if (Target == null)
         {
-            _logger.LogWarning("Fireball spell has no target");
+            logger.LogWarning("Fireball spell has no target");
             State = SpellState.Finished;
         }
+
         Velocity = Vector3.Normalize(Target!.Position + SpellHeightOffset - Position);
     }
 
     public override void Update(TimeSpan deltaTime)
     {
-        if (State is SpellState.Finished) return;
+        if (State is SpellState.Finished)
+        {
+            return;
+        }
 
         if (Vector3.Distance(Position, Target!.Position + SpellHeightOffset) < 0.1f)
         {
-            _logger.LogInformation("Spell {SpellId} hit {CreatureId}", Spell.SpellId, Target.Guid);
+            logger.LogInformation("Spell {SpellId} hit {CreatureId}", Spell.SpellId, Target.Guid);
             Target.OnHit(Caster, Spell.Metadata.EffectValue);
             State = SpellState.Finished;
             return;
@@ -61,12 +57,9 @@ public class FireballSpellScript : SpellScript
 
     public override SpellScript Clone()
     {
-        var clone = new FireballSpellScript(_logger, Spell, Caster, Target)
+        FireballSpellScript clone = new(logger, Spell, Caster, Target)
         {
-            Guid = Guid,
-            Position = Position,
-            Velocity = Velocity,
-            Orientation = Orientation
+            Guid = Guid, Position = Position, Velocity = Velocity, Orientation = Orientation
         };
 
         return clone;

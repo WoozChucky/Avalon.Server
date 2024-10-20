@@ -3,22 +3,16 @@ using Avalon.World.Public;
 
 namespace Avalon.World.Filters;
 
-public class WorldSessionFilter : PacketFilter
+public class WorldSessionFilter(IWorldConnection connection) : PacketFilter
 {
-    private readonly IWorldConnection _connection;
-    public WorldSessionFilter(IWorldConnection connection) : base(connection)
-    {
-        _connection = connection;
-    }
-
-    public override bool Process(NetworkPacket packet)
-    {
-        throw new NotImplementedException();
-    }
+    public override bool Process(NetworkPacket packet) => throw new NotImplementedException();
 
     public override bool CanProcess(NetworkPacketType type)
     {
-        if (_connection.Character != null) return false;
+        if (connection.Character != null)
+        {
+            return false;
+        }
 
         return type switch
         {

@@ -2,15 +2,19 @@ using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Combat;
-using Avalon.World.Public;
+using Avalon.World.Maps;
 using Avalon.World.Public.Characters;
+using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Maps;
+using Avalon.World.Public.Spells;
+using Avalon.World.Public.Units;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Handlers;
 
 [PacketHandler(NetworkPacketType.CMSG_ATTACK)]
-public class CharacterAttackHandler(ILogger<CharacterAttackHandler> logger, IWorld world) : WorldPacketHandler<CCharacterAttackPacket>
+public class CharacterAttackHandler(ILogger<CharacterAttackHandler> logger, IWorld world)
+    : WorldPacketHandler<CCharacterAttackPacket>
 {
     private const float MAxMeleeAttackRange = 1.5f;
     private const uint MaxAngle = 65;
@@ -22,16 +26,18 @@ public class CharacterAttackHandler(ILogger<CharacterAttackHandler> logger, IWor
         switch (targetGuid.Type)
         {
             case ObjectType.Creature:
-                if (chunk.Creatures.TryGetValue(targetGuid, out var creature))
+                if (chunk.Creatures.TryGetValue(targetGuid, out ICreature? creature))
                 {
                     target = creature;
                 }
+
                 break;
             case ObjectType.Character:
-                if (chunk.Characters.TryGetValue(targetGuid, out var character))
+                if (chunk.Characters.TryGetValue(targetGuid, out ICharacter? character))
                 {
                     target = character;
                 }
+
                 break;
             default:
                 logger.LogWarning("Invalid target type");
@@ -43,11 +49,11 @@ public class CharacterAttackHandler(ILogger<CharacterAttackHandler> logger, IWor
 
     public override void Execute(WorldConnection connection, CCharacterAttackPacket packet)
     {
-        var attacker = connection.Character!;
+        ICharacter attacker = connection.Character!;
 
-        var attackerChunkId = attacker.ChunkId;
+        uint attackerChunkId = attacker.ChunkId;
 
-        var chunk = world.Grid.GetChunk(attackerChunkId);
+        Chunk? chunk = world.Grid.GetChunk(attackerChunkId);
         if (chunk == null)
         {
             logger.LogWarning("Chunk not found");
@@ -55,9 +61,9 @@ public class CharacterAttackHandler(ILogger<CharacterAttackHandler> logger, IWor
         }
 
         // TODO: Some attacks might not require a target (e.g. AoE spells)
-        var targetGuid = new ObjectGuid(packet.Target);
+        ObjectGuid targetGuid = new(packet.Target);
 
-        var target = GetTarget(chunk, targetGuid);
+        IUnit? target = GetTarget(chunk, targetGuid);
         if (target == null)
         {
             logger.LogDebug("Target not found");
@@ -74,7 +80,7 @@ public class CharacterAttackHandler(ILogger<CharacterAttackHandler> logger, IWor
         {
             // Auto attack
 
-            var distance = Vector3.Distance(attacker.Position, target.Position);
+            float distance = Vector3.Distance(attacker.Position, target.Position);
             if (distance >= MAxMeleeAttackRange)
             {
                 logger.LogTrace("Target {Target} out of range ({Distance})", target.Guid, distance);
@@ -93,14 +99,14 @@ public class CharacterAttackHandler(ILogger<CharacterAttackHandler> logger, IWor
                 return;
             }
 
-            var spell = attacker.Spells[packet.SpellId];
+            ISpell? spell = attacker.Spells[packet.SpellId];
             if (spell == null)
             {
                 logger.LogWarning("Spell not found");
                 return;
             }
 
-            var powerPrediction = (int)(attacker.CurrentPower! - spell.Metadata.Cost);
+            int powerPrediction = (int)(attacker.CurrentPower! - spell.Metadata.Cost);
 
             if (powerPrediction < 0)
             {
@@ -108,9 +114,11 @@ public class CharacterAttackHandler(ILogger<CharacterAttackHandler> logger, IWor
                 return;
             }
 
-            logger.LogWarning("Spell cooldown: {Cooldown} Current: {Timer}", spell.Metadata.Cooldown, spell.CooldownTimer);
+            logger.LogWarning("Spell cooldown: {Cooldown} Current: {Timer}", spell.Metadata.Cooldown,
+                spell.CooldownTimer);
 
-            if (!attacker.Spells.IsCasting && spell is { CooldownTimer: <= 0, Casting: false } && chunk.QueueSpell(attacker, target, spell))
+            if (!attacker.Spells.IsCasting && spell is {CooldownTimer: <= 0, Casting: false} &&
+                chunk.QueueSpell(attacker, target, spell))
             {
                 // Send spell start cast packet
                 if (spell.Metadata.CastTime > 0)
@@ -121,22 +129,23 @@ public class CharacterAttackHandler(ILogger<CharacterAttackHandler> logger, IWor
             else
             {
                 // Send spell not ready packet
-                attacker.Connection.Send(SSpellNotReadyPacket.Create(packet.SpellId.Value, spell.CooldownTimer, attacker.Connection.CryptoSession.Encrypt));
+                attacker.Connection.Send(SSpellNotReadyPacket.Create(packet.SpellId.Value, spell.CooldownTimer,
+                    attacker.Connection.CryptoSession.Encrypt));
             }
         }
     }
 
     private bool IsFacingTarget(ICharacter character, IUnit target)
     {
-        var direction = target.Position - character.Position;
+        Vector3 direction = target.Position - character.Position;
         direction.Normalize();
 
         // Orientation is in degrees (the Y rotation)
-        var characterOrientation = character.Orientation.y;
-        var radians = characterOrientation * Mathf.Deg2Rad;
-        var forward = new Vector3(Mathf.Sin(radians), 0, Mathf.Cos(radians));
+        float characterOrientation = character.Orientation.y;
+        float radians = characterOrientation * Mathf.Deg2Rad;
+        Vector3 forward = new(Mathf.Sin(radians), 0, Mathf.Cos(radians));
 
-        var angle = Vector3.Angle(forward, direction);
+        float angle = Vector3.Angle(forward, direction);
 
         logger.LogTrace("Angle: {Angle}", angle);
 
