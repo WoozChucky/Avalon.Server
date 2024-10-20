@@ -1,4 +1,3 @@
-using Avalon.World.Public;
 using Avalon.World.Public.Scripts;
 using Microsoft.Extensions.Logging;
 
@@ -12,17 +11,11 @@ public interface IScriptDatabase
     void RemoveScript(AiScript script);
 }
 
-public class ScriptDatabase : IScriptDatabase
+public class ScriptDatabase(ILoggerFactory loggerFactory) : IScriptDatabase
 {
     private readonly object _lock = new();
-    private readonly ILogger<ScriptDatabase> _logger;
-    private readonly List<AiScript> _scripts;
-
-    public ScriptDatabase(ILoggerFactory loggerFactory)
-    {
-        _logger = loggerFactory.CreateLogger<ScriptDatabase>();
-        _scripts = new List<AiScript>();
-    }
+    private readonly ILogger<ScriptDatabase> _logger = loggerFactory.CreateLogger<ScriptDatabase>();
+    private readonly List<AiScript> _scripts = [];
 
     public IReadOnlyList<AiScript> Scripts
     {
@@ -41,9 +34,11 @@ public class ScriptDatabase : IScriptDatabase
         {
             if (_scripts.Contains(script))
             {
-                _logger.LogWarning("Script {Script} already exists in the database, replacing it", script.GetType().Name);
+                _logger.LogWarning("Script {Script} already exists in the runtime database, replacing it",
+                    script.GetType().Name);
                 _scripts.Remove(script);
             }
+
             _scripts.Add(script);
         }
     }

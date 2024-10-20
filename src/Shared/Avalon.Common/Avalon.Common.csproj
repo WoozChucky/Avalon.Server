@@ -1,30 +1,31 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-    <PropertyGroup>
-        <TargetFramework>netstandard2.1</TargetFramework>
-        <ImplicitUsings>enable</ImplicitUsings>
-        <Nullable>enable</Nullable>
-        <LangVersion>latest</LangVersion>
-        <SignAssembly>true</SignAssembly>
-        <AssemblyOriginatorKeyFile>..\..\..\sgKey.snk</AssemblyOriginatorKeyFile>
-        <PublicSign>true</PublicSign>
-    </PropertyGroup>
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <SignAssembly>true</SignAssembly>
+    <AssemblyOriginatorKeyFile>..\..\..\sgKey.snk</AssemblyOriginatorKeyFile>
+    <PublicSign>true</PublicSign>
+  </PropertyGroup>
 
-    <ItemGroup>
-      <PackageReference Include="BouncyCastle.Cryptography" Version="2.4.0" />
-      <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.2" />
-      <PackageReference Include="Serilog" Version="4.0.2" />
-      <PackageReference Include="Serilog.Extensions.Logging" Version="8.0.0" />
-    </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="BouncyCastle.Cryptography" Version="2.4.0"/>
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.2"/>
+    <PackageReference Include="Serilog" Version="4.0.2"/>
+    <PackageReference Include="Serilog.Extensions.Logging" Version="8.0.0"/>
+    <PackageReference Include="System.Text.Json" Version="8.0.5"/>
+  </ItemGroup>
 
-    <ItemGroup>
-        <None Include="..\..\..\sgKey.snk">
-            <Link>sgKey.snk</Link>
-        </None>
-    </ItemGroup>
+  <ItemGroup>
+    <None Include="..\..\..\sgKey.snk">
+      <Link>sgKey.snk</Link>
+    </None>
+  </ItemGroup>
 
-    <ItemGroup>
-      <ProjectReference Include="..\..\..\vendor\DotRecast\src\DotRecast.Core\DotRecast.Core.csproj" />
-    </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\vendor\DotRecast\src\DotRecast.Core\DotRecast.Core.csproj"/>
+  </ItemGroup>
 
 </Project>

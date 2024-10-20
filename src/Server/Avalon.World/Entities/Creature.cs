@@ -2,18 +2,17 @@ using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Network.Packets.State;
-using Avalon.World.Public;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Scripts;
 using Avalon.World.Public.Spells;
+using Avalon.World.Public.Units;
 
 namespace Avalon.World.Entities;
 
 public class Creature : ICreature
 {
-    public ObjectGuid Guid { get; set; }
-
     public CreatureTemplateId TemplateId { get; set; } = null!;
+    public ObjectGuid Guid { get; set; }
 
     public ICreatureMetadata Metadata { get; set; }
     public string Name { get; set; } = string.Empty;
@@ -35,45 +34,30 @@ public class Creature : ICreature
 
     public void LookAt(Vector3 target)
     {
-        var direction = Vector3.Normalize(target - Position);
-        var yawRadians = Mathf.Atan2(direction.x, direction.z);
-        var yawDegrees = yawRadians * Mathf.Rad2Deg;
+        Vector3 direction = Vector3.Normalize(target - Position);
+        float yawRadians = Mathf.Atan2(direction.x, direction.z);
+        float yawDegrees = yawRadians * Mathf.Rad2Deg;
         Orientation = new Vector3(0.0f, yawDegrees, 0.0f);
     }
 
     public bool IsLookingAt(Vector3 target, float threshold = 0.1f)
     {
-        var direction = Vector3.Normalize(target - Position);
-        var yawRadians = Mathf.Atan2(direction.x, direction.z);
-        var yawDegrees = yawRadians * Mathf.Rad2Deg;
-        var orientation = new Vector3(0.0f, yawDegrees, 0.0f);
+        Vector3 direction = Vector3.Normalize(target - Position);
+        float yawRadians = Mathf.Atan2(direction.x, direction.z);
+        float yawDegrees = yawRadians * Mathf.Rad2Deg;
+        Vector3 orientation = new Vector3(0.0f, yawDegrees, 0.0f);
         return Mathf.Abs(Orientation.y - orientation.y) < threshold;
     }
 
-    public void Died(IUnit killer)
-    {
-        OnCreatureKilled?.Invoke(this, killer);
-    }
+    public void Died(IUnit killer) => OnCreatureKilled?.Invoke(this, killer);
 
-    public void OnHit(IUnit attacker, uint damage)
-    {
-        Script?.OnHit(attacker, damage);
-    }
+    public void OnHit(IUnit attacker, uint damage) => Script?.OnHit(attacker, damage);
 
-    public void SendAttackAnimation(ISpell? spell)
-    {
-        OnUnitAttackAnimation?.Invoke(this, spell);
-    }
+    public void SendAttackAnimation(ISpell? spell) => OnUnitAttackAnimation?.Invoke(this, spell);
 
-    public void SendFinishCastAnimation(ISpell spell)
-    {
-        OnUnitFinishedCastAnimation?.Invoke(this, spell);
-    }
+    public void SendFinishCastAnimation(ISpell spell) => OnUnitFinishedCastAnimation?.Invoke(this, spell);
 
-    public void SendInterruptedCastAnimation(ISpell spell)
-    {
-        OnUnitInterruptedCastAnimation?.Invoke(this, spell);
-    }
+    public void SendInterruptedCastAnimation(ISpell spell) => OnUnitInterruptedCastAnimation?.Invoke(this, spell);
 
     public static event CreatureKilledDelegate? OnCreatureKilled;
     public static event UnitAttackAnimationDelegate? OnUnitAttackAnimation;

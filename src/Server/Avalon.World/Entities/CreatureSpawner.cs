@@ -18,22 +18,15 @@ public interface ICreatureSpawner
     ICreature Spawn(CreatureInfo virtualCreature);
 }
 
-public class CreatureSpawner : ICreatureSpawner
+public class CreatureSpawner(ILoggerFactory loggerFactory, ICreatureTemplateRepository creatureTemplateRepository)
+    : ICreatureSpawner
 {
-    private readonly ICreatureTemplateRepository _creatureTemplateRepository;
-    private readonly ILogger<CreatureSpawner> _logger;
-    private IEnumerable<CreatureTemplate> _templates;
-
-    public CreatureSpawner(ILoggerFactory loggerFactory, ICreatureTemplateRepository creatureTemplateRepository)
-    {
-        _creatureTemplateRepository = creatureTemplateRepository;
-        _logger = loggerFactory.CreateLogger<CreatureSpawner>();
-        _templates = new List<CreatureTemplate>();
-    }
+    private readonly ILogger<CreatureSpawner> _logger = loggerFactory.CreateLogger<CreatureSpawner>();
+    private IEnumerable<CreatureTemplate> _templates = new List<CreatureTemplate>();
 
     public async Task LoadAsync()
     {
-        _templates = await _creatureTemplateRepository.FindAllAsync();
+        _templates = await creatureTemplateRepository.FindAllAsync();
 
         _logger.LogInformation("Loaded {CreatureCount} creatures template from database", _templates.Count());
     }
@@ -41,7 +34,7 @@ public class CreatureSpawner : ICreatureSpawner
 
     public ICreature Spawn(CreatureInfo virtualCreature)
     {
-        var creature = Spawn(virtualCreature.PrototypeIndex);
+        ICreature creature = Spawn(virtualCreature.PrototypeIndex);
 
         creature.Position = virtualCreature.Position;
         creature.Metadata.StartPosition = virtualCreature.Position;
@@ -51,14 +44,14 @@ public class CreatureSpawner : ICreatureSpawner
 
     public ICreature Spawn(CreatureTemplateId templateId)
     {
-        var template = _templates.FirstOrDefault(t => t.Id == templateId);
+        CreatureTemplate? template = _templates.FirstOrDefault(t => t.Id == templateId);
         if (template == null)
         {
             _logger.LogWarning("Could not find creature template {CreatureId}", templateId);
             throw new Exception($"Could not find creature template {templateId}");
         }
 
-        var creature = new Creature
+        Creature creature = new Creature
         {
             Guid = new ObjectGuid(ObjectType.Creature, IObject.GenerateId()),
             TemplateId = template.Id,

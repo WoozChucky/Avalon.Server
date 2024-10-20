@@ -1,43 +1,35 @@
 using Avalon.Common;
 using Avalon.World.Public;
 using Avalon.World.Public.Enums;
+using Avalon.World.Public.Units;
 
 namespace Avalon.World.Entities;
 
-public class EntityTrackingSystem
+public class EntityTrackingSystem(
+    int capacity,
+    Func<IWorldObject, IWorldObject> createObjectHandler,
+    Func<IWorldObject, IWorldObject, IWorldObject> updateObjectHandler,
+    Func<IWorldObject, IWorldObject, GameEntityFields> changedFieldsHandler)
 {
-    private readonly Func<IWorldObject, IWorldObject> _createObjectHandler;
-    private readonly Func<IWorldObject, IWorldObject, IWorldObject> _updateObjectHandler;
-    private readonly Func<IWorldObject, IWorldObject, GameEntityFields> _changedFieldsHandler;
+    private readonly IDictionary<ObjectGuid, IWorldObject>
+        _objects = new Dictionary<ObjectGuid, IWorldObject>(capacity);
+
     public event Action<ObjectGuid>? EntityAdded;
     public event Action<ObjectGuid>? EntityRemoved;
     public event Action<ObjectGuid, GameEntityFields>? EntityUpdated;
 
-    private readonly IDictionary<ObjectGuid, IWorldObject> _objects;
-
-    public EntityTrackingSystem(int capacity,
-        Func<IWorldObject, IWorldObject> createObjectHandler,
-        Func<IWorldObject, IWorldObject, IWorldObject> updateObjectHandler,
-        Func<IWorldObject, IWorldObject, GameEntityFields> changedFieldsHandler)
-    {
-        _createObjectHandler = createObjectHandler;
-        _updateObjectHandler = updateObjectHandler;
-        _changedFieldsHandler = changedFieldsHandler;
-        _objects = new Dictionary<ObjectGuid, IWorldObject>(capacity);
-    }
-
     public void Update(IEnumerable<IWorldObject> objects)
     {
-        var newObjectIds = new HashSet<ObjectGuid>();
+        HashSet<ObjectGuid> newObjectIds = [];
 
         // First pass: Identify new and updated objects
-        foreach (var worldObject in objects)
+        foreach (IWorldObject worldObject in objects)
         {
             newObjectIds.Add(worldObject.Guid);
 
-            if (!_objects.TryGetValue(worldObject.Guid, out var existingObject))
+            if (!_objects.TryGetValue(worldObject.Guid, out IWorldObject? existingObject))
             {
-                _objects[worldObject.Guid] = _createObjectHandler(worldObject);
+                _objects[worldObject.Guid] = createObjectHandler(worldObject);
                 EntityAdded?.Invoke(worldObject.Guid);
                 /*
                 switch (worldObject)
@@ -51,7 +43,7 @@ public class EntityTrackingSystem
                             Velocity = character.Velocity,
                             MoveState = character.MoveState
                         };
-                        
+
                         break;
                     case ICreature creature:
                         _objects[creature.Guid] = new Creature
@@ -68,8 +60,8 @@ public class EntityTrackingSystem
             }
             else // if (EntityChanged(existingEntity, gameEntity, out var fields))
             {
-                var fields = _changedFieldsHandler(existingObject, worldObject);
-                _objects[worldObject.Guid] = _updateObjectHandler(existingObject, worldObject);
+                GameEntityFields fields = changedFieldsHandler(existingObject, worldObject);
+                _objects[worldObject.Guid] = updateObjectHandler(existingObject, worldObject);
                 EntityUpdated?.Invoke(worldObject.Guid, fields);
                 /*
                 switch (worldObject)
@@ -98,8 +90,8 @@ public class EntityTrackingSystem
         }
 
         // Second pass: Identify removed entities
-        var removedObjectIds = new List<ObjectGuid>();
-        foreach (var existingObjectIds in _objects.Keys)
+        List<ObjectGuid> removedObjectIds = new();
+        foreach (ObjectGuid existingObjectIds in _objects.Keys)
         {
             if (!newObjectIds.Contains(existingObjectIds))
             {
@@ -107,9 +99,9 @@ public class EntityTrackingSystem
             }
         }
 
-        foreach (var removedObjectId in removedObjectIds)
+        foreach (ObjectGuid removedObjectId in removedObjectIds)
         {
-            if (_objects.TryGetValue(removedObjectId, out var removedEntity))
+            if (_objects.TryGetValue(removedObjectId, out IWorldObject? removedEntity))
             {
                 _objects.Remove(removedObjectId);
                 EntityRemoved?.Invoke(removedEntity.Guid);
@@ -120,7 +112,7 @@ public class EntityTrackingSystem
     private bool EntityChanged(IUnit existingObject, IUnit worldObject, out GameEntityFields fields)
     {
         fields = GetChangedFields(existingObject, worldObject);
-        var changed = fields != GameEntityFields.None;
+        bool changed = fields != GameEntityFields.None;
         return changed;
     }
 
@@ -160,6 +152,4 @@ public class EntityTrackingSystem
 
         return fields;
     }
-
-
 }

@@ -20,6 +20,7 @@ generated_code = true
 [*.cs]
 dotnet_diagnostic.CS8618.severity = none
 dotnet_diagnostic.CS8600.severity = none
+dotnet_diagnostic.CA1859.severity = none
 # New line preferences
 csharp_new_line_before_open_brace = all
 csharp_new_line_before_else = true
@@ -155,7 +156,7 @@ csharp_space_between_parentheses = false
 csharp_space_between_square_brackets = false
 
 # License header
-file_header_template = Licensed to the.NET Foundation under one or more agreements.\nThe.NET Foundation licenses this file to you under the MIT license.
+file_header_template = Licensed to the Avalon MMORPG Game under one or more agreements.\nAvalon MMORPG Game licenses this file to you under the MIT license.
 
 # C++ Files
 [*.{cpp,h,in}]

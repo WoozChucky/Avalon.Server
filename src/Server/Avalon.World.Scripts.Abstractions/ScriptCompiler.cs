@@ -2,12 +2,11 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Reflection;
 using Avalon.Common.Mathematics;
-using Avalon.Hosting;
-using Avalon.World.Public;
 using Avalon.World.Public.Maps;
 using Avalon.World.Public.Scripts;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.Emit;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Scripts.Abstractions;
@@ -23,42 +22,11 @@ public interface IScriptCompiler
 
 public class ScriptCompiler : IScriptCompiler
 {
-    public event ScriptCompiledEventHandler? ScriptCompiled;
-
-    private ILogger<ScriptCompiler> _logger;
-    private FileSystemWatcher _watcher;
-    private readonly ConcurrentDictionary<string, DateTime> _debounceDictionary = new();
-
     private const string ScriptsPath = "Scripts\\HotReload";
+
     //private const string ScriptsPath = "C:\\dev\\Avalon.Server\\src\\Server\\Avalon.World\\Scripts\\Creatures";
     private const string ScriptExtension = ".cs";
     private const int DebounceDelayMs = 500; // Delay in milliseconds to wait before compiling the script
-    private bool _firstRun = true;
-
-    public ScriptCompiler(ILoggerFactory loggerFactory)
-    {
-        _logger = loggerFactory.CreateLogger<ScriptCompiler>();
-
-        var path = Path.Combine(Directory.GetCurrentDirectory(), ScriptsPath);
-        //var path = Path.Combine("C:\\dev\\Avalon.Server\\src\\Server\\Avalon.World\\Scripts\\Creatures");
-        Directory.CreateDirectory(path);
-
-        _watcher = new FileSystemWatcher(path, $"*{ScriptExtension}")
-        {
-            EnableRaisingEvents = true,
-            IncludeSubdirectories = true,
-            NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.FileName
-        };
-
-        _watcher.Changed += OnScriptChanged;
-        _watcher.Created += OnScriptChanged;
-        _watcher.Deleted += OnScriptChanged;
-        _watcher.Renamed += OnScriptChanged;
-
-        References.AddRange(AppDomain.CurrentDomain.GetAssemblies()
-            .Where(a => !a.IsDynamic) // Only include non-dynamic assemblies
-            .Select(a => MetadataReference.CreateFromFile(a.Location)));
-    }
 
     private static readonly List<MetadataReference> References =
     [
@@ -89,20 +57,44 @@ public class ScriptCompiler : IScriptCompiler
         "Microsoft.Extensions.Logging"
     ];
 
-    public void Start()
+    private readonly ConcurrentDictionary<string, DateTime> _debounceDictionary = new();
+
+    private readonly ILogger<ScriptCompiler> _logger;
+    private readonly FileSystemWatcher _watcher;
+    private bool _firstRun = true;
+
+    public ScriptCompiler(ILoggerFactory loggerFactory)
     {
-        _watcher.EnableRaisingEvents = true;
+        _logger = loggerFactory.CreateLogger<ScriptCompiler>();
+
+        string path = Path.Combine(Directory.GetCurrentDirectory(), ScriptsPath);
+        //var path = Path.Combine("C:\\dev\\Avalon.Server\\src\\Server\\Avalon.World\\Scripts\\Creatures");
+        Directory.CreateDirectory(path);
+
+        _watcher = new FileSystemWatcher(path, $"*{ScriptExtension}")
+        {
+            EnableRaisingEvents = true,
+            IncludeSubdirectories = true,
+            NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.FileName
+        };
+
+        _watcher.Changed += OnScriptChanged;
+        _watcher.Created += OnScriptChanged;
+        _watcher.Deleted += OnScriptChanged;
+        _watcher.Renamed += OnScriptChanged;
+
+        References.AddRange(AppDomain.CurrentDomain.GetAssemblies()
+            .Where(a => !a.IsDynamic) // Only include non-dynamic assemblies
+            .Select(a => MetadataReference.CreateFromFile(a.Location)));
     }
 
-    public void Stop()
-    {
-        _watcher.EnableRaisingEvents = false;
-    }
+    public event ScriptCompiledEventHandler? ScriptCompiled;
 
-    private void OnScriptChanged(object sender, FileSystemEventArgs e)
-    {
-        Debounce(e.FullPath);
-    }
+    public void Start() => _watcher.EnableRaisingEvents = true;
+
+    public void Stop() => _watcher.EnableRaisingEvents = false;
+
+    private void OnScriptChanged(object sender, FileSystemEventArgs e) => Debounce(e.FullPath);
 
     private async void Debounce(string path)
     {
@@ -116,11 +108,12 @@ public class ScriptCompiler : IScriptCompiler
 
         await Task.Delay(DebounceDelayMs);
 
-        if (_debounceDictionary.TryGetValue(path, out var lastWriteTime) && lastWriteTime.AddMilliseconds(DebounceDelayMs) <= DateTime.UtcNow)
+        if (_debounceDictionary.TryGetValue(path, out DateTime lastWriteTime) &&
+            lastWriteTime.AddMilliseconds(DebounceDelayMs) <= DateTime.UtcNow)
         {
             _debounceDictionary.TryRemove(path, out _);
 
-            var assembly = await Task.Run(async () => await GenerateAssemblyAsync());
+            Assembly? assembly = await Task.Run(async () => await GenerateAssemblyAsync());
 
             if (assembly == null)
             {
@@ -136,15 +129,15 @@ public class ScriptCompiler : IScriptCompiler
 
     private async Task<Assembly?> GenerateAssemblyAsync()
     {
-        var sw = Stopwatch.StartNew();
-        var files = Directory.GetFiles(ScriptsPath, $"*{ScriptExtension}", SearchOption.AllDirectories);
-        var syntaxTrees = new List<SyntaxTree>();
+        Stopwatch sw = Stopwatch.StartNew();
+        string[] files = Directory.GetFiles(ScriptsPath, $"*{ScriptExtension}", SearchOption.AllDirectories);
+        List<SyntaxTree> syntaxTrees = [];
 
-        foreach (var file in files)
+        foreach (string file in files)
         {
-            var code = await File.ReadAllTextAsync(file);
+            string code = await File.ReadAllTextAsync(file);
 
-            foreach (var defaultUsing in DefaultUsings)
+            foreach (string defaultUsing in DefaultUsings)
             {
                 if (!code.Contains($"using {defaultUsing};"))
                 {
@@ -152,28 +145,28 @@ public class ScriptCompiler : IScriptCompiler
                 }
             }
 
-            var syntaxTree = CSharpSyntaxTree.ParseText(code);
+            SyntaxTree syntaxTree = CSharpSyntaxTree.ParseText(code);
             syntaxTrees.Add(syntaxTree);
         }
 
-        var compilation = CSharpCompilation.Create(
+        CSharpCompilation compilation = CSharpCompilation.Create(
             $"Scripts_{Guid.NewGuid()}",
             syntaxTrees,
             References,
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary)
         );
 
-        using var ms = new MemoryStream();
-        var result = compilation.Emit(ms);
+        using MemoryStream ms = new();
+        EmitResult result = compilation.Emit(ms);
 
         if (!result.Success)
         {
-            foreach (var diagnostic in result.Diagnostics)
+            foreach (Diagnostic diagnostic in result.Diagnostics)
             {
                 if (diagnostic.Severity == DiagnosticSeverity.Error)
                 {
-
-                    _logger.LogError("Error {Error} in script {File}", diagnostic.GetMessage(), diagnostic.Location.GetLineSpan().ToString());
+                    _logger.LogError("Error {Error} in script {File}", diagnostic.GetMessage(),
+                        diagnostic.Location.GetLineSpan().ToString());
                 }
             }
 
@@ -181,7 +174,7 @@ public class ScriptCompiler : IScriptCompiler
         }
 
         ms.Seek(0, SeekOrigin.Begin);
-        var assembly = Assembly.Load(ms.ToArray());
+        Assembly assembly = Assembly.Load(ms.ToArray());
 
         sw.Stop();
         _logger.LogDebug("Compiled scripts in {Elapsed}ms", sw.ElapsedMilliseconds);

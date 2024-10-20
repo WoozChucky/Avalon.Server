@@ -1,21 +1,17 @@
 using Avalon.Common.Mathematics;
-using Avalon.Network.Packets.Movement;
 using Avalon.Network.Packets.State;
 using Avalon.World.Entities;
-using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Maps;
 using Avalon.World.Public.Scripts;
-using Avalon.World.Spells;
+using Avalon.World.Public.Units;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Scripts.Creatures;
 
 public class CreatureCombatScript : AiScript
 {
-    private readonly ILogger<CreatureCombatScript> _logger;
-
     public enum CombatState
     {
         None,
@@ -24,20 +20,21 @@ public class CreatureCombatScript : AiScript
         Returning
     }
 
-    private IUnit? _target;
-    private Vector3 _initialPosition;
-    private Vector3 _lastKnownTargetPosition;
-
     // This is the position distance at which the creature will stop chasing the target if no hits were received in the meantime, and if the creature itself didn't hit the target
     private const float MaxChaseDistance = 40.0f;
     private const float AttackRange = 1.5f;
     private const float PathRecalculationThreshold = 1.5f; // Threshold to recalculate the path
     private const float AttackCooldown = 2.25f; // Cooldown between attacks
-    private float _attackCooldownTimer = 0.0f;
+    private readonly ILogger<CreatureCombatScript> _logger;
+    private float _attackCooldownTimer;
 
     private Queue<Vector3> _currentPath;
 
-    private bool _dead = false;
+    private bool _dead;
+    private Vector3 _initialPosition;
+    private Vector3 _lastKnownTargetPosition;
+
+    private IUnit? _target;
 
     public CreatureCombatScript(ILoggerFactory loggerFactory, ICreature creature, IChunk chunk) : base(creature, chunk)
     {
@@ -46,6 +43,8 @@ public class CreatureCombatScript : AiScript
         _initialPosition = Vector3.zero;
         CharacterEntity.CharacterDisconnected += OnCharacterDisconnected;
     }
+
+    public override object State { get; set; } = CombatState.None;
 
     private void OnCharacterDisconnected(ICharacter character)
     {
@@ -58,11 +57,7 @@ public class CreatureCombatScript : AiScript
         }
     }
 
-    public override object State { get; set; } = CombatState.None;
-    protected override bool ShouldRun()
-    {
-        return State is CombatState.Combat or CombatState.Chase or CombatState.Returning;
-    }
+    protected override bool ShouldRun() => State is CombatState.Combat or CombatState.Chase or CombatState.Returning;
 
     public override void OnEnteredRange(ICharacter character)
     {
@@ -94,6 +89,7 @@ public class CreatureCombatScript : AiScript
             {
                 _initialPosition = Creature.Position;
             }
+
             _lastKnownTargetPosition = attacker.Position;
             State = CombatState.Combat;
             Chunk.BroadcastUnitHit(attacker, Creature, Creature.CurrentHealth, damage);
@@ -102,9 +98,12 @@ public class CreatureCombatScript : AiScript
 
     public override void Update(TimeSpan deltaTime)
     {
-        if (_dead) return;
+        if (_dead)
+        {
+            return;
+        }
 
-        var currentPosition = Creature.Position;
+        Vector3 currentPosition = Creature.Position;
 
         if (State is CombatState.Returning)
         {
@@ -123,6 +122,7 @@ public class CreatureCombatScript : AiScript
                 Creature.Speed = Creature.Metadata.SpeedRun;
                 FollowPath(deltaTime);
             }
+
             return;
         }
 
@@ -131,7 +131,7 @@ public class CreatureCombatScript : AiScript
             return;
         }
 
-        var targetPosition = _target.Position;
+        Vector3 targetPosition = _target.Position;
 
         if (Vector3.Distance(currentPosition, _initialPosition) > MaxChaseDistance)
         {
@@ -151,7 +151,8 @@ public class CreatureCombatScript : AiScript
         }
         else
         {
-            if (_currentPath.Count == 0 || Vector3.Distance(_lastKnownTargetPosition, targetPosition) > PathRecalculationThreshold)
+            if (_currentPath.Count == 0 ||
+                Vector3.Distance(_lastKnownTargetPosition, targetPosition) > PathRecalculationThreshold)
             {
                 _currentPath = GeneratePath(currentPosition, targetPosition);
                 _lastKnownTargetPosition = targetPosition;
@@ -181,7 +182,7 @@ public class CreatureCombatScript : AiScript
 
     private Queue<Vector3> GeneratePath(Vector3 start, Vector3 end)
     {
-        var path = Chunk.Navigator.FindPath(start, end);
+        List<Vector3> path = Chunk.Navigator.FindPath(start, end);
         return new Queue<Vector3>(path);
     }
 
@@ -192,8 +193,8 @@ public class CreatureCombatScript : AiScript
             return;
         }
 
-        var currentPosition = Creature.Position;
-        var nextPosition = _currentPath.Peek();
+        Vector3 currentPosition = Creature.Position;
+        Vector3 nextPosition = _currentPath.Peek();
 
         if (Vector3.Distance(currentPosition, nextPosition) < 0.1f)
         {
@@ -208,13 +209,15 @@ public class CreatureCombatScript : AiScript
                 {
                     State = CombatState.None; // Switch back to idle state if return path is completed
                 }
+
                 return;
             }
+
             nextPosition = _currentPath.Peek();
         }
 
-        var direction = Vector3.Normalize(nextPosition - currentPosition);
-        var movementDelta = direction * Creature.Speed * (float)deltaTime.TotalSeconds;
+        Vector3 direction = Vector3.Normalize(nextPosition - currentPosition);
+        Vector3 movementDelta = direction * Creature.Speed * (float)deltaTime.TotalSeconds;
 
         Creature.LookAt(nextPosition);
         Creature.Velocity = direction;

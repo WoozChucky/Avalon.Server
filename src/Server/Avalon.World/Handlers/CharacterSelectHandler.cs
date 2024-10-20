@@ -1,12 +1,14 @@
 using Avalon.Common.Mathematics;
 using Avalon.Database.Character.Repositories;
 using Avalon.Domain.Characters;
+using Avalon.Domain.World;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Character;
 using Avalon.World.Entities;
-using Avalon.World.Public;
+using Avalon.World.Public.Characters;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Spells;
+using Avalon.World.Public.Units;
 using Avalon.World.Spells;
 using Microsoft.Extensions.Logging;
 
@@ -37,10 +39,9 @@ public class CharacterSelectHandler(
             return;
         }
 
-        connection.AddQueryCallback(characterRepository.FindByIdAndAccountAsync(packet.CharacterId, connection.AccountId), character =>
-        {
-            OnCharacterReceived(connection, character);
-        });
+        connection.AddQueryCallback(
+            characterRepository.FindByIdAndAccountAsync(packet.CharacterId, connection.AccountId),
+            character => { OnCharacterReceived(connection, character); });
     }
 
     private void OnCharacterReceived(WorldConnection connection, Character? character)
@@ -56,10 +57,10 @@ public class CharacterSelectHandler(
         character.Online = true;
         character.Latency = (int)connection.Latency;
 
-        var requiredExperience = world.Data.CharacterLevelExperiences.FirstOrDefault(c => c.Level == character.Level)
+        ulong requiredExperience = world.Data.CharacterLevelExperiences.FirstOrDefault(c => c.Level == character.Level)
             ?.Experience ?? 0;
 
-        var entity = new CharacterEntity(loggerFactory, connection, character)
+        CharacterEntity entity = new CharacterEntity(loggerFactory, connection, character)
         {
             Data = character,
             Position = new Vector3(character.X, character.Y, character.Z),
@@ -93,7 +94,7 @@ public class CharacterSelectHandler(
             return;
         }
 
-        var characterInfo = new CharacterInfo
+        CharacterInfo characterInfo = new CharacterInfo
         {
             CharacterId = character.Id,
             Name = character.Name,
@@ -105,33 +106,33 @@ public class CharacterSelectHandler(
             Orientation = character.Rotation,
             Running = character.Running,
             Experience = character.Experience,
-            RequiredExperience = entity.RequiredExperience,
+            RequiredExperience = entity.RequiredExperience
         };
 
-        var mapInfo = new MapInfo
+        MapInfo mapInfo = new MapInfo
         {
             MapId = character.Map,
             InstanceId = Guid.Parse(character.InstanceId),
             Name = "Test Map",
-            Description = "Test Map Description",
+            Description = "Test Map Description"
         };
 
         connection.Send(SCharacterSelectedPacket.Create(characterInfo, mapInfo, connection.CryptoSession.Encrypt));
 
         connection.AddQueryCallback(characterRepository.UpdateAsync(character), _ =>
         {
-            logger.LogInformation("Character {CharacterId} logged in for account {AccountId} at {Position}", character.Name, connection.AccountId, connection.Character.Position);
+            logger.LogInformation("Character {CharacterId} logged in for account {AccountId} at {Position}",
+                character.Name, connection.AccountId, connection.Character.Position);
 
-            connection.AddQueryCallback(characterInventoryRepository.GetByCharacterIdAsync(character.Id), items =>
-            {
-                OnInventoryReceived(connection, character, items);
-            });
+            connection.AddQueryCallback(characterInventoryRepository.GetByCharacterIdAsync(character.Id),
+                items => { OnInventoryReceived(connection, character, items); });
         });
     }
 
-    private void OnInventoryReceived(WorldConnection connection, Character character, IReadOnlyCollection<CharacterInventory> items)
+    private void OnInventoryReceived(WorldConnection connection, Character character,
+        IReadOnlyCollection<CharacterInventory> items)
     {
-        var entity = connection.Character;
+        ICharacter? entity = connection.Character;
         if (entity == null)
         {
             logger.LogWarning("Character entity is null for account {AccountId}", connection.AccountId);
@@ -144,26 +145,24 @@ public class CharacterSelectHandler(
 
         //TODO: Send inventory to the client
 
-        connection.AddQueryCallback(characterSpellRepository.GetCharacterSpellsAsync(character.Id), spells =>
-        {
-            OnSpellsReceived(connection, spells);
-        });
+        connection.AddQueryCallback(characterSpellRepository.GetCharacterSpellsAsync(character.Id),
+            spells => { OnSpellsReceived(connection, spells); });
     }
 
     private void OnSpellsReceived(WorldConnection connection, IReadOnlyCollection<CharacterSpell> spells)
     {
-        var gameSpells = new List<GameSpell>();
+        List<GameSpell> gameSpells = new List<GameSpell>();
 
-        foreach (var characterSpell in spells)
+        foreach (CharacterSpell characterSpell in spells)
         {
-            var template = world.Data.SpellTemplates.FirstOrDefault(sp => sp.Id == characterSpell.SpellId);
+            SpellTemplate? template = world.Data.SpellTemplates.FirstOrDefault(sp => sp.Id == characterSpell.SpellId);
             if (template == null)
             {
                 logger.LogWarning("Spell template not found for spell {SpellId}", characterSpell.SpellId);
                 continue;
             }
 
-            var gameSpell = new GameSpell
+            GameSpell gameSpell = new GameSpell
             {
                 SpellId = characterSpell.SpellId,
                 Metadata = new SpellMetadata
@@ -175,10 +174,10 @@ public class CharacterSelectHandler(
                     Range = template.Range,
                     Effects = template.Effects,
                     EffectValue = template.EffectValue,
-                    ScriptName = template.SpellScript,
+                    ScriptName = template.SpellScript
                 },
                 CastTimeTimer = (float)template.CastTime / 1000,
-                CooldownTimer = characterSpell.Cooldown,
+                CooldownTimer = characterSpell.Cooldown
             };
 
             gameSpells.Add(gameSpell);
@@ -186,14 +185,14 @@ public class CharacterSelectHandler(
 
         connection.Character!.Spells.Load(gameSpells);
 
-        var spellInfos = gameSpells.Select(s => new SpellInfo
+        SpellInfo[] spellInfos = gameSpells.Select(s => new SpellInfo
         {
             SpellId = s.SpellId,
             Name = s.Metadata.Name,
             Cooldown = s.Metadata.Cooldown,
             CastTime = s.Metadata.CastTime,
             Cost = s.Metadata.Cost,
-            Range = (ushort)s.Metadata.Range,
+            Range = (ushort)s.Metadata.Range
         }).ToArray();
 
         connection.Send(SCharacterSpellsPacket.Create(spellInfos, connection.CryptoSession.Encrypt));

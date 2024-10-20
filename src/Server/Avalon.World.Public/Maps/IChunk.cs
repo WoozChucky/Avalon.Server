@@ -1,8 +1,8 @@
 using Avalon.Common;
 using Avalon.Common.Mathematics;
-using Avalon.Common.ValueObjects;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
+using Avalon.World.Public.Units;
 
 namespace Avalon.World.Public.Maps;
 
@@ -27,21 +27,21 @@ public interface IChunk
 [Serializable]
 public class ChunkMetadata
 {
+    public List<CreatureInfo> Creatures; // Creatures
+    public string GeometryFile;
+    public string MeshFile;
     public string Name;
     public Vector3 Position;
     public Vector3 Size;
     public List<TreeInfo> Trees; // Possibly collidable objects
-    public List<CreatureInfo> Creatures; // Creatures
-    public string GeometryFile;
-    public string MeshFile;
 }
 
 [Serializable]
 public class TreeInfo
 {
     public Vector3 Position;
-    public Vector3 Size;
     public int PrototypeIndex;
+    public Vector3 Size;
 }
 
 [Serializable]
@@ -54,7 +54,7 @@ public class CreatureInfo
 [Serializable]
 public class NavMeshInfo
 {
-    public Vector3[] Vertices;
-    public int[] Indices;
     public int[] Areas;
+    public int[] Indices;
+    public Vector3[] Vertices;
 }
