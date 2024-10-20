@@ -39,7 +39,7 @@ public class AsymmetricCipher
                 var keyPairGen = GeneratorUtilities.GetKeyPairGenerator("ECDH");
                 keyPairGen.Init(keyGenParams);
 
-                return keyPairGen.GenerateKeyPair();   
+                return keyPairGen.GenerateKeyPair();
             }
             default:
                 throw new ArgumentException("Invalid key size");
@@ -51,13 +51,13 @@ public class AsymmetricCipher
         if (keyPair == null) throw new ArgumentNullException(nameof(keyPair));
         return (ECPublicKeyParameters)keyPair.Public;
     }
-    
+
     public static byte[] GetPublicKeyBytes(ECPublicKeyParameters publicKey)
     {
         var publicKeyInfo = SubjectPublicKeyInfoFactory.CreateSubjectPublicKeyInfo(publicKey);
         return publicKeyInfo.GetDerEncoded();
     }
-    
+
     public static ECPublicKeyParameters GetPublicKeyFromBytes(byte[] publicKeyBytes)
     {
         // Parse the byte array to reconstruct the public key
@@ -73,7 +73,7 @@ public class AsymmetricCipher
 
         throw new CryptographicException("Invalid public key");
     }
-    
+
     public static byte[] CalculateSharedSecret(AsymmetricCipherKeyPair ownKeyPair, ECPublicKeyParameters otherPublicKey)
     {
         // Create an ECDH key agreement object

@@ -17,14 +17,14 @@ public class CharacterLevelExperienceRepository : ICharacterLevelExperienceRepos
     {
         _dbContext = dbContext;
     }
-    
+
     public async Task<IReadOnlyCollection<CharacterLevelExperience>> GetAllAsync()
     {
         return await _dbContext.CharacterLevelExperiences
             .AsNoTracking()
             .ToListAsync();
     }
-    
+
     public async Task<CharacterLevelExperience?> GetLevelAsync(ushort level)
     {
         return await _dbContext.CharacterLevelExperiences

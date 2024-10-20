@@ -16,7 +16,7 @@ public class WorldDbContext : DbContext
 {
     private readonly ILoggerFactory _loggerFactory;
     private readonly string _connectionString;
-    
+
     public DbSet<CreatureTemplate> CreatureTemplates { get; set; } = null!;
     public DbSet<ItemTemplate> ItemTemplates { get; set; } = null!;
     public DbSet<ItemInstance> ItemInstances { get; set; } = null!;
@@ -40,7 +40,7 @@ public class WorldDbContext : DbContext
         optionsBuilder
             .UseLoggerFactory(_loggerFactory)
             .EnableSensitiveDataLogging();
-        
+
         optionsBuilder.UseMySql(_connectionString, ServerVersion.AutoDetect(_connectionString), mysql =>
         {
             // because MySQL does not support schemas: https://github.com/PomeloFoundation/Pomelo.EntityFrameworkCore.MySql/issues/1100
@@ -62,11 +62,11 @@ public class WorldDbContext : DbContext
         Configure(modelBuilder.Entity<CharacterCreateInfo>());
         Configure(modelBuilder.Entity<SpellTemplate>());
     }
-    
+
     private static void Configure(EntityTypeBuilder<CharacterLevelExperience> builder)
     {
         builder.HasKey(b => b.Level);
-        
+
         builder.HasData([
             new CharacterLevelExperience
             {
@@ -145,11 +145,11 @@ public class WorldDbContext : DbContext
             },
         ]);
     }
-    
+
     private static void Configure(EntityTypeBuilder<CharacterCreateInfo> builder)
     {
         builder.HasKey(b => b.Class);
-        
+
         var itemIdConverter = new ValueConverter<List<ItemTemplateId>, string>(
             v => string.Join(",", v.Select(i => i.Value)),
             v => v.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries)
@@ -159,25 +159,25 @@ public class WorldDbContext : DbContext
             (c1, c2) => c1!.SequenceEqual(c2!),
             c => c.Aggregate(0, (a, v) => HashCode.Combine(a, v.GetHashCode())),
             c => c.ToList());
-        
+
         builder.Property(b => b.StartingItems)
             .HasConversion(itemIdConverter)
             .Metadata.SetValueComparer(itemIdComparer);
-        
+
         var spellIdConverter = new ValueConverter<List<SpellId>, string>(
             v => string.Join(",", v.Select(i => i.Value)),
             v => v.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries)
                 .Select(val => new SpellId(uint.Parse(val))).ToList());
-        
+
         var spellIdComparer = new ValueComparer<List<SpellId>>(
             (c1, c2) => c1!.SequenceEqual(c2!),
             c => c.Aggregate(0, (a, v) => HashCode.Combine(a, v.GetHashCode())),
             c => c.ToList());
-        
+
         builder.Property(b => b.StartingSpells)
             .HasConversion(spellIdConverter)
             .Metadata.SetValueComparer(spellIdComparer);
-        
+
         builder.HasData([
             new CharacterCreateInfo
             {
@@ -229,22 +229,22 @@ public class WorldDbContext : DbContext
     private static void Configure(EntityTypeBuilder<QuestReward> builder)
     {
         builder.HasKey(b => new { b.QuestId, b.RewardId });
-        
+
         builder.HasOne(b => b.Quest)
             .WithMany(q => q.Rewards)
             .HasForeignKey(b => b.QuestId)
             .OnDelete(DeleteBehavior.Cascade);
-        
+
         builder.HasOne(b => b.Reward)
             .WithMany()
             .HasForeignKey(b => b.RewardId)
             .OnDelete(DeleteBehavior.Cascade);
     }
-    
+
     private static void Configure(EntityTypeBuilder<ClassLevelStat> builder)
     {
         builder.HasKey(b => new { b.Class, b.Level });
-        
+
         builder.HasData([
             // Warrior
             new ClassLevelStat
@@ -472,16 +472,16 @@ public class WorldDbContext : DbContext
             }
         ]);
     }
-    
+
     // ReSharper disable once UnusedParameter.Local
     private static void Configure(EntityTypeBuilder<QuestRewardTemplate> builder)
     {
     }
-    
+
     private static void Configure(EntityTypeBuilder<QuestTemplate> builder)
     {
         builder.HasKey(b => b.Id);
-        
+
         builder.HasMany(q => q.Rewards)
             .WithOne(r => r.Quest)
             .HasForeignKey(r => r.QuestId)
@@ -497,7 +497,7 @@ public class WorldDbContext : DbContext
                 v => new CreatureTemplateId(v)
             )
             .IsRequired();
-        
+
         builder.HasData([
             new CreatureTemplate
             {
@@ -611,25 +611,25 @@ public class WorldDbContext : DbContext
             )
             .IsRequired()
             .ValueGeneratedOnAdd();
-        
+
         builder.Property(b => b.CharacterId)
             .HasConversion(
                 v => v.Value,
                 v => new CharacterId(v)
             );
-        
+
         builder.Property(b => b.TemplateId)
             .HasConversion(
                 v => v.Value,
                 v => new ItemTemplateId(v)
             );
-        
+
         builder.HasOne(b => b.Template)
             .WithMany()
             .HasForeignKey(b => b.TemplateId)
             .OnDelete(DeleteBehavior.Cascade);
     }
-    
+
     private static void Configure(EntityTypeBuilder<ItemTemplate> builder)
     {
         builder.HasKey(b => b.Id);
@@ -639,16 +639,16 @@ public class WorldDbContext : DbContext
                 v => new ItemTemplateId(v)
             )
             .IsRequired();
-        
+
         var characterClassConverter = new ValueConverter<List<CharacterClass>, string>(
             v => string.Join(',', v.Select(e => e.ToString())),
             v => v.Split(',', StringSplitOptions.RemoveEmptyEntries).Select(e => (CharacterClass)Enum.Parse(typeof(CharacterClass), e)).ToList());
-        
+
         var characterClassComparer = new ValueComparer<List<CharacterClass>>(
             (c1, c2) => c1!.SequenceEqual(c2!),
             c => c.Aggregate(0, (a, v) => HashCode.Combine(a, v.GetHashCode())),
             c => c.ToList());
-        
+
         builder
             .Property(e => e.AllowedClasses)
             .HasConversion(characterClassConverter)
@@ -719,10 +719,10 @@ public class WorldDbContext : DbContext
                 StatType1 = StatType.AttackSpeed,
                 StatValue1 = 13, // 1.3 seconds
             }
-        
+
         ]);
     }
-    
+
     private static void Configure(EntityTypeBuilder<MapTemplate> builder)
     {
         builder.HasKey(b => b.Id);
@@ -732,7 +732,7 @@ public class WorldDbContext : DbContext
                 v => new MapTemplateId(v)
             )
             .IsRequired();
-        
+
         builder.HasData([
             new MapTemplate
             {

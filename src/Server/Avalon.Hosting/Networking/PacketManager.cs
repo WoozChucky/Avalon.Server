@@ -38,8 +38,8 @@ public class PacketManager : IPacketManager
                 logger.LogWarning("Packet type {PacketType} does not have a NetworkPacketType field", packetType);
                 continue;
             }
-            
-            var networkPacketType = (NetworkPacketType) networkPacketTypeInfo!.GetValue(null)!;
+
+            var networkPacketType = (NetworkPacketType)networkPacketTypeInfo!.GetValue(null)!;
 
             // last or default so it can be overriden via plugins - last one is chosen
             var packetHandlerType = packetHandlerTypes?
@@ -55,11 +55,11 @@ public class PacketManager : IPacketManager
                 logger.LogWarning("Packet {PacketType} does not have a handler", packetType);
                 continue;
             }
-            
+
             _infos.Add(networkPacketType, new PacketInfo(packetType, packetHandlerType));
-            
+
             logger.LogDebug("Registered packet {Header} with handler {HandlerType}", networkPacketType, packetHandlerType);
-            
+
         }
     }
 

@@ -15,13 +15,13 @@ public class CCharacterListPacket : Packet
     public static NetworkPacket Create(Func<byte[], byte[]> encrypt)
     {
         using var memoryStream = new MemoryStream();
-        
+
         var p = new CCharacterListPacket();
-        
+
         Serializer.Serialize(memoryStream, p);
-        
+
         var encrypted = encrypt(memoryStream.ToArray());
-        
+
         return new NetworkPacket
         {
             Header = new NetworkPacketHeader

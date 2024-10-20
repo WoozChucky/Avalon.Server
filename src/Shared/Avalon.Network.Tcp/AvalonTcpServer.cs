@@ -16,7 +16,7 @@ public class AvalonTcpServer : IAvalonTcpServer
     protected readonly Socket Socket;
     protected volatile bool Running;
     protected readonly ILoggerFactory LoggerFactory;
-    
+
     public event TcpClientConnectedHandler? ClientConnected;
 
     public AvalonTcpServer(ILoggerFactory loggerFactory, AvalonTcpServerConfiguration configuration, CancellationTokenSource cts)
@@ -25,36 +25,36 @@ public class AvalonTcpServer : IAvalonTcpServer
         Logger = LoggerFactory.CreateLogger<AvalonTcpServer>();
         Configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
         Cts = cts ?? throw new ArgumentNullException(nameof(cts));
-        
+
         if (!Configuration.Enabled) return;
-        
+
         Running = false;
         Socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
         Socket.NoDelay = true;
         Socket.Bind(new IPEndPoint(IPAddress.Any, Configuration.ListenPort));
     }
-    
+
     ~AvalonTcpServer()
     {
         Dispose(false);
     }
-    
+
     public bool IsRunning => Running;
-    
+
     public Task RunAsync()
     {
         if (!Configuration.Enabled) return Task.CompletedTask;
-        
+
         if (Running)
         {
             throw new InvalidOperationException("Server is already running.");
         }
-        
+
         Socket.Listen(Configuration.Backlog);
         Running = true;
-        
+
         Logger.LogInformation("Listening at {EndPoint}", Socket.LocalEndPoint);
-        
+
 #pragma warning disable CS4014
         Task.Factory.StartNew(InternalServerLoop, Cts.Token, TaskCreationOptions.LongRunning, TaskScheduler.Default);
 #pragma warning restore CS4014
@@ -64,7 +64,7 @@ public class AvalonTcpServer : IAvalonTcpServer
     public Task StopAsync()
     {
         if (!Configuration.Enabled) return Task.CompletedTask;
-        
+
         if (!Running) throw new InvalidOperationException("Server is not running.");
 
         Running = false;
@@ -72,10 +72,10 @@ public class AvalonTcpServer : IAvalonTcpServer
         //TODO(Nuno): Close all connections.
         //TODO(Nuno): Send the connection disconnect packet to all clients.
         Logger.LogInformation("Server stopped");
-        
+
         return Task.CompletedTask;
     }
-    
+
     public void Dispose()
     {
         Dispose(true);
@@ -105,7 +105,7 @@ public class AvalonTcpServer : IAvalonTcpServer
         try
         {
             var networkStream = new NetworkStream(client, true);
-            
+
             ClientConnected?.Invoke(this, new TcpClient(LoggerFactory, client, networkStream));
         }
         catch (AuthenticationException e)
@@ -116,7 +116,7 @@ public class AvalonTcpServer : IAvalonTcpServer
         {
             Logger.LogWarning(e, "Failed to handle new connection: {Message}", e.Message);
         }
-        
+
         return Task.CompletedTask;
     }
 

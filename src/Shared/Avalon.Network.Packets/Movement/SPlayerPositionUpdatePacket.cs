@@ -9,22 +9,22 @@ public class SPlayerPositionUpdatePacket : Packet
     public static NetworkPacketType PacketType = NetworkPacketType.SMSG_PLAYER_POSITION_UPDATE;
     public static NetworkProtocol Protocol = NetworkProtocol.Tcp;
     public static NetworkPacketFlags Flags = NetworkPacketFlags.Encrypted;
-    
+
     [ProtoMember(1)] public SPlayerPacket[] Players { get; set; }
-    
+
     public static NetworkPacket Create(SPlayerPacket[] players, Func<byte[], byte[]> encryptFunc)
     {
         using var memoryStream = new MemoryStream();
-        
+
         var packet = new SPlayerPositionUpdatePacket()
         {
             Players = players
         };
-        
+
         Serializer.Serialize(memoryStream, packet);
-        
+
         var buffer = encryptFunc(memoryStream.ToArray());
-        
+
         return new NetworkPacket
         {
             Header = new NetworkPacketHeader

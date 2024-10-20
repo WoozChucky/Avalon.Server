@@ -15,17 +15,17 @@ public class SHandshakeResultPacket : Packet
     public static NetworkPacket Create(bool verified, Func<byte[], byte[]> encryptFunc)
     {
         using var memoryStream = new MemoryStream();
-        
+
         var packet = new SHandshakeResultPacket()
         {
             Verified = verified
         };
-        
+
         Serializer.Serialize(memoryStream, packet);
-        
+
 
         var buffer = encryptFunc(memoryStream.ToArray());
-        
+
         return new NetworkPacket
         {
             Header = new NetworkPacketHeader

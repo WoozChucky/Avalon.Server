@@ -15,7 +15,7 @@ public interface INavigationMeshBaker
 public class NavigationMeshBaker : INavigationMeshBaker
 {
     private readonly ILogger<NavigationMeshBaker> _logger;
-    
+
     private static readonly float CellSize = 0.3f;
     private static readonly float CellHeight = 0.2f;
 
@@ -84,7 +84,7 @@ public class NavigationMeshBaker : INavigationMeshBaker
     private IList<string> GetMissingMeshes()
     {
         var mapsFolder = Path.Combine(Directory.GetCurrentDirectory(), "Maps");
-        
+
         var objFiles = Directory.GetFiles(mapsFolder, "*.obj");
 
         return objFiles.Where(objFile => !File.Exists(objFile.Replace(".obj", ".nav"))).ToList();
@@ -124,7 +124,7 @@ public class NavigationMeshBaker : INavigationMeshBaker
         // Detail Mesh
         bs.detailSampleDist = DetailSampleDist;
         bs.detailSampleMaxError = DetailSampleMaxError;
-        
+
         bs.buildAll = true;
 
         // Tiles

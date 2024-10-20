@@ -13,7 +13,7 @@ public class CCharacterAttackPacket : Packet
     public static NetworkPacketType PacketType = NetworkPacketType.CMSG_ATTACK;
     public static NetworkProtocol Protocol = NetworkProtocol.Tcp;
     public static NetworkPacketFlags Flags = NetworkPacketFlags.Encrypted;
-    
+
     [ProtoMember(1)] public ulong Target { get; set; }
     [ProtoMember(2)] public bool AutoAttack { get; set; }
     [ProtoMember(3)] public uint? SpellId { get; set; }
@@ -21,18 +21,18 @@ public class CCharacterAttackPacket : Packet
     public static NetworkPacket Create(CreatureId target, bool autoAttack, uint? spellId, Func<byte[], byte[]> encryptFunc)
     {
         using var memoryStream = new MemoryStream();
-        
+
         var p = new CCharacterAttackPacket
         {
             Target = target,
             AutoAttack = autoAttack,
             SpellId = spellId
         };
-        
+
         Serializer.Serialize(memoryStream, p);
-        
+
         var buffer = encryptFunc(memoryStream.ToArray());
-        
+
         return new NetworkPacket
         {
             Header = new NetworkPacketHeader
@@ -45,5 +45,5 @@ public class CCharacterAttackPacket : Packet
             Payload = buffer
         };
     }
-    
+
 }

@@ -11,6 +11,6 @@ public class CCharacterRunWalkPacket : Packet
     public static NetworkPacketType PacketType = NetworkPacketType.CMSG_CHARACTER_RUN_WALK;
     public static NetworkProtocol Protocol = NetworkProtocol.Tcp;
     public static NetworkPacketFlags Flags = NetworkPacketFlags.Encrypted;
-    
+
     [ProtoMember(1)] public bool Running { get; set; }
 }

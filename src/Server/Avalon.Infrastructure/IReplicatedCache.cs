@@ -25,14 +25,14 @@ public class ReplicatedCache : IReplicatedCache
 {
     private readonly ILogger<ReplicatedCache> _logger;
     private readonly CacheConfiguration _configuration;
-    
+
     private ConnectionMultiplexer _redis = null!;
-    
-    
+
+
     public ReplicatedCache(ILoggerFactory loggerFactory, IOptions<CacheConfiguration> configuration)
     {
         _logger = loggerFactory.CreateLogger<ReplicatedCache>();
-        _configuration = string.IsNullOrWhiteSpace(configuration.Value.Host) ? throw new Exception("Invalid IOptions<CacheConfiguration>!"): configuration.Value;
+        _configuration = string.IsNullOrWhiteSpace(configuration.Value.Host) ? throw new Exception("Invalid IOptions<CacheConfiguration>!") : configuration.Value;
         _logger.LogInformation("ReplicatedCache initialized with configuration: {@Configuration}", _configuration);
     }
 
@@ -46,7 +46,7 @@ public class ReplicatedCache : IReplicatedCache
             AllowAdmin = true,
             Password = _configuration.Password
         });
-        
+
         _logger.LogInformation("Connected to Redis at {Host}", _configuration.Host);
     }
 
@@ -60,7 +60,7 @@ public class ReplicatedCache : IReplicatedCache
     {
         return await _redis.GetDatabase().StringSetAsync(key, value, expiry);
     }
-    
+
     public async Task<string?> GetAsync(string key)
     {
         return await _redis.GetDatabase().StringGetAsync(key);

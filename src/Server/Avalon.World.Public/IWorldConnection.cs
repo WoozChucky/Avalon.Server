@@ -13,18 +13,18 @@ public interface IWorldConnection : IConnection
 {
     public AccountId? AccountId { get; set; }
     public ICharacter? Character { get; set; }
-    
-    
+
+
     public long Latency { get; }
     public long RoundTripTime { get; }
-    
+
     public bool InGame { get; }
     public bool InMap { get; }
     void EnableTimeSyncWorker();
     void OnPongReceived(long packetLastServerTimestamp, long packetClientReceivedTimestamp, long packetClientSentTimestamp);
-    
+
     void Update(TimeSpan deltaTime, PacketFilter filter);
-    
+
     public double LastMovementTime { get; }
 
 }
@@ -36,7 +36,7 @@ public interface IGameState
     ISet<ObjectGuid> RemovedObjects { get; }
 
     void Update(
-        Dictionary<ObjectGuid, ICreature> creatures, 
+        Dictionary<ObjectGuid, ICreature> creatures,
         Dictionary<ObjectGuid, ICharacter> characters,
         List<IWorldObject> chunkObjects);
 }
@@ -44,8 +44,8 @@ public interface IGameState
 public abstract class PacketFilter
 {
     protected PacketFilter(IWorldConnection connection) { }
-    
+
     public abstract bool Process(NetworkPacket packet);
-    
+
     public abstract bool CanProcess(NetworkPacketType type);
 }

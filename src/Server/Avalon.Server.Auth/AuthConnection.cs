@@ -14,10 +14,10 @@ namespace Avalon.Server.Auth;
 public interface IAuthConnection : IConnection
 {
     public AccountId? AccountId { get; set; }
-    
+
     byte[] GenerateHandshakeData();
     bool VerifyHandshakeData(byte[] handshakeData);
-    
+
     AuthServer Server { get; }
 }
 
@@ -26,9 +26,9 @@ public class AuthConnection : Connection, IAuthConnection
     private readonly IServiceScopeFactory _serviceScopeFactory;
     public AccountId? AccountId { get; set; }
     public new AuthServer Server { get; }
-    
+
     private byte[] _handshakeData = [];
-    
+
     public AuthConnection(IServerBase server, TcpClient client, ILoggerFactory loggerFactory,
         IPacketReader packetReader, IServiceScopeFactory serviceScopeFactory)
         : base(loggerFactory.CreateLogger<AuthConnection>(), server, packetReader)
@@ -42,7 +42,7 @@ public class AuthConnection : Connection, IAuthConnection
     {
         Server.CallConnectionListener(this);
     }
-    
+
     public byte[] GenerateHandshakeData()
     {
         _handshakeData = CryptoSession.GenerateHandshakeData();
@@ -60,9 +60,9 @@ public class AuthConnection : Connection, IAuthConnection
         var sslStream = new SslStream(networkStream, false, OnClientCertificateValidation);
 
         var certificate = Server.Certificate;
-        
+
         await sslStream.AuthenticateAsServerAsync(certificate, false, SslProtocols.Tls12, false);
-        
+
         return sslStream;
     }
 
@@ -71,19 +71,19 @@ public class AuthConnection : Connection, IAuthConnection
         await SaveDisconnectedAccountAsync();
         await Server.RemoveConnection(this);
     }
-    
+
     private async Task SaveDisconnectedAccountAsync()
     {
         if (AccountId == null) return;
-        
+
         await using var scope = _serviceScopeFactory.CreateAsyncScope();
         var accountRepository = scope.ServiceProvider.GetRequiredService<IAccountRepository>();
-        
+
         var account = await accountRepository.FindByIdAsync(AccountId);
         if (account != null)
         {
             account.Online = false;
-            account.TotalTime += (int) (DateTime.UtcNow - account.LastLogin).TotalSeconds;
+            account.TotalTime += (int)(DateTime.UtcNow - account.LastLogin).TotalSeconds;
             await accountRepository.UpdateAsync(account);
         }
     }
@@ -97,7 +97,7 @@ public class AuthConnection : Connection, IAuthConnection
     {
         return Server.ServerTime;
     }
-    
+
     private bool OnClientCertificateValidation(object sender, X509Certificate? certificate, X509Chain? chain, SslPolicyErrors sslpolicyerrors)
     {
         return true;

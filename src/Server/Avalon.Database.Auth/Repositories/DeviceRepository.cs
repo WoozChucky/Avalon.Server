@@ -4,7 +4,7 @@ namespace Avalon.Database.Auth.Repositories;
 
 public interface IDeviceRepository : IRepository<Device, Guid>
 {
-    
+
 }
 
 public class DeviceRepository : EntityFrameworkRepository<Device, Guid>, IDeviceRepository

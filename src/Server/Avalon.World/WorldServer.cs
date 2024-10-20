@@ -30,7 +30,7 @@ public interface IWorldPacketHandler
 public abstract class WorldPacketHandler<TPacket> : IWorldPacketHandler where TPacket : Packet
 {
     public abstract void Execute(WorldConnection connection, TPacket packet);
-    
+
     void IWorldPacketHandler.Execute(WorldConnection connection, Packet packet)
     {
         Execute(connection, (TPacket)packet);
@@ -58,7 +58,7 @@ public interface IWorldServer
 public class WorldServer : ServerBase<WorldConnection>, IWorldServer
 {
     public new ImmutableArray<IWorldConnection> Connections =>
-        [..base.Connections.Values.Cast<WorldConnection>()];
+        [.. base.Connections.Values.Cast<WorldConnection>()];
 
     public IWorld World => _world;
     public Dictionary<NetworkPacketType, IWorldPacketHandler> PacketHandlers { get; }
@@ -101,36 +101,36 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
             .Where(x => x.GetCustomAttribute<PacketHandlerAttribute>() != null)
             .ToDictionary(x => x.GetCustomAttribute<PacketHandlerAttribute>()!.PacketType, x => x);
 
-        foreach (var (packetType, handlerType) in packetHandlers) 
+        foreach (var (packetType, handlerType) in packetHandlers)
         {
             var handler = ActivatorUtilities.CreateInstance(serviceProvider, handlerType);
             PacketHandlers.Add(packetType, (IWorldPacketHandler)handler);
             _logger.LogInformation("Registered packet handler {HandlerType} for packet type {PacketType}", handlerType, packetType);
         }
     }
-    
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         await Task.WhenAll(
             _navigationMeshBaker.ExecuteAsync(),
-            Task.Run(() =>_scriptManager.Load(), stoppingToken),
+            Task.Run(() => _scriptManager.Load(), stoppingToken),
             _creatureSpawner.LoadAsync()
         );
-        
+
         await _world.LoadAsync(stoppingToken);
-        
+
         _scriptHotReloader.Start();
 
         await CacheSubscribeAsync();
-        
+
         RegisterNewConnectionListener(NewConnection);
-        
+
         _serverTimer.Start();
-        
+
         StartListening();
-        
+
         _gameTime.Start();
-        
+
         while (!stoppingToken.IsCancellationRequested)
         {
             try
@@ -142,8 +142,8 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
                 _logger.LogError(e, "Tick failed");
             }
         }
-        
-        _logger.LogInformation("World server stopped... Ran for {Minutes}mins", (int) _serverTimer.Elapsed.TotalMinutes);
+
+        _logger.LogInformation("World server stopped... Ran for {Minutes}mins", (int)_serverTimer.Elapsed.TotalMinutes);
     }
 
     protected override Task OnStoppingAsync(CancellationToken stoppingToken)
@@ -155,24 +155,24 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         }
         return Task.CompletedTask;
     }
-    
+
     private uint _realCurrentTime = 0;
     private uint _realPreviousTime = TimeUtils.GetMSTime();
-    
+
     private int _tickCount = 0;
     private DateTime _lastTpsCalculationTime = DateTime.Now;
     private double _ticksPerSecond = 0;
-    
+
     private static readonly TimeSpan MinUpdateInterval = TimeSpan.FromMilliseconds(10); // Example minimum interval
     private readonly Stopwatch _stopwatch = Stopwatch.StartNew();
-    
+
     private async ValueTask Tick()
     {
         _realCurrentTime = TimeUtils.GetMSTime();
         var diff = TimeUtils.GetMSTimeDiff(_realPreviousTime, _realCurrentTime);
-        
+
         const int minDeltaTime = 1; // Minimum delta time in milliseconds
-        
+
         // Throttle the update loop if the diff is less than the minimum update interval
         if (diff < MinUpdateInterval.TotalMilliseconds)
         {
@@ -192,9 +192,9 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         {
             diff = minDeltaTime;
         }
-        
+
         Update(TimeSpan.FromMilliseconds(diff));
-        
+
         _realPreviousTime = _realCurrentTime;
 
         //TODO(Nuno): Make this configurable
@@ -203,7 +203,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         {
             // Increment the tick counter
             _tickCount++;
-    
+
             // Calculate TPS every second
             if ((DateTime.Now - _lastTpsCalculationTime).TotalSeconds >= 1)
             {
@@ -215,7 +215,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         }
 #pragma warning restore CS0162 // Unreachable code detected
     }
-    
+
     private void Update(TimeSpan elapsedTime)
     {
         foreach (var worldConnection in Connections)
@@ -224,15 +224,15 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
 
             worldConnection.Update(elapsedTime, filter);
         }
-        
+
         _world.Update(elapsedTime);
     }
-    
+
     private bool NewConnection(IConnection connection)
     {
         return true;
     }
-    
+
     protected override object GetContextPacket(IConnection connection, object? packet, Type packetType)
     {
         // Check if the cache contains the property accessors for the given packet type
@@ -251,11 +251,11 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
 
         // Create a new context instance
         var context = Activator.CreateInstance(typeof(WorldPacketContext<>).MakeGenericType(packetType))!;
-    
+
         // Set the packet and connection properties
         cachedProperties.packetProperty.SetValue(context, packet);
         cachedProperties.connectionProperty.SetValue(context, connection);
-    
+
         return context;
     }
 
@@ -269,7 +269,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
     {
         _logger.LogInformation("Disconnecting account {AccountId}", value);
         AccountId accountId = value.ToString();
-        
+
         // TODO: Send in game packet telling the player they are being disconnected
         Connections.FirstOrDefault(c => c.AccountId == accountId)?.Close();
     }

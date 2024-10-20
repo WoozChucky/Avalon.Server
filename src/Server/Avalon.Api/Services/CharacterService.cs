@@ -37,7 +37,7 @@ public class CharacterService : ICharacterService
                 throw new BusinessException("Unauthorized");
             }
         }
-        
+
         return await _characterRepository.FindByAccountAsync(id);
     }
 
@@ -48,7 +48,7 @@ public class CharacterService : ICharacterService
         {
             throw new BusinessException("Character not found");
         }
-        
+
         return character;
     }
 }

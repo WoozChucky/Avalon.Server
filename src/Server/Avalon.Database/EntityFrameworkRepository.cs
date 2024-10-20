@@ -19,7 +19,7 @@ public abstract class EntityFrameworkRepository<TEntity, TKey>(DbContext dbConte
             ? await Context.Set<TEntity>().ToListAsync()
             : await FindAllNoTrackingAsync();
     }
-    
+
     private async Task<IList<TEntity>> FindAllNoTrackingAsync()
     {
         return await Context.Set<TEntity>()
@@ -34,7 +34,7 @@ public abstract class EntityFrameworkRepository<TEntity, TKey>(DbContext dbConte
                 .FirstOrDefaultAsync(entity => EF.Property<TKey>(entity, nameof(IDbEntity<TKey>.Id))!.Equals(id))
             : await FindByIdNoTrackingAsync(id);
     }
-    
+
     private async Task<TEntity?> FindByIdNoTrackingAsync(TKey id)
     {
         return await Context.Set<TEntity>()
@@ -60,13 +60,13 @@ public abstract class EntityFrameworkRepository<TEntity, TKey>(DbContext dbConte
     public async Task<IList<TEntity>> CreateAsync(IList<TEntity> entities)
     {
         var entityList = new List<TEntity>();
-        
+
         foreach (var entity in entities)
         {
             var entry = await Context.Set<TEntity>().AddAsync(entity);
             entityList.Add(entry.Entity);
         }
-        
+
         await Context.SaveChangesAsync();
 
         return entityList;
@@ -88,7 +88,7 @@ public abstract class EntityFrameworkRepository<TEntity, TKey>(DbContext dbConte
             Context.Set<TEntity>().Attach(entity);
         }
         entry.State = EntityState.Modified;
-        
+
         await Context.SaveChangesAsync();
         return entry.Entity;
     }

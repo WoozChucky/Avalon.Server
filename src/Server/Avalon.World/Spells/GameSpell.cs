@@ -6,7 +6,7 @@ namespace Avalon.World.Spells;
 public class GameSpell : ISpell
 {
     public required SpellId SpellId { get; init; }
-    
+
     public required SpellMetadata Metadata { get; init; }
     public required float CooldownTimer { get; set; }
     public required float CastTimeTimer { get; set; }

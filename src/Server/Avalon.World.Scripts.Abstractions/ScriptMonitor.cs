@@ -6,14 +6,14 @@ public class ScriptMonitor
 {
     private readonly ILogger<ScriptMonitor> _logger;
     private readonly FileSystemWatcher _watcher;
-    
+
     private const string ScriptsPath = "Scripts";
     private const string ScriptExtension = ".dll";
 
     public ScriptMonitor(ILoggerFactory loggerFactory)
     {
         _logger = loggerFactory.CreateLogger<ScriptMonitor>();
-        
+
         var path = Path.Combine(Directory.GetCurrentDirectory(), ScriptsPath);
 
         _watcher = new FileSystemWatcher(path, $"*{ScriptExtension}")
@@ -55,7 +55,7 @@ public class ScriptMonitor
     {
         _watcher.EnableRaisingEvents = true;
     }
-    
+
     public void Stop()
     {
         _watcher.EnableRaisingEvents = false;

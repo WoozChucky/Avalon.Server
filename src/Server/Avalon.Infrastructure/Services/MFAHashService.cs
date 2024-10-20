@@ -18,13 +18,13 @@ public class MFAHashService : IMFAHashService
     private readonly IReplicatedCache _cache;
     private readonly ILogger<MFAHashService> _logger;
     private readonly TimeSpan _expiry = TimeSpan.FromMinutes(2);
-    
+
     public MFAHashService(ILoggerFactory loggerFactory, IReplicatedCache cache)
     {
         _logger = loggerFactory.CreateLogger<MFAHashService>();
         _cache = cache;
     }
-    
+
     public async Task<string> GenerateHashAsync(Account account)
     {
         // Check for existing hash
@@ -37,16 +37,16 @@ public class MFAHashService : IMFAHashService
                 _logger.LogDebug("Returning existing hash");
                 return existingHash!;
             }
-            
+
             _logger.LogDebug("Removing expired hash");
             await CleanupHash(existingHash!);
         }
-        
+
         var secretKey = KeyGeneration.GenerateRandomKey(20);
         var hash = Base32Encoding.ToString(secretKey);
-        
+
         var transaction = _cache.Database.CreateTransaction();
-        await transaction.HashSetAsync($"auth:account:{account.Id}:mfa", new []
+        await transaction.HashSetAsync($"auth:account:{account.Id}:mfa", new[]
         {
             new HashEntry("hash", hash),
             new HashEntry("expiry", DateTime.UtcNow.Add(_expiry).ToString("O")),
@@ -55,7 +55,7 @@ public class MFAHashService : IMFAHashService
         await transaction.ExecuteAsync();
         return hash;
     }
-    
+
     public async Task<AccountId?> GetAccountIdAsync(string hash)
     {
         var keys = await _cache.Database.ExecuteAsync("keys", "auth:account:*:mfa");

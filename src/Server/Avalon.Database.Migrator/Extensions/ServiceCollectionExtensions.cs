@@ -11,7 +11,7 @@ public static class ServiceCollectionExtensions
             .AddSingleton(configuration)
             .AddSingleton<IDatabaseMigrator, DatabaseMigrator>();
     }
-    
+
     public static IServiceCollection AddDatabaseMigrator(this IServiceCollection services)
     {
         return services

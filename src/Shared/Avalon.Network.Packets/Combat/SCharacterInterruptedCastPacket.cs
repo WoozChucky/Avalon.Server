@@ -13,24 +13,24 @@ public class SCharacterInterruptedCastPacket : Packet
     public static NetworkPacketType PacketType = NetworkPacketType.SMSG_SPELL_INTERRUPTED;
     public static NetworkProtocol Protocol = NetworkProtocol.Tcp;
     public static NetworkPacketFlags Flags = NetworkPacketFlags.Encrypted;
-    
+
     [ProtoMember(1)] public ulong Caster { get; set; }
     [ProtoMember(2)] public uint SpellId { get; set; }
-    
+
     public static NetworkPacket Create(ObjectGuid caster, SpellId spell, Func<byte[], byte[]> encryptFunc)
     {
         using var memoryStream = new MemoryStream();
-        
+
         var p = new SCharacterInterruptedCastPacket
         {
             Caster = caster.RawValue,
             SpellId = spell.Value
         };
-        
+
         Serializer.Serialize(memoryStream, p);
-        
+
         var buffer = encryptFunc(memoryStream.ToArray());
-        
+
         return new NetworkPacket
         {
             Header = new NetworkPacketHeader

@@ -10,11 +10,11 @@ public static class ServiceExtensions
     {
         services.AddOptions<HostingSecurity>()
             .BindConfiguration("Hosting:Security");
-        
+
         services.AddAuthDatabase()
             .AddCache()
             .AddMfaService();
-        
+
         return services;
     }
 }

@@ -14,19 +14,19 @@ public interface ICharacterSpellRepository
 public class CharacterSpellRepository : ICharacterSpellRepository
 {
     private readonly CharacterDbContext _dbContext;
-    
+
     public CharacterSpellRepository(CharacterDbContext dbContext)
     {
         _dbContext = dbContext;
     }
-    
+
     public async Task<CharacterSpell> CreateAsync(CharacterSpell spell)
     {
         var entity = await _dbContext.CharacterSpells.AddAsync(spell);
         await _dbContext.SaveChangesAsync();
         return entity.Entity;
     }
-    
+
     public async Task<IList<CharacterSpell>> CreateAsync(IList<CharacterSpell> spells)
     {
         var entityList = new List<CharacterSpell>();
@@ -38,7 +38,7 @@ public class CharacterSpellRepository : ICharacterSpellRepository
         await _dbContext.SaveChangesAsync();
         return entityList;
     }
-    
+
     public async Task<IReadOnlyCollection<CharacterSpell>> GetCharacterSpellsAsync(CharacterId characterId)
     {
         return await _dbContext.CharacterSpells
@@ -46,6 +46,6 @@ public class CharacterSpellRepository : ICharacterSpellRepository
             .Where(cs => cs.CharacterId == characterId)
             .ToListAsync();
     }
-    
-    
+
+
 }

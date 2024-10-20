@@ -8,9 +8,9 @@ namespace Avalon.Common.Mathematics;
 [StructLayout(LayoutKind.Sequential, Size = 1)]
 public struct MathfInternal
 {
-  public static volatile float FloatMinNormal = 1.1754944E-38f;
-  public static volatile float FloatMinDenormal = float.Epsilon;
-  public static bool IsFlushToZeroEnabled = (double) MathfInternal.FloatMinDenormal == 0.0;
+    public static volatile float FloatMinNormal = 1.1754944E-38f;
+    public static volatile float FloatMinDenormal = float.Epsilon;
+    public static bool IsFlushToZeroEnabled = (double)MathfInternal.FloatMinDenormal == 0.0;
 }
 
 [StructLayout(LayoutKind.Sequential, Size = 1)]
@@ -49,7 +49,7 @@ public struct Mathf
     /// <returns>
     ///   <para>The return value between -1 and +1.</para>
     /// </returns>
-    public static float Sin(float f) => (float) Math.Sin((double) f);
+    public static float Sin(float f) => (float)Math.Sin((double)f);
 
     /// <summary>
     ///   <para>Returns the cosine of angle f.</para>
@@ -58,44 +58,44 @@ public struct Mathf
     /// <returns>
     ///   <para>The return value between -1 and 1.</para>
     /// </returns>
-    public static float Cos(float f) => (float) Math.Cos((double) f);
+    public static float Cos(float f) => (float)Math.Cos((double)f);
 
     /// <summary>
     ///   <para>Returns the tangent of angle f in radians.</para>
     /// </summary>
     /// <param name="f"></param>
-    public static float Tan(float f) => (float) Math.Tan((double) f);
+    public static float Tan(float f) => (float)Math.Tan((double)f);
 
     /// <summary>
     ///   <para>Returns the arc-sine of f - the angle in radians whose sine is f.</para>
     /// </summary>
     /// <param name="f"></param>
-    public static float Asin(float f) => (float) Math.Asin((double) f);
+    public static float Asin(float f) => (float)Math.Asin((double)f);
 
     /// <summary>
     ///   <para>Returns the arc-cosine of f - the angle in radians whose cosine is f.</para>
     /// </summary>
     /// <param name="f"></param>
-    public static float Acos(float f) => (float) Math.Acos((double) f);
+    public static float Acos(float f) => (float)Math.Acos((double)f);
 
     /// <summary>
     ///   <para>Returns the arc-tangent of f - the angle in radians whose tangent is f.</para>
     /// </summary>
     /// <param name="f"></param>
-    public static float Atan(float f) => (float) Math.Atan((double) f);
+    public static float Atan(float f) => (float)Math.Atan((double)f);
 
     /// <summary>
     ///   <para>Returns the angle in radians whose Tan is y/x.</para>
     /// </summary>
     /// <param name="y"></param>
     /// <param name="x"></param>
-    public static float Atan2(float y, float x) => (float) Math.Atan2((double) y, (double) x);
+    public static float Atan2(float y, float x) => (float)Math.Atan2((double)y, (double)x);
 
     /// <summary>
     ///   <para>Returns square root of f.</para>
     /// </summary>
     /// <param name="f"></param>
-    public static float Sqrt(float f) => (float) Math.Sqrt((double) f);
+    public static float Sqrt(float f) => (float)Math.Sqrt((double)f);
 
     /// <summary>
     ///   <para>Returns the absolute value of f.</para>
@@ -115,7 +115,7 @@ public struct Mathf
     /// <param name="a"></param>
     /// <param name="b"></param>
     /// <param name="values"></param>
-    public static float Min(float a, float b) => (double) a < (double) b ? a : b;
+    public static float Min(float a, float b) => (double)a < (double)b ? a : b;
 
     /// <summary>
     ///   <para>Returns the smallest of two or more values.</para>
@@ -125,16 +125,16 @@ public struct Mathf
     /// <param name="values"></param>
     public static float Min(params float[] values)
     {
-      int length = values.Length;
-      if (length == 0)
-        return 0.0f;
-      float num = values[0];
-      for (int index = 1; index < length; ++index)
-      {
-        if ((double) values[index] < (double) num)
-          num = values[index];
-      }
-      return num;
+        int length = values.Length;
+        if (length == 0)
+            return 0.0f;
+        float num = values[0];
+        for (int index = 1; index < length; ++index)
+        {
+            if ((double)values[index] < (double)num)
+                num = values[index];
+        }
+        return num;
     }
 
     /// <summary>
@@ -153,16 +153,16 @@ public struct Mathf
     /// <param name="values"></param>
     public static int Min(params int[] values)
     {
-      int length = values.Length;
-      if (length == 0)
-        return 0;
-      int num = values[0];
-      for (int index = 1; index < length; ++index)
-      {
-        if (values[index] < num)
-          num = values[index];
-      }
-      return num;
+        int length = values.Length;
+        if (length == 0)
+            return 0;
+        int num = values[0];
+        for (int index = 1; index < length; ++index)
+        {
+            if (values[index] < num)
+                num = values[index];
+        }
+        return num;
     }
 
     /// <summary>
@@ -171,7 +171,7 @@ public struct Mathf
     /// <param name="a"></param>
     /// <param name="b"></param>
     /// <param name="values"></param>
-    public static float Max(float a, float b) => (double) a > (double) b ? a : b;
+    public static float Max(float a, float b) => (double)a > (double)b ? a : b;
 
     /// <summary>
     ///   <para>Returns the largest of two or more values. When comparing negative values, values closer to zero are considered larger.</para>
@@ -181,16 +181,16 @@ public struct Mathf
     /// <param name="values"></param>
     public static float Max(params float[] values)
     {
-      int length = values.Length;
-      if (length == 0)
-        return 0.0f;
-      float num = values[0];
-      for (int index = 1; index < length; ++index)
-      {
-        if ((double) values[index] > (double) num)
-          num = values[index];
-      }
-      return num;
+        int length = values.Length;
+        if (length == 0)
+            return 0.0f;
+        float num = values[0];
+        for (int index = 1; index < length; ++index)
+        {
+            if ((double)values[index] > (double)num)
+                num = values[index];
+        }
+        return num;
     }
 
     /// <summary>
@@ -209,16 +209,16 @@ public struct Mathf
     /// <param name="values"></param>
     public static int Max(params int[] values)
     {
-      int length = values.Length;
-      if (length == 0)
-        return 0;
-      int num = values[0];
-      for (int index = 1; index < length; ++index)
-      {
-        if (values[index] > num)
-          num = values[index];
-      }
-      return num;
+        int length = values.Length;
+        if (length == 0)
+            return 0;
+        int num = values[0];
+        for (int index = 1; index < length; ++index)
+        {
+            if (values[index] > num)
+                num = values[index];
+        }
+        return num;
     }
 
     /// <summary>
@@ -226,75 +226,75 @@ public struct Mathf
     /// </summary>
     /// <param name="f"></param>
     /// <param name="p"></param>
-    public static float Pow(float f, float p) => (float) Math.Pow((double) f, (double) p);
+    public static float Pow(float f, float p) => (float)Math.Pow((double)f, (double)p);
 
     /// <summary>
     ///   <para>Returns e raised to the specified power.</para>
     /// </summary>
     /// <param name="power"></param>
-    public static float Exp(float power) => (float) Math.Exp((double) power);
+    public static float Exp(float power) => (float)Math.Exp((double)power);
 
     /// <summary>
     ///   <para>Returns the logarithm of a specified number in a specified base.</para>
     /// </summary>
     /// <param name="f"></param>
     /// <param name="p"></param>
-    public static float Log(float f, float p) => (float) Math.Log((double) f, (double) p);
+    public static float Log(float f, float p) => (float)Math.Log((double)f, (double)p);
 
     /// <summary>
     ///   <para>Returns the natural (base e) logarithm of a specified number.</para>
     /// </summary>
     /// <param name="f"></param>
-    public static float Log(float f) => (float) Math.Log((double) f);
+    public static float Log(float f) => (float)Math.Log((double)f);
 
     /// <summary>
     ///   <para>Returns the base 10 logarithm of a specified number.</para>
     /// </summary>
     /// <param name="f"></param>
-    public static float Log10(float f) => (float) Math.Log10((double) f);
+    public static float Log10(float f) => (float)Math.Log10((double)f);
 
     /// <summary>
     ///   <para>Returns the smallest integer greater than or equal to f.</para>
     /// </summary>
     /// <param name="f"></param>
-    public static float Ceil(float f) => (float) Math.Ceiling((double) f);
+    public static float Ceil(float f) => (float)Math.Ceiling((double)f);
 
     /// <summary>
     ///   <para>Returns the largest integer smaller than or equal to f.</para>
     /// </summary>
     /// <param name="f"></param>
-    public static float Floor(float f) => (float) Math.Floor((double) f);
+    public static float Floor(float f) => (float)Math.Floor((double)f);
 
     /// <summary>
     ///   <para>Returns f rounded to the nearest integer.</para>
     /// </summary>
     /// <param name="f"></param>
-    public static float Round(float f) => (float) Math.Round((double) f);
+    public static float Round(float f) => (float)Math.Round((double)f);
 
     /// <summary>
     ///   <para>Returns the smallest integer greater to or equal to f.</para>
     /// </summary>
     /// <param name="f"></param>
-    public static int CeilToInt(float f) => (int) Math.Ceiling((double) f);
+    public static int CeilToInt(float f) => (int)Math.Ceiling((double)f);
 
     /// <summary>
     ///   <para>Returns the largest integer smaller to or equal to f.</para>
     /// </summary>
     /// <param name="f"></param>
-    public static int FloorToInt(float f) => (int) Math.Floor((double) f);
+    public static int FloorToInt(float f) => (int)Math.Floor((double)f);
 
     /// <summary>
     ///   <para>Returns f rounded to the nearest integer.</para>
     /// </summary>
     /// <param name="f"></param>
-    public static int RoundToInt(float f) => (int) Math.Round((double) f);
+    public static int RoundToInt(float f) => (int)Math.Round((double)f);
 
     /// <summary>
     ///   <para>Returns the sign of f.</para>
     /// </summary>
     /// <param name="f"></param>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static float Sign(float f) => (double) f >= 0.0 ? 1f : -1f;
+    public static float Sign(float f) => (double)f >= 0.0 ? 1f : -1f;
 
     /// <summary>
     ///   <para>Clamps the given value between the given minimum float and maximum float values.  Returns the given value if it is within the minimum and maximum range.</para>
@@ -307,11 +307,11 @@ public struct Mathf
     /// </returns>
     public static float Clamp(float value, float min, float max)
     {
-      if ((double) value < (double) min)
-        value = min;
-      else if ((double) value > (double) max)
-        value = max;
-      return value;
+        if ((double)value < (double)min)
+            value = min;
+        else if ((double)value > (double)max)
+            value = max;
+        return value;
     }
 
     /// <summary>
@@ -325,11 +325,11 @@ public struct Mathf
     /// </returns>
     public static int Clamp(int value, int min, int max)
     {
-      if (value < min)
-        value = min;
-      else if (value > max)
-        value = max;
-      return value;
+        if (value < min)
+            value = min;
+        else if (value > max)
+            value = max;
+        return value;
     }
 
     /// <summary>
@@ -338,9 +338,9 @@ public struct Mathf
     /// <param name="value"></param>
     public static float Clamp01(float value)
     {
-      if ((double) value < 0.0)
-        return 0.0f;
-      return (double) value > 1.0 ? 1f : value;
+        if ((double)value < 0.0)
+            return 0.0f;
+        return (double)value > 1.0 ? 1f : value;
     }
 
     /// <summary>
@@ -376,10 +376,10 @@ public struct Mathf
     /// </returns>
     public static float LerpAngle(float a, float b, float t)
     {
-      float num = Mathf.Repeat(b - a, 360f);
-      if ((double) num > 180.0)
-        num -= 360f;
-      return a + num * Mathf.Clamp01(t);
+        float num = Mathf.Repeat(b - a, 360f);
+        if ((double)num > 180.0)
+            num -= 360f;
+        return a + num * Mathf.Clamp01(t);
     }
 
     /// <summary>
@@ -390,7 +390,7 @@ public struct Mathf
     /// <param name="maxDelta">The maximum change applied to the current value.</param>
     public static float MoveTowards(float current, float target, float maxDelta)
     {
-      return (double) Mathf.Abs(target - current) <= (double) maxDelta ? target : current + Mathf.Sign(target - current) * maxDelta;
+        return (double)Mathf.Abs(target - current) <= (double)maxDelta ? target : current + Mathf.Sign(target - current) * maxDelta;
     }
 
     /// <summary>
@@ -401,11 +401,11 @@ public struct Mathf
     /// <param name="maxDelta"></param>
     public static float MoveTowardsAngle(float current, float target, float maxDelta)
     {
-      float num = Mathf.DeltaAngle(current, target);
-      if (-(double) maxDelta < (double) num && (double) num < (double) maxDelta)
-        return target;
-      target = current + num;
-      return Mathf.MoveTowards(current, target, maxDelta);
+        float num = Mathf.DeltaAngle(current, target);
+        if (-(double)maxDelta < (double)num && (double)num < (double)maxDelta)
+            return target;
+        target = current + num;
+        return Mathf.MoveTowards(current, target, maxDelta);
     }
 
     /// <summary>
@@ -419,19 +419,19 @@ public struct Mathf
     /// </returns>
     public static float SmoothStep(float from, float to, float t)
     {
-      t = Mathf.Clamp01(t);
-      t = (float) (-2.0 * (double) t * (double) t * (double) t + 3.0 * (double) t * (double) t);
-      return (float) ((double) to * (double) t + (double) from * (1.0 - (double) t));
+        t = Mathf.Clamp01(t);
+        t = (float)(-2.0 * (double)t * (double)t * (double)t + 3.0 * (double)t * (double)t);
+        return (float)((double)to * (double)t + (double)from * (1.0 - (double)t));
     }
 
     public static float Gamma(float value, float absmax, float gamma)
     {
-      bool flag = (double) value < 0.0;
-      float num1 = Mathf.Abs(value);
-      if ((double) num1 > (double) absmax)
-        return flag ? -num1 : num1;
-      float num2 = Mathf.Pow(num1 / absmax, gamma) * absmax;
-      return flag ? -num2 : num2;
+        bool flag = (double)value < 0.0;
+        float num1 = Mathf.Abs(value);
+        if ((double)num1 > (double)absmax)
+            return flag ? -num1 : num1;
+        float num2 = Mathf.Pow(num1 / absmax, gamma) * absmax;
+        return flag ? -num2 : num2;
     }
 
     /// <summary>
@@ -441,7 +441,7 @@ public struct Mathf
     /// <param name="b"></param>
     public static bool Approximately(float a, float b)
     {
-      return (double) Mathf.Abs(b - a) < (double) Mathf.Max(1E-06f * Mathf.Max(Mathf.Abs(a), Mathf.Abs(b)), Mathf.Epsilon * 8f);
+        return (double)Mathf.Abs(b - a) < (double)Mathf.Max(1E-06f * Mathf.Max(Mathf.Abs(a), Mathf.Abs(b)), Mathf.Epsilon * 8f);
     }
 
     public static float SmoothDamp(
@@ -452,24 +452,24 @@ public struct Mathf
       [DefaultValue("Mathf.Infinity")] float maxSpeed,
       [DefaultValue("Time.deltaTime")] float deltaTime)
     {
-      smoothTime = Mathf.Max(0.0001f, smoothTime);
-      float num1 = 2f / smoothTime;
-      float num2 = num1 * deltaTime;
-      float num3 = (float) (1.0 / (1.0 + (double) num2 + 0.47999998927116394 * (double) num2 * (double) num2 + 0.23499999940395355 * (double) num2 * (double) num2 * (double) num2));
-      float num4 = current - target;
-      float num5 = target;
-      float max = maxSpeed * smoothTime;
-      float num6 = Mathf.Clamp(num4, -max, max);
-      target = current - num6;
-      float num7 = (currentVelocity + num1 * num6) * deltaTime;
-      currentVelocity = (currentVelocity - num1 * num7) * num3;
-      float num8 = target + (num6 + num7) * num3;
-      if ((double) num5 - (double) current > 0.0 == (double) num8 > (double) num5)
-      {
-        num8 = num5;
-        currentVelocity = (num8 - num5) / deltaTime;
-      }
-      return num8;
+        smoothTime = Mathf.Max(0.0001f, smoothTime);
+        float num1 = 2f / smoothTime;
+        float num2 = num1 * deltaTime;
+        float num3 = (float)(1.0 / (1.0 + (double)num2 + 0.47999998927116394 * (double)num2 * (double)num2 + 0.23499999940395355 * (double)num2 * (double)num2 * (double)num2));
+        float num4 = current - target;
+        float num5 = target;
+        float max = maxSpeed * smoothTime;
+        float num6 = Mathf.Clamp(num4, -max, max);
+        target = current - num6;
+        float num7 = (currentVelocity + num1 * num6) * deltaTime;
+        currentVelocity = (currentVelocity - num1 * num7) * num3;
+        float num8 = target + (num6 + num7) * num3;
+        if ((double)num5 - (double)current > 0.0 == (double)num8 > (double)num5)
+        {
+            num8 = num5;
+            currentVelocity = (num8 - num5) / deltaTime;
+        }
+        return num8;
     }
 
     public static float SmoothDampAngle(
@@ -480,8 +480,8 @@ public struct Mathf
       float maxSpeed,
       float deltaTime)
     {
-      target = current + Mathf.DeltaAngle(current, target);
-      return Mathf.SmoothDamp(current, target, ref currentVelocity, smoothTime, maxSpeed, deltaTime);
+        target = current + Mathf.DeltaAngle(current, target);
+        return Mathf.SmoothDamp(current, target, ref currentVelocity, smoothTime, maxSpeed, deltaTime);
     }
 
     /// <summary>
@@ -491,7 +491,7 @@ public struct Mathf
     /// <param name="length"></param>
     public static float Repeat(float t, float length)
     {
-      return Mathf.Clamp(t - Mathf.Floor(t / length) * length, 0.0f, length);
+        return Mathf.Clamp(t - Mathf.Floor(t / length) * length, 0.0f, length);
     }
 
     /// <summary>
@@ -501,8 +501,8 @@ public struct Mathf
     /// <param name="length"></param>
     public static float PingPong(float t, float length)
     {
-      t = Mathf.Repeat(t, length * 2f);
-      return length - Mathf.Abs(t - length);
+        t = Mathf.Repeat(t, length * 2f);
+        return length - Mathf.Abs(t - length);
     }
 
     /// <summary>
@@ -516,7 +516,7 @@ public struct Mathf
     /// </returns>
     public static float InverseLerp(float a, float b, float value)
     {
-      return (double) a != (double) b ? Mathf.Clamp01((float) (((double) value - (double) a) / ((double) b - (double) a))) : 0.0f;
+        return (double)a != (double)b ? Mathf.Clamp01((float)(((double)value - (double)a) / ((double)b - (double)a))) : 0.0f;
     }
 
     /// <summary>
@@ -529,10 +529,10 @@ public struct Mathf
     /// </returns>
     public static float DeltaAngle(float current, float target)
     {
-      float num = Mathf.Repeat(target - current, 360f);
-      if ((double) num > 180.0)
-        num -= 360f;
-      return num;
+        float num = Mathf.Repeat(target - current, 360f);
+        if ((double)num > 180.0)
+            num -= 360f;
+        return num;
     }
 
     internal static bool LineIntersection(
@@ -542,19 +542,19 @@ public struct Mathf
       Vector2 p4,
       ref Vector2 result)
     {
-      float num1 = p2.x - p1.x;
-      float num2 = p2.y - p1.y;
-      float num3 = p4.x - p3.x;
-      float num4 = p4.y - p3.y;
-      float num5 = (float) ((double) num1 * (double) num4 - (double) num2 * (double) num3);
-      if ((double) num5 == 0.0)
-        return false;
-      float num6 = p3.x - p1.x;
-      float num7 = p3.y - p1.y;
-      float num8 = (float) ((double) num6 * (double) num4 - (double) num7 * (double) num3) / num5;
-      result.x = p1.x + num8 * num1;
-      result.y = p1.y + num8 * num2;
-      return true;
+        float num1 = p2.x - p1.x;
+        float num2 = p2.y - p1.y;
+        float num3 = p4.x - p3.x;
+        float num4 = p4.y - p3.y;
+        float num5 = (float)((double)num1 * (double)num4 - (double)num2 * (double)num3);
+        if ((double)num5 == 0.0)
+            return false;
+        float num6 = p3.x - p1.x;
+        float num7 = p3.y - p1.y;
+        float num8 = (float)((double)num6 * (double)num4 - (double)num7 * (double)num3) / num5;
+        result.x = p1.x + num8 * num1;
+        result.y = p1.y + num8 * num2;
+        return true;
     }
 
     internal static bool LineSegmentIntersection(
@@ -564,105 +564,105 @@ public struct Mathf
       Vector2 p4,
       ref Vector2 result)
     {
-      float num1 = p2.x - p1.x;
-      float num2 = p2.y - p1.y;
-      float num3 = p4.x - p3.x;
-      float num4 = p4.y - p3.y;
-      float num5 = (float) ((double) num1 * (double) num4 - (double) num2 * (double) num3);
-      if ((double) num5 == 0.0)
-        return false;
-      float num6 = p3.x - p1.x;
-      float num7 = p3.y - p1.y;
-      float num8 = (float) ((double) num6 * (double) num4 - (double) num7 * (double) num3) / num5;
-      if ((double) num8 < 0.0 || (double) num8 > 1.0)
-        return false;
-      float num9 = (float) ((double) num6 * (double) num2 - (double) num7 * (double) num1) / num5;
-      if ((double) num9 < 0.0 || (double) num9 > 1.0)
-        return false;
-      result.x = p1.x + num8 * num1;
-      result.y = p1.y + num8 * num2;
-      return true;
+        float num1 = p2.x - p1.x;
+        float num2 = p2.y - p1.y;
+        float num3 = p4.x - p3.x;
+        float num4 = p4.y - p3.y;
+        float num5 = (float)((double)num1 * (double)num4 - (double)num2 * (double)num3);
+        if ((double)num5 == 0.0)
+            return false;
+        float num6 = p3.x - p1.x;
+        float num7 = p3.y - p1.y;
+        float num8 = (float)((double)num6 * (double)num4 - (double)num7 * (double)num3) / num5;
+        if ((double)num8 < 0.0 || (double)num8 > 1.0)
+            return false;
+        float num9 = (float)((double)num6 * (double)num2 - (double)num7 * (double)num1) / num5;
+        if ((double)num9 < 0.0 || (double)num9 > 1.0)
+            return false;
+        result.x = p1.x + num8 * num1;
+        result.y = p1.y + num8 * num2;
+        return true;
     }
 
     internal static long RandomToLong(System.Random r)
     {
-      byte[] buffer = new byte[8];
-      r.NextBytes(buffer);
-      return (long) BitConverter.ToUInt64(buffer, 0) & long.MaxValue;
+        byte[] buffer = new byte[8];
+        r.NextBytes(buffer);
+        return (long)BitConverter.ToUInt64(buffer, 0) & long.MaxValue;
     }
-    
+
     internal static float ClampToFloat(double value)
     {
-      if (double.IsPositiveInfinity(value))
-        return float.PositiveInfinity;
-      if (double.IsNegativeInfinity(value))
-        return float.NegativeInfinity;
-      if (value < -3.4028234663852886E+38)
-        return float.MinValue;
-      return value > 3.4028234663852886E+38 ? float.MaxValue : (float) value;
+        if (double.IsPositiveInfinity(value))
+            return float.PositiveInfinity;
+        if (double.IsNegativeInfinity(value))
+            return float.NegativeInfinity;
+        if (value < -3.4028234663852886E+38)
+            return float.MinValue;
+        return value > 3.4028234663852886E+38 ? float.MaxValue : (float)value;
     }
-    
+
     internal static int ClampToInt(long value)
     {
-      if (value < (long) int.MinValue)
-        return int.MinValue;
-      return value > (long) int.MaxValue ? int.MaxValue : (int) value;
+        if (value < (long)int.MinValue)
+            return int.MinValue;
+        return value > (long)int.MaxValue ? int.MaxValue : (int)value;
     }
-    
+
     internal static uint ClampToUInt(long value)
     {
-      if (value < 0L)
-        return 0;
-      return value > (long) uint.MaxValue ? uint.MaxValue : (uint) value;
+        if (value < 0L)
+            return 0;
+        return value > (long)uint.MaxValue ? uint.MaxValue : (uint)value;
     }
 
     internal static float RoundToMultipleOf(float value, float roundingValue)
     {
-      return (double) roundingValue == 0.0 ? value : Mathf.Round(value / roundingValue) * roundingValue;
+        return (double)roundingValue == 0.0 ? value : Mathf.Round(value / roundingValue) * roundingValue;
     }
 
     internal static float GetClosestPowerOfTen(float positiveNumber)
     {
-      return (double) positiveNumber <= 0.0 ? 1f : Mathf.Pow(10f, (float) Mathf.RoundToInt(Mathf.Log10(positiveNumber)));
+        return (double)positiveNumber <= 0.0 ? 1f : Mathf.Pow(10f, (float)Mathf.RoundToInt(Mathf.Log10(positiveNumber)));
     }
 
     internal static int GetNumberOfDecimalsForMinimumDifference(float minDifference)
     {
-      return Mathf.Clamp(-Mathf.FloorToInt(Mathf.Log10(Mathf.Abs(minDifference))), 0, 15);
+        return Mathf.Clamp(-Mathf.FloorToInt(Mathf.Log10(Mathf.Abs(minDifference))), 0, 15);
     }
 
     internal static int GetNumberOfDecimalsForMinimumDifference(double minDifference)
     {
-      return (int) Math.Max(0.0, -Math.Floor(Math.Log10(Math.Abs(minDifference))));
+        return (int)Math.Max(0.0, -Math.Floor(Math.Log10(Math.Abs(minDifference))));
     }
-    
+
     internal static float RoundBasedOnMinimumDifference(float valueToRound, float minDifference)
     {
-      return (double) minDifference == 0.0 ? Mathf.DiscardLeastSignificantDecimal(valueToRound) : (float) Math.Round((double) valueToRound, Mathf.GetNumberOfDecimalsForMinimumDifference(minDifference), MidpointRounding.AwayFromZero);
+        return (double)minDifference == 0.0 ? Mathf.DiscardLeastSignificantDecimal(valueToRound) : (float)Math.Round((double)valueToRound, Mathf.GetNumberOfDecimalsForMinimumDifference(minDifference), MidpointRounding.AwayFromZero);
     }
-    
+
     internal static double RoundBasedOnMinimumDifference(double valueToRound, double minDifference)
     {
-      return minDifference == 0.0 ? Mathf.DiscardLeastSignificantDecimal(valueToRound) : Math.Round(valueToRound, Mathf.GetNumberOfDecimalsForMinimumDifference(minDifference), MidpointRounding.AwayFromZero);
+        return minDifference == 0.0 ? Mathf.DiscardLeastSignificantDecimal(valueToRound) : Math.Round(valueToRound, Mathf.GetNumberOfDecimalsForMinimumDifference(minDifference), MidpointRounding.AwayFromZero);
     }
 
     internal static float DiscardLeastSignificantDecimal(float v)
     {
-      int digits = Mathf.Clamp((int) (5.0 - (double) Mathf.Log10(Mathf.Abs(v))), 0, 15);
-      return (float) Math.Round((double) v, digits, MidpointRounding.AwayFromZero);
+        int digits = Mathf.Clamp((int)(5.0 - (double)Mathf.Log10(Mathf.Abs(v))), 0, 15);
+        return (float)Math.Round((double)v, digits, MidpointRounding.AwayFromZero);
     }
 
     internal static double DiscardLeastSignificantDecimal(double v)
     {
-      int digits = Math.Max(0, (int) (5.0 - Math.Log10(Math.Abs(v))));
-      try
-      {
-        return Math.Round(v, digits);
-      }
-      catch (ArgumentOutOfRangeException)
-      {
-        return 0.0;
-      }
+        int digits = Math.Max(0, (int)(5.0 - Math.Log10(Math.Abs(v))));
+        try
+        {
+            return Math.Round(v, digits);
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            return 0.0;
+        }
     }
 
     /// <summary>
@@ -671,13 +671,13 @@ public struct Mathf
     /// <param name="value"></param>
     public static int NextPowerOfTwo(int value)
     {
-      --value;
-      value |= value >> 16;
-      value |= value >> 8;
-      value |= value >> 4;
-      value |= value >> 2;
-      value |= value >> 1;
-      return value + 1;
+        --value;
+        value |= value >> 16;
+        value |= value >> 8;
+        value |= value >> 4;
+        value |= value >> 2;
+        value |= value >> 1;
+        return value + 1;
     }
 
     /// <summary>
@@ -686,9 +686,9 @@ public struct Mathf
     /// <param name="value"></param>
     public static int ClosestPowerOfTwo(int value)
     {
-      int num1 = Mathf.NextPowerOfTwo(value);
-      int num2 = num1 >> 1;
-      return value - num2 < num1 - value ? num2 : num1;
+        int num1 = Mathf.NextPowerOfTwo(value);
+        int num2 = num1 >> 1;
+        return value - num2 < num1 - value ? num2 : num1;
     }
 
     /// <summary>

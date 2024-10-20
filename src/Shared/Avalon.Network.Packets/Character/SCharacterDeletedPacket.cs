@@ -9,22 +9,22 @@ public class SCharacterDeletedPacket : Packet
     public static NetworkPacketType PacketType = NetworkPacketType.SMSG_CHARACTER_DELETED;
     public static NetworkProtocol Protocol = NetworkProtocol.Tcp;
     public static NetworkPacketFlags Flags = NetworkPacketFlags.Encrypted;
-    
+
     [ProtoMember(1)] public SCharacterDeletedResult Result { get; set; }
 
     public static NetworkPacket Create(SCharacterDeletedResult result, Func<byte[], byte[]> encryptFunc)
     {
         using var memoryStream = new MemoryStream();
-        
+
         var p = new SCharacterDeletedPacket()
         {
             Result = result
         };
-        
+
         Serializer.Serialize(memoryStream, p);
-        
+
         var buffer = encryptFunc(memoryStream.ToArray());
-        
+
         return new NetworkPacket
         {
             Header = new NetworkPacketHeader

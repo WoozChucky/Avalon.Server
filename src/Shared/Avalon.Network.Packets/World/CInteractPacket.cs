@@ -9,18 +9,18 @@ public class CInteractPacket : Packet
     public static NetworkPacketType PacketType = NetworkPacketType.CMSG_INTERACT;
     public static NetworkProtocol Protocol = NetworkProtocol.Tcp;
     public static NetworkPacketFlags Flags = NetworkPacketFlags.Encrypted;
-    
+
     [ProtoMember(1)] public ulong AccountId { get; set; }
     [ProtoMember(2)] public ulong PlayerId { get; set; }
     [ProtoMember(3)] public int X { get; set; }
     [ProtoMember(4)] public int Y { get; set; }
     [ProtoMember(5)] public int Width { get; set; }
     [ProtoMember(6)] public int Height { get; set; }
-    
+
     public static NetworkPacket Create(ulong accountId, ulong playerId, int x, int y, int width, int height, Func<byte[], byte[]> encryptFunc)
     {
         using var memoryStream = new MemoryStream();
-        
+
         var movementPacket = new CInteractPacket()
         {
             AccountId = accountId,
@@ -30,11 +30,11 @@ public class CInteractPacket : Packet
             Width = width,
             Height = height
         };
-        
+
         Serializer.Serialize(memoryStream, movementPacket);
-        
+
         var buffer = encryptFunc(memoryStream.ToArray());
-        
+
         return new NetworkPacket
         {
             Header = new NetworkPacketHeader

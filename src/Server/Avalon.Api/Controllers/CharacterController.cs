@@ -23,7 +23,7 @@ public class CharacterController : BaseController
         _service = service;
         _mapper = mapper;
     }
-    
+
     [HttpGet(Name = "GetCharacter")]
     public async Task<IList<CharacterDto>> GetAll()
     {
@@ -31,7 +31,7 @@ public class CharacterController : BaseController
         var mapped = _mapper.Map<IList<CharacterDto>>(characters);
         return mapped;
     }
-    
+
     [HttpGet("{id}", Name = "GetCharacterById")]
     public async Task<CharacterDto> GetById(CharacterId id)
     {
@@ -39,5 +39,5 @@ public class CharacterController : BaseController
         var mapped = _mapper.Map<CharacterDto>(character);
         return mapped;
     }
-    
+
 }

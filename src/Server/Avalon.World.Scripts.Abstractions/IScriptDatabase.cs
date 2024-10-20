@@ -7,7 +7,7 @@ namespace Avalon.World.Scripts.Abstractions;
 public interface IScriptDatabase
 {
     IReadOnlyList<AiScript> Scripts { get; }
-    
+
     void AddScript(AiScript script);
     void RemoveScript(AiScript script);
 }
@@ -34,7 +34,7 @@ public class ScriptDatabase : IScriptDatabase
             }
         }
     }
-    
+
     public void AddScript(AiScript script)
     {
         lock (_lock)
@@ -47,7 +47,7 @@ public class ScriptDatabase : IScriptDatabase
             _scripts.Add(script);
         }
     }
-    
+
     public void RemoveScript(AiScript script)
     {
         lock (_lock)

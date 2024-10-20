@@ -13,7 +13,7 @@ public class MFASetup : IDbEntity<Guid>
 
     [Required]
     public Account Account { get; set; }
-    
+
     public AccountId AccountId { get; set; }
 
     [Required]
@@ -37,7 +37,8 @@ public class MFASetup : IDbEntity<Guid>
     public DateTime ConfirmedAt { get; set; }
 }
 
-public enum MfaSetupStatus : ushort {
+public enum MfaSetupStatus : ushort
+{
     Confirmed = 0,
     Setup = 1,
     Reset = 2

@@ -21,7 +21,7 @@ public class WorldObjectWriter(byte[] buffer) : BinaryWriter(new MemoryStream(bu
         Write(vector.y);
         Write(vector.z);
     }
-    
+
     public void Reset()
     {
         BaseStream.Position = 0;
@@ -31,7 +31,7 @@ public class WorldObjectWriter(byte[] buffer) : BinaryWriter(new MemoryStream(bu
     public void Write(IWorldObject worldObject, GameEntityFields fields)
     {
         Write((int)fields);
-        
+
         if (fields.HasFlag(GameEntityFields.Position))
         {
             Write(worldObject.Position);
@@ -45,7 +45,7 @@ public class WorldObjectWriter(byte[] buffer) : BinaryWriter(new MemoryStream(bu
             Write(worldObject.Orientation.y);
         }
     }
-    
+
     public void Write(ICreature creature, GameEntityFields fields)
     {
         Write(creature as IUnit, fields);
@@ -56,7 +56,7 @@ public class WorldObjectWriter(byte[] buffer) : BinaryWriter(new MemoryStream(bu
     public void Write(ICharacter character, GameEntityFields fields)
     {
         Write(character as IUnit, fields);
-        
+
         if (fields.HasFlag(GameEntityFields.Experience))
         {
             Write(character.Experience);
@@ -65,7 +65,7 @@ public class WorldObjectWriter(byte[] buffer) : BinaryWriter(new MemoryStream(bu
         {
             Write(character.RequiredExperience);
         }
-        
+
         Write(character.Name);
     }
 
@@ -86,13 +86,13 @@ public class WorldObjectWriter(byte[] buffer) : BinaryWriter(new MemoryStream(bu
             {
                 Write(worldObject.Orientation.y);
             }
-            
+
             if (fields.HasFlag(GameEntityFields.MoveState))
             {
                 Write((byte)worldObject.MoveState);
             }
         }
-        
+
         // Stats
         {
             if (fields.HasFlag(GameEntityFields.Health))
@@ -120,11 +120,11 @@ public class WorldObjectWriter(byte[] buffer) : BinaryWriter(new MemoryStream(bu
                 }
             }
         }
-        
+
         if (fields.HasFlag(GameEntityFields.Level))
         {
             Write(worldObject.Level);
         }
-        
+
     }
 }

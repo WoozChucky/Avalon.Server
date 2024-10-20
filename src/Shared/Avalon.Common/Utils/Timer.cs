@@ -6,7 +6,7 @@ public static class Timer
     {
         return TimeSpan.FromMilliseconds(milliseconds);
     }
-    
+
     public static long CurrentTimeMillis()
     {
         return DateTime.UtcNow.Ticks / TimeSpan.TicksPerMillisecond;

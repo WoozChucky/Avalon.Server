@@ -18,20 +18,20 @@ public static class BinaryDeserializationHelper
     {
         await using var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read);
         using var reader = new BinaryReader(fs);
-        
+
         // Read Map Id
         var id = reader.ReadUInt16();
-        
+
         token.ThrowIfCancellationRequested();
-        
+
         // Read Map Size
         var size = ReadVector3(reader);
-        
+
         token.ThrowIfCancellationRequested();
 
         // Read number of Chunks
         var chunkCount = reader.ReadInt32();
-        
+
         token.ThrowIfCancellationRequested();
 
         // Read each Chunk
@@ -60,7 +60,7 @@ public static class BinaryDeserializationHelper
         {
             trees.Add(ReadTreeInfo(reader));
         }
-        
+
         // Read number of Creatures
         int creatureCount = reader.ReadInt32();
         List<CreatureInfo> creatures = new List<CreatureInfo>();
@@ -68,18 +68,18 @@ public static class BinaryDeserializationHelper
         {
             creatures.Add(ReadCreatureInfo(reader));
         }
-        
+
         // Read Geometry file name
         var geometryFile = reader.ReadString();
-        
+
         // Read Mesh file name
         var meshFile = reader.ReadString();
 
         return new ChunkMetadata
         {
-            Name = name, 
-            Position = position, 
-            Size = size, 
+            Name = name,
+            Position = position,
+            Size = size,
             Trees = trees,
             Creatures = creatures,
             GeometryFile = geometryFile,
@@ -94,7 +94,7 @@ public static class BinaryDeserializationHelper
         int prototypeIndex = reader.ReadInt32();
         return new TreeInfo { Position = position, Size = size, PrototypeIndex = prototypeIndex };
     }
-    
+
     private static CreatureInfo ReadCreatureInfo(BinaryReader reader)
     {
         Vector3 position = ReadVector3(reader);

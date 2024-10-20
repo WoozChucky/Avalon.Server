@@ -7,7 +7,7 @@ public interface IMetricsManager : IDisposable
 {
     void Start(Dictionary<string, string>? defaultProperties = null);
     void Stop();
-    
+
     void QueueEvent(string eventName, string eventValue, Dictionary<string, string>? properties = null);
     void QueueMetric(string metricName, string metricValue, Dictionary<string, string>? properties = null);
     void QueueMetric(string metricName, double metricValue, Dictionary<string, string>? properties = null);
@@ -17,13 +17,13 @@ public interface IMetricsManager : IDisposable
 
 public class MetricsManager : IMetricsManager
 {
-    
+
     private ConcurrentDictionary<string, string>? _defaultProperties;
-    
+
     private readonly CancellationTokenSource _cancellationTokenSource;
-    
+
     private volatile bool _running;
-    
+
     private readonly ILogger<MetricsManager> _logger;
 
     public MetricsManager(ILogger<MetricsManager> logger, MetricsConfiguration configuration)
@@ -37,22 +37,22 @@ public class MetricsManager : IMetricsManager
     public void Start(Dictionary<string, string>? defaultProperties = null)
     {
         if (_running) throw new InvalidOperationException("Metrics Manager is already running");
-        
+
         _running = true;
-        
+
         _defaultProperties = new ConcurrentDictionary<string, string>(defaultProperties ?? new Dictionary<string, string>());
-        
+
         _logger.LogInformation("Metrics Manager is starting");
-        
+
         Task.Factory.StartNew(Worker, _cancellationTokenSource.Token);
     }
 
     public void Stop()
     {
         if (!_running) throw new InvalidOperationException("Metrics Manager is not running");
-        
+
         _logger.LogInformation("Metrics Manager is stopping");
-        
+
         _running = false;
         _cancellationTokenSource.Cancel();
     }
@@ -77,7 +77,7 @@ public class MetricsManager : IMetricsManager
     {
         _defaultProperties = new ConcurrentDictionary<string, string>(properties);
     }
-    
+
     private async Task Worker()
     {
         while (!_cancellationTokenSource.IsCancellationRequested)

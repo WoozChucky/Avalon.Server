@@ -9,22 +9,22 @@ public class SWorldListPacket : Packet
     public static NetworkPacketType PacketType = NetworkPacketType.SMSG_WORLD_LIST;
     public static NetworkProtocol Protocol = NetworkProtocol.Tcp;
     public static NetworkPacketFlags Flags = NetworkPacketFlags.Encrypted;
-    
+
     [ProtoMember(1)] public WorldInfo[] Worlds { get; set; }
 
     public static NetworkPacket Create(WorldInfo[] worlds, Func<byte[], byte[]> encryptFunc)
     {
         using var memoryStream = new MemoryStream();
-        
+
         var worldListPacket = new SWorldListPacket()
         {
             Worlds = worlds,
         };
-        
+
         Serializer.Serialize(memoryStream, worldListPacket);
-        
+
         var buffer = encryptFunc(memoryStream.ToArray());
-        
+
         return new NetworkPacket
         {
             Header = new NetworkPacketHeader

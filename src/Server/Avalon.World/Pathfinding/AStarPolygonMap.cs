@@ -14,13 +14,13 @@ public class AStarPolygonMap
             VertexIndex = vertexIndex;
         }
     }
-    
+
     public static List<Vector3>? GeneratePath(Vector3 start, Vector3 end, int[] indices, Vector3[] vertices, int[] areas)
     {
         // Find the closest vertex to the start and end positions
         int startVertex = FindClosestVertex(start, vertices);
         int endVertex = FindClosestVertex(end, vertices);
-        
+
         // Find the path using A* or Dijkstra's algorithm
         var pathIndices = FindPath(startVertex, endVertex, indices, vertices, areas);
         if (pathIndices == null)
@@ -39,7 +39,7 @@ public class AStarPolygonMap
 
         return smoothedPath;
     }
-    
+
     private static int FindClosestVertex(Vector3 position, Vector3[] vertices)
     {
         var closestIndex = -1;
@@ -56,7 +56,7 @@ public class AStarPolygonMap
         }
         return closestIndex;
     }
-    
+
     private static List<int>? FindPath(int startVertex, int endVertex, int[] indices, Vector3[] vertices, int[] areas)
     {
         var maxNodes = vertices.Length;
@@ -104,12 +104,12 @@ public class AStarPolygonMap
 
         return null; // Path not found
     }
-    
+
     private static float HeuristicCostEstimate(Vector3 start, Vector3 goal)
     {
         return (start - goal).magnitude;
     }
-    
+
     private static List<int> GetNeighbors(int vertex, int[] indices)
     {
         var neighbors = new HashSet<int>();
@@ -144,7 +144,7 @@ public class AStarPolygonMap
         neighbors.Remove(vertex); // Remove the vertex itself from its neighbors
         return neighbors.ToList();
     }
-    
+
     private static List<int> ReconstructPath(Dictionary<int, int> cameFrom, int current)
     {
         var totalPath = new List<int> { current };
@@ -156,7 +156,7 @@ public class AStarPolygonMap
         totalPath.Reverse();
         return totalPath;
     }
-    
+
     private static List<Vector3> StringPulling(List<Vector3> path)
     {
         if (path.Count < 2)
@@ -211,12 +211,12 @@ public class AStarPolygonMap
 
         return result;
     }
-    
+
     private static bool IsLeft(Vector3 a, Vector3 b, Vector3 c)
     {
         return ((b.x - a.x) * (c.z - a.z) - (b.z - a.z) * (c.x - a.x)) >= 0;
     }
-    
+
     private static List<Vector3> SmoothPath(List<Vector3> path)
     {
         if (path.Count < 3)
@@ -244,7 +244,7 @@ public class AStarPolygonMap
         smoothPath.Add(path[^1]);
         return smoothPath;
     }
-    
+
     private static Vector3 QuadraticBezier(Vector3 p0, Vector3 p1, Vector3 p2, float t)
     {
         float u = 1 - t;

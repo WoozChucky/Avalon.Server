@@ -22,22 +22,22 @@ public class AuthServer(
         serviceProvider, hostingOptions)
 {
     public new ImmutableArray<IAuthConnection> Connections =>
-        [..base.Connections.Values.Cast<AuthConnection>()];
-    
+        [.. base.Connections.Values.Cast<AuthConnection>()];
+
     public X509Certificate2 Certificate { get; private set; }
-    
+
     private readonly HostingSecurity _securityOptions = securityOptions.Value;
     private readonly ConcurrentDictionary<Type, (PropertyInfo packetProperty, PropertyInfo connectionProperty)> _propertyCache = new();
-    
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         var serverCertBytes = await File.ReadAllBytesAsync(_securityOptions.CertificatePath, stoppingToken);
-        
+
         Certificate = new X509Certificate2(serverCertBytes, _securityOptions.CertificatePassword);
-        
+
         RegisterNewConnectionListener(NewConnection);
     }
-    
+
     protected override Task OnStoppingAsync(CancellationToken stoppingToken)
     {
         foreach (var connection in Connections)
@@ -47,7 +47,7 @@ public class AuthServer(
         }
         return Task.CompletedTask;
     }
-    
+
     private bool NewConnection(IConnection connection)
     {
         return true;
@@ -71,11 +71,11 @@ public class AuthServer(
 
         // Create a new context instance
         var context = Activator.CreateInstance(typeof(AuthPacketContext<>).MakeGenericType(packetType))!;
-    
+
         // Set the packet and connection properties
         cachedProperties.packetProperty.SetValue(context, packet);
         cachedProperties.connectionProperty.SetValue(context, connection);
-    
+
         return context;
     }
 }

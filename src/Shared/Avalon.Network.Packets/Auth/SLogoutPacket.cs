@@ -9,22 +9,22 @@ public class SLogoutPacket : Packet
     public static NetworkPacketType PacketType = NetworkPacketType.SMSG_LOGOUT;
     public static NetworkProtocol Protocol = NetworkProtocol.Tcp;
     public static NetworkPacketFlags Flags = NetworkPacketFlags.Encrypted;
-    
+
     [ProtoMember(1)] public LogoutResult Result { get; set; }
 
     public static NetworkPacket Create(LogoutResult result, Func<byte[], byte[]> encryptFunc)
     {
         using var memoryStream = new MemoryStream();
-        
+
         var authPacket = new SLogoutPacket()
         {
             Result = result
         };
-        
+
         Serializer.Serialize(memoryStream, authPacket);
-        
+
         var buffer = encryptFunc(memoryStream.ToArray());
-        
+
         return new NetworkPacket
         {
             Header = new NetworkPacketHeader

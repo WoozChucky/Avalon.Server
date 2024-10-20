@@ -17,13 +17,13 @@ public class TcpClient : IRemoteSource
     public Stream Stream { get; }
 
     public bool Authenticated { get; }
-    
+
     public bool Connected => Stream.CanWrite;
-    
+
     private readonly ILogger<TcpClient> _logger;
-    
+
     private const string Direction = "OUT";
-    
+
     public TcpClient(ILoggerFactory loggerFactory, Socket socket, Stream stream)
     {
         _logger = loggerFactory.CreateLogger<TcpClient>();
@@ -38,15 +38,15 @@ public class TcpClient : IRemoteSource
         {
             throw new IOException("Client is not connected");
         }
-        
+
         DiagnosticsConfig.Server.BytesSent.Add(packet.Size);
         DiagnosticsConfig.Server.PacketsSent.Add(1, new KeyValuePair<string, object?>(
             nameof(NetworkPacketType), packet.Header.Type
         ));
-        
+
         if (packet.Header.Type != NetworkPacketType.SMSG_PLAYER_POSITION_UPDATE)
             _logger.LogDebug("[{Direction}] {PacketType}", Direction, packet.Header.Type);
-        
+
         Serializer.SerializeWithLengthPrefix(Stream, packet, PrefixStyle.Base128);
         return Task.CompletedTask;
     }

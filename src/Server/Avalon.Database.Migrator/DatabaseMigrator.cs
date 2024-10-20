@@ -14,10 +14,10 @@ public class DatabaseMigrator : IDatabaseMigrator
     private readonly MigratorConfiguration _migratorConfiguration;
     private readonly DatabaseConfiguration _databaseConfiguration;
     private readonly ICollection<DatabaseMigrationProcess> _databaseMigrationProcesses;
-    
+
     public DatabaseMigrator(
-        ILoggerFactory loggerFactory, 
-        MigratorConfiguration migratorConfiguration, 
+        ILoggerFactory loggerFactory,
+        MigratorConfiguration migratorConfiguration,
         DatabaseConfiguration databaseConfiguration
         )
     {
@@ -27,7 +27,7 @@ public class DatabaseMigrator : IDatabaseMigrator
         _databaseConfiguration = databaseConfiguration;
         _databaseMigrationProcesses = new List<DatabaseMigrationProcess>();
     }
-    
+
     public async Task RunAsync()
     {
         if (!_migratorConfiguration.Enabled)
@@ -35,13 +35,13 @@ public class DatabaseMigrator : IDatabaseMigrator
             _logger.LogInformation("Database migrator is disabled. Skipping...");
             return;
         }
-        
+
         GenerateProcesses();
-        
+
         await ValidateDatabasesExist();
-        
+
         if (!_migratorConfiguration.ApplyMigrations) return;
-        
+
         await ApplyMigrations();
     }
 
@@ -54,9 +54,9 @@ public class DatabaseMigrator : IDatabaseMigrator
         foreach (var prop in props)
         {
             var propertyName = prop.Name;
-            
-            var database = (DatabaseConnection) prop.GetValue(_databaseConfiguration)!;
-                
+
+            var database = (DatabaseConnection)prop.GetValue(_databaseConfiguration)!;
+
             _databaseMigrationProcesses.Add(new DatabaseMigrationProcess(
                 _loggerFactory,
                 _migratorConfiguration,
@@ -73,7 +73,7 @@ public class DatabaseMigrator : IDatabaseMigrator
             await migrationProcess.ValidateDatabaseExists();
         }
     }
-    
+
     private async Task ApplyMigrations()
     {
         foreach (var migrationProcess in _databaseMigrationProcesses)
@@ -81,19 +81,19 @@ public class DatabaseMigrator : IDatabaseMigrator
             try
             {
                 await migrationProcess.AcquireLockAsync();
-                
+
                 await migrationProcess.ApplyMigrationsAsync();
             }
             catch (Exception e)
             {
-                _logger.LogCritical(e,"Failed to apply migrations");
+                _logger.LogCritical(e, "Failed to apply migrations");
                 throw;
             }
             finally
             {
                 await migrationProcess.ReleaseLockAsync();
             }
-            
+
         }
     }
 }

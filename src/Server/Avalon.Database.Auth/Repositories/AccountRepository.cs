@@ -15,7 +15,7 @@ public class AccountRepository : EntityFrameworkRepository<Account, AccountId>, 
     public AccountRepository(AuthDbContext db)
         : base(db)
     { }
-    
+
     public async Task<Account?> FindByUserNameAsync(string userName)
     {
         return await Context.Set<Account>()
@@ -23,7 +23,7 @@ public class AccountRepository : EntityFrameworkRepository<Account, AccountId>, 
             .Where(x => x.Username == userName)
             .FirstOrDefaultAsync();
     }
-    
+
     public async Task<Account?> FindByEmailAsync(string email)
     {
         return await Context.Set<Account>()

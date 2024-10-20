@@ -12,7 +12,7 @@ public class UrielTownPatrolScript : AiScript
     private readonly ILogger<UrielTownPatrolScript> _logger;
 
     private const float IdleTime = 5.0f;
-    
+
     private readonly Vector3[] _waypoints =
     [
         new Vector3(28.15f, 50.0f, 90.10f),
@@ -21,11 +21,11 @@ public class UrielTownPatrolScript : AiScript
         new Vector3(45.85f, 50.0f, 58.63f),
         new Vector3(28.15f, 50.0f, 90.10f)
     ];
-    
+
     private readonly AiScript _patrolScript;
     private readonly AiScript _idleScript;
     private readonly AiScript _combatScript;
-    
+
     private AiScript _currentScript;
 
     public UrielTownPatrolScript(ILoggerFactory loggerFactory, ICreature creature, Chunk chunk) : base(creature, chunk)
@@ -33,29 +33,29 @@ public class UrielTownPatrolScript : AiScript
         _logger = loggerFactory.CreateLogger<UrielTownPatrolScript>();
         Creature.Health = 120;
         Creature.CurrentHealth = Creature.Health;
-        
+
         _patrolScript = new CreaturePatrolScript(loggerFactory, creature, chunk, _waypoints);
         _patrolScript.State = CreaturePatrolScript.PatrolState.Patrolling;
-        
+
         _idleScript = new CreatureIdleScript(creature, chunk, IdleTime);
         _idleScript.State = false;
-        
+
         _combatScript = new CreatureCombatScript(loggerFactory, creature, chunk);
         _combatScript.State = CreatureCombatScript.CombatState.None;
-        
+
         _currentScript = _patrolScript;
-        
+
         Chain(_patrolScript);
         Chain(_idleScript);
         Chain(_combatScript);
     }
-    
+
     public override object State { get; set; }
     protected override bool ShouldRun()
     {
         return true;
     }
-    
+
     public override void Update(TimeSpan deltaTime)
     {
         switch (_currentScript)
@@ -67,7 +67,7 @@ public class UrielTownPatrolScript : AiScript
                     _idleScript.State = true;
                 }
                 break;
-            
+
             case CreatureIdleScript idleScript:
                 if (idleScript.State is false && _combatScript.State is CreatureCombatScript.CombatState.None)
                 {
@@ -75,7 +75,7 @@ public class UrielTownPatrolScript : AiScript
                     _patrolScript.State = CreaturePatrolScript.PatrolState.Patrolling;
                 }
                 break;
-                
+
             case CreatureCombatScript combatScript:
                 _logger.LogInformation("Combat state: {State}", combatScript.State);
                 if (combatScript.State is CreatureCombatScript.CombatState.None)
@@ -85,7 +85,7 @@ public class UrielTownPatrolScript : AiScript
                 }
                 break;
         }
-        
+
         base.Update(deltaTime); // Will call Update on all chained scripts, and they will run if ShouldRun returns true
     }
 }

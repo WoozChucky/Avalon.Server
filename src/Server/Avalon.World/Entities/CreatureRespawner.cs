@@ -25,12 +25,12 @@ public class CreatureRespawner : ICreatureRespawner
     public void ScheduleRespawn(ICreature creature)
     {
         var respawnTimer = new IntervalTimer();
-        respawnTimer.SetInterval((long) TimeSpan.FromMinutes(3).TotalMilliseconds); //TODO: Respawn timer from creature template metadata
+        respawnTimer.SetInterval((long)TimeSpan.FromMinutes(3).TotalMilliseconds); //TODO: Respawn timer from creature template metadata
         respawnTimer.SetCurrent(0);
         _respawnTimers.Add(respawnTimer, creature);
 
         var removeTimer = new IntervalTimer();
-        removeTimer.SetInterval((long) TimeSpan.FromMinutes(2).TotalMilliseconds); //TODO: Remove timer from creature template metadata
+        removeTimer.SetInterval((long)TimeSpan.FromMinutes(2).TotalMilliseconds); //TODO: Remove timer from creature template metadata
         removeTimer.SetCurrent(0);
         _removeTimers.Add(removeTimer, creature);
     }
@@ -44,7 +44,7 @@ public class CreatureRespawner : ICreatureRespawner
                 timer.Update((long)deltaTime.TotalMilliseconds);
 
             if (!timer.Passed()) continue;
-            
+
             _chunk.RemoveCreature(creature);
             timersToRemove.Add(timer);
         }
@@ -53,7 +53,7 @@ public class CreatureRespawner : ICreatureRespawner
         {
             _removeTimers.Remove(timer);
         }
-        
+
         var timersToRespawn = new List<IntervalTimer>();
 
         foreach (var (timer, creature) in _respawnTimers)
@@ -62,11 +62,11 @@ public class CreatureRespawner : ICreatureRespawner
                 timer.Update((long)deltaTime.TotalMilliseconds);
 
             if (!timer.Passed()) continue;
-            
+
             _chunk.RespawnCreature(creature);
             timersToRespawn.Add(timer);
         }
-        
+
         foreach (var timer in timersToRespawn)
         {
             _respawnTimers.Remove(timer);

@@ -22,12 +22,12 @@ public class AvalonSession : IDisposable
     public int Latency { get; protected set; }
     public ConnectionStatus Status { get; set; }
     public DateTime LastUpdateAt { get; set; } = DateTime.UtcNow;
-    
+
     private readonly RingBuffer<NetworkPacket> _packetQueue;
     private readonly ILogger<AvalonSession> _logger;
     private readonly CancellationTokenSource _cts;
     private readonly SemaphoreSlim _sendSemaphore;
-    
+
     public AvalonSession(ILoggerFactory loggerFactory, IRemoteSource connection)
     {
         _logger = loggerFactory.CreateLogger<AvalonSession>();
@@ -39,19 +39,19 @@ public class AvalonSession : IDisposable
         Latency = 0;
         Task.Run(ProcessPacketsAsync);
     }
-    
+
     public virtual Task SendAsync(NetworkPacket packet)
     {
         _packetQueue.Enqueue(packet);
         return Task.CompletedTask;
     }
-    
+
     public virtual void Dispose()
     {
         _cts.Cancel();
         Connection.Dispose();
     }
-    
+
     protected virtual async Task ProcessPacketsAsync()
     {
         try
@@ -67,7 +67,7 @@ public class AvalonSession : IDisposable
                         _logger.LogWarning("Packet was null for session {SessionId}", AccountId);
                         continue;
                     }
-                
+
                     await _sendSemaphore.WaitAsync();
                     await SendQueuedPacketAsync(packet);
                 }
@@ -89,14 +89,14 @@ public class AvalonSession : IDisposable
         }
         catch (OperationCanceledException)
         {
-            
+
         }
         catch (Exception e)
         {
             _logger.LogError(e, "Failed to process packets");
         }
     }
-    
+
     protected virtual async Task SendQueuedPacketAsync(NetworkPacket packet)
     {
         switch (packet.Header.Protocol)

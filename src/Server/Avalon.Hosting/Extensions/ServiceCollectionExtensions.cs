@@ -17,7 +17,7 @@ namespace Avalon.Hosting.Extensions;
 public static class ServiceCollectionExtensions
 {
     private const string MESSAGE_TEMPLATE = "[{Timestamp:HH:mm:ss.fff}][{ThreadId}][{Level:u3}]{Message:lj} {NewLine:1}{Exception:1}";
-    
+
     public static IServiceCollection AddCoreServices(this IServiceCollection services,
         IConfiguration configuration, ComponentType component)
     {
@@ -35,13 +35,13 @@ public static class ServiceCollectionExtensions
                        type.GetFields(BindingFlags.Public | BindingFlags.Static)
                            .Any(field => field.FieldType == typeof(NetworkPacketType));
             }).ToArray();
-            
+
             var handlerTypes = AppDomain.CurrentDomain.GetAssemblies()
                 .Where(x => !x.IsDynamic)
                 .SelectMany(x => x.ExportedTypes)
                 .Where(x =>
                     x.IsAssignableTo(typeof(IPacketHandlerNew)) &&
-                    x is {IsClass: true, IsAbstract: false, IsInterface: false})
+                    x is { IsClass: true, IsAbstract: false, IsInterface: false })
                 .OrderBy(x => x.FullName)
                 .ToArray();
             return ActivatorUtilities.CreateInstance<PacketManager>(provider, [packetTypes, handlerTypes]);
@@ -60,13 +60,13 @@ public static class ServiceCollectionExtensions
                        type.GetFields(BindingFlags.Public | BindingFlags.Static)
                            .Any(field => field.FieldType == typeof(NetworkPacketType));
             })).ToArray();
-            
+
             return ActivatorUtilities.CreateInstance<PacketReader>(provider, [packetTypes]);
         });
-        
+
         return services;
     }
-    
+
     private static IServiceCollection AddCustomLogging(this IServiceCollection services, IConfiguration configuration)
     {
         var config = new LoggerConfiguration();
@@ -87,7 +87,7 @@ public static class ServiceCollectionExtensions
         // add process information
         config.Enrich.WithProcessId()
             .Enrich.WithProcessName();
-        
+
         config.Enrich.WithThreadId();
 
         config.Enrich.FromLogContext();

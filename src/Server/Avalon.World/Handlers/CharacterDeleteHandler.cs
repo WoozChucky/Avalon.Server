@@ -17,7 +17,7 @@ public class CharacterDeletetHandler(
         {
             logger.LogWarning("Connection tried to delete a character without being authenticated");
             connection.Close();
-            return;       
+            return;
         }
 
         if (connection.Character != null)
@@ -26,7 +26,7 @@ public class CharacterDeletetHandler(
             connection.Close();
             return;
         }
-        
+
         // because this is an async method, the executtion of this should run in a separate thread, and the result to be put somewhere
         // so that this world connection when it calls 'ProcessQueryCallbacks()' it will get the result and react accordingly
 
@@ -34,7 +34,7 @@ public class CharacterDeletetHandler(
         {
             OnCharacterFound(connection, character);
         });
-        
+
     }
 
     private void OnCharacterFound(WorldConnection connection, Character? character)
@@ -46,7 +46,8 @@ public class CharacterDeletetHandler(
             return;
         }
 
-        connection.AddQueryCallback(characterRepository.DeleteAsync(character.Id), () => {
+        connection.AddQueryCallback(characterRepository.DeleteAsync(character.Id), () =>
+        {
             OnCharacterDeleted(connection, character);
         });
     }

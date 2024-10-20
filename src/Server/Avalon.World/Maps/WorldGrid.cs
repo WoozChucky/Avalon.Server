@@ -29,20 +29,20 @@ public class WorldGrid
         {
             throw new InvalidOperationException("Character not found in connection");
         }
-        
+
         var mapId = connection.Character.Map;
-        
+
         Map? map;
         lock (_mapsLock)
         {
             map = _maps.FirstOrDefault(m => m.Id == mapId);
         }
-        
+
         if (map == null)
         {
             throw new InvalidOperationException($"Map {mapId} not found");
         }
-        
+
         map.AddPlayer(connection);
     }
 
@@ -52,20 +52,20 @@ public class WorldGrid
         {
             throw new InvalidOperationException("Character not found in connection");
         }
-        
+
         var mapId = connection.Character.Map;
-        
+
         Map? map;
         lock (_mapsLock)
         {
             map = _maps.FirstOrDefault(m => m.Id == mapId);
         }
-        
+
         if (map == null)
         {
             throw new InvalidOperationException($"Map {mapId} not found");
         }
-        
+
         map.RemovePlayer(connection);
     }
 
@@ -92,24 +92,24 @@ public class WorldGrid
             map.SpawnStartingEntities();
         }
     }
-    
+
     public void OnPlayerMoved(IWorldConnection connection)
     {
         if (connection.Character == null)
         {
             throw new InvalidOperationException("Character not found in connection");
         }
-        
+
         var chunk = GetChunk(connection.Character.ChunkId);
-        
+
         if (chunk == null)
         {
             throw new InvalidOperationException($"Invalid movement, chunk {connection.Character.ChunkId} not found");
         }
-        
+
         chunk.OnPlayerMoved(connection);
     }
-    
+
     public Chunk? GetChunk(uint chunkId) => Maps.SelectMany(m => m.Chunks).FirstOrDefault(c => c.Id == chunkId);
 
     public ICreature? FindCreature(CreatureId creatureId, uint chunkId)
@@ -118,7 +118,7 @@ public class WorldGrid
 
         return chunk?.FindCreature(creatureId);
     }
-    
+
     public ICreature? FindCreature(CreatureId creatureId)
     {
         var maps = Maps;
@@ -130,7 +130,7 @@ public class WorldGrid
                 return creature;
             }
         }
-        
+
         return null;
     }
 }

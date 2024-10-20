@@ -10,7 +10,7 @@ public class WorldSessionFilter : PacketFilter
     {
         _connection = connection;
     }
-    
+
     public override bool Process(NetworkPacket packet)
     {
         throw new NotImplementedException();
@@ -19,7 +19,7 @@ public class WorldSessionFilter : PacketFilter
     public override bool CanProcess(NetworkPacketType type)
     {
         if (_connection.Character != null) return false;
-        
+
         return type switch
         {
             NetworkPacketType.CMSG_CHARACTER_LIST => true,

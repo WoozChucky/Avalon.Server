@@ -17,16 +17,16 @@ public class CHandshakePacket : Packet
     public static NetworkPacket Create(byte[] handshakeData, Func<byte[], byte[]> encryptFunc)
     {
         using var memoryStream = new MemoryStream();
-        
+
         var packet = new CHandshakePacket()
         {
             HandshakeData = handshakeData
         };
-        
+
         Serializer.Serialize(memoryStream, packet);
 
         var buffer = encryptFunc(memoryStream.ToArray());
-        
+
         return new NetworkPacket
         {
             Header = new NetworkPacketHeader

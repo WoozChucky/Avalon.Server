@@ -11,22 +11,22 @@ public class CCharacterSelectedPacket : Packet
     public static NetworkPacketType PacketType = NetworkPacketType.CMSG_CHARACTER_SELECTED;
     public static NetworkProtocol Protocol = NetworkProtocol.Tcp;
     public static NetworkPacketFlags Flags = NetworkPacketFlags.Encrypted;
-    
+
     [ProtoMember(1)] public uint CharacterId { get; set; }
 
     public static NetworkPacket Create(uint characterId, Func<byte[], byte[]> encrypt)
     {
         using var memoryStream = new MemoryStream();
-        
+
         var p = new CCharacterSelectedPacket()
         {
             CharacterId = characterId
         };
-        
+
         Serializer.Serialize(memoryStream, p);
-        
+
         var buffer = encrypt(memoryStream.ToArray());
-        
+
         return new NetworkPacket
         {
             Header = new NetworkPacketHeader

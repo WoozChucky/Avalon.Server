@@ -11,20 +11,20 @@ public abstract class SpellScript : IWorldObject
         Executing,
         Finished
     }
-    
+
     public abstract Vector3 Position { get; set; }
     public abstract Vector3 Velocity { get; set; }
     public abstract Vector3 Orientation { get; set; }
     public abstract ObjectGuid Guid { get; set; }
 
     protected IUnit Caster { get; }
-    
+
     protected IUnit? Target { get; }
-    
+
     protected ISpell Spell { get; }
-    
+
     protected List<SpellScript> ChainedScripts { get; } = new();
-    
+
     protected SpellScript(ISpell spell, IUnit caster, IUnit? target)
     {
         Spell = spell;
@@ -33,13 +33,13 @@ public abstract class SpellScript : IWorldObject
     }
 
     public abstract void Prepare();
-    
+
     public SpellScript Chain(SpellScript script)
     {
         ChainedScripts.Add(script);
         return this;
     }
-    
+
     public virtual void Update(TimeSpan deltaTime)
     {
         foreach (var script in ChainedScripts)
@@ -48,9 +48,9 @@ public abstract class SpellScript : IWorldObject
                 script.Update(deltaTime);
         }
     }
-    
+
     public abstract object State { get; set; }
     protected abstract bool ShouldRun();
-    
+
     public abstract SpellScript Clone(); //TODO: This can probably be implemented in this class
 }

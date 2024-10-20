@@ -14,7 +14,7 @@ public class Map(ILoggerFactory loggerFactory)
     public MapTemplate Metadata { get; set; }
     public Vector3 Size { get; set; }
     public IReadOnlyCollection<Chunk> Chunks { get; set; }
-    
+
     private readonly ILogger<Map> _logger = loggerFactory.CreateLogger<Map>();
 
     public void AddPlayer(IWorldConnection connection)
@@ -23,15 +23,15 @@ public class Map(ILoggerFactory loggerFactory)
         {
             throw new InvalidOperationException("Character not found in connection");
         }
-        
+
         var position = connection.Character.Position;
-        
+
         var chunk = GetChunk(position);
         if (chunk == null)
         {
             throw new InvalidOperationException($"Chunk not found for position {position}");
         }
-        
+
         chunk.AddCharacter(connection);
         _logger.LogInformation("Player {CharacterId} added to chunk {ChunkId} of map {MapId}", connection.Character.Name, chunk.Id, Id);
     }
@@ -42,19 +42,19 @@ public class Map(ILoggerFactory loggerFactory)
         {
             throw new InvalidOperationException("Character not found in connection");
         }
-        
+
         var position = connection.Character.Position;
-        
+
         var chunk = GetChunk(position);
         if (chunk == null)
         {
             throw new InvalidOperationException($"Chunk not found for position {position}");
         }
-        
+
         chunk.RemoveCharacter(connection);
         _logger.LogInformation("Player {CharacterId} removed from chunk {ChunkId} of map {MapId}", connection.Character.Name, chunk.Id, Id);
     }
-    
+
     public void DetectNeighbors()
     {
         foreach (var chunk in Chunks)
@@ -122,7 +122,7 @@ public class Map(ILoggerFactory loggerFactory)
                 }
             }
         }
-        
+
         return null;
     }
 }

@@ -36,11 +36,11 @@ public class ObjectGuid
     {
         _guid = ((ulong)type << TYPE_SHIFT) | (id & ID_MASK);
     }
-    
+
     public ulong RawValue => _guid;
 
     public ObjectType Type => (ObjectType)((_guid & TYPE_MASK) >> TYPE_SHIFT);
-    
+
     public uint Id => (uint)(_guid & ID_MASK);
 
     public bool IsEmpty => _guid == 0;
@@ -77,7 +77,7 @@ public class ObjectGuid
     {
         return !(a == b);
     }
-    
+
     public override string ToString()
     {
         return $"Type: {Type}, Id: {Id}";

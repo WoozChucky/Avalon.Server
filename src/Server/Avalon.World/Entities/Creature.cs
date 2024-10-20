@@ -40,7 +40,7 @@ public class Creature : ICreature
         var yawDegrees = yawRadians * Mathf.Rad2Deg;
         Orientation = new Vector3(0.0f, yawDegrees, 0.0f);
     }
-    
+
     public bool IsLookingAt(Vector3 target, float threshold = 0.1f)
     {
         var direction = Vector3.Normalize(target - Position);

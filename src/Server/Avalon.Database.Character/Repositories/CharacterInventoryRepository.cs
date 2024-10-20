@@ -15,12 +15,12 @@ public interface ICharacterInventoryRepository
 public class CharacterInventoryRepository : ICharacterInventoryRepository
 {
     private readonly CharacterDbContext _dbContext;
-    
+
     public CharacterInventoryRepository(CharacterDbContext dbContext)
     {
         _dbContext = dbContext;
     }
-    
+
     public async Task<CharacterInventory> CreateAsync(CharacterInventory inventory)
     {
         var entity = await _dbContext.CharacterInventory.AddAsync(inventory);
@@ -54,5 +54,5 @@ public class CharacterInventoryRepository : ICharacterInventoryRepository
             .Where(entity => entity.CharacterId == characterId)
             .ToListAsync();
     }
-    
+
 }

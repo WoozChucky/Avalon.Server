@@ -10,7 +10,7 @@ public interface IScriptHotReloader
     event ScriptsHotReloadedEventHandler? ScriptsHotReloaded;
     void Start();
     void Stop();
-    
+
     void Update(out List<Type> scriptTypes);
 }
 
@@ -19,13 +19,13 @@ public delegate void ScriptsHotReloadedEventHandler(List<Type> types);
 public class ScriptHotReloader : IScriptHotReloader
 {
     public event ScriptsHotReloadedEventHandler? ScriptsHotReloaded;
-    
+
     private readonly List<Type> _scriptTypes = [];
-    
+
     private readonly IScriptCompiler _scriptCompiler;
     private readonly ILogger<ScriptHotReloader> _logger;
     private bool _active;
-    
+
     public ScriptHotReloader(ILoggerFactory loggerFactory, IScriptCompiler scriptCompiler)
     {
         _scriptCompiler = scriptCompiler;
@@ -48,7 +48,7 @@ public class ScriptHotReloader : IScriptHotReloader
         var types = FindScriptTypes<AiScript>(assembly);
 
         if (types.Count == 0) return;
-        
+
         _logger.LogDebug("HotReloading {Count} AI scripts...", types.Count);
         ScriptsHotReloaded?.Invoke(types);
         lock (_scriptTypes)
@@ -75,7 +75,7 @@ public class ScriptHotReloader : IScriptHotReloader
                 scriptTypes = [];
                 return;
             }
-            scriptTypes = [.._scriptTypes];
+            scriptTypes = [.. _scriptTypes];
             _scriptTypes.Clear();
         }
     }
@@ -84,7 +84,7 @@ public class ScriptHotReloader : IScriptHotReloader
     {
         var baseType = typeof(TBaseType);
         var inheritedTypes = new List<Type>();
-        
+
         try
         {
             var types = assembly.GetTypes();
@@ -104,7 +104,7 @@ public class ScriptHotReloader : IScriptHotReloader
                 _logger.LogError(loaderException, "Loader exception");
             }
         }
-        
+
         return inheritedTypes;
     }
 }

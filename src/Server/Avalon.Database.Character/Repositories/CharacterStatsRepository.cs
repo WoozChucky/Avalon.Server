@@ -14,12 +14,12 @@ public interface ICharacterStatsRepository
 public class CharacterStatsRepository : ICharacterStatsRepository
 {
     private readonly CharacterDbContext _dbContext;
-    
+
     public CharacterStatsRepository(CharacterDbContext dbContext)
     {
         _dbContext = dbContext;
     }
-    
+
     public async Task<CharacterStats> CreateAsync(CharacterStats stats)
     {
         var entity = await _dbContext.CharacterStats.AddAsync(stats);

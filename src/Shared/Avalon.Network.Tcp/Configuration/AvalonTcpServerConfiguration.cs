@@ -9,7 +9,7 @@ public class AvalonTcpServerConfiguration
     /// Specifies whether the server is enabled or not.
     /// </summary>
     public bool Enabled { get; set; }
-    
+
     /// <summary>
     /// PFX certificate file path.
     /// </summary>

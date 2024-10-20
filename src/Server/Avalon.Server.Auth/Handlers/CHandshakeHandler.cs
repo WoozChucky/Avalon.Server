@@ -6,12 +6,12 @@ namespace Avalon.Server.Auth.Handlers;
 public class CHandshakeHandler : IAuthPacketHandler<CHandshakePacket>
 {
     private readonly ILogger<CHandshakeHandler> _logger;
-    
+
     public CHandshakeHandler(ILoggerFactory loggerFactory)
     {
         _logger = loggerFactory.CreateLogger<CHandshakeHandler>();
     }
-    
+
     public Task ExecuteAsync(AuthPacketContext<CHandshakePacket> ctx, CancellationToken token = default)
     {
         if (!ctx.Connection.VerifyHandshakeData(ctx.Packet.HandshakeData))
@@ -22,9 +22,9 @@ public class CHandshakeHandler : IAuthPacketHandler<CHandshakePacket>
         }
 
         var result = SHandshakeResultPacket.Create(true, ctx.Connection.CryptoSession.Encrypt);
-        
+
         ctx.Connection.Send(result);
-        
+
         return Task.CompletedTask;
     }
 }

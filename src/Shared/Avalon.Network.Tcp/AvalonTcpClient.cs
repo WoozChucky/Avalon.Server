@@ -54,14 +54,14 @@ public class AvalonTcpClient : IDisposable
     private readonly RingBuffer<Packet> _receivedPacketBuffer;
     private readonly RingBuffer<NetworkPacket> _sendPacketBuffer;
     private readonly IAvalonCryptoSession _cryptography;
-    
+
     private SslStream _stream = null!;
 
     private readonly IPacketDeserializer _packetDeserializer;
     private readonly IPacketSerializer _packetSerializer;
-    
+
     private long _bytesReceived;
-    
+
     private long _packetsReceived;
 
     public ulong AccountId { get; set; }
@@ -86,7 +86,7 @@ public class AvalonTcpClient : IDisposable
             Dns.GetHostAddresses(_settings.Host).ToList()
                 .FirstOrDefault(ip => ip.AddressFamily == AddressFamily.InterNetwork) ??
             throw new Exception("Unable to resolve host: " + _settings.Host + "");
-        
+
         _packetDeserializer.RegisterPacketDeserializers();
         _packetSerializer.RegisterPacketSerializers();
     }
@@ -97,14 +97,14 @@ public class AvalonTcpClient : IDisposable
         _stream = new SslStream(new NetworkStream(_socket), false, UserCertificateValidationCallback);
         await _stream.AuthenticateAsClientAsync(_settings.Host, new X509Certificate2Collection() { _certificate }, SslProtocols.Tls12,
             true).ConfigureAwait(false);
-        
+
 #pragma warning disable CS4014
         Task.Run(ProcessPacketsAsync);
         Task.Run(HandleCommunications);
         Task.Run(ProcessReceivedPackets);
         Task.Run(UpdateMetricsAsync);
 #pragma warning restore CS4014
-        
+
         await RequestServerInfoPacket();
     }
 
@@ -112,40 +112,40 @@ public class AvalonTcpClient : IDisposable
     {
         return true;
     }
-    
+
     private async Task UpdateMetricsAsync()
     {
         long previousBytesReceived = 0;
         long previousPacketsReceived = 0;
         var lastUpdate = DateTime.UtcNow;
-        
+
         while (!_cts.IsCancellationRequested)
         {
             await Task.Delay(5000, _cts.Token).ConfigureAwait(false);
-            
+
             if (true)
             {
                 var currentBytesReceived = Interlocked.Read(ref _bytesReceived);
                 var currentPacketsReceived = Interlocked.Read(ref _packetsReceived);
-                
+
                 // Bytes conversion to Mb
                 var kbBytesReceived = currentBytesReceived / 1024;
                 var mgBytesReceived = currentBytesReceived / (1024 * 1024);
                 var gbBytesReceived = currentBytesReceived / (1024 * 1024 * 1024);
-                
+
                 // Byte rate calculation
                 var bytesInLastSecond = currentBytesReceived - previousBytesReceived;
                 var byteRate = Math.Round(bytesInLastSecond / Math.Max((DateTime.UtcNow - lastUpdate).TotalSeconds, 1), 2);
-                
+
                 // Packet rate calculation
                 var packetsInLastSecond = currentPacketsReceived - previousPacketsReceived;
-                var packetRate = (int) (packetsInLastSecond / Math.Max((DateTime.UtcNow - lastUpdate).TotalSeconds, 1));
+                var packetRate = (int)(packetsInLastSecond / Math.Max((DateTime.UtcNow - lastUpdate).TotalSeconds, 1));
 
-                
+
                 Console.WriteLine($"Bytes received: {kbBytesReceived}Kb, Rate: {byteRate} bytes/second");
                 Console.WriteLine($"Packets received: {currentPacketsReceived}, Rate: {packetRate} packets/second");
                 Console.WriteLine("---------------------------------");
-                
+
                 previousPacketsReceived = currentPacketsReceived;
                 previousBytesReceived = currentBytesReceived;
                 lastUpdate = DateTime.UtcNow;
@@ -171,7 +171,7 @@ public class AvalonTcpClient : IDisposable
                     }
                 });
             }
-            
+
             while (!_cts.IsCancellationRequested)
             {
                 var packet = await _receivedPacketBuffer.DequeueAsync(_cts.Token);
@@ -250,9 +250,9 @@ public class AvalonTcpClient : IDisposable
                             //SendPacket(pongPacket);
                         });
                         break;
-                    
+
                 }
-                
+
             }
         }
         catch (OperationCanceledException)
@@ -264,7 +264,7 @@ public class AvalonTcpClient : IDisposable
             Console.WriteLine(e);
         }
     }
-    
+
     private async void HandleCommunications()
     {
         try
@@ -272,18 +272,18 @@ public class AvalonTcpClient : IDisposable
             while (!_cts.IsCancellationRequested)
             {
                 var packet = await _packetDeserializer.DeserializeFromNetwork<NetworkPacket>(_stream);
-                
+
                 if (packet == null)
                 {
                     Console.WriteLine("Received null packet in network thread");
                     continue;
                 }
-                
+
                 Interlocked.Add(ref _bytesReceived, packet.Size);
                 Interlocked.Increment(ref _packetsReceived);
-                
+
                 var innerPacket = GetInnerPacket(packet);
-                
+
                 _receivedPacketBuffer.Enqueue(innerPacket);
             }
         }
@@ -297,29 +297,29 @@ public class AvalonTcpClient : IDisposable
             throw;
         }
     }
-    
+
     private Packet GetInnerPacket(NetworkPacket packet)
     {
         DecryptFunc? decryptFunc = null;
         if (packet.Header.Flags == NetworkPacketFlags.Encrypted)
             decryptFunc = _cryptography!.Decrypt;
-        
+
         if (packet.Header.Flags == NetworkPacketFlags.Encrypted && decryptFunc == null)
             throw new PacketHandlerException("Encrypted packet received without session key");
-        
+
         return packet.Header.Type switch
         {
             // Handshake
             NetworkPacketType.SMSG_SERVER_INFO => _packetDeserializer.Deserialize<SServerInfoPacket>(packet.Header.Type, packet.Payload, decryptFunc),
             NetworkPacketType.SMSG_SERVER_HANDSHAKE => _packetDeserializer.Deserialize<SHandshakePacket>(packet.Header.Type, packet.Payload, decryptFunc),
             NetworkPacketType.SMSG_SERVER_HANDSHAKE_RESULT => _packetDeserializer.Deserialize<SHandshakeResultPacket>(packet.Header.Type, packet.Payload, decryptFunc),
-            
-            
+
+
             // Auth
             NetworkPacketType.SMSG_AUTH_RESULT => _packetDeserializer.Deserialize<SAuthResultPacket>(packet.Header.Type, packet.Payload, decryptFunc),
             NetworkPacketType.SMSG_LOGOUT => _packetDeserializer.Deserialize<SLogoutPacket>(packet.Header.Type, packet.Payload, decryptFunc),
             NetworkPacketType.SMSG_REGISTER_RESULT => _packetDeserializer.Deserialize<SRegisterResultPacket>(packet.Header.Type, packet.Payload, decryptFunc),
-            
+
             // Account
             NetworkPacketType.SMSG_CHARACTER_CONNECTED => _packetDeserializer.Deserialize<SPlayerConnectedPacket>(packet.Header.Type, packet.Payload, decryptFunc),
             NetworkPacketType.SMSG_CHARACTER_DISCONNECTED => _packetDeserializer.Deserialize<SPlayerDisconnectedPacket>(packet.Header.Type, packet.Payload, decryptFunc),
@@ -330,24 +330,24 @@ public class AvalonTcpClient : IDisposable
             NetworkPacketType.SMSG_CHARACTER_SELECTED => _packetDeserializer.Deserialize<SCharacterSelectedPacket>(packet.Header.Type, packet.Payload, decryptFunc),
             NetworkPacketType.SMSG_CHARACTER_CREATED => _packetDeserializer.Deserialize<SCharacterCreatedPacket>(packet.Header.Type, packet.Payload, decryptFunc),
             NetworkPacketType.SMSG_CHARACTER_DELETED => _packetDeserializer.Deserialize<SCharacterDeletedPacket>(packet.Header.Type, packet.Payload, decryptFunc),
-            
+
             // Map
             NetworkPacketType.SMSG_MAP_TELEPORT => _packetDeserializer.Deserialize<SMapTeleportPacket>(packet.Header.Type, packet.Payload, decryptFunc),
-            
+
             // Social
             NetworkPacketType.SMSG_CHAT_MESSAGE => _packetDeserializer.Deserialize<SChatMessagePacket>(packet.Header.Type, packet.Payload, decryptFunc),
             NetworkPacketType.SMSG_CHAT_OPEN => _packetDeserializer.Deserialize<SOpenChatPacket>(packet.Header.Type, packet.Payload, decryptFunc),
             NetworkPacketType.SMSG_CHAT_CLOSE => _packetDeserializer.Deserialize<SCloseChatPacket>(packet.Header.Type, packet.Payload, decryptFunc),
             NetworkPacketType.SMSG_GROUP_INVITE => _packetDeserializer.Deserialize<SGroupInvitePacket>(packet.Header.Type, packet.Payload, decryptFunc),
-            NetworkPacketType.SMSG_GROUP_INVITE_RESULT => _packetDeserializer.Deserialize<SGroupResultPacket>(packet.Header.Type, packet.Payload, decryptFunc), 
-            
+            NetworkPacketType.SMSG_GROUP_INVITE_RESULT => _packetDeserializer.Deserialize<SGroupResultPacket>(packet.Header.Type, packet.Payload, decryptFunc),
+
             // Generic
             NetworkPacketType.SMSG_PING => _packetDeserializer.Deserialize<SPingPacket>(packet.Header.Type, packet.Payload, decryptFunc),
-            
+
             _ => throw new PacketHandlerException("Unknown packet type " + packet.Header.Type)
         };
     }
-    
+
     public void Disconnect()
     {
         _cts.Cancel();
@@ -368,14 +368,14 @@ public class AvalonTcpClient : IDisposable
 
         await SendPacket(packet);
     }
-    
+
     public async Task SendOpenChatPacket()
     {
         var packet = COpenChatPacket.Create(AccountId, CharacterId, _cryptography.Encrypt);
 
         await SendPacket(packet);
     }
-    
+
     public async Task SendCloseChatPacket()
     {
         var packet = CCloseChatPacket.Create(AccountId, CharacterId, _cryptography.Encrypt);
@@ -386,79 +386,79 @@ public class AvalonTcpClient : IDisposable
     public async Task SendCharacterSelectedPacket(uint characterId)
     {
         var packet = CCharacterSelectedPacket.Create(characterId, _cryptography.Encrypt);
-        
+
         await SendPacket(packet);
     }
 
     public async Task SendAuthPacket(string username, string password)
     {
         var packet = CAuthPacket.Create(username, password, _cryptography.Encrypt);
-        
+
         await SendPacket(packet);
     }
 
     public async Task SendCharacterListPacket()
     {
         var packet = CCharacterListPacket.Create(_cryptography.Encrypt);
-        
+
         await SendPacket(packet);
     }
 
     public async Task SendCharacterDeletePacket(uint characterId)
     {
         var packet = CCharacterDeletePacket.Create(characterId, _cryptography.Encrypt);
-        
+
         await SendPacket(packet);
     }
 
     public async Task SendCharacterCreatePacket(string name, int @class)
     {
         var packet = CCharacterCreatePacket.Create(name, @class, _cryptography.Encrypt);
-        
+
         await SendPacket(packet);
     }
-    
+
     public async Task SendLogoutPacket(ulong accountId)
     {
         var packet = CLogoutPacket.Create(accountId, _cryptography.Encrypt);
-        
+
         await SendPacket(packet);
     }
 
     public async Task SendCharacterLoadedPacket()
     {
         var packet = CCharacterLoadedPacket.Create(_cryptography.Encrypt);
-        
+
         await SendPacket(packet);
     }
 
     public async Task SendMapTeleportPacket(int mapId)
     {
         var packet = CMapTeleportPacket.Create(AccountId, CharacterId, mapId, _cryptography.Encrypt);
-        
+
         await SendPacket(packet);
     }
-    
+
     public async Task SendInteractPacket(Rectangle targetArea)
     {
         var packet = CInteractPacket.Create(AccountId, CharacterId, targetArea.X, targetArea.Y, targetArea.Width, targetArea.Height, _cryptography.Encrypt);
-        
+
         await SendPacket(packet);
     }
 
     public async Task RequestServerInfoPacket()
     {
         var packet = CRequestServerInfoPacket.Create("TODO");
-        
+
         await SendPacket(packet);
     }
-    
+
     private Task SendPacket(NetworkPacket packet)
     {
         _sendPacketBuffer.Enqueue(packet);
         return Task.CompletedTask;
     }
-    
+
     private async Task ProcessPacketsAsync()
     {
         try
@@ -471,20 +471,20 @@ public class AvalonTcpClient : IDisposable
                 {
                     continue;
                 }
-                
+
                 await SendQueuedPacketAsync(packet);
             }
         }
         catch (OperationCanceledException)
         {
-            
+
         }
         catch (Exception e)
         {
             Console.WriteLine(e);
         }
     }
-    
+
     private async Task SendQueuedPacketAsync(NetworkPacket packet)
     {
         await _packetSerializer.SerializeToNetwork(_stream, packet);
@@ -508,7 +508,7 @@ public class AvalonTcpClient : IDisposable
     public async Task SendRegisterPacket(string username, string email, string password)
     {
         var packet = CRegisterPacket.Create(username, email, password, _cryptography.Encrypt);
-        
+
         await SendPacket(packet);
     }
 }

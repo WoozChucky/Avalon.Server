@@ -28,38 +28,38 @@ public class ScriptCompiler : IScriptCompiler
     private ILogger<ScriptCompiler> _logger;
     private FileSystemWatcher _watcher;
     private readonly ConcurrentDictionary<string, DateTime> _debounceDictionary = new();
-    
+
     private const string ScriptsPath = "Scripts\\HotReload";
     //private const string ScriptsPath = "C:\\dev\\Avalon.Server\\src\\Server\\Avalon.World\\Scripts\\Creatures";
     private const string ScriptExtension = ".cs";
     private const int DebounceDelayMs = 500; // Delay in milliseconds to wait before compiling the script
     private bool _firstRun = true;
-    
+
     public ScriptCompiler(ILoggerFactory loggerFactory)
     {
         _logger = loggerFactory.CreateLogger<ScriptCompiler>();
-        
+
         var path = Path.Combine(Directory.GetCurrentDirectory(), ScriptsPath);
         //var path = Path.Combine("C:\\dev\\Avalon.Server\\src\\Server\\Avalon.World\\Scripts\\Creatures");
         Directory.CreateDirectory(path);
-        
+
         _watcher = new FileSystemWatcher(path, $"*{ScriptExtension}")
         {
             EnableRaisingEvents = true,
             IncludeSubdirectories = true,
             NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.FileName
         };
-        
+
         _watcher.Changed += OnScriptChanged;
         _watcher.Created += OnScriptChanged;
         _watcher.Deleted += OnScriptChanged;
         _watcher.Renamed += OnScriptChanged;
-        
+
         References.AddRange(AppDomain.CurrentDomain.GetAssemblies()
             .Where(a => !a.IsDynamic) // Only include non-dynamic assemblies
             .Select(a => MetadataReference.CreateFromFile(a.Location)));
     }
-    
+
     private static readonly List<MetadataReference> References =
     [
         MetadataReference.CreateFromFile(typeof(object).Assembly.Location),
@@ -74,7 +74,7 @@ public class ScriptCompiler : IScriptCompiler
         MetadataReference.CreateFromFile(typeof(TimeSpan).Assembly.Location),
         MetadataReference.CreateFromFile(typeof(ValueType).Assembly.Location)
     ];
-    
+
     private static readonly List<string> DefaultUsings =
     [
         "System",
@@ -88,7 +88,7 @@ public class ScriptCompiler : IScriptCompiler
         "Avalon.World.Public.Maps",
         "Microsoft.Extensions.Logging"
     ];
-    
+
     public void Start()
     {
         _watcher.EnableRaisingEvents = true;
@@ -103,7 +103,7 @@ public class ScriptCompiler : IScriptCompiler
     {
         Debounce(e.FullPath);
     }
-    
+
     private async void Debounce(string path)
     {
         if (_firstRun)
@@ -111,7 +111,7 @@ public class ScriptCompiler : IScriptCompiler
             _firstRun = false;
             return;
         }
-        
+
         _debounceDictionary[path] = DateTime.UtcNow;
 
         await Task.Delay(DebounceDelayMs);
@@ -139,7 +139,7 @@ public class ScriptCompiler : IScriptCompiler
         var sw = Stopwatch.StartNew();
         var files = Directory.GetFiles(ScriptsPath, $"*{ScriptExtension}", SearchOption.AllDirectories);
         var syntaxTrees = new List<SyntaxTree>();
-        
+
         foreach (var file in files)
         {
             var code = await File.ReadAllTextAsync(file);
@@ -151,7 +151,7 @@ public class ScriptCompiler : IScriptCompiler
                     code = $"using {defaultUsing};\n{code}";
                 }
             }
-            
+
             var syntaxTree = CSharpSyntaxTree.ParseText(code);
             syntaxTrees.Add(syntaxTree);
         }
@@ -172,7 +172,7 @@ public class ScriptCompiler : IScriptCompiler
             {
                 if (diagnostic.Severity == DiagnosticSeverity.Error)
                 {
-                    
+
                     _logger.LogError("Error {Error} in script {File}", diagnostic.GetMessage(), diagnostic.Location.GetLineSpan().ToString());
                 }
             }
@@ -182,10 +182,10 @@ public class ScriptCompiler : IScriptCompiler
 
         ms.Seek(0, SeekOrigin.Begin);
         var assembly = Assembly.Load(ms.ToArray());
-        
+
         sw.Stop();
         _logger.LogDebug("Compiled scripts in {Elapsed}ms", sw.ElapsedMilliseconds);
-        
+
         return assembly;
     }
 }

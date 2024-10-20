@@ -15,11 +15,11 @@ public class FireballSpellScript : SpellScript
     public override ObjectGuid Guid { get; set; }
 
     private const float ProjectileSpeed = 5f;
-    
+
     private static readonly Vector3 SpellHeightOffset = new(0, 0.5f, 0);
-    
+
     private readonly ILogger<FireballSpellScript> _logger;
-    
+
     public FireballSpellScript(ILogger<FireballSpellScript> logger, ISpell spell, IUnit caster, IUnit? target) : base(spell, caster, target)
     {
         _logger = logger;
@@ -46,7 +46,7 @@ public class FireballSpellScript : SpellScript
     public override void Update(TimeSpan deltaTime)
     {
         if (State is SpellState.Finished) return;
-        
+
         if (Vector3.Distance(Position, Target!.Position + SpellHeightOffset) < 0.1f)
         {
             _logger.LogInformation("Spell {SpellId} hit {CreatureId}", Spell.SpellId, Target.Guid);
@@ -54,14 +54,14 @@ public class FireballSpellScript : SpellScript
             State = SpellState.Finished;
             return;
         }
-        
+
         Velocity = Vector3.Normalize(Target.Position + SpellHeightOffset - Position);
-        Position += Velocity * ProjectileSpeed * (float) deltaTime.TotalSeconds;
+        Position += Velocity * ProjectileSpeed * (float)deltaTime.TotalSeconds;
     }
-    
+
     public override SpellScript Clone()
     {
-        var clone =  new FireballSpellScript(_logger, Spell, Caster, Target)
+        var clone = new FireballSpellScript(_logger, Spell, Caster, Target)
         {
             Guid = Guid,
             Position = Position,

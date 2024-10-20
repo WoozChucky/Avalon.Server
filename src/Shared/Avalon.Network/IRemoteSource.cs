@@ -13,6 +13,6 @@ public static class Extensions
 {
     public static TcpClient AsTcpClient(this IRemoteSource source)
     {
-        return (TcpClient) source;
+        return (TcpClient)source;
     }
 }

@@ -9,22 +9,22 @@ public class SCharacterSpellsPacket : Packet
     public static NetworkPacketType PacketType = NetworkPacketType.SMSG_CHARACTER_SPELLS;
     public static NetworkProtocol Protocol = NetworkProtocol.Tcp;
     public static NetworkPacketFlags Flags = NetworkPacketFlags.Encrypted;
-    
+
     [ProtoMember(1)] public SpellInfo[] Spells { get; set; }
-    
+
     public static NetworkPacket Create(SpellInfo[] spells, Func<byte[], byte[]> encrypt)
     {
         using var memoryStream = new MemoryStream();
-        
+
         var authPacket = new SCharacterSpellsPacket()
         {
             Spells = spells
         };
-        
+
         Serializer.Serialize(memoryStream, authPacket);
-        
+
         var buffer = encrypt(memoryStream.ToArray());
-        
+
         return new NetworkPacket
         {
             Header = new NetworkPacketHeader

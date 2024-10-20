@@ -26,9 +26,9 @@ public class SChunkStateAddPacket : Packet
     public static NetworkPacketType PacketType = NetworkPacketType.SMSG_WORLD_STATE_ADD;
     public static NetworkProtocol Protocol = NetworkProtocol.Tcp;
     public static NetworkPacketFlags Flags = NetworkPacketFlags.Encrypted;
-    
+
     [ProtoMember(1)] public List<ObjectAdd> Adds { get; set; }
-    
+
     public static NetworkPacket Create(List<ObjectAdd> adds, Func<byte[], byte[]> encryptFunc)
     {
         using var memoryStream = new MemoryStream();
@@ -62,9 +62,9 @@ public class SChunkStateUpdatePacket : Packet
     public static NetworkPacketType PacketType = NetworkPacketType.SMSG_WORLD_STATE_UPDATE;
     public static NetworkProtocol Protocol = NetworkProtocol.Tcp;
     public static NetworkPacketFlags Flags = NetworkPacketFlags.Encrypted;
-    
+
     [ProtoMember(1)] public List<ObjectUpdate> Updates { get; set; }
-    
+
     public static NetworkPacket Create(List<ObjectUpdate> updates, Func<byte[], byte[]> encryptFunc)
     {
         using var memoryStream = new MemoryStream();
@@ -98,9 +98,9 @@ public class SChunkStateRemovePacket : Packet
     public static NetworkPacketType PacketType = NetworkPacketType.SMSG_WORLD_STATE_REMOVE;
     public static NetworkProtocol Protocol = NetworkProtocol.Tcp;
     public static NetworkPacketFlags Flags = NetworkPacketFlags.Encrypted;
-    
+
     [ProtoMember(1)] public List<ulong> Removes { get; set; }
-    
+
     public static NetworkPacket Create(ISet<ObjectGuid> removes, Func<byte[], byte[]> encryptFunc)
     {
         using var memoryStream = new MemoryStream();
