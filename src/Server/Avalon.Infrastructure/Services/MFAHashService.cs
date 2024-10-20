@@ -76,7 +76,7 @@ public class MFAHashService : IMFAHashService
         {
             var value = await _cache.Database.HashGetAsync(key, "hash");
             if (value != hash) continue;
-            await _cache.Database.KeyDeleteAsync(key);
+            await _cache.RemoveAsync(key);
         }
     }
 }

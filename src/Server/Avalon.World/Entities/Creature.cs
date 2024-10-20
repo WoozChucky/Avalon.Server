@@ -60,7 +60,7 @@ public class Creature : ICreature
         Script?.OnHit(attacker, damage);
     }
 
-    public void SendAttackAnimation(ISpell spell)
+    public void SendAttackAnimation(ISpell? spell)
     {
         OnUnitAttackAnimation?.Invoke(this, spell);
     }

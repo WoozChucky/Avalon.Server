@@ -11,9 +11,9 @@ public enum ObjectType
 
 public class ObjectGuid
 {
-    private const int TypeShift = 56;
-    private const ulong TypeMask = 0xFF00000000000000;
-    private const ulong IdMask = 0x000000FFFFFFFFFF;
+    private const int TYPE_SHIFT = 56;
+    private const ulong TYPE_MASK = 0xFF00000000000000;
+    private const ulong ID_MASK = 0x000000FFFFFFFFFF;
 
     private ulong _guid;
 
@@ -29,19 +29,19 @@ public class ObjectGuid
 
     public ObjectGuid(ObjectType type, uint id)
     {
-        _guid = ((ulong)type << TypeShift) | (id & IdMask);
+        _guid = ((ulong)type << TYPE_SHIFT) | (id & ID_MASK);
     }
 
     public void Set(ObjectType type, uint id)
     {
-        _guid = ((ulong)type << TypeShift) | (id & IdMask);
+        _guid = ((ulong)type << TYPE_SHIFT) | (id & ID_MASK);
     }
     
     public ulong RawValue => _guid;
 
-    public ObjectType Type => (ObjectType)((_guid & TypeMask) >> TypeShift);
+    public ObjectType Type => (ObjectType)((_guid & TYPE_MASK) >> TYPE_SHIFT);
     
-    public uint Id => (uint)(_guid & IdMask);
+    public uint Id => (uint)(_guid & ID_MASK);
 
     public bool IsEmpty => _guid == 0;
 

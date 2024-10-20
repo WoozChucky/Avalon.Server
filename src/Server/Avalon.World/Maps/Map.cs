@@ -8,19 +8,14 @@ using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Maps;
 
-public class Map
+public class Map(ILoggerFactory loggerFactory)
 {
     public ushort Id { get; set; }
     public MapTemplate Metadata { get; set; }
     public Vector3 Size { get; set; }
     public IReadOnlyCollection<Chunk> Chunks { get; set; }
     
-    private readonly ILogger<Map> _logger;
-    
-    public Map(ILoggerFactory loggerFactory)
-    {
-        _logger = loggerFactory.CreateLogger<Map>();
-    }
+    private readonly ILogger<Map> _logger = loggerFactory.CreateLogger<Map>();
 
     public void AddPlayer(IWorldConnection connection)
     {
@@ -88,8 +83,8 @@ public class Map
             chunk.Neighbors = neighbors;
         }
     }
-    
-    public Chunk? GetChunk(Vector3 position)
+
+    private IChunk? GetChunk(Vector3 position)
     {
         foreach (var chunk in Chunks)
         {
