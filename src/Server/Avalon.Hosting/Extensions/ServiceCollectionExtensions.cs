@@ -3,18 +3,14 @@ using System.Linq;
 using System.Reflection;
 using Avalon.Configuration;
 using Avalon.Hosting.Networking;
-using Avalon.Hosting.PluginTypes;
 using Avalon.Network.Packets;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Abstractions.Attributes;
-using Avalon.Network.Packets.Serialization;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Serilog;
 using Serilog.Events;
-using Weikio.PluginFramework.Abstractions;
-using Weikio.PluginFramework.Microsoft.DependencyInjection;
 
 namespace Avalon.Hosting.Extensions;
 
@@ -22,7 +18,7 @@ public static class ServiceCollectionExtensions
 {
     private const string MessageTemplate = "[{Timestamp:HH:mm:ss.fff}][{ThreadId}][{Level:u3}]{Message:lj} {NewLine:1}{Exception:1}";
     
-    public static IServiceCollection AddCoreServices(this IServiceCollection services, IPluginCatalog pluginCatalog,
+    public static IServiceCollection AddCoreServices(this IServiceCollection services,
         IConfiguration configuration, ComponentType component)
     {
         services.AddCustomLogging(configuration);
@@ -67,13 +63,6 @@ public static class ServiceCollectionExtensions
             
             return ActivatorUtilities.CreateInstance<PacketReader>(provider, [packetTypes]);
         });
-        services.AddSingleton<PluginExecutor>();
-        services.AddPluginFramework()
-            .AddPluginCatalog(pluginCatalog)
-            .AddPluginType<ISingletonPlugin>()
-            .AddPluginType<IConnectionLifetimeListener>()
-            .AddPluginType<IGameTickListener>()
-            .AddPluginType<IPacketOperationListener>();
         
         return services;
     }
