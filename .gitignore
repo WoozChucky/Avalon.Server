@@ -49,3 +49,7 @@ src/Client/Avalon.Client.Native/.DS_Store
 src/Client/Avalon.Client/Content/.DS_Store
 
 src/Server/Avalon.World/.DS_Store
+
+.vs/Avalon/
+
+src/Server/Avalon.Api/Avalon.Api.csproj.user
