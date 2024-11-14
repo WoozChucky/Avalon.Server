@@ -1,28 +1,28 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
-    <PropertyGroup>
-        <TargetFramework>net8.0</TargetFramework>
-        <Nullable>enable</Nullable>
-        <SignAssembly>true</SignAssembly>
-        <AssemblyOriginatorKeyFile>..\..\..\sgKey.snk</AssemblyOriginatorKeyFile>
-        <PublicSign>true</PublicSign>
-        <LangVersion>latest</LangVersion>
-        <ImplicitUsings>true</ImplicitUsings>
-    </PropertyGroup>
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <SignAssembly>true</SignAssembly>
+    <AssemblyOriginatorKeyFile>..\..\..\sgKey.snk</AssemblyOriginatorKeyFile>
+    <PublicSign>true</PublicSign>
+    <LangVersion>latest</LangVersion>
+    <ImplicitUsings>true</ImplicitUsings>
+  </PropertyGroup>
 
-    <ItemGroup>
-        <None Include="..\..\..\sgKey.snk">
-            <Link>sgKey.snk</Link>
-        </None>
-    </ItemGroup>
+  <ItemGroup>
+    <None Include="..\..\..\sgKey.snk">
+      <Link>sgKey.snk</Link>
+    </None>
+  </ItemGroup>
 
-    <ItemGroup>
-      <PackageReference Include="System.ComponentModel.Annotations" Version="5.0.0" />
-    </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="System.ComponentModel.Annotations" Version="5.0.0"/>
+  </ItemGroup>
 
-    <ItemGroup>
-      <ProjectReference Include="..\..\Server\Avalon.World.Public\Avalon.World.Public.csproj" />
-      <ProjectReference Include="..\Avalon.Common\Avalon.Common.csproj" />
-    </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\Server\Avalon.World.Public\Avalon.World.Public.csproj"/>
+    <ProjectReference Include="..\Avalon.Common\Avalon.Common.csproj"/>
+  </ItemGroup>
 
 </Project>

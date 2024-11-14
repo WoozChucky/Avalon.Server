@@ -1,23 +1,23 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
-    <PropertyGroup>
-        <TargetFramework>net8.0</TargetFramework>
-        <ImplicitUsings>enable</ImplicitUsings>
-        <Nullable>enable</Nullable>
-        <SignAssembly>true</SignAssembly>
-        <AssemblyOriginatorKeyFile>..\..\..\sgKey.snk</AssemblyOriginatorKeyFile>
-        <PublicSign>true</PublicSign>
-    </PropertyGroup>
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <SignAssembly>true</SignAssembly>
+    <AssemblyOriginatorKeyFile>..\..\..\sgKey.snk</AssemblyOriginatorKeyFile>
+    <PublicSign>true</PublicSign>
+  </PropertyGroup>
 
-    <ItemGroup>
-        <None Include="..\..\..\sgKey.snk">
-            <Link>sgKey.snk</Link>
-        </None>
-    </ItemGroup>
+  <ItemGroup>
+    <None Include="..\..\..\sgKey.snk">
+      <Link>sgKey.snk</Link>
+    </None>
+  </ItemGroup>
 
-    <ItemGroup>
-      <ProjectReference Include="..\..\Shared\Avalon.Common\Avalon.Common.csproj" />
-      <ProjectReference Include="..\Avalon.Hosting\Avalon.Hosting.csproj" />
-    </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\Shared\Avalon.Common\Avalon.Common.csproj"/>
+    <ProjectReference Include="..\Avalon.Hosting\Avalon.Hosting.csproj"/>
+  </ItemGroup>
 
 </Project>

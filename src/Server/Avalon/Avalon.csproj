@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsAspireHost>true</IsAspireHost>
+    <UserSecretsId>13ebf485-c479-4f1c-9f4f-e70375918011</UserSecretsId>
+  </PropertyGroup>
+
+  <Sdk Name="Aspire.AppHost.Sdk" Version="9.0.0"/>
+
+  <ItemGroup>
+    <PackageReference Include="Aspire.Hosting.AppHost" Version="9.0.0"/>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Avalon.Api\Avalon.Api.csproj"/>
+    <ProjectReference Include="..\Avalon.Server.Auth\Avalon.Server.Auth.csproj"/>
+    <ProjectReference Include="..\Avalon.Server.World\Avalon.Server.World.csproj"/>
+  </ItemGroup>
+
+</Project>

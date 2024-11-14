@@ -1,109 +1,103 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-    <PropertyGroup>
-        <OutputType>Exe</OutputType>
-        <TargetFramework>net8.0</TargetFramework>
-        <ImplicitUsings>enable</ImplicitUsings>
-        <Nullable>enable</Nullable>
-        <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
-        
-        <ApplicationIcon>App.ico</ApplicationIcon>
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
 
-        <Product>Avalon World Server</Product>
-        <ProductName>Avalon</ProductName>
-        <ProductVersion>0.1.0</ProductVersion>
-        
-        <Version>0.1.0</Version>
-        <Description>Avalon World Server Executable</Description>
-        <Copyright>Private</Copyright>
-        
-        <Authors>Nuno Levezinho</Authors>
-        <Company>Nuno Levezinho's Games</Company>
-        
-        <AssemblyName>AvalonWorldServer</AssemblyName>
-        <AssemblyVersion>0.1.0</AssemblyVersion>
-        
-        <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
-        
-        <LangVersion>latest</LangVersion>
-        
-        <SignAssembly>true</SignAssembly>
-        
-        <AssemblyOriginatorKeyFile>..\..\..\sgKey.snk</AssemblyOriginatorKeyFile>
-        
-        <PublicSign>true</PublicSign>
-        
-        <RootNamespace>Avalon.Server.World</RootNamespace>
-    </PropertyGroup>
-    
+    <ApplicationIcon>App.ico</ApplicationIcon>
+
+    <Product>Avalon World Server</Product>
+    <ProductName>Avalon</ProductName>
+    <ProductVersion>0.1.0</ProductVersion>
+
+    <Version>0.1.0</Version>
+    <Description>Avalon World Server Executable</Description>
+    <Copyright>Private</Copyright>
+
+    <Authors>Nuno Levezinho</Authors>
+    <Company>Nuno Levezinho's Games</Company>
+
+    <AssemblyName>AvalonWorldServer</AssemblyName>
+    <AssemblyVersion>0.1.0</AssemblyVersion>
+
+    <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
+
+    <LangVersion>latest</LangVersion>
+
+    <SignAssembly>true</SignAssembly>
+
+    <AssemblyOriginatorKeyFile>..\..\..\sgKey.snk</AssemblyOriginatorKeyFile>
+
+    <PublicSign>true</PublicSign>
+
+    <RootNamespace>Avalon.Server.World</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\vendor\DotRecast\src\DotRecast.Recast.Toolset\DotRecast.Recast.Toolset.csproj"/>
+    <ProjectReference Include="..\..\..\vendor\DotRecast\src\DotRecast.Recast\DotRecast.Recast.csproj"/>
+    <ProjectReference Include="..\..\Shared\Avalon.Common\Avalon.Common.csproj"/>
+    <ProjectReference Include="..\..\Shared\Avalon.Configuration\Avalon.Configuration.csproj"/>
+    <ProjectReference Include="..\..\Shared\Avalon.Metrics\Avalon.Metrics.csproj"/>
+    <ProjectReference Include="..\..\Shared\Avalon.Network.Packets\Avalon.Network.Packets.csproj"/>
+    <ProjectReference Include="..\..\Shared\Avalon.Network.Tcp\Avalon.Network.Tcp.csproj"/>
+    <ProjectReference Include="..\..\Shared\Avalon.Network\Avalon.Network.csproj"/>
+    <ProjectReference Include="..\Avalon.Database.Auth\Avalon.Database.Auth.csproj"/>
+    <ProjectReference Include="..\Avalon.Database.Character\Avalon.Database.Character.csproj"/>
+    <ProjectReference Include="..\Avalon.Database\Avalon.Database.csproj"/>
+    <ProjectReference Include="..\Avalon.Hosting\Avalon.Hosting.csproj"/>
+    <ProjectReference Include="..\Avalon.Database.World\Avalon.Database.World.csproj"/>
+    <ProjectReference Include="..\Avalon.Infrastructure\Avalon.Infrastructure.csproj"/>
+    <ProjectReference Include="..\Avalon.ServiceDefaults\Avalon.ServiceDefaults.csproj"/>
+    <ProjectReference Include="..\Avalon.World\Avalon.World.csproj"/>
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.11">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.Extensions.Configuration" Version="9.0.0"/>
+    <PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="9.0.0"/>
+    <PackageReference Include="Microsoft.Extensions.Configuration.CommandLine" Version="9.0.0"/>
+    <PackageReference Include="Microsoft.Extensions.Configuration.EnvironmentVariables" Version="9.0.0"/>
+    <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="9.0.0"/>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.0"/>
+    <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="9.0.0"/>
+    <PackageReference Include="Serilog.Enrichers.Thread" Version="4.0.0"/>
+    <PackageReference Include="Serilog.Extensions.Logging" Version="8.0.0"/>
+    <PackageReference Include="Serilog.Sinks.Console" Version="6.0.0"/>
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- This references the Scripts project without adding it as a direct dependency -->
+    <ProjectReference Include="..\Avalon.World.Scripts\Avalon.World.Scripts.csproj">
+      <SkipGetTargetFrameworkProperties>true</SkipGetTargetFrameworkProperties>
+      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
+      <OutputItemType>ScriptsOutput</OutputItemType>
+      <Targets>GetTargetPath</Targets>
+    </ProjectReference>
+  </ItemGroup>
+
+  <Target Name="CopyScriptsOutput" DependsOnTargets="Build" AfterTargets="Build">
     <ItemGroup>
-      <ProjectReference Include="..\..\..\vendor\DotRecast\src\DotRecast.Recast.Toolset\DotRecast.Recast.Toolset.csproj" />
-      <ProjectReference Include="..\..\..\vendor\DotRecast\src\DotRecast.Recast\DotRecast.Recast.csproj" />
-      <ProjectReference Include="..\..\Shared\Avalon.Common\Avalon.Common.csproj" />
-      <ProjectReference Include="..\..\Shared\Avalon.Configuration\Avalon.Configuration.csproj" />
-      <ProjectReference Include="..\..\Shared\Avalon.Metrics\Avalon.Metrics.csproj" />
-      <ProjectReference Include="..\..\Shared\Avalon.Network.Packets\Avalon.Network.Packets.csproj" />
-      <ProjectReference Include="..\..\Shared\Avalon.Network.Tcp\Avalon.Network.Tcp.csproj" />
-      <ProjectReference Include="..\..\Shared\Avalon.Network\Avalon.Network.csproj" />
-      <ProjectReference Include="..\Avalon.Database.Auth\Avalon.Database.Auth.csproj" />
-      <ProjectReference Include="..\Avalon.Database.Character\Avalon.Database.Character.csproj" />
-      <ProjectReference Include="..\Avalon.Database\Avalon.Database.csproj" />
-      <ProjectReference Include="..\Avalon.Hosting\Avalon.Hosting.csproj" />
-      <ProjectReference Include="..\Avalon.Database.World\Avalon.Database.World.csproj" />
-      <ProjectReference Include="..\Avalon.Infrastructure\Avalon.Infrastructure.csproj" />
-      <ProjectReference Include="..\Avalon.World\Avalon.World.csproj" />
+      <ScriptsFiles Include="@(ScriptsOutput->'%(TargetPath)')"/>
     </ItemGroup>
+    <Copy SourceFiles="@(ScriptsFiles)" DestinationFolder="Scripts"/>
+  </Target>
 
-    <ItemGroup>
-      <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.10">
-          <PrivateAssets>all</PrivateAssets>
-          <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-      </PackageReference>
-      <PackageReference Include="Microsoft.CodeAnalysis.Common" Version="4.11.0" />
-      <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.11.0" />  
-      <PackageReference Include="Microsoft.Extensions.Configuration" Version="8.0.0" />
-      <PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="8.0.2" />
-      <PackageReference Include="Microsoft.Extensions.Configuration.CommandLine" Version="8.0.0" />
-      <PackageReference Include="Microsoft.Extensions.Configuration.EnvironmentVariables" Version="8.0.0" />
-      <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="8.0.1" />
-      <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.1" />
-      <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="8.0.1" />
-      <PackageReference Include="OpenTelemetry" Version="1.9.0" />
-      <PackageReference Include="OpenTelemetry.AutoInstrumentation.Runtime.Managed" Version="1.8.0" />
-      <PackageReference Include="OpenTelemetry.AutoInstrumentation.Runtime.Native" Version="1.8.0" />
-      <PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.9.0" />
-      <PackageReference Include="protobuf-net" Version="3.2.30" />
-      <PackageReference Include="Serilog.Enrichers.Thread" Version="4.0.0" />
-      <PackageReference Include="Serilog.Extensions.Logging" Version="8.0.0" />
-      <PackageReference Include="Serilog.Sinks.Console" Version="6.0.0" />
-    </ItemGroup>
-
-    <ItemGroup>
-        <!-- This references the Scripts project without adding it as a direct dependency -->
-        <ProjectReference Include="..\Avalon.World.Scripts\Avalon.World.Scripts.csproj">
-            <SkipGetTargetFrameworkProperties>true</SkipGetTargetFrameworkProperties>
-            <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
-            <OutputItemType>ScriptsOutput</OutputItemType>
-            <Targets>GetTargetPath</Targets>
-        </ProjectReference>
-    </ItemGroup>
-
-    <Target Name="CopyScriptsOutput" DependsOnTargets="Build" AfterTargets="Build">
-        <ItemGroup>
-            <ScriptsFiles Include="@(ScriptsOutput->'%(TargetPath)')" />
-        </ItemGroup>
-        <Copy SourceFiles="@(ScriptsFiles)" DestinationFolder="Scripts" />
-    </Target>
-
-    <ItemGroup>
-      <None Include="..\..\..\sgKey.snk">
-        <Link>sgKey.snk</Link>
-      </None>
-      <None Update="appsettings.json">
-        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      </None>
-      <None Include="Maps\**" CopyToOutputDirectory="Always" />
-      <None Include="cert-tcp.pfx" CopyToOutputDirectory="PreserveNewest" />
-    </ItemGroup>
+  <ItemGroup>
+    <None Include="..\..\..\sgKey.snk">
+      <Link>sgKey.snk</Link>
+    </None>
+    <None Update="appsettings.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="Maps\**" CopyToOutputDirectory="Always"/>
+    <None Include="cert-tcp.pfx" CopyToOutputDirectory="PreserveNewest"/>
+  </ItemGroup>
 
 </Project>

@@ -103,6 +103,10 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Executables", "Executables"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Avalon.PluginFramework", "src\Server\Avalon.PluginFramework\Avalon.PluginFramework.csproj", "{D0DA8FD7-E7C7-4341-8082-2545993D339D}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Avalon.ServiceDefaults", "src\Server\Avalon.ServiceDefaults\Avalon.ServiceDefaults.csproj", "{F5082680-87D5-4B0A-962A-1B0843C23C63}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Avalon", "src\Server\Avalon\Avalon.csproj", "{DF84D44D-BE93-4AE8-9291-4F9613EA2A77}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -261,6 +265,14 @@ Global
 		{D0DA8FD7-E7C7-4341-8082-2545993D339D}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{D0DA8FD7-E7C7-4341-8082-2545993D339D}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{D0DA8FD7-E7C7-4341-8082-2545993D339D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F5082680-87D5-4B0A-962A-1B0843C23C63}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F5082680-87D5-4B0A-962A-1B0843C23C63}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F5082680-87D5-4B0A-962A-1B0843C23C63}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F5082680-87D5-4B0A-962A-1B0843C23C63}.Release|Any CPU.Build.0 = Release|Any CPU
+		{DF84D44D-BE93-4AE8-9291-4F9613EA2A77}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{DF84D44D-BE93-4AE8-9291-4F9613EA2A77}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{DF84D44D-BE93-4AE8-9291-4F9613EA2A77}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{DF84D44D-BE93-4AE8-9291-4F9613EA2A77}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -310,6 +322,8 @@ Global
 		{A20E1FEC-07B3-4B74-9CB2-6A234477EEE6} = {AB56BE2C-1E2F-4D48-9A86-7FF8744D7CB4}
 		{78E421D5-8A7C-4DFD-A19F-105B69F0E055} = {68F7CA33-8489-4C26-AF99-CF4FA13327F9}
 		{D0DA8FD7-E7C7-4341-8082-2545993D339D} = {68F7CA33-8489-4C26-AF99-CF4FA13327F9}
+		{F5082680-87D5-4B0A-962A-1B0843C23C63} = {68F7CA33-8489-4C26-AF99-CF4FA13327F9}
+		{DF84D44D-BE93-4AE8-9291-4F9613EA2A77} = {68F7CA33-8489-4C26-AF99-CF4FA13327F9}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {20CD880E-2A9B-4B75-A2C1-3145230B285E}
