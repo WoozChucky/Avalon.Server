@@ -5,25 +5,24 @@ using Avalon.Api.Config;
 using Avalon.Api.Converters;
 using Avalon.Api.Middlewares;
 using Avalon.Api.Services;
-using Avalon.Auth.Database;
 using Avalon.Database.Auth;
 using Avalon.Database.Character;
 using Avalon.Database.World;
 using Avalon.Infrastructure;
-using Avalon.World.Database;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 using Serilog;
 using Serilog.Events;
 using Serilog.Sinks.SystemConsole.Themes;
 
-var builder = WebApplication.CreateBuilder(args);
+WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
-var configuration = builder
+IConfigurationRoot configuration = builder
     .Configuration
-    .AddJsonFile("appsettings.json", optional: true, reloadOnChange: false)
-    .AddEnvironmentVariables().
-    Build();
+    .AddJsonFile("appsettings.json", true, false)
+    .AddEnvironmentVariables().Build();
+
+builder.AddServiceDefaults();
 
 //Add support to logging with SERILOG
 builder.Host.UseSerilog((context, hostConfig) =>
@@ -36,16 +35,15 @@ builder.Host.UseSerilog((context, hostConfig) =>
         .MinimumLevel.Override("Microsoft.EntityFrameworkCore.Database.Command", LogEventLevel.Warning)
         .Enrich.FromLogContext()
         .WriteTo.Console(LogEventLevel.Debug,
-            outputTemplate:
             "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level}] [{SourceContext}] -> {Message}{NewLine}{Exception}",
             theme: AnsiConsoleTheme.Sixteen, applyThemeToRedirectedOutput: true);
 });
 
-var services = builder.Services;
+IServiceCollection services = builder.Services;
 
 // Add services to the container.
 {
-    var applicationConfig = new ApplicationConfig();
+    ApplicationConfig applicationConfig = new();
     configuration.Bind("Application", applicationConfig);
     services.AddSingleton(applicationConfig);
     services.AddSingleton(applicationConfig.Environment!);
@@ -53,10 +51,7 @@ var services = builder.Services;
     services.AddSingleton(applicationConfig.Notification!);
     services.AddSingleton(applicationConfig.Cache!);
 
-    services.Configure<CookiePolicyOptions>(options =>
-    {
-        options.MinimumSameSitePolicy = SameSiteMode.None;
-    });
+    services.Configure<CookiePolicyOptions>(options => { options.MinimumSameSitePolicy = SameSiteMode.None; });
 
     services.AddHealthChecks();
     services.AddCors();
@@ -71,27 +66,22 @@ var services = builder.Services;
             options.JsonSerializerOptions.Converters.Add(new ValueObjectJsonConverterFactory());
         });
 
-    services.AddTelemetry(applicationConfig);
     services.AddAuth(applicationConfig);
     services.AddSwagger();
     services.AddInfrastructure(applicationConfig);
     services.AddAutoMapper(typeof(Program));
 }
 
-var app = builder.Build();
+WebApplication app = builder.Build();
 
 // Configure the HTTP request pipeline.
 {
     if (app.Environment.IsDevelopment())
     {
-
         app.UseDeveloperExceptionPage();
     }
-    else
-    {
-        // app.UseHsts();
-    }
 
+    // app.UseHsts();
     app.UseMiddleware<ExceptionHandlerMiddleware>();
     app.UseMiddleware<RequestLoggingMiddleware>();
 
@@ -120,28 +110,28 @@ var app = builder.Build();
     app.MapControllers();
 }
 
-var logger = app.Services.GetRequiredService<ILogger<Program>>();
+ILogger<Program> logger = app.Services.GetRequiredService<ILogger<Program>>();
 
-await using (var scope = app.Services.CreateAsyncScope())
+await using (AsyncServiceScope scope = app.Services.CreateAsyncScope())
 {
-    var authDb = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
-    var characterDb = scope.ServiceProvider.GetRequiredService<CharacterDbContext>();
-    var worldDb = scope.ServiceProvider.GetRequiredService<WorldDbContext>();
+    AuthDbContext authDb = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
+    CharacterDbContext characterDb = scope.ServiceProvider.GetRequiredService<CharacterDbContext>();
+    WorldDbContext worldDb = scope.ServiceProvider.GetRequiredService<WorldDbContext>();
     logger.LogInformation("Migrating database if necessary...");
     await authDb.Database.MigrateAsync();
     await characterDb.Database.MigrateAsync();
     await worldDb.Database.MigrateAsync();
 }
 
-var workerServices = app.Services.GetServices<IWorkerService>();
-var cts = new CancellationTokenSource();
-foreach (var workerService in workerServices)
+IEnumerable<IWorkerService> workerServices = app.Services.GetServices<IWorkerService>();
+CancellationTokenSource cts = new();
+foreach (IWorkerService workerService in workerServices)
 {
     logger.LogInformation("Starting worker {Worker}", workerService.GetType().Name);
     await workerService.StartWorker(cts.Token);
 }
 
-var cache = app.Services.GetRequiredService<IReplicatedCache>();
+IReplicatedCache cache = app.Services.GetRequiredService<IReplicatedCache>();
 await cache.ConnectAsync();
 
 AppDomain.CurrentDomain.UnhandledException += (_, eventArgs) =>
@@ -154,9 +144,6 @@ AppDomain.CurrentDomain.ProcessExit += (_, _) =>
     cts.Cancel();
     logger.LogInformation("Exited successfully");
 };
-Console.CancelKeyPress += (_, _) =>
-{
-    logger.LogInformation("Ctrl+C was pressed, stopping application...");
-};
+Console.CancelKeyPress += (_, _) => { logger.LogInformation("Ctrl+C was pressed, stopping application..."); };
 
 await app.RunAsync();
