@@ -22,8 +22,6 @@ IConfigurationRoot configuration = builder
     .AddJsonFile("appsettings.json", true, false)
     .AddEnvironmentVariables().Build();
 
-builder.AddServiceDefaults();
-
 //Add support to logging with SERILOG
 builder.Host.UseSerilog((context, hostConfig) =>
 {
@@ -53,7 +51,6 @@ IServiceCollection services = builder.Services;
 
     services.Configure<CookiePolicyOptions>(options => { options.MinimumSameSitePolicy = SameSiteMode.None; });
 
-    services.AddHealthChecks();
     services.AddCors();
 
     services.AddHttpContextAccessor();
@@ -108,8 +105,6 @@ app.MapDefaultEndpoints();
     app.UseAuthentication();
 
     app.UseAuthorization();
-
-    app.MapHealthChecks("/health");
 
     app.MapControllers();
 }
