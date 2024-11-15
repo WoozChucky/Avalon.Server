@@ -72,7 +72,11 @@ IServiceCollection services = builder.Services;
     services.AddAutoMapper(typeof(Program));
 }
 
+builder.AddServiceDefaults();
+
 WebApplication app = builder.Build();
+
+app.MapDefaultEndpoints();
 
 // Configure the HTTP request pipeline.
 {
