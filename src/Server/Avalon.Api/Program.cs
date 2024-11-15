@@ -8,12 +8,10 @@ using Avalon.Api.Services;
 using Avalon.Database.Auth;
 using Avalon.Database.Character;
 using Avalon.Database.World;
+using Avalon.Hosting.Extensions;
 using Avalon.Infrastructure;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
-using Serilog;
-using Serilog.Events;
-using Serilog.Sinks.SystemConsole.Themes;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
@@ -22,22 +20,11 @@ IConfigurationRoot configuration = builder
     .AddJsonFile("appsettings.json", true, false)
     .AddEnvironmentVariables().Build();
 
-//Add support to logging with SERILOG
-builder.Host.UseSerilog((context, hostConfig) =>
-{
-    hostConfig
-        .MinimumLevel.Verbose()
-        .MinimumLevel.Override("Microsoft", LogEventLevel.Information)
-        .MinimumLevel.Override("Microsoft.AspNetCore", LogEventLevel.Warning)
-        .MinimumLevel.Override("Microsoft.AspNetCore.Diagnostics.ExceptionHandlerMiddleware", LogEventLevel.Fatal)
-        .MinimumLevel.Override("Microsoft.EntityFrameworkCore.Database.Command", LogEventLevel.Warning)
-        .Enrich.FromLogContext()
-        .WriteTo.Console(LogEventLevel.Debug,
-            "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level}] [{SourceContext}] -> {Message}{NewLine}{Exception}",
-            theme: AnsiConsoleTheme.Sixteen, applyThemeToRedirectedOutput: true);
-});
+builder.AddServiceDefaults();
 
 IServiceCollection services = builder.Services;
+
+services.AddCustomLogging(configuration);
 
 // Add services to the container.
 {
@@ -68,8 +55,6 @@ IServiceCollection services = builder.Services;
     services.AddInfrastructure(applicationConfig);
     services.AddAutoMapper(typeof(Program));
 }
-
-builder.AddServiceDefaults();
 
 WebApplication app = builder.Build();
 
