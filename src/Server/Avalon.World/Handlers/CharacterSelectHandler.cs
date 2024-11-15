@@ -30,12 +30,13 @@ public class CharacterSelectHandler(
     {
         using Activity? activity =
             DiagnosticsConfig.World.Source.StartActivity(nameof(CharacterSelectHandler), ActivityKind.Server);
-        activity?.SetTag("connection.accountId", connection.AccountId);
-        activity?.SetTag("characterId", packet.CharacterId);
+        activity?.SetTag(nameof(connection.AccountId), connection.AccountId);
+        activity?.SetTag(nameof(packet.CharacterId), packet.CharacterId);
 
         if (connection.AccountId == null)
         {
-            logger.LogWarning("Connection tried to select a character list without being authenticated");
+            logger.LogWarning(
+                "Connection tried to select a character from the character list without being authenticated");
             activity?.AddEvent(new ActivityEvent("UnauthorizedSelectionAttempt"));
             connection.Close();
             return;
@@ -61,8 +62,8 @@ public class CharacterSelectHandler(
         using Activity? activity = DiagnosticsConfig.World.Source.StartActivity(nameof(OnCharacterReceived),
             ActivityKind.Internal,
             _parentActivity?.Context ?? default);
-        activity?.SetTag("connection.accountId", connection.AccountId);
-        activity?.SetTag("characterId", character?.Id);
+        activity?.SetTag(nameof(connection.AccountId), connection.AccountId);
+        activity?.SetTag("CharacterId", character?.Id);
 
         if (character == null)
         {
@@ -156,8 +157,8 @@ public class CharacterSelectHandler(
         using Activity? activity = DiagnosticsConfig.World.Source.StartActivity(nameof(OnInventoryReceived),
             ActivityKind.Internal,
             _parentActivity?.Context ?? default);
-        activity?.SetTag("connection.accountId", connection.AccountId);
-        activity?.SetTag("characterId", character.Id);
+        activity?.SetTag(nameof(connection.AccountId), connection.AccountId);
+        activity?.SetTag("CharacterId", character.Id);
 
         ICharacter? entity = connection.Character;
         if (entity == null)
@@ -183,8 +184,8 @@ public class CharacterSelectHandler(
         using Activity? activity = DiagnosticsConfig.World.Source.StartActivity(nameof(OnSpellsReceived),
             ActivityKind.Internal,
             _parentActivity?.Context ?? default);
-        activity?.SetTag("connection.accountId", connection.AccountId);
-        activity?.SetTag("spells.count", spells.Count);
+        activity?.SetTag(nameof(connection.AccountId), connection.AccountId);
+        activity?.SetTag("Spells.Count", spells.Count);
 
         List<GameSpell> gameSpells = [];
 
