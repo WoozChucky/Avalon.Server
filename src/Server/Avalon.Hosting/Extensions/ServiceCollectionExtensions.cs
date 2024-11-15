@@ -16,7 +16,8 @@ namespace Avalon.Hosting.Extensions;
 
 public static class ServiceCollectionExtensions
 {
-    private const string MESSAGE_TEMPLATE = "[{Timestamp:HH:mm:ss.fff}][{ThreadId}][{Level:u3}]{Message:lj} {NewLine:1}{Exception:1}";
+    private const string MESSAGE_TEMPLATE =
+        "[{Timestamp:HH:mm:ss.fff}][{ThreadId}][{Level:u3}]{Message:lj} {NewLine:1}{Exception:1}";
 
     public static IServiceCollection AddCoreServices(this IServiceCollection services,
         IConfiguration configuration, ComponentType component)
@@ -25,41 +26,57 @@ public static class ServiceCollectionExtensions
         services.AddOptions<HostingConfiguration>().BindConfiguration("Hosting");
         services.AddSingleton<IPacketManager>(provider =>
         {
-            var packetTypes = typeof(Packet).Assembly.GetExportedTypes().Where(type =>
+            Type[] packetTypes = typeof(Packet).Assembly.GetExportedTypes().Where(type =>
             {
-                var packetAttribute = type.GetCustomAttribute<PacketAttribute>();
-                var hasPacketAttribute = packetAttribute != null;
-                if (!hasPacketAttribute) return false;
-                if (packetAttribute!.HandleOn != component) return false;
+                PacketAttribute? packetAttribute = type.GetCustomAttribute<PacketAttribute>();
+                bool hasPacketAttribute = packetAttribute != null;
+                if (!hasPacketAttribute)
+                {
+                    return false;
+                }
+
+                if (packetAttribute!.HandleOn != component)
+                {
+                    return false;
+                }
+
                 return type.IsClass &&
                        type.GetFields(BindingFlags.Public | BindingFlags.Static)
                            .Any(field => field.FieldType == typeof(NetworkPacketType));
             }).ToArray();
 
-            var handlerTypes = AppDomain.CurrentDomain.GetAssemblies()
+            Type[] handlerTypes = AppDomain.CurrentDomain.GetAssemblies()
                 .Where(x => !x.IsDynamic)
                 .SelectMany(x => x.ExportedTypes)
                 .Where(x =>
                     x.IsAssignableTo(typeof(IPacketHandlerNew)) &&
-                    x is { IsClass: true, IsAbstract: false, IsInterface: false })
+                    x is {IsClass: true, IsAbstract: false, IsInterface: false})
                 .OrderBy(x => x.FullName)
                 .ToArray();
-            return ActivatorUtilities.CreateInstance<PacketManager>(provider, [packetTypes, handlerTypes]);
+            return ActivatorUtilities.CreateInstance<PacketManager>(provider, packetTypes, handlerTypes);
         });
         services.AddSingleton<IPacketReader, PacketReader>(provider =>
         {
-            var packetTypes = AppDomain.CurrentDomain.GetAssemblies()
+            Type[] packetTypes = AppDomain.CurrentDomain.GetAssemblies()
                 .Where(x => !x.IsDynamic)
                 .SelectMany(x => x.ExportedTypes.Where(type =>
-            {
-                var packetAttribute = type.GetCustomAttribute<PacketAttribute>();
-                var hasPacketAttribute = packetAttribute != null;
-                if (!hasPacketAttribute) return false;
-                if (packetAttribute!.HandleOn != component) return false;
-                return type.IsClass &&
-                       type.GetFields(BindingFlags.Public | BindingFlags.Static)
-                           .Any(field => field.FieldType == typeof(NetworkPacketType));
-            })).ToArray();
+                {
+                    PacketAttribute? packetAttribute = type.GetCustomAttribute<PacketAttribute>();
+                    bool hasPacketAttribute = packetAttribute != null;
+                    if (!hasPacketAttribute)
+                    {
+                        return false;
+                    }
+
+                    if (packetAttribute!.HandleOn != component)
+                    {
+                        return false;
+                    }
+
+                    return type.IsClass &&
+                           type.GetFields(BindingFlags.Public | BindingFlags.Static)
+                               .Any(field => field.FieldType == typeof(NetworkPacketType));
+                })).ToArray();
 
             return ActivatorUtilities.CreateInstance<PacketReader>(provider, [packetTypes]);
         });
@@ -67,9 +84,9 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
-    private static IServiceCollection AddCustomLogging(this IServiceCollection services, IConfiguration configuration)
+    public static IServiceCollection AddCustomLogging(this IServiceCollection services, IConfiguration configuration)
     {
-        var config = new LoggerConfiguration();
+        LoggerConfiguration config = new();
 
         // add minimum log level for the instances
         config.MinimumLevel.Debug()
@@ -102,7 +119,7 @@ public static class ServiceCollectionExtensions
         config.Enrich.WithExceptionData();
 
         // sink to console
-        config.WriteTo.Console(outputTemplate: MESSAGE_TEMPLATE);
+        config.WriteTo.Console(outputTemplate: MESSAGE_TEMPLATE, applyThemeToRedirectedOutput: true);
 
         config.ReadFrom.Configuration(configuration);
 
