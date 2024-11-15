@@ -56,7 +56,8 @@ public static class Extensions
 
                 metrics.AddAspNetCoreInstrumentation()
                     .AddHttpClientInstrumentation()
-                    .AddRuntimeInstrumentation();
+                    .AddRuntimeInstrumentation()
+                    .AddProcessInstrumentation();
             })
             .WithTracing(tracing =>
             {
@@ -72,7 +73,10 @@ public static class Extensions
                 tracing.AddAspNetCoreInstrumentation()
                     // Uncomment the following line to enable gRPC instrumentation (requires the OpenTelemetry.Instrumentation.GrpcNetClient package)
                     //.AddGrpcClientInstrumentation()
-                    .AddHttpClientInstrumentation();
+                    .AddHttpClientInstrumentation()
+                    .AddAspNetCoreInstrumentation(options => { options.RecordException = true; })
+                    .AddEntityFrameworkCoreInstrumentation(options => { options.SetDbStatementForText = true; })
+                    .AddRedisInstrumentation(options => { options.EnrichActivityWithTimingEvents = true; });
             });
 
         builder.AddOpenTelemetryExporters();
