@@ -1,5 +1,7 @@
+using System.Diagnostics;
 using Avalon.Common;
 using Avalon.Common.Mathematics;
+using Avalon.Common.Telemetry;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Combat;
 using Avalon.World.Maps;
@@ -49,6 +51,11 @@ public class CharacterAttackHandler(ILogger<CharacterAttackHandler> logger, IWor
 
     public override void Execute(WorldConnection connection, CCharacterAttackPacket packet)
     {
+        using Activity? activity = DiagnosticsConfig.World.Source.StartActivity(nameof(CharacterAttackHandler),
+            ActivityKind.Server);
+        activity?.SetTag("connection.accountId", connection.AccountId);
+        activity?.SetTag("connection.characterId", connection.Character?.Guid.Id);
+
         ICharacter attacker = connection.Character!;
 
         uint attackerChunkId = attacker.ChunkId;
@@ -57,6 +64,7 @@ public class CharacterAttackHandler(ILogger<CharacterAttackHandler> logger, IWor
         if (chunk == null)
         {
             logger.LogWarning("Chunk not found");
+            activity?.AddEvent(new ActivityEvent("ChunkNotFound"));
             return;
         }
 
@@ -67,12 +75,14 @@ public class CharacterAttackHandler(ILogger<CharacterAttackHandler> logger, IWor
         if (target == null)
         {
             logger.LogDebug("Target not found");
+            activity?.AddEvent(new ActivityEvent("TargetNotFound"));
             return;
         }
 
         if (!IsFacingTarget(attacker, target))
         {
             logger.LogTrace("Character {Name} is not facing the target {Target}", attacker.Name, target.Guid);
+            activity?.AddEvent(new ActivityEvent("NotFacingTarget"));
             return;
         }
 
@@ -84,6 +94,7 @@ public class CharacterAttackHandler(ILogger<CharacterAttackHandler> logger, IWor
             if (distance >= MAxMeleeAttackRange)
             {
                 logger.LogTrace("Target {Target} out of range ({Distance})", target.Guid, distance);
+                activity?.AddEvent(new ActivityEvent("TargetOutOfRange"));
                 return;
             }
 
@@ -96,6 +107,7 @@ public class CharacterAttackHandler(ILogger<CharacterAttackHandler> logger, IWor
             if (packet.SpellId == null)
             {
                 logger.LogWarning("SpellId is null");
+                activity?.AddEvent(new ActivityEvent("SpellIdNull"));
                 return;
             }
 
@@ -103,6 +115,7 @@ public class CharacterAttackHandler(ILogger<CharacterAttackHandler> logger, IWor
             if (spell == null)
             {
                 logger.LogWarning("Spell not found");
+                activity?.AddEvent(new ActivityEvent("SpellNotFound"));
                 return;
             }
 
@@ -111,11 +124,16 @@ public class CharacterAttackHandler(ILogger<CharacterAttackHandler> logger, IWor
             if (powerPrediction < 0)
             {
                 logger.LogWarning("Not enough power to cast spell");
+                activity?.AddEvent(new ActivityEvent("NotEnoughPower"));
                 return;
             }
 
-            logger.LogWarning("Spell cooldown: {Cooldown} Current: {Timer}", spell.Metadata.Cooldown,
-                spell.CooldownTimer);
+            if (spell.CooldownTimer > 0)
+            {
+                logger.LogWarning("Spell on cooldown, timer: {Timer}", spell.Metadata.Cooldown - spell.CooldownTimer);
+                activity?.AddEvent(new ActivityEvent("SpellOnCooldown"));
+                return;
+            }
 
             if (!attacker.Spells.IsCasting && spell is {CooldownTimer: <= 0, Casting: false} &&
                 chunk.QueueSpell(attacker, target, spell))

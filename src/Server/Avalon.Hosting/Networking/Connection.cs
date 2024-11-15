@@ -34,12 +34,25 @@ public abstract class Connection : BackgroundService, IConnection
 
     private readonly RingBuffer<NetworkPacket> _packetsToSend = new(string.Empty, 100);
 
+    // Timer for calculating rates every second
+    private readonly Timer _rateCalculationTimer;
+
     protected readonly IServerBase Server;
 
     private TcpClient? _client;
     private bool _closed;
     private Stream? _stream;
+    protected long BytesReceivedCount;
+    protected double BytesReceivedRate;
+    protected long BytesSentCount;
+    protected double BytesSentRate;
     protected CancellationTokenSource? CancellationTokenSource;
+    protected int PacketReceivedCount;
+    protected double PacketReceivedRate;
+
+    // Accumulators for packets and bytes
+    protected int PacketSentCount;
+    protected double PacketSentRate;
 
     protected Connection(ILogger logger, IServerBase server, IPacketReader packetReader)
     {
@@ -48,6 +61,9 @@ public abstract class Connection : BackgroundService, IConnection
         Server = server;
         CryptoSession = new AvalonCryptoSession(ServerCrypto.GetKeyPair());
         Id = Guid.NewGuid();
+
+        // Start a timer to calculate and log rates every second
+        _rateCalculationTimer = new Timer(CalculateAndLogRates, null, TimeSpan.Zero, TimeSpan.FromSeconds(1));
     }
 
     protected bool IsConnected => _client?.Connected == true;
@@ -69,7 +85,14 @@ public abstract class Connection : BackgroundService, IConnection
         OnClose(expected);
     }
 
-    public void Send(NetworkPacket packet) => _packetsToSend.Enqueue(packet);
+    public virtual void Send(NetworkPacket packet)
+    {
+        // Accumulate for rate calculation
+        Interlocked.Add(ref BytesSentCount, packet.Size);
+        Interlocked.Increment(ref PacketSentCount);
+
+        _packetsToSend.Enqueue(packet);
+    }
 
     protected void Init(TcpClient client)
     {
@@ -120,6 +143,10 @@ public abstract class Connection : BackgroundService, IConnection
 
                 Packet? payload = _packetReader.Read(packet);
 
+                // Accumulate for rate calculation
+                Interlocked.Add(ref BytesReceivedCount, packet.Size);
+                Interlocked.Increment(ref PacketReceivedCount);
+
                 await OnReceive(packet, payload);
             }
         }
@@ -135,6 +162,21 @@ public abstract class Connection : BackgroundService, IConnection
         }
 
         Close(false);
+    }
+
+    private void CalculateAndLogRates(object? state)
+    {
+        // Calculate rates for packets and bytes sent and received
+        PacketSentRate = PacketSentCount / 1.0; // packets per second
+        PacketReceivedRate = PacketReceivedCount / 1.0; // packets per second
+        BytesSentRate = BytesSentCount / 1.0; // bytes per second
+        BytesReceivedRate = BytesReceivedCount / 1.0; // bytes per second
+
+        // Reset accumulators for the next interval
+        Interlocked.Exchange(ref PacketSentCount, 0);
+        Interlocked.Exchange(ref PacketReceivedCount, 0);
+        Interlocked.Exchange(ref BytesSentCount, 0);
+        Interlocked.Exchange(ref BytesReceivedCount, 0);
     }
 
     private async Task SendPacketsWhenAvailable()

@@ -1,5 +1,7 @@
 using System.Collections.Concurrent;
+using System.Diagnostics.Metrics;
 using System.Net.Sockets;
+using Avalon.Common.Telemetry;
 using Avalon.Common.Threading;
 using Avalon.Common.ValueObjects;
 using Avalon.Hosting.Networking;
@@ -22,11 +24,15 @@ public class WorldConnection : Connection, IWorldConnection
 
     private readonly IWorldServer _server;
     private readonly ConcurrentQueue<(Task, Action)> _taskQueue = new();
+    private ObservableGauge<double> _bytesReceivedRate;
+    private ObservableGauge<double> _bytesSentRate;
 
     private CharacterEntity? _characterEntity;
 
     private long _lastClientTicks;
     private long _lastServerTicks;
+    private ObservableGauge<double> _packetReceivedRate;
+    private ObservableGauge<double> _packetSentRate;
     private long _timeSyncOffset;
 
     public WorldConnection(IWorldServer server, TcpClient client, ILoggerFactory loggerFactory,
@@ -38,6 +44,15 @@ public class WorldConnection : Connection, IWorldConnection
         _worldSessionFilter = new WorldSessionFilter(this);
         _worldMapFilter = new MapSessionFilter(this);
         Init(client);
+
+        _packetSentRate = DiagnosticsConfig.World.Meter.CreateObservableGauge("network.out.packets.rate",
+            () => PacketSentRate, "packets/s", "Rate of packets sent");
+        _packetReceivedRate = DiagnosticsConfig.World.Meter.CreateObservableGauge("network.in.packets.rate",
+            () => PacketReceivedRate, "packets/s", "Rate of packets received");
+        _bytesSentRate = DiagnosticsConfig.World.Meter.CreateObservableGauge("network.out.bytes.rate",
+            () => BytesSentRate, "bytes/s", "Rate of bytes sent");
+        _bytesReceivedRate = DiagnosticsConfig.World.Meter.CreateObservableGauge("network.in.bytes.rate",
+            () => BytesReceivedRate, "bytes/s", "Rate of bytes received");
     }
 
     public AccountId? AccountId { get; set; }
@@ -84,9 +99,8 @@ public class WorldConnection : Connection, IWorldConnection
         uint processedPackets = 0;
         List<WorldPacket> requeuePackets = [];
 
-        WorldPacket? packet = null;
-
-        while (IsConnected && _receiveQueue.Next(out packet, worldPacket => filter.CanProcess(worldPacket.Type)))
+        while (IsConnected &&
+               _receiveQueue.Next(out WorldPacket? packet, worldPacket => filter.CanProcess(worldPacket.Type)))
         {
             if (packet == null)
             {
@@ -124,6 +138,13 @@ public class WorldConnection : Connection, IWorldConnection
 
     public double LastMovementTime { get; set; }
 
+    public override void Send(NetworkPacket packet)
+    {
+        DiagnosticsConfig.World.BytesSent.Add(packet.Size);
+        DiagnosticsConfig.World.PacketsSent.Add(1);
+        base.Send(packet);
+    }
+
     private async Task TimeSyncWorker()
     {
         bool firstIteration = true;
@@ -158,6 +179,9 @@ public class WorldConnection : Connection, IWorldConnection
 
     protected override async Task OnReceive(NetworkPacket packet, Packet? payload)
     {
+        DiagnosticsConfig.World.BytesReceived.Add(packet.Size);
+        DiagnosticsConfig.World.PacketsReceived.Add(1);
+
         if (_worldSessionFilter.CanProcess(packet.Header.Type) || _worldMapFilter.CanProcess(packet.Header.Type))
         {
             _receiveQueue.Add(new WorldPacket {Type = packet.Header.Type, Payload = payload});
@@ -196,7 +220,7 @@ public class WorldConnection : Connection, IWorldConnection
 
     public void AddQueryCallback(Task task, Action callback) => _taskQueue.Enqueue((task, callback));
 
-    public void ProcessQueryCallbacks()
+    private void ProcessQueryCallbacks()
     {
         while (_taskQueue.TryDequeue(out (Task, Action) item))
         {
@@ -224,7 +248,8 @@ public class WorldConnection : Connection, IWorldConnection
                 else
                 {
                     // Handle errors
-                    _logger.LogError($"Error processing task: {task.Exception}");
+                    _logger.LogError(task?.Exception, "Error processing task: {ExceptionMessage}",
+                        task?.Exception?.Message);
                 }
             }
             else

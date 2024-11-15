@@ -5,31 +5,49 @@ namespace Avalon.Common.Telemetry;
 
 public static class DiagnosticsConfig
 {
-    public static class Server
+    public static class World
     {
-        public const string ServiceName = "avalon-server";
-        public static Meter Meter = new Meter(ServiceName);
+        private const string ServiceName = "world-server";
+        public static readonly Meter Meter = new(ServiceName);
 
-        public static Histogram<double> PacketSentRate = Meter.CreateHistogram<double>("network.out.packets.rate");
-        public static Histogram<double> PacketReceivedRate = Meter.CreateHistogram<double>("network.in.packets.rate");
+        public static Counter<long> PacketsReceived =
+            Meter.CreateCounter<long>("network.in.packets", "packets", "Number of packets received");
 
-        public static Histogram<double> BytesSentRate = Meter.CreateHistogram<double>("network.out.bytes.rate");
-        public static Histogram<double> BytesReceivedRate = Meter.CreateHistogram<double>("network.in.bytes.rate");
+        public static Counter<long> PacketsSent =
+            Meter.CreateCounter<long>("network.out.packets", "packets", "Number of packets sent");
 
-        public static Counter<long> PacketsReceived = Meter.CreateCounter<long>("network.in.packets");
-        public static Counter<long> PacketsSent = Meter.CreateCounter<long>("network.out.packets");
+        public static Counter<long> BytesReceived =
+            Meter.CreateCounter<long>("network.in.bytes", "bytes", "Number of bytes received");
 
-        public static Counter<long> BytesReceived = Meter.CreateCounter<long>("network.in.bytes");
-        public static Counter<long> BytesSent = Meter.CreateCounter<long>("network.out.bytes");
+        public static Counter<long> BytesSent =
+            Meter.CreateCounter<long>("network.out.bytes", "bytes", "Number of bytes sent");
 
         //public static ObservableGauge<long> ConnectedClients = Meter.CreateObservableGauge<long>("network.clients.connected");
 
-        public static ActivitySource Source = new ActivitySource(ServiceName);
+        public static ActivitySource Source = new(ServiceName);
+    }
+
+    public static class Auth
+    {
+        private const string ServiceName = "auth-server";
+        public static readonly Meter Meter = new(ServiceName);
+
+        public static Counter<long> PacketsReceived =
+            Meter.CreateCounter<long>("network.in.packets", "packets", "Number of packets received");
+
+        public static Counter<long> PacketsSent =
+            Meter.CreateCounter<long>("network.out.packets", "packets", "Number of packets sent");
+
+        public static Counter<long> BytesReceived =
+            Meter.CreateCounter<long>("network.in.bytes", "bytes", "Number of bytes received");
+
+        public static Counter<long> BytesSent =
+            Meter.CreateCounter<long>("network.out.bytes", "bytes", "Number of bytes sent");
     }
 
     public static class Api
     {
         public const string ServiceName = "avalon-api";
-        public static Meter Meter = new Meter(ServiceName);
+        public static Meter Meter = new(ServiceName);
     }
 }

@@ -1,7 +1,6 @@
 using System;
 using System.Buffers;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -26,8 +25,8 @@ public interface IPacketReader
 
 public class PacketReader : IPacketReader
 {
-    private readonly ILogger<PacketReader> _logger;
     private readonly int _bufferSize;
+    private readonly ILogger<PacketReader> _logger;
 
     private readonly Dictionary<NetworkPacketType, (Type packet, MethodInfo deserialize)> _packetTypes = new();
 
@@ -36,28 +35,31 @@ public class PacketReader : IPacketReader
         _logger = loggerFactory.CreateLogger<PacketReader>();
         _bufferSize = 4096; //TODO: Get from configuration
 
-        var genericDeserializeMethod = typeof(Serializer).GetMethods()
-            .Single(m => m is { Name: "Deserialize", IsGenericMethod: true } && m.GetParameters().Length == 3 && m.GetParameters()[0].ParameterType == typeof(ReadOnlyMemory<byte>));
+        MethodInfo genericDeserializeMethod = typeof(Serializer).GetMethods()
+            .Single(m =>
+                m is {Name: "Deserialize", IsGenericMethod: true} && m.GetParameters().Length == 3 &&
+                m.GetParameters()[0].ParameterType == typeof(ReadOnlyMemory<byte>));
 
-        foreach (var packetType in packetTypes)
+        foreach (Type packetType in packetTypes)
         {
-            var networkPacketTypeInfo = packetType.GetFields(BindingFlags.Public | BindingFlags.Static)
+            FieldInfo? networkPacketTypeInfo = packetType.GetFields(BindingFlags.Public | BindingFlags.Static)
                 .FirstOrDefault(field => field.FieldType == typeof(NetworkPacketType));
             if (networkPacketTypeInfo == null)
             {
                 _logger.LogWarning("Packet type {PacketType} does not have a NetworkPacketType field", packetType);
             }
 
-            var networkPacketType = (NetworkPacketType)networkPacketTypeInfo!.GetValue(null)!;
+            NetworkPacketType networkPacketType = (NetworkPacketType)networkPacketTypeInfo!.GetValue(null)!;
 
-            var closedDeserializeMethod = genericDeserializeMethod.MakeGenericMethod(packetType);
+            MethodInfo closedDeserializeMethod = genericDeserializeMethod.MakeGenericMethod(packetType);
             _packetTypes.Add(networkPacketType, (packetType, closedDeserializeMethod));
         }
     }
 
-    public async IAsyncEnumerable<NetworkPacket> EnumerateAsync(Stream stream, [EnumeratorCancellation] CancellationToken token = default)
+    public async IAsyncEnumerable<NetworkPacket> EnumerateAsync(Stream stream,
+        [EnumeratorCancellation] CancellationToken token = default)
     {
-        var buffer = ArrayPool<byte>.Shared.Rent(_bufferSize);
+        byte[] buffer = ArrayPool<byte>.Shared.Rent(_bufferSize);
 
         try
         {
@@ -65,7 +67,7 @@ public class PacketReader : IPacketReader
             {
                 // read packet size
                 int packetSize;
-                var offset = 0;
+                int offset = 0;
 
                 try
                 {
@@ -89,7 +91,8 @@ public class PacketReader : IPacketReader
 
                 if (packetSize > _bufferSize)
                 {
-                    _logger.LogError("Packet size {PacketSize} exceeds buffer capacity {BufferSize}", packetSize, _bufferSize);
+                    _logger.LogError("Packet size {PacketSize} exceeds buffer capacity {BufferSize}", packetSize,
+                        _bufferSize);
                     break;
                 }
 
@@ -109,7 +112,7 @@ public class PacketReader : IPacketReader
                     break;
                 }
 
-                var packetBuffer = buffer.AsMemory(offset, packetSize);
+                Memory<byte> packetBuffer = buffer.AsMemory(offset, packetSize);
 
                 yield return NetworkPacket.Deserialize(packetBuffer);
             }
@@ -120,29 +123,27 @@ public class PacketReader : IPacketReader
         }
     }
 
-    public void Decrypt(NetworkPacket packet, DecryptFunc decryptFunc)
-    {
-        packet.Payload = decryptFunc(packet.Payload);
-    }
+    public void Decrypt(NetworkPacket packet, DecryptFunc decryptFunc) => packet.Payload = decryptFunc(packet.Payload);
 
     public Packet? Read(NetworkPacket packet)
     {
-        if (!_packetTypes.TryGetValue(packet.Header.Type, out var p))
+        if (!_packetTypes.TryGetValue(packet.Header.Type, out (Type packet, MethodInfo deserialize) p))
         {
             _logger.LogWarning("Unknown packet type {PacketType}", packet.Header.Type);
             return null;
         }
 
-        var payloadMemory = new ReadOnlyMemory<byte>(packet.Payload);
-        var payload = p.deserialize.Invoke(null, new object?[] { payloadMemory, null, null });
+        ReadOnlyMemory<byte> payloadMemory = new(packet.Payload);
+        object? payload = p.deserialize.Invoke(null, new object?[] {payloadMemory, null, null});
         return payload as Packet;
     }
 
-    private async ValueTask<(int packetSize, int offset)> ReadVarintAsync(Stream stream, byte[] buffer, CancellationToken token = default)
+    private async ValueTask<(int packetSize, int offset)> ReadVarintAsync(Stream stream, byte[] buffer,
+        CancellationToken token = default)
     {
-        var packetSize = 0;
-        var shift = 0;
-        var index = 0;
+        int packetSize = 0;
+        int shift = 0;
+        int index = 0;
 
         while (true)
         {
@@ -153,14 +154,14 @@ public class PacketReader : IPacketReader
             }
 
             // Read one byte
-            var bytesRead = await stream.ReadAsync(buffer.AsMemory(index, 1), token);
+            int bytesRead = await stream.ReadAsync(buffer.AsMemory(index, 1), token);
             if (bytesRead == 0)
             {
                 throw new EndOfStreamException("Stream ended while reading varint.");
             }
 
             // Extract the 7 least significant bits
-            var currentByte = buffer[index];
+            byte currentByte = buffer[index];
             packetSize |= (currentByte & 0x7F) << shift;
 
             // Check MSB to see if more bytes are part of the size

@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using Avalon.Common.Telemetry;
 using Avalon.Database.Character.Repositories;
 using Avalon.Domain.Characters;
 using Avalon.Network.Packets.Abstractions;
@@ -12,12 +14,18 @@ public class CharacterListHandler(
     ICharacterRepository characterRepository,
     IWorld world) : WorldPacketHandler<CCharacterListPacket>
 {
+    private Activity? _parentActivity;
 
     public override void Execute(WorldConnection connection, CCharacterListPacket packet)
     {
+        using Activity? activity =
+            DiagnosticsConfig.World.Source.StartActivity(nameof(CharacterListHandler), ActivityKind.Server);
+        activity?.SetTag("connection.accountId", connection.AccountId);
+
         if (connection.AccountId == null)
         {
             logger.LogWarning("Connection tried to request character list without being authenticated");
+            activity?.AddEvent(new ActivityEvent("UnauthorizedRequestAttempt"));
             connection.Close();
             return;
         }
@@ -25,19 +33,25 @@ public class CharacterListHandler(
         if (connection.Character != null)
         {
             logger.LogWarning("Connection tried to request character list while already having a character selected");
+            activity?.AddEvent(new ActivityEvent("DuplicateRequestAttempt"));
             connection.Close();
             return;
         }
 
-        connection.AddQueryCallback(characterRepository.FindByAccountAsync(connection.AccountId), characters =>
-        {
-            OnCharactersReceived(connection, characters);
-        });
+        connection.AddQueryCallback(characterRepository.FindByAccountAsync(connection.AccountId),
+            characters => { OnCharactersReceived(connection, characters); });
+
+        _parentActivity = activity;
     }
 
     private void OnCharactersReceived(WorldConnection connection, IList<Character> characters)
     {
-        var characterInfo = characters.Select<Character, CharacterInfo>(
+        using Activity? activity = DiagnosticsConfig.World.Source.StartActivity(nameof(OnCharactersReceived),
+            ActivityKind.Internal, _parentActivity?.Context ?? default);
+        activity?.SetTag("connection.accountId", connection.AccountId);
+        activity?.SetTag("character.count", characters.Count);
+
+        CharacterInfo[] characterInfo = characters.Select<Character, CharacterInfo>(
             character => new CharacterInfo
             {
                 CharacterId = character.Id!.Value,
@@ -46,10 +60,10 @@ public class CharacterListHandler(
                 Class = (ushort)character.Class,
                 X = character.X,
                 Y = character.Y,
-                Z = character.Z,
+                Z = character.Z
             }).ToArray();
 
-        var result = SCharacterListPacket.Create(
+        NetworkPacket result = SCharacterListPacket.Create(
             characterInfo.Length,
             world.Configuration.MaxCharactersPerAccount,
             characterInfo,
