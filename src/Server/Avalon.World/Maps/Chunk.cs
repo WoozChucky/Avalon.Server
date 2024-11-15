@@ -83,11 +83,20 @@ public class Chunk : IChunk
             switch (addedObjectGuid.Type)
             {
                 case ObjectType.Character:
-                    //if (character.Guid == addedObjectGuid) continue;
-                    writer.Write(_characters[addedObjectGuid], GameEntityFields.All);
+                    if (!_characters.TryGetValue(addedObjectGuid, out ICharacter? addedCharacter))
+                    {
+                        continue;
+                    }
+
+                    writer.Write(addedCharacter, GameEntityFields.All);
                     break;
                 case ObjectType.Creature:
-                    writer.Write(_creatures[addedObjectGuid], GameEntityFields.All);
+                    if (!_creatures.TryGetValue(addedObjectGuid, out ICreature? addedCreature))
+                    {
+                        continue;
+                    }
+
+                    writer.Write(addedCreature, GameEntityFields.All);
                     break;
                 case ObjectType.SpellProjectile:
                     IWorldObject? spell = _spellSystem.GetSpell(addedObjectGuid);
@@ -122,11 +131,21 @@ public class Chunk : IChunk
             {
                 case ObjectType.Character:
                     //if (character.Guid == updatedObject.Guid) continue;
-                    writer.Write(_characters[updatedObject.Guid],
+                    if (!_characters.TryGetValue(updatedObject.Guid, out ICharacter? updatedCharacter))
+                    {
+                        continue;
+                    }
+
+                    writer.Write(updatedCharacter,
                         GameEntityFields.CharacterUpdate); // can and should pass updatedObject.Fields
                     break;
                 case ObjectType.Creature:
-                    writer.Write(_creatures[updatedObject.Guid],
+                    if (!_creatures.TryGetValue(updatedObject.Guid, out ICreature? updatedCreature))
+                    {
+                        continue;
+                    }
+
+                    writer.Write(updatedCreature,
                         GameEntityFields
                             .CreatureUpdate); // an and should pass updatedObject.Fields or GameEntityFields.CreatureUpdate
                     break;
