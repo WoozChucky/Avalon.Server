@@ -20,7 +20,7 @@ public class CharacterListHandler(
     {
         using Activity? activity =
             DiagnosticsConfig.World.Source.StartActivity(nameof(CharacterListHandler), ActivityKind.Server);
-        activity?.SetTag("connection.accountId", connection.AccountId);
+        activity?.SetTag(nameof(connection.AccountId), connection.AccountId);
 
         if (connection.AccountId == null)
         {
@@ -48,8 +48,8 @@ public class CharacterListHandler(
     {
         using Activity? activity = DiagnosticsConfig.World.Source.StartActivity(nameof(OnCharactersReceived),
             ActivityKind.Internal, _parentActivity?.Context ?? default);
-        activity?.SetTag("connection.accountId", connection.AccountId);
-        activity?.SetTag("character.count", characters.Count);
+        activity?.SetTag(nameof(connection.AccountId), connection.AccountId);
+        activity?.SetTag("Characters.Count", characters.Count);
 
         CharacterInfo[] characterInfo = characters.Select<Character, CharacterInfo>(
             character => new CharacterInfo
