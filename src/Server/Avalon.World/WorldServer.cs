@@ -1,7 +1,9 @@
 using System.Collections.Concurrent;
 using System.Collections.Immutable;
 using System.Diagnostics;
+using System.Diagnostics.Metrics;
 using System.Reflection;
+using Avalon.Common.Telemetry;
 using Avalon.Common.Utils;
 using Avalon.Common.ValueObjects;
 using Avalon.Configuration;
@@ -50,7 +52,7 @@ public interface IWorldServer
 
 public class WorldServer : ServerBase<WorldConnection>, IWorldServer
 {
-    private static readonly TimeSpan MinUpdateInterval = TimeSpan.FromMilliseconds(10); // Example minimum interval
+    private static readonly TimeSpan MinUpdateInterval = TimeSpan.FromMilliseconds(16.6666667);
     private readonly IReplicatedCache _cache;
     private readonly ICreatureSpawner _creatureSpawner;
     private readonly Stopwatch _gameTime = new();
@@ -65,12 +67,12 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
     private readonly Stopwatch _serverTimer = new();
     private readonly Stopwatch _stopwatch = Stopwatch.StartNew();
     private readonly World _world;
-    private DateTime _lastTpsCalculationTime = DateTime.Now;
-
+    private long _lastTpsCalculationMs = TimeUtils.GetMsTime();
     private uint _realCurrentTime;
     private uint _realPreviousTime = TimeUtils.GetMsTime();
+    private long _tickCount;
 
-    private int _tickCount;
+    private ObservableGauge<double> _tickRate;
     private double _ticksPerSecond;
 
     public WorldServer(IPacketManager packetManager,
@@ -107,6 +109,9 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
             _logger.LogInformation("Registered packet handler {HandlerType} for packet type {PacketType}", handlerType,
                 packetType);
         }
+
+        _tickRate = DiagnosticsConfig.World.Meter.CreateObservableGauge(
+            "world.tick.rate", () => _ticksPerSecond, "tps", "World tick rate per second");
     }
 
     public new ImmutableArray<IWorldConnection> Connections =>
@@ -174,11 +179,16 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         if (diff < MinUpdateInterval.TotalMilliseconds)
         {
             double targetTime = _stopwatch.ElapsedMilliseconds + (MinUpdateInterval.TotalMilliseconds - diff);
-
             while (_stopwatch.ElapsedMilliseconds < targetTime)
             {
-                await Task.Delay(
-                    1); // Using 1ms to yield control and prevent tight loop, actual wait time is determined by _stopwatch
+                if (_stopwatch.ElapsedMilliseconds + 1 < targetTime)
+                {
+                    await Task.Yield(); // Yield control briefly for longer waits
+                }
+                else
+                {
+                    Thread.SpinWait(1); // Fine-grained spinning for short waits
+                }
             }
 
             _realCurrentTime = TimeUtils.GetMsTime();
@@ -195,30 +205,23 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
 
         _realPreviousTime = _realCurrentTime;
 
-        //TODO(Nuno): Make this configurable
-        if (false /* Throttle TPS calculation */)
-#pragma warning disable CS0162 // Unreachable code detected
-        {
-            // Increment the tick counter
-            _tickCount++;
+        // Tick Rate Calculations
+        _tickCount++;
+        double elapsedSeconds = (_stopwatch.ElapsedMilliseconds - _lastTpsCalculationMs) / 1000.0;
 
-            // Calculate TPS every second
-            if ((DateTime.Now - _lastTpsCalculationTime).TotalSeconds >= 1)
-            {
-                _ticksPerSecond = _tickCount / (DateTime.Now - _lastTpsCalculationTime).TotalSeconds;
-                // _logger.LogInformation("Ticks Per Second (TPS): {TPS}", ticksPerSecond);
-                _tickCount = 0;
-                _lastTpsCalculationTime = DateTime.Now;
-            }
+        if (elapsedSeconds >= 1.0)
+        {
+            _ticksPerSecond = _tickCount / elapsedSeconds;
+            _tickCount = 0;
+            _lastTpsCalculationMs = _stopwatch.ElapsedMilliseconds;
         }
-#pragma warning restore CS0162 // Unreachable code detected
     }
 
     private void Update(TimeSpan elapsedTime)
     {
         foreach (IWorldConnection worldConnection in Connections)
         {
-            WorldSessionFilter filter = new WorldSessionFilter(worldConnection);
+            WorldSessionFilter filter = new(worldConnection);
 
             worldConnection.Update(elapsedTime, filter);
         }

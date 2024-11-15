@@ -1,4 +1,6 @@
+using System.Diagnostics;
 using Avalon.Common.Mathematics;
+using Avalon.Common.Telemetry;
 using Avalon.Database.Character.Repositories;
 using Avalon.Domain.Characters;
 using Avalon.Domain.World;
@@ -8,7 +10,6 @@ using Avalon.World.Entities;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Spells;
-using Avalon.World.Public.Units;
 using Avalon.World.Spells;
 using Microsoft.Extensions.Logging;
 
@@ -23,11 +24,19 @@ public class CharacterSelectHandler(
     ICharacterSpellRepository characterSpellRepository,
     IWorld world) : WorldPacketHandler<CCharacterSelectedPacket>
 {
+    private Activity? _parentActivity;
+
     public override void Execute(WorldConnection connection, CCharacterSelectedPacket packet)
     {
+        using Activity? activity =
+            DiagnosticsConfig.World.Source.StartActivity(nameof(CharacterSelectHandler), ActivityKind.Server);
+        activity?.SetTag("connection.accountId", connection.AccountId);
+        activity?.SetTag("characterId", packet.CharacterId);
+
         if (connection.AccountId == null)
         {
             logger.LogWarning("Connection tried to select a character list without being authenticated");
+            activity?.AddEvent(new ActivityEvent("UnauthorizedSelectionAttempt"));
             connection.Close();
             return;
         }
@@ -35,6 +44,7 @@ public class CharacterSelectHandler(
         if (connection.Character != null)
         {
             logger.LogWarning("Connection tried to select a character list while already having a character selected");
+            activity?.AddEvent(new ActivityEvent("DuplicateSelectionAttempt"));
             connection.Close();
             return;
         }
@@ -42,13 +52,22 @@ public class CharacterSelectHandler(
         connection.AddQueryCallback(
             characterRepository.FindByIdAndAccountAsync(packet.CharacterId, connection.AccountId),
             character => { OnCharacterReceived(connection, character); });
+
+        _parentActivity = activity;
     }
 
     private void OnCharacterReceived(WorldConnection connection, Character? character)
     {
+        using Activity? activity = DiagnosticsConfig.World.Source.StartActivity(nameof(OnCharacterReceived),
+            ActivityKind.Internal,
+            _parentActivity?.Context ?? default);
+        activity?.SetTag("connection.accountId", connection.AccountId);
+        activity?.SetTag("characterId", character?.Id);
+
         if (character == null)
         {
             logger.LogWarning("Character not found for account {AccountId}", connection.AccountId);
+            activity?.AddEvent(new ActivityEvent("CharacterNotFound"));
             return;
         }
 
@@ -60,7 +79,7 @@ public class CharacterSelectHandler(
         ulong requiredExperience = world.Data.CharacterLevelExperiences.FirstOrDefault(c => c.Level == character.Level)
             ?.Experience ?? 0;
 
-        CharacterEntity entity = new CharacterEntity(loggerFactory, connection, character)
+        CharacterEntity entity = new(loggerFactory, connection, character)
         {
             Data = character,
             Position = new Vector3(character.X, character.Y, character.Z),
@@ -91,10 +110,11 @@ public class CharacterSelectHandler(
         {
             connection.Character = null;
             logger.LogError(e, "Error while spawning player {CharacterId}", character.Id);
+            activity?.AddEvent(new ActivityEvent("SpawnPlayerError"));
             return;
         }
 
-        CharacterInfo characterInfo = new CharacterInfo
+        CharacterInfo characterInfo = new()
         {
             CharacterId = character.Id,
             Name = character.Name,
@@ -109,7 +129,7 @@ public class CharacterSelectHandler(
             RequiredExperience = entity.RequiredExperience
         };
 
-        MapInfo mapInfo = new MapInfo
+        MapInfo mapInfo = new()
         {
             MapId = character.Map,
             InstanceId = Guid.Parse(character.InstanceId),
@@ -127,15 +147,23 @@ public class CharacterSelectHandler(
             connection.AddQueryCallback(characterInventoryRepository.GetByCharacterIdAsync(character.Id),
                 items => { OnInventoryReceived(connection, character, items); });
         });
+        _parentActivity = activity;
     }
 
     private void OnInventoryReceived(WorldConnection connection, Character character,
         IReadOnlyCollection<CharacterInventory> items)
     {
+        using Activity? activity = DiagnosticsConfig.World.Source.StartActivity(nameof(OnInventoryReceived),
+            ActivityKind.Internal,
+            _parentActivity?.Context ?? default);
+        activity?.SetTag("connection.accountId", connection.AccountId);
+        activity?.SetTag("characterId", character.Id);
+
         ICharacter? entity = connection.Character;
         if (entity == null)
         {
             logger.LogWarning("Character entity is null for account {AccountId}", connection.AccountId);
+            activity?.AddEvent(new ActivityEvent("CharacterEntityNull"));
             return;
         }
 
@@ -147,11 +175,18 @@ public class CharacterSelectHandler(
 
         connection.AddQueryCallback(characterSpellRepository.GetCharacterSpellsAsync(character.Id),
             spells => { OnSpellsReceived(connection, spells); });
+        _parentActivity = activity;
     }
 
     private void OnSpellsReceived(WorldConnection connection, IReadOnlyCollection<CharacterSpell> spells)
     {
-        List<GameSpell> gameSpells = new List<GameSpell>();
+        using Activity? activity = DiagnosticsConfig.World.Source.StartActivity(nameof(OnSpellsReceived),
+            ActivityKind.Internal,
+            _parentActivity?.Context ?? default);
+        activity?.SetTag("connection.accountId", connection.AccountId);
+        activity?.SetTag("spells.count", spells.Count);
+
+        List<GameSpell> gameSpells = [];
 
         foreach (CharacterSpell characterSpell in spells)
         {
@@ -159,10 +194,11 @@ public class CharacterSelectHandler(
             if (template == null)
             {
                 logger.LogWarning("Spell template not found for spell {SpellId}", characterSpell.SpellId);
+                activity?.AddEvent(new ActivityEvent("SpellTemplateNotFound"));
                 continue;
             }
 
-            GameSpell gameSpell = new GameSpell
+            GameSpell gameSpell = new()
             {
                 SpellId = characterSpell.SpellId,
                 Metadata = new SpellMetadata

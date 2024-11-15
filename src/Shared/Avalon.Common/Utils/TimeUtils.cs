@@ -8,16 +8,16 @@ public static class TimeUtils
 
     public static TimeSpan GetApplicationStartTime() => s_applicationStartTime.Elapsed;
 
-    public static TimeSpan GetTimeMS() => s_applicationStartTime.Elapsed;
+    public static TimeSpan GetTimeMs() => s_applicationStartTime.Elapsed;
 
-    public static TimeSpan GetMSTimeDiff(TimeSpan oldMSTime, TimeSpan newMSTime)
+    public static TimeSpan GetMsTimeDiff(TimeSpan oldMsTime, TimeSpan newMsTime)
     {
-        if (oldMSTime > newMSTime)
+        if (oldMsTime > newMsTime)
         {
-            return oldMSTime - newMSTime;
+            return oldMsTime - newMsTime;
         }
 
-        return newMSTime - oldMSTime;
+        return newMsTime - oldMsTime;
     }
 
     public static uint GetMsTime() => (uint)s_applicationStartTime.ElapsedMilliseconds;
@@ -35,13 +35,13 @@ public static class TimeUtils
 
     public static uint GetMsTimeDiff(uint oldMsTime, TimeSpan newTime)
     {
-        uint newMSTime = (uint)newTime.TotalMilliseconds;
-        return GetMsTimeDiff(oldMsTime, newMSTime);
+        uint newMsTime = (uint)newTime.TotalMilliseconds;
+        return GetMsTimeDiff(oldMsTime, newMsTime);
     }
 
     public static uint GetMsTimeDiffToNow(uint oldMsTime) => GetMsTimeDiff(oldMsTime, GetMsTime());
 
-    public static TimeSpan GetMsTimeDiffToNow(TimeSpan oldMsTime) => GetMSTimeDiff(oldMsTime, GetTimeMS());
+    public static TimeSpan GetMsTimeDiffToNow(TimeSpan oldMsTime) => GetMsTimeDiff(oldMsTime, GetTimeMs());
 
     public static long GetEpochTime() => DateTimeOffset.UtcNow.ToUnixTimeSeconds();
 }

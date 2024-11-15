@@ -1,6 +1,4 @@
-using System.Net.Security;
 using System.Net.Sockets;
-using System.Security.Authentication.ExtendedProtection;
 using Avalon.Common.Telemetry;
 using Avalon.Network.Packets.Abstractions;
 using Microsoft.Extensions.Logging;
@@ -10,19 +8,9 @@ namespace Avalon.Network;
 
 public class TcpClient : IRemoteSource
 {
-    public long RoundTripTime => 0;
-    public string RemoteAddress => Socket.RemoteEndPoint.ToString();
-
-    public Socket Socket { get; }
-    public Stream Stream { get; }
-
-    public bool Authenticated { get; }
-
-    public bool Connected => Stream.CanWrite;
+    private const string Direction = "OUT";
 
     private readonly ILogger<TcpClient> _logger;
-
-    private const string Direction = "OUT";
 
     public TcpClient(ILoggerFactory loggerFactory, Socket socket, Stream stream)
     {
@@ -32,6 +20,15 @@ public class TcpClient : IRemoteSource
         Authenticated = false;
     }
 
+    public Socket Socket { get; }
+    public Stream Stream { get; }
+
+    public bool Authenticated { get; }
+
+    public bool Connected => Stream.CanWrite;
+    public long RoundTripTime => 0;
+    public string RemoteAddress => Socket.RemoteEndPoint.ToString();
+
     public Task SendAsync(NetworkPacket packet)
     {
         if (!Connected)
@@ -39,13 +36,15 @@ public class TcpClient : IRemoteSource
             throw new IOException("Client is not connected");
         }
 
-        DiagnosticsConfig.Server.BytesSent.Add(packet.Size);
-        DiagnosticsConfig.Server.PacketsSent.Add(1, new KeyValuePair<string, object?>(
+        DiagnosticsConfig.World.BytesSent.Add(packet.Size);
+        DiagnosticsConfig.World.PacketsSent.Add(1, new KeyValuePair<string, object?>(
             nameof(NetworkPacketType), packet.Header.Type
         ));
 
         if (packet.Header.Type != NetworkPacketType.SMSG_PLAYER_POSITION_UPDATE)
+        {
             _logger.LogDebug("[{Direction}] {PacketType}", Direction, packet.Header.Type);
+        }
 
         Serializer.SerializeWithLengthPrefix(Stream, packet, PrefixStyle.Base128);
         return Task.CompletedTask;
