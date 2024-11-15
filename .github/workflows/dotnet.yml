@@ -55,7 +55,7 @@ jobs:
         id: meta-world
         uses: docker/metadata-action@v4.6.0
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/game
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/world
           tags: |
             type=schedule
             type=ref,event=branch
