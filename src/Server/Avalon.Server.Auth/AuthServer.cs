@@ -35,7 +35,7 @@ public class AuthServer(
     {
         byte[] serverCertBytes = await File.ReadAllBytesAsync(_securityOptions.CertificatePath, stoppingToken);
 
-        Certificate = new X509Certificate2(serverCertBytes, _securityOptions.CertificatePassword);
+        Certificate = X509CertificateLoader.LoadPkcs12(serverCertBytes, _securityOptions.CertificatePassword);
 
         // Reset account online status
         IList<Account> accounts = await accountRepository.FindAllAsync();
