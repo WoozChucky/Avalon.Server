@@ -1,3 +1,6 @@
 [submodule "vendor/DotRecast"]
 	path = vendor/DotRecast
 	url = https://github.com/ikpil/DotRecast
+[submodule "vendor/RaylibCS"]
+	path = vendor/RaylibCS
+	url = https://github.com/JupiterRider/Raylib-cs
