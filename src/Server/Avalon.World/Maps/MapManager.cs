@@ -10,15 +10,16 @@ namespace Avalon.World.Maps;
 public interface IAvalonMapManager
 {
     Task LoadAsync();
-    IAsyncEnumerable<(VirtualizedMap map, MapTemplate metadata)> EnumerateOpenWorldAsync(CancellationToken token = default);
+
+    IAsyncEnumerable<(VirtualizedMap map, MapTemplate metadata)> EnumerateOpenWorldAsync(
+        CancellationToken token = default);
 }
 
 public class AvalonMapManager : IAvalonMapManager
 {
+    private readonly ReaderWriterLockSlim _lock;
     private readonly ILogger<AvalonMapManager> _logger;
     private readonly IMapTemplateRepository _mapTemplateRepository;
-
-    private readonly ReaderWriterLockSlim _lock;
 
     // Map template loaded from database
     private IList<MapTemplate> _mapTemplates = null!;
@@ -37,12 +38,13 @@ public class AvalonMapManager : IAvalonMapManager
 
         _mapTemplates = await _mapTemplateRepository.FindAllAsync();
 
-        _logger.LogInformation("Loaded {MapCount} maps from database", _mapTemplates.Count());
+        _logger.LogInformation("Loaded {MapCount} maps from database", _mapTemplates.Count);
     }
 
-    public async IAsyncEnumerable<(VirtualizedMap map, MapTemplate metadata)> EnumerateOpenWorldAsync([EnumeratorCancellation] CancellationToken token = default)
+    public async IAsyncEnumerable<(VirtualizedMap map, MapTemplate metadata)> EnumerateOpenWorldAsync(
+        [EnumeratorCancellation] CancellationToken token = default)
     {
-        var tasks = _mapTemplates
+        List<Task<VirtualizedMap>> tasks = _mapTemplates
             .Where(m => m.InstanceType == MapInstanceType.OpenWorld)
             .Select(template => LoadMapAsync(template, token))
             .ToList();
@@ -55,13 +57,13 @@ public class AvalonMapManager : IAvalonMapManager
         while (tasks.Count != 0)
         {
             // Wait for any of the tasks to complete
-            var completedTask = await Task.WhenAny(tasks);
+            Task<VirtualizedMap> completedTask = await Task.WhenAny(tasks);
 
             // Remove the completed task from the list
             tasks.Remove(completedTask);
 
             // Yield the result of the completed task
-            var virtualizedMap = await completedTask;
+            VirtualizedMap virtualizedMap = await completedTask;
 
             if (token.IsCancellationRequested)
             {
@@ -74,8 +76,7 @@ public class AvalonMapManager : IAvalonMapManager
 
     private async Task<VirtualizedMap> LoadMapAsync(MapTemplate template, CancellationToken token)
     {
-        var path = Path.Combine(Directory.GetCurrentDirectory(), template.Directory, template.Name);
+        string path = Path.Combine(Directory.GetCurrentDirectory(), template.Directory, template.Name);
         return await BinaryDeserializationHelper.ReadMapFromFile(path, token);
     }
-
 }

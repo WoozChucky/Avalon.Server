@@ -1,7 +1,12 @@
 // Licensed to the Avalon MMORPG Game under one or more agreements.
 // Avalon MMORPG Game licenses this file to you under the MIT license.
 
-global using Raylib_cs;
-global using static Raylib_cs.Raylib;
+namespace Avalon.Client.Scenes;
 
-namespace Avalon.Client.Raylib;
+public interface IScene
+{
+    void Setup();
+    void Update();
+    void Render();
+    void Unload();
+}
