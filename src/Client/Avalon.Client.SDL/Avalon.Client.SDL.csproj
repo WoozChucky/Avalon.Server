@@ -1,0 +1,22 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\vendor\SDL3\src\cs\production\Interop.SDL\Interop.SDL.csproj"/>
+    <ProjectReference Include="..\..\..\vendor\SDL3\src\cs\production\Interop.SDL_image\Interop.SDL_image.csproj"/>
+    <ProjectReference Include="..\..\Shared\Avalon.Common\Avalon.Common.csproj"/>
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Serilog" Version="4.2.0"/>
+    <PackageReference Include="Serilog.Sinks.Console" Version="6.0.0"/>
+  </ItemGroup>
+
+</Project>

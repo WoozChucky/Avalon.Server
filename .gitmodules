@@ -4,3 +4,6 @@
 [submodule "vendor/RaylibCS"]
 	path = vendor/RaylibCS
 	url = https://github.com/JupiterRider/Raylib-cs
+[submodule "vendor/SDL3"]
+	path = vendor/SDL3
+	url = https://github.com/bottlenoselabs/SDL3-cs
