@@ -4,7 +4,7 @@
 using System.Numerics;
 using Avalon.Client.SDL.Engine.Math;
 
-namespace Avalon.Client.SDL.Engine;
+namespace Avalon.Client.SDL.Engine.Vertices;
 
 public unsafe struct ChunkVertex : IEquatable<ChunkVertex>
 {

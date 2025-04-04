@@ -1,10 +1,8 @@
 // Licensed to the Avalon MMORPG Game under one or more agreements.
 // Avalon MMORPG Game licenses this file to you under the MIT license.
 
-namespace Avalon.Client.SDL;
+namespace Avalon.Client.SDL.Engine.Rendering.Geometry;
 
-public class WindowOptions
+public static class Primitives
 {
-    public int Width { get; set; } = 1920;
-    public int Height { get; set; } = 1080;
 }

@@ -1,4 +1,4 @@
-﻿using Avalon.Client.SDL;
+﻿namespace Avalon.Client.SDL;
 
 public class Program
 {
@@ -9,7 +9,7 @@ public class Program
             .WriteTo.Console()
             .CreateLogger();
 
-        SDL.Initialize();
+        bottlenoselabs.Interop.SDL.Initialize();
         SDL_image.Initialize();
 
         using Application app = new("Avalon", 1920, 1080);

@@ -1,21 +1,21 @@
 #version 450
 
 // Uniform buffer object for transformations
-layout(set = 1, binding = 0) uniform UniformBlock {
+layout (set = 1, binding = 0) uniform UniformBlock {
     mat4 Transform;         // model transformations (identity for chunks)
     mat4 ProjectionMatrix;  // ProjectionMatrix x ViewMatrix
     vec3 ChunkOffset;       // World position of the chunk (hence float)
 };
 
 // Input attributes
-layout(location = 0) in ivec3 inLocalPosition;     // Local position within the chunk
-layout(location = 1) in vec3 inNormal;       // Vertex normal
-layout(location = 2) in vec2 inTexCoord;     // Per-face UV (0-1)
-layout(location = 3) in ivec2 inBlockCoords; // Block X, Y in texture atlas
+layout (location = 0) in ivec3 inLocalPosition; // Local position within the chunk
+layout (location = 1) in vec3 inNormal;         // Vertex normal
+layout (location = 2) in vec2 inTexCoord;       // Per-face UV (0-1)
+layout (location = 3) in ivec2 inBlockCoords;   // Block X, Y in texture atlas
 
 // Output attributes
-layout(location = 0) out vec2 outTexCoord;
-layout(location = 1) out vec3 outNormal;
+layout (location = 0) out vec2 outTexCoord;
+layout (location = 1) out vec3 outNormal;
 
 const float atlasWidth = 1024.0;
 const float atlasHeight = 512.0;

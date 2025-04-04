@@ -5,6 +5,8 @@ namespace Avalon.Client.SDL.Engine;
 
 public interface IWindow : IDisposable
 {
+    uint Width { get; }
+    uint Height { get; }
     bool Setup(ArenaNativeAllocator allocator);
 
     IntPtr GetNativeHandle();
@@ -12,7 +14,11 @@ public interface IWindow : IDisposable
 
 public sealed unsafe class Window(string title, uint width, uint height) : IWindow
 {
+    private readonly SDL_EventFilter _appLifecycleWatcher = new(&AppLifecycleWatcher);
     private SDL_Window* _native;
+
+    public uint Width { get; } = width;
+    public uint Height { get; } = height;
 
     public bool Setup(ArenaNativeAllocator allocator)
     {
@@ -31,7 +37,7 @@ public sealed unsafe class Window(string title, uint width, uint height) : IWind
             return false;
         }
 
-        SDL_AddEventWatch(new SDL_EventFilter(&AppLifecycleWatcher), null);
+        SDL_AddEventWatch(_appLifecycleWatcher, null);
 
         return true;
     }
@@ -40,9 +46,14 @@ public sealed unsafe class Window(string title, uint width, uint height) : IWind
 
     public void Dispose()
     {
+        /**
+         * long bytesEnding = Process.GetCurrentProcess().WorkingSet64;
+                string bytesEndingString =
+                    (bytesEnding / Math.Pow(1024, 2)).ToString("0.00 MB", CultureInfo.InvariantCulture);
+         */
         if (_native != null)
         {
-            SDL_RemoveEventWatch(new SDL_EventFilter(&AppLifecycleWatcher), null);
+            SDL_RemoveEventWatch(_appLifecycleWatcher, null);
             SDL_DestroyWindow(_native);
         }
 
