@@ -53,3 +53,5 @@ src/Server/Avalon.World/.DS_Store
 .vs/Avalon/
 
 src/Server/Avalon.Api/Avalon.Api.csproj.user
+
+Avalon.sln.DotSettings
