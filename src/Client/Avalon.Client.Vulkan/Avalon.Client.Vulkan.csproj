@@ -15,39 +15,39 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="ImGui.NET" Version="1.89.4"/>
-    <PackageReference Include="JeremyAnsel.Media.WavefrontObj" Version="3.0.39"/>
-    <PackageReference Include="Silk.NET" Version="2.22.0"/>
-    <PackageReference Include="Silk.NET.Assimp" Version="2.22.0"/>
-    <PackageReference Include="Silk.NET.Input.Extensions" Version="2.22.0"/>
-    <PackageReference Include="Silk.NET.Vulkan.Extensions.EXT" Version="2.22.0"/>
-    <PackageReference Include="Silk.NET.Vulkan.Extensions.KHR" Version="2.22.0"/>
-    <PackageReference Include="SixLabors.ImageSharp" Version="3.1.6"/>
+    <PackageReference Include="ImGui.NET" Version="1.89.4" />
+    <PackageReference Include="JeremyAnsel.Media.WavefrontObj" Version="3.0.39" />
+    <PackageReference Include="Silk.NET" Version="2.22.0" />
+    <PackageReference Include="Silk.NET.Assimp" Version="2.22.0" />
+    <PackageReference Include="Silk.NET.Input.Extensions" Version="2.22.0" />
+    <PackageReference Include="Silk.NET.Vulkan.Extensions.EXT" Version="2.22.0" />
+    <PackageReference Include="Silk.NET.Vulkan.Extensions.KHR" Version="2.22.0" />
+    <PackageReference Include="SixLabors.ImageSharp" Version="3.1.11" />
   </ItemGroup>
 
   <ItemGroup>
-    <EmbeddedResource Include="**/*.spv"/>
+    <EmbeddedResource Include="**/*.spv" />
   </ItemGroup>
 
   <ItemGroup>
-    <VertexShader Include="**/*.vert"/>
-    <FragmentShader Include="**/*.frag"/>
-    <ComputeShader Include="**/*.comp"/>
-    <TaskShader Include="**/*.task"/>
-    <MeshShader Include="**/*.mesh"/>
+    <VertexShader Include="**/*.vert" />
+    <FragmentShader Include="**/*.frag" />
+    <ComputeShader Include="**/*.comp" />
+    <TaskShader Include="**/*.task" />
+    <MeshShader Include="**/*.mesh" />
   </ItemGroup>
 
   <ItemGroup>
-    <Folder Include="Systems\SPIRV\"/>
+    <Folder Include="Systems\SPIRV\" />
   </ItemGroup>
 
   <Target Name="CleanVulkanShader" BeforeTargets="Clean">
-    <Message Text="......................................SHADERS.clean..........................................................." Importance="high"/>
+    <Message Text="......................................SHADERS.clean..........................................................." Importance="high" />
     <ItemGroup>
-      <FilesToDelete Include="**\*.spv"/>
+      <FilesToDelete Include="**\*.spv" />
     </ItemGroup>
-    <Delete Files="@(FilesToDelete)"/>
-    <Message Text="......................................SHADERS.clean done......................................................" Importance="high"/>
+    <Delete Files="@(FilesToDelete)" />
+    <Message Text="......................................SHADERS.clean done......................................................" Importance="high" />
   </Target>
 
   <PropertyGroup>
@@ -57,22 +57,22 @@
     </BuildDependsOn>
   </PropertyGroup>
 
-  <Target Name="CompileShaders" BeforeTargets="BeforeBuild" Inputs="@(ComputeShader);&#xD;&#xA;				@(VertexShader);&#xD;&#xA;				@(FragmentShader);&#xD;&#xA;				@(TaskShader);&#xD;&#xA;				@(MeshShader);&#xD;&#xA;				" Outputs="&#xD;&#xA;				@(ComputeShader->'$(DestinationFolder)\%(Filename)%(Extension).spv');&#xD;&#xA;				@(VertexShader->'$(DestinationFolder)\%(Filename)%(Extension).spv');&#xD;&#xA;				@(FragmentShader->'$(DestinationFolder)\%(Filename)%(Extension).spv');&#xD;&#xA;				@(TaskShader->'$(DestinationFolder)\%(Filename)%(Extension).spv');&#xD;&#xA;				@(MeshShader->'$(DestinationFolder)\%(Filename)%(Extension).spv');&#xD;&#xA;			">
-    <Message Text="......................................SHADERS.compile........................................................." Importance="high"/>
-    <Message Text="   Starting Vulkan Shader Compilation..." Importance="high"/>
-    <MakeDir Directories="$(DestinationFolder)" Condition="!Exists('$(DestinationFolder)')"/>
-    <Message Text="     VertexShader: @(VertexShader)" Importance="high"/>
-    <Message Text="     FragmentShader: @(FragmentShader)" Importance="high"/>
-    <Message Text="     ComputeShader: @(ComputeShader)" Importance="high"/>
-    <Message Text="     TaskShader: @(TaskShader)" Importance="high"/>
-    <Message Text="     MeshShader: @(MeshShader)" Importance="high"/>
+  <Target Name="CompileShaders" BeforeTargets="BeforeBuild" Inputs="@(ComputeShader);&#xD;&#xA;    @(VertexShader);&#xD;&#xA;    @(FragmentShader);&#xD;&#xA;    @(TaskShader);&#xD;&#xA;    @(MeshShader);&#xD;&#xA;    " Outputs="&#xD;&#xA;    @(ComputeShader-&gt;'$(DestinationFolder)\%(Filename)%(Extension).spv');&#xD;&#xA;    @(VertexShader-&gt;'$(DestinationFolder)\%(Filename)%(Extension).spv');&#xD;&#xA;    @(FragmentShader-&gt;'$(DestinationFolder)\%(Filename)%(Extension).spv');&#xD;&#xA;    @(TaskShader-&gt;'$(DestinationFolder)\%(Filename)%(Extension).spv');&#xD;&#xA;    @(MeshShader-&gt;'$(DestinationFolder)\%(Filename)%(Extension).spv');&#xD;&#xA;   ">
+    <Message Text="......................................SHADERS.compile........................................................." Importance="high" />
+    <Message Text="   Starting Vulkan Shader Compilation..." Importance="high" />
+    <MakeDir Directories="$(DestinationFolder)" Condition="!Exists('$(DestinationFolder)')" />
+    <Message Text="     VertexShader: @(VertexShader)" Importance="high" />
+    <Message Text="     FragmentShader: @(FragmentShader)" Importance="high" />
+    <Message Text="     ComputeShader: @(ComputeShader)" Importance="high" />
+    <Message Text="     TaskShader: @(TaskShader)" Importance="high" />
+    <Message Text="     MeshShader: @(MeshShader)" Importance="high" />
 
-    <Exec Command="$(VulkanBinPath)\glslc.exe &quot;%(ComputeShader.FullPath)&quot; -o &quot;$(DestinationFolder)\%(ComputeShader.Filename)%(ComputeShader.Extension).spv&quot; --target-spv=$(SpirVTarget)" Condition="'@(ComputeShader)'!=''"/>
-    <Exec Command="$(VulkanBinPath)\glslc.exe &quot;%(VertexShader.FullPath)&quot; -o &quot;$(DestinationFolder)\%(VertexShader.Filename)%(VertexShader.Extension).spv&quot; --target-spv=$(SpirVTarget)" Condition="'@(VertexShader)'!=''"/>
-    <Exec Command="$(VulkanBinPath)\glslc.exe &quot;%(FragmentShader.FullPath)&quot; -o &quot;$(DestinationFolder)\%(FragmentShader.Filename)%(FragmentShader.Extension).spv&quot; --target-spv=$(SpirVTarget)" Condition="'@(FragmentShader)'!=''"/>
-    <Exec Command="$(VulkanBinPath)\glslc.exe &quot;%(TaskShader.FullPath)&quot; -o &quot;$(DestinationFolder)\%(TaskShader.Filename)%(TaskShader.Extension).spv&quot; --target-spv=$(SpirVTarget)" Condition="'@(TaskShader)'!=''"/>
-    <Exec Command="$(VulkanBinPath)\glslc.exe &quot;%(MeshShader.FullPath)&quot; -o &quot;$(DestinationFolder)\%(MeshShader.Filename)%(MeshShader.Extension).spv&quot; --target-spv=$(SpirVTarget)" Condition="'@(MeshShader)'!=''"/>
-    <Message Text="......................................SHADERS.compile done...................................................." Importance="high"/>
+    <Exec Command="$(VulkanBinPath)\glslc.exe &quot;%(ComputeShader.FullPath)&quot; -o &quot;$(DestinationFolder)\%(ComputeShader.Filename)%(ComputeShader.Extension).spv&quot; --target-spv=$(SpirVTarget)" Condition="'@(ComputeShader)'!=''" />
+    <Exec Command="$(VulkanBinPath)\glslc.exe &quot;%(VertexShader.FullPath)&quot; -o &quot;$(DestinationFolder)\%(VertexShader.Filename)%(VertexShader.Extension).spv&quot; --target-spv=$(SpirVTarget)" Condition="'@(VertexShader)'!=''" />
+    <Exec Command="$(VulkanBinPath)\glslc.exe &quot;%(FragmentShader.FullPath)&quot; -o &quot;$(DestinationFolder)\%(FragmentShader.Filename)%(FragmentShader.Extension).spv&quot; --target-spv=$(SpirVTarget)" Condition="'@(FragmentShader)'!=''" />
+    <Exec Command="$(VulkanBinPath)\glslc.exe &quot;%(TaskShader.FullPath)&quot; -o &quot;$(DestinationFolder)\%(TaskShader.Filename)%(TaskShader.Extension).spv&quot; --target-spv=$(SpirVTarget)" Condition="'@(TaskShader)'!=''" />
+    <Exec Command="$(VulkanBinPath)\glslc.exe &quot;%(MeshShader.FullPath)&quot; -o &quot;$(DestinationFolder)\%(MeshShader.Filename)%(MeshShader.Extension).spv&quot; --target-spv=$(SpirVTarget)" Condition="'@(MeshShader)'!=''" />
+    <Message Text="......................................SHADERS.compile done...................................................." Importance="high" />
   </Target>
   
 </Project>
