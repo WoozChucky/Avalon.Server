@@ -11,11 +11,11 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="BouncyCastle.Cryptography" Version="2.5.0"/>
-    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.0"/>
-    <PackageReference Include="Serilog" Version="4.2.0"/>
-    <PackageReference Include="Serilog.Extensions.Logging" Version="9.0.0"/>
-    <PackageReference Include="System.Text.Json" Version="9.0.0"/>
+    <PackageReference Include="BouncyCastle.Cryptography"/>
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions"/>
+    <PackageReference Include="Serilog"/>
+    <PackageReference Include="Serilog.Extensions.Logging"/>
+    <PackageReference Include="System.Text.Json"/>
   </ItemGroup>
 
   <ItemGroup>

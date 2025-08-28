@@ -1,11 +1,12 @@
 using NSubstitute;
+using Xunit;
 
 namespace Avalon.Server.IntegrationTests;
 
 public class InfrastructureShould : IClassFixture<InfrastructureFixture>
 {
     private readonly InfrastructureFixture _fixture;
-    
+
     public InfrastructureShould(InfrastructureFixture fixture)
     {
         _fixture = fixture;
@@ -15,10 +16,10 @@ public class InfrastructureShould : IClassFixture<InfrastructureFixture>
     public void OnStart_InitializeAllSystems_And_GetAllTemplatesFromDatabase()
     {
         // Prepare
-        
+
         // Act
         //_fixture.Infrastructure.Start();
-        
+
         // Assert
         //_fixture.MetricsManager.Received(1).QueueEvent("AvalonInfrastructureStatus", "Online");
         //_fixture.TcpServer.Received(1).RunAsync();

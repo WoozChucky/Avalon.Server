@@ -21,8 +21,6 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Avalon.Metrics", "src\Share
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Server", "Server", "{487F1AE2-1995-411B-8080-6434ACA40E86}"
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Client", "Client", "{9F6C14A1-30AF-456A-A846-29885214DD7D}"
-EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Shared", "Shared", "{44F4FAA6-D875-4F06-8308-DD6990AF1E63}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Network", "Network", "{06868A4F-3DE6-415F-9A78-E2C07F300C19}"
@@ -34,10 +32,6 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Avalon.Database", "src\Server\Avalon.Database\Avalon.Database.csproj", "{4F64264D-2D50-43E3-B0DD-313BEA61CE5D}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Avalon.Network.Packets.Abstractions", "src\Shared\Avalon.Network.Packets.Abstractions\Avalon.Network.Packets.Abstractions.csproj", "{6AA2B4FD-B63E-40BF-8A35-62CC0D6D3EE2}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Avalon.Client.Patcher", "src\Client\Avalon.Client.Patcher\Avalon.Client.Patcher.csproj", "{60BC35C8-64B9-42AE-9744-C610CC551C90}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Avalon.Client.PatchGenerator", "src\Client\Avalon.Client.PatchGenerator\Avalon.Client.PatchGenerator.csproj", "{E06A5173-5665-40C0-ABEB-2A7A24520039}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Vendor", "Vendor", "{239CE5E2-D8E0-4A35-A2EF-498451DA02CB}"
 EndProject
@@ -112,17 +106,14 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "External", "External", "{35
 		.editorconfig = .editorconfig
 		.gitignore = .gitignore
 		.gitmodules = .gitmodules
-		Directory.Build.props = Directory.Build.props
 		docker-compose.yml = docker-compose.yml
 		global.json = global.json
 		nuget.config = nuget.config
 		README.md = README.md
 		.github\workflows\dotnet.yml = .github\workflows\dotnet.yml
+		src\Directory.Build.props = src\Directory.Build.props
+		src\Directory.Packages.props = src\Directory.Packages.props
 	EndProjectSection
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Avalon.Client.Vulkan", "src\Client\Avalon.Client.Vulkan\Avalon.Client.Vulkan.csproj", "{25B17D4F-CCC7-42DF-A14B-444F12382C19}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Avalon.Client.Raylib", "src\Client\Avalon.Client.Raylib\Avalon.Client.Raylib.csproj", "{FB1E0C21-F5FC-457E-816C-8824D1D75F06}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -166,14 +157,6 @@ Global
 		{6AA2B4FD-B63E-40BF-8A35-62CC0D6D3EE2}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{6AA2B4FD-B63E-40BF-8A35-62CC0D6D3EE2}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{6AA2B4FD-B63E-40BF-8A35-62CC0D6D3EE2}.Release|Any CPU.Build.0 = Release|Any CPU
-		{60BC35C8-64B9-42AE-9744-C610CC551C90}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{60BC35C8-64B9-42AE-9744-C610CC551C90}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{60BC35C8-64B9-42AE-9744-C610CC551C90}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{60BC35C8-64B9-42AE-9744-C610CC551C90}.Release|Any CPU.Build.0 = Release|Any CPU
-		{E06A5173-5665-40C0-ABEB-2A7A24520039}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{E06A5173-5665-40C0-ABEB-2A7A24520039}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{E06A5173-5665-40C0-ABEB-2A7A24520039}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{E06A5173-5665-40C0-ABEB-2A7A24520039}.Release|Any CPU.Build.0 = Release|Any CPU
 		{60C6291A-0BB7-43F2-8C8A-956BE12201C2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{60C6291A-0BB7-43F2-8C8A-956BE12201C2}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{60C6291A-0BB7-43F2-8C8A-956BE12201C2}.Release|Any CPU.ActiveCfg = Release|Any CPU
@@ -290,14 +273,6 @@ Global
 		{DF84D44D-BE93-4AE8-9291-4F9613EA2A77}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{DF84D44D-BE93-4AE8-9291-4F9613EA2A77}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{DF84D44D-BE93-4AE8-9291-4F9613EA2A77}.Release|Any CPU.Build.0 = Release|Any CPU
-		{25B17D4F-CCC7-42DF-A14B-444F12382C19}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{25B17D4F-CCC7-42DF-A14B-444F12382C19}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{25B17D4F-CCC7-42DF-A14B-444F12382C19}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{25B17D4F-CCC7-42DF-A14B-444F12382C19}.Release|Any CPU.Build.0 = Release|Any CPU
-		{FB1E0C21-F5FC-457E-816C-8824D1D75F06}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{FB1E0C21-F5FC-457E-816C-8824D1D75F06}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{FB1E0C21-F5FC-457E-816C-8824D1D75F06}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{FB1E0C21-F5FC-457E-816C-8824D1D75F06}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -315,8 +290,6 @@ Global
 		{0C56F203-0A21-4680-9F9D-987BA111B125} = {487F1AE2-1995-411B-8080-6434ACA40E86}
 		{4F64264D-2D50-43E3-B0DD-313BEA61CE5D} = {0C56F203-0A21-4680-9F9D-987BA111B125}
 		{6AA2B4FD-B63E-40BF-8A35-62CC0D6D3EE2} = {06868A4F-3DE6-415F-9A78-E2C07F300C19}
-		{60BC35C8-64B9-42AE-9744-C610CC551C90} = {9F6C14A1-30AF-456A-A846-29885214DD7D}
-		{E06A5173-5665-40C0-ABEB-2A7A24520039} = {9F6C14A1-30AF-456A-A846-29885214DD7D}
 		{60C6291A-0BB7-43F2-8C8A-956BE12201C2} = {659A24EA-5C28-4F62-A67A-5E1564EFA7C3}
 		{E1B1005A-43F4-47A2-BEF5-AE3D2BE1A183} = {F506D206-DC04-4EAC-BD00-ABA6A073E757}
 		{D8D5505D-6256-4E08-BFA9-BCF356BB4883} = {44F4FAA6-D875-4F06-8308-DD6990AF1E63}
@@ -349,8 +322,6 @@ Global
 		{D0DA8FD7-E7C7-4341-8082-2545993D339D} = {68F7CA33-8489-4C26-AF99-CF4FA13327F9}
 		{F5082680-87D5-4B0A-962A-1B0843C23C63} = {68F7CA33-8489-4C26-AF99-CF4FA13327F9}
 		{DF84D44D-BE93-4AE8-9291-4F9613EA2A77} = {68F7CA33-8489-4C26-AF99-CF4FA13327F9}
-		{25B17D4F-CCC7-42DF-A14B-444F12382C19} = {9F6C14A1-30AF-456A-A846-29885214DD7D}
-		{FB1E0C21-F5FC-457E-816C-8824D1D75F06} = {9F6C14A1-30AF-456A-A846-29885214DD7D}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {20CD880E-2A9B-4B75-A2C1-3145230B285E}
