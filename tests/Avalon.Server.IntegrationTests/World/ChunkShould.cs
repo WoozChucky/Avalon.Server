@@ -2,6 +2,7 @@ using Avalon.Common.Mathematics;
 using Avalon.World.Maps.Virtualized;
 using Avalon.World.Pathfinding;
 using Avalon.World.Public.Maps;
+using Xunit;
 
 namespace Avalon.Server.IntegrationTests.World;
 
@@ -44,11 +45,11 @@ public class ChunkShould
                 indices.Add(bottomRight);
             }
         }
-        
+
         return indices.ToArray();
     }
-    
-    
+
+
     [Fact]
     public void Test()
     {
@@ -65,6 +66,6 @@ public class ChunkShould
             Creatures = new List<CreatureInfo>(),
         };
 
-        
+
     }
 }
