@@ -1,11 +1,9 @@
-name: .NET Pipeline
+name: .NET CI Pipeline
 
 on:
   push:
     branches:
       - main
-  pull_request:
-    types: [ opened, synchronize, reopened ]
 
 env:
   REGISTRY: ghcr.io
