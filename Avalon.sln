@@ -110,9 +110,11 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "External", "External", "{35
 		global.json = global.json
 		nuget.config = nuget.config
 		README.md = README.md
-		.github\workflows\dotnet.yml = .github\workflows\dotnet.yml
 		src\Directory.Build.props = src\Directory.Build.props
 		src\Directory.Packages.props = src\Directory.Packages.props
+		.github\workflows\dotnet-ci.yml = .github\workflows\dotnet-ci.yml
+		.github\workflows\dotnet-pr.yml = .github\workflows\dotnet-pr.yml
+		azure-pipelines.yml = azure-pipelines.yml
 	EndProjectSection
 EndProject
 Global
