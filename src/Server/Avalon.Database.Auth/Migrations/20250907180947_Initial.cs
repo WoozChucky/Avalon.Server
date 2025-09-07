@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 
 #pragma warning disable CA1814 // Prefer jagged arrays over multidimensional
 
-namespace Avalon.Auth.Database.Migrations
+namespace Avalon.Database.Auth.Migrations
 {
     /// <inheritdoc />
     public partial class Initial : Migration
@@ -187,7 +187,7 @@ namespace Avalon.Auth.Database.Migrations
             migrationBuilder.InsertData(
                 table: "Accounts",
                 columns: new[] { "Id", "AccessLevel", "Email", "FailedLogins", "JoinDate", "LastAttemptIp", "LastIp", "LastLogin", "Locale", "Locked", "MuteBy", "MuteReason", "MuteTime", "Online", "Os", "Salt", "SessionKey", "TotalTime", "Username", "Verifier" },
-                values: new object[] { 1ul, (ushort)3, "admin@avalon.monster", 0, new DateTime(2021, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), "", "127.0.0.1", new DateTime(2021, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), "ptPT", false, "", "", null, false, "Linux", new byte[] { 36, 50, 97, 36, 49, 49, 36, 100, 116, 69, 76, 99, 90, 82, 101, 89, 70, 55, 55, 109, 116, 121, 66, 72, 70, 89, 104, 106, 117 }, new byte[0], 0L, "ADMIN", new byte[] { 36, 50, 97, 36, 49, 49, 36, 100, 116, 69, 76, 99, 90, 82, 101, 89, 70, 55, 55, 109, 116, 121, 66, 72, 70, 89, 104, 106, 117, 80, 57, 86, 99, 98, 57, 55, 51, 81, 116, 56, 53, 79, 67, 121, 47, 120, 87, 46, 99, 77, 77, 115, 65, 75, 113, 89, 67, 114, 75, 71 } });
+                values: new object[] { 1ul, (ushort)3, "admin@avalon.monster", 0, new DateTime(2021, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), "", "127.0.0.1", new DateTime(2021, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), "ptPT", false, "", "", null, false, "Linux", new byte[] { 36, 50, 97, 36, 49, 49, 36, 118, 75, 111, 115, 114, 98, 57, 102, 65, 87, 85, 46, 100, 115, 105, 54, 118, 81, 112, 107, 51, 117 }, new byte[0], 0L, "ADMIN", new byte[] { 36, 50, 97, 36, 49, 49, 36, 118, 75, 111, 115, 114, 98, 57, 102, 65, 87, 85, 46, 100, 115, 105, 54, 118, 81, 112, 107, 51, 117, 116, 87, 81, 107, 87, 68, 98, 90, 113, 71, 111, 102, 71, 104, 113, 78, 74, 56, 75, 57, 89, 75, 111, 47, 52, 118, 98, 77, 70, 47, 83 } });
 
             migrationBuilder.InsertData(
                 table: "Worlds",
