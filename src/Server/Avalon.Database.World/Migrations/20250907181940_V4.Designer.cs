@@ -4,16 +4,19 @@ using Avalon.Database.World;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
 
-namespace Avalon.World.Database.Migrations
+namespace Avalon.Database.World.Migrations
 {
     [DbContext(typeof(WorldDbContext))]
-    partial class WorldDbContextModelSnapshot : ModelSnapshot
+    [Migration("20250907181940_V4")]
+    partial class V4
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
