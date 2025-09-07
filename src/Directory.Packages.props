@@ -3,7 +3,7 @@
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
   </PropertyGroup>
   <ItemGroup>
-    <PackageVersion Include="AutoMapper" Version="13.0.1"/>
+    <PackageVersion Include="AutoMapper" Version="15.0.1"/>
     <PackageVersion Include="StackExchange.Redis" Version="2.9.11"/>
     <PackageVersion Include="Dapper" Version="2.1.66"/>
     <PackageVersion Include="Swashbuckle.AspNetCore" Version="9.0.4"/>
