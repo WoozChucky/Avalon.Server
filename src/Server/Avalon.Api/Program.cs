@@ -13,6 +13,8 @@ using Avalon.Hosting.Extensions;
 using Avalon.Infrastructure;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.OpenApi.Models;
+using Scalar.AspNetCore;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
@@ -51,13 +53,28 @@ services.AddCustomLogging(configuration);
             options.JsonSerializerOptions.Converters.Add(new ValueObjectJsonConverterFactory());
         });
 
-    services.AddAuth(applicationConfig);
-    services.AddSwagger();
-    services.AddInfrastructure(applicationConfig);
-    services.AddAutoMapper(action =>
+    services.AddOpenApi(options =>
     {
-        action.AddProfile<AutoMappingProfile>();
+        options.AddDocumentTransformer((document, context, arg3) =>
+        {
+            document.Info = new OpenApiInfo
+            {
+                Title = "Avalon.Api",
+                Version = "v1",
+                Description = "The official API for Avalon.",
+                Contact = new OpenApiContact {Name = "Avalon Project", Url = new Uri("https://avalon.monster")},
+                License = new OpenApiLicense {Name = "MIT", Url = new Uri("https://opensource.org/license/mit/")},
+                TermsOfService = new Uri("https://avalon.monster/terms")
+            };
+            return Task.CompletedTask;
+        });
+        options.AddSchemaTransformer<ValueObjectOpenapiSchemaTransformer>();
+        options.AddDocumentTransformer<BearerSecuritySchemeTransformer>();
+        options.CreateSchemaReferenceId = type => type.Type.FullName!;
     });
+    services.AddAuth(applicationConfig);
+    services.AddInfrastructure(applicationConfig);
+    services.AddAutoMapper(action => { action.AddProfile<AutoMappingProfile>(); });
 }
 
 WebApplication app = builder.Build();
@@ -80,13 +97,19 @@ app.MapDefaultEndpoints();
         ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
     });
 
-    app.UseSwagger();
-    app.UseSwaggerUI();
+    app.MapOpenApi();
+    app.MapScalarApiReference(options =>
+    {
+        options.WithTitle("Avalon.Api");
+        options.WithTheme(ScalarTheme.BluePlanet);
+        options.WithSidebar(false);
+    });
 
     app.UseRouting();
 
     app.UseCors(x => x
-        .WithOrigins("http://localhost:4200", "https://avalon.monster", "https://dashboard.avalon.monster")
+        .WithOrigins("http://localhost:4200", "http://localhost:5210", "https://avalon.monster",
+            "https://dashboard.avalon.monster")
         .AllowAnyMethod()
         .AllowAnyHeader()
     );
