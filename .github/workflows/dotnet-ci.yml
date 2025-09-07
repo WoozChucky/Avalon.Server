@@ -48,7 +48,7 @@ jobs:
         run: dotnet publish src/Server/Avalon.Api/Avalon.Api.csproj -c Release --no-restore
 
       - name: Docker Login
-        uses: docker/login-action@v3.0.0
+        uses: docker/login-action@v3.5.0
         with:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
