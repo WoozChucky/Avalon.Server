@@ -4,7 +4,6 @@ using Avalon.Api.Authentication;
 using Avalon.Api.Authentication.AV;
 using Avalon.Api.Authentication.Jwt;
 using Avalon.Api.Config;
-using Avalon.Api.Converters;
 using Avalon.Api.Services;
 using Avalon.Database.Auth.Extensions;
 using Avalon.Database.Character.Extensions;
@@ -17,7 +16,6 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Primitives;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.Net.Http.Headers;
-using Microsoft.OpenApi.Models;
 
 namespace Avalon.Api;
 
@@ -122,63 +120,5 @@ public static class ServiceRegistration
 
         services.AddScoped<IAuthContext, AuthContext>();
         services.AddScoped<IAuthorizationHandler, AvalonAuthHandler>();
-    }
-
-    public static void AddSwagger(this IServiceCollection services)
-    {
-        services.AddEndpointsApiExplorer();
-        services.AddSwaggerGen(options =>
-        {
-            options.SwaggerDoc("v1", new OpenApiInfo {Title = "Avalon Api", Version = "v1"});
-            options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
-            {
-                Description = @"JWT Authorization header using the Bearer scheme. <br>
-                          Enter 'Bearer' [space] and then your token in the text input below.
-                          <br>Example: 'Bearer 12345abcdef'",
-                Name = "Authorization",
-                In = ParameterLocation.Header,
-                Type = SecuritySchemeType.ApiKey,
-                Scheme = "Bearer"
-            });
-            options.AddSecurityDefinition("Avalon", new OpenApiSecurityScheme
-            {
-                Description = @"Avalon Authentication header using AVToken scheme. <br>
-                          Enter 'AVToken' [space] and then your token in the text input below.
-                          <br>Example: 'AVToken 12345abcdef'",
-                Name = "Authorization",
-                In = ParameterLocation.Header,
-                Type = SecuritySchemeType.ApiKey,
-                Scheme = "AVToken"
-            });
-
-            options.AddSecurityRequirement(new OpenApiSecurityRequirement
-            {
-                {
-                    new OpenApiSecurityScheme
-                    {
-                        Reference = new OpenApiReference {Type = ReferenceType.SecurityScheme, Id = "Bearer"},
-                        Scheme = "oauth2",
-                        Name = "Bearer",
-                        In = ParameterLocation.Header
-                    },
-                    new List<string>()
-                }
-            });
-            options.AddSecurityRequirement(new OpenApiSecurityRequirement
-            {
-                {
-                    new OpenApiSecurityScheme
-                    {
-                        Reference = new OpenApiReference {Type = ReferenceType.SecurityScheme, Id = "Avalon"},
-                        Scheme = "AVToken",
-                        Name = "Authorization",
-                        In = ParameterLocation.Header
-                    },
-                    new List<string>()
-                }
-            });
-
-            options.SchemaFilter<ValueObjectSchemaFilter>();
-        });
     }
 }
