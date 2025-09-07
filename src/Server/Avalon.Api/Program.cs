@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Avalon.Api;
 using Avalon.Api.Config;
+using Avalon.Api.Contract.Mappers;
 using Avalon.Api.Converters;
 using Avalon.Api.Middlewares;
 using Avalon.Api.Services;
@@ -53,7 +54,10 @@ services.AddCustomLogging(configuration);
     services.AddAuth(applicationConfig);
     services.AddSwagger();
     services.AddInfrastructure(applicationConfig);
-    services.AddAutoMapper(typeof(Program));
+    services.AddAutoMapper(action =>
+    {
+        action.AddProfile<AutoMappingProfile>();
+    });
 }
 
 WebApplication app = builder.Build();
