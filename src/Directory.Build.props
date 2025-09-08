@@ -4,5 +4,16 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <NoWarn>$(NoWarn);CS8618;CS8600</NoWarn>
+    <AssemblyOriginatorKeyFile>..\..\..\sgKey.snk</AssemblyOriginatorKeyFile>
+    <SignAssembly>true</SignAssembly>
+    <PublicSign>true</PublicSign>
+    <LangVersion>latest</LangVersion>
   </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="..\..\..\sgKey.snk">
+      <Link>sgKey.snk</Link>
+    </None>
+  </ItemGroup>
+
 </Project>

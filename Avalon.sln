@@ -117,6 +117,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "External", "External", "{35
 		azure-pipelines.yml = azure-pipelines.yml
 	EndProjectSection
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Avalon.Tools.Migrations", "tools\Avalon.Tools.Migrations\Avalon.Tools.Migrations.csproj", "{128876EB-DC61-416A-93BC-2C6CBB358758}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -275,6 +277,10 @@ Global
 		{DF84D44D-BE93-4AE8-9291-4F9613EA2A77}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{DF84D44D-BE93-4AE8-9291-4F9613EA2A77}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{DF84D44D-BE93-4AE8-9291-4F9613EA2A77}.Release|Any CPU.Build.0 = Release|Any CPU
+		{128876EB-DC61-416A-93BC-2C6CBB358758}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{128876EB-DC61-416A-93BC-2C6CBB358758}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{128876EB-DC61-416A-93BC-2C6CBB358758}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{128876EB-DC61-416A-93BC-2C6CBB358758}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -324,6 +330,7 @@ Global
 		{D0DA8FD7-E7C7-4341-8082-2545993D339D} = {68F7CA33-8489-4C26-AF99-CF4FA13327F9}
 		{F5082680-87D5-4B0A-962A-1B0843C23C63} = {68F7CA33-8489-4C26-AF99-CF4FA13327F9}
 		{DF84D44D-BE93-4AE8-9291-4F9613EA2A77} = {68F7CA33-8489-4C26-AF99-CF4FA13327F9}
+		{128876EB-DC61-416A-93BC-2C6CBB358758} = {F506D206-DC04-4EAC-BD00-ABA6A073E757}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {20CD880E-2A9B-4B75-A2C1-3145230B285E}

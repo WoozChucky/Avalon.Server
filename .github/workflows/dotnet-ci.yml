@@ -17,13 +17,13 @@ jobs:
 
     steps:
       # Pull Repos
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: recursive
       # Tag version
       - name: Bump version and push tag
         id: get-latest-tag
-        uses: anothrNick/github-tag-action@1.64.0 # Don't use @master or @v1 unless you're happy to test the latest version
+        uses: anothrNick/github-tag-action@1.75.0 # Don't use @master or @v1 unless you're happy to test the latest version
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # if you don't want to set write permissions use a PAT token
           WITH_V: true
@@ -31,7 +31,7 @@ jobs:
           DEFAULT_BUMP: patch
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: 9.0.x
       - name: Restore dependencies
@@ -48,14 +48,14 @@ jobs:
         run: dotnet publish src/Server/Avalon.Api/Avalon.Api.csproj -c Release --no-restore
 
       - name: Docker Login
-        uses: docker/login-action@v3.0.0
+        uses: docker/login-action@v3.5.0
         with:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
           registry: ${{ env.REGISTRY }}
       - name: Extract metadata (tags, labels) for Docker
         id: meta-world
-        uses: docker/metadata-action@v4.6.0
+        uses: docker/metadata-action@v5.8.0
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/world
           tags: |
@@ -66,7 +66,7 @@ jobs:
       - name: Build and push Docker images
         # You may pin to the exact commit or the version.
         # uses: docker/build-push-action@0565240e2d4ab88bba5387d719585280857ece09
-        uses: docker/build-push-action@v5.0.0
+        uses: docker/build-push-action@v6.18.0
         with:
           context: src/Server/Avalon.Server.World/
           # Path to the Dockerfile
@@ -78,7 +78,7 @@ jobs:
           labels: ${{ steps.meta-world.outputs.labels }}
       - name: Extract metadata (tags, labels) for Docker
         id: meta-auth
-        uses: docker/metadata-action@v4.6.0
+        uses: docker/metadata-action@v5.8.0
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/auth
           tags: |
@@ -87,7 +87,7 @@ jobs:
             type=ref,event=tag
             type=raw,latest,enable=${{ github.ref == format('refs/heads/{0}', 'main') }}
       - name: Build and push Docker images
-        uses: docker/build-push-action@v5.0.0
+        uses: docker/build-push-action@v6.18.0
         with:
           context: src/Server/Avalon.Server.Auth/
           # Path to the Dockerfile
@@ -99,7 +99,7 @@ jobs:
           labels: ${{ steps.meta-auth.outputs.labels }}
       - name: Extract metadata (tags, labels) for Docker
         id: meta-api
-        uses: docker/metadata-action@v4.6.0
+        uses: docker/metadata-action@v5.8.0
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/api
           tags: |
@@ -108,7 +108,7 @@ jobs:
             type=ref,event=tag
             type=raw,latest,enable=${{ github.ref == format('refs/heads/{0}', 'main') }}
       - name: Build and push Docker images
-        uses: docker/build-push-action@v5.0.0
+        uses: docker/build-push-action@v6.18.0
         with:
           context: src/Server/Avalon.Api/
           # Path to the Dockerfile

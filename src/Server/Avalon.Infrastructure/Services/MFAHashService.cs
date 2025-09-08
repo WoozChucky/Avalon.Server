@@ -16,8 +16,8 @@ public interface IMFAHashService
 public class MFAHashService : IMFAHashService
 {
     private readonly IReplicatedCache _cache;
-    private readonly ILogger<MFAHashService> _logger;
     private readonly TimeSpan _expiry = TimeSpan.FromMinutes(2);
+    private readonly ILogger<MFAHashService> _logger;
 
     public MFAHashService(ILoggerFactory loggerFactory, IReplicatedCache cache)
     {
@@ -28,11 +28,11 @@ public class MFAHashService : IMFAHashService
     public async Task<string> GenerateHashAsync(Account account)
     {
         // Check for existing hash
-        var existingHash = await _cache.Database.HashGetAsync($"auth:account:{account.Id}:mfa", "hash");
+        RedisValue existingHash = await _cache.Database.HashGetAsync($"auth:account:{account.Id}:mfa", "hash");
         if (existingHash.HasValue)
         {
-            var expiry = await _cache.Database.HashGetAsync($"auth:account:{account.Id}:mfa", "expiry");
-            if (DateTime.TryParse(expiry, out var expiryDate) && expiryDate > DateTime.UtcNow)
+            RedisValue expiry = await _cache.Database.HashGetAsync($"auth:account:{account.Id}:mfa", "expiry");
+            if (DateTime.TryParse(expiry, out DateTime expiryDate) && expiryDate > DateTime.UtcNow)
             {
                 _logger.LogDebug("Returning existing hash");
                 return existingHash!;
@@ -42,40 +42,49 @@ public class MFAHashService : IMFAHashService
             await CleanupHash(existingHash!);
         }
 
-        var secretKey = KeyGeneration.GenerateRandomKey(20);
-        var hash = Base32Encoding.ToString(secretKey);
+        byte[]? secretKey = KeyGeneration.GenerateRandomKey(20);
+        string? hash = Base32Encoding.ToString(secretKey);
 
-        var transaction = _cache.Database.CreateTransaction();
-        await transaction.HashSetAsync($"auth:account:{account.Id}:mfa", new[]
-        {
-            new HashEntry("hash", hash),
-            new HashEntry("expiry", DateTime.UtcNow.Add(_expiry).ToString("O")),
-            new HashEntry("accountId", account.Id!.Value.ToString())
-        });
+        ITransaction transaction = _cache.Database.CreateTransaction();
+        await transaction.HashSetAsync($"auth:account:{account.Id}:mfa",
+            new[]
+            {
+                new HashEntry("hash", hash), new HashEntry("expiry", DateTime.UtcNow.Add(_expiry).ToString("O")),
+                new HashEntry("accountId", account.Id!.Value.ToString())
+            });
         await transaction.ExecuteAsync();
         return hash;
     }
 
     public async Task<AccountId?> GetAccountIdAsync(string hash)
     {
-        var keys = await _cache.Database.ExecuteAsync("keys", "auth:account:*:mfa");
-        foreach (var (key, _) in keys.ToDictionary())
+        RedisResult keys = await _cache.Database.ExecuteAsync("keys", "auth:account:*:mfa");
+        foreach ((string key, RedisResult _) in keys.ToDictionary())
         {
-            var value = await _cache.Database.HashGetAsync(key, "hash");
-            if (value != hash) continue;
-            var accountId = await _cache.Database.HashGetAsync(key, "accountId");
-            return ulong.Parse(accountId!);
+            RedisValue value = await _cache.Database.HashGetAsync(key, "hash");
+            if (value != hash)
+            {
+                continue;
+            }
+
+            RedisValue accountId = await _cache.Database.HashGetAsync(key, "accountId");
+            return long.Parse(accountId!);
         }
+
         return null;
     }
 
     public async Task CleanupHash(string hash)
     {
-        var keys = await _cache.Database.ExecuteAsync("keys", $"account:*:mfa");
-        foreach (var (key, _) in keys.ToDictionary())
+        RedisResult keys = await _cache.Database.ExecuteAsync("keys", "account:*:mfa");
+        foreach ((string key, RedisResult _) in keys.ToDictionary())
         {
-            var value = await _cache.Database.HashGetAsync(key, "hash");
-            if (value != hash) continue;
+            RedisValue value = await _cache.Database.HashGetAsync(key, "hash");
+            if (value != hash)
+            {
+                continue;
+            }
+
             await _cache.RemoveAsync(key);
         }
     }
