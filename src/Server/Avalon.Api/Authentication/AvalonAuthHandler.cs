@@ -3,16 +3,19 @@ using System.Security.Claims;
 using Avalon.Api.Services;
 using Avalon.Domain.Auth;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.Extensions.Primitives;
 using Microsoft.Net.Http.Headers;
 
 namespace Avalon.Api.Authentication;
 
 public class AvalonAuthHandler : IAuthorizationHandler
 {
-    private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly IAccountService _accountService;
+    private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly ILogger<AvalonAuthHandler> _logger;
-    public AvalonAuthHandler(ILoggerFactory loggerFactory, IHttpContextAccessor httpContextAccessor, IAccountService accountService)
+
+    public AvalonAuthHandler(ILoggerFactory loggerFactory, IHttpContextAccessor httpContextAccessor,
+        IAccountService accountService)
     {
         _logger = loggerFactory.CreateLogger<AvalonAuthHandler>();
         _httpContextAccessor = httpContextAccessor;
@@ -22,31 +25,36 @@ public class AvalonAuthHandler : IAuthorizationHandler
     public async Task HandleAsync(AuthorizationHandlerContext context)
     {
         if (!context.PendingRequirements.Any())
+        {
             return;
+        }
 
-        if (context.User.Identity is { IsAuthenticated: false })
+        if (context.User.Identity is {IsAuthenticated: false})
         {
             context.Fail();
             throw new AuthenticationException("User is not authenticated");
         }
 
-        var pendingRequirements = context.PendingRequirements.ToList();
+        List<IAuthorizationRequirement> pendingRequirements = context.PendingRequirements.ToList();
 
-        if (pendingRequirements.FirstOrDefault(r => r is AvalonAuthRequirement) is AvalonAuthRequirement authRequirement)
+        if (pendingRequirements.FirstOrDefault(r =>
+                r is AvalonAuthRequirement) is AvalonAuthRequirement authRequirement)
         {
             await HandleRequirementAsync(context, authRequirement);
         }
     }
 
-    private async Task HandleRequirementAsync(AuthorizationHandlerContext context, IAuthorizationRequirement requirement)
+    private async Task HandleRequirementAsync(AuthorizationHandlerContext context,
+        IAuthorizationRequirement requirement)
     {
-        if (!_httpContextAccessor.HttpContext!.Request.Headers.TryGetValue(HeaderNames.Authorization, out var token))
+        if (!_httpContextAccessor.HttpContext!.Request.Headers.TryGetValue(HeaderNames.Authorization,
+                out StringValues token))
         {
             context.Fail();
             throw new AuthenticationException("User is not authenticated");
         }
 
-        var accountId = context.User.FindFirstValue(ClaimTypes.NameIdentifier);
+        string? accountId = context.User.FindFirstValue(ClaimTypes.NameIdentifier);
 
         if (accountId == null)
         {
@@ -54,11 +62,11 @@ public class AvalonAuthHandler : IAuthorizationHandler
             throw new AuthenticationException("User is not authenticated");
         }
 
-        var authContext = _httpContextAccessor.HttpContext.RequestServices.GetRequiredService<IAuthContext>();
+        IAuthContext authContext = _httpContextAccessor.HttpContext.RequestServices.GetRequiredService<IAuthContext>();
 
         _logger.LogInformation("Loading account {AccountId}", accountId);
 
-        var account = await _accountService.FindById(ulong.Parse(accountId));
+        Account? account = await _accountService.FindById(accountId);
 
         if (account == null)
         {

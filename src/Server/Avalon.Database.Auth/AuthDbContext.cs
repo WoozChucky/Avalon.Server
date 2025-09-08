@@ -1,4 +1,3 @@
-using System.Text;
 using Avalon.Common.ValueObjects;
 using Avalon.Configuration;
 using Avalon.Domain.Auth;
@@ -9,7 +8,6 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using Pomelo.EntityFrameworkCore.MySql.Infrastructure;
 using OperatingSystem = Avalon.Domain.Auth.OperatingSystem;
 
 namespace Avalon.Database.Auth;
@@ -79,11 +77,7 @@ public class AuthDbContext(ILoggerFactory loggerFactory, IOptions<DatabaseConfig
         optionsBuilder.UseLoggerFactory(loggerFactory)
             .EnableSensitiveDataLogging();
 
-        optionsBuilder.UseMySql(_connectionString, ServerVersion.AutoDetect(_connectionString), mysql =>
-        {
-            // because MySQL does not support schemas: https://github.com/PomeloFoundation/Pomelo.EntityFrameworkCore.MySql/issues/1100
-            mysql.SchemaBehavior(MySqlSchemaBehavior.Translate, (schema, table) => $"{schema}.{table}");
-        });
+        optionsBuilder.UseNpgsql(_connectionString);
     }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -109,21 +103,26 @@ public class AuthDbContext(ILoggerFactory loggerFactory, IOptions<DatabaseConfig
         builder.Property(b => b.Os)
             .HasConversion(new EnumToStringConverter<OperatingSystem>());
 
-        string? salt = BCrypt.Net.BCrypt.GenerateSalt();
-        string? hash = BCrypt.Net.BCrypt.HashPassword("123", salt);
-
-        byte[] saltBytes = Encoding.UTF8.GetBytes(salt);
-        byte[] hashBytes = Encoding.UTF8.GetBytes(hash);
-
         builder.HasData(new Account
         {
             Id = 1,
             Username = "ADMIN",
-            Salt = saltBytes,
-            Verifier = hashBytes,
+            Salt =
+                new byte[]
+                {
+                    36, 50, 97, 36, 49, 49, 36, 87, 99, 81, 111, 50, 73, 79, 51, 110, 69, 119, 75, 77, 78, 85, 98,
+                    116, 110, 71, 88, 90, 46
+                },
+            Verifier =
+                new byte[] // 123
+                {
+                    36, 50, 97, 36, 49, 49, 36, 87, 99, 81, 111, 50, 73, 79, 51, 110, 69, 119, 75, 77, 78, 85, 98,
+                    116, 110, 71, 88, 90, 46, 54, 72, 106, 115, 116, 79, 46, 107, 82, 120, 110, 46, 80, 115, 80, 83,
+                    85, 98, 55, 47, 70, 103, 116, 50, 69, 97, 119, 107, 53, 105, 54
+                },
             SessionKey = [],
             Email = "admin@avalon.monster",
-            JoinDate = new DateTime(2021, 1, 1),
+            JoinDate = new DateTime(2021, 1, 1, 0, 0, 0, DateTimeKind.Utc),
             LastIp = "127.0.0.1",
             LastAttemptIp = string.Empty,
             FailedLogins = 0,
@@ -131,8 +130,9 @@ public class AuthDbContext(ILoggerFactory loggerFactory, IOptions<DatabaseConfig
             Locale = AccountLocale.ptPT,
             Os = OperatingSystem.Linux,
             TotalTime = 0,
-            AccessLevel = AccountAccessLevel.Player | AccountAccessLevel.GameMaster | AccountAccessLevel.Administrator,
-            LastLogin = new DateTime(2021, 1, 1),
+            AccessLevel =
+                AccountAccessLevel.Player | AccountAccessLevel.GameMaster | AccountAccessLevel.Administrator,
+            LastLogin = new DateTime(2021, 1, 1, 0, 0, 0, DateTimeKind.Utc),
             Online = false,
             MuteBy = string.Empty,
             MuteReason = string.Empty,
@@ -223,8 +223,8 @@ public class AuthDbContext(ILoggerFactory loggerFactory, IOptions<DatabaseConfig
             MinVersion = "0.0.1",
             Version = "0.0.1",
             AccessLevelRequired = AccountAccessLevel.Administrator,
-            CreatedAt = new DateTime(2021, 1, 1),
-            UpdatedAt = new DateTime(2021, 1, 1)
+            CreatedAt = new DateTime(2021, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+            UpdatedAt = new DateTime(2021, 1, 1, 0, 0, 0, DateTimeKind.Utc)
         }, new Domain.Auth.World
         {
             Id = 2,
@@ -236,8 +236,8 @@ public class AuthDbContext(ILoggerFactory loggerFactory, IOptions<DatabaseConfig
             MinVersion = "0.0.1",
             Version = "0.0.1",
             AccessLevelRequired = AccountAccessLevel.Player,
-            CreatedAt = new DateTime(2021, 1, 1),
-            UpdatedAt = new DateTime(2021, 1, 1)
+            CreatedAt = new DateTime(2021, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+            UpdatedAt = new DateTime(2021, 1, 1, 0, 0, 0, DateTimeKind.Utc)
         }, new Domain.Auth.World
         {
             Id = 3,
@@ -249,8 +249,8 @@ public class AuthDbContext(ILoggerFactory loggerFactory, IOptions<DatabaseConfig
             MinVersion = "0.0.1",
             Version = "0.0.1",
             AccessLevelRequired = AccountAccessLevel.PTR,
-            CreatedAt = new DateTime(2021, 1, 1),
-            UpdatedAt = new DateTime(2021, 1, 1)
+            CreatedAt = new DateTime(2021, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+            UpdatedAt = new DateTime(2021, 1, 1, 0, 0, 0, DateTimeKind.Utc)
         });
     }
 }

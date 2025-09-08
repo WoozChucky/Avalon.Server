@@ -10,7 +10,6 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using Pomelo.EntityFrameworkCore.MySql.Infrastructure;
 
 namespace Avalon.Database.World;
 
@@ -85,11 +84,7 @@ public class WorldDbContext(ILoggerFactory loggerFactory, IOptions<DatabaseConfi
             .UseLoggerFactory(loggerFactory)
             .EnableSensitiveDataLogging();
 
-        optionsBuilder.UseMySql(_connectionString, ServerVersion.AutoDetect(_connectionString), mysql =>
-        {
-            // because MySQL does not support schemas: https://github.com/PomeloFoundation/Pomelo.EntityFrameworkCore.MySql/issues/1100
-            mysql.SchemaBehavior(MySqlSchemaBehavior.Translate, (schema, table) => $"{schema}.{table}");
-        });
+        optionsBuilder.UseNpgsql(_connectionString);
     }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -111,7 +106,8 @@ public class WorldDbContext(ILoggerFactory loggerFactory, IOptions<DatabaseConfi
     {
         builder.HasKey(b => b.Level);
 
-        builder.HasData(new CharacterLevelExperience {Level = 1, Experience = 400},
+        builder.HasData(
+            new CharacterLevelExperience {Level = 1, Experience = 400},
             new CharacterLevelExperience {Level = 2, Experience = 900},
             new CharacterLevelExperience {Level = 3, Experience = 1400},
             new CharacterLevelExperience {Level = 4, Experience = 2100},
@@ -125,7 +121,8 @@ public class WorldDbContext(ILoggerFactory loggerFactory, IOptions<DatabaseConfi
             new CharacterLevelExperience {Level = 12, Experience = 9800},
             new CharacterLevelExperience {Level = 13, Experience = 11000},
             new CharacterLevelExperience {Level = 14, Experience = 12300},
-            new CharacterLevelExperience {Level = 15, Experience = 13600});
+            new CharacterLevelExperience {Level = 15, Experience = 13600}
+        );
     }
 
     private static void Configure(EntityTypeBuilder<CharacterCreateInfo> builder)
