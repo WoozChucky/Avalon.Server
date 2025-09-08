@@ -68,7 +68,7 @@ internal class DatabaseMigrationProcess
 
         await CreateDatabaseAsync(connection, transaction, creationScript);
 
-        await connection.ExecuteAsync("USE " + _connectionDetails.Database, transaction: transaction);
+        // Removed MySQL-specific USE statement; not supported in PostgreSQL.
 
         foreach (MigrationScript? script in scripts)
         {
