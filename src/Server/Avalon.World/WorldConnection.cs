@@ -168,8 +168,8 @@ public class WorldConnection : Connection, IWorldConnection
 
     protected override void OnHandshakeFinished() => Server.CallConnectionListener(this);
 
-    protected override Task<Stream> GetStream(TcpClient client) =>
-        Task.FromResult<Stream>(new NetworkStream(client.Client, true));
+    protected override Task<PacketStream> GetStream(TcpClient client) =>
+        Task.FromResult(new PacketStream(new NetworkStream(client.Client, true)));
 
     protected override async Task OnClose(bool expected = true)
     {
