@@ -3,8 +3,8 @@ using System;
 using Avalon.Database.Auth;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
-using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
+using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
 
@@ -18,74 +18,74 @@ namespace Avalon.Database.Auth.Migrations
 #pragma warning disable 612, 618
             modelBuilder
                 .HasAnnotation("ProductVersion", "9.0.8")
-                .HasAnnotation("Relational:MaxIdentifierLength", 64);
+                .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
-            MySqlModelBuilderExtensions.AutoIncrementColumns(modelBuilder);
+            NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
             modelBuilder.Entity("Avalon.Domain.Auth.Account", b =>
                 {
-                    b.Property<ulong>("Id")
+                    b.Property<long>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("bigint unsigned");
+                        .HasColumnType("bigint");
 
-                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<ulong>("Id"));
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
 
-                    b.Property<ushort>("AccessLevel")
-                        .HasColumnType("smallint unsigned");
+                    b.Property<int>("AccessLevel")
+                        .HasColumnType("integer");
 
                     b.Property<string>("Email")
                         .IsRequired()
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<int>("FailedLogins")
-                        .HasColumnType("int");
+                        .HasColumnType("integer");
 
                     b.Property<DateTime>("JoinDate")
-                        .HasColumnType("datetime(6)");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("LastAttemptIp")
                         .IsRequired()
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<string>("LastIp")
                         .IsRequired()
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<DateTime>("LastLogin")
-                        .HasColumnType("datetime(6)");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Locale")
                         .IsRequired()
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<bool>("Locked")
-                        .HasColumnType("tinyint(1)");
+                        .HasColumnType("boolean");
 
                     b.Property<string>("MuteBy")
                         .IsRequired()
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<string>("MuteReason")
                         .IsRequired()
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<DateTime?>("MuteTime")
-                        .HasColumnType("datetime(6)");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<bool>("Online")
-                        .HasColumnType("tinyint(1)");
+                        .HasColumnType("boolean");
 
                     b.Property<string>("Os")
                         .IsRequired()
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<byte[]>("Salt")
                         .IsRequired()
-                        .HasColumnType("longblob");
+                        .HasColumnType("bytea");
 
                     b.Property<byte[]>("SessionKey")
                         .IsRequired()
-                        .HasColumnType("longblob")
+                        .HasColumnType("bytea")
                         .HasColumnName("SessionKey");
 
                     b.Property<long>("TotalTime")
@@ -93,11 +93,11 @@ namespace Avalon.Database.Auth.Migrations
 
                     b.Property<string>("Username")
                         .IsRequired()
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<byte[]>("Verifier")
                         .IsRequired()
-                        .HasColumnType("longblob");
+                        .HasColumnType("bytea");
 
                     b.HasKey("Id");
 
@@ -106,25 +106,25 @@ namespace Avalon.Database.Auth.Migrations
                     b.HasData(
                         new
                         {
-                            Id = 1ul,
-                            AccessLevel = (ushort)3,
+                            Id = 1L,
+                            AccessLevel = 3,
                             Email = "admin@avalon.monster",
                             FailedLogins = 0,
-                            JoinDate = new DateTime(2021, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            JoinDate = new DateTime(2021, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             LastAttemptIp = "",
                             LastIp = "127.0.0.1",
-                            LastLogin = new DateTime(2021, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            LastLogin = new DateTime(2021, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             Locale = "ptPT",
                             Locked = false,
                             MuteBy = "",
                             MuteReason = "",
                             Online = false,
                             Os = "Linux",
-                            Salt = new byte[] { 36, 50, 97, 36, 49, 49, 36, 118, 75, 111, 115, 114, 98, 57, 102, 65, 87, 85, 46, 100, 115, 105, 54, 118, 81, 112, 107, 51, 117 },
+                            Salt = new byte[] { 36, 50, 97, 36, 49, 49, 36, 87, 99, 81, 111, 50, 73, 79, 51, 110, 69, 119, 75, 77, 78, 85, 98, 116, 110, 71, 88, 90, 46 },
                             SessionKey = new byte[0],
                             TotalTime = 0L,
                             Username = "ADMIN",
-                            Verifier = new byte[] { 36, 50, 97, 36, 49, 49, 36, 118, 75, 111, 115, 114, 98, 57, 102, 65, 87, 85, 46, 100, 115, 105, 54, 118, 81, 112, 107, 51, 117, 116, 87, 81, 107, 87, 68, 98, 90, 113, 71, 111, 102, 71, 104, 113, 78, 74, 56, 75, 57, 89, 75, 111, 47, 52, 118, 98, 77, 70, 47, 83 }
+                            Verifier = new byte[] { 36, 50, 97, 36, 49, 49, 36, 87, 99, 81, 111, 50, 73, 79, 51, 110, 69, 119, 75, 77, 78, 85, 98, 116, 110, 71, 88, 90, 46, 54, 72, 106, 115, 116, 79, 46, 107, 82, 120, 110, 46, 80, 115, 80, 83, 85, 98, 55, 47, 70, 103, 116, 50, 69, 97, 119, 107, 53, 105, 54 }
                         });
                 });
 
@@ -132,23 +132,23 @@ namespace Avalon.Database.Auth.Migrations
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("char(36)");
+                        .HasColumnType("uuid");
 
-                    b.Property<ulong>("AccountId")
-                        .HasColumnType("bigint unsigned");
+                    b.Property<long>("AccountId")
+                        .HasColumnType("bigint");
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime(6)");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<DateTime>("ExpiresAt")
-                        .HasColumnType("datetime(6)");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<byte[]>("Hash")
                         .IsRequired()
-                        .HasColumnType("longblob");
+                        .HasColumnType("bytea");
 
                     b.Property<bool>("Revoked")
-                        .HasColumnType("tinyint(1)");
+                        .HasColumnType("boolean");
 
                     b.HasKey("Id");
 
@@ -161,27 +161,27 @@ namespace Avalon.Database.Auth.Migrations
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("char(36)");
+                        .HasColumnType("uuid");
 
-                    b.Property<ulong>("AccountId")
-                        .HasColumnType("bigint unsigned");
+                    b.Property<long>("AccountId")
+                        .HasColumnType("bigint");
 
                     b.Property<DateTime>("LastUsage")
-                        .HasColumnType("datetime(6)");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Metadata")
                         .IsRequired()
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<string>("Name")
                         .IsRequired()
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<DateTime>("TrustEnd")
-                        .HasColumnType("datetime(6)");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<bool>("Trusted")
-                        .HasColumnType("tinyint(1)");
+                        .HasColumnType("boolean");
 
                     b.HasKey("Id");
 
@@ -194,35 +194,35 @@ namespace Avalon.Database.Auth.Migrations
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("char(36)");
+                        .HasColumnType("uuid");
 
-                    b.Property<ulong>("AccountId")
-                        .HasColumnType("bigint unsigned");
+                    b.Property<long>("AccountId")
+                        .HasColumnType("bigint");
 
                     b.Property<DateTime>("ConfirmedAt")
-                        .HasColumnType("datetime(6)");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime(6)");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<byte[]>("RecoveryCode1")
                         .IsRequired()
-                        .HasColumnType("longblob");
+                        .HasColumnType("bytea");
 
                     b.Property<byte[]>("RecoveryCode2")
                         .IsRequired()
-                        .HasColumnType("longblob");
+                        .HasColumnType("bytea");
 
                     b.Property<byte[]>("RecoveryCode3")
                         .IsRequired()
-                        .HasColumnType("longblob");
+                        .HasColumnType("bytea");
 
                     b.Property<byte[]>("Secret")
                         .IsRequired()
-                        .HasColumnType("longblob");
+                        .HasColumnType("bytea");
 
-                    b.Property<ushort>("Status")
-                        .HasColumnType("smallint unsigned");
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
 
                     b.HasKey("Id");
 
@@ -235,29 +235,29 @@ namespace Avalon.Database.Auth.Migrations
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("char(36)");
+                        .HasColumnType("uuid");
 
-                    b.Property<ulong>("AccountId")
-                        .HasColumnType("bigint unsigned");
+                    b.Property<long>("AccountId")
+                        .HasColumnType("bigint");
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime(6)");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<DateTime>("ExpiresAt")
-                        .HasColumnType("datetime(6)");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<byte[]>("Hash")
                         .IsRequired()
-                        .HasColumnType("longblob");
+                        .HasColumnType("bytea");
 
-                    b.Property<uint>("Index")
-                        .HasColumnType("int unsigned");
+                    b.Property<long>("Index")
+                        .HasColumnType("bigint");
 
                     b.Property<bool>("Revoked")
-                        .HasColumnType("tinyint(1)");
+                        .HasColumnType("boolean");
 
-                    b.Property<uint>("Usages")
-                        .HasColumnType("int unsigned");
+                    b.Property<long>("Usages")
+                        .HasColumnType("bigint");
 
                     b.HasKey("Id");
 
@@ -268,45 +268,45 @@ namespace Avalon.Database.Auth.Migrations
 
             modelBuilder.Entity("Avalon.Domain.Auth.World", b =>
                 {
-                    b.Property<ushort>("Id")
+                    b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("smallint unsigned");
+                        .HasColumnType("integer");
 
-                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<ushort>("Id"));
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
-                    b.Property<ushort>("AccessLevelRequired")
-                        .HasColumnType("smallint unsigned");
+                    b.Property<int>("AccessLevelRequired")
+                        .HasColumnType("integer");
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime(6)");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Host")
                         .IsRequired()
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<string>("MinVersion")
                         .IsRequired()
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<string>("Name")
                         .IsRequired()
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.Property<int>("Port")
-                        .HasColumnType("int");
+                        .HasColumnType("integer");
 
-                    b.Property<ushort>("Status")
-                        .HasColumnType("smallint unsigned");
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
 
-                    b.Property<ushort>("Type")
-                        .HasColumnType("smallint unsigned");
+                    b.Property<int>("Type")
+                        .HasColumnType("integer");
 
                     b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("datetime(6)");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Version")
                         .IsRequired()
-                        .HasColumnType("longtext");
+                        .HasColumnType("text");
 
                     b.HasKey("Id");
 
@@ -315,44 +315,44 @@ namespace Avalon.Database.Auth.Migrations
                     b.HasData(
                         new
                         {
-                            Id = (ushort)1,
-                            AccessLevelRequired = (ushort)2,
-                            CreatedAt = new DateTime(2021, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            Id = 1,
+                            AccessLevelRequired = 2,
+                            CreatedAt = new DateTime(2021, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             Host = "127.0.0.1",
                             MinVersion = "0.0.1",
                             Name = "Development",
                             Port = 21001,
-                            Status = (ushort)1,
-                            Type = (ushort)0,
-                            UpdatedAt = new DateTime(2021, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            Status = 1,
+                            Type = 0,
+                            UpdatedAt = new DateTime(2021, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = "0.0.1"
                         },
                         new
                         {
-                            Id = (ushort)2,
-                            AccessLevelRequired = (ushort)0,
-                            CreatedAt = new DateTime(2021, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            Id = 2,
+                            AccessLevelRequired = 0,
+                            CreatedAt = new DateTime(2021, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             Host = "asthoria.avalon.monster",
                             MinVersion = "0.0.1",
                             Name = "Asthoria",
                             Port = 21001,
-                            Status = (ushort)0,
-                            Type = (ushort)0,
-                            UpdatedAt = new DateTime(2021, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            Status = 0,
+                            Type = 0,
+                            UpdatedAt = new DateTime(2021, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = "0.0.1"
                         },
                         new
                         {
-                            Id = (ushort)3,
-                            AccessLevelRequired = (ushort)8,
-                            CreatedAt = new DateTime(2021, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            Id = 3,
+                            AccessLevelRequired = 8,
+                            CreatedAt = new DateTime(2021, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             Host = "ptr.avalon.monster",
                             MinVersion = "0.0.1",
                             Name = "Public Test Realm",
                             Port = 21001,
-                            Status = (ushort)0,
-                            Type = (ushort)0,
-                            UpdatedAt = new DateTime(2021, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            Status = 0,
+                            Type = 0,
+                            UpdatedAt = new DateTime(2021, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
                             Version = "0.0.1"
                         });
                 });

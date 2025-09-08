@@ -1,12 +1,12 @@
 namespace Avalon.Common.ValueObjects;
 
-public class AccountId : ValueObject<ulong>, IHideObjectMembers
+public class AccountId : ValueObject<long>, IHideObjectMembers
 {
-    public AccountId(ulong value) : base(value)
+    public AccountId(long value) : base(value)
     {
     }
 
-    public static implicit operator ulong(AccountId accountId) => accountId.Value;
-    public static implicit operator AccountId(ulong value) => new AccountId(value);
-    public static implicit operator AccountId(string value) => new AccountId(ulong.Parse(value));
+    public static implicit operator long(AccountId accountId) => accountId.Value;
+    public static implicit operator AccountId(long value) => new(value);
+    public static implicit operator AccountId(string value) => new(long.Parse(value));
 }

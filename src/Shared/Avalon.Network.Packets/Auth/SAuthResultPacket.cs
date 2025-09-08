@@ -10,34 +10,24 @@ public class SAuthResultPacket : Packet
     public static NetworkProtocol Protocol = NetworkProtocol.Tcp;
     public static NetworkPacketFlags Flags = NetworkPacketFlags.Encrypted;
 
-    [ProtoMember(1)] public ulong AccountId { get; set; }
+    [ProtoMember(1)] public long AccountId { get; set; }
     [ProtoMember(2)] public AuthResult Result { get; set; }
     [ProtoMember(3)] public string? MfaHash { get; set; }
 
-    public static NetworkPacket Create(ulong? accountId, string? hash, AuthResult result, Func<byte[], byte[]> encryptFunc)
+    public static NetworkPacket Create(long? accountId, string? hash, AuthResult result,
+        Func<byte[], byte[]> encryptFunc)
     {
-        using var memoryStream = new MemoryStream();
+        using MemoryStream memoryStream = new();
 
-        var packet = new SAuthResultPacket()
-        {
-            AccountId = accountId ?? 0,
-            Result = result,
-            MfaHash = hash
-        };
+        SAuthResultPacket packet = new() {AccountId = accountId ?? 0, Result = result, MfaHash = hash};
 
         Serializer.Serialize(memoryStream, packet);
 
-        var buffer = encryptFunc(memoryStream.ToArray());
+        byte[]? buffer = encryptFunc(memoryStream.ToArray());
 
         return new NetworkPacket
         {
-            Header = new NetworkPacketHeader
-            {
-                Type = PacketType,
-                Flags = Flags,
-                Protocol = Protocol,
-                Version = 0
-            },
+            Header = new NetworkPacketHeader {Type = PacketType, Flags = Flags, Protocol = Protocol, Version = 0},
             Payload = buffer.ToArray()
         };
     }
