@@ -41,7 +41,7 @@ public abstract class Connection : BackgroundService, IConnection
 
     private TcpClient? _client;
     private bool _closed;
-    private Stream? _stream;
+    private PacketStream? _stream;
     protected long BytesReceivedCount;
     protected double BytesReceivedRate;
     protected long BytesSentCount;
@@ -104,7 +104,7 @@ public abstract class Connection : BackgroundService, IConnection
 
     protected abstract void OnHandshakeFinished();
 
-    protected abstract Task<Stream> GetStream(TcpClient client);
+    protected abstract Task<PacketStream> GetStream(TcpClient client);
 
     protected abstract Task OnClose(bool expected = true);
 
