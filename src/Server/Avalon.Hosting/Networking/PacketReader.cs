@@ -18,7 +18,7 @@ public delegate byte[] DecryptFunc(byte[] data);
 
 public interface IPacketReader
 {
-    IAsyncEnumerable<NetworkPacket> EnumerateAsync(Stream stream, CancellationToken token = default);
+    IAsyncEnumerable<NetworkPacket> EnumerateAsync(PacketStream stream, CancellationToken token = default);
     Packet? Read(NetworkPacket packet);
     void Decrypt(NetworkPacket packet, DecryptFunc decryptFunc);
 }
@@ -56,70 +56,13 @@ public class PacketReader : IPacketReader
         }
     }
 
-    public async IAsyncEnumerable<NetworkPacket> EnumerateAsync(Stream stream,
+    public async IAsyncEnumerable<NetworkPacket> EnumerateAsync(PacketStream stream,
         [EnumeratorCancellation] CancellationToken token = default)
     {
-        byte[] buffer = ArrayPool<byte>.Shared.Rent(_bufferSize);
-
-        try
+        // Delegate reading logic to PacketStream to centralize buffer/span handling
+        await foreach (var packet in stream.EnumerateAsync(_bufferSize, token))
         {
-            while (true)
-            {
-                // read packet size
-                int packetSize;
-                int offset = 0;
-
-                try
-                {
-                    (packetSize, offset) = await ReadVarintAsync(stream, buffer, token);
-                }
-                catch (ObjectDisposedException)
-                {
-                    _logger.LogDebug("Connection was disposed while waiting or reading new packages. This may be fine");
-                    break;
-                }
-                catch (IOException)
-                {
-                    _logger.LogDebug("Connection was most likely closed while reading a packet size. This may be fine");
-                    break;
-                }
-                catch (OperationCanceledException)
-                {
-                    _logger.LogDebug("Operation was canceled while reading a packet size. This may be fine");
-                    break;
-                }
-
-                if (packetSize > _bufferSize)
-                {
-                    _logger.LogError("Packet size {PacketSize} exceeds buffer capacity {BufferSize}", packetSize,
-                        _bufferSize);
-                    break;
-                }
-
-                // read packet contents
-                try
-                {
-                    await stream.ReadExactlyAsync(buffer.AsMemory(offset, packetSize), token);
-                }
-                catch (ObjectDisposedException)
-                {
-                    _logger.LogDebug("Connection was disposed while waiting or reading new packages. This may be fine");
-                    break;
-                }
-                catch (IOException)
-                {
-                    _logger.LogDebug("Connection was most likely closed while reading a packet. This may be fine");
-                    break;
-                }
-
-                Memory<byte> packetBuffer = buffer.AsMemory(offset, packetSize);
-
-                yield return NetworkPacket.Deserialize(packetBuffer);
-            }
-        }
-        finally
-        {
-            ArrayPool<byte>.Shared.Return(buffer);
+            yield return packet;
         }
     }
 
@@ -138,41 +81,4 @@ public class PacketReader : IPacketReader
         return payload as Packet;
     }
 
-    private async ValueTask<(int packetSize, int offset)> ReadVarintAsync(Stream stream, byte[] buffer,
-        CancellationToken token = default)
-    {
-        int packetSize = 0;
-        int shift = 0;
-        int index = 0;
-
-        while (true)
-        {
-            // Ensure buffer has enough room, since we're reading one byte at a time
-            if (index >= buffer.Length)
-            {
-                throw new InvalidOperationException("Buffer overflow when reading varint.");
-            }
-
-            // Read one byte
-            int bytesRead = await stream.ReadAsync(buffer.AsMemory(index, 1), token);
-            if (bytesRead == 0)
-            {
-                throw new EndOfStreamException("Stream ended while reading varint.");
-            }
-
-            // Extract the 7 least significant bits
-            byte currentByte = buffer[index];
-            packetSize |= (currentByte & 0x7F) << shift;
-
-            // Check MSB to see if more bytes are part of the size
-            if ((currentByte & 0x80) == 0)
-            {
-                return (packetSize, index + 1);
-            }
-
-            // Move to the next byte
-            shift += 7;
-            index++;
-        }
-    }
 }
