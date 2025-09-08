@@ -72,7 +72,7 @@ public class AuthConnection : Connection, IAuthConnection
 
     protected override void OnHandshakeFinished() => Server.CallConnectionListener(this);
 
-    protected override async Task<Stream> GetStream(TcpClient client)
+    protected override async Task<PacketStream> GetStream(TcpClient client)
     {
         NetworkStream networkStream = new(client.Client);
         SslStream sslStream = new(networkStream, false, OnClientCertificateValidation);
@@ -81,7 +81,7 @@ public class AuthConnection : Connection, IAuthConnection
 
         await sslStream.AuthenticateAsServerAsync(certificate, false, SslProtocols.Tls12, false);
 
-        return sslStream;
+        return new PacketStream(sslStream);
     }
 
     protected override async Task OnClose(bool expected = true)
