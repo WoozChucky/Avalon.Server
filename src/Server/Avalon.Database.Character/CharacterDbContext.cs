@@ -7,7 +7,6 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using Pomelo.EntityFrameworkCore.MySql.Infrastructure;
 
 namespace Avalon.Database.Character;
 
@@ -75,11 +74,7 @@ public class CharacterDbContext(ILoggerFactory loggerFactory, IOptions<DatabaseC
             .UseLoggerFactory(loggerFactory)
             .EnableSensitiveDataLogging();
 
-        optionsBuilder.UseMySql(_connectionString, ServerVersion.AutoDetect(_connectionString), mysql =>
-        {
-            // because MySQL does not support schemas: https://github.com/PomeloFoundation/Pomelo.EntityFrameworkCore.MySql/issues/1100
-            mysql.SchemaBehavior(MySqlSchemaBehavior.Translate, (schema, table) => $"{schema}.{table}");
-        });
+        optionsBuilder.UseNpgsql(_connectionString);
     }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -122,12 +117,6 @@ public class CharacterDbContext(ILoggerFactory loggerFactory, IOptions<DatabaseC
             .WithOne()
             .HasForeignKey<CharacterStats>(e => e.CharacterId)
             .OnDelete(DeleteBehavior.Cascade);
-
-        builder
-            .ToTable(t => t.HasCheckConstraint(
-                "CK_CharacterStats_MinValues",
-                "MaxHealth >= 0 AND Stamina >= 0 AND Strength >= 0 AND Agility >= 0 AND Intellect >= 0"
-            ));
 
         builder.HasIndex(b => b.CharacterId);
     }
