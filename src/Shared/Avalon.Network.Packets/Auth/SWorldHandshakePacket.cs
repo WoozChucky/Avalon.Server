@@ -10,32 +10,22 @@ public class SWorldHandshakePacket : Packet
     public static NetworkProtocol Protocol = NetworkProtocol.Tcp;
     public static NetworkPacketFlags Flags = NetworkPacketFlags.Encrypted;
 
-    [ProtoMember(1)] public ulong? AccountId { get; set; }
+    [ProtoMember(1)] public long? AccountId { get; set; }
     [ProtoMember(2)] public bool Verified { get; set; }
 
-    public static NetworkPacket Create(ulong accountId, bool verified, Func<byte[], byte[]> encryptFunc)
+    public static NetworkPacket Create(long accountId, bool verified, Func<byte[], byte[]> encryptFunc)
     {
-        using var memoryStream = new MemoryStream();
+        using MemoryStream memoryStream = new();
 
-        var exchangeWorldKeyPacket = new SWorldHandshakePacket()
-        {
-            AccountId = accountId,
-            Verified = verified
-        };
+        SWorldHandshakePacket exchangeWorldKeyPacket = new() {AccountId = accountId, Verified = verified};
 
         Serializer.Serialize(memoryStream, exchangeWorldKeyPacket);
 
-        var buffer = encryptFunc(memoryStream.ToArray());
+        byte[]? buffer = encryptFunc(memoryStream.ToArray());
 
         return new NetworkPacket
         {
-            Header = new NetworkPacketHeader
-            {
-                Type = PacketType,
-                Flags = Flags,
-                Protocol = Protocol,
-                Version = 0
-            },
+            Header = new NetworkPacketHeader {Type = PacketType, Flags = Flags, Protocol = Protocol, Version = 0},
             Payload = buffer
         };
     }
