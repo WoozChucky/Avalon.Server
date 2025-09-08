@@ -195,7 +195,7 @@ internal class DatabaseMigrationProcess
         }
         catch (PostgresException e)
         {
-            if (e.ErrorCode == 1049) // Unknown database
+            if (e.SqlState == "3D000") // Unknown database
             {
                 return false;
             }
