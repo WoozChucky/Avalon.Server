@@ -6,7 +6,7 @@
     <PackageVersion Include="AutoMapper" Version="15.0.1"/>
     <PackageVersion Include="Npgsql" Version="9.0.3"/>
     <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="9.0.4"/>
-    <PackageVersion Include="Scalar.AspNetCore" Version="2.8.4"/>
+    <PackageVersion Include="Scalar.AspNetCore" Version="2.8.5"/>
     <PackageVersion Include="StackExchange.Redis" Version="2.9.17"/>
     <PackageVersion Include="Dapper" Version="2.1.66"/>
     <PackageVersion Include="WebPush" Version="1.0.12"/>
