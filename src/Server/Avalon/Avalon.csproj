@@ -9,7 +9,7 @@
     <UserSecretsId>13ebf485-c479-4f1c-9f4f-e70375918011</UserSecretsId>
   </PropertyGroup>
 
-  <Sdk Name="Aspire.AppHost.Sdk" Version="9.5.0"/>
+  <Sdk Name="Aspire.AppHost.Sdk" Version="9.5.1"/>
 
   <ItemGroup>
     <PackageReference Include="Aspire.Hosting.AppHost" />
