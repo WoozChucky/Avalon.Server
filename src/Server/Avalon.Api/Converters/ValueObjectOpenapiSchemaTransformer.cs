@@ -2,43 +2,43 @@
 // Avalon MMORPG Game licenses this file to you under the MIT license.
 
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using Avalon.Common;
 using Microsoft.AspNetCore.Http.Json;
 using Microsoft.AspNetCore.OpenApi;
 using Microsoft.Extensions.Options;
-using Microsoft.OpenApi.Any;
-using Microsoft.OpenApi.Models;
+using Microsoft.OpenApi;
 
 namespace Avalon.Api.Converters;
 
 public class ValueObjectOpenapiSchemaTransformer : IOpenApiSchemaTransformer
 {
-    public async Task TransformAsync(OpenApiSchema schema, OpenApiSchemaTransformerContext context,
+    public Task TransformAsync(OpenApiSchema schema, OpenApiSchemaTransformerContext context,
         CancellationToken cancellationToken)
     {
         // Only touch schemas for ValueObject<T>
         if (!IsValueObject(context.JsonTypeInfo.Type))
         {
-            return;
+            return Task.CompletedTask;
         }
 
         // Get the underlying T from ValueObject<T>
         Type? valueType = context.JsonTypeInfo.Type.BaseType?.GetGenericArguments()[0];
         if (valueType is null)
         {
-            return;
+            return Task.CompletedTask;
         }
 
         // Reset the object-y bits
-        schema.AllOf.Clear();
-        schema.OneOf.Clear();
-        schema.AnyOf.Clear();
-        schema.Properties.Clear();
-        schema.Reference = null;
+        schema.AllOf?.Clear();
+        schema.OneOf?.Clear();
+        schema.AnyOf?.Clear();
+        schema.Properties?.Clear();
 
         // Heuristic: produce an inline scalar schema for T
         CopyScalarShape(valueType, schema, GetJsonOptions(context));
+        return Task.CompletedTask;
     }
 
     private static JsonSerializerOptions GetJsonOptions(OpenApiSchemaTransformerContext ctx) =>
@@ -54,17 +54,17 @@ public class ValueObjectOpenapiSchemaTransformer : IOpenApiSchemaTransformer
             bool useString = json.Converters.Any(c => c is JsonStringEnumConverter);
             if (useString)
             {
-                schema.Type = "string";
-                schema.Enum = Enum.GetNames(t).Select(n => (IOpenApiAny)new OpenApiString(n)).ToList();
+                schema.Type = JsonSchemaType.String;
+                schema.Enum = Enum.GetNames(t).Select(JsonNode? (n) => JsonValue.Create(n)).ToList()!;
             }
             else
             {
-                // Numeric enums (best-effort; OpenAPI.NET only has OpenApiInteger)
-                schema.Type = "integer";
+                // Numeric enums (best-effort; using JsonValue for integers)
+                schema.Type = JsonSchemaType.Integer;
                 schema.Format = "int32";
                 schema.Enum = Enum.GetValues(t).Cast<object>()
-                    .Select(v => (IOpenApiAny)new OpenApiInteger(Convert.ToInt32(v)))
-                    .ToList();
+                    .Select(JsonNode? (v) => JsonValue.Create(Convert.ToInt32(v)))
+                    .ToList()!;
             }
 
             return;
@@ -73,13 +73,13 @@ public class ValueObjectOpenapiSchemaTransformer : IOpenApiSchemaTransformer
         // Primitives & common BCL “value” types
         if (t == typeof(string))
         {
-            schema.Type = "string";
+            schema.Type = JsonSchemaType.String;
             return;
         }
 
         if (t == typeof(char))
         {
-            schema.Type = "string";
+            schema.Type = JsonSchemaType.String;
             schema.MinLength = 1;
             schema.MaxLength = 1;
             return;
@@ -87,141 +87,141 @@ public class ValueObjectOpenapiSchemaTransformer : IOpenApiSchemaTransformer
 
         if (t == typeof(bool))
         {
-            schema.Type = "boolean";
+            schema.Type = JsonSchemaType.Boolean;
             return;
         }
 
         if (t == typeof(byte[]))
         {
-            schema.Type = "string";
+            schema.Type = JsonSchemaType.Array;
             schema.Format = "byte";
             return;
         }
 
         if (t == typeof(Guid))
         {
-            schema.Type = "string";
+            schema.Type = JsonSchemaType.String;
             schema.Format = "uuid";
             return;
         }
 
         if (t == typeof(Uri))
         {
-            schema.Type = "string";
+            schema.Type = JsonSchemaType.String;
             schema.Format = "uri";
             return;
         } // allowed format in OAS 3.1
 
         if (t == typeof(DateTime) || t == typeof(DateTimeOffset))
         {
-            schema.Type = "string";
+            schema.Type = JsonSchemaType.String;
             schema.Format = "date-time";
             return;
         }
 
         if (t == typeof(DateOnly))
         {
-            schema.Type = "string";
+            schema.Type = JsonSchemaType.String;
             schema.Format = "date";
             return;
         }
 
         if (t == typeof(TimeOnly))
         {
-            schema.Type = "string";
+            schema.Type = JsonSchemaType.String;
             schema.Format = "time";
             return;
         }
 
         if (t == typeof(float))
         {
-            schema.Type = "number";
+            schema.Type = JsonSchemaType.Number;
             schema.Format = "float";
             return;
         }
 
         if (t == typeof(double))
         {
-            schema.Type = "number";
+            schema.Type = JsonSchemaType.Number;
             schema.Format = "double";
             return;
         }
 
         if (t == typeof(decimal))
         {
-            schema.Type = "number";
+            schema.Type = JsonSchemaType.Number;
             schema.Format = "decimal";
             return;
         } // custom format is fine
 
         if (t == typeof(sbyte))
         {
-            schema.Type = "integer";
+            schema.Type = JsonSchemaType.Number;
             schema.Format = "int32";
-            schema.Minimum = -128;
-            schema.Maximum = 127;
+            schema.Minimum = "-128";
+            schema.Maximum = 127.ToString();
             return;
         }
 
         if (t == typeof(byte))
         {
-            schema.Type = "integer";
+            schema.Type = JsonSchemaType.Number;
             schema.Format = "int32";
-            schema.Minimum = 0;
-            schema.Maximum = 255;
+            schema.Minimum = 0.ToString();
+            schema.Maximum = 255.ToString();
             return;
         }
 
         if (t == typeof(short))
         {
-            schema.Type = "integer";
+            schema.Type = JsonSchemaType.Number;
             schema.Format = "int32";
-            schema.Minimum = short.MinValue;
-            schema.Maximum = short.MaxValue;
+            schema.Minimum = short.MinValue.ToString();
+            schema.Maximum = short.MaxValue.ToString();
             return;
         }
 
         if (t == typeof(ushort))
         {
-            schema.Type = "integer";
+            schema.Type = JsonSchemaType.Number;
             schema.Format = "int32";
-            schema.Minimum = 0;
-            schema.Maximum = ushort.MaxValue;
+            schema.Minimum = 0.ToString();
+            schema.Maximum = ushort.MaxValue.ToString();
             return;
         }
 
         if (t == typeof(int))
         {
-            schema.Type = "integer";
+            schema.Type = JsonSchemaType.Number;
             schema.Format = "int32";
             return;
         }
 
         if (t == typeof(uint))
         {
-            schema.Type = "integer";
+            schema.Type = JsonSchemaType.Number;
             schema.Format = "int64";
-            schema.Minimum = 0;
-            schema.Maximum = 4294967295;
+            schema.Minimum = 0.ToString();
+            schema.Maximum = 4294967295.ToString();
             return;
         }
 
         if (t == typeof(long))
         {
-            schema.Type = "integer";
+            schema.Type = JsonSchemaType.Number;
             schema.Format = "int64";
             return;
         }
 
         if (t == typeof(ulong))
         {
-            schema.Type = "string";
+            schema.Type = JsonSchemaType.String;
             schema.Format = "uint64";
             return;
         } // safer than overflowing int64
 
         // Fallback: inline object with no properties (least-wrong)
-        schema.Type = "object";
+        schema.Type = JsonSchemaType.Object;
     }
 
     private static bool IsValueObject(Type? type)
