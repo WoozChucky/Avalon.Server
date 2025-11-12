@@ -3,6 +3,6 @@
 EXPOSE 8080
 
 WORKDIR /app
-COPY ./bin/Release/net9.0/publish/ .
+COPY ./bin/Release/net10.0/publish/ .
 
 ENTRYPOINT ["dotnet", "Avalon.Api.dll"]
