@@ -3,7 +3,7 @@
 
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.OpenApi;
-using Microsoft.OpenApi.Models;
+using Microsoft.OpenApi;
 
 namespace Avalon.Api.Converters;
 
@@ -17,7 +17,7 @@ internal sealed class BearerSecuritySchemeTransformer(IAuthenticationSchemeProvi
             await authenticationSchemeProvider.GetAllSchemesAsync();
         if (authenticationSchemes.Any(authScheme => authScheme.Name == "Bearer"))
         {
-            Dictionary<string, OpenApiSecurityScheme> requirements = new()
+            Dictionary<string, IOpenApiSecurityScheme> requirements = new()
             {
                 ["Bearer"] = new OpenApiSecurityScheme
                 {
