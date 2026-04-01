@@ -4,7 +4,7 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageVersion Include="AutoMapper" Version="15.1.0"/>
-    <PackageVersion Include="Npgsql" Version="10.0.0"/>
+    <PackageVersion Include="Npgsql" Version="10.0.2"/>
     <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.0"/>
     <PackageVersion Include="Scalar.AspNetCore" Version="2.11.0"/>
     <PackageVersion Include="StackExchange.Redis" Version="2.9.32"/>
