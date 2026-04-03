@@ -11,7 +11,7 @@ Each entry describes its **context**, **implementation details**, **behaviour & 
 
 | ID        | Status | Area                    | File                                                                                       | Short description                                     |
 |-----------|--------|-------------------------|--------------------------------------------------------------------------------------------|-------------------------------------------------------|
-| TODO-001  | 🔴     | Networking / Shutdown   | `src/Shared/Avalon.Network.Tcp/AvalonTcpServer.cs:72`                                      | Close all open client connections on `StopAsync`      |
+| TODO-001  | 🟢     | Networking / Shutdown   | `src/Shared/Avalon.Network.Tcp/AvalonTcpServer.cs:72`                                      | Close all open client connections on `StopAsync`      |
 | TODO-002  | 🔴     | Networking / Shutdown   | `src/Shared/Avalon.Network.Tcp/AvalonTcpServer.cs:73`                                      | Send disconnect packet to all clients on stop         |
 | TODO-003  | 🔴     | Networking / Shutdown   | `src/Server/Avalon.Server.Auth/AuthServer.cs:55`                                           | Send disconnect packet in Auth `OnStoppingAsync`      |
 | TODO-004  | 🔴     | Networking / Shutdown   | `src/Server/Avalon.World/WorldServer.cs:164`                                               | Send disconnect packet in World `OnStoppingAsync`     |

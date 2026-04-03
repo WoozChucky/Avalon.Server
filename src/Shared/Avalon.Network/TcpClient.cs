@@ -6,7 +6,7 @@ using ProtoBuf;
 
 namespace Avalon.Network;
 
-public class TcpClient : IRemoteSource
+public class TcpClient : IRemoteSource, IAvalonTcpConnection
 {
     private const string Direction = "OUT";
 
@@ -19,6 +19,10 @@ public class TcpClient : IRemoteSource
         Stream = stream ?? throw new ArgumentNullException(nameof(stream));
         Authenticated = false;
     }
+
+    public Guid Id { get; } = Guid.NewGuid();
+
+    public event Action<Guid>? Disconnected;
 
     public Socket Socket { get; }
     public Stream Stream { get; }
@@ -50,8 +54,11 @@ public class TcpClient : IRemoteSource
         return Task.CompletedTask;
     }
 
+    public void Close() => Dispose();
+
     public void Dispose()
     {
+        Disconnected?.Invoke(Id);
         Socket.Shutdown(SocketShutdown.Both);
         Socket.Dispose();
         Stream.Dispose();
