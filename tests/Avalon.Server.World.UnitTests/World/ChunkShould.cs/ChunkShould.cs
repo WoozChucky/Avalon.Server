@@ -4,7 +4,7 @@ using Avalon.World.Pathfinding;
 using Avalon.World.Public.Maps;
 using Xunit;
 
-namespace Avalon.Server.IntegrationTests.World;
+namespace Avalon.Server.World.UnitTests.World;
 
 public class ChunkShould
 {

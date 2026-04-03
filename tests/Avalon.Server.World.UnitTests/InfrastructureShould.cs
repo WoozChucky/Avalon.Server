@@ -1,7 +1,7 @@
 using NSubstitute;
 using Xunit;
 
-namespace Avalon.Server.IntegrationTests;
+namespace Avalon.Server.World.UnitTests;
 
 public class InfrastructureShould : IClassFixture<InfrastructureFixture>
 {

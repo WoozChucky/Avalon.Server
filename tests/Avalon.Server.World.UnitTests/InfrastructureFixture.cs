@@ -7,7 +7,7 @@ using Avalon.Network.Packets.Internal.Deserialization;
 using Avalon.Network.Packets.Serialization;
 using Avalon.World.Configuration;
 
-namespace Avalon.Server.IntegrationTests;
+namespace Avalon.Server.World.UnitTests;
 
 public class InfrastructureFixture : IDisposable
 {
