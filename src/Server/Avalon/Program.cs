@@ -8,25 +8,29 @@ IResourceBuilder<ContainerResource> redis = builder
     .WithEndpoint(6379, 6379, "tcp", "tcp", isExternal: true)
     .WithLifetime(ContainerLifetime.Persistent);
 
-IResourceBuilder<ContainerResource> mariadb = builder
-    .AddContainer("mariadb", "mariadb", "latest")
-    .WithEnvironment("MARIADB_ROOT_PASSWORD", "123")
-    .WithEndpoint(3306, 3306, "tcp", "tcp", isExternal: true)
+IResourceBuilder<ContainerResource> postgresql = builder
+    .AddContainer("postgresql", "postgres", "18")
+    .WithEnvironment("POSTGRES_PASSWORD", "123")
+    .WithEndpoint(5432, 5432, "tcp", "tcp", isExternal: true)
     .WithLifetime(ContainerLifetime.Persistent);
 
 IResourceBuilder<ProjectResource> apiProject = builder
     .AddProject<Avalon_Api>("api")
     .WaitFor(redis)
-    .WaitFor(mariadb);
+    .WaitFor(postgresql);
 
 IResourceBuilder<ProjectResource> authServer = builder
     .AddProject<Avalon_Server_Auth>("auth")
+    .WithEndpoint(21000, 21000, "tcp", "tcp", isProxied: false, isExternal: true)
     .WaitFor(redis)
-    .WaitFor(mariadb);
+    .WaitFor(postgresql)
+    .WaitFor(apiProject);
 
 IResourceBuilder<ProjectResource> worldServer = builder
     .AddProject<Avalon_Server_World>("world")
+    .WithEndpoint(21001, 21001, "tcp", "tcp", isProxied: false, isExternal: true)
     .WaitFor(redis)
-    .WaitFor(mariadb);
+    .WaitFor(postgresql)
+    .WaitFor(authServer);
 
 builder.Build().Run();
