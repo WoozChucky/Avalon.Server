@@ -36,21 +36,22 @@ Communication paths:
 
 Server layer:
 
-- src/Server/Avalon.Api: ASP.NET Core REST API; OpenAPI generation; JWT issuance; JSON serialization customization.
-- src/Server/Avalon.Server.Auth: Hosted service wrapping AuthServer (packet dispatcher, login flow, MFA support).
-- src/Server/Avalon.Server.World: Hosted service running the simulation loop (maps, entities, spells, movement,
+- `src/Server/Avalon`: The [Aspire](https://dotnet.microsoft.com/en-us/apps/aspire) host for all server components.
+- `src/Server/Avalon.Api`: ASP.NET Core REST API; OpenAPI generation; JWT issuance; JSON serialization customization.
+- `src/Server/Avalon.Server.Auth`: Hosted service wrapping AuthServer (packet dispatcher, login flow, MFA support).
+- `src/Server/Avalon.Server.World`: Hosted service running the simulation loop (maps, entities, spells, movement,
   spawning).
-- src/Server/Avalon.World: Core world implementation (maps, grid management, entities, spells, sessions, connection
+- `src/Server/Avalon.World`: Core world implementation (maps, grid management, entities, spells, sessions, connection
   orchestration).
-- src/Server/Avalon.World.Public: Public abstractions (interfaces) consumed by other layers (decouples implementation).
-- src/Server/Avalon.World.Scripts / .Abstractions: Scripting system boundary (gameplay extensions, isolated logic).
-- src/Server/Avalon.Infrastructure: Cross‑cutting infra services (Redis replicated cache, MFA hashing, config binding,
+- `src/Server/Avalon.World.Public`: Public abstractions (interfaces) consumed by other layers (decouples implementation).
+- `src/Server/Avalon.World.Scripts` / `.Abstractions`: Scripting system boundary (gameplay extensions, isolated logic).
+- `src/Server/Avalon.Infrastructure`: Cross‑cutting infra services (Redis replicated cache, MFA hashing, config binding,
   helper services).
-- src/Server/Avalon.Database.*: EF Core contexts and repositories (Auth, Character, World) + migrations.
-- src/Server/Avalon.Hosting: Uniform host bootstrap (AvalonHostBuilder) adding converters, telemetry, configuration.
+- `src/Server/Avalon.Database.*`: EF Core contexts and repositories (Auth, Character, World) + migrations.
+- `src/Server/Avalon.Hosting`: Uniform host bootstrap (AvalonHostBuilder) adding converters, telemetry, configuration.
 - src/Server/Avalon.ServiceDefaults: Shared service registration (logging, OpenTelemetry, resiliency, service discovery
   if enabled).
-- src/Server/Avalon.PluginFramework: Foundation for dynamic/extensible plugin loading (future gameplay/content modules).
+- src/Server/Avalon.PluginFramework: Foundation for dynamic/extensible plugin loading (future roadmap for gameplay/content modules).
 
 Shared libraries:
 
