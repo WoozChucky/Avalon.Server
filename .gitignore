@@ -57,3 +57,5 @@ src/Server/Avalon.Api/Avalon.Api.csproj.user
 Avalon.sln.DotSettings
 
 .DS_Store
+
+.junie/memory/
