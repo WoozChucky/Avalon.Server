@@ -58,7 +58,8 @@ public class ReplicatedCache : IReplicatedCache
 
     public async Task<bool> SetAsync(string key, string value, TimeSpan? expiry)
     {
-        return await _redis.GetDatabase().StringSetAsync(key, value, expiry);
+        var expiration = new Expiration(expiry ?? TimeSpan.Zero);
+        return await _redis.GetDatabase().StringSetAsync(key, value, expiration);
     }
 
     public async Task<string?> GetAsync(string key)
