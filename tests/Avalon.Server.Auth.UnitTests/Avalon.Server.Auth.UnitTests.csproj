@@ -4,7 +4,6 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-
     <IsPackable>false</IsPackable>
   </PropertyGroup>
 
@@ -19,19 +18,22 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
+    <PackageReference Include="coverlet.msbuild" Version="6.0.4">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
     <PackageReference Include="xunit" Version="2.9.3"/>
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.0.1">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\src\Server\Avalon.Server.Auth\Avalon.Server.Auth.csproj"/>
     <ProjectReference Include="..\..\src\Server\Avalon.Database\Avalon.Database.csproj"/>
     <ProjectReference Include="..\..\src\Server\Avalon.Infrastructure\Avalon.Infrastructure.csproj"/>
-    <ProjectReference Include="..\..\src\Server\Avalon.World\Avalon.World.csproj"/>
     <ProjectReference Include="..\..\src\Shared\Avalon.Common\Avalon.Common.csproj"/>
-    <ProjectReference Include="..\..\src\Shared\Avalon.Metrics\Avalon.Metrics.csproj"/>
-    <ProjectReference Include="..\..\src\Shared\Avalon.Network.Packets.Abstractions\Avalon.Network.Packets.Abstractions.csproj"/>
-    <ProjectReference Include="..\..\src\Shared\Avalon.Network.Packets\Avalon.Network.Packets.csproj"/>
-    <ProjectReference Include="..\..\src\Shared\Avalon.Network.Tcp\Avalon.Network.Tcp.csproj"/>
-    <ProjectReference Include="..\..\src\Shared\Avalon.Network\Avalon.Network.csproj"/>
   </ItemGroup>
 
 </Project>

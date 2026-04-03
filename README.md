@@ -68,7 +68,10 @@ Tooling & Tests:
 - tools/Avalon.Database.Migrator.Console & Avalon.Tools.Migrations: CLI + EF design‑time support for applying/creating
   migrations.
 - tools/Avalon.Benchmarking: Micro-benchmarks for performance‑sensitive components.
-- tests/Avalon.Server.IntegrationTests: Integration tests (infra fixture, end‑to‑end behavioral checks).
+- tests/Avalon.Shared.UnitTests: Unit tests for shared libraries.
+- tests/Avalon.Server.Auth.UnitTests: Unit tests for authentication server components.
+- tests/Avalon.Server.World.UnitTests: Unit tests for world server and simulation logic.
+- tests/Avalon.Api.UnitTests: Unit tests for the REST API.
 
 ## Core Cross-Cutting Concepts
 
@@ -306,9 +309,9 @@ Prerequisites: .NET 9 SDK, Docker (for infra services).
 
 ## Testing
 
-- tests/Avalon.Server.IntegrationTests seeds infrastructure fixture(s) and validates multi-component behaviors.
+- `tests/*.UnitTests` projects contain unit tests for their respective components.
   Run:
-- dotnet test
+- `dotnet test`
 
 ## Benchmarking
 
