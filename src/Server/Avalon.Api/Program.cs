@@ -2,7 +2,6 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Avalon.Api;
 using Avalon.Api.Config;
-using Avalon.Api.Contract.Mappers;
 using Avalon.Api.Converters;
 using Avalon.Api.Middlewares;
 using Avalon.Api.Services;
@@ -74,7 +73,6 @@ services.AddCustomLogging(configuration);
     });
     services.AddAuth(applicationConfig);
     services.AddInfrastructure(applicationConfig);
-    services.AddAutoMapper(action => { action.AddProfile<AutoMappingProfile>(); });
 }
 
 WebApplication app = builder.Build();
@@ -102,14 +100,18 @@ app.MapDefaultEndpoints();
     {
         options.WithTitle("Avalon.Api");
         options.WithTheme(ScalarTheme.BluePlanet);
-        options.WithSidebar(false);
+        options.HideSidebar();
     });
 
     app.UseRouting();
 
     app.UseCors(x => x
-        .WithOrigins("http://localhost:4200", "http://localhost:5210", "https://avalon.monster",
-            "https://dashboard.avalon.monster")
+        .WithOrigins(
+            "http://localhost:4200", 
+            "http://localhost:5210", 
+            "https://avalon.monster",
+            "https://dashboard.avalon.monster"
+        )
         .AllowAnyMethod()
         .AllowAnyHeader()
     );
