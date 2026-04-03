@@ -11,6 +11,7 @@ using Avalon.Hosting.Networking;
 using Avalon.Infrastructure;
 using Avalon.Network.Packets;
 using Avalon.Network.Packets.Abstractions;
+using Avalon.Network.Packets.Generic;
 using Avalon.World.Entities;
 using Avalon.World.Filters;
 using Avalon.World.Maps.Navigation;
@@ -161,7 +162,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
     {
         foreach (IWorldConnection connection in Connections)
         {
-            // TODO: Send a disconnect packet
+            connection.Send(SDisconnectPacket.Create("Server is shutting down", DisconnectReason.ServerShutdown));
             connection.Close();
         }
 
