@@ -28,7 +28,9 @@ public class AvalonSslTcpServer : AvalonTcpServer, IAvalonTcpServer
         {
             await sslStream.AuthenticateAsServerAsync(_certificate, false, SslProtocols.Tls12, false).ConfigureAwait(true);
 
-            ClientConnected?.Invoke(this, new TcpClient(LoggerFactory, client, sslStream));
+            var tcpClient = new TcpClient(LoggerFactory, client, sslStream);
+            TrackConnection(tcpClient);
+            ClientConnected?.Invoke(this, tcpClient);
         }
         catch (AuthenticationException e)
         {

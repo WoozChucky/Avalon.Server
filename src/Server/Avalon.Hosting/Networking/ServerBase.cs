@@ -96,8 +96,26 @@ public abstract class ServerBase<T> : BackgroundService, IServerBase where T : I
 
     private async void OnClientAccepted(IAsyncResult ar)
     {
-        var listener = (TcpListener)ar.AsyncState!;
-        var client = listener.EndAcceptTcpClient(ar);
+        TcpClient client;
+        try
+        {
+            var listener = (TcpListener)ar.AsyncState!;
+            client = listener.EndAcceptTcpClient(ar);
+        }
+        catch (ObjectDisposedException)
+        {
+            return; // Listener was stopped during shutdown
+        }
+        catch (SocketException)
+        {
+            return; // Listener was stopped during shutdown
+        }
+
+        if (_stoppingToken.IsCancellationRequested)
+        {
+            client.Close();
+            return;
+        }
 
         // will dispose once connection finished executing (canceled or disconnect)
         await using var scope = _serviceProvider.CreateAsyncScope();
@@ -184,6 +202,7 @@ public abstract class ServerBase<T> : BackgroundService, IServerBase where T : I
 
     public override async Task StopAsync(CancellationToken cancellationToken)
     {
+        Listener.Stop();
         await OnStoppingAsync(cancellationToken);
         await _stoppingToken.CancelAsync();
         await base.StopAsync(cancellationToken);
