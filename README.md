@@ -279,8 +279,8 @@ GetOrCreateSchemaAsync). Instead:
 
 Prerequisites: .NET 9 SDK, Docker (for infra services).
 
-1. Start infra (Redis + MariaDB):
-   docker compose up -d redis mariadb
+1. Start infra (Redis + PostgreSQL):
+   docker compose up -d redis postgres
 2. (Optional) Redis Insight / Postgres: docker compose up -d redis-insight postgres
 3. Apply / generate migrations (example Auth):
    cd tools/Avalon.Tools.Migrations
