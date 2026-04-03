@@ -22,16 +22,27 @@ public class SlidingExpirationCache<TKey, TValue> : IDisposable
 
     public bool TryGetValue(TKey key, out TValue value)
     {
-        var success = _cache.TryGetValue(key, out var tuple);
-        value = tuple.Value;
-
-        if (success)
+        if (!_cache.TryGetValue(key, out var tuple))
         {
-            // Update the LastAccessed time to "reset" the sliding expiration
-            _cache.TryUpdate(key, (value, DateTime.UtcNow), tuple);
+            value = default!;
+            return false;
         }
 
-        return success;
+        // Lazy expiration: evict the entry immediately if it has expired,
+        // regardless of whether the background timer has run yet.
+        if (DateTime.UtcNow - tuple.LastAccessed > _expiration)
+        {
+            _cache.TryRemove(key, out _);
+            value = default!;
+            return false;
+        }
+
+        value = tuple.Value;
+
+        // Reset the sliding window on access.
+        _cache.TryUpdate(key, (value, DateTime.UtcNow), tuple);
+
+        return true;
     }
 
     private void RemoveExpiredEntries(object state)
