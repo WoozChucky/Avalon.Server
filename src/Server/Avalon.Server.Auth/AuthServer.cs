@@ -6,6 +6,7 @@ using Avalon.Configuration;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Domain.Auth;
 using Avalon.Hosting.Networking;
+using Avalon.Network.Packets.Generic;
 using Avalon.Server.Auth.Configuration;
 using Microsoft.Extensions.Options;
 
@@ -52,7 +53,7 @@ public class AuthServer(
     {
         foreach (IAuthConnection connection in Connections)
         {
-            // TODO: Send a disconnect packet
+            connection.Send(SDisconnectPacket.Create("Server is shutting down", DisconnectReason.ServerShutdown));
             connection.Close();
         }
 

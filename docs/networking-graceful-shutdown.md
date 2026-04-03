@@ -2,9 +2,33 @@
 
 This document describes the intended connection lifecycle and graceful-shutdown protocol for the Avalon TCP servers (Auth and World).
 
+## Architecture Note — Two Server Code Paths
+
+There are **two separate TCP server code paths** in this codebase. Understanding the distinction is critical when working on networking features:
+
+### Production path (Auth + World servers)
+- **`ServerBase<T>`** (`src/Server/Avalon.Hosting/Networking/ServerBase.cs`) — extends `BackgroundService`, uses `TcpListener` + `BeginAcceptTcpClient`.
+- **`AuthServer : ServerBase<AuthConnection>`** — the live auth server.
+- **`WorldServer : ServerBase<WorldConnection>`** — the live world server.
+- Connections implement **`IConnection`** (in `Avalon.Hosting.Networking`), which exposes:
+  - `void Send(NetworkPacket)` — synchronous send via ring buffer.
+  - `void Close(bool expected = true)` — terminate the connection.
+
+### Standalone/client path (`AvalonTcpServer`)
+- **`AvalonTcpServer`** / **`AvalonSslTcpServer`** (`src/Shared/Avalon.Network.Tcp/`) — `netstandard2.1` standalone server with its own `Socket` and `InternalServerLoop`.
+- **Never instantiated** in the auth or world server projects. Only referenced by name in `LayerEnricher` log-filtering helpers.
+- Used by the development `AvalonTcpClient` test harness.
+- Connections implement **`IAvalonTcpConnection`** (in `Avalon.Network`), which exposes `Task SendAsync(NetworkPacket)`.
+
+> **Rule of thumb**: if you are implementing a feature for the running game servers, edit `ServerBase<T>`, `AuthServer`, or `WorldServer`. Changes to `AvalonTcpServer` do **not** affect live server behaviour.
+
 ## Current State
 
-Both `AuthServer` and `WorldServer` iterate their connection lists on stop and call `connection.Close()` directly. There is no application-level packet signalling clients about the shutdown, and `AvalonTcpServer.StopAsync` does not close accepted sockets at all.
+- ✅ **TODO-001**: `AvalonTcpServer` now tracks connections in a `ConcurrentDictionary` and closes them all in `StopAsync`.
+- ✅ **TODO-002**: `AvalonTcpServer.StopAsync` sends `SDisconnectPacket` (ServerShutdown) to each connection before closing. Also, `ServerBase.StopAsync` now calls `Listener.Stop()` first to release the listening port, and `OnClientAccepted` is hardened against shutdown races.
+- ✅ **TODO-003**: `AuthServer.OnStoppingAsync` now sends `SDisconnectPacket` before calling `connection.Close()`.
+- ✅ **TODO-004**: `WorldServer.OnStoppingAsync` now sends `SDisconnectPacket` before calling `connection.Close()`.
+- ❌ **TODO-005**: `DelayedDisconnect` (duplicate-login kick) — still pending; see section below.
 
 Related TODOs: [TODO-001](../TODO.md#todo-001), [TODO-002](../TODO.md#todo-002), [TODO-003](../TODO.md#todo-003), [TODO-004](../TODO.md#todo-004), [TODO-005](../TODO.md#todo-005)
 
@@ -13,10 +37,10 @@ Related TODOs: [TODO-001](../TODO.md#todo-001), [TODO-002](../TODO.md#todo-002),
 ## Connection Lifecycle
 
 ```
-Client                    AvalonTcpServer / AuthServer / WorldServer
+Client                    AuthServer / WorldServer (ServerBase<T>)
   |                                 |
   |  TCP SYN                        |
-  |-------------------------------->|  AcceptAsync → HandleNewConnection
+  |-------------------------------->|  BeginAcceptTcpClient → OnClientAccepted
   |  [Handshake / CRequestServerInfo] |
   |<-------------------------------> |
   |  [Auth / World handshake flow]  |
@@ -24,7 +48,7 @@ Client                    AvalonTcpServer / AuthServer / WorldServer
   |                                 |
   |  (Server shutdown OR kick)      |
   |       SDisconnectPacket         |
-  |<---------------------------------|
+  |<---------------------------------|  connection.Send(SDisconnectPacket)
   |  [client shows reconnect UI]    |
   |  TCP FIN                        |
   |<---------------------------------|  connection.Close()
@@ -32,71 +56,79 @@ Client                    AvalonTcpServer / AuthServer / WorldServer
 
 ## `SDisconnectPacket` Schema
 
-To be defined in `Avalon.Network.Packets`:
+Defined in `Avalon.Network.Packets.Generic.SDisconnectPacket`. Transmitted **unencrypted** (`NetworkPacketFlags.None`) so it is readable regardless of the crypto session state.
 
-| Field         | Type     | Description                              |
-|---------------|----------|------------------------------------------|
-| `ReasonCode`  | `ushort` | Machine-readable disconnect reason       |
-| `Message`     | `string` | Human-readable reason shown to the player|
+Packet type: `NetworkPacketType.SMSG_DISCONNECT = 0x3008`
 
-### Disconnect Reason Codes
+| Field        | Type             | Description                               |
+|--------------|------------------|-------------------------------------------|
+| `Reason`     | `string`         | Human-readable reason shown to the player |
+| `ReasonCode` | `DisconnectReason` | Machine-readable disconnect reason      |
 
-| Code | Name               | Trigger                                                        |
-|------|--------------------|----------------------------------------------------------------|
-| 0    | `ServerShutdown`   | Server stopping gracefully (TODO-002, TODO-003, TODO-004)      |
-| 1    | `DuplicateLogin`   | Second authentication for the same account (TODO-005)          |
-| 2    | `AdminKick`        | Manual admin kick (future)                                     |
-| 3    | `VersionMismatch`  | Client version rejected (related to TODO-010)                  |
+### Disconnect Reason Codes (`DisconnectReason` enum)
+
+| Value | Name             | Trigger                                                        |
+|-------|------------------|----------------------------------------------------------------|
+| 0     | `Unknown`        | Default/unspecified                                            |
+| 1     | `ServerShutdown` | Server stopping gracefully (TODO-001–004)                      |
+| 2     | `DuplicateLogin` | Second authentication for the same account (TODO-005)          |
+| 3     | `Kicked`         | Manual admin kick (future)                                     |
+
+### Factory method
+
+```csharp
+NetworkPacket packet = SDisconnectPacket.Create("Server is shutting down", DisconnectReason.ServerShutdown);
+```
 
 ---
 
-## `AvalonTcpServer` Changes (TODO-001 + TODO-002)
+## `AvalonTcpServer` Changes — DONE (TODO-001 + TODO-002)
 
-### Connection tracking
+> **Note**: `AvalonTcpServer` is **not** the production server for Auth or World. See the architecture note above.
 
-Add a `ConcurrentDictionary<Guid, IAvalonTcpConnection>` to `AvalonTcpServer`:
+### Connection tracking (TODO-001)
 
-- **Populate** inside `HandleNewConnection` after accepting the client.
-- **Remove** inside the connection's `OnClosed` callback.
+`AvalonTcpServer` tracks connections in `ConcurrentDictionary<Guid, IAvalonTcpConnection>`. `AvalonSslTcpServer.HandleNewConnection` calls `TrackConnection()` after accepting a client. The connection is removed when its `Disconnected` event fires.
 
-### `StopAsync` sequence
+### `StopAsync` sequence (TODO-002)
 
 ```
-1. Set Running = false
-2. Cancel Cts (stops the accept loop)
-3. For each tracked connection:
+1. For each tracked connection:
    a. Send SDisconnectPacket(ServerShutdown)
-   b. Await a short flush delay (200 ms max)
+   b. Await 200 ms drain
    c. Call connection.Close() — regardless of send success
-4. Socket.Close() / Socket.Dispose()
-5. Log "Server stopped"
+2. Cts.Cancel() — stops the accept loop
+3. Socket.Close() / Socket.Dispose()
+4. Log "Server stopped"
 ```
 
-Per-connection exceptions must be caught and logged individually; they must not abort the shutdown of remaining connections.
+Per-connection exceptions are caught and logged individually; they do not abort the shutdown of remaining connections.
 
 ---
 
-## Auth Server Changes (TODO-003)
+## Auth Server Changes — DONE (TODO-003)
 
-`AuthServer.OnStoppingAsync` already iterates `Connections`. Add the send step before `Close`:
+`AuthServer.OnStoppingAsync` iterates `Connections` and sends a disconnect packet before closing:
 
 ```csharp
 foreach (IAuthConnection connection in Connections)
 {
-    connection.Send(SDisconnectPacket.Create(DisconnectReason.ServerShutdown, "Server is shutting down"));
+    connection.Send(SDisconnectPacket.Create("Server is shutting down", DisconnectReason.ServerShutdown));
     connection.Close();
 }
 ```
 
+`IConnection.Send` is **synchronous** (ring buffer enqueue). No drain delay is needed here because `connection.Close()` flushes the send queue before terminating the TCP connection.
+
 ---
 
-## World Server Changes (TODO-004 + TODO-005)
+## World Server Changes — DONE (TODO-004) / Pending (TODO-005)
 
-### Graceful stop (TODO-004)
+### Graceful stop (TODO-004) — DONE
 
-Same pattern in `WorldServer.OnStoppingAsync`.
+Same pattern as Auth in `WorldServer.OnStoppingAsync`.
 
-### Forced kick notification (TODO-005)
+### Forced kick notification (TODO-005) — Pending
 
 `DelayedDisconnect` is called via Redis pub/sub when a duplicate login is detected by the Auth server. The player is in-game and should see a UI reason.
 
