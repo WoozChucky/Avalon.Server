@@ -1,8 +1,10 @@
+using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Security;
 using System.Net.Sockets;
 using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
+using Avalon.Network;
 using Avalon.Network.Tcp.Configuration;
 using Microsoft.Extensions.Logging;
 
@@ -16,6 +18,7 @@ public class AvalonTcpServer : IAvalonTcpServer
     protected readonly Socket Socket;
     protected volatile bool Running;
     protected readonly ILoggerFactory LoggerFactory;
+    protected readonly ConcurrentDictionary<Guid, IAvalonTcpConnection> _connections = new();
 
     public event TcpClientConnectedHandler? ClientConnected;
 
@@ -69,8 +72,25 @@ public class AvalonTcpServer : IAvalonTcpServer
 
         Running = false;
 
-        //TODO(Nuno): Close all connections.
-        //TODO(Nuno): Send the connection disconnect packet to all clients.
+        // Snapshot and clear before closing so Disconnected callbacks don't mutate during iteration.
+        var toClose = _connections.Values.ToArray();
+        _connections.Clear();
+
+        foreach (var connection in toClose)
+        {
+            try
+            {
+                connection.Close();
+            }
+            catch (Exception e)
+            {
+                Logger.LogError(e, "Failed to close connection {Id} during shutdown", connection.Id);
+            }
+        }
+
+        Cts.Cancel();
+        Socket.Close();
+
         Logger.LogInformation("Server stopped");
 
         return Task.CompletedTask;
@@ -98,6 +118,14 @@ public class AvalonTcpServer : IAvalonTcpServer
         {
             Logger.LogWarning("Server loop cancelled");
         }
+        catch (ObjectDisposedException)
+        {
+            Logger.LogDebug("Server socket closed; loop exiting");
+        }
+        catch (SocketException)
+        {
+            Logger.LogDebug("Server socket closed; loop exiting");
+        }
     }
 
     protected virtual Task HandleNewConnection(Socket client)
@@ -105,8 +133,9 @@ public class AvalonTcpServer : IAvalonTcpServer
         try
         {
             var networkStream = new NetworkStream(client, true);
-
-            ClientConnected?.Invoke(this, new TcpClient(LoggerFactory, client, networkStream));
+            var tcpClient = new TcpClient(LoggerFactory, client, networkStream);
+            TrackConnection(tcpClient);
+            ClientConnected?.Invoke(this, tcpClient);
         }
         catch (AuthenticationException e)
         {
@@ -118,6 +147,12 @@ public class AvalonTcpServer : IAvalonTcpServer
         }
 
         return Task.CompletedTask;
+    }
+
+    protected void TrackConnection(IAvalonTcpConnection connection)
+    {
+        connection.Disconnected += id => _connections.TryRemove(id, out _);
+        _connections.TryAdd(connection.Id, connection);
     }
 
     protected virtual void Dispose(bool disposing)
