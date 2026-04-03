@@ -1,6 +1,6 @@
-using AutoMapper;
 using Avalon.Api.Authentication;
 using Avalon.Api.Contract;
+using Avalon.Api.Contract.Mappers;
 using Avalon.Api.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -14,20 +14,18 @@ public class AccountController : BaseController
 {
     private readonly IAccountService _accountService;
     private readonly IAuthContext _authContext;
-    private readonly IMapper _mapper;
 
-    public AccountController(IAccountService accountService, IAuthContext authContext, IMapper mapper)
+    public AccountController(IAccountService accountService, IAuthContext authContext)
     {
         _accountService = accountService;
         _authContext = authContext;
-        _mapper = mapper;
     }
 
     [HttpGet(Name = "GetAccount")]
     public async Task<AccountDto> Get()
     {
-        var mapped = _mapper.Map<AccountDto>(_authContext.Account ?? throw new Exception("Account not loaded"));
-        return await Task.FromResult(mapped);
+        var dto = (_authContext.Account ?? throw new Exception("Account not loaded")).ToDto();
+        return await Task.FromResult(dto);
     }
 
     [AllowAnonymous]
