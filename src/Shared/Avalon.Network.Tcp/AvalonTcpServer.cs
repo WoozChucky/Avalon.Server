@@ -5,11 +5,13 @@ using System.Net.Sockets;
 using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
 using Avalon.Network;
+using Avalon.Network.Packets.Generic;
 using Avalon.Network.Tcp.Configuration;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.Network.Tcp;
 
+[Obsolete("AvalonTcpServer is deprecated in favor ServerBase<T> implementations. This class will be removed in a future release.")]
 public class AvalonTcpServer : IAvalonTcpServer
 {
     protected readonly ILogger<AvalonTcpServer> Logger;
@@ -64,17 +66,34 @@ public class AvalonTcpServer : IAvalonTcpServer
         return Task.CompletedTask;
     }
 
-    public Task StopAsync()
+    public async Task StopAsync()
     {
-        if (!Configuration.Enabled) return Task.CompletedTask;
+        if (!Configuration.Enabled) return;
 
         if (!Running) throw new InvalidOperationException("Server is not running.");
 
         Running = false;
 
-        // Snapshot and clear before closing so Disconnected callbacks don't mutate during iteration.
+        // Snapshot and clear before sending/closing so Disconnected callbacks don't mutate during iteration.
         var toClose = _connections.Values.ToArray();
         _connections.Clear();
+
+        // Notify each client that the server is shutting down.
+        var disconnectPacket = SDisconnectPacket.Create("Server is shutting down", DisconnectReason.ServerShutdown);
+        foreach (var connection in toClose)
+        {
+            try
+            {
+                await connection.SendAsync(disconnectPacket);
+            }
+            catch (Exception e)
+            {
+                Logger.LogError(e, "Failed to send disconnect packet to connection {Id}", connection.Id);
+            }
+        }
+
+        // Give the OS time to drain send buffers before forcibly closing sockets.
+        await Task.Delay(200);
 
         foreach (var connection in toClose)
         {
@@ -92,8 +111,6 @@ public class AvalonTcpServer : IAvalonTcpServer
         Socket.Close();
 
         Logger.LogInformation("Server stopped");
-
-        return Task.CompletedTask;
     }
 
     public void Dispose()

@@ -1,4 +1,6 @@
 using Avalon.Network;
+using Avalon.Network.Packets.Abstractions;
+using Avalon.Network.Packets.Generic;
 using Avalon.Network.Tcp;
 using Avalon.Network.Tcp.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -82,5 +84,69 @@ public class AvalonTcpServerShould
         await server.StopAsync();
 
         Assert.False(server.IsRunning);
+    }
+
+    [Fact]
+    public async Task SendDisconnectPacket_BeforeClosingEachConnection()
+    {
+        var server = new TestableAvalonTcpServer();
+        var conn1 = MockConnection();
+        var conn2 = MockConnection();
+        server.AddTestConnection(conn1);
+        server.AddTestConnection(conn2);
+
+        await server.StopAsync();
+
+        await conn1.Received(1).SendAsync(Arg.Is<NetworkPacket>(p =>
+            p.Header.Type == NetworkPacketType.SMSG_DISCONNECT));
+        await conn2.Received(1).SendAsync(Arg.Is<NetworkPacket>(p =>
+            p.Header.Type == NetworkPacketType.SMSG_DISCONNECT));
+    }
+
+    [Fact]
+    public async Task SendDisconnectPacket_WithServerShutdownReason()
+    {
+        var server = new TestableAvalonTcpServer();
+        NetworkPacket? captured = null;
+        var conn = MockConnection();
+        conn.SendAsync(Arg.Do<NetworkPacket>(p => captured = p)).Returns(Task.CompletedTask);
+        server.AddTestConnection(conn);
+
+        await server.StopAsync();
+
+        Assert.NotNull(captured);
+        // Deserialize and verify the reason code
+        var inner = ProtoBuf.Serializer.Deserialize<SDisconnectPacket>(
+            new ReadOnlyMemory<byte>(captured!.Payload));
+        Assert.Equal(DisconnectReason.ServerShutdown, inner.ReasonCode);
+    }
+
+    [Fact]
+    public async Task CloseConnection_EvenWhenSendDisconnectPacketThrows()
+    {
+        var server = new TestableAvalonTcpServer();
+        var conn = MockConnection();
+        conn.SendAsync(Arg.Any<NetworkPacket>()).ThrowsAsync(new IOException("Send failed"));
+        server.AddTestConnection(conn);
+
+        await server.StopAsync();
+
+        conn.Received(1).Close();
+    }
+
+    [Fact]
+    public async Task SendDisconnectPacket_BeforeClose_OrderVerified()
+    {
+        var server = new TestableAvalonTcpServer();
+        var order = new List<string>();
+        var conn = MockConnection();
+        conn.SendAsync(Arg.Any<NetworkPacket>()).Returns(Task.CompletedTask)
+            .AndDoes(_ => order.Add("send"));
+        conn.When(c => c.Close()).Do(_ => order.Add("close"));
+        server.AddTestConnection(conn);
+
+        await server.StopAsync();
+
+        Assert.Equal(["send", "close"], order);
     }
 }

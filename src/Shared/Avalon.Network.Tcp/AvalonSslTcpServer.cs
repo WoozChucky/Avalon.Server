@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Avalon.Network.Tcp;
 
+[Obsolete("AvalonSslTcpServer is deprecated in favor ServerBase<T> implementations. This class will be removed in a future release.")]
 public class AvalonSslTcpServer : AvalonTcpServer, IAvalonTcpServer
 {
     private readonly X509Certificate2 _certificate;

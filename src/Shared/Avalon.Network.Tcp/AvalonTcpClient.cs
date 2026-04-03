@@ -343,6 +343,7 @@ public class AvalonTcpClient : IDisposable
 
             // Generic
             NetworkPacketType.SMSG_PING => _packetDeserializer.Deserialize<SPingPacket>(packet.Header.Type, packet.Payload, decryptFunc),
+            NetworkPacketType.SMSG_DISCONNECT => _packetDeserializer.Deserialize<SDisconnectPacket>(packet.Header.Type, packet.Payload, decryptFunc),
 
             _ => throw new PacketHandlerException("Unknown packet type " + packet.Header.Type)
         };
