@@ -279,6 +279,24 @@ GetOrCreateSchemaAsync). Instead:
   primitive semantics (enum, number, string, etc.)
   This produces clean scalar schemas while runtime JSON serialization already emits raw primitive values.
 
+## Feature Documentation
+
+Granular design notes, implementation plans, and decision records for individual feature areas:
+
+| Document | Description |
+|---|---|
+| [Networking — Graceful Shutdown](docs/networking-graceful-shutdown.md) | Connection lifecycle, `SDisconnectPacket` schema, shutdown sequences for Auth & World servers |
+| [Security — Session Management](docs/security-session-management.md) | Auth flow, world key CSPRNG, bearer token validation, duplicate session guard, MFA re-enablement |
+| [Configuration Reference](docs/configuration-reference.md) | All `appsettings.json` keys (existing + planned), validation rules, environment override guidance |
+| [Spell System](docs/spell-system.md) | Spell lifecycle, power cost deduction, `AnimationId`, AoE targeting, creature spell support |
+| [Creature System](docs/creature-system.md) | Creature lifecycle, AI scripting, XP rewards, respawn/remove timers, creature spell support |
+| [Character Login Flow](docs/character-login-flow.md) | World-select → spawn sequence, inventory on login, movement validation, instance ID design |
+| [Architecture Decisions](docs/architecture-decisions.md) | ADRs: World/Auth DB decoupling, chat command handler pattern, timer constants, specializations |
+
+For the full list of pending work items see [TODO.md](TODO.md).
+
+---
+
 ## Running Locally
 
 Prerequisites: .NET 9 SDK, Docker (for infra services).

@@ -61,3 +61,13 @@ Avalon.sln.DotSettings
 .junie/memory/
 
 .output.txt
+
+tests/Avalon.Shared.UnitTests/coverage-results/
+
+tests/Avalon.Server.Auth.UnitTests/coverage-results/
+
+coverage-results/6404f950-785c-4ace-b1f2-9f7fc2924302/coverage.cobertura.xml
+
+tests/Avalon.Server.Auth.UnitTests/coverage.json
+
+tests/Avalon.Server.World.UnitTests/coverage-results/
