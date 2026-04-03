@@ -17,15 +17,6 @@ services:
       - "5540:5540"
     restart: unless-stopped
 
-  mariadb:
-    image: mariadb:latest
-    container_name: mariadb-server
-    environment:
-      - MARIADB_ROOT_PASSWORD=123
-    ports:
-      - "3306:3306"
-    restart: unless-stopped
-
   postgres:
     image: postgres:latest
     container_name: postgres-server
