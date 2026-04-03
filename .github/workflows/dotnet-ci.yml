@@ -48,14 +48,14 @@ jobs:
         run: dotnet publish src/Server/Avalon.Api/Avalon.Api.csproj -c Release --no-restore
 
       - name: Docker Login
-        uses: docker/login-action@v3.7.0
+        uses: docker/login-action@v4.1.0
         with:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
           registry: ${{ env.REGISTRY }}
       - name: Extract metadata (tags, labels) for Docker
         id: meta-world
-        uses: docker/metadata-action@v5.10.0
+        uses: docker/metadata-action@v6.0.0
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/world
           tags: |
@@ -78,7 +78,7 @@ jobs:
           labels: ${{ steps.meta-world.outputs.labels }}
       - name: Extract metadata (tags, labels) for Docker
         id: meta-auth
-        uses: docker/metadata-action@v5.10.0
+        uses: docker/metadata-action@v6.0.0
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/auth
           tags: |
@@ -99,7 +99,7 @@ jobs:
           labels: ${{ steps.meta-auth.outputs.labels }}
       - name: Extract metadata (tags, labels) for Docker
         id: meta-api
-        uses: docker/metadata-action@v5.10.0
+        uses: docker/metadata-action@v6.0.0
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/api
           tags: |
