@@ -26,13 +26,19 @@ public class CAuthHandlerShould
     private readonly IAvalonCryptoSession _cryptoSession = Substitute.For<IAvalonCryptoSession>();
     private readonly CAuthHandler _handler;
 
+    private static IOptions<AuthConfiguration> AuthOptions(int maxFailedLogins = 5) =>
+        Options.Create(new AuthConfiguration { MaxFailedLoginAttempts = maxFailedLogins });
+
+    private CAuthHandler CreateHandler(int maxFailedLogins = 5) =>
+        new(NullLoggerFactory.Instance, _accountRepository, _cache, _mfaHashService, AuthOptions(maxFailedLogins));
+
     public CAuthHandlerShould()
     {
         _cryptoSession.Encrypt(Arg.Any<byte[]>()).Returns(x => (byte[])x[0]);
         _connection.CryptoSession.Returns(_cryptoSession);
         _connection.RemoteEndPoint.Returns("127.0.0.1:12345");
         _connection.Id.Returns(Guid.NewGuid());
-        _handler = new CAuthHandler(NullLoggerFactory.Instance, _accountRepository, _cache, _mfaHashService);
+        _handler = CreateHandler();
     }
 
     private static Account MakeAccount(string username = "TESTUSER", bool locked = false, bool online = false, int failedLogins = 0)
@@ -169,9 +175,9 @@ public class CAuthHandlerShould
     }
 
     [Fact]
-    public async Task SendLocked_WhenFifthFailedLoginAttempt()
+    public async Task SendLocked_WhenFailedLoginAttemptsReachDefaultThreshold()
     {
-        var account = MakeAccount(failedLogins: 4);
+        var account = MakeAccount(failedLogins: 4); // one more will hit the default threshold of 5
         _accountRepository.FindByUserNameAsync(Arg.Any<string>()).Returns(account);
 
         var ctx = new AuthPacketContext<CAuthPacket>
@@ -185,6 +191,63 @@ public class CAuthHandlerShould
         Assert.Equal(5, account.FailedLogins);
         Assert.True(account.Locked);
         await _accountRepository.Received(1).UpdateAsync(account);
+    }
+
+    [Fact]
+    public async Task LockAccount_WhenFailedLoginsReachConfiguredThreshold()
+    {
+        var account = MakeAccount(failedLogins: 2); // one more will hit threshold of 3
+        _accountRepository.FindByUserNameAsync(Arg.Any<string>()).Returns(account);
+        var handler = CreateHandler(maxFailedLogins: 3);
+
+        var ctx = new AuthPacketContext<CAuthPacket>
+        {
+            Packet = new CAuthPacket { Username = "testuser", Password = "wrong_password" },
+            Connection = _connection
+        };
+
+        await handler.ExecuteAsync(ctx);
+
+        Assert.Equal(3, account.FailedLogins);
+        Assert.True(account.Locked);
+    }
+
+    [Fact]
+    public async Task NotLockAccount_WhenFailedLoginsBelowConfiguredThreshold()
+    {
+        var account = MakeAccount(failedLogins: 4); // 5 failures total, but threshold is 10
+        _accountRepository.FindByUserNameAsync(Arg.Any<string>()).Returns(account);
+        var handler = CreateHandler(maxFailedLogins: 10);
+
+        var ctx = new AuthPacketContext<CAuthPacket>
+        {
+            Packet = new CAuthPacket { Username = "testuser", Password = "wrong_password" },
+            Connection = _connection
+        };
+
+        await handler.ExecuteAsync(ctx);
+
+        Assert.Equal(5, account.FailedLogins);
+        Assert.False(account.Locked);
+    }
+
+    [Fact]
+    public async Task ResetFailedLogins_OnSuccessfulLogin_RegardlessOfThreshold()
+    {
+        var account = MakeAccount(failedLogins: 3);
+        _accountRepository.FindByUserNameAsync(Arg.Any<string>()).Returns(account);
+        var handler = CreateHandler(maxFailedLogins: 10);
+
+        var ctx = new AuthPacketContext<CAuthPacket>
+        {
+            Packet = new CAuthPacket { Username = "testuser", Password = "correct_password" },
+            Connection = _connection
+        };
+
+        await handler.ExecuteAsync(ctx);
+
+        Assert.Equal(0, account.FailedLogins);
+        Assert.True(account.Online);
     }
 
     [Fact]

@@ -7,9 +7,11 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
+using Avalon.Configuration;
 using Avalon.Network.Packets;
 using Avalon.Network.Packets.Abstractions;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using ProtoBuf;
 
 namespace Avalon.Hosting.Networking;
@@ -30,10 +32,10 @@ public class PacketReader : IPacketReader
 
     private readonly Dictionary<NetworkPacketType, (Type packet, MethodInfo deserialize)> _packetTypes = new();
 
-    public PacketReader(ILoggerFactory loggerFactory, Type[] packetTypes)
+    public PacketReader(ILoggerFactory loggerFactory, IOptions<HostingConfiguration> options, Type[] packetTypes)
     {
         _logger = loggerFactory.CreateLogger<PacketReader>();
-        _bufferSize = 4096; //TODO: Get from configuration
+        _bufferSize = options.Value.PacketReaderBufferSize;
 
         MethodInfo genericDeserializeMethod = typeof(Serializer).GetMethods()
             .Single(m =>

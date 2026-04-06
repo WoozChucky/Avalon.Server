@@ -30,6 +30,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\src\Server\Avalon.Hosting\Avalon.Hosting.csproj" />
     <ProjectReference Include="..\..\src\Shared\Avalon.Common\Avalon.Common.csproj" />
     <ProjectReference Include="..\..\src\Shared\Avalon.Configuration\Avalon.Configuration.csproj" />
     <ProjectReference Include="..\..\src\Shared\Avalon.Domain\Avalon.Domain.csproj" />

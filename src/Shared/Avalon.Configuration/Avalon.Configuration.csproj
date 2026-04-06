@@ -15,5 +15,9 @@
             <Link>sgKey.snk</Link>
         </None>
     </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="System.ComponentModel.Annotations" />
+    </ItemGroup>
     
 </Project>
