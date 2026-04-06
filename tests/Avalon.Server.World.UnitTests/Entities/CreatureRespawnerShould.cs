@@ -1,6 +1,6 @@
 using Avalon.World.Entities;
 using Avalon.World.Public.Creatures;
-using Avalon.World.Public.Maps;
+using Avalon.World.Public.Instances;
 using NSubstitute;
 using Xunit;
 
@@ -12,7 +12,7 @@ public class CreatureRespawnerShould
     private static readonly TimeSpan DefaultRespawn = TimeSpan.FromMinutes(3);
     private static readonly TimeSpan Tick           = TimeSpan.FromMilliseconds(1);
 
-    private readonly IChunk _chunk = Substitute.For<IChunk>();
+    private readonly ISimulationContext _chunk = Substitute.For<ISimulationContext>();
 
     /// <summary>Creates a mock creature whose metadata returns the given timer values.</summary>
     private static ICreature MakeCreature(

@@ -39,6 +39,7 @@ public enum NetworkPacketType : short
 
     // Map
     CMSG_MAP_TELEPORT = 0x2020,
+    CMSG_ENTER_MAP    = 0x2021,
 
     // Quest
     CMSG_QUEST_STATUS = 0x2040,
@@ -92,7 +93,8 @@ public enum NetworkPacketType : short
     SMSG_CHARACTER_SPELLS = 0x3027,
 
     // Map
-    SMSG_MAP_TELEPORT = 0x3030,
+    SMSG_MAP_TELEPORT    = 0x3030,
+    SMSG_MAP_TRANSITION  = 0x3031,
 
     // World
     SMSG_WORLD_STATE_ADD = 0x3040,

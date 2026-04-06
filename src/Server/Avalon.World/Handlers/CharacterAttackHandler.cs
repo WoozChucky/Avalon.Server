@@ -4,10 +4,9 @@ using Avalon.Common.Mathematics;
 using Avalon.Common.Telemetry;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Combat;
-using Avalon.World.Maps;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
-using Avalon.World.Public.Maps;
+using Avalon.World.Public.Instances;
 using Avalon.World.Public.Spells;
 using Avalon.World.Public.Units;
 using Microsoft.Extensions.Logging;
@@ -21,21 +20,21 @@ public class CharacterAttackHandler(ILogger<CharacterAttackHandler> logger, IWor
     private const float MAxMeleeAttackRange = 1.5f;
     private const uint MaxAngle = 65;
 
-    private IUnit? GetTarget(IChunk chunk, ObjectGuid targetGuid)
+    private IUnit? GetTarget(ISimulationContext context, ObjectGuid targetGuid)
     {
         IUnit? target = null;
 
         switch (targetGuid.Type)
         {
             case ObjectType.Creature:
-                if (chunk.Creatures.TryGetValue(targetGuid, out ICreature? creature))
+                if (context.Creatures.TryGetValue(targetGuid, out ICreature? creature))
                 {
                     target = creature;
                 }
 
                 break;
             case ObjectType.Character:
-                if (chunk.Characters.TryGetValue(targetGuid, out ICharacter? character))
+                if (context.Characters.TryGetValue(targetGuid, out ICharacter? character))
                 {
                     target = character;
                 }
@@ -58,20 +57,18 @@ public class CharacterAttackHandler(ILogger<CharacterAttackHandler> logger, IWor
 
         ICharacter attacker = connection.Character!;
 
-        uint attackerChunkId = attacker.ChunkId;
-
-        Chunk? chunk = world.Grid.GetChunk(attackerChunkId);
-        if (chunk == null)
+        ISimulationContext? context = world.InstanceRegistry.GetInstanceById(attacker.InstanceId);
+        if (context == null)
         {
-            logger.LogWarning("Chunk not found");
-            activity?.AddEvent(new ActivityEvent("ChunkNotFound"));
+            logger.LogWarning("Instance not found for character {CharacterId}", attacker.Guid);
+            activity?.AddEvent(new ActivityEvent("InstanceNotFound"));
             return;
         }
 
         // TODO: Some attacks might not require a target (e.g. AoE spells)
         ObjectGuid targetGuid = new(packet.Target);
 
-        IUnit? target = GetTarget(chunk, targetGuid);
+        IUnit? target = GetTarget(context, targetGuid);
         if (target == null)
         {
             logger.LogDebug("Target not found");
@@ -128,13 +125,13 @@ public class CharacterAttackHandler(ILogger<CharacterAttackHandler> logger, IWor
             }
 
             if (!attacker.Spells.IsCasting && spell is {CooldownTimer: <= 0, Casting: false} &&
-                chunk.QueueSpell(attacker, target, spell))
+                context.QueueSpell(attacker, target, spell))
             {
                 attacker.MarkCombat();
                 // Send spell start cast packet
                 if (spell.Metadata.CastTime > 0)
                 {
-                    chunk.BroadcastUniStartCast(attacker, spell.Metadata.CastTime);
+                    context.BroadcastUnitStartCast(attacker, spell.Metadata.CastTime);
                 }
             }
             else

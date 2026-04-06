@@ -25,11 +25,11 @@ public class CharacterEntity : ICharacter
     private readonly ILogger<CharacterEntity> _logger;
     private readonly RegenConfiguration _regenConfig;
 
-    // Combat state
-    private DateTime _lastCombatTime = DateTime.MinValue;
-
     // Power regen cast-suppression (5-second rule)
     private DateTime _lastCastTime = DateTime.MinValue;
+
+    // Combat state
+    private DateTime _lastCombatTime = DateTime.MinValue;
 
     public CharacterEntity()
     {
@@ -42,7 +42,8 @@ public class CharacterEntity : ICharacter
         _regenConfig = new RegenConfiguration();
     }
 
-    public CharacterEntity(ILoggerFactory loggerFactory, IWorldConnection connection, Character character, RegenConfiguration regenConfig)
+    public CharacterEntity(ILoggerFactory loggerFactory, IWorldConnection connection, Character character,
+        RegenConfiguration regenConfig)
     {
         _logger = loggerFactory.CreateLogger<CharacterEntity>();
         Connection = connection;
@@ -73,6 +74,13 @@ public class CharacterEntity : ICharacter
     private float MovementSpeed { get; set; }
 
     public DateTime EnteredWorld { get; set; }
+
+    public uint Stamina { get; set; }
+    public uint RegenStat { get; set; }
+
+    public bool IsInCombat =>
+        _lastCombatTime != DateTime.MinValue &&
+        (DateTime.UtcNow - _lastCombatTime).TotalSeconds < _regenConfig.CombatLeaveDelaySeconds;
 
     public IWorldConnection Connection { get; }
 
@@ -121,19 +129,13 @@ public class CharacterEntity : ICharacter
     public uint? CurrentPower { get; set; }
     public MoveState MoveState { get; set; } = MoveState.Idle;
 
-    public uint Stamina { get; set; }
-    public uint RegenStat { get; set; }
-
-    public bool IsInCombat =>
-        _lastCombatTime != DateTime.MinValue &&
-        (DateTime.UtcNow - _lastCombatTime).TotalSeconds < _regenConfig.CombatLeaveDelaySeconds;
-
     public void MarkCombat() => _lastCombatTime = DateTime.UtcNow;
 
     public void OnHit(IUnit attacker, uint damage)
     {
         _logger.LogInformation("{Name} has been hit by unit {Attacker} for {Damage} damage", Name, attacker.Guid,
             damage);
+        MarkCombat();
         CurrentHealth -= damage;
         if (CurrentHealth <= 0)
         {
@@ -250,7 +252,9 @@ public class CharacterEntity : ICharacter
 
         // Track cast-suppression window: as long as a spell is casting, keep refreshing the timer.
         if (Spells.IsCasting)
+        {
             _lastCastTime = DateTime.UtcNow;
+        }
 
         float dt = (float)deltaTime.TotalSeconds;
 
@@ -258,7 +262,7 @@ public class CharacterEntity : ICharacter
         if (!IsInCombat && CurrentHealth > 0 && CurrentHealth < Health && Stamina > 0)
         {
             uint regen = (uint)Math.Max(1f, Stamina * _regenConfig.HealthRegenOutOfCombatPerStamina * dt);
-            CurrentHealth = (uint)Math.Min(Health, CurrentHealth + regen);
+            CurrentHealth = Math.Min(Health, CurrentHealth + regen);
         }
 
         // Power regeneration (Mana / Energy only; Fury is deferred)
@@ -278,12 +282,23 @@ public class CharacterEntity : ICharacter
                     : _regenConfig.PowerRegenOutOfCombatPerStat;
 
                 uint regen = (uint)Math.Max(1f, RegenStat * coeff * dt);
-                CurrentPower = (uint)Math.Min(Power.Value, CurrentPower.Value + regen);
+                CurrentPower = Math.Min(Power.Value, CurrentPower.Value + regen);
             }
         }
     }
 
-    public ChunkId ChunkId { get; set; }
+    public Guid InstanceId
+    {
+        get => System.Guid.TryParse(Data?.InstanceId, out Guid g) ? g : System.Guid.Empty;
+        set
+        {
+            if (Data != null)
+            {
+                Data.InstanceId = value.ToString();
+            }
+        }
+    }
+
     public static event UnitFinishedCastAnimationDelegate? OnUnitFinishedCastAnimation;
     public static event UnitAttackAnimationDelegate? OnUnitAttackAnimation;
     public static event CharacterDisconnectedDelegate? CharacterDisconnected;
