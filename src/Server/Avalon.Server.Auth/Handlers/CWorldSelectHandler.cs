@@ -1,6 +1,7 @@
 using Avalon.Database.Auth.Repositories;
 using Avalon.Hosting.Networking;
 using Avalon.Infrastructure;
+using Avalon.Infrastructure.Services;
 using Avalon.Network.Packets.Auth;
 
 namespace Avalon.Server.Auth.Handlers;
@@ -11,13 +12,15 @@ public class CWorldSelectHandler : IAuthPacketHandler<CWorldSelectPacket>
     private readonly IReplicatedCache _cache;
     private readonly IAccountRepository _accountRepository;
     private readonly IWorldRepository _worldRepository;
+    private readonly ISecureRandom _secureRandom;
 
-    public CWorldSelectHandler(ILoggerFactory loggerFactory, IReplicatedCache cache, IAccountRepository accountRepository, IWorldRepository worldRepository)
+    public CWorldSelectHandler(ILoggerFactory loggerFactory, IReplicatedCache cache, IAccountRepository accountRepository, IWorldRepository worldRepository, ISecureRandom secureRandom)
     {
         _logger = loggerFactory.CreateLogger<CHandshakeHandler>();
         _cache = cache;
         _accountRepository = accountRepository;
         _worldRepository = worldRepository;
+        _secureRandom = secureRandom;
     }
 
     public async Task ExecuteAsync(AuthPacketContext<CWorldSelectPacket> ctx, CancellationToken token = default)
@@ -44,11 +47,15 @@ public class CWorldSelectHandler : IAuthPacketHandler<CWorldSelectPacket>
             return;
         }
 
-        //TODO: Check if account already in a world
-        //TODO: Properly generate world key
-        // generate random data
-        var worldKey = new byte[32];
-        new Random().NextBytes(worldKey);
+        bool sessionSlotAcquired = await _cache.SetNxAsync($"account:{account.Id}:inWorld", "1", TimeSpan.FromMinutes(5));
+        if (!sessionSlotAcquired)
+        {
+            _logger.LogWarning("Account {AccountId} attempted to enter world {WorldId} while already holding an active session", account.Id, world.Id);
+            ctx.Connection.Send(SWorldSelectPacket.CreateError(WorldSelectResult.DuplicateSession, ctx.Connection.CryptoSession.Encrypt));
+            return;
+        }
+
+        var worldKey = _secureRandom.GetBytes(32);
 
         account.SessionKey = worldKey;
         await _accountRepository.UpdateAsync(account);

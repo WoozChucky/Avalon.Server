@@ -13,7 +13,8 @@ public static class ServiceExtensions
 
         services.AddAuthDatabase()
             .AddCache()
-            .AddMfaService();
+            .AddMfaService()
+            .AddSecureRandom();
 
         return services;
     }

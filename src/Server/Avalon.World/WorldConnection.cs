@@ -173,6 +173,7 @@ public class WorldConnection : Connection, IWorldConnection
 
     protected override async Task OnClose(bool expected = true)
     {
+        await (Server as WorldServer)!.ClearInWorldFlagAsync(AccountId);
         await (Server as WorldServer)!.World.DeSpawnPlayerAsync(this);
         await Server.RemoveConnection(this);
     }
