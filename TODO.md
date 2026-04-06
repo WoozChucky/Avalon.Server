@@ -12,13 +12,13 @@ Each entry describes its **context**, **implementation details**, **behaviour & 
 | ID        | Status | Area                    | File                                                                                       | Short description                                     |
 |-----------|--------|-------------------------|--------------------------------------------------------------------------------------------|-------------------------------------------------------|
 | TODO-001  | 🟢     | Networking / Shutdown   | `src/Shared/Avalon.Network.Tcp/AvalonTcpServer.cs:72`                                      | Close all open client connections on `StopAsync`      |
-| TODO-002  | 🔴     | Networking / Shutdown   | `src/Shared/Avalon.Network.Tcp/AvalonTcpServer.cs:73`                                      | Send disconnect packet to all clients on stop         |
-| TODO-003  | 🔴     | Networking / Shutdown   | `src/Server/Avalon.Server.Auth/AuthServer.cs:55`                                           | Send disconnect packet in Auth `OnStoppingAsync`      |
-| TODO-004  | 🔴     | Networking / Shutdown   | `src/Server/Avalon.World/WorldServer.cs:164`                                               | Send disconnect packet in World `OnStoppingAsync`     |
-| TODO-005  | 🔴     | Networking / Shutdown   | `src/Server/Avalon.World/WorldServer.cs:271`                                               | Notify in-game player before forced kick              |
-| TODO-006  | 🔴     | Security                | `src/Server/Avalon.Server.Auth/Handlers/CWorldSelectHandler.cs:48`                         | Replace `System.Random` world key with CSPRNG         |
+| TODO-002  | 🟢     | Networking / Shutdown   | `src/Shared/Avalon.Network.Tcp/AvalonTcpServer.cs:73`                                      | Send disconnect packet to all clients on stop         |
+| TODO-003  | 🟢     | Networking / Shutdown   | `src/Server/Avalon.Server.Auth/AuthServer.cs:55`                                           | Send disconnect packet in Auth `OnStoppingAsync`      |
+| TODO-004  | 🟢     | Networking / Shutdown   | `src/Server/Avalon.World/WorldServer.cs:164`                                               | Send disconnect packet in World `OnStoppingAsync`     |
+| TODO-005  | 🟢     | Networking / Shutdown   | `src/Server/Avalon.World/WorldServer.cs:271`                                               | Notify in-game player before forced kick              |
+| TODO-006  | 🟢     | Security                | `src/Server/Avalon.Server.Auth/Handlers/CWorldSelectHandler.cs:48`                         | Replace `System.Random` world key with CSPRNG         |
 | TODO-007  | 🔴     | Security                | `src/Server/Avalon.Api/Authentication/AV/AvalonAuthenticationHandler.cs:34`               | Validate the `Avalon` bearer token                    |
-| TODO-008  | 🔴     | Session Integrity       | `src/Server/Avalon.Server.Auth/Handlers/CWorldSelectHandler.cs:47`                         | Guard against duplicate world sessions                |
+| TODO-008  | 🟢     | Session Integrity       | `src/Server/Avalon.Server.Auth/Handlers/CWorldSelectHandler.cs:47`                         | Guard against duplicate world sessions                |
 | TODO-009  | 🔴     | Configuration           | `src/Server/Avalon.Hosting/Networking/PacketReader.cs:36`                                  | Buffer size from configuration                        |
 | TODO-010  | 🔴     | Configuration           | `src/Server/Avalon.Server.Auth/Handlers/CRequestServerInfoHandler.cs:17`                   | Externalise hardcoded client version                  |
 | TODO-011  | 🔴     | Configuration           | `src/Server/Avalon.Server.Auth/Handlers/CRequestServerInfoHandler.cs:25`                   | Externalise hardcoded server version                  |
@@ -51,7 +51,7 @@ Each entry describes its **context**, **implementation details**, **behaviour & 
 
 ---
 
-### TODO-001 — Close all connections on `AvalonTcpServer.StopAsync` 🔴
+### TODO-001 — Close all connections on `AvalonTcpServer.StopAsync` 🟢
 
 **File:** `src/Shared/Avalon.Network.Tcp/AvalonTcpServer.cs:72`
 
@@ -76,7 +76,7 @@ Each entry describes its **context**, **implementation details**, **behaviour & 
 
 ---
 
-### TODO-002 — Send disconnect packet to all clients before close 🔴
+### TODO-002 — Send disconnect packet to all clients before close 🟢
 
 **File:** `src/Shared/Avalon.Network.Tcp/AvalonTcpServer.cs:73`
 
@@ -100,7 +100,7 @@ Companion to TODO-001. Clients receive no signal that the server is shutting dow
 
 ---
 
-### TODO-003 — Auth `OnStoppingAsync` — send disconnect packet 🔴
+### TODO-003 — Auth `OnStoppingAsync` — send disconnect packet 🟢
 
 **File:** `src/Server/Avalon.Server.Auth/AuthServer.cs:55`
 
@@ -119,7 +119,7 @@ Consider extracting a `GracefulShutdownHelper.ShutdownAll(IEnumerable<IConnectio
 
 ---
 
-### TODO-004 — World `OnStoppingAsync` — send disconnect packet 🔴
+### TODO-004 — World `OnStoppingAsync` — send disconnect packet 🟢
 
 **File:** `src/Server/Avalon.World/WorldServer.cs:164`
 
@@ -128,7 +128,7 @@ Identical pattern to TODO-003 applied to `IWorldConnection`. Refer to the same `
 
 ---
 
-### TODO-005 — Notify in-game player before forced kick 🔴
+### TODO-005 — Notify in-game player before forced kick 🟢
 
 **File:** `src/Server/Avalon.World/WorldServer.cs:271`
 
@@ -156,7 +156,7 @@ Identical pattern to TODO-003 applied to `IWorldConnection`. Refer to the same `
 
 ---
 
-### TODO-006 — Cryptographically secure world key generation 🔴
+### TODO-006 — Cryptographically secure world key generation 🟢
 
 **File:** `src/Server/Avalon.Server.Auth/Handlers/CWorldSelectHandler.cs:48`
 
@@ -218,7 +218,7 @@ The handler extracts the token from the `Authorization: Avalon <token>` header b
 
 ---
 
-### TODO-008 — Guard against duplicate world sessions 🔴
+### TODO-008 — Guard against duplicate world sessions 🟢
 
 **File:** `src/Server/Avalon.Server.Auth/Handlers/CWorldSelectHandler.cs:47`
 

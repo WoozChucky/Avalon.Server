@@ -11,6 +11,8 @@ public interface IReplicatedCache
     Task ConnectAsync();
     Task DisconnectAsync();
     Task<bool> SetAsync(string key, string value, TimeSpan? expiry);
+    /// <summary>Sets the key only if it does not already exist (atomic SETNX). Returns true if the key was set.</summary>
+    Task<bool> SetNxAsync(string key, string value, TimeSpan expiry);
     Task<string?> GetAsync(string key);
     Task<bool> RemoveAsync(string key);
     Task<bool> KeyExistsAsync(string key);
@@ -60,6 +62,11 @@ public class ReplicatedCache : IReplicatedCache
     {
         var expiration = new Expiration(expiry ?? TimeSpan.Zero);
         return await _redis.GetDatabase().StringSetAsync(key, value, expiration);
+    }
+
+    public async Task<bool> SetNxAsync(string key, string value, TimeSpan expiry)
+    {
+        return await _redis.GetDatabase().StringSetAsync(key, value, expiry, when: When.NotExists);
     }
 
     public async Task<string?> GetAsync(string key)

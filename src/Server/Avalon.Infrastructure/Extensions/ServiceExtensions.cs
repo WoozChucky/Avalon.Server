@@ -21,4 +21,10 @@ public static class ServiceExtensions
         return services;
     }
 
+    public static IServiceCollection AddSecureRandom(this IServiceCollection services)
+    {
+        services.AddSingleton<ISecureRandom, SecureRandom>();
+        return services;
+    }
+
 }

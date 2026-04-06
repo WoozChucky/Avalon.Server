@@ -43,6 +43,8 @@ public class ExchangeWorldKeyHandler : IWorldPacketHandler<CExchangeWorldKeyPack
             return;
         }
 
+        await _cache.RemoveAsync($"account:{accountId}:inWorld");
+
         Account? account = await _accountRepository.FindByIdAsync(accountId);
         if (account == null)
         {

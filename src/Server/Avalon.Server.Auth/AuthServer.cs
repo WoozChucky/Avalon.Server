@@ -52,10 +52,7 @@ public class AuthServer(
     protected override Task OnStoppingAsync(CancellationToken stoppingToken)
     {
         foreach (IAuthConnection connection in Connections)
-        {
-            connection.Send(SDisconnectPacket.Create("Server is shutting down", DisconnectReason.ServerShutdown));
-            connection.Close();
-        }
+            GracefulShutdownHelper.NotifyAndClose(connection, "Server is shutting down", DisconnectReason.ServerShutdown);
 
         return Task.CompletedTask;
     }
