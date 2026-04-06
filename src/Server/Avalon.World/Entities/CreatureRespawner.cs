@@ -18,14 +18,12 @@ public class CreatureRespawner(IChunk chunk) : ICreatureRespawner
     public void ScheduleRespawn(ICreature creature)
     {
         IntervalTimer respawnTimer = new();
-        respawnTimer.SetInterval((long)TimeSpan.FromMinutes(3)
-            .TotalMilliseconds); //TODO: Respawn timer from creature template metadata
+        respawnTimer.SetInterval((long)creature.Metadata.RespawnTimer.TotalMilliseconds);
         respawnTimer.SetCurrent(0);
         _respawnTimers.Add(respawnTimer, creature);
 
         IntervalTimer removeTimer = new();
-        removeTimer.SetInterval((long)TimeSpan.FromMinutes(2)
-            .TotalMilliseconds); //TODO: Remove timer from creature template metadata
+        removeTimer.SetInterval((long)creature.Metadata.BodyRemoveTimer.TotalMilliseconds);
         removeTimer.SetCurrent(0);
         _removeTimers.Add(removeTimer, creature);
     }
