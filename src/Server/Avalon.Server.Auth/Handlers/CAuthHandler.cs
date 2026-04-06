@@ -80,7 +80,7 @@ public class CAuthHandler : IAuthPacketHandler<CAuthPacket>
         {
             ctx.Connection.Send(SAuthResultPacket.Create(null, null, AuthResult.ALREADY_CONNECTED, ctx.Connection.CryptoSession.Encrypt));
 
-            await _cache.PublishAsync("world:accounts:disconnect", account.Id.ToString());
+            await _cache.PublishAsync(CacheKeys.WorldAccountsDisconnectChannel, account.Id.ToString());
 
             var connectedSession = ctx.Connection.Server.Connections.FirstOrDefault(c => c.AccountId == account.Id);
             if (connectedSession != null)
@@ -105,7 +105,7 @@ public class CAuthHandler : IAuthPacketHandler<CAuthPacket>
 
         await _accountRepository.UpdateAsync(account);
 
-        await _cache.PublishAsync($"auth:accounts:online", account.Id.ToString());
+        await _cache.PublishAsync(CacheKeys.AuthAccountsOnlineChannel, account.Id.ToString());
 
         ctx.Connection.Send(SAuthResultPacket.Create(account.Id, null, AuthResult.SUCCESS, ctx.Connection.CryptoSession.Encrypt));
     }

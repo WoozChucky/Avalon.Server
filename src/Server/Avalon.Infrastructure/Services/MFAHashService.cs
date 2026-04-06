@@ -28,10 +28,10 @@ public class MFAHashService : IMFAHashService
     public async Task<string> GenerateHashAsync(Account account)
     {
         // Check for existing hash
-        RedisValue existingHash = await _cache.Database.HashGetAsync($"auth:account:{account.Id}:mfa", "hash");
+        RedisValue existingHash = await _cache.Database.HashGetAsync(CacheKeys.AccountMfa(account.Id), "hash");
         if (existingHash.HasValue)
         {
-            RedisValue expiry = await _cache.Database.HashGetAsync($"auth:account:{account.Id}:mfa", "expiry");
+            RedisValue expiry = await _cache.Database.HashGetAsync(CacheKeys.AccountMfa(account.Id), "expiry");
             if (DateTime.TryParse(expiry, out DateTime expiryDate) && expiryDate > DateTime.UtcNow)
             {
                 _logger.LogDebug("Returning existing hash");
@@ -46,7 +46,7 @@ public class MFAHashService : IMFAHashService
         string? hash = Base32Encoding.ToString(secretKey);
 
         ITransaction transaction = _cache.Database.CreateTransaction();
-        await transaction.HashSetAsync($"auth:account:{account.Id}:mfa",
+        await transaction.HashSetAsync(CacheKeys.AccountMfa(account.Id),
             new[]
             {
                 new HashEntry("hash", hash), new HashEntry("expiry", DateTime.UtcNow.Add(_expiry).ToString("O")),
@@ -58,7 +58,7 @@ public class MFAHashService : IMFAHashService
 
     public async Task<AccountId?> GetAccountIdAsync(string hash)
     {
-        RedisResult keys = await _cache.Database.ExecuteAsync("keys", "auth:account:*:mfa");
+        RedisResult keys = await _cache.Database.ExecuteAsync("keys", CacheKeys.AccountMfaGlobPattern);
         foreach ((string key, RedisResult _) in keys.ToDictionary())
         {
             RedisValue value = await _cache.Database.HashGetAsync(key, "hash");
@@ -76,7 +76,7 @@ public class MFAHashService : IMFAHashService
 
     public async Task CleanupHash(string hash)
     {
-        RedisResult keys = await _cache.Database.ExecuteAsync("keys", "account:*:mfa");
+        RedisResult keys = await _cache.Database.ExecuteAsync("keys", CacheKeys.AccountMfaGlobPattern);
         foreach ((string key, RedisResult _) in keys.ToDictionary())
         {
             RedisValue value = await _cache.Database.HashGetAsync(key, "hash");

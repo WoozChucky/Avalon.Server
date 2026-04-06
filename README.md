@@ -292,6 +292,7 @@ Granular design notes, implementation plans, and decision records for individual
 | [Creature System](docs/creature-system.md) | Creature lifecycle, AI scripting, XP rewards, respawn/remove timers, creature spell support |
 | [Character Login Flow](docs/character-login-flow.md) | World-select → spawn sequence, inventory on login, movement validation, instance ID design |
 | [Architecture Decisions](docs/architecture-decisions.md) | ADRs: World/Auth DB decoupling, chat command handler pattern, timer constants, specializations |
+| [Redis Cache Keys](docs/redis-cache-keys.md) | All Redis key patterns and pub/sub channels: purpose, TTL, writer/consumer, and message format |
 
 For the full list of pending work items see [TODO.md](TODO.md).
 

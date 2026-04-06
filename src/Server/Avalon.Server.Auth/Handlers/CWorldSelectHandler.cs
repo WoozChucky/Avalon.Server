@@ -47,7 +47,7 @@ public class CWorldSelectHandler : IAuthPacketHandler<CWorldSelectPacket>
             return;
         }
 
-        bool sessionSlotAcquired = await _cache.SetNxAsync($"account:{account.Id}:inWorld", "1", TimeSpan.FromMinutes(5));
+        bool sessionSlotAcquired = await _cache.SetNxAsync(CacheKeys.AccountInWorld(account.Id), "1", TimeSpan.FromMinutes(5));
         if (!sessionSlotAcquired)
         {
             _logger.LogWarning("Account {AccountId} attempted to enter world {WorldId} while already holding an active session", account.Id, world.Id);
@@ -62,8 +62,8 @@ public class CWorldSelectHandler : IAuthPacketHandler<CWorldSelectPacket>
 
         var worldKeyBase64 = Convert.ToBase64String(worldKey);
 
-        await _cache.SetAsync($"world:{world.Id}:keys:{worldKeyBase64}", account.Id.ToString()!, TimeSpan.FromMinutes(5));
-        await _cache.PublishAsync($"world:{world.Id}:select", $"account:{account.Id}:worldKey:{worldKeyBase64}");
+        await _cache.SetAsync(CacheKeys.WorldKey(world.Id.Value, worldKeyBase64), account.Id.ToString()!, TimeSpan.FromMinutes(5));
+        await _cache.PublishAsync(CacheKeys.WorldSelectChannel(world.Id.Value), $"account:{account.Id}:worldKey:{worldKeyBase64}");
 
         ctx.Connection.Send(SWorldSelectPacket.Create(worldKey, ctx.Connection.CryptoSession.Encrypt));
     }

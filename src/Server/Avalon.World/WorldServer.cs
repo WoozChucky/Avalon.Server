@@ -266,7 +266,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
     #region Cache Subscriptions
 
     private async Task CacheSubscribeAsync() =>
-        await _cache.SubscribeAsync("world:accounts:disconnect", DelayedDisconnect);
+        await _cache.SubscribeAsync(CacheKeys.WorldAccountsDisconnectChannel, DelayedDisconnect);
 
     private void DelayedDisconnect(RedisChannel channel, RedisValue value)
     {
