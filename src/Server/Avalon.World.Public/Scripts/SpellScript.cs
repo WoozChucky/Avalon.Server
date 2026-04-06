@@ -13,7 +13,7 @@ public abstract class SpellScript(ISpell spell, IUnit caster, IUnit? target) : I
 
     protected ISpell Spell { get; } = spell;
 
-    protected List<SpellScript> ChainedScripts { get; } = new();
+    protected List<SpellScript> ChainedScripts { get; private set; } = new();
 
     public abstract object State { get; set; }
 
@@ -44,5 +44,12 @@ public abstract class SpellScript(ISpell spell, IUnit caster, IUnit? target) : I
 
     protected abstract bool ShouldRun();
 
-    public abstract SpellScript Clone(); //TODO: This can probably be implemented in this class
+    public virtual SpellScript Clone()
+    {
+        var clone = (SpellScript)MemberwiseClone();
+        clone.ChainedScripts = new List<SpellScript>(ChainedScripts.Count);
+        foreach (SpellScript script in ChainedScripts)
+            clone.ChainedScripts.Add(script.Clone());
+        return clone;
+    }
 }
