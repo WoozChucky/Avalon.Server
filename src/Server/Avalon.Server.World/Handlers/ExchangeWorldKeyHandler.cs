@@ -28,14 +28,14 @@ public class ExchangeWorldKeyHandler : IWorldPacketHandler<CExchangeWorldKeyPack
     {
         string worldKeyBase64 = Convert.ToBase64String(ctx.Packet.WorldKey);
 
-        string? id = await _cache.GetAsync($"world:{_world.Id}:keys:{worldKeyBase64}");
+        string? id = await _cache.GetAsync(CacheKeys.WorldKey(_world.Id.Value, worldKeyBase64));
         if (id == null)
         {
             _logger.LogWarning("Client {EndPoint} sent an invalid world key", ctx.Connection.RemoteEndPoint);
             return;
         }
 
-        await _cache.RemoveAsync($"world:{_world.Id}:keys:{worldKeyBase64}");
+        await _cache.RemoveAsync(CacheKeys.WorldKey(_world.Id.Value, worldKeyBase64));
 
         if (!long.TryParse(id, out long accountId))
         {
@@ -43,7 +43,7 @@ public class ExchangeWorldKeyHandler : IWorldPacketHandler<CExchangeWorldKeyPack
             return;
         }
 
-        await _cache.RemoveAsync($"account:{accountId}:inWorld");
+        await _cache.RemoveAsync(CacheKeys.AccountInWorld(accountId));
 
         Account? account = await _accountRepository.FindByIdAsync(accountId);
         if (account == null)

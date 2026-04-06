@@ -755,7 +755,7 @@ The server logs a desync warning when client-reported distance diverges from ser
 
 ---
 
-### TODO-028 — Chat command handler architecture 🔴
+### TODO-028 — Chat command handler architecture 🟢
 
 **File:** `src/Server/Avalon.Server.World/Handlers/ChatMessageHandler.cs:17`
 
