@@ -23,7 +23,9 @@ public static class ServiceCollectionExtensions
         IConfiguration configuration, ComponentType component)
     {
         services.AddCustomLogging(configuration);
-        services.AddOptions<HostingConfiguration>().BindConfiguration("Hosting");
+        services.AddOptions<HostingConfiguration>().BindConfiguration("Hosting")
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
         services.AddSingleton<IPacketManager>(provider =>
         {
             Type[] packetTypes = typeof(Packet).Assembly.GetExportedTypes().Where(type =>

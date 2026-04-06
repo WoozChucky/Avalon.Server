@@ -11,6 +11,11 @@ public static class ServiceExtensions
         services.AddOptions<HostingSecurity>()
             .BindConfiguration("Hosting:Security");
 
+        services.AddOptions<AuthConfiguration>()
+            .BindConfiguration("Application")
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
         services.AddAuthDatabase()
             .AddCache()
             .AddMfaService()

@@ -19,10 +19,10 @@ Each entry describes its **context**, **implementation details**, **behaviour & 
 | TODO-006  | 🟢     | Security                | `src/Server/Avalon.Server.Auth/Handlers/CWorldSelectHandler.cs:48`                         | Replace `System.Random` world key with CSPRNG         |
 | TODO-007  | 🔴     | Security                | `src/Server/Avalon.Api/Authentication/AV/AvalonAuthenticationHandler.cs:34`               | Validate the `Avalon` bearer token                    |
 | TODO-008  | 🟢     | Session Integrity       | `src/Server/Avalon.Server.Auth/Handlers/CWorldSelectHandler.cs:47`                         | Guard against duplicate world sessions                |
-| TODO-009  | 🔴     | Configuration           | `src/Server/Avalon.Hosting/Networking/PacketReader.cs:36`                                  | Buffer size from configuration                        |
-| TODO-010  | 🔴     | Configuration           | `src/Server/Avalon.Server.Auth/Handlers/CRequestServerInfoHandler.cs:17`                   | Externalise hardcoded client version                  |
-| TODO-011  | 🔴     | Configuration           | `src/Server/Avalon.Server.Auth/Handlers/CRequestServerInfoHandler.cs:25`                   | Externalise hardcoded server version                  |
-| TODO-012  | 🔴     | Configuration           | `src/Server/Avalon.Server.Auth/Handlers/CAuthHandler.cs:54`                               | Failed-login lockout threshold from configuration     |
+| TODO-009  | 🟢     | Configuration           | `src/Server/Avalon.Hosting/Networking/PacketReader.cs:36`                                  | Buffer size from configuration                        |
+| TODO-010  | 🟢     | Configuration           | `src/Server/Avalon.Server.Auth/Handlers/CRequestServerInfoHandler.cs:17`                   | Externalise hardcoded client version                  |
+| TODO-011  | 🟢     | Configuration           | `src/Server/Avalon.Server.Auth/Handlers/CRequestServerInfoHandler.cs:25`                   | Externalise hardcoded server version                  |
+| TODO-012  | 🟢     | Configuration           | `src/Server/Avalon.Server.Auth/Handlers/CAuthHandler.cs:54`                               | Failed-login lockout threshold from configuration     |
 | TODO-013  | 🔴     | Auth Features           | `src/Server/Avalon.Server.Auth/Handlers/CAuthHandler.cs:65`                               | Re-enable commented-out MFA flow                      |
 | TODO-014  | 🔴     | Auth Features           | `src/Shared/Avalon.Network.Tcp/AvalonTcpClient.cs:451`                                     | Replace `"TODO"` placeholder with real client version |
 | TODO-015  | 🔴     | Spell System            | `src/Server/Avalon.World/Spells/ChunkSpellSystem.cs:32`                                    | Deduct power cost when queuing a spell                |
@@ -248,7 +248,7 @@ Nothing prevents an authenticated account from selecting a world when they are a
 
 ---
 
-### TODO-009 — Packet reader buffer size from configuration 🔴
+### TODO-009 — Packet reader buffer size from configuration 🟢
 
 **File:** `src/Server/Avalon.Hosting/Networking/PacketReader.cs:36`
 
@@ -272,7 +272,7 @@ Nothing prevents an authenticated account from selecting a world when they are a
 
 ---
 
-### TODO-010 — Externalise hardcoded client version 🔴
+### TODO-010 — Externalise hardcoded client version 🟢
 
 **File:** `src/Server/Avalon.Server.Auth/Handlers/CRequestServerInfoHandler.cs:17`
 
@@ -294,7 +294,7 @@ Nothing prevents an authenticated account from selecting a world when they are a
 
 ---
 
-### TODO-011 — Externalise hardcoded server version 🔴
+### TODO-011 — Externalise hardcoded server version 🟢
 
 **File:** `src/Server/Avalon.Server.Auth/Handlers/CRequestServerInfoHandler.cs:25`
 
@@ -314,7 +314,7 @@ Nothing prevents an authenticated account from selecting a world when they are a
 
 ---
 
-### TODO-012 — Failed-login lockout threshold from configuration 🔴
+### TODO-012 — Failed-login lockout threshold from configuration 🟢
 
 **File:** `src/Server/Avalon.Server.Auth/Handlers/CAuthHandler.cs:54`
 

@@ -1,30 +1,37 @@
+using Avalon.Common.Utils;
 using Avalon.Hosting.Networking;
 using Avalon.Network.Packets.Handshake;
+using Avalon.Server.Auth.Configuration;
+using Microsoft.Extensions.Options;
 
 namespace Avalon.Server.Auth.Handlers;
 
 public class CRequestServerInfoHandler : IAuthPacketHandler<CRequestServerInfoPacket>
 {
     private readonly ILogger<CRequestServerInfoHandler> _logger;
+    private readonly AuthConfiguration _authConfig;
 
-    public CRequestServerInfoHandler(ILoggerFactory loggerFactory)
+    public CRequestServerInfoHandler(ILoggerFactory loggerFactory, IOptions<AuthConfiguration> options)
     {
         _logger = loggerFactory.CreateLogger<CRequestServerInfoHandler>();
+        _authConfig = options.Value;
     }
 
     public Task ExecuteAsync(AuthPacketContext<CRequestServerInfoPacket> ctx, CancellationToken token = default)
     {
-        if (ctx.Packet.ClientVersion != "0.0.1") // TODO: Hardcoded client version
+        uint serverVersion = SemVerPacker.Pack(_authConfig.ServerVersion);
+
+        if (!SemVerPacker.TryPack(ctx.Packet.ClientVersion, out uint clientVersion) ||
+            clientVersion < SemVerPacker.Pack(_authConfig.MinClientVersion))
         {
-            _logger.LogWarning("Client {EndPoint} is using an invalid version", ctx.Connection.Id);
+            _logger.LogWarning("Client {EndPoint} version {ClientVersion} is below minimum required {MinClientVersion}",
+                ctx.Connection.Id, ctx.Packet.ClientVersion, _authConfig.MinClientVersion);
+            ctx.Connection.Send(SServerInfoPacket.CreateRejected(ServerInfoResult.ClientVersionTooOld, serverVersion));
             ctx.Connection.Close();
             return Task.CompletedTask;
         }
 
-        var result = SServerInfoPacket.Create(
-            1_000_000, // TODO: Hardcoded server version
-            ctx.Connection.ServerCrypto.GetPublicKey()
-        );
+        var result = SServerInfoPacket.Create(serverVersion, ctx.Connection.ServerCrypto.GetPublicKey());
 
         ctx.Connection.Send(result);
 
