@@ -10,4 +10,13 @@ public interface ICreatureMetadata
     public float SpeedRun { get; set; }
     public float SpeedSwim { get; set; }
     Vector3 StartPosition { get; set; }
+
+    /// <summary>Experience awarded to the killer when this creature dies.</summary>
+    uint Experience { get; set; }
+
+    /// <summary>How long before this creature re-spawns after death.</summary>
+    TimeSpan RespawnTimer { get; set; }
+
+    /// <summary>How long before this creature's corpse is removed from the world.</summary>
+    TimeSpan BodyRemoveTimer { get; set; }
 }

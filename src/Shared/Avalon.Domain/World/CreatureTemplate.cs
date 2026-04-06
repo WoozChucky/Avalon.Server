@@ -35,8 +35,6 @@ public class CreatureTemplate : IDbEntity<CreatureTemplateId>, ICreatureMetadata
 
     public CreatureType Type { get; set; }
 
-    public short Exp { get; set; }
-
     public int LootId { get; set; }
 
     public int MinGold { get; set; }
@@ -70,6 +68,29 @@ public class CreatureTemplate : IDbEntity<CreatureTemplateId>, ICreatureMetadata
     public int BaseAttackTime { get; set; }
 
     public int RangeAttackTime { get; set; }
+
+    [Column("Exp")]
+    public uint Experience { get; set; }
+
+    /// <summary>Seconds before the creature re-spawns after death. Default 180 (3 minutes).</summary>
+    public int RespawnTimerSecs { get; set; } = 180;
+
+    /// <summary>Seconds before the creature's corpse is removed. Default 120 (2 minutes).</summary>
+    public int BodyRemoveTimerSecs { get; set; } = 120;
+
+    [NotMapped]
+    public TimeSpan RespawnTimer
+    {
+        get => TimeSpan.FromSeconds(RespawnTimerSecs);
+        set => RespawnTimerSecs = (int)value.TotalSeconds;
+    }
+
+    [NotMapped]
+    public TimeSpan BodyRemoveTimer
+    {
+        get => TimeSpan.FromSeconds(BodyRemoveTimerSecs);
+        set => BodyRemoveTimerSecs = (int)value.TotalSeconds;
+    }
 
     [NotMapped]
     public Vector3 StartPosition { get; set; }

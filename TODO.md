@@ -31,9 +31,9 @@ Each entry describes its **context**, **implementation details**, **behaviour & 
 | TODO-018  | 🔴     | Spell System            | `src/Server/Avalon.World/Maps/Chunk.cs:370,387`                                            | Use spell `AnimationId` instead of hardcoded `1`      |
 | TODO-019  | 🔴     | Spell System            | `src/Server/Avalon.World/Scripts/Creatures/CreatureCombatScript.cs:173`                    | Creature combat script — spell support                |
 | TODO-020  | 🔴     | Spell System            | `src/Server/Avalon.World/Handlers/CharacterAttackHandler.cs:71`                            | AoE attack support (target-less spells)               |
-| TODO-021  | 🔴     | Creature System         | `src/Server/Avalon.World.Public/Creatures/ICreatureMetadata.cs`                            | Add `Experience`, `RespawnTimer`, `RemoveTimer`       |
-| TODO-022  | 🔴     | Creature System         | `src/Server/Avalon.World/Maps/Chunk.cs:262,280`                                            | Use template experience; verify script null thread safety |
-| TODO-023  | 🔴     | Creature System         | `src/Server/Avalon.World/Entities/CreatureRespawner.cs:22,28`                              | Use template-defined respawn/remove timers            |
+| TODO-021  | 🟢     | Creature System         | `src/Server/Avalon.World.Public/Creatures/ICreatureMetadata.cs`                            | Add `Experience`, `RespawnTimer`, `RemoveTimer`       |
+| TODO-022  | 🟢     | Creature System         | `src/Server/Avalon.World/Maps/Chunk.cs:262,280`                                            | Use template experience; verify script null thread safety |
+| TODO-023  | 🟢     | Creature System         | `src/Server/Avalon.World/Entities/CreatureRespawner.cs:22,28`                              | Use template-defined respawn/remove timers            |
 | TODO-024  | 🔴     | Character System        | `src/Server/Avalon.World/Handlers/CharacterSelectHandler.cs:175`                           | Send inventory to client on login                     |
 | TODO-025  | 🔴     | Character System        | `src/Server/Avalon.World/Handlers/CharacterMovementHandler.cs:44`                          | Server-side collision / navmesh validation            |
 | TODO-026  | 🔴     | Character System        | `src/Server/Avalon.World/Handlers/CharacterSelectHandler.cs:75`                            | Instance ID formalisation (pre-instance placeholder)  |
@@ -569,7 +569,7 @@ Same pattern for `BroadcastFinishCastAnimation`.
 
 ---
 
-### TODO-021 — Add `Experience`, `RespawnTimer`, `RemoveTimer` to `ICreatureMetadata` 🔴
+### TODO-021 — Add `Experience`, `RespawnTimer`, `RemoveTimer` to `ICreatureMetadata` 🟢
 
 **File:** `src/Server/Avalon.World.Public/Creatures/ICreatureMetadata.cs`
 
@@ -598,7 +598,7 @@ Same pattern for `BroadcastFinishCastAnimation`.
 
 ---
 
-### TODO-022 — Use template experience; verify script null thread safety 🔴
+### TODO-022 — Use template experience; verify script null thread safety 🟢
 
 **File:** `src/Server/Avalon.World/Maps/Chunk.cs:262,280`
 
@@ -623,7 +623,7 @@ Audit the `Chunk.Update` method: if `creature.Script?.Update(deltaTime)` is call
 
 ---
 
-### TODO-023 — Creature respawner — use template-defined timers 🔴
+### TODO-023 — Creature respawner — use template-defined timers 🟢
 
 **File:** `src/Server/Avalon.World/Entities/CreatureRespawner.cs:22,28`
 
