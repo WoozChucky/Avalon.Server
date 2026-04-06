@@ -258,8 +258,10 @@ public class Chunk : IChunk
             return;
         }
 
-        // Step 1: Stop the creature scripts
-        creature.Script = null; // TODO: Double check if this has to be scheduled to run on the main thread
+        // Step 1: Stop the creature scripts.
+        // Safe: OnCreatureKilled is invoked from within the single-threaded creature foreach loop
+        // in Update(), so this assignment and the loop's Script?.Update() are on the same thread.
+        creature.Script = null;
 
         // Step 2: Schedule the creature to be respawned
         _creatureRespawner.ScheduleRespawn(creature);
@@ -277,7 +279,7 @@ public class Chunk : IChunk
                 return;
             }
 
-            const uint creatureExperience = 20U; // TODO: Extract from creature template
+            uint creatureExperience = creature.Metadata.Experience;
             if (character.Experience + creatureExperience >= expRequirement.Experience)
             {
                 ulong diff = character.Experience + creatureExperience - expRequirement.Experience;
