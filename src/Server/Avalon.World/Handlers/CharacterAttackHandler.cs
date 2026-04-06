@@ -100,6 +100,7 @@ public class CharacterAttackHandler(ILogger<CharacterAttackHandler> logger, IWor
 
             // For now, just attack without any additional logic
             target.OnHit(attacker, 10);
+            attacker.MarkCombat();
         }
         else
         {
@@ -119,15 +120,6 @@ public class CharacterAttackHandler(ILogger<CharacterAttackHandler> logger, IWor
                 return;
             }
 
-            int powerPrediction = (int)(attacker.CurrentPower! - spell.Metadata.Cost);
-
-            if (powerPrediction < 0)
-            {
-                logger.LogWarning("Not enough power to cast spell");
-                activity?.AddEvent(new ActivityEvent("NotEnoughPower"));
-                return;
-            }
-
             if (spell.CooldownTimer > 0)
             {
                 logger.LogWarning("Spell on cooldown, timer: {Timer}", spell.Metadata.Cooldown - spell.CooldownTimer);
@@ -138,6 +130,7 @@ public class CharacterAttackHandler(ILogger<CharacterAttackHandler> logger, IWor
             if (!attacker.Spells.IsCasting && spell is {CooldownTimer: <= 0, Casting: false} &&
                 chunk.QueueSpell(attacker, target, spell))
             {
+                attacker.MarkCombat();
                 // Send spell start cast packet
                 if (spell.Metadata.CastTime > 0)
                 {

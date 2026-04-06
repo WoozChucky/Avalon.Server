@@ -25,7 +25,7 @@ Each entry describes its **context**, **implementation details**, **behaviour & 
 | TODO-012  | 🟢     | Configuration           | `src/Server/Avalon.Server.Auth/Handlers/CAuthHandler.cs:54`                               | Failed-login lockout threshold from configuration     |
 | TODO-013  | 🔴     | Auth Features           | `src/Server/Avalon.Server.Auth/Handlers/CAuthHandler.cs:65`                               | Re-enable commented-out MFA flow                      |
 | TODO-014  | 🔴     | Auth Features           | `src/Shared/Avalon.Network.Tcp/AvalonTcpClient.cs:451`                                     | Replace `"TODO"` placeholder with real client version |
-| TODO-015  | 🔴     | Spell System            | `src/Server/Avalon.World/Spells/ChunkSpellSystem.cs:32`                                    | Deduct power cost when queuing a spell                |
+| TODO-015  | 🟢     | Spell System            | `src/Server/Avalon.World/Spells/ChunkSpellSystem.cs:32`                                    | Deduct power cost when queuing a spell                |
 | TODO-016  | 🔴     | Spell System            | `src/Server/Avalon.World.Public/Scripts/SpellScript.cs:47`                                 | Implement `Clone()` in `SpellScript` base class       |
 | TODO-017  | 🔴     | Spell System            | `src/Shared/Avalon.Domain/World/SpellTemplate.cs` + `SpellMetadata.cs`                    | Add `AnimationId` to spell template and metadata      |
 | TODO-018  | 🔴     | Spell System            | `src/Server/Avalon.World/Maps/Chunk.cs:370,387`                                            | Use spell `AnimationId` instead of hardcoded `1`      |
@@ -400,7 +400,7 @@ The literal string `"TODO"` is sent as the client version. This will be rejected
 
 ---
 
-### TODO-015 — Deduct power cost on `QueueSpell` 🔴
+### TODO-015 — Deduct power cost on `QueueSpell` 🟢
 
 **File:** `src/Server/Avalon.World/Spells/ChunkSpellSystem.cs:32`
 
