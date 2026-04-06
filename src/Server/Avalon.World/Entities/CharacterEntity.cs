@@ -4,6 +4,7 @@ using Avalon.Common.ValueObjects;
 using Avalon.Domain.Characters;
 using Avalon.Network.Packets.Combat;
 using Avalon.Network.Packets.State;
+using Avalon.World.Configuration;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
@@ -22,6 +23,13 @@ public class CharacterEntity : ICharacter
     private readonly ICharacterInventory _equipment;
 
     private readonly ILogger<CharacterEntity> _logger;
+    private readonly RegenConfiguration _regenConfig;
+
+    // Combat state
+    private DateTime _lastCombatTime = DateTime.MinValue;
+
+    // Power regen cast-suppression (5-second rule)
+    private DateTime _lastCastTime = DateTime.MinValue;
 
     public CharacterEntity()
     {
@@ -31,9 +39,10 @@ public class CharacterEntity : ICharacter
         _bag = null!;
         _bank = null!;
         Spells = null!;
+        _regenConfig = new RegenConfiguration();
     }
 
-    public CharacterEntity(ILoggerFactory loggerFactory, IWorldConnection connection, Character character)
+    public CharacterEntity(ILoggerFactory loggerFactory, IWorldConnection connection, Character character, RegenConfiguration regenConfig)
     {
         _logger = loggerFactory.CreateLogger<CharacterEntity>();
         Connection = connection;
@@ -44,6 +53,7 @@ public class CharacterEntity : ICharacter
         Spells = new CharacterSpellContainer(loggerFactory);
         CharacterGameState = new CharacterCharacterGameState();
         Guid = new ObjectGuid(ObjectType.Character, character.Id);
+        _regenConfig = regenConfig;
     }
 
     public Character? Data { get; init; }
@@ -110,6 +120,15 @@ public class CharacterEntity : ICharacter
 
     public uint? CurrentPower { get; set; }
     public MoveState MoveState { get; set; } = MoveState.Idle;
+
+    public uint Stamina { get; set; }
+    public uint RegenStat { get; set; }
+
+    public bool IsInCombat =>
+        _lastCombatTime != DateTime.MinValue &&
+        (DateTime.UtcNow - _lastCombatTime).TotalSeconds < _regenConfig.CombatLeaveDelaySeconds;
+
+    public void MarkCombat() => _lastCombatTime = DateTime.UtcNow;
 
     public void OnHit(IUnit attacker, uint damage)
     {
@@ -225,7 +244,44 @@ public class CharacterEntity : ICharacter
         CalculateMovementSpeed();
     }
 
-    public void Update(TimeSpan deltaTime) => Spells.Update(deltaTime);
+    public void Update(TimeSpan deltaTime)
+    {
+        Spells.Update(deltaTime);
+
+        // Track cast-suppression window: as long as a spell is casting, keep refreshing the timer.
+        if (Spells.IsCasting)
+            _lastCastTime = DateTime.UtcNow;
+
+        float dt = (float)deltaTime.TotalSeconds;
+
+        // Health regeneration (skipped if dead or in combat)
+        if (!IsInCombat && CurrentHealth > 0 && CurrentHealth < Health && Stamina > 0)
+        {
+            uint regen = (uint)Math.Max(1f, Stamina * _regenConfig.HealthRegenOutOfCombatPerStamina * dt);
+            CurrentHealth = (uint)Math.Min(Health, CurrentHealth + regen);
+        }
+
+        // Power regeneration (Mana / Energy only; Fury is deferred)
+        if (CurrentPower.HasValue && Power.HasValue &&
+            CurrentPower.Value < Power.Value &&
+            RegenStat > 0 &&
+            PowerType is PowerType.Mana or PowerType.Energy)
+        {
+            bool castSuppressed =
+                _lastCastTime != DateTime.MinValue &&
+                (DateTime.UtcNow - _lastCastTime).TotalSeconds < _regenConfig.PowerRegenCastSuppressSeconds;
+
+            if (!castSuppressed)
+            {
+                float coeff = IsInCombat
+                    ? _regenConfig.PowerRegenInCombatPerStat
+                    : _regenConfig.PowerRegenOutOfCombatPerStat;
+
+                uint regen = (uint)Math.Max(1f, RegenStat * coeff * dt);
+                CurrentPower = (uint)Math.Min(Power.Value, CurrentPower.Value + regen);
+            }
+        }
+    }
 
     public ChunkId ChunkId { get; set; }
     public static event UnitFinishedCastAnimationDelegate? OnUnitFinishedCastAnimation;

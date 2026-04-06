@@ -22,6 +22,9 @@ public interface ICharacter : IUnit
     ulong Experience { get; set; }
     ulong RequiredExperience { get; set; }
 
+    /// <summary>Records a combat event (hit received or attack sent). Resets the out-of-combat timer.</summary>
+    void MarkCombat();
+
     void OnDisconnected();
     float GetMovementSpeed();
     void SetRunning(bool running);
