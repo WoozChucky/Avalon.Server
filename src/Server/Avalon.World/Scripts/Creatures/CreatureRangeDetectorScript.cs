@@ -2,7 +2,7 @@ using Avalon.Common.Mathematics;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
-using Avalon.World.Public.Maps;
+using Avalon.World.Public.Instances;
 using Avalon.World.Public.Scripts;
 using Microsoft.Extensions.Logging;
 
@@ -25,7 +25,7 @@ public class CreatureRangeDetectorScript : AiScript
     private const float SearchInterval = 1.0f;
     private float _searchTimer = 0.0f;
 
-    public CreatureRangeDetectorScript(ILoggerFactory loggerFactory, ICreature creature, IChunk chunk, float aggroRange) : base(creature, chunk)
+    public CreatureRangeDetectorScript(ILoggerFactory loggerFactory, ICreature creature, ISimulationContext context, float aggroRange) : base(creature, context)
     {
         _logger = loggerFactory.CreateLogger<CreatureRangeDetectorScript>();
         _aggroRange = aggroRange;
@@ -45,14 +45,14 @@ public class CreatureRangeDetectorScript : AiScript
 
         _searchTimer = 0.0f;
 
-        var characters = Chunk.Characters.Values;
+        var characters = Context.Characters.Values;
         foreach (var character in characters)
         {
             var characterPosition = character.Position;
             var distance = Vector3.Distance(Creature.Position, characterPosition);
             if (distance <= _aggroRange)
             {
-                if (!Chunk.Navigator.HasVisibility(Creature.Position, characterPosition)) continue;
+                if (!Context.GetNavigatorForPosition(Creature.Position).HasVisibility(Creature.Position, characterPosition)) continue;
                 State = RangeDetectionState.Detected;
                 CharacterDetected?.Invoke(character);
                 break;

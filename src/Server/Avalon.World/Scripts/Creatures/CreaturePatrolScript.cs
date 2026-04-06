@@ -1,7 +1,7 @@
 using Avalon.Common.Mathematics;
 using Avalon.Network.Packets.State;
 using Avalon.World.Public.Creatures;
-using Avalon.World.Public.Maps;
+using Avalon.World.Public.Instances;
 using Avalon.World.Public.Scripts;
 using Avalon.World.Public.Units;
 using Microsoft.Extensions.Logging;
@@ -11,9 +11,9 @@ namespace Avalon.World.Scripts.Creatures;
 public sealed class CreaturePatrolScript(
     ILoggerFactory loggerFactory,
     ICreature creature,
-    IChunk chunk,
+    ISimulationContext context,
     Vector3[] waypoints)
-    : AiScript(creature, chunk)
+    : AiScript(creature, context)
 {
     public enum PatrolState
     {
@@ -50,7 +50,7 @@ public sealed class CreaturePatrolScript(
 
     private Queue<Vector3> GeneratePath(Vector3 currentPosition, Vector3 targetPosition)
     {
-        List<Vector3> path = Chunk.Navigator.FindPath(currentPosition, targetPosition);
+        List<Vector3> path = Context.GetNavigatorForPosition(currentPosition).FindPath(currentPosition, targetPosition);
         return new Queue<Vector3>(path);
     }
 

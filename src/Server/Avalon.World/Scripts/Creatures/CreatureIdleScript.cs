@@ -3,7 +3,7 @@ using Avalon.Network.Packets.Movement;
 using Avalon.Network.Packets.State;
 using Avalon.World.Public;
 using Avalon.World.Public.Creatures;
-using Avalon.World.Public.Maps;
+using Avalon.World.Public.Instances;
 using Avalon.World.Public.Scripts;
 
 namespace Avalon.World.Scripts.Creatures;
@@ -13,7 +13,7 @@ public class CreatureIdleScript : AiScript
     private readonly float _idleTime;
     private float _timeElapsed = 0f;
 
-    public CreatureIdleScript(ICreature creature, IChunk chunk, float idleTime) : base(creature, chunk)
+    public CreatureIdleScript(ICreature creature, ISimulationContext context, float idleTime) : base(creature, context)
     {
         _idleTime = idleTime;
     }
