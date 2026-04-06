@@ -78,7 +78,9 @@ public class ExchangeWorldKeyHandlerShould
 
         await _handler.ExecuteAsync(MakeCtx(new byte[32], new byte[ValidKeySize]));
 
-        await _cache.Received(1).RemoveAsync(Arg.Any<string>());
+        // Both the world key and the inWorld flag are removed once the key is validated
+        await _cache.Received(1).RemoveAsync(Arg.Is<string>(k => k.StartsWith("world:")));
+        await _cache.Received(1).RemoveAsync(Arg.Is<string>(k => k.StartsWith("account:")));
     }
 
     [Fact]
@@ -158,5 +160,21 @@ public class ExchangeWorldKeyHandlerShould
         await _handler.ExecuteAsync(MakeCtx(worldKey, new byte[ValidKeySize]));
 
         await _cache.Received(1).GetAsync(expectedKey);
+    }
+
+    [Fact]
+    public async Task ClearInWorldFlag_WhenKeyExchangeSucceeds()
+    {
+        var worldKey = new byte[32];
+        var publicKey = new byte[ValidKeySize];
+        new Random().NextBytes(worldKey);
+        new Random().NextBytes(publicKey);
+
+        _cache.GetAsync(Arg.Any<string>()).Returns("42");
+        _accountRepository.FindByIdAsync(Arg.Any<AccountId>()).Returns(MakeAccount(42));
+
+        await _handler.ExecuteAsync(MakeCtx(worldKey, publicKey));
+
+        await _cache.Received(1).RemoveAsync($"account:42:inWorld");
     }
 }

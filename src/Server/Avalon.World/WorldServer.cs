@@ -161,10 +161,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
     protected override Task OnStoppingAsync(CancellationToken stoppingToken)
     {
         foreach (IWorldConnection connection in Connections)
-        {
-            connection.Send(SDisconnectPacket.Create("Server is shutting down", DisconnectReason.ServerShutdown));
-            connection.Close();
-        }
+            GracefulShutdownHelper.NotifyAndClose(connection, "Server is shutting down", DisconnectReason.ServerShutdown, _logger);
 
         return Task.CompletedTask;
     }
@@ -232,6 +229,13 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
 
     private bool NewConnection(IConnection connection) => true;
 
+    public async Task ClearInWorldFlagAsync(AccountId? accountId)
+    {
+        if (accountId is null)
+            return;
+        await _cache.RemoveAsync($"account:{accountId}:inWorld");
+    }
+
     protected override object GetContextPacket(IConnection connection, object? packet, Type packetType)
     {
         // Check if the cache contains the property accessors for the given packet type
@@ -269,8 +273,10 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         _logger.LogInformation("Disconnecting account {AccountId}", value);
         AccountId accountId = value.ToString();
 
-        // TODO: Send in game packet telling the player they are being disconnected
-        Connections.FirstOrDefault(c => c.AccountId == accountId)?.Close();
+        IWorldConnection? connection = Connections.FirstOrDefault(c => c.AccountId == accountId);
+        if (connection is null) return;
+
+        GracefulShutdownHelper.NotifyAndClose(connection, "Your account has been logged in from another location.", DisconnectReason.DuplicateLogin, _logger);
     }
 
     #endregion

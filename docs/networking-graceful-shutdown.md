@@ -28,7 +28,7 @@ There are **two separate TCP server code paths** in this codebase. Understanding
 - ✅ **TODO-002**: `AvalonTcpServer.StopAsync` sends `SDisconnectPacket` (ServerShutdown) to each connection before closing. Also, `ServerBase.StopAsync` now calls `Listener.Stop()` first to release the listening port, and `OnClientAccepted` is hardened against shutdown races.
 - ✅ **TODO-003**: `AuthServer.OnStoppingAsync` now sends `SDisconnectPacket` before calling `connection.Close()`.
 - ✅ **TODO-004**: `WorldServer.OnStoppingAsync` now sends `SDisconnectPacket` before calling `connection.Close()`.
-- ❌ **TODO-005**: `DelayedDisconnect` (duplicate-login kick) — still pending; see section below.
+- ✅ **TODO-005**: `WorldServer.DelayedDisconnect` now sends `SDisconnectPacket(DuplicateLogin)` before closing. Uses `GracefulShutdownHelper.NotifyAndClose`.
 
 Related TODOs: [TODO-001](../TODO.md#todo-001), [TODO-002](../TODO.md#todo-002), [TODO-003](../TODO.md#todo-003), [TODO-004](../TODO.md#todo-004), [TODO-005](../TODO.md#todo-005)
 
@@ -108,68 +108,50 @@ Per-connection exceptions are caught and logged individually; they do not abort 
 
 ## Auth Server Changes — DONE (TODO-003)
 
-`AuthServer.OnStoppingAsync` iterates `Connections` and sends a disconnect packet before closing:
-
-```csharp
-foreach (IAuthConnection connection in Connections)
-{
-    connection.Send(SDisconnectPacket.Create("Server is shutting down", DisconnectReason.ServerShutdown));
-    connection.Close();
-}
-```
-
-`IConnection.Send` is **synchronous** (ring buffer enqueue). No drain delay is needed here because `connection.Close()` flushes the send queue before terminating the TCP connection.
+`AuthServer.OnStoppingAsync` delegates to `GracefulShutdownHelper.NotifyAndClose` for each connection.
 
 ---
 
-## World Server Changes — DONE (TODO-004) / Pending (TODO-005)
+## World Server Changes — DONE (TODO-004 + TODO-005)
 
 ### Graceful stop (TODO-004) — DONE
 
-Same pattern as Auth in `WorldServer.OnStoppingAsync`.
+`WorldServer.OnStoppingAsync` also delegates to `GracefulShutdownHelper.NotifyAndClose`.
 
-### Forced kick notification (TODO-005) — Pending
+### Forced kick notification (TODO-005) — DONE
 
-`DelayedDisconnect` is called via Redis pub/sub when a duplicate login is detected by the Auth server. The player is in-game and should see a UI reason.
+`DelayedDisconnect` is called via Redis pub/sub when a duplicate login is detected by the Auth server. It now sends `SDisconnectPacket(DuplicateLogin)` before closing:
 
 ```csharp
 private void DelayedDisconnect(RedisChannel channel, RedisValue value)
 {
+    _logger.LogInformation("Disconnecting account {AccountId}", value);
     AccountId accountId = value.ToString();
-    var connection = Connections.FirstOrDefault(c => c.AccountId == accountId);
+
+    IWorldConnection? connection = Connections.FirstOrDefault(c => c.AccountId == accountId);
     if (connection is null) return;
 
-    connection.Send(SDisconnectPacket.Create(DisconnectReason.DuplicateLogin,
-        "Your account has been logged in from another location."));
-    connection.Close();
+    GracefulShutdownHelper.NotifyAndClose(connection,
+        "Your account has been logged in from another location.",
+        DisconnectReason.DuplicateLogin,
+        _logger);
 }
 ```
 
 ---
 
-## Graceful Shutdown Helper (Optional Extraction)
+## `GracefulShutdownHelper` — DONE
 
-If the three servers share the same shutdown shape, extract:
+`GracefulShutdownHelper.NotifyAndClose` (`src/Server/Avalon.Hosting/Networking/GracefulShutdownHelper.cs`) is the shared utility used by all three call sites above:
 
 ```csharp
-public static class GracefulShutdownHelper
-{
-    public static void ShutdownAll<TConnection>(
-        IEnumerable<TConnection> connections,
-        Func<TConnection, NetworkPacket> disconnectPacketFactory,
-        ILogger logger)
-        where TConnection : IConnection
-    {
-        foreach (var conn in connections)
-        {
-            try { conn.Send(disconnectPacketFactory(conn)); }
-            catch (Exception ex) { logger.LogWarning(ex, "Failed to send disconnect packet"); }
-            try { conn.Close(); }
-            catch (Exception ex) { logger.LogWarning(ex, "Failed to close connection"); }
-        }
-    }
-}
+public static void NotifyAndClose(IConnection connection, string reason, DisconnectReason reasonCode, ILogger? logger = null)
 ```
+
+- Sends `SDisconnectPacket` — exceptions are caught, logged via `logger` (optional), and do **not** abort the close.
+- Always calls `connection.Close()` regardless of send success.
+
+Tests: `tests/Avalon.Server.Auth.UnitTests/Networking/GracefulShutdownHelperShould.cs` (4 tests).
 
 ---
 

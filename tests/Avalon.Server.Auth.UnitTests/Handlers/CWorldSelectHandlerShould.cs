@@ -3,6 +3,7 @@ using Avalon.Common.ValueObjects;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Domain.Auth;
 using Avalon.Infrastructure;
+using Avalon.Infrastructure.Services;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Auth;
 using Avalon.Server.Auth;
@@ -20,6 +21,7 @@ public class CWorldSelectHandlerShould
     private readonly IReplicatedCache _cache = Substitute.For<IReplicatedCache>();
     private readonly IAuthConnection _connection = Substitute.For<IAuthConnection>();
     private readonly IAvalonCryptoSession _cryptoSession = Substitute.For<IAvalonCryptoSession>();
+    private readonly ISecureRandom _secureRandom = Substitute.For<ISecureRandom>();
     private readonly CWorldSelectHandler _handler;
 
     public CWorldSelectHandlerShould()
@@ -27,7 +29,9 @@ public class CWorldSelectHandlerShould
         _cryptoSession.Encrypt(Arg.Any<byte[]>()).Returns(x => (byte[])x[0]);
         _connection.CryptoSession.Returns(_cryptoSession);
         _connection.Id.Returns(Guid.NewGuid());
-        _handler = new CWorldSelectHandler(NullLoggerFactory.Instance, _cache, _accountRepository, _worldRepository);
+        _secureRandom.GetBytes(32).Returns(new byte[32]);
+        _cache.SetNxAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<TimeSpan>()).Returns(true);
+        _handler = new CWorldSelectHandler(NullLoggerFactory.Instance, _cache, _accountRepository, _worldRepository, _secureRandom);
     }
 
     private static Account MakeAccount(AccountAccessLevel level = AccountAccessLevel.Player)
@@ -134,6 +138,10 @@ public class CWorldSelectHandlerShould
         Assert.NotNull(account.SessionKey);
         Assert.Equal(32, account.SessionKey.Length);
         await _accountRepository.Received(1).UpdateAsync(account);
+        await _cache.Received(1).SetNxAsync(
+            Arg.Is<string>(k => k == $"account:{account.Id}:inWorld"),
+            "1",
+            TimeSpan.FromMinutes(5));
         await _cache.Received(1).SetAsync(
             Arg.Is<string>(k => k.StartsWith($"world:{world.Id}:keys:")),
             Arg.Any<string>(),
@@ -141,5 +149,55 @@ public class CWorldSelectHandlerShould
         await _cache.Received(1).PublishAsync(
             Arg.Is<string>(k => k == $"world:{world.Id}:select"),
             Arg.Is<string>(v => v.StartsWith($"account:{account.Id}:worldKey:")));
+    }
+
+    [Fact]
+    public async Task UseSecureRandom_ForWorldKey_WhenSelectionSucceeds()
+    {
+        var expectedKey = new byte[32];
+        new System.Random(42).NextBytes(expectedKey); // deterministic stand-in — not used as CSPRNG
+        _secureRandom.GetBytes(32).Returns(expectedKey);
+
+        var account = MakeAccount(level: AccountAccessLevel.Player);
+        _connection.AccountId.Returns(account.Id);
+        _accountRepository.FindByIdAsync(account.Id).Returns(account);
+        var world = MakeWorld(1, AccountAccessLevel.Player);
+        _worldRepository.FindByIdAsync(Arg.Any<WorldId>()).Returns(world);
+
+        var ctx = new AuthPacketContext<CWorldSelectPacket>
+        {
+            Packet = new CWorldSelectPacket { WorldId = new WorldId(1) },
+            Connection = _connection
+        };
+
+        await _handler.ExecuteAsync(ctx);
+
+        _secureRandom.Received(1).GetBytes(32);
+        Assert.Equal(expectedKey, account.SessionKey);
+    }
+
+    [Fact]
+    public async Task SendDuplicateSessionError_WhenAccountAlreadyHasActiveSession()
+    {
+        _cache.SetNxAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<TimeSpan>()).Returns(false);
+
+        var account = MakeAccount(level: AccountAccessLevel.Player);
+        _connection.AccountId.Returns(account.Id);
+        _accountRepository.FindByIdAsync(account.Id).Returns(account);
+        var world = MakeWorld(1, AccountAccessLevel.Player);
+        _worldRepository.FindByIdAsync(Arg.Any<WorldId>()).Returns(world);
+
+        var ctx = new AuthPacketContext<CWorldSelectPacket>
+        {
+            Packet = new CWorldSelectPacket { WorldId = new WorldId(1) },
+            Connection = _connection
+        };
+
+        await _handler.ExecuteAsync(ctx);
+
+        _connection.Received(1).Send(Arg.Any<NetworkPacket>());
+        await _accountRepository.DidNotReceive().UpdateAsync(Arg.Any<Account>());
+        await _cache.DidNotReceive().SetAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<TimeSpan?>());
+        await _cache.DidNotReceive().PublishAsync(Arg.Any<string>(), Arg.Any<string>());
     }
 }
