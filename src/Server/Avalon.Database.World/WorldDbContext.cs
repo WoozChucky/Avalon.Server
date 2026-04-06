@@ -70,6 +70,7 @@ public class WorldDbContext(ILoggerFactory loggerFactory, IOptions<DatabaseConfi
     public DbSet<ItemTemplate> ItemTemplates { get; set; } = null!;
     public DbSet<ItemInstance> ItemInstances { get; set; } = null!;
     public DbSet<MapTemplate> MapTemplates { get; set; } = null!;
+    public DbSet<MapPortal> MapPortals { get; set; } = null!;
     public DbSet<QuestReward> QuestRewards { get; set; } = null!;
     public DbSet<QuestRewardTemplate> QuestRewardTemplates { get; set; } = null!;
     public DbSet<QuestTemplate> QuestTemplates { get; set; } = null!;
@@ -93,6 +94,7 @@ public class WorldDbContext(ILoggerFactory loggerFactory, IOptions<DatabaseConfi
         Configure(modelBuilder.Entity<ItemTemplate>());
         Configure(modelBuilder.Entity<ItemInstance>());
         Configure(modelBuilder.Entity<MapTemplate>());
+        Configure(modelBuilder.Entity<MapPortal>());
         Configure(modelBuilder.Entity<QuestReward>());
         Configure(modelBuilder.Entity<QuestRewardTemplate>());
         Configure(modelBuilder.Entity<QuestTemplate>());
@@ -682,7 +684,7 @@ public class WorldDbContext(ILoggerFactory loggerFactory, IOptions<DatabaseConfi
             Name = "world.bin",
             Description = "Glimmerdell",
             Directory = "Maps/",
-            InstanceType = MapInstanceType.OpenWorld,
+            MapType = MapType.Town,
             PvP = false,
             MinLevel = 1,
             MaxLevel = 60,
@@ -690,8 +692,22 @@ public class WorldDbContext(ILoggerFactory loggerFactory, IOptions<DatabaseConfi
             LoadingScreenId = 0,
             CorpseX = 0,
             CorpseY = 0,
-            MaxPlayers = 32
+            MaxPlayers = 30,
+            DefaultSpawnX = 25f,
+            DefaultSpawnY = 51f,
+            DefaultSpawnZ = 25f,
+            ReturnMapId = null
         });
+    }
+
+    private static void Configure(EntityTypeBuilder<MapPortal> builder)
+    {
+        builder.HasKey(b => b.Id);
+        builder.Property(b => b.Id).ValueGeneratedOnAdd();
+
+        // No seed data — portals are defined per-game-design when maps are connected.
+        // Example insert when a Normal map is added:
+        //   builder.HasData(new MapPortal { Id = 1, SourceMapId = 1, TargetMapId = 2, X = 50f, Y = 51f, Z = 50f, Radius = 3f });
     }
 
     private static void Configure(EntityTypeBuilder<SpellTemplate> builder)

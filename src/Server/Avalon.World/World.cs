@@ -136,7 +136,7 @@ public class World : IWorld
         uint chunkId = 1U;
 
         await foreach ((VirtualizedMap virtualMap, MapTemplate mapTemplate) in
-                       _mapManager.EnumerateOpenWorldAsync(token))
+                       _mapManager.EnumerateTownMapsAsync(token))
         {
             List<ChunkMetadata> chunksMetadata = virtualMap.Chunks;
 
