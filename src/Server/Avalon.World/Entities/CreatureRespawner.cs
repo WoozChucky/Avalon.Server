@@ -1,6 +1,6 @@
 using Avalon.Common.Utils;
 using Avalon.World.Public.Creatures;
-using Avalon.World.Public.Maps;
+using Avalon.World.Public.Instances;
 
 namespace Avalon.World.Entities;
 
@@ -10,7 +10,7 @@ public interface ICreatureRespawner
     void Update(TimeSpan deltaTime);
 }
 
-public class CreatureRespawner(IChunk chunk) : ICreatureRespawner
+public class CreatureRespawner(ISimulationContext context) : ICreatureRespawner
 {
     private readonly IDictionary<IntervalTimer, ICreature> _removeTimers = new Dictionary<IntervalTimer, ICreature>();
     private readonly IDictionary<IntervalTimer, ICreature> _respawnTimers = new Dictionary<IntervalTimer, ICreature>();
@@ -43,7 +43,7 @@ public class CreatureRespawner(IChunk chunk) : ICreatureRespawner
                 continue;
             }
 
-            chunk.RemoveCreature(creature);
+            context.RemoveCreature(creature);
             timersToRemove.Add(timer);
         }
 
@@ -66,7 +66,7 @@ public class CreatureRespawner(IChunk chunk) : ICreatureRespawner
                 continue;
             }
 
-            chunk.RespawnCreature(creature);
+            context.RespawnCreature(creature);
             timersToRespawn.Add(timer);
         }
 

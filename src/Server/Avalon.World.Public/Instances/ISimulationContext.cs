@@ -21,6 +21,7 @@ public interface ISimulationContext
     IChunkNavigator GetNavigatorForPosition(Vector3 position);
 
     bool QueueSpell(ICharacter caster, IUnit? target, ISpell spell);
+    void AddCreature(ICreature creature);
     void RespawnCreature(ICreature creature);
     void RemoveCreature(ICreature creature);
     void BroadcastUnitHit(IUnit attacker, IUnit target, uint currentHealth, uint damage);

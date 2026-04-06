@@ -21,35 +21,30 @@ public interface IAvalonMapManager
     /// <summary>Loads the binary map data for a given template.</summary>
     Task<VirtualizedMap> LoadMapDataAsync(MapTemplate template, CancellationToken token = default);
 
-    /// <summary>Returns portals whose source matches <paramref name="sourceMapId"/>.</summary>
+    /// <summary>Returns portals whose source matches <paramref name="sourceMapId" />.</summary>
     IReadOnlyList<MapPortal> GetPortalsFrom(ushort sourceMapId);
 
     // Used by World.LoadAsync to start Town instances at startup.
-    IAsyncEnumerable<(VirtualizedMap map, MapTemplate metadata)> EnumerateTownMapsAsync(CancellationToken token = default);
+    IAsyncEnumerable<(VirtualizedMap map, MapTemplate metadata)> EnumerateTownMapsAsync(
+        CancellationToken token = default);
 }
 
-public class AvalonMapManager : IAvalonMapManager
+public class AvalonMapManager(ILoggerFactory loggerFactory, IServiceScopeFactory scopeFactory)
+    : IAvalonMapManager
 {
-    private readonly ILogger<AvalonMapManager> _logger;
-    private readonly IServiceScopeFactory _scopeFactory;
-
-    private List<MapTemplate> _templates = [];
+    private readonly ILogger<AvalonMapManager> _logger = loggerFactory.CreateLogger<AvalonMapManager>();
     private List<MapPortal> _portals = [];
 
-    public AvalonMapManager(ILoggerFactory loggerFactory, IServiceScopeFactory scopeFactory)
-    {
-        _logger = loggerFactory.CreateLogger<AvalonMapManager>();
-        _scopeFactory = scopeFactory;
-    }
+    private List<MapTemplate> _templates = [];
 
     public IReadOnlyList<MapTemplate> Templates => _templates;
     public IReadOnlyList<MapPortal> Portals => _portals;
 
     public async Task LoadAsync()
     {
-        await using AsyncServiceScope scope = _scopeFactory.CreateAsyncScope();
-        var mapRepo = scope.ServiceProvider.GetRequiredService<IMapTemplateRepository>();
-        var portalRepo = scope.ServiceProvider.GetRequiredService<IMapPortalRepository>();
+        await using AsyncServiceScope scope = scopeFactory.CreateAsyncScope();
+        IMapTemplateRepository mapRepo = scope.ServiceProvider.GetRequiredService<IMapTemplateRepository>();
+        IMapPortalRepository portalRepo = scope.ServiceProvider.GetRequiredService<IMapPortalRepository>();
 
         _logger.LogInformation("Loading map templates...");
         _templates = (await mapRepo.FindAllAsync()).ToList();
@@ -62,7 +57,7 @@ public class AvalonMapManager : IAvalonMapManager
 
     public async Task<VirtualizedMap> LoadMapDataAsync(MapTemplate template, CancellationToken token = default)
     {
-        var path = Path.Combine(Directory.GetCurrentDirectory(), template.Directory, template.Name);
+        string path = Path.Combine(Directory.GetCurrentDirectory(), template.Directory, template.Name);
         return await BinaryDeserializationHelper.ReadMapFromFile(path, token);
     }
 
@@ -72,21 +67,24 @@ public class AvalonMapManager : IAvalonMapManager
     public async IAsyncEnumerable<(VirtualizedMap map, MapTemplate metadata)> EnumerateTownMapsAsync(
         [EnumeratorCancellation] CancellationToken token = default)
     {
-        var townTemplates = _templates.Where(m => m.MapType == MapType.Town).ToList();
+        List<MapTemplate> townTemplates = _templates.Where(m => m.MapType == MapType.Town).ToList();
 
-        var tasks = townTemplates
+        List<Task<VirtualizedMap>> tasks = townTemplates
             .Select(template => LoadMapDataAsync(template, token))
             .ToList();
 
         while (tasks.Count != 0)
         {
-            if (token.IsCancellationRequested) yield break;
+            if (token.IsCancellationRequested)
+            {
+                yield break;
+            }
 
-            var completedTask = await Task.WhenAny(tasks);
+            Task<VirtualizedMap> completedTask = await Task.WhenAny(tasks);
             tasks.Remove(completedTask);
 
-            var virtualizedMap = await completedTask;
-            var metadata = townTemplates.First(m => m.Id == (ushort)virtualizedMap.Id);
+            VirtualizedMap virtualizedMap = await completedTask;
+            MapTemplate metadata = townTemplates.First(m => m.Id == virtualizedMap.Id);
 
             yield return (virtualizedMap, metadata);
         }

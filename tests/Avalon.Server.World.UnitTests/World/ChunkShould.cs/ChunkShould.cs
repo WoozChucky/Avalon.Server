@@ -57,7 +57,7 @@ public class ChunkShould
         var start = new Vector3(5, 0, 5);
         var end = new Vector3(35, 0, 35);
 
-        var chunk = new ChunkMetadata
+        var chunk = new MapRegion
         {
             Name = "Test Chunk",
             Position = Vector3.zero,

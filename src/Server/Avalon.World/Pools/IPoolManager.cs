@@ -1,7 +1,7 @@
 using Avalon.World.Entities;
-using Avalon.World.Maps;
-using Avalon.World.Public;
 using Avalon.World.Public.Creatures;
+using Avalon.World.Public.Instances;
+using Avalon.World.Public.Maps;
 using Avalon.World.Public.Scripts;
 using Avalon.World.Scripts;
 using Microsoft.Extensions.DependencyInjection;
@@ -11,9 +11,9 @@ namespace Avalon.World.Pools;
 
 public interface IPoolManager
 {
-    void SpawnStartingEntities(Chunk chunk);
+    void SpawnStartingEntities(ISimulationContext context, IReadOnlyList<MapRegion> regions);
 
-    void SpawnEntity(Chunk chunk, ICreature creature);
+    void SpawnEntity(ISimulationContext context, IReadOnlyList<MapRegion> regions, ICreature creature);
 }
 
 public class PoolManager : IPoolManager
@@ -32,44 +32,50 @@ public class PoolManager : IPoolManager
     }
 
 
-    public void SpawnStartingEntities(Chunk chunk)
+    public void SpawnStartingEntities(ISimulationContext context, IReadOnlyList<MapRegion> regions)
     {
-        _logger.LogDebug("Spawning starting entities for Chunk {ChunkId}", chunk.Id);
-
-        foreach (var virtualCreature in chunk.Metadata.Creatures)
+        foreach (MapRegion region in regions)
         {
-            var creature = _creatureSpawner.Spawn(virtualCreature);
+            _logger.LogDebug("Spawning starting entities for region '{RegionName}'", region.Name);
 
-            var scriptType = _scriptManager.GetAiScript(creature.ScriptName);
-            if (scriptType is not null)
+            foreach (var virtualCreature in region.Creatures)
             {
-                var script = ActivatorUtilities.CreateInstance(_serviceProvider, scriptType, [creature, chunk]);
-                creature.Script = (AiScript)script;
-            }
+                var creature = _creatureSpawner.Spawn(virtualCreature);
 
-            chunk.AddCreature(creature);
+                var scriptType = _scriptManager.GetAiScript(creature.ScriptName);
+                if (scriptType is not null)
+                {
+                    var script = ActivatorUtilities.CreateInstance(_serviceProvider, scriptType, [creature, context]);
+                    creature.Script = (AiScript)script;
+                }
+
+                context.AddCreature(creature);
+            }
         }
     }
 
-    public void SpawnEntity(Chunk chunk, ICreature creature)
+    public void SpawnEntity(ISimulationContext context, IReadOnlyList<MapRegion> regions, ICreature creature)
     {
-        foreach (var virtualCreature in chunk.Metadata.Creatures)
+        foreach (MapRegion region in regions)
         {
-            if (virtualCreature.Position != creature.Metadata.StartPosition) continue;
-
-            _logger.LogDebug("Spawning entity {CreatureId} for Chunk {ChunkId}", virtualCreature.PrototypeIndex, chunk.Id);
-
-            var newCreature = _creatureSpawner.Spawn(virtualCreature);
-
-            var scriptType = _scriptManager.GetAiScript(newCreature.ScriptName);
-            if (scriptType is not null)
+            foreach (var virtualCreature in region.Creatures)
             {
-                var script = ActivatorUtilities.CreateInstance(_serviceProvider, scriptType, [newCreature, chunk]);
-                newCreature.Script = (AiScript)script;
-            }
+                if (virtualCreature.Position != creature.Metadata.StartPosition) continue;
 
-            chunk.AddCreature(newCreature);
-            break;
+                _logger.LogDebug("Spawning entity {PrototypeIndex}", virtualCreature.PrototypeIndex);
+
+                var newCreature = _creatureSpawner.Spawn(virtualCreature);
+
+                var scriptType = _scriptManager.GetAiScript(newCreature.ScriptName);
+                if (scriptType is not null)
+                {
+                    var script = ActivatorUtilities.CreateInstance(_serviceProvider, scriptType, [newCreature, context]);
+                    newCreature.Script = (AiScript)script;
+                }
+
+                context.AddCreature(newCreature);
+                return;
+            }
         }
     }
 }

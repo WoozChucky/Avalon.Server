@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using Avalon.Common.Mathematics;
 using Avalon.Common.Telemetry;
+using Avalon.Common.ValueObjects;
 using Avalon.Database.Character.Repositories;
 using Avalon.Domain.Characters;
 using Avalon.Domain.World;
@@ -10,6 +11,7 @@ using Avalon.World.Configuration;
 using Avalon.World.Entities;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Enums;
+using Avalon.World.Public.Instances;
 using Avalon.World.Public.Spells;
 using Avalon.World.Spells;
 using Microsoft.Extensions.Logging;
@@ -75,8 +77,6 @@ public class CharacterSelectHandler(
             return;
         }
 
-        //TODO: Implement when instances are a thing
-        character.InstanceId = Guid.NewGuid().ToString();
         character.Online = true;
         character.Latency = (int)connection.Latency;
 
@@ -116,10 +116,39 @@ public class CharacterSelectHandler(
 
         connection.Character = entity;
 
+        MapTemplate? townTemplate = world.MapTemplates.FirstOrDefault(t => t.Id == (MapTemplateId)character.Map);
+        if (townTemplate == null)
+        {
+            logger.LogError("MapTemplate {MapId} not found for character {CharacterId}", character.Map,
+                character.Id);
+            activity?.AddEvent(new ActivityEvent("MapTemplateNotFound"));
+            return;
+        }
+
+        connection.AddQueryCallback(
+            world.InstanceRegistry.GetOrCreateTownInstanceAsync(townTemplate.Id, townTemplate.MaxPlayers ?? 30),
+            mapInstance => OnInstanceObtained(connection, entity, townTemplate, mapInstance));
+
+        _parentActivity = activity;
+    }
+
+    private void OnInstanceObtained(WorldConnection connection, CharacterEntity entity, MapTemplate townTemplate,
+        IMapInstance instance)
+    {
+        using Activity? activity = DiagnosticsConfig.World.Source.StartActivity(nameof(OnInstanceObtained),
+            ActivityKind.Internal,
+            _parentActivity?.Context ?? default);
+        activity?.SetTag(nameof(connection.AccountId), connection.AccountId);
+        activity?.SetTag("CharacterId", entity.Data?.Id);
+        activity?.SetTag("InstanceId", instance.InstanceId);
+
+        entity.InstanceId = instance.InstanceId;
+
+        Character character = entity.Data!;
+
         try
         {
-            // TODO: Spawn in the world
-            world.SpawnPlayer(connection);
+            world.SpawnInInstance(connection, instance);
         }
         catch (Exception e)
         {
@@ -147,9 +176,9 @@ public class CharacterSelectHandler(
         MapInfo mapInfo = new()
         {
             MapId = character.Map,
-            InstanceId = Guid.Parse(character.InstanceId),
-            Name = "Test Map",
-            Description = "Test Map Description"
+            InstanceId = instance.InstanceId,
+            Name = townTemplate.Description,
+            Description = townTemplate.Description
         };
 
         connection.Send(SCharacterSelectedPacket.Create(characterInfo, mapInfo, connection.CryptoSession.Encrypt));
@@ -157,11 +186,12 @@ public class CharacterSelectHandler(
         connection.AddQueryCallback(characterRepository.UpdateAsync(character), _ =>
         {
             logger.LogInformation("Character {CharacterId} logged in for account {AccountId} at {Position}",
-                character.Name, connection.AccountId, connection.Character.Position);
+                character.Name, connection.AccountId, connection.Character!.Position);
 
             connection.AddQueryCallback(characterInventoryRepository.GetByCharacterIdAsync(character.Id),
                 items => { OnInventoryReceived(connection, character, items); });
         });
+
         _parentActivity = activity;
     }
 

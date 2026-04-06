@@ -35,7 +35,7 @@ public class ScriptCompiler : IScriptCompiler
         MetadataReference.CreateFromFile(typeof(AiScript).Assembly.Location),
         MetadataReference.CreateFromFile(typeof(Vector3).Assembly.Location),
         MetadataReference.CreateFromFile(typeof(ILoggerFactory).Assembly.Location),
-        MetadataReference.CreateFromFile(typeof(ChunkMetadata).Assembly.Location),
+        MetadataReference.CreateFromFile(typeof(MapRegion).Assembly.Location),
         MetadataReference.CreateFromFile(Assembly.Load("System.Runtime").Location),
         MetadataReference.CreateFromFile(Assembly.Load("netstandard").Location),
         MetadataReference.CreateFromFile(typeof(Task).Assembly.Location),
