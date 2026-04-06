@@ -3,6 +3,8 @@ using Avalon.Database.Auth.Repositories;
 using Avalon.Infrastructure;
 using Avalon.Infrastructure.Services;
 using Avalon.Network.Packets.Auth;
+using Avalon.Server.Auth.Configuration;
+using Microsoft.Extensions.Options;
 
 namespace Avalon.Server.Auth.Handlers;
 
@@ -13,14 +15,16 @@ public class CAuthHandler : IAuthPacketHandler<CAuthPacket>
     private readonly IReplicatedCache _cache;
     private readonly IMFAHashService _mfaHashService;
     private readonly ILogger<CAuthHandler> _logger;
+    private readonly AuthConfiguration _authConfig;
 
 
-    public CAuthHandler(ILoggerFactory logger, IAccountRepository accountRepository, IReplicatedCache cache, IMFAHashService mfaHashService)
+    public CAuthHandler(ILoggerFactory logger, IAccountRepository accountRepository, IReplicatedCache cache, IMFAHashService mfaHashService, IOptions<AuthConfiguration> options)
     {
         _accountRepository = accountRepository;
         _cache = cache;
         _mfaHashService = mfaHashService;
         _logger = logger.CreateLogger<CAuthHandler>();
+        _authConfig = options.Value;
     }
 
     public async Task ExecuteAsync(AuthPacketContext<CAuthPacket> ctx, CancellationToken token = default)
@@ -51,7 +55,7 @@ public class CAuthHandler : IAuthPacketHandler<CAuthPacket>
         {
             account.LastAttemptIp = ctx.Connection.RemoteEndPoint.Split(':')[0];
             account.FailedLogins++;
-            if (account.FailedLogins >= 5) // TODO: Move this to a configuration
+            if (account.FailedLogins >= _authConfig.MaxFailedLoginAttempts)
             {
                 account.Locked = true;
             }
