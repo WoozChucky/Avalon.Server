@@ -30,6 +30,12 @@ public static class ServiceExtensions
             });
 
         services
+            .AddOptions<RegenConfiguration>()
+            .BindConfiguration("Regen")
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
+        services
             .AddAuthDatabase() //TODO: World should not depend on Auth database
             .AddCharacterDatabase()
             .AddWorldDatabase()

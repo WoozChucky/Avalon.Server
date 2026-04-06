@@ -6,12 +6,14 @@ using Avalon.Domain.Characters;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Character;
+using Avalon.World.Configuration;
 using Avalon.World.Entities;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Spells;
 using Avalon.World.Spells;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Avalon.World.Handlers;
 
@@ -22,7 +24,8 @@ public class CharacterSelectHandler(
     ICharacterRepository characterRepository,
     ICharacterInventoryRepository characterInventoryRepository,
     ICharacterSpellRepository characterSpellRepository,
-    IWorld world) : WorldPacketHandler<CCharacterSelectedPacket>
+    IWorld world,
+    IOptions<RegenConfiguration> regenConfig) : WorldPacketHandler<CCharacterSelectedPacket>
 {
     private Activity? _parentActivity;
 
@@ -80,7 +83,10 @@ public class CharacterSelectHandler(
         ulong requiredExperience = world.Data.CharacterLevelExperiences.FirstOrDefault(c => c.Level == character.Level)
             ?.Experience ?? 0;
 
-        CharacterEntity entity = new(loggerFactory, connection, character)
+        ClassLevelStat? classLevelStat = world.Data.ClassLevelStats
+            .FirstOrDefault(s => s.Class == character.Class && s.Level == character.Level);
+
+        CharacterEntity entity = new(loggerFactory, connection, character, regenConfig.Value)
         {
             Data = character,
             Position = new Vector3(character.X, character.Y, character.Z),
@@ -88,6 +94,14 @@ public class CharacterSelectHandler(
             Orientation = new Vector3(0, character.Rotation, 0),
             EnteredWorld = DateTime.UtcNow,
             RequiredExperience = requiredExperience
+        };
+
+        entity.Stamina = classLevelStat?.Stamina ?? 0;
+        entity.RegenStat = character.Class switch
+        {
+            CharacterClass.Wizard or CharacterClass.Healer => classLevelStat?.Intellect ?? 0,
+            CharacterClass.Hunter => classLevelStat?.Agility ?? 0,
+            _ => 0
         };
 
         entity.CurrentHealth = entity.Health;

@@ -29,7 +29,18 @@ public class ChunkSpellSystem(ILoggerFactory factory, IServiceProvider servicePr
 
     public bool QueueSpell(ICharacter character, IUnit? target, ISpell spell)
     {
-        //TODO: Power cost deduction
+        // Power cost deduction: only Mana and Energy are depletion-based resources.
+        // Fury and None are blocked until their mechanics are designed.
+        if (spell.Metadata.Cost > 0)
+        {
+            if (character.PowerType is not (PowerType.Mana or PowerType.Energy))
+                return false;
+
+            if (character.CurrentPower < spell.Metadata.Cost)
+                return false;
+
+            character.CurrentPower -= spell.Metadata.Cost;
+        }
 
         spell.Casting = true;
         SpellInstance spellInstance = new()
