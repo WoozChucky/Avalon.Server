@@ -1,71 +1,53 @@
 using Avalon.Network.Packets.Social;
 using Avalon.World;
+using Avalon.World.Chat;
 
 namespace Avalon.Server.World.Handlers;
 
-public class ChatMessageHandler : IWorldPacketHandler<CChatMessagePacket>
+public class ChatMessageHandler(IWorldServer worldServer, ICommandDispatcher commandDispatcher)
+    : IWorldPacketHandler<CChatMessagePacket>
 {
-    public Task ExecuteAsync(WorldPacketContext<CChatMessagePacket> ctx, CancellationToken token = default)
+    public async Task ExecuteAsync(WorldPacketContext<CChatMessagePacket> ctx, CancellationToken token = default)
     {
         var message = ctx.Packet.Message;
-        var dateTime = ctx.Packet.DateTime;
 
-        /*
-         *
-        var message = packet.Message.Trim();
-
-        if (message.StartsWith("/")) //TODO: Make this a command handler
+        if (message.StartsWith('/'))
         {
-            var command = message.Substring(1);
-            var args = command.Split(' ');
-            var cmd = args[0].ToLower();
-            var cmdArgs = args.Skip(1).ToArray();
+            bool dispatched = await commandDispatcher.DispatchAsync(ctx, token);
 
-            if (cmd is "inv" or "invite")
+            if (!dispatched)
             {
-                var playerName = cmdArgs[0];
-                if (string.IsNullOrEmpty(playerName))
-                {
-                    _logger.LogInformation("Invalid player name for group invite");
-                    return;
-                }
-                var invitedAccount = _sessionManager.GetSessions().Values.FirstOrDefault(p => p.InGame && p.Character?.Name == playerName);
-                if (invitedAccount == null)
-                {
-                    _logger.LogInformation("Player {PlayerName} not found for group invite", playerName);
-                    return;
-                }
-                
-                if (invitedAccount.AccountId == session.AccountId)
-                {
-                    _logger.LogInformation("Player {PlayerName} tried to invite themselves to a group", playerName);
-                    return;
-                }
-                
-                await invitedAccount.SendAsync(SGroupInvitePacket.Create(invitedAccount.AccountId, session.AccountId, session.Character!.Id!.Value, session.Character.Name, invitedAccount.Encrypt));
+                ctx.Connection.Send(SChatMessagePacket.Create(
+                    0UL, 0UL, "System",
+                    "Unknown command.",
+                    ctx.Packet.DateTime,
+                    ctx.Connection.CryptoSession.Encrypt));
             }
+
+            return;
         }
-        else
+
+        if (!ctx.Connection.InGame)
         {
-            // Broadcast to all players
-
-            var availableSessions = _sessionManager.GetSessions().Values
-                .Where(p => p.InGame && p.AccountId != session.AccountId);
-            
-            var tasks = availableSessions.Select(s => s.SendAsync(
-                SChatMessagePacket.Create(
-                    packet.AccountId, 
-                    session.Character!.Id!.Value,
-                    session.Character.Name, 
-                    packet.Message, 
-                    packet.DateTime,
-                    s.Encrypt))
-            );
-            
-            await Task.WhenAll(tasks);
+            return;
         }
-        */
 
-        return Task.CompletedTask;
+        var sender = ctx.Connection;
+
+        foreach (var connection in worldServer.Connections)
+        {
+            if (!connection.InGame || connection.AccountId == sender.AccountId)
+            {
+                continue;
+            }
+
+            connection.Send(SChatMessagePacket.Create(
+                (ulong)(long)sender.AccountId!,
+                (ulong)sender.Character!.Guid.Id,
+                sender.Character.Name,
+                message,
+                ctx.Packet.DateTime,
+                connection.CryptoSession.Encrypt));
+        }
     }
 }
