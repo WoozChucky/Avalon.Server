@@ -1,14 +1,14 @@
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
-using Avalon.World.Public.Maps;
+using Avalon.World.Public.Instances;
 using Avalon.World.Public.Units;
 
 namespace Avalon.World.Public.Scripts;
 
-public abstract class AiScript(ICreature creature, IChunk chunk)
+public abstract class AiScript(ICreature creature, ISimulationContext context)
 {
     protected ICreature Creature { get; } = creature;
-    protected IChunk Chunk { get; } = chunk;
+    protected ISimulationContext Context { get; } = context;
 
     protected List<AiScript> ChainedScripts { get; } = new();
 

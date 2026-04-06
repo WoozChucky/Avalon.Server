@@ -1,5 +1,5 @@
 using Avalon.World.Public.Creatures;
-using Avalon.World.Public.Maps;
+using Avalon.World.Public.Instances;
 using Avalon.World.Public.Scripts;
 using Microsoft.Extensions.Logging;
 
@@ -9,7 +9,7 @@ public class TestAiScript : AiScript
 {
     private readonly ILogger<TestAiScript> _logger;
 
-    public TestAiScript(ILoggerFactory loggerFactory, ICreature creature, IChunk chunk) : base(creature, chunk)
+    public TestAiScript(ILoggerFactory loggerFactory, ICreature creature, ISimulationContext context) : base(creature, context)
     {
         _logger = loggerFactory.CreateLogger<TestAiScript>();
         _logger.LogInformation("TestAiScript instantiated");

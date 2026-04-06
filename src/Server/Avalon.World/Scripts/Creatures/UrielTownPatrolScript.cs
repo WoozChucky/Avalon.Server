@@ -1,7 +1,7 @@
 using Avalon.Common.Mathematics;
-using Avalon.World.Maps;
 using Avalon.World.Public;
 using Avalon.World.Public.Creatures;
+using Avalon.World.Public.Instances;
 using Avalon.World.Public.Scripts;
 using Microsoft.Extensions.Logging;
 
@@ -28,19 +28,19 @@ public class UrielTownPatrolScript : AiScript
 
     private AiScript _currentScript;
 
-    public UrielTownPatrolScript(ILoggerFactory loggerFactory, ICreature creature, Chunk chunk) : base(creature, chunk)
+    public UrielTownPatrolScript(ILoggerFactory loggerFactory, ICreature creature, ISimulationContext context) : base(creature, context)
     {
         _logger = loggerFactory.CreateLogger<UrielTownPatrolScript>();
         Creature.Health = 120;
         Creature.CurrentHealth = Creature.Health;
 
-        _patrolScript = new CreaturePatrolScript(loggerFactory, creature, chunk, _waypoints);
+        _patrolScript = new CreaturePatrolScript(loggerFactory, creature, context, _waypoints);
         _patrolScript.State = CreaturePatrolScript.PatrolState.Patrolling;
 
-        _idleScript = new CreatureIdleScript(creature, chunk, IdleTime);
+        _idleScript = new CreatureIdleScript(creature, context, IdleTime);
         _idleScript.State = false;
 
-        _combatScript = new CreatureCombatScript(loggerFactory, creature, chunk);
+        _combatScript = new CreatureCombatScript(loggerFactory, creature, context);
         _combatScript.State = CreatureCombatScript.CombatState.None;
 
         _currentScript = _patrolScript;

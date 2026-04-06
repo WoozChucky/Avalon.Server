@@ -3,7 +3,7 @@ using Avalon.Network.Packets.State;
 using Avalon.World.Entities;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
-using Avalon.World.Public.Maps;
+using Avalon.World.Public.Instances;
 using Avalon.World.Public.Scripts;
 using Avalon.World.Public.Units;
 using Microsoft.Extensions.Logging;
@@ -36,7 +36,7 @@ public class CreatureCombatScript : AiScript
 
     private IUnit? _target;
 
-    public CreatureCombatScript(ILoggerFactory loggerFactory, ICreature creature, IChunk chunk) : base(creature, chunk)
+    public CreatureCombatScript(ILoggerFactory loggerFactory, ICreature creature, ISimulationContext context) : base(creature, context)
     {
         _logger = loggerFactory.CreateLogger<CreatureCombatScript>();
         _currentPath = new Queue<Vector3>();
@@ -92,7 +92,7 @@ public class CreatureCombatScript : AiScript
 
             _lastKnownTargetPosition = attacker.Position;
             State = CombatState.Combat;
-            Chunk.BroadcastUnitHit(attacker, Creature, Creature.CurrentHealth, damage);
+            Context.BroadcastUnitHit(attacker, Creature, Creature.CurrentHealth, damage);
         }
     }
 
@@ -182,7 +182,7 @@ public class CreatureCombatScript : AiScript
 
     private Queue<Vector3> GeneratePath(Vector3 start, Vector3 end)
     {
-        List<Vector3> path = Chunk.Navigator.FindPath(start, end);
+        List<Vector3> path = Context.GetNavigatorForPosition(start).FindPath(start, end);
         return new Queue<Vector3>(path);
     }
 
