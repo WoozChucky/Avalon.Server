@@ -8,7 +8,7 @@ public class VirtualizedMap
 {
     public ushort Id { get; set; }
     public Vector3 Size;
-    public List<ChunkMetadata> Chunks;
+    public List<MapRegion> Regions;
 }
 
 
@@ -29,23 +29,23 @@ public static class BinaryDeserializationHelper
 
         token.ThrowIfCancellationRequested();
 
-        // Read number of Chunks
-        var chunkCount = reader.ReadInt32();
+        // Read number of regions
+        var regionCount = reader.ReadInt32();
 
         token.ThrowIfCancellationRequested();
 
-        // Read each Chunk
-        var chunks = new List<ChunkMetadata>();
-        for (var i = 0; i < chunkCount; i++)
+        // Read each region
+        var regions = new List<MapRegion>();
+        for (var i = 0; i < regionCount; i++)
         {
             token.ThrowIfCancellationRequested();
-            chunks.Add(ReadChunk(reader));
+            regions.Add(ReadRegion(reader));
         }
 
-        return new VirtualizedMap { Id = id, Size = size, Chunks = chunks };
+        return new VirtualizedMap { Id = id, Size = size, Regions = regions };
     }
 
-    private static ChunkMetadata ReadChunk(BinaryReader reader)
+    private static MapRegion ReadRegion(BinaryReader reader)
     {
         string name = reader.ReadString();
         Vector3 position = ReadVector3(reader);
@@ -75,7 +75,7 @@ public static class BinaryDeserializationHelper
         // Read Mesh file name
         var meshFile = reader.ReadString();
 
-        return new ChunkMetadata
+        return new MapRegion
         {
             Name = name,
             Position = position,

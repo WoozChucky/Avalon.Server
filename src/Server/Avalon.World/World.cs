@@ -1,5 +1,6 @@
 using Avalon.Common.Mathematics;
 using Avalon.Common.Utils;
+using Avalon.Common.ValueObjects;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Database.Character.Repositories;
 using Avalon.Database.World.Repositories;
@@ -8,11 +9,12 @@ using Avalon.Domain.Characters;
 using Avalon.Domain.World;
 using Avalon.World.Configuration;
 using Avalon.World.Entities;
+using Avalon.World.Instances;
 using Avalon.World.Maps;
-using Avalon.World.Maps.Virtualized;
 using Avalon.World.Public;
 using Avalon.World.Public.Creatures;
-using Avalon.World.Public.Maps;
+using Avalon.World.Public.Enums;
+using Avalon.World.Public.Instances;
 using Avalon.World.Public.Scripts;
 using Avalon.World.Scripts.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
@@ -28,10 +30,15 @@ public interface IWorld
     string CurrentVersion { get; }
     GameConfiguration Configuration { get; }
 
-    WorldGrid Grid { get; }
+    IInstanceRegistry InstanceRegistry { get; }
+
+    /// <summary>All map templates loaded by the map manager. Convenience accessor for handlers.</summary>
+    IReadOnlyList<MapTemplate> MapTemplates { get; }
+
     StaticData Data { get; }
 
-    void SpawnPlayer(IWorldConnection connection);
+    void SpawnInInstance(IWorldConnection connection, IMapInstance instance);
+    void TransferPlayer(IWorldConnection connection, IMapInstance targetInstance);
     Task DeSpawnPlayerAsync(IWorldConnection connection);
 }
 
@@ -87,26 +94,69 @@ public class World : IWorld
     public string MinVersion => _world?.MinVersion ?? throw new InvalidOperationException("World not loaded.");
     public string CurrentVersion => _world?.Version ?? throw new InvalidOperationException("World not loaded.");
     public GameConfiguration Configuration => _configuration.Value;
-    public WorldGrid Grid { get; private set; }
+    public IInstanceRegistry InstanceRegistry { get; private set; } = null!;
+    public IReadOnlyList<MapTemplate> MapTemplates => _mapManager.Templates;
     public StaticData Data { get; }
 
-    public void SpawnPlayer(IWorldConnection connection) => Grid.AddPlayer(connection);
+    public void SpawnInInstance(IWorldConnection connection, IMapInstance instance) =>
+        instance.AddCharacter(connection);
+
+    public void TransferPlayer(IWorldConnection connection, IMapInstance targetInstance)
+    {
+        // Remove from current instance
+        IMapInstance? current = InstanceRegistry.GetInstanceById(connection.Character!.InstanceId);
+        current?.RemoveCharacter(connection);
+
+        // Update character map and spawn position from the target template
+        MapTemplate? template = _mapManager.Templates.FirstOrDefault(t => t.Id == targetInstance.TemplateId);
+        if (template != null)
+        {
+            connection.Character.Map = template.Id;
+            connection.Character.Position =
+                new Vector3(template.DefaultSpawnX, template.DefaultSpawnY, template.DefaultSpawnZ);
+        }
+
+        connection.Character.InstanceId = targetInstance.InstanceId;
+        targetInstance.AddCharacter(connection);
+    }
 
     public async Task DeSpawnPlayerAsync(IWorldConnection connection)
     {
         try
         {
-            Grid.RemovePlayer(connection);
+            IMapInstance? instance =
+                InstanceRegistry.GetInstanceById(connection.Character!.InstanceId);
+            instance?.RemoveCharacter(connection);
 
             await using AsyncServiceScope scope = _serviceScopeFactory.CreateAsyncScope();
-            ICharacterRepository characterRepository = scope.ServiceProvider.GetRequiredService<ICharacterRepository>();
+            ICharacterRepository characterRepository =
+                scope.ServiceProvider.GetRequiredService<ICharacterRepository>();
 
             CharacterEntity? entity = connection.Character! as CharacterEntity;
             Character dbCharacter = entity!.Data!;
-            // This probably should be converted to a logout function
-            dbCharacter.X = entity.Position.x;
-            dbCharacter.Y = entity.Position.y;
-            dbCharacter.Z = entity.Position.z;
+
+            // If logging out from a Normal map, redirect the character to the associated town
+            if (instance?.MapType == MapType.Normal)
+            {
+                MapTemplate? normalTemplate =
+                    _mapManager.Templates.FirstOrDefault(t => t.Id == instance.TemplateId);
+                if (normalTemplate?.ReturnMapId is { } returnMapId)
+                {
+                    MapTemplate? town = _mapManager.Templates.FirstOrDefault(t =>
+                        t.Id == (MapTemplateId)returnMapId);
+                    dbCharacter.Map = returnMapId;
+                    dbCharacter.X = town?.DefaultSpawnX ?? 0f;
+                    dbCharacter.Y = town?.DefaultSpawnY ?? 0f;
+                    dbCharacter.Z = town?.DefaultSpawnZ ?? 0f;
+                }
+            }
+            else
+            {
+                dbCharacter.X = entity.Position.x;
+                dbCharacter.Y = entity.Position.y;
+                dbCharacter.Z = entity.Position.z;
+            }
+
             dbCharacter.Online = false;
             dbCharacter.LevelTime += (ulong)(DateTime.UtcNow - entity.EnteredWorld).TotalSeconds;
             dbCharacter.TotalTime += (ulong)(DateTime.UtcNow - entity.EnteredWorld).TotalSeconds;
@@ -117,70 +167,25 @@ public class World : IWorld
         } // Ignore if character is not found
         catch (Exception e)
         {
-            _logger.LogError(e, "Failed to save character {CharacterId} on world de-spawn", connection.Character!.Guid);
+            _logger.LogError(e, "Failed to save character {CharacterId} on world de-spawn",
+                connection.Character!.Guid);
         }
     }
 
     public async Task LoadAsync(CancellationToken token)
     {
         Domain.Auth.World? world = await _worldRepository.FindByIdAsync(Id);
-
         _world = world ?? throw new InvalidOperationException($"World {Id} not found.");
 
         await Data.LoadAsync();
-
         await _mapManager.LoadAsync();
 
-        Grid = new WorldGrid();
-
-        uint chunkId = 1U;
-
-        await foreach ((VirtualizedMap virtualMap, MapTemplate mapTemplate) in
-                       _mapManager.EnumerateTownMapsAsync(token))
-        {
-            List<ChunkMetadata> chunksMetadata = virtualMap.Chunks;
-
-            List<Chunk> chunks = new();
-
-            foreach (ChunkMetadata chunkMetadata in chunksMetadata)
-            {
-                Vector2 position = new(chunkMetadata.Position.x, chunkMetadata.Position.z);
-
-                if (ActivatorUtilities.CreateInstance(_serviceProvider, typeof(Chunk), virtualMap.Id, position) is not
-                    Chunk chunk)
-                {
-                    _logger.LogError("Failed to create chunk for map {MapId} at position {Position}", virtualMap.Id,
-                        position);
-                    continue;
-                }
-
-                chunk.Id = chunkId++;
-                chunk.Enabled = false;
-                chunk.Metadata = chunkMetadata;
-                chunk.Neighbors = [];
-
-                await chunk.InitializeAsync();
-
-                chunks.Add(chunk);
-            }
-
-            Map map = new(_loggerFactory)
-            {
-                Id = mapTemplate.Id, Metadata = mapTemplate, Size = virtualMap.Size, Chunks = chunks
-            };
-
-            Grid.AddMap(map);
-        }
-
-        Grid.DetectNeighbors();
-
-        Grid.SpawnStartingEntities();
+        InstanceRegistry = new InstanceRegistry(_loggerFactory, _mapManager, _serviceProvider);
     }
 
     public void Update(TimeSpan deltaTime)
     {
         GameTime.UpdateGameTimers(deltaTime);
-        // TODO: Name the timers with 'constant' identifiers
 
         for (int i = 0; i < WorldTimersCount; ++i)
         {
@@ -194,7 +199,7 @@ public class World : IWorld
             }
         }
 
-        if (_timers[HotReloadTimer].Passed()) // Hot reload scripts timer
+        if (_timers[HotReloadTimer].Passed())
         {
             _scriptHotReloader.Update(out List<Type> scriptTypes);
             if (scriptTypes.Count > 0)
@@ -206,58 +211,39 @@ public class World : IWorld
             _timers[HotReloadTimer].Reset();
         }
 
-        /*
-        Parallel.ForEach(Grid.Maps, map =>
+        foreach (IMapInstance instance in InstanceRegistry.ActiveInstances)
         {
-            Parallel.ForEach(map.Chunks, chunk =>
-            {
-                if (chunk.Enabled)
-                {
-                    chunk.Update(deltaTime); // This might become a problem due to possible race conditions with db context operations
-                }
-            });
-        });
-        */
-
-        foreach (Map gridMap in Grid.Maps)
-        {
-            foreach (Chunk chunk in gridMap.Chunks)
-            {
-                if (chunk.Enabled)
-                {
-                    chunk.Update(deltaTime);
-                }
-            }
+            instance.Update(deltaTime);
         }
+
+        InstanceRegistry.ProcessExpiredInstances(TimeSpan.FromMinutes(15));
     }
 
     private void OnScriptsHotReload(List<Type> aiScriptTypes)
     {
-        ParallelQuery<Chunk> chunks = Grid.Maps.AsParallel().SelectMany(map => map.Chunks);
         Dictionary<string, Type> scriptTypeDict =
             aiScriptTypes.ToDictionary(t => t.Name, StringComparer.InvariantCultureIgnoreCase);
         IServiceProvider serviceProvider = _serviceScopeFactory.CreateScope().ServiceProvider;
 
-        Parallel.ForEach(chunks, chunk =>
+        Parallel.ForEach(InstanceRegistry.ActiveInstances, instance =>
         {
-            IEnumerable<ICreature> creatures = chunk.Creatures.Values;
-            List<(ICreature, Type)> entitiesNeedingUpdate = new();
-            foreach (ICreature entity in creatures) // GetCreatures() return a copy of the list
+            List<(ICreature creature, Type scriptType)> toUpdate = [];
+            foreach (ICreature entity in instance.Creatures.Values)
             {
                 if (!string.IsNullOrWhiteSpace(entity.ScriptName) &&
                     scriptTypeDict.TryGetValue(entity.ScriptName, out Type? scriptType))
                 {
-                    entitiesNeedingUpdate.Add((entity, scriptType));
+                    toUpdate.Add((entity, scriptType));
                 }
             }
 
-            foreach ((ICreature entity, Type scriptType) in entitiesNeedingUpdate)
+            foreach ((ICreature entity, Type scriptType) in toUpdate)
             {
-                chunk.RemoveCreature(entity.Guid);
+                instance.RemoveCreature(entity);
                 AiScript? script =
-                    ActivatorUtilities.CreateInstance(serviceProvider, scriptType, entity, chunk) as AiScript;
+                    ActivatorUtilities.CreateInstance(serviceProvider, scriptType, entity, instance) as AiScript;
                 entity.Script = script;
-                chunk.AddCreature(entity);
+                instance.AddCreature(entity);
             }
         });
     }

@@ -31,5 +31,6 @@ public interface IMapInstance : ISimulationContext
 
     void AddCharacter(IWorldConnection connection);
     void RemoveCharacter(IWorldConnection connection);
+    void SpawnStartingEntities();
     void Update(TimeSpan deltaTime);
 }

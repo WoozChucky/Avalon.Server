@@ -54,8 +54,5 @@ public class CharacterMovementHandler(ILogger<CharacterMovementHandler> logger, 
         connection.Character.Velocity = direction;
         connection.Character.Orientation = new Vector3(0, packet.Rotation, 0);
         connection.LastMovementTime = packet.Timestamp;
-
-
-        world.Grid.OnPlayerMoved(connection);
     }
 }

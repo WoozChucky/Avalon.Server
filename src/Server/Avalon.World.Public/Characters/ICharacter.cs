@@ -14,7 +14,8 @@ public interface ICharacter : IUnit
 
     ICharacterSpells Spells { get; }
 
-    ChunkId ChunkId { get; set; }
+    /// <summary>The live instance this character is currently in.</summary>
+    Guid InstanceId { get; set; }
 
     string Name { get; set; }
 
