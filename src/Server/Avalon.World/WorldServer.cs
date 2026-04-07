@@ -27,14 +27,14 @@ namespace Avalon.World;
 
 public interface IWorldPacketHandler
 {
-    void Execute(WorldConnection connection, Packet packet);
+    void Execute(IWorldConnection connection, Packet packet);
 }
 
 public abstract class WorldPacketHandler<TPacket> : IWorldPacketHandler where TPacket : Packet
 {
-    void IWorldPacketHandler.Execute(WorldConnection connection, Packet packet) => Execute(connection, (TPacket)packet);
+    void IWorldPacketHandler.Execute(IWorldConnection connection, Packet packet) => Execute(connection, (TPacket)packet);
 
-    public abstract void Execute(WorldConnection connection, TPacket packet);
+    public abstract void Execute(IWorldConnection connection, TPacket packet);
 }
 
 public class PacketHandlerAttribute : Attribute
@@ -68,6 +68,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
     private readonly Stopwatch _serverTimer = new();
     private readonly Stopwatch _stopwatch = Stopwatch.StartNew();
     private readonly World _world;
+    private readonly ConcurrentQueue<WorldConnection> _pendingDisconnects = new();
     private long _lastTpsCalculationMs = TimeUtils.GetMsTime();
     private uint _realCurrentTime;
     private uint _realPreviousTime = TimeUtils.GetMsTime();
@@ -105,7 +106,13 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
 
         foreach ((NetworkPacketType packetType, Type handlerType) in packetHandlers)
         {
-            object handler = ActivatorUtilities.CreateInstance(serviceProvider, handlerType);
+            // If the handler constructor requires IWorldServer, pass 'this' explicitly to
+            // avoid a circular DI resolution (WorldServer is still being constructed here).
+            bool needsWorldServer = handlerType.GetConstructors()
+                .Any(c => c.GetParameters().Any(p => p.ParameterType == typeof(IWorldServer)));
+            object handler = needsWorldServer
+                ? ActivatorUtilities.CreateInstance(serviceProvider, handlerType, (IWorldServer)this)
+                : ActivatorUtilities.CreateInstance(serviceProvider, handlerType);
             PacketHandlers.Add(packetType, (IWorldPacketHandler)handler);
             _logger.LogInformation("Registered packet handler {HandlerType} for packet type {PacketType}", handlerType,
                 packetType);
@@ -217,6 +224,12 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
 
     private void Update(TimeSpan elapsedTime)
     {
+        // Process disconnects on the tick thread to avoid racing with MapInstance.Update
+        while (_pendingDisconnects.TryDequeue(out WorldConnection? disconnected))
+        {
+            _ = _world.DeSpawnPlayerAsync(disconnected);
+        }
+
         foreach (IWorldConnection worldConnection in Connections)
         {
             WorldSessionFilter filter = new(worldConnection);
@@ -228,6 +241,8 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
     }
 
     private bool NewConnection(IConnection connection) => true;
+
+    internal void EnqueueDisconnect(WorldConnection connection) => _pendingDisconnects.Enqueue(connection);
 
     public async Task ClearInWorldFlagAsync(AccountId? accountId)
     {

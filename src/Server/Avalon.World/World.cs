@@ -58,6 +58,7 @@ public class World : IWorld
     private readonly IWorldRepository _worldRepository;
 
     private Domain.Auth.World? _world;
+    private volatile List<Type>? _pendingHotReload;
 
     public World(ILoggerFactory loggerFactory,
         IOptions<GameConfiguration> configuration,
@@ -187,6 +188,14 @@ public class World : IWorld
     {
         GameTime.UpdateGameTimers(deltaTime);
 
+        // Apply any pending hot-reload on the tick thread to avoid racing with instance.Update()
+        List<Type>? pendingReload = Interlocked.Exchange(ref _pendingHotReload, null);
+        if (pendingReload != null)
+        {
+            ApplyScriptsHotReload(pendingReload);
+            _logger.LogInformation("Hot reloaded {Count} AI scripts", pendingReload.Count);
+        }
+
         for (int i = 0; i < WorldTimersCount; ++i)
         {
             if (_timers[i].GetCurrent() >= 0)
@@ -204,8 +213,7 @@ public class World : IWorld
             _scriptHotReloader.Update(out List<Type> scriptTypes);
             if (scriptTypes.Count > 0)
             {
-                OnScriptsHotReload(scriptTypes);
-                _logger.LogInformation("Hot reloaded {Count} AI scripts", scriptTypes.Count);
+                _pendingHotReload = scriptTypes;
             }
 
             _timers[HotReloadTimer].Reset();
@@ -219,13 +227,13 @@ public class World : IWorld
         InstanceRegistry.ProcessExpiredInstances(TimeSpan.FromMinutes(15));
     }
 
-    private void OnScriptsHotReload(List<Type> aiScriptTypes)
+    private void ApplyScriptsHotReload(List<Type> aiScriptTypes)
     {
         Dictionary<string, Type> scriptTypeDict =
             aiScriptTypes.ToDictionary(t => t.Name, StringComparer.InvariantCultureIgnoreCase);
         IServiceProvider serviceProvider = _serviceScopeFactory.CreateScope().ServiceProvider;
 
-        Parallel.ForEach(InstanceRegistry.ActiveInstances, instance =>
+        foreach (IMapInstance instance in InstanceRegistry.ActiveInstances)
         {
             List<(ICreature creature, Type scriptType)> toUpdate = [];
             foreach (ICreature entity in instance.Creatures.Values)
@@ -245,6 +253,6 @@ public class World : IWorld
                 entity.Script = script;
                 instance.AddCreature(entity);
             }
-        });
+        }
     }
 }

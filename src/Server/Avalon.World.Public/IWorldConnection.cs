@@ -39,10 +39,8 @@ public interface IWorldConnection : IConnection
     /// </summary>
     public bool InMap { get; }
 
-    /// <summary>
-    ///     Gets the last movement time of the connection.
-    /// </summary>
-    public double LastMovementTime { get; }
+    /// <summary>Gets or sets the last movement time of the connection.</summary>
+    public double LastMovementTime { get; set; }
 
     /// <summary>
     ///     Enables the time synchronization worker for the connection.
@@ -64,4 +62,10 @@ public interface IWorldConnection : IConnection
     /// <param name="deltaTime">The delta time since the last update.</param>
     /// <param name="filter">The packet filter to use for the update.</param>
     void Update(TimeSpan deltaTime, PacketFilter filter);
+
+    /// <summary>Queues an async result for safe execution on the tick thread.</summary>
+    void EnqueueContinuation<T>(Task<T> task, Action<T> callback);
+
+    /// <summary>Queues an async result for safe execution on the tick thread (no-result overload).</summary>
+    void EnqueueContinuation(Task task, Action callback);
 }

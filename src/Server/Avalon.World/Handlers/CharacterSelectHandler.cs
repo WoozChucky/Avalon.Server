@@ -1,3 +1,4 @@
+using Avalon.World.Public;
 using System.Diagnostics;
 using Avalon.Common.Mathematics;
 using Avalon.Common.Telemetry;
@@ -31,7 +32,7 @@ public class CharacterSelectHandler(
 {
     private Activity? _parentActivity;
 
-    public override void Execute(WorldConnection connection, CCharacterSelectedPacket packet)
+    public override void Execute(IWorldConnection connection, CCharacterSelectedPacket packet)
     {
         using Activity? activity =
             DiagnosticsConfig.World.Source.StartActivity(nameof(CharacterSelectHandler), ActivityKind.Server);
@@ -55,14 +56,14 @@ public class CharacterSelectHandler(
             return;
         }
 
-        connection.AddQueryCallback(
+        connection.EnqueueContinuation(
             characterRepository.FindByIdAndAccountAsync(packet.CharacterId, connection.AccountId),
             character => { OnCharacterReceived(connection, character); });
 
         _parentActivity = activity;
     }
 
-    private void OnCharacterReceived(WorldConnection connection, Character? character)
+    private void OnCharacterReceived(IWorldConnection connection, Character? character)
     {
         using Activity? activity = DiagnosticsConfig.World.Source.StartActivity(nameof(OnCharacterReceived),
             ActivityKind.Internal,
@@ -125,14 +126,14 @@ public class CharacterSelectHandler(
             return;
         }
 
-        connection.AddQueryCallback(
+        connection.EnqueueContinuation(
             world.InstanceRegistry.GetOrCreateTownInstanceAsync(townTemplate.Id, townTemplate.MaxPlayers ?? 30),
             mapInstance => OnInstanceObtained(connection, entity, townTemplate, mapInstance));
 
         _parentActivity = activity;
     }
 
-    private void OnInstanceObtained(WorldConnection connection, CharacterEntity entity, MapTemplate townTemplate,
+    private void OnInstanceObtained(IWorldConnection connection, CharacterEntity entity, MapTemplate townTemplate,
         IMapInstance instance)
     {
         using Activity? activity = DiagnosticsConfig.World.Source.StartActivity(nameof(OnInstanceObtained),
@@ -183,19 +184,19 @@ public class CharacterSelectHandler(
 
         connection.Send(SCharacterSelectedPacket.Create(characterInfo, mapInfo, connection.CryptoSession.Encrypt));
 
-        connection.AddQueryCallback(characterRepository.UpdateAsync(character), _ =>
+        connection.EnqueueContinuation(characterRepository.UpdateAsync(character), _ =>
         {
             logger.LogInformation("Character {CharacterId} logged in for account {AccountId} at {Position}",
                 character.Name, connection.AccountId, connection.Character!.Position);
 
-            connection.AddQueryCallback(characterInventoryRepository.GetByCharacterIdAsync(character.Id),
+            connection.EnqueueContinuation(characterInventoryRepository.GetByCharacterIdAsync(character.Id),
                 items => { OnInventoryReceived(connection, character, items); });
         });
 
         _parentActivity = activity;
     }
 
-    private void OnInventoryReceived(WorldConnection connection, Character character,
+    private void OnInventoryReceived(IWorldConnection connection, Character character,
         IReadOnlyCollection<CharacterInventory> items)
     {
         using Activity? activity = DiagnosticsConfig.World.Source.StartActivity(nameof(OnInventoryReceived),
@@ -218,12 +219,12 @@ public class CharacterSelectHandler(
 
         //TODO: Send inventory to the client
 
-        connection.AddQueryCallback(characterSpellRepository.GetCharacterSpellsAsync(character.Id),
+        connection.EnqueueContinuation(characterSpellRepository.GetCharacterSpellsAsync(character.Id),
             spells => { OnSpellsReceived(connection, spells); });
         _parentActivity = activity;
     }
 
-    private void OnSpellsReceived(WorldConnection connection, IReadOnlyCollection<CharacterSpell> spells)
+    private void OnSpellsReceived(IWorldConnection connection, IReadOnlyCollection<CharacterSpell> spells)
     {
         using Activity? activity = DiagnosticsConfig.World.Source.StartActivity(nameof(OnSpellsReceived),
             ActivityKind.Internal,
@@ -279,3 +280,4 @@ public class CharacterSelectHandler(
         connection.Send(SCharacterSpellsPacket.Create(spellInfos, connection.CryptoSession.Encrypt));
     }
 }
+
