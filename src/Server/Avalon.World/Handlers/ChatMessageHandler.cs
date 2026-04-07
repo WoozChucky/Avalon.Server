@@ -17,7 +17,7 @@ public class ChatMessageHandler(IWorldServer worldServer, ICommandDispatcher com
         {
             WorldPacketContext<CChatMessagePacket> ctx = new() { Packet = packet, Connection = connection };
 
-            connection.AddQueryCallback(
+            connection.EnqueueContinuation(
                 commandDispatcher.DispatchAsync(ctx),
                 dispatched =>
                 {
