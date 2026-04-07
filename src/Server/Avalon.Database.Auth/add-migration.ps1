@@ -2,7 +2,7 @@
 $migrationName = Read-Host -Prompt "Enter the migration name"
 
 # Define the command
-$command = "dotnet ef migrations add $migrationName --context AuthDbContext --output-dir Migrations --startup-project ../../../Tools/Avalon.Tools.Migrations -- --Database:Auth:ConnectionString ""Server=localhost;Port=5432;Database=auth;User Id=postgres;Password=123;"""
+$command = "dotnet ef migrations add $migrationName --context AuthDbContext --output-dir Migrations --startup-project ../../../src/Server/Avalon.Api"
 
 # Execute the command
 Invoke-Expression $command

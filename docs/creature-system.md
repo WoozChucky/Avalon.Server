@@ -184,7 +184,7 @@ Creature templates are stored in the `creature_templates` table. The following c
 | `respawn_timer_ms` | `BIGINT NOT NULL`     | `180000`  |
 | `remove_timer_ms`  | `BIGINT NOT NULL`     | `120000`  |
 
-Migration class: `AddCreatureTemplateLootAndTimers` in `Avalon.Database.Migrator`.
+Migration class: `AddCreatureTemplateLootAndTimers` in `Avalon.Database.World`.
 
 ---
 
