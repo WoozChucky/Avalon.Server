@@ -8,7 +8,6 @@ public delegate void CharacterDisconnectedDelegate(ICharacter character);
 
 public interface ICharacter : IUnit
 {
-    IWorldConnection Connection { get; }
     ICharacterGameState CharacterGameState { get; }
     ICharacterInventory this[InventoryType type] { get; }
 

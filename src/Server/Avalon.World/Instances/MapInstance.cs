@@ -29,6 +29,7 @@ public class MapInstance : IMapInstance
     private const float BroadcastInterval = 0.1f;
 
     private readonly Dictionary<ObjectGuid, ICharacter> _characters = [];
+    private readonly Dictionary<ObjectGuid, IWorldConnection> _connections = [];
     private readonly ICreatureRespawner _creatureRespawner;
     private readonly Dictionary<ObjectGuid, ICreature> _creatures = [];
     private readonly ILogger<MapInstance> _logger;
@@ -68,6 +69,7 @@ public class MapInstance : IMapInstance
         CharacterEntity.OnUnitFinishedCastAnimation += BroadcastFinishCastAnimation;
         CharacterEntity.OnUnitInterruptedCastAnimation += BroadcastInterruptedCastAnimation;
         CharacterEntity.OnUnitDamaged += OnCharacterHit;
+        CharacterEntity.OnSelfDamaged += OnCharacterSelfDamaged;
     }
 
     public Guid InstanceId { get; }
@@ -117,6 +119,7 @@ public class MapInstance : IMapInstance
     public void AddCharacter(IWorldConnection connection)
     {
         _characters[connection.Character!.Guid] = connection.Character;
+        _connections[connection.Character.Guid] = connection;
         LastEmptyAt = null;
     }
 
@@ -124,6 +127,7 @@ public class MapInstance : IMapInstance
     {
         connection.Character!.OnDisconnected();
         _characters.Remove(connection.Character.Guid);
+        _connections.Remove(connection.Character.Guid);
 
         if (_characters.Count == 0)
         {
@@ -144,19 +148,19 @@ public class MapInstance : IMapInstance
 
     public void BroadcastUnitHit(IUnit attacker, IUnit target, uint currentHealth, uint damage)
     {
-        foreach (ICharacter character in _characters.Values)
+        foreach ((ObjectGuid guid, IWorldConnection connection) in _connections)
         {
-            character.Connection.Send(SUnitDamagePacket.Create(attacker.Guid, target.Guid.RawValue,
-                currentHealth, damage, character.Connection.CryptoSession.Encrypt));
+            connection.Send(SUnitDamagePacket.Create(attacker.Guid, target.Guid.RawValue,
+                currentHealth, damage, connection.CryptoSession.Encrypt));
         }
     }
 
     public void BroadcastUnitStartCast(IUnit caster, float castTime)
     {
-        foreach (ICharacter character in _characters.Values)
+        foreach ((ObjectGuid guid, IWorldConnection connection) in _connections)
         {
-            character.Connection.Send(SUnitStartCastPacket.Create(caster.Guid, castTime,
-                character.Connection.CryptoSession.Encrypt));
+            connection.Send(SUnitStartCastPacket.Create(caster.Guid, castTime,
+                connection.CryptoSession.Encrypt));
         }
     }
 
@@ -173,10 +177,11 @@ public class MapInstance : IMapInstance
         _creatureRespawner.Update(deltaTime);
 
         // Step 2: Process character packets
-        foreach (ICharacter character in _characters.Values)
+        foreach ((ObjectGuid guid, ICharacter character) in _characters)
         {
-            MapSessionFilter filter = new(character.Connection);
-            character.Connection.Update(deltaTime, filter);
+            IWorldConnection connection = _connections[guid];
+            MapSessionFilter filter = new(connection);
+            connection.Update(deltaTime, filter);
             character.Update(deltaTime);
         }
 
@@ -211,6 +216,7 @@ public class MapInstance : IMapInstance
 
     private void BroadcastStateTo(ICharacter character)
     {
+        IWorldConnection connection = _connections[character.Guid];
         byte[] buffer = ArrayPool<byte>.Shared.Rent(4096);
         using WorldObjectWriter writer = new(buffer);
 
@@ -306,22 +312,22 @@ public class MapInstance : IMapInstance
 
         if (addedObjects.Count > 0)
         {
-            character.Connection.Send(SChunkStateAddPacket.Create(addedObjects,
-                character.Connection.CryptoSession.Encrypt));
+            connection.Send(SChunkStateAddPacket.Create(addedObjects,
+                connection.CryptoSession.Encrypt));
         }
 
         if (_lastBroadcastTime >= BroadcastInterval && updatedObjects.Count > 0)
         {
-            character.Connection.Send(SChunkStateUpdatePacket.Create(updatedObjects,
-                character.Connection.CryptoSession.Encrypt));
+            connection.Send(SChunkStateUpdatePacket.Create(updatedObjects,
+                connection.CryptoSession.Encrypt));
         }
 
         if (character.CharacterGameState.RemovedObjects.Count > 0)
         {
             _logger.LogInformation("Found {Count} removed objects",
                 character.CharacterGameState.RemovedObjects.Count);
-            character.Connection.Send(SChunkStateRemovePacket.Create(character.CharacterGameState.RemovedObjects,
-                character.Connection.CryptoSession.Encrypt));
+            connection.Send(SChunkStateRemovePacket.Create(character.CharacterGameState.RemovedObjects,
+                connection.CryptoSession.Encrypt));
         }
     }
 
@@ -332,12 +338,11 @@ public class MapInstance : IMapInstance
             return;
         }
 
-        Parallel.ForEach(_characters.Values,
-            character =>
-            {
-                character.Connection.Send(SUnitAttackAnimationPacket.Create(attacker.Guid, 1,
-                    character.Connection.CryptoSession.Encrypt));
-            });
+        foreach ((ObjectGuid guid, IWorldConnection connection) in _connections)
+        {
+            connection.Send(SUnitAttackAnimationPacket.Create(attacker.Guid, 1,
+                connection.CryptoSession.Encrypt));
+        }
     }
 
     private void BroadcastFinishCastAnimation(IUnit attacker, ISpell spell)
@@ -347,12 +352,11 @@ public class MapInstance : IMapInstance
             return;
         }
 
-        Parallel.ForEach(_characters.Values,
-            character =>
-            {
-                character.Connection.Send(SUnitFinishCastPacket.Create(attacker.Guid, spell.SpellId,
-                    character.Connection.CryptoSession.Encrypt));
-            });
+        foreach ((ObjectGuid guid, IWorldConnection connection) in _connections)
+        {
+            connection.Send(SUnitFinishCastPacket.Create(attacker.Guid, spell.SpellId,
+                connection.CryptoSession.Encrypt));
+        }
     }
 
     private void BroadcastInterruptedCastAnimation(IUnit attacker, ISpell spell)
@@ -362,16 +366,26 @@ public class MapInstance : IMapInstance
             return;
         }
 
-        Parallel.ForEach(_characters.Values,
-            character =>
-            {
-                character.Connection.Send(SCharacterInterruptedCastPacket.Create(attacker.Guid, spell.SpellId,
-                    character.Connection.CryptoSession.Encrypt));
-            });
+        foreach ((ObjectGuid guid, IWorldConnection connection) in _connections)
+        {
+            connection.Send(SCharacterInterruptedCastPacket.Create(attacker.Guid, spell.SpellId,
+                connection.CryptoSession.Encrypt));
+        }
     }
 
     private void OnCharacterHit(IUnit unit, IUnit attacker, uint damage) =>
         BroadcastUnitHit(attacker, unit, unit.CurrentHealth, damage);
+
+    private void OnCharacterSelfDamaged(IUnit unit, IUnit attacker, uint damage)
+    {
+        if (unit is not ICharacter character || !_connections.TryGetValue(character.Guid, out IWorldConnection? connection))
+        {
+            return;
+        }
+
+        connection.Send(SCharacterDamagePacket.Create(attacker.Guid.RawValue, character.Guid.RawValue,
+            character.CurrentHealth, damage, null, connection.CryptoSession.Encrypt));
+    }
 
     private void OnCreatureKilled(ICreature creature, IUnit killer)
     {
