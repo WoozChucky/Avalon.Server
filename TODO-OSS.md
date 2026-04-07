@@ -29,42 +29,23 @@ in any deployment the private key should be rotated.
 
 ---
 
-### OSS-003 — TLS certificate (PFX) committed to repository
-**Files:**
-- `cert-tcp.pfx` (repo root)
-- `src/Server/Avalon.Server.Auth/cert-tcp.pfx`
-- `src/Server/Avalon.Server.World/cert-tcp.pfx`
-
-A private-key-bearing certificate is tracked in git. Even if it is self-signed/dev-only, the private key is
-exposed to every future clone.
-**Fix:**
-1. Remove all `.pfx` files from git history (`git filter-repo` or BFG Repo Cleaner).
-2. Add `*.pfx` and `*.p12` to `.gitignore`.
-3. Document in README how to generate a self-signed dev certificate.
-The certificate password (`"avalon"`) in `src/Server/Avalon.Server.Auth/appsettings.json:17` should also
-become a placeholder.
+### ~~OSS-003~~ — TLS certificate (PFX) committed to repository — **INTENTIONAL / RESOLVED**
+The self-signed dev certificate has been consolidated to `certs/cert-tcp.pfx` (moved from root and per-project
+duplicates removed). Committing it is **intentional** — it enables a zero-config contributor experience so
+anyone can clone and run without generating certificates. This is documented in `CONTRIBUTING.md`.
+The certificate is self-signed and dev-only; it must never be used in production.
 
 ---
 
-### OSS-004 — Hardcoded private-network IP in docker-compose.yaml
-**File:** `src/Server/Avalon.Server.World/docker-compose.yaml:18-33`
-```
-- "Database__Auth__Host=192.168.1.67"
-```
-This exposes your home/office LAN topology and is meaningless to external contributors.
-**Fix:** Replace with `localhost` or a docker-network service name, or delete this file and replace it with a
-template (`docker-compose.example.yaml`) that contributors fill in.
+### ~~OSS-004~~ — ~~Hardcoded private-network IP in docker-compose.yaml~~ — **DONE**
+~~**File:** `src/Server/Avalon.Server.World/docker-compose.yaml`~~
+Stale world-server compose file deleted entirely. Root `docker-compose.yml` consolidated to base infra only.
 
 ---
 
-### OSS-005 — Registry URL leaks private container registry hostname
-**File:** `src/Server/Avalon.Server.World/docker-compose.yaml:4`
-```
-image: registry.nunolevezinho.xyz/avalon/world-server:latest
-```
-This reveals your private registry domain.
-**Fix:** Change to a generic placeholder (e.g., `<YOUR_REGISTRY>/avalon/world-server:latest`) or use the
-GitHub Container Registry image name to match the CI pipeline.
+### ~~OSS-005~~ — ~~Registry URL leaks private container registry hostname~~ — **DONE**
+~~**File:** `src/Server/Avalon.Server.World/docker-compose.yaml`~~
+Resolved by deletion of the file above.
 
 ---
 
@@ -85,13 +66,8 @@ are sufficient for open-source CI), or document that this pipeline is for intern
 
 ---
 
-### OSS-007 — GitHub Actions use `actions/checkout@v6` (does not exist)
-**Files:** `.github/workflows/dotnet-ci.yml:20`, `.github/workflows/dotnet-pr.yml:15`
-```yaml
-uses: actions/checkout@v6
-```
-The latest stable release is `v4`. `v6` will fail at runtime.
-**Fix:** Pin to `actions/checkout@v4`.
+### ~~OSS-007~~ — `actions/checkout@v6` — **NOT AN ISSUE**
+`v6` is a valid and current release (latest is `v6.0.2`, released January 2025). No action required.
 
 ---
 
@@ -108,21 +84,12 @@ Granting write-all permissions to a PR workflow is dangerous in a public reposit
 
 ## MEDIUM — Configuration & Documentation
 
-### OSS-009 — Default credentials documented/committed as `123` throughout
-The password `123` appears in every appsettings file, docker-compose, and migration scripts as the default for
-Postgres and Redis. While acceptable for local dev, it should be clearly labeled as a dev-only default and the
-`.gitignore` should exclude environment-specific overrides.
-
-**Affected files:**
-- `src/Server/Avalon.Api/appsettings.json`
-- `src/Server/Avalon.Server.Auth/appsettings.json`
-- `src/Server/Avalon.Server.World/appsettings.json`
-- `docker-compose.yml`
-- `src/Server/Avalon.Server.World/docker-compose.yaml`
-- `src/Server/Avalon.Database.Auth/add-migration.ps1` (and sibling scripts)
-
-**Fix:** Add a comment (or README section) making explicit these are local-dev-only values. Also add
-`appsettings.Production.json` and `appsettings.Staging.json` to `.gitignore` to prevent accidental future leaks.
+### ~~OSS-009~~ — Default credentials committed — **INTENTIONAL / RESOLVED**
+Hardcoded local-dev credentials (`123` for Postgres/Redis, JWT signing key, cert password `avalon`) are
+**intentional** to enable a zero-config contributor experience. This is documented in the "Zero-Config Dev
+Environment" section of `CONTRIBUTING.md`.
+The remaining open sub-item is to add env-specific appsettings patterns to `.gitignore` (see OSS-013)
+to prevent accidental future leaks of production overrides.
 
 ---
 
@@ -133,33 +100,22 @@ Postgres and Redis. While acceptable for local dev, it should be clearly labeled
 
 ---
 
-### OSS-011 — README references .NET 9 SDK in prerequisites but codebase targets .NET 10
-`README.md:305`: "Prerequisites: .NET 9 SDK"
-`CLAUDE.md`: "Target framework: .NET 10"
-**Fix:** Update README prerequisites to .NET 10.
+### ~~OSS-011~~ — README references .NET 9 — **DONE**
+Prerequisites updated to .NET 10 SDK; stray `net9` prose references in README also updated.
 
 ---
 
-### OSS-012 — `src/Server/Avalon.Server.World/docker-compose.yaml` references old MySQL config
-Port `3306` and `Username=root` suggest a MySQL-era config; the rest of the codebase uses Postgres on `5432`.
-This file appears to be stale / never updated after the MySQL → Postgres migration.
-**Fix:** Either update to match current Postgres config or delete the file entirely.
+### ~~OSS-012~~ — ~~Stale MySQL docker-compose for world server~~ — **DONE**
+File deleted as part of docker-compose consolidation.
 
 ---
 
 ## LOW — Hygiene
 
-### OSS-013 — `.gitignore` does not exclude `*.pfx` / `*.p12` certificate files
-After removing the committed certificates (OSS-003), prevent future accidents.
-**Fix:** Add to `.gitignore`:
-```
-*.pfx
-*.p12
-*.key
-appsettings.Production.json
-appsettings.Staging.json
-appsettings.Local.json
-```
+### ~~OSS-013~~ — `.gitignore` missing env-specific appsettings — **DONE**
+Added `appsettings.Production.json`, `appsettings.Staging.json`, `appsettings.Local.json`, and
+`appsettings.*.local.json` to `.gitignore`. `*.pfx` not excluded — dev cert in `certs/` is intentionally
+committed (see OSS-003).
 
 ---
 
@@ -187,16 +143,16 @@ standards, or development environment setup guide for new contributors.
 |---|---|---|---|
 | OSS-001 | CRITICAL | Secret | JWT signing key in appsettings.json |
 | OSS-002 | CRITICAL | Secret | VAPID public key in appsettings.json |
-| OSS-003 | CRITICAL | Secret | PFX certificate (with private key) committed to git |
-| OSS-004 | CRITICAL | Secret | Private LAN IP in docker-compose.yaml |
-| OSS-005 | CRITICAL | Secret | Private registry domain in docker-compose.yaml |
+| OSS-003 | ~~CRITICAL~~ | ~~Secret~~ | ~~PFX certificate committed to git~~ — **INTENTIONAL** (zero-config dev; moved to `certs/`, documented) |
+| OSS-004 | ~~CRITICAL~~ | ~~Secret~~ | ~~Private LAN IP in docker-compose.yaml~~ — **DONE** |
+| OSS-005 | ~~CRITICAL~~ | ~~Secret~~ | ~~Private registry domain in docker-compose.yaml~~ — **DONE** |
 | OSS-006 | ~~HIGH~~ | ~~CI~~ | ~~azure-pipelines.yml depends on private `BuildSteps` repo~~ — **DONE** (file deleted) |
-| OSS-007 | HIGH | CI | `actions/checkout@v6` does not exist |
+| OSS-007 | ~~HIGH~~ | ~~CI~~ | ~~`actions/checkout@v6` does not exist~~ — **NOT AN ISSUE** (v6.0.2 is current) |
 | OSS-008 | ~~HIGH~~ | ~~CI~~ | ~~PR workflow has `permissions: write-all`~~ — **DONE** (scoped to `contents: read`) |
-| OSS-009 | MEDIUM | Config | Default password `123` everywhere — needs clear labeling |
+| OSS-009 | ~~MEDIUM~~ | ~~Config~~ | ~~Default password `123` everywhere~~ — **INTENTIONAL** (zero-config dev; documented in CONTRIBUTING.md) |
 | OSS-010 | ~~MEDIUM~~ | ~~Legal~~ | ~~No LICENSE file at repo root~~ — **DONE** |
-| OSS-011 | MEDIUM | Docs | README says .NET 9, code targets .NET 10 |
-| OSS-012 | MEDIUM | Config | Stale MySQL docker-compose for world server |
-| OSS-013 | LOW | Hygiene | `.gitignore` missing `*.pfx`, `*.p12`, env-specific appsettings |
-| OSS-014 | LOW | Hygiene | Duplicate NuGet pack step in azure-pipelines.yml |
+| OSS-011 | ~~MEDIUM~~ | ~~Docs~~ | ~~README says .NET 9, code targets .NET 10~~ — **DONE** |
+| OSS-012 | ~~MEDIUM~~ | ~~Config~~ | ~~Stale MySQL docker-compose for world server~~ — **DONE** |
+| OSS-013 | ~~LOW~~ | ~~Hygiene~~ | ~~`.gitignore` missing env-specific appsettings~~ — **DONE** |
+| OSS-014 | ~~LOW~~ | ~~Hygiene~~ | ~~Duplicate NuGet pack step in azure-pipelines.yml~~ — **DONE** (file deleted) |
 | OSS-015 | ~~LOW~~ | ~~Hygiene~~ | ~~No CONTRIBUTING.md or issue/PR templates~~ — **DONE** |

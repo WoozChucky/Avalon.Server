@@ -1,0 +1,12 @@
+name: avalon
+
+# Optional tooling overlay — adds observability/admin UIs on top of the base compose.
+# Usage: docker compose -f docker-compose.yml -f docker-compose.tools.yml up -d
+
+services:
+  redis-insight:
+    image: redislabs/redisinsight:latest
+    container_name: redis-insight
+    ports:
+      - "5540:5540"
+    restart: unless-stopped
