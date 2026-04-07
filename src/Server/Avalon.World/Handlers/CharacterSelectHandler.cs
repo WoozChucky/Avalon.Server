@@ -87,7 +87,7 @@ public class CharacterSelectHandler(
         ClassLevelStat? classLevelStat = world.Data.ClassLevelStats
             .FirstOrDefault(s => s.Class == character.Class && s.Level == character.Level);
 
-        CharacterEntity entity = new(loggerFactory, connection, character, regenConfig.Value)
+        CharacterEntity entity = new(loggerFactory, character, regenConfig.Value)
         {
             Data = character,
             Position = new Vector3(character.X, character.Y, character.Z),
