@@ -1,3 +1,4 @@
+using Avalon.World.Public;
 using System.Diagnostics;
 using Avalon.Common;
 using Avalon.Common.Mathematics;
@@ -48,7 +49,7 @@ public class CharacterAttackHandler(ILogger<CharacterAttackHandler> logger, IWor
         return target;
     }
 
-    public override void Execute(WorldConnection connection, CCharacterAttackPacket packet)
+    public override void Execute(IWorldConnection connection, CCharacterAttackPacket packet)
     {
         using Activity? activity = DiagnosticsConfig.World.Source.StartActivity(nameof(CharacterAttackHandler),
             ActivityKind.Server);
@@ -160,3 +161,4 @@ public class CharacterAttackHandler(ILogger<CharacterAttackHandler> logger, IWor
         return angle < MaxAngle;
     }
 }
+

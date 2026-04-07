@@ -1,3 +1,4 @@
+using Avalon.World.Public;
 using System.Diagnostics;
 using Avalon.Common.Telemetry;
 using Avalon.Database.Character.Repositories;
@@ -16,7 +17,7 @@ public class CharacterListHandler(
 {
     private Activity? _parentActivity;
 
-    public override void Execute(WorldConnection connection, CCharacterListPacket packet)
+    public override void Execute(IWorldConnection connection, CCharacterListPacket packet)
     {
         using Activity? activity =
             DiagnosticsConfig.World.Source.StartActivity(nameof(CharacterListHandler), ActivityKind.Server);
@@ -38,13 +39,13 @@ public class CharacterListHandler(
             return;
         }
 
-        connection.AddQueryCallback(characterRepository.FindByAccountAsync(connection.AccountId),
+        connection.EnqueueContinuation(characterRepository.FindByAccountAsync(connection.AccountId),
             characters => { OnCharactersReceived(connection, characters); });
 
         _parentActivity = activity;
     }
 
-    private void OnCharactersReceived(WorldConnection connection, IList<Character> characters)
+    private void OnCharactersReceived(IWorldConnection connection, IList<Character> characters)
     {
         using Activity? activity = DiagnosticsConfig.World.Source.StartActivity(nameof(OnCharactersReceived),
             ActivityKind.Internal, _parentActivity?.Context ?? default);
@@ -73,3 +74,4 @@ public class CharacterListHandler(
         connection.Send(result);
     }
 }
+

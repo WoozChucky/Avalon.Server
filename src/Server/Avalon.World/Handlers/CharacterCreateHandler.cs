@@ -1,3 +1,4 @@
+using Avalon.World.Public;
 using Avalon.Database.Character.Repositories;
 using Avalon.Database.World.Repositories;
 using Avalon.Domain.Characters;
@@ -21,7 +22,7 @@ public class CharacterCreateHandler(
     : WorldPacketHandler<CCharacterCreatePacket>
 {
 
-    public override void Execute(WorldConnection connection, CCharacterCreatePacket packet)
+    public override void Execute(IWorldConnection connection, CCharacterCreatePacket packet)
     {
         if (connection.AccountId == null)
         {
@@ -37,13 +38,13 @@ public class CharacterCreateHandler(
             return;
         }
 
-        connection.AddQueryCallback(characterRepository.FindByAccountAsync(connection.AccountId), characters =>
+        connection.EnqueueContinuation(characterRepository.FindByAccountAsync(connection.AccountId), characters =>
         {
             OnCharactersReceived(connection, characters, packet);
         });
     }
 
-    private void OnCharactersReceived(WorldConnection connection, IList<Character> characters, CCharacterCreatePacket packet)
+    private void OnCharactersReceived(IWorldConnection connection, IList<Character> characters, CCharacterCreatePacket packet)
     {
         var currentCharacterCount = characters.Count;
 
@@ -54,13 +55,13 @@ public class CharacterCreateHandler(
             return;
         }
 
-        connection.AddQueryCallback(characterRepository.FindByNameAsync(packet.Name), character =>
+        connection.EnqueueContinuation(characterRepository.FindByNameAsync(packet.Name), character =>
         {
             OnDuplicateCharacterReceived(connection, character, packet);
         });
     }
 
-    private void OnDuplicateCharacterReceived(WorldConnection connection, Character? duplicateCharacter, CCharacterCreatePacket packet)
+    private void OnDuplicateCharacterReceived(IWorldConnection connection, Character? duplicateCharacter, CCharacterCreatePacket packet)
     {
         if (duplicateCharacter != null)
         {
@@ -120,13 +121,13 @@ public class CharacterCreateHandler(
             Running = true,
         };
 
-        connection.AddQueryCallback(characterRepository.CreateAsync(character), createdCharacter =>
+        connection.EnqueueContinuation(characterRepository.CreateAsync(character), createdCharacter =>
         {
             OnCharacterCreated(connection, createdCharacter, classLevelStats, createInfo.Class, createInfo);
         });
     }
 
-    private void OnCharacterCreated(WorldConnection connection, Character character, ClassLevelStat classLevelStat,
+    private void OnCharacterCreated(IWorldConnection connection, Character character, ClassLevelStat classLevelStat,
         CharacterClass @class, CharacterCreateInfo createInfo)
     {
         var characterStats = new CharacterStats
@@ -148,25 +149,25 @@ public class CharacterCreateHandler(
             AbilityDamage = CharacterStats.GetBaseAbilityDamage(@class, classLevelStat.Intellect),
         };
 
-        connection.AddQueryCallback(characterStatsRepository.CreateAsync(characterStats), createdStats =>
+        connection.EnqueueContinuation(characterStatsRepository.CreateAsync(characterStats), createdStats =>
         {
             OnCharacterStatsCreated(connection, character, createInfo);
         });
     }
 
-    private void OnCharacterStatsCreated(WorldConnection connection, Character character, CharacterCreateInfo createInfo)
+    private void OnCharacterStatsCreated(IWorldConnection connection, Character character, CharacterCreateInfo createInfo)
     {
         var characterSpellIds = createInfo.StartingSpells;
 
         var characterSpells = characterSpellIds.Select(spellId => new CharacterSpell { CharacterId = character.Id, SpellId = spellId, }).ToList();
 
-        connection.AddQueryCallback(characterSpellRepository.CreateAsync(characterSpells), createdSpells =>
+        connection.EnqueueContinuation(characterSpellRepository.CreateAsync(characterSpells), createdSpells =>
         {
             OnCharacterSpellsCreated(connection, character, createInfo);
         });
     }
 
-    private void OnCharacterSpellsCreated(WorldConnection connection, Character character, CharacterCreateInfo createInfo)
+    private void OnCharacterSpellsCreated(IWorldConnection connection, Character character, CharacterCreateInfo createInfo)
     {
         var startingItems = createInfo.StartingItems;
         var itemInstances = new List<ItemInstance>();
@@ -202,7 +203,7 @@ public class CharacterCreateHandler(
             itemInstances.Add(itemInstance);
         }
 
-        connection.AddQueryCallback(itemInstanceRepository.CreateAsync(itemInstances), createdItems =>
+        connection.EnqueueContinuation(itemInstanceRepository.CreateAsync(itemInstances), createdItems =>
         {
             if (createdItems.Count != itemInstances.Count)
             {
@@ -226,7 +227,7 @@ public class CharacterCreateHandler(
                 characterInventories.Add(characterInventory);
             }
 
-            connection.AddQueryCallback(characterInventoryRepository.CreateAsync(characterInventories), charIventories =>
+            connection.EnqueueContinuation(characterInventoryRepository.CreateAsync(characterInventories), charIventories =>
             {
                 if (charIventories.Count != itemInstances.Count)
                 {
@@ -239,10 +240,11 @@ public class CharacterCreateHandler(
         });
     }
 
-    private void OnCharacterItemsCreated(WorldConnection connection, Character character)
+    private void OnCharacterItemsCreated(IWorldConnection connection, Character character)
     {
         logger.LogInformation("Character {Name} created for account {AccountId}", character.Name, character.AccountId);
 
         connection.Send(SCharacterCreatedPacket.Create(SCharacterCreateResult.Success, connection.CryptoSession.Encrypt));
     }
 }
+

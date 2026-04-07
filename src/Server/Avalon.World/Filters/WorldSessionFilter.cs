@@ -9,6 +9,12 @@ public class WorldSessionFilter(IWorldConnection connection) : PacketFilter
 
     public override bool CanProcess(NetworkPacketType type)
     {
+        // Pong is always valid regardless of character state
+        if (type == NetworkPacketType.CMSG_PONG)
+        {
+            return true;
+        }
+
         if (connection.Character != null)
         {
             return false;

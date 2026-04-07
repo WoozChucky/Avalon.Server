@@ -1,3 +1,4 @@
+using Avalon.World.Public;
 using Avalon.Common.Mathematics;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Movement;
@@ -12,7 +13,7 @@ public class CharacterMovementHandler(ILogger<CharacterMovementHandler> logger, 
     private const int DefaultGravity = -2;
     private const float MaxDistanceDiffCheck = 1.0f;
 
-    public override void Execute(WorldConnection connection, CPlayerMovementPacket packet)
+    public override void Execute(IWorldConnection connection, CPlayerMovementPacket packet)
     {
         TimeSpan deltaTime = GameTime.GetDeltaTime();
 
@@ -56,3 +57,4 @@ public class CharacterMovementHandler(ILogger<CharacterMovementHandler> logger, 
         connection.LastMovementTime = packet.Timestamp;
     }
 }
+
