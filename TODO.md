@@ -475,7 +475,7 @@ The literal string `"TODO"` is sent as the client version. This will be rejected
 2. Add `uint AnimationId { get; init; }` to `SpellMetadata`.
 3. Update `SpellMetadata.Clone()` to include `AnimationId`.
 4. Update the code path that maps `SpellTemplate → SpellMetadata` (inside world data loading) to copy `AnimationId`.
-5. Create a database migration: `Avalon.Database.Migrator` — `AddAnimationIdToSpellTemplate`.
+5. Create a database migration: `AddAnimationIdToSpellTemplate` in `Avalon.Database.World`.
 
 **Behaviour & Requirements**
 - Each spell in the DB can specify its animation ID.

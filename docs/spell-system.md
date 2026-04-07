@@ -155,7 +155,7 @@ Add `AnimationId BIGINT NOT NULL DEFAULT 1` to the `SpellTemplates` table:
 ALTER TABLE spell_templates ADD COLUMN animation_id BIGINT NOT NULL DEFAULT 1;
 ```
 
-Migration class: `AddAnimationIdToSpellTemplate` in `Avalon.Database.Migrator`.
+Migration class: `AddAnimationIdToSpellTemplate` in `Avalon.Database.World`.
 
 ### Chunk Broadcast Update
 
