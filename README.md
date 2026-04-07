@@ -65,8 +65,6 @@ Shared libraries:
 
 Tooling & Tests:
 
-- tools/Avalon.Database.Migrator.Console & Avalon.Tools.Migrations: CLI + EF design‑time support for applying/creating
-  migrations.
 - tools/Avalon.Benchmarking: Micro-benchmarks for performance‑sensitive components.
 - tests/Avalon.Shared.UnitTests: Unit tests for shared libraries.
 - tests/Avalon.Server.Auth.UnitTests: Unit tests for authentication server components.
@@ -300,31 +298,45 @@ For the full list of pending work items see [TODO.md](TODO.md).
 
 ## Running Locally
 
-Prerequisites: .NET 9 SDK, Docker (for infra services).
+Prerequisites: .NET 10 SDK, Docker (for infra services).
 
 1. Start infra (Redis + PostgreSQL):
+   ```bash
    docker compose up -d redis postgres
-2. (Optional) Redis Insight / Postgres: docker compose up -d redis-insight postgres
-3. Apply / generate migrations (example Auth):
-   cd tools/Avalon.Tools.Migrations
-   dotnet run -- --Database:Auth:ConnectionString "Server=localhost;Database=auth;Uid=root;Pwd=123;"
-4. Run API:
-   cd src/Server/Avalon.Api
-   dotnet run
-5. Run Auth Server:
-   cd src/Server/Avalon.Server.Auth
-   dotnet run
-6. Run World Server:
-   cd src/Server/Avalon.Server.World
-   dotnet run
-7. Open API docs:
-   https://localhost:<port>/scalar (Scalar UI) or /openapi/v1.json
+   ```
+2. Run the API — migrations are applied automatically on startup:
+   ```bash
+   dotnet run --project src/Server/Avalon.Api
+   ```
+3. Run Auth Server:
+   ```bash
+   dotnet run --project src/Server/Avalon.Server.Auth
+   ```
+4. Run World Server:
+   ```bash
+   dotnet run --project src/Server/Avalon.Server.World
+   ```
+5. Open API docs: `https://localhost:<port>/scalar` (Scalar UI) or `/openapi/v1.json`
 
 ## Migrations Workflow
 
-- Design-time factories (e.g., AuthDbContextFactory) allow: dotnet ef migrations add Initial --project
-  src/Server/Avalon.Database.Auth --startup-project tools/Avalon.Tools.Migrations --context AuthDbContext
-- Dedicated PowerShell scripts exist under each Database project (add-migration.ps1) with sample connection strings.
+> **Note:** During early development, `Avalon.Api` is used both as the EF design-time startup project and applies
+> migrations automatically on startup. This is intentional for simplicity at this stage. As the project matures,
+> migration generation and execution will be decoupled and deferred to the deployment/hosting solution (e.g., a
+> dedicated init container, Helm hook, or CI step).
+
+**Generating a migration** — design-time factories (e.g., `AuthDbContextFactory`) allow:
+```bash
+dotnet ef migrations add <Name> \
+  --project src/Server/Avalon.Database.Auth \
+  --startup-project src/Server/Avalon.Api \
+  --context AuthDbContext
+```
+Replace `Auth` / `AuthDbContext` with `Character` / `CharacterDbContext` or `World` / `WorldDbContext` as needed.
+
+Convenience PowerShell scripts under each `Avalon.Database.*` project (`add-migration.ps1`) wrap this command with the correct context and project paths.
+
+**Applying migrations** — the API applies all pending EF migrations automatically on startup via the registered migration services. No separate tool or step is required in development.
 
 ## Testing
 
