@@ -138,8 +138,8 @@ public class CharacterAttackHandler(ILogger<CharacterAttackHandler> logger, IWor
             else
             {
                 // Send spell not ready packet
-                attacker.Connection.Send(SSpellNotReadyPacket.Create(packet.SpellId.Value, spell.CooldownTimer,
-                    attacker.Connection.CryptoSession.Encrypt));
+                connection.Send(SSpellNotReadyPacket.Create(packet.SpellId.Value, spell.CooldownTimer,
+                    connection.CryptoSession.Encrypt));
             }
         }
     }

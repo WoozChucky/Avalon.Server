@@ -33,7 +33,7 @@ public class PacketStream(Stream stream) : Stream
     public override long Length => stream.Length;
     public override long Position { get => stream.Position; set => stream.Position = value; }
 
-    public async Task<(int packetSize, int offset)> ReadVarIntAsync(byte[] buffer, CancellationToken token = default)
+    public async Task<(int packetSize, int offset)?> ReadVarIntAsync(byte[] buffer, CancellationToken token = default)
     {
         int packetSize = 0;
         int shift = 0;
@@ -49,7 +49,7 @@ public class PacketStream(Stream stream) : Stream
             int bytesRead = await stream.ReadAsync(buffer.AsMemory(index, 1), token);
             if (bytesRead == 0)
             {
-                throw new EndOfStreamException("Stream ended while reading varint.");
+                return null; // Clean disconnect — peer closed the socket
             }
 
             byte currentByte = buffer[index];
@@ -92,7 +92,13 @@ public class PacketStream(Stream stream) : Stream
                 int packetSize;
                 try
                 {
-                    (packetSize, offset) = await ReadVarIntAsync(buffer, token);
+                    (int p, int o)? varint = await ReadVarIntAsync(buffer, token);
+                    if (varint is null)
+                    {
+                        yield break; // Clean disconnect
+                    }
+
+                    (packetSize, offset) = varint.Value;
                 }
                 catch (ObjectDisposedException)
                 {

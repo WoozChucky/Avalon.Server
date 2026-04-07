@@ -28,7 +28,6 @@ public class CharacterEntityRegenShould
         var character = new Character { Id = 1u, Health = (int)health, Power1 = (int)power };
         var entity = new CharacterEntity(
             NullLoggerFactory.Instance,
-            Substitute.For<IWorldConnection>(),
             character,
             config ?? new RegenConfiguration());
 

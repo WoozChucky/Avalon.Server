@@ -34,7 +34,6 @@ public class CharacterEntity : ICharacter
     public CharacterEntity()
     {
         _logger = null!;
-        Connection = null!;
         _equipment = null!;
         _bag = null!;
         _bank = null!;
@@ -42,11 +41,10 @@ public class CharacterEntity : ICharacter
         _regenConfig = new RegenConfiguration();
     }
 
-    public CharacterEntity(ILoggerFactory loggerFactory, IWorldConnection connection, Character character,
+    public CharacterEntity(ILoggerFactory loggerFactory, Character character,
         RegenConfiguration regenConfig)
     {
         _logger = loggerFactory.CreateLogger<CharacterEntity>();
-        Connection = connection;
         Data = character;
         _equipment = new CharacterInventoryContainer(loggerFactory, InventoryType.Equipment);
         _bag = new CharacterInventoryContainer(loggerFactory, InventoryType.Bag);
@@ -81,8 +79,6 @@ public class CharacterEntity : ICharacter
     public bool IsInCombat =>
         _lastCombatTime != DateTime.MinValue &&
         (DateTime.UtcNow - _lastCombatTime).TotalSeconds < _regenConfig.CombatLeaveDelaySeconds;
-
-    public IWorldConnection Connection { get; }
 
     public ICharacterGameState CharacterGameState { get; }
 
@@ -143,9 +139,8 @@ public class CharacterEntity : ICharacter
             CurrentHealth = Health; // reset health while developing
         }
 
-        // Send to self
-        Connection.Send(SCharacterDamagePacket.Create(attacker.Guid.RawValue, Guid.RawValue, CurrentHealth, damage,
-            null, Connection.CryptoSession.Encrypt));
+        // Send to self (routed via MapInstance which holds the connection)
+        OnSelfDamaged?.Invoke(this, attacker, damage);
         // Send to chunk
         OnUnitDamaged?.Invoke(this, attacker, damage);
     }
@@ -304,6 +299,7 @@ public class CharacterEntity : ICharacter
     public static event CharacterDisconnectedDelegate? CharacterDisconnected;
     public static event UnitInterruptedCastAnimationDelegate? OnUnitInterruptedCastAnimation;
     public static event UnitDamagedDelegate? OnUnitDamaged;
+    public static event UnitDamagedDelegate? OnSelfDamaged;
 
     private void CalculateMovementSpeed()
     {

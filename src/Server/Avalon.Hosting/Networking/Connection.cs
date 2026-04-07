@@ -197,10 +197,10 @@ public abstract class Connection : BackgroundService, IConnection
                 {
                     try
                     {
-                        if (_stream is null)
+                        if (_stream is null || _client?.Connected != true)
                         {
                             CancellationTokenSource?.Cancel();
-                            _logger.LogCritical("Stream unexpectedly became null. This shouldn't happen");
+                            _logger.LogCritical("Stream unexpectedly became null or client disconnected. This shouldn't happen");
                             break;
                         }
 
@@ -236,6 +236,11 @@ public abstract class Connection : BackgroundService, IConnection
             catch (SocketException)
             {
                 // connection closed. Ignore
+                break;
+            }
+            catch (OperationCanceledException)
+            {
+                // CancellationTokenSource was cancelled during Close(). Expected.
                 break;
             }
         }
