@@ -22,9 +22,9 @@ internal class Program
         hostBuilder.ConfigureOpenTelemetry();
         hostBuilder.Services
             .AddWorldServices()
-            .AddHostedService<WorldServer>()
-            .AddSingleton<IWorldServer>(provider =>
-                provider.GetServices<IHostedService>().OfType<WorldServer>().Single());
+            .AddSingleton<WorldServer>()
+            .AddSingleton<IWorldServer>(provider => provider.GetRequiredService<WorldServer>())
+            .AddHostedService(provider => provider.GetRequiredService<WorldServer>());
 
         IHost host = hostBuilder.Build();
 

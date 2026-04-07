@@ -133,7 +133,7 @@ public class WorldConnection : Connection, IWorldConnection
 
         _receiveQueue.Readd(requeuePackets);
 
-        ProcessQueryCallbacks();
+        ProcessContinuations();
     }
 
     public double LastMovementTime { get; set; }
@@ -173,8 +173,9 @@ public class WorldConnection : Connection, IWorldConnection
 
     protected override async Task OnClose(bool expected = true)
     {
+        // DeSpawnPlayer mutates MapInstance dictionaries — defer to the tick thread.
+        (Server as WorldServer)!.EnqueueDisconnect(this);
         await (Server as WorldServer)!.ClearInWorldFlagAsync(AccountId);
-        await (Server as WorldServer)!.World.DeSpawnPlayerAsync(this);
         await Server.RemoveConnection(this);
     }
 
@@ -210,7 +211,7 @@ public class WorldConnection : Connection, IWorldConnection
 
     #region Callback Processing
 
-    public void AddQueryCallback<T>(Task<T> task, Action<T> callback)
+    public void EnqueueContinuation<T>(Task<T> task, Action<T> callback)
     {
         Task<object> wrappedTask =
             task.ContinueWith(t => (object)t.Result, TaskContinuationOptions.ExecuteSynchronously)!;
@@ -219,9 +220,9 @@ public class WorldConnection : Connection, IWorldConnection
         _genericTaskQueue.Enqueue((wrappedTask, wrappedCallback));
     }
 
-    public void AddQueryCallback(Task task, Action callback) => _taskQueue.Enqueue((task, callback));
+    public void EnqueueContinuation(Task task, Action callback) => _taskQueue.Enqueue((task, callback));
 
-    private void ProcessQueryCallbacks()
+    private void ProcessContinuations()
     {
         while (_taskQueue.TryDequeue(out (Task, Action) item))
         {

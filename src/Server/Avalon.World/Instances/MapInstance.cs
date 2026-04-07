@@ -142,21 +142,23 @@ public class MapInstance : IMapInstance
     public void RespawnCreature(ICreature creature) =>
         _poolManager.SpawnEntity(this, _navigators.Select(n => n.Region).ToList(), creature);
 
-    public void BroadcastUnitHit(IUnit attacker, IUnit target, uint currentHealth, uint damage) =>
-        Parallel.ForEach(_characters.Values,
-            character =>
-            {
-                character.Connection.Send(SUnitDamagePacket.Create(attacker.Guid, target.Guid.RawValue,
-                    currentHealth, damage, character.Connection.CryptoSession.Encrypt));
-            });
+    public void BroadcastUnitHit(IUnit attacker, IUnit target, uint currentHealth, uint damage)
+    {
+        foreach (ICharacter character in _characters.Values)
+        {
+            character.Connection.Send(SUnitDamagePacket.Create(attacker.Guid, target.Guid.RawValue,
+                currentHealth, damage, character.Connection.CryptoSession.Encrypt));
+        }
+    }
 
-    public void BroadcastUnitStartCast(IUnit caster, float castTime) =>
-        Parallel.ForEach(_characters.Values,
-            character =>
-            {
-                character.Connection.Send(SUnitStartCastPacket.Create(caster.Guid, castTime,
-                    character.Connection.CryptoSession.Encrypt));
-            });
+    public void BroadcastUnitStartCast(IUnit caster, float castTime)
+    {
+        foreach (ICharacter character in _characters.Values)
+        {
+            character.Connection.Send(SUnitStartCastPacket.Create(caster.Guid, castTime,
+                character.Connection.CryptoSession.Encrypt));
+        }
+    }
 
     public void Update(TimeSpan deltaTime)
     {

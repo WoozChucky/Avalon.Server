@@ -5,13 +5,13 @@ IDistributedApplicationBuilder builder = DistributedApplication.CreateBuilder(ar
 IResourceBuilder<ContainerResource> redis = builder
     .AddContainer("redis", "redis", "latest")
     .WithEnvironment("REDIS_PASSWORD", "123")
-    .WithEndpoint(6379, 6379, "tcp", "tcp", isExternal: true)
+    .WithEndpoint(6379, 6379, "tcp", "tcp", isProxied: false, isExternal: true)
     .WithLifetime(ContainerLifetime.Persistent);
 
 IResourceBuilder<ContainerResource> postgresql = builder
     .AddContainer("postgresql", "postgres", "18")
     .WithEnvironment("POSTGRES_PASSWORD", "123")
-    .WithEndpoint(5432, 5432, "tcp", "tcp", isExternal: true)
+    .WithEndpoint(5432, 5432, "tcp", "tcp", isProxied: false, isExternal: true)
     .WithLifetime(ContainerLifetime.Persistent);
 
 IResourceBuilder<ProjectResource> apiProject = builder

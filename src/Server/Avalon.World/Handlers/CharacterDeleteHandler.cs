@@ -1,3 +1,4 @@
+using Avalon.World.Public;
 using Avalon.Database.Character.Repositories;
 using Avalon.Domain.Characters;
 using Avalon.Network.Packets.Abstractions;
@@ -11,7 +12,7 @@ public class CharacterDeletetHandler(
     ILogger<CharacterDeletetHandler> logger,
     ICharacterRepository characterRepository) : WorldPacketHandler<CCharacterDeletePacket>
 {
-    public override void Execute(WorldConnection connection, CCharacterDeletePacket packet)
+    public override void Execute(IWorldConnection connection, CCharacterDeletePacket packet)
     {
         if (connection.AccountId == null)
         {
@@ -30,14 +31,14 @@ public class CharacterDeletetHandler(
         // because this is an async method, the executtion of this should run in a separate thread, and the result to be put somewhere
         // so that this world connection when it calls 'ProcessQueryCallbacks()' it will get the result and react accordingly
 
-        connection.AddQueryCallback(characterRepository.FindByIdAndAccountAsync(packet.CharacterId, connection.AccountId), character =>
+        connection.EnqueueContinuation(characterRepository.FindByIdAndAccountAsync(packet.CharacterId, connection.AccountId), character =>
         {
             OnCharacterFound(connection, character);
         });
 
     }
 
-    private void OnCharacterFound(WorldConnection connection, Character? character)
+    private void OnCharacterFound(IWorldConnection connection, Character? character)
     {
         if (character == null)
         {
@@ -46,15 +47,16 @@ public class CharacterDeletetHandler(
             return;
         }
 
-        connection.AddQueryCallback(characterRepository.DeleteAsync(character.Id), () =>
+        connection.EnqueueContinuation(characterRepository.DeleteAsync(character.Id), () =>
         {
             OnCharacterDeleted(connection, character);
         });
     }
 
-    private void OnCharacterDeleted(WorldConnection connection, Character character)
+    private void OnCharacterDeleted(IWorldConnection connection, Character character)
     {
         logger.LogInformation("Character {CharacterId} deleted for account {AccountId}", character.Id, connection.AccountId);
         connection.Send(SCharacterDeletedPacket.Create(SCharacterDeletedResult.Success, connection.CryptoSession.Encrypt));
     }
 }
+

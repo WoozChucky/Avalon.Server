@@ -4,9 +4,9 @@ using Avalon.Common.Cryptography;
 using Avalon.Common.ValueObjects;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Social;
-using Avalon.Server.World.Handlers;
 using Avalon.World;
 using Avalon.World.Chat;
+using Avalon.World.Handlers;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using NSubstitute;
@@ -28,42 +28,49 @@ public class ChatMessageHandlerShould
         _senderConnection.AccountId.Returns(new AccountId(1));
         _senderConnection.InGame.Returns(true);
 
+        // Make AddQueryCallback invoke the callback synchronously so tests can assert results
+        _senderConnection
+            .When(c => c.EnqueueContinuation(Arg.Any<Task<bool>>(), Arg.Any<Action<bool>>()))
+            .Do(ci =>
+            {
+                var task = ci.Arg<Task<bool>>();
+                var callback = ci.Arg<Action<bool>>();
+                task.Wait();
+                callback(task.Result);
+            });
+
         _worldServer.Connections.Returns(ImmutableArray<IWorldConnection>.Empty);
         _handler = new ChatMessageHandler(_worldServer, _commandDispatcher);
     }
 
-    private WorldPacketContext<CChatMessagePacket> MakeCtx(string message) =>
-        new()
-        {
-            Packet = new CChatMessagePacket { Message = message, DateTime = DateTime.UtcNow },
-            Connection = _senderConnection
-        };
+    private CChatMessagePacket MakePacket(string message) =>
+        new() { Message = message, DateTime = DateTime.UtcNow };
 
     [Fact]
-    public async Task Dispatch_SlashCommand_To_CommandDispatcher()
+    public void Dispatch_SlashCommand_To_CommandDispatcher()
     {
         _commandDispatcher.DispatchAsync(Arg.Any<WorldPacketContext<CChatMessagePacket>>(), Arg.Any<CancellationToken>())
             .Returns(true);
 
-        await _handler.ExecuteAsync(MakeCtx("/invite PlayerOne"));
+        _handler.Execute(_senderConnection, MakePacket("/invite PlayerOne"));
 
-        await _commandDispatcher.Received(1)
+        _commandDispatcher.Received(1)
             .DispatchAsync(Arg.Any<WorldPacketContext<CChatMessagePacket>>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task Send_System_Error_When_Command_Not_Found()
+    public void Send_System_Error_When_Command_Not_Found()
     {
         _commandDispatcher.DispatchAsync(Arg.Any<WorldPacketContext<CChatMessagePacket>>(), Arg.Any<CancellationToken>())
             .Returns(false);
 
-        await _handler.ExecuteAsync(MakeCtx("/unknown"));
+        _handler.Execute(_senderConnection, MakePacket("/unknown"));
 
         _senderConnection.Received(1).Send(Arg.Any<NetworkPacket>());
     }
 
     [Fact]
-    public async Task Not_Broadcast_When_Message_Is_Command()
+    public void Not_Broadcast_When_Message_Is_Command()
     {
         _commandDispatcher.DispatchAsync(Arg.Any<WorldPacketContext<CChatMessagePacket>>(), Arg.Any<CancellationToken>())
             .Returns(true);
@@ -76,13 +83,13 @@ public class ChatMessageHandlerShould
         otherConnection.CryptoSession.Returns(otherCrypto);
         _worldServer.Connections.Returns(ImmutableArray.Create(otherConnection));
 
-        await _handler.ExecuteAsync(MakeCtx("/invite PlayerOne"));
+        _handler.Execute(_senderConnection, MakePacket("/invite PlayerOne"));
 
         otherConnection.DidNotReceive().Send(Arg.Any<NetworkPacket>());
     }
 
     [Fact]
-    public async Task Broadcast_Plain_Message_To_Other_InGame_Connections()
+    public void Broadcast_Plain_Message_To_Other_InGame_Connections()
     {
         var otherConnection = Substitute.For<IWorldConnection>();
         otherConnection.InGame.Returns(true);
@@ -98,13 +105,13 @@ public class ChatMessageHandlerShould
 
         _worldServer.Connections.Returns(ImmutableArray.Create(otherConnection));
 
-        await _handler.ExecuteAsync(MakeCtx("Hello world"));
+        _handler.Execute(_senderConnection, MakePacket("Hello world"));
 
         otherConnection.Received(1).Send(Arg.Any<NetworkPacket>());
     }
 
     [Fact]
-    public async Task Not_Broadcast_To_Sender()
+    public void Not_Broadcast_To_Sender()
     {
         var character = Substitute.For<ICharacter>();
         character.Name.Returns("HeroOne");
@@ -113,13 +120,13 @@ public class ChatMessageHandlerShould
 
         _worldServer.Connections.Returns(ImmutableArray.Create(_senderConnection));
 
-        await _handler.ExecuteAsync(MakeCtx("Hello world"));
+        _handler.Execute(_senderConnection, MakePacket("Hello world"));
 
         _senderConnection.DidNotReceive().Send(Arg.Any<NetworkPacket>());
     }
 
     [Fact]
-    public async Task Not_Broadcast_To_Connections_Not_InGame()
+    public void Not_Broadcast_To_Connections_Not_InGame()
     {
         var offlineConnection = Substitute.For<IWorldConnection>();
         offlineConnection.InGame.Returns(false);
@@ -131,13 +138,13 @@ public class ChatMessageHandlerShould
 
         _worldServer.Connections.Returns(ImmutableArray.Create(offlineConnection));
 
-        await _handler.ExecuteAsync(MakeCtx("Hello world"));
+        _handler.Execute(_senderConnection, MakePacket("Hello world"));
 
         offlineConnection.DidNotReceive().Send(Arg.Any<NetworkPacket>());
     }
 
     [Fact]
-    public async Task Not_Broadcast_When_Sender_Not_InGame()
+    public void Not_Broadcast_When_Sender_Not_InGame()
     {
         _senderConnection.InGame.Returns(false);
 
@@ -146,7 +153,7 @@ public class ChatMessageHandlerShould
         otherConnection.AccountId.Returns(new AccountId(2));
         _worldServer.Connections.Returns(ImmutableArray.Create(otherConnection));
 
-        await _handler.ExecuteAsync(MakeCtx("Hello world"));
+        _handler.Execute(_senderConnection, MakePacket("Hello world"));
 
         otherConnection.DidNotReceive().Send(Arg.Any<NetworkPacket>());
     }

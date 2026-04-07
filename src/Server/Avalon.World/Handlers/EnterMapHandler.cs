@@ -1,3 +1,4 @@
+using Avalon.World.Public;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Database.Character.Repositories;
@@ -20,7 +21,7 @@ public class EnterMapHandler(
     ICharacterRepository characterRepository,
     IWorld world) : WorldPacketHandler<CEnterMapPacket>
 {
-    public override void Execute(WorldConnection connection, CEnterMapPacket packet)
+    public override void Execute(IWorldConnection connection, CEnterMapPacket packet)
     {
         // 1. Guard: character must be in-game
         if (!connection.InGame)
@@ -96,20 +97,20 @@ public class EnterMapHandler(
 
         if (targetTemplate.MapType == MapType.Town)
         {
-            connection.AddQueryCallback(
+            connection.EnqueueContinuation(
                 world.InstanceRegistry.GetOrCreateTownInstanceAsync(targetTemplate.Id,
                     targetTemplate.MaxPlayers ?? 30),
                 targetInstance => OnInstanceReceived(connection, targetInstance, targetTemplate, packet.TargetMapId));
         }
         else
         {
-            connection.AddQueryCallback(
+            connection.EnqueueContinuation(
                 world.InstanceRegistry.GetOrCreateNormalInstanceAsync(accountId, targetTemplate.Id),
                 targetInstance => OnInstanceReceived(connection, targetInstance, targetTemplate, packet.TargetMapId));
         }
     }
 
-    private void OnInstanceReceived(WorldConnection connection, IMapInstance targetInstance, MapTemplate targetTemplate,
+    private void OnInstanceReceived(IWorldConnection connection, IMapInstance targetInstance, MapTemplate targetTemplate,
         MapId targetMapId)
     {
         // 9. Transfer the player (removes from current, updates position & InstanceIdGuid, adds to target)
@@ -136,7 +137,7 @@ public class EnterMapHandler(
             dbCharacter.Y = targetTemplate.DefaultSpawnY;
             dbCharacter.Z = targetTemplate.DefaultSpawnZ;
 
-            connection.AddQueryCallback(characterRepository.UpdateAsync(dbCharacter), () =>
+            connection.EnqueueContinuation(characterRepository.UpdateAsync(dbCharacter), () =>
             {
                 logger.LogInformation(
                     "Character {Name} transferred to map {MapId} (instance {InstanceId})",
@@ -145,3 +146,4 @@ public class EnterMapHandler(
         }
     }
 }
+
