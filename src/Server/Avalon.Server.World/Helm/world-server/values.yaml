@@ -20,7 +20,7 @@ server:
 replicaCount: 1
 
 image:
-  repository: avalon/world-server
+  repository: <YOUR_REGISTRY>/avalon/world-server
   pullPolicy: Always
   # Overrides the image tag whose default is the chart appVersion.
   tag: latest

@@ -1,5 +1,11 @@
 bin/
 obj/
+
+# Environment-specific appsettings overrides — never commit production/staging secrets
+appsettings.Production.json
+appsettings.Staging.json
+appsettings.Local.json
+appsettings.*.local.json
 /packages/
 riderModule.iml
 /_ReSharper.Caches/

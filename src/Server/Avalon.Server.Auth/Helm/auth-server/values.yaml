@@ -16,7 +16,7 @@ server:
 replicaCount: 1
 
 image:
-  repository: avalon/auth-server
+  repository: <YOUR_REGISTRY>/avalon/auth-server
   pullPolicy: Always
   # Overrides the image tag whose default is the chart appVersion.
   tag: latest
