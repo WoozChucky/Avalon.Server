@@ -23,6 +23,23 @@ Thank you for your interest in contributing. This document covers how to set up 
 
 ---
 
+## Zero-Config Dev Environment
+
+The repository is intentionally set up so that cloning and running is enough to get started — no manual
+configuration required. Specifically:
+
+- **`appsettings.json` files** contain hardcoded local-dev credentials (Postgres password `123`, Redis password
+  `123`, JWT signing key, etc.). These are development-only defaults, safe to use locally, and deliberately
+  committed so contributors can run the project immediately.
+- **`certs/cert-tcp.pfx`** is a pre-generated self-signed TLS certificate (password `avalon`) used by the Auth
+  TCP server. It is committed for the same reason — so no manual cert generation is needed.
+- **`docker-compose.yml`** uses matching credentials so the infra spins up in sync with the app config.
+
+> None of these values are intended for production. For any real deployment, override all secrets via environment
+> variables or a secrets manager.
+
+---
+
 ## Local Setup
 
 1. **Clone with submodules** (the `vendor/DotRecast` navmesh library is a git submodule):
@@ -33,35 +50,27 @@ Thank you for your interest in contributing. This document covers how to set up 
 
 2. **Start infrastructure** (Redis + PostgreSQL):
    ```bash
-   docker compose up -d redis postgres
+   docker compose up -d
    ```
-
-3. **Generate a dev TLS certificate** for the Auth TCP server (the repository does not ship one):
+   Optionally include Redis Insight:
    ```bash
-   dotnet dev-certs https -ep cert-tcp.pfx -p <your-local-password>
-   ```
-   Then set `Hosting:Security:CertificatePassword` in `appsettings.Development.json` (never commit this file).
-
-5. **Configure secrets.** Copy the example settings and fill in your local values:
-   ```bash
-   cp src/Server/Avalon.Api/appsettings.json src/Server/Avalon.Api/appsettings.Development.json
-   # Edit appsettings.Development.json — this file is gitignored
+   docker compose -f docker-compose.yml -f docker-compose.tools.yml up -d
    ```
 
-6. **Restore and build:**
+3. **Restore and build:**
    ```bash
    dotnet restore
    dotnet build --no-restore
    ```
 
-7. **Run the servers** (separate terminals):
+4. **Run the servers** (separate terminals):
    ```bash
    dotnet run --project src/Server/Avalon.Api
    dotnet run --project src/Server/Avalon.Server.Auth
    dotnet run --project src/Server/Avalon.Server.World
    ```
 
-8. **API docs** are served at `https://localhost:<port>/scalar`.
+5. **API docs** are served at `https://localhost:<port>/scalar`.
 
 ---
 

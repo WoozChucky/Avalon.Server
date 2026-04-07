@@ -1,20 +1,12 @@
 name: avalon
+
 services:
   redis:
     image: redis:latest
     container_name: redis-server
-    environment:
-      - REDIS_PASSWORD=123
-    command: [ "redis-server", "--requirepass", "123" ]
+    command: ["redis-server", "--requirepass", "123"]
     ports:
       - "6379:6379"
-    restart: unless-stopped
-
-  redis-insight:
-    image: redislabs/redisinsight:latest
-    container_name: redis-insight
-    ports:
-      - "5540:5540"
     restart: unless-stopped
 
   postgres:

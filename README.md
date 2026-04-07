@@ -3,15 +3,6 @@
 Official server-side solution for the Avalon MMORPG: API, authentication, world simulation, networking, persistence,
 telemetry, and extensibility frameworks.
 
-## Architecture Diagrams
-
-(See /docs for visual diagrams.)
-
-- API: ![Avalon-Api.png](docs/Avalon-Api.png)
-- Auth Server: ![Avalon-AuthServer.png](docs/Avalon-AuthServer.png)
-- World Server: ![Avalon-WorldServer.png](docs/Avalon-WorldServer.png)
-- General Overview: ![Avalon-General.png](docs/Avalon-General.png)
-
 ## High-Level Overview
 
 Avalon is split into bounded components that can scale and evolve independently:
@@ -83,7 +74,7 @@ They:
 
 ### OpenAPI & Scalar UI
 
-The API registers Microsoft.AspNetCore.OpenApi (net9) and uses AddOpenApi + MapOpenApi with Scalar UI for interactive
+The API registers Microsoft.AspNetCore.OpenApi and uses AddOpenApi + MapOpenApi with Scalar UI for interactive
 docs. A custom schema transformer produces scalar definitions for value objects, avoiding noisy wrapper shapes.
 
 ### Authentication & Security
@@ -268,7 +259,7 @@ Auth & World Servers:
 
 ## Handling ValueObject<T> in OpenAPI (Important)
 
-With .NET 9's Microsoft.AspNetCore.OpenApi pipeline you do NOT use legacy Swashbuckle methods (no
+With .NET 10's Microsoft.AspNetCore.OpenApi pipeline you do NOT use legacy Swashbuckle methods (no
 GetOrCreateSchemaAsync). Instead:
 
 - Implement IOpenApiSchemaTransformer (ValueObjectOpenapiSchemaTransformer)
@@ -302,7 +293,11 @@ Prerequisites: .NET 10 SDK, Docker (for infra services).
 
 1. Start infra (Redis + PostgreSQL):
    ```bash
-   docker compose up -d redis postgres
+   docker compose up -d
+   ```
+   Optionally add Redis Insight for a GUI over Redis:
+   ```bash
+   docker compose -f docker-compose.yml -f docker-compose.tools.yml up -d
    ```
 2. Run the API — migrations are applied automatically on startup:
    ```bash

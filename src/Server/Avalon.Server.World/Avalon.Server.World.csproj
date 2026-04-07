@@ -92,7 +92,7 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
     <None Include="Maps\**" CopyToOutputDirectory="Always"/>
-    <None Include="cert-tcp.pfx" CopyToOutputDirectory="PreserveNewest"/>
+    <None Include="..\..\..\certs\cert-tcp.pfx" Link="cert-tcp.pfx" CopyToOutputDirectory="PreserveNewest"/>
   </ItemGroup>
 
 </Project>

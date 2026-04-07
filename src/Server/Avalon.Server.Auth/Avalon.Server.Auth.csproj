@@ -69,7 +69,7 @@
     <None Update="appsettings.json">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
-    <None Include="cert-tcp.pfx" CopyToOutputDirectory="PreserveNewest"/>
+    <None Include="..\..\..\certs\cert-tcp.pfx" Link="cert-tcp.pfx" CopyToOutputDirectory="PreserveNewest"/>
   </ItemGroup>
 
 </Project>
