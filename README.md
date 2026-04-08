@@ -70,7 +70,7 @@ Tooling & Tests:
 
 ### OpenAPI & Scalar UI
 
-The API exposes an interactive Scalar UI at `/scalar` and raw schema at `/openapi/v1.json`, built on `Microsoft.AspNetCore.OpenApi`. A custom schema transformer produces clean scalar definitions for value object types.
+The API exposes an interactive Scalar UI at `/scalar` and raw schema at `/openapi/v1.json`, built on `Microsoft.AspNetCore.OpenApi`. A custom schema transformer produces clean scalar definitions for value object types. See → [ValueObject — OpenAPI Integration](docs/valueobject-openapi.md)
 
 ### Authentication & Security
 
