@@ -8,7 +8,7 @@ Bootstrap sequence for each server component.
 2. Bind `ApplicationConfig`
 3. Register JSON options + converters (`ValueObjectJsonConverterFactory` + `JsonStringEnumConverter`)
 4. Configure OpenAPI + schema transformations (ValueObject → scalar)
-5. Add Auth, Infrastructure, AutoMapper profiles
+5. Add Auth and Infrastructure services (databases, Redis, workers)
 6. Build / apply EF migrations / start workers / connect Redis
 7. Expose OpenAPI (`MapOpenApi` + Scalar UI at `/scalar`)
 
