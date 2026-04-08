@@ -5,30 +5,17 @@ on:
     branches:
       - main
 
-env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.actor }}/avalon
-
 jobs:
   build:
 
     runs-on: ubuntu-latest
-    permissions: write-all
+    permissions:
+      contents: read
 
     steps:
-      # Pull Repos
       - uses: actions/checkout@v6
         with:
           submodules: recursive
-      # Tag version
-      - name: Bump version and push tag
-        id: get-latest-tag
-        uses: anothrNick/github-tag-action@1.75.0 # Don't use @master or @v1 unless you're happy to test the latest version
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # if you don't want to set write permissions use a PAT token
-          WITH_V: true
-          # VERBOSE: true
-          DEFAULT_BUMP: patch
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v5
@@ -40,81 +27,3 @@ jobs:
         run: dotnet build --no-restore
       - name: Test
         run: dotnet test --no-build
-      - name: Publish World Server
-        run: dotnet publish src/Server/Avalon.Server.World/Avalon.Server.World.csproj -c Release --no-restore
-      - name: Publish Auth Server
-        run: dotnet publish src/Server/Avalon.Server.Auth/Avalon.Server.Auth.csproj -c Release --no-restore
-      - name: Publish Api
-        run: dotnet publish src/Server/Avalon.Api/Avalon.Api.csproj -c Release --no-restore
-
-      - name: Docker Login
-        uses: docker/login-action@v4.1.0
-        with:
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-          registry: ${{ env.REGISTRY }}
-      - name: Extract metadata (tags, labels) for Docker
-        id: meta-world
-        uses: docker/metadata-action@v6.0.0
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/world
-          tags: |
-            type=schedule
-            type=ref,event=branch
-            type=ref,event=tag
-            type=raw,latest,enable=${{ github.ref == format('refs/heads/{0}', 'main') }}
-      - name: Build and push Docker images
-        # You may pin to the exact commit or the version.
-        # uses: docker/build-push-action@0565240e2d4ab88bba5387d719585280857ece09
-        uses: docker/build-push-action@v7.0.0
-        with:
-          context: src/Server/Avalon.Server.World/
-          # Path to the Dockerfile
-          file: src/Server/Avalon.Server.World/Dockerfile
-          # Push is a shorthand for --output=type=registry
-          push: ${{ github.event_name != 'pull_request' }}
-          # List of tags
-          tags: ${{ steps.meta-world.outputs.tags }}
-          labels: ${{ steps.meta-world.outputs.labels }}
-      - name: Extract metadata (tags, labels) for Docker
-        id: meta-auth
-        uses: docker/metadata-action@v6.0.0
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/auth
-          tags: |
-            type=schedule
-            type=ref,event=branch
-            type=ref,event=tag
-            type=raw,latest,enable=${{ github.ref == format('refs/heads/{0}', 'main') }}
-      - name: Build and push Docker images
-        uses: docker/build-push-action@v7.0.0
-        with:
-          context: src/Server/Avalon.Server.Auth/
-          # Path to the Dockerfile
-          file: src/Server/Avalon.Server.Auth/Dockerfile
-          # Push is a shorthand for --output=type=registry
-          push: ${{ github.event_name != 'pull_request' }}
-          # List of tags
-          tags: ${{ steps.meta-auth.outputs.tags }}
-          labels: ${{ steps.meta-auth.outputs.labels }}
-      - name: Extract metadata (tags, labels) for Docker
-        id: meta-api
-        uses: docker/metadata-action@v6.0.0
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/api
-          tags: |
-            type=schedule
-            type=ref,event=branch
-            type=ref,event=tag
-            type=raw,latest,enable=${{ github.ref == format('refs/heads/{0}', 'main') }}
-      - name: Build and push Docker images
-        uses: docker/build-push-action@v7.0.0
-        with:
-          context: src/Server/Avalon.Api/
-          # Path to the Dockerfile
-          file: src/Server/Avalon.Api/Dockerfile
-          # Push is a shorthand for --output=type=registry
-          push: ${{ github.event_name != 'pull_request' }}
-          # List of tags
-          tags: ${{ steps.meta-api.outputs.tags }}
-          labels: ${{ steps.meta-api.outputs.labels }}
