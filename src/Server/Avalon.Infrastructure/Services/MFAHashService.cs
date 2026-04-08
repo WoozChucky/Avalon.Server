@@ -53,39 +53,24 @@ public class MFAHashService : IMFAHashService
                 new HashEntry("accountId", account.Id!.Value.ToString())
             });
         await transaction.ExecuteAsync();
+        await _cache.SetAsync(CacheKeys.MfaReverseHash(hash), account.Id!.Value.ToString(), _expiry);
         return hash;
     }
 
     public async Task<AccountId?> GetAccountIdAsync(string hash)
     {
-        RedisResult keys = await _cache.Database.ExecuteAsync("keys", CacheKeys.AccountMfaGlobPattern);
-        foreach ((string key, RedisResult _) in keys.ToDictionary())
-        {
-            RedisValue value = await _cache.Database.HashGetAsync(key, "hash");
-            if (value != hash)
-            {
-                continue;
-            }
-
-            RedisValue accountId = await _cache.Database.HashGetAsync(key, "accountId");
-            return long.Parse(accountId!);
-        }
-
-        return null;
+        var accountIdStr = await _cache.GetAsync(CacheKeys.MfaReverseHash(hash));
+        if (accountIdStr == null) return null;
+        return new AccountId(long.Parse(accountIdStr));
     }
 
     public async Task CleanupHash(string hash)
     {
-        RedisResult keys = await _cache.Database.ExecuteAsync("keys", CacheKeys.AccountMfaGlobPattern);
-        foreach ((string key, RedisResult _) in keys.ToDictionary())
+        var accountId = await GetAccountIdAsync(hash);
+        if (accountId != null)
         {
-            RedisValue value = await _cache.Database.HashGetAsync(key, "hash");
-            if (value != hash)
-            {
-                continue;
-            }
-
-            await _cache.RemoveAsync(key);
+            await _cache.RemoveAsync(CacheKeys.AccountMfa((long)accountId));
         }
+        await _cache.RemoveAsync(CacheKeys.MfaReverseHash(hash));
     }
 }
