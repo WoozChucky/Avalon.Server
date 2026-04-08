@@ -1,5 +1,6 @@
 using System.Text;
 using Avalon.Database.Auth.Repositories;
+using Avalon.Domain.Auth;
 using Avalon.Infrastructure;
 using Avalon.Infrastructure.Services;
 using Avalon.Network.Packets.Auth;
@@ -8,21 +9,22 @@ using Microsoft.Extensions.Options;
 
 namespace Avalon.Server.Auth.Handlers;
 
-
 public class CAuthHandler : IAuthPacketHandler<CAuthPacket>
 {
     private readonly IAccountRepository _accountRepository;
     private readonly IReplicatedCache _cache;
     private readonly IMFAHashService _mfaHashService;
+    private readonly IMfaSetupRepository _mfaSetupRepository;
     private readonly ILogger<CAuthHandler> _logger;
     private readonly AuthConfiguration _authConfig;
 
-
-    public CAuthHandler(ILoggerFactory logger, IAccountRepository accountRepository, IReplicatedCache cache, IMFAHashService mfaHashService, IOptions<AuthConfiguration> options)
+    public CAuthHandler(ILoggerFactory logger, IAccountRepository accountRepository, IReplicatedCache cache,
+        IMFAHashService mfaHashService, IMfaSetupRepository mfaSetupRepository, IOptions<AuthConfiguration> options)
     {
         _accountRepository = accountRepository;
         _cache = cache;
         _mfaHashService = mfaHashService;
+        _mfaSetupRepository = mfaSetupRepository;
         _logger = logger.CreateLogger<CAuthHandler>();
         _authConfig = options.Value;
     }
@@ -66,15 +68,13 @@ public class CAuthHandler : IAuthPacketHandler<CAuthPacket>
             return;
         }
 
-        /* TODO: Re-enable MFA feature
-        var mfa = await _databaseManager.Auth.MFASetup.FindByAccountIdAsync(account.Id!.Value);
-        if (mfa is { Status: Status.Confirmed })
+        var mfa = await _mfaSetupRepository.FindByAccountIdAsync(account.Id!);
+        if (mfa is { Status: MfaSetupStatus.Confirmed })
         {
             var mfaHash = await _mfaHashService.GenerateHashAsync(account);
             ctx.Connection.Send(SAuthResultPacket.Create(null, mfaHash, AuthResult.MFA_REQUIRED, ctx.Connection.CryptoSession.Encrypt));
             return;
         }
-        */
 
         if (account.Online)
         {
