@@ -48,7 +48,7 @@ public class CMFASetupHandlerShould
     {
         var account = MakeAccount();
         _accountRepository.FindByIdAsync(Arg.Any<AccountId>()).Returns(account);
-        _mfaService.SetupMFAAsync(account, "Avalon").Returns(
+        _mfaService.SetupMFAAsync(account, "Avalon", Arg.Any<CancellationToken>()).Returns(
             new MFASetupResult(true, "otpauth://totp/Avalon:test@test.com?secret=ABC", MFAOperationResult.Success));
 
         var ctx = new AuthPacketContext<CMFASetupPacket>
@@ -67,7 +67,7 @@ public class CMFASetupHandlerShould
     {
         var account = MakeAccount();
         _accountRepository.FindByIdAsync(Arg.Any<AccountId>()).Returns(account);
-        _mfaService.SetupMFAAsync(account, "Avalon").Returns(
+        _mfaService.SetupMFAAsync(account, "Avalon", Arg.Any<CancellationToken>()).Returns(
             new MFASetupResult(false, null, MFAOperationResult.AlreadyEnabled));
 
         var ctx = new AuthPacketContext<CMFASetupPacket>
@@ -95,6 +95,6 @@ public class CMFASetupHandlerShould
         await CreateHandler().ExecuteAsync(ctx);
 
         _connection.Received(1).Close();
-        await _mfaService.DidNotReceive().SetupMFAAsync(Arg.Any<Account>(), Arg.Any<string>());
+        await _mfaService.DidNotReceive().SetupMFAAsync(Arg.Any<Account>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
 }
