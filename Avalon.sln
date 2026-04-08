@@ -106,7 +106,6 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "External", "External", "{35
 		src\Directory.Packages.props = src\Directory.Packages.props
 		.github\workflows\dotnet-ci.yml = .github\workflows\dotnet-ci.yml
 		.github\workflows\dotnet-pr.yml = .github\workflows\dotnet-pr.yml
-		azure-pipelines.yml = azure-pipelines.yml
 	EndProjectSection
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Avalon.Shared.UnitTests", "tests\Avalon.Shared.UnitTests\Avalon.Shared.UnitTests.csproj", "{CB06C395-83DD-4655-BCDA-B8E5A438F801}"
