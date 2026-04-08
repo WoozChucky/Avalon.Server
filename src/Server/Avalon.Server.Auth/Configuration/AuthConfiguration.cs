@@ -14,4 +14,7 @@ public class AuthConfiguration
 
     [Range(1, int.MaxValue, ErrorMessage = "MaxFailedLoginAttempts must be at least 1.")]
     public int MaxFailedLoginAttempts { get; set; } = 5;
+
+    [Required]
+    public string Issuer { get; set; } = "Avalon";
 }
