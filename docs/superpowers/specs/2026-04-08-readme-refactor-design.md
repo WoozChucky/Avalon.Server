@@ -1,7 +1,7 @@
 # README Refactor — Design Spec
 
 **Date:** 2026-04-08  
-**Status:** Approved  
+**Status:** Completed  
 **Goal:** Make README digestible for OSS contributors; move deep-dive content to focused docs.
 
 ---
