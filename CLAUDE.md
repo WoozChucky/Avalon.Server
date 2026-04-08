@@ -136,7 +136,6 @@ Commands live in `Avalon.World/Chat/`. To add a new command:
 
 See `TODO.md` for full details. High-priority open items:
 - **TODO-007** — `AvalonAuthenticationHandler` bearer token validation is a hardcoded stub
-- **TODO-013** — MFA second-factor flow is commented out in `CAuthHandler` (all dependencies exist)
 - **TODO-017/018** — `AnimationId` missing from `SpellTemplate`/`SpellMetadata` (needs EF migration)
 - **TODO-024** — Inventory not sent to client on character login
 - **TODO-029** — World server depends on `AuthDbContext` via `AddAuthDatabase()` — should use Redis-backed `IAccountSessionService` instead
