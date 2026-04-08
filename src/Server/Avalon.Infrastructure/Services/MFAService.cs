@@ -111,8 +111,8 @@ public class MFAService : IMFAService
             return new MFAResetResult(false, MFAOperationResult.NotEnabled);
 
         if (r1 != Encoding.UTF8.GetString(mfaSetup.RecoveryCode1)
-            && r2 != Encoding.UTF8.GetString(mfaSetup.RecoveryCode2)
-            && r3 != Encoding.UTF8.GetString(mfaSetup.RecoveryCode3))
+            || r2 != Encoding.UTF8.GetString(mfaSetup.RecoveryCode2)
+            || r3 != Encoding.UTF8.GetString(mfaSetup.RecoveryCode3))
         {
             return new MFAResetResult(false, MFAOperationResult.InvalidCode);
         }
