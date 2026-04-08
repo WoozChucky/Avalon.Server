@@ -40,6 +40,26 @@ public class CMFAVerifyHandler : IAuthPacketHandler<CMFAVerifyPacket>
             return;
         }
 
+        if (account.Online)
+        {
+            ctx.Connection.Send(SAuthResultPacket.Create(null, null, AuthResult.ALREADY_CONNECTED, ctx.Connection.CryptoSession.Encrypt));
+
+            await _cache.PublishAsync(CacheKeys.WorldAccountsDisconnectChannel, account.Id.ToString());
+
+            var connectedSession = ctx.Connection.Server.Connections.FirstOrDefault(c => c.AccountId == account.Id);
+            if (connectedSession != null)
+            {
+                connectedSession.Close();
+            }
+            else
+            {
+                _logger.LogWarning("Account {AccountId} is online but no connection was found", account.Id);
+                account.Online = false;
+                await _accountRepository.UpdateAsync(account);
+            }
+            return;
+        }
+
         ctx.Connection.AccountId = account.Id;
 
         account.Online = true;
