@@ -53,4 +53,11 @@ public static class CacheKeys
     /// Fields: <c>hash</c>, <c>expiry</c>, <c>accountId</c>.
     /// </summary>
     public static string AccountMfa(long accountId) => $"auth:account:{accountId}:mfa";
+
+    /// <summary>
+    /// Reverse-lookup key for the MFA login flow.
+    /// Maps a generated hash value back to the account ID it was issued for.
+    /// Value: account ID string. Same 2-minute TTL as the forward hash entry.
+    /// </summary>
+    public static string MfaReverseHash(string hash) => $"auth:mfa:hash:{hash}";
 }
