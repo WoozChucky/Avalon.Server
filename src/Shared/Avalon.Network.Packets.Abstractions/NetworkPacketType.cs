@@ -57,6 +57,12 @@ public enum NetworkPacketType : short
     CMSG_CHAT_CLOSE = 0x2009,
     CMSG_GROUP_INVITE_RESULT = 0x200A,
 
+    // MFA
+    CMSG_MFA_VERIFY = 0x200B,
+    CMSG_MFA_SETUP = 0x200C,
+    CMSG_MFA_CONFIRM = 0x200D,
+    CMSG_MFA_RESET = 0x200E,
+
     // Combat
     CMSG_ATTACK = 0x2100,
 
@@ -122,4 +128,9 @@ public enum NetworkPacketType : short
 
     SMSG_GROUP_INVITE = 0x300D,
     SMSG_GROUP_INVITE_RESULT = 0x300E,
+
+    // MFA
+    SMSG_MFA_SETUP = 0x300F,
+    SMSG_MFA_CONFIRM = 0x3013,
+    SMSG_MFA_RESET = 0x3014,
 }
