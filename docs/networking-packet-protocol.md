@@ -38,7 +38,8 @@ Size calculation uses fixed field lengths; header marshaled first enabling preal
 
 ## Redis Usage in Flow
 
-- `world:{WorldId}:keys:{Base64Key}` → `AccountId` (TTL ~5 min) — deleted immediately after successful world key exchange.
+- `world:{worldId}:keys:{worldKeyBase64}` → `accountId` (TTL ~5 min) — deleted immediately after successful world key exchange.
+- `account:{accountId}:inWorld` — SETNX duplicate-session mutex written during `CWorldSelect`, cleared after successful key exchange (5 min TTL).
 - `auth:accounts:online` / `world:accounts:disconnect` — pub/sub channels for cross-component presence coordination.
 
 See [Redis Cache Keys](redis-cache-keys.md) for the full key reference.
@@ -88,6 +89,7 @@ sequenceDiagram
     Client->>World: CExchangeWorldKey(worldKey, publicKey)
     World->>Redis: GET world:{id}:keys:{worldKey}
     Redis-->>World: accountId
+    World->>Redis: DEL world:{id}:keys:{worldKey}
     World-->>Client: SExchangeWorldKey(serverPublicKey)
     Client->>World: (Character/Gameplay packets...)
 ```
