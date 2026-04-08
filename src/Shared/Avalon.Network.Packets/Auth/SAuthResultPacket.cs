@@ -40,5 +40,6 @@ public enum AuthResult : ushort
     MFA_REQUIRED,
     LOCKED,
     SUCCESS,
-    ALREADY_CONNECTED
+    ALREADY_CONNECTED,
+    MFA_FAILED
 }
