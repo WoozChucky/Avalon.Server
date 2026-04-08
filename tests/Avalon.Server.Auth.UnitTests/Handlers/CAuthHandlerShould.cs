@@ -22,6 +22,7 @@ public class CAuthHandlerShould
     private readonly IAccountRepository _accountRepository = Substitute.For<IAccountRepository>();
     private readonly IReplicatedCache _cache = Substitute.For<IReplicatedCache>();
     private readonly IMFAHashService _mfaHashService = Substitute.For<IMFAHashService>();
+    private readonly IMfaSetupRepository _noMfaRepo = Substitute.For<IMfaSetupRepository>();
     private readonly IAuthConnection _connection = Substitute.For<IAuthConnection>();
     private readonly IAvalonCryptoSession _cryptoSession = Substitute.For<IAvalonCryptoSession>();
     private readonly CAuthHandler _handler;
@@ -30,7 +31,7 @@ public class CAuthHandlerShould
         Options.Create(new AuthConfiguration { MaxFailedLoginAttempts = maxFailedLogins });
 
     private CAuthHandler CreateHandler(int maxFailedLogins = 5) =>
-        new(NullLoggerFactory.Instance, _accountRepository, _cache, _mfaHashService, AuthOptions(maxFailedLogins));
+        new(NullLoggerFactory.Instance, _accountRepository, _cache, _mfaHashService, _noMfaRepo, AuthOptions(maxFailedLogins));
 
     public CAuthHandlerShould()
     {
@@ -323,5 +324,50 @@ public class CAuthHandlerShould
         await _handler.ExecuteAsync(ctx);
 
         _connection.Received().AccountId = account.Id;
+    }
+
+    [Fact]
+    public async Task SendMfaRequired_WhenAccountHasConfirmedMfa()
+    {
+        var account = MakeAccount();
+        var mfaSetup = new MFASetup { Status = MfaSetupStatus.Confirmed };
+        var mfaSetupRepo = Substitute.For<IMfaSetupRepository>();
+        mfaSetupRepo.FindByAccountIdAsync(Arg.Any<AccountId>()).Returns(mfaSetup);
+        _mfaHashService.GenerateHashAsync(Arg.Any<Account>()).Returns("test-hash");
+        _accountRepository.FindByUserNameAsync(Arg.Any<string>()).Returns(account);
+
+        var handler = new CAuthHandler(NullLoggerFactory.Instance, _accountRepository, _cache, _mfaHashService, mfaSetupRepo, AuthOptions());
+        var ctx = new AuthPacketContext<CAuthPacket>
+        {
+            Packet = new CAuthPacket { Username = "testuser", Password = "correct_password" },
+            Connection = _connection
+        };
+
+        await handler.ExecuteAsync(ctx);
+
+        _connection.Received(1).Send(Arg.Any<NetworkPacket>());
+        await _mfaHashService.Received(1).GenerateHashAsync(account);
+        await _accountRepository.DidNotReceive().UpdateAsync(Arg.Any<Account>());
+    }
+
+    [Fact]
+    public async Task SendSuccess_WhenAccountHasNoMfa()
+    {
+        var account = MakeAccount();
+        var mfaSetupRepo = Substitute.For<IMfaSetupRepository>();
+        mfaSetupRepo.FindByAccountIdAsync(Arg.Any<AccountId>()).Returns((MFASetup?)null);
+        _accountRepository.FindByUserNameAsync(Arg.Any<string>()).Returns(account);
+
+        var handler = new CAuthHandler(NullLoggerFactory.Instance, _accountRepository, _cache, _mfaHashService, mfaSetupRepo, AuthOptions());
+        var ctx = new AuthPacketContext<CAuthPacket>
+        {
+            Packet = new CAuthPacket { Username = "testuser", Password = "correct_password" },
+            Connection = _connection
+        };
+
+        await handler.ExecuteAsync(ctx);
+
+        Assert.True(account.Online);
+        _connection.Received(1).Send(Arg.Any<NetworkPacket>());
     }
 }
