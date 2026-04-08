@@ -18,6 +18,7 @@ public static class ServiceExtensions
     public static IServiceCollection AddMfaService(this IServiceCollection services)
     {
         services.AddScoped<IMFAHashService, MFAHashService>();
+        services.AddScoped<IMFAService, MFAService>();
         return services;
     }
 
