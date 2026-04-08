@@ -1,0 +1,71 @@
+site_name: Avalon Server
+site_description: Official server-side solution for the Avalon MMORPG
+site_url: https://woozchucky.github.io/Avalon.Server
+repo_url: https://github.com/WoozChucky/Avalon.Server
+repo_name: WoozChucky/Avalon.Server
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.action.edit
+
+plugins:
+  - search
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets:
+      base_path: ['.']
+  - pymdownx.tabbed:
+      alternate_style: true
+  - tables
+  - toc:
+      permalink: true
+
+nav:
+  - Home: index.md
+  - Getting Started:
+    - Configuration: configuration-reference.md
+  - Architecture:
+    - Overview: architecture-startup-flow.md
+    - Decisions: architecture-decisions.md
+    - Networking:
+      - Packet Protocol: networking-packet-protocol.md
+      - Graceful Shutdown: networking-graceful-shutdown.md
+    - Auth Flow: character-login-flow.md
+    - Security & Sessions: security-session-management.md
+    - Redis Cache Keys: redis-cache-keys.md
+    - Value Objects & OpenAPI: valueobject-openapi.md
+  - Systems:
+    - Spell System: spell-system.md
+    - Creature System: creature-system.md
+    - Instanced Maps: instanced-maps-refactor.md
+  - Contributing: contributing.md
