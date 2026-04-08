@@ -6,6 +6,7 @@ using Avalon.Api.Authentication.Jwt;
 using Avalon.Api.Config;
 using Avalon.Api.Services;
 using Avalon.Database.Auth.Extensions;
+using Avalon.Infrastructure.Extensions;
 using Avalon.Database.Character.Extensions;
 using Avalon.Database.World.Extensions;
 using Avalon.Infrastructure;
@@ -32,9 +33,8 @@ public static class ServiceRegistration
 
         services.AddScoped<IAccountService, AccountService>();
         services.AddScoped<ICharacterService, CharacterService>();
-        services.AddScoped<IMFAService, MFAService>();
+        services.AddMfaService();
         services.AddSingleton<IReplicatedCache, ReplicatedCache>();
-        services.AddScoped<IMFAHashService, MFAHashService>();
         services.AddScoped<INotificationService, NotificationService>();
         services.AddScoped<IJwtUtils, JwtUtils>();
     }
