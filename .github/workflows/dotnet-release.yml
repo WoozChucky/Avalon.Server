@@ -1,0 +1,104 @@
+name: .NET Release Pipeline
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository_owner }}/avalon-server
+
+jobs:
+  release:
+
+    runs-on: ubuntu-latest
+    permissions: write-all
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: recursive
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+      - name: Restore dependencies
+        run: dotnet restore
+      - name: Build
+        run: dotnet build --no-restore
+      - name: Test
+        run: dotnet test --no-build
+      - name: Publish World Server
+        run: dotnet publish src/Server/Avalon.Server.World/Avalon.Server.World.csproj -c Release --no-restore
+      - name: Publish Auth Server
+        run: dotnet publish src/Server/Avalon.Server.Auth/Avalon.Server.Auth.csproj -c Release --no-restore
+      - name: Publish Api
+        run: dotnet publish src/Server/Avalon.Api/Avalon.Api.csproj -c Release --no-restore
+
+      - name: Docker Login
+        uses: docker/login-action@v4.1.0
+        with:
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+          registry: ${{ env.REGISTRY }}
+
+      - name: Extract metadata for World Server image
+        id: meta-world
+        uses: docker/metadata-action@v6.0.0
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/world
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest
+      - name: Build and push World Server image
+        uses: docker/build-push-action@v7.0.0
+        with:
+          context: src/Server/Avalon.Server.World/
+          file: src/Server/Avalon.Server.World/Dockerfile
+          push: true
+          tags: ${{ steps.meta-world.outputs.tags }}
+          labels: ${{ steps.meta-world.outputs.labels }}
+
+      - name: Extract metadata for Auth Server image
+        id: meta-auth
+        uses: docker/metadata-action@v6.0.0
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/auth
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest
+      - name: Build and push Auth Server image
+        uses: docker/build-push-action@v7.0.0
+        with:
+          context: src/Server/Avalon.Server.Auth/
+          file: src/Server/Avalon.Server.Auth/Dockerfile
+          push: true
+          tags: ${{ steps.meta-auth.outputs.tags }}
+          labels: ${{ steps.meta-auth.outputs.labels }}
+
+      - name: Extract metadata for API image
+        id: meta-api
+        uses: docker/metadata-action@v6.0.0
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/api
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest
+      - name: Build and push API image
+        uses: docker/build-push-action@v7.0.0
+        with:
+          context: src/Server/Avalon.Api/
+          file: src/Server/Avalon.Api/Dockerfile
+          push: true
+          tags: ${{ steps.meta-api.outputs.tags }}
+          labels: ${{ steps.meta-api.outputs.labels }}
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
