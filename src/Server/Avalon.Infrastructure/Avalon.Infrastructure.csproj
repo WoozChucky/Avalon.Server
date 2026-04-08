@@ -21,6 +21,8 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\Avalon.Database\Avalon.Database.csproj"/>
+    <ProjectReference Include="..\Avalon.Database.Auth\Avalon.Database.Auth.csproj"/>
     <ProjectReference Include="..\..\Shared\Avalon.Common\Avalon.Common.csproj"/>
     <ProjectReference Include="..\..\Shared\Avalon.Domain\Avalon.Domain.csproj"/>
     <ProjectReference Include="..\..\Shared\Avalon.Metrics\Avalon.Metrics.csproj"/>
