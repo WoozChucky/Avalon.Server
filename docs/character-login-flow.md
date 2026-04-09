@@ -2,7 +2,7 @@
 
 This document describes the full sequence from world-select to the player being in the world, including all open gaps.
 
-Related TODOs: [TODO-024](../TODO.md#todo-024), [TODO-025](../TODO.md#todo-025), [TODO-026](../TODO.md#todo-026)
+Related TODOs: [TODO-024](todo.md#todo-024), [TODO-025](todo.md#todo-025), [TODO-026](todo.md#todo-026)
 
 ---
 

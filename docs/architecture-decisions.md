@@ -2,7 +2,7 @@
 
 This document records significant architectural decisions, their rationale, and planned evolution. It covers open design questions raised by TODO comments.
 
-Related TODOs: [TODO-027](../TODO.md#todo-027), [TODO-028](../TODO.md#todo-028), [TODO-029](../TODO.md#todo-029), [TODO-030](../TODO.md#todo-030), [TODO-031](../TODO.md#todo-031)
+Related TODOs: [TODO-027](todo.md#todo-027), [TODO-028](todo.md#todo-028), [TODO-029](todo.md#todo-029), [TODO-030](todo.md#todo-030), [TODO-031](todo.md#todo-031)
 
 ---
 

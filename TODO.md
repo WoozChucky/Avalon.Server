@@ -47,7 +47,7 @@ Each entry describes its **context**, **implementation details**, **behaviour & 
 
 ## Networking & Graceful Shutdown
 
-> See also: [docs/networking-graceful-shutdown.md](docs/networking-graceful-shutdown.md)
+> See also: [docs/networking-graceful-shutdown.md](networking-graceful-shutdown.md)
 
 ---
 
@@ -152,7 +152,7 @@ Identical pattern to TODO-003 applied to `IWorldConnection`. Refer to the same `
 
 ## Security
 
-> See also: [docs/security-session-management.md](docs/security-session-management.md)
+> See also: [docs/security-session-management.md](security-session-management.md)
 
 ---
 
@@ -214,7 +214,7 @@ The handler extracts the token from the `Authorization: Avalon <token>` header b
 
 ## Session Integrity
 
-> See also: [docs/security-session-management.md](docs/security-session-management.md)
+> See also: [docs/security-session-management.md](security-session-management.md)
 
 ---
 
@@ -244,7 +244,7 @@ Nothing prevents an authenticated account from selecting a world when they are a
 
 ## Configuration Externalization
 
-> See also: [docs/configuration-reference.md](docs/configuration-reference.md)
+> See also: [docs/configuration-reference.md](configuration-reference.md)
 
 ---
 
@@ -340,7 +340,7 @@ Nothing prevents an authenticated account from selecting a world when they are a
 
 ## Authentication Features
 
-> See also: [docs/security-session-management.md](docs/security-session-management.md)
+> See also: [docs/security-session-management.md](security-session-management.md)
 
 ---
 
@@ -396,7 +396,7 @@ The literal string `"TODO"` is sent as the client version. This will be rejected
 
 ## Spell System
 
-> See also: [docs/spell-system.md](docs/spell-system.md)
+> See also: [docs/spell-system.md](spell-system.md)
 
 ---
 
@@ -565,7 +565,7 @@ Same pattern for `BroadcastFinishCastAnimation`.
 
 ## Creature System
 
-> See also: [docs/creature-system.md](docs/creature-system.md)
+> See also: [docs/creature-system.md](creature-system.md)
 
 ---
 
@@ -649,7 +649,7 @@ removeTimer.SetInterval((long)creature.Metadata.BodyRemoveTimer.TotalMillisecond
 
 ## Character System
 
-> See also: [docs/character-login-flow.md](docs/character-login-flow.md)
+> See also: [docs/character-login-flow.md](character-login-flow.md)
 
 ---
 
@@ -728,7 +728,7 @@ The server logs a desync warning when client-reported distance diverges from ser
 
 ## World Architecture
 
-> See also: [docs/architecture-decisions.md](docs/architecture-decisions.md)
+> See also: [docs/architecture-decisions.md](architecture-decisions.md)
 
 ---
 
