@@ -2,7 +2,7 @@
 
 This document covers the authentication pipeline, world session security, and MFA flow for the Avalon server.
 
-Related TODOs: [TODO-006](../TODO.md#todo-006), [TODO-007](../TODO.md#todo-007), [TODO-008](../TODO.md#todo-008), [TODO-013](../TODO.md#todo-013)
+Related TODOs: [TODO-006](todo.md#todo-006), [TODO-007](todo.md#todo-007), [TODO-008](todo.md#todo-008), [TODO-013](todo.md#todo-013)
 
 ---
 
