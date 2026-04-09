@@ -107,7 +107,7 @@ For a full architectural walkthrough see `README.md` and the documents under `do
 3. For **World** (server layer): implement `IWorldPacketHandler<TPacket>` in `src/Server/Avalon.Server.World/Handlers/` and decorate with `[PacketHandler(NetworkPacketType.X)]`.
 4. For **World** (core layer): implement `WorldPacketHandler<TPacket>` in `src/Server/Avalon.World/Handlers/`.
 
-See [docs/networking-packet-protocol.md](docs/networking-packet-protocol.md) for the full protocol reference.
+See [networking-packet-protocol.md](networking-packet-protocol.md) for the full protocol reference.
 
 ### Adding a world script
 

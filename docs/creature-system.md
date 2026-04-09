@@ -2,7 +2,7 @@
 
 This document describes the creature lifecycle: spawning, AI scripting, combat, experience rewards, respawn, and future spell support.
 
-Related TODOs: [TODO-019](../TODO.md#todo-019), [TODO-021](../TODO.md#todo-021), [TODO-022](../TODO.md#todo-022), [TODO-023](../TODO.md#todo-023)
+Related TODOs: [TODO-019](todo.md#todo-019), [TODO-021](todo.md#todo-021), [TODO-022](todo.md#todo-022), [TODO-023](todo.md#todo-023)
 
 ---
 

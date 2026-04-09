@@ -2,7 +2,7 @@
 
 This document describes the lifecycle of a spell from definition to client animation, covering all open design gaps.
 
-Related TODOs: [TODO-015](../TODO.md#todo-015), [TODO-016](../TODO.md#todo-016), [TODO-017](../TODO.md#todo-017), [TODO-018](../TODO.md#todo-018), [TODO-019](../TODO.md#todo-019), [TODO-020](../TODO.md#todo-020)
+Related TODOs: [TODO-015](todo.md#todo-015), [TODO-016](todo.md#todo-016), [TODO-017](todo.md#todo-017), [TODO-018](todo.md#todo-018), [TODO-019](todo.md#todo-019), [TODO-020](todo.md#todo-020)
 
 ---
 
