@@ -1,0 +1,1839 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Official server-side solution for the Avalon MMORPG">
+      
+      
+      
+        <link rel="canonical" href="https://woozchucky.github.io/Avalon.Server/redis-cache-keys/">
+      
+      
+        <link rel="prev" href="../security-session-management/">
+      
+      
+        <link rel="next" href="../valueobject-openapi/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>Redis Cache Keys - Avalon Server</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#redis-cache-keys-reference" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="Avalon Server" class="md-header__button md-logo" aria-label="Avalon Server" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Avalon Server
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Redis Cache Keys
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/WoozChucky/Avalon.Server" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    WoozChucky/Avalon.Server
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href=".." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../configuration-reference/" class="md-tabs__link">
+          
+  
+  
+  Getting Started
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../architecture-startup-flow/" class="md-tabs__link">
+          
+  
+  
+  Architecture
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../spell-system/" class="md-tabs__link">
+          
+  
+  
+  Systems
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../contributing/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Contributing
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="Avalon Server" class="md-nav__button md-logo" aria-label="Avalon Server" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Avalon Server
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/WoozChucky/Avalon.Server" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    WoozChucky/Avalon.Server
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Getting Started
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../configuration-reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Architecture
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture-startup-flow/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture-decisions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Decisions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+          
+          
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_3" id="__nav_3_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Networking
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Networking
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../networking-packet-protocol/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Packet Protocol
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../networking-graceful-shutdown/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Graceful Shutdown
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../character-login-flow/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Auth Flow
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../security-session-management/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Security & Sessions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Redis Cache Keys
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Redis Cache Keys
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#overview" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Overview
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#string-keys" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        String Keys
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="String Keys">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#worldworldidkeysworldkeybase64" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        world:{worldId}:keys:{worldKeyBase64}
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#accountaccountidinworld" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        account:{accountId}:inWorld
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#hash-keys" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Hash Keys
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Hash Keys">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#authaccountaccountidmfa" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        auth:account:{accountId}:mfa
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pubsub-channels" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pub/Sub Channels
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Pub/Sub Channels">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#worldaccountsdisconnect" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        world:accounts:disconnect
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#authaccountsonline" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        auth:accounts:online
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#worldworldidselect" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        world:{worldId}:select
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#key-inventory-summary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Key Inventory Summary
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adding-a-new-key" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Adding a New Key
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../valueobject-openapi/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Value Objects & OpenAPI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Systems
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Systems
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../spell-system/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Spell System
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../creature-system/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Creature System
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../instanced-maps-refactor/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Instanced Maps
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../contributing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contributing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#overview" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Overview
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#string-keys" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        String Keys
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="String Keys">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#worldworldidkeysworldkeybase64" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        world:{worldId}:keys:{worldKeyBase64}
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#accountaccountidinworld" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        account:{accountId}:inWorld
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#hash-keys" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Hash Keys
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Hash Keys">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#authaccountaccountidmfa" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        auth:account:{accountId}:mfa
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pubsub-channels" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pub/Sub Channels
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Pub/Sub Channels">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#worldaccountsdisconnect" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        world:accounts:disconnect
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#authaccountsonline" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        auth:accounts:online
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#worldworldidselect" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        world:{worldId}:select
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#key-inventory-summary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Key Inventory Summary
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adding-a-new-key" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Adding a New Key
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+    <a href="https://github.com/WoozChucky/Avalon.Server/edit/main/docs/redis-cache-keys.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
+    </a>
+  
+  
+
+
+<h1 id="redis-cache-keys-reference">Redis Cache Keys Reference<a class="headerlink" href="#redis-cache-keys-reference" title="Permanent link">&para;</a></h1>
+<p>This document is the authoritative reference for every Redis key and pub/sub channel used across the Avalon services.
+All string literals are centralized in <code>CacheKeys</code> (<code>src/Server/Avalon.Infrastructure/CacheKeys.cs</code>). Any rename or
+addition must start there.</p>
+<hr />
+<h2 id="overview">Overview<a class="headerlink" href="#overview" title="Permanent link">&para;</a></h2>
+<p>Avalon uses Redis for three distinct purposes:</p>
+<table>
+<thead>
+<tr>
+<th>Purpose</th>
+<th>Mechanism</th>
+<th>Examples</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Ephemeral session tokens</td>
+<td><code>SET</code> / <code>GET</code> / <code>DEL</code> with TTL</td>
+<td>World entry keys, session mutex</td>
+</tr>
+<tr>
+<td>Cross-component presence signalling</td>
+<td>Pub/Sub channels</td>
+<td>disconnect request, account online event, world-select notification</td>
+</tr>
+<tr>
+<td>Short-lived structured state</td>
+<td>Redis Hash with per-field access</td>
+<td>MFA flow (hash + expiry + accountId)</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="string-keys">String Keys<a class="headerlink" href="#string-keys" title="Permanent link">&para;</a></h2>
+<p>String keys map a single value to a single Redis string. All carry a TTL to prevent stale state accumulation.</p>
+<h3 id="worldworldidkeysworldkeybase64"><code>world:{worldId}:keys:{worldKeyBase64}</code><a class="headerlink" href="#worldworldidkeysworldkeybase64" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong><code>CacheKeys</code> member</strong></td>
+<td><code>CacheKeys.WorldKey(ushort worldId, string worldKeyBase64)</code></td>
+</tr>
+<tr>
+<td><strong>Type</strong></td>
+<td>String</td>
+</tr>
+<tr>
+<td><strong>Owner (writer)</strong></td>
+<td>Auth server — <code>CWorldSelectHandler</code></td>
+</tr>
+<tr>
+<td><strong>Consumer (reader/deleter)</strong></td>
+<td>World server — <code>ExchangeWorldKeyHandler</code></td>
+</tr>
+<tr>
+<td><strong>Value</strong></td>
+<td>Account ID as a decimal string</td>
+</tr>
+<tr>
+<td><strong>TTL</strong></td>
+<td>5 minutes</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Purpose:</strong> One-time handoff token issued at world selection. The Auth server writes the key immediately after
+verifying access; the World server looks it up once when the client presents it during the crypto-key exchange phase,
+then deletes it. The key is single-use: a successful exchange removes it, preventing replay.</p>
+<p><strong>Flow:</strong>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>Auth server (CWorldSelectHandler)
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>  → SET world:{worldId}:keys:{base64key}  value=accountId  TTL=5m
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>Game client connects to World server and sends CExchangeWorldKeyPacket(worldKey, pubKey)
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>World server (ExchangeWorldKeyHandler)
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>  → GET world:{worldId}:keys:{base64key}   ← returns accountId or nil
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>  → DEL world:{worldId}:keys:{base64key}   ← consume / invalidate
+</code></pre></div></p>
+<hr />
+<h3 id="accountaccountidinworld"><code>account:{accountId}:inWorld</code><a class="headerlink" href="#accountaccountidinworld" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong><code>CacheKeys</code> member</strong></td>
+<td><code>CacheKeys.AccountInWorld(long accountId)</code></td>
+</tr>
+<tr>
+<td><strong>Type</strong></td>
+<td>String (mutex pattern)</td>
+</tr>
+<tr>
+<td><strong>Owner (writer)</strong></td>
+<td>Auth server — <code>CWorldSelectHandler</code></td>
+</tr>
+<tr>
+<td><strong>Consumer (deleter)</strong></td>
+<td>World server — <code>ExchangeWorldKeyHandler</code></td>
+</tr>
+<tr>
+<td><strong>Value</strong></td>
+<td><code>"1"</code> (sentinel)</td>
+</tr>
+<tr>
+<td><strong>TTL</strong></td>
+<td>5 minutes</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Purpose:</strong> Mutual exclusion lock that prevents an account from holding more than one active world-entry attempt
+concurrently. Written with <code>SETNX</code> (SET if Not eXists): if the key already exists, the second world-select request is
+rejected with <code>DuplicateSession</code>. The World server removes the key after a successful key exchange, freeing the slot.
+The TTL ensures cleanup if the World server fails to process the handshake within the window.</p>
+<p><strong>Flow:</strong>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>Auth server (CWorldSelectHandler)
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>  → SETNX account:{accountId}:inWorld  1  TTL=5m
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>     ← false → reject with DuplicateSession
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>     ← true  → proceed
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>World server (ExchangeWorldKeyHandler) — after valid key exchange
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>  → DEL account:{accountId}:inWorld
+</code></pre></div></p>
+<hr />
+<h2 id="hash-keys">Hash Keys<a class="headerlink" href="#hash-keys" title="Permanent link">&para;</a></h2>
+<p>Redis Hashes allow multiple named fields under a single key. Avalon uses this for MFA state to keep related
+fields atomic and inspectable.</p>
+<h3 id="authaccountaccountidmfa"><code>auth:account:{accountId}:mfa</code><a class="headerlink" href="#authaccountaccountidmfa" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong><code>CacheKeys</code> member</strong></td>
+<td><code>CacheKeys.AccountMfa(long accountId)</code></td>
+</tr>
+<tr>
+<td><strong>Type</strong></td>
+<td>Hash</td>
+</tr>
+<tr>
+<td><strong>Owner (writer + reader)</strong></td>
+<td>Auth server — <code>MFAHashService</code></td>
+</tr>
+<tr>
+<td><strong>Consumer (deleter)</strong></td>
+<td>Auth server — <code>MFAHashService.CleanupHash</code></td>
+</tr>
+<tr>
+<td><strong>TTL</strong></td>
+<td>2 minutes (set on the whole key via <code>EXPIRE</code> after <code>EXEC</code>)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Hash fields:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Field name</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>hash</code></td>
+<td>Base32-encoded TOTP seed used as the MFA challenge token</td>
+</tr>
+<tr>
+<td><code>expiry</code></td>
+<td>ISO-8601 UTC timestamp recording when this entry expires</td>
+</tr>
+<tr>
+<td><code>accountId</code></td>
+<td>String representation of the account ID (used for reverse lookup)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Purpose:</strong> Stores ephemeral MFA state during the two-factor login window. When a password check succeeds for an
+account with MFA enabled, <code>MFAHashService</code> generates (or returns an unexpired existing) hash and writes all three
+fields atomically inside a Redis transaction. The client must submit the hash back with a valid TOTP code within the
+TTL window. After verification (or timeout), <code>CleanupHash</code> removes the entry.</p>
+<blockquote>
+<p><strong>Scan pattern</strong> for locating all active MFA entries: <code>CacheKeys.AccountMfaGlobPattern</code> = <code>"auth:account:*:mfa"</code>.
+Note: uses the Redis <code>KEYS</code> command — only acceptable at this scale; replace with <code>SCAN</code> if key cardinality grows.</p>
+</blockquote>
+<hr />
+<h2 id="pubsub-channels">Pub/Sub Channels<a class="headerlink" href="#pubsub-channels" title="Permanent link">&para;</a></h2>
+<p>Pub/Sub channels carry event notifications between services. There is no persistence — a message is only received by
+subscribers active at the time of publish.</p>
+<h3 id="worldaccountsdisconnect"><code>world:accounts:disconnect</code><a class="headerlink" href="#worldaccountsdisconnect" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong><code>CacheKeys</code> member</strong></td>
+<td><code>CacheKeys.WorldAccountsDisconnectChannel</code></td>
+</tr>
+<tr>
+<td><strong>Publisher</strong></td>
+<td>Auth server — <code>CAuthHandler</code> (duplicate login path)</td>
+</tr>
+<tr>
+<td><strong>Subscriber</strong></td>
+<td>World server — <code>WorldServer.CacheSubscribeAsync</code></td>
+</tr>
+<tr>
+<td><strong>Message format</strong></td>
+<td>Account ID as a decimal string</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Purpose:</strong> Signals all World server instances that a previously authenticated account has logged in again from a
+different connection. The World server searches its active connections for a matching <code>AccountId</code> and closes it
+gracefully (sends <code>SDisconnectPacket</code> with reason <code>DuplicateLogin</code> before closing the socket). This is the cross-server
+half of the duplicate-login guard; the Auth server handles the Auth-side connection directly.</p>
+<p><strong>Flow:</strong>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>Auth server (CAuthHandler) — on successful login where account.Online == true
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>  → PUBLISH world:accounts:disconnect  {accountId}
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>World server (WorldServer, DelayedDisconnect)
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>  ← message received
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>  → find IWorldConnection where AccountId == accountId
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>  → GracefulShutdownHelper.NotifyAndClose(connection, &quot;Your account has been logged in from another location.&quot;, DuplicateLogin)
+</code></pre></div></p>
+<hr />
+<h3 id="authaccountsonline"><code>auth:accounts:online</code><a class="headerlink" href="#authaccountsonline" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong><code>CacheKeys</code> member</strong></td>
+<td><code>CacheKeys.AuthAccountsOnlineChannel</code></td>
+</tr>
+<tr>
+<td><strong>Publisher</strong></td>
+<td>Auth server — <code>CAuthHandler</code> (successful login path)</td>
+</tr>
+<tr>
+<td><strong>Subscriber</strong></td>
+<td><em>(currently none — reserved for future components)</em></td>
+</tr>
+<tr>
+<td><strong>Message format</strong></td>
+<td>Account ID as a decimal string</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Purpose:</strong> Broadcasts that an account has completed authentication and is now marked online. Currently published but
+not subscribed to by any component; reserved for future use cases such as an admin dashboard, presence service, or
+API-layer invalidation of cached account state.</p>
+<hr />
+<h3 id="worldworldidselect"><code>world:{worldId}:select</code><a class="headerlink" href="#worldworldidselect" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong><code>CacheKeys</code> member</strong></td>
+<td><code>CacheKeys.WorldSelectChannel(ushort worldId)</code></td>
+</tr>
+<tr>
+<td><strong>Publisher</strong></td>
+<td>Auth server — <code>CWorldSelectHandler</code></td>
+</tr>
+<tr>
+<td><strong>Subscriber</strong></td>
+<td><em>(currently none — reserved for future cross-shard coordination)</em></td>
+</tr>
+<tr>
+<td><strong>Message format</strong></td>
+<td><code>account:{accountId}:worldKey:{worldKeyBase64}</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Purpose:</strong> Notifies the target world shard that an account has been issued a world entry key and is about to connect.
+The message embeds both the account identity and the key so a receiving shard could pre-warm its connection state.
+Currently published but not consumed; designed for future multi-instance world coordination where a load balancer or
+shard registry needs to know which shard should expect the arriving client.</p>
+<hr />
+<h2 id="key-inventory-summary">Key Inventory Summary<a class="headerlink" href="#key-inventory-summary" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Key pattern</th>
+<th>Type</th>
+<th>TTL</th>
+<th>Writer</th>
+<th>Consumer</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>world:{id}:keys:{base64}</code></td>
+<td>String</td>
+<td>5 min</td>
+<td>Auth / <code>CWorldSelectHandler</code></td>
+<td>World / <code>ExchangeWorldKeyHandler</code></td>
+</tr>
+<tr>
+<td><code>account:{id}:inWorld</code></td>
+<td>String</td>
+<td>5 min</td>
+<td>Auth / <code>CWorldSelectHandler</code></td>
+<td>World / <code>ExchangeWorldKeyHandler</code></td>
+</tr>
+<tr>
+<td><code>auth:account:{id}:mfa</code></td>
+<td>Hash</td>
+<td>2 min</td>
+<td>Auth / <code>MFAHashService</code></td>
+<td>Auth / <code>MFAHashService</code></td>
+</tr>
+<tr>
+<td><code>world:accounts:disconnect</code></td>
+<td>Pub/Sub channel</td>
+<td>—</td>
+<td>Auth / <code>CAuthHandler</code></td>
+<td>World / <code>WorldServer</code></td>
+</tr>
+<tr>
+<td><code>auth:accounts:online</code></td>
+<td>Pub/Sub channel</td>
+<td>—</td>
+<td>Auth / <code>CAuthHandler</code></td>
+<td><em>(reserved)</em></td>
+</tr>
+<tr>
+<td><code>world:{id}:select</code></td>
+<td>Pub/Sub channel</td>
+<td>—</td>
+<td>Auth / <code>CWorldSelectHandler</code></td>
+<td><em>(reserved)</em></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="adding-a-new-key">Adding a New Key<a class="headerlink" href="#adding-a-new-key" title="Permanent link">&para;</a></h2>
+<ol>
+<li>Add a <code>const</code> or <code>static</code> method to <code>CacheKeys</code> in <code>src/Server/Avalon.Infrastructure/CacheKeys.cs</code>.</li>
+<li>Document it in this file under the appropriate section (String Key, Hash Key, or Pub/Sub Channel).</li>
+<li>Update the summary table above.</li>
+<li>If the key is used across more than one service, document the publish/subscribe or write/read split clearly.</li>
+</ol>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.tabs", "navigation.sections", "navigation.expand", "navigation.top", "search.suggest", "search.highlight", "content.code.copy", "content.action.edit"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>
