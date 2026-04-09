@@ -1,6 +1,6 @@
 # Networking — Graceful Shutdown
 
-This document describes the intended connection lifecycle and graceful-shutdown protocol for the Avalon TCP servers (Auth and World).
+This document describes the connection lifecycle and graceful-shutdown protocol for the Avalon TCP servers (Auth and World).
 
 ## Architecture Note — Two Server Code Paths
 
@@ -21,16 +21,6 @@ There are **two separate TCP server code paths** in this codebase. Understanding
 - Connections implement **`IAvalonTcpConnection`** (in `Avalon.Network`), which exposes `Task SendAsync(NetworkPacket)`.
 
 > **Rule of thumb**: if you are implementing a feature for the running game servers, edit `ServerBase<T>`, `AuthServer`, or `WorldServer`. Changes to `AvalonTcpServer` do **not** affect live server behaviour.
-
-## Current State
-
-- ✅ **TODO-001**: `AvalonTcpServer` now tracks connections in a `ConcurrentDictionary` and closes them all in `StopAsync`.
-- ✅ **TODO-002**: `AvalonTcpServer.StopAsync` sends `SDisconnectPacket` (ServerShutdown) to each connection before closing. Also, `ServerBase.StopAsync` now calls `Listener.Stop()` first to release the listening port, and `OnClientAccepted` is hardened against shutdown races.
-- ✅ **TODO-003**: `AuthServer.OnStoppingAsync` now sends `SDisconnectPacket` before calling `connection.Close()`.
-- ✅ **TODO-004**: `WorldServer.OnStoppingAsync` now sends `SDisconnectPacket` before calling `connection.Close()`.
-- ✅ **TODO-005**: `WorldServer.DelayedDisconnect` now sends `SDisconnectPacket(DuplicateLogin)` before closing. Uses `GracefulShutdownHelper.NotifyAndClose`.
-
-Related TODOs: [TODO-001](todo.md#todo-001), [TODO-002](todo.md#todo-002), [TODO-003](todo.md#todo-003), [TODO-004](todo.md#todo-004), [TODO-005](todo.md#todo-005)
 
 ---
 
@@ -54,6 +44,8 @@ Client                    AuthServer / WorldServer (ServerBase<T>)
   |<---------------------------------|  connection.Close()
 ```
 
+---
+
 ## `SDisconnectPacket` Schema
 
 Defined in `Avalon.Network.Packets.Generic.SDisconnectPacket`. Transmitted **unencrypted** (`NetworkPacketFlags.None`) so it is readable regardless of the crypto session state.
@@ -70,8 +62,8 @@ Packet type: `NetworkPacketType.SMSG_DISCONNECT = 0x3008`
 | Value | Name             | Trigger                                                        |
 |-------|------------------|----------------------------------------------------------------|
 | 0     | `Unknown`        | Default/unspecified                                            |
-| 1     | `ServerShutdown` | Server stopping gracefully (TODO-001–004)                      |
-| 2     | `DuplicateLogin` | Second authentication for the same account (TODO-005)          |
+| 1     | `ServerShutdown` | Server stopping gracefully                                     |
+| 2     | `DuplicateLogin` | Second authentication for the same account                     |
 | 3     | `Kicked`         | Manual admin kick (future)                                     |
 
 ### Factory method
@@ -82,15 +74,15 @@ NetworkPacket packet = SDisconnectPacket.Create("Server is shutting down", Disco
 
 ---
 
-## `AvalonTcpServer` Changes — DONE (TODO-001 + TODO-002)
+## `AvalonTcpServer` Shutdown Behaviour
 
 > **Note**: `AvalonTcpServer` is **not** the production server for Auth or World. See the architecture note above.
 
-### Connection tracking (TODO-001)
+### Connection tracking
 
 `AvalonTcpServer` tracks connections in `ConcurrentDictionary<Guid, IAvalonTcpConnection>`. `AvalonSslTcpServer.HandleNewConnection` calls `TrackConnection()` after accepting a client. The connection is removed when its `Disconnected` event fires.
 
-### `StopAsync` sequence (TODO-002)
+### `StopAsync` sequence
 
 ```
 1. For each tracked connection:
@@ -106,21 +98,21 @@ Per-connection exceptions are caught and logged individually; they do not abort 
 
 ---
 
-## Auth Server Changes — DONE (TODO-003)
+## Auth Server Shutdown
 
 `AuthServer.OnStoppingAsync` delegates to `GracefulShutdownHelper.NotifyAndClose` for each connection.
 
 ---
 
-## World Server Changes — DONE (TODO-004 + TODO-005)
+## World Server Shutdown
 
-### Graceful stop (TODO-004) — DONE
+### Graceful stop
 
 `WorldServer.OnStoppingAsync` also delegates to `GracefulShutdownHelper.NotifyAndClose`.
 
-### Forced kick notification (TODO-005) — DONE
+### Forced kick notification
 
-`DelayedDisconnect` is called via Redis pub/sub when a duplicate login is detected by the Auth server. It now sends `SDisconnectPacket(DuplicateLogin)` before closing:
+`DelayedDisconnect` is called via Redis pub/sub when a duplicate login is detected by the Auth server. It sends `SDisconnectPacket(DuplicateLogin)` before closing:
 
 ```csharp
 private void DelayedDisconnect(RedisChannel channel, RedisValue value)
@@ -140,7 +132,7 @@ private void DelayedDisconnect(RedisChannel channel, RedisValue value)
 
 ---
 
-## `GracefulShutdownHelper` — DONE
+## `GracefulShutdownHelper`
 
 `GracefulShutdownHelper.NotifyAndClose` (`src/Server/Avalon.Hosting/Networking/GracefulShutdownHelper.cs`) is the shared utility used by all three call sites above:
 
@@ -155,7 +147,7 @@ Tests: `tests/Avalon.Server.Auth.UnitTests/Networking/GracefulShutdownHelperShou
 
 ---
 
-## Test Strategy
+## Test Coverage
 
 | Scenario                             | Expected                                         |
 |--------------------------------------|--------------------------------------------------|

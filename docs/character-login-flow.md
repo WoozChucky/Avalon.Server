@@ -1,8 +1,6 @@
 # Character Login Flow
 
-This document describes the full sequence from world-select to the player being in the world, including all open gaps.
-
-Related TODOs: [TODO-024](todo.md#todo-024), [TODO-025](todo.md#todo-025), [TODO-026](todo.md#todo-026)
+This document describes the full sequence from world-select to the player being in the world.
 
 ---
 
@@ -35,8 +33,8 @@ Game Client              World Server                  Databases / Redis
     │                        │                               │
     │                        │ [OnCharacterReceived]         │
     │                        │  Build CharacterEntity        │
-    │                        │  Assign InstanceId (TODO-026) │
-    │                        │  world.SpawnPlayer(connection)│
+    │                        │  Assign InstanceId            │
+    │                        │  world.SpawnInInstance(conn)  │
     │                        │                               │
     │  SCharacterSelectedPacket                              │
     │<───────────────────────│                               │
@@ -49,8 +47,7 @@ Game Client              World Server                  Databases / Redis
     │                        │<──────────────────────────────│ List<CharacterInventory>
     │                        │ [OnInventoryReceived]         │
     │                        │  Load into entity containers  │
-    │  SInventoryPacket      │  Send to client (TODO-024)    │
-    │<───────────────────────│                               │
+    │                        │  (inventory packet not yet sent to client)
     │                        │                               │
     │                        │ SpellRepository.GetCharacterSpells
     │                        │──────────────────────────────>│
@@ -80,19 +77,15 @@ Sent immediately after the character entity is built and spawned. Contains:
 | `Experience`       | `character.Experience`                  |
 | `RequiredExperience`| `entity.RequiredExperience`            |
 | `MapId`            | `character.Map`                         |
-| `InstanceId`       | See [Instance ID section](#instance-id-todo-026) |
+| `InstanceId`       | See [Instance ID section](#instance-id) |
 
 ---
 
-## Inventory On Login (TODO-024)
+## Inventory On Login
 
-### Current State
+`OnInventoryReceived` loads items into `entity[InventoryType.*]` containers. The inventory packet is not yet sent to the client — the client starts with an empty display until this is implemented.
 
-`OnInventoryReceived` loads items into `entity[InventoryType.*]` containers but does nothing further. The client starts with an empty display regardless of what was saved.
-
-### `SInventoryPacket` Definition
-
-Define in `Avalon.Network.Packets`:
+### Planned `SInventoryPacket`
 
 ```csharp
 public class SInventoryPacketItem
@@ -105,33 +98,11 @@ public class SInventoryPacketItem
 }
 ```
 
-### Send Logic
-
-After all `.Load(...)` calls in `OnInventoryReceived`:
-
-```csharp
-var loginItems = items
-    .Where(i => i.Container is InventoryType.Equipment or InventoryType.Bag)
-    .Select(i => new SInventoryPacketItem
-    {
-        Container = (byte)i.Container,
-        Slot      = (byte)i.Slot,
-        ItemId    = i.ItemId,
-        Quantity  = i.Quantity,
-        Durability = i.Durability
-    })
-    .ToList();
-
-connection.Send(SInventoryPacket.Create(loginItems, connection.CryptoSession.Encrypt));
-```
-
-**Note:** Bank items are **not** sent on login. They are sent when the player interacts with a banker NPC (future feature).
+After all `.Load(...)` calls, equipment and bag items will be sent to the client. Bank items are deferred until the player interacts with a banker NPC.
 
 ---
 
-## Instance ID (TODO-026)
-
-### Phase 1 — Main World (current)
+## Instance ID
 
 All characters entering the default open world share one well-known instance GUID derived from the `WorldId`:
 
@@ -141,30 +112,15 @@ private static Guid GetMainWorldInstanceId(WorldId worldId)
     => new Guid(worldId.ToString("N").PadLeft(32, '0'));
 ```
 
-Set in `OnCharacterReceived`:
-```csharp
-// TODO: Phase 2 — route through IInstanceManager for instanced content (dungeons, raids)
-character.InstanceId = GetMainWorldInstanceId(world.Id).ToString();
-```
+Set in `OnCharacterReceived` using `IInstanceRegistry.GetOrCreateTownInstance` — see [instanced-maps.md](instanced-maps.md) for the full instance routing design.
 
-### Phase 2 — Instanced Content (future)
+### Instanced Content (future)
 
-When instanced zones are introduced, the flow becomes:
-
-```
-IInstanceManager.GetOrCreateInstanceAsync(character, mapId)
-  ├── Open world map → return well-known main instance
-  └── Instanced map  → check for existing group instance
-                        OR create a new instance GUID
-```
-
-`MapInfo.InstanceId` in `SCharacterSelectedPacket` reflects the assigned instance.
+When instanced zones are introduced, `IInstanceRegistry.GetOrCreateNormalInstance` handles private per-player instances with a 15-minute re-entry window.
 
 ---
 
-## Movement Validation (TODO-025)
-
-### Current Desync Detection
+## Movement Validation
 
 `CharacterMovementHandler` computes an interpolated server position and compares it to the client-reported position. A warning is logged if the distance difference exceeds `MaxDistanceDiffCheck (1.0f)`. The client position is always accepted.
 
@@ -189,8 +145,6 @@ Client sends CPlayerMovementPacket
 
 ### `SPositionCorrectionPacket`
 
-Define in `Avalon.Network.Packets`:
-
 | Field       | Type    | Description                          |
 |-------------|---------|--------------------------------------|
 | `X`         | `float` | Server-authoritative X position      |
@@ -198,18 +152,16 @@ Define in `Avalon.Network.Packets`:
 | `Z`         | `float` | Server-authoritative Z position      |
 | `Timestamp` | `long`  | Server tick time for client reconciliation |
 
-The client snaps its position to the correction on receipt.
-
 ---
 
-## Test Strategy
+## Test Coverage
 
-| Scenario                                               | TODO |
-|--------------------------------------------------------|------|
-| Character with 5 equipment items → `SInventoryPacket` with 5 items | 024 |
-| Empty inventory → packet sent with 0 items             | 024  |
-| Bank items not in login packet                         | 024  |
-| Two characters same world → same `InstanceId`          | 026  |
-| Valid navmesh movement → client position accepted      | 025  |
-| Movement through wall → correction packet sent         | 025  |
-| `N` consecutive rejections → connection flagged        | 025  |
+| Scenario                                               |
+|--------------------------------------------------------|
+| Two characters same world → same `InstanceId`         |
+| Character with 5 equipment items → `SInventoryPacket` with 5 items |
+| Empty inventory → packet sent with 0 items             |
+| Bank items not in login packet                         |
+| Valid navmesh movement → client position accepted      |
+| Movement through wall → correction packet sent         |
+| `N` consecutive rejections → connection flagged        |
