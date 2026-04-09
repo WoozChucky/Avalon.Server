@@ -79,3 +79,5 @@ tests/Avalon.Server.Auth.UnitTests/coverage.json
 tests/Avalon.Server.World.UnitTests/coverage-results/
 
 .claude/settings.local.json
+
+site/
