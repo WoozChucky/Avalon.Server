@@ -1,12 +1,10 @@
 # Architecture Decisions
 
-This document records significant architectural decisions, their rationale, and planned evolution. It covers open design questions raised by TODO comments.
-
-Related TODOs: [TODO-027](todo.md#todo-027), [TODO-028](todo.md#todo-028), [TODO-029](todo.md#todo-029), [TODO-030](todo.md#todo-030), [TODO-031](todo.md#todo-031)
+This document records significant architectural decisions, their rationale, and planned evolution.
 
 ---
 
-## ADR-001 — World Server / Auth Database Decoupling (TODO-029)
+## ADR-001 — World Server / Auth Database Decoupling
 
 **Status:** Planned
 
@@ -48,17 +46,17 @@ The Auth server remains the **sole writer** of `AuthDbContext`. It listens on Re
 
 ---
 
-## ADR-002 — Chat Command Handler Architecture (TODO-028)
+## ADR-002 — Chat Command Handler Architecture
 
-**Status:** Planned
+**Status:** Implemented
 
 ### Context
 
-`ChatMessageHandler` processes all `CChatMessagePacket` packets. Slash commands (`/invite`, `/who`, etc.) are conceptually different from free-text chat. The current approach has extensive commented-out command logic mixed into a single handler.
+`ChatMessageHandler` processes all `CChatMessagePacket` packets. Slash commands (`/invite`, `/who`, etc.) are conceptually different from free-text chat.
 
 ### Decision
 
-Introduce a **Command Dispatcher** pattern:
+A **Command Dispatcher** pattern routes slash-prefixed messages to `ICommand` implementations:
 
 ```
 CChatMessagePacket
@@ -93,18 +91,11 @@ services.AddSingleton<ICommand, WhoCommand>();
 // etc.
 ```
 
-`CommandDispatcher` resolves all `ICommand` registrations via `IEnumerable<ICommand>` injection, building a lookup by `Name` and `Aliases` (case-insensitive).
-
-### Initial Commands to Implement
-
-| Command         | Alias   | Description                         |
-|-----------------|---------|-------------------------------------|
-| `/invite`       | `/inv`  | Invite player to group (from commented-out code) |
-| `/who`          | —       | Show online players in zone (future) |
+`CommandDispatcher` resolves all `ICommand` registrations via `IEnumerable<ICommand>` injection, building a lookup by `Name` and `Aliases` (case-insensitive). Unknown commands reply with "Unknown command."
 
 ---
 
-## ADR-003 — World Timer Constants (TODO-027)
+## ADR-003 — World Timer Constants
 
 **Status:** Planned
 
@@ -116,26 +107,23 @@ services.AddSingleton<ICommand, WhoCommand>();
 
 Audit and name all timers. If fewer than 5 are used, reduce `WorldTimersCount`.
 
-### Proposed Constants
-
 ```csharp
 private const ushort WorldTimersCount  = 2; // adjust after audit
 private const ushort HotReloadTimer    = 0;
 private const ushort WorldSaveTimer    = 1; // periodic state persistence (if used)
-// Add more as needed
 ```
 
 All `_timers[N]` accesses must use the named constant. This is primarily a code clarity change with no runtime behaviour impact.
 
 ---
 
-## ADR-004 — `CharacterSpell` Specializations (TODO-030)
+## ADR-004 — `CharacterSpell` Specializations
 
 **Status:** Design decision pending
 
 ### Context
 
-`CharacterSpell` has a `// TODO: Specializations?` comment. The question is whether a spell learned by a character can be "specced" into a branch that modifies its class, damage, area, or animation.
+`CharacterSpell` has an open question about whether a spell learned by a character can be "specced" into a branch that modifies its class, damage, area, or animation.
 
 ### Options
 
@@ -177,13 +165,11 @@ Type? GetSpellScript(string scriptName, SpecializationPath? path = null)
 
 ---
 
-## ADR-005 — `FakeMetricsManager` Dispose (TODO-031)
+## ADR-005 — `FakeMetricsManager` Dispose
 
-**Status:** Trivial — implement in place
+**Status:** Planned (trivial)
 
-### Decision
-
-`FakeMetricsManager` holds no resources. Complete the `Dispose(bool disposing)` method with an explicit comment and idempotency guard:
+`FakeMetricsManager` holds no resources. The `Dispose(bool disposing)` method should be completed with an idempotency guard:
 
 ```csharp
 private bool _disposed;
@@ -235,4 +221,4 @@ public void Dispose()
                 Both databases + Redis
 ```
 
-The dashed coupling (`World → Auth DB`) highlighted by TODO-029 will be removed, replaced by Redis-only communication.
+> The World server currently has a direct coupling to `AuthDbContext` (via `AddAuthDatabase()`). ADR-001 describes the plan to replace this with Redis-only communication.
