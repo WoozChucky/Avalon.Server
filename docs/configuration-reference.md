@@ -2,7 +2,7 @@
 
 This document covers all configuration keys introduced or planned for the Avalon server, including keys tied to open TODO items.
 
-Related TODOs: [TODO-009](../TODO.md#todo-009), [TODO-010](../TODO.md#todo-010), [TODO-011](../TODO.md#todo-011), [TODO-012](../TODO.md#todo-012)
+Related TODOs: [TODO-009](todo.md#todo-009), [TODO-010](todo.md#todo-010), [TODO-011](todo.md#todo-011), [TODO-012](todo.md#todo-012)
 
 ---
 

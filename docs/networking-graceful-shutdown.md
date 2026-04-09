@@ -30,7 +30,7 @@ There are **two separate TCP server code paths** in this codebase. Understanding
 - ✅ **TODO-004**: `WorldServer.OnStoppingAsync` now sends `SDisconnectPacket` before calling `connection.Close()`.
 - ✅ **TODO-005**: `WorldServer.DelayedDisconnect` now sends `SDisconnectPacket(DuplicateLogin)` before closing. Uses `GracefulShutdownHelper.NotifyAndClose`.
 
-Related TODOs: [TODO-001](../TODO.md#todo-001), [TODO-002](../TODO.md#todo-002), [TODO-003](../TODO.md#todo-003), [TODO-004](../TODO.md#todo-004), [TODO-005](../TODO.md#todo-005)
+Related TODOs: [TODO-001](todo.md#todo-001), [TODO-002](todo.md#todo-002), [TODO-003](todo.md#todo-003), [TODO-004](todo.md#todo-004), [TODO-005](todo.md#todo-005)
 
 ---
 
