@@ -67,6 +67,6 @@ nav:
   - Systems:
     - Spell System: spell-system.md
     - Creature System: creature-system.md
-    - Instanced Maps: instanced-maps-refactor.md
+    - Instanced Maps: instanced-maps.md
   - Contributing: contributing.md
   - Roadmap & TODOs: todo.md

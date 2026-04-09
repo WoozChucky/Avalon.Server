@@ -2,8 +2,6 @@
 
 This document covers the authentication pipeline, world session security, and MFA flow for the Avalon server.
 
-Related TODOs: [TODO-006](todo.md#todo-006), [TODO-007](todo.md#todo-007), [TODO-008](todo.md#todo-008), [TODO-013](todo.md#todo-013)
-
 ---
 
 ## Authentication Flow
@@ -55,20 +53,11 @@ Game Client          Auth Server                Redis               World Server
 
 ---
 
-## World Key Security (TODO-006)
+## World Key Security
 
-### Problem
-
-`CWorldSelectHandler` previously used `new Random().NextBytes(worldKey)`. `System.Random` is seeded from the system clock and its output is predictable. Two connections that hit the handler within the same tick could receive correlated keys.
-
-### Fix
+World keys are generated using `RandomNumberGenerator.GetBytes(32)` (OS CSPRNG). The previous `System.Random` implementation has been replaced.
 
 ```csharp
-// BEFORE (insecure):
-var worldKey = new byte[32];
-new Random().NextBytes(worldKey);
-
-// AFTER (secure):
 byte[] worldKey = RandomNumberGenerator.GetBytes(32); // System.Security.Cryptography
 ```
 
@@ -85,33 +74,21 @@ byte[] worldKey = RandomNumberGenerator.GetBytes(32); // System.Security.Cryptog
 
 ---
 
-## Duplicate World Session Guard (TODO-008)
+## Duplicate World Session Guard
 
-### Problem
-
-Nothing prevents an account from calling `CWorldSelectHandler` twice before the first key is consumed by the World server. This could create two in-flight world keys for the same account.
-
-### Proposed Guards
-
-**Option A — Redis atomic check:**
+`CWorldSelectHandler` uses a Redis `SETNX` mutex to prevent an account from obtaining two in-flight world keys simultaneously:
 
 ```
 SETNX account:{id}:inWorld 1 EX 300
 ```
 
-If `SETNX` returns `0` (key exists), reject the request. When the World server accepts the connection (key consumed), either clear the flag or let it expire. On character logout, World server deletes the key.
+If `SETNX` returns `0` (key exists), the request is rejected. The flag is cleared when the World server accepts the connection or expires after 5 minutes.
 
-**Option B — Check existing keys:**
-
-Before issuing, scan `world:{worldId}:keys:*` for any key whose value matches the account ID. Reject if found.
-
-Option A is preferred (atomic, O(1)).
-
-### Flow with Guard
+### Flow
 
 ```
 CWorldSelectHandler.ExecuteAsync
-  1. Check SETNX account:{id}:inWorld 1 EX 300
+  1. SETNX account:{id}:inWorld 1 EX 300
      └─ Returns 0 → send error and return
   2. Generate world key (CSPRNG)
   3. SET world:{worldId}:keys:{key} {accountId} EX 300
@@ -121,68 +98,11 @@ CWorldSelectHandler.ExecuteAsync
 
 ---
 
-## `Avalon` Bearer Token Validation (TODO-007)
+## MFA Flow
 
-### Current State
+MFA is implemented using TOTP (Time-based One-Time Passwords) via `Otp.NET`. When an account has confirmed MFA set up, `CAuthHandler` issues an ephemeral hash instead of completing authentication directly.
 
-`AvalonAuthenticationHandler.HandleAuthenticateAsync` extracts the token but does not validate it, returning success with a hardcoded `("test", "value")` claim.
-
-### Intended Purpose
-
-This handler is for server-internal management operations carried under the `Authorization: Avalon <token>` scheme — separate from the standard `Bearer` JWT scheme used by regular API consumers.
-
-### Implementation
-
-1. Add `SharedSecret` (string) to `AvalonAuthenticationSchemeOptions`.
-2. Populate from `IConfiguration["Avalon:SharedSecret"]` at registration. The secret must come from environment variables or a secrets manager — never from source-controlled `appsettings.json`.
-3. Use constant-time comparison:
-
-```csharp
-bool valid = CryptographicOperations.FixedTimeEquals(
-    Encoding.UTF8.GetBytes(token),
-    Encoding.UTF8.GetBytes(Options.SharedSecret));
-
-if (!valid)
-    return AuthenticateResult.Fail("Invalid Avalon token");
-```
-
-4. Replace the `("test", "value")` claim with a meaningful role claim, e.g. `("role", "InternalAdmin")`.
-
-### Security Requirements
-
-- `SharedSecret` is at least 32 characters (entropy ≥ 192 bits).
-- Timing-safe comparison prevents oracle attacks.
-- Secret must **not** appear in application logs.
-
----
-
-## MFA Flow Re-enablement (TODO-013)
-
-### Dependencies Already Wired
-
-- `IMFAHashService` — injected into `CAuthHandler`, generates an ephemeral TOTP challenge hash.
-- `Otp.NET` — TOTP library present in dependencies.
-- Redis — used to store the ephemeral hash with a short TTL.
-
-### Re-enable Steps
-
-1. Uncomment the MFA block in `CAuthHandler`:
-
-```csharp
-var mfa = await _mfaSetupRepository.FindByAccountIdAsync(account.Id!.Value);
-if (mfa is { Status: Status.Confirmed })
-{
-    var mfaHash = await _mfaHashService.GenerateHashAsync(account);
-    ctx.Connection.Send(SAuthResultPacket.Create(null, mfaHash, AuthResult.MFA_REQUIRED,
-        ctx.Connection.CryptoSession.Encrypt));
-    return;
-}
-```
-
-2. Ensure `IMFASetupRepository` is injected (was `_databaseManager.Auth.MFASetup` in the old code).
-3. Implement or verify `CMFAVerifyHandler` exists to handle the second factor.
-
-### MFA Packet Flow
+### Packet Flow
 
 ```
 Client               Auth Server           Redis
@@ -200,24 +120,60 @@ Client               Auth Server           Redis
   |<-------------------------|                |
 ```
 
+### MFA Lifecycle Handlers
+
+| Packet            | Handler               | Purpose                                      |
+|-------------------|-----------------------|----------------------------------------------|
+| `CMFAVerifyPacket`| `CMFAVerifyHandler`   | Submit TOTP code to complete login           |
+| `CMFASetupPacket` | `CMFASetupHandler`    | Initiate MFA setup — returns OTP URI         |
+| `CMFAConfirmPacket`| `CMFAConfirmHandler` | Confirm setup with first TOTP code           |
+| `CMFAResetPacket` | `CMFAResetHandler`    | Reset MFA using recovery codes               |
+
 ### Security Notes
 
 - Ephemeral hash TTL: 5 minutes.
-- MFA hash must not be reused (delete from Redis after first verify attempt).
-- Failed MFA attempts should increment a counter and lock after N failures.
+- MFA hash is deleted from Redis after a successful verify (single-use).
+- Failed logins increment `account.FailedLogins` and lock the account at the configured threshold.
 
 ---
 
-## Test Coverage Matrix
+## `Avalon` Bearer Token Validation
 
-| Scenario                                             | TODO  | Expected Result              |
-|------------------------------------------------------|-------|------------------------------|
-| World key from `RandomNumberGenerator`               | 006   | Unpredictable 32-byte key    |
-| Two rapid world-selects for the same account         | 008   | Second request rejected      |
-| Valid `Avalon` token                                 | 007   | `AuthenticateResult.Success` |
-| Invalid `Avalon` token                               | 007   | `AuthenticateResult.Fail`    |
-| Account with confirmed MFA                           | 013   | `MFA_REQUIRED` response      |
-| Account without MFA                                  | 013   | `OK` + world list            |
-| Correct TOTP submitted                               | 013   | Auth success                 |
-| Incorrect TOTP submitted                             | 013   | Auth fail                    |
-| Expired MFA hash                                     | 013   | Auth fail                    |
+`AvalonAuthenticationHandler` (`src/Server/Avalon.Api/Authentication/AV/`) handles the `Authorization: Avalon <token>` scheme used for internal management operations. Token validation is not yet implemented — the handler currently returns success with a placeholder claim.
+
+### Intended Implementation
+
+1. Add `SharedSecret` (string) to `AvalonAuthenticationSchemeOptions`.
+2. Populate from environment variable or secrets manager (never from committed config).
+3. Use constant-time comparison:
+
+```csharp
+bool valid = CryptographicOperations.FixedTimeEquals(
+    Encoding.UTF8.GetBytes(token),
+    Encoding.UTF8.GetBytes(Options.SharedSecret));
+
+if (!valid)
+    return AuthenticateResult.Fail("Invalid Avalon token");
+```
+
+4. Replace the placeholder claim with a meaningful role claim, e.g. `("role", "InternalAdmin")`.
+
+### Security Requirements
+
+- `SharedSecret` must be at least 32 characters (entropy ≥ 192 bits).
+- Timing-safe comparison prevents oracle attacks.
+- Secret must **not** appear in application logs.
+
+---
+
+## Test Coverage
+
+| Scenario                                             | Expected Result              |
+|------------------------------------------------------|------------------------------|
+| World key from `RandomNumberGenerator`               | Unpredictable 32-byte key    |
+| Two rapid world-selects for the same account         | Second request rejected      |
+| Account with confirmed MFA                           | `MFA_REQUIRED` response      |
+| Account without MFA                                  | `OK` + world list            |
+| Correct TOTP submitted                               | Auth success                 |
+| Incorrect TOTP submitted                             | Auth fail                    |
+| Expired MFA hash                                     | Auth fail                    |

@@ -1,8 +1,6 @@
 # Configuration Reference
 
-This document covers all configuration keys introduced or planned for the Avalon server, including keys tied to open TODO items.
-
-Related TODOs: [TODO-009](todo.md#todo-009), [TODO-010](todo.md#todo-010), [TODO-011](todo.md#todo-011), [TODO-012](todo.md#todo-012)
+This document covers all configuration keys for the Avalon server.
 
 ---
 
@@ -12,141 +10,122 @@ Avalon uses strongly-typed configuration classes bound from `appsettings.json` (
 
 ---
 
-## Existing Configuration Classes
+## Configuration Classes
 
 | Class                     | Namespace                    | Bound from                   |
 |---------------------------|------------------------------|------------------------------|
 | `DatabaseConfiguration`   | `Avalon.Configuration`       | `ConnectionStrings:*`        |
 | `CacheConfiguration`      | `Avalon.Configuration`       | `Cache:*`                    |
 | `AuthenticationConfig`    | `Avalon.Configuration`       | `Authentication:*`           |
-| `ApplicationConfiguration`| `Avalon.Configuration`       | `Application:*`              |
-| `AvalonTcpServerConfiguration` | `Avalon.Network.Tcp.Configuration` | `Server:Tcp:*`     |
+| `HostingConfiguration`    | `Avalon.Configuration`       | `Hosting:*`                  |
+| `AuthConfiguration`       | `Avalon.Server.Auth.Configuration` | `Application:*`        |
 | `GameConfiguration`       | `Avalon.World.Configuration` | `Game:*`                     |
 
 ---
 
-## Planned Keys (from TODOs)
-
-### Auth Configuration (`AuthConfiguration`)
-
-Section in `appsettings.json`: `"Auth"`
-
-| Key                         | Type   | Default | Added by  | Description                                    |
-|-----------------------------|--------|---------|-----------|------------------------------------------------|
-| `MinClientVersion`          | string | `"0.0.1"` | TODO-010 | Minimum client version accepted during handshake |
-| `MaxFailedLoginAttempts`    | int    | `5`     | TODO-012  | Number of consecutive failed logins before account lock |
-
-```json
-"Auth": {
-  "MinClientVersion": "0.0.1",
-  "MaxFailedLoginAttempts": 5
-}
-```
-
-**Validation rules:**
-- `MinClientVersion`: required, non-empty string.
-- `MaxFailedLoginAttempts`: minimum `1`, maximum `100`. Use `[Range(1, 100)]` data annotation.
-
----
-
-### Application Configuration (`ApplicationConfiguration`)
+## Auth Server Configuration (`AuthConfiguration`)
 
 Section in `appsettings.json`: `"Application"`
 
-| Key               | Type   | Default     | Added by  | Description                         |
-|-------------------|--------|-------------|-----------|-------------------------------------|
-| `ServerVersion`   | uint   | `1000000`   | TODO-011  | Server version sent in `SServerInfoPacket` to clients |
+| Key                         | Type   | Default   | Description                                    |
+|-----------------------------|--------|-----------|------------------------------------------------|
+| `MinClientVersion`          | string | `"0.0.1"` | Minimum client version accepted during handshake |
+| `ServerVersion`             | string | `"1.0.0"` | Server version sent in `SServerInfoPacket` to clients |
+| `MaxFailedLoginAttempts`    | int    | `5`       | Consecutive failed logins before account lock  |
+| `Issuer`                    | string | `"Avalon"` | Issuer name embedded in MFA OTP URIs           |
 
 ```json
 "Application": {
-  "ServerVersion": 1000000
+  "MinClientVersion": "0.0.1",
+  "ServerVersion": "1.0.0",
+  "MaxFailedLoginAttempts": 5,
+  "Issuer": "Avalon"
 }
 ```
 
-**Alternative approach** — derive `ServerVersion` from `AssemblyInformationalVersionAttribute` at startup:
-
-```csharp
-var version = Assembly.GetExecutingAssembly()
-    .GetCustomAttribute<AssemblyInformationalVersionAttribute>()
-    ?.InformationalVersion ?? "0.0.0";
-```
-
-Use whichever approach is more consistent with the release pipeline.
+**Validation rules:**
+- `MinClientVersion`, `ServerVersion`: required, must match `^\d+\.\d+\.\d+$` (SemVer).
+- `MaxFailedLoginAttempts`: minimum `1`.
+- `Issuer`: required, non-empty.
 
 ---
 
-### Network Configuration (`AvalonTcpServerConfiguration` extension)
+## Hosting Configuration (`HostingConfiguration`)
 
-Section in `appsettings.json`: `"Server:Tcp"`
+Section in `appsettings.json`: `"Hosting"`
 
-| Key                     | Type | Default | Added by | Description                                             |
-|-------------------------|------|---------|----------|---------------------------------------------------------|
-| `PacketReaderBufferSize`| int  | `4096`  | TODO-009 | Internal read-buffer size in bytes for `PacketReader`   |
+| Key                     | Type   | Default  | Description                                             |
+|-------------------------|--------|----------|---------------------------------------------------------|
+| `Host`                  | string | `"0.0.0.0"` | Bind address                                         |
+| `Port`                  | int    | `21000`  | TCP listen port                                         |
+| `PacketReaderBufferSize`| int    | `4096`   | Internal read-buffer size in bytes for `PacketReader`   |
 
 ```json
-"Server": {
-  "Tcp": {
-    "ListenPort": 7777,
-    "Backlog": 100,
-    "Enabled": true,
-    "PacketReaderBufferSize": 4096
+"Hosting": {
+  "Host": "0.0.0.0",
+  "Port": 21000,
+  "PacketReaderBufferSize": 4096,
+  "Security": {
+    "CertificatePath": "cert-tcp.pfx",
+    "CertificatePassword": "avalon"
   }
 }
 ```
 
 **Validation rules:**
-- `PacketReaderBufferSize`: minimum `512`, maximum `65535`. Use `[Range(512, 65535)]`.
+- `PacketReaderBufferSize`: minimum `512`, maximum `65535`.
 
 ---
 
-### Avalon Internal Authentication
+## Cache Configuration (`CacheConfiguration`)
 
-Section in `appsettings.json` / environment variable (secrets manager recommended):
+Section in `appsettings.json`: `"Cache"`
 
-| Key              | Type   | Default  | Added by | Description                                               |
-|------------------|--------|----------|----------|-----------------------------------------------------------|
-| `Avalon:SharedSecret` | string | _(required)_ | TODO-007 | Shared secret for `Authorization: Avalon <token>` scheme |
+| Key        | Type   | Description                           |
+|------------|--------|---------------------------------------|
+| `Host`     | string | Redis endpoint, e.g. `"localhost:6379"` |
+| `Password` | string | Redis AUTH password                   |
 
 ```json
-"Avalon": {
-  "SharedSecret": "REPLACE_WITH_SECURE_RANDOM_VALUE_MINIMUM_32_CHARS"
+"Cache": {
+  "Host": "localhost:6379",
+  "Password": "your-redis-password"
 }
 ```
 
-> **Warning:** This key must **never** be committed to source control. Use environment variables or a secrets manager (Azure Key Vault, AWS Secrets Manager, dotnet user-secrets) in all environments.
-
 ---
 
-### TCP Client Configuration (`AvalonTcpClientConfiguration` extension)
+## Avalon Internal Authentication
 
-| Key             | Type   | Default   | Added by | Description                            |
-|-----------------|--------|-----------|----------|----------------------------------------|
-| `ClientVersion` | string | `"0.0.1"` | TODO-014 | Version string sent to the Auth server |
+Section: environment variable or secrets manager (**never committed to source control**)
 
-```json
-"Client": {
-  "Tcp": {
-    "ClientVersion": "0.0.1"
-  }
-}
+| Key                   | Type   | Default       | Description                                               |
+|-----------------------|--------|---------------|-----------------------------------------------------------|
+| `Avalon:SharedSecret` | string | _(required)_  | Shared secret for `Authorization: Avalon <token>` scheme  |
+
+> **Warning:** This key must **never** appear in `appsettings.json`. Use environment variables or a secrets manager (Azure Key Vault, AWS Secrets Manager, dotnet user-secrets) in all environments.
+
+```bash
+# Environment variable:
+Avalon__SharedSecret=<minimum-32-char-random-value>
 ```
 
 ---
 
 ## Applying Configuration at Startup
 
-All changes to configuration classes require:
+All configuration classes use:
 
-1. Adding the new property with its data annotation.
-2. Calling `services.AddOptions<TConfig>().BindConfiguration(section).ValidateDataAnnotations().ValidateOnStart()` in the appropriate DI extension method.
-3. Injecting `IOptions<TConfig>` (or `IOptionsSnapshot<TConfig>` for reloadable config) in the consuming class.
+1. A property with a data annotation (`[Required]`, `[Range(...)]`, `[RegularExpression(...)]`).
+2. `services.AddOptions<TConfig>().BindConfiguration(section).ValidateDataAnnotations().ValidateOnStart()` in the appropriate DI extension method.
+3. `IOptions<TConfig>` injection in the consuming class.
 
 Example for `AuthConfiguration`:
 
 ```csharp
 // In IServiceCollection extension:
 services.AddOptions<AuthConfiguration>()
-    .BindConfiguration("Auth")
+    .BindConfiguration("Application")
     .ValidateDataAnnotations()
     .ValidateOnStart();
 
@@ -165,20 +144,20 @@ public class CAuthHandler(IOptions<AuthConfiguration> authConfig, ...)
 
 ## Environment-Specific Overrides
 
-Use `appsettings.{Environment}.json` (e.g. `appsettings.Production.json`) to override defaults per environment without changing the base file. Sensitive values (`SharedSecret`, database passwords) must come from environment variables or a secrets manager, not files.
+Use `appsettings.{Environment}.json` (e.g. `appsettings.Production.json`) to override defaults per environment without changing the base file. Sensitive values (database passwords, `SharedSecret`) must come from environment variables or a secrets manager, not files.
 
 ```bash
 # Environment variable override syntax (.NET):
-Auth__MinClientVersion=1.5.0
-Auth__MaxFailedLoginAttempts=10
+Application__MinClientVersion=1.5.0
+Application__MaxFailedLoginAttempts=10
 Avalon__SharedSecret=<from-vault>
 ```
 
 ---
 
-## Validating Configuration at Startup
+## Startup Validation
 
-All config classes should opt into startup validation to fail fast on misconfiguration:
+All config classes opt into startup validation to fail fast on misconfiguration:
 
 ```csharp
 .ValidateDataAnnotations()
