@@ -54,7 +54,7 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
             type=raw,value=latest
       - name: Build and push World Server image
-        uses: docker/build-push-action@v7.0.0
+        uses: docker/build-push-action@v7.1.0
         with:
           context: src/Server/Avalon.Server.World/
           file: src/Server/Avalon.Server.World/Dockerfile
@@ -72,7 +72,7 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
             type=raw,value=latest
       - name: Build and push Auth Server image
-        uses: docker/build-push-action@v7.0.0
+        uses: docker/build-push-action@v7.1.0
         with:
           context: src/Server/Avalon.Server.Auth/
           file: src/Server/Avalon.Server.Auth/Dockerfile
@@ -90,7 +90,7 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
             type=raw,value=latest
       - name: Build and push API image
-        uses: docker/build-push-action@v7.0.0
+        uses: docker/build-push-action@v7.1.0
         with:
           context: src/Server/Avalon.Api/
           file: src/Server/Avalon.Api/Dockerfile
