@@ -1,3 +1,6 @@
+// LEGACY — This client implementation is retired and not wired into any production code.
+// It may be outdated and should not be used as a reference for the current protocol.
+
 using System.Drawing;
 using System.Net;
 using System.Net.Security;
@@ -29,6 +32,7 @@ public class AvalonTcpClientSettings
     public int Port { get; set; }
 }
 
+[Obsolete("Retired legacy client. Not wired into production code and may not reflect the current protocol.")]
 public class AvalonTcpClient : IDisposable
 {
     private readonly AvalonTcpClientSettings _settings;
