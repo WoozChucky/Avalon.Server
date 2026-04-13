@@ -1,5 +1,5 @@
-// Licensed to the Avalon MMORPG Game under one or more agreements.
-// Avalon MMORPG Game licenses this file to you under the MIT license.
+// Licensed to the Avalon ARPG Game under one or more agreements.
+// Avalon ARPG Game licenses this file to you under the MIT license.
 
 using Avalon.Common.Mathematics;
 using Avalon.World.Public.Spells;
