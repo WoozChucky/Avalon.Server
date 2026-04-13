@@ -141,7 +141,7 @@ public class CharacterEntity : ICharacter
 
         // Send to self (routed via MapInstance which holds the connection)
         OnSelfDamaged?.Invoke(this, attacker, damage);
-        // Send to chunk
+        // Broadcast to instance
         OnUnitDamaged?.Invoke(this, attacker, damage);
     }
 

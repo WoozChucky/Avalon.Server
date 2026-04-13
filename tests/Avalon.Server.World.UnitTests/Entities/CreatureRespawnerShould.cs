@@ -12,7 +12,7 @@ public class CreatureRespawnerShould
     private static readonly TimeSpan DefaultRespawn = TimeSpan.FromMinutes(3);
     private static readonly TimeSpan Tick           = TimeSpan.FromMilliseconds(1);
 
-    private readonly ISimulationContext _chunk = Substitute.For<ISimulationContext>();
+    private readonly ISimulationContext _simulationContext = Substitute.For<ISimulationContext>();
 
     /// <summary>Creates a mock creature whose metadata returns the given timer values.</summary>
     private static ICreature MakeCreature(
@@ -32,27 +32,27 @@ public class CreatureRespawnerShould
     // ──────────────────────────────────────────────
 
     [Fact]
-    public void NotCallChunk_WhenJustScheduled()
+    public void NotCallSimulationContext_WhenJustScheduled()
     {
         var creature  = MakeCreature();
-        var respawner = new CreatureRespawner(_chunk);
+        var respawner = new CreatureRespawner(_simulationContext);
         respawner.ScheduleRespawn(creature);
 
-        _chunk.DidNotReceive().RemoveCreature(Arg.Any<ICreature>());
-        _chunk.DidNotReceive().RespawnCreature(Arg.Any<ICreature>());
+        _simulationContext.DidNotReceive().RemoveCreature(Arg.Any<ICreature>());
+        _simulationContext.DidNotReceive().RespawnCreature(Arg.Any<ICreature>());
     }
 
     [Fact]
-    public void NotCallChunk_WhenDeltaIsBelowBothThresholds()
+    public void NotCallSimulationContext_WhenDeltaIsBelowBothThresholds()
     {
         var creature  = MakeCreature();
-        var respawner = new CreatureRespawner(_chunk);
+        var respawner = new CreatureRespawner(_simulationContext);
         respawner.ScheduleRespawn(creature);
 
         respawner.Update(TimeSpan.FromSeconds(30));
 
-        _chunk.DidNotReceive().RemoveCreature(Arg.Any<ICreature>());
-        _chunk.DidNotReceive().RespawnCreature(Arg.Any<ICreature>());
+        _simulationContext.DidNotReceive().RemoveCreature(Arg.Any<ICreature>());
+        _simulationContext.DidNotReceive().RespawnCreature(Arg.Any<ICreature>());
     }
 
     // ──────────────────────────────────────────────
@@ -63,37 +63,37 @@ public class CreatureRespawnerShould
     public void RemoveCreature_WhenRemoveTimerExpires()
     {
         var creature  = MakeCreature();
-        var respawner = new CreatureRespawner(_chunk);
+        var respawner = new CreatureRespawner(_simulationContext);
         respawner.ScheduleRespawn(creature);
 
         respawner.Update(DefaultRemove + Tick);
 
-        _chunk.Received(1).RemoveCreature(creature);
+        _simulationContext.Received(1).RemoveCreature(creature);
     }
 
     [Fact]
     public void NotRespawn_WhenOnlyRemoveTimerExpires()
     {
         var creature  = MakeCreature();
-        var respawner = new CreatureRespawner(_chunk);
+        var respawner = new CreatureRespawner(_simulationContext);
         respawner.ScheduleRespawn(creature);
 
         respawner.Update(DefaultRemove + Tick);
 
-        _chunk.DidNotReceive().RespawnCreature(Arg.Any<ICreature>());
+        _simulationContext.DidNotReceive().RespawnCreature(Arg.Any<ICreature>());
     }
 
     [Fact]
     public void NotRemoveTwice_AfterTimerAlreadyFired()
     {
         var creature  = MakeCreature();
-        var respawner = new CreatureRespawner(_chunk);
+        var respawner = new CreatureRespawner(_simulationContext);
         respawner.ScheduleRespawn(creature);
 
         respawner.Update(DefaultRemove + Tick);
         respawner.Update(DefaultRemove + Tick);
 
-        _chunk.Received(1).RemoveCreature(creature);
+        _simulationContext.Received(1).RemoveCreature(creature);
     }
 
     // ──────────────────────────────────────────────
@@ -104,25 +104,25 @@ public class CreatureRespawnerShould
     public void RespawnCreature_WhenRespawnTimerExpires()
     {
         var creature  = MakeCreature();
-        var respawner = new CreatureRespawner(_chunk);
+        var respawner = new CreatureRespawner(_simulationContext);
         respawner.ScheduleRespawn(creature);
 
         respawner.Update(DefaultRespawn + Tick);
 
-        _chunk.Received(1).RespawnCreature(creature);
+        _simulationContext.Received(1).RespawnCreature(creature);
     }
 
     [Fact]
     public void NotRespawnTwice_AfterTimerAlreadyFired()
     {
         var creature  = MakeCreature();
-        var respawner = new CreatureRespawner(_chunk);
+        var respawner = new CreatureRespawner(_simulationContext);
         respawner.ScheduleRespawn(creature);
 
         respawner.Update(DefaultRespawn + Tick);
         respawner.Update(DefaultRespawn + Tick);
 
-        _chunk.Received(1).RespawnCreature(creature);
+        _simulationContext.Received(1).RespawnCreature(creature);
     }
 
     // ──────────────────────────────────────────────
@@ -135,16 +135,16 @@ public class CreatureRespawnerShould
         var creature1 = MakeCreature();
         var creature2 = MakeCreature();
         var creature3 = MakeCreature();
-        var respawner = new CreatureRespawner(_chunk);
+        var respawner = new CreatureRespawner(_simulationContext);
         respawner.ScheduleRespawn(creature1);
         respawner.ScheduleRespawn(creature2);
         respawner.ScheduleRespawn(creature3);
 
         respawner.Update(DefaultRemove + Tick);
 
-        _chunk.Received(1).RemoveCreature(creature1);
-        _chunk.Received(1).RemoveCreature(creature2);
-        _chunk.Received(1).RemoveCreature(creature3);
+        _simulationContext.Received(1).RemoveCreature(creature1);
+        _simulationContext.Received(1).RemoveCreature(creature2);
+        _simulationContext.Received(1).RemoveCreature(creature3);
     }
 
     [Fact]
@@ -152,14 +152,14 @@ public class CreatureRespawnerShould
     {
         var creature1 = MakeCreature();
         var creature2 = MakeCreature();
-        var respawner = new CreatureRespawner(_chunk);
+        var respawner = new CreatureRespawner(_simulationContext);
         respawner.ScheduleRespawn(creature1);
         respawner.ScheduleRespawn(creature2);
 
         respawner.Update(DefaultRespawn + Tick);
 
-        _chunk.Received(1).RespawnCreature(creature1);
-        _chunk.Received(1).RespawnCreature(creature2);
+        _simulationContext.Received(1).RespawnCreature(creature1);
+        _simulationContext.Received(1).RespawnCreature(creature2);
     }
 
     // ──────────────────────────────────────────────
@@ -171,12 +171,12 @@ public class CreatureRespawnerShould
     {
         // 30 s template timer fires well before the hardcoded default of 120 s
         var creature  = MakeCreature(remove: TimeSpan.FromSeconds(30));
-        var respawner = new CreatureRespawner(_chunk);
+        var respawner = new CreatureRespawner(_simulationContext);
         respawner.ScheduleRespawn(creature);
 
         respawner.Update(TimeSpan.FromSeconds(31));
 
-        _chunk.Received(1).RemoveCreature(creature);
+        _simulationContext.Received(1).RemoveCreature(creature);
     }
 
     [Fact]
@@ -184,11 +184,11 @@ public class CreatureRespawnerShould
     {
         // 60 s template timer fires well before the hardcoded default of 180 s
         var creature  = MakeCreature(respawn: TimeSpan.FromSeconds(60), remove: TimeSpan.FromSeconds(10));
-        var respawner = new CreatureRespawner(_chunk);
+        var respawner = new CreatureRespawner(_simulationContext);
         respawner.ScheduleRespawn(creature);
 
         respawner.Update(TimeSpan.FromSeconds(61));
 
-        _chunk.Received(1).RespawnCreature(creature);
+        _simulationContext.Received(1).RespawnCreature(creature);
     }
 }

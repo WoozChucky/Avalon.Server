@@ -18,11 +18,11 @@ public interface ISpellQueueSystem
     IWorldObject? GetSpell(ObjectGuid guid);
 }
 
-public class ChunkSpellSystem(ILoggerFactory factory, IServiceProvider serviceProvider, IScriptManager scriptManager)
+public class InstanceSpellSystem(ILoggerFactory factory, IServiceProvider serviceProvider, IScriptManager scriptManager)
     : ISpellQueueSystem
 {
     private readonly List<SpellScript> _activeSpells = [];
-    private readonly ILogger<ChunkSpellSystem> _logger = factory.CreateLogger<ChunkSpellSystem>();
+    private readonly ILogger<InstanceSpellSystem> _logger = factory.CreateLogger<InstanceSpellSystem>();
     private readonly HashSet<ObjectGuid> _removeScheduled = [];
 
     private readonly HashSet<SpellInstance> _spellQueue = [];

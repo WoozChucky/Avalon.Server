@@ -16,5 +16,5 @@ public interface ICharacterGameState
     void Update(
         Dictionary<ObjectGuid, ICreature> creatures,
         Dictionary<ObjectGuid, ICharacter> characters,
-        List<IWorldObject> chunkObjects);
+        List<IWorldObject> worldObjects);
 }
