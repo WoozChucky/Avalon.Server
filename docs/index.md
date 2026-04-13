@@ -5,7 +5,7 @@ hide:
 
 # Avalon Server
 
-Official server-side solution for the Avalon MMORPG: API, authentication, world simulation, networking, persistence,
+Official server-side solution for the Avalon ARPG: API, authentication, world simulation, networking, persistence,
 telemetry, and extensibility frameworks.
 
 For a full project overview, see the [README](https://github.com/WoozChucky/Avalon.Server#readme) on GitHub.
