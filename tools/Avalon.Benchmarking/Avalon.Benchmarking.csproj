@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net9.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
   </PropertyGroup>
@@ -15,6 +15,7 @@
     <ProjectReference Include="..\..\src\Shared\Avalon.Common\Avalon.Common.csproj"/>
     <ProjectReference Include="..\..\src\Shared\Avalon.Network.Packets.Abstractions\Avalon.Network.Packets.Abstractions.csproj"/>
     <ProjectReference Include="..\..\src\Shared\Avalon.Network.Packets\Avalon.Network.Packets.csproj"/>
+    <ProjectReference Include="..\..\src\Server\Avalon.World\Avalon.World.csproj"/>
   </ItemGroup>
 
 </Project>
