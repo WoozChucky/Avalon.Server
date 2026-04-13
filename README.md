@@ -1,7 +1,7 @@
 # Avalon.Server
 [![.NET CI Pipeline](https://github.com/WoozChucky/Avalon.Server/actions/workflows/dotnet-ci.yml/badge.svg)](https://github.com/WoozChucky/Avalon.Server/actions/workflows/dotnet-ci.yml)
 
-Official server-side solution for the Avalon MMORPG: API, authentication, world simulation, networking, persistence,
+Official server-side solution for the Avalon ARPG: API, authentication, world simulation, networking, persistence,
 telemetry, and extensibility frameworks.
 
 ## High-Level Overview
