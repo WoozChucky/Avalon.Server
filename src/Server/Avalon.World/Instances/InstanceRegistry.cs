@@ -178,7 +178,7 @@ public class InstanceRegistry : IInstanceRegistry
 
         foreach (MapRegion region in virtualMap.Regions)
         {
-            ChunkNavigator navigator = new(loggerFactory);
+            MapNavigator navigator = new(loggerFactory);
             await navigator.LoadAsync(region.MeshFile);
             instance.AddNavigator(region, navigator);
         }

@@ -21,7 +21,7 @@ public class ObjectUpdate
 }
 
 [ProtoContract]
-public class SChunkStateAddPacket : Packet
+public class SInstanceStateAddPacket : Packet
 {
     public static NetworkPacketType PacketType = NetworkPacketType.SMSG_WORLD_STATE_ADD;
     public static NetworkProtocol Protocol = NetworkProtocol.Tcp;
@@ -33,7 +33,7 @@ public class SChunkStateAddPacket : Packet
     {
         using var memoryStream = new MemoryStream();
 
-        var p = new SChunkStateAddPacket()
+        var p = new SInstanceStateAddPacket()
         {
             Adds = adds
         };
@@ -57,7 +57,7 @@ public class SChunkStateAddPacket : Packet
 }
 
 [ProtoContract]
-public class SChunkStateUpdatePacket : Packet
+public class SInstanceStateUpdatePacket : Packet
 {
     public static NetworkPacketType PacketType = NetworkPacketType.SMSG_WORLD_STATE_UPDATE;
     public static NetworkProtocol Protocol = NetworkProtocol.Tcp;
@@ -69,7 +69,7 @@ public class SChunkStateUpdatePacket : Packet
     {
         using var memoryStream = new MemoryStream();
 
-        var p = new SChunkStateUpdatePacket()
+        var p = new SInstanceStateUpdatePacket()
         {
             Updates = updates
         };
@@ -93,7 +93,7 @@ public class SChunkStateUpdatePacket : Packet
 }
 
 [ProtoContract]
-public class SChunkStateRemovePacket : Packet
+public class SInstanceStateRemovePacket : Packet
 {
     public static NetworkPacketType PacketType = NetworkPacketType.SMSG_WORLD_STATE_REMOVE;
     public static NetworkProtocol Protocol = NetworkProtocol.Tcp;
@@ -105,7 +105,7 @@ public class SChunkStateRemovePacket : Packet
     {
         using var memoryStream = new MemoryStream();
 
-        var p = new SChunkStateRemovePacket()
+        var p = new SInstanceStateRemovePacket()
         {
             Removes = removes.Select(r => r.RawValue).ToList()
         };

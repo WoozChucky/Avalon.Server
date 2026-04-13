@@ -7,9 +7,9 @@ using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Maps.Navigation;
 
-public class ChunkNavigator : IChunkNavigator
+public class MapNavigator : IMapNavigator
 {
-    private readonly ILogger<ChunkNavigator> _logger;
+    private readonly ILogger<MapNavigator> _logger;
     private DtNavMesh? _navMesh;
     private DtFindPathOption _findPathOption;
     private IDtQueryFilter _queryFilter;
@@ -24,9 +24,9 @@ public class ChunkNavigator : IChunkNavigator
 
     public object? Mesh => _navMesh;
 
-    public ChunkNavigator(ILoggerFactory loggerFactory)
+    public MapNavigator(ILoggerFactory loggerFactory)
     {
-        _logger = loggerFactory.CreateLogger<ChunkNavigator>();
+        _logger = loggerFactory.CreateLogger<MapNavigator>();
     }
 
     public async Task LoadAsync(string meshFilename)

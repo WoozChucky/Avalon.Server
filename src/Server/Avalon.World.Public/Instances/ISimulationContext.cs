@@ -10,7 +10,7 @@ namespace Avalon.World.Public.Instances;
 
 /// <summary>
 /// The simulation context that AI scripts and the spell system interact with at runtime.
-/// Implemented by <c>MapInstance</c>; replaces <c>IChunk</c> as the script-facing contract.
+/// Implemented by <c>MapInstance</c>, which is the sole simulation unit for a running map.
 /// </summary>
 public interface ISimulationContext
 {
@@ -18,7 +18,7 @@ public interface ISimulationContext
     IReadOnlyDictionary<ObjectGuid, ICreature> Creatures { get; }
 
     /// <summary>Returns the navigator whose bounds contain <paramref name="position"/>.</summary>
-    IChunkNavigator GetNavigatorForPosition(Vector3 position);
+    IMapNavigator GetNavigatorForPosition(Vector3 position);
 
     bool QueueSpell(ICharacter caster, IUnit? target, ISpell spell);
     void AddCreature(ICreature creature);
