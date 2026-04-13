@@ -11,16 +11,16 @@ using Xunit;
 
 namespace Avalon.Server.World.UnitTests.World;
 
-public class ChunkSpellSystemShould
+public class InstanceSpellSystemShould
 {
     private readonly IScriptManager _scriptManager = Substitute.For<IScriptManager>();
     private readonly IServiceProvider _serviceProvider = Substitute.For<IServiceProvider>();
-    private readonly ChunkSpellSystem _sut;
+    private readonly InstanceSpellSystem _sut;
 
-    public ChunkSpellSystemShould()
+    public InstanceSpellSystemShould()
     {
         _serviceProvider.GetService(typeof(IScriptManager)).Returns(_scriptManager);
-        _sut = new ChunkSpellSystem(NullLoggerFactory.Instance, _serviceProvider, _scriptManager);
+        _sut = new InstanceSpellSystem(NullLoggerFactory.Instance, _serviceProvider, _scriptManager);
     }
 
     private static ISpell MakeSpell(uint cost) =>

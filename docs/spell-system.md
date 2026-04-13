@@ -57,17 +57,17 @@ CCharacterAttackPacket / CCastSpellPacket
 CharacterAttackHandler.Execute
   ├── AoE check: skip target if SpellEffect.AoE
   ├── Single-target: validate target exists and is in range
-  └── chunk.QueueSpell(character, target, spell)
+  └── context.QueueSpell(character, target, spell)
         │
         ▼
-ChunkSpellSystem.QueueSpell
+InstanceSpellSystem.QueueSpell
   ├── Power check: character.CurrentPower >= spell.Metadata.Cost?
   │   └── NO → return false (client notified out-of-power)
   ├── Deduct power: character.CurrentPower -= Cost
   └── Add SpellInstance to _spellQueue
         │
         ▼
-ChunkSpellSystem.Update (per-tick)
+InstanceSpellSystem.Update (per-tick)
   ├── Decrement CastTimeTimer
   ├── Check for cast interruption (movement)
   └── CastTimeTimer <= 0

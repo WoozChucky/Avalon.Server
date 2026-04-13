@@ -51,7 +51,7 @@ public interface ISimulationContext
 }
 ```
 
-`ISimulationContext` is the minimal contract used by creature AI scripts, the spell system, and `CreatureRespawner`. It replaces the old `IChunk` interface, which carried spatial concepts (`Enabled`, `Neighbors`) that are meaningless for flat instances.
+`ISimulationContext` is the minimal contract used by creature AI scripts, the spell system, and `CreatureRespawner`. `MapInstance` is the sole simulation unit — there is no sub-map spatial division.
 
 ### `IMapInstance`
 
@@ -100,7 +100,7 @@ public interface IInstanceRegistry
 
 ## MapInstance
 
-`MapInstance` (`src/Server/Avalon.World/Instances/MapInstance.cs`) is the core simulation unit. It absorbs all logic previously split across `Map` and `Chunk`.
+`MapInstance` (`src/Server/Avalon.World/Instances/MapInstance.cs`) is the core simulation unit. Each live map is exactly one `MapInstance`; there is no further spatial subdivision.
 
 ### Internal State
 
@@ -110,7 +110,7 @@ public interface IInstanceRegistry
 | `Dictionary<ObjectGuid, ICreature> _creatures` | Active creatures |
 | `ISpellQueueSystem _spellSystem` | Scoped to this instance |
 | `ICreatureRespawner _creatureRespawner` | Receives `ISimulationContext = this` |
-| `List<(ChunkMetadata, IChunkNavigator)> _navigators` | One navmesh per chunk data region |
+| `List<(MapRegion, IMapNavigator)> _navigators` | One navmesh per map region |
 
 ### Update Loop
 
@@ -120,7 +120,7 @@ public interface IInstanceRegistry
 3. _spellSystem.Update(deltaTime, objectSpells)
 4. foreach creature → creature.Script?.Update(deltaTime)
 5. foreach character → CharacterGameState.Update(_creatures, _characters, objectSpells)
-6. foreach character → BroadcastChunkStateTo(character)
+6. foreach character → BroadcastStateTo(character)
 ```
 
 `RemoveCharacter` sets `LastEmptyAt = DateTime.UtcNow` when the last player leaves.  

@@ -33,7 +33,7 @@ public class MapInstance : IMapInstance
     private readonly ICreatureRespawner _creatureRespawner;
     private readonly Dictionary<ObjectGuid, ICreature> _creatures = [];
     private readonly ILogger<MapInstance> _logger;
-    private readonly List<(MapRegion Region, IChunkNavigator Navigator)> _navigators = [];
+    private readonly List<(MapRegion Region, IMapNavigator Navigator)> _navigators = [];
     private readonly IPoolManager _poolManager;
     private readonly ISpellQueueSystem _spellSystem;
     private readonly IWorld _world;
@@ -57,7 +57,7 @@ public class MapInstance : IMapInstance
         OwnerAccountId = ownerAccountId;
         AllowedAccounts = ownerAccountId.HasValue ? [ownerAccountId.Value] : [];
 
-        _spellSystem = new ChunkSpellSystem(loggerFactory, serviceProvider,
+        _spellSystem = new InstanceSpellSystem(loggerFactory, serviceProvider,
             serviceProvider.GetRequiredService<IScriptManager>());
         _creatureRespawner = new CreatureRespawner(this);
 
@@ -89,12 +89,12 @@ public class MapInstance : IMapInstance
     public bool CanAcceptPlayer(ushort maxPlayers) => _characters.Count < maxPlayers;
 
     /// <summary>Registers a loaded navigator for a map region.</summary>
-    public void AddNavigator(MapRegion region, IChunkNavigator navigator) =>
+    public void AddNavigator(MapRegion region, IMapNavigator navigator) =>
         _navigators.Add((region, navigator));
 
-    public IChunkNavigator GetNavigatorForPosition(Vector3 position)
+    public IMapNavigator GetNavigatorForPosition(Vector3 position)
     {
-        foreach ((MapRegion region, IChunkNavigator navigator) in _navigators)
+        foreach ((MapRegion region, IMapNavigator navigator) in _navigators)
         {
             if (position.x >= region.Position.x &&
                 position.x < region.Position.x + region.Size.x &&
@@ -312,13 +312,13 @@ public class MapInstance : IMapInstance
 
         if (addedObjects.Count > 0)
         {
-            connection.Send(SChunkStateAddPacket.Create(addedObjects,
+            connection.Send(SInstanceStateAddPacket.Create(addedObjects,
                 connection.CryptoSession.Encrypt));
         }
 
         if (_lastBroadcastTime >= BroadcastInterval && updatedObjects.Count > 0)
         {
-            connection.Send(SChunkStateUpdatePacket.Create(updatedObjects,
+            connection.Send(SInstanceStateUpdatePacket.Create(updatedObjects,
                 connection.CryptoSession.Encrypt));
         }
 
@@ -326,7 +326,7 @@ public class MapInstance : IMapInstance
         {
             _logger.LogInformation("Found {Count} removed objects",
                 character.CharacterGameState.RemovedObjects.Count);
-            connection.Send(SChunkStateRemovePacket.Create(character.CharacterGameState.RemovedObjects,
+            connection.Send(SInstanceStateRemovePacket.Create(character.CharacterGameState.RemovedObjects,
                 connection.CryptoSession.Encrypt));
         }
     }
