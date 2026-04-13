@@ -2,7 +2,7 @@ using Avalon.Common.Mathematics;
 
 namespace Avalon.World.Public.Maps;
 
-public interface IChunkNavigator
+public interface IMapNavigator
 {
     Task LoadAsync(string meshFilename);
     List<Vector3> FindPath(Vector3 start, Vector3 end);

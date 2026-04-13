@@ -13,7 +13,7 @@ Each entry describes its **context**, **implementation details**, **behaviour & 
 |-----------|--------|-------------------------|--------------------------------------------------------------------------------------------|-------------------------------------------------------|
 | TODO-007  | 🔴     | Security                | `src/Server/Avalon.Api/Authentication/AV/AvalonAuthenticationHandler.cs:34`               | Validate the `Avalon` bearer token                    |
 | TODO-017  | 🔴     | Spell System            | `src/Shared/Avalon.Domain/World/SpellTemplate.cs` + `SpellMetadata.cs`                    | Add `AnimationId` to spell template and metadata      |
-| TODO-018  | 🔴     | Spell System            | `src/Server/Avalon.World/Maps/Chunk.cs:370,387`                                            | Use spell `AnimationId` instead of hardcoded `1`      |
+| TODO-018  | 🔴     | Spell System            | `src/Server/Avalon.World/Instances/MapInstance.cs`                                         | Use spell `AnimationId` instead of hardcoded `1`      |
 | TODO-019  | 🔴     | Spell System            | `src/Server/Avalon.World/Scripts/Creatures/CreatureCombatScript.cs:173`                    | Creature combat script — spell support                |
 | TODO-020  | 🔴     | Spell System            | `src/Server/Avalon.World/Handlers/CharacterAttackHandler.cs:71`                            | AoE attack support (target-less spells)               |
 | TODO-024  | 🔴     | Character System        | `src/Server/Avalon.World/Handlers/CharacterSelectHandler.cs:175`                           | Send inventory to client on login                     |
@@ -69,7 +69,7 @@ The handler extracts the token from the `Authorization: Avalon <token>` header b
 **File:** `src/Shared/Avalon.Domain/World/SpellTemplate.cs` + `src/Server/Avalon.World.Public/Spells/SpellMetadata.cs`
 
 **Context**  
-`Chunk.BroadcastUnitAttackAnimation` and `Chunk.BroadcastFinishCastAnimation` hardcode animation ID `1` because neither `SpellTemplate` nor `SpellMetadata` carries an animation identifier.
+`MapInstance.BroadcastUnitAttackAnimation` and `MapInstance.BroadcastFinishCastAnimation` hardcode animation ID `1` because neither `SpellTemplate` nor `SpellMetadata` carries an animation identifier.
 
 **Implementation Details**  
 1. Add `uint AnimationId { get; set; }` to `SpellTemplate` (persisted column, default `1`).
@@ -90,14 +90,14 @@ The handler extracts the token from the `Authorization: Avalon <token>` header b
 
 ---
 
-### TODO-018 — Use `AnimationId` from spell in chunk broadcasts 🔴
+### TODO-018 — Use `AnimationId` from spell in instance broadcasts 🔴
 
-**File:** `src/Server/Avalon.World/Maps/Chunk.cs:370,387`
+**File:** `src/Server/Avalon.World/Instances/MapInstance.cs`
 
 **Depends on:** TODO-017
 
 **Implementation Details**  
-In `BroadcastUnitAttackAnimation`:
+In `MapInstance.BroadcastUnitAttackAnimation`:
 ```csharp
 // Before:
 SUnitAttackAnimationPacket.Create(attacker.Guid, 1, ...)
@@ -132,7 +132,7 @@ Same pattern for `BroadcastFinishCastAnimation`.
 - Melee attack is used when no spell is available or ready.
 
 **Tests**
-- Creature with a spell in template → `QueueSpell` called on attack cycle when spell is off cooldown.
+- Creature with a spell in template → `context.QueueSpell` called on attack cycle when spell is off cooldown.
 - On cooldown → melee path taken.
 - Moving creature with non-instant spell → spell not cast.
 
@@ -148,7 +148,7 @@ Same pattern for `BroadcastFinishCastAnimation`.
 **Implementation Details**  
 1. Before the target lookup, resolve the spell from the character's spell list using `packet.SpellId` (if the packet carries it) or from the auto-attack context.
 2. Check `spell.Metadata.Effects.HasFlag(SpellEffect.AoE)`.
-3. If AoE: skip the `GetTarget` call, pass `target = null` to `chunk.QueueSpell`.
+3. If AoE: skip the `GetTarget` call, pass `target = null` to `context.QueueSpell`.
 4. If not AoE and `target == null`: return early with an error log (existing behaviour).
 5. AoE `SpellScript` is responsible for finding targets within range in `Update()`.
 
@@ -204,7 +204,7 @@ Same pattern for `BroadcastFinishCastAnimation`.
 The server logs a desync warning when client-reported distance diverges from server-interpolated distance, but always trusts the client position. This allows wall-walking and speed hacks.
 
 **Implementation Details**  
-1. After computing `interpolatedPosition`, raycast from `connection.Character.Position` to `clientSentPosition` using `IChunkNavigator.Raycast` (or DotRecast's `DtNavMeshQuery.Raycast`).
+1. After computing `interpolatedPosition`, raycast from `connection.Character.Position` to `clientSentPosition` using `IMapNavigator.HasVisibility` (or DotRecast's `DtNavMeshQuery.Raycast` directly).
 2. If the raycast hits geometry (blocked path): reject the client position, send a `SPositionCorrectionPacket` with the last valid server position, and update `connection.Character.Position` to the server value.
 3. If `differenceDistances >= MaxDistanceDiffCheck` (speed hack): log the anti-cheat event; apply same correction.
 4. Keep a consecutive-rejection counter per connection; after N rejections, flag or disconnect.
@@ -344,7 +344,7 @@ Phase 2 — Spell & Domain data model
   TODO-030  CharacterSpell specializations      [Domain design]
 
 Phase 3 — Spell & Creature runtime
-  TODO-018  Chunk animation id                  [needs 017]
+  TODO-018  Instance animation id               [needs 017]
   TODO-019  Creature spell support              [needs 017]
   TODO-020  AoE targeting                       [Spell]
 

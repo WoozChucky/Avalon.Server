@@ -39,8 +39,8 @@ public class CharacterCharacterGameState : ICharacterGameState
 
         _worldObjectTrackingSystem = new EntityTrackingSystem(
             Capacity,
-            CreateChunkObject,
-            UpdateChunkObject,
+            CreateWorldObject,
+            UpdateWorldObject,
             GetWorldObjectChangedFields
         );
         _worldObjectTrackingSystem.EntityAdded += OnWorldObjectFound;
@@ -58,7 +58,7 @@ public class CharacterCharacterGameState : ICharacterGameState
     public void Update(
         Dictionary<ObjectGuid, ICreature> creatures,
         Dictionary<ObjectGuid, ICharacter> characters,
-        List<IWorldObject> chunkObjects)
+        List<IWorldObject> worldObjects)
     {
         NewObjects.Clear();
         UpdatedObjects.Clear();
@@ -66,7 +66,7 @@ public class CharacterCharacterGameState : ICharacterGameState
 
         _creatureTrackingSystem.Update(creatures.Values);
         _characterTrackingSystem.Update(characters.Values);
-        _worldObjectTrackingSystem.Update(chunkObjects);
+        _worldObjectTrackingSystem.Update(worldObjects);
     }
 
     private IWorldObject CreateCreature(IWorldObject obj)
@@ -224,7 +224,7 @@ public class CharacterCharacterGameState : ICharacterGameState
         return fields;
     }
 
-    private IWorldObject CreateChunkObject(IWorldObject obj)
+    private IWorldObject CreateWorldObject(IWorldObject obj)
     {
         if (obj is not SpellScript spell)
         {
@@ -234,7 +234,7 @@ public class CharacterCharacterGameState : ICharacterGameState
         return spell.Clone();
     }
 
-    private IWorldObject UpdateChunkObject(IWorldObject existingObj, IWorldObject updatedObj)
+    private IWorldObject UpdateWorldObject(IWorldObject existingObj, IWorldObject updatedObj)
     {
         if (existingObj is not SpellScript existingSpell)
         {
