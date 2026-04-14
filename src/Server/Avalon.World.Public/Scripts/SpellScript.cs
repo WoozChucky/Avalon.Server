@@ -1,5 +1,6 @@
 using Avalon.Common;
 using Avalon.Common.Mathematics;
+using Avalon.World.Public.Enums;
 using Avalon.World.Public.Spells;
 using Avalon.World.Public.Units;
 
@@ -14,6 +15,15 @@ public abstract class SpellScript(ISpell spell, IUnit caster, IUnit? target) : I
     protected ISpell Spell { get; } = spell;
 
     protected List<SpellScript> ChainedScripts { get; private set; } = new();
+
+    protected GameEntityFields _dirtyFields;
+
+    public GameEntityFields ConsumeDirtyFields()
+    {
+        var dirty = _dirtyFields;
+        _dirtyFields = GameEntityFields.None;
+        return dirty;
+    }
 
     public abstract object State { get; set; }
 
