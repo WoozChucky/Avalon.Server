@@ -4,7 +4,6 @@ using System.Diagnostics;
 using System.Diagnostics.Metrics;
 using System.Reflection;
 using Avalon.Common.Telemetry;
-using Avalon.Common.Utils;
 using Avalon.Common.ValueObjects;
 using Avalon.Configuration;
 using Avalon.Hosting.Networking;
@@ -69,9 +68,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
     private readonly Stopwatch _stopwatch = Stopwatch.StartNew();
     private readonly World _world;
     private readonly ConcurrentQueue<WorldConnection> _pendingDisconnects = new();
-    private long _lastTpsCalculationMs = TimeUtils.GetMsTime();
-    private uint _realCurrentTime;
-    private uint _realPreviousTime = TimeUtils.GetMsTime();
+    private long _lastTpsCalculationMs;
     private long _tickCount;
 
     private ObservableGauge<double> _tickRate;
@@ -150,11 +147,29 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
 
         _gameTime.Start();
 
-        while (!stoppingToken.IsCancellationRequested)
+        using var timer = new PeriodicTimer(MinUpdateInterval);
+        var prev = _gameTime.Elapsed;
+
+        while (await timer.WaitForNextTickAsync(stoppingToken))
         {
             try
             {
-                await Tick();
+                var now = _gameTime.Elapsed;
+                var deltaTime = now - prev;
+                if (deltaTime.TotalMilliseconds < 1)
+                    deltaTime = TimeSpan.FromMilliseconds(1);
+                prev = now;
+
+                Update(deltaTime);
+
+                _tickCount++;
+                double elapsedSeconds = (_stopwatch.ElapsedMilliseconds - _lastTpsCalculationMs) / 1000.0;
+                if (elapsedSeconds >= 1.0)
+                {
+                    _ticksPerSecond = _tickCount / elapsedSeconds;
+                    _tickCount = 0;
+                    _lastTpsCalculationMs = _stopwatch.ElapsedMilliseconds;
+                }
             }
             catch (Exception e)
             {
@@ -171,55 +186,6 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
             GracefulShutdownHelper.NotifyAndClose(connection, "Server is shutting down", DisconnectReason.ServerShutdown, _logger);
 
         return Task.CompletedTask;
-    }
-
-    private async ValueTask Tick()
-    {
-        _realCurrentTime = TimeUtils.GetMsTime();
-        uint diff = TimeUtils.GetMsTimeDiff(_realPreviousTime, _realCurrentTime);
-
-        const int minDeltaTime = 1; // Minimum delta time in milliseconds
-
-        // Throttle the update loop if the diff is less than the minimum update interval
-        if (diff < MinUpdateInterval.TotalMilliseconds)
-        {
-            double targetTime = _stopwatch.ElapsedMilliseconds + (MinUpdateInterval.TotalMilliseconds - diff);
-            while (_stopwatch.ElapsedMilliseconds < targetTime)
-            {
-                if (_stopwatch.ElapsedMilliseconds + 1 < targetTime)
-                {
-                    await Task.Yield(); // Yield control briefly for longer waits
-                }
-                else
-                {
-                    Thread.SpinWait(1); // Fine-grained spinning for short waits
-                }
-            }
-
-            _realCurrentTime = TimeUtils.GetMsTime();
-            diff = TimeUtils.GetMsTimeDiff(_realPreviousTime, _realCurrentTime);
-        }
-
-        // Ensure delta time is at least the minimum threshold
-        if (diff < minDeltaTime)
-        {
-            diff = minDeltaTime;
-        }
-
-        Update(TimeSpan.FromMilliseconds(diff));
-
-        _realPreviousTime = _realCurrentTime;
-
-        // Tick Rate Calculations
-        _tickCount++;
-        double elapsedSeconds = (_stopwatch.ElapsedMilliseconds - _lastTpsCalculationMs) / 1000.0;
-
-        if (elapsedSeconds >= 1.0)
-        {
-            _ticksPerSecond = _tickCount / elapsedSeconds;
-            _tickCount = 0;
-            _lastTpsCalculationMs = _stopwatch.ElapsedMilliseconds;
-        }
     }
 
     private void Update(TimeSpan elapsedTime)
