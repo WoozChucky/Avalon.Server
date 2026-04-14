@@ -199,7 +199,7 @@ public class MapInstance : IMapInstance
         // Step 5: Update entity visibility state per character
         foreach (ICharacter character in _characters.Values)
         {
-            character.CharacterGameState.Update(_creatures, _characters, objectSpells);
+            character.CharacterGameState.Update(_creatures, _characters, objectSpells, new Dictionary<ObjectGuid, GameEntityFields>());
         }
 
         // Step 6: Broadcast instance state to each character
@@ -326,7 +326,7 @@ public class MapInstance : IMapInstance
         {
             _logger.LogInformation("Found {Count} removed objects",
                 character.CharacterGameState.RemovedObjects.Count);
-            connection.Send(SInstanceStateRemovePacket.Create(character.CharacterGameState.RemovedObjects,
+            connection.Send(SInstanceStateRemovePacket.Create(character.CharacterGameState.RemovedObjects.ToHashSet(),
                 connection.CryptoSession.Encrypt));
         }
     }

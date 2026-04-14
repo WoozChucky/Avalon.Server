@@ -9,41 +9,35 @@ namespace Avalon.World.Entities;
 public class CharacterCharacterGameState : ICharacterGameState
 {
     private const int Capacity = 100;
+
     private readonly EntityTrackingSystem _characterTrackingSystem;
     private readonly EntityTrackingSystem _creatureTrackingSystem;
     private readonly EntityTrackingSystem _worldObjectTrackingSystem;
 
+    private readonly List<ObjectGuid> _newObjects = new(Capacity);
+    private readonly List<(ObjectGuid Guid, GameEntityFields Fields)> _updatedObjects = new(Capacity);
+    private readonly List<ObjectGuid> _removedObjects = new(Capacity);
+
+    public IReadOnlyList<ObjectGuid> NewObjects => _newObjects;
+    public IReadOnlyList<(ObjectGuid Guid, GameEntityFields Fields)> UpdatedObjects => _updatedObjects;
+    public IReadOnlyList<ObjectGuid> RemovedObjects => _removedObjects;
+
     public CharacterCharacterGameState()
     {
         _creatureTrackingSystem = new EntityTrackingSystem(Capacity);
-        _creatureTrackingSystem.EntityAdded += OnWorldObjectFound;
-        _creatureTrackingSystem.EntityUpdated += OnWorldObjectUpdated;
-        _creatureTrackingSystem.EntityRemoved += OnWorldObjectRemoved;
+        _creatureTrackingSystem.EntityAdded += OnEntityFound;
+        _creatureTrackingSystem.EntityUpdated += OnEntityUpdated;
+        _creatureTrackingSystem.EntityRemoved += OnEntityRemoved;
 
         _characterTrackingSystem = new EntityTrackingSystem(Capacity);
-        _characterTrackingSystem.EntityAdded += OnWorldObjectFound;
-        _characterTrackingSystem.EntityUpdated += OnWorldObjectUpdated;
-        _characterTrackingSystem.EntityRemoved += OnWorldObjectRemoved;
+        _characterTrackingSystem.EntityAdded += OnEntityFound;
+        _characterTrackingSystem.EntityUpdated += OnEntityUpdated;
+        _characterTrackingSystem.EntityRemoved += OnEntityRemoved;
 
         _worldObjectTrackingSystem = new EntityTrackingSystem(Capacity);
-        _worldObjectTrackingSystem.EntityAdded += OnWorldObjectFound;
-        _worldObjectTrackingSystem.EntityUpdated += OnWorldObjectUpdated;
-        _worldObjectTrackingSystem.EntityRemoved += OnWorldObjectRemoved;
-    }
-
-    public ISet<ObjectGuid> NewObjects { get; } = new HashSet<ObjectGuid>(Capacity);
-
-    public ISet<(ObjectGuid Guid, GameEntityFields Fields)> UpdatedObjects { get; } =
-        new HashSet<(ObjectGuid Guid, GameEntityFields Fields)>(Capacity);
-
-    public ISet<ObjectGuid> RemovedObjects { get; } = new HashSet<ObjectGuid>(Capacity);
-
-    public void Update(
-        Dictionary<ObjectGuid, ICreature> creatures,
-        Dictionary<ObjectGuid, ICharacter> characters,
-        List<IWorldObject> worldObjects)
-    {
-        Update(creatures, characters, worldObjects, new Dictionary<ObjectGuid, GameEntityFields>());
+        _worldObjectTrackingSystem.EntityAdded += OnEntityFound;
+        _worldObjectTrackingSystem.EntityUpdated += OnEntityUpdated;
+        _worldObjectTrackingSystem.EntityRemoved += OnEntityRemoved;
     }
 
     public void Update(
@@ -52,22 +46,16 @@ public class CharacterCharacterGameState : ICharacterGameState
         List<IWorldObject> worldObjects,
         IReadOnlyDictionary<ObjectGuid, GameEntityFields> frameDirtyFields)
     {
-        NewObjects.Clear();
-        UpdatedObjects.Clear();
-        RemovedObjects.Clear();
+        _newObjects.Clear();
+        _updatedObjects.Clear();
+        _removedObjects.Clear();
 
         _creatureTrackingSystem.Update(creatures.Values, frameDirtyFields);
         _characterTrackingSystem.Update(characters.Values, frameDirtyFields);
         _worldObjectTrackingSystem.Update(worldObjects, frameDirtyFields);
     }
 
-    #region Events
-
-    private void OnWorldObjectRemoved(ObjectGuid obj) => RemovedObjects.Add(obj);
-
-    private void OnWorldObjectUpdated(ObjectGuid obj, GameEntityFields fields) => UpdatedObjects.Add((obj, fields));
-
-    private void OnWorldObjectFound(ObjectGuid obj) => NewObjects.Add(obj);
-
-    #endregion
+    private void OnEntityRemoved(ObjectGuid guid) => _removedObjects.Add(guid);
+    private void OnEntityUpdated(ObjectGuid guid, GameEntityFields fields) => _updatedObjects.Add((guid, fields));
+    private void OnEntityFound(ObjectGuid guid) => _newObjects.Add(guid);
 }
