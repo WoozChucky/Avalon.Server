@@ -6,7 +6,6 @@ using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
-using NSubstitute;
 using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Entities;
@@ -19,31 +18,32 @@ public class CharacterCharacterGameStateShould
 
     private static Creature MakeRealCreature(uint id, Vector3 position = default, uint health = 100)
     {
-        return new Creature
+        var c = new Creature
         {
             Guid = new ObjectGuid(ObjectType.Creature, id),
-            Position = position,
-            CurrentHealth = health,
             Health = health,
-            Velocity = Vector3.zero,
-            Orientation = Vector3.zero,
             MoveState = MoveState.Idle
         };
+        c.Position = position;
+        c.CurrentHealth = health;
+        c.Velocity = Vector3.zero;
+        c.Orientation = Vector3.zero;
+        c.ConsumeDirtyFields(); // clear construction dirty so tests start clean
+        return c;
     }
 
     private static CharacterEntity MakeRealCharacter(uint id, Vector3 position = default, uint health = 100)
     {
-        // Use the parameterless constructor (sets Connection/fields to null, which is fine for tracking tests)
-        return new CharacterEntity
+        var c = new CharacterEntity
         {
             Guid = new ObjectGuid(ObjectType.Character, id),
-            Position = position,
-            CurrentHealth = health,
-            Health = health,
-            Velocity = Vector3.zero,
-            Orientation = Vector3.zero,
             MoveState = MoveState.Idle
         };
+        c.CurrentHealth = health;
+        c.Velocity = Vector3.zero;
+        c.MoveState = MoveState.Idle;
+        c.ConsumeDirtyFields();
+        return c;
     }
 
     private static Dictionary<ObjectGuid, ICreature> AsCreatureDict(params Creature[] creatures)
@@ -51,6 +51,20 @@ public class CharacterCharacterGameStateShould
 
     private static Dictionary<ObjectGuid, ICharacter> AsCharacterDict(params CharacterEntity[] characters)
         => characters.ToDictionary(c => c.Guid, c => (ICharacter)c);
+
+    private static Dictionary<ObjectGuid, GameEntityFields> EmptyDirty() => new();
+
+    private static Dictionary<ObjectGuid, GameEntityFields> DirtyFrom(params Creature[] creatures)
+    {
+        var map = new Dictionary<ObjectGuid, GameEntityFields>();
+        foreach (var c in creatures)
+        {
+            var dirty = c.ConsumeDirtyFields();
+            if (dirty != GameEntityFields.None)
+                map[c.Guid] = dirty;
+        }
+        return map;
+    }
 
     // ──────────────────────────────────────────────
     // NewObjects — creature tracking
@@ -62,7 +76,7 @@ public class CharacterCharacterGameStateShould
         var state = new CharacterCharacterGameState();
         var creature = MakeRealCreature(1u);
 
-        state.Update(AsCreatureDict(creature), [], []);
+        state.Update(AsCreatureDict(creature), [], [], EmptyDirty());
 
         Assert.Contains(creature.Guid, state.NewObjects);
     }
@@ -72,9 +86,9 @@ public class CharacterCharacterGameStateShould
     {
         var state = new CharacterCharacterGameState();
         var creature = MakeRealCreature(1u);
-        state.Update(AsCreatureDict(creature), [], []);
+        state.Update(AsCreatureDict(creature), [], [], EmptyDirty());
 
-        state.Update(AsCreatureDict(creature), [], []);
+        state.Update(AsCreatureDict(creature), [], [], EmptyDirty());
 
         Assert.Empty(state.NewObjects);
     }
@@ -84,10 +98,10 @@ public class CharacterCharacterGameStateShould
     {
         var state = new CharacterCharacterGameState();
         var old = MakeRealCreature(1u);
-        state.Update(AsCreatureDict(old), [], []);
+        state.Update(AsCreatureDict(old), [], [], EmptyDirty());
 
         var fresh = MakeRealCreature(2u);
-        state.Update(AsCreatureDict(old, fresh), [], []);
+        state.Update(AsCreatureDict(old, fresh), [], [], EmptyDirty());
 
         Assert.Single(state.NewObjects);
         Assert.Contains(fresh.Guid, state.NewObjects);
@@ -103,7 +117,7 @@ public class CharacterCharacterGameStateShould
         var state = new CharacterCharacterGameState();
         var character = MakeRealCharacter(1u);
 
-        state.Update([], AsCharacterDict(character), []);
+        state.Update([], AsCharacterDict(character), [], EmptyDirty());
 
         Assert.Contains(character.Guid, state.NewObjects);
     }
@@ -117,9 +131,9 @@ public class CharacterCharacterGameStateShould
     {
         var state = new CharacterCharacterGameState();
         var creature = MakeRealCreature(1u);
-        state.Update(AsCreatureDict(creature), [], []);
+        state.Update(AsCreatureDict(creature), [], [], EmptyDirty());
 
-        state.Update([], [], []); // creature gone
+        state.Update([], [], [], EmptyDirty());
 
         Assert.Contains(creature.Guid, state.RemovedObjects);
     }
@@ -129,9 +143,9 @@ public class CharacterCharacterGameStateShould
     {
         var state = new CharacterCharacterGameState();
         var creature = MakeRealCreature(1u);
-        state.Update(AsCreatureDict(creature), [], []);
+        state.Update(AsCreatureDict(creature), [], [], EmptyDirty());
 
-        state.Update(AsCreatureDict(creature), [], []);
+        state.Update(AsCreatureDict(creature), [], [], EmptyDirty());
 
         Assert.Empty(state.RemovedObjects);
     }
@@ -141,31 +155,27 @@ public class CharacterCharacterGameStateShould
     {
         var state = new CharacterCharacterGameState();
         var character = MakeRealCharacter(1u);
-        state.Update([], AsCharacterDict(character), []);
+        state.Update([], AsCharacterDict(character), [], EmptyDirty());
 
-        state.Update([], [], []);
+        state.Update([], [], [], EmptyDirty());
 
         Assert.Contains(character.Guid, state.RemovedObjects);
     }
 
     // ──────────────────────────────────────────────
-    // UpdatedObjects — changed fields
+    // UpdatedObjects — dirty map driven
     // ──────────────────────────────────────────────
 
     [Fact]
-    public void UpdatedObjects_ContainsGuidWithPositionFlag_WhenCreaturePositionChanges()
+    public void UpdatedObjects_ContainsPositionFlag_WhenCreaturePositionChanges()
     {
         var state = new CharacterCharacterGameState();
         var creature = MakeRealCreature(1u, position: Vector3.zero);
-        state.Update(AsCreatureDict(creature), [], []);
+        state.Update(AsCreatureDict(creature), [], [], EmptyDirty());
 
-        // Dirty map carries the changed fields — computed externally by MapInstance
-        var dirty = new Dictionary<ObjectGuid, GameEntityFields>
-        {
-            [creature.Guid] = GameEntityFields.Position
-        };
         creature.Position = new Vector3(10, 0, 10);
-        state.Update(AsCreatureDict(creature), [], [], dirty);
+        var frameDirty = DirtyFrom(creature);
+        state.Update(AsCreatureDict(creature), [], [], frameDirty);
 
         var updated = state.UpdatedObjects.FirstOrDefault(o => o.Guid == creature.Guid);
         Assert.NotEqual(default, updated);
@@ -177,15 +187,11 @@ public class CharacterCharacterGameStateShould
     {
         var state = new CharacterCharacterGameState();
         var creature = MakeRealCreature(2u, health: 100);
-        state.Update(AsCreatureDict(creature), [], []);
+        state.Update(AsCreatureDict(creature), [], [], EmptyDirty());
 
-        // Dirty map carries the changed fields — computed externally by MapInstance
-        var dirty = new Dictionary<ObjectGuid, GameEntityFields>
-        {
-            [creature.Guid] = GameEntityFields.CurrentHealth
-        };
-        creature.CurrentHealth = 80;
-        state.Update(AsCreatureDict(creature), [], [], dirty);
+        creature.CurrentHealth = 80u;
+        var frameDirty = DirtyFrom(creature);
+        state.Update(AsCreatureDict(creature), [], [], frameDirty);
 
         var updated = state.UpdatedObjects.FirstOrDefault(o => o.Guid == creature.Guid);
         Assert.True((updated.Fields & GameEntityFields.CurrentHealth) != 0);
@@ -194,17 +200,15 @@ public class CharacterCharacterGameStateShould
     [Fact]
     public void UpdatedObjects_IsEmpty_WhenNothingChanges()
     {
+        // Key regression guard: idle entities must produce zero UpdatedObjects entries
         var state = new CharacterCharacterGameState();
         var creature = MakeRealCreature(3u);
-        state.Update(AsCreatureDict(creature), [], []);
+        state.Update(AsCreatureDict(creature), [], [], EmptyDirty());
 
-        state.Update(AsCreatureDict(creature), [], []);
+        // No mutations, empty dirty map
+        state.Update(AsCreatureDict(creature), [], [], EmptyDirty());
 
-        // No changes → no UpdatedObjects entries for this creature (zero fields)
-        bool hasNonZeroEntry = state.UpdatedObjects
-            .Where(o => o.Guid == creature.Guid)
-            .Any(o => o.Fields != (GameEntityFields)0);
-        Assert.False(hasNonZeroEntry);
+        Assert.Empty(state.UpdatedObjects);
     }
 
     // ──────────────────────────────────────────────
@@ -217,8 +221,8 @@ public class CharacterCharacterGameStateShould
         var state = new CharacterCharacterGameState();
         var c1 = MakeRealCreature(1u);
         var c2 = MakeRealCreature(2u);
-        state.Update(AsCreatureDict(c1), [], []);          // c1 is new
-        state.Update(AsCreatureDict(c1, c2), [], []);      // c2 is new, c1 no longer new
+        state.Update(AsCreatureDict(c1), [], [], EmptyDirty());
+        state.Update(AsCreatureDict(c1, c2), [], [], EmptyDirty());
 
         Assert.DoesNotContain(c1.Guid, state.NewObjects);
         Assert.Contains(c2.Guid, state.NewObjects);
@@ -228,7 +232,7 @@ public class CharacterCharacterGameStateShould
     public void Update_DoesNotThrow_WithAllEmptyInputs()
     {
         var state = new CharacterCharacterGameState();
-        var ex = Record.Exception(() => state.Update([], [], []));
+        var ex = Record.Exception(() => state.Update([], [], [], EmptyDirty()));
         Assert.Null(ex);
     }
 
@@ -239,7 +243,7 @@ public class CharacterCharacterGameStateShould
         var creatures = AsCreatureDict(MakeRealCreature(1u), MakeRealCreature(2u));
         var characters = AsCharacterDict(MakeRealCharacter(1u), MakeRealCharacter(2u));
 
-        var ex = Record.Exception(() => state.Update(creatures, characters, []));
+        var ex = Record.Exception(() => state.Update(creatures, characters, [], EmptyDirty()));
         Assert.Null(ex);
     }
 }
