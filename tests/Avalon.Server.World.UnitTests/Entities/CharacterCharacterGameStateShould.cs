@@ -159,9 +159,13 @@ public class CharacterCharacterGameStateShould
         var creature = MakeRealCreature(1u, position: Vector3.zero);
         state.Update(AsCreatureDict(creature), [], []);
 
-        // Now move the creature
+        // Dirty map carries the changed fields — computed externally by MapInstance
+        var dirty = new Dictionary<ObjectGuid, GameEntityFields>
+        {
+            [creature.Guid] = GameEntityFields.Position
+        };
         creature.Position = new Vector3(10, 0, 10);
-        state.Update(AsCreatureDict(creature), [], []);
+        state.Update(AsCreatureDict(creature), [], [], dirty);
 
         var updated = state.UpdatedObjects.FirstOrDefault(o => o.Guid == creature.Guid);
         Assert.NotEqual(default, updated);
@@ -175,8 +179,13 @@ public class CharacterCharacterGameStateShould
         var creature = MakeRealCreature(2u, health: 100);
         state.Update(AsCreatureDict(creature), [], []);
 
+        // Dirty map carries the changed fields — computed externally by MapInstance
+        var dirty = new Dictionary<ObjectGuid, GameEntityFields>
+        {
+            [creature.Guid] = GameEntityFields.CurrentHealth
+        };
         creature.CurrentHealth = 80;
-        state.Update(AsCreatureDict(creature), [], []);
+        state.Update(AsCreatureDict(creature), [], [], dirty);
 
         var updated = state.UpdatedObjects.FirstOrDefault(o => o.Guid == creature.Guid);
         Assert.True((updated.Fields & GameEntityFields.CurrentHealth) != 0);
