@@ -25,6 +25,9 @@ public class CharacterEntity : ICharacter
     private readonly ILogger<CharacterEntity> _logger;
     private readonly RegenConfiguration _regenConfig;
 
+    // Dirty-field tracking (matches Creature pattern; initialize to None so first consume is a no-op)
+    private GameEntityFields _dirtyFields = GameEntityFields.None;
+
     // Power regen cast-suppression (5-second rule)
     private DateTime _lastCastTime = DateTime.MinValue;
 
@@ -124,6 +127,13 @@ public class CharacterEntity : ICharacter
 
     public uint? CurrentPower { get; set; }
     public MoveState MoveState { get; set; } = MoveState.Idle;
+
+    public GameEntityFields ConsumeDirtyFields()
+    {
+        var dirty = _dirtyFields;
+        _dirtyFields = GameEntityFields.None;
+        return dirty;
+    }
 
     public void MarkCombat() => _lastCombatTime = DateTime.UtcNow;
 
