@@ -97,6 +97,14 @@ public class CharacterEntity : ICharacter
 
     public ObjectGuid Guid { get; set; }
 
+    // Backing fields for dirty-tracked properties
+    private uint _currentHealth;
+    private uint? _currentPower;
+    private PowerType _powerType;
+    private MoveState _moveState = MoveState.Idle;
+    private Vector3 _velocity;
+    private ulong _requiredExperience;
+
     public uint Health
     {
         get => (uint)(Data?.Health ?? 0);
@@ -105,13 +113,30 @@ public class CharacterEntity : ICharacter
             if (Data != null)
             {
                 Data.Health = (int)value;
+                _dirtyFields |= GameEntityFields.Health;
             }
         }
     }
 
-    public uint CurrentHealth { get; set; }
+    public uint CurrentHealth
+    {
+        get => _currentHealth;
+        set
+        {
+            _currentHealth = value;
+            _dirtyFields |= GameEntityFields.CurrentHealth;
+        }
+    }
 
-    public PowerType PowerType { get; set; }
+    public PowerType PowerType
+    {
+        get => _powerType;
+        set
+        {
+            _powerType = value;
+            _dirtyFields |= GameEntityFields.PowerType;
+        }
+    }
 
     public uint? Power
     {
@@ -121,12 +146,30 @@ public class CharacterEntity : ICharacter
             if (Data != null)
             {
                 Data.Power1 = (int)value!;
+                _dirtyFields |= GameEntityFields.Power;
             }
         }
     }
 
-    public uint? CurrentPower { get; set; }
-    public MoveState MoveState { get; set; } = MoveState.Idle;
+    public uint? CurrentPower
+    {
+        get => _currentPower;
+        set
+        {
+            _currentPower = value;
+            _dirtyFields |= GameEntityFields.CurrentPower;
+        }
+    }
+
+    public MoveState MoveState
+    {
+        get => _moveState;
+        set
+        {
+            _moveState = value;
+            _dirtyFields |= GameEntityFields.MoveState;
+        }
+    }
 
     public GameEntityFields ConsumeDirtyFields()
     {
@@ -174,10 +217,19 @@ public class CharacterEntity : ICharacter
             Data.X = value.x;
             Data.Y = value.y;
             Data.Z = value.z;
+            _dirtyFields |= GameEntityFields.Position;
         }
     }
 
-    public Vector3 Velocity { get; set; }
+    public Vector3 Velocity
+    {
+        get => _velocity;
+        set
+        {
+            _velocity = value;
+            _dirtyFields |= GameEntityFields.Velocity;
+        }
+    }
 
     public Vector3 Orientation
     {
@@ -187,6 +239,7 @@ public class CharacterEntity : ICharacter
             if (Data != null)
             {
                 Data.Rotation = value.y;
+                _dirtyFields |= GameEntityFields.Orientation;
             }
         }
     }
@@ -223,11 +276,20 @@ public class CharacterEntity : ICharacter
             if (Data != null)
             {
                 Data.Experience = value;
+                _dirtyFields |= GameEntityFields.Experience;
             }
         }
     }
 
-    public ulong RequiredExperience { get; set; }
+    public ulong RequiredExperience
+    {
+        get => _requiredExperience;
+        set
+        {
+            _requiredExperience = value;
+            _dirtyFields |= GameEntityFields.RequiredExperience;
+        }
+    }
 
     public ushort Level
     {
@@ -237,6 +299,7 @@ public class CharacterEntity : ICharacter
             if (Data != null)
             {
                 Data.Level = value;
+                _dirtyFields |= GameEntityFields.Level;
             }
         }
     }
