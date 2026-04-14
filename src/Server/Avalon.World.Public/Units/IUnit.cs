@@ -17,6 +17,8 @@ public interface IUnit : IWorldObject
     uint? CurrentPower { get; set; }
     MoveState MoveState { get; set; }
 
+    GameEntityFields ConsumeDirtyFields();
+
     void OnHit(IUnit attacker, uint damage);
     void SendAttackAnimation(ISpell? spell);
     void SendFinishCastAnimation(ISpell spell);
