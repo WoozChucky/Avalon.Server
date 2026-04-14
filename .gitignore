@@ -81,3 +81,5 @@ tests/Avalon.Server.World.UnitTests/coverage-results/
 .claude/settings.local.json
 
 site/
+
+BenchmarkDotNet.Artifacts/
