@@ -101,7 +101,7 @@ public class SInstanceStateRemovePacket : Packet
 
     [ProtoMember(1)] public List<ulong> Removes { get; set; }
 
-    public static NetworkPacket Create(ISet<ObjectGuid> removes, Func<byte[], byte[]> encryptFunc)
+    public static NetworkPacket Create(IEnumerable<ObjectGuid> removes, Func<byte[], byte[]> encryptFunc)
     {
         using var memoryStream = new MemoryStream();
 
