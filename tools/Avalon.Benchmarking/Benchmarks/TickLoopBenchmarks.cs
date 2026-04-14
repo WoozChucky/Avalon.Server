@@ -5,21 +5,28 @@ namespace Avalon.Benchmarking.Benchmarks;
 /// <summary>
 /// Measures the per-tick scheduling overhead of the WorldServer throttle mechanism.
 ///
-/// WorldServer.Tick() fills the remaining frame budget by looping:
-///   - await Task.Yield()   — when &gt;1 ms remains
-///   - Thread.SpinWait(1)   — when &lt;1 ms remains
+/// BEFORE (spin/yield throttle):
+///   WorldServer.Tick() fills the remaining frame budget by looping:
+///     - await Task.Yield()   — when &gt;1 ms remains
+///     - Thread.SpinWait(1)   — when &lt;1 ms remains
+///   At 60 Hz with a ~3 ms tick, ~13 ms remain per frame → ~13 Task.Yield() calls.
+///   Each call queues a ThreadPool continuation and may resume on a different CPU core.
+///   At target scale (250 instances × 60 TPS): ~780 ThreadPool items/s for scheduling alone.
 ///
-/// At 60 Hz with a ~3 ms tick, ~13 ms remain per frame → ~13 Task.Yield() calls.
-/// Each call queues a ThreadPool continuation and may resume on a different CPU core.
-///
-/// At target scale (250 instances × 60 TPS): ~780 ThreadPool items/s for scheduling alone.
+/// AFTER (PeriodicTimer):
+///   One WaitForNextTickAsync() per tick — a single ThreadPool hop, equivalent to Yield_1.
+///   PeriodicTimer_Tick uses a 1 ms period (minimum practical for BenchmarkDotNet).
+///   The actual WorldServer uses 16.67 ms; the period does not affect scheduling cost.
+///   NOTE: Mean includes the ~1 ms timer sleep. Subtract ~1 ms to isolate the scheduling
+///         overhead, which approaches Yield_1 (~1.1 µs).
 ///
 /// Scenarios:
-///   Yield_1          — baseline: one thread-pool hop (equivalent to a PeriodicTimer-based loop)
-///   Yield_5          — fast tick (~11 ms wait)
-///   Yield_13         — typical at target load (~3 ms tick + ~13 ms wait)
-///   Yield_20         — idle server, sub-ms tick (~16 ms wait)
-///   SynchronousPath  — ValueTask.CompletedTask: state-machine cost only, zero scheduling
+///   Yield_1           — baseline: one thread-pool hop (equivalent to a PeriodicTimer-based loop)
+///   Yield_5           — fast tick (~11 ms wait)
+///   Yield_13          — typical at target load (~3 ms tick + ~13 ms wait)
+///   Yield_20          — idle server, sub-ms tick (~16 ms wait)
+///   SynchronousPath   — ValueTask.CompletedTask: state-machine cost only, zero scheduling
+///   PeriodicTimer_Tick — refactored loop: one WaitForNextTickAsync per tick (1 ms period)
 ///
 /// Run: dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*TickLoop*"
 /// </summary>
@@ -70,5 +77,22 @@ public class TickLoopBenchmarks
     public async ValueTask SynchronousPath()
     {
         await ValueTask.CompletedTask;
+    }
+
+    /// <summary>
+    /// Refactored tick loop cost: one PeriodicTimer.WaitForNextTickAsync per tick.
+    /// Uses a 1 ms period (minimum practical for BenchmarkDotNet — 16.67 ms would make
+    /// the benchmark take hours). The actual WorldServer fires at 16.67 ms; the period
+    /// does not affect per-tick scheduling overhead.
+    ///
+    /// Interpretation: subtract ~1 ms (the timer sleep) from the reported Mean to isolate
+    /// the scheduling hop cost, which approximates Yield_1 (~1.1 µs). The important
+    /// comparison is Yield_13 vs Yield_1 — the overhead eliminated by this refactor.
+    /// </summary>
+    [Benchmark]
+    public async Task PeriodicTimer_Tick()
+    {
+        using var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(1));
+        await timer.WaitForNextTickAsync();
     }
 }
