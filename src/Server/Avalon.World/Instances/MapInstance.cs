@@ -326,7 +326,7 @@ public class MapInstance : IMapInstance
         {
             _logger.LogInformation("Found {Count} removed objects",
                 character.CharacterGameState.RemovedObjects.Count);
-            connection.Send(SInstanceStateRemovePacket.Create(character.CharacterGameState.RemovedObjects.ToHashSet(),
+            connection.Send(SInstanceStateRemovePacket.Create(character.CharacterGameState.RemovedObjects,
                 connection.CryptoSession.Encrypt));
         }
     }
