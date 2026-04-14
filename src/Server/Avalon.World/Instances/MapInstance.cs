@@ -16,6 +16,7 @@ using Avalon.World.Public.Instances;
 using Avalon.World.Public.Maps;
 using Avalon.World.Public.Spells;
 using Avalon.World.Public.Units;
+using Avalon.World.Public.Scripts;
 using Avalon.World.Scripts;
 using Avalon.World.Serialization;
 using Avalon.World.Spells;
@@ -38,6 +39,7 @@ public class MapInstance : IMapInstance
     private readonly ISpellQueueSystem _spellSystem;
     private readonly IWorld _world;
     private float _lastBroadcastTime;
+    private readonly Dictionary<ObjectGuid, GameEntityFields> _frameDirtyFields = new(256);
 
     public MapInstance(
         ILoggerFactory loggerFactory,
@@ -196,10 +198,37 @@ public class MapInstance : IMapInstance
             creature.Script?.Update(deltaTime);
         }
 
-        // Step 5: Update entity visibility state per character
+        // Step 5a: Snapshot dirty fields for this frame (once, before any client broadcast)
+        _frameDirtyFields.Clear();
+
+        foreach (var creature in _creatures.Values)
+        {
+            var dirty = creature.ConsumeDirtyFields();
+            if (dirty != GameEntityFields.None)
+                _frameDirtyFields[creature.Guid] = dirty;
+        }
+
+        foreach (var character in _characters.Values)
+        {
+            var dirty = character.ConsumeDirtyFields();
+            if (dirty != GameEntityFields.None)
+                _frameDirtyFields[character.Guid] = dirty;
+        }
+
+        foreach (var obj in objectSpells)
+        {
+            if (obj is SpellScript spell)
+            {
+                var dirty = spell.ConsumeDirtyFields();
+                if (dirty != GameEntityFields.None)
+                    _frameDirtyFields[spell.Guid] = dirty;
+            }
+        }
+
+        // Step 5b: Update entity visibility state per character
         foreach (ICharacter character in _characters.Values)
         {
-            character.CharacterGameState.Update(_creatures, _characters, objectSpells, new Dictionary<ObjectGuid, GameEntityFields>());
+            character.CharacterGameState.Update(_creatures, _characters, objectSpells, _frameDirtyFields);
         }
 
         // Step 6: Broadcast instance state to each character
