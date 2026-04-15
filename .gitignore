@@ -26,7 +26,7 @@ certificates/
 
 .idea/.idea.Avalon/.idea/aws.xml
 
-Avalon.sln.DotSettings.user
+*.sln.DotSettings.user
 
 .vs/Avalon/v17/
 
@@ -82,4 +82,8 @@ tests/Avalon.Server.World.UnitTests/coverage-results/
 
 site/
 
+docs/superpowers/
+
 BenchmarkDotNet.Artifacts/
+
+.claude/
