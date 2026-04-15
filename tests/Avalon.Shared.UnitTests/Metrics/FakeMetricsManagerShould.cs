@@ -6,7 +6,7 @@ namespace Avalon.Shared.UnitTests.Metrics;
 public class FakeMetricsManagerShould
 {
     [Fact]
-    public void Should_NotThrow_WhenDisposedOnce()
+    public void NotThrowWhenDisposedOnce()
     {
         var sut = new FakeMetricsManager();
         var ex = Record.Exception(() => sut.Dispose());
@@ -14,7 +14,7 @@ public class FakeMetricsManagerShould
     }
 
     [Fact]
-    public void Should_NotThrow_WhenDisposedTwice()
+    public void NotThrowWhenDisposedTwice()
     {
         var sut = new FakeMetricsManager();
         sut.Dispose();
@@ -23,7 +23,7 @@ public class FakeMetricsManagerShould
     }
 
     [Fact]
-    public void Should_RemainCallable_AfterDispose()
+    public void RemainCallableAfterDispose()
     {
         var sut = new FakeMetricsManager();
         sut.Dispose();
@@ -35,7 +35,7 @@ public class FakeMetricsManagerShould
             sut.QueueEvent("e", "v");
             sut.QueueMetric("m", "v");
             sut.QueueMetric("m", 1.0);
-            sut.QueueMetric("m", new byte[] { 0x01 });
+            sut.QueueMetric("m", [0x01]);
             sut.SetDefaultProperties(new Dictionary<string, string>());
         });
 
