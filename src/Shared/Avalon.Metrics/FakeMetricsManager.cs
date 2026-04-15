@@ -39,6 +39,6 @@ public class FakeMetricsManager : IMetricsManager
 
     public void Dispose()
     {
-        // TODO release managed resources here
+        // No managed or unmanaged resources to release — intentional no-op stub.
     }
 }
