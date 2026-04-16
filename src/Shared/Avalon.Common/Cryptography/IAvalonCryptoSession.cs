@@ -10,7 +10,7 @@ public interface IAvalonCryptoSession
     void Initialize(byte[] otherEndPublicKeyBytes);
     byte[] GetPublicKey();
     byte[] GetOtherEndPublicKey();
-    byte[] Encrypt(byte[] data);
+    byte[] Encrypt(ReadOnlySpan<byte> data);
     byte[] Decrypt(byte[] data);
     byte[] GenerateHandshakeData();
 }
@@ -74,7 +74,7 @@ public class AvalonCryptoSession : IAvalonCryptoSession
         return _otherEndPublicKeyBytes;
     }
 
-    public byte[] Encrypt(byte[] data)
+    public byte[] Encrypt(ReadOnlySpan<byte> data)
     {
         if (!_initialized) throw new InvalidOperationException("Crypto session not initialized");
 
@@ -89,7 +89,7 @@ public class AvalonCryptoSession : IAvalonCryptoSession
             _encryptCipher.Init(true, parameters);
 
             // Encrypt the data
-            var ciphertext = _encryptCipher.DoFinal(data);
+            var ciphertext = _encryptCipher.DoFinal(data.ToArray());
 
             _encryptCipher.Reset();
 

@@ -11,12 +11,11 @@ namespace Avalon.Server.Auth.UnitTests.Handlers;
 public class CHandshakeHandlerShould
 {
     private readonly IAuthConnection _connection = Substitute.For<IAuthConnection>();
-    private readonly IAvalonCryptoSession _cryptoSession = Substitute.For<IAvalonCryptoSession>();
+    private readonly IAvalonCryptoSession _cryptoSession = new FakeAvalonCryptoSession();
     private readonly CHandshakeHandler _handler;
 
     public CHandshakeHandlerShould()
     {
-        _cryptoSession.Encrypt(Arg.Any<byte[]>()).Returns(x => (byte[])x[0]);
         _connection.CryptoSession.Returns(_cryptoSession);
         _connection.Id.Returns(Guid.NewGuid());
         _handler = new CHandshakeHandler(NullLoggerFactory.Instance);

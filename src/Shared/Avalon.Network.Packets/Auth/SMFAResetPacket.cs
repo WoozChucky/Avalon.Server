@@ -1,5 +1,6 @@
 using Avalon.Network.Packets.Abstractions;
 using ProtoBuf;
+using Avalon.Network.Packets.Serialization;
 
 namespace Avalon.Network.Packets.Auth;
 
@@ -12,7 +13,7 @@ public class SMFAResetPacket : Packet
 
     [ProtoMember(1)] public MFAOperationResult Result { get; set; }
 
-    public static NetworkPacket Create(MFAOperationResult result, Func<byte[], byte[]> encryptFunc)
+    public static NetworkPacket Create(MFAOperationResult result, EncryptFunc encryptFunc)
     {
         using var ms = new MemoryStream();
         Serializer.Serialize(ms, new SMFAResetPacket { Result = result });

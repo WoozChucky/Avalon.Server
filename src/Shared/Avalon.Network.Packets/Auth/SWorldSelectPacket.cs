@@ -1,5 +1,6 @@
 using Avalon.Network.Packets.Abstractions;
 using ProtoBuf;
+using Avalon.Network.Packets.Serialization;
 
 namespace Avalon.Network.Packets.Auth;
 
@@ -19,7 +20,7 @@ public class SWorldSelectPacket : Packet
     [ProtoMember(1)] public byte[] WorldKey { get; set; }
     [ProtoMember(2)] public WorldSelectResult Result { get; set; }
 
-    public static NetworkPacket Create(byte[] worldKey, Func<byte[], byte[]> encryptFunc)
+    public static NetworkPacket Create(byte[] worldKey, EncryptFunc encryptFunc)
     {
         using var memoryStream = new MemoryStream();
 
@@ -46,7 +47,7 @@ public class SWorldSelectPacket : Packet
         };
     }
 
-    public static NetworkPacket CreateError(WorldSelectResult result, Func<byte[], byte[]> encryptFunc)
+    public static NetworkPacket CreateError(WorldSelectResult result, EncryptFunc encryptFunc)
     {
         using var memoryStream = new MemoryStream();
 

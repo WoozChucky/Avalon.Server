@@ -17,12 +17,11 @@ public class CWorldListHandlerShould
     private readonly IWorldRepository _worldRepository = Substitute.For<IWorldRepository>();
     private readonly IAccountRepository _accountRepository = Substitute.For<IAccountRepository>();
     private readonly IAuthConnection _connection = Substitute.For<IAuthConnection>();
-    private readonly IAvalonCryptoSession _cryptoSession = Substitute.For<IAvalonCryptoSession>();
+    private readonly IAvalonCryptoSession _cryptoSession = new FakeAvalonCryptoSession();
     private readonly CWorldListHandler _handler;
 
     public CWorldListHandlerShould()
     {
-        _cryptoSession.Encrypt(Arg.Any<byte[]>()).Returns(x => (byte[])x[0]);
         _connection.CryptoSession.Returns(_cryptoSession);
         _connection.Id.Returns(Guid.NewGuid());
         _handler = new CWorldListHandler(NullLoggerFactory.Instance, _worldRepository, _accountRepository);

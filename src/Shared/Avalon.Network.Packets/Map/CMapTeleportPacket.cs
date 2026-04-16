@@ -1,5 +1,6 @@
 using Avalon.Network.Packets.Abstractions;
 using ProtoBuf;
+using Avalon.Network.Packets.Serialization;
 
 namespace Avalon.Network.Packets.Map;
 
@@ -14,7 +15,7 @@ public class CMapTeleportPacket : Packet
     [ProtoMember(2)] public ulong CharacterId { get; set; }
     [ProtoMember(3)] public int MapId { get; set; }
 
-    public static NetworkPacket Create(ulong accountId, ulong characterId, int mapId, Func<byte[], byte[]> encryptFunc)
+    public static NetworkPacket Create(ulong accountId, ulong characterId, int mapId, EncryptFunc encryptFunc)
     {
         using var memoryStream = new MemoryStream();
 
