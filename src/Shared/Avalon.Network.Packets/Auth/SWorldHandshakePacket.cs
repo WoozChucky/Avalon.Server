@@ -1,5 +1,6 @@
 using Avalon.Network.Packets.Abstractions;
 using ProtoBuf;
+using Avalon.Network.Packets.Serialization;
 
 namespace Avalon.Network.Packets.Auth;
 
@@ -13,7 +14,7 @@ public class SWorldHandshakePacket : Packet
     [ProtoMember(1)] public long? AccountId { get; set; }
     [ProtoMember(2)] public bool Verified { get; set; }
 
-    public static NetworkPacket Create(long accountId, bool verified, Func<byte[], byte[]> encryptFunc)
+    public static NetworkPacket Create(long accountId, bool verified, EncryptFunc encryptFunc)
     {
         using MemoryStream memoryStream = new();
 

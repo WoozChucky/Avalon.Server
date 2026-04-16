@@ -1,5 +1,6 @@
 using Avalon.Network.Packets.Abstractions;
 using ProtoBuf;
+using Avalon.Network.Packets.Serialization;
 
 namespace Avalon.Network.Packets.Handshake;
 
@@ -12,7 +13,7 @@ public class SHandshakeResultPacket : Packet
 
     [ProtoMember(1)] public bool Verified { get; set; }
 
-    public static NetworkPacket Create(bool verified, Func<byte[], byte[]> encryptFunc)
+    public static NetworkPacket Create(bool verified, EncryptFunc encryptFunc)
     {
         using var memoryStream = new MemoryStream();
 

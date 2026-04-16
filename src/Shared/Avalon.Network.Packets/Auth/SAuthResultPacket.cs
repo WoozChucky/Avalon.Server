@@ -1,5 +1,6 @@
 using Avalon.Network.Packets.Abstractions;
 using ProtoBuf;
+using Avalon.Network.Packets.Serialization;
 
 namespace Avalon.Network.Packets.Auth;
 
@@ -15,7 +16,7 @@ public class SAuthResultPacket : Packet
     [ProtoMember(3)] public string? MfaHash { get; set; }
 
     public static NetworkPacket Create(long? accountId, string? hash, AuthResult result,
-        Func<byte[], byte[]> encryptFunc)
+        EncryptFunc encryptFunc)
     {
         using MemoryStream memoryStream = new();
 

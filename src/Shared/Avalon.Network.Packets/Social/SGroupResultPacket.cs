@@ -1,5 +1,6 @@
 using Avalon.Network.Packets.Abstractions;
 using ProtoBuf;
+using Avalon.Network.Packets.Serialization;
 
 namespace Avalon.Network.Packets.Social;
 
@@ -16,7 +17,7 @@ public class SGroupResultPacket : Packet
     [ProtoMember(4)] public int InviterCharacterId { get; set; }
     [ProtoMember(5)] public bool Accepted { get; set; }
 
-    public static NetworkPacket Create(int accountId, int characterId, int inviterAccountId, int inviterCharacterId, bool accepted, Func<byte[], byte[]> encryptFunc)
+    public static NetworkPacket Create(int accountId, int characterId, int inviterAccountId, int inviterCharacterId, bool accepted, EncryptFunc encryptFunc)
     {
         using var memoryStream = new MemoryStream();
 

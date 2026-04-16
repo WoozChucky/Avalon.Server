@@ -21,7 +21,7 @@ public class CMFAVerifyHandlerShould
     private readonly IAccountRepository _accountRepository = Substitute.For<IAccountRepository>();
     private readonly IReplicatedCache _cache = Substitute.For<IReplicatedCache>();
     private readonly IAuthConnection _connection = Substitute.For<IAuthConnection>();
-    private readonly IAvalonCryptoSession _cryptoSession = Substitute.For<IAvalonCryptoSession>();
+    private readonly IAvalonCryptoSession _cryptoSession = new FakeAvalonCryptoSession();
 
     private CMFAVerifyHandler CreateHandler() =>
         new(NullLoggerFactory.Instance, _mfaService, _accountRepository, _cache);
@@ -38,7 +38,6 @@ public class CMFAVerifyHandlerShould
 
     public CMFAVerifyHandlerShould()
     {
-        _cryptoSession.Encrypt(Arg.Any<byte[]>()).Returns(x => (byte[])x[0]);
         _connection.CryptoSession.Returns(_cryptoSession);
         _connection.RemoteEndPoint.Returns("127.0.0.1:12345");
     }

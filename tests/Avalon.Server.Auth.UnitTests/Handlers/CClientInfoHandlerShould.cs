@@ -11,7 +11,7 @@ namespace Avalon.Server.Auth.UnitTests.Handlers;
 public class CClientInfoHandlerShould
 {
     private readonly IAuthConnection _connection = Substitute.For<IAuthConnection>();
-    private readonly IAvalonCryptoSession _cryptoSession = Substitute.For<IAvalonCryptoSession>();
+    private readonly FakeAvalonCryptoSession _cryptoSession = new();
     private readonly ICryptoManager _serverCrypto = Substitute.For<ICryptoManager>();
     private readonly CClientInfoHandler _handler;
 
@@ -19,8 +19,6 @@ public class CClientInfoHandlerShould
 
     public CClientInfoHandlerShould()
     {
-        _cryptoSession.Encrypt(Arg.Any<byte[]>()).Returns(x => (byte[])x[0]);
-        _cryptoSession.GenerateHandshakeData().Returns(new byte[16]);
         _connection.CryptoSession.Returns(_cryptoSession);
         _serverCrypto.GetValidKeySize().Returns(ValidKeySize);
         _connection.ServerCrypto.Returns(_serverCrypto);
@@ -40,7 +38,7 @@ public class CClientInfoHandlerShould
 
         await _handler.ExecuteAsync(ctx);
 
-        _connection.CryptoSession.DidNotReceive().Initialize(Arg.Any<byte[]>());
+        Assert.Equal(0, _cryptoSession.InitializeCallCount);
         _connection.DidNotReceive().Send(Arg.Any<NetworkPacket>());
     }
 
@@ -55,7 +53,7 @@ public class CClientInfoHandlerShould
 
         await _handler.ExecuteAsync(ctx);
 
-        _connection.CryptoSession.DidNotReceive().Initialize(Arg.Any<byte[]>());
+        Assert.Equal(0, _cryptoSession.InitializeCallCount);
         _connection.DidNotReceive().Send(Arg.Any<NetworkPacket>());
     }
 
@@ -72,7 +70,7 @@ public class CClientInfoHandlerShould
 
         await _handler.ExecuteAsync(ctx);
 
-        _connection.CryptoSession.DidNotReceive().Initialize(Arg.Any<byte[]>());
+        Assert.Equal(0, _cryptoSession.InitializeCallCount);
         _connection.DidNotReceive().Send(Arg.Any<NetworkPacket>());
     }
 
@@ -90,7 +88,8 @@ public class CClientInfoHandlerShould
 
         await _handler.ExecuteAsync(ctx);
 
-        _connection.CryptoSession.Received(1).Initialize(validKey);
+        Assert.Equal(1, _cryptoSession.InitializeCallCount);
+        Assert.Equal(validKey, _cryptoSession.LastInitializedKey);
         _connection.Received(1).GenerateHandshakeData();
         _connection.Received(1).Send(Arg.Any<NetworkPacket>());
     }

@@ -3,6 +3,7 @@ using Avalon.Network.Packets.Abstractions;
 using ProtoBuf;
 using NetworkPacketFlags = Avalon.Network.Packets.Abstractions.NetworkPacketFlags;
 using NetworkProtocol = Avalon.Network.Packets.Abstractions.NetworkProtocol;
+using Avalon.Network.Packets.Serialization;
 
 namespace Avalon.Network.Packets.State;
 
@@ -29,7 +30,7 @@ public class SInstanceStateAddPacket : Packet
 
     [ProtoMember(1)] public List<ObjectAdd> Adds { get; set; }
 
-    public static NetworkPacket Create(List<ObjectAdd> adds, Func<byte[], byte[]> encryptFunc)
+    public static NetworkPacket Create(List<ObjectAdd> adds, EncryptFunc encryptFunc)
     {
         using var memoryStream = new MemoryStream();
 
@@ -65,7 +66,7 @@ public class SInstanceStateUpdatePacket : Packet
 
     [ProtoMember(1)] public List<ObjectUpdate> Updates { get; set; }
 
-    public static NetworkPacket Create(List<ObjectUpdate> updates, Func<byte[], byte[]> encryptFunc)
+    public static NetworkPacket Create(List<ObjectUpdate> updates, EncryptFunc encryptFunc)
     {
         using var memoryStream = new MemoryStream();
 
@@ -101,7 +102,7 @@ public class SInstanceStateRemovePacket : Packet
 
     [ProtoMember(1)] public List<ulong> Removes { get; set; }
 
-    public static NetworkPacket Create(IEnumerable<ObjectGuid> removes, Func<byte[], byte[]> encryptFunc)
+    public static NetworkPacket Create(IEnumerable<ObjectGuid> removes, EncryptFunc encryptFunc)
     {
         using var memoryStream = new MemoryStream();
 

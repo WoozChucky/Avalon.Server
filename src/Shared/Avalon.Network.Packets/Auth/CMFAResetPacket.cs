@@ -1,6 +1,7 @@
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Abstractions.Attributes;
 using ProtoBuf;
+using Avalon.Network.Packets.Serialization;
 
 namespace Avalon.Network.Packets.Auth;
 
@@ -16,7 +17,7 @@ public class CMFAResetPacket : Packet
     [ProtoMember(2)] public string RecoveryCode2 { get; set; } = string.Empty;
     [ProtoMember(3)] public string RecoveryCode3 { get; set; } = string.Empty;
 
-    public static NetworkPacket Create(string r1, string r2, string r3, Func<byte[], byte[]> encryptFunc)
+    public static NetworkPacket Create(string r1, string r2, string r3, EncryptFunc encryptFunc)
     {
         using var ms = new MemoryStream();
         Serializer.Serialize(ms, new CMFAResetPacket { RecoveryCode1 = r1, RecoveryCode2 = r2, RecoveryCode3 = r3 });

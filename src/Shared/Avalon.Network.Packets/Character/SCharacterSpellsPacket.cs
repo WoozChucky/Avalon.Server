@@ -1,5 +1,6 @@
 using Avalon.Network.Packets.Abstractions;
 using ProtoBuf;
+using Avalon.Network.Packets.Serialization;
 
 namespace Avalon.Network.Packets.Character;
 
@@ -12,7 +13,7 @@ public class SCharacterSpellsPacket : Packet
 
     [ProtoMember(1)] public SpellInfo[] Spells { get; set; }
 
-    public static NetworkPacket Create(SpellInfo[] spells, Func<byte[], byte[]> encrypt)
+    public static NetworkPacket Create(SpellInfo[] spells, EncryptFunc encrypt)
     {
         using var memoryStream = new MemoryStream();
 

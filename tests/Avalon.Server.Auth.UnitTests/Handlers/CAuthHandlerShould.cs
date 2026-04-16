@@ -24,7 +24,7 @@ public class CAuthHandlerShould
     private readonly IMFAHashService _mfaHashService = Substitute.For<IMFAHashService>();
     private readonly IMfaSetupRepository _noMfaRepo = Substitute.For<IMfaSetupRepository>();
     private readonly IAuthConnection _connection = Substitute.For<IAuthConnection>();
-    private readonly IAvalonCryptoSession _cryptoSession = Substitute.For<IAvalonCryptoSession>();
+    private readonly IAvalonCryptoSession _cryptoSession = new FakeAvalonCryptoSession();
     private readonly CAuthHandler _handler;
 
     private static IOptions<AuthConfiguration> AuthOptions(int maxFailedLogins = 5) =>
@@ -35,7 +35,6 @@ public class CAuthHandlerShould
 
     public CAuthHandlerShould()
     {
-        _cryptoSession.Encrypt(Arg.Any<byte[]>()).Returns(x => (byte[])x[0]);
         _connection.CryptoSession.Returns(_cryptoSession);
         _connection.RemoteEndPoint.Returns("127.0.0.1:12345");
         _connection.Id.Returns(Guid.NewGuid());

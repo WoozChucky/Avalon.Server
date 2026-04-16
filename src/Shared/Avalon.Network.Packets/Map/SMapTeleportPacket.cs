@@ -1,6 +1,7 @@
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Character;
 using ProtoBuf;
+using Avalon.Network.Packets.Serialization;
 
 namespace Avalon.Network.Packets.Map;
 
@@ -15,7 +16,7 @@ public class SMapTeleportPacket : Packet
     [ProtoMember(2)] public float X { get; set; }
     [ProtoMember(3)] public float Y { get; set; }
 
-    public static NetworkPacket Create(MapInfo mapInfo, float x, float y, Func<byte[], byte[]> encryptFunc)
+    public static NetworkPacket Create(MapInfo mapInfo, float x, float y, EncryptFunc encryptFunc)
     {
         using var memoryStream = new MemoryStream();
 

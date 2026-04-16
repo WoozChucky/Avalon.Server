@@ -1,5 +1,6 @@
 using Avalon.Network.Packets.Abstractions;
 using ProtoBuf;
+using Avalon.Network.Packets.Serialization;
 
 namespace Avalon.Network.Packets.Auth;
 
@@ -12,7 +13,7 @@ public class SWorldListPacket : Packet
 
     [ProtoMember(1)] public WorldInfo[] Worlds { get; set; }
 
-    public static NetworkPacket Create(WorldInfo[] worlds, Func<byte[], byte[]> encryptFunc)
+    public static NetworkPacket Create(WorldInfo[] worlds, EncryptFunc encryptFunc)
     {
         using var memoryStream = new MemoryStream();
 

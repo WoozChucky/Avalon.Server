@@ -1,6 +1,7 @@
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Abstractions.Attributes;
 using ProtoBuf;
+using Avalon.Network.Packets.Serialization;
 
 namespace Avalon.Network.Packets.World;
 
@@ -15,7 +16,7 @@ public class CEnterMapPacket : Packet
     /// <summary>The template ID of the map the client wants to enter.</summary>
     [ProtoMember(1)] public ushort TargetMapId { get; set; }
 
-    public static NetworkPacket Create(ushort targetMapId, Func<byte[], byte[]> encrypt)
+    public static NetworkPacket Create(ushort targetMapId, EncryptFunc encrypt)
     {
         using var memoryStream = new MemoryStream();
 
