@@ -94,7 +94,7 @@ brand-new `ImmutableArray<IWorldConnection>`.
 
 ## GC-004 — `WorldSessionFilter` re-allocated per connection per tick
 
-**Status:** Open  
+**Status:** Resolved — `IWorldConnection.Update(TimeSpan, PacketFilter)` split into `UpdateSession(TimeSpan)` (called by `WorldServer`, uses stored `_worldSessionFilter`) and `UpdateMap(TimeSpan)` (called by `MapInstance`, uses stored `_worldMapFilter`). Shared logic extracted to private `ProcessQueue(PacketFilter)`. Zero filter allocations per tick.  
 **Severity:** High  
 **File:** `src/Server/Avalon.World/WorldServer.cs:201`
 
@@ -122,7 +122,7 @@ re-allocation is redundant.
 
 ## GC-005 — `List<WorldPacket> requeuePackets` allocated per tick per connection, never populated
 
-**Status:** Open  
+**Status:** Resolved — dead `List<WorldPacket> requeuePackets = []` local and `_receiveQueue.Readd(requeuePackets)` call removed from `WorldConnection`. Requeue was unreachable: `LockedQueue.Next(check)` peeks first, so packets that fail the filter are never dequeued and cannot be re-added. Removed alongside GC-004 fix.  
 **Severity:** Medium  
 **File:** `src/Server/Avalon.World/WorldConnection.cs:100`
 
@@ -400,8 +400,8 @@ pre-allocated / pooled list. Given the small typical size (<10 entries) an
 | # | ID | Description | Impact |
 |---|----|-------------|--------|
 | 1 | ~~GC-003~~ | ~~`Connections` ImmutableArray rebuilt every tick~~ | ~~Critical~~ |
-| 2 | GC-004 | `WorldSessionFilter` new() per tick per player | High |
-| 3 | GC-005 | Dead `requeuePackets` list per tick per player | Medium |
+| 2 | ~~GC-004~~ | ~~`WorldSessionFilter` new() per tick per player~~ | ~~High~~ |
+| 3 | ~~GC-005~~ | ~~Dead `requeuePackets` list per tick per player~~ | ~~Medium~~ |
 | 4 | GC-006 | `JsonSerializer.Serialize` without log guard | High |
 | 5 | GC-001 | Outbound packet `MemoryStream+ToArray+encrypt` | Critical |
 | 6 | GC-002 | Per-entity `new byte[]` in state broadcast | Critical |

@@ -53,14 +53,14 @@ public class LockedQueueShould
     }
 
     [Fact]
-    public void ReaddItemsToFrontInOriginalOrder()
+    public void ReAddItemsToFrontInOriginalOrder()
     {
         var queue = new LockedQueue<Item>();
         var existing = new Item("existing");
         queue.Add(existing);
 
         var readdItems = new List<Item> { new("readd-1"), new("readd-2") };
-        queue.Readd(readdItems);
+        queue.ReAdd(readdItems);
 
         // After Readd, order should be: readd-1, readd-2, existing
         Assert.True(queue.Next(out var first));
@@ -169,12 +169,12 @@ public class LockedQueueShould
     }
 
     [Fact]
-    public void ReaddEmptyListIsNoOp()
+    public void ReAddEmptyListIsNoOp()
     {
         var queue = new LockedQueue<Item>();
         queue.Add(new Item("a"));
 
-        queue.Readd(new List<Item>());
+        queue.ReAdd(new List<Item>());
 
         Assert.True(queue.Next(out var item));
         Assert.Equal("a", item!.Label);
