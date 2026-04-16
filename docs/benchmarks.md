@@ -12,6 +12,7 @@ dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*EntityTr
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*Serialization*"
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*PacketSerializationGc*"
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*BroadcastStateGc*"
+dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*PacketReaderGc*"
 ```
 
 ---
@@ -70,6 +71,19 @@ GC-002: BroadcastStateTo per-entity alloc reduction.
 `Legacy_*` = current `new byte[]` per entity + `new List<ObjectAdd>` per call;
 `Pooled_*` = contiguous rented buffer + `ReadOnlyMemory<byte>` slices (added in Task 5).
 Parameterised at 5 and 20 entities.
+
+---
+
+### Packet Reader GC-007 — `PacketReaderGcBenchmarks.cs`
+
+Before/after allocation comparison for the GC-007 fix: `MethodInfo.Invoke` with a per-call `new object?[3]` args array and a boxed `ReadOnlyMemory<byte>` struct, versus a cached typed `Func<ReadOnlyMemory<byte>, Packet?>` delegate called directly.
+
+| Scenario | What it models |
+|---|---|
+| `Legacy_ReflectionInvoke` | Old `PacketReader.Read()` — `MethodInfo.Invoke(null, new object?[] { mem, null, null })` — **baseline** |
+| `Delegate_Cached` | New `PacketReader.Read()` — `deserializer(new ReadOnlyMemory<byte>(payload))` |
+
+Both paths deserialize an identical `CCharacterListPacket` payload. The residual allocation in `Delegate_Cached` is the deserialized packet object itself — unavoidable.
 
 ---
 
@@ -409,3 +423,53 @@ BenchmarkDotNet v0.15.8, Windows 11 (10.0.26200.8039/25H2/2025Update/HudsonValle
 - Allocation reduction scales linearly with entity count — the Pooled path at 5 entities cuts allocation by 47% (1,312 B → 696 B); at 20 entities by 50% (4,712 B → 2,344 B). The residual 696 B / 2,344 B is the single encrypted `NetworkPacket` payload byte[] produced by `s_encrypt` (unavoidable) plus N `ObjectAdd` class instances (one per entity — `ObjectAdd` is a reference type).
 - Gen1 promotion eliminated — `Legacy_BroadcastState` at 20 entities shows `Gen1 = 0.0019`; `Pooled_BroadcastState` shows none. The rented buffer and pre-allocated list never escape to Gen1.
 - Note: The benchmark only exercises the NewObjects (add) path. The UpdatedObjects path has an identical allocation pattern; at 20 entities across both loops the total Legacy allocation in production is approximately double the measured figure.
+
+---
+
+## Packet Reader GC-007 — Benchmark Results
+
+**Date:** 2026-04-16
+
+```
+BenchmarkDotNet v0.15.8, Windows 11 (10.0.26200.8246/25H2/2025Update/HudsonValley2)
+12th Gen Intel Core i9-12900K 3.20GHz, 1 CPU, 24 logical and 16 physical cores
+.NET SDK 10.0.202
+  [Host]     : .NET 10.0.6 (10.0.6, 10.0.626.17701), X64 RyuJIT x86-64-v3
+  DefaultJob : .NET 10.0.6 (10.0.6, 10.0.626.17701), X64 RyuJIT x86-64-v3
+```
+
+### Problem (before GC-007)
+
+`PacketReader.Read()` deserialised every inbound packet via `MethodInfo.Invoke`:
+
+```csharp
+object? payload = p.deserialize.Invoke(null, new object?[] { payloadMemory, null, null });
+```
+
+Two heap allocations per call:
+1. `new object?[3]` — the reflection invoke args array
+2. Boxing of `payloadMemory` (`ReadOnlyMemory<byte>` is a struct → `object?`)
+
+### Fix (after GC-007)
+
+A private static `BuildDeserializer<T>()` helper builds a typed `Func<ReadOnlyMemory<byte>, Packet?>` once per packet type at startup via `MakeGenericMethod`. `Read()` calls the cached delegate directly:
+
+```csharp
+return deserializer(new ReadOnlyMemory<byte>(packet.Payload));
+```
+
+`new ReadOnlyMemory<byte>(...)` is a stack-allocated struct — no heap allocation. The delegate is shared — no closure per call.
+
+### Results
+
+| Method | Mean | Error | StdDev | Ratio | Gen0 | Allocated | Alloc Ratio |
+|---|---|---|---|---|---|---|---|
+| `Legacy_ReflectionInvoke` | 68.75 ns | 0.796 ns | 0.665 ns | 1.00 | 0.0066 | 104 B | 1.00 |
+| `Delegate_Cached` | 50.01 ns | 0.515 ns | 0.456 ns | 0.73 | 0.0015 | 24 B | 0.23 |
+
+### Key observations
+
+- **27% faster** — 68.75 ns → 50.01 ns. Reflection dispatch has measurable overhead even with a pre-closed `MethodInfo`; a direct delegate call is cheaper for the JIT to inline and schedule.
+- **77% less allocation** — 104 B → 24 B per `Read()` call. The 80 B eliminated is the `object?[3]` array (~40 B) and the boxed `ReadOnlyMemory<byte>` struct (~40 B). The 24 B residual is the deserialized `CCharacterListPacket` object itself — unavoidable.
+- **Gen0 rate reduced 4.4×** — Gen0 drops from 0.0066 to 0.0015 per 1 000 operations. Fewer Gen0 collections means less STW pause time during packet processing.
+- **At inbound packet scale** — at 50 players × 10 non-trivial packets/s = 500 `Read()` calls/s, the legacy path allocates ~52 KB/s of short-lived Gen0 objects from this site alone. The delegate path reduces that to ~12 KB/s, a saving of ~40 KB/s.
