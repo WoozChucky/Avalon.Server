@@ -12,7 +12,12 @@ internal sealed class PooledArrayBufferWriter : IBufferWriter<byte>
 
     public void Reset() => _written = 0;
 
-    public void Advance(int count) => _written += count;
+    public void Advance(int count)
+    {
+        if (count < 0 || _written + count > _buffer.Length)
+            throw new ArgumentOutOfRangeException(nameof(count));
+        _written += count;
+    }
 
     public Memory<byte> GetMemory(int sizeHint = 0)
     {
