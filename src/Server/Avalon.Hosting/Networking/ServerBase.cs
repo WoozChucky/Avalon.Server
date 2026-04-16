@@ -127,8 +127,8 @@ public abstract class ServerBase<T> : BackgroundService, IServerBase where T : I
 
         // cannot inject tcp client here
         var connection = ActivatorUtilities.CreateInstance<T>(scope.ServiceProvider, client, this);
-        Connections.TryAdd(connection.Id, connection);
-        ImmutableInterlocked.Update(ref _typedConnections, static (arr, conn) => arr.Add(conn), connection);
+        if (Connections.TryAdd(connection.Id, connection))
+            ImmutableInterlocked.Update(ref _typedConnections, static (arr, conn) => arr.Add(conn), connection);
 
         // accept new connections on another thread
         Listener.BeginAcceptTcpClient(OnClientAccepted, Listener);
