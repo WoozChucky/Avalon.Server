@@ -1,7 +1,12 @@
+using System.IO;
 using Avalon.Configuration;
 using Avalon.Hosting.Networking;
+using Avalon.Network.Packets;
+using Avalon.Network.Packets.Abstractions;
+using Avalon.Network.Packets.Character;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using ProtoBuf;
 using Xunit;
 
 namespace Avalon.Shared.UnitTests.Networking;
@@ -13,6 +18,12 @@ public class PacketReaderShould
             NullLoggerFactory.Instance,
             Options.Create(new HostingConfiguration { PacketReaderBufferSize = bufferSize }),
             packetTypes: []);
+
+    private static PacketReader MakeWith(params Type[] packetTypes) =>
+        new PacketReader(
+            NullLoggerFactory.Instance,
+            Options.Create(new HostingConfiguration()),
+            packetTypes);
 
     [Fact]
     public void UseConfiguredBufferSize_WhenConstructed()
@@ -45,5 +56,40 @@ public class PacketReaderShould
     {
         var ex = Record.Exception(() => Make(size));
         Assert.Null(ex);
+    }
+
+    [Fact]
+    public void Should_ReturnDeserializedPacket_WhenTypeIsRegisteredAndPayloadIsValid()
+    {
+        var reader = MakeWith(typeof(CCharacterListPacket));
+
+        using var ms = new MemoryStream();
+        Serializer.Serialize(ms, new CCharacterListPacket());
+
+        var networkPacket = new NetworkPacket
+        {
+            Header = new NetworkPacketHeader { Type = CCharacterListPacket.PacketType },
+            Payload = ms.ToArray()
+        };
+
+        var result = reader.Read(networkPacket);
+
+        Assert.IsType<CCharacterListPacket>(result);
+    }
+
+    [Fact]
+    public void Should_ReturnNull_WhenPacketTypeIsUnknown()
+    {
+        var reader = MakeWith();
+
+        var networkPacket = new NetworkPacket
+        {
+            Header = new NetworkPacketHeader { Type = CCharacterListPacket.PacketType },
+            Payload = []
+        };
+
+        var result = reader.Read(networkPacket);
+
+        Assert.Null(result);
     }
 }
