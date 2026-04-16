@@ -120,7 +120,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
     }
 
     public new ImmutableArray<IWorldConnection> Connections =>
-        [.. base.Connections.Values.Cast<WorldConnection>()];
+        TypedConnections.CastArray<IWorldConnection>();
 
     public IWorld World => _world;
     public Dictionary<NetworkPacketType, IWorldPacketHandler> PacketHandlers { get; }

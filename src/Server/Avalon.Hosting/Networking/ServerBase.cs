@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
@@ -43,6 +44,8 @@ public abstract class ServerBase<T> : BackgroundService, IServerBase where T : I
     public readonly Dictionary<Type, PacketHandlerCache> HandlerCache = new();
 
     protected readonly ConcurrentDictionary<Guid, IConnection> Connections = new();
+    private ImmutableArray<T> _typedConnections = ImmutableArray<T>.Empty;
+    protected ImmutableArray<T> TypedConnections => _typedConnections;
 
     private readonly ILogger _logger;
 
@@ -80,6 +83,8 @@ public abstract class ServerBase<T> : BackgroundService, IServerBase where T : I
     public Task RemoveConnection(IConnection connection)
     {
         Connections.Remove(connection.Id, out _);
+        if (connection is T typed)
+            ImmutableInterlocked.Update(ref _typedConnections, static (arr, conn) => arr.Remove(conn), typed);
         return Task.CompletedTask;
     }
 
@@ -123,6 +128,7 @@ public abstract class ServerBase<T> : BackgroundService, IServerBase where T : I
         // cannot inject tcp client here
         var connection = ActivatorUtilities.CreateInstance<T>(scope.ServiceProvider, client, this);
         Connections.TryAdd(connection.Id, connection);
+        ImmutableInterlocked.Update(ref _typedConnections, static (arr, conn) => arr.Add(conn), connection);
 
         // accept new connections on another thread
         Listener.BeginAcceptTcpClient(OnClientAccepted, Listener);
