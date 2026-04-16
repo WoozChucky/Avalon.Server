@@ -10,6 +10,7 @@ dotnet run -c Release --project tools/Avalon.Benchmarking
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*TickLoop*"
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*EntityTracking*"
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*Serialization*"
+dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*PacketSerializationGc*"
 ```
 
 ---
@@ -43,6 +44,22 @@ visible to each connected client.
 | `Update_AllActive` | Every creature changes every tick (worst-case stress) |
 
 Scale parameter `CreatureCount` runs at 50 / 100 / 200 to validate O(n) behaviour.
+
+---
+
+### Packet Serialization GC-001 — `PacketSerializationGcBenchmarks.cs`
+
+Before/after allocation comparison for the GC-001 fix: `MemoryStream + ToArray` versus
+`PacketSerializationHelper` + `PooledArrayBufferWriter`.
+
+| Scenario | What it models |
+|---|---|
+| `Legacy_SmallPacket` | Old pattern — `MemoryStream + Serializer.Serialize + ms.ToArray() + encrypt` on a small packet (one field) — **baseline** |
+| `Pooled_SmallPacket` | New pattern — `PacketSerializationHelper.Serialize` on the same packet |
+| `Legacy_MediumPacket` | Old pattern on `SChatMessagePacket` (two `ulong`s, two `string`s, `DateTime`) |
+| `Pooled_MediumPacket` | New pattern on the same medium packet |
+
+Both encrypt delegates are identity copies (`span => span.ToArray()`) to isolate serialization cost from crypto cost.
 
 ---
 
@@ -257,3 +274,72 @@ BenchmarkDotNet v0.15.8, Windows 11 (10.0.26200.8039/25H2/2025Update/HudsonValle
   overhead.
 - **At target scale** — 250 instances × 2 clients × 60 TPS: Gen0 allocation drops from
   ~473 MB/s to ~3.6 MB/s (131× reduction), eliminating the primary driver of tick jitter.
+
+---
+
+## Packet Serialization GC-001 — Benchmark Results
+
+### Problem (Before)
+
+Every outbound S-packet `Create()` followed this pattern:
+
+```csharp
+using var memoryStream = new MemoryStream();       // alloc 1: MemoryStream + internal byte[] buffer
+Serializer.Serialize(memoryStream, p);
+var buffer = encryptFunc(memoryStream.ToArray());  // alloc 2: ToArray copy; alloc 3: encrypt result
+```
+
+Three heap allocations minimum per outbound packet. The state broadcast sends Add + Update + Remove
+packets to every player at ~10 Hz, producing hundreds of short-lived allocations per second under
+any real load.
+
+### Fix (After)
+
+Replaced with a `[ThreadStatic]` pooled `IBufferWriter<byte>` (`PooledArrayBufferWriter`) backed by
+`ArrayPool<byte>.Shared`. A central `PacketSerializationHelper.Serialize()` helper owns the
+thread-local writer and serializes directly into it; the span is passed to `EncryptFunc` with no
+intermediate copy.
+
+```csharp
+// One call, one allocation (the encrypted payload byte[])
+=> PacketSerializationHelper.Serialize(new SXxxPacket { ... }, PacketType, Flags, Protocol, encrypt);
+```
+
+### Results — GC-001 fix (2026-04-16)
+
+```
+BenchmarkDotNet v0.15.8, Windows 11 (10.0.26200.8039/25H2/2025Update/HudsonValley2)
+13th Gen Intel Core i7-13850HX 2.10GHz, 1 CPU, 28 logical and 20 physical cores
+.NET SDK 10.0.202
+  [Host]     : .NET 10.0.6 (10.0.6, 10.0.626.17701), X64 RyuJIT x86-64-v3
+  DefaultJob : .NET 10.0.6 (10.0.6, 10.0.626.17701), X64 RyuJIT x86-64-v3
+```
+
+| Method                    | Mean      | Error    | StdDev   | Ratio | RatioSD | Gen0   | Allocated | Alloc Ratio |
+|-------------------------- |----------:|---------:|---------:|------:|--------:|-------:|----------:|------------:|
+| **Legacy_SmallPacket**    |  89.06 ns | 2.643 ns | 7.669 ns |  1.01 |    0.15 | 0.0117 |     184 B |        1.00 |
+| Pooled_SmallPacket        |  75.00 ns | 1.551 ns | 3.098 ns |  0.85 |    0.11 | 0.0076 |     120 B |        0.65 |
+| Legacy_MediumPacket       | 164.23 ns | 2.508 ns | 2.684 ns |  1.86 |    0.23 | 0.0381 |     600 B |        3.26 |
+| Pooled_MediumPacket       | 146.02 ns | 2.819 ns | 3.355 ns |  1.66 |    0.20 | 0.0162 |     256 B |        1.39 |
+
+Encrypt delegates are identity copies (`span => span.ToArray()`) in both paths to isolate
+serialization cost. The `[ThreadStatic]` writer is pre-warmed in `[GlobalSetup]` so its one-time
+allocation does not appear in steady-state measurements.
+
+**Key observations:**
+
+- **Small packet: 184 B → 120 B (35% less allocation, 16% faster)** — `SCharacterCreatedPacket`
+  (one enum field). The 64 B saving is the `MemoryStream` object and its internal byte[] buffer,
+  which are no longer allocated. The payload byte[] itself is the same cost in both paths.
+- **Medium packet: 600 B → 256 B (57% less allocation, 11% faster)** — `SChatMessagePacket`
+  (two `ulong`s, two `string`s, `DateTime`, ~70 bytes serialized). The MemoryStream buffer grows
+  to hold the larger payload, so the absolute saving scales with packet size.
+- **Gen0 rate halved** — `Gen0` drops from 0.0117 to 0.0076 (small) and 0.0381 to 0.0162
+  (medium). Fewer Gen0 collections means less STW pause time during state broadcasts.
+- **Speed improvement is a side effect, not the goal** — the primary win is GC pressure.
+  The pooled path is also faster because `ArrayPool` and span operations have better cache
+  locality than `MemoryStream`'s internal resize path, but the latency reduction is secondary.
+- **At state-broadcast scale** — the hot path sends three packet types (Add, Update, Remove) to
+  every player at ~10 Hz. With 100 players each seeing ~20 entities: ~60,000 packets/second.
+  Saving ~64–344 B per packet eliminates **3.8–20 MB/s** of Gen0 allocation that was previously
+  driving collection pauses on the world server tick loop.
