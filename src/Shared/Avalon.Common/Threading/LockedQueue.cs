@@ -16,7 +16,7 @@ public class LockedQueue<T> where T : class
     }
 
     // Adds items back to front of the queue.
-    public void Readd(IList<T> items)
+    public void ReAdd(IList<T> items)
     {
         lock (_lock)
         {

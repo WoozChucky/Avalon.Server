@@ -6,7 +6,6 @@ using Avalon.Domain.World;
 using Avalon.Network.Packets.Combat;
 using Avalon.Network.Packets.State;
 using Avalon.World.Entities;
-using Avalon.World.Filters;
 using Avalon.World.Pools;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
@@ -185,8 +184,7 @@ public class MapInstance : IMapInstance
         foreach ((ObjectGuid guid, ICharacter character) in _characters)
         {
             IWorldConnection connection = _connections[guid];
-            MapSessionFilter filter = new(connection);
-            connection.Update(deltaTime, filter);
+            connection.UpdateMap(deltaTime);
             character.Update(deltaTime);
         }
 
