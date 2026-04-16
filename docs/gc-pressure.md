@@ -179,7 +179,7 @@ if (_logger.IsEnabled(LogLevel.Debug))
 
 ## GC-007 — `PacketReader.Read` boxes reflection arguments per inbound packet
 
-**Status:** Open  
+**Status:** Resolved — `_packetTypes` dict value changed from `(Type, MethodInfo)` to `Func<ReadOnlyMemory<byte>, Packet?>` built once per type at startup via `BuildDeserializer<T>()` + `MakeGenericMethod`. `Read()` calls the cached delegate directly — zero per-call allocation (was: `new object?[3]` + boxed `ReadOnlyMemory<byte>` struct).  
 **Severity:** Medium  
 **File:** `src/Server/Avalon.Hosting/Networking/PacketReader.cs:82`
 
@@ -406,7 +406,7 @@ pre-allocated / pooled list. Given the small typical size (<10 entries) an
 | 5 | GC-001 | Outbound packet `MemoryStream+ToArray+encrypt` | Critical |
 | 6 | GC-002 | Per-entity `new byte[]` in state broadcast | Critical |
 | 7 | GC-009 | `WorldPacket` class → struct | Medium |
-| 8 | GC-007 | `PacketReader` reflection `new object?[]` per packet | Medium |
+| 8 | ~~GC-007~~ | ~~`PacketReader` reflection `new object?[]` per packet~~ | ~~Medium~~ |
 | 9 | GC-013 | `Task.Delay(1)` idle send loop | Medium |
 | 10 | GC-012 | `EnqueueContinuation` boxing + two closures | Medium |
 | 11 | GC-008 | Decrypt allocates new `byte[]` for payload | Medium |
