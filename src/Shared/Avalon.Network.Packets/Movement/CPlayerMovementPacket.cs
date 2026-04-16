@@ -1,6 +1,7 @@
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Abstractions.Attributes;
 using ProtoBuf;
+using Avalon.Network.Packets.Serialization;
 
 namespace Avalon.Network.Packets.Movement;
 
@@ -22,7 +23,7 @@ public class CPlayerMovementPacket : Packet
     [ProtoMember(8)] public float Rotation { get; set; }
     // [ProtoMember(9)] public float Strafe { get; set; } // -1.0f to 1.0f (left to right)
 
-    public static NetworkPacket Create(double time, float x, float y, float z, float velX, float velY, float velZ, float rotation, Func<byte[], byte[]> encryptFunc)
+    public static NetworkPacket Create(double time, float x, float y, float z, float velX, float velY, float velZ, float rotation, EncryptFunc encryptFunc)
     {
         using var memoryStream = new MemoryStream();
 

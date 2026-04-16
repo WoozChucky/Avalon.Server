@@ -1,6 +1,7 @@
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Map;
 using ProtoBuf;
+using Avalon.Network.Packets.Serialization;
 
 namespace Avalon.Network.Packets.Quest;
 
@@ -15,7 +16,7 @@ public class CQuestStatusPacket : Packet
     [ProtoMember(2)] public int CharacterId { get; set; }
     [ProtoMember(3)] public int QuestId { get; set; }
 
-    public static NetworkPacket Create(int accountId, int characterId, int questId, Func<byte[], byte[]> encryptFunc)
+    public static NetworkPacket Create(int accountId, int characterId, int questId, EncryptFunc encryptFunc)
     {
         using var memoryStream = new MemoryStream();
 

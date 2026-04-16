@@ -3,6 +3,7 @@ using Avalon.Network.Packets.Abstractions;
 using ProtoBuf;
 using NetworkPacketFlags = Avalon.Network.Packets.Abstractions.NetworkPacketFlags;
 using NetworkProtocol = Avalon.Network.Packets.Abstractions.NetworkProtocol;
+using Avalon.Network.Packets.Serialization;
 
 namespace Avalon.Network.Packets.Combat;
 
@@ -18,7 +19,7 @@ public class SUnitDamagePacket : Packet
     [ProtoMember(3)] public uint CurrentHealth { get; set; }
     [ProtoMember(4)] public uint Damage { get; set; }
 
-    public static NetworkPacket Create(ObjectGuid attacker, ulong target, uint currentHealth, uint damage, Func<byte[], byte[]> encryptFunc)
+    public static NetworkPacket Create(ObjectGuid attacker, ulong target, uint currentHealth, uint damage, EncryptFunc encryptFunc)
     {
         using var memoryStream = new MemoryStream();
 

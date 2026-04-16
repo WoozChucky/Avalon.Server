@@ -1,5 +1,6 @@
 using Avalon.Network.Packets.Abstractions;
 using ProtoBuf;
+using Avalon.Network.Packets.Serialization;
 
 namespace Avalon.Network.Packets.Movement;
 
@@ -12,7 +13,7 @@ public class SPlayerPositionUpdatePacket : Packet
 
     [ProtoMember(1)] public SPlayerPacket[] Players { get; set; }
 
-    public static NetworkPacket Create(SPlayerPacket[] players, Func<byte[], byte[]> encryptFunc)
+    public static NetworkPacket Create(SPlayerPacket[] players, EncryptFunc encryptFunc)
     {
         using var memoryStream = new MemoryStream();
 
