@@ -15,30 +15,9 @@ public class SCharacterCreatedPacket : Packet
     [ProtoMember(1)] public SCharacterCreateResult Result { get; set; }
 
     public static NetworkPacket Create(SCharacterCreateResult result, EncryptFunc encrypt)
-    {
-        using var memoryStream = new MemoryStream();
-
-        var p = new SCharacterCreatedPacket()
-        {
-            Result = result
-        };
-
-        Serializer.Serialize(memoryStream, p);
-
-        var buffer = encrypt(memoryStream.ToArray());
-
-        return new NetworkPacket
-        {
-            Header = new NetworkPacketHeader
-            {
-                Type = PacketType,
-                Flags = Flags,
-                Protocol = Protocol,
-                Version = 0
-            },
-            Payload = buffer
-        };
-    }
+        => PacketSerializationHelper.Serialize(
+            new SCharacterCreatedPacket { Result = result },
+            PacketType, Flags, Protocol, encrypt);
 }
 
 public enum SCharacterCreateResult

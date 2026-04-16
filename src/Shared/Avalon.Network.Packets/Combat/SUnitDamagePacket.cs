@@ -20,31 +20,7 @@ public class SUnitDamagePacket : Packet
     [ProtoMember(4)] public uint Damage { get; set; }
 
     public static NetworkPacket Create(ObjectGuid attacker, ulong target, uint currentHealth, uint damage, EncryptFunc encryptFunc)
-    {
-        using var memoryStream = new MemoryStream();
-
-        var p = new SUnitDamagePacket
-        {
-            Attacker = attacker.RawValue,
-            Target = target,
-            CurrentHealth = currentHealth,
-            Damage = damage
-        };
-
-        Serializer.Serialize(memoryStream, p);
-
-        var buffer = encryptFunc(memoryStream.ToArray());
-
-        return new NetworkPacket
-        {
-            Header = new NetworkPacketHeader
-            {
-                Type = PacketType,
-                Flags = Flags,
-                Protocol = Protocol,
-                Version = 0
-            },
-            Payload = buffer
-        };
-    }
+        => PacketSerializationHelper.Serialize(
+            new SUnitDamagePacket { Attacker = attacker.RawValue, Target = target, CurrentHealth = currentHealth, Damage = damage },
+            PacketType, Flags, Protocol, encryptFunc);
 }

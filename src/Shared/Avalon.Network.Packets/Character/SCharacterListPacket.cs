@@ -17,32 +17,9 @@ public class SCharacterListPacket : Packet
 
     public static NetworkPacket Create(int characterCount, int maxCharacterCount,
         CharacterInfo[] characters, EncryptFunc encrypt)
-    {
-        using var memoryStream = new MemoryStream();
-
-        var p = new SCharacterListPacket()
-        {
-            CharacterCount = characterCount,
-            MaxCharacterCount = maxCharacterCount,
-            Characters = characters
-        };
-
-        Serializer.Serialize(memoryStream, p);
-
-        var encrypted = encrypt(memoryStream.ToArray());
-
-        return new NetworkPacket
-        {
-            Header = new NetworkPacketHeader
-            {
-                Type = PacketType,
-                Flags = Flags,
-                Protocol = Protocol,
-                Version = 0
-            },
-            Payload = encrypted
-        };
-    }
+        => PacketSerializationHelper.Serialize(
+            new SCharacterListPacket { CharacterCount = characterCount, MaxCharacterCount = maxCharacterCount, Characters = characters },
+            PacketType, Flags, Protocol, encrypt);
 }
 
 [ProtoContract]

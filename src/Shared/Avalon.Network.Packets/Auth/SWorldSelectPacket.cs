@@ -21,56 +21,12 @@ public class SWorldSelectPacket : Packet
     [ProtoMember(2)] public WorldSelectResult Result { get; set; }
 
     public static NetworkPacket Create(byte[] worldKey, EncryptFunc encryptFunc)
-    {
-        using var memoryStream = new MemoryStream();
-
-        var worldSelectPacket = new SWorldSelectPacket()
-        {
-            WorldKey = worldKey,
-            Result = WorldSelectResult.Success
-        };
-
-        Serializer.Serialize(memoryStream, worldSelectPacket);
-
-        var buffer = encryptFunc(memoryStream.ToArray());
-
-        return new NetworkPacket
-        {
-            Header = new NetworkPacketHeader
-            {
-                Type = PacketType,
-                Flags = Flags,
-                Protocol = Protocol,
-                Version = 0
-            },
-            Payload = buffer
-        };
-    }
+        => PacketSerializationHelper.Serialize(
+            new SWorldSelectPacket { WorldKey = worldKey, Result = WorldSelectResult.Success },
+            PacketType, Flags, Protocol, encryptFunc);
 
     public static NetworkPacket CreateError(WorldSelectResult result, EncryptFunc encryptFunc)
-    {
-        using var memoryStream = new MemoryStream();
-
-        var worldSelectPacket = new SWorldSelectPacket()
-        {
-            WorldKey = Array.Empty<byte>(),
-            Result = result
-        };
-
-        Serializer.Serialize(memoryStream, worldSelectPacket);
-
-        var buffer = encryptFunc(memoryStream.ToArray());
-
-        return new NetworkPacket
-        {
-            Header = new NetworkPacketHeader
-            {
-                Type = PacketType,
-                Flags = Flags,
-                Protocol = Protocol,
-                Version = 0
-            },
-            Payload = buffer
-        };
-    }
+        => PacketSerializationHelper.Serialize(
+            new SWorldSelectPacket { WorldKey = Array.Empty<byte>(), Result = result },
+            PacketType, Flags, Protocol, encryptFunc);
 }

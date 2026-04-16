@@ -31,30 +31,9 @@ public class SInstanceStateAddPacket : Packet
     [ProtoMember(1)] public List<ObjectAdd> Adds { get; set; }
 
     public static NetworkPacket Create(List<ObjectAdd> adds, EncryptFunc encryptFunc)
-    {
-        using var memoryStream = new MemoryStream();
-
-        var p = new SInstanceStateAddPacket()
-        {
-            Adds = adds
-        };
-
-        Serializer.Serialize(memoryStream, p);
-
-        var buffer = encryptFunc(memoryStream.ToArray());
-
-        return new NetworkPacket
-        {
-            Header = new NetworkPacketHeader
-            {
-                Type = PacketType,
-                Flags = Flags,
-                Protocol = Protocol,
-                Version = 0
-            },
-            Payload = buffer
-        };
-    }
+        => PacketSerializationHelper.Serialize(
+            new SInstanceStateAddPacket { Adds = adds },
+            PacketType, Flags, Protocol, encryptFunc);
 }
 
 [ProtoContract]
@@ -67,30 +46,9 @@ public class SInstanceStateUpdatePacket : Packet
     [ProtoMember(1)] public List<ObjectUpdate> Updates { get; set; }
 
     public static NetworkPacket Create(List<ObjectUpdate> updates, EncryptFunc encryptFunc)
-    {
-        using var memoryStream = new MemoryStream();
-
-        var p = new SInstanceStateUpdatePacket()
-        {
-            Updates = updates
-        };
-
-        Serializer.Serialize(memoryStream, p);
-
-        var buffer = encryptFunc(memoryStream.ToArray());
-
-        return new NetworkPacket
-        {
-            Header = new NetworkPacketHeader
-            {
-                Type = PacketType,
-                Flags = Flags,
-                Protocol = Protocol,
-                Version = 0
-            },
-            Payload = buffer
-        };
-    }
+        => PacketSerializationHelper.Serialize(
+            new SInstanceStateUpdatePacket { Updates = updates },
+            PacketType, Flags, Protocol, encryptFunc);
 }
 
 [ProtoContract]
@@ -103,30 +61,9 @@ public class SInstanceStateRemovePacket : Packet
     [ProtoMember(1)] public List<ulong> Removes { get; set; }
 
     public static NetworkPacket Create(IEnumerable<ObjectGuid> removes, EncryptFunc encryptFunc)
-    {
-        using var memoryStream = new MemoryStream();
-
-        var p = new SInstanceStateRemovePacket()
-        {
-            Removes = removes.Select(r => r.RawValue).ToList()
-        };
-
-        Serializer.Serialize(memoryStream, p);
-
-        var buffer = encryptFunc(memoryStream.ToArray());
-
-        return new NetworkPacket
-        {
-            Header = new NetworkPacketHeader
-            {
-                Type = PacketType,
-                Flags = Flags,
-                Protocol = Protocol,
-                Version = 0
-            },
-            Payload = buffer
-        };
-    }
+        => PacketSerializationHelper.Serialize(
+            new SInstanceStateRemovePacket { Removes = removes.Select(r => r.RawValue).ToList() },
+            PacketType, Flags, Protocol, encryptFunc);
 }
 
 public enum MoveState

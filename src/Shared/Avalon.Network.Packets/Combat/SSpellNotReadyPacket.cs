@@ -15,30 +15,8 @@ public class SSpellNotReadyPacket : Packet
     [ProtoMember(2)] public float Cooldown { get; set; }
 
     public static NetworkPacket Create(uint spellId, float cooldown, EncryptFunc encryptFunc)
-    {
-        using var memoryStream = new MemoryStream();
-
-        var p = new SSpellNotReadyPacket
-        {
-            SpellId = spellId,
-            Cooldown = cooldown
-        };
-
-        Serializer.Serialize(memoryStream, p);
-
-        var buffer = encryptFunc(memoryStream.ToArray());
-
-        return new NetworkPacket
-        {
-            Header = new NetworkPacketHeader
-            {
-                Type = PacketType,
-                Flags = Flags,
-                Protocol = Protocol,
-                Version = 0
-            },
-            Payload = buffer
-        };
-    }
+        => PacketSerializationHelper.Serialize(
+            new SSpellNotReadyPacket { SpellId = spellId, Cooldown = cooldown },
+            PacketType, Flags, Protocol, encryptFunc);
 
 }

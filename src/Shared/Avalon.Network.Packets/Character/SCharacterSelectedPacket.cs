@@ -15,31 +15,9 @@ public class SCharacterSelectedPacket : Packet
     [ProtoMember(2)] public MapInfo Map { get; set; }
 
     public static NetworkPacket Create(CharacterInfo character, MapInfo map, EncryptFunc encrypt)
-    {
-        using var memoryStream = new MemoryStream();
-
-        var authPacket = new SCharacterSelectedPacket()
-        {
-            Character = character,
-            Map = map
-        };
-
-        Serializer.Serialize(memoryStream, authPacket);
-
-        var buffer = encrypt(memoryStream.ToArray());
-
-        return new NetworkPacket
-        {
-            Header = new NetworkPacketHeader
-            {
-                Type = PacketType,
-                Flags = Flags,
-                Protocol = Protocol,
-                Version = 0
-            },
-            Payload = buffer
-        };
-    }
+        => PacketSerializationHelper.Serialize(
+            new SCharacterSelectedPacket { Character = character, Map = map },
+            PacketType, Flags, Protocol, encrypt);
 }
 
 [ProtoContract]

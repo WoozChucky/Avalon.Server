@@ -15,29 +15,7 @@ public class SPlayerDisconnectedPacket : Packet
     [ProtoMember(2)] public ulong CharacterId { get; set; }
 
     public static NetworkPacket Create(ulong accountId, ulong characterId, EncryptFunc encryptFunc)
-    {
-        using var memoryStream = new MemoryStream();
-
-        var byePacket = new SPlayerDisconnectedPacket()
-        {
-            AccountId = accountId,
-            CharacterId = characterId
-        };
-
-        Serializer.Serialize(memoryStream, byePacket);
-
-        var buffer = encryptFunc(memoryStream.ToArray());
-
-        return new NetworkPacket
-        {
-            Header = new NetworkPacketHeader
-            {
-                Type = PacketType,
-                Flags = Flags,
-                Protocol = Protocol,
-                Version = 0
-            },
-            Payload = buffer
-        };
-    }
+        => PacketSerializationHelper.Serialize(
+            new SPlayerDisconnectedPacket { AccountId = accountId, CharacterId = characterId },
+            PacketType, Flags, Protocol, encryptFunc);
 }
