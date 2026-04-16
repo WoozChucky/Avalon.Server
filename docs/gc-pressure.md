@@ -68,9 +68,9 @@ per broadcast tick flowing through Gen0.
 
 ## GC-003 — `WorldServer.Connections` rebuilds `ImmutableArray` every tick
 
-**Status:** Open  
+**Status:** Resolved — `private ImmutableArray<T> _typedConnections` field in `ServerBase<T>` (exposed as `protected ImmutableArray<T> TypedConnections`), maintained via `ImmutableInterlocked.Update` on connect/disconnect. `WorldServer.Connections` and `AuthServer.Connections` read via zero-allocation `CastArray<TInterface>()`. Rebuild cost moved from O(n) per tick to O(n) per connection lifecycle event.  
 **Severity:** Critical  
-**File:** `src/Server/Avalon.World/WorldServer.cs:122–123`
+**File:** `src/Server/Avalon.Hosting/Networking/ServerBase.cs`
 
 ### Problem
 
@@ -399,7 +399,7 @@ pre-allocated / pooled list. Given the small typical size (<10 entries) an
 
 | # | ID | Description | Impact |
 |---|----|-------------|--------|
-| 1 | GC-003 | `Connections` ImmutableArray rebuilt every tick | Critical |
+| 1 | ~~GC-003~~ | ~~`Connections` ImmutableArray rebuilt every tick~~ | ~~Critical~~ |
 | 2 | GC-004 | `WorldSessionFilter` new() per tick per player | High |
 | 3 | GC-005 | Dead `requeuePackets` list per tick per player | Medium |
 | 4 | GC-006 | `JsonSerializer.Serialize` without log guard | High |
