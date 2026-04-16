@@ -15,13 +15,7 @@ public class SMFAConfirmPacket : Packet
     [ProtoMember(2)] public MFAOperationResult Result { get; set; }
 
     public static NetworkPacket Create(string[] recoveryCodes, MFAOperationResult result, EncryptFunc encryptFunc)
-    {
-        using var ms = new MemoryStream();
-        Serializer.Serialize(ms, new SMFAConfirmPacket { RecoveryCodes = recoveryCodes, Result = result });
-        return new NetworkPacket
-        {
-            Header = new NetworkPacketHeader { Type = PacketType, Flags = Flags, Protocol = Protocol, Version = 0 },
-            Payload = encryptFunc(ms.ToArray())
-        };
-    }
+        => PacketSerializationHelper.Serialize(
+            new SMFAConfirmPacket { RecoveryCodes = recoveryCodes, Result = result },
+            PacketType, Flags, Protocol, encryptFunc);
 }

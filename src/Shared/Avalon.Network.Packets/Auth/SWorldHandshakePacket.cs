@@ -15,19 +15,7 @@ public class SWorldHandshakePacket : Packet
     [ProtoMember(2)] public bool Verified { get; set; }
 
     public static NetworkPacket Create(long accountId, bool verified, EncryptFunc encryptFunc)
-    {
-        using MemoryStream memoryStream = new();
-
-        SWorldHandshakePacket exchangeWorldKeyPacket = new() {AccountId = accountId, Verified = verified};
-
-        Serializer.Serialize(memoryStream, exchangeWorldKeyPacket);
-
-        byte[]? buffer = encryptFunc(memoryStream.ToArray());
-
-        return new NetworkPacket
-        {
-            Header = new NetworkPacketHeader {Type = PacketType, Flags = Flags, Protocol = Protocol, Version = 0},
-            Payload = buffer
-        };
-    }
+        => PacketSerializationHelper.Serialize(
+            new SWorldHandshakePacket { AccountId = accountId, Verified = verified },
+            PacketType, Flags, Protocol, encryptFunc);
 }

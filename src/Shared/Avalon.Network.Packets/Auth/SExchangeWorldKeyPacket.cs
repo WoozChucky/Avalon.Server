@@ -1,4 +1,5 @@
 using Avalon.Network.Packets.Abstractions;
+using Avalon.Network.Packets.Serialization;
 using ProtoBuf;
 
 namespace Avalon.Network.Packets.Auth;
@@ -13,28 +14,7 @@ public class SExchangeWorldKeyPacket : Packet
     [ProtoMember(1)] public byte[]? PublicKey { get; set; }
 
     public static NetworkPacket Create(byte[]? publicKey)
-    {
-        using var memoryStream = new MemoryStream();
-
-        var exchangeWorldKeyPacket = new SExchangeWorldKeyPacket()
-        {
-            PublicKey = publicKey
-        };
-
-        Serializer.Serialize(memoryStream, exchangeWorldKeyPacket);
-
-        memoryStream.TryGetBuffer(out var buffer);
-
-        return new NetworkPacket
-        {
-            Header = new NetworkPacketHeader
-            {
-                Type = PacketType,
-                Flags = Flags,
-                Protocol = Protocol,
-                Version = 0
-            },
-            Payload = buffer.ToArray()
-        };
-    }
+        => PacketSerializationHelper.SerializeUnencrypted(
+            new SExchangeWorldKeyPacket { PublicKey = publicKey },
+            PacketType, Flags, Protocol);
 }

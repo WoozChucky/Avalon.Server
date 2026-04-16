@@ -14,30 +14,9 @@ public class SCharacterDeletedPacket : Packet
     [ProtoMember(1)] public SCharacterDeletedResult Result { get; set; }
 
     public static NetworkPacket Create(SCharacterDeletedResult result, EncryptFunc encryptFunc)
-    {
-        using var memoryStream = new MemoryStream();
-
-        var p = new SCharacterDeletedPacket()
-        {
-            Result = result
-        };
-
-        Serializer.Serialize(memoryStream, p);
-
-        var buffer = encryptFunc(memoryStream.ToArray());
-
-        return new NetworkPacket
-        {
-            Header = new NetworkPacketHeader
-            {
-                Type = PacketType,
-                Flags = Flags,
-                Protocol = Protocol,
-                Version = 0
-            },
-            Payload = buffer
-        };
-    }
+        => PacketSerializationHelper.Serialize(
+            new SCharacterDeletedPacket { Result = result },
+            PacketType, Flags, Protocol, encryptFunc);
 }
 
 public enum SCharacterDeletedResult : short

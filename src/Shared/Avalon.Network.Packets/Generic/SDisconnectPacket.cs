@@ -1,4 +1,5 @@
 using Avalon.Network.Packets.Abstractions;
+using Avalon.Network.Packets.Serialization;
 using ProtoBuf;
 
 namespace Avalon.Network.Packets.Generic;
@@ -18,27 +19,9 @@ public class SDisconnectPacket : Packet
     [ProtoMember(2)] public DisconnectReason ReasonCode { get; set; }
 
     public static NetworkPacket Create(string reason, DisconnectReason reasonCode)
-    {
-        using var memoryStream = new MemoryStream();
-
-        Serializer.Serialize(memoryStream, new SDisconnectPacket
-        {
-            Reason = reason,
-            ReasonCode = reasonCode
-        });
-
-        return new NetworkPacket
-        {
-            Header = new NetworkPacketHeader
-            {
-                Type = PacketType,
-                Flags = Flags,
-                Protocol = Protocol,
-                Version = 0
-            },
-            Payload = memoryStream.ToArray()
-        };
-    }
+        => PacketSerializationHelper.SerializeUnencrypted(
+            new SDisconnectPacket { Reason = reason, ReasonCode = reasonCode },
+            PacketType, Flags, Protocol);
 }
 
 public enum DisconnectReason : ushort

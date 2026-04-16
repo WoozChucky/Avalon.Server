@@ -14,30 +14,9 @@ public class SWorldListPacket : Packet
     [ProtoMember(1)] public WorldInfo[] Worlds { get; set; }
 
     public static NetworkPacket Create(WorldInfo[] worlds, EncryptFunc encryptFunc)
-    {
-        using var memoryStream = new MemoryStream();
-
-        var worldListPacket = new SWorldListPacket()
-        {
-            Worlds = worlds,
-        };
-
-        Serializer.Serialize(memoryStream, worldListPacket);
-
-        var buffer = encryptFunc(memoryStream.ToArray());
-
-        return new NetworkPacket
-        {
-            Header = new NetworkPacketHeader
-            {
-                Type = PacketType,
-                Flags = Flags,
-                Protocol = Protocol,
-                Version = 0
-            },
-            Payload = buffer
-        };
-    }
+        => PacketSerializationHelper.Serialize(
+            new SWorldListPacket { Worlds = worlds },
+            PacketType, Flags, Protocol, encryptFunc);
 }
 
 
