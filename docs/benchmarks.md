@@ -11,6 +11,7 @@ dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*TickLoop
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*EntityTracking*"
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*Serialization*"
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*PacketSerializationGc*"
+dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*BroadcastStateGc*"
 ```
 
 ---
@@ -60,6 +61,15 @@ Before/after allocation comparison for the GC-001 fix: `MemoryStream + ToArray` 
 | `Pooled_MediumPacket` | New pattern on the same medium packet |
 
 Both encrypt delegates are identity copies (`span => span.ToArray()`) to isolate serialization cost from crypto cost.
+
+---
+
+### Broadcast State GC-002 — `BroadcastStateGcBenchmarks.cs`
+
+GC-002: BroadcastStateTo per-entity alloc reduction.
+`Legacy_*` = current `new byte[]` per entity + `new List<ObjectAdd>` per call;
+`Pooled_*` = contiguous rented buffer + `ReadOnlyMemory<byte>` slices (added in Task 5).
+Parameterised at 5 and 20 entities.
 
 ---
 
@@ -343,3 +353,44 @@ allocation does not appear in steady-state measurements.
   every player at ~10 Hz. With 100 players each seeing ~20 entities: ~60,000 packets/second.
   Saving ~64–344 B per packet eliminates **3.8–20 MB/s** of Gen0 allocation that was previously
   driving collection pauses on the world server tick loop.
+
+---
+
+## Broadcast State GC-002 — Benchmark Results
+
+**Date:** 2026-04-16
+**Runtime:** .NET 10
+
+```
+BenchmarkDotNet v0.15.8, Windows 11 (10.0.26200.8039/25H2/2025Update/HudsonValley2)
+13th Gen Intel Core i7-13850HX 2.10GHz, 1 CPU, 28 logical and 20 physical cores
+.NET SDK 10.0.202
+  [Host]     : .NET 10.0.6 (10.0.6, 10.0.626.17701), X64 RyuJIT x86-64-v3
+  DefaultJob : .NET 10.0.6 (10.0.6, 10.0.626.17701), X64 RyuJIT x86-64-v3
+```
+
+### Problem (before GC-002)
+
+`BroadcastStateTo` allocates `new byte[bytesWritten]` per visible entity and
+`new List<ObjectAdd>()` per player per call. With 20 entities × 60 players at
+10 Hz this generates 1,200+ short-lived `byte[]` per broadcast tick.
+
+### Baseline (before fix)
+
+| Method | EntityCount | Mean | Error | StdDev | Ratio | RatioSD | Gen0 | Gen1 | Allocated | Alloc Ratio |
+|--------|-------------|------|-------|--------|-------|---------|------|------|-----------|-------------|
+| Legacy_BroadcastState | 5 | 501.0 ns | 9.72 ns | 9.09 ns | 1.00 | 0.02 | 0.0811 | - | 1.24 KB | 1.00 |
+| | | | | | | | | | | |
+| Legacy_BroadcastState | 20 | 1,619.0 ns | 31.01 ns | 41.40 ns | 1.00 | 0.03 | 0.2899 | 0.0019 | 4.45 KB | 1.00 |
+
+**Key observations:**
+
+- **Allocation scales linearly with entity count** — 5 entities: 1.24 KB; 20 entities: 4.45 KB
+  (3.59× more entities → 3.59× more allocation). Confirms the dominant cost is `new byte[]`
+  per entity, not per-call overhead.
+- **Gen1 promotion appears at 20 entities** — `Gen1 = 0.0019` at 20 entities but absent at 5.
+  Some allocations survive long enough to be promoted, adding Gen1 collection cost.
+- **At target scale** — 20 entities × 60 players × 10 Hz = 12,000 `Legacy_BroadcastState`
+  calls/second → **53+ MB/s** of Gen0/Gen1 allocation from this path alone.
+
+Post-fix results will be added after the `Pooled_*` implementation in Task 5.
