@@ -11,14 +11,14 @@ namespace Avalon.Network.Packets.State;
 public class ObjectAdd
 {
     [ProtoMember(1)] public ulong Guid { get; set; }
-    [ProtoMember(2)] public byte[] Fields { get; set; } = [];
+    [ProtoMember(2)] public ReadOnlyMemory<byte> Fields { get; set; }
 }
 
 [ProtoContract]
 public class ObjectUpdate
 {
     [ProtoMember(1)] public ulong Guid { get; set; }
-    [ProtoMember(2)] public byte[] Fields { get; set; } = [];
+    [ProtoMember(2)] public ReadOnlyMemory<byte> Fields { get; set; }
 }
 
 [ProtoContract]
