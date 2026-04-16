@@ -15,19 +15,6 @@ public class LockedQueue<T> where T : class
         }
     }
 
-    // Adds items back to front of the queue.
-    public void ReAdd(IList<T> items)
-    {
-        lock (_lock)
-        {
-            // Enqueue the new items first (preserving their order)
-            foreach (var item in items.Reverse())
-            {
-                _queue.AddToFront(item);
-            }
-        }
-    }
-
     // Gets the next result in the queue, if any.
     public bool Next(out T? result)
     {
