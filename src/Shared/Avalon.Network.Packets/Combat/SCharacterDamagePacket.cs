@@ -18,32 +18,7 @@ public class SCharacterDamagePacket : Packet
     [ProtoMember(5)] public uint? SpellId { get; set; }
 
     public static NetworkPacket Create(ulong attacker, ulong target, uint currentHealth, uint damage, uint? spellId, EncryptFunc encryptFunc)
-    {
-        using var memoryStream = new MemoryStream();
-
-        var p = new SCharacterDamagePacket
-        {
-            Attacker = attacker,
-            Target = target,
-            CurrentHealth = currentHealth,
-            Damage = damage,
-            SpellId = spellId
-        };
-
-        Serializer.Serialize(memoryStream, p);
-
-        var buffer = encryptFunc(memoryStream.ToArray());
-
-        return new NetworkPacket
-        {
-            Header = new NetworkPacketHeader
-            {
-                Type = PacketType,
-                Flags = Flags,
-                Protocol = Protocol,
-                Version = 0
-            },
-            Payload = buffer
-        };
-    }
+        => PacketSerializationHelper.Serialize(
+            new SCharacterDamagePacket { Attacker = attacker, Target = target, CurrentHealth = currentHealth, Damage = damage, SpellId = spellId },
+            PacketType, Flags, Protocol, encryptFunc);
 }

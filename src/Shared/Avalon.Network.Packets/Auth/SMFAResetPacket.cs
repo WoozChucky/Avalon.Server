@@ -14,13 +14,7 @@ public class SMFAResetPacket : Packet
     [ProtoMember(1)] public MFAOperationResult Result { get; set; }
 
     public static NetworkPacket Create(MFAOperationResult result, EncryptFunc encryptFunc)
-    {
-        using var ms = new MemoryStream();
-        Serializer.Serialize(ms, new SMFAResetPacket { Result = result });
-        return new NetworkPacket
-        {
-            Header = new NetworkPacketHeader { Type = PacketType, Flags = Flags, Protocol = Protocol, Version = 0 },
-            Payload = encryptFunc(ms.ToArray())
-        };
-    }
+        => PacketSerializationHelper.Serialize(
+            new SMFAResetPacket { Result = result },
+            PacketType, Flags, Protocol, encryptFunc);
 }

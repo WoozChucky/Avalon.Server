@@ -19,29 +19,7 @@ public class SUnitFinishCastPacket : Packet
     [ProtoMember(2)] public uint SpellId { get; set; }
 
     public static NetworkPacket Create(ObjectGuid caster, SpellId spell, EncryptFunc encryptFunc)
-    {
-        using var memoryStream = new MemoryStream();
-
-        var p = new SUnitFinishCastPacket
-        {
-            Caster = caster.RawValue,
-            SpellId = spell.Value
-        };
-
-        Serializer.Serialize(memoryStream, p);
-
-        var buffer = encryptFunc(memoryStream.ToArray());
-
-        return new NetworkPacket
-        {
-            Header = new NetworkPacketHeader
-            {
-                Type = PacketType,
-                Flags = Flags,
-                Protocol = Protocol,
-                Version = 0
-            },
-            Payload = buffer
-        };
-    }
+        => PacketSerializationHelper.Serialize(
+            new SUnitFinishCastPacket { Caster = caster.RawValue, SpellId = spell.Value },
+            PacketType, Flags, Protocol, encryptFunc);
 }

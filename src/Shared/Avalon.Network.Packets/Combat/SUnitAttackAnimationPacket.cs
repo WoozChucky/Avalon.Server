@@ -19,29 +19,7 @@ public class SUnitAttackAnimationPacket : Packet
     [ProtoMember(2)] public ushort AnimationId { get; set; }
 
     public static NetworkPacket Create(ObjectGuid attacker, ushort animationId, EncryptFunc encryptFunc)
-    {
-        using var memoryStream = new MemoryStream();
-
-        var p = new SUnitAttackAnimationPacket
-        {
-            Attacker = attacker.RawValue,
-            AnimationId = animationId
-        };
-
-        Serializer.Serialize(memoryStream, p);
-
-        var buffer = encryptFunc(memoryStream.ToArray());
-
-        return new NetworkPacket
-        {
-            Header = new NetworkPacketHeader
-            {
-                Type = PacketType,
-                Flags = Flags,
-                Protocol = Protocol,
-                Version = 0
-            },
-            Payload = buffer
-        };
-    }
+        => PacketSerializationHelper.Serialize(
+            new SUnitAttackAnimationPacket { Attacker = attacker.RawValue, AnimationId = animationId },
+            PacketType, Flags, Protocol, encryptFunc);
 }

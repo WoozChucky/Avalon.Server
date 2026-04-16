@@ -17,21 +17,9 @@ public class SAuthResultPacket : Packet
 
     public static NetworkPacket Create(long? accountId, string? hash, AuthResult result,
         EncryptFunc encryptFunc)
-    {
-        using MemoryStream memoryStream = new();
-
-        SAuthResultPacket packet = new() {AccountId = accountId ?? 0, Result = result, MfaHash = hash};
-
-        Serializer.Serialize(memoryStream, packet);
-
-        byte[]? buffer = encryptFunc(memoryStream.ToArray());
-
-        return new NetworkPacket
-        {
-            Header = new NetworkPacketHeader {Type = PacketType, Flags = Flags, Protocol = Protocol, Version = 0},
-            Payload = buffer.ToArray()
-        };
-    }
+        => PacketSerializationHelper.Serialize(
+            new SAuthResultPacket { AccountId = accountId ?? 0, Result = result, MfaHash = hash },
+            PacketType, Flags, Protocol, encryptFunc);
 }
 
 public enum AuthResult : ushort
