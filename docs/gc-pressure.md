@@ -150,7 +150,7 @@ implemented this is pure waste at 60 Hz per connected player.
 
 ## GC-006 — `JsonSerializer.Serialize` evaluated eagerly before log-level guard
 
-**Status:** Open  
+**Status:** Resolved — `_logger.IsEnabled(LogLevel.Debug/Trace)` guard added before both `JsonSerializer.Serialize` calls; no allocation in production with debug/trace logging off.  
 **Severity:** High  
 **File:** `src/Server/Avalon.Hosting/Networking/Connection.cs:136, 227`
 
@@ -402,7 +402,7 @@ pre-allocated / pooled list. Given the small typical size (<10 entries) an
 | 1 | ~~GC-003~~ | ~~`Connections` ImmutableArray rebuilt every tick~~ | ~~Critical~~ |
 | 2 | ~~GC-004~~ | ~~`WorldSessionFilter` new() per tick per player~~ | ~~High~~ |
 | 3 | ~~GC-005~~ | ~~Dead `requeuePackets` list per tick per player~~ | ~~Medium~~ |
-| 4 | GC-006 | `JsonSerializer.Serialize` without log guard | High |
+| 4 | ~~GC-006~~ | ~~`JsonSerializer.Serialize` without log guard~~ | ~~High~~ |
 | 5 | GC-001 | Outbound packet `MemoryStream+ToArray+encrypt` | Critical |
 | 6 | GC-002 | Per-entity `new byte[]` in state broadcast | Critical |
 | 7 | GC-009 | `WorldPacket` class → struct | Medium |
