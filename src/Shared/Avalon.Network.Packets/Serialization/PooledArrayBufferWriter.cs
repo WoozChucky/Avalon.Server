@@ -1,0 +1,38 @@
+using System;
+using System.Buffers;
+
+namespace Avalon.Network.Packets.Serialization;
+
+internal sealed class PooledArrayBufferWriter : IBufferWriter<byte>
+{
+    private byte[] _buffer = ArrayPool<byte>.Shared.Rent(512);
+    private int _written;
+
+    public ReadOnlySpan<byte> WrittenSpan => _buffer.AsSpan(0, _written);
+
+    public void Reset() => _written = 0;
+
+    public void Advance(int count) => _written += count;
+
+    public Memory<byte> GetMemory(int sizeHint = 0)
+    {
+        EnsureCapacity(sizeHint);
+        return _buffer.AsMemory(_written);
+    }
+
+    public Span<byte> GetSpan(int sizeHint = 0)
+    {
+        EnsureCapacity(sizeHint);
+        return _buffer.AsSpan(_written);
+    }
+
+    private void EnsureCapacity(int sizeHint)
+    {
+        int needed = _written + Math.Max(sizeHint, 1);
+        if (needed <= _buffer.Length) return;
+        var larger = ArrayPool<byte>.Shared.Rent(Math.Max(_buffer.Length * 2, needed));
+        _buffer.AsSpan(0, _written).CopyTo(larger);
+        ArrayPool<byte>.Shared.Return(_buffer);
+        _buffer = larger;
+    }
+}
