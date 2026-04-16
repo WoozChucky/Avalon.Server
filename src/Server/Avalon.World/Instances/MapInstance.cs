@@ -40,6 +40,7 @@ public class MapInstance : IMapInstance
     private readonly IWorld _world;
     private float _lastBroadcastTime;
     private readonly Dictionary<ObjectGuid, GameEntityFields> _frameDirtyFields = new(256);
+    private readonly Dictionary<ObjectGuid, PerPlayerBroadcastState> _broadcastStates = [];
 
     public MapInstance(
         ILoggerFactory loggerFactory,
@@ -122,6 +123,7 @@ public class MapInstance : IMapInstance
     {
         _characters[connection.Character!.Guid] = connection.Character;
         _connections[connection.Character.Guid] = connection;
+        _broadcastStates[connection.Character.Guid] = new PerPlayerBroadcastState();
         LastEmptyAt = null;
     }
 
@@ -130,6 +132,7 @@ public class MapInstance : IMapInstance
         connection.Character!.OnDisconnected();
         _characters.Remove(connection.Character.Guid);
         _connections.Remove(connection.Character.Guid);
+        _broadcastStates.Remove(connection.Character.Guid);
 
         if (_characters.Count == 0)
         {
@@ -454,5 +457,13 @@ public class MapInstance : IMapInstance
         {
             character.Experience += creatureExperience;
         }
+    }
+
+    private sealed class PerPlayerBroadcastState
+    {
+        // Capacities sized for a typical instance (32 entities visible per player).
+        // List<T> grows automatically if exceeded — this avoids early reallocation.
+        public List<ObjectAdd>    AddedObjects   { get; } = new(32);
+        public List<ObjectUpdate> UpdatedObjects { get; } = new(32);
     }
 }
