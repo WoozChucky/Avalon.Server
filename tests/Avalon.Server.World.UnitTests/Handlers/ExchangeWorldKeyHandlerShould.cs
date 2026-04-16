@@ -20,7 +20,6 @@ public class ExchangeWorldKeyHandlerShould
     private readonly IReplicatedCache _cache = Substitute.For<IReplicatedCache>();
     private readonly IWorld _world = Substitute.For<IWorld>();
     private readonly IWorldConnection _connection = Substitute.For<IWorldConnection>();
-    private readonly IAvalonCryptoSession _cryptoSession = Substitute.For<IAvalonCryptoSession>();
     private readonly ICryptoManager _serverCrypto = Substitute.For<ICryptoManager>();
     private readonly ExchangeWorldKeyHandler _handler;
 
@@ -31,7 +30,6 @@ public class ExchangeWorldKeyHandlerShould
         _serverCrypto.GetValidKeySize().Returns(ValidKeySize);
         _serverCrypto.GetPublicKey().Returns(new byte[ValidKeySize]);
         _connection.ServerCrypto.Returns(_serverCrypto);
-        _connection.CryptoSession.Returns(_cryptoSession);
         _connection.RemoteEndPoint.Returns("127.0.0.1:12345");
         _world.Id.Returns(new WorldId(1));
         _handler = new ExchangeWorldKeyHandler(
