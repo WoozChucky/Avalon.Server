@@ -93,11 +93,22 @@ public class WorldConnection : Connection, IWorldConnection
     }
 
 
-    public void Update(TimeSpan deltaTime, PacketFilter filter)
+    public void UpdateSession(TimeSpan deltaTime)
+    {
+        ProcessQueue(_worldSessionFilter);
+        ProcessContinuations();
+    }
+
+    public void UpdateMap(TimeSpan deltaTime)
+    {
+        ProcessQueue(_worldMapFilter);
+        ProcessContinuations();
+    }
+
+    private void ProcessQueue(PacketFilter filter)
     {
         const uint MaxPacketsPerUpdate = 150;
         uint processedPackets = 0;
-        List<WorldPacket> requeuePackets = [];
 
         while (IsConnected &&
                _receiveQueue.Next(out WorldPacket? packet, worldPacket => filter.CanProcess(worldPacket.Type)))
@@ -111,29 +122,18 @@ public class WorldConnection : Connection, IWorldConnection
             try
             {
                 if (_server.PacketHandlers.TryGetValue(packet.Type, out IWorldPacketHandler? handler))
-                {
                     handler.Execute(this, packet.Payload!);
-                }
                 else
-                {
                     _logger.LogWarning("No handler for packet {PacketType}", packet.Type);
-                }
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error processing packet {PacketType}", packet.Type);
             }
 
-            processedPackets++;
-            if (processedPackets > MaxPacketsPerUpdate)
-            {
+            if (++processedPackets > MaxPacketsPerUpdate)
                 break;
-            }
         }
-
-        _receiveQueue.Readd(requeuePackets);
-
-        ProcessContinuations();
     }
 
     public double LastMovementTime { get; set; }
