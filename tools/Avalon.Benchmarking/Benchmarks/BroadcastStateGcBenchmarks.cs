@@ -23,6 +23,9 @@ public class BroadcastStateGcBenchmarks
     // with GameEntityFields.All via WorldObjectWriter.
     private byte[] _entityBlob = null!;
 
+    // Pre-allocated list simulating PerPlayerBroadcastState.AddedObjects.
+    private readonly List<ObjectAdd> _pooledList = new(32);
+
     [Params(5, 20)]
     public int EntityCount { get; set; }
 
@@ -58,5 +61,35 @@ public class BroadcastStateGcBenchmarks
 
         ArrayPool<byte>.Shared.Return(scratch);
         return SInstanceStateAddPacket.Create(adds, s_encrypt);
+    }
+
+    // -----------------------------------------------------------------------
+    // Pooled: single contiguous rented buffer + ReadOnlyMemory<byte> slices
+    // + pre-allocated list (simulates PerPlayerBroadcastState after GC-002)
+    // -----------------------------------------------------------------------
+
+    [Benchmark]
+    public NetworkPacket Pooled_BroadcastState()
+    {
+        byte[] buffer = ArrayPool<byte>.Shared.Rent(65536);
+        _pooledList.Clear();                                    // reuse pre-allocated list
+
+        int offset = 0;
+        for (int i = 0; i < EntityCount; i++)
+        {
+            int startOffset = offset;
+            _entityBlob.CopyTo(buffer, offset);
+            offset += _entityBlob.Length;
+            _pooledList.Add(new ObjectAdd
+            {
+                Guid   = (ulong)i,
+                Fields = new ReadOnlyMemory<byte>(buffer, startOffset, _entityBlob.Length)
+            });
+        }
+
+        NetworkPacket result = SInstanceStateAddPacket.Create(_pooledList, s_encrypt);
+        // Return buffer after Create() — Serialize is synchronous, slices already consumed.
+        ArrayPool<byte>.Shared.Return(buffer);
+        return result;
     }
 }
