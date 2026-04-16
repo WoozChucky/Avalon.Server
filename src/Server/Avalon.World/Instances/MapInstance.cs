@@ -184,7 +184,7 @@ public class MapInstance : IMapInstance
         foreach ((ObjectGuid guid, ICharacter character) in _characters)
         {
             IWorldConnection connection = _connections[guid];
-            connection.UpdateMap(deltaTime);
+            connection.UpdateMap();
             character.Update(deltaTime);
         }
 
