@@ -249,40 +249,37 @@ public class MapInstance : IMapInstance
     private void BroadcastStateTo(ICharacter character)
     {
         IWorldConnection connection = _connections[character.Guid];
-        byte[] buffer = ArrayPool<byte>.Shared.Rent(4096);
+        PerPlayerBroadcastState state = _broadcastStates[character.Guid];
+
+        // One rented buffer accumulates all entity blobs for this player.
+        // 16 384 bytes ≈ 200 entities at ~80 bytes each (GameEntityFields.All).
+        byte[] buffer = ArrayPool<byte>.Shared.Rent(16384);
         using WorldObjectWriter writer = new(buffer);
 
-        List<ObjectAdd> addedObjects = [];
-        List<ObjectUpdate> updatedObjects = [];
+        state.AddedObjects.Clear();
+        state.UpdatedObjects.Clear();
 
         foreach (ObjectGuid addedObjectGuid in character.CharacterGameState.NewObjects)
         {
+            int startOffset = (int)writer.BaseStream.Position;
+
             switch (addedObjectGuid.Type)
             {
                 case ObjectType.Character:
                     if (!_characters.TryGetValue(addedObjectGuid, out ICharacter? addedCharacter))
-                    {
                         continue;
-                    }
-
                     writer.Write(addedCharacter, GameEntityFields.All);
                     break;
                 case ObjectType.Creature:
                     if (!_creatures.TryGetValue(addedObjectGuid, out ICreature? addedCreature))
-                    {
                         continue;
-                    }
-
                     writer.Write(addedCreature, GameEntityFields.All);
                     break;
                 case ObjectType.SpellProjectile:
-                    IWorldObject? spell = _spellSystem.GetSpell(addedObjectGuid);
-                    if (spell is null)
-                    {
+                    IWorldObject? addedSpell = _spellSystem.GetSpell(addedObjectGuid);
+                    if (addedSpell is null)
                         continue;
-                    }
-
-                    writer.Write(spell);
+                    writer.Write(addedSpell);
                     break;
                 default:
                     _logger.LogWarning("Unknown object type {ObjectType} on NewObjects serialization",
@@ -290,43 +287,40 @@ public class MapInstance : IMapInstance
                     continue;
             }
 
-            long bytesWritten = writer.BaseStream.Position;
-            byte[] fieldsArray = new byte[bytesWritten];
-            buffer.AsSpan(0, (int)bytesWritten).CopyTo(fieldsArray);
-            ObjectAdd obj = new() {Guid = addedObjectGuid.RawValue, Fields = fieldsArray};
-            addedObjects.Add(obj);
-            writer.Reset();
+            int length = (int)writer.BaseStream.Position - startOffset;
+            // NOTE: Fields slice is valid only until ArrayPool.Shared.Return(buffer) below.
+            // PacketSerializationHelper.Serialize (called inside Create) is synchronous,
+            // so the slice is consumed before Return is reached.
+            state.AddedObjects.Add(new ObjectAdd
+            {
+                Guid   = addedObjectGuid.RawValue,
+                Fields = new ReadOnlyMemory<byte>(buffer, startOffset, length)
+            });
+            // No writer.Reset() — blobs accumulate contiguously in buffer.
         }
 
-        foreach ((ObjectGuid Guid, GameEntityFields Fields) updatedObject in character.CharacterGameState
-                     .UpdatedObjects)
+        foreach ((ObjectGuid Guid, GameEntityFields Fields) updatedObject
+                 in character.CharacterGameState.UpdatedObjects)
         {
+            int startOffset = (int)writer.BaseStream.Position;
+
             switch (updatedObject.Guid.Type)
             {
                 case ObjectType.Character:
                     if (!_characters.TryGetValue(updatedObject.Guid, out ICharacter? updatedCharacter))
-                    {
                         continue;
-                    }
-
                     writer.Write(updatedCharacter, GameEntityFields.CharacterUpdate);
                     break;
                 case ObjectType.Creature:
                     if (!_creatures.TryGetValue(updatedObject.Guid, out ICreature? updatedCreature))
-                    {
                         continue;
-                    }
-
                     writer.Write(updatedCreature, GameEntityFields.CreatureUpdate);
                     break;
                 case ObjectType.SpellProjectile:
-                    IWorldObject? spell = _spellSystem.GetSpell(updatedObject.Guid);
-                    if (spell is null)
-                    {
+                    IWorldObject? updatedSpell = _spellSystem.GetSpell(updatedObject.Guid);
+                    if (updatedSpell is null)
                         continue;
-                    }
-
-                    writer.Write(spell, updatedObject.Fields);
+                    writer.Write(updatedSpell, updatedObject.Fields);
                     break;
                 default:
                     _logger.LogWarning("Unknown object type {ObjectType} on UpdatedObjects serialization",
@@ -334,34 +328,33 @@ public class MapInstance : IMapInstance
                     continue;
             }
 
-            long bytesWritten = writer.BaseStream.Position;
-            byte[] fieldsArray = new byte[bytesWritten];
-            buffer.AsSpan(0, (int)bytesWritten).CopyTo(fieldsArray);
-            ObjectUpdate obj = new() {Guid = updatedObject.Guid.RawValue, Fields = fieldsArray};
-            updatedObjects.Add(obj);
-            writer.Reset();
+            int length = (int)writer.BaseStream.Position - startOffset;
+            // NOTE: Fields slice is valid only until ArrayPool.Shared.Return(buffer) below.
+            state.UpdatedObjects.Add(new ObjectUpdate
+            {
+                Guid   = updatedObject.Guid.RawValue,
+                Fields = new ReadOnlyMemory<byte>(buffer, startOffset, length)
+            });
+            // No writer.Reset() — blobs accumulate contiguously in buffer.
         }
 
+        // Create() calls PacketSerializationHelper.Serialize, which reads Fields slices
+        // synchronously. Return buffer only after all Create() calls complete.
+        if (state.AddedObjects.Count > 0)
+            connection.Send(SInstanceStateAddPacket.Create(state.AddedObjects, connection.CryptoSession.Encrypt));
+
+        if (_lastBroadcastTime >= BroadcastInterval && state.UpdatedObjects.Count > 0)
+            connection.Send(SInstanceStateUpdatePacket.Create(state.UpdatedObjects, connection.CryptoSession.Encrypt));
+
+        // Buffer no longer needed — slices have been serialized.
         ArrayPool<byte>.Shared.Return(buffer);
-
-        if (addedObjects.Count > 0)
-        {
-            connection.Send(SInstanceStateAddPacket.Create(addedObjects,
-                connection.CryptoSession.Encrypt));
-        }
-
-        if (_lastBroadcastTime >= BroadcastInterval && updatedObjects.Count > 0)
-        {
-            connection.Send(SInstanceStateUpdatePacket.Create(updatedObjects,
-                connection.CryptoSession.Encrypt));
-        }
 
         if (character.CharacterGameState.RemovedObjects.Count > 0)
         {
             _logger.LogInformation("Found {Count} removed objects",
                 character.CharacterGameState.RemovedObjects.Count);
-            connection.Send(SInstanceStateRemovePacket.Create(character.CharacterGameState.RemovedObjects,
-                connection.CryptoSession.Encrypt));
+            connection.Send(SInstanceStateRemovePacket.Create(
+                character.CharacterGameState.RemovedObjects, connection.CryptoSession.Encrypt));
         }
     }
 
