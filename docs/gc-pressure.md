@@ -37,7 +37,7 @@ this fires hundreds of times per second under any load.
 
 ## GC-002 — Per-tick entity state: `new byte[]` per visible entity per broadcast
 
-**Status:** Resolved — single contiguous `ArrayPool` buffer (65 536 bytes) per player per call; `ReadOnlyMemory<byte>` slices on `ObjectAdd`/`ObjectUpdate.Fields`; pre-allocated `List<ObjectAdd>`/`List<ObjectUpdate>` per player (`PerPlayerBroadcastState` on `MapInstance`). 0 heap allocs per `BroadcastStateTo` call (steady-state).  
+**Status:** Resolved — single contiguous `ArrayPool` buffer (65 536 bytes) per player per call; `ReadOnlyMemory<byte>` slices on `ObjectAdd`/`ObjectUpdate.Fields`; pre-allocated `List<ObjectAdd>`/`List<ObjectUpdate>` per player (`PerPlayerBroadcastState` on `MapInstance`). Eliminates per-entity `byte[]` copy; residual allocations are N `ObjectAdd`/`ObjectUpdate` class instances + 1 encrypted payload `byte[]` per call (~50% allocation reduction vs. legacy; Gen1 promotions eliminated).  
 **Severity:** Critical  
 **File:** `src/Server/Avalon.World/Instances/MapInstance.cs:252–295`
 
