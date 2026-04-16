@@ -265,11 +265,17 @@ public class MapInstance : IMapInstance
 
             foreach (ObjectGuid addedObjectGuid in character.CharacterGameState.NewObjects)
             {
-                // Guard: skip if insufficient space remains for the largest possible entity blob.
                 if (buffer.Length - (int)writer.BaseStream.Position < 2048)
                 {
+                    // IMPORTANT: This guard is a last-resort safety valve. Triggering it requires
+                    // 200+ simultaneous entity adds per player (at ~80 bytes each for typical entities,
+                    // or 32+ entities at worst-case ~300 bytes for a character with a maximum-length name).
+                    // A skipped add will NOT be retried: EntityTrackingSystem already marked this GUID
+                    // as known, so it will not re-appear in NewObjects next tick. The client will receive
+                    // subsequent delta updates for an entity it has never seen, producing a corrupt state.
+                    // If this warning appears in production, the buffer size (currently 65536) must be increased.
                     _logger.LogWarning(
-                        "BroadcastStateTo: buffer capacity exhausted, skipping new object {Guid}",
+                        "BroadcastStateTo: buffer capacity exhausted — skipped add for object {Guid} (client state corrupt until reconnect)",
                         addedObjectGuid.RawValue);
                     continue;
                 }
@@ -315,11 +321,13 @@ public class MapInstance : IMapInstance
             foreach ((ObjectGuid Guid, GameEntityFields Fields) updatedObject
                      in character.CharacterGameState.UpdatedObjects)
             {
-                // Guard: skip if insufficient space remains for the largest possible entity blob.
                 if (buffer.Length - (int)writer.BaseStream.Position < 2048)
                 {
+                    // Safety valve — see the matching guard in the NewObjects loop above.
+                    // Skipped delta updates are less severe: the entity state is stale for one tick
+                    // and will be corrected when the entity's dirty fields are set again.
                     _logger.LogWarning(
-                        "BroadcastStateTo: buffer capacity exhausted, skipping update for object {Guid}",
+                        "BroadcastStateTo: buffer capacity exhausted — skipped update for object {Guid}",
                         updatedObject.Guid.RawValue);
                     continue;
                 }
