@@ -93,15 +93,18 @@ public class WorldConnection : Connection, IWorldConnection
     }
 
 
-    public void UpdateSession(TimeSpan deltaTime)
+    public void UpdateSession()
     {
         ProcessQueue(_worldSessionFilter);
-        ProcessContinuations();
     }
 
-    public void UpdateMap(TimeSpan deltaTime)
+    public void UpdateMap()
     {
         ProcessQueue(_worldMapFilter);
+    }
+
+    public void FlushContinuations()
+    {
         ProcessContinuations();
     }
 

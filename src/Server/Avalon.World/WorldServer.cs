@@ -196,11 +196,12 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         }
 
         foreach (IWorldConnection worldConnection in Connections)
-        {
-            worldConnection.UpdateSession(elapsedTime);
-        }
+            worldConnection.UpdateSession();
 
         _world.Update(elapsedTime);
+
+        foreach (IWorldConnection worldConnection in Connections)
+            worldConnection.FlushContinuations();
     }
 
     private bool NewConnection(IConnection connection) => true;
