@@ -87,6 +87,22 @@ Both paths deserialize an identical `CCharacterListPacket` payload. The residual
 
 ---
 
+### World Packet Queue GC-009 — `WorldPacketQueueGcBenchmarks.cs`
+
+Before/after allocation comparison for the GC-009 fix: `class WorldPacket` + `LinkedList<T>`-backed
+`LockedQueue` versus `readonly record struct WorldPacket` + `Queue<T>` ring buffer.
+
+| Scenario | What it models |
+|---|---|
+| `Legacy_ClassQueue` | Old pattern — `new class LegacyWorldPacket` + `LinkedListNode` per packet — **baseline** |
+| `Struct_RingBuffer` | New pattern — `readonly record struct` inline in `Queue<T>` ring buffer |
+
+Both paths use a `_ => true` predicate to isolate queue/struct allocation from filter logic.
+The `Struct_RingBuffer` queue is reused across iterations so the ring buffer reaches
+steady-state capacity after the first iteration; subsequent iterations allocate zero.
+
+---
+
 ### Serialization — `SerializationBenchmarks.cs`
 
 Measures Protobuf-net packet serialization and deserialization with and without AES-128 encryption.
@@ -473,3 +489,58 @@ return deserializer(new ReadOnlyMemory<byte>(packet.Payload));
 - **77% less allocation** — 104 B → 24 B per `Read()` call. The 80 B eliminated is the `object?[3]` array (~40 B) and the boxed `ReadOnlyMemory<byte>` struct (~40 B). The 24 B residual is the deserialized `CCharacterListPacket` object itself — unavoidable.
 - **Gen0 rate reduced 4.4×** — Gen0 drops from 0.0066 to 0.0015 per 1 000 operations. Fewer Gen0 collections means less STW pause time during packet processing.
 - **At inbound packet scale** — at 50 players × 10 non-trivial packets/s = 500 `Read()` calls/s, the legacy path allocates ~52 KB/s of short-lived Gen0 objects from this site alone. The delegate path reduces that to ~12 KB/s, a saving of ~40 KB/s.
+
+---
+
+## World Packet Queue GC-009 — Benchmark Results
+
+**Date:** 2026-04-16
+
+```
+BenchmarkDotNet v0.15.8, Windows 11 (10.0.26200.8246/25H2/2025Update/HudsonValley2)
+13th Gen Intel Core i7-13850HX 2.10GHz, 1 CPU, 28 logical and 20 physical cores
+.NET SDK 10.0.202
+  [Host]     : .NET 10.0.6 (10.0.6, 10.0.626.17701), X64 RyuJIT x86-64-v3
+  DefaultJob : .NET 10.0.6 (10.0.6, 10.0.626.17701), X64 RyuJIT x86-64-v3
+```
+
+### Problem (Before)
+
+`WorldConnection.OnReceive` enqueued packets into a `LockedQueue<WorldPacket>` where `WorldPacket` was
+a private inner class and `LockedQueue<T>` used a `LinkedList<T>`-backed `Deque<T>`. Two heap
+allocations per received inbound packet:
+
+1. `new WorldPacket { ... }` — class instance (~40 B)
+2. `LinkedListNode<WorldPacket>` inside `Deque<T>` — one node per enqueued item (~40 B)
+
+Additionally, `ProcessQueue(PacketFilter filter)` created a closure `worldPacket => filter.CanProcess(worldPacket.Type)`
+on every call (~6 000/s at 50 players × 60 Hz × 2 passes).
+
+### Fix (After)
+
+- `WorldPacket` inner class → `private readonly record struct WorldPacket(NetworkPacketType Type, Packet? Payload)` — stored inline in the queue array
+- `LockedQueue<T>`: `where T : class` removed; `Deque<T>`/`LinkedList<T>` replaced with `Queue<T>` ring buffer (zero allocation at steady state)
+- Filter predicates cached as `Func<WorldPacket, bool>` fields on `WorldConnection`, initialized once in the constructor — no per-call closure
+
+### Results — GC-009 fix (2026-04-16)
+
+```
+BenchmarkDotNet v0.15.8, Windows 11 (10.0.26200.8246/25H2/2025Update/HudsonValley2)
+13th Gen Intel Core i7-13850HX 2.10GHz, 1 CPU, 28 logical and 20 physical cores
+.NET SDK 10.0.202
+  [Host]     : .NET 10.0.6 (10.0.6, 10.0.626.17701), X64 RyuJIT x86-64-v3
+  DefaultJob : .NET 10.0.6 (10.0.6, 10.0.626.17701), X64 RyuJIT x86-64-v3
+```
+
+| Method | Mean | Error | StdDev | Ratio | RatioSD | Gen0 | Allocated | Alloc Ratio |
+|--- |---:|---:|---:|---:|---:|---:|---:|---:|
+| `Legacy_ClassQueue` | 625.5 ns | 11.71 ns | 10.38 ns | 1.00 | 0.02 | 0.1011 | 1600 B | 1.00 |
+| `Struct_RingBuffer` | 547.4 ns | 0.63 ns | 0.56 ns | 0.88 | 0.01 | - | - | 0.00 |
+
+### Key observations
+
+- **100% allocation eliminated** — `Struct_RingBuffer` allocates 0 B per iteration at steady state. The `Queue<T>` ring buffer reaches capacity during BenchmarkDotNet's warm-up phase; subsequent measurement iterations produce zero GC pressure.
+- **1600 B → 0 B** — The 1600 B baseline is 20 packets × ~80 B (one `LegacyWorldPacket` class object + one `LinkedListNode<LegacyWorldPacket>` per item on .NET 10 x64).
+- **Gen0 eliminated** — `Legacy_ClassQueue` Gen0 = 0.1011 per 1 000 operations; `Struct_RingBuffer` Gen0 = 0. No Gen0 collections from this path.
+- **12% faster** — 625.5 ns → 547.4 ns. Better cache locality from the contiguous ring buffer array vs. scattered `LinkedListNode` objects on the heap.
+- **At inbound packet scale** — 50 players × 10 packets/s = 500 packets/s queued. Legacy path: ~80 KB/s of Gen0 allocation from this site. Fixed path: 0 KB/s. The closure elimination adds a further ~6 000 delegate objects/s saved (not measured in this benchmark; covered by the filter predicate caching in Task 3).

@@ -235,7 +235,7 @@ exist simultaneously for every encrypted inbound packet.
 
 ## GC-009 — `WorldPacket` inner class allocated per received packet
 
-**Status:** Open  
+**Status:** Resolved — `WorldPacket` inner class converted to `readonly record struct`; `Deque<T>`/`LinkedList<T>` backing in `LockedQueue<T>` replaced with `Queue<T>` ring buffer; `where T : class` constraint removed; filter predicates cached as fields on `WorldConnection`. Eliminates per-packet `WorldPacket` class alloc + `LinkedListNode` alloc (1 600 B → 0 B per 20-packet burst), and per-`ProcessQueue`-call closure alloc (~6 000/s at 50 players).  
 **Severity:** Medium  
 **File:** `src/Server/Avalon.World/WorldConnection.cs:189, 199–203`
 
@@ -405,7 +405,7 @@ pre-allocated / pooled list. Given the small typical size (<10 entries) an
 | 4 | ~~GC-006~~ | ~~`JsonSerializer.Serialize` without log guard~~ | ~~High~~ |
 | 5 | GC-001 | Outbound packet `MemoryStream+ToArray+encrypt` | Critical |
 | 6 | GC-002 | Per-entity `new byte[]` in state broadcast | Critical |
-| 7 | GC-009 | `WorldPacket` class → struct | Medium |
+| 7 | ~~GC-009~~ | ~~`WorldPacket` class → struct~~ | ~~Medium~~ |
 | 8 | ~~GC-007~~ | ~~`PacketReader` reflection `new object?[]` per packet~~ | ~~Medium~~ |
 | 9 | GC-013 | `Task.Delay(1)` idle send loop | Medium |
 | 10 | GC-012 | `EnqueueContinuation` boxing + two closures | Medium |
