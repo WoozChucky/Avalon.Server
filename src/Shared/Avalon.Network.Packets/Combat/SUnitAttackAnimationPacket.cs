@@ -4,6 +4,7 @@ using Avalon.Network.Packets.Abstractions;
 using ProtoBuf;
 using NetworkPacketFlags = Avalon.Network.Packets.Abstractions.NetworkPacketFlags;
 using NetworkProtocol = Avalon.Network.Packets.Abstractions.NetworkProtocol;
+using Avalon.Network.Packets.Serialization;
 
 namespace Avalon.Network.Packets.Combat;
 
@@ -17,7 +18,7 @@ public class SUnitAttackAnimationPacket : Packet
     [ProtoMember(1)] public ulong Attacker { get; set; }
     [ProtoMember(2)] public ushort AnimationId { get; set; }
 
-    public static NetworkPacket Create(ObjectGuid attacker, ushort animationId, Func<byte[], byte[]> encryptFunc)
+    public static NetworkPacket Create(ObjectGuid attacker, ushort animationId, EncryptFunc encryptFunc)
     {
         using var memoryStream = new MemoryStream();
 

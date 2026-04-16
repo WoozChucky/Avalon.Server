@@ -1,5 +1,6 @@
 using Avalon.Network.Packets.Abstractions;
 using ProtoBuf;
+using Avalon.Network.Packets.Serialization;
 
 namespace Avalon.Network.Packets.Combat;
 
@@ -16,7 +17,7 @@ public class SCharacterDamagePacket : Packet
     [ProtoMember(4)] public uint Damage { get; set; }
     [ProtoMember(5)] public uint? SpellId { get; set; }
 
-    public static NetworkPacket Create(ulong attacker, ulong target, uint currentHealth, uint damage, uint? spellId, Func<byte[], byte[]> encryptFunc)
+    public static NetworkPacket Create(ulong attacker, ulong target, uint currentHealth, uint damage, uint? spellId, EncryptFunc encryptFunc)
     {
         using var memoryStream = new MemoryStream();
 

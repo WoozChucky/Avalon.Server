@@ -1,5 +1,6 @@
 using Avalon.Network.Packets.Abstractions;
 using ProtoBuf;
+using Avalon.Network.Packets.Serialization;
 
 namespace Avalon.Network.Packets.World;
 
@@ -37,7 +38,7 @@ public class SMapTransitionPacket : Packet
         float spawnZ,
         string mapName,
         string mapDescription,
-        Func<byte[], byte[]> encrypt)
+        EncryptFunc encrypt)
     {
         using var memoryStream = new MemoryStream();
 
@@ -70,6 +71,6 @@ public class SMapTransitionPacket : Packet
     }
 
     /// <summary>Creates a failure response with only the result code populated.</summary>
-    public static NetworkPacket CreateFailure(MapTransitionResult result, Func<byte[], byte[]> encrypt) =>
+    public static NetworkPacket CreateFailure(MapTransitionResult result, EncryptFunc encrypt) =>
         Create(result, Guid.Empty, 0, 0f, 0f, 0f, string.Empty, string.Empty, encrypt);
 }
