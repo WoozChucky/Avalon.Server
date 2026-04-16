@@ -130,7 +130,8 @@ public abstract class Connection : BackgroundService, IConnection
         {
             await foreach (NetworkPacket packet in _packetReader.EnumerateAsync(_stream, stoppingToken))
             {
-                if (packet.Header.Type != NetworkPacketType.CMSG_MOVEMENT &&
+                if (_logger.IsEnabled(LogLevel.Debug) &&
+                    packet.Header.Type != NetworkPacketType.CMSG_MOVEMENT &&
                     packet.Header.Type != NetworkPacketType.CMSG_PONG)
                 {
                     _logger.LogDebug("IN: {Type} => {Data}", packet.Header.Type, JsonSerializer.Serialize(packet));
@@ -221,7 +222,8 @@ public abstract class Connection : BackgroundService, IConnection
                         _logger.LogError(e, "Failed to send packet");
                     }
 
-                    if (packet.Header.Type != NetworkPacketType.SMSG_WORLD_STATE_UPDATE &&
+                    if (_logger.IsEnabled(LogLevel.Trace) &&
+                        packet.Header.Type != NetworkPacketType.SMSG_WORLD_STATE_UPDATE &&
                         packet.Header.Type != NetworkPacketType.SMSG_PING)
                     {
                         _logger.LogTrace("OUT: {Type} => {Packet}", packet.Header.Type,
