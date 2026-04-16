@@ -288,8 +288,9 @@ public class MapInstance : IMapInstance
             }
 
             long bytesWritten = writer.BaseStream.Position;
-            ObjectAdd obj = new() {Guid = addedObjectGuid.RawValue, Fields = new byte[bytesWritten]};
-            buffer.AsSpan(0, (int)bytesWritten).CopyTo(obj.Fields);
+            byte[] fieldsArray = new byte[bytesWritten];
+            buffer.AsSpan(0, (int)bytesWritten).CopyTo(fieldsArray);
+            ObjectAdd obj = new() {Guid = addedObjectGuid.RawValue, Fields = fieldsArray};
             addedObjects.Add(obj);
             writer.Reset();
         }
@@ -331,8 +332,9 @@ public class MapInstance : IMapInstance
             }
 
             long bytesWritten = writer.BaseStream.Position;
-            ObjectUpdate obj = new() {Guid = updatedObject.Guid.RawValue, Fields = new byte[bytesWritten]};
-            buffer.AsSpan(0, (int)bytesWritten).CopyTo(obj.Fields);
+            byte[] fieldsArray = new byte[bytesWritten];
+            buffer.AsSpan(0, (int)bytesWritten).CopyTo(fieldsArray);
+            ObjectUpdate obj = new() {Guid = updatedObject.Guid.RawValue, Fields = fieldsArray};
             updatedObjects.Add(obj);
             writer.Reset();
         }
