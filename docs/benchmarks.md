@@ -16,6 +16,7 @@ dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*PacketRe
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*WorldPacketQueueGc*"
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*PacketReaderDecryptGc*"
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*GetContextPacketGc*"
+dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*CallListenerGc*"
 ```
 
 ---
@@ -134,6 +135,19 @@ Before/after CPU cost comparison for the GC-010 fix: `Activator.CreateInstance` 
 | `Delegate_Cached` | New `GetContextPacket` — single `Func<IConnection, Packet?, object>` delegate invocation |
 
 Note: `[MemoryDiagnoser]` will show **equal allocations** on both sides (~32 B). `WorldPacketContext<T>` is a struct that gets boxed to `object` in both paths — the win is CPU speed, not allocation count.
+
+---
+
+### CallListener DIM Dispatch GC-011 — `CallListenerGcBenchmarks.cs`
+
+Before/after allocation comparison for the GC-011 fix: `MethodInfo.Invoke` with a per-call `new object[2]` args array and a boxed `CancellationToken`, versus a single cast to `IPacketHandlerNew` + virtual dispatch. Both paths call the same `CClientInfoHandler` to include handler-internal overhead equally.
+
+| Scenario | What it models |
+|---|---|
+| `Legacy_ReflectionInvoke` | Old `CallListener` warm-cache path — `MethodInfo.Invoke(handler, new object[] { ctx, token })` — **baseline** |
+| `Interface_Dispatch` | New `CallListener` — `((IPacketHandlerNew)handler).ExecuteAsync(ctx, token)` via DIM bridge |
+
+The allocation difference is the eliminated `new object[2]` args array and boxed `CancellationToken` per dispatch.
 
 ---
 
@@ -679,3 +693,57 @@ The `static` lambda captures no variables — zero closure allocation per call.
 - **Gen0 rate unchanged** — `Gen0 = 0.0020` on both paths. The GC pressure is the single boxed struct, identical in both cases.
 - **At dispatch scale** — at 50 players × 10 packets/s = 500 `GetContextPacket` calls/s, the legacy path burns ~9.9 µs/s in pure reflection overhead. The delegate path reduces that to ~2.9 µs/s. The absolute saving is modest per-call, but the fix eliminates a reflection barrier that blocked JIT inlining of the construction path entirely.
 - **Applied to both servers** — `WorldServer` and `AuthServer` share the identical pattern. Both are fixed; the benchmark covers the `WorldPacketContext<T>` path as representative.
+
+---
+
+## CallListener DIM Dispatch GC-011 — Benchmark Results
+
+**Date:** 2026-04-17
+
+```
+BenchmarkDotNet v0.15.8, Windows 11 (10.0.26200.8246/25H2/2025Update/HudsonValley2)
+12th Gen Intel Core i9-12900K 3.20GHz, 1 CPU, 24 logical and 16 physical cores
+.NET SDK 10.0.202
+  [Host]     : .NET 10.0.6 (10.0.6, 10.0.626.17701), X64 RyuJIT x86-64-v3
+  DefaultJob : .NET 10.0.6 (10.0.6, 10.0.626.17701), X64 RyuJIT x86-64-v3
+```
+
+### Problem (Before)
+
+`ServerBase.CallListener` dispatched every inbound packet via `MethodInfo.Invoke`:
+
+```csharp
+await ((Task)handlerCache.ExecuteMethod.Invoke(
+    packetHandler,
+    new[] { context, _stoppingToken.Token }  // new object[2] per call + CancellationToken boxed
+)!).ConfigureAwait(false);
+```
+
+Two heap allocations per dispatch:
+1. `new object[2]` — the reflection invoke args array
+2. Boxing of `_stoppingToken.Token` (`CancellationToken` is a struct → `object`)
+
+### Fix (After)
+
+Added `Task ExecuteAsync(object context, CancellationToken token)` to `IPacketHandlerNew`. Both `IAuthPacketHandler<T>` and `IWorldPacketHandler<T>` provide a DIM that unboxes the context and delegates to the strongly-typed overload. `CallListener` becomes one cast + one virtual dispatch:
+
+```csharp
+await ((IPacketHandlerNew)packetHandler).ExecuteAsync(context, _stoppingToken.Token).ConfigureAwait(false);
+```
+
+`ExecuteMethod: MethodInfo` removed from `PacketHandlerCache`; `using System.Reflection` removed from `ServerBase.cs`.
+
+### Results
+
+| Method | Mean | Error | StdDev | Ratio | RatioSD | Gen0 | Allocated | Alloc Ratio |
+|---|---|---|---|---|---|---|---|---|
+| `Legacy_ReflectionInvoke` | 39.90 ns | 0.583 ns | 0.572 ns | 1.00 | 0.02 | 0.0081 | 128 B | 1.00 |
+| `Interface_Dispatch` | 24.50 ns | 0.385 ns | 0.360 ns | 0.61 | 0.01 | 0.0041 | 64 B | 0.50 |
+
+### Key observations
+
+- **39% faster** — 39.90 ns → 24.50 ns (Ratio = 0.61). `MethodInfo.Invoke` carries measurable overhead even on a pre-reflected, warm cache; a single virtual dispatch via an interface is significantly cheaper for the JIT to schedule.
+- **50% less allocation** — 128 B → 64 B per dispatch. The 64 B eliminated is the `new object[2]` args array and the boxed `CancellationToken` that `MethodInfo.Invoke` required on every call.
+- **Gen0 rate halved** — `Gen0` drops from 0.0081 to 0.0041 per 1 000 operations. Fewer Gen0 collections means less STW pause time during packet processing.
+- **At dispatch scale** — at 50 players × 10 packets/s = 500 `CallListener` dispatches/s, the legacy path allocates ~64 KB/s of short-lived Gen0 objects from this site alone. The DIM path reduces that to ~32 KB/s, a saving of ~32 KB/s.
+- **Dead code removed** — `IPacketHandler`/`IPacketRegistry`/`PacketRegistry`/`AvalonTcpClient` (all unreferenced in production) deleted alongside the fix, reducing build surface and eliminating dead maintenance burden.
