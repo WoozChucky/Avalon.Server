@@ -3,6 +3,7 @@ using Avalon.Network.Packets.Abstractions;
 using ProtoBuf;
 using NetworkPacketFlags = Avalon.Network.Packets.Abstractions.NetworkPacketFlags;
 using NetworkProtocol = Avalon.Network.Packets.Abstractions.NetworkProtocol;
+using Avalon.Network.Packets.Serialization;
 
 namespace Avalon.Network.Packets.Combat;
 
@@ -18,32 +19,8 @@ public class SUnitDamagePacket : Packet
     [ProtoMember(3)] public uint CurrentHealth { get; set; }
     [ProtoMember(4)] public uint Damage { get; set; }
 
-    public static NetworkPacket Create(ObjectGuid attacker, ulong target, uint currentHealth, uint damage, Func<byte[], byte[]> encryptFunc)
-    {
-        using var memoryStream = new MemoryStream();
-
-        var p = new SUnitDamagePacket
-        {
-            Attacker = attacker.RawValue,
-            Target = target,
-            CurrentHealth = currentHealth,
-            Damage = damage
-        };
-
-        Serializer.Serialize(memoryStream, p);
-
-        var buffer = encryptFunc(memoryStream.ToArray());
-
-        return new NetworkPacket
-        {
-            Header = new NetworkPacketHeader
-            {
-                Type = PacketType,
-                Flags = Flags,
-                Protocol = Protocol,
-                Version = 0
-            },
-            Payload = buffer
-        };
-    }
+    public static NetworkPacket Create(ObjectGuid attacker, ulong target, uint currentHealth, uint damage, EncryptFunc encryptFunc)
+        => PacketSerializationHelper.Serialize(
+            new SUnitDamagePacket { Attacker = attacker.RawValue, Target = target, CurrentHealth = currentHealth, Damage = damage },
+            PacketType, Flags, Protocol, encryptFunc);
 }

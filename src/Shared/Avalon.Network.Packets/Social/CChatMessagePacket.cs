@@ -1,6 +1,7 @@
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Abstractions.Attributes;
 using ProtoBuf;
+using Avalon.Network.Packets.Serialization;
 
 namespace Avalon.Network.Packets.Social;
 
@@ -15,7 +16,7 @@ public class CChatMessagePacket : Packet
     [ProtoMember(1)] public string Message { get; set; }
     [ProtoMember(2)] public DateTime DateTime { get; set; }
 
-    public static NetworkPacket Create(string message, DateTime dateTime, Func<byte[], byte[]> encryptFunc)
+    public static NetworkPacket Create(string message, DateTime dateTime, EncryptFunc encryptFunc)
     {
         using var memoryStream = new MemoryStream();
 

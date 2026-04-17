@@ -43,6 +43,8 @@ public class WorldConnection : Connection, IWorldConnection
         _receiveQueue = new LockedQueue<WorldPacket>();
         _worldSessionFilter = new WorldSessionFilter(this);
         _worldMapFilter = new MapSessionFilter(this);
+        _sessionFilterPredicate = wp => _worldSessionFilter.CanProcess(wp.Type);
+        _mapFilterPredicate = wp => _worldMapFilter.CanProcess(wp.Type);
         Init(client);
 
         _packetSentRate = DiagnosticsConfig.World.Meter.CreateObservableGauge("network.out.packets.rate",
@@ -93,47 +95,44 @@ public class WorldConnection : Connection, IWorldConnection
     }
 
 
-    public void Update(TimeSpan deltaTime, PacketFilter filter)
+    public void UpdateSession()
+    {
+        ProcessQueue(_sessionFilterPredicate);
+    }
+
+    public void UpdateMap()
+    {
+        ProcessQueue(_mapFilterPredicate);
+    }
+
+    public void FlushContinuations()
+    {
+        ProcessContinuations();
+    }
+
+    private void ProcessQueue(Func<WorldPacket, bool> predicate)
     {
         const uint MaxPacketsPerUpdate = 150;
         uint processedPackets = 0;
-        List<WorldPacket> requeuePackets = [];
 
         while (IsConnected &&
-               _receiveQueue.Next(out WorldPacket? packet, worldPacket => filter.CanProcess(worldPacket.Type)))
+               _receiveQueue.Next(out WorldPacket packet, predicate))
         {
-            if (packet == null)
-            {
-                _logger.LogWarning("Received null packet");
-                break;
-            }
-
             try
             {
                 if (_server.PacketHandlers.TryGetValue(packet.Type, out IWorldPacketHandler? handler))
-                {
                     handler.Execute(this, packet.Payload!);
-                }
                 else
-                {
                     _logger.LogWarning("No handler for packet {PacketType}", packet.Type);
-                }
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error processing packet {PacketType}", packet.Type);
             }
 
-            processedPackets++;
-            if (processedPackets > MaxPacketsPerUpdate)
-            {
+            if (++processedPackets > MaxPacketsPerUpdate)
                 break;
-            }
         }
-
-        _receiveQueue.Readd(requeuePackets);
-
-        ProcessContinuations();
     }
 
     public double LastMovementTime { get; set; }
@@ -186,7 +185,7 @@ public class WorldConnection : Connection, IWorldConnection
 
         if (_worldSessionFilter.CanProcess(packet.Header.Type) || _worldMapFilter.CanProcess(packet.Header.Type))
         {
-            _receiveQueue.Add(new WorldPacket {Type = packet.Header.Type, Payload = payload});
+            _receiveQueue.Add(new WorldPacket(packet.Header.Type, payload));
         }
         else
         {
@@ -196,16 +195,14 @@ public class WorldConnection : Connection, IWorldConnection
 
     protected override long GetServerTime() => Server.ServerTime;
 
-    private class WorldPacket
-    {
-        public NetworkPacketType Type { get; set; }
-        public Packet? Payload { get; set; }
-    }
+    private readonly record struct WorldPacket(NetworkPacketType Type, Packet? Payload);
 
     #region Filters
 
     private readonly WorldSessionFilter _worldSessionFilter;
     private readonly MapSessionFilter _worldMapFilter;
+    private readonly Func<WorldPacket, bool> _sessionFilterPredicate;
+    private readonly Func<WorldPacket, bool> _mapFilterPredicate;
 
     #endregion
 

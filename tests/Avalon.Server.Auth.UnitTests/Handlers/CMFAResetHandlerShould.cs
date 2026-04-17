@@ -13,14 +13,13 @@ public class CMFAResetHandlerShould
 {
     private readonly IMFAService _mfaService = Substitute.For<IMFAService>();
     private readonly IAuthConnection _connection = Substitute.For<IAuthConnection>();
-    private readonly IAvalonCryptoSession _cryptoSession = Substitute.For<IAvalonCryptoSession>();
+    private readonly IAvalonCryptoSession _cryptoSession = new FakeAvalonCryptoSession();
 
     private CMFAResetHandler CreateHandler() =>
         new(NullLoggerFactory.Instance, _mfaService);
 
     public CMFAResetHandlerShould()
     {
-        _cryptoSession.Encrypt(Arg.Any<byte[]>()).Returns(x => (byte[])x[0]);
         _connection.CryptoSession.Returns(_cryptoSession);
         _connection.AccountId.Returns(new AccountId(1L));
     }

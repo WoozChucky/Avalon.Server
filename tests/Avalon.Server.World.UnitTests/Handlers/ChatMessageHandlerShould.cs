@@ -18,12 +18,11 @@ public class ChatMessageHandlerShould
     private readonly IWorldServer _worldServer = Substitute.For<IWorldServer>();
     private readonly ICommandDispatcher _commandDispatcher = Substitute.For<ICommandDispatcher>();
     private readonly IWorldConnection _senderConnection = Substitute.For<IWorldConnection>();
-    private readonly IAvalonCryptoSession _senderCrypto = Substitute.For<IAvalonCryptoSession>();
+    private readonly IAvalonCryptoSession _senderCrypto = new FakeAvalonCryptoSession();
     private readonly ChatMessageHandler _handler;
 
     public ChatMessageHandlerShould()
     {
-        _senderCrypto.Encrypt(Arg.Any<byte[]>()).Returns(x => (byte[])x[0]);
         _senderConnection.CryptoSession.Returns(_senderCrypto);
         _senderConnection.AccountId.Returns(new AccountId(1));
         _senderConnection.InGame.Returns(true);
@@ -78,9 +77,7 @@ public class ChatMessageHandlerShould
         var otherConnection = Substitute.For<IWorldConnection>();
         otherConnection.InGame.Returns(true);
         otherConnection.AccountId.Returns(new AccountId(2));
-        var otherCrypto = Substitute.For<IAvalonCryptoSession>();
-        otherCrypto.Encrypt(Arg.Any<byte[]>()).Returns(x => (byte[])x[0]);
-        otherConnection.CryptoSession.Returns(otherCrypto);
+        otherConnection.CryptoSession.Returns(new FakeAvalonCryptoSession());
         _worldServer.Connections.Returns(ImmutableArray.Create(otherConnection));
 
         _handler.Execute(_senderConnection, MakePacket("/invite PlayerOne"));
@@ -94,9 +91,7 @@ public class ChatMessageHandlerShould
         var otherConnection = Substitute.For<IWorldConnection>();
         otherConnection.InGame.Returns(true);
         otherConnection.AccountId.Returns(new AccountId(2));
-        var otherCrypto = Substitute.For<IAvalonCryptoSession>();
-        otherCrypto.Encrypt(Arg.Any<byte[]>()).Returns(x => (byte[])x[0]);
-        otherConnection.CryptoSession.Returns(otherCrypto);
+        otherConnection.CryptoSession.Returns(new FakeAvalonCryptoSession());
 
         var character = Substitute.For<ICharacter>();
         character.Name.Returns("HeroOne");

@@ -64,9 +64,10 @@ public class SerializationBenchmarks
         
         var packet = Serializer.DeserializeWithLengthPrefix<NetworkPacket>(_encryptedPacketAes128, PrefixStyle.Base128);
         
-        var decryptedBytes = _cryptoSession128.Decrypt(packet.Payload);
-        
-        using var memoryStream = new MemoryStream(decryptedBytes);
+        byte[] decryptedBytes = new byte[packet.Payload.Length];
+        int len = _cryptoSession128.Decrypt(packet.Payload.AsSpan(), decryptedBytes);
+
+        using var memoryStream = new MemoryStream(decryptedBytes, 0, len);
         
         var innerPacket = Serializer.Deserialize<CCharacterLoadedPacket>(memoryStream);
         if (innerPacket is null)

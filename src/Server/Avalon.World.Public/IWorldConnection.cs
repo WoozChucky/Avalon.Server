@@ -57,11 +57,23 @@ public interface IWorldConnection : IConnection
         long clientSentTimestamp);
 
     /// <summary>
-    ///     Updates the connection with the specified delta time and packet filter.
+    ///     Processes pre-character packets (pong, character list/select/create/delete)
+    ///     using the session filter. Called by <c>WorldServer</c> on every tick for all connections.
     /// </summary>
-    /// <param name="deltaTime">The delta time since the last update.</param>
-    /// <param name="filter">The packet filter to use for the update.</param>
-    void Update(TimeSpan deltaTime, PacketFilter filter);
+    void UpdateSession();
+
+    /// <summary>
+    ///     Processes in-map packets (movement, attack, chat) using the map filter.
+    ///     Called by <c>MapInstance</c> on every tick for connections with an active character in a map.
+    /// </summary>
+    void UpdateMap();
+
+    /// <summary>
+    ///     Drains the continuation queue. Called by <c>WorldServer</c> once per tick after all
+    ///     packet-processing passes complete, so continuations from both session and map passes
+    ///     run exactly once per tick per connection.
+    /// </summary>
+    void FlushContinuations();
 
     /// <summary>Queues an async result for safe execution on the tick thread.</summary>
     void EnqueueContinuation<T>(Task<T> task, Action<T> callback);

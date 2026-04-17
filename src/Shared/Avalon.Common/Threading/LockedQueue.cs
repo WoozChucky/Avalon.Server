@@ -1,9 +1,11 @@
+using System.Diagnostics.CodeAnalysis;
+
 namespace Avalon.Common.Threading;
 
-public class LockedQueue<T> where T : class
+public class LockedQueue<T>
 {
     private readonly object _lock = new object();
-    private readonly Deque<T> _queue = new Deque<T>();
+    private readonly Queue<T> _queue = new Queue<T>();
     private volatile bool _canceled = false;
 
     // Adds an item to the queue.
@@ -11,58 +13,47 @@ public class LockedQueue<T> where T : class
     {
         lock (_lock)
         {
-            _queue.AddToBack(item);
+            _queue.Enqueue(item);
         }
     }
 
-    // Adds items back to front of the queue.
-    public void Readd(IList<T> items)
-    {
-        lock (_lock)
-        {
-            // Enqueue the new items first (preserving their order)
-            foreach (var item in items.Reverse())
-            {
-                _queue.AddToFront(item);
-            }
-        }
-    }
-
-    // Gets the next result in the queue, if any.
-    public bool Next(out T? result)
+    // Gets the next item from the queue, if any.
+    public bool Next([MaybeNullWhen(false)] out T result)
     {
         lock (_lock)
         {
             if (_queue.Count == 0)
             {
-                result = null;
+                result = default;
                 return false;
             }
 
-            result = _queue.RemoveFromFront();
+            result = _queue.Dequeue();
             return true;
         }
     }
 
-    // Gets the next result in the queue if it passes the check.
-    public bool Next(out T? result, Func<T, bool> check)
+    // Gets the next item from the queue if it passes the check.
+    // Uses peek-first semantics: if the check fails the item stays at the head.
+    public bool Next([MaybeNullWhen(false)] out T result, Func<T, bool> check)
     {
         lock (_lock)
         {
             if (_queue.Count == 0)
             {
-                result = null;
+                result = default;
                 return false;
             }
 
-            result = _queue.Peek();
-            if (!check(result))
+            T front = _queue.Peek();
+            if (!check(front))
             {
-                result = null;
+                result = default;
                 return false;
             }
 
-            _queue.RemoveFromFront();
+            _queue.Dequeue();
+            result = front;
             return true;
         }
     }
@@ -127,48 +118,8 @@ public class LockedQueue<T> where T : class
         {
             if (_queue.Count > 0)
             {
-                _queue.RemoveFromFront();
+                _queue.Dequeue();
             }
         }
     }
-}
-
-internal class Deque<T>
-{
-    private readonly LinkedList<T> _list = [];
-
-    // Adds an item to the back of the deque.
-    public void AddToBack(T item)
-    {
-        _list.AddLast(item);
-    }
-
-    // Adds an item to the front of the deque.
-    public void AddToFront(T item)
-    {
-        _list.AddFirst(item);
-    }
-
-    // Removes and returns the item from the front of the deque.
-    public T RemoveFromFront()
-    {
-        if (_list.Count == 0)
-            throw new InvalidOperationException("Deque is empty.");
-
-        var value = _list.First.Value;
-        _list.RemoveFirst();
-        return value;
-    }
-
-    // Peeks at the item from the front of the deque without removing it.
-    public T Peek()
-    {
-        if (_list.Count == 0)
-            throw new InvalidOperationException("Deque is empty.");
-
-        return _list.First.Value;
-    }
-
-    // Gets the count of items in the deque.
-    public int Count => _list.Count;
 }

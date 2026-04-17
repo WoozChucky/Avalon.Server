@@ -1,5 +1,6 @@
 using Avalon.Network.Packets.Abstractions;
 using ProtoBuf;
+using Avalon.Network.Packets.Serialization;
 
 namespace Avalon.Network.Packets.Social;
 
@@ -15,32 +16,8 @@ public class SGroupInvitePacket : Packet
     [ProtoMember(3)] public int InviterCharacterId { get; set; }
     [ProtoMember(4)] public string InviterName { get; set; }
 
-    public static NetworkPacket Create(int accountId, int inviterAccountId, int inviterCharacterId, string inviterName, Func<byte[], byte[]> encryptFunc)
-    {
-        using var memoryStream = new MemoryStream();
-
-        var movementPacket = new SGroupInvitePacket()
-        {
-            AccountId = accountId,
-            InviterAccountId = inviterAccountId,
-            InviterCharacterId = inviterCharacterId,
-            InviterName = inviterName
-        };
-
-        Serializer.Serialize(memoryStream, movementPacket);
-
-        var buffer = encryptFunc(memoryStream.ToArray());
-
-        return new NetworkPacket
-        {
-            Header = new NetworkPacketHeader
-            {
-                Type = PacketType,
-                Flags = Flags,
-                Protocol = Protocol,
-                Version = 0
-            },
-            Payload = buffer
-        };
-    }
+    public static NetworkPacket Create(int accountId, int inviterAccountId, int inviterCharacterId, string inviterName, EncryptFunc encryptFunc)
+        => PacketSerializationHelper.Serialize(
+            new SGroupInvitePacket { AccountId = accountId, InviterAccountId = inviterAccountId, InviterCharacterId = inviterCharacterId, InviterName = inviterName },
+            PacketType, Flags, Protocol, encryptFunc);
 }
