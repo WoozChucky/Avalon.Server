@@ -92,4 +92,27 @@ public class PacketReaderShould
 
         Assert.Null(result);
     }
+
+    [Fact]
+    public void Should_DecryptPayloadBeforeDeserializing_WhenDecryptFuncProvided()
+    {
+        var reader = MakeWith(typeof(CCharacterListPacket));
+
+        using var ms = new MemoryStream();
+        Serializer.Serialize(ms, new CCharacterListPacket());
+        byte[] plaintext = ms.ToArray();
+
+        var networkPacket = new NetworkPacket
+        {
+            Header = new NetworkPacketHeader { Type = CCharacterListPacket.PacketType },
+            Payload = plaintext
+        };
+
+        // Passthrough: copies input to output unchanged — simulates decryption without real crypto
+        DecryptFunc passthrough = (input, output) => { input.CopyTo(output); return input.Length; };
+
+        var result = reader.Read(networkPacket, passthrough);
+
+        Assert.IsType<CCharacterListPacket>(result);
+    }
 }
