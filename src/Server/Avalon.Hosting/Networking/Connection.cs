@@ -120,7 +120,8 @@ public abstract class Connection : BackgroundService, IConnection
             return;
         }
 
-        _logger.LogInformation("New connection from {RemoteEndPoint}", _client.Client.RemoteEndPoint?.ToString());
+        if (_logger.IsEnabled(LogLevel.Information))
+            _logger.LogInformation("New connection from {RemoteEndPoint}", _client.Client.RemoteEndPoint?.ToString());
 
         _stream = await GetStream(_client);
 
@@ -139,7 +140,12 @@ public abstract class Connection : BackgroundService, IConnection
 
                 if (packet.Header.Flags.HasFlag(NetworkPacketFlags.Encrypted))
                 {
-                    _packetReader.Decrypt(packet, CryptoSession.Decrypt);
+                    _packetReader.Decrypt(packet, data =>
+                    {
+                        byte[] output = new byte[data.Length];
+                        int len = CryptoSession.Decrypt(data, output);
+                        return output[..len];
+                    });
                 }
 
                 Packet? payload = _packetReader.Read(packet);
