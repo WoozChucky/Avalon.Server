@@ -1,4 +1,5 @@
 using System;
+using System.Buffers;
 using System.IO;
 using System.Net.Sockets;
 using System.Text.Json;
@@ -6,11 +7,12 @@ using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
 using Avalon.Common.Cryptography;
-using Avalon.Hosting.Extensions;
 using Avalon.Network.Packets;
 using Avalon.Network.Packets.Abstractions;
+using Avalon.Network.Packets.Serialization;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using ProtoBuf;
 
 namespace Avalon.Hosting.Networking;
 
@@ -42,6 +44,8 @@ public abstract class Connection : BackgroundService, IConnection
     private TcpClient? _client;
     private bool _closed;
     private PacketStream? _stream;
+    private readonly PooledArrayBufferWriter _tempWriter = new();
+    private readonly PooledArrayBufferWriter _burstWriter = new();
     protected long BytesReceivedCount;
     protected double BytesReceivedRate;
     protected long BytesSentCount;
@@ -218,16 +222,23 @@ public abstract class Connection : BackgroundService, IConnection
                         break;
                     }
 
-                    await _stream.WriteAsync(packet).ConfigureAwait(false);
-                    await _stream.FlushAsync().ConfigureAwait(false);
-
-                    if (_logger.IsEnabled(LogLevel.Trace) &&
-                        packet.Header.Type != NetworkPacketType.SMSG_WORLD_STATE_UPDATE &&
-                        packet.Header.Type != NetworkPacketType.SMSG_PING)
+                    _burstWriter.Reset();
+                    do
                     {
-                        _logger.LogTrace("OUT: {Type} => {Packet}", packet.Header.Type,
-                            JsonSerializer.Serialize(packet));
-                    }
+                        AppendPacket(packet);
+
+                        if (_logger.IsEnabled(LogLevel.Trace) &&
+                            packet.Header.Type != NetworkPacketType.SMSG_WORLD_STATE_UPDATE &&
+                            packet.Header.Type != NetworkPacketType.SMSG_PING)
+                        {
+                            _logger.LogTrace("OUT: {Type} => {Packet}", packet.Header.Type,
+                                JsonSerializer.Serialize(packet));
+                        }
+                    } while (_channel.Reader.TryRead(out packet));
+
+                    await _stream.WriteAsync(_burstWriter.WrittenMemory,
+                        CancellationTokenSource!.Token).ConfigureAwait(false);
+                    await _stream.FlushAsync(CancellationTokenSource!.Token).ConfigureAwait(false);
                 }
                 catch (SocketException e)
                 {
@@ -260,5 +271,25 @@ public abstract class Connection : BackgroundService, IConnection
                 break;
             }
         }
+    }
+
+    private void AppendPacket(NetworkPacket packet)
+    {
+        _tempWriter.Reset();
+        Serializer.Serialize(_tempWriter, packet);
+
+        WriteVarint(_burstWriter, (uint)_tempWriter.Written);
+        var dest = _burstWriter.GetSpan(_tempWriter.Written);
+        _tempWriter.WrittenSpan.CopyTo(dest);
+        _burstWriter.Advance(_tempWriter.Written);
+    }
+
+    private static void WriteVarint(IBufferWriter<byte> writer, uint value)
+    {
+        Span<byte> span = writer.GetSpan(5);
+        int i = 0;
+        while (value > 0x7F) { span[i++] = (byte)((value & 0x7F) | 0x80); value >>= 7; }
+        span[i++] = (byte)value;
+        writer.Advance(i);
     }
 }
