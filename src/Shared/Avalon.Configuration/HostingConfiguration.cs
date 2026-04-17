@@ -13,4 +13,11 @@ public class HostingConfiguration
     /// </summary>
     [Range(512, 65535)]
     public int PacketReaderBufferSize { get; set; } = 4096;
+
+    /// <summary>
+    /// Per-connection outbound packet buffer capacity. Packets beyond this limit are dropped (oldest first).
+    /// Valid range: 10–10000. Defaults to 100.
+    /// </summary>
+    [Range(10, 10000)]
+    public int SendBufferCapacity { get; set; } = 100;
 }

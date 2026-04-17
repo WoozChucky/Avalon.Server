@@ -25,6 +25,7 @@ public interface IServerBase
     Task CallListener(IConnection connection, NetworkPacket packet, Packet? payload);
     long ServerTime { get; }
     public ICryptoManager Crypto { get; }
+    int SendBufferCapacity { get; }
     void CallConnectionListener(IConnection connection);
 }
 
@@ -36,6 +37,7 @@ public class PacketHandlerCache
 public abstract class ServerBase<T> : BackgroundService, IServerBase where T : IConnection
 {
     public ushort Port { get; }
+    public int SendBufferCapacity { get; }
 
     protected TcpListener Listener { get; }
     public IPacketManager PacketManager { get; }
@@ -59,6 +61,7 @@ public abstract class ServerBase<T> : BackgroundService, IServerBase where T : I
         _serviceProvider = serviceProvider;
         PacketManager = packetManager;
         Port = hostingOptions.Value.Port;
+        SendBufferCapacity = hostingOptions.Value.SendBufferCapacity;
         Crypto = new CryptoManager();
 
         // Start server timer
