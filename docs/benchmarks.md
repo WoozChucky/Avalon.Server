@@ -15,6 +15,7 @@ dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*Broadcas
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*PacketReaderGc*"
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*WorldPacketQueueGc*"
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*PacketReaderDecryptGc*"
+dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*GetContextPacketGc*"
 ```
 
 ---
@@ -120,6 +121,19 @@ returns the buffer to the pool within the same call.
 The passthrough `DecryptFunc` (`input.CopyTo(output); return input.Length`) isolates allocation
 from actual cipher cost. At steady state the `ArrayPool` bucket for this payload size is pre-warmed —
 zero net allocation per call for the buffer.
+
+---
+
+### Context Factory Delegate GC-010 — `GetContextPacketGcBenchmarks.cs`
+
+Before/after CPU cost comparison for the GC-010 fix: `Activator.CreateInstance` + `PropertyInfo.SetValue × 2` on a warm cache versus a cached typed `Func<IConnection, Packet?, object>` delegate called directly. Applied to both `WorldServer` and `AuthServer`; benchmark covers the `WorldPacketContext<T>` path.
+
+| Scenario | What it models |
+|---|---|
+| `Legacy_ActivatorAndSetValue` | Old `GetContextPacket` warm-cache path — `Activator.CreateInstance` + `SetValue × 2` on pre-reflected `PropertyInfo` fields — **baseline** |
+| `Delegate_Cached` | New `GetContextPacket` — single `Func<IConnection, Packet?, object>` delegate invocation |
+
+Note: `[MemoryDiagnoser]` will show **equal allocations** on both sides (~32 B). `WorldPacketContext<T>` is a struct that gets boxed to `object` in both paths — the win is CPU speed, not allocation count.
 
 ---
 
@@ -611,3 +625,57 @@ BenchmarkDotNet v0.15.8, Windows 11 (10.0.26200.8246/25H2/2025Update/HudsonValle
 - **42% Gen0 reduction**: 0.0086 → 0.0050 GC pressure per call. At 500 encrypted packets/s (50 players × 10 per second) this eliminates ~150 000 Gen0 bytes/s of GC pressure from the decrypted payload swap alone.
 - **Residual 80 B**: The deserialized `Packet` object — unavoidable until `NetworkPacket.Payload` is changed to `Memory<byte>` (Approach C, tracked separately).
 - **Throughput unchanged**: Mean is 124.5 ns vs 132.3 ns — the small overhead (~6%) is the `ArrayPool.Rent/Return` cost plus `input.CopyTo(output)` in the passthrough; real crypto will dominate this.
+
+---
+
+## Context Factory Delegate GC-010 — Benchmark Results
+
+**Date:** 2026-04-17
+
+```
+BenchmarkDotNet v0.15.8, Windows 11 (10.0.26200.8246/25H2/2025Update/HudsonValley2)
+12th Gen Intel Core i9-12900K 3.20GHz, 1 CPU, 24 logical and 16 physical cores
+.NET SDK 10.0.202
+  [Host]     : .NET 10.0.6 (10.0.6, 10.0.626.17701), X64 RyuJIT x86-64-v3
+  DefaultJob : .NET 10.0.6 (10.0.6, 10.0.626.17701), X64 RyuJIT x86-64-v3
+```
+
+### Problem (Before)
+
+`WorldServer.GetContextPacket` (and the identical `AuthServer` path) ran `Activator.CreateInstance` + `PropertyInfo.SetValue × 2` on **every packet dispatch**, even with a warm `(PropertyInfo, PropertyInfo)` cache:
+
+```csharp
+object context = Activator.CreateInstance(contextType)!;
+packetProp.SetValue(context, packet);
+connectionProp.SetValue(context, connection);
+return context;
+```
+
+The property cache avoided re-calling `GetProperty`, but `Activator.CreateInstance` and two reflection `SetValue` calls still ran unconditionally per dispatch.
+
+### Fix (After)
+
+Replaced the `ConcurrentDictionary<Type, (PropertyInfo, PropertyInfo)>` cache with a `ConcurrentDictionary<Type, Func<IConnection, Packet?, object>>` cache. The delegate is built once per packet type via `BuildContextFactory<TPacket>()` + `MakeGenericMethod`. `GetContextPacket` becomes one dictionary lookup + one delegate call:
+
+```csharp
+var factory = _contextFactoryCache.GetOrAdd(packetType, static t =>
+    (Func<IConnection, Packet?, object>)s_buildContextMethod.MakeGenericMethod(t).Invoke(null, null)!);
+return factory(connection, packet as Packet);
+```
+
+The `static` lambda captures no variables — zero closure allocation per call.
+
+### Results
+
+| Method | Mean | Error | StdDev | Ratio | Gen0 | Allocated | Alloc Ratio |
+|---|---|---|---|---|---|---|---|
+| `Legacy_ActivatorAndSetValue` | 19.896 ns | 0.2428 ns | 0.2027 ns | 1.00 | 0.0020 | 32 B | 1.00 |
+| `Delegate_Cached` | 5.706 ns | 0.0939 ns | 0.0784 ns | 0.29 | 0.0020 | 32 B | 1.00 |
+
+### Key observations
+
+- **3.49× faster** — 19.896 ns → 5.706 ns (Ratio = 0.29). `Activator.CreateInstance` + `SetValue × 2` have non-trivial reflection overhead even on a warm cache; a direct delegate invocation eliminates all of it.
+- **Equal allocations** — both paths allocate exactly 32 B. `WorldPacketContext<T>` is a struct; boxing it to `object` is unavoidable in both paths. This is a **CPU benchmark**, not an allocation benchmark — the spec predicted this outcome and `[MemoryDiagnoser]` confirms it.
+- **Gen0 rate unchanged** — `Gen0 = 0.0020` on both paths. The GC pressure is the single boxed struct, identical in both cases.
+- **At dispatch scale** — at 50 players × 10 packets/s = 500 `GetContextPacket` calls/s, the legacy path burns ~9.9 µs/s in pure reflection overhead. The delegate path reduces that to ~2.9 µs/s. The absolute saving is modest per-call, but the fix eliminates a reflection barrier that blocked JIT inlining of the construction path entirely.
+- **Applied to both servers** — `WorldServer` and `AuthServer` share the identical pattern. Both are fixed; the benchmark covers the `WorldPacketContext<T>` path as representative.
