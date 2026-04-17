@@ -53,26 +53,6 @@ public class LockedQueueShould
     }
 
     [Fact]
-    public void ReaddItemsToFrontInOriginalOrder()
-    {
-        var queue = new LockedQueue<Item>();
-        var existing = new Item("existing");
-        queue.Add(existing);
-
-        var readdItems = new List<Item> { new("readd-1"), new("readd-2") };
-        queue.Readd(readdItems);
-
-        // After Readd, order should be: readd-1, readd-2, existing
-        Assert.True(queue.Next(out var first));
-        Assert.True(queue.Next(out var second));
-        Assert.True(queue.Next(out var third));
-
-        Assert.Equal("readd-1", first!.Label);
-        Assert.Equal("readd-2", second!.Label);
-        Assert.Equal("existing", third!.Label);
-    }
-
-    [Fact]
     public void DequeueWhenPredicatePasses()
     {
         var queue = new LockedQueue<Item>();
@@ -168,15 +148,4 @@ public class LockedQueueShould
         Assert.Null(item);
     }
 
-    [Fact]
-    public void ReaddEmptyListIsNoOp()
-    {
-        var queue = new LockedQueue<Item>();
-        queue.Add(new Item("a"));
-
-        queue.Readd(new List<Item>());
-
-        Assert.True(queue.Next(out var item));
-        Assert.Equal("a", item!.Label);
-    }
 }

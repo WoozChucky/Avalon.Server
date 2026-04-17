@@ -3,7 +3,6 @@
 
 using System;
 using System.IO;
-using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -12,7 +11,6 @@ namespace Avalon.Hosting.Networking;
 using System.Buffers;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
-using Avalon.Network.Packets;
 using Avalon.Network.Packets.Abstractions;
 
 public class PacketStream(Stream stream) : Stream
@@ -145,41 +143,6 @@ public class PacketStream(Stream stream) : Stream
         {
             ArrayPool<byte>.Shared.Return(buffer);
         }
-    }
-
-    // New: Decrypt helper that can work in-place if decrypt supports it
-    public void Decrypt(NetworkPacket packet, Func<ReadOnlySpan<byte>, IBufferWriter<byte>, ReadOnlyMemory<byte>>? spanDecrypt = null, Func<byte[], byte[]>? arrayDecrypt = null)
-    {
-        if (spanDecrypt is not null)
-        {
-            var rented = new ArrayBufferWriter<byte>(packet.Payload.Length);
-            var result = spanDecrypt(packet.Payload, rented);
-            if (!result.IsEmpty)
-            {
-                packet.Payload = result.ToArray();
-            }
-            else
-            {
-                packet.Payload = rented.WrittenMemory.ToArray();
-            }
-        }
-        else if (arrayDecrypt is not null)
-        {
-            packet.Payload = arrayDecrypt(packet.Payload);
-        }
-        // else: no decryption
-    }
-
-    // New: Deserialize helper using provided map
-    public Packet? DeserializePayload(NetworkPacket packet, IReadOnlyDictionary<NetworkPacketType, (Type type, System.Reflection.MethodInfo method)> map)
-    {
-        if (!map.TryGetValue(packet.Header.Type, out var p))
-        {
-            return null;
-        }
-        ReadOnlyMemory<byte> payloadMemory = new(packet.Payload);
-        object? payload = p.method.Invoke(null, new object?[] { payloadMemory, null, null });
-        return payload as Packet;
     }
 
 }

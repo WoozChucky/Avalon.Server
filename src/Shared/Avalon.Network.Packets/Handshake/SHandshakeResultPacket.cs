@@ -1,5 +1,6 @@
 using Avalon.Network.Packets.Abstractions;
 using ProtoBuf;
+using Avalon.Network.Packets.Serialization;
 
 namespace Avalon.Network.Packets.Handshake;
 
@@ -12,30 +13,8 @@ public class SHandshakeResultPacket : Packet
 
     [ProtoMember(1)] public bool Verified { get; set; }
 
-    public static NetworkPacket Create(bool verified, Func<byte[], byte[]> encryptFunc)
-    {
-        using var memoryStream = new MemoryStream();
-
-        var packet = new SHandshakeResultPacket()
-        {
-            Verified = verified
-        };
-
-        Serializer.Serialize(memoryStream, packet);
-
-
-        var buffer = encryptFunc(memoryStream.ToArray());
-
-        return new NetworkPacket
-        {
-            Header = new NetworkPacketHeader
-            {
-                Type = PacketType,
-                Flags = Flags,
-                Protocol = Protocol,
-                Version = 0
-            },
-            Payload = buffer.ToArray()
-        };
-    }
+    public static NetworkPacket Create(bool verified, EncryptFunc encryptFunc)
+        => PacketSerializationHelper.Serialize(
+            new SHandshakeResultPacket { Verified = verified },
+            PacketType, Flags, Protocol, encryptFunc);
 }

@@ -1,4 +1,5 @@
 using Avalon.Network.Packets.Abstractions;
+using Avalon.Network.Packets.Serialization;
 using ProtoBuf;
 
 namespace Avalon.Network.Packets.Generic;
@@ -15,29 +16,7 @@ public class SPingPacket : Packet
     [ProtoMember(4)] public long Offset { get; set; }
 
     public static NetworkPacket Create(long serverTicks, long clientTicks, long rtt, long offset)
-    {
-        using var memoryStream = new MemoryStream();
-
-        var pingPacket = new SPingPacket()
-        {
-            ServerTimestamp = serverTicks,
-            ClientTimestamp = clientTicks,
-            Rtt = rtt,
-            Offset = offset
-        };
-
-        Serializer.Serialize(memoryStream, pingPacket);
-
-        return new NetworkPacket
-        {
-            Header = new NetworkPacketHeader
-            {
-                Type = PacketType,
-                Flags = NetworkPacketFlags.None,
-                Protocol = Protocol,
-                Version = 0
-            },
-            Payload = memoryStream.ToArray()
-        };
-    }
+        => PacketSerializationHelper.SerializeUnencrypted(
+            new SPingPacket { ServerTimestamp = serverTicks, ClientTimestamp = clientTicks, Rtt = rtt, Offset = offset },
+            PacketType, NetworkPacketFlags.None, Protocol);
 }

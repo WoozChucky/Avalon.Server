@@ -20,13 +20,12 @@ public class CWorldSelectHandlerShould
     private readonly IWorldRepository _worldRepository = Substitute.For<IWorldRepository>();
     private readonly IReplicatedCache _cache = Substitute.For<IReplicatedCache>();
     private readonly IAuthConnection _connection = Substitute.For<IAuthConnection>();
-    private readonly IAvalonCryptoSession _cryptoSession = Substitute.For<IAvalonCryptoSession>();
+    private readonly IAvalonCryptoSession _cryptoSession = new FakeAvalonCryptoSession();
     private readonly ISecureRandom _secureRandom = Substitute.For<ISecureRandom>();
     private readonly CWorldSelectHandler _handler;
 
     public CWorldSelectHandlerShould()
     {
-        _cryptoSession.Encrypt(Arg.Any<byte[]>()).Returns(x => (byte[])x[0]);
         _connection.CryptoSession.Returns(_cryptoSession);
         _connection.Id.Returns(Guid.NewGuid());
         _secureRandom.GetBytes(32).Returns(new byte[32]);

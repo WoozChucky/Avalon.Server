@@ -1,5 +1,6 @@
 using Avalon.Network.Packets.Abstractions;
 using ProtoBuf;
+using Avalon.Network.Packets.Serialization;
 
 namespace Avalon.Network.Packets.World;
 
@@ -17,7 +18,7 @@ public class CInteractPacket : Packet
     [ProtoMember(5)] public int Width { get; set; }
     [ProtoMember(6)] public int Height { get; set; }
 
-    public static NetworkPacket Create(ulong accountId, ulong playerId, int x, int y, int width, int height, Func<byte[], byte[]> encryptFunc)
+    public static NetworkPacket Create(ulong accountId, ulong playerId, int x, int y, int width, int height, EncryptFunc encryptFunc)
     {
         using var memoryStream = new MemoryStream();
 

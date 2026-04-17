@@ -1,5 +1,6 @@
 using Avalon.Network.Packets.Abstractions;
 using ProtoBuf;
+using Avalon.Network.Packets.Serialization;
 
 namespace Avalon.Network.Packets.Combat;
 
@@ -13,31 +14,9 @@ public class SSpellNotReadyPacket : Packet
     [ProtoMember(1)] public uint SpellId { get; set; }
     [ProtoMember(2)] public float Cooldown { get; set; }
 
-    public static NetworkPacket Create(uint spellId, float cooldown, Func<byte[], byte[]> encryptFunc)
-    {
-        using var memoryStream = new MemoryStream();
-
-        var p = new SSpellNotReadyPacket
-        {
-            SpellId = spellId,
-            Cooldown = cooldown
-        };
-
-        Serializer.Serialize(memoryStream, p);
-
-        var buffer = encryptFunc(memoryStream.ToArray());
-
-        return new NetworkPacket
-        {
-            Header = new NetworkPacketHeader
-            {
-                Type = PacketType,
-                Flags = Flags,
-                Protocol = Protocol,
-                Version = 0
-            },
-            Payload = buffer
-        };
-    }
+    public static NetworkPacket Create(uint spellId, float cooldown, EncryptFunc encryptFunc)
+        => PacketSerializationHelper.Serialize(
+            new SSpellNotReadyPacket { SpellId = spellId, Cooldown = cooldown },
+            PacketType, Flags, Protocol, encryptFunc);
 
 }

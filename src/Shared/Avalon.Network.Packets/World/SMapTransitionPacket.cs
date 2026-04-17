@@ -1,5 +1,6 @@
 using Avalon.Network.Packets.Abstractions;
 using ProtoBuf;
+using Avalon.Network.Packets.Serialization;
 
 namespace Avalon.Network.Packets.World;
 
@@ -37,39 +38,12 @@ public class SMapTransitionPacket : Packet
         float spawnZ,
         string mapName,
         string mapDescription,
-        Func<byte[], byte[]> encrypt)
-    {
-        using var memoryStream = new MemoryStream();
-
-        var packet = new SMapTransitionPacket
-        {
-            Result         = result,
-            InstanceId     = instanceId,
-            MapId          = mapId,
-            SpawnX         = spawnX,
-            SpawnY         = spawnY,
-            SpawnZ         = spawnZ,
-            MapName        = mapName,
-            MapDescription = mapDescription
-        };
-
-        Serializer.Serialize(memoryStream, packet);
-        var buffer = encrypt(memoryStream.ToArray());
-
-        return new NetworkPacket
-        {
-            Header = new NetworkPacketHeader
-            {
-                Type     = PacketType,
-                Flags    = Flags,
-                Protocol = Protocol,
-                Version  = 0
-            },
-            Payload = buffer
-        };
-    }
+        EncryptFunc encrypt)
+        => PacketSerializationHelper.Serialize(
+            new SMapTransitionPacket { Result = result, InstanceId = instanceId, MapId = mapId, SpawnX = spawnX, SpawnY = spawnY, SpawnZ = spawnZ, MapName = mapName, MapDescription = mapDescription },
+            PacketType, Flags, Protocol, encrypt);
 
     /// <summary>Creates a failure response with only the result code populated.</summary>
-    public static NetworkPacket CreateFailure(MapTransitionResult result, Func<byte[], byte[]> encrypt) =>
+    public static NetworkPacket CreateFailure(MapTransitionResult result, EncryptFunc encrypt) =>
         Create(result, Guid.Empty, 0, 0f, 0f, 0f, string.Empty, string.Empty, encrypt);
 }

@@ -5,6 +5,7 @@ namespace Avalon.Network.Packets.Combat;
 using Abstractions;
 using Abstractions.Attributes;
 using ProtoBuf;
+using Avalon.Network.Packets.Serialization;
 
 [ProtoContract]
 [Packet(HandleOn = ComponentType.World, Type = NetworkPacketType.CMSG_ATTACK)]
@@ -18,7 +19,7 @@ public class CCharacterAttackPacket : Packet
     [ProtoMember(2)] public bool AutoAttack { get; set; }
     [ProtoMember(3)] public uint? SpellId { get; set; }
 
-    public static NetworkPacket Create(CreatureId target, bool autoAttack, uint? spellId, Func<byte[], byte[]> encryptFunc)
+    public static NetworkPacket Create(CreatureId target, bool autoAttack, uint? spellId, EncryptFunc encryptFunc)
     {
         using var memoryStream = new MemoryStream();
 
