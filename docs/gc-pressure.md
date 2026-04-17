@@ -208,7 +208,7 @@ Eliminates the array and the boxing on every deserialization call.
 
 ## GC-008 — `PacketReader.Decrypt` replaces payload with a freshly allocated `byte[]`
 
-**Status:** Open  
+**Status:** Resolved — `IAvalonCryptoSession.Decrypt` changed to span-based signature (`int Decrypt(ReadOnlySpan<byte>, byte[])`); span slices replace LINQ nonce/ciphertext copies; decrypted output written directly into caller-supplied `byte[]`; `PacketReader.Decrypt` removed; `Read` gains `DecryptFunc?` param, rents an `ArrayPool<byte>` buffer for the decrypt+deserialize path, returns it to the pool before returning — `packet.Payload` never swapped. Eliminates the decrypted-output `byte[]` allocation and the `packet.Payload` swap. Two allocations per encrypted call remain: 12-byte nonce `byte[]` (unavoidable, `ParametersWithIV` requires `byte[]`) and ciphertext `byte[]` (BouncyCastle 2.6.2 `IBufferedCipher` has no span overloads on its `netstandard2.0` build).  
 **Severity:** Medium  
 **File:** `src/Server/Avalon.Hosting/Networking/PacketReader.cs:71`
 
@@ -409,7 +409,7 @@ pre-allocated / pooled list. Given the small typical size (<10 entries) an
 | 8 | ~~GC-007~~ | ~~`PacketReader` reflection `new object?[]` per packet~~ | ~~Medium~~ |
 | 9 | GC-013 | `Task.Delay(1)` idle send loop | Medium |
 | 10 | GC-012 | `EnqueueContinuation` boxing + two closures | Medium |
-| 11 | GC-008 | Decrypt allocates new `byte[]` for payload | Medium |
+| 11 | ~~GC-008~~ | ~~Decrypt allocates new `byte[]` for payload~~ | ~~Medium~~ |
 | 12 | GC-010 | `Activator.CreateInstance` per packet dispatch | Medium |
 | 13 | GC-011 | `ServerBase.CallListener` reflection `new[]` per call | Medium |
 | 14 | GC-014 | LINQ `ToList()` in remove packet | Low |
