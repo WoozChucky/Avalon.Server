@@ -12,6 +12,10 @@ internal sealed class FakeAvalonCryptoSession : IAvalonCryptoSession
     public byte[] GetPublicKey() => Array.Empty<byte>();
     public byte[] GetOtherEndPublicKey() => Array.Empty<byte>();
     public byte[] Encrypt(ReadOnlySpan<byte> data) => data.ToArray();
-    public byte[] Decrypt(byte[] data) => data;
+    public int Decrypt(ReadOnlySpan<byte> data, byte[] output)
+    {
+        data.CopyTo(output);
+        return data.Length;
+    }
     public byte[] GenerateHandshakeData() => Array.Empty<byte>();
 }
