@@ -5,7 +5,6 @@ using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
-using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalon.Common.Cryptography;
@@ -31,7 +30,6 @@ public interface IServerBase
 
 public class PacketHandlerCache
 {
-    public MethodInfo ExecuteMethod { get; set; }
     public Func<IServiceProvider, object> HandlerFactory { get; set; }
 }
 
@@ -160,22 +158,11 @@ public abstract class ServerBase<T> : BackgroundService, IServerBase where T : I
 
         if (!HandlerCache.TryGetValue(details.PacketType, out var handlerCache))
         {
-            // Cache reflection information
-            var handlerExecuteMethod = details.PacketHandlerType.GetMethod("ExecuteAsync")
-                                       ?? throw new InvalidOperationException($"Method 'ExecuteAsync' not found in {details.PacketHandlerType}");
-
-            // Create factory delegate for packet handler instances
             var objectFactory = ActivatorUtilities.CreateFactory(details.PacketHandlerType, []);
-
-            // Wrap ObjectFactory in a Func<IServiceProvider, object>
-            object HandlerFactory(IServiceProvider sp) => objectFactory(sp, null);
-
             handlerCache = new PacketHandlerCache
             {
-                ExecuteMethod = handlerExecuteMethod,
-                HandlerFactory = HandlerFactory
+                HandlerFactory = sp => objectFactory(sp, null)
             };
-
             HandlerCache[details.PacketType] = handlerCache;
         }
 
@@ -186,7 +173,7 @@ public abstract class ServerBase<T> : BackgroundService, IServerBase where T : I
             await using var scope = _serviceProvider.CreateAsyncScope();
 
             var packetHandler = handlerCache.HandlerFactory(scope.ServiceProvider);
-            await ((Task)handlerCache.ExecuteMethod.Invoke(packetHandler, new[] { context, _stoppingToken.Token })!).ConfigureAwait(false);
+            await ((IPacketHandlerNew)packetHandler).ExecuteAsync(context, _stoppingToken.Token).ConfigureAwait(false);
         }
         catch (Exception e)
         {
