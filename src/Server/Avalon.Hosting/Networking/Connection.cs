@@ -218,16 +218,23 @@ public abstract class Connection : BackgroundService, IConnection
                         break;
                     }
 
-                    await _stream.WriteAsync(packet).ConfigureAwait(false);
-                    await _stream.FlushAsync().ConfigureAwait(false);
-
-                    if (_logger.IsEnabled(LogLevel.Trace) &&
-                        packet.Header.Type != NetworkPacketType.SMSG_WORLD_STATE_UPDATE &&
-                        packet.Header.Type != NetworkPacketType.SMSG_PING)
+                    StreamExtensions.BurstWriter.Reset();
+                    do
                     {
-                        _logger.LogTrace("OUT: {Type} => {Packet}", packet.Header.Type,
-                            JsonSerializer.Serialize(packet));
-                    }
+                        StreamExtensions.AppendPacket(packet);
+
+                        if (_logger.IsEnabled(LogLevel.Trace) &&
+                            packet.Header.Type != NetworkPacketType.SMSG_WORLD_STATE_UPDATE &&
+                            packet.Header.Type != NetworkPacketType.SMSG_PING)
+                        {
+                            _logger.LogTrace("OUT: {Type} => {Packet}", packet.Header.Type,
+                                JsonSerializer.Serialize(packet));
+                        }
+                    } while (_channel.Reader.TryRead(out packet));
+
+                    await _stream.WriteAsync(StreamExtensions.BurstWriter.WrittenMemory,
+                        CancellationTokenSource!.Token).ConfigureAwait(false);
+                    await _stream.FlushAsync(CancellationTokenSource!.Token).ConfigureAwait(false);
                 }
                 catch (SocketException e)
                 {
