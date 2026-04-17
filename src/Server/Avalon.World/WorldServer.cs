@@ -52,15 +52,20 @@ public interface IWorldServer
 public class WorldServer : ServerBase<WorldConnection>, IWorldServer
 {
     private static readonly TimeSpan MinUpdateInterval = TimeSpan.FromMilliseconds(16.6666667);
+
+    private static readonly MethodInfo s_buildContextMethod =
+        typeof(WorldServer).GetMethod(nameof(BuildContextFactory), BindingFlags.NonPublic | BindingFlags.Static)
+        ?? throw new InvalidOperationException(
+            $"Could not reflect {nameof(WorldServer)}.{nameof(BuildContextFactory)}. " +
+            "Ensure the method is non-public, static, and not overloaded.");
+
     private readonly IReplicatedCache _cache;
+    private readonly ConcurrentDictionary<Type, Func<IConnection, Packet?, object>>
+        _contextFactoryCache = new();
     private readonly ICreatureSpawner _creatureSpawner;
     private readonly Stopwatch _gameTime = new();
     private readonly ILogger<WorldServer> _logger;
     private readonly INavigationMeshBaker _navigationMeshBaker;
-
-    private readonly ConcurrentDictionary<Type, (PropertyInfo packetProperty, PropertyInfo connectionProperty)>
-        _propertyCache = new();
-
     private readonly IScriptHotReloader _scriptHotReloader;
     private readonly IScriptManager _scriptManager;
     private readonly Stopwatch _serverTimer = new();
@@ -217,30 +222,14 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
 
     protected override object GetContextPacket(IConnection connection, object? packet, Type packetType)
     {
-        // Check if the cache contains the property accessors for the given packet type
-        if (!_propertyCache.TryGetValue(packetType,
-                out (PropertyInfo packetProperty, PropertyInfo connectionProperty) cachedProperties))
-        {
-            // Cache miss: Reflect the properties
-            PropertyInfo contextPacketProperty = typeof(WorldPacketContext<>).MakeGenericType(packetType)
-                .GetProperty(nameof(WorldPacketContext<object>.Packet))!;
-            PropertyInfo contextConnectionProperty = typeof(WorldPacketContext<>).MakeGenericType(packetType)
-                .GetProperty(nameof(WorldPacketContext<object>.Connection))!;
-
-            // Cache the reflected properties
-            cachedProperties = (contextPacketProperty, contextConnectionProperty);
-            _propertyCache[packetType] = cachedProperties;
-        }
-
-        // Create a new context instance
-        object context = Activator.CreateInstance(typeof(WorldPacketContext<>).MakeGenericType(packetType))!;
-
-        // Set the packet and connection properties
-        cachedProperties.packetProperty.SetValue(context, packet);
-        cachedProperties.connectionProperty.SetValue(context, connection);
-
-        return context;
+        var factory = _contextFactoryCache.GetOrAdd(packetType, static t =>
+            (Func<IConnection, Packet?, object>)s_buildContextMethod.MakeGenericMethod(t).Invoke(null, null)!);
+        return factory(connection, packet as Packet);
     }
+
+    private static Func<IConnection, Packet?, object> BuildContextFactory<TPacket>() where TPacket : Packet
+        => static (conn, pkt) => new WorldPacketContext<TPacket>
+            { Connection = (IWorldConnection)conn!, Packet = (TPacket)pkt! };
 
     #region Cache Subscriptions
 
