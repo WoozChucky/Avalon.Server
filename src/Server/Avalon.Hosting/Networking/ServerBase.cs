@@ -107,6 +107,7 @@ public abstract class ServerBase<T> : BackgroundService, IServerBase where T : I
         {
             var listener = (TcpListener)ar.AsyncState!;
             client = listener.EndAcceptTcpClient(ar);
+            client.NoDelay = true;
         }
         catch (ObjectDisposedException)
         {

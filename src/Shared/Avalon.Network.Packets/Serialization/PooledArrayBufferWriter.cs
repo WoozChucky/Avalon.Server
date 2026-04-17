@@ -3,12 +3,14 @@ using System.Buffers;
 
 namespace Avalon.Network.Packets.Serialization;
 
-internal sealed class PooledArrayBufferWriter : IBufferWriter<byte>
+public sealed class PooledArrayBufferWriter : IBufferWriter<byte>
 {
     private byte[] _buffer = ArrayPool<byte>.Shared.Rent(512);
     private int _written;
 
+    public int Written => _written;
     public ReadOnlySpan<byte> WrittenSpan => _buffer.AsSpan(0, _written);
+    public ReadOnlyMemory<byte> WrittenMemory => _buffer.AsMemory(0, _written);
 
     public void Reset() => _written = 0;
 
