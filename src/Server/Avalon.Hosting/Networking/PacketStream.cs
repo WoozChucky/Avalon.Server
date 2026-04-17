@@ -17,6 +17,12 @@ public class PacketStream(Stream stream) : Stream
 {
     public override void Flush() => stream.Flush();
 
+    public override ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
+        => stream.WriteAsync(buffer, cancellationToken);
+
+    public override Task FlushAsync(CancellationToken cancellationToken)
+        => stream.FlushAsync(cancellationToken);
+
     public override int Read(byte[] buffer, int offset, int count) => stream.Read(buffer, offset, count);
 
     public override long Seek(long offset, SeekOrigin origin) => stream.Seek(offset, origin);
