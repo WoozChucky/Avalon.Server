@@ -86,6 +86,7 @@ public abstract class Connection : BackgroundService, IConnection
         }
 
         CancellationTokenSource?.Cancel();
+        _channel.Writer.TryComplete();
         _client?.Close();
         _closed = true;
         OnClose(expected);
@@ -93,11 +94,13 @@ public abstract class Connection : BackgroundService, IConnection
 
     public virtual void Send(NetworkPacket packet)
     {
-        Interlocked.Add(ref BytesSentCount, packet.Size);
-        Interlocked.Increment(ref PacketSentCount);
-
         if (!_channel.Writer.TryWrite(packet))
             _logger.LogWarning("Send buffer full for connection {Id}; dropped {Type}", Id, packet.Header.Type);
+        else
+        {
+            Interlocked.Add(ref BytesSentCount, packet.Size);
+            Interlocked.Increment(ref PacketSentCount);
+        }
     }
 
     protected void Init(TcpClient client)
@@ -217,6 +220,14 @@ public abstract class Connection : BackgroundService, IConnection
 
                     await _stream.WriteAsync(packet).ConfigureAwait(false);
                     await _stream.FlushAsync().ConfigureAwait(false);
+
+                    if (_logger.IsEnabled(LogLevel.Trace) &&
+                        packet.Header.Type != NetworkPacketType.SMSG_WORLD_STATE_UPDATE &&
+                        packet.Header.Type != NetworkPacketType.SMSG_PING)
+                    {
+                        _logger.LogTrace("OUT: {Type} => {Packet}", packet.Header.Type,
+                            JsonSerializer.Serialize(packet));
+                    }
                 }
                 catch (SocketException e)
                 {
@@ -230,14 +241,6 @@ public abstract class Connection : BackgroundService, IConnection
                 catch (Exception e)
                 {
                     _logger.LogError(e, "Failed to send packet");
-                }
-
-                if (_logger.IsEnabled(LogLevel.Trace) &&
-                    packet.Header.Type != NetworkPacketType.SMSG_WORLD_STATE_UPDATE &&
-                    packet.Header.Type != NetworkPacketType.SMSG_PING)
-                {
-                    _logger.LogTrace("OUT: {Type} => {Packet}", packet.Header.Type,
-                        JsonSerializer.Serialize(packet));
                 }
             }
             catch (SocketException)
