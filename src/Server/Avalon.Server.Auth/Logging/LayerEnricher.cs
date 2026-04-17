@@ -20,7 +20,6 @@ public class LayerEnricher : ILogEventEnricher
 
     private readonly List<string> _networkNamespaces =
     [
-        typeof(Avalon.Infrastructure.AvalonSession).FullName!,
         typeof(Avalon.Network.TcpClient).FullName!
     ];
 

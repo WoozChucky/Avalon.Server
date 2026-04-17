@@ -49,17 +49,6 @@ public class LayerEnricherShould
     }
 
     [Fact]
-    public void AddNetLayer_WhenSourceIsAvalonSession()
-    {
-        // Matches _networkNamespaces: Avalon.Infrastructure.AvalonSession
-        var logEvent = MakeLogEvent("Avalon.Infrastructure.AvalonSession");
-
-        _enricher.Enrich(logEvent, _factory);
-
-        Assert.Equal("NET", GetLayerValue(logEvent));
-    }
-
-    [Fact]
     public void AddNetLayer_WhenSourceIsAvalonTcpClient()
     {
         // Matches _networkNamespaces: Avalon.Network.TcpClient
