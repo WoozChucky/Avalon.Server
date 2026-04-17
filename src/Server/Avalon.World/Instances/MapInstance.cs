@@ -6,7 +6,6 @@ using Avalon.Domain.World;
 using Avalon.Network.Packets.Combat;
 using Avalon.Network.Packets.State;
 using Avalon.World.Entities;
-using Avalon.World.Filters;
 using Avalon.World.Pools;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
@@ -40,6 +39,7 @@ public class MapInstance : IMapInstance
     private readonly IWorld _world;
     private float _lastBroadcastTime;
     private readonly Dictionary<ObjectGuid, GameEntityFields> _frameDirtyFields = new(256);
+    private readonly Dictionary<ObjectGuid, PerPlayerBroadcastState> _broadcastStates = [];
 
     public MapInstance(
         ILoggerFactory loggerFactory,
@@ -122,6 +122,7 @@ public class MapInstance : IMapInstance
     {
         _characters[connection.Character!.Guid] = connection.Character;
         _connections[connection.Character.Guid] = connection;
+        _broadcastStates[connection.Character.Guid] = new PerPlayerBroadcastState();
         LastEmptyAt = null;
     }
 
@@ -130,6 +131,7 @@ public class MapInstance : IMapInstance
         connection.Character!.OnDisconnected();
         _characters.Remove(connection.Character.Guid);
         _connections.Remove(connection.Character.Guid);
+        _broadcastStates.Remove(connection.Character.Guid);
 
         if (_characters.Count == 0)
         {
@@ -182,8 +184,7 @@ public class MapInstance : IMapInstance
         foreach ((ObjectGuid guid, ICharacter character) in _characters)
         {
             IWorldConnection connection = _connections[guid];
-            MapSessionFilter filter = new(connection);
-            connection.Update(deltaTime, filter);
+            connection.UpdateMap();
             character.Update(deltaTime);
         }
 
@@ -246,117 +247,144 @@ public class MapInstance : IMapInstance
     private void BroadcastStateTo(ICharacter character)
     {
         IWorldConnection connection = _connections[character.Guid];
-        byte[] buffer = ArrayPool<byte>.Shared.Rent(4096);
-        using WorldObjectWriter writer = new(buffer);
+        PerPlayerBroadcastState state = _broadcastStates[character.Guid];
 
-        List<ObjectAdd> addedObjects = [];
-        List<ObjectUpdate> updatedObjects = [];
-
-        foreach (ObjectGuid addedObjectGuid in character.CharacterGameState.NewObjects)
+        // One rented buffer accumulates all entity blobs for this player.
+        // 65 536 bytes ≈ 800 entities at ~80 bytes each (GameEntityFields.All);
+        // worst-case per-entity (character with max-length name) is ~300 bytes,
+        // giving headroom for ~200 entities before the guard below triggers.
+        byte[] buffer = ArrayPool<byte>.Shared.Rent(65536);
+        try
         {
-            switch (addedObjectGuid.Type)
+            using WorldObjectWriter writer = new(buffer);
+
+            state.AddedObjects.Clear();
+            state.UpdatedObjects.Clear();
+
+            foreach (ObjectGuid addedObjectGuid in character.CharacterGameState.NewObjects)
             {
-                case ObjectType.Character:
-                    if (!_characters.TryGetValue(addedObjectGuid, out ICharacter? addedCharacter))
-                    {
-                        continue;
-                    }
-
-                    writer.Write(addedCharacter, GameEntityFields.All);
-                    break;
-                case ObjectType.Creature:
-                    if (!_creatures.TryGetValue(addedObjectGuid, out ICreature? addedCreature))
-                    {
-                        continue;
-                    }
-
-                    writer.Write(addedCreature, GameEntityFields.All);
-                    break;
-                case ObjectType.SpellProjectile:
-                    IWorldObject? spell = _spellSystem.GetSpell(addedObjectGuid);
-                    if (spell is null)
-                    {
-                        continue;
-                    }
-
-                    writer.Write(spell);
-                    break;
-                default:
-                    _logger.LogWarning("Unknown object type {ObjectType} on NewObjects serialization",
-                        addedObjectGuid.Type);
+                if (buffer.Length - (int)writer.BaseStream.Position < 2048)
+                {
+                    // IMPORTANT: This guard is a last-resort safety valve. Triggering it requires
+                    // 200+ simultaneous entity adds per player (at ~80 bytes each for typical entities,
+                    // or 32+ entities at worst-case ~300 bytes for a character with a maximum-length name).
+                    // A skipped add will NOT be retried: EntityTrackingSystem already marked this GUID
+                    // as known, so it will not re-appear in NewObjects next tick. The client will receive
+                    // subsequent delta updates for an entity it has never seen, producing a corrupt state.
+                    // If this warning appears in production, the buffer size (currently 65536) must be increased.
+                    _logger.LogWarning(
+                        "BroadcastStateTo: buffer capacity exhausted — skipped add for object {Guid} (client state corrupt until reconnect)",
+                        addedObjectGuid.RawValue);
                     continue;
+                }
+
+                int startOffset = (int)writer.BaseStream.Position;
+
+                switch (addedObjectGuid.Type)
+                {
+                    case ObjectType.Character:
+                        if (!_characters.TryGetValue(addedObjectGuid, out ICharacter? addedCharacter))
+                            continue;
+                        writer.Write(addedCharacter, GameEntityFields.All);
+                        break;
+                    case ObjectType.Creature:
+                        if (!_creatures.TryGetValue(addedObjectGuid, out ICreature? addedCreature))
+                            continue;
+                        writer.Write(addedCreature, GameEntityFields.All);
+                        break;
+                    case ObjectType.SpellProjectile:
+                        IWorldObject? addedSpell = _spellSystem.GetSpell(addedObjectGuid);
+                        if (addedSpell is null)
+                            continue;
+                        writer.Write(addedSpell);
+                        break;
+                    default:
+                        _logger.LogWarning("Unknown object type {ObjectType} on NewObjects serialization",
+                            addedObjectGuid.Type);
+                        continue;
+                }
+
+                int length = (int)writer.BaseStream.Position - startOffset;
+                // NOTE: Fields slice is valid only until ArrayPool.Shared.Return(buffer) in the finally block.
+                // PacketSerializationHelper.Serialize (called inside Create) is synchronous,
+                // so the slice is consumed before Return is reached.
+                state.AddedObjects.Add(new ObjectAdd
+                {
+                    Guid   = addedObjectGuid.RawValue,
+                    Fields = new ReadOnlyMemory<byte>(buffer, startOffset, length)
+                });
+                // No writer.Reset() — blobs accumulate contiguously in buffer.
             }
 
-            long bytesWritten = writer.BaseStream.Position;
-            ObjectAdd obj = new() {Guid = addedObjectGuid.RawValue, Fields = new byte[bytesWritten]};
-            buffer.AsSpan(0, (int)bytesWritten).CopyTo(obj.Fields);
-            addedObjects.Add(obj);
-            writer.Reset();
-        }
-
-        foreach ((ObjectGuid Guid, GameEntityFields Fields) updatedObject in character.CharacterGameState
-                     .UpdatedObjects)
-        {
-            switch (updatedObject.Guid.Type)
+            foreach ((ObjectGuid Guid, GameEntityFields Fields) updatedObject
+                     in character.CharacterGameState.UpdatedObjects)
             {
-                case ObjectType.Character:
-                    if (!_characters.TryGetValue(updatedObject.Guid, out ICharacter? updatedCharacter))
-                    {
-                        continue;
-                    }
-
-                    writer.Write(updatedCharacter, GameEntityFields.CharacterUpdate);
-                    break;
-                case ObjectType.Creature:
-                    if (!_creatures.TryGetValue(updatedObject.Guid, out ICreature? updatedCreature))
-                    {
-                        continue;
-                    }
-
-                    writer.Write(updatedCreature, GameEntityFields.CreatureUpdate);
-                    break;
-                case ObjectType.SpellProjectile:
-                    IWorldObject? spell = _spellSystem.GetSpell(updatedObject.Guid);
-                    if (spell is null)
-                    {
-                        continue;
-                    }
-
-                    writer.Write(spell, updatedObject.Fields);
-                    break;
-                default:
-                    _logger.LogWarning("Unknown object type {ObjectType} on UpdatedObjects serialization",
-                        updatedObject.Guid.Type);
+                if (buffer.Length - (int)writer.BaseStream.Position < 2048)
+                {
+                    // Safety valve — see the matching guard in the NewObjects loop above.
+                    // Skipped delta updates are less severe: the entity state is stale for one tick
+                    // and will be corrected when the entity's dirty fields are set again.
+                    _logger.LogWarning(
+                        "BroadcastStateTo: buffer capacity exhausted — skipped update for object {Guid}",
+                        updatedObject.Guid.RawValue);
                     continue;
+                }
+
+                int startOffset = (int)writer.BaseStream.Position;
+
+                switch (updatedObject.Guid.Type)
+                {
+                    case ObjectType.Character:
+                        if (!_characters.TryGetValue(updatedObject.Guid, out ICharacter? updatedCharacter))
+                            continue;
+                        writer.Write(updatedCharacter, GameEntityFields.CharacterUpdate);
+                        break;
+                    case ObjectType.Creature:
+                        if (!_creatures.TryGetValue(updatedObject.Guid, out ICreature? updatedCreature))
+                            continue;
+                        writer.Write(updatedCreature, GameEntityFields.CreatureUpdate);
+                        break;
+                    case ObjectType.SpellProjectile:
+                        IWorldObject? updatedSpell = _spellSystem.GetSpell(updatedObject.Guid);
+                        if (updatedSpell is null)
+                            continue;
+                        writer.Write(updatedSpell, updatedObject.Fields);
+                        break;
+                    default:
+                        _logger.LogWarning("Unknown object type {ObjectType} on UpdatedObjects serialization",
+                            updatedObject.Guid.Type);
+                        continue;
+                }
+
+                int length = (int)writer.BaseStream.Position - startOffset;
+                // NOTE: Fields slice is valid only until ArrayPool.Shared.Return(buffer) in the finally block.
+                state.UpdatedObjects.Add(new ObjectUpdate
+                {
+                    Guid   = updatedObject.Guid.RawValue,
+                    Fields = new ReadOnlyMemory<byte>(buffer, startOffset, length)
+                });
+                // No writer.Reset() — blobs accumulate contiguously in buffer.
             }
 
-            long bytesWritten = writer.BaseStream.Position;
-            ObjectUpdate obj = new() {Guid = updatedObject.Guid.RawValue, Fields = new byte[bytesWritten]};
-            buffer.AsSpan(0, (int)bytesWritten).CopyTo(obj.Fields);
-            updatedObjects.Add(obj);
-            writer.Reset();
+            // Create() calls PacketSerializationHelper.Serialize, which reads Fields slices
+            // synchronously. The buffer is returned in the finally block after this method returns.
+            if (state.AddedObjects.Count > 0)
+                connection.Send(SInstanceStateAddPacket.Create(state.AddedObjects, connection.CryptoSession.Encrypt));
+
+            if (_lastBroadcastTime >= BroadcastInterval && state.UpdatedObjects.Count > 0)
+                connection.Send(SInstanceStateUpdatePacket.Create(state.UpdatedObjects, connection.CryptoSession.Encrypt));
+
+            if (character.CharacterGameState.RemovedObjects.Count > 0)
+            {
+                _logger.LogInformation("Found {Count} removed objects",
+                    character.CharacterGameState.RemovedObjects.Count);
+                connection.Send(SInstanceStateRemovePacket.Create(
+                    character.CharacterGameState.RemovedObjects, connection.CryptoSession.Encrypt));
+            }
         }
-
-        ArrayPool<byte>.Shared.Return(buffer);
-
-        if (addedObjects.Count > 0)
+        finally
         {
-            connection.Send(SInstanceStateAddPacket.Create(addedObjects,
-                connection.CryptoSession.Encrypt));
-        }
-
-        if (_lastBroadcastTime >= BroadcastInterval && updatedObjects.Count > 0)
-        {
-            connection.Send(SInstanceStateUpdatePacket.Create(updatedObjects,
-                connection.CryptoSession.Encrypt));
-        }
-
-        if (character.CharacterGameState.RemovedObjects.Count > 0)
-        {
-            _logger.LogInformation("Found {Count} removed objects",
-                character.CharacterGameState.RemovedObjects.Count);
-            connection.Send(SInstanceStateRemovePacket.Create(character.CharacterGameState.RemovedObjects,
-                connection.CryptoSession.Encrypt));
+            ArrayPool<byte>.Shared.Return(buffer);
         }
     }
 
@@ -452,5 +480,13 @@ public class MapInstance : IMapInstance
         {
             character.Experience += creatureExperience;
         }
+    }
+
+    private sealed class PerPlayerBroadcastState
+    {
+        // Capacities sized for a typical instance (32 entities visible per player).
+        // List<T> grows automatically if exceeded — this avoids early reallocation.
+        public List<ObjectAdd>    AddedObjects   { get; } = new(32);
+        public List<ObjectUpdate> UpdatedObjects { get; } = new(32);
     }
 }

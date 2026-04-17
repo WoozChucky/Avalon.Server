@@ -28,7 +28,7 @@ public class AuthServer(
     private readonly HostingSecurity _securityOptions = securityOptions.Value;
 
     public new ImmutableArray<IAuthConnection> Connections =>
-        [.. base.Connections.Values.Cast<AuthConnection>()];
+        TypedConnections.CastArray<IAuthConnection>();
 
     public X509Certificate2 Certificate { get; private set; }
 

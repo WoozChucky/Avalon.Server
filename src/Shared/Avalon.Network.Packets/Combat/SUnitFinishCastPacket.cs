@@ -4,6 +4,7 @@ using Avalon.Network.Packets.Abstractions;
 using ProtoBuf;
 using NetworkPacketFlags = Avalon.Network.Packets.Abstractions.NetworkPacketFlags;
 using NetworkProtocol = Avalon.Network.Packets.Abstractions.NetworkProtocol;
+using Avalon.Network.Packets.Serialization;
 
 namespace Avalon.Network.Packets.Combat;
 
@@ -17,30 +18,8 @@ public class SUnitFinishCastPacket : Packet
     [ProtoMember(1)] public ulong Caster { get; set; }
     [ProtoMember(2)] public uint SpellId { get; set; }
 
-    public static NetworkPacket Create(ObjectGuid caster, SpellId spell, Func<byte[], byte[]> encryptFunc)
-    {
-        using var memoryStream = new MemoryStream();
-
-        var p = new SUnitFinishCastPacket
-        {
-            Caster = caster.RawValue,
-            SpellId = spell.Value
-        };
-
-        Serializer.Serialize(memoryStream, p);
-
-        var buffer = encryptFunc(memoryStream.ToArray());
-
-        return new NetworkPacket
-        {
-            Header = new NetworkPacketHeader
-            {
-                Type = PacketType,
-                Flags = Flags,
-                Protocol = Protocol,
-                Version = 0
-            },
-            Payload = buffer
-        };
-    }
+    public static NetworkPacket Create(ObjectGuid caster, SpellId spell, EncryptFunc encryptFunc)
+        => PacketSerializationHelper.Serialize(
+            new SUnitFinishCastPacket { Caster = caster.RawValue, SpellId = spell.Value },
+            PacketType, Flags, Protocol, encryptFunc);
 }

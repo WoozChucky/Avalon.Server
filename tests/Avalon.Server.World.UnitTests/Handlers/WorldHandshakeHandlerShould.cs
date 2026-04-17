@@ -15,12 +15,11 @@ public class WorldHandshakeHandlerShould
 {
     private readonly IWorld _world = Substitute.For<IWorld>();
     private readonly IWorldConnection _connection = Substitute.For<IWorldConnection>();
-    private readonly IAvalonCryptoSession _cryptoSession = Substitute.For<IAvalonCryptoSession>();
+    private readonly IAvalonCryptoSession _cryptoSession = new FakeAvalonCryptoSession();
     private readonly WorldHandshakeHandler _handler;
 
     public WorldHandshakeHandlerShould()
     {
-        _cryptoSession.Encrypt(Arg.Any<byte[]>()).Returns(x => (byte[])x[0]);
         _connection.CryptoSession.Returns(_cryptoSession);
         _connection.AccountId.Returns(new AccountId(1L));
         _world.MinVersion.Returns("0.0.1");

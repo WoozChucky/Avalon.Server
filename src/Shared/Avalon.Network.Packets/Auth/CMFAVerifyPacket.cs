@@ -1,6 +1,7 @@
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Abstractions.Attributes;
 using ProtoBuf;
+using Avalon.Network.Packets.Serialization;
 
 namespace Avalon.Network.Packets.Auth;
 
@@ -15,7 +16,7 @@ public class CMFAVerifyPacket : Packet
     [ProtoMember(1)] public string MfaHash { get; set; } = string.Empty;
     [ProtoMember(2)] public string Code { get; set; } = string.Empty;
 
-    public static NetworkPacket Create(string mfaHash, string code, Func<byte[], byte[]> encryptFunc)
+    public static NetworkPacket Create(string mfaHash, string code, EncryptFunc encryptFunc)
     {
         using var ms = new MemoryStream();
         Serializer.Serialize(ms, new CMFAVerifyPacket { MfaHash = mfaHash, Code = code });

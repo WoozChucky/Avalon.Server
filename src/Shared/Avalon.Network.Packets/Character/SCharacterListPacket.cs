@@ -1,5 +1,6 @@
 using Avalon.Network.Packets.Abstractions;
 using ProtoBuf;
+using Avalon.Network.Packets.Serialization;
 
 namespace Avalon.Network.Packets.Character;
 
@@ -15,33 +16,10 @@ public class SCharacterListPacket : Packet
     [ProtoMember(3)] public CharacterInfo[] Characters { get; set; }
 
     public static NetworkPacket Create(int characterCount, int maxCharacterCount,
-        CharacterInfo[] characters, Func<byte[], byte[]> encrypt)
-    {
-        using var memoryStream = new MemoryStream();
-
-        var p = new SCharacterListPacket()
-        {
-            CharacterCount = characterCount,
-            MaxCharacterCount = maxCharacterCount,
-            Characters = characters
-        };
-
-        Serializer.Serialize(memoryStream, p);
-
-        var encrypted = encrypt(memoryStream.ToArray());
-
-        return new NetworkPacket
-        {
-            Header = new NetworkPacketHeader
-            {
-                Type = PacketType,
-                Flags = Flags,
-                Protocol = Protocol,
-                Version = 0
-            },
-            Payload = encrypted
-        };
-    }
+        CharacterInfo[] characters, EncryptFunc encrypt)
+        => PacketSerializationHelper.Serialize(
+            new SCharacterListPacket { CharacterCount = characterCount, MaxCharacterCount = maxCharacterCount, Characters = characters },
+            PacketType, Flags, Protocol, encrypt);
 }
 
 [ProtoContract]

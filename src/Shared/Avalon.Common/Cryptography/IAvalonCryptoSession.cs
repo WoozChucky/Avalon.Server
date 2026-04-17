@@ -10,8 +10,8 @@ public interface IAvalonCryptoSession
     void Initialize(byte[] otherEndPublicKeyBytes);
     byte[] GetPublicKey();
     byte[] GetOtherEndPublicKey();
-    byte[] Encrypt(byte[] data);
-    byte[] Decrypt(byte[] data);
+    byte[] Encrypt(ReadOnlySpan<byte> data);
+    int Decrypt(ReadOnlySpan<byte> data, byte[] output);
     byte[] GenerateHandshakeData();
 }
 
@@ -74,7 +74,7 @@ public class AvalonCryptoSession : IAvalonCryptoSession
         return _otherEndPublicKeyBytes;
     }
 
-    public byte[] Encrypt(byte[] data)
+    public byte[] Encrypt(ReadOnlySpan<byte> data)
     {
         if (!_initialized) throw new InvalidOperationException("Crypto session not initialized");
 
@@ -89,7 +89,7 @@ public class AvalonCryptoSession : IAvalonCryptoSession
             _encryptCipher.Init(true, parameters);
 
             // Encrypt the data
-            var ciphertext = _encryptCipher.DoFinal(data);
+            var ciphertext = _encryptCipher.DoFinal(data.ToArray());
 
             _encryptCipher.Reset();
 
@@ -100,26 +100,23 @@ public class AvalonCryptoSession : IAvalonCryptoSession
         }
     }
 
-    public byte[] Decrypt(byte[] data)
+    public int Decrypt(ReadOnlySpan<byte> data, byte[] output)
     {
         if (!_initialized) throw new InvalidOperationException("Crypto session not initialized");
 
         lock (_lock)
         {
-            // Split the nonce (IV) and ciphertext
-            var nonce = data.Take(12).ToArray();
-            var ciphertext = data.Skip(12).ToArray();
+            ReadOnlySpan<byte> nonce = data[..12];
+            byte[] ciphertext = data[12..].ToArray(); // BouncyCastle 2.6.2 IBufferedCipher only provides byte[] overloads on netstandard2.0 — span input requires one copy here
 
-            // Create an AES-GCM cipher with BouncyCastle
-            var parameters = new ParametersWithIV(new KeyParameter(_sessionKey), nonce);
+            var parameters = new ParametersWithIV(new KeyParameter(_sessionKey), nonce.ToArray());
             _encryptCipher.Init(false, parameters);
 
-            // Decrypt the data
-            var decryptedData = _encryptCipher.DoFinal(ciphertext);
-
+            int len = _encryptCipher.ProcessBytes(ciphertext, 0, ciphertext.Length, output, 0);
+            len += _encryptCipher.DoFinal(output, len);
             _encryptCipher.Reset();
 
-            return decryptedData;
+            return len;
         }
     }
 

@@ -15,7 +15,7 @@ namespace Avalon.Server.Auth.UnitTests.Handlers;
 public class CRequestServerInfoHandlerShould
 {
     private readonly IAuthConnection _connection = Substitute.For<IAuthConnection>();
-    private readonly IAvalonCryptoSession _cryptoSession = Substitute.For<IAvalonCryptoSession>();
+    private readonly IAvalonCryptoSession _cryptoSession = new FakeAvalonCryptoSession();
     private readonly ICryptoManager _serverCrypto = Substitute.For<ICryptoManager>();
 
     private static CRequestServerInfoHandler CreateHandler(string minClientVersion = "0.0.1", string serverVersion = "1.0.0")
@@ -30,7 +30,6 @@ public class CRequestServerInfoHandlerShould
 
     public CRequestServerInfoHandlerShould()
     {
-        _cryptoSession.Encrypt(Arg.Any<byte[]>()).Returns(x => (byte[])x[0]);
         _connection.CryptoSession.Returns(_cryptoSession);
         _serverCrypto.GetPublicKey().Returns(new byte[32]);
         _connection.ServerCrypto.Returns(_serverCrypto);

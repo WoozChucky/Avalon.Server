@@ -3,6 +3,7 @@ using Avalon.Network.Packets.Abstractions;
 using ProtoBuf;
 using NetworkPacketFlags = Avalon.Network.Packets.Abstractions.NetworkPacketFlags;
 using NetworkProtocol = Avalon.Network.Packets.Abstractions.NetworkProtocol;
+using Avalon.Network.Packets.Serialization;
 
 namespace Avalon.Network.Packets.State;
 
@@ -10,14 +11,14 @@ namespace Avalon.Network.Packets.State;
 public class ObjectAdd
 {
     [ProtoMember(1)] public ulong Guid { get; set; }
-    [ProtoMember(2)] public byte[] Fields { get; set; } = [];
+    [ProtoMember(2)] public ReadOnlyMemory<byte> Fields { get; set; }
 }
 
 [ProtoContract]
 public class ObjectUpdate
 {
     [ProtoMember(1)] public ulong Guid { get; set; }
-    [ProtoMember(2)] public byte[] Fields { get; set; } = [];
+    [ProtoMember(2)] public ReadOnlyMemory<byte> Fields { get; set; }
 }
 
 [ProtoContract]
@@ -29,31 +30,10 @@ public class SInstanceStateAddPacket : Packet
 
     [ProtoMember(1)] public List<ObjectAdd> Adds { get; set; }
 
-    public static NetworkPacket Create(List<ObjectAdd> adds, Func<byte[], byte[]> encryptFunc)
-    {
-        using var memoryStream = new MemoryStream();
-
-        var p = new SInstanceStateAddPacket()
-        {
-            Adds = adds
-        };
-
-        Serializer.Serialize(memoryStream, p);
-
-        var buffer = encryptFunc(memoryStream.ToArray());
-
-        return new NetworkPacket
-        {
-            Header = new NetworkPacketHeader
-            {
-                Type = PacketType,
-                Flags = Flags,
-                Protocol = Protocol,
-                Version = 0
-            },
-            Payload = buffer
-        };
-    }
+    public static NetworkPacket Create(List<ObjectAdd> adds, EncryptFunc encryptFunc)
+        => PacketSerializationHelper.Serialize(
+            new SInstanceStateAddPacket { Adds = adds },
+            PacketType, Flags, Protocol, encryptFunc);
 }
 
 [ProtoContract]
@@ -65,31 +45,10 @@ public class SInstanceStateUpdatePacket : Packet
 
     [ProtoMember(1)] public List<ObjectUpdate> Updates { get; set; }
 
-    public static NetworkPacket Create(List<ObjectUpdate> updates, Func<byte[], byte[]> encryptFunc)
-    {
-        using var memoryStream = new MemoryStream();
-
-        var p = new SInstanceStateUpdatePacket()
-        {
-            Updates = updates
-        };
-
-        Serializer.Serialize(memoryStream, p);
-
-        var buffer = encryptFunc(memoryStream.ToArray());
-
-        return new NetworkPacket
-        {
-            Header = new NetworkPacketHeader
-            {
-                Type = PacketType,
-                Flags = Flags,
-                Protocol = Protocol,
-                Version = 0
-            },
-            Payload = buffer
-        };
-    }
+    public static NetworkPacket Create(List<ObjectUpdate> updates, EncryptFunc encryptFunc)
+        => PacketSerializationHelper.Serialize(
+            new SInstanceStateUpdatePacket { Updates = updates },
+            PacketType, Flags, Protocol, encryptFunc);
 }
 
 [ProtoContract]
@@ -101,31 +60,10 @@ public class SInstanceStateRemovePacket : Packet
 
     [ProtoMember(1)] public List<ulong> Removes { get; set; }
 
-    public static NetworkPacket Create(IEnumerable<ObjectGuid> removes, Func<byte[], byte[]> encryptFunc)
-    {
-        using var memoryStream = new MemoryStream();
-
-        var p = new SInstanceStateRemovePacket()
-        {
-            Removes = removes.Select(r => r.RawValue).ToList()
-        };
-
-        Serializer.Serialize(memoryStream, p);
-
-        var buffer = encryptFunc(memoryStream.ToArray());
-
-        return new NetworkPacket
-        {
-            Header = new NetworkPacketHeader
-            {
-                Type = PacketType,
-                Flags = Flags,
-                Protocol = Protocol,
-                Version = 0
-            },
-            Payload = buffer
-        };
-    }
+    public static NetworkPacket Create(IEnumerable<ObjectGuid> removes, EncryptFunc encryptFunc)
+        => PacketSerializationHelper.Serialize(
+            new SInstanceStateRemovePacket { Removes = removes.Select(r => r.RawValue).ToList() },
+            PacketType, Flags, Protocol, encryptFunc);
 }
 
 public enum MoveState

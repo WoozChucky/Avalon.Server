@@ -1,6 +1,7 @@
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Abstractions.Attributes;
 using ProtoBuf;
+using Avalon.Network.Packets.Serialization;
 
 namespace Avalon.Network.Packets.Character;
 
@@ -12,7 +13,7 @@ public class CCharacterListPacket : Packet
     public static NetworkProtocol Protocol = NetworkProtocol.Tcp;
     public static NetworkPacketFlags Flags = NetworkPacketFlags.Encrypted;
 
-    public static NetworkPacket Create(Func<byte[], byte[]> encrypt)
+    public static NetworkPacket Create(EncryptFunc encrypt)
     {
         using var memoryStream = new MemoryStream();
 
