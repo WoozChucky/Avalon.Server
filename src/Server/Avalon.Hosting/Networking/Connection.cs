@@ -3,9 +3,9 @@ using System.IO;
 using System.Net.Sockets;
 using System.Text.Json;
 using System.Threading;
+using System.Threading.Channels;
 using System.Threading.Tasks;
 using Avalon.Common.Cryptography;
-using Avalon.Common.Threading;
 using Avalon.Hosting.Extensions;
 using Avalon.Network.Packets;
 using Avalon.Network.Packets.Abstractions;
@@ -32,7 +32,7 @@ public abstract class Connection : BackgroundService, IConnection
     protected readonly ILogger _logger;
     private readonly IPacketReader _packetReader;
 
-    private readonly RingBuffer<NetworkPacket> _packetsToSend = new(string.Empty, 100);
+    private readonly Channel<NetworkPacket> _channel;
 
     // Timer for calculating rates every second
     private readonly Timer _rateCalculationTimer;
@@ -61,6 +61,12 @@ public abstract class Connection : BackgroundService, IConnection
         Server = server;
         CryptoSession = new AvalonCryptoSession(ServerCrypto.GetKeyPair());
         Id = Guid.NewGuid();
+        _channel = Channel.CreateBounded<NetworkPacket>(new BoundedChannelOptions(server.SendBufferCapacity)
+        {
+            FullMode     = BoundedChannelFullMode.DropOldest,
+            SingleReader = true,
+            SingleWriter = false
+        });
 
         // Start a timer to calculate and log rates every second
         _rateCalculationTimer = new Timer(CalculateAndLogRates, null, TimeSpan.Zero, TimeSpan.FromSeconds(1));
@@ -87,11 +93,11 @@ public abstract class Connection : BackgroundService, IConnection
 
     public virtual void Send(NetworkPacket packet)
     {
-        // Accumulate for rate calculation
         Interlocked.Add(ref BytesSentCount, packet.Size);
         Interlocked.Increment(ref PacketSentCount);
 
-        _packetsToSend.Enqueue(packet);
+        if (!_channel.Writer.TryWrite(packet))
+            _logger.LogWarning("Send buffer full for connection {Id}; dropped {Type}", Id, packet.Header.Type);
     }
 
     protected void Init(TcpClient client)
@@ -99,7 +105,15 @@ public abstract class Connection : BackgroundService, IConnection
         _client = client;
         RemoteEndPoint = client.Client.RemoteEndPoint?.ToString() ?? "Unknown";
         CancellationTokenSource = new CancellationTokenSource();
-        Task.Factory.StartNew(SendPacketsWhenAvailable, TaskCreationOptions.LongRunning);
+        _ = Task.Factory.StartNew(
+                SendPacketsWhenAvailable,
+                CancellationToken.None,
+                TaskCreationOptions.LongRunning,
+                TaskScheduler.Default)
+            .Unwrap()
+            .ContinueWith(
+                t => _logger.LogError(t.Exception, "Send loop faulted for connection {Id}", Id),
+                TaskContinuationOptions.OnlyOnFaulted);
     }
 
     protected abstract void OnHandshakeFinished();
@@ -189,57 +203,57 @@ public abstract class Connection : BackgroundService, IConnection
         {
             try
             {
-                NetworkPacket? packet =
-                    await _packetsToSend.DequeueAsync(CancellationTokenSource!.Token).ConfigureAwait(false);
-                if (packet != null)
+                NetworkPacket packet =
+                    await _channel.Reader.ReadAsync(CancellationTokenSource!.Token).ConfigureAwait(false);
+
+                try
                 {
-                    try
+                    if (_stream is null || _client?.Connected != true)
                     {
-                        if (_stream is null || _client?.Connected != true)
-                        {
-                            CancellationTokenSource?.Cancel();
-                            _logger.LogCritical("Stream unexpectedly became null or client disconnected. This shouldn't happen");
-                            break;
-                        }
-
-                        await _stream.WriteAsync(packet).ConfigureAwait(false);
-                        await _stream.FlushAsync().ConfigureAwait(false);
-                    }
-                    catch (SocketException e)
-                    {
-                        if (e.SocketErrorCode == SocketError.ConnectionReset)
-                        {
-                            break;
-                        }
-
-                        _logger.LogError(e, "Failed to send packet");
-                    }
-                    catch (Exception e)
-                    {
-                        _logger.LogError(e, "Failed to send packet");
+                        CancellationTokenSource?.Cancel();
+                        _logger.LogCritical("Stream unexpectedly became null or client disconnected. This shouldn't happen");
+                        break;
                     }
 
-                    if (_logger.IsEnabled(LogLevel.Trace) &&
-                        packet.Header.Type != NetworkPacketType.SMSG_WORLD_STATE_UPDATE &&
-                        packet.Header.Type != NetworkPacketType.SMSG_PING)
-                    {
-                        _logger.LogTrace("OUT: {Type} => {Packet}", packet.Header.Type,
-                            JsonSerializer.Serialize(packet));
-                    }
+                    await _stream.WriteAsync(packet).ConfigureAwait(false);
+                    await _stream.FlushAsync().ConfigureAwait(false);
                 }
-                else
+                catch (SocketException e)
                 {
-                    await Task.Delay(1).ConfigureAwait(false); // wait at least 1ms
+                    if (e.SocketErrorCode == SocketError.ConnectionReset)
+                    {
+                        break;
+                    }
+
+                    _logger.LogError(e, "Failed to send packet");
+                }
+                catch (Exception e)
+                {
+                    _logger.LogError(e, "Failed to send packet");
+                }
+
+                if (_logger.IsEnabled(LogLevel.Trace) &&
+                    packet.Header.Type != NetworkPacketType.SMSG_WORLD_STATE_UPDATE &&
+                    packet.Header.Type != NetworkPacketType.SMSG_PING)
+                {
+                    _logger.LogTrace("OUT: {Type} => {Packet}", packet.Header.Type,
+                        JsonSerializer.Serialize(packet));
                 }
             }
             catch (SocketException)
             {
-                // connection closed. Ignore
                 break;
             }
-            catch (OperationCanceledException)
+            catch (OperationCanceledException) when (CancellationTokenSource?.IsCancellationRequested == true)
             {
-                // CancellationTokenSource was cancelled during Close(). Expected.
+                // Expected: Close() cancelled the token. Exit cleanly.
+                _logger.LogDebug("Send loop stopping for connection {Id}", Id);
+                break;
+            }
+            catch (OperationCanceledException e)
+            {
+                // Unexpected: some other cancellation source fired — always a bug.
+                _logger.LogError(e, "Send loop for connection {Id} received unexpected cancellation", Id);
                 break;
             }
         }
