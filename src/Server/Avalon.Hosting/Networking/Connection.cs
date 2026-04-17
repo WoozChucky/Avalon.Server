@@ -120,8 +120,7 @@ public abstract class Connection : BackgroundService, IConnection
             return;
         }
 
-        if (_logger.IsEnabled(LogLevel.Information))
-            _logger.LogInformation("New connection from {RemoteEndPoint}", _client.Client.RemoteEndPoint?.ToString());
+        _logger.LogInformation("New connection from {RemoteEndPoint}", _client.Client.RemoteEndPoint?.ToString());
 
         _stream = await GetStream(_client);
 
@@ -138,17 +137,9 @@ public abstract class Connection : BackgroundService, IConnection
                     _logger.LogDebug("IN: {Type} => {Data}", packet.Header.Type, JsonSerializer.Serialize(packet));
                 }
 
-                if (packet.Header.Flags.HasFlag(NetworkPacketFlags.Encrypted))
-                {
-                    _packetReader.Decrypt(packet, data =>
-                    {
-                        byte[] output = new byte[data.Length];
-                        int len = CryptoSession.Decrypt(data, output);
-                        return output[..len];
-                    });
-                }
-
-                Packet? payload = _packetReader.Read(packet);
+                Packet? payload = _packetReader.Read(
+                    packet,
+                    packet.Header.Flags.HasFlag(NetworkPacketFlags.Encrypted) ? CryptoSession.Decrypt : null);
 
                 // Accumulate for rate calculation
                 Interlocked.Add(ref BytesReceivedCount, packet.Size);
