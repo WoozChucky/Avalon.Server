@@ -1,4 +1,5 @@
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
@@ -13,13 +14,12 @@ using ProtoBuf;
 
 namespace Avalon.Hosting.Networking;
 
-public delegate byte[] DecryptFunc(byte[] data);
+public delegate int DecryptFunc(ReadOnlySpan<byte> input, byte[] output);
 
 public interface IPacketReader
 {
     IAsyncEnumerable<NetworkPacket> EnumerateAsync(PacketStream stream, CancellationToken token = default);
-    Packet? Read(NetworkPacket packet);
-    void Decrypt(NetworkPacket packet, DecryptFunc decryptFunc);
+    Packet? Read(NetworkPacket packet, DecryptFunc? decrypt = null);
 }
 
 public class PacketReader : IPacketReader
@@ -73,9 +73,7 @@ public class PacketReader : IPacketReader
         }
     }
 
-    public void Decrypt(NetworkPacket packet, DecryptFunc decryptFunc) => packet.Payload = decryptFunc(packet.Payload);
-
-    public Packet? Read(NetworkPacket packet)
+    public Packet? Read(NetworkPacket packet, DecryptFunc? decrypt = null)
     {
         if (!_packetTypes.TryGetValue(packet.Header.Type, out Func<ReadOnlyMemory<byte>, Packet?>? deserializer))
         {
@@ -83,7 +81,29 @@ public class PacketReader : IPacketReader
             return null;
         }
 
-        return deserializer(new ReadOnlyMemory<byte>(packet.Payload));
+        byte[]? rented = null;
+
+        try
+        {
+            ReadOnlyMemory<byte> payload;
+
+            if (decrypt != null)
+            {
+                rented = ArrayPool<byte>.Shared.Rent(packet.Payload.Length);
+                int len = decrypt(packet.Payload.AsSpan(), rented);
+                payload = rented.AsMemory(0, len);
+            }
+            else
+            {
+                payload = new ReadOnlyMemory<byte>(packet.Payload);
+            }
+
+            return deserializer(payload);
+        }
+        finally
+        {
+            if (rented != null) ArrayPool<byte>.Shared.Return(rented);
+        }
     }
 
     private static Func<ReadOnlyMemory<byte>, Packet?> BuildDeserializer<T>() where T : Packet
