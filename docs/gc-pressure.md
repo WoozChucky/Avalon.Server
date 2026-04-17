@@ -263,7 +263,7 @@ types — verify `LockedQueue<T>` is generic enough to store structs without box
 
 ## GC-010 — `WorldServer.GetContextPacket` uses `Activator.CreateInstance` + reflection `SetValue` per packet
 
-**Status:** Open  
+**Status:** Resolved — `_propertyCache (PropertyInfo, PropertyInfo)` replaced with `_contextFactoryCache: ConcurrentDictionary<Type, Func<IConnection, Packet?, object>>` in both `WorldServer` and `AuthServer`. Factory built once per type via `BuildContextFactory<TPacket>()` + `MakeGenericMethod`. `GetContextPacket` is now one dict lookup + one delegate call. Primary win is CPU speed (eliminates `Activator.CreateInstance` + `SetValue × 2` per dispatch); allocation count unchanged (one boxed struct per call in both paths).  
 **Severity:** Medium  
 **File:** `src/Server/Avalon.World/WorldServer.cs:238–242`
 
@@ -410,6 +410,6 @@ pre-allocated / pooled list. Given the small typical size (<10 entries) an
 | 9 | GC-013 | `Task.Delay(1)` idle send loop | Medium |
 | 10 | GC-012 | `EnqueueContinuation` boxing + two closures | Medium |
 | 11 | ~~GC-008~~ | ~~Decrypt allocates new `byte[]` for payload~~ | ~~Medium~~ |
-| 12 | GC-010 | `Activator.CreateInstance` per packet dispatch | Medium |
+| 12 | ~~GC-010~~ | ~~`Activator.CreateInstance` per packet dispatch~~ | ~~Medium~~ |
 | 13 | GC-011 | `ServerBase.CallListener` reflection `new[]` per call | Medium |
 | 14 | GC-014 | LINQ `ToList()` in remove packet | Low |
