@@ -1,5 +1,6 @@
 using Avalon.Network.Packets.Abstractions;
 using ProtoBuf;
+using Avalon.Network.Packets.Serialization;
 
 namespace Avalon.Network.Packets.Handshake;
 
@@ -12,29 +13,8 @@ public class SHandshakePacket : Packet
 
     [ProtoMember(1)] public byte[] HandshakeData { get; set; }
 
-    public static NetworkPacket Create(byte[] handshakeData, Func<byte[], byte[]> encryptFunc)
-    {
-        using var memoryStream = new MemoryStream();
-
-        var packet = new SHandshakePacket()
-        {
-            HandshakeData = handshakeData
-        };
-
-        Serializer.Serialize(memoryStream, packet);
-
-        var buffer = encryptFunc(memoryStream.ToArray());
-
-        return new NetworkPacket
-        {
-            Header = new NetworkPacketHeader
-            {
-                Type = PacketType,
-                Flags = Flags,
-                Protocol = Protocol,
-                Version = 0
-            },
-            Payload = buffer.ToArray()
-        };
-    }
+    public static NetworkPacket Create(byte[] handshakeData, EncryptFunc encryptFunc)
+        => PacketSerializationHelper.Serialize(
+            new SHandshakePacket { HandshakeData = handshakeData },
+            PacketType, Flags, Protocol, encryptFunc);
 }

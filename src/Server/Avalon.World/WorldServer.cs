@@ -12,7 +12,6 @@ using Avalon.Network.Packets;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Generic;
 using Avalon.World.Entities;
-using Avalon.World.Filters;
 using Avalon.World.Maps.Navigation;
 using Avalon.World.Public;
 using Avalon.World.Scripts;
@@ -120,7 +119,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
     }
 
     public new ImmutableArray<IWorldConnection> Connections =>
-        [.. base.Connections.Values.Cast<WorldConnection>()];
+        TypedConnections.CastArray<IWorldConnection>();
 
     public IWorld World => _world;
     public Dictionary<NetworkPacketType, IWorldPacketHandler> PacketHandlers { get; }
@@ -197,13 +196,12 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         }
 
         foreach (IWorldConnection worldConnection in Connections)
-        {
-            WorldSessionFilter filter = new(worldConnection);
-
-            worldConnection.Update(elapsedTime, filter);
-        }
+            worldConnection.UpdateSession();
 
         _world.Update(elapsedTime);
+
+        foreach (IWorldConnection worldConnection in Connections)
+            worldConnection.FlushContinuations();
     }
 
     private bool NewConnection(IConnection connection) => true;

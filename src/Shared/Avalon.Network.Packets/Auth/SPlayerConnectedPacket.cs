@@ -1,5 +1,6 @@
 using Avalon.Network.Packets.Abstractions;
 using ProtoBuf;
+using Avalon.Network.Packets.Serialization;
 
 namespace Avalon.Network.Packets.Auth;
 
@@ -13,31 +14,8 @@ public class SPlayerConnectedPacket : Packet
     [ProtoMember(2)] public ulong CharacterId { get; set; }
     [ProtoMember(3)] public string Name { get; set; }
 
-    public static NetworkPacket Create(ulong accountId, ulong characterId, string name, Func<byte[], byte[]> encryptFunc)
-    {
-        using var memoryStream = new MemoryStream();
-
-        var byePacket = new SPlayerConnectedPacket()
-        {
-            AccountId = accountId,
-            CharacterId = characterId,
-            Name = name
-        };
-
-        Serializer.Serialize(memoryStream, byePacket);
-
-        var buffer = encryptFunc(memoryStream.ToArray());
-
-        return new NetworkPacket
-        {
-            Header = new NetworkPacketHeader
-            {
-                Type = PacketType,
-                Flags = Flags,
-                Protocol = Protocol,
-                Version = 0
-            },
-            Payload = buffer
-        };
-    }
+    public static NetworkPacket Create(ulong accountId, ulong characterId, string name, EncryptFunc encryptFunc)
+        => PacketSerializationHelper.Serialize(
+            new SPlayerConnectedPacket { AccountId = accountId, CharacterId = characterId, Name = name },
+            PacketType, Flags, Protocol, encryptFunc);
 }

@@ -102,6 +102,8 @@ CClientInfoPacket → SHandshakePacket → CHandshakePacket → SHandshakeResult
 
 `WorldServer` is an `IHostedService` that runs the tick loop at ~60 Hz (16.67ms intervals). On each tick it calls `World.Update(deltaTime)`, which ticks all active `MapInstance` objects via `IInstanceRegistry`.
 
+**Two-pass tick architecture:** Each tick runs in two passes. Pass 1 — `WorldServer.Update` calls `connection.UpdateSession(deltaTime)` on every connected client, processing pre-character packets (`CMSG_PONG`, character list/select/create/delete) via `WorldSessionFilter`. Pass 2 — `World.Update → MapInstance.Update` calls `connection.UpdateMap(deltaTime)` on every in-map client, processing in-map packets (movement, attack, chat) via `MapSessionFilter`. `LockedQueue.Next(check)` uses peek-first semantics: a packet that fails the first-pass filter stays at the queue head and is picked up by the second pass. Both filter instances are stored on `WorldConnection` and reused each tick — no per-tick allocation.
+
 - **MapInstance** (`Avalon.World/Instances/MapInstance.cs`) is the core simulation unit: manages entities in a flat tick context, runs `ChunkSpellSystem`, creature AI scripts, broadcasts state to clients. Implements `ISimulationContext`.
 - **InstanceRegistry** (`Avalon.World/Instances/InstanceRegistry.cs`) owns all live instances. `GetOrCreateTownInstance` returns a shared persistent instance; `GetOrCreateNormalInstance` returns per-player instances with 15-min re-entry windows. `ProcessExpiredInstances` cleans up expired normal instances.
 - **ISimulationContext** — minimal contract used by AI scripts, spell system, and respawner instead of the old `IChunk`.

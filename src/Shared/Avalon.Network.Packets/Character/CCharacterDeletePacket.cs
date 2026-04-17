@@ -1,6 +1,7 @@
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Abstractions.Attributes;
 using ProtoBuf;
+using Avalon.Network.Packets.Serialization;
 
 namespace Avalon.Network.Packets.Character;
 
@@ -14,7 +15,7 @@ public class CCharacterDeletePacket : Packet
 
     [ProtoMember(1)] public uint CharacterId { get; set; }
 
-    public static NetworkPacket Create(uint characterId, Func<byte[], byte[]> encryptFunc)
+    public static NetworkPacket Create(uint characterId, EncryptFunc encryptFunc)
     {
         using var memoryStream = new MemoryStream();
 

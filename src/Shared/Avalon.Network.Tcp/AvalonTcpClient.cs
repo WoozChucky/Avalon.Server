@@ -306,7 +306,12 @@ public class AvalonTcpClient : IDisposable
     {
         DecryptFunc? decryptFunc = null;
         if (packet.Header.Flags == NetworkPacketFlags.Encrypted)
-            decryptFunc = _cryptography!.Decrypt;
+            decryptFunc = data =>
+            {
+                byte[] output = new byte[data.Length];
+                int len = _cryptography!.Decrypt(data, output);
+                return output[..len];
+            };
 
         if (packet.Header.Flags == NetworkPacketFlags.Encrypted && decryptFunc == null)
             throw new PacketHandlerException("Encrypted packet received without session key");

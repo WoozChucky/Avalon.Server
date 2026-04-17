@@ -1,6 +1,7 @@
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Abstractions.Attributes;
 using ProtoBuf;
+using Avalon.Network.Packets.Serialization;
 
 namespace Avalon.Network.Packets.Auth;
 
@@ -16,7 +17,7 @@ public class CRegisterPacket : Packet
     [ProtoMember(2)] public string Email { get; set; }
     [ProtoMember(3)] public string Password { get; set; }
 
-    public static NetworkPacket Create(string username, string email, string password, Func<byte[], byte[]> encryptFunc)
+    public static NetworkPacket Create(string username, string email, string password, EncryptFunc encryptFunc)
     {
         using var memoryStream = new MemoryStream();
 

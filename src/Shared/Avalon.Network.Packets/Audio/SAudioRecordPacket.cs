@@ -1,5 +1,6 @@
 using Avalon.Network.Packets.Abstractions;
 using ProtoBuf;
+using Avalon.Network.Packets.Serialization;
 
 namespace Avalon.Network.Packets.Audio;
 
@@ -12,29 +13,13 @@ public class SAudioRecordPacket : Packet
 
     [ProtoMember(1)] public byte[] SoundBuffer { get; set; }
 
-    public static NetworkPacket Create(byte[] soundBuffer, Func<byte[], byte[]>? encryptFunc)
+    public static NetworkPacket Create(byte[] soundBuffer)
     {
-        using var memoryStream = new MemoryStream();
-
-        var packet = new SAudioRecordPacket()
+        var packet = new SAudioRecordPacket
         {
             SoundBuffer = soundBuffer
         };
 
-        Serializer.Serialize(memoryStream, packet);
-
-        var buffer = encryptFunc?.Invoke(memoryStream.ToArray()) ?? memoryStream.ToArray();
-
-        return new NetworkPacket
-        {
-            Header = new NetworkPacketHeader
-            {
-                Type = PacketType,
-                Flags = Flags,
-                Protocol = Protocol,
-                Version = 0
-            },
-            Payload = buffer
-        };
+        return PacketSerializationHelper.SerializeUnencrypted(packet, PacketType, Flags, Protocol);
     }
 }

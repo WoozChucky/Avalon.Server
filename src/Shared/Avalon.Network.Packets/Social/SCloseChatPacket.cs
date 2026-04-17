@@ -1,5 +1,6 @@
 using Avalon.Network.Packets.Abstractions;
 using ProtoBuf;
+using Avalon.Network.Packets.Serialization;
 
 namespace Avalon.Network.Packets.Social;
 
@@ -12,29 +13,8 @@ public class SCloseChatPacket : Packet
 
     [ProtoMember(1)] public string ClientId { get; set; }
 
-    public static NetworkPacket Create(string clientId, Func<byte[], byte[]> encryptFunc)
-    {
-        using var memoryStream = new MemoryStream();
-
-        var movementPacket = new SCloseChatPacket()
-        {
-            ClientId = clientId
-        };
-
-        Serializer.Serialize(memoryStream, movementPacket);
-
-        var buffer = encryptFunc(memoryStream.ToArray());
-
-        return new NetworkPacket
-        {
-            Header = new NetworkPacketHeader
-            {
-                Type = PacketType,
-                Flags = Flags,
-                Protocol = Protocol,
-                Version = 0
-            },
-            Payload = buffer
-        };
-    }
+    public static NetworkPacket Create(string clientId, EncryptFunc encryptFunc)
+        => PacketSerializationHelper.Serialize(
+            new SCloseChatPacket { ClientId = clientId },
+            PacketType, Flags, Protocol, encryptFunc);
 }
