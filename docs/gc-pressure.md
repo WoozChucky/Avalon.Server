@@ -293,7 +293,7 @@ Func<IConnection, Packet, object> factory = (conn, pkt) => new WorldPacketContex
 
 ## GC-011 — `ServerBase.CallListener` boxes invoke arguments per packet
 
-**Status:** Open  
+**Status:** Resolved — `Task ExecuteAsync(object context, CancellationToken token)` added to `IPacketHandlerNew`; DIM implementations on `IAuthPacketHandler<T>` and `IWorldPacketHandler<T>` bridge to strongly-typed `ExecuteAsync` via context unbox. `CallListener` is now one cast + one virtual dispatch. `ExecuteMethod: MethodInfo` removed from `PacketHandlerCache`; `using System.Reflection` removed from `ServerBase`. Eliminates `new object[2]` args array + boxed `CancellationToken` per dispatch (64 B/call measured). Legacy `IPacketHandler`/`IPacketRegistry`/`PacketRegistry`/`AvalonTcpClient` deleted.  
 **Severity:** Medium  
 **File:** `src/Server/Avalon.Hosting/Networking/ServerBase.cs:183`
 
@@ -411,5 +411,5 @@ pre-allocated / pooled list. Given the small typical size (<10 entries) an
 | 10 | GC-012 | `EnqueueContinuation` boxing + two closures | Medium |
 | 11 | ~~GC-008~~ | ~~Decrypt allocates new `byte[]` for payload~~ | ~~Medium~~ |
 | 12 | ~~GC-010~~ | ~~`Activator.CreateInstance` per packet dispatch~~ | ~~Medium~~ |
-| 13 | GC-011 | `ServerBase.CallListener` reflection `new[]` per call | Medium |
+| 13 | ~~GC-011~~ | ~~`ServerBase.CallListener` reflection `new[]` per call~~ | ~~Medium~~ |
 | 14 | GC-014 | LINQ `ToList()` in remove packet | Low |
