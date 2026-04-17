@@ -341,7 +341,7 @@ Store the continuation as `(Task task, object state, Action<object, object> invo
 
 ## GC-013 — `Task.Delay(1)` in idle send loop fires ~1000×/s per connection
 
-**Status:** Open  
+**Status:** Resolved — `RingBuffer<NetworkPacket>` replaced with `Channel<NetworkPacket>` (bounded, DropOldest, SingleReader). Hot-path dequeue is now zero-allocation (`ValueTask<T>` struct vs heap-allocated `Task<T?>`). Producer `Send()` uses non-blocking `TryWrite` with `LogWarning` on drop; no thread blocking on overflow. Dead `Task.Delay(1)` fallback removed. `RingBuffer<T>` and `AvalonSession` deleted.  
 **Severity:** Medium  
 **File:** `src/Server/Avalon.Hosting/Networking/Connection.cs:233`
 
@@ -407,7 +407,7 @@ pre-allocated / pooled list. Given the small typical size (<10 entries) an
 | 6 | GC-002 | Per-entity `new byte[]` in state broadcast | Critical |
 | 7 | ~~GC-009~~ | ~~`WorldPacket` class → struct~~ | ~~Medium~~ |
 | 8 | ~~GC-007~~ | ~~`PacketReader` reflection `new object?[]` per packet~~ | ~~Medium~~ |
-| 9 | GC-013 | `Task.Delay(1)` idle send loop | Medium |
+| 9 | ~~GC-013~~ | ~~`Task.Delay(1)` idle send loop~~ | ~~Medium~~ |
 | 10 | GC-012 | `EnqueueContinuation` boxing + two closures | Medium |
 | 11 | ~~GC-008~~ | ~~Decrypt allocates new `byte[]` for payload~~ | ~~Medium~~ |
 | 12 | ~~GC-010~~ | ~~`Activator.CreateInstance` per packet dispatch~~ | ~~Medium~~ |
