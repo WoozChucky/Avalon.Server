@@ -54,11 +54,6 @@ public class WorldHandshakeHandler : IWorldPacketHandler<CWorldHandshakePacket>
 
         ctx.Connection.Send(result);
 
-        if (allowed)
-        {
-            ctx.Connection.EnableTimeSyncWorker();
-        }
-
         return Task.CompletedTask;
     }
 }
