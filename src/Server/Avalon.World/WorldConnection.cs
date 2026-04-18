@@ -18,12 +18,11 @@ namespace Avalon.World;
 
 public class WorldConnection : Connection, IWorldConnection
 {
-    private readonly ConcurrentQueue<(Task<object>, Action<object>)> _genericTaskQueue = new();
+    private readonly ConcurrentQueue<IContinuation> _continuationQueue = new();
 
     private readonly LockedQueue<WorldPacket> _receiveQueue;
 
     private readonly IWorldServer _server;
-    private readonly ConcurrentQueue<(Task, Action)> _taskQueue = new();
     private ObservableGauge<double> _bytesReceivedRate;
     private ObservableGauge<double> _bytesSentRate;
 
@@ -208,54 +207,73 @@ public class WorldConnection : Connection, IWorldConnection
 
     #region Callback Processing
 
-    public void EnqueueContinuation<T>(Task<T> task, Action<T> callback)
+    private interface IContinuation
     {
-        Task<object> wrappedTask =
-            task.ContinueWith(t => (object)t.Result, TaskContinuationOptions.ExecuteSynchronously)!;
-        Action<object> wrappedCallback = result => callback((T)result);
-
-        _genericTaskQueue.Enqueue((wrappedTask, wrappedCallback));
+        bool IsReady { get; }
+        bool IsSuccess { get; }
+        Exception? Error { get; }
+        void Execute();
     }
 
-    public void EnqueueContinuation(Task task, Action callback) => _taskQueue.Enqueue((task, callback));
+    private sealed class Continuation : IContinuation
+    {
+        private readonly Task _task;
+        private readonly Action _callback;
+
+        internal Continuation(Task task, Action callback)
+        {
+            _task = task;
+            _callback = callback;
+        }
+
+        public bool IsReady => _task.IsCompleted;
+        public bool IsSuccess => _task.IsCompletedSuccessfully;
+        public Exception? Error => _task.Exception;
+        public void Execute() => _callback();
+    }
+
+    private sealed class Continuation<T> : IContinuation
+    {
+        private readonly Task<T> _task;
+        private readonly Action<T> _callback;
+
+        internal Continuation(Task<T> task, Action<T> callback)
+        {
+            _task = task;
+            _callback = callback;
+        }
+
+        public bool IsReady => _task.IsCompleted;
+        public bool IsSuccess => _task.IsCompletedSuccessfully;
+        public Exception? Error => _task.Exception;
+        public void Execute() => _callback(_task.Result); // only called after IsSuccess is verified
+    }
+
+    public void EnqueueContinuation<T>(Task<T> task, Action<T> callback)
+        => _continuationQueue.Enqueue(new Continuation<T>(task, callback));
+
+    public void EnqueueContinuation(Task task, Action callback)
+        => _continuationQueue.Enqueue(new Continuation(task, callback));
 
     private void ProcessContinuations()
     {
-        while (_taskQueue.TryDequeue(out (Task, Action) item))
-        {
-            (Task task, var callback) = item;
-            if (task.IsCompleted)
-            {
-                callback?.Invoke();
-            }
-            else
-            {
-                // Re-enqueue the task if it is not completed yet
-                _taskQueue.Enqueue(item);
-            }
-        }
+        if (_continuationQueue.IsEmpty)
+            return;
 
-        while (_genericTaskQueue.TryDequeue(out (Task<object>, Action<object>) item))
+        // Snapshot the count before draining so re-enqueued items land past
+        // this boundary and are deferred to the next tick rather than
+        // spinning in the same invocation.
+        int count = _continuationQueue.Count;
+        int processed = 0;
+
+        while (processed++ < count && _continuationQueue.TryDequeue(out IContinuation? item))
         {
-            (Task<object> task, var callback) = item;
-            if (task.IsCompleted)
-            {
-                if (task.IsCompletedSuccessfully)
-                {
-                    callback?.Invoke(task.Result);
-                }
-                else
-                {
-                    // Handle errors
-                    _logger.LogError(task?.Exception, "Error processing task: {ExceptionMessage}",
-                        task?.Exception?.Message);
-                }
-            }
+            if (item.IsSuccess)
+                item.Execute();
+            else if (!item.IsReady)
+                _continuationQueue.Enqueue(item); // counts against budget — deferred to next tick
             else
-            {
-                // Re-enqueue the task if it is not completed yet
-                _genericTaskQueue.Enqueue(item);
-            }
+                _logger.LogError(item.Error, "Continuation faulted");
         }
     }
 
