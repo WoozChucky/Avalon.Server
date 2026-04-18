@@ -147,7 +147,7 @@ public abstract class Connection : BackgroundService, IConnection
 
     protected abstract Task OnClose(bool expected = true);
 
-    protected abstract Task OnReceive(NetworkPacketHeader header, Packet? payload);
+    protected abstract ValueTask OnReceive(NetworkPacketHeader header, Packet? payload);
 
     protected virtual void OnPacketAccounted(NetworkPacketType type, int size) { }
 
@@ -189,7 +189,9 @@ public abstract class Connection : BackgroundService, IConnection
                 _packetTypeCounts.AddOrUpdate(frame.Header.Type, 1L, static (_, c) => c + 1);
                 OnPacketAccounted(frame.Header.Type, packetSize);
 
-                await OnReceive(frame.Header, payload);
+                ValueTask receiveTask = OnReceive(frame.Header, payload);
+                if (!receiveTask.IsCompletedSuccessfully)
+                    await receiveTask.ConfigureAwait(false);
             }
         }
         catch (IOException e)
