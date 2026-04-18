@@ -112,10 +112,8 @@ public class AuthConnection : Connection, IAuthConnection
         }
     }
 
-    protected override async Task OnReceive(NetworkPacketHeader header, Packet? payload)
-    {
-        await Server.CallListener(this, header, payload);
-    }
+    protected override ValueTask OnReceive(NetworkPacketHeader header, Packet? payload)
+        => new ValueTask(Server.CallListener(this, header, payload));
 
     protected override void OnPacketAccounted(NetworkPacketType type, int size)
     {
