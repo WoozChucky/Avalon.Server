@@ -4,6 +4,7 @@ using System.Net.Sockets;
 using Avalon.Common.Telemetry;
 using Avalon.Common.Threading;
 using Avalon.Common.ValueObjects;
+using Avalon.Configuration;
 using Avalon.Hosting.Networking;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Generic;
@@ -12,6 +13,7 @@ using Avalon.World.Filters;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Packet = Avalon.Network.Packets.Packet;
 
 namespace Avalon.World;
@@ -35,8 +37,8 @@ public class WorldConnection : Connection, IWorldConnection
     private long _timeSyncOffset;
 
     public WorldConnection(IWorldServer server, TcpClient client, ILoggerFactory loggerFactory,
-        IPacketReader packetReader)
-        : base(loggerFactory.CreateLogger<WorldConnection>(), (server as IServerBase)!, packetReader)
+        IPacketReader packetReader, IOptions<HostingConfiguration> hostingOptions)
+        : base(loggerFactory.CreateLogger<WorldConnection>(), (server as IServerBase)!, packetReader, hostingOptions)
     {
         _server = server;
         _receiveQueue = new LockedQueue<WorldPacket>();
@@ -69,8 +71,11 @@ public class WorldConnection : Connection, IWorldConnection
     public bool InGame => Character != null;
     public bool InMap => InGame && _characterEntity?.Map > 0;
 
-    public void EnableTimeSyncWorker() => _ = Task.Factory.StartNew(TimeSyncWorker, CancellationTokenSource!.Token,
-        TaskCreationOptions.LongRunning, TaskScheduler.Default);
+    public void SendTimeSyncPing()
+    {
+        _lastServerTicks = DateTime.UtcNow.Ticks;
+        Send(SPingPacket.Create(_lastServerTicks, _lastClientTicks, RoundTripTime, _timeSyncOffset));
+    }
 
     public void OnPongReceived(long lastServerTimestamp, long clientReceivedTimestamp, long clientSentTimestamp)
     {
@@ -143,27 +148,6 @@ public class WorldConnection : Connection, IWorldConnection
         base.Send(packet);
     }
 
-    private async Task TimeSyncWorker()
-    {
-        bool firstIteration = true;
-        try
-        {
-            while (!CancellationTokenSource!.Token.IsCancellationRequested)
-            {
-                _lastServerTicks = DateTime.UtcNow.Ticks;
-
-                Send(SPingPacket.Create(_lastServerTicks, _lastClientTicks, RoundTripTime, _timeSyncOffset));
-
-                await Task.Delay(TimeSpan.FromSeconds(firstIteration ? 2 : 10), CancellationTokenSource!.Token);
-                firstIteration = false;
-            }
-        }
-        catch (OperationCanceledException)
-        {
-            // Ignore
-        }
-    }
-
     protected override void OnHandshakeFinished() => Server.CallConnectionListener(this);
 
     protected override Task<PacketStream> GetStream(TcpClient client) =>
@@ -177,19 +161,17 @@ public class WorldConnection : Connection, IWorldConnection
         await Server.RemoveConnection(this);
     }
 
-    protected override async Task OnReceive(NetworkPacketHeader header, Packet? payload)
+    protected override ValueTask OnReceive(NetworkPacketHeader header, Packet? payload)
     {
         if (_worldSessionFilter.CanProcess(header.Type) || _worldMapFilter.CanProcess(header.Type))
         {
             _receiveQueue.Add(new WorldPacket(header.Type, payload));
+            return ValueTask.CompletedTask;
         }
-        else
-        {
-            await Server.CallListener(this, header, payload);
-        }
+        return new ValueTask(Server.CallListener(this, header, payload));
     }
 
-    protected override void OnPacketAccounted(int size)
+    protected override void OnPacketAccounted(NetworkPacketType type, int size)
     {
         DiagnosticsConfig.World.BytesReceived.Add(size);
         DiagnosticsConfig.World.PacketsReceived.Add(1);
