@@ -32,6 +32,7 @@ public class WorldConnection : Connection, IWorldConnection
 
     private long _lastClientTicks;
     private long _lastServerTicks;
+    private long _nextTimeSyncTickCount;
     private ObservableGauge<double> _packetReceivedRate;
     private ObservableGauge<double> _packetSentRate;
     private long _timeSyncOffset;
@@ -71,8 +72,11 @@ public class WorldConnection : Connection, IWorldConnection
     public bool InGame => Character != null;
     public bool InMap => InGame && _characterEntity?.Map > 0;
 
-    public void EnableTimeSyncWorker() => _ = Task.Factory.StartNew(TimeSyncWorker, CancellationTokenSource!.Token,
-        TaskCreationOptions.LongRunning, TaskScheduler.Default);
+    public void SendTimeSyncPing()
+    {
+        _lastServerTicks = DateTime.UtcNow.Ticks;
+        Send(SPingPacket.Create(_lastServerTicks, _lastClientTicks, RoundTripTime, _timeSyncOffset));
+    }
 
     public void OnPongReceived(long lastServerTimestamp, long clientReceivedTimestamp, long clientSentTimestamp)
     {
@@ -143,27 +147,6 @@ public class WorldConnection : Connection, IWorldConnection
         DiagnosticsConfig.World.BytesSent.Add(packet.Size);
         DiagnosticsConfig.World.PacketsSent.Add(1);
         base.Send(packet);
-    }
-
-    private async Task TimeSyncWorker()
-    {
-        bool firstIteration = true;
-        try
-        {
-            while (!CancellationTokenSource!.Token.IsCancellationRequested)
-            {
-                _lastServerTicks = DateTime.UtcNow.Ticks;
-
-                Send(SPingPacket.Create(_lastServerTicks, _lastClientTicks, RoundTripTime, _timeSyncOffset));
-
-                await Task.Delay(TimeSpan.FromSeconds(firstIteration ? 2 : 10), CancellationTokenSource!.Token);
-                firstIteration = false;
-            }
-        }
-        catch (OperationCanceledException)
-        {
-            // Ignore
-        }
     }
 
     protected override void OnHandshakeFinished() => Server.CallConnectionListener(this);
