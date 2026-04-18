@@ -315,27 +315,9 @@ delegate (created once via `Delegate.CreateDelegate` or expression trees).
 
 ## GC-012 — `EnqueueContinuation<T>` boxes result and allocates two closures per character action
 
-**Status:** Open  
+**Status:** Resolved — `Continuation<T>` sealed class holds `Task<T>` and `Action<T>` directly. No `ContinueWith`, no closures, no boxing. `Execute()` calls `_callback(_task.Result)` after `IsCompletedSuccessfully` check. Queue is `ConcurrentQueue<IContinuation>`.  
 **Severity:** Medium  
-**File:** `src/Server/Avalon.World/WorldConnection.cs:214–221`
-
-### Problem
-
-```csharp
-Task<object> wrappedTask =
-    task.ContinueWith(t => (object)t.Result, ...);   // closure + boxing of T result
-Action<object> wrappedCallback = result => callback((T)result);  // second closure
-_genericTaskQueue.Enqueue((wrappedTask, wrappedCallback));
-```
-
-Every character event (select, enter map, attack hit) allocates two closure display classes
-and boxes the typed result through `object`.
-
-### Fix Direction
-
-Store the continuation as `(Task task, object state, Action<object, object> invoke)` where
-`state` is the typed callback, avoiding the inner closure. Or redesign the queue to hold
-`(Task<T>, Action<T>)` pairs via an interface, removing boxing entirely.
+**File:** `src/Server/Avalon.World/WorldConnection.cs:235–250`
 
 ---
 
@@ -408,7 +390,7 @@ pre-allocated / pooled list. Given the small typical size (<10 entries) an
 | 7 | ~~GC-009~~ | ~~`WorldPacket` class → struct~~ | ~~Medium~~ |
 | 8 | ~~GC-007~~ | ~~`PacketReader` reflection `new object?[]` per packet~~ | ~~Medium~~ |
 | 9 | ~~GC-013~~ | ~~`Task.Delay(1)` idle send loop~~ | ~~Medium~~ |
-| 10 | GC-012 | `EnqueueContinuation` boxing + two closures | Medium |
+| 10 | ~~GC-012~~ | ~~`EnqueueContinuation` boxing + two closures~~ | ~~Medium~~ |
 | 11 | ~~GC-008~~ | ~~Decrypt allocates new `byte[]` for payload~~ | ~~Medium~~ |
 | 12 | ~~GC-010~~ | ~~`Activator.CreateInstance` per packet dispatch~~ | ~~Medium~~ |
 | 13 | ~~GC-011~~ | ~~`ServerBase.CallListener` reflection `new[]` per call~~ | ~~Medium~~ |
