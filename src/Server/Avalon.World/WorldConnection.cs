@@ -32,7 +32,6 @@ public class WorldConnection : Connection, IWorldConnection
 
     private long _lastClientTicks;
     private long _lastServerTicks;
-    private long _nextTimeSyncTickCount;
     private ObservableGauge<double> _packetReceivedRate;
     private ObservableGauge<double> _packetSentRate;
     private long _timeSyncOffset;
