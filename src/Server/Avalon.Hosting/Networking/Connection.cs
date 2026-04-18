@@ -166,57 +166,65 @@ public abstract class Connection : BackgroundService, IConnection
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        if (_client is null)
-        {
-            _logger.LogCritical("Cannot execute when client is null");
-            return;
-        }
-
-        _logger.LogInformation("New connection from {RemoteEndPoint}", _client.Client.RemoteEndPoint?.ToString());
-
-        _stream = await GetStream(_client);
-
-        OnHandshakeFinished();
-
+        // try/finally guarantees Close runs on every exit path so the
+        // ctor's s_active registration is always paired with removal —
+        // otherwise pre-loop failures (null _client, GetStream throwing,
+        // OnHandshakeFinished throwing) would leak instances into the
+        // process-wide static dictionary forever.
         try
         {
-            await foreach (InboundPacketFrame frame in _packetReader.EnumerateAsync(_stream, stoppingToken))
+            if (_client is null)
             {
-                if (_logger.IsEnabled(LogLevel.Debug) &&
-                    frame.Header.Type != NetworkPacketType.CMSG_MOVEMENT &&
-                    frame.Header.Type != NetworkPacketType.CMSG_PONG)
+                _logger.LogCritical("Cannot execute when client is null");
+                return;
+            }
+
+            _logger.LogInformation("New connection from {RemoteEndPoint}", _client.Client.RemoteEndPoint?.ToString());
+
+            _stream = await GetStream(_client);
+
+            OnHandshakeFinished();
+
+            try
+            {
+                await foreach (InboundPacketFrame frame in _packetReader.EnumerateAsync(_stream, stoppingToken))
                 {
-                    _logger.LogDebug("IN: {Type}", frame.Header.Type);
+                    if (_logger.IsEnabled(LogLevel.Debug) &&
+                        frame.Header.Type != NetworkPacketType.CMSG_MOVEMENT &&
+                        frame.Header.Type != NetworkPacketType.CMSG_PONG)
+                    {
+                        _logger.LogDebug("IN: {Type}", frame.Header.Type);
+                    }
+
+                    Packet? payload = _packetReader.Read(
+                        frame,
+                        frame.Header.Flags.HasFlag(NetworkPacketFlags.Encrypted) ? CryptoSession.Decrypt : null);
+
+                    // Accumulate for rate calculation
+                    int packetSize = frame.Size;
+                    Interlocked.Add(ref BytesReceivedCount, packetSize);
+                    Interlocked.Increment(ref PacketReceivedCount);
+                    _packetTypeCounts.AddOrUpdate(frame.Header.Type, 1L, static (_, c) => c + 1);
+                    OnPacketAccounted(frame.Header.Type, packetSize);
+
+                    ValueTask receiveTask = OnReceive(frame.Header, payload);
+                    if (!receiveTask.IsCompletedSuccessfully)
+                        await receiveTask.ConfigureAwait(false);
                 }
-
-                Packet? payload = _packetReader.Read(
-                    frame,
-                    frame.Header.Flags.HasFlag(NetworkPacketFlags.Encrypted) ? CryptoSession.Decrypt : null);
-
-                // Accumulate for rate calculation
-                int packetSize = frame.Size;
-                Interlocked.Add(ref BytesReceivedCount, packetSize);
-                Interlocked.Increment(ref PacketReceivedCount);
-                _packetTypeCounts.AddOrUpdate(frame.Header.Type, 1L, static (_, c) => c + 1);
-                OnPacketAccounted(frame.Header.Type, packetSize);
-
-                ValueTask receiveTask = OnReceive(frame.Header, payload);
-                if (!receiveTask.IsCompletedSuccessfully)
-                    await receiveTask.ConfigureAwait(false);
+            }
+            catch (IOException e)
+            {
+                _logger.LogDebug(e, "Connection was closed. Probably by the other party");
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e, "Failed to read from stream");
             }
         }
-        catch (IOException e)
+        finally
         {
-            _logger.LogDebug(e, "Connection was closed. Probably by the other party");
             Close(false);
         }
-        catch (Exception e)
-        {
-            _logger.LogError(e, "Failed to read from stream");
-            Close(false);
-        }
-
-        Close(false);
     }
 
     private void CalculateAndLogRates(object? state)
