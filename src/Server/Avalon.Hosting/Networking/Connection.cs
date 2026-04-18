@@ -261,7 +261,6 @@ public abstract class Connection : BackgroundService, IConnection
 
                     await _stream.WriteAsync(_burstWriter.WrittenMemory,
                         CancellationTokenSource!.Token).ConfigureAwait(false);
-                    await _stream.FlushAsync(CancellationTokenSource!.Token).ConfigureAwait(false);
                 }
                 catch (SocketException e)
                 {
