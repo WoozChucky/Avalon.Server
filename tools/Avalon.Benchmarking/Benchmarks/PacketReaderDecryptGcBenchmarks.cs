@@ -1,4 +1,3 @@
-using System.Buffers;
 using System.IO;
 using Avalon.Configuration;
 using Avalon.Hosting.Networking;
@@ -16,7 +15,7 @@ namespace Avalon.Benchmarking.Benchmarks;
 /// Measures the allocation reduction from GC-008: replacing the old two-step
 /// <c>PacketReader.Decrypt</c> (which allocated a new <c>byte[]</c> for the decrypted
 /// payload and swapped <c>packet.Payload</c>) + <c>PacketReader.Read</c> with a single
-/// <c>PacketReader.Read(packet, decrypt)</c> call that rents an <c>ArrayPool&lt;byte&gt;</c>
+/// <c>PacketReader.Read(frame, decrypt)</c> call that rents an <c>ArrayPool&lt;byte&gt;</c>
 /// buffer, decrypts via spans, and returns the buffer to the pool within the same call.
 ///
 /// <para>
@@ -33,8 +32,8 @@ namespace Avalon.Benchmarking.Benchmarks;
 public class PacketReaderDecryptGcBenchmarks
 {
     private PacketReader _reader = null!;
-    private NetworkPacket _packet = null!;
     private byte[] _originalPayload = null!;
+    private NetworkPacketHeader _header;
 
     [GlobalSetup]
     public void Setup()
@@ -48,11 +47,7 @@ public class PacketReaderDecryptGcBenchmarks
         Serializer.Serialize(ms, new CChatMessagePacket { Message = "Hello, world!", DateTime = DateTime.UtcNow });
         _originalPayload = ms.ToArray();
 
-        _packet = new NetworkPacket
-        {
-            Header = new NetworkPacketHeader { Type = CChatMessagePacket.PacketType },
-            Payload = _originalPayload
-        };
+        _header = new NetworkPacketHeader { Type = CChatMessagePacket.PacketType };
     }
 
     // -----------------------------------------------------------------------
@@ -69,12 +64,13 @@ public class PacketReaderDecryptGcBenchmarks
     public object? Legacy_DecryptAndRead()
     {
         // Simulates old: packet.Payload = decryptFunc(packet.Payload)  (new byte[] per call)
-        _packet.Payload = _originalPayload.ToArray();   // allocates a new byte[] every call
-        return _reader.Read(_packet);
+        byte[] copy = _originalPayload.ToArray();   // allocates a new byte[] every call
+        var frame = new InboundPacketFrame(_header, copy.AsMemory());
+        return _reader.Read(frame);
     }
 
     // -----------------------------------------------------------------------
-    // Fixed: Read(packet, decrypt) — rented buffer, no payload swap
+    // Fixed: Read(frame, decrypt) — rented buffer, no payload swap
     //
     // At steady state the ArrayPool bucket for this size is pre-warmed;
     // Rent/Return is O(1) with no GC allocation.
@@ -86,5 +82,8 @@ public class PacketReaderDecryptGcBenchmarks
 
     [Benchmark]
     public object? Fixed_DecryptAndRead()
-        => _reader.Read(_packet, s_passthrough);
+    {
+        var frame = new InboundPacketFrame(_header, _originalPayload.AsMemory());
+        return _reader.Read(frame, s_passthrough);
+    }
 }
