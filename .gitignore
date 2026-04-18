@@ -1,5 +1,6 @@
 bin/
 obj/
+.worktrees/
 
 # Environment-specific appsettings overrides — never commit production/staging secrets
 appsettings.Production.json
