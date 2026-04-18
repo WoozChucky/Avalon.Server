@@ -36,118 +36,140 @@ public class PacketStream(Stream stream) : Stream
     public override long Length => stream.Length;
     public override long Position { get => stream.Position; set => stream.Position = value; }
 
-    public async Task<(int packetSize, int offset)?> ReadVarIntAsync(byte[] buffer, CancellationToken token = default)
+    /// <summary>
+    /// Buffered enumerator: issues larger reads into a rented refill buffer and
+    /// parses all complete frames out of it before returning to await another read.
+    /// In steady state this reduces the await count per packet from ≥2 (varint byte +
+    /// payload read) down to ≈0 (multiple packets typically arrive in one socket read).
+    /// </summary>
+    public async IAsyncEnumerable<InboundPacketFrame> EnumerateAsync(int initialBufferSize = 4096,
+        [EnumeratorCancellation] CancellationToken token = default)
     {
-        int packetSize = 0;
-        int shift = 0;
-        int index = 0;
-
-        while (true)
-        {
-            if (index >= buffer.Length)
-            {
-                throw new InvalidOperationException("Buffer overflow when reading varint.");
-            }
-
-            int bytesRead = await stream.ReadAsync(buffer.AsMemory(index, 1), token);
-            if (bytesRead == 0)
-            {
-                return null; // Clean disconnect — peer closed the socket
-            }
-
-            byte currentByte = buffer[index];
-            packetSize |= (currentByte & 0x7F) << shift;
-
-            if ((currentByte & 0x80) == 0)
-            {
-                return (packetSize, index + 1);
-            }
-
-            shift += 7;
-            index++;
-        }
-
+        await foreach (ReadOnlyMemory<byte> raw in EnumerateRawFramesAsync(initialBufferSize, token))
+            yield return InboundPacketFrame.ParseFrame(raw);
     }
 
-    public async Task ReadExactlyAsync(Memory<byte> buffer, CancellationToken token = default)
-    {
-        int totalRead = 0;
-        while (totalRead < buffer.Length)
-        {
-            int bytesRead = await stream.ReadAsync(buffer[totalRead..], token);
-            if (bytesRead == 0)
-            {
-                throw new EndOfStreamException("Stream ended before reading the expected number of bytes.");
-            }
-            totalRead += bytesRead;
-        }
-    }
-
-    // Efficient enumerator that yields InboundPacketFrame with minimal allocations
-    public async IAsyncEnumerable<InboundPacketFrame> EnumerateAsync(int initialBufferSize = 4096, [EnumeratorCancellation] CancellationToken token = default)
+    /// <summary>
+    /// Yields raw payload slices (varint length-prefix stripped). Slice memory is
+    /// valid only until the next iteration — consumers must materialize before advancing.
+    /// Public for testability of the buffered read loop independent of frame parsing.
+    /// </summary>
+    public async IAsyncEnumerable<ReadOnlyMemory<byte>> EnumerateRawFramesAsync(int initialBufferSize,
+        [EnumeratorCancellation] CancellationToken token = default)
     {
         byte[] buffer = ArrayPool<byte>.Shared.Rent(initialBufferSize);
+        int dataStart = 0;   // first unread byte
+        int dataEnd = 0;     // first empty byte
         try
         {
             while (true)
             {
-                int offset = 0;
-                int packetSize;
-                try
+                // 1) Try to parse varint length from already-buffered bytes.
+                (int packetSize, int varintLen)? lenResult = TryReadVarint(buffer.AsSpan(dataStart, dataEnd - dataStart));
+                if (lenResult is null)
                 {
-                    (int p, int o)? varint = await ReadVarIntAsync(buffer, token);
-                    if (varint is null)
+                    // Need more bytes for the varint. Refill or yield break on EOF/error.
+                    if (!await RefillAsync(buffer, dataStart, dataEnd, refilled => dataEnd = refilled, token).ConfigureAwait(false))
+                        yield break;
+
+                    // Compact if we filled the tail.
+                    if (dataEnd == buffer.Length && dataStart > 0)
                     {
-                        yield break; // Clean disconnect
+                        Buffer.BlockCopy(buffer, dataStart, buffer, 0, dataEnd - dataStart);
+                        dataEnd -= dataStart;
+                        dataStart = 0;
                     }
-
-                    (packetSize, offset) = varint.Value;
-                }
-                catch (ObjectDisposedException)
-                {
-                    yield break;
-                }
-                catch (IOException)
-                {
-                    yield break;
-                }
-                catch (OperationCanceledException)
-                {
-                    yield break;
+                    continue;
                 }
 
-                if (packetSize + offset > buffer.Length)
+                (int payloadLen, int varintBytes) = lenResult.Value;
+                int frameTotal = varintBytes + payloadLen;
+
+                // 2) Grow buffer if the frame is larger than current capacity.
+                if (frameTotal > buffer.Length)
                 {
-                    // Need a larger buffer for this packet; rent a bigger one
-                    int newSize = Math.Max(buffer.Length * 2, packetSize + offset);
+                    int newSize = Math.Max(buffer.Length * 2, frameTotal);
                     byte[] newBuffer = ArrayPool<byte>.Shared.Rent(newSize);
-                    // copy varint bytes already in buffer [0..offset)
-                    buffer.AsSpan(0, offset).CopyTo(newBuffer);
+                    Buffer.BlockCopy(buffer, dataStart, newBuffer, 0, dataEnd - dataStart);
                     ArrayPool<byte>.Shared.Return(buffer);
                     buffer = newBuffer;
+                    dataEnd -= dataStart;
+                    dataStart = 0;
                 }
 
-                try
+                // 3) Read until we have the full frame in the buffer.
+                while (dataEnd - dataStart < frameTotal)
                 {
-                    await ReadExactlyAsync(buffer.AsMemory(offset, packetSize), token);
-                }
-                catch (ObjectDisposedException)
-                {
-                    yield break;
-                }
-                catch (IOException)
-                {
-                    yield break;
+                    if (!await RefillAsync(buffer, dataStart, dataEnd, refilled => dataEnd = refilled, token).ConfigureAwait(false))
+                        yield break;
+
+                    if (dataEnd == buffer.Length && dataStart > 0)
+                    {
+                        Buffer.BlockCopy(buffer, dataStart, buffer, 0, dataEnd - dataStart);
+                        dataEnd -= dataStart;
+                        dataStart = 0;
+                    }
                 }
 
-                Memory<byte> packetBuffer = buffer.AsMemory(offset, packetSize);
-                yield return InboundPacketFrame.ParseFrame(packetBuffer);
+                // 4) Yield the payload slice (skip the varint header).
+                yield return new ReadOnlyMemory<byte>(buffer, dataStart + varintBytes, payloadLen);
+                dataStart += frameTotal;
+
+                // 5) Reset offsets when the buffer is drained — avoids unnecessary compaction.
+                if (dataStart == dataEnd)
+                {
+                    dataStart = 0;
+                    dataEnd = 0;
+                }
             }
         }
         finally
         {
             ArrayPool<byte>.Shared.Return(buffer);
         }
+    }
+
+    private async ValueTask<bool> RefillAsync(byte[] buffer, int dataStart, int dataEnd,
+        Action<int> setDataEnd, CancellationToken token)
+    {
+        int free = buffer.Length - dataEnd;
+        if (free == 0)
+        {
+            // Caller is responsible for compaction/growth; we only get here on a full buffer.
+            return true;
+        }
+
+        int read;
+        try
+        {
+            read = await stream.ReadAsync(buffer.AsMemory(dataEnd, free), token).ConfigureAwait(false);
+        }
+        catch (ObjectDisposedException) { return false; }
+        catch (IOException) { return false; }
+        catch (OperationCanceledException) { return false; }
+
+        if (read == 0) return false; // peer closed
+        setDataEnd(dataEnd + read);
+        return true;
+    }
+
+    /// <summary>
+    /// Attempts to read a varint from the front of <paramref name="span"/>. Returns null
+    /// if more bytes are needed. Returns (value, bytesConsumed) on success.
+    /// </summary>
+    private static (int value, int bytesConsumed)? TryReadVarint(ReadOnlySpan<byte> span)
+    {
+        int value = 0;
+        int shift = 0;
+        for (int i = 0; i < span.Length; i++)
+        {
+            byte b = span[i];
+            value |= (b & 0x7F) << shift;
+            if ((b & 0x80) == 0) return (value, i + 1);
+            shift += 7;
+            if (shift >= 35) throw new InvalidDataException("Varint too large for int32.");
+        }
+        return null;
     }
 
 }
