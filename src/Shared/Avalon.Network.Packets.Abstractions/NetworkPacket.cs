@@ -12,6 +12,7 @@ public class NetworkPacket
 
     public int Size => Header?.Size + Payload?.Length ?? 0;
 
+    [Obsolete("Server inbound path uses InboundPacketFrame.ParseFrame. This method is retained for client-side compatibility only.")]
     public static NetworkPacket Deserialize(ReadOnlyMemory<byte> buffer)
     {
         return Serializer.Deserialize<NetworkPacket>(buffer);
