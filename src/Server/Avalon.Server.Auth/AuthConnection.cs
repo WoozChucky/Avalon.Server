@@ -109,12 +109,12 @@ public class AuthConnection : Connection, IAuthConnection
         }
     }
 
-    protected override async Task OnReceive(NetworkPacket packet, Packet? payload)
+    protected override async Task OnReceive(InboundPacketFrame frame, Packet? payload)
     {
-        DiagnosticsConfig.Auth.BytesReceived.Add(packet.Size);
+        DiagnosticsConfig.Auth.BytesReceived.Add(frame.Size);
         DiagnosticsConfig.Auth.PacketsReceived.Add(1);
 
-        await Server.CallListener(this, packet, payload);
+        await Server.CallListener(this, frame.Header.Type, payload);
     }
 
 
