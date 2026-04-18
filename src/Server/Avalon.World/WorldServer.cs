@@ -124,6 +124,10 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
     private long _lastTpsCalculationMs;
     private long _tickCount;
 
+    // 60Hz × 10s = 600 ticks. Spread pings across ticks so all connections don't fire
+    // in the same tick — each connection gets its own offset based on its index.
+    private const int TimeSyncTicksPeriod = 600;
+
     private ObservableGauge<double> _tickRate;
     private Histogram<double> _tickDuration;
     private Histogram<double> _deadlineOvershoot;
@@ -363,6 +367,15 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         double worldUs = TicksToUs(t2 - t1);
         _worldUpdateHist.Record((long)worldUs);
         _worldUpdateDuration.Record(worldUs);
+
+        // Time-sync ping: stagger across the 600-tick window using each connection's
+        // list index, so 600 connections still produce only ~1 ping/tick worst case.
+        long phase = _tickCount % TimeSyncTicksPeriod;
+        for (int i = 0; i < conns.Length; i++)
+        {
+            if (i % TimeSyncTicksPeriod == phase)
+                conns[i].SendTimeSyncPing();
+        }
 
         foreach (IWorldConnection worldConnection in conns)
             worldConnection.FlushContinuations();
