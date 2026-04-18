@@ -1,3 +1,5 @@
+// Licensed to the Avalon ARPG Game under one or more agreements.
+// Avalon ARPG Game licenses this file to you under the MIT license.
 using System;
 using System.IO;
 using Avalon.Network.Packets.Abstractions;
@@ -41,7 +43,18 @@ public readonly struct InboundPacketFrame
             int fieldNumber = tag >> 3;
             int wireType = tag & 0x07;
             if (wireType != 2)
-                throw new InvalidDataException($"Unexpected protobuf wire type {wireType} for field {fieldNumber} in NetworkPacket frame.");
+            {
+                // Skip non-LEN-typed fields gracefully (forward-compatibility with schema additions).
+                switch (wireType)
+                {
+                    case 0: ReadVarint(span, ref pos); break;          // varint
+                    case 1: pos += 8; break;                           // 64-bit
+                    case 5: pos += 4; break;                           // 32-bit
+                    default: throw new InvalidDataException(
+                        $"Unsupported protobuf wire type {wireType} for field {fieldNumber} in NetworkPacket frame.");
+                }
+                continue;
+            }
 
             int len = ReadVarint(span, ref pos);
 
