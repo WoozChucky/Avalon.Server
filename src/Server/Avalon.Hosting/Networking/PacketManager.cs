@@ -13,12 +13,12 @@ namespace Avalon.Hosting.Networking;
 public interface IPacketManager
 {
     /// <summary>
-    /// Try to get a packet info by an actual packet
+    /// Try to get a packet info by packet type
     /// </summary>
-    /// <param name="packet"></param>
+    /// <param name="packetType"></param>
     /// <param name="info"></param>
     /// <returns>True if found</returns>
-    bool TryGetPacketInfo(NetworkPacket packet, out PacketInfo info);
+    bool TryGetPacketInfo(NetworkPacketType packetType, out PacketInfo info);
 }
 
 public class PacketManager : IPacketManager
@@ -63,8 +63,8 @@ public class PacketManager : IPacketManager
         }
     }
 
-    public bool TryGetPacketInfo(NetworkPacket packet, out PacketInfo packetInfo)
+    public bool TryGetPacketInfo(NetworkPacketType packetType, out PacketInfo packetInfo)
     {
-        return _infos.TryGetValue(packet.Header.Type, out packetInfo);
+        return _infos.TryGetValue(packetType, out packetInfo);
     }
 }

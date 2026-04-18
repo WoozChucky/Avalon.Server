@@ -29,11 +29,6 @@ public class PacketReaderShould
     public void UseConfiguredBufferSize_WhenConstructed()
     {
         var reader = Make(8192);
-
-        // The buffer size is consumed by EnumerateAsync (passed to PacketStream.EnumerateAsync).
-        // We can verify the configuration was accepted without throwing by simply instantiating
-        // with a non-default value. A deeper assertion would require an integration test with a
-        // real stream — this test guards against regressions in the constructor wiring.
         Assert.NotNull(reader);
     }
 
@@ -66,13 +61,11 @@ public class PacketReaderShould
         using var ms = new MemoryStream();
         Serializer.Serialize(ms, new CCharacterListPacket());
 
-        var networkPacket = new NetworkPacket
-        {
-            Header = new NetworkPacketHeader { Type = CCharacterListPacket.PacketType },
-            Payload = ms.ToArray()
-        };
+        var frame = new InboundPacketFrame(
+            new NetworkPacketHeader { Type = CCharacterListPacket.PacketType },
+            ms.ToArray().AsMemory());
 
-        var result = reader.Read(networkPacket);
+        var result = reader.Read(frame);
 
         Assert.IsType<CCharacterListPacket>(result);
     }
@@ -82,13 +75,11 @@ public class PacketReaderShould
     {
         var reader = MakeWith();
 
-        var networkPacket = new NetworkPacket
-        {
-            Header = new NetworkPacketHeader { Type = CCharacterListPacket.PacketType },
-            Payload = []
-        };
+        var frame = new InboundPacketFrame(
+            new NetworkPacketHeader { Type = CCharacterListPacket.PacketType },
+            ReadOnlyMemory<byte>.Empty);
 
-        var result = reader.Read(networkPacket);
+        var result = reader.Read(frame);
 
         Assert.Null(result);
     }
@@ -102,16 +93,14 @@ public class PacketReaderShould
         Serializer.Serialize(ms, new CCharacterListPacket());
         byte[] plaintext = ms.ToArray();
 
-        var networkPacket = new NetworkPacket
-        {
-            Header = new NetworkPacketHeader { Type = CCharacterListPacket.PacketType },
-            Payload = plaintext
-        };
+        var frame = new InboundPacketFrame(
+            new NetworkPacketHeader { Type = CCharacterListPacket.PacketType },
+            plaintext.AsMemory());
 
         // Passthrough: copies input to output unchanged — simulates decryption without real crypto
         DecryptFunc passthrough = (input, output) => { input.CopyTo(output); return input.Length; };
 
-        var result = reader.Read(networkPacket, passthrough);
+        var result = reader.Read(frame, passthrough);
 
         Assert.IsType<CCharacterListPacket>(result);
     }
