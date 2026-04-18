@@ -43,9 +43,10 @@ public interface IWorldConnection : IConnection
     public double LastMovementTime { get; set; }
 
     /// <summary>
-    ///     Enables the time synchronization worker for the connection.
+    ///     Sends a single time-synchronization ping to the client.
+    ///     Driven by <c>WorldServer</c>'s tick loop on a fixed cadence.
     /// </summary>
-    void EnableTimeSyncWorker();
+    void SendTimeSyncPing();
 
     /// <summary>
     ///     Called when a pong response is received.
