@@ -155,6 +155,9 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         _navigationMeshBaker = navigationMeshBaker;
         _logger = loggerFactory.CreateLogger<WorldServer>();
         _world = world as World ?? throw new InvalidOperationException("Invalid world instance");
+        
+        _logger.LogInformation("R2R enabled: {R2R}",
+            System.Runtime.CompilerServices.RuntimeFeature.IsSupported("IsDynamicCodeCompiled"));
 
         PacketHandlers = new Dictionary<NetworkPacketType, IWorldPacketHandler>();
 
