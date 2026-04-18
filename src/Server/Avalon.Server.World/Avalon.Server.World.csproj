@@ -36,9 +36,10 @@
 
     <PublishReadyToRun>true</PublishReadyToRun>
     <PublishReadyToRunComposite>true</PublishReadyToRunComposite>
+    <TieredCompilation>true</TieredCompilation>
+    <TieredPGO>true</TieredPGO>
     <ServerGarbageCollection>true</ServerGarbageCollection>
     <ConcurrentGarbageCollection>true</ConcurrentGarbageCollection>
-    <TieredPGO>true</TieredPGO>
     <DynamicPgoInstrumentOnly>false</DynamicPgoInstrumentOnly>
 
   </PropertyGroup>
