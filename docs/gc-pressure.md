@@ -208,7 +208,12 @@ Eliminates the array and the boxing on every deserialization call.
 
 ## GC-008 — `PacketReader.Decrypt` replaces payload with a freshly allocated `byte[]`
 
-**Status:** Resolved — `IAvalonCryptoSession.Decrypt` changed to span-based signature (`int Decrypt(ReadOnlySpan<byte>, byte[])`); span slices replace LINQ nonce/ciphertext copies; decrypted output written directly into caller-supplied `byte[]`; `PacketReader.Decrypt` removed; `Read` gains `DecryptFunc?` param, rents an `ArrayPool<byte>` buffer for the decrypt+deserialize path, returns it to the pool before returning — `packet.Payload` never swapped. Eliminates the decrypted-output `byte[]` allocation and the `packet.Payload` swap. Two allocations per encrypted call remain: 12-byte nonce `byte[]` (unavoidable, `ParametersWithIV` requires `byte[]`) and ciphertext `byte[]` (BouncyCastle 2.6.2 `IBufferedCipher` has no span overloads on its `netstandard2.0` build).  
+**Status:** Resolved (extended) — `NetworkPacket.Payload` Protobuf `byte[]` allocation eliminated.
+`PacketStream.EnumerateAsync` now yields `InboundPacketFrame` with a zero-copy `ReadOnlyMemory<byte>`
+slice of the rented stream buffer instead of calling `Serializer.Deserialize<NetworkPacket>`.
+`NetworkPacket` is now outbound-only. Residual allocations per encrypted inbound packet:
+12-byte nonce `byte[]` (BouncyCastle `ParametersWithIV` requires `byte[]`) and ciphertext `byte[]`
+(BouncyCastle 2.6.2 netstandard2.0 has no Span overloads) — both inside `AvalonCryptoSession.Decrypt`.  
 **Severity:** Medium  
 **File:** `src/Server/Avalon.Hosting/Networking/PacketReader.cs:71`
 
