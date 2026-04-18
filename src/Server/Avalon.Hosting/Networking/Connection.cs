@@ -129,7 +129,9 @@ public abstract class Connection : BackgroundService, IConnection
 
     protected abstract Task OnClose(bool expected = true);
 
-    protected abstract Task OnReceive(InboundPacketFrame frame, Packet? payload);
+    protected abstract Task OnReceive(NetworkPacketHeader header, Packet? payload);
+
+    protected virtual void OnPacketAccounted(int size) { }
 
     protected abstract long GetServerTime();
 
@@ -163,10 +165,12 @@ public abstract class Connection : BackgroundService, IConnection
                     frame.Header.Flags.HasFlag(NetworkPacketFlags.Encrypted) ? CryptoSession.Decrypt : null);
 
                 // Accumulate for rate calculation
-                Interlocked.Add(ref BytesReceivedCount, frame.Size);
+                int packetSize = frame.Size;
+                Interlocked.Add(ref BytesReceivedCount, packetSize);
                 Interlocked.Increment(ref PacketReceivedCount);
+                OnPacketAccounted(packetSize);
 
-                await OnReceive(frame, payload);
+                await OnReceive(frame.Header, payload);
             }
         }
         catch (IOException e)
