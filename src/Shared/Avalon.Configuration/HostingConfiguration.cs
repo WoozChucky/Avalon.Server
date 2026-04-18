@@ -20,4 +20,18 @@ public class HostingConfiguration
     /// </summary>
     [Range(10, 10000)]
     public int SendBufferCapacity { get; set; } = 100;
+
+    /// <summary>
+    /// When true, each <see cref="Connection"/> logs an inbound-packet-count snapshot
+    /// (grouped by <c>NetworkPacketType</c>) every <see cref="PacketTypeRateLogIntervalSeconds"/> seconds.
+    /// Counting is always on (≈100 ns / packet); only the periodic log is gated.
+    /// </summary>
+    public bool LogPacketTypeRates { get; set; } = false;
+
+    /// <summary>
+    /// Interval (seconds) between per-type packet snapshot logs. Only used when
+    /// <see cref="LogPacketTypeRates"/> is true. Valid range: 1–600. Defaults to 10.
+    /// </summary>
+    [Range(1, 600)]
+    public int PacketTypeRateLogIntervalSeconds { get; set; } = 10;
 }
