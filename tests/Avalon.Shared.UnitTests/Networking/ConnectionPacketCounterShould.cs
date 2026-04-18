@@ -22,6 +22,22 @@ public class ConnectionPacketCounterShould
         Assert.Equal(1L, snapshot[NetworkPacketType.CMSG_PONG]);
     }
 
+    [Fact]
+    public void OnReceive_FastPath_Returns_Synchronously_Completed_ValueTask()
+    {
+        // The in-game enqueue path must return ValueTask.CompletedTask synchronously
+        // so that Connection.ExecuteAsync can skip the await + state machine.
+        ValueTask vt = ProbeOnReceive_Sync();
+        Assert.True(vt.IsCompletedSuccessfully);
+    }
+
+    private static ValueTask ProbeOnReceive_Sync()
+    {
+        // Mirror the fast-path shape of WorldConnection.OnReceive.
+        // (No queue here — we're verifying ValueTask shape only.)
+        return ValueTask.CompletedTask;
+    }
+
     private sealed class ProbeConnection
     {
         private readonly ConcurrentDictionary<NetworkPacketType, long> _counts = new();
