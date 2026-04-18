@@ -18,8 +18,8 @@ public delegate int DecryptFunc(ReadOnlySpan<byte> input, byte[] output);
 
 public interface IPacketReader
 {
-    IAsyncEnumerable<NetworkPacket> EnumerateAsync(PacketStream stream, CancellationToken token = default);
-    Packet? Read(NetworkPacket packet, DecryptFunc? decrypt = null);
+    IAsyncEnumerable<InboundPacketFrame> EnumerateAsync(PacketStream stream, CancellationToken token = default);
+    Packet? Read(InboundPacketFrame frame, DecryptFunc? decrypt = null);
 }
 
 public class PacketReader : IPacketReader
@@ -63,21 +63,20 @@ public class PacketReader : IPacketReader
         }
     }
 
-    public async IAsyncEnumerable<NetworkPacket> EnumerateAsync(PacketStream stream,
+    public async IAsyncEnumerable<InboundPacketFrame> EnumerateAsync(PacketStream stream,
         [EnumeratorCancellation] CancellationToken token = default)
     {
-        // Delegate reading logic to PacketStream to centralize buffer/span handling
-        await foreach (var packet in stream.EnumerateAsync(_bufferSize, token))
+        await foreach (var frame in stream.EnumerateAsync(_bufferSize, token))
         {
-            yield return packet;
+            yield return frame;
         }
     }
 
-    public Packet? Read(NetworkPacket packet, DecryptFunc? decrypt = null)
+    public Packet? Read(InboundPacketFrame frame, DecryptFunc? decrypt = null)
     {
-        if (!_packetTypes.TryGetValue(packet.Header.Type, out Func<ReadOnlyMemory<byte>, Packet?>? deserializer))
+        if (!_packetTypes.TryGetValue(frame.Header.Type, out Func<ReadOnlyMemory<byte>, Packet?>? deserializer))
         {
-            _logger.LogWarning("Unknown packet type {PacketType}", packet.Header.Type);
+            _logger.LogWarning("Unknown packet type {PacketType}", frame.Header.Type);
             return null;
         }
 
@@ -89,13 +88,13 @@ public class PacketReader : IPacketReader
 
             if (decrypt != null)
             {
-                rented = ArrayPool<byte>.Shared.Rent(packet.Payload.Length);
-                int len = decrypt(packet.Payload.AsSpan(), rented);
+                rented = ArrayPool<byte>.Shared.Rent(frame.Payload.Length);
+                int len = decrypt(frame.Payload.Span, rented);
                 payload = rented.AsMemory(0, len);
             }
             else
             {
-                payload = new ReadOnlyMemory<byte>(packet.Payload);
+                payload = frame.Payload;
             }
 
             return deserializer(payload);
@@ -108,5 +107,4 @@ public class PacketReader : IPacketReader
 
     private static Func<ReadOnlyMemory<byte>, Packet?> BuildDeserializer<T>() where T : Packet
         => static memory => Serializer.Deserialize<T>(memory) as Packet;
-
 }

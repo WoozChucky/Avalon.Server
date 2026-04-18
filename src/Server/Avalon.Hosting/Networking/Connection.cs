@@ -129,7 +129,7 @@ public abstract class Connection : BackgroundService, IConnection
 
     protected abstract Task OnClose(bool expected = true);
 
-    protected abstract Task OnReceive(NetworkPacket packet, Packet? payload);
+    protected abstract Task OnReceive(InboundPacketFrame frame, Packet? payload);
 
     protected abstract long GetServerTime();
 
@@ -149,24 +149,24 @@ public abstract class Connection : BackgroundService, IConnection
 
         try
         {
-            await foreach (NetworkPacket packet in _packetReader.EnumerateAsync(_stream, stoppingToken))
+            await foreach (InboundPacketFrame frame in _packetReader.EnumerateAsync(_stream, stoppingToken))
             {
                 if (_logger.IsEnabled(LogLevel.Debug) &&
-                    packet.Header.Type != NetworkPacketType.CMSG_MOVEMENT &&
-                    packet.Header.Type != NetworkPacketType.CMSG_PONG)
+                    frame.Header.Type != NetworkPacketType.CMSG_MOVEMENT &&
+                    frame.Header.Type != NetworkPacketType.CMSG_PONG)
                 {
-                    _logger.LogDebug("IN: {Type} => {Data}", packet.Header.Type, JsonSerializer.Serialize(packet));
+                    _logger.LogDebug("IN: {Type}", frame.Header.Type);
                 }
 
                 Packet? payload = _packetReader.Read(
-                    packet,
-                    packet.Header.Flags.HasFlag(NetworkPacketFlags.Encrypted) ? CryptoSession.Decrypt : null);
+                    frame,
+                    frame.Header.Flags.HasFlag(NetworkPacketFlags.Encrypted) ? CryptoSession.Decrypt : null);
 
                 // Accumulate for rate calculation
-                Interlocked.Add(ref BytesReceivedCount, packet.Size);
+                Interlocked.Add(ref BytesReceivedCount, frame.Size);
                 Interlocked.Increment(ref PacketReceivedCount);
 
-                await OnReceive(packet, payload);
+                await OnReceive(frame, payload);
             }
         }
         catch (IOException e)
