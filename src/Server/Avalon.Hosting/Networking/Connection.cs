@@ -1,5 +1,7 @@
 using System;
 using System.Buffers;
+using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.IO;
 using System.Net.Sockets;
 using System.Text.Json;
@@ -7,11 +9,13 @@ using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
 using Avalon.Common.Cryptography;
+using Avalon.Configuration;
 using Avalon.Network.Packets;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Serialization;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using ProtoBuf;
 
 namespace Avalon.Hosting.Networking;
@@ -39,6 +43,10 @@ public abstract class Connection : BackgroundService, IConnection
     // Timer for calculating rates every second
     private readonly Timer _rateCalculationTimer;
 
+    private readonly ConcurrentDictionary<NetworkPacketType, long> _packetTypeCounts = new();
+    private readonly bool _logPacketTypeRates;
+    private readonly Timer? _packetTypeLogTimer;
+
     protected readonly IServerBase Server;
 
     private TcpClient? _client;
@@ -58,7 +66,8 @@ public abstract class Connection : BackgroundService, IConnection
     protected int PacketSentCount;
     protected double PacketSentRate;
 
-    protected Connection(ILogger logger, IServerBase server, IPacketReader packetReader)
+    protected Connection(ILogger logger, IServerBase server, IPacketReader packetReader,
+        IOptions<HostingConfiguration> hostingOptions)
     {
         _logger = logger;
         _packetReader = packetReader;
@@ -74,6 +83,14 @@ public abstract class Connection : BackgroundService, IConnection
 
         // Start a timer to calculate and log rates every second
         _rateCalculationTimer = new Timer(CalculateAndLogRates, null, TimeSpan.Zero, TimeSpan.FromSeconds(1));
+
+        HostingConfiguration cfg = hostingOptions.Value;
+        _logPacketTypeRates = cfg.LogPacketTypeRates;
+        if (_logPacketTypeRates)
+        {
+            TimeSpan interval = TimeSpan.FromSeconds(cfg.PacketTypeRateLogIntervalSeconds);
+            _packetTypeLogTimer = new Timer(LogPacketTypeSnapshot, null, interval, interval);
+        }
     }
 
     protected bool IsConnected => _client?.Connected == true;
@@ -92,6 +109,7 @@ public abstract class Connection : BackgroundService, IConnection
         CancellationTokenSource?.Cancel();
         _channel.Writer.TryComplete();
         _client?.Close();
+        _packetTypeLogTimer?.Dispose();
         _closed = true;
         OnClose(expected);
     }
@@ -131,7 +149,7 @@ public abstract class Connection : BackgroundService, IConnection
 
     protected abstract Task OnReceive(NetworkPacketHeader header, Packet? payload);
 
-    protected virtual void OnPacketAccounted(int size) { }
+    protected virtual void OnPacketAccounted(NetworkPacketType type, int size) { }
 
     protected abstract long GetServerTime();
 
@@ -168,7 +186,8 @@ public abstract class Connection : BackgroundService, IConnection
                 int packetSize = frame.Size;
                 Interlocked.Add(ref BytesReceivedCount, packetSize);
                 Interlocked.Increment(ref PacketReceivedCount);
-                OnPacketAccounted(packetSize);
+                _packetTypeCounts.AddOrUpdate(frame.Header.Type, 1L, static (_, c) => c + 1);
+                OnPacketAccounted(frame.Header.Type, packetSize);
 
                 await OnReceive(frame.Header, payload);
             }
@@ -295,5 +314,26 @@ public abstract class Connection : BackgroundService, IConnection
         while (value > 0x7F) { span[i++] = (byte)((value & 0x7F) | 0x80); value >>= 7; }
         span[i++] = (byte)value;
         writer.Advance(i);
+    }
+
+    private void LogPacketTypeSnapshot(object? state)
+    {
+        if (_packetTypeCounts.IsEmpty) return;
+
+        // Snapshot then reset — slight skew is OK for diagnostics.
+        KeyValuePair<NetworkPacketType, long>[] snapshot = _packetTypeCounts.ToArray();
+        foreach (var kv in snapshot)
+            _packetTypeCounts.TryUpdate(kv.Key, 0L, kv.Value);
+
+        Array.Sort(snapshot, static (a, b) => b.Value.CompareTo(a.Value));
+        int top = Math.Min(snapshot.Length, 10);
+        var sb = new System.Text.StringBuilder(64 + top * 32);
+        sb.Append("Conn ").Append(Id).Append(" inbound (top ").Append(top).Append("): ");
+        for (int i = 0; i < top; i++)
+        {
+            if (i > 0) sb.Append(", ");
+            sb.Append(snapshot[i].Key).Append('=').Append(snapshot[i].Value);
+        }
+        _logger.LogInformation("{Snapshot}", sb.ToString());
     }
 }
