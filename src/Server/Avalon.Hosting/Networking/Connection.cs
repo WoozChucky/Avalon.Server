@@ -40,8 +40,19 @@ public abstract class Connection : BackgroundService, IConnection
 
     private readonly Channel<NetworkPacket> _channel;
 
-    // Timer for calculating rates every second
-    private readonly Timer _rateCalculationTimer;
+    // Single timer shared across all Connection instances.
+    private static readonly ConcurrentDictionary<Guid, Connection> s_active = new();
+    private static readonly Timer s_rateTimer =
+        new(_ => RecalculateAllRates(), null, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1));
+
+    private static void RecalculateAllRates()
+    {
+        foreach (Connection c in s_active.Values)
+        {
+            try { c.CalculateAndLogRates(null); }
+            catch { /* swallow — diagnostics path must not crash other connections */ }
+        }
+    }
 
     private readonly ConcurrentDictionary<NetworkPacketType, long> _packetTypeCounts = new();
     private readonly bool _logPacketTypeRates;
@@ -81,8 +92,7 @@ public abstract class Connection : BackgroundService, IConnection
             SingleWriter = false
         });
 
-        // Start a timer to calculate and log rates every second
-        _rateCalculationTimer = new Timer(CalculateAndLogRates, null, TimeSpan.Zero, TimeSpan.FromSeconds(1));
+        s_active[Id] = this;
 
         HostingConfiguration cfg = hostingOptions.Value;
         _logPacketTypeRates = cfg.LogPacketTypeRates;
@@ -110,6 +120,7 @@ public abstract class Connection : BackgroundService, IConnection
         _channel.Writer.TryComplete();
         _client?.Close();
         _packetTypeLogTimer?.Dispose();
+        s_active.TryRemove(Id, out _);
         _closed = true;
         OnClose(expected);
     }
