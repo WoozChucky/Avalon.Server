@@ -42,7 +42,7 @@ public class WorldHandshakeHandlerShould
     }
 
     [Fact]
-    public async Task NotSendTimeSyncPing_AfterSendingHandshake_BecauseTickLoopDrivesCadence()
+    public async Task SendInitialTimeSyncPing_AfterSendingHandshake_ToWarmUpRtt()
     {
         var ctx = new WorldPacketContext<CWorldHandshakePacket>
         {
@@ -52,7 +52,7 @@ public class WorldHandshakeHandlerShould
 
         await _handler.ExecuteAsync(ctx);
 
-        _connection.DidNotReceive().SendTimeSyncPing();
+        _connection.Received(1).SendTimeSyncPing();
     }
 
     [Fact]
