@@ -1,5 +1,7 @@
 using System;
 using System.Buffers;
+using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.IO;
 using System.Net.Sockets;
 using System.Text.Json;
@@ -7,11 +9,13 @@ using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
 using Avalon.Common.Cryptography;
+using Avalon.Configuration;
 using Avalon.Network.Packets;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Serialization;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using ProtoBuf;
 
 namespace Avalon.Hosting.Networking;
@@ -36,8 +40,23 @@ public abstract class Connection : BackgroundService, IConnection
 
     private readonly Channel<NetworkPacket> _channel;
 
-    // Timer for calculating rates every second
-    private readonly Timer _rateCalculationTimer;
+    // Single timer shared across all Connection instances.
+    private static readonly ConcurrentDictionary<Guid, Connection> s_active = new();
+    private static readonly Timer s_rateTimer =
+        new(_ => RecalculateAllRates(), null, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1));
+
+    private static void RecalculateAllRates()
+    {
+        foreach (Connection c in s_active.Values)
+        {
+            try { c.CalculateAndLogRates(null); }
+            catch { /* swallow — diagnostics path must not crash other connections */ }
+        }
+    }
+
+    private readonly ConcurrentDictionary<NetworkPacketType, long> _packetTypeCounts = new();
+    private readonly bool _logPacketTypeRates;
+    private readonly Timer? _packetTypeLogTimer;
 
     protected readonly IServerBase Server;
 
@@ -58,7 +77,8 @@ public abstract class Connection : BackgroundService, IConnection
     protected int PacketSentCount;
     protected double PacketSentRate;
 
-    protected Connection(ILogger logger, IServerBase server, IPacketReader packetReader)
+    protected Connection(ILogger logger, IServerBase server, IPacketReader packetReader,
+        IOptions<HostingConfiguration> hostingOptions)
     {
         _logger = logger;
         _packetReader = packetReader;
@@ -72,8 +92,15 @@ public abstract class Connection : BackgroundService, IConnection
             SingleWriter = false
         });
 
-        // Start a timer to calculate and log rates every second
-        _rateCalculationTimer = new Timer(CalculateAndLogRates, null, TimeSpan.Zero, TimeSpan.FromSeconds(1));
+        s_active[Id] = this;
+
+        HostingConfiguration cfg = hostingOptions.Value;
+        _logPacketTypeRates = cfg.LogPacketTypeRates;
+        if (_logPacketTypeRates)
+        {
+            TimeSpan interval = TimeSpan.FromSeconds(cfg.PacketTypeRateLogIntervalSeconds);
+            _packetTypeLogTimer = new Timer(LogPacketTypeSnapshot, null, interval, interval);
+        }
     }
 
     protected bool IsConnected => _client?.Connected == true;
@@ -92,6 +119,8 @@ public abstract class Connection : BackgroundService, IConnection
         CancellationTokenSource?.Cancel();
         _channel.Writer.TryComplete();
         _client?.Close();
+        _packetTypeLogTimer?.Dispose();
+        s_active.TryRemove(Id, out _);
         _closed = true;
         OnClose(expected);
     }
@@ -129,62 +158,73 @@ public abstract class Connection : BackgroundService, IConnection
 
     protected abstract Task OnClose(bool expected = true);
 
-    protected abstract Task OnReceive(NetworkPacketHeader header, Packet? payload);
+    protected abstract ValueTask OnReceive(NetworkPacketHeader header, Packet? payload);
 
-    protected virtual void OnPacketAccounted(int size) { }
+    protected virtual void OnPacketAccounted(NetworkPacketType type, int size) { }
 
     protected abstract long GetServerTime();
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        if (_client is null)
-        {
-            _logger.LogCritical("Cannot execute when client is null");
-            return;
-        }
-
-        _logger.LogInformation("New connection from {RemoteEndPoint}", _client.Client.RemoteEndPoint?.ToString());
-
-        _stream = await GetStream(_client);
-
-        OnHandshakeFinished();
-
+        // try/finally guarantees Close runs on every exit path so the
+        // ctor's s_active registration is always paired with removal —
+        // otherwise pre-loop failures (null _client, GetStream throwing,
+        // OnHandshakeFinished throwing) would leak instances into the
+        // process-wide static dictionary forever.
         try
         {
-            await foreach (InboundPacketFrame frame in _packetReader.EnumerateAsync(_stream, stoppingToken))
+            if (_client is null)
             {
-                if (_logger.IsEnabled(LogLevel.Debug) &&
-                    frame.Header.Type != NetworkPacketType.CMSG_MOVEMENT &&
-                    frame.Header.Type != NetworkPacketType.CMSG_PONG)
+                _logger.LogCritical("Cannot execute when client is null");
+                return;
+            }
+
+            _logger.LogInformation("New connection from {RemoteEndPoint}", _client.Client.RemoteEndPoint?.ToString());
+
+            _stream = await GetStream(_client);
+
+            OnHandshakeFinished();
+
+            try
+            {
+                await foreach (InboundPacketFrame frame in _packetReader.EnumerateAsync(_stream, stoppingToken))
                 {
-                    _logger.LogDebug("IN: {Type}", frame.Header.Type);
+                    if (_logger.IsEnabled(LogLevel.Debug) &&
+                        frame.Header.Type != NetworkPacketType.CMSG_MOVEMENT &&
+                        frame.Header.Type != NetworkPacketType.CMSG_PONG)
+                    {
+                        _logger.LogDebug("IN: {Type}", frame.Header.Type);
+                    }
+
+                    Packet? payload = _packetReader.Read(
+                        frame,
+                        frame.Header.Flags.HasFlag(NetworkPacketFlags.Encrypted) ? CryptoSession.Decrypt : null);
+
+                    // Accumulate for rate calculation
+                    int packetSize = frame.Size;
+                    Interlocked.Add(ref BytesReceivedCount, packetSize);
+                    Interlocked.Increment(ref PacketReceivedCount);
+                    _packetTypeCounts.AddOrUpdate(frame.Header.Type, 1L, static (_, c) => c + 1);
+                    OnPacketAccounted(frame.Header.Type, packetSize);
+
+                    ValueTask receiveTask = OnReceive(frame.Header, payload);
+                    if (!receiveTask.IsCompletedSuccessfully)
+                        await receiveTask.ConfigureAwait(false);
                 }
-
-                Packet? payload = _packetReader.Read(
-                    frame,
-                    frame.Header.Flags.HasFlag(NetworkPacketFlags.Encrypted) ? CryptoSession.Decrypt : null);
-
-                // Accumulate for rate calculation
-                int packetSize = frame.Size;
-                Interlocked.Add(ref BytesReceivedCount, packetSize);
-                Interlocked.Increment(ref PacketReceivedCount);
-                OnPacketAccounted(packetSize);
-
-                await OnReceive(frame.Header, payload);
+            }
+            catch (IOException e)
+            {
+                _logger.LogDebug(e, "Connection was closed. Probably by the other party");
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e, "Failed to read from stream");
             }
         }
-        catch (IOException e)
+        finally
         {
-            _logger.LogDebug(e, "Connection was closed. Probably by the other party");
             Close(false);
         }
-        catch (Exception e)
-        {
-            _logger.LogError(e, "Failed to read from stream");
-            Close(false);
-        }
-
-        Close(false);
     }
 
     private void CalculateAndLogRates(object? state)
@@ -242,7 +282,6 @@ public abstract class Connection : BackgroundService, IConnection
 
                     await _stream.WriteAsync(_burstWriter.WrittenMemory,
                         CancellationTokenSource!.Token).ConfigureAwait(false);
-                    await _stream.FlushAsync(CancellationTokenSource!.Token).ConfigureAwait(false);
                 }
                 catch (SocketException e)
                 {
@@ -295,5 +334,26 @@ public abstract class Connection : BackgroundService, IConnection
         while (value > 0x7F) { span[i++] = (byte)((value & 0x7F) | 0x80); value >>= 7; }
         span[i++] = (byte)value;
         writer.Advance(i);
+    }
+
+    private void LogPacketTypeSnapshot(object? state)
+    {
+        if (_packetTypeCounts.IsEmpty) return;
+
+        // Snapshot then reset — slight skew is OK for diagnostics.
+        KeyValuePair<NetworkPacketType, long>[] snapshot = _packetTypeCounts.ToArray();
+        foreach (var kv in snapshot)
+            _packetTypeCounts.TryUpdate(kv.Key, 0L, kv.Value);
+
+        Array.Sort(snapshot, static (a, b) => b.Value.CompareTo(a.Value));
+        int top = Math.Min(snapshot.Length, 10);
+        var sb = new System.Text.StringBuilder(64 + top * 32);
+        sb.Append("Conn ").Append(Id).Append(" inbound (top ").Append(top).Append("): ");
+        for (int i = 0; i < top; i++)
+        {
+            if (i > 0) sb.Append(", ");
+            sb.Append(snapshot[i].Key).Append('=').Append(snapshot[i].Value);
+        }
+        _logger.LogInformation("{Snapshot}", sb.ToString());
     }
 }

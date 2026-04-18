@@ -29,7 +29,8 @@ public sealed class ProcessContinuationsShould : IDisposable
             server,
             clientSide,
             NullLoggerFactory.Instance,
-            Substitute.For<IPacketReader>());
+            Substitute.For<IPacketReader>(),
+            Microsoft.Extensions.Options.Options.Create(new Avalon.Configuration.HostingConfiguration()));
     }
 
     public void Dispose()
