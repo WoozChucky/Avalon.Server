@@ -42,7 +42,7 @@ public class WorldHandshakeHandlerShould
     }
 
     [Fact]
-    public async Task EnableTimeSyncWorker_AfterSendingHandshake()
+    public async Task SendInitialTimeSyncPing_AfterSendingHandshake_ToWarmUpRtt()
     {
         var ctx = new WorldPacketContext<CWorldHandshakePacket>
         {
@@ -52,7 +52,7 @@ public class WorldHandshakeHandlerShould
 
         await _handler.ExecuteAsync(ctx);
 
-        _connection.Received(1).EnableTimeSyncWorker();
+        _connection.Received(1).SendTimeSyncPing();
     }
 
     [Fact]
