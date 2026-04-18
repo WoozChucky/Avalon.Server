@@ -177,19 +177,22 @@ public class WorldConnection : Connection, IWorldConnection
         await Server.RemoveConnection(this);
     }
 
-    protected override async Task OnReceive(InboundPacketFrame frame, Packet? payload)
+    protected override async Task OnReceive(NetworkPacketHeader header, Packet? payload)
     {
-        DiagnosticsConfig.World.BytesReceived.Add(frame.Size);
-        DiagnosticsConfig.World.PacketsReceived.Add(1);
-
-        if (_worldSessionFilter.CanProcess(frame.Header.Type) || _worldMapFilter.CanProcess(frame.Header.Type))
+        if (_worldSessionFilter.CanProcess(header.Type) || _worldMapFilter.CanProcess(header.Type))
         {
-            _receiveQueue.Add(new WorldPacket(frame.Header.Type, payload));
+            _receiveQueue.Add(new WorldPacket(header.Type, payload));
         }
         else
         {
-            await Server.CallListener(this, frame.Header.Type, payload);
+            await Server.CallListener(this, header, payload);
         }
+    }
+
+    protected override void OnPacketAccounted(int size)
+    {
+        DiagnosticsConfig.World.BytesReceived.Add(size);
+        DiagnosticsConfig.World.PacketsReceived.Add(1);
     }
 
     protected override long GetServerTime() => Server.ServerTime;
