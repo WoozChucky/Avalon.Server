@@ -177,18 +177,18 @@ public class WorldConnection : Connection, IWorldConnection
         await Server.RemoveConnection(this);
     }
 
-    protected override async Task OnReceive(NetworkPacket packet, Packet? payload)
+    protected override async Task OnReceive(InboundPacketFrame frame, Packet? payload)
     {
-        DiagnosticsConfig.World.BytesReceived.Add(packet.Size);
+        DiagnosticsConfig.World.BytesReceived.Add(frame.Size);
         DiagnosticsConfig.World.PacketsReceived.Add(1);
 
-        if (_worldSessionFilter.CanProcess(packet.Header.Type) || _worldMapFilter.CanProcess(packet.Header.Type))
+        if (_worldSessionFilter.CanProcess(frame.Header.Type) || _worldMapFilter.CanProcess(frame.Header.Type))
         {
-            _receiveQueue.Add(new WorldPacket(packet.Header.Type, payload));
+            _receiveQueue.Add(new WorldPacket(frame.Header.Type, payload));
         }
         else
         {
-            await Server.CallListener(this, packet, payload);
+            await Server.CallListener(this, frame.Header.Type, payload);
         }
     }
 

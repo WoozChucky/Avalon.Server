@@ -11,7 +11,6 @@ namespace Avalon.Hosting.Networking;
 using System.Buffers;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
-using Avalon.Network.Packets.Abstractions;
 
 public class PacketStream(Stream stream) : Stream
 {
@@ -84,8 +83,8 @@ public class PacketStream(Stream stream) : Stream
         }
     }
 
-    // New: Efficient enumerator that yields NetworkPacket with minimal allocations
-    public async IAsyncEnumerable<NetworkPacket> EnumerateAsync(int initialBufferSize = 4096, [EnumeratorCancellation] CancellationToken token = default)
+    // Efficient enumerator that yields InboundPacketFrame with minimal allocations
+    public async IAsyncEnumerable<InboundPacketFrame> EnumerateAsync(int initialBufferSize = 4096, [EnumeratorCancellation] CancellationToken token = default)
     {
         byte[] buffer = ArrayPool<byte>.Shared.Rent(initialBufferSize);
         try
@@ -142,7 +141,7 @@ public class PacketStream(Stream stream) : Stream
                 }
 
                 Memory<byte> packetBuffer = buffer.AsMemory(offset, packetSize);
-                yield return NetworkPacket.Deserialize(packetBuffer);
+                yield return InboundPacketFrame.ParseFrame(packetBuffer);
             }
         }
         finally

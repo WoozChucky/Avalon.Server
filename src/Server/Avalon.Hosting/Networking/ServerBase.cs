@@ -22,7 +22,7 @@ namespace Avalon.Hosting.Networking;
 public interface IServerBase
 {
     Task RemoveConnection(IConnection connection);
-    Task CallListener(IConnection connection, NetworkPacket packet, Packet? payload);
+    Task CallListener(IConnection connection, NetworkPacketType packetType, Packet? payload);
     long ServerTime { get; }
     public ICryptoManager Crypto { get; }
     int SendBufferCapacity { get; }
@@ -152,11 +152,11 @@ public abstract class ServerBase<T> : BackgroundService, IServerBase where T : I
         _connectionListeners.Add(listener);
     }
 
-    public async Task CallListener(IConnection connection, NetworkPacket packet, Packet? payload)
+    public async Task CallListener(IConnection connection, NetworkPacketType packetType, Packet? payload)
     {
-        if (!PacketManager.TryGetPacketInfo(packet, out var details) || details.PacketHandlerType is null)
+        if (!PacketManager.TryGetPacketInfo(packetType, out var details) || details.PacketHandlerType is null)
         {
-            _logger.LogWarning("Could not find a handler for packet {PacketType}", packet.Header.Type);
+            _logger.LogWarning("Could not find a handler for packet {PacketType}", packetType);
             return;
         }
 
