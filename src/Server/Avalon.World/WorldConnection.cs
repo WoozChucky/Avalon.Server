@@ -179,16 +179,14 @@ public class WorldConnection : Connection, IWorldConnection
         await Server.RemoveConnection(this);
     }
 
-    protected override async Task OnReceive(NetworkPacketHeader header, Packet? payload)
+    protected override ValueTask OnReceive(NetworkPacketHeader header, Packet? payload)
     {
         if (_worldSessionFilter.CanProcess(header.Type) || _worldMapFilter.CanProcess(header.Type))
         {
             _receiveQueue.Add(new WorldPacket(header.Type, payload));
+            return ValueTask.CompletedTask;
         }
-        else
-        {
-            await Server.CallListener(this, header, payload);
-        }
+        return new ValueTask(Server.CallListener(this, header, payload));
     }
 
     protected override void OnPacketAccounted(NetworkPacketType type, int size)
