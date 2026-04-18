@@ -115,7 +115,8 @@ public class CharacterSelectHandler(
             _ => PowerType.None
         };
 
-        connection.Character = entity;
+        // connection.Character is NOT assigned here. Assignment is deferred to OnSpellsReceived
+        // so the tick loop only sees a fully-initialized entity (inventory + spells loaded).
 
         MapTemplate? townTemplate = world.MapTemplates.FirstOrDefault(t => t.Id == (MapTemplateId)character.Map);
         if (townTemplate == null)
@@ -147,18 +148,6 @@ public class CharacterSelectHandler(
 
         Character character = entity.Data!;
 
-        try
-        {
-            world.SpawnInInstance(connection, instance);
-        }
-        catch (Exception e)
-        {
-            connection.Character = null;
-            logger.LogError(e, "Error while spawning player {CharacterId}", character.Id);
-            activity?.AddEvent(new ActivityEvent("SpawnPlayerError"));
-            return;
-        }
-
         CharacterInfo characterInfo = new()
         {
             CharacterId = character.Id,
@@ -186,32 +175,21 @@ public class CharacterSelectHandler(
 
         connection.EnqueueContinuation(characterRepository.UpdateAsync(character), _ =>
         {
-            logger.LogInformation("Character {CharacterId} logged in for account {AccountId} at {Position}",
-                character.Name, connection.AccountId, connection.Character!.Position);
-
             connection.EnqueueContinuation(characterInventoryRepository.GetByCharacterIdAsync(character.Id),
-                items => { OnInventoryReceived(connection, character, items); });
+                items => OnInventoryReceived(connection, entity, instance, character, items));
         });
 
         _parentActivity = activity;
     }
 
-    private void OnInventoryReceived(IWorldConnection connection, Character character,
-        IReadOnlyCollection<CharacterInventory> items)
+    private void OnInventoryReceived(IWorldConnection connection, CharacterEntity entity, IMapInstance instance,
+        Character character, IReadOnlyCollection<CharacterInventory> items)
     {
         using Activity? activity = DiagnosticsConfig.World.Source.StartActivity(nameof(OnInventoryReceived),
             ActivityKind.Internal,
             _parentActivity?.Context ?? default);
         activity?.SetTag(nameof(connection.AccountId), connection.AccountId);
         activity?.SetTag("CharacterId", character.Id);
-
-        ICharacter? entity = connection.Character;
-        if (entity == null)
-        {
-            logger.LogWarning("Character entity is null for account {AccountId}", connection.AccountId);
-            activity?.AddEvent(new ActivityEvent("CharacterEntityNull"));
-            return;
-        }
 
         entity[InventoryType.Equipment].Load(items.Where(i => i.Container == InventoryType.Equipment).ToList());
         entity[InventoryType.Bag].Load(items.Where(i => i.Container == InventoryType.Bag).ToList());
@@ -220,11 +198,12 @@ public class CharacterSelectHandler(
         //TODO: Send inventory to the client
 
         connection.EnqueueContinuation(characterSpellRepository.GetCharacterSpellsAsync(character.Id),
-            spells => { OnSpellsReceived(connection, spells); });
+            spells => OnSpellsReceived(connection, entity, instance, spells));
         _parentActivity = activity;
     }
 
-    private void OnSpellsReceived(IWorldConnection connection, IReadOnlyCollection<CharacterSpell> spells)
+    private void OnSpellsReceived(IWorldConnection connection, CharacterEntity entity, IMapInstance instance,
+        IReadOnlyCollection<CharacterSpell> spells)
     {
         using Activity? activity = DiagnosticsConfig.World.Source.StartActivity(nameof(OnSpellsReceived),
             ActivityKind.Internal,
@@ -265,7 +244,7 @@ public class CharacterSelectHandler(
             gameSpells.Add(gameSpell);
         }
 
-        connection.Character!.Spells.Load(gameSpells);
+        entity.Spells.Load(gameSpells);
 
         SpellInfo[] spellInfos = gameSpells.Select(s => new SpellInfo
         {
@@ -278,6 +257,22 @@ public class CharacterSelectHandler(
         }).ToArray();
 
         connection.Send(SCharacterSpellsPacket.Create(spellInfos, connection.CryptoSession.Encrypt));
+
+        // All data loaded: assign character and spawn atomically on the tick thread.
+        // After this point the entity is visible to MapInstance.Update.
+        connection.Character = entity;
+        try
+        {
+            world.SpawnInInstance(connection, instance);
+        }
+        catch (Exception e)
+        {
+            connection.Character = null;
+            logger.LogError(e, "Error while spawning player {CharacterId}", entity.Data?.Id);
+            return;
+        }
+
+        logger.LogInformation("Character {CharacterName} logged in for account {AccountId} at {Position}",
+            entity.Data?.Name, connection.AccountId, entity.Position);
     }
 }
-
