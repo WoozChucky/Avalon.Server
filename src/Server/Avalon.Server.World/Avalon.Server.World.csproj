@@ -33,6 +33,14 @@
     <PublicSign>true</PublicSign>
 
     <RootNamespace>Avalon.Server.World</RootNamespace>
+
+    <PublishReadyToRun>true</PublishReadyToRun>
+    <PublishReadyToRunComposite>true</PublishReadyToRunComposite>
+    <ServerGarbageCollection>true</ServerGarbageCollection>
+    <ConcurrentGarbageCollection>true</ConcurrentGarbageCollection>
+    <TieredPGO>true</TieredPGO>
+    <DynamicPgoInstrumentOnly>false</DynamicPgoInstrumentOnly>
+
   </PropertyGroup>
 
   <ItemGroup>
