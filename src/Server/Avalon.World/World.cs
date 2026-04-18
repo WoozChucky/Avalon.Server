@@ -123,10 +123,13 @@ public class World : IWorld
 
     public async Task DeSpawnPlayerAsync(IWorldConnection connection)
     {
+        if (connection.Character is null)
+            return;
+
         try
         {
             IMapInstance? instance =
-                InstanceRegistry.GetInstanceById(connection.Character!.InstanceId);
+                InstanceRegistry.GetInstanceById(connection.Character.InstanceId);
             instance?.RemoveCharacter(connection);
 
             await using AsyncServiceScope scope = _serviceScopeFactory.CreateAsyncScope();
