@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using Avalon.Network.Packets.Abstractions;
 using ProtoBuf;
 
@@ -36,10 +37,11 @@ public readonly struct InboundPacketFrame
 
         while (pos < span.Length)
         {
-            byte tagByte = span[pos++];
-            int fieldNumber = tagByte >> 3;
-            int wireType = tagByte & 0x07;
-            if (wireType != 2) break; // only LEN wire type expected in NetworkPacket
+            int tag = ReadVarint(span, ref pos);
+            int fieldNumber = tag >> 3;
+            int wireType = tag & 0x07;
+            if (wireType != 2)
+                throw new InvalidDataException($"Unexpected protobuf wire type {wireType} for field {fieldNumber} in NetworkPacket frame.");
 
             int len = ReadVarint(span, ref pos);
 
