@@ -27,8 +27,6 @@
     <ProjectReference Include="..\..\Shared\Avalon.Domain\Avalon.Domain.csproj"/>
     <ProjectReference Include="..\..\Shared\Avalon.Metrics\Avalon.Metrics.csproj"/>
     <ProjectReference Include="..\..\Shared\Avalon.Network.Packets\Avalon.Network.Packets.csproj"/>
-    <ProjectReference Include="..\..\Shared\Avalon.Network.Tcp\Avalon.Network.Tcp.csproj"/>
-    <ProjectReference Include="..\..\Shared\Avalon.Network\Avalon.Network.csproj"/>
   </ItemGroup>
 
   <ItemGroup>

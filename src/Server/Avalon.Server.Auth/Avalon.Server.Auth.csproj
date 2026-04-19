@@ -40,8 +40,6 @@
     <ProjectReference Include="..\..\Shared\Avalon.Configuration\Avalon.Configuration.csproj"/>
     <ProjectReference Include="..\..\Shared\Avalon.Metrics\Avalon.Metrics.csproj"/>
     <ProjectReference Include="..\..\Shared\Avalon.Network.Packets\Avalon.Network.Packets.csproj"/>
-    <ProjectReference Include="..\..\Shared\Avalon.Network.Tcp\Avalon.Network.Tcp.csproj"/>
-    <ProjectReference Include="..\..\Shared\Avalon.Network\Avalon.Network.csproj"/>
     <ProjectReference Include="..\Avalon.Database.Auth\Avalon.Database.Auth.csproj"/>
     <ProjectReference Include="..\Avalon.Database\Avalon.Database.csproj"/>
     <ProjectReference Include="..\Avalon.Hosting\Avalon.Hosting.csproj"/>
