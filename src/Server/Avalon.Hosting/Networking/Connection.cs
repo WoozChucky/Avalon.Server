@@ -37,7 +37,7 @@ public abstract class Connection : BackgroundService, IConnection
     protected readonly IServerBase Server;
 
     private TcpClient? _client;
-    private bool _closed;
+    private int _closed; // 0 = open, 1 = closed
     private PacketStream? _stream;
 
     protected IOutbox? _outbox;
@@ -69,8 +69,7 @@ public abstract class Connection : BackgroundService, IConnection
 
     public void Close(bool expected = true)
     {
-        if (_closed) return;
-        _closed = true;
+        if (Interlocked.Exchange(ref _closed, 1) != 0) return;
         _ = _outbox?.DisposeAsync().AsTask();
         _client?.Close();
         OnClose(expected);
