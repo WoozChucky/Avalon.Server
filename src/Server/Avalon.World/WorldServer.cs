@@ -378,6 +378,8 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         // Time-sync ping: stagger across the 600-tick window using each connection's
         // list index, so 600 connections still produce only ~1 ping/tick worst case.
         // Phase MUST come from a monotonic counter — _tickCount above resets every ~1s.
+        // Pings enqueued here flush on the next tick (~16 ms later) — acceptable for
+        // a 10-second ping cadence.
         long phase = _pingTickCounter++ % TimeSyncTicksPeriod;
         for (int i = 0; i < conns.Length; i++)
         {
