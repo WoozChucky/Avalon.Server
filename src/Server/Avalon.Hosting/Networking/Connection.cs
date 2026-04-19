@@ -122,8 +122,10 @@ public abstract class Connection : BackgroundService, IConnection
 
             try
             {
-                await foreach (InboundPacketFrame frame in _packetReader.EnumerateAsync(_stream, stoppingToken))
+                await foreach (ReadOnlyMemory<byte> raw in _stream!.EnumerateRawFramesAsync(_packetReader.BufferSize, stoppingToken))
                 {
+                    InboundPacketFrame frame = InboundPacketFrame.ParseFrame(raw);
+
                     if (_logger.IsEnabled(LogLevel.Debug) &&
                         frame.Header.Type != NetworkPacketType.CMSG_MOVEMENT &&
                         frame.Header.Type != NetworkPacketType.CMSG_PONG)
