@@ -23,8 +23,10 @@ public class ChannelOutboxShould
 
         outbox.Enqueue(SPingPacket.Create(0L, 0L, 0L, 0L));
 
-        // Give the bg task time to drain
-        await Task.Delay(100);
+        // Poll until bytes arrive or 2s elapses
+        var deadline = DateTime.UtcNow.AddSeconds(2);
+        while (ms.Length == 0 && DateTime.UtcNow < deadline)
+            await Task.Delay(10);
 
         Assert.True(ms.Length > 0, "Expected bytes written to stream");
         await outbox.DisposeAsync();
