@@ -4,7 +4,6 @@ using System.Net.Sockets;
 using Avalon.Common.Telemetry;
 using Avalon.Common.Threading;
 using Avalon.Common.ValueObjects;
-using Avalon.Configuration;
 using Avalon.Hosting.Networking;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Generic;
@@ -13,7 +12,6 @@ using Avalon.World.Filters;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using Packet = Avalon.Network.Packets.Packet;
 
 namespace Avalon.World;
@@ -37,8 +35,8 @@ public class WorldConnection : Connection, IWorldConnection
     private long _timeSyncOffset;
 
     public WorldConnection(IWorldServer server, TcpClient client, ILoggerFactory loggerFactory,
-        IPacketReader packetReader, IOptions<HostingConfiguration> hostingOptions)
-        : base(loggerFactory.CreateLogger<WorldConnection>(), (server as IServerBase)!, packetReader, hostingOptions)
+        IPacketReader packetReader)
+        : base(loggerFactory.CreateLogger<WorldConnection>(), (server as IServerBase)!, packetReader)
     {
         _server = server;
         _receiveQueue = new LockedQueue<WorldPacket>();
