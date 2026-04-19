@@ -3,8 +3,6 @@ using System.Buffers;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
-using System.Runtime.CompilerServices;
-using System.Threading;
 using Avalon.Configuration;
 using Avalon.Network.Packets;
 using Avalon.Network.Packets.Abstractions;
@@ -18,7 +16,7 @@ public delegate int DecryptFunc(ReadOnlySpan<byte> input, byte[] output);
 
 public interface IPacketReader
 {
-    IAsyncEnumerable<InboundPacketFrame> EnumerateAsync(PacketStream stream, CancellationToken token = default);
+    int BufferSize { get; }
     Packet? Read(InboundPacketFrame frame, DecryptFunc? decrypt = null);
 }
 
@@ -26,6 +24,8 @@ public class PacketReader : IPacketReader
 {
     private readonly int _bufferSize;
     private readonly ILogger<PacketReader> _logger;
+
+    public int BufferSize => _bufferSize;
 
     private readonly Dictionary<NetworkPacketType, Func<ReadOnlyMemory<byte>, Packet?>> _packetTypes = new();
 
@@ -60,15 +60,6 @@ public class PacketReader : IPacketReader
             var deserializer = (Func<ReadOnlyMemory<byte>, Packet?>)
                 buildMethod.MakeGenericMethod(packetType).Invoke(null, null)!;
             _packetTypes.Add(networkPacketType, deserializer);
-        }
-    }
-
-    public async IAsyncEnumerable<InboundPacketFrame> EnumerateAsync(PacketStream stream,
-        [EnumeratorCancellation] CancellationToken token = default)
-    {
-        await foreach (var frame in stream.EnumerateAsync(_bufferSize, token))
-        {
-            yield return frame;
         }
     }
 
