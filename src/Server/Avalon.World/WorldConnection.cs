@@ -148,6 +148,18 @@ public class WorldConnection : Connection, IWorldConnection
         base.Send(packet);
     }
 
+    protected override IOutbox OnCreateOutbox() =>
+        new TickDrivenOutbox(Id, _logger, Server.SendBufferCapacity,
+            onFault: () => Close(false));
+
+    public void FlushOutbox() => _outbox?.Flush();
+
+    public void InitOutboxForTest(PacketStream stream)
+    {
+        _outbox = OnCreateOutbox();
+        _outbox.Connect(stream);
+    }
+
     protected override void OnHandshakeFinished() => Server.CallConnectionListener(this);
 
     protected override Task<PacketStream> GetStream(TcpClient client) =>

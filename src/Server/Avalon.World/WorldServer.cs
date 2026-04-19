@@ -372,6 +372,9 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         _worldUpdateHist.Record((long)worldUs);
         _worldUpdateDuration.Record(worldUs);
 
+        for (int i = 0; i < conns.Length; i++)
+            conns[i].FlushOutbox();
+
         // Time-sync ping: stagger across the 600-tick window using each connection's
         // list index, so 600 connections still produce only ~1 ping/tick worst case.
         // Phase MUST come from a monotonic counter — _tickCount above resets every ~1s.

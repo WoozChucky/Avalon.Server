@@ -76,6 +76,13 @@ public interface IWorldConnection : IConnection
     /// </summary>
     void FlushContinuations();
 
+    /// <summary>
+    ///     Serializes all queued outbound packets and writes them to the socket in one burst.
+    ///     Called by <c>WorldServer.Update</c> once per tick after <c>_world.Update</c>.
+    ///     No-op if no packets are queued or a write is already in flight.
+    /// </summary>
+    void FlushOutbox();
+
     /// <summary>Queues an async result for safe execution on the tick thread.</summary>
     void EnqueueContinuation<T>(Task<T> task, Action<T> callback);
 
