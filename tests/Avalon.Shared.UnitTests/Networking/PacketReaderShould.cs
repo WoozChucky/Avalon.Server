@@ -29,7 +29,7 @@ public class PacketReaderShould
     public void UseConfiguredBufferSize_WhenConstructed()
     {
         var reader = Make(8192);
-        Assert.NotNull(reader);
+        Assert.Equal(8192, reader.BufferSize);
     }
 
     [Fact]
@@ -40,7 +40,7 @@ public class PacketReaderShould
             Options.Create(new HostingConfiguration()),
             packetTypes: []);
 
-        Assert.NotNull(reader);
+        Assert.Equal(4096, reader.BufferSize);
     }
 
     [Theory]

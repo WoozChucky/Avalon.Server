@@ -37,19 +37,6 @@ public class PacketStream(Stream stream) : Stream
     public override long Position { get => stream.Position; set => stream.Position = value; }
 
     /// <summary>
-    /// Buffered enumerator: issues larger reads into a rented refill buffer and
-    /// parses all complete frames out of it before returning to await another read.
-    /// In steady state this reduces the await count per packet from ≥2 (varint byte +
-    /// payload read) down to ≈0 (multiple packets typically arrive in one socket read).
-    /// </summary>
-    public async IAsyncEnumerable<InboundPacketFrame> EnumerateAsync(int initialBufferSize = 4096,
-        [EnumeratorCancellation] CancellationToken token = default)
-    {
-        await foreach (ReadOnlyMemory<byte> raw in EnumerateRawFramesAsync(initialBufferSize, token))
-            yield return InboundPacketFrame.ParseFrame(raw);
-    }
-
-    /// <summary>
     /// Yields raw payload slices (varint length-prefix stripped). Slice memory is
     /// valid only until the next iteration — consumers must materialize before advancing.
     /// Public for testability of the buffered read loop independent of frame parsing.
