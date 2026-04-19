@@ -7,12 +7,10 @@ using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalon.Common.Cryptography;
-using Avalon.Configuration;
 using Avalon.Network.Packets;
 using Avalon.Network.Packets.Abstractions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 
 namespace Avalon.Hosting.Networking;
 
@@ -51,8 +49,7 @@ public abstract class Connection : BackgroundService, IConnection
     protected int PacketSentCount;
     protected double PacketSentRate;
 
-    protected Connection(ILogger logger, IServerBase server, IPacketReader packetReader,
-        IOptions<HostingConfiguration> hostingOptions)
+    protected Connection(ILogger logger, IServerBase server, IPacketReader packetReader)
     {
         _logger = logger;
         _packetReader = packetReader;

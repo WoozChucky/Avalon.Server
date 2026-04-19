@@ -34,8 +34,7 @@ public class WorldConnectionOutboxShould : IDisposable
             server,
             clientSide,
             NullLoggerFactory.Instance,
-            Substitute.For<IPacketReader>(),
-            Microsoft.Extensions.Options.Options.Create(new Avalon.Configuration.HostingConfiguration()));
+            Substitute.For<IPacketReader>());
     }
 
     public void Dispose()

@@ -5,13 +5,11 @@ using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
 using Avalon.Common.Telemetry;
 using Avalon.Common.ValueObjects;
-using Avalon.Configuration;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Domain.Auth;
 using Avalon.Hosting.Networking;
 using Avalon.Network.Packets;
 using Avalon.Network.Packets.Abstractions;
-using Microsoft.Extensions.Options;
 
 namespace Avalon.Server.Auth;
 
@@ -37,9 +35,8 @@ public class AuthConnection : Connection, IAuthConnection
     private ObservableGauge<double> _packetSentRate;
 
     public AuthConnection(IServerBase server, TcpClient client, ILoggerFactory loggerFactory,
-        IPacketReader packetReader, IServiceScopeFactory serviceScopeFactory,
-        IOptions<HostingConfiguration> hostingOptions)
-        : base(loggerFactory.CreateLogger<AuthConnection>(), server, packetReader, hostingOptions)
+        IPacketReader packetReader, IServiceScopeFactory serviceScopeFactory)
+        : base(loggerFactory.CreateLogger<AuthConnection>(), server, packetReader)
     {
         _serviceScopeFactory = serviceScopeFactory;
         Server = (server as AuthServer)!;
