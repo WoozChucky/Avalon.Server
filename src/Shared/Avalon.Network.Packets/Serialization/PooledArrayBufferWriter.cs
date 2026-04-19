@@ -3,7 +3,7 @@ using System.Buffers;
 
 namespace Avalon.Network.Packets.Serialization;
 
-public sealed class PooledArrayBufferWriter : IBufferWriter<byte>
+public sealed class PooledArrayBufferWriter : IBufferWriter<byte>, IDisposable
 {
     private byte[] _buffer = ArrayPool<byte>.Shared.Rent(512);
     private int _written;
@@ -31,6 +31,13 @@ public sealed class PooledArrayBufferWriter : IBufferWriter<byte>
     {
         EnsureCapacity(sizeHint);
         return _buffer.AsSpan(_written);
+    }
+
+    public void Dispose()
+    {
+        ArrayPool<byte>.Shared.Return(_buffer);
+        _buffer = Array.Empty<byte>();
+        _written = 0;
     }
 
     private void EnsureCapacity(int sizeHint)

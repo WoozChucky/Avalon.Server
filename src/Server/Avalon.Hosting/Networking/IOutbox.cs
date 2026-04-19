@@ -11,6 +11,6 @@ namespace Avalon.Hosting.Networking;
 public interface IOutbox : IAsyncDisposable
 {
     void Connect(PacketStream stream);
-    void Enqueue(NetworkPacket packet);
+    bool Enqueue(NetworkPacket packet);
     void Flush();
 }

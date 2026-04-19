@@ -53,13 +53,17 @@ public sealed class ChannelOutbox : IOutbox
                 TaskScheduler.Default);
     }
 
-    public void Enqueue(NetworkPacket packet)
+    public bool Enqueue(NetworkPacket packet)
     {
         if (!_queue.Writer.TryWrite(packet))
+        {
             _logger.LogWarning("Send buffer full for connection {Id}; dropped {Type}", _connectionId, packet.Header.Type);
+            return false;
+        }
+        return true;
     }
 
-    public void Flush() { }
+    public void Flush() { } // bg drain loop handles writes; no tick-driven flush needed
 
     public async ValueTask DisposeAsync()
     {
@@ -67,6 +71,8 @@ public sealed class ChannelOutbox : IOutbox
         await _cts.CancelAsync().ConfigureAwait(false);
         if (_bgTask is not null)
             await Task.WhenAny(_bgTask, Task.Delay(500)).ConfigureAwait(false);
+        _burstWriter.Dispose();
+        _tempWriter.Dispose();
         _cts.Dispose();
     }
 
