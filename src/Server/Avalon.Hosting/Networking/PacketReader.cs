@@ -18,6 +18,7 @@ public delegate int DecryptFunc(ReadOnlySpan<byte> input, byte[] output);
 
 public interface IPacketReader
 {
+    int BufferSize { get; }
     IAsyncEnumerable<InboundPacketFrame> EnumerateAsync(PacketStream stream, CancellationToken token = default);
     Packet? Read(InboundPacketFrame frame, DecryptFunc? decrypt = null);
 }
@@ -26,6 +27,8 @@ public class PacketReader : IPacketReader
 {
     private readonly int _bufferSize;
     private readonly ILogger<PacketReader> _logger;
+
+    public int BufferSize => _bufferSize;
 
     private readonly Dictionary<NetworkPacketType, Func<ReadOnlyMemory<byte>, Packet?>> _packetTypes = new();
 
