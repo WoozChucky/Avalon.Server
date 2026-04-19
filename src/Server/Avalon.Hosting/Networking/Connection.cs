@@ -79,7 +79,7 @@ public abstract class Connection : BackgroundService, IConnection
     public virtual void Send(NetworkPacket packet)
     {
         if (_outbox is null) return;
-        _outbox.Enqueue(packet);
+        if (!_outbox.Enqueue(packet)) return;
         Interlocked.Add(ref BytesSentCount, packet.Size);
         Interlocked.Increment(ref PacketSentCount);
     }
@@ -162,18 +162,5 @@ public abstract class Connection : BackgroundService, IConnection
         {
             Close(false);
         }
-    }
-
-    private void CalculateAndLogRates(object? state)
-    {
-        PacketSentRate = PacketSentCount / 1.0;
-        PacketReceivedRate = PacketReceivedCount / 1.0;
-        BytesSentRate = BytesSentCount / 1.0;
-        BytesReceivedRate = BytesReceivedCount / 1.0;
-
-        Interlocked.Exchange(ref PacketSentCount, 0);
-        Interlocked.Exchange(ref PacketReceivedCount, 0);
-        Interlocked.Exchange(ref BytesSentCount, 0);
-        Interlocked.Exchange(ref BytesReceivedCount, 0);
     }
 }
