@@ -35,10 +35,8 @@
     <ProjectReference Include="..\..\src\Shared\Avalon.Configuration\Avalon.Configuration.csproj" />
     <ProjectReference Include="..\..\src\Shared\Avalon.Domain\Avalon.Domain.csproj" />
     <ProjectReference Include="..\..\src\Shared\Avalon.Metrics\Avalon.Metrics.csproj" />
-    <ProjectReference Include="..\..\src\Shared\Avalon.Network\Avalon.Network.csproj" />
     <ProjectReference Include="..\..\src\Shared\Avalon.Network.Packets\Avalon.Network.Packets.csproj" />
     <ProjectReference Include="..\..\src\Shared\Avalon.Network.Packets.Abstractions\Avalon.Network.Packets.Abstractions.csproj" />
-    <ProjectReference Include="..\..\src\Shared\Avalon.Network.Tcp\Avalon.Network.Tcp.csproj" />
   </ItemGroup>
 
 </Project>

@@ -17,8 +17,6 @@ public class InfrastructureFixture : IDisposable
 	public IAvalonNetworkDaemon NetworkDaemon { get; set; }
 	public IMetricsManager MetricsManager { get; set; }
 
-	public IAvalonTcpServer TcpServer { get; set; }
-
 	public IPacketSerializer PacketSerializer { get; set; }
 	public IPacketDeserializer PacketDeserializer { get; set; }
 	public ICryptoManager CryptoManager { get; set; }
