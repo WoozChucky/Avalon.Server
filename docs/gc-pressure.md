@@ -209,7 +209,7 @@ Eliminates the array and the boxing on every deserialization call.
 ## GC-008 — `PacketReader.Decrypt` replaces payload with a freshly allocated `byte[]`
 
 **Status:** Resolved (extended) — `NetworkPacket.Payload` Protobuf `byte[]` allocation eliminated.
-`PacketStream.EnumerateAsync` now yields `InboundPacketFrame` with a zero-copy `ReadOnlyMemory<byte>`
+`PacketStream.EnumerateRawFramesAsync` now yields `InboundPacketFrame` with a zero-copy `ReadOnlyMemory<byte>`
 slice of the rented stream buffer instead of calling `Serializer.Deserialize<NetworkPacket>`.
 `NetworkPacket` is now outbound-only. Residual allocations per encrypted inbound packet:
 12-byte nonce `byte[]` (BouncyCastle `ParametersWithIV` requires `byte[]`) and ciphertext `byte[]`
@@ -233,7 +233,7 @@ exist simultaneously for every encrypted inbound packet.
 - Change `DecryptFunc` to `void DecryptFunc(Span<byte> input, IBufferWriter<byte> output)`
   (or decrypt in-place where the cipher allows it) so the payload slot is written to
   once rather than swapped.
-- Alternatively, decrypt directly into a pooled buffer during `PacketStream.EnumerateAsync`
+- Alternatively, decrypt directly into a pooled buffer during `PacketStream.EnumerateRawFramesAsync`
   before yielding the packet.
 
 ---
