@@ -2,7 +2,6 @@ using System.Collections.Concurrent;
 using System.Diagnostics.Metrics;
 using System.Net.Sockets;
 using Avalon.Common.Telemetry;
-using Avalon.Common.Threading;
 using Avalon.Common.ValueObjects;
 using Avalon.Hosting.Networking;
 using Avalon.Network.Packets.Abstractions;
@@ -20,7 +19,7 @@ public class WorldConnection : Connection, IWorldConnection
 {
     private readonly ConcurrentQueue<IContinuation> _continuationQueue = new();
 
-    private readonly LockedQueue<WorldPacket> _receiveQueue;
+    private readonly ConcurrentQueue<WorldPacket> _receiveQueue;
 
     private readonly IWorldServer _server;
     private ObservableGauge<double> _bytesReceivedRate;
@@ -39,7 +38,7 @@ public class WorldConnection : Connection, IWorldConnection
         : base(loggerFactory.CreateLogger<WorldConnection>(), (server as IServerBase)!, packetReader)
     {
         _server = server;
-        _receiveQueue = new LockedQueue<WorldPacket>();
+        _receiveQueue = new ConcurrentQueue<WorldPacket>();
         _worldSessionFilter = new WorldSessionFilter(this);
         _worldMapFilter = new MapSessionFilter(this);
         _sessionFilterPredicate = wp => _worldSessionFilter.CanProcess(wp.Type);
@@ -117,9 +116,13 @@ public class WorldConnection : Connection, IWorldConnection
         const uint MaxPacketsPerUpdate = 150;
         uint processedPackets = 0;
 
+        // Peek-first: if the front packet doesn't pass the filter, leave it for the other pass.
+        // TryDequeue after TryPeek is safe — only the tick thread dequeues (SPSC).
         while (IsConnected &&
-               _receiveQueue.Next(out WorldPacket packet, predicate))
+               _receiveQueue.TryPeek(out WorldPacket packet) &&
+               predicate(packet))
         {
+            _receiveQueue.TryDequeue(out _);
             try
             {
                 if (_server.PacketHandlers.TryGetValue(packet.Type, out IWorldPacketHandler? handler))
@@ -175,7 +178,7 @@ public class WorldConnection : Connection, IWorldConnection
     {
         if (_worldSessionFilter.CanProcess(header.Type) || _worldMapFilter.CanProcess(header.Type))
         {
-            _receiveQueue.Add(new WorldPacket(header.Type, payload));
+            _receiveQueue.Enqueue(new WorldPacket(header.Type, payload));
             return ValueTask.CompletedTask;
         }
         return new ValueTask(Server.CallListener(this, header, payload));
