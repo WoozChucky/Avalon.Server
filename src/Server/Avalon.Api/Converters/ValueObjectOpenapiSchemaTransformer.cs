@@ -51,21 +51,29 @@ public class ValueObjectOpenapiSchemaTransformer : IOpenApiSchemaTransformer
         // enums -> prefer string names if JsonStringEnumConverter is registered
         if (t.IsEnum)
         {
-            bool useString = json.Converters.Any(c => c is JsonStringEnumConverter);
-            if (useString)
+            Type underlying = Enum.GetUnderlyingType(t);
+            bool isFlags = t.IsDefined(typeof(FlagsAttribute), inherit: false);
+
+            // Map underlying type → schema type/format
+            (JsonSchemaType schemaType, string? format) = underlying == typeof(long) || underlying == typeof(ulong)
+                ? (JsonSchemaType.Integer, "int64")
+                : (JsonSchemaType.Integer, "int32");
+
+            schema.Type = schemaType;
+            schema.Format = format;
+
+            if (!isFlags)
             {
-                schema.Type = JsonSchemaType.String;
-                schema.Enum = Enum.GetNames(t).Select(JsonNode? (n) => JsonValue.Create(n)).ToList()!;
-            }
-            else
-            {
-                // Numeric enums (best-effort; using JsonValue for integers)
-                schema.Type = JsonSchemaType.Integer;
-                schema.Format = "int32";
-                schema.Enum = Enum.GetValues(t).Cast<object>()
-                    .Select(JsonNode? (v) => JsonValue.Create(Convert.ToInt32(v)))
+                // Discrete enum: list valid numeric values
+                schema.Enum = Enum.GetValues(t)
+                    .Cast<object>()
+                    .Select(JsonNode? (v) => JsonValue.Create(Convert.ToInt64(v)))
                     .ToList()!;
             }
+            // Flags: omit 'enum' constraint — any bitwise combination is valid.
+            // Optionally, document individual flag names in schema.Description:
+            // schema.Description = string.Join(", ", Enum.GetNames(t)
+            //     .Zip(Enum.GetValues(t).Cast<object>(), (n, v) => $"{n}={Convert.ToInt64(v)}"));
 
             return;
         }
