@@ -22,6 +22,7 @@ public class AccountController : BaseController
     }
 
     [HttpGet(Name = "GetAccount")]
+    [ProducesResponseType(typeof(AccountDto), 200)]
     public async Task<AccountDto> Get()
     {
         var dto = (_authContext.Account ?? throw new Exception("Account not loaded")).ToDto();
@@ -40,6 +41,7 @@ public class AccountController : BaseController
     public async Task<RegisterResponse> Register([FromBody] RegisterRequest model)
     {
         var userAgent = Request.Headers.UserAgent.ToString();
+        var language = Request.Headers.AcceptLanguage.ToString();
         return await _accountService.Register(model, userAgent, IpAddress, CancellationToken);
     }
 }

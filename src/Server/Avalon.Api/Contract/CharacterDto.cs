@@ -35,3 +35,18 @@ public class CharacterDto
 
     public ulong DeleteDate { get; set; }
 }
+
+
+public enum CharacterClass : ushort
+{
+    Warrior = 1,
+    Wizard = 2,
+    Hunter = 3,
+    Healer = 4,
+}
+
+public enum CharacterGender : byte
+{
+    Male = 0,
+    Female = 1,
+}

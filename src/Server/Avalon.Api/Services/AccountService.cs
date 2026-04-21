@@ -90,7 +90,7 @@ public class AccountService : IAccountService
     public async Task<RegisterResponse> Register(RegisterRequest model, string userAgent, IPAddress ipAddress,
         CancellationToken cancellationToken)
     {
-        var existingAccount = await _accountRepository.FindByUserNameAsync(model.Username);
+        var existingAccount = await _accountRepository.FindByUserNameAsync(model.Username.ToUpperInvariant().Trim());
         if (existingAccount != null)
             throw new BusinessException("Username already exists");
 
@@ -106,7 +106,7 @@ public class AccountService : IAccountService
 
         var account = new Account
         {
-            Username = model.Username,
+            Username = model.Username.ToUpperInvariant().Trim(),
             Email = model.Email,
             Salt = saltBytes,
             Verifier = hashBytes,
