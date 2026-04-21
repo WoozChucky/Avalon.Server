@@ -48,7 +48,6 @@ services.AddCustomLogging(configuration);
         {
             options.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
             options.JsonSerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
-            options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
             options.JsonSerializerOptions.Converters.Add(new ValueObjectJsonConverterFactory());
         });
 
@@ -107,8 +106,8 @@ app.MapDefaultEndpoints();
 
     app.UseCors(x => x
         .WithOrigins(
-            "http://localhost:4200", 
-            "http://localhost:5210", 
+            "http://localhost:4200",
+            "http://localhost:5210",
             "https://avalon.monster",
             "https://dashboard.avalon.monster"
         )

@@ -17,17 +17,17 @@ public static class MappingExtensions
         MuteReason = account.MuteReason,
         Online = account.Online,
         Locale = account.Locale,
-        Os = account.Os,
+        Os = (OperatingSystem) account.Os,
         TotalTime = account.TotalTime,
-        AccessLevel = account.AccessLevel,
+        AccessLevel = (AccountAccessLevel) account.AccessLevel,
     };
 
     public static CharacterDto ToDto(this Character character) => new()
     {
         Id = character.Id,
         Name = character.Name,
-        Class = character.Class,
-        Gender = character.Gender,
+        Class = (CharacterClass) character.Class,
+        Gender = (CharacterGender) character.Gender,
         Level = character.Level,
         Experience = character.Experience,
         Map = character.Map,
