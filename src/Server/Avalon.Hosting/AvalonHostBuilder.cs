@@ -36,5 +36,6 @@ public static class AvalonHostBuilder
         return Task.FromResult(host);
     }
 
-    public static async Task RunAsync<T>(IHost host) => await host.RunAsync();
+    public static async Task RunAsync<T>(IHost host, CancellationToken cancellationToken = default) =>
+        await host.RunAsync(cancellationToken);
 }

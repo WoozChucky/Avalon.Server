@@ -31,7 +31,7 @@ public class CharacterDeletetHandler(
         // because this is an async method, the executtion of this should run in a separate thread, and the result to be put somewhere
         // so that this world connection when it calls 'ProcessQueryCallbacks()' it will get the result and react accordingly
 
-        connection.EnqueueContinuation(characterRepository.FindByIdAndAccountAsync(packet.CharacterId, connection.AccountId), character =>
+        connection.EnqueueContinuation(characterRepository.FindByIdAndAccountAsync(packet.CharacterId, connection.AccountId, CancellationToken.None), character =>
         {
             OnCharacterFound(connection, character);
         });
@@ -47,7 +47,7 @@ public class CharacterDeletetHandler(
             return;
         }
 
-        connection.EnqueueContinuation(characterRepository.DeleteAsync(character.Id), () =>
+        connection.EnqueueContinuation(characterRepository.DeleteAsync(character.Id, CancellationToken.None), () =>
         {
             OnCharacterDeleted(connection, character);
         });

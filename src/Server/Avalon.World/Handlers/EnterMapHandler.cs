@@ -137,7 +137,7 @@ public class EnterMapHandler(
             dbCharacter.Y = targetTemplate.DefaultSpawnY;
             dbCharacter.Z = targetTemplate.DefaultSpawnZ;
 
-            connection.EnqueueContinuation(characterRepository.UpdateAsync(dbCharacter), () =>
+            connection.EnqueueContinuation(characterRepository.UpdateAsync(dbCharacter, CancellationToken.None), () =>
             {
                 logger.LogInformation(
                     "Character {Name} transferred to map {MapId} (instance {InstanceId})",

@@ -6,9 +6,9 @@ namespace Avalon.Database.Character.Repositories;
 
 public interface ICharacterSpellRepository
 {
-    Task<CharacterSpell> CreateAsync(CharacterSpell spell);
-    Task<IList<CharacterSpell>> CreateAsync(IList<CharacterSpell> spells);
-    Task<IReadOnlyCollection<CharacterSpell>> GetCharacterSpellsAsync(CharacterId characterId);
+    Task<CharacterSpell> CreateAsync(CharacterSpell spell, CancellationToken cancellationToken = default);
+    Task<IList<CharacterSpell>> CreateAsync(IList<CharacterSpell> spells, CancellationToken cancellationToken = default);
+    Task<IReadOnlyCollection<CharacterSpell>> GetCharacterSpellsAsync(CharacterId characterId, CancellationToken cancellationToken = default);
 }
 
 public class CharacterSpellRepository : ICharacterSpellRepository
@@ -20,31 +20,31 @@ public class CharacterSpellRepository : ICharacterSpellRepository
         _dbContext = dbContext;
     }
 
-    public async Task<CharacterSpell> CreateAsync(CharacterSpell spell)
+    public async Task<CharacterSpell> CreateAsync(CharacterSpell spell, CancellationToken cancellationToken = default)
     {
-        var entity = await _dbContext.CharacterSpells.AddAsync(spell);
-        await _dbContext.SaveChangesAsync();
+        var entity = await _dbContext.CharacterSpells.AddAsync(spell, cancellationToken);
+        await _dbContext.SaveChangesAsync(cancellationToken);
         return entity.Entity;
     }
 
-    public async Task<IList<CharacterSpell>> CreateAsync(IList<CharacterSpell> spells)
+    public async Task<IList<CharacterSpell>> CreateAsync(IList<CharacterSpell> spells, CancellationToken cancellationToken = default)
     {
         var entityList = new List<CharacterSpell>();
         foreach (var spell in spells)
         {
-            var entity = await _dbContext.CharacterSpells.AddAsync(spell);
+            var entity = await _dbContext.CharacterSpells.AddAsync(spell, cancellationToken);
             entityList.Add(entity.Entity);
         }
-        await _dbContext.SaveChangesAsync();
+        await _dbContext.SaveChangesAsync(cancellationToken);
         return entityList;
     }
 
-    public async Task<IReadOnlyCollection<CharacterSpell>> GetCharacterSpellsAsync(CharacterId characterId)
+    public async Task<IReadOnlyCollection<CharacterSpell>> GetCharacterSpellsAsync(CharacterId characterId, CancellationToken cancellationToken = default)
     {
         return await _dbContext.CharacterSpells
             .AsNoTracking()
             .Where(cs => cs.CharacterId == characterId)
-            .ToListAsync();
+            .ToListAsync(cancellationToken);
     }
 
 
