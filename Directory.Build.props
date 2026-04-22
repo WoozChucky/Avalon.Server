@@ -2,4 +2,8 @@
   <PropertyGroup>
     <NoWarn>$(NoWarn);CS8618;CS8600</NoWarn>
   </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Meziantou.Analyzer" Version="2.*" PrivateAssets="all" />
+  </ItemGroup>
 </Project>
