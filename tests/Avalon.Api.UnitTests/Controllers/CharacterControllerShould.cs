@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Avalon.Api.Authentication;
 using Avalon.Api.Authorization;
+using Avalon.Api.Contract;
 using Avalon.Api.Controllers;
 using Avalon.Api.Services;
 using Avalon.Common.ValueObjects;
@@ -99,5 +100,51 @@ public class CharacterControllerShould
         var result = await sut.GetById(42, CancellationToken.None);
 
         Assert.IsType<ForbidResult>(result);
+    }
+
+    [Fact]
+    public async Task Patch_Returns404_WhenCharacterMissing()
+    {
+        var user = User(7, AvalonRoles.Player);
+        _service.GetCharacterByIdAsync(Arg.Any<CharacterId>(), Arg.Any<CancellationToken>())
+            .Returns((Character?)null);
+
+        var sut = MakeSut(user);
+        var result = await sut.Patch(42, new CharacterPatchDto { Name = "x" }, CancellationToken.None);
+
+        Assert.IsType<NotFoundResult>(result);
+    }
+
+    [Fact]
+    public async Task Patch_OwnerPlayer_CallsUpdateCosmeticOnly()
+    {
+        var user = User(7, AvalonRoles.Player);
+        var ch = MakeChar(7);
+        _service.GetCharacterByIdAsync(Arg.Any<CharacterId>(), Arg.Any<CancellationToken>()).Returns(ch);
+        _authz.AuthorizeAsync(user, ch, Arg.Any<IEnumerable<IAuthorizationRequirement>>())
+              .Returns(AuthorizationResult.Success());
+
+        var sut = MakeSut(user);
+        var dto = new CharacterPatchDto { Name = "new", Level = 99 };
+        await sut.Patch(42, dto, CancellationToken.None);
+
+        await _service.Received(1).UpdateCosmeticAsync(ch, "new", Arg.Any<CancellationToken>());
+        await _service.DidNotReceive().UpdateAnyAsync(Arg.Any<Character>(), Arg.Any<CharacterPatchDto>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Patch_Admin_CallsUpdateAny()
+    {
+        var user = User(99, AvalonRoles.Admin);
+        var ch = MakeChar(7);
+        _service.GetCharacterByIdAsync(Arg.Any<CharacterId>(), Arg.Any<CancellationToken>()).Returns(ch);
+        _authz.AuthorizeAsync(user, ch, Arg.Any<IEnumerable<IAuthorizationRequirement>>())
+              .Returns(AuthorizationResult.Success());
+
+        var sut = MakeSut(user);
+        var dto = new CharacterPatchDto { Level = 99 };
+        await sut.Patch(42, dto, CancellationToken.None);
+
+        await _service.Received(1).UpdateAnyAsync(ch, dto, Arg.Any<CancellationToken>());
     }
 }
