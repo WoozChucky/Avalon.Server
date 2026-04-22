@@ -7,9 +7,9 @@ namespace Avalon.Database.Character.Repositories;
 
 public interface ICharacterRepository : IRepository<Domain.Characters.Character, CharacterId>
 {
-    Task<Domain.Characters.Character?> FindByNameAsync(string name);
-    Task<Domain.Characters.Character?> FindByIdAndAccountAsync(CharacterId id, AccountId accountId);
-    Task<List<Domain.Characters.Character>> FindByAccountAsync(AccountId accountId);
+    Task<Domain.Characters.Character?> FindByNameAsync(string name, CancellationToken cancellationToken = default);
+    Task<Domain.Characters.Character?> FindByIdAndAccountAsync(CharacterId id, AccountId accountId, CancellationToken cancellationToken = default);
+    Task<List<Domain.Characters.Character>> FindByAccountAsync(AccountId accountId, CancellationToken cancellationToken = default);
 }
 
 public class CharacterRepository : EntityFrameworkRepository<Domain.Characters.Character, CharacterId>, ICharacterRepository
@@ -19,26 +19,26 @@ public class CharacterRepository : EntityFrameworkRepository<Domain.Characters.C
     {
     }
 
-    public async Task<Domain.Characters.Character?> FindByNameAsync(string name)
+    public async Task<Domain.Characters.Character?> FindByNameAsync(string name, CancellationToken cancellationToken = default)
     {
         return await Context.Set<Domain.Characters.Character>()
             .AsNoTracking()
-            .FirstOrDefaultAsync(entity => entity.Name == name);
+            .FirstOrDefaultAsync(entity => entity.Name == name, cancellationToken);
     }
 
-    public async Task<Domain.Characters.Character?> FindByIdAndAccountAsync(CharacterId id, AccountId accountId)
+    public async Task<Domain.Characters.Character?> FindByIdAndAccountAsync(CharacterId id, AccountId accountId, CancellationToken cancellationToken = default)
     {
         return await Context.Set<Domain.Characters.Character>()
             .AsNoTracking()
-            .FirstOrDefaultAsync(entity => entity.Id == id && entity.AccountId == accountId);
+            .FirstOrDefaultAsync(entity => entity.Id == id && entity.AccountId == accountId, cancellationToken);
 
     }
 
-    public async Task<List<Domain.Characters.Character>> FindByAccountAsync(AccountId accountId)
+    public async Task<List<Domain.Characters.Character>> FindByAccountAsync(AccountId accountId, CancellationToken cancellationToken = default)
     {
         return await Context.Set<Domain.Characters.Character>()
             .AsNoTracking()
             .Where(entity => entity.AccountId == accountId)
-            .ToListAsync();
+            .ToListAsync(cancellationToken);
     }
 }
