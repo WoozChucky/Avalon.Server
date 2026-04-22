@@ -115,4 +115,16 @@ public class AccountController : BaseController
         await _accountService.UpdateStatusAsync(new AccountId(id), req.State, req.Reason, ct);
         return NoContent();
     }
+
+    [HttpPatch("{id:long}/roles")]
+    [Authorize(Policy = AvalonRoles.Console)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    public async Task<IActionResult> UpdateRoles(
+        [FromRoute] long id,
+        [FromBody] AccountRolesPatchRequest req,
+        CancellationToken ct)
+    {
+        await _accountService.UpdateRolesAsync(new AccountId(id), req.Roles, ct);
+        return NoContent();
+    }
 }
