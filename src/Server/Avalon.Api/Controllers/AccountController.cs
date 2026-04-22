@@ -112,7 +112,7 @@ public class AccountController : BaseController
         [FromBody] AccountStatusPatchRequest req,
         CancellationToken ct)
     {
-        await _accountService.UpdateStatusAsync(new AccountId(id), req.State, req.Reason, ct);
+        await _accountService.UpdateStatusAsync(new AccountId(id), req.State, req.Reason, User.AccountId(), ct);
         return NoContent();
     }
 
