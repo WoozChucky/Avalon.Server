@@ -24,12 +24,12 @@ jobs:
       - name: Restore dependencies
         run: dotnet restore
       - name: Build
-        run: dotnet build --no-restore /p:WarningsAsErrors="MA0032,MA0040,MA0045"
+        run: dotnet build --no-restore
       - name: Test
         run: dotnet test --no-build
       - name: Publish World Server
-        run: dotnet publish src/Server/Avalon.Server.World/Avalon.Server.World.csproj -c Release --no-restore /p:WarningsAsErrors="MA0032,MA0040,MA0045"
+        run: dotnet publish src/Server/Avalon.Server.World/Avalon.Server.World.csproj -c Release --no-restore
       - name: Publish Auth Server
-        run: dotnet publish src/Server/Avalon.Server.Auth/Avalon.Server.Auth.csproj -c Release --no-restore /p:WarningsAsErrors="MA0032,MA0040,MA0045"
+        run: dotnet publish src/Server/Avalon.Server.Auth/Avalon.Server.Auth.csproj -c Release --no-restore
       - name: Publish Api
-        run: dotnet publish src/Server/Avalon.Api/Avalon.Api.csproj -c Release --no-restore /p:WarningsAsErrors="MA0032,MA0040,MA0045"
+        run: dotnet publish src/Server/Avalon.Api/Avalon.Api.csproj -c Release --no-restore

@@ -3,6 +3,16 @@
     <NoWarn>$(NoWarn);CS8618;CS8600</NoWarn>
   </PropertyGroup>
 
+  <!--
+    CI enforces CancellationToken hygiene as errors. GitHub Actions auto-sets CI=true;
+    so do most other providers (GitLab, Azure Pipelines, Travis, CircleCI). Local dev
+    builds see the same rules as warnings (see .editorconfig) so they are visible but
+    non-blocking.
+  -->
+  <PropertyGroup Condition="'$(CI)' == 'true'">
+    <WarningsAsErrors>$(WarningsAsErrors);MA0032;MA0040;MA0045</WarningsAsErrors>
+  </PropertyGroup>
+
   <ItemGroup>
     <PackageReference Include="Meziantou.Analyzer" Version="2.*" PrivateAssets="all" />
   </ItemGroup>
