@@ -77,6 +77,22 @@ public class CharacterController : BaseController
         return Ok(inventory);
     }
 
+    [HttpGet("{id}/spells", Name = "GetCharacterSpells")]
+    [ProducesResponseType(typeof(CharacterSpellsDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> GetSpells([FromRoute] uint id, CancellationToken ct)
+    {
+        var character = await _service.GetCharacterByIdAsync(new CharacterId(id), ct);
+        if (character is null) return NotFound();
+
+        var authz = await _authz.AuthorizeAsync(User, character, new ReadRequirement());
+        if (!authz.Succeeded) return NotFoundOrForbid();
+
+        var spells = await _service.GetSpellsAsync(new CharacterId(id), ct);
+        return Ok(spells);
+    }
+
     [HttpPatch("{id}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
