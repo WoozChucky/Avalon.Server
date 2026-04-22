@@ -33,13 +33,14 @@ internal class Program
             CharacterDbContext characterDb = scope.ServiceProvider.GetRequiredService<CharacterDbContext>();
             WorldDbContext worldDb = scope.ServiceProvider.GetRequiredService<WorldDbContext>();
             host.Services.GetRequiredService<ILogger<Program>>().LogInformation("Migrating database if necessary...");
-            await characterDb.Database.MigrateAsync();
-            await worldDb.Database.MigrateAsync();
+            // Startup migration — host lifetime not active yet, so CancellationToken.None is intentional.
+            await characterDb.Database.MigrateAsync(CancellationToken.None);
+            await worldDb.Database.MigrateAsync(CancellationToken.None);
 
             IReplicatedCache cache = scope.ServiceProvider.GetRequiredService<IReplicatedCache>();
             await cache.ConnectAsync();
         }
 
-        await AvalonHostBuilder.RunAsync<Program>(host);
+        await AvalonHostBuilder.RunAsync<Program>(host, CancellationToken.None);
     }
 }
