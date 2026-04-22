@@ -60,11 +60,12 @@ public class Account : IDbEntity<AccountId>
 [Flags]
 public enum AccountAccessLevel : ushort
 {
-    Player = 0,
-    GameMaster = 1,
-    Administrator = 2,
-    Tournament = 4,
-    PTR = 8,
+    Player = 1,
+    GameMaster = 2,
+    Admin = 4,
+    Console = 8,
+    Tournament = 16,
+    PTR = 32,
 }
 
 public enum AccountLocale : ushort

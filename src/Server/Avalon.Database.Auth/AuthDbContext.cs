@@ -131,7 +131,7 @@ public class AuthDbContext(ILoggerFactory loggerFactory, IOptions<DatabaseConfig
             Os = OperatingSystem.Linux,
             TotalTime = 0,
             AccessLevel =
-                AccountAccessLevel.Player | AccountAccessLevel.GameMaster | AccountAccessLevel.Administrator,
+                AccountAccessLevel.Player | AccountAccessLevel.GameMaster | AccountAccessLevel.Admin,
             LastLogin = new DateTime(2021, 1, 1, 0, 0, 0, DateTimeKind.Utc),
             Online = false,
             MuteBy = string.Empty,
@@ -222,7 +222,7 @@ public class AuthDbContext(ILoggerFactory loggerFactory, IOptions<DatabaseConfig
             Type = WorldType.PvE,
             MinVersion = "0.0.1",
             Version = "0.0.1",
-            AccessLevelRequired = AccountAccessLevel.Administrator,
+            AccessLevelRequired = AccountAccessLevel.Admin,
             CreatedAt = new DateTime(2021, 1, 1, 0, 0, 0, DateTimeKind.Utc),
             UpdatedAt = new DateTime(2021, 1, 1, 0, 0, 0, DateTimeKind.Utc)
         }, new Domain.Auth.World
