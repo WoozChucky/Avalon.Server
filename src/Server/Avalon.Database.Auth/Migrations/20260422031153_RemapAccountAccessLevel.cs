@@ -56,7 +56,7 @@ namespace Avalon.Database.Auth.Migrations
 
             migrationBuilder.Sql("""
                 UPDATE "Worlds" SET "AccessLevelRequired" = (
-                      1                                                                                /* Player bit always set */
+                      (CASE WHEN "AccessLevelRequired" = 0 THEN 1 ELSE 0 END)                          /* legacy 0 -> Player */
                     | (CASE WHEN ("AccessLevelRequired" & 1) = 1 THEN 2 ELSE 0 END)                    /* GameMaster */
                     | (CASE WHEN ("AccessLevelRequired" & 2) = 2 THEN 4 ELSE 0 END)                    /* Admin */
                     | (CASE WHEN ("AccessLevelRequired" & 4) = 4 THEN 16 ELSE 0 END)                   /* Tournament */
