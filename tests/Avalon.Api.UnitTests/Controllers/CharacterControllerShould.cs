@@ -147,4 +147,49 @@ public class CharacterControllerShould
 
         await _service.Received(1).UpdateAnyAsync(ch, dto, Arg.Any<CancellationToken>());
     }
+
+    [Fact]
+    public async Task GetInventory_Returns200_WhenAuthzSucceeds()
+    {
+        var user = User(7, AvalonRoles.Player);
+        var ch = MakeChar(7);
+        _service.GetCharacterByIdAsync(Arg.Any<CharacterId>(), Arg.Any<CancellationToken>()).Returns(ch);
+        _authz.AuthorizeAsync(user, ch, Arg.Any<IEnumerable<IAuthorizationRequirement>>())
+              .Returns(AuthorizationResult.Success());
+        _service.GetInventoryAsync(new CharacterId(42), Arg.Any<CancellationToken>())
+            .Returns(new CharacterInventoryDto { CharacterId = 42 });
+
+        var sut = MakeSut(user);
+        var result = await sut.GetInventory(42, CancellationToken.None);
+
+        Assert.IsType<OkObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task GetInventory_Returns404_WhenCharacterMissing()
+    {
+        var user = User(7, AvalonRoles.Player);
+        _service.GetCharacterByIdAsync(Arg.Any<CharacterId>(), Arg.Any<CancellationToken>())
+            .Returns((Character?)null);
+
+        var sut = MakeSut(user);
+        var result = await sut.GetInventory(42, CancellationToken.None);
+
+        Assert.IsType<NotFoundResult>(result);
+    }
+
+    [Fact]
+    public async Task GetInventory_Returns404_WhenAuthzFailsAndCallerIsPlayer()
+    {
+        var user = User(7, AvalonRoles.Player);
+        var ch = MakeChar(99);
+        _service.GetCharacterByIdAsync(Arg.Any<CharacterId>(), Arg.Any<CancellationToken>()).Returns(ch);
+        _authz.AuthorizeAsync(user, ch, Arg.Any<IEnumerable<IAuthorizationRequirement>>())
+              .Returns(AuthorizationResult.Failed());
+
+        var sut = MakeSut(user);
+        var result = await sut.GetInventory(42, CancellationToken.None);
+
+        Assert.IsType<NotFoundResult>(result);
+    }
 }
