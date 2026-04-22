@@ -4,6 +4,8 @@ using Avalon.Api.Contract;
 using Avalon.Api.Contract.Mappers;
 using Avalon.Api.Services;
 using Avalon.Common.ValueObjects;
+using Avalon.Database;
+using Avalon.Database.Extensions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -33,6 +35,15 @@ public class CharacterController : BaseController
 
         var characters = await _service.GetAllCharactersAsync(accountId, ct);
         return characters.Select(c => c.ToDto()).ToList();
+    }
+
+    [Authorize(Policy = AvalonRoles.GameMaster)]
+    [HttpGet("paginate", Name = "PaginateCharacters")]
+    [ProducesResponseType(typeof(PagedResult<CharacterDto>), 200)]
+    public async Task<PagedResult<CharacterDto>> Paginate([FromQuery] CharacterPaginateFilters filters, CancellationToken ct)
+    {
+        var page = await _service.PaginateAsync(filters, ct);
+        return page.MapTo(c => c.ToDto());
     }
 
     [HttpGet("{id}", Name = "GetCharacterById")]
