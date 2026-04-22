@@ -30,7 +30,8 @@ public class CharacterController : BaseController
     }
 
     [HttpGet("{id}", Name = "GetCharacterById")]
-    public async Task<CharacterDto> GetById(CharacterId id)
+    [ProducesResponseType(typeof(CharacterDto), 200)]
+    public async Task<CharacterDto> GetById([FromRoute] uint id)
     {
         var character = await _service.GetCharacterById(id);
         return character.ToDto();
