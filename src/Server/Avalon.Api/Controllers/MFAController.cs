@@ -73,13 +73,13 @@ public class MFAController : BaseController
         if (!result.Success)
             return Problem("Invalid MFA code or expired hash", statusCode: 401);
 
-        var account = await _accountRepository.FindByIdAsync(result.AccountId!);
+        var account = await _accountRepository.FindByIdAsync(result.AccountId!, false, CancellationToken);
         if (account == null)
             return Problem("Account not found", statusCode: 401);
 
         account.LastIp = IpAddress.ToString();
         account.LastLogin = DateTime.UtcNow;
-        await _accountRepository.UpdateAsync(account);
+        await _accountRepository.UpdateAsync(account, CancellationToken);
 
         return new AuthenticateResponse
         {

@@ -37,7 +37,7 @@ public class NotificationService : INotificationService
         CancellationToken cancellationToken)
     {
 
-        var devices = await _deviceRepository.FindByAsync(d => d.AccountId == account.Id);
+        var devices = await _deviceRepository.FindByAsync(d => d.AccountId == account.Id, cancellationToken);
         var device = devices.FirstOrDefault(x => x.Name == userAgent);
 
         if (device == null)
@@ -52,14 +52,14 @@ public class NotificationService : INotificationService
                 LastUsage = DateTime.UtcNow,
             };
 
-            await _deviceRepository.CreateAsync(device);
+            await _deviceRepository.CreateAsync(device, cancellationToken);
         }
         else
         {
             device.Metadata = JsonSerializer.Serialize(request);
             device.LastUsage = DateTime.UtcNow;
 
-            await _deviceRepository.UpdateAsync(device);
+            await _deviceRepository.UpdateAsync(device, cancellationToken);
         }
 
         var webPushClient = new WebPushClient();
@@ -100,7 +100,7 @@ public class NotificationService : INotificationService
 
     public async Task SendNotificationAsync(Account account, string message, CancellationToken cancellationToken = default)
     {
-        var devices = await _deviceRepository.FindByAsync(d => d.AccountId == account.Id);
+        var devices = await _deviceRepository.FindByAsync(d => d.AccountId == account.Id, cancellationToken);
 
         var webPushClient = new WebPushClient();
         webPushClient.SetVapidDetails(_vapidDetails);
