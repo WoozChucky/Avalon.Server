@@ -155,13 +155,13 @@ public class InstanceRegistry : IInstanceRegistry
         _virtualMapCache[templateId] = virtualMap;
 
     private async Task<MapInstance> CreateAndInitializeInstanceAsync(MapTemplateId templateId, MapType mapType,
-        long? ownerAccountId)
+        long? ownerAccountId, CancellationToken cancellationToken = default)
     {
         MapTemplate template = _mapManager.Templates.FirstOrDefault(t => t.Id == templateId)
                                ?? throw new InvalidOperationException(
                                    $"MapTemplate {templateId} not found.");
 
-        VirtualizedMap virtualMap = GetOrLoadVirtualMap(template);
+        VirtualizedMap virtualMap = await GetOrLoadVirtualMapAsync(template, cancellationToken);
 
         ILoggerFactory loggerFactory = _serviceProvider.GetRequiredService<ILoggerFactory>();
         IWorld world = _serviceProvider.GetRequiredService<IWorld>();
@@ -194,14 +194,14 @@ public class InstanceRegistry : IInstanceRegistry
         return instance;
     }
 
-    private VirtualizedMap GetOrLoadVirtualMap(MapTemplate template)
+    private async Task<VirtualizedMap> GetOrLoadVirtualMapAsync(MapTemplate template, CancellationToken cancellationToken = default)
     {
         if (_virtualMapCache.TryGetValue(template.Id, out VirtualizedMap? cached))
         {
             return cached;
         }
 
-        VirtualizedMap loaded = _mapManager.LoadMapDataAsync(template).GetAwaiter().GetResult();
+        VirtualizedMap loaded = await _mapManager.LoadMapDataAsync(template, cancellationToken);
         _virtualMapCache[template.Id] = loaded;
         return loaded;
     }

@@ -256,7 +256,11 @@ public class MapInstance : IMapInstance
         byte[] buffer = ArrayPool<byte>.Shared.Rent(65536);
         try
         {
+            // Sync per-tick broadcast path: await using would force this method async and
+            // ripple through the 60Hz tick loop; the underlying MemoryStream has nothing to flush.
+#pragma warning disable MA0045
             using WorldObjectWriter writer = new(buffer);
+#pragma warning restore MA0045
 
             state.AddedObjects.Clear();
             state.UpdatedObjects.Clear();

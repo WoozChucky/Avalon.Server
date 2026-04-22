@@ -319,8 +319,12 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
                     if (OperatingSystem.IsWindows() && _waitableTimer != IntPtr.Zero)
                         WaitHighRes(_waitableTimer, sleepTicks);
                     else
+                        // Dedicated tick thread loop: Task.Delay would hop threads and add jitter
+                        // well above the sub-millisecond budget of the 60Hz tick deadline.
+#pragma warning disable MA0045
                         Thread.Sleep(TimeSpan.FromMilliseconds(
                             sleepTicks * 1000.0 / Stopwatch.Frequency));
+#pragma warning restore MA0045
                 }
 
                 // ...then spin the final ~1ms for precision.
