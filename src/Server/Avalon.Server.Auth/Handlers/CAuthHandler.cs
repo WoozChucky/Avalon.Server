@@ -37,7 +37,7 @@ public class CAuthHandler : IAuthPacketHandler<CAuthPacket>
             return;
         }
 
-        var account = await _accountRepository.FindByUserNameAsync(ctx.Packet.Username.ToUpperInvariant().Trim());
+        var account = await _accountRepository.FindByUserNameAsync(ctx.Packet.Username.ToUpperInvariant().Trim(), token);
 
         if (account == null)
         {
@@ -62,13 +62,13 @@ public class CAuthHandler : IAuthPacketHandler<CAuthPacket>
                 account.Locked = true;
             }
 
-            await _accountRepository.UpdateAsync(account);
+            await _accountRepository.UpdateAsync(account, token);
 
             ctx.Connection.Send(SAuthResultPacket.Create(null, null, account.Locked ? AuthResult.LOCKED : AuthResult.INVALID_CREDENTIALS, ctx.Connection.CryptoSession.Encrypt));
             return;
         }
 
-        var mfa = await _mfaSetupRepository.FindByAccountIdAsync(account.Id!);
+        var mfa = await _mfaSetupRepository.FindByAccountIdAsync(account.Id, token);
         if (mfa is { Status: MfaSetupStatus.Confirmed })
         {
             var mfaHash = await _mfaHashService.GenerateHashAsync(account);
@@ -91,7 +91,7 @@ public class CAuthHandler : IAuthPacketHandler<CAuthPacket>
             {
                 _logger.LogWarning("Account {AccountId} is online but no connection was found", account.Id);
                 account.Online = false;
-                await _accountRepository.UpdateAsync(account);
+                await _accountRepository.UpdateAsync(account, token);
             }
             return;
         }
@@ -103,7 +103,7 @@ public class CAuthHandler : IAuthPacketHandler<CAuthPacket>
         account.LastLogin = DateTime.UtcNow;
         account.FailedLogins = 0;
 
-        await _accountRepository.UpdateAsync(account);
+        await _accountRepository.UpdateAsync(account, token);
 
         await _cache.PublishAsync(CacheKeys.AuthAccountsOnlineChannel, account.Id.ToString());
 

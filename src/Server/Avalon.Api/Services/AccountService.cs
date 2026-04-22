@@ -5,6 +5,7 @@ using Avalon.Api.Authentication.Jwt;
 using Avalon.Api.Contract;
 using Avalon.Api.Exceptions;
 using Avalon.Common.ValueObjects;
+using Avalon.Database;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Domain.Auth;
 using Avalon.Infrastructure.Services;
@@ -18,6 +19,8 @@ public interface IAccountService
     Task<AuthenticateResponse> Authenticate(AuthenticateRequest model, IPAddress ipAddress, CancellationToken cancellationToken);
     Task<RegisterResponse> Register(RegisterRequest model, string userAgent, IPAddress ipAddress,
         CancellationToken cancellationToken);
+
+    Task<PagedResult<Account>> Paginate(AccountPaginateFilters filters, CancellationToken cancellationToken = default);
 }
 
 public class AccountService : IAccountService
@@ -51,7 +54,7 @@ public class AccountService : IAccountService
     public async Task<AuthenticateResponse> Authenticate(AuthenticateRequest model, IPAddress ipAddress,
         CancellationToken cancellationToken)
     {
-        var account = await _accountRepository.FindByUserNameAsync(model.Username);
+        var account = await _accountRepository.FindByUserNameAsync(model.Username, cancellationToken);
         if (account == null)
             throw new AuthenticationException("Invalid username or password");
 
@@ -77,7 +80,7 @@ public class AccountService : IAccountService
         account.LastIp = ipAddress.ToString();
         account.LastLogin = DateTime.UtcNow;
 
-        await _accountRepository.UpdateAsync(account);
+        await _accountRepository.UpdateAsync(account, cancellationToken);
 
         return new AuthenticateResponse
         {
@@ -90,11 +93,14 @@ public class AccountService : IAccountService
     public async Task<RegisterResponse> Register(RegisterRequest model, string userAgent, IPAddress ipAddress,
         CancellationToken cancellationToken)
     {
-        var existingAccount = await _accountRepository.FindByUserNameAsync(model.Username.ToUpperInvariant().Trim());
+        var existingAccount = await _accountRepository.FindByUserNameAsync(
+            model.Username.ToUpperInvariant().Trim(),
+            cancellationToken
+        );
         if (existingAccount != null)
             throw new BusinessException("Username already exists");
 
-        existingAccount = await _accountRepository.FindByEmailAsync(model.Email);
+        existingAccount = await _accountRepository.FindByEmailAsync(model.Email, cancellationToken);
         if (existingAccount != null)
             throw new BusinessException("Email already exists");
 
@@ -117,7 +123,7 @@ public class AccountService : IAccountService
             Os = OperatingSystem.Windows,
         };
 
-        account = await _accountRepository.CreateAsync(account);
+        account = await _accountRepository.CreateAsync(account, cancellationToken);
 
         if (account == null)
             throw new Exception("Failed to insert account");
@@ -130,7 +136,7 @@ public class AccountService : IAccountService
             LastUsage = DateTime.UtcNow,
             Trusted = false,
             TrustEnd = DateTime.UtcNow,
-        });
+        }, cancellationToken);
 
         return new RegisterResponse
         {
@@ -138,5 +144,10 @@ public class AccountService : IAccountService
             RefreshToken = "",
             ExpiresAt = DateTimeOffset.UtcNow.AddHours(1).ToUnixTimeSeconds(),
         };
+    }
+
+    public async Task<PagedResult<Account>> Paginate(AccountPaginateFilters filters, CancellationToken cancellationToken)
+    {
+        return await _accountRepository.PaginateAsync(filters, false, cancellationToken);
     }
 }

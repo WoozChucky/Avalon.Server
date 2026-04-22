@@ -2,6 +2,8 @@ using Avalon.Api.Authentication;
 using Avalon.Api.Contract;
 using Avalon.Api.Contract.Mappers;
 using Avalon.Api.Services;
+using Avalon.Database;
+using Avalon.Database.Extensions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -27,6 +29,15 @@ public class AccountController : BaseController
     {
         var dto = (_authContext.Account ?? throw new Exception("Account not loaded")).ToDto();
         return await Task.FromResult(dto);
+    }
+
+    [Authorize(Policy = AvalonRoles.GameMaster)]
+    [HttpGet("paginate", Name = "PaginateAccounts")]
+    [ProducesResponseType(typeof(PagedResult<AccountDto>), 200)]
+    public async Task<PagedResult<AccountDto>> Paginate([FromQuery] AccountPaginateFilters filters)
+    {
+        var results = (await _accountService.Paginate(filters, HttpContext.RequestAborted)).MapTo(x => x.ToDto());
+        return results;
     }
 
     [AllowAnonymous]

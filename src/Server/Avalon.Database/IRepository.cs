@@ -1,19 +1,17 @@
-using System;
-using System.Collections.Generic;
 using System.Linq.Expressions;
-using System.Threading.Tasks;
 using Avalon.Domain;
 
 namespace Avalon.Database;
 
 public interface IRepository<TEntity, in TKey> where TEntity : class, IDbEntity<TKey>
 {
-    Task<IList<TEntity>> FindAllAsync(bool track = false);
-    Task<TEntity?> FindByIdAsync(TKey id, bool track = false);
-    Task<IList<TEntity>> FindByAsync(Expression<Func<TEntity, bool>> predicate);
+    Task<PagedResult<TEntity>> PaginateAsync(EntityPaginateFilter<TEntity> filter, bool track = false, CancellationToken cancellationToken = default);
+    Task<List<TEntity>> FindAllAsync(bool track = false, CancellationToken cancellationToken = default);
+    Task<TEntity?> FindByIdAsync(TKey id, bool track = false, CancellationToken cancellationToken = default);
+    Task<List<TEntity>> FindByAsync(Expression<Func<TEntity, bool>> predicate, CancellationToken cancellationToken = default);
 
-    Task<TEntity> CreateAsync(TEntity entity);
-    Task<IList<TEntity>> CreateAsync(IList<TEntity> entities);
-    Task<TEntity> UpdateAsync(TEntity entity);
-    Task DeleteAsync(TKey id);
+    Task<TEntity> CreateAsync(TEntity entity, CancellationToken cancellationToken = default);
+    Task<List<TEntity>> CreateAsync(List<TEntity> entities, CancellationToken cancellationToken = default);
+    Task<TEntity> UpdateAsync(TEntity entity, CancellationToken cancellationToken = default);
+    Task DeleteAsync(TKey id, CancellationToken cancellationToken = default);
 }

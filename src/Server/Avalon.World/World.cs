@@ -178,7 +178,7 @@ public class World : IWorld
 
     public async Task LoadAsync(CancellationToken token)
     {
-        Domain.Auth.World? world = await _worldRepository.FindByIdAsync(Id);
+        Domain.Auth.World? world = await _worldRepository.FindByIdAsync(Id, false, token);
         _world = world ?? throw new InvalidOperationException($"World {Id} not found.");
 
         await Data.LoadAsync();

@@ -49,8 +49,9 @@ public class MFAHashService : IMFAHashService
         await transaction.HashSetAsync(CacheKeys.AccountMfa(account.Id),
             new[]
             {
-                new HashEntry("hash", hash), new HashEntry("expiry", DateTime.UtcNow.Add(_expiry).ToString("O")),
-                new HashEntry("accountId", account.Id!.Value.ToString())
+                new HashEntry("hash", hash),
+                new HashEntry("expiry", DateTime.UtcNow.Add(_expiry).ToString("O")),
+                new HashEntry("accountId", account.Id.Value.ToString())
             });
         await transaction.ExecuteAsync();
         await _cache.SetAsync(CacheKeys.MfaReverseHash(hash), account.Id!.Value.ToString(), _expiry);
