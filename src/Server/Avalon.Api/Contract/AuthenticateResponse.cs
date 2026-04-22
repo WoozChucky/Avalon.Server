@@ -10,10 +10,3 @@ public class AuthenticateResponse
     [JsonConverter(typeof(JsonStringEnumConverter))]
     public AuthenticationResponseStatus Status { get; set; }
 }
-
-public enum AuthenticationResponseStatus
-{
-    Failure,
-    Success,
-    RequiresMFA
-}
