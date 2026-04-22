@@ -41,29 +41,27 @@ namespace Avalon.Database.Auth.Migrations
             // Remap any existing non-seed rows bitwise from the old AccountAccessLevel
             // enum layout (Player=0, GameMaster=1, Administrator=2, Tournament=4, PTR=8)
             // to the new layout (Player=1, GameMaster=2, Admin=4, Console=8, Tournament=16, PTR=32).
-            // Seed rows above have already been rewritten by UpdateData; running the SQL
-            // against them is a no-op because their new values share no bits with the
-            // old mapping (except Player=0 which is handled explicitly below).
+            // Seed rows are excluded via WHERE because UpdateData (above) has already rewritten
+            // them to their final values. Re-applying the bitwise remap formula on those rewritten
+            // values would corrupt them.
             migrationBuilder.Sql("""
                 UPDATE "Accounts" SET "AccessLevel" = (
-                      (CASE WHEN "AccessLevel" = 0 THEN 1 ELSE 0 END)
-                    | (CASE WHEN ("AccessLevel" & 1) = 1 THEN 2 ELSE 0 END)
-                    | (CASE WHEN ("AccessLevel" & 2) = 2 THEN 4 ELSE 0 END)
-                    | (CASE WHEN ("AccessLevel" & 4) = 4 THEN 16 ELSE 0 END)
-                    | (CASE WHEN ("AccessLevel" & 8) = 8 THEN 32 ELSE 0 END)
-                )
-                WHERE "Id" <> 1;
+                      1                                                                       /* Player bit always set */
+                    | (CASE WHEN ("AccessLevel" & 1) = 1 THEN 2 ELSE 0 END)                   /* GameMaster */
+                    | (CASE WHEN ("AccessLevel" & 2) = 2 THEN 4 ELSE 0 END)                   /* Admin */
+                    | (CASE WHEN ("AccessLevel" & 4) = 4 THEN 16 ELSE 0 END)                  /* Tournament */
+                    | (CASE WHEN ("AccessLevel" & 8) = 8 THEN 32 ELSE 0 END)                  /* PTR */
+                ) WHERE "Id" <> 1;
             """);
 
             migrationBuilder.Sql("""
                 UPDATE "Worlds" SET "AccessLevelRequired" = (
-                      (CASE WHEN "AccessLevelRequired" = 0 THEN 1 ELSE 0 END)
-                    | (CASE WHEN ("AccessLevelRequired" & 1) = 1 THEN 2 ELSE 0 END)
-                    | (CASE WHEN ("AccessLevelRequired" & 2) = 2 THEN 4 ELSE 0 END)
-                    | (CASE WHEN ("AccessLevelRequired" & 4) = 4 THEN 16 ELSE 0 END)
-                    | (CASE WHEN ("AccessLevelRequired" & 8) = 8 THEN 32 ELSE 0 END)
-                )
-                WHERE "Id" NOT IN (1, 2, 3);
+                      1                                                                                /* Player bit always set */
+                    | (CASE WHEN ("AccessLevelRequired" & 1) = 1 THEN 2 ELSE 0 END)                    /* GameMaster */
+                    | (CASE WHEN ("AccessLevelRequired" & 2) = 2 THEN 4 ELSE 0 END)                    /* Admin */
+                    | (CASE WHEN ("AccessLevelRequired" & 4) = 4 THEN 16 ELSE 0 END)                   /* Tournament */
+                    | (CASE WHEN ("AccessLevelRequired" & 8) = 8 THEN 32 ELSE 0 END)                   /* PTR */
+                ) WHERE "Id" NOT IN (1, 2, 3);
             """);
         }
 
