@@ -17,9 +17,9 @@ public static class MappingExtensions
         MuteReason = account.MuteReason,
         Online = account.Online,
         Locale = account.Locale,
-        Os = (OperatingSystem) account.Os,
+        Os = account.Os,
         TotalTime = account.TotalTime,
-        AccessLevel = (AccountAccessLevel) account.AccessLevel,
+        AccessLevel = account.AccessLevel,
     };
 
     public static CharacterDto ToDto(this Character character) => new()

@@ -20,20 +20,3 @@ public class AccountDto
     public long TotalTime { get; set; }
     public AccountAccessLevel AccessLevel { get; set; }
 }
-
-[Flags]
-public enum AccountAccessLevel : ushort
-{
-    Player = 0,
-    GameMaster = 1,
-    Administrator = 2,
-    Tournament = 4,
-    PTR = 8,
-}
-
-public enum OperatingSystem : ushort
-{
-    Windows,
-    MacOS,
-    Linux
-}

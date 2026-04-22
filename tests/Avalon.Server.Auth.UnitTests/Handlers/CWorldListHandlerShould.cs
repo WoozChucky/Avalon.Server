@@ -78,7 +78,7 @@ public class CWorldListHandlerShould
         _accountRepository.FindByIdAsync(account.Id).Returns(account);
 
         var playerWorld = MakeWorld(1, AccountAccessLevel.Player);
-        var adminWorld = MakeWorld(2, AccountAccessLevel.Administrator);
+        var adminWorld = MakeWorld(2, AccountAccessLevel.Admin);
         _worldRepository.FindAllAsync().Returns(new List<AvalonWorld> { playerWorld, adminWorld });
 
         var ctx = new AuthPacketContext<CWorldListPacket>
@@ -96,12 +96,12 @@ public class CWorldListHandlerShould
     [Fact]
     public async Task SendAllWorlds_WhenAccountIsAdministrator()
     {
-        var account = MakeAccount(level: AccountAccessLevel.Administrator);
+        var account = MakeAccount(level: AccountAccessLevel.Admin);
         _connection.AccountId.Returns(account.Id);
         _accountRepository.FindByIdAsync(account.Id).Returns(account);
 
         var playerWorld = MakeWorld(1, AccountAccessLevel.Player);
-        var adminWorld = MakeWorld(2, AccountAccessLevel.Administrator);
+        var adminWorld = MakeWorld(2, AccountAccessLevel.Admin);
         _worldRepository.FindAllAsync().Returns(new List<AvalonWorld> { playerWorld, adminWorld });
 
         var ctx = new AuthPacketContext<CWorldListPacket>

@@ -3,6 +3,7 @@ using System;
 using Avalon.Database.Auth;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Avalon.Database.Auth.Migrations
 {
     [DbContext(typeof(AuthDbContext))]
-    partial class AuthDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260422031153_RemapAccountAccessLevel")]
+    partial class RemapAccountAccessLevel
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -88,9 +91,6 @@ namespace Avalon.Database.Auth.Migrations
                         .HasColumnType("bytea")
                         .HasColumnName("SessionKey");
 
-                    b.Property<byte>("Status")
-                        .HasColumnType("smallint");
-
                     b.Property<long>("TotalTime")
                         .HasColumnType("bigint");
 
@@ -125,7 +125,6 @@ namespace Avalon.Database.Auth.Migrations
                             Os = "Linux",
                             Salt = new byte[] { 36, 50, 97, 36, 49, 49, 36, 87, 99, 81, 111, 50, 73, 79, 51, 110, 69, 119, 75, 77, 78, 85, 98, 116, 110, 71, 88, 90, 46 },
                             SessionKey = new byte[0],
-                            Status = (byte)0,
                             TotalTime = 0L,
                             Username = "ADMIN",
                             Verifier = new byte[] { 36, 50, 97, 36, 49, 49, 36, 87, 99, 81, 111, 50, 73, 79, 51, 110, 69, 119, 75, 77, 78, 85, 98, 116, 110, 71, 88, 90, 46, 54, 72, 106, 115, 116, 79, 46, 107, 82, 120, 110, 46, 80, 115, 80, 83, 85, 98, 55, 47, 70, 103, 116, 50, 69, 97, 119, 107, 53, 105, 54 }
