@@ -33,7 +33,9 @@ public static class ServiceRegistration
 
         services.AddScoped<IAccountService, AccountService>();
         services.AddScoped<ICharacterService, CharacterService>();
+        services.AddScoped<IWorldService, WorldService>();
         services.AddMfaService();
+        services.AddSecureRandom();
         services.AddSingleton<IReplicatedCache, ReplicatedCache>();
         services.AddScoped<INotificationService, NotificationService>();
         services.AddScoped<IJwtUtils, JwtUtils>();
@@ -121,5 +123,9 @@ public static class ServiceRegistration
 
         services.AddScoped<IAuthContext, AuthContext>();
         services.AddScoped<IAuthorizationHandler, AvalonAuthHandler>();
+        services.AddScoped<IAuthorizationHandler, Authorization.CharacterReadHandler>();
+        services.AddScoped<IAuthorizationHandler, Authorization.CharacterWriteHandler>();
+        services.AddScoped<IAuthorizationHandler, Authorization.AccountReadHandler>();
+        services.AddScoped<IAuthorizationHandler, Authorization.AccountWriteHandler>();
     }
 }

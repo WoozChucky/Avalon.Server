@@ -14,16 +14,16 @@ public class Account : IDbEntity<AccountId>
     public required string Username { get; init; }
 
     [Required]
-    public required byte[] Salt { get; init; }
+    public required byte[] Salt { get; set; }
 
     [Required]
-    public required byte[] Verifier { get; init; }
+    public required byte[] Verifier { get; set; }
 
     [Column("SessionKey")]
     public byte[] SessionKey { get; set; } = [];
 
     [Required]
-    public required string Email { get; init; }
+    public required string Email { get; set; }
 
     [Required]
     public required DateTime JoinDate { get; init; } = DateTime.UtcNow;
@@ -53,6 +53,8 @@ public class Account : IDbEntity<AccountId>
     public long TotalTime { get; set; } = 0;
 
     public AccountAccessLevel AccessLevel { get; set; } = AccountAccessLevel.Player;
+
+    public AccountStatus Status { get; set; } = AccountStatus.Active;
 }
 
 
@@ -60,11 +62,12 @@ public class Account : IDbEntity<AccountId>
 [Flags]
 public enum AccountAccessLevel : ushort
 {
-    Player = 0,
-    GameMaster = 1,
-    Administrator = 2,
-    Tournament = 4,
-    PTR = 8,
+    Player = 1,
+    GameMaster = 2,
+    Admin = 4,
+    Console = 8,
+    Tournament = 16,
+    PTR = 32,
 }
 
 public enum AccountLocale : ushort
@@ -95,4 +98,11 @@ public enum OperatingSystem : ushort
     Windows,
     MacOS,
     Linux
+}
+
+public enum AccountStatus : byte
+{
+    Active = 0,
+    Banned = 1,
+    Deactivated = 2
 }
