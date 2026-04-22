@@ -181,7 +181,7 @@ public class World : IWorld
         Domain.Auth.World? world = await _worldRepository.FindByIdAsync(Id, false, token);
         _world = world ?? throw new InvalidOperationException($"World {Id} not found.");
 
-        await Data.LoadAsync();
+        await Data.LoadAsync(token);
         await _mapManager.LoadAsync();
 
         InstanceRegistry = new InstanceRegistry(_loggerFactory, _mapManager, _serviceProvider);
