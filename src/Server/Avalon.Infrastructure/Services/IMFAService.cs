@@ -9,4 +9,5 @@ public interface IMFAService
     Task<MFAConfirmResult> ConfirmMFAAsync(AccountId accountId, string code, CancellationToken cancellationToken = default);
     Task<MFAVerifyResult> VerifyMFAAsync(string hash, string code, CancellationToken cancellationToken = default);
     Task<MFAResetResult> ResetMFAAsync(AccountId accountId, string r1, string r2, string r3, CancellationToken cancellationToken = default);
+    Task<bool> IsEnrolledAsync(AccountId accountId, CancellationToken cancellationToken = default);
 }

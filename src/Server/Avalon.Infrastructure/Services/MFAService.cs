@@ -120,4 +120,10 @@ public class MFAService : IMFAService
         await _mfaSetupRepository.DeleteAsync(mfaSetup.Id, cancellationToken);
         return new MFAResetResult(true, MFAOperationResult.Success);
     }
+
+    public async Task<bool> IsEnrolledAsync(AccountId accountId, CancellationToken cancellationToken = default)
+    {
+        var setup = await _mfaSetupRepository.FindByAccountIdAsync(accountId, cancellationToken);
+        return setup is { Status: MfaSetupStatus.Confirmed };
+    }
 }
