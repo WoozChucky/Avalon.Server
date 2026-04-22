@@ -1,7 +1,0 @@
-<Project>
-  <!--
-    Intentionally empty.
-    Stops MSBuild from inheriting the repo-root Directory.Build.props inside vendor/,
-    so third-party/vendored code is not subjected to our analyzers (Meziantou.Analyzer, etc).
-  -->
-</Project>
