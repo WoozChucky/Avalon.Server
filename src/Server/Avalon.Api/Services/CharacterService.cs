@@ -100,7 +100,7 @@ public class CharacterService : ICharacterService
         return new CharacterInventoryItemDto
         {
             ItemId = row.ItemId.Value,
-            Container = row.Container,
+            Container = (Avalon.Api.Contract.InventoryType)row.Container,
             Slot = row.Slot,
             Count = instance?.Count ?? 0,
             Durability = instance?.Durability ?? 0,
@@ -108,9 +108,9 @@ public class CharacterService : ICharacterService
             {
                 Id = instance.Template.Id.Value,
                 Name = instance.Template.Name ?? string.Empty,
-                Rarity = instance.Template.Rarity,
+                Rarity = (Avalon.Api.Contract.ItemRarity)instance.Template.Rarity,
                 DisplayId = instance.Template.DisplayId,
-                SlotType = instance.Template.Slot ?? default,
+                SlotType = (Avalon.Api.Contract.ItemSlotType)(instance.Template.Slot ?? default),
                 ItemPower = instance.Template.ItemPower ?? 0,
                 RequiredLevel = instance.Template.RequiredLevel ?? 0,
             },

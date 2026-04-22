@@ -32,17 +32,17 @@ public class PersonalAccessTokenController : BaseController
         AccountId = p.AccountId.Value,
         Name = p.Name,
         Prefix = p.TokenPrefix,
-        Roles = p.Roles,
+        Roles = (Avalon.Api.Contract.AccountAccessLevel)p.Roles,
         CreatedAt = p.CreatedAt,
         ExpiresAt = p.ExpiresAt,
         LastUsedAt = p.LastUsedAt,
         RevokedAt = p.RevokedAt,
     };
 
-    private static AccountAccessLevel CollectRoles(ClaimsPrincipal user)
+    private static Avalon.Domain.Auth.AccountAccessLevel CollectRoles(ClaimsPrincipal user)
     {
-        var roles = (AccountAccessLevel)0;
-        foreach (AccountAccessLevel flag in Enum.GetValues<AccountAccessLevel>())
+        var roles = (Avalon.Domain.Auth.AccountAccessLevel)0;
+        foreach (Avalon.Domain.Auth.AccountAccessLevel flag in Enum.GetValues<Avalon.Domain.Auth.AccountAccessLevel>())
             if (flag != 0 && user.IsInRole(flag.ToString())) roles |= flag;
         return roles;
     }
@@ -62,7 +62,7 @@ public class PersonalAccessTokenController : BaseController
             callerRoles: CollectRoles(User),
             name: req.Name,
             expiresAt: req.ExpiresAt,
-            requestedRoles: req.Roles,
+            requestedRoles: (Avalon.Domain.Auth.AccountAccessLevel?)req.Roles,
             ct);
 
         return CreatedAtAction(nameof(GetById), new { id = result.Id.Value }, new PatCreatedDto
@@ -71,7 +71,7 @@ public class PersonalAccessTokenController : BaseController
             AccountId = User.AccountId().Value,
             Name = result.Name,
             Prefix = result.Prefix,
-            Roles = result.Roles,
+            Roles = (Avalon.Api.Contract.AccountAccessLevel)result.Roles,
             CreatedAt = DateTime.UtcNow,
             ExpiresAt = result.ExpiresAt,
             Token = result.Token,
@@ -128,7 +128,7 @@ public class PersonalAccessTokenController : BaseController
             targetAccountId: new AccountId(req.AccountId),
             name: req.Name,
             expiresAt: req.ExpiresAt,
-            requestedRoles: req.Roles,
+            requestedRoles: (Avalon.Domain.Auth.AccountAccessLevel)req.Roles,
             ct);
 
         return CreatedAtAction(nameof(GetById), new { id = result.Id.Value }, new PatCreatedDto
@@ -137,7 +137,7 @@ public class PersonalAccessTokenController : BaseController
             AccountId = req.AccountId,
             Name = result.Name,
             Prefix = result.Prefix,
-            Roles = result.Roles,
+            Roles = (Avalon.Api.Contract.AccountAccessLevel)result.Roles,
             CreatedAt = DateTime.UtcNow,
             ExpiresAt = result.ExpiresAt,
             Token = result.Token,

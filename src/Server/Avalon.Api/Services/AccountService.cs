@@ -26,8 +26,8 @@ public interface IAccountService
     Task ChangePasswordAsync(AccountId accountId, string currentPassword, string newPassword, CancellationToken cancellationToken = default);
     Task<string> InitiateEmailChangeAsync(AccountId accountId, string newEmail, CancellationToken cancellationToken = default);
     Task ConfirmEmailChangeAsync(string token, CancellationToken cancellationToken = default);
-    Task UpdateStatusAsync(AccountId accountId, AccountStatus state, string? reason, AccountId actorId, CancellationToken cancellationToken = default);
-    Task UpdateRolesAsync(AccountId accountId, AccountAccessLevel roles, CancellationToken cancellationToken = default);
+    Task UpdateStatusAsync(AccountId accountId, Avalon.Api.Contract.AccountStatus state, string? reason, AccountId actorId, CancellationToken cancellationToken = default);
+    Task UpdateRolesAsync(AccountId accountId, Avalon.Api.Contract.AccountAccessLevel roles, CancellationToken cancellationToken = default);
 }
 
 public class AccountService : IAccountService
@@ -138,7 +138,7 @@ public class AccountService : IAccountService
             LastIp = ipAddress.ToString(),
             LastLogin = DateTime.UtcNow,
             JoinDate = DateTime.UtcNow,
-            Locale = AccountLocale.enUS,
+            Locale = Avalon.Domain.Auth.AccountLocale.enUS,
             Os = OperatingSystem.Windows,
         };
 
@@ -227,7 +227,7 @@ public class AccountService : IAccountService
     }
 
     // NOTE: `reason` is currently accepted but not persisted (future: audit log).
-    public async Task UpdateStatusAsync(AccountId accountId, AccountStatus state, string? reason,
+    public async Task UpdateStatusAsync(AccountId accountId, Avalon.Api.Contract.AccountStatus state, string? reason,
         AccountId actorId, CancellationToken cancellationToken = default)
     {
         await using var transaction = await _authDbContext.Database.BeginTransactionAsync(cancellationToken);
@@ -236,10 +236,10 @@ public class AccountService : IAccountService
             var account = await _accountRepository.FindByIdAsync(accountId, track: true, cancellationToken)
                 ?? throw new BusinessException("Account not found");
 
-            account.Status = state;
+            account.Status = (Avalon.Domain.Auth.AccountStatus)state;
             await _accountRepository.UpdateAsync(account, cancellationToken);
 
-            if (state is AccountStatus.Banned or AccountStatus.Deactivated)
+            if (state is Avalon.Api.Contract.AccountStatus.Banned or Avalon.Api.Contract.AccountStatus.Deactivated)
             {
                 await _patService.RevokeAllForAccountAsync(accountId, actorId, cancellationToken);
             }
@@ -252,17 +252,17 @@ public class AccountService : IAccountService
             throw;
         }
 
-        if (state is AccountStatus.Banned or AccountStatus.Deactivated)
+        if (state is Avalon.Api.Contract.AccountStatus.Banned or Avalon.Api.Contract.AccountStatus.Deactivated)
         {
             await _cache.PublishAsync(CacheKeys.WorldAccountsDisconnectChannel, accountId.Value.ToString());
         }
     }
 
-    public async Task UpdateRolesAsync(AccountId accountId, AccountAccessLevel roles, CancellationToken cancellationToken = default)
+    public async Task UpdateRolesAsync(AccountId accountId, Avalon.Api.Contract.AccountAccessLevel roles, CancellationToken cancellationToken = default)
     {
         var account = await _accountRepository.FindByIdAsync(accountId, track: true, cancellationToken)
             ?? throw new BusinessException("Account not found");
-        account.AccessLevel = roles;
+        account.AccessLevel = (Avalon.Domain.Auth.AccountAccessLevel)roles;
         await _accountRepository.UpdateAsync(account, cancellationToken);
     }
 }
