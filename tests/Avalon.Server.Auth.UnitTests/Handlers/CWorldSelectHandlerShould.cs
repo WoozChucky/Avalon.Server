@@ -101,7 +101,7 @@ public class CWorldSelectHandlerShould
         var account = MakeAccount(level: AccountAccessLevel.Player);
         _connection.AccountId.Returns(account.Id);
         _accountRepository.FindByIdAsync(account.Id).Returns(account);
-        var world = MakeWorld(req: AccountAccessLevel.Administrator);
+        var world = MakeWorld(req: AccountAccessLevel.Admin);
         _worldRepository.FindByIdAsync(Arg.Any<WorldId>()).Returns(world);
 
         var ctx = new AuthPacketContext<CWorldSelectPacket>
