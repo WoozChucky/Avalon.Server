@@ -1,6 +1,7 @@
 using Avalon.Api.Contract;
 using Avalon.Api.Exceptions;
 using Avalon.Common.ValueObjects;
+using Avalon.Database;
 using Avalon.Database.Character.Repositories;
 using Avalon.Domain.Characters;
 
@@ -13,6 +14,7 @@ public interface ICharacterService
     Task UpdateCosmeticAsync(Character character, string? newName, CancellationToken cancellationToken = default);
     Task UpdateAnyAsync(Character character, CharacterPatchDto dto, CancellationToken cancellationToken = default);
     Task<CharacterInventoryDto?> GetInventoryAsync(CharacterId id, CancellationToken cancellationToken = default);
+    Task<PagedResult<Character>> PaginateAsync(CharacterPaginateFilters filters, CancellationToken cancellationToken = default);
 }
 
 public class CharacterService : ICharacterService
@@ -33,6 +35,9 @@ public class CharacterService : ICharacterService
 
     public Task<Character?> GetCharacterByIdAsync(CharacterId id, CancellationToken cancellationToken = default) =>
         _characterRepository.FindByIdAsync(id, track: false, cancellationToken);
+
+    public Task<PagedResult<Character>> PaginateAsync(CharacterPaginateFilters filters, CancellationToken cancellationToken = default) =>
+        _characterRepository.PaginateAsync(filters, track: false, cancellationToken);
 
     public async Task UpdateCosmeticAsync(Character character, string? newName, CancellationToken cancellationToken = default)
     {

@@ -5,6 +5,7 @@ using Avalon.Api.Contract;
 using Avalon.Api.Controllers;
 using Avalon.Api.Services;
 using Avalon.Common.ValueObjects;
+using Avalon.Database;
 using Avalon.Domain.Characters;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -176,6 +177,19 @@ public class CharacterControllerShould
         var result = await sut.GetInventory(42, CancellationToken.None);
 
         Assert.IsType<NotFoundResult>(result);
+    }
+
+    [Fact]
+    public async Task Paginate_ReturnsMappedResult()
+    {
+        var user = User(99, AvalonRoles.GameMaster);
+        _service.PaginateAsync(Arg.Any<CharacterPaginateFilters>(), Arg.Any<CancellationToken>())
+            .Returns(new PagedResult<Character>(1, 50, 1, new List<Character> { MakeChar(7) }));
+
+        var sut = MakeSut(user);
+        var result = await sut.Paginate(new CharacterPaginateFilters(), CancellationToken.None);
+
+        Assert.Single(result.Items);
     }
 
     [Fact]
