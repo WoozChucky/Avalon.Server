@@ -53,6 +53,8 @@ public class Account : IDbEntity<AccountId>
     public long TotalTime { get; set; } = 0;
 
     public AccountAccessLevel AccessLevel { get; set; } = AccountAccessLevel.Player;
+
+    public AccountStatus Status { get; set; } = AccountStatus.Active;
 }
 
 
@@ -96,4 +98,11 @@ public enum OperatingSystem : ushort
     Windows,
     MacOS,
     Linux
+}
+
+public enum AccountStatus : byte
+{
+    Active = 0,
+    Banned = 1,
+    Deactivated = 2
 }

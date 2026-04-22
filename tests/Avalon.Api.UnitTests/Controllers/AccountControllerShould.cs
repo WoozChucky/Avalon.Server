@@ -143,4 +143,19 @@ public class AccountControllerShould
         Assert.IsType<NoContentResult>(result);
         await _accountService.Received(1).ConfirmEmailChangeAsync("tok", Arg.Any<CancellationToken>());
     }
+
+    [Fact]
+    public async Task UpdateStatus_Delegates()
+    {
+        var user = User(99, AvalonRoles.Admin);
+        var sut = MakeSut(user);
+
+        var result = await sut.UpdateStatus(7,
+            new AccountStatusPatchRequest { State = AccountStatus.Banned, Reason = "cheat" },
+            CancellationToken.None);
+
+        Assert.IsType<NoContentResult>(result);
+        await _accountService.Received(1).UpdateStatusAsync(
+            new AccountId(7), AccountStatus.Banned, "cheat", Arg.Any<CancellationToken>());
+    }
 }
