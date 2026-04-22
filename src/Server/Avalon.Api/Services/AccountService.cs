@@ -26,6 +26,7 @@ public interface IAccountService
     Task<string> InitiateEmailChangeAsync(AccountId accountId, string newEmail, CancellationToken cancellationToken = default);
     Task ConfirmEmailChangeAsync(string token, CancellationToken cancellationToken = default);
     Task UpdateStatusAsync(AccountId accountId, AccountStatus state, string? reason, CancellationToken cancellationToken = default);
+    Task UpdateRolesAsync(AccountId accountId, AccountAccessLevel roles, CancellationToken cancellationToken = default);
 }
 
 public class AccountService : IAccountService
@@ -232,5 +233,13 @@ public class AccountService : IAccountService
         {
             await _cache.PublishAsync(CacheKeys.WorldAccountsDisconnectChannel, accountId.Value.ToString());
         }
+    }
+
+    public async Task UpdateRolesAsync(AccountId accountId, AccountAccessLevel roles, CancellationToken cancellationToken = default)
+    {
+        var account = await _accountRepository.FindByIdAsync(accountId, track: true, cancellationToken)
+            ?? throw new BusinessException("Account not found");
+        account.AccessLevel = roles;
+        await _accountRepository.UpdateAsync(account, cancellationToken);
     }
 }

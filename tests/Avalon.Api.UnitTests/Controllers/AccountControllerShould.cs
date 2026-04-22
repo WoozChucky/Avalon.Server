@@ -158,4 +158,21 @@ public class AccountControllerShould
         await _accountService.Received(1).UpdateStatusAsync(
             new AccountId(7), AccountStatus.Banned, "cheat", Arg.Any<CancellationToken>());
     }
+
+    [Fact]
+    public async Task UpdateRoles_Delegates()
+    {
+        var user = User(99, AvalonRoles.Console);
+        var sut = MakeSut(user);
+
+        var result = await sut.UpdateRoles(7,
+            new AccountRolesPatchRequest { Roles = AccountAccessLevel.Player | AccountAccessLevel.GameMaster },
+            CancellationToken.None);
+
+        Assert.IsType<NoContentResult>(result);
+        await _accountService.Received(1).UpdateRolesAsync(
+            new AccountId(7),
+            AccountAccessLevel.Player | AccountAccessLevel.GameMaster,
+            Arg.Any<CancellationToken>());
+    }
 }
