@@ -74,4 +74,14 @@ public class AccountController : BaseController
         var language = Request.Headers.AcceptLanguage.ToString();
         return await _accountService.Register(model, userAgent, IpAddress, CancellationToken);
     }
+
+    [HttpPost("password")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> ChangePassword([FromBody] AccountPasswordChangeRequest request, CancellationToken ct)
+    {
+        var accountId = User.AccountId();
+        await _accountService.ChangePasswordAsync(accountId, request.CurrentPassword, request.NewPassword, ct);
+        return NoContent();
+    }
 }
