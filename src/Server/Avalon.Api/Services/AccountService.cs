@@ -15,7 +15,7 @@ namespace Avalon.Api.Services;
 
 public interface IAccountService
 {
-    Task<Account?> FindById(AccountId id);
+    Task<Account?> FindByIdAsync(AccountId id, CancellationToken cancellationToken = default);
     Task<AuthenticateResponse> Authenticate(AuthenticateRequest model, IPAddress ipAddress, CancellationToken cancellationToken);
     Task<RegisterResponse> Register(RegisterRequest model, string userAgent, IPAddress ipAddress,
         CancellationToken cancellationToken);
@@ -46,9 +46,9 @@ public class AccountService : IAccountService
         _deviceRepository = deviceRepository;
     }
 
-    public async Task<Account?> FindById(AccountId id)
+    public async Task<Account?> FindByIdAsync(AccountId id, CancellationToken cancellationToken = default)
     {
-        return await _accountRepository.FindByIdAsync(id);
+        return await _accountRepository.FindByIdAsync(id, track: false, cancellationToken);
     }
 
     public async Task<AuthenticateResponse> Authenticate(AuthenticateRequest model, IPAddress ipAddress,
