@@ -156,7 +156,7 @@ public class AccountControllerShould
 
         Assert.IsType<NoContentResult>(result);
         await _accountService.Received(1).UpdateStatusAsync(
-            new AccountId(7), AccountStatus.Banned, "cheat", Arg.Any<CancellationToken>());
+            new AccountId(7), AccountStatus.Banned, "cheat", new AccountId(99), Arg.Any<CancellationToken>());
     }
 
     [Fact]
