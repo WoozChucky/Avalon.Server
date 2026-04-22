@@ -54,7 +54,7 @@ public class AccountService : IAccountService
     public async Task<AuthenticateResponse> Authenticate(AuthenticateRequest model, IPAddress ipAddress,
         CancellationToken cancellationToken)
     {
-        var account = await _accountRepository.FindByUserNameAsync(model.Username, cancellationToken);
+        var account = await _accountRepository.FindByUserNameAsync(model.Username.ToUpperInvariant().Trim(), cancellationToken);
         if (account == null)
             throw new AuthenticationException("Invalid username or password");
 
@@ -65,7 +65,7 @@ public class AccountService : IAccountService
             throw new AuthenticationException("Invalid username or password");
         }
 
-        var mfaSetup = await _mfaSetupRepository.FindByAccountIdAsync(account.Id);
+        var mfaSetup = await _mfaSetupRepository.FindByAccountIdAsync(account.Id, cancellationToken);
         if (mfaSetup is { Status: MfaSetupStatus.Confirmed })
         {
             return new AuthenticateResponse

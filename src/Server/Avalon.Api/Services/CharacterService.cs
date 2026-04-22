@@ -9,7 +9,7 @@ namespace Avalon.Api.Services;
 
 public interface ICharacterService
 {
-    Task<IList<Character>> GetAllCharacters(AccountId? id);
+    Task<List<Character>> GetAllCharacters(AccountId? id);
     Task<Character> GetCharacterById(CharacterId id);
 }
 
@@ -24,7 +24,7 @@ public class CharacterService : ICharacterService
         _authContext = authContext;
     }
 
-    public async Task<IList<Character>> GetAllCharacters(AccountId? id)
+    public async Task<List<Character>> GetAllCharacters(AccountId? id)
     {
         if (id == null)
         {

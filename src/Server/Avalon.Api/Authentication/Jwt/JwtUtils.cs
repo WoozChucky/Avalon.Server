@@ -29,18 +29,25 @@ public class JwtUtils : IJwtUtils
 
     public string GenerateJwtToken(Account account)
     {
+        var claims = new List<Claim>
+        {
+            new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
+            new(ClaimTypes.NameIdentifier, account.Id.ToString() ?? throw new InvalidOperationException()),
+            new(JwtRegisteredClaimNames.Name, account.Username),
+            new(JwtRegisteredClaimNames.Email, account.Email),
+        };
+
+        // Emit one GroupSid claim per individual flag bit that is set
+        foreach (AccountAccessLevel flag in Enum.GetValues<AccountAccessLevel>())
+        {
+            if (flag == 0) continue; // skip 'None' if present
+            if (account.AccessLevel.HasFlag(flag))
+                claims.Add(new Claim(ClaimTypes.GroupSid, flag.ToString()));
+        }
+
         var tokenDescriptor = new SecurityTokenDescriptor
         {
-            Subject = new ClaimsIdentity(new[]
-                {
-                    new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
-                    new Claim(ClaimTypes.NameIdentifier, account.Id.ToString() ?? throw new InvalidOperationException()),
-                    new Claim(JwtRegisteredClaimNames.Name, account.Username),
-                    new Claim(JwtRegisteredClaimNames.Email, account.Email),
-                    new Claim(ClaimTypes.GroupSid, account.AccessLevel.ToString()),
-                },
-            JwtBearerDefaults.AuthenticationScheme
-            ),
+            Subject = new ClaimsIdentity(claims, JwtBearerDefaults.AuthenticationScheme),
             Expires = DateTime.UtcNow.AddHours(1),
             SigningCredentials = new SigningCredentials(_key, SecurityAlgorithms.HmacSha256Signature),
             Issuer = _authenticationConfig.Issuer,
