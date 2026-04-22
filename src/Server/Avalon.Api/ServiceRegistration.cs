@@ -34,6 +34,8 @@ public static class ServiceRegistration
         services.AddScoped<IAccountService, AccountService>();
         services.AddScoped<ICharacterService, CharacterService>();
         services.AddScoped<IWorldService, WorldService>();
+        services.AddScoped<IPersonalAccessTokenService, PersonalAccessTokenService>();
+        services.AddSingleton(TimeProvider.System);
         services.AddMfaService();
         services.AddSecureRandom();
         services.AddSingleton<IReplicatedCache, ReplicatedCache>();
