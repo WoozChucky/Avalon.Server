@@ -1,6 +1,3 @@
-using Avalon.World.Public.Enums;
-using WorldCharacterClass = Avalon.World.Public.Enums.CharacterClass;
-
 namespace Avalon.Api.Contract;
 
 public sealed class SpellTemplateDto
@@ -21,5 +18,5 @@ public sealed class SpellTemplateDto
     public SpellRange Range { get; set; }
     public SpellEffect Effects { get; set; }
     public uint EffectValue { get; set; }
-    public List<WorldCharacterClass> AllowedClasses { get; set; } = [];
+    public List<CharacterClass> AllowedClasses { get; set; } = [];
 }

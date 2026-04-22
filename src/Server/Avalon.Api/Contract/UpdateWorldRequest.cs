@@ -1,5 +1,3 @@
-using Avalon.Domain.Auth;
-
 namespace Avalon.Api.Contract;
 
 public sealed class UpdateWorldRequest

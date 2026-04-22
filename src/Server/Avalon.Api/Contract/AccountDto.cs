@@ -1,6 +1,4 @@
 using Avalon.Common.ValueObjects;
-using Avalon.Domain.Auth;
-using OperatingSystem = Avalon.Domain.Auth.OperatingSystem;
 
 namespace Avalon.Api.Contract;
 

@@ -1,6 +1,3 @@
-using Avalon.Domain.World;
-using Avalon.World.Public.Enums;
-
 namespace Avalon.Api.Contract;
 
 public sealed class CharacterInventoryDto
