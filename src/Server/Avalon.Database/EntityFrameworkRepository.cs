@@ -13,66 +13,97 @@ public abstract class EntityFrameworkRepository<TEntity, TKey>(DbContext dbConte
 {
     protected readonly DbContext Context = dbContext;
 
-    public async Task<IList<TEntity>> FindAllAsync(bool track = false)
+    public async Task<PagedResult<TEntity>> PaginateAsync(EntityPaginateFilter<TEntity> filter, bool track = false,
+        CancellationToken cancellationToken = default)
     {
-        return track
-            ? await Context.Set<TEntity>().ToListAsync()
-            : await FindAllNoTrackingAsync();
+        IQueryable<TEntity> query = track
+            ? Context.Set<TEntity>().AsQueryable()
+            : Context.Set<TEntity>().AsNoTracking().AsQueryable();
+
+        var queryFilters = filter.GetFilter();
+
+        query = query.Where(queryFilters);
+
+        int totalCount = await query.CountAsync(cancellationToken);
+
+        var sortDirection = filter.GetSortDirection();
+
+        var keySelector = filter.GetSortKeySelector();
+        if (keySelector is not null)
+        {
+            query = sortDirection == SortDirection.Ascending
+                ? query.OrderBy(keySelector)
+                : query.OrderByDescending(keySelector);
+        }
+
+        var items = await query
+            .Skip((filter.Page - 1) * filter.PageSize)
+            .Take(filter.PageSize)
+            .ToListAsync(cancellationToken);
+
+        return new PagedResult<TEntity>(filter.Page, filter.PageSize, totalCount, items);
     }
 
-    private async Task<IList<TEntity>> FindAllNoTrackingAsync()
+    public async Task<List<TEntity>> FindAllAsync(bool track = false, CancellationToken cancellationToken = default)
+    {
+        return track
+            ? await Context.Set<TEntity>().ToListAsync(cancellationToken)
+            : await FindAllNoTrackingAsync(cancellationToken);
+    }
+
+    private async Task<List<TEntity>> FindAllNoTrackingAsync(CancellationToken cancellationToken = default)
     {
         return await Context.Set<TEntity>()
             .AsNoTracking()
-            .ToListAsync();
+            .ToListAsync(cancellationToken);
     }
 
-    public async Task<TEntity?> FindByIdAsync(TKey id, bool track = false)
+    public async Task<TEntity?> FindByIdAsync(TKey id, bool track = false, CancellationToken cancellationToken = default)
     {
         return track
             ? await Context.Set<TEntity>()
-                .FirstOrDefaultAsync(entity => EF.Property<TKey>(entity, nameof(IDbEntity<TKey>.Id))!.Equals(id))
-            : await FindByIdNoTrackingAsync(id);
+                .FirstOrDefaultAsync(entity => EF.Property<TKey>(entity, nameof(IDbEntity<>.Id))!.Equals(id), cancellationToken)
+            : await FindByIdNoTrackingAsync(id, cancellationToken);
     }
 
-    private async Task<TEntity?> FindByIdNoTrackingAsync(TKey id)
+    private async Task<TEntity?> FindByIdNoTrackingAsync(TKey id, CancellationToken cancellationToken = default)
     {
         return await Context.Set<TEntity>()
             .AsNoTracking()
-            .FirstOrDefaultAsync(entity => EF.Property<TKey>(entity, nameof(IDbEntity<TKey>.Id))!.Equals(id));
+            .FirstOrDefaultAsync(entity => EF.Property<TKey>(entity, nameof(IDbEntity<TKey>.Id))!.Equals(id), cancellationToken);
     }
 
-    public async Task<IList<TEntity>> FindByAsync(Expression<Func<TEntity, bool>> predicate)
+    public async Task<List<TEntity>> FindByAsync(Expression<Func<TEntity, bool>> predicate, CancellationToken cancellationToken = default)
     {
         return await Context.Set<TEntity>()
             .AsNoTracking()
             .Where(predicate)
-            .ToListAsync();
+            .ToListAsync(cancellationToken);
     }
 
-    public async Task<TEntity> CreateAsync(TEntity entity)
+    public async Task<TEntity> CreateAsync(TEntity entity, CancellationToken cancellationToken = default)
     {
-        var entry = await Context.Set<TEntity>().AddAsync(entity);
-        await Context.SaveChangesAsync();
+        var entry = await Context.Set<TEntity>().AddAsync(entity, cancellationToken);
+        await Context.SaveChangesAsync(cancellationToken);
         return entry.Entity;
     }
 
-    public async Task<IList<TEntity>> CreateAsync(IList<TEntity> entities)
+    public async Task<List<TEntity>> CreateAsync(List<TEntity> entities, CancellationToken cancellationToken = default)
     {
         var entityList = new List<TEntity>();
 
         foreach (var entity in entities)
         {
-            var entry = await Context.Set<TEntity>().AddAsync(entity);
+            var entry = await Context.Set<TEntity>().AddAsync(entity, cancellationToken);
             entityList.Add(entry.Entity);
         }
 
-        await Context.SaveChangesAsync();
+        await Context.SaveChangesAsync(cancellationToken);
 
         return entityList;
     }
 
-    public async Task<TEntity> UpdateAsync(TEntity entity)
+    public async Task<TEntity> UpdateAsync(TEntity entity, CancellationToken cancellationToken = default)
     {
         // Detach existing entity if tracked
         var existingEntity = await Context.Set<TEntity>().FindAsync(entity.Id);
@@ -89,19 +120,19 @@ public abstract class EntityFrameworkRepository<TEntity, TKey>(DbContext dbConte
         }
         entry.State = EntityState.Modified;
 
-        await Context.SaveChangesAsync();
+        await Context.SaveChangesAsync(cancellationToken);
         return entry.Entity;
     }
 
-    public async Task DeleteAsync(TKey id)
+    public async Task DeleteAsync(TKey id, CancellationToken cancellationToken = default)
     {
-        var entity = await FindByIdAsync(id);
+        var entity = await FindByIdAsync(id, cancellationToken: cancellationToken);
         if (entity == null)
         {
             return;
         }
 
         Context.Set<TEntity>().Remove(entity);
-        await Context.SaveChangesAsync();
+        await Context.SaveChangesAsync(cancellationToken);
     }
 }
