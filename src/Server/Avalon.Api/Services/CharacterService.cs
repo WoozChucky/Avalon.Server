@@ -75,7 +75,7 @@ public class CharacterService : ICharacterService
         var character = await _characterRepository.FindByIdAsync(id, track: false, cancellationToken);
         if (character is null) return null;
 
-        var items = await _inventoryRepository.GetByCharacterIdAsync(id);
+        var items = await _inventoryRepository.GetByCharacterIdAsync(id, cancellationToken);
 
         return new CharacterInventoryDto
         {

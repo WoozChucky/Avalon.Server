@@ -130,9 +130,10 @@ await using (AsyncServiceScope scope = app.Services.CreateAsyncScope())
     CharacterDbContext characterDb = scope.ServiceProvider.GetRequiredService<CharacterDbContext>();
     WorldDbContext worldDb = scope.ServiceProvider.GetRequiredService<WorldDbContext>();
     logger.LogInformation("Migrating database if necessary...");
-    await authDb.Database.MigrateAsync();
-    await characterDb.Database.MigrateAsync();
-    await worldDb.Database.MigrateAsync();
+    // Startup migration — host lifetime not active yet, so CancellationToken.None is intentional.
+    await authDb.Database.MigrateAsync(CancellationToken.None);
+    await characterDb.Database.MigrateAsync(CancellationToken.None);
+    await worldDb.Database.MigrateAsync(CancellationToken.None);
 }
 
 IEnumerable<IWorkerService> workerServices = app.Services.GetServices<IWorkerService>();
@@ -151,9 +152,9 @@ AppDomain.CurrentDomain.UnhandledException += (_, eventArgs) =>
     logger.LogError(eventArgs.ExceptionObject as Exception, "Unhandled exception");
     Environment.Exit(1);
 };
-AppDomain.CurrentDomain.ProcessExit += (_, _) =>
+AppDomain.CurrentDomain.ProcessExit += async (_, _) =>
 {
-    cts.Cancel();
+    await cts.CancelAsync();
     logger.LogInformation("Exited successfully");
 };
 Console.CancelKeyPress += (_, _) => { logger.LogInformation("Ctrl+C was pressed, stopping application..."); };
