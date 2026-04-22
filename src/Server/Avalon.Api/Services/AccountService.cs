@@ -8,6 +8,7 @@ using Avalon.Common.ValueObjects;
 using Avalon.Database;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Domain.Auth;
+using Avalon.Infrastructure;
 using Avalon.Infrastructure.Services;
 using OperatingSystem = Avalon.Domain.Auth.OperatingSystem;
 
@@ -21,6 +22,11 @@ public interface IAccountService
         CancellationToken cancellationToken);
 
     Task<PagedResult<Account>> Paginate(AccountPaginateFilters filters, CancellationToken cancellationToken = default);
+    Task ChangePasswordAsync(AccountId accountId, string currentPassword, string newPassword, CancellationToken cancellationToken = default);
+    Task<string> InitiateEmailChangeAsync(AccountId accountId, string newEmail, CancellationToken cancellationToken = default);
+    Task ConfirmEmailChangeAsync(string token, CancellationToken cancellationToken = default);
+    Task UpdateStatusAsync(AccountId accountId, AccountStatus state, string? reason, CancellationToken cancellationToken = default);
+    Task UpdateRolesAsync(AccountId accountId, AccountAccessLevel roles, CancellationToken cancellationToken = default);
 }
 
 public class AccountService : IAccountService
@@ -31,12 +37,16 @@ public class AccountService : IAccountService
     private readonly IMFAHashService _mfaHashService;
     private readonly IMfaSetupRepository _mfaSetupRepository;
     private readonly IDeviceRepository _deviceRepository;
+    private readonly IReplicatedCache _cache;
+    private readonly ISecureRandom _secureRandom;
     public AccountService(ILoggerFactory loggerFactory,
         IAccountRepository accountRepository,
         IJwtUtils jwtUtils,
         IMFAHashService mfaHashService,
         IMfaSetupRepository mfaSetupRepository,
-        IDeviceRepository deviceRepository)
+        IDeviceRepository deviceRepository,
+        IReplicatedCache cache,
+        ISecureRandom secureRandom)
     {
         _logger = loggerFactory.CreateLogger<AccountService>();
         _accountRepository = accountRepository;
@@ -44,6 +54,8 @@ public class AccountService : IAccountService
         _mfaHashService = mfaHashService;
         _mfaSetupRepository = mfaSetupRepository;
         _deviceRepository = deviceRepository;
+        _cache = cache;
+        _secureRandom = secureRandom;
     }
 
     public async Task<Account?> FindByIdAsync(AccountId id, CancellationToken cancellationToken = default)
@@ -149,5 +161,85 @@ public class AccountService : IAccountService
     public async Task<PagedResult<Account>> Paginate(AccountPaginateFilters filters, CancellationToken cancellationToken)
     {
         return await _accountRepository.PaginateAsync(filters, false, cancellationToken);
+    }
+
+    public async Task ChangePasswordAsync(AccountId accountId, string currentPassword, string newPassword,
+        CancellationToken cancellationToken = default)
+    {
+        var account = await _accountRepository.FindByIdAsync(accountId, track: true, cancellationToken);
+        if (account == null)
+            throw new AuthenticationException("Invalid current password");
+
+        var existingHash = Encoding.UTF8.GetString(account.Verifier);
+        if (!BCrypt.Net.BCrypt.Verify(currentPassword, existingHash))
+        {
+            throw new AuthenticationException("Invalid current password");
+        }
+
+        var salt = BCrypt.Net.BCrypt.GenerateSalt();
+        var hash = BCrypt.Net.BCrypt.HashPassword(newPassword.Trim(), salt);
+
+        account.Salt = Encoding.UTF8.GetBytes(salt);
+        account.Verifier = Encoding.UTF8.GetBytes(hash);
+
+        await _accountRepository.UpdateAsync(account, cancellationToken);
+    }
+
+    public async Task<string> InitiateEmailChangeAsync(AccountId accountId, string newEmail,
+        CancellationToken cancellationToken = default)
+    {
+        var raw = _secureRandom.GetBytes(24);
+        var token = Convert.ToBase64String(raw).Replace("+", "-").Replace("/", "_").TrimEnd('=');
+
+        var payload = $"{accountId.Value}|{newEmail}";
+        var key = $"auth:emailChange:{token}";
+        await _cache.SetAsync(key, payload, TimeSpan.FromMinutes(15));
+
+        return token;
+    }
+
+    public async Task ConfirmEmailChangeAsync(string token, CancellationToken cancellationToken = default)
+    {
+        var key = $"auth:emailChange:{token}";
+        var payload = await _cache.GetAsync(key)
+            ?? throw new BusinessException("Invalid or expired token");
+        await _cache.RemoveAsync(key);
+
+        var parts = payload.Split('|', 2);
+        if (parts.Length != 2)
+            throw new BusinessException("Invalid token payload");
+
+        var accountId = new AccountId(long.Parse(parts[0]));
+        var newEmail = parts[1];
+
+        var account = await _accountRepository.FindByIdAsync(accountId, track: true, cancellationToken)
+            ?? throw new BusinessException("Account not found");
+
+        account.Email = newEmail;
+        await _accountRepository.UpdateAsync(account, cancellationToken);
+    }
+
+    // NOTE: `reason` is currently accepted but not persisted (future: audit log).
+    public async Task UpdateStatusAsync(AccountId accountId, AccountStatus state, string? reason,
+        CancellationToken cancellationToken = default)
+    {
+        var account = await _accountRepository.FindByIdAsync(accountId, track: true, cancellationToken)
+            ?? throw new BusinessException("Account not found");
+
+        account.Status = state;
+        await _accountRepository.UpdateAsync(account, cancellationToken);
+
+        if (state == AccountStatus.Banned || state == AccountStatus.Deactivated)
+        {
+            await _cache.PublishAsync(CacheKeys.WorldAccountsDisconnectChannel, accountId.Value.ToString());
+        }
+    }
+
+    public async Task UpdateRolesAsync(AccountId accountId, AccountAccessLevel roles, CancellationToken cancellationToken = default)
+    {
+        var account = await _accountRepository.FindByIdAsync(accountId, track: true, cancellationToken)
+            ?? throw new BusinessException("Account not found");
+        account.AccessLevel = roles;
+        await _accountRepository.UpdateAsync(account, cancellationToken);
     }
 }

@@ -33,7 +33,9 @@ public static class ServiceRegistration
 
         services.AddScoped<IAccountService, AccountService>();
         services.AddScoped<ICharacterService, CharacterService>();
+        services.AddScoped<IWorldService, WorldService>();
         services.AddMfaService();
+        services.AddSecureRandom();
         services.AddSingleton<IReplicatedCache, ReplicatedCache>();
         services.AddScoped<INotificationService, NotificationService>();
         services.AddScoped<IJwtUtils, JwtUtils>();
