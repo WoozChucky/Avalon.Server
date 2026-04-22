@@ -84,4 +84,22 @@ public class AccountController : BaseController
         await _accountService.ChangePasswordAsync(accountId, request.CurrentPassword, request.NewPassword, ct);
         return NoContent();
     }
+
+    [HttpPost("email/change")]
+    [ProducesResponseType(StatusCodes.Status202Accepted)]
+    public async Task<IActionResult> InitiateEmailChange([FromBody] AccountEmailChangeRequest req, CancellationToken ct)
+    {
+        await _accountService.InitiateEmailChangeAsync(User.AccountId(), req.NewEmail, ct);
+        return Accepted();
+    }
+
+    [AllowAnonymous]
+    [HttpPost("email/confirm")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> ConfirmEmailChange([FromBody] AccountEmailConfirmRequest req, CancellationToken ct)
+    {
+        await _accountService.ConfirmEmailChangeAsync(req.Token, ct);
+        return NoContent();
+    }
 }

@@ -23,7 +23,7 @@ public class Account : IDbEntity<AccountId>
     public byte[] SessionKey { get; set; } = [];
 
     [Required]
-    public required string Email { get; init; }
+    public required string Email { get; set; }
 
     [Required]
     public required DateTime JoinDate { get; init; } = DateTime.UtcNow;

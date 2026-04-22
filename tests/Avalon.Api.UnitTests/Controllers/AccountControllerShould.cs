@@ -116,4 +116,31 @@ public class AccountControllerShould
         await _accountService.Received(1).ChangePasswordAsync(
             new AccountId(7), "a", "newstrong1", Arg.Any<CancellationToken>());
     }
+
+    [Fact]
+    public async Task InitiateEmailChange_Delegates()
+    {
+        var user = User(7, AvalonRoles.Player);
+        _accountService.InitiateEmailChangeAsync(new AccountId(7), "new@t", Arg.Any<CancellationToken>())
+            .Returns("tok");
+
+        var sut = MakeSut(user);
+        var result = await sut.InitiateEmailChange(
+            new AccountEmailChangeRequest { NewEmail = "new@t" }, CancellationToken.None);
+
+        Assert.IsType<AcceptedResult>(result);
+    }
+
+    [Fact]
+    public async Task ConfirmEmailChange_Delegates()
+    {
+        var user = User(7, AvalonRoles.Player);
+        var sut = MakeSut(user);
+
+        var result = await sut.ConfirmEmailChange(
+            new AccountEmailConfirmRequest { Token = "tok" }, CancellationToken.None);
+
+        Assert.IsType<NoContentResult>(result);
+        await _accountService.Received(1).ConfirmEmailChangeAsync("tok", Arg.Any<CancellationToken>());
+    }
 }
