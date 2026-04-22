@@ -61,7 +61,7 @@ public class AvalonAuthenticationHandler : AuthenticationHandler<AvalonAuthentic
                 claims.Add(new Claim(ClaimTypes.GroupSid, flag.ToString()));
 
         // Fire-and-forget write-coalesced last-used update — don't block the request.
-        _ = _pats.TouchLastUsedAsync(pat.Id, CancellationToken.None);
+        await _pats.TouchLastUsedAsync(pat.Id, CancellationToken.None);
 
         var identity = new ClaimsIdentity(claims, Scheme.Name, ClaimTypes.NameIdentifier, ClaimTypes.GroupSid);
         var principal = new ClaimsPrincipal(identity);

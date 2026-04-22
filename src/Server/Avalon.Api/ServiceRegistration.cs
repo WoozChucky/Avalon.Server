@@ -57,10 +57,16 @@ public static class ServiceRegistration
                 {
                     OnMessageReceived = context =>
                     {
-                        // try to fetch from authorization header, if not found, try from cookie
-                        if (context.Request.Headers.TryGetValue(HeaderNames.Authorization, out StringValues token))
+                        if (context.Request.Headers.TryGetValue(HeaderNames.Authorization, out StringValues authHeader))
                         {
-                            context.Token = token.ToString().Split(" ")[1];
+                            var value = authHeader.ToString();
+                            // Only extract the token when the scheme is Bearer (JWT).
+                            // Avalon-scheme headers (PATs) are handled by AvalonAuthenticationHandler;
+                            // passing them to JwtBearer causes a Fail() result and a spurious 401.
+                            if (value.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+                            {
+                                context.Token = value["Bearer ".Length..];
+                            }
                         }
                         else if (context.Request.Cookies.TryGetValue(AuthConstants.CookieName, out string? cookie))
                         {
