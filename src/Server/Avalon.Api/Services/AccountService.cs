@@ -6,6 +6,7 @@ using Avalon.Api.Contract;
 using Avalon.Api.Exceptions;
 using Avalon.Common.ValueObjects;
 using Avalon.Database;
+using Avalon.Database.Auth;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Domain.Auth;
 using Avalon.Infrastructure;
@@ -25,7 +26,7 @@ public interface IAccountService
     Task ChangePasswordAsync(AccountId accountId, string currentPassword, string newPassword, CancellationToken cancellationToken = default);
     Task<string> InitiateEmailChangeAsync(AccountId accountId, string newEmail, CancellationToken cancellationToken = default);
     Task ConfirmEmailChangeAsync(string token, CancellationToken cancellationToken = default);
-    Task UpdateStatusAsync(AccountId accountId, AccountStatus state, string? reason, CancellationToken cancellationToken = default);
+    Task UpdateStatusAsync(AccountId accountId, AccountStatus state, string? reason, AccountId actorId, CancellationToken cancellationToken = default);
     Task UpdateRolesAsync(AccountId accountId, AccountAccessLevel roles, CancellationToken cancellationToken = default);
 }
 
@@ -39,6 +40,8 @@ public class AccountService : IAccountService
     private readonly IDeviceRepository _deviceRepository;
     private readonly IReplicatedCache _cache;
     private readonly ISecureRandom _secureRandom;
+    private readonly IPersonalAccessTokenService _patService;
+    private readonly AuthDbContext _authDbContext;
     public AccountService(ILoggerFactory loggerFactory,
         IAccountRepository accountRepository,
         IJwtUtils jwtUtils,
@@ -46,7 +49,9 @@ public class AccountService : IAccountService
         IMfaSetupRepository mfaSetupRepository,
         IDeviceRepository deviceRepository,
         IReplicatedCache cache,
-        ISecureRandom secureRandom)
+        ISecureRandom secureRandom,
+        IPersonalAccessTokenService patService,
+        AuthDbContext authDbContext)
     {
         _logger = loggerFactory.CreateLogger<AccountService>();
         _accountRepository = accountRepository;
@@ -56,6 +61,8 @@ public class AccountService : IAccountService
         _deviceRepository = deviceRepository;
         _cache = cache;
         _secureRandom = secureRandom;
+        _patService = patService;
+        _authDbContext = authDbContext;
     }
 
     public async Task<Account?> FindByIdAsync(AccountId id, CancellationToken cancellationToken = default)
@@ -221,15 +228,31 @@ public class AccountService : IAccountService
 
     // NOTE: `reason` is currently accepted but not persisted (future: audit log).
     public async Task UpdateStatusAsync(AccountId accountId, AccountStatus state, string? reason,
-        CancellationToken cancellationToken = default)
+        AccountId actorId, CancellationToken cancellationToken = default)
     {
-        var account = await _accountRepository.FindByIdAsync(accountId, track: true, cancellationToken)
-            ?? throw new BusinessException("Account not found");
+        await using var transaction = await _authDbContext.Database.BeginTransactionAsync(cancellationToken);
+        try
+        {
+            var account = await _accountRepository.FindByIdAsync(accountId, track: true, cancellationToken)
+                ?? throw new BusinessException("Account not found");
 
-        account.Status = state;
-        await _accountRepository.UpdateAsync(account, cancellationToken);
+            account.Status = state;
+            await _accountRepository.UpdateAsync(account, cancellationToken);
 
-        if (state == AccountStatus.Banned || state == AccountStatus.Deactivated)
+            if (state is AccountStatus.Banned or AccountStatus.Deactivated)
+            {
+                await _patService.RevokeAllForAccountAsync(accountId, actorId, cancellationToken);
+            }
+
+            await transaction.CommitAsync(cancellationToken);
+        }
+        catch
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            throw;
+        }
+
+        if (state is AccountStatus.Banned or AccountStatus.Deactivated)
         {
             await _cache.PublishAsync(CacheKeys.WorldAccountsDisconnectChannel, accountId.Value.ToString());
         }
