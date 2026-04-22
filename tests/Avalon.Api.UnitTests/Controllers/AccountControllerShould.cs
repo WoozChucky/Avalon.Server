@@ -86,4 +86,19 @@ public class AccountControllerShould
 
         Assert.IsType<NotFoundResult>(result);
     }
+
+    [Fact]
+    public async Task FindById_Returns403_WhenAuthzFailsAndCallerIsGameMaster()
+    {
+        var user = User(99, AvalonRoles.GameMaster);
+        var account = MakeAccount(7);
+        _accountService.FindByIdAsync(Arg.Any<AccountId>(), Arg.Any<CancellationToken>()).Returns(account);
+        _authz.AuthorizeAsync(user, account, Arg.Any<IEnumerable<IAuthorizationRequirement>>())
+              .Returns(AuthorizationResult.Failed());
+
+        var sut = MakeSut(user);
+        var result = await sut.FindById(7, CancellationToken.None);
+
+        Assert.IsType<ForbidResult>(result);
+    }
 }
