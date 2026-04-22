@@ -24,6 +24,6 @@ jobs:
       - name: Restore dependencies
         run: dotnet restore
       - name: Build
-        run: dotnet build --no-restore
+        run: dotnet build --no-restore /p:WarningsAsErrors="MA0032,MA0040,MA0045"
       - name: Test
         run: dotnet test --no-build
