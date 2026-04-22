@@ -85,4 +85,19 @@ public class CharacterControllerShould
 
         Assert.IsType<NotFoundResult>(result);
     }
+
+    [Fact]
+    public async Task GetById_Returns403_WhenAuthzFailsAndCallerIsGameMaster()
+    {
+        var user = User(99, AvalonRoles.GameMaster);
+        var ch = MakeChar(7);
+        _service.GetCharacterByIdAsync(Arg.Any<CharacterId>(), Arg.Any<CancellationToken>()).Returns(ch);
+        _authz.AuthorizeAsync(user, ch, Arg.Any<IEnumerable<IAuthorizationRequirement>>())
+              .Returns(AuthorizationResult.Failed());
+
+        var sut = MakeSut(user);
+        var result = await sut.GetById(42, CancellationToken.None);
+
+        Assert.IsType<ForbidResult>(result);
+    }
 }
