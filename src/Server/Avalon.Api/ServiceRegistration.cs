@@ -77,7 +77,8 @@ public static class ServiceRegistration
                     ValidAudience = config.Authentication.Audience,
                     ValidateAudience = config.Authentication.ValidateAudience,
                     ValidateLifetime = false,
-                    ClockSkew = TimeSpan.FromMinutes(config.Authentication.ClockSkewInMinutes)
+                    ClockSkew = TimeSpan.FromMinutes(config.Authentication.ClockSkewInMinutes),
+                    RoleClaimType = ClaimTypes.GroupSid
                 };
 
                 x.Validate(JwtBearerDefaults.AuthenticationScheme);

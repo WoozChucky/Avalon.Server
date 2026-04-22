@@ -9,7 +9,7 @@ public interface ICharacterRepository : IRepository<Domain.Characters.Character,
 {
     Task<Domain.Characters.Character?> FindByNameAsync(string name);
     Task<Domain.Characters.Character?> FindByIdAndAccountAsync(CharacterId id, AccountId accountId);
-    Task<IList<Domain.Characters.Character>> FindByAccountAsync(AccountId accountId);
+    Task<List<Domain.Characters.Character>> FindByAccountAsync(AccountId accountId);
 }
 
 public class CharacterRepository : EntityFrameworkRepository<Domain.Characters.Character, CharacterId>, ICharacterRepository
@@ -34,7 +34,7 @@ public class CharacterRepository : EntityFrameworkRepository<Domain.Characters.C
 
     }
 
-    public async Task<IList<Domain.Characters.Character>> FindByAccountAsync(AccountId accountId)
+    public async Task<List<Domain.Characters.Character>> FindByAccountAsync(AccountId accountId)
     {
         return await Context.Set<Domain.Characters.Character>()
             .AsNoTracking()

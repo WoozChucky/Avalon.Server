@@ -1,11 +1,10 @@
 using Avalon.Common.ValueObjects;
-using Avalon.World.Public.Enums;
 
 namespace Avalon.Api.Contract;
 
 public class CharacterDto
 {
-    public CharacterId Id { get; set; }
+    public uint Id { get; set; }
 
     public string Name { get; set; }
 
