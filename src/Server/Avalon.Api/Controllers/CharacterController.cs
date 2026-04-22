@@ -49,4 +49,24 @@ public class CharacterController : BaseController
 
         return Ok(character.ToDto());
     }
+
+    [HttpPatch("{id}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> Patch([FromRoute] uint id, [FromBody] CharacterPatchDto dto, CancellationToken ct)
+    {
+        var character = await _service.GetCharacterByIdAsync(new CharacterId(id), ct);
+        if (character is null) return NotFound();
+
+        var authz = await _authz.AuthorizeAsync(User, character, new WriteRequirement());
+        if (!authz.Succeeded) return NotFoundOrForbid();
+
+        if (User.HasRoleAtLeast(AvalonRoles.Admin))
+            await _service.UpdateAnyAsync(character, dto, ct);
+        else
+            await _service.UpdateCosmeticAsync(character, dto.Name, ct);
+
+        return NoContent();
+    }
 }
