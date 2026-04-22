@@ -129,5 +129,7 @@ public static class ServiceRegistration
         services.AddScoped<IAuthorizationHandler, Authorization.CharacterWriteHandler>();
         services.AddScoped<IAuthorizationHandler, Authorization.AccountReadHandler>();
         services.AddScoped<IAuthorizationHandler, Authorization.AccountWriteHandler>();
+        services.AddScoped<IAuthorizationHandler, Authorization.PatReadHandler>();
+        services.AddScoped<IAuthorizationHandler, Authorization.PatWriteHandler>();
     }
 }
