@@ -100,12 +100,13 @@ public class AuthConnection : Connection, IAuthConnection
         await using AsyncServiceScope scope = _serviceScopeFactory.CreateAsyncScope();
         IAccountRepository accountRepository = scope.ServiceProvider.GetRequiredService<IAccountRepository>();
 
-        Account? account = await accountRepository.FindByIdAsync(AccountId);
+        // Disconnect cleanup runs from the TCP read-loop exit path — no request-scoped CT here.
+        Account? account = await accountRepository.FindByIdAsync(AccountId, false, CancellationToken.None);
         if (account != null)
         {
             account.Online = false;
             account.TotalTime += (int)(DateTime.UtcNow - account.LastLogin).TotalSeconds;
-            await accountRepository.UpdateAsync(account);
+            await accountRepository.UpdateAsync(account, CancellationToken.None);
         }
     }
 

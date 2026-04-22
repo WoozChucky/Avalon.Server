@@ -32,7 +32,7 @@ public class CMFAVerifyHandler : IAuthPacketHandler<CMFAVerifyPacket>
             return;
         }
 
-        var account = await _accountRepository.FindByIdAsync(result.AccountId!);
+        var account = await _accountRepository.FindByIdAsync(result.AccountId!, false, token);
         if (account == null)
         {
             _logger.LogWarning("Account {AccountId} not found after successful MFA verify", result.AccountId);
@@ -55,7 +55,7 @@ public class CMFAVerifyHandler : IAuthPacketHandler<CMFAVerifyPacket>
             {
                 _logger.LogWarning("Account {AccountId} is online but no connection was found", account.Id);
                 account.Online = false;
-                await _accountRepository.UpdateAsync(account);
+                await _accountRepository.UpdateAsync(account, token);
             }
             return;
         }
@@ -67,7 +67,7 @@ public class CMFAVerifyHandler : IAuthPacketHandler<CMFAVerifyPacket>
         account.LastLogin = DateTime.UtcNow;
         account.FailedLogins = 0;
 
-        await _accountRepository.UpdateAsync(account);
+        await _accountRepository.UpdateAsync(account, token);
         await _cache.PublishAsync(CacheKeys.AuthAccountsOnlineChannel, account.Id.ToString()!);
 
         ctx.Connection.Send(SAuthResultPacket.Create(account.Id, null, AuthResult.SUCCESS, ctx.Connection.CryptoSession.Encrypt));

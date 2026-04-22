@@ -46,11 +46,11 @@ public class AuthServer(
         Certificate = X509CertificateLoader.LoadPkcs12(serverCertBytes, _securityOptions.CertificatePassword);
 
         // Reset account online status
-        IList<Account> accounts = await accountRepository.FindAllAsync();
+        IList<Account> accounts = await accountRepository.FindAllAsync(cancellationToken: stoppingToken);
         foreach (Account account in accounts)
         {
             account.Online = false;
-            await accountRepository.UpdateAsync(account);
+            await accountRepository.UpdateAsync(account, stoppingToken);
         }
 
         RegisterNewConnectionListener(NewConnection);
