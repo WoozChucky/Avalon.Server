@@ -21,6 +21,7 @@ public interface IAccountService
         CancellationToken cancellationToken);
 
     Task<PagedResult<Account>> Paginate(AccountPaginateFilters filters, CancellationToken cancellationToken = default);
+    Task ChangePasswordAsync(AccountId accountId, string currentPassword, string newPassword, CancellationToken cancellationToken = default);
 }
 
 public class AccountService : IAccountService
@@ -149,5 +150,27 @@ public class AccountService : IAccountService
     public async Task<PagedResult<Account>> Paginate(AccountPaginateFilters filters, CancellationToken cancellationToken)
     {
         return await _accountRepository.PaginateAsync(filters, false, cancellationToken);
+    }
+
+    public async Task ChangePasswordAsync(AccountId accountId, string currentPassword, string newPassword,
+        CancellationToken cancellationToken = default)
+    {
+        var account = await _accountRepository.FindByIdAsync(accountId, track: true, cancellationToken);
+        if (account == null)
+            throw new AuthenticationException("Invalid current password");
+
+        var existingHash = Encoding.UTF8.GetString(account.Verifier);
+        if (!BCrypt.Net.BCrypt.Verify(currentPassword, existingHash))
+        {
+            throw new AuthenticationException("Invalid current password");
+        }
+
+        var salt = BCrypt.Net.BCrypt.GenerateSalt();
+        var hash = BCrypt.Net.BCrypt.HashPassword(newPassword.Trim(), salt);
+
+        account.Salt = Encoding.UTF8.GetBytes(salt);
+        account.Verifier = Encoding.UTF8.GetBytes(hash);
+
+        await _accountRepository.UpdateAsync(account, cancellationToken);
     }
 }

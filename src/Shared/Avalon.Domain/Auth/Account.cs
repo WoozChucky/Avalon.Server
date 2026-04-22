@@ -14,10 +14,10 @@ public class Account : IDbEntity<AccountId>
     public required string Username { get; init; }
 
     [Required]
-    public required byte[] Salt { get; init; }
+    public required byte[] Salt { get; set; }
 
     [Required]
-    public required byte[] Verifier { get; init; }
+    public required byte[] Verifier { get; set; }
 
     [Column("SessionKey")]
     public byte[] SessionKey { get; set; } = [];

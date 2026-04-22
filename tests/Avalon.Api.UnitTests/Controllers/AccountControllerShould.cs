@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using Avalon.Api.Authentication;
+using Avalon.Api.Contract;
 using Avalon.Api.Controllers;
 using Avalon.Api.Services;
 using Avalon.Common.ValueObjects;
@@ -100,5 +101,19 @@ public class AccountControllerShould
         var result = await sut.FindById(7, CancellationToken.None);
 
         Assert.IsType<ForbidResult>(result);
+    }
+
+    [Fact]
+    public async Task ChangePassword_DelegatesToService()
+    {
+        var user = User(7, AvalonRoles.Player);
+        var sut = MakeSut(user);
+
+        await sut.ChangePassword(
+            new AccountPasswordChangeRequest { CurrentPassword = "a", NewPassword = "newstrong1" },
+            CancellationToken.None);
+
+        await _accountService.Received(1).ChangePasswordAsync(
+            new AccountId(7), "a", "newstrong1", Arg.Any<CancellationToken>());
     }
 }
