@@ -32,6 +32,19 @@ public class AccountController : BaseController
     }
 
     [Authorize(Policy = AvalonRoles.GameMaster)]
+    [HttpGet("{id:long}", Name = "FindAccountById")]
+    [ProducesResponseType(typeof(AccountDto), 200)]
+    public async Task<AccountDto> FindById([FromRoute] long id)
+    {
+        var account = await _accountService.FindById(id);
+        if (account is null)
+        {
+            throw new Exception("Account not found");
+        }
+        return account.ToDto();
+    }
+
+    [Authorize(Policy = AvalonRoles.GameMaster)]
     [HttpGet("paginate", Name = "PaginateAccounts")]
     [ProducesResponseType(typeof(PagedResult<AccountDto>), 200)]
     public async Task<PagedResult<AccountDto>> Paginate([FromQuery] AccountPaginateFilters filters)
