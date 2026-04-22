@@ -74,4 +74,57 @@ public class AccountController : BaseController
         var language = Request.Headers.AcceptLanguage.ToString();
         return await _accountService.Register(model, userAgent, IpAddress, CancellationToken);
     }
+
+    [HttpPost("password")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> ChangePassword([FromBody] AccountPasswordChangeRequest request, CancellationToken ct)
+    {
+        var accountId = User.AccountId();
+        await _accountService.ChangePasswordAsync(accountId, request.CurrentPassword, request.NewPassword, ct);
+        return NoContent();
+    }
+
+    [HttpPost("email/change")]
+    [ProducesResponseType(StatusCodes.Status202Accepted)]
+    public async Task<IActionResult> InitiateEmailChange([FromBody] AccountEmailChangeRequest req, CancellationToken ct)
+    {
+        await _accountService.InitiateEmailChangeAsync(User.AccountId(), req.NewEmail, ct);
+        return Accepted();
+    }
+
+    [AllowAnonymous]
+    [HttpPost("email/confirm")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> ConfirmEmailChange([FromBody] AccountEmailConfirmRequest req, CancellationToken ct)
+    {
+        await _accountService.ConfirmEmailChangeAsync(req.Token, ct);
+        return NoContent();
+    }
+
+    [HttpPatch("{id:long}/status")]
+    [Authorize(Policy = AvalonRoles.Admin)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> UpdateStatus(
+        [FromRoute] long id,
+        [FromBody] AccountStatusPatchRequest req,
+        CancellationToken ct)
+    {
+        await _accountService.UpdateStatusAsync(new AccountId(id), req.State, req.Reason, ct);
+        return NoContent();
+    }
+
+    [HttpPatch("{id:long}/roles")]
+    [Authorize(Policy = AvalonRoles.Console)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    public async Task<IActionResult> UpdateRoles(
+        [FromRoute] long id,
+        [FromBody] AccountRolesPatchRequest req,
+        CancellationToken ct)
+    {
+        await _accountService.UpdateRolesAsync(new AccountId(id), req.Roles, ct);
+        return NoContent();
+    }
 }

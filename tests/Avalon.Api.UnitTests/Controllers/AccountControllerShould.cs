@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using Avalon.Api.Authentication;
+using Avalon.Api.Contract;
 using Avalon.Api.Controllers;
 using Avalon.Api.Services;
 using Avalon.Common.ValueObjects;
@@ -100,5 +101,78 @@ public class AccountControllerShould
         var result = await sut.FindById(7, CancellationToken.None);
 
         Assert.IsType<ForbidResult>(result);
+    }
+
+    [Fact]
+    public async Task ChangePassword_DelegatesToService()
+    {
+        var user = User(7, AvalonRoles.Player);
+        var sut = MakeSut(user);
+
+        await sut.ChangePassword(
+            new AccountPasswordChangeRequest { CurrentPassword = "a", NewPassword = "newstrong1" },
+            CancellationToken.None);
+
+        await _accountService.Received(1).ChangePasswordAsync(
+            new AccountId(7), "a", "newstrong1", Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task InitiateEmailChange_Delegates()
+    {
+        var user = User(7, AvalonRoles.Player);
+        _accountService.InitiateEmailChangeAsync(new AccountId(7), "new@t", Arg.Any<CancellationToken>())
+            .Returns("tok");
+
+        var sut = MakeSut(user);
+        var result = await sut.InitiateEmailChange(
+            new AccountEmailChangeRequest { NewEmail = "new@t" }, CancellationToken.None);
+
+        Assert.IsType<AcceptedResult>(result);
+    }
+
+    [Fact]
+    public async Task ConfirmEmailChange_Delegates()
+    {
+        var user = User(7, AvalonRoles.Player);
+        var sut = MakeSut(user);
+
+        var result = await sut.ConfirmEmailChange(
+            new AccountEmailConfirmRequest { Token = "tok" }, CancellationToken.None);
+
+        Assert.IsType<NoContentResult>(result);
+        await _accountService.Received(1).ConfirmEmailChangeAsync("tok", Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task UpdateStatus_Delegates()
+    {
+        var user = User(99, AvalonRoles.Admin);
+        var sut = MakeSut(user);
+
+        var result = await sut.UpdateStatus(7,
+            new AccountStatusPatchRequest { State = AccountStatus.Banned, Reason = "cheat" },
+            CancellationToken.None);
+
+        Assert.IsType<NoContentResult>(result);
+        await _accountService.Received(1).UpdateStatusAsync(
+            new AccountId(7), AccountStatus.Banned, "cheat", Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task UpdateRoles_Delegates()
+    {
+        var user = User(99, AvalonRoles.Console);
+        var sut = MakeSut(user);
+
+        var result = await sut.UpdateRoles(7,
+            new AccountRolesPatchRequest { Roles = AccountAccessLevel.Player | AccountAccessLevel.GameMaster },
+            CancellationToken.None);
+
+        Assert.IsType<NoContentResult>(result);
+        await _accountService.Received(1).UpdateRolesAsync(
+            new AccountId(7),
+            AccountAccessLevel.Player | AccountAccessLevel.GameMaster,
+            Arg.Any<CancellationToken>());
     }
 }
