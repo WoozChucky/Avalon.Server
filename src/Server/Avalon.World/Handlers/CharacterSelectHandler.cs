@@ -173,9 +173,9 @@ public class CharacterSelectHandler(
 
         connection.Send(SCharacterSelectedPacket.Create(characterInfo, mapInfo, connection.CryptoSession.Encrypt));
 
-        connection.EnqueueContinuation(characterRepository.UpdateAsync(character), _ =>
+        connection.EnqueueContinuation(characterRepository.UpdateAsync(character, CancellationToken.None), _ =>
         {
-            connection.EnqueueContinuation(characterInventoryRepository.GetByCharacterIdAsync(character.Id),
+            connection.EnqueueContinuation(characterInventoryRepository.GetByCharacterIdAsync(character.Id, CancellationToken.None),
                 items => OnInventoryReceived(connection, entity, instance, character, items));
         });
 
@@ -197,7 +197,7 @@ public class CharacterSelectHandler(
 
         //TODO: Send inventory to the client
 
-        connection.EnqueueContinuation(characterSpellRepository.GetCharacterSpellsAsync(character.Id),
+        connection.EnqueueContinuation(characterSpellRepository.GetCharacterSpellsAsync(character.Id, CancellationToken.None),
             spells => OnSpellsReceived(connection, entity, instance, spells));
         _parentActivity = activity;
     }
