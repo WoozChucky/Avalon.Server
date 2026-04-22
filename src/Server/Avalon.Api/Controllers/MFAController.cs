@@ -88,4 +88,12 @@ public class MFAController : BaseController
             Status = AuthenticationResponseStatus.Success
         };
     }
+
+    [HttpGet("status", Name = "Get MFA status for the logged account")]
+    [ProducesResponseType(typeof(MfaStatusResponse), StatusCodes.Status200OK)]
+    public async Task<ActionResult<MfaStatusResponse>> GetStatus()
+    {
+        var enrolled = await _mfaService.IsEnrolledAsync(_authContext.Account!.Id, CancellationToken);
+        return new MfaStatusResponse { Enrolled = enrolled };
+    }
 }
