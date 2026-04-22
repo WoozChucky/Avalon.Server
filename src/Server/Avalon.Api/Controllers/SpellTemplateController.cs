@@ -56,9 +56,9 @@ public class SpellTemplateController : BaseController
         Cooldown = t.Cooldown,
         Cost = t.Cost,
         SpellScript = t.SpellScript,
-        Range = t.Range,
-        Effects = t.Effects,
+        Range = (Avalon.Api.Contract.SpellRange)t.Range,
+        Effects = (Avalon.Api.Contract.SpellEffect)t.Effects,
         EffectValue = t.EffectValue,
-        AllowedClasses = t.AllowedClasses is null ? [] : [..t.AllowedClasses],
+        AllowedClasses = t.AllowedClasses is null ? [] : t.AllowedClasses.Select(c => (Avalon.Api.Contract.CharacterClass)c).ToList(),
     };
 }

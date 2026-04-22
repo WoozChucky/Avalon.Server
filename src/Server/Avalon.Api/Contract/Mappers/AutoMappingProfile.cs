@@ -16,10 +16,10 @@ public static class MappingExtensions
         MuteTime = account.MuteTime,
         MuteReason = account.MuteReason,
         Online = account.Online,
-        Locale = account.Locale,
-        Os = account.Os,
+        Locale = (Avalon.Api.Contract.AccountLocale)account.Locale,
+        Os = (Avalon.Api.Contract.OperatingSystem)account.Os,
         TotalTime = account.TotalTime,
-        AccessLevel = account.AccessLevel,
+        AccessLevel = (Avalon.Api.Contract.AccountAccessLevel)account.AccessLevel,
     };
 
     public static CharacterDto ToDto(this Character character) => new()

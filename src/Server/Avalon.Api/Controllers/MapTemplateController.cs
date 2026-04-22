@@ -54,7 +54,7 @@ public class MapTemplateController : BaseController
         Name = t.Name,
         Description = t.Description,
         Directory = t.Directory,
-        MapType = t.MapType,
+        MapType = (Avalon.Api.Contract.MapType)t.MapType,
         PvP = t.PvP,
         MinLevel = t.MinLevel,
         MaxLevel = t.MaxLevel,

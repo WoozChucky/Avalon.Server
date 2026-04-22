@@ -58,9 +58,9 @@ public class WorldService : IWorldService
             Port = request.Port,
             MinVersion = request.MinVersion,
             Version = request.Version,
-            Type = request.Type,
-            AccessLevelRequired = request.AccessLevelRequired,
-            Status = request.Status,
+            Type = (Avalon.Domain.Auth.WorldType)request.Type,
+            AccessLevelRequired = (Avalon.Domain.Auth.AccountAccessLevel)request.AccessLevelRequired,
+            Status = (Avalon.Domain.Auth.WorldStatus)request.Status,
             CreatedAt = now,
             UpdatedAt = now,
         };
@@ -79,9 +79,9 @@ public class WorldService : IWorldService
         if (request.Port.HasValue) world.Port = request.Port.Value;
         if (request.MinVersion is not null) world.MinVersion = request.MinVersion;
         if (request.Version is not null) world.Version = request.Version;
-        if (request.Type.HasValue) world.Type = request.Type.Value;
-        if (request.AccessLevelRequired.HasValue) world.AccessLevelRequired = request.AccessLevelRequired.Value;
-        if (request.Status.HasValue) world.Status = request.Status.Value;
+        if (request.Type.HasValue) world.Type = (Avalon.Domain.Auth.WorldType)request.Type.Value;
+        if (request.AccessLevelRequired.HasValue) world.AccessLevelRequired = (Avalon.Domain.Auth.AccountAccessLevel)request.AccessLevelRequired.Value;
+        if (request.Status.HasValue) world.Status = (Avalon.Domain.Auth.WorldStatus)request.Status.Value;
 
         world.UpdatedAt = DateTime.UtcNow;
 
@@ -93,13 +93,13 @@ public class WorldService : IWorldService
     {
         Id = w.Id.Value,
         Name = w.Name,
-        Type = w.Type,
-        AccessLevelRequired = w.AccessLevelRequired,
+        Type = (Avalon.Api.Contract.WorldType)w.Type,
+        AccessLevelRequired = (Avalon.Api.Contract.AccountAccessLevel)w.AccessLevelRequired,
         Host = w.Host,
         Port = w.Port,
         MinVersion = w.MinVersion,
         Version = w.Version,
-        Status = w.Status,
+        Status = (Avalon.Api.Contract.WorldStatus)w.Status,
         CreatedAt = w.CreatedAt,
         UpdatedAt = w.UpdatedAt,
         OnlineCount = 0,
