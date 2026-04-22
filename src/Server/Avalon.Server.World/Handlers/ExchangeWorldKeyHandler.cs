@@ -45,7 +45,7 @@ public class ExchangeWorldKeyHandler : IWorldPacketHandler<CExchangeWorldKeyPack
 
         await _cache.RemoveAsync(CacheKeys.AccountInWorld(accountId));
 
-        Account? account = await _accountRepository.FindByIdAsync(accountId);
+        Account? account = await _accountRepository.FindByIdAsync(accountId, false, token);
         if (account == null)
         {
             _logger.LogWarning("Client {EndPoint} sent an invalid world key", ctx.Connection.RemoteEndPoint);

@@ -6,8 +6,8 @@ namespace Avalon.Database.World.Repositories;
 
 public interface IClassLevelStatRepository
 {
-    Task<IReadOnlyCollection<ClassLevelStat>> FindAllAsync();
-    Task<ClassLevelStat?> GetByLevelAsync(CharacterClass @class, ushort level);
+    Task<IReadOnlyCollection<ClassLevelStat>> FindAllAsync(CancellationToken cancellationToken = default);
+    Task<ClassLevelStat?> GetByLevelAsync(CharacterClass @class, ushort level, CancellationToken cancellationToken = default);
 }
 
 public class ClassLevelStatRepository : IClassLevelStatRepository
@@ -19,17 +19,17 @@ public class ClassLevelStatRepository : IClassLevelStatRepository
         _dbContext = dbContext;
     }
 
-    public async Task<IReadOnlyCollection<ClassLevelStat>> FindAllAsync()
+    public async Task<IReadOnlyCollection<ClassLevelStat>> FindAllAsync(CancellationToken cancellationToken = default)
     {
         return await _dbContext.ClassLevelStats
             .AsNoTracking()
-            .ToListAsync();
+            .ToListAsync(cancellationToken);
     }
 
-    public async Task<ClassLevelStat?> GetByLevelAsync(CharacterClass @class, ushort level)
+    public async Task<ClassLevelStat?> GetByLevelAsync(CharacterClass @class, ushort level, CancellationToken cancellationToken = default)
     {
         return await _dbContext.ClassLevelStats
             .AsNoTracking()
-            .FirstOrDefaultAsync(entity => entity.Level == level && entity.Class == @class);
+            .FirstOrDefaultAsync(entity => entity.Level == level && entity.Class == @class, cancellationToken);
     }
 }

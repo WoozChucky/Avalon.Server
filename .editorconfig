@@ -192,3 +192,20 @@ end_of_line = lf
 
 [*.{cmd,bat}]
 end_of_line = crlf
+
+[*.cs]
+
+# Meziantou.Analyzer - cancellation token hygiene
+dotnet_diagnostic.MA0032.severity = warning
+dotnet_diagnostic.MA0040.severity = warning
+dotnet_diagnostic.MA0045.severity = warning
+
+# Type name == containing namespace. Out of scope for the CT-hygiene PR;
+# renaming the World class would be invasive across the simulation layer.
+dotnet_diagnostic.MA0049.severity = none
+
+# Mock-chain calls in tests and benchmark setup don't need CT annotation noise.
+[{tests,tools}/**/*.cs]
+dotnet_diagnostic.MA0032.severity = none
+dotnet_diagnostic.MA0040.severity = none
+dotnet_diagnostic.MA0045.severity = none

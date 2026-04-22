@@ -23,13 +23,14 @@ public class Program
             AuthDbContext db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
             ILogger<Program> logger = host.Services.GetRequiredService<ILogger<Program>>();
             logger.LogInformation("Migrating database if necessary...");
-            await db.Database.MigrateAsync();
+            // Startup migration — host lifetime not active yet, so CancellationToken.None is intentional.
+            await db.Database.MigrateAsync(CancellationToken.None);
 
             IReplicatedCache cache = scope.ServiceProvider.GetRequiredService<IReplicatedCache>();
             await cache.ConnectAsync();
         }
 
 
-        await AvalonHostBuilder.RunAsync<Program>(host);
+        await AvalonHostBuilder.RunAsync<Program>(host, CancellationToken.None);
     }
 }

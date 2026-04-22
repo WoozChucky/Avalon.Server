@@ -106,7 +106,7 @@ public class ScriptCompiler : IScriptCompiler
 
         _debounceDictionary[path] = DateTime.UtcNow;
 
-        await Task.Delay(DebounceDelayMs);
+        await Task.Delay(DebounceDelayMs, CancellationToken.None);
 
         if (_debounceDictionary.TryGetValue(path, out DateTime lastWriteTime) &&
             lastWriteTime.AddMilliseconds(DebounceDelayMs) <= DateTime.UtcNow)
@@ -135,7 +135,7 @@ public class ScriptCompiler : IScriptCompiler
 
         foreach (string file in files)
         {
-            string code = await File.ReadAllTextAsync(file);
+            string code = await File.ReadAllTextAsync(file, CancellationToken.None);
 
             foreach (string defaultUsing in DefaultUsings)
             {
@@ -145,7 +145,7 @@ public class ScriptCompiler : IScriptCompiler
                 }
             }
 
-            SyntaxTree syntaxTree = CSharpSyntaxTree.ParseText(code);
+            SyntaxTree syntaxTree = CSharpSyntaxTree.ParseText(code, cancellationToken: CancellationToken.None);
             syntaxTrees.Add(syntaxTree);
         }
 
@@ -157,7 +157,7 @@ public class ScriptCompiler : IScriptCompiler
         );
 
         using MemoryStream ms = new();
-        EmitResult result = compilation.Emit(ms);
+        EmitResult result = compilation.Emit(ms, cancellationToken: CancellationToken.None);
 
         if (!result.Success)
         {

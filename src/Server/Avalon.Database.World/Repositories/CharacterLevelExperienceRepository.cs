@@ -5,8 +5,8 @@ namespace Avalon.Database.World.Repositories;
 
 public interface ICharacterLevelExperienceRepository
 {
-    Task<IReadOnlyCollection<CharacterLevelExperience>> GetAllAsync();
-    Task<CharacterLevelExperience?> GetLevelAsync(ushort level);
+    Task<IReadOnlyCollection<CharacterLevelExperience>> GetAllAsync(CancellationToken cancellationToken = default);
+    Task<CharacterLevelExperience?> GetLevelAsync(ushort level, CancellationToken cancellationToken = default);
 }
 
 public class CharacterLevelExperienceRepository : ICharacterLevelExperienceRepository
@@ -18,17 +18,17 @@ public class CharacterLevelExperienceRepository : ICharacterLevelExperienceRepos
         _dbContext = dbContext;
     }
 
-    public async Task<IReadOnlyCollection<CharacterLevelExperience>> GetAllAsync()
+    public async Task<IReadOnlyCollection<CharacterLevelExperience>> GetAllAsync(CancellationToken cancellationToken = default)
     {
         return await _dbContext.CharacterLevelExperiences
             .AsNoTracking()
-            .ToListAsync();
+            .ToListAsync(cancellationToken);
     }
 
-    public async Task<CharacterLevelExperience?> GetLevelAsync(ushort level)
+    public async Task<CharacterLevelExperience?> GetLevelAsync(ushort level, CancellationToken cancellationToken = default)
     {
         return await _dbContext.CharacterLevelExperiences
             .AsNoTracking()
-            .FirstOrDefaultAsync(entity => entity.Level == level);
+            .FirstOrDefaultAsync(entity => entity.Level == level, cancellationToken);
     }
 }

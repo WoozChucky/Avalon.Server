@@ -32,7 +32,7 @@ public class CMFASetupHandler : IAuthPacketHandler<CMFASetupPacket>
             return;
         }
 
-        var account = await _accountRepository.FindByIdAsync(ctx.Connection.AccountId);
+        var account = await _accountRepository.FindByIdAsync(ctx.Connection.AccountId, false, token);
         if (account == null)
         {
             _logger.LogWarning("Account not found for connection {Id}", ctx.Connection.Id);

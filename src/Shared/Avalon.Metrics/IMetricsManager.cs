@@ -96,7 +96,8 @@ public class MetricsManager : IMetricsManager
             }
             finally
             {
-                await Task.Delay(10);
+                if (!_cancellationTokenSource.IsCancellationRequested)
+                    await Task.Delay(10, _cancellationTokenSource.Token);
             }
         }
     }
