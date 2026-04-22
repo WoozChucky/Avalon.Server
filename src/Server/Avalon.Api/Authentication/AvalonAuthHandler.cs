@@ -66,7 +66,8 @@ public class AvalonAuthHandler : IAuthorizationHandler
 
         _logger.LogInformation("Loading account {AccountId}", accountId);
 
-        Account? account = await _accountService.FindById(accountId);
+        Account? account = await _accountService.FindByIdAsync(accountId,
+            _httpContextAccessor.HttpContext.RequestAborted);
 
         if (account == null)
         {
