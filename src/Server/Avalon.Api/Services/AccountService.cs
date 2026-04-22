@@ -25,6 +25,7 @@ public interface IAccountService
     Task ChangePasswordAsync(AccountId accountId, string currentPassword, string newPassword, CancellationToken cancellationToken = default);
     Task<string> InitiateEmailChangeAsync(AccountId accountId, string newEmail, CancellationToken cancellationToken = default);
     Task ConfirmEmailChangeAsync(string token, CancellationToken cancellationToken = default);
+    Task UpdateStatusAsync(AccountId accountId, AccountStatus state, string? reason, CancellationToken cancellationToken = default);
 }
 
 public class AccountService : IAccountService
@@ -215,5 +216,21 @@ public class AccountService : IAccountService
 
         account.Email = newEmail;
         await _accountRepository.UpdateAsync(account, cancellationToken);
+    }
+
+    // NOTE: `reason` is currently accepted but not persisted (future: audit log).
+    public async Task UpdateStatusAsync(AccountId accountId, AccountStatus state, string? reason,
+        CancellationToken cancellationToken = default)
+    {
+        var account = await _accountRepository.FindByIdAsync(accountId, track: true, cancellationToken)
+            ?? throw new BusinessException("Account not found");
+
+        account.Status = state;
+        await _accountRepository.UpdateAsync(account, cancellationToken);
+
+        if (state == AccountStatus.Banned || state == AccountStatus.Deactivated)
+        {
+            await _cache.PublishAsync(CacheKeys.WorldAccountsDisconnectChannel, accountId.Value.ToString());
+        }
     }
 }

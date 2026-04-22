@@ -102,4 +102,17 @@ public class AccountController : BaseController
         await _accountService.ConfirmEmailChangeAsync(req.Token, ct);
         return NoContent();
     }
+
+    [HttpPatch("{id:long}/status")]
+    [Authorize(Policy = AvalonRoles.Admin)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> UpdateStatus(
+        [FromRoute] long id,
+        [FromBody] AccountStatusPatchRequest req,
+        CancellationToken ct)
+    {
+        await _accountService.UpdateStatusAsync(new AccountId(id), req.State, req.Reason, ct);
+        return NoContent();
+    }
 }
