@@ -199,3 +199,9 @@ end_of_line = crlf
 dotnet_diagnostic.MA0032.severity = warning
 dotnet_diagnostic.MA0040.severity = warning
 dotnet_diagnostic.MA0045.severity = warning
+
+# Mock-chain calls in tests and benchmark setup don't need CT annotation noise.
+[{tests,tools}/**/*.cs]
+dotnet_diagnostic.MA0032.severity = none
+dotnet_diagnostic.MA0040.severity = none
+dotnet_diagnostic.MA0045.severity = none
