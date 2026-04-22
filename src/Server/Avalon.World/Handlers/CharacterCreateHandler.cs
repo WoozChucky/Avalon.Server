@@ -55,7 +55,7 @@ public class CharacterCreateHandler(
             return;
         }
 
-        connection.EnqueueContinuation(characterRepository.FindByNameAsync(packet.Name), character =>
+        connection.EnqueueContinuation(characterRepository.FindByNameAsync(packet.Name, CancellationToken.None), character =>
         {
             OnDuplicateCharacterReceived(connection, character, packet);
         });
@@ -121,7 +121,7 @@ public class CharacterCreateHandler(
             Running = true,
         };
 
-        connection.EnqueueContinuation(characterRepository.CreateAsync(character), createdCharacter =>
+        connection.EnqueueContinuation(characterRepository.CreateAsync(character, CancellationToken.None), createdCharacter =>
         {
             OnCharacterCreated(connection, createdCharacter, classLevelStats, createInfo.Class, createInfo);
         });
@@ -149,7 +149,7 @@ public class CharacterCreateHandler(
             AbilityDamage = CharacterStats.GetBaseAbilityDamage(@class, classLevelStat.Intellect),
         };
 
-        connection.EnqueueContinuation(characterStatsRepository.CreateAsync(characterStats), createdStats =>
+        connection.EnqueueContinuation(characterStatsRepository.CreateAsync(characterStats, CancellationToken.None), createdStats =>
         {
             OnCharacterStatsCreated(connection, character, createInfo);
         });
@@ -161,7 +161,7 @@ public class CharacterCreateHandler(
 
         var characterSpells = characterSpellIds.Select(spellId => new CharacterSpell { CharacterId = character.Id, SpellId = spellId, }).ToList();
 
-        connection.EnqueueContinuation(characterSpellRepository.CreateAsync(characterSpells), createdSpells =>
+        connection.EnqueueContinuation(characterSpellRepository.CreateAsync(characterSpells, CancellationToken.None), createdSpells =>
         {
             OnCharacterSpellsCreated(connection, character, createInfo);
         });
@@ -203,7 +203,7 @@ public class CharacterCreateHandler(
             itemInstances.Add(itemInstance);
         }
 
-        connection.EnqueueContinuation(itemInstanceRepository.CreateAsync(itemInstances), createdItems =>
+        connection.EnqueueContinuation(itemInstanceRepository.CreateAsync(itemInstances, CancellationToken.None), createdItems =>
         {
             if (createdItems.Count != itemInstances.Count)
             {
@@ -227,7 +227,7 @@ public class CharacterCreateHandler(
                 characterInventories.Add(characterInventory);
             }
 
-            connection.EnqueueContinuation(characterInventoryRepository.CreateAsync(characterInventories), charIventories =>
+            connection.EnqueueContinuation(characterInventoryRepository.CreateAsync(characterInventories, CancellationToken.None), charIventories =>
             {
                 if (charIventories.Count != itemInstances.Count)
                 {
