@@ -1,7 +1,9 @@
 using Avalon.Api.Authentication;
+using Avalon.Api.Authorization;
 using Avalon.Api.Contract;
 using Avalon.Api.Contract.Mappers;
 using Avalon.Api.Services;
+using Avalon.Common.ValueObjects;
 using Avalon.Database;
 using Avalon.Database.Extensions;
 using Microsoft.AspNetCore.Authorization;
@@ -9,18 +11,20 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace Avalon.Api.Controllers;
 
-[Authorize]
+[Authorize(Policy = AvalonRoles.Player)]
 [ApiController]
 [Route("account")]
 public class AccountController : BaseController
 {
     private readonly IAccountService _accountService;
     private readonly IAuthContext _authContext;
+    private readonly IAuthorizationService _authz;
 
-    public AccountController(IAccountService accountService, IAuthContext authContext)
+    public AccountController(IAccountService accountService, IAuthContext authContext, IAuthorizationService authz)
     {
         _accountService = accountService;
         _authContext = authContext;
+        _authz = authz;
     }
 
     [HttpGet(Name = "GetAccount")]
@@ -31,17 +35,19 @@ public class AccountController : BaseController
         return await Task.FromResult(dto);
     }
 
-    [Authorize(Policy = AvalonRoles.GameMaster)]
     [HttpGet("{id:long}", Name = "FindAccountById")]
-    [ProducesResponseType(typeof(AccountDto), 200)]
-    public async Task<AccountDto> FindById([FromRoute] long id)
+    [ProducesResponseType(typeof(AccountDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> FindById([FromRoute] long id, CancellationToken ct)
     {
-        var account = await _accountService.FindById(id);
-        if (account is null)
-        {
-            throw new Exception("Account not found");
-        }
-        return account.ToDto();
+        var account = await _accountService.FindByIdAsync(new AccountId(id), ct);
+        if (account is null) return NotFound();
+
+        var authz = await _authz.AuthorizeAsync(User, account, new ReadRequirement());
+        if (!authz.Succeeded) return NotFoundOrForbid();
+
+        return Ok(account.ToDto());
     }
 
     [Authorize(Policy = AvalonRoles.GameMaster)]
