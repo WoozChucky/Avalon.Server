@@ -21,6 +21,12 @@ public class MFAService : IMFAService
         _mfaHashService = mfaHashService;
     }
 
+    private static string GenerateRecoveryCode()
+    {
+        var hex = Guid.NewGuid().ToString("N").ToUpperInvariant();
+        return $"{hex[..4]}-{hex[4..8]}-{hex[8..12]}";
+    }
+
     public async Task<MFASetupResult> SetupMFAAsync(Account account, string issuer, CancellationToken cancellationToken = default)
     {
         var existingMfaSetup = await _mfaSetupRepository.FindByAccountIdAsync(account.Id, cancellationToken);
@@ -37,9 +43,9 @@ public class MFAService : IMFAService
         var mfaSetup = new MFASetup
         {
             Secret = KeyGeneration.GenerateRandomKey(32),
-            RecoveryCode1 = Guid.NewGuid().ToByteArray(),
-            RecoveryCode2 = Guid.NewGuid().ToByteArray(),
-            RecoveryCode3 = Guid.NewGuid().ToByteArray(),
+            RecoveryCode1 = Encoding.UTF8.GetBytes(GenerateRecoveryCode()),
+            RecoveryCode2 = Encoding.UTF8.GetBytes(GenerateRecoveryCode()),
+            RecoveryCode3 = Encoding.UTF8.GetBytes(GenerateRecoveryCode()),
             AccountId = account.Id,
             Status = MfaSetupStatus.Setup,
             CreatedAt = DateTime.UtcNow,
