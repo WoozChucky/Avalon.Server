@@ -3,7 +3,9 @@ using Avalon.Api.Exceptions;
 using Avalon.Common.ValueObjects;
 using Avalon.Database;
 using Avalon.Database.Character.Repositories;
+using Avalon.Database.World.Repositories;
 using Avalon.Domain.Characters;
+using Avalon.Domain.World;
 
 namespace Avalon.Api.Services;
 
@@ -21,13 +23,16 @@ public class CharacterService : ICharacterService
 {
     private readonly ICharacterRepository _characterRepository;
     private readonly ICharacterInventoryRepository _inventoryRepository;
+    private readonly IItemInstanceRepository _itemInstanceRepository;
 
     public CharacterService(
         ICharacterRepository characterRepository,
-        ICharacterInventoryRepository inventoryRepository)
+        ICharacterInventoryRepository inventoryRepository,
+        IItemInstanceRepository itemInstanceRepository)
     {
         _characterRepository = characterRepository;
         _inventoryRepository = inventoryRepository;
+        _itemInstanceRepository = itemInstanceRepository;
     }
 
     public Task<List<Character>> GetAllCharactersAsync(AccountId id, CancellationToken cancellationToken = default) =>
@@ -75,19 +80,40 @@ public class CharacterService : ICharacterService
         var character = await _characterRepository.FindByIdAsync(id, track: false, cancellationToken);
         if (character is null) return null;
 
-        var items = await _inventoryRepository.GetByCharacterIdAsync(id, cancellationToken);
+        var inventoryRows = await _inventoryRepository.GetByCharacterIdAsync(id, cancellationToken);
+        var instances = await _itemInstanceRepository.GetByCharacterIdWithTemplateAsync(id, cancellationToken);
+        var instanceById = instances.ToDictionary(i => i.Id);
 
         return new CharacterInventoryDto
         {
             CharacterId = character.Id.Value,
-            Items = items.Select(MapItem).ToList(),
+            Items = inventoryRows.Select(row => MapItem(row, instanceById)).ToList(),
         };
     }
 
-    private static CharacterInventoryItemDto MapItem(CharacterInventory i) => new()
+    private static CharacterInventoryItemDto MapItem(
+        CharacterInventory row,
+        Dictionary<ItemInstanceId, ItemInstance> instanceById)
     {
-        ItemId = i.ItemId.Value,
-        Container = i.Container,
-        Slot = i.Slot,
-    };
+        instanceById.TryGetValue(row.ItemId, out var instance);
+
+        return new CharacterInventoryItemDto
+        {
+            ItemId = row.ItemId.Value,
+            Container = row.Container,
+            Slot = row.Slot,
+            Count = instance?.Count ?? 0,
+            Durability = instance?.Durability ?? 0,
+            Template = instance?.Template is null ? null : new CharacterInventoryItemTemplateDto
+            {
+                Id = instance.Template.Id.Value,
+                Name = instance.Template.Name ?? string.Empty,
+                Rarity = instance.Template.Rarity,
+                DisplayId = instance.Template.DisplayId,
+                SlotType = instance.Template.Slot ?? default,
+                ItemPower = instance.Template.ItemPower ?? 0,
+                RequiredLevel = instance.Template.RequiredLevel ?? 0,
+            },
+        };
+    }
 }
