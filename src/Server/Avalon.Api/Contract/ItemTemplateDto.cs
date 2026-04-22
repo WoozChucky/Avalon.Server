@@ -1,6 +1,3 @@
-using Avalon.Domain.World;
-using WorldCharacterClass = Avalon.World.Public.Enums.CharacterClass;
-
 namespace Avalon.Api.Contract;
 
 public sealed class ItemTemplateDto
@@ -17,7 +14,7 @@ public sealed class ItemTemplateDto
     public uint BuyPrice { get; set; }
     public uint SellPrice { get; set; }
     public ItemSlotType? Slot { get; set; }
-    public List<WorldCharacterClass> AllowedClasses { get; set; } = [];
+    public List<CharacterClass> AllowedClasses { get; set; } = [];
     public ushort? ItemPower { get; set; }
     public ushort? RequiredLevel { get; set; }
     public uint? DamageMin1 { get; set; }

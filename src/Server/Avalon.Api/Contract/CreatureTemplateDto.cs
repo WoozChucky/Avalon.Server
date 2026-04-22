@@ -1,5 +1,3 @@
-using Avalon.World.Public.Enums;
-
 namespace Avalon.Api.Contract;
 
 public sealed class CreatureTemplateDto

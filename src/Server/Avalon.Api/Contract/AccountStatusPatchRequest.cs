@@ -1,5 +1,4 @@
 using System.ComponentModel.DataAnnotations;
-using Avalon.Domain.Auth;
 
 namespace Avalon.Api.Contract;
 
