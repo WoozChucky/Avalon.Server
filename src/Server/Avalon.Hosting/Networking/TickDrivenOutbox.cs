@@ -130,7 +130,9 @@ public sealed class TickDrivenOutbox : IOutbox
             _inFlightCompletion = tcs;
             // Double-check after publishing: continuation may have already cleared the flag.
             if (Volatile.Read(ref _writeInFlight) == 1)
+#pragma warning disable MA0040 // shutdown-timeout Delay — must complete even though _cts is already cancelled
                 await Task.WhenAny(tcs.Task, Task.Delay(500)).ConfigureAwait(false);
+#pragma warning restore MA0040
         }
 
         _burstWriter.Dispose();

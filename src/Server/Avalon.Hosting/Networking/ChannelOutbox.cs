@@ -70,7 +70,9 @@ public sealed class ChannelOutbox : IOutbox
         _queue.Writer.TryComplete();
         await _cts.CancelAsync().ConfigureAwait(false);
         if (_bgTask is not null)
+#pragma warning disable MA0040 // shutdown-timeout Delay — must complete even though _cts is already cancelled
             await Task.WhenAny(_bgTask, Task.Delay(500)).ConfigureAwait(false);
+#pragma warning restore MA0040
         _burstWriter.Dispose();
         _tempWriter.Dispose();
         _cts.Dispose();

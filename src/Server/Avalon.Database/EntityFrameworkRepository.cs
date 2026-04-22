@@ -106,7 +106,7 @@ public abstract class EntityFrameworkRepository<TEntity, TKey>(DbContext dbConte
     public async Task<TEntity> UpdateAsync(TEntity entity, CancellationToken cancellationToken = default)
     {
         // Detach existing entity if tracked
-        var existingEntity = await Context.Set<TEntity>().FindAsync(entity.Id);
+        var existingEntity = await Context.Set<TEntity>().FindAsync([entity.Id], cancellationToken);
         if (existingEntity != null)
         {
             Context.Entry(existingEntity).State = EntityState.Detached;
