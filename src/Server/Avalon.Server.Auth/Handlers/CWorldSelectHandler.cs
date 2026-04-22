@@ -26,7 +26,7 @@ public class CWorldSelectHandler : IAuthPacketHandler<CWorldSelectPacket>
     public async Task ExecuteAsync(AuthPacketContext<CWorldSelectPacket> ctx, CancellationToken token = default)
     {
 
-        var account = await _accountRepository.FindByIdAsync(ctx.Connection.AccountId ?? 0);
+        var account = await _accountRepository.FindByIdAsync(ctx.Connection.AccountId ?? 0, false, token);
         if (account == null)
         {
             _logger.LogWarning("Account not found for connection {Session}", ctx.Connection.Id);
@@ -34,7 +34,7 @@ public class CWorldSelectHandler : IAuthPacketHandler<CWorldSelectPacket>
             return;
         }
 
-        var world = await _worldRepository.FindByIdAsync(ctx.Packet.WorldId);
+        var world = await _worldRepository.FindByIdAsync(ctx.Packet.WorldId, false, token);
         if (world == null)
         {
             _logger.LogWarning("World not found for id {WorldId}", ctx.Packet.WorldId);
@@ -58,7 +58,7 @@ public class CWorldSelectHandler : IAuthPacketHandler<CWorldSelectPacket>
         var worldKey = _secureRandom.GetBytes(32);
 
         account.SessionKey = worldKey;
-        await _accountRepository.UpdateAsync(account);
+        await _accountRepository.UpdateAsync(account, token);
 
         var worldKeyBase64 = Convert.ToBase64String(worldKey);
 

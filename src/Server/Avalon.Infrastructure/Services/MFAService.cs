@@ -23,7 +23,7 @@ public class MFAService : IMFAService
 
     public async Task<MFASetupResult> SetupMFAAsync(Account account, string issuer, CancellationToken cancellationToken = default)
     {
-        var existingMfaSetup = await _mfaSetupRepository.FindByAccountIdAsync(account.Id);
+        var existingMfaSetup = await _mfaSetupRepository.FindByAccountIdAsync(account.Id, cancellationToken);
 
         if (existingMfaSetup != null)
         {
@@ -31,7 +31,7 @@ public class MFAService : IMFAService
                 return new MFASetupResult(false, null, MFAOperationResult.AlreadyEnabled);
 
             // Delete stale or in-progress setup and recreate
-            await _mfaSetupRepository.DeleteAsync(existingMfaSetup.Id);
+            await _mfaSetupRepository.DeleteAsync(existingMfaSetup.Id, cancellationToken);
         }
 
         var mfaSetup = new MFASetup
@@ -46,7 +46,7 @@ public class MFAService : IMFAService
             ConfirmedAt = DateTime.MinValue,
         };
 
-        mfaSetup = await _mfaSetupRepository.CreateAsync(mfaSetup);
+        mfaSetup = await _mfaSetupRepository.CreateAsync(mfaSetup, cancellationToken);
 
         var uri = new OtpUri(OtpType.Totp, mfaSetup.Secret, account.Email, issuer).ToString();
         return new MFASetupResult(true, uri, MFAOperationResult.Success);
@@ -54,14 +54,14 @@ public class MFAService : IMFAService
 
     public async Task<MFAConfirmResult> ConfirmMFAAsync(AccountId accountId, string code, CancellationToken cancellationToken = default)
     {
-        var mfaSetup = await _mfaSetupRepository.FindByAccountIdAsync(accountId);
+        var mfaSetup = await _mfaSetupRepository.FindByAccountIdAsync(accountId, cancellationToken);
 
         if (mfaSetup == null || mfaSetup.Status != MfaSetupStatus.Setup)
             return new MFAConfirmResult(false, null, MFAOperationResult.Error);
 
         if (mfaSetup.CreatedAt.AddMinutes(5) < DateTime.UtcNow)
         {
-            await _mfaSetupRepository.DeleteAsync(mfaSetup.Id);
+            await _mfaSetupRepository.DeleteAsync(mfaSetup.Id, cancellationToken);
             return new MFAConfirmResult(false, null, MFAOperationResult.Error);
         }
 
@@ -71,7 +71,7 @@ public class MFAService : IMFAService
 
         mfaSetup.Status = MfaSetupStatus.Confirmed;
         mfaSetup.ConfirmedAt = DateTime.UtcNow;
-        await _mfaSetupRepository.UpdateAsync(mfaSetup);
+        await _mfaSetupRepository.UpdateAsync(mfaSetup, cancellationToken);
 
         var codes = new[]
         {
@@ -88,7 +88,7 @@ public class MFAService : IMFAService
         if (accountId == null)
             return new MFAVerifyResult(false, null);
 
-        var mfaSetup = await _mfaSetupRepository.FindByAccountIdAsync(accountId);
+        var mfaSetup = await _mfaSetupRepository.FindByAccountIdAsync(accountId, cancellationToken);
         if (mfaSetup == null || mfaSetup.Status != MfaSetupStatus.Confirmed)
             return new MFAVerifyResult(false, null);
 
@@ -102,7 +102,7 @@ public class MFAService : IMFAService
 
     public async Task<MFAResetResult> ResetMFAAsync(AccountId accountId, string r1, string r2, string r3, CancellationToken cancellationToken = default)
     {
-        var mfaSetup = await _mfaSetupRepository.FindByAccountIdAsync(accountId);
+        var mfaSetup = await _mfaSetupRepository.FindByAccountIdAsync(accountId, cancellationToken);
 
         if (mfaSetup == null)
             return new MFAResetResult(false, MFAOperationResult.NotEnabled);
@@ -117,7 +117,7 @@ public class MFAService : IMFAService
             return new MFAResetResult(false, MFAOperationResult.InvalidCode);
         }
 
-        await _mfaSetupRepository.DeleteAsync(mfaSetup.Id);
+        await _mfaSetupRepository.DeleteAsync(mfaSetup.Id, cancellationToken);
         return new MFAResetResult(true, MFAOperationResult.Success);
     }
 }

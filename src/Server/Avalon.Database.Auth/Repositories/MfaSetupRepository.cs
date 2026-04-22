@@ -6,7 +6,7 @@ namespace Avalon.Database.Auth.Repositories;
 
 public interface IMfaSetupRepository : IRepository<MFASetup, Guid>
 {
-    Task<MFASetup?> FindByAccountIdAsync(AccountId accountId);
+    Task<MFASetup?> FindByAccountIdAsync(AccountId accountId, CancellationToken cancellationToken = default);
 }
 
 public class MfaSetupRepository : EntityFrameworkRepository<MFASetup, Guid>, IMfaSetupRepository
@@ -17,8 +17,8 @@ public class MfaSetupRepository : EntityFrameworkRepository<MFASetup, Guid>, IMf
     }
 
 
-    public async Task<MFASetup?> FindByAccountIdAsync(AccountId accountId) =>
+    public async Task<MFASetup?> FindByAccountIdAsync(AccountId accountId, CancellationToken cancellationToken = default) =>
         await Context.Set<MFASetup>()
             .AsNoTracking()
-            .FirstOrDefaultAsync(c => c.AccountId == accountId);
+            .FirstOrDefaultAsync(c => c.AccountId == accountId, cancellationToken);
 }

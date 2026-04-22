@@ -18,9 +18,9 @@ public class CWorldListHandler : IAuthPacketHandler<CWorldListPacket>
 
     public async Task ExecuteAsync(AuthPacketContext<CWorldListPacket> ctx, CancellationToken token = default)
     {
-        var worlds = await _worldRepository.FindAllAsync();
+        var worlds = await _worldRepository.FindAllAsync(false, token);
 
-        var account = await _accountRepository.FindByIdAsync(ctx.Connection.AccountId ?? 0);
+        var account = await _accountRepository.FindByIdAsync(ctx.Connection.AccountId ?? 0, false, token);
         if (account == null)
         {
             _logger.LogWarning("Account not found for connection {Session}", ctx.Connection.Id);
@@ -32,7 +32,7 @@ public class CWorldListHandler : IAuthPacketHandler<CWorldListPacket>
 
         var worldsInfo = worlds.Select(w => new WorldInfo
         {
-            Id = w.Id!.Value,
+            Id = w.Id.Value,
             Name = w.Name,
             Type = (short)w.Type,
             AccessLevelRequired = (short)w.AccessLevelRequired,
