@@ -12,15 +12,20 @@ public interface ICharacterService
     Task<Character?> GetCharacterByIdAsync(CharacterId id, CancellationToken cancellationToken = default);
     Task UpdateCosmeticAsync(Character character, string? newName, CancellationToken cancellationToken = default);
     Task UpdateAnyAsync(Character character, CharacterPatchDto dto, CancellationToken cancellationToken = default);
+    Task<CharacterInventoryDto?> GetInventoryAsync(CharacterId id, CancellationToken cancellationToken = default);
 }
 
 public class CharacterService : ICharacterService
 {
     private readonly ICharacterRepository _characterRepository;
+    private readonly ICharacterInventoryRepository _inventoryRepository;
 
-    public CharacterService(ICharacterRepository characterRepository)
+    public CharacterService(
+        ICharacterRepository characterRepository,
+        ICharacterInventoryRepository inventoryRepository)
     {
         _characterRepository = characterRepository;
+        _inventoryRepository = inventoryRepository;
     }
 
     public Task<List<Character>> GetAllCharactersAsync(AccountId id, CancellationToken cancellationToken = default) =>
@@ -59,4 +64,25 @@ public class CharacterService : ICharacterService
 
         await _characterRepository.UpdateAsync(character, cancellationToken);
     }
+
+    public async Task<CharacterInventoryDto?> GetInventoryAsync(CharacterId id, CancellationToken cancellationToken = default)
+    {
+        var character = await _characterRepository.FindByIdAsync(id, track: false, cancellationToken);
+        if (character is null) return null;
+
+        var items = await _inventoryRepository.GetByCharacterIdAsync(id);
+
+        return new CharacterInventoryDto
+        {
+            CharacterId = character.Id.Value,
+            Items = items.Select(MapItem).ToList(),
+        };
+    }
+
+    private static CharacterInventoryItemDto MapItem(CharacterInventory i) => new()
+    {
+        ItemId = i.ItemId.Value,
+        Container = i.Container,
+        Slot = i.Slot,
+    };
 }
