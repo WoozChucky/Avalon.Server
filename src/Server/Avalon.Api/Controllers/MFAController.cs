@@ -84,7 +84,7 @@ public class MFAController : BaseController
         return new AuthenticateResponse
         {
             Token = _jwtUtils.GenerateJwtToken(account),
-            ExpiresAt = DateTimeOffset.UtcNow.AddHours(1).ToUnixTimeSeconds(),
+            ExpiresAt = DateTimeOffset.UtcNow.AddMinutes(_authConfig.AccessTokenLifetimeMinutes).ToUnixTimeSeconds(),
             Status = AuthenticationResponseStatus.Success
         };
     }

@@ -48,7 +48,7 @@ public class JwtUtils : IJwtUtils
         var tokenDescriptor = new SecurityTokenDescriptor
         {
             Subject = new ClaimsIdentity(claims, JwtBearerDefaults.AuthenticationScheme),
-            Expires = DateTime.UtcNow.AddHours(1),
+            Expires = DateTime.UtcNow.AddMinutes(_authenticationConfig.AccessTokenLifetimeMinutes),
             SigningCredentials = new SigningCredentials(_key, SecurityAlgorithms.HmacSha256Signature),
             Issuer = _authenticationConfig.Issuer,
             Audience = _authenticationConfig.Audience,

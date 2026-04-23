@@ -9,4 +9,8 @@ public class AuthenticationConfig
     public string Audience { get; set; } = string.Empty;
     public bool ValidateAudience { get; set; }
     public int ClockSkewInMinutes { get; set; }
+    public int AccessTokenLifetimeMinutes { get; set; } = 15;
+    public int RefreshTokenLifetimeDays { get; set; } = 30;
+    public string RefreshCookieName { get; set; } = "av_refresh";
+    public string RefreshCookiePath { get; set; } = "/account/refresh";
 }
