@@ -23,7 +23,8 @@ public static class ServiceExtensions
             .AddScoped<Repositories.IMfaSetupRepository, Repositories.MfaSetupRepository>()
             .AddScoped<Repositories.IDeviceRepository, Repositories.DeviceRepository>()
             .AddScoped<Repositories.IWorldRepository, Repositories.WorldRepository>()
-            .AddScoped<Repositories.IPersonalAccessTokenRepository, Repositories.PersonalAccessTokenRepository>();
+            .AddScoped<Repositories.IPersonalAccessTokenRepository, Repositories.PersonalAccessTokenRepository>()
+            .AddScoped<Repositories.IRefreshTokenRepository, Repositories.RefreshTokenRepository>();
 
         return services;
     }
