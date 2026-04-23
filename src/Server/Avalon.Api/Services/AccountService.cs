@@ -42,6 +42,7 @@ public class AccountService : IAccountService
     private readonly IReplicatedCache _cache;
     private readonly ISecureRandom _secureRandom;
     private readonly IPersonalAccessTokenService _patService;
+    private readonly IRefreshTokenService _refreshService;
     private readonly AuthDbContext _authDbContext;
     private readonly AuthenticationConfig _authConfig;
 
@@ -54,6 +55,7 @@ public class AccountService : IAccountService
         IReplicatedCache cache,
         ISecureRandom secureRandom,
         IPersonalAccessTokenService patService,
+        IRefreshTokenService refreshService,
         AuthDbContext authDbContext,
         AuthenticationConfig authConfig)
     {
@@ -66,6 +68,7 @@ public class AccountService : IAccountService
         _cache = cache;
         _secureRandom = secureRandom;
         _patService = patService;
+        _refreshService = refreshService;
         _authDbContext = authDbContext;
         _authConfig = authConfig;
     }
@@ -194,6 +197,9 @@ public class AccountService : IAccountService
         account.Verifier = Encoding.UTF8.GetBytes(hash);
 
         await _accountRepository.UpdateAsync(account, cancellationToken);
+
+        await _refreshService.RevokeAllForAccountAsync(accountId, cancellationToken);
+        await _cache.PublishAsync(CacheKeys.WorldAccountsDisconnectChannel, accountId.Value.ToString());
     }
 
     public async Task<string> InitiateEmailChangeAsync(AccountId accountId, string newEmail,
@@ -228,6 +234,9 @@ public class AccountService : IAccountService
 
         account.Email = newEmail;
         await _accountRepository.UpdateAsync(account, cancellationToken);
+
+        await _refreshService.RevokeAllForAccountAsync(accountId, cancellationToken);
+        await _cache.PublishAsync(CacheKeys.WorldAccountsDisconnectChannel, accountId.Value.ToString());
     }
 
     // NOTE: `reason` is currently accepted but not persisted (future: audit log).
@@ -242,6 +251,8 @@ public class AccountService : IAccountService
 
             account.Status = (Avalon.Domain.Auth.AccountStatus)state;
             await _accountRepository.UpdateAsync(account, cancellationToken);
+
+            await _refreshService.RevokeAllForAccountAsync(accountId, cancellationToken);
 
             if (state is Avalon.Api.Contract.AccountStatus.Banned or Avalon.Api.Contract.AccountStatus.Deactivated)
             {
