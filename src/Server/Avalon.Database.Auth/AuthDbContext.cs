@@ -188,6 +188,9 @@ public class AuthDbContext(ILoggerFactory loggerFactory, IOptions<DatabaseConfig
             .WithMany()
             .HasForeignKey(e => e.AccountId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasIndex(r => new { r.AccountId, r.FamilyId });
+        builder.HasIndex(r => r.Hash).IsUnique();
     }
 
     private static void Configure(EntityTypeBuilder<AvalonToken> builder)

@@ -15,6 +15,8 @@ public class RefreshToken : IDbEntity<Guid>
 
     public AccountId AccountId { get; set; }
 
+    public Guid FamilyId { get; set; }
+
     public uint Index { get; set; } = 0;
     public byte[] Hash { get; set; } = [];
     public bool Revoked { get; set; }
