@@ -45,16 +45,30 @@ public class MFAHashService : IMFAHashService
         byte[]? secretKey = KeyGeneration.GenerateRandomKey(20);
         string? hash = Base32Encoding.ToString(secretKey);
 
+        // StackExchange.Redis transactions: the per-op Tasks returned by
+        // ITransaction methods DO NOT complete until ExecuteAsync runs, so we
+        // must not `await` them individually — that was the hang. Queue the
+        // ops (discard their Tasks), include the reverse-hash SET for proper
+        // atomicity, then await ExecuteAsync once.
         ITransaction transaction = _cache.Database.CreateTransaction();
-        await transaction.HashSetAsync(CacheKeys.AccountMfa(account.Id),
+        _ = transaction.HashSetAsync(CacheKeys.AccountMfa(account.Id),
             new[]
             {
                 new HashEntry("hash", hash),
                 new HashEntry("expiry", DateTime.UtcNow.Add(_expiry).ToString("O")),
                 new HashEntry("accountId", account.Id.Value.ToString())
             });
-        await transaction.ExecuteAsync();
-        await _cache.SetAsync(CacheKeys.MfaReverseHash(hash), account.Id!.Value.ToString(), _expiry);
+        _ = transaction.KeyExpireAsync(CacheKeys.AccountMfa(account.Id), _expiry);
+        _ = transaction.StringSetAsync(
+            CacheKeys.MfaReverseHash(hash),
+            account.Id!.Value.ToString(),
+            _expiry);
+
+        bool committed = await transaction.ExecuteAsync();
+        if (!committed)
+        {
+            _logger.LogWarning("MFA hash transaction failed for account {AccountId}", account.Id);
+        }
         return hash;
     }
 
