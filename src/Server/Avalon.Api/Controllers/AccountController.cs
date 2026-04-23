@@ -118,6 +118,19 @@ public class AccountController : BaseController
         return NoContent();
     }
 
+    [AllowAnonymous]
+    [HttpPost("logout", Name = "Logout")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    public async Task<IActionResult> Logout(CancellationToken ct)
+    {
+        if (Request.Cookies.TryGetValue(_authConfig.RefreshCookieName, out var raw) && !string.IsNullOrEmpty(raw))
+        {
+            try { await _refreshService.RevokeAsync(raw, ct); } catch { /* idempotent */ }
+        }
+        Response.Cookies.Delete(_authConfig.RefreshCookieName, new CookieOptions { Path = _authConfig.RefreshCookiePath });
+        return NoContent();
+    }
+
     [HttpPatch("{id:long}/status")]
     [Authorize(Policy = AvalonRoles.Admin)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
