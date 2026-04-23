@@ -2,6 +2,7 @@ using System.Net;
 using System.Security.Authentication;
 using System.Text;
 using Avalon.Api.Authentication.Jwt;
+using Avalon.Api.Config;
 using Avalon.Api.Contract;
 using Avalon.Api.Exceptions;
 using Avalon.Common.ValueObjects;
@@ -42,6 +43,8 @@ public class AccountService : IAccountService
     private readonly ISecureRandom _secureRandom;
     private readonly IPersonalAccessTokenService _patService;
     private readonly AuthDbContext _authDbContext;
+    private readonly AuthenticationConfig _authConfig;
+
     public AccountService(ILoggerFactory loggerFactory,
         IAccountRepository accountRepository,
         IJwtUtils jwtUtils,
@@ -51,7 +54,8 @@ public class AccountService : IAccountService
         IReplicatedCache cache,
         ISecureRandom secureRandom,
         IPersonalAccessTokenService patService,
-        AuthDbContext authDbContext)
+        AuthDbContext authDbContext,
+        AuthenticationConfig authConfig)
     {
         _logger = loggerFactory.CreateLogger<AccountService>();
         _accountRepository = accountRepository;
@@ -63,6 +67,7 @@ public class AccountService : IAccountService
         _secureRandom = secureRandom;
         _patService = patService;
         _authDbContext = authDbContext;
+        _authConfig = authConfig;
     }
 
     public async Task<Account?> FindByIdAsync(AccountId id, CancellationToken cancellationToken = default)
@@ -104,7 +109,7 @@ public class AccountService : IAccountService
         return new AuthenticateResponse
         {
             Token = _jwtUtils.GenerateJwtToken(account),
-            ExpiresAt = DateTimeOffset.UtcNow.AddHours(1).ToUnixTimeSeconds(),
+            ExpiresAt = DateTimeOffset.UtcNow.AddMinutes(_authConfig.AccessTokenLifetimeMinutes).ToUnixTimeSeconds(),
             Status = AuthenticationResponseStatus.Success
         };
     }
@@ -161,7 +166,7 @@ public class AccountService : IAccountService
         {
             Token = _jwtUtils.GenerateJwtToken(account),
             RefreshToken = "",
-            ExpiresAt = DateTimeOffset.UtcNow.AddHours(1).ToUnixTimeSeconds(),
+            ExpiresAt = DateTimeOffset.UtcNow.AddMinutes(_authConfig.AccessTokenLifetimeMinutes).ToUnixTimeSeconds(),
         };
     }
 
