@@ -19,8 +19,8 @@ namespace Avalon.Api.Services;
 public interface IAccountService
 {
     Task<Account?> FindByIdAsync(AccountId id, CancellationToken cancellationToken = default);
-    Task<AuthenticateResponse> Authenticate(AuthenticateRequest model, IPAddress ipAddress, CancellationToken cancellationToken);
-    Task<RegisterResponse> Register(RegisterRequest model, string userAgent, IPAddress ipAddress,
+    Task<(AuthenticateResponse Response, AccountId? AccountId)> Authenticate(AuthenticateRequest model, IPAddress ipAddress, CancellationToken cancellationToken);
+    Task<(RegisterResponse Response, AccountId AccountId)> Register(RegisterRequest model, string userAgent, IPAddress ipAddress,
         CancellationToken cancellationToken);
 
     Task<PagedResult<Account>> Paginate(AccountPaginateFilters filters, CancellationToken cancellationToken = default);
@@ -75,7 +75,7 @@ public class AccountService : IAccountService
         return await _accountRepository.FindByIdAsync(id, track: false, cancellationToken);
     }
 
-    public async Task<AuthenticateResponse> Authenticate(AuthenticateRequest model, IPAddress ipAddress,
+    public async Task<(AuthenticateResponse Response, AccountId? AccountId)> Authenticate(AuthenticateRequest model, IPAddress ipAddress,
         CancellationToken cancellationToken)
     {
         var account = await _accountRepository.FindByUserNameAsync(model.Username.ToUpperInvariant().Trim(), cancellationToken);
@@ -92,13 +92,13 @@ public class AccountService : IAccountService
         var mfaSetup = await _mfaSetupRepository.FindByAccountIdAsync(account.Id, cancellationToken);
         if (mfaSetup is { Status: MfaSetupStatus.Confirmed })
         {
-            return new AuthenticateResponse
+            return (new AuthenticateResponse
             {
                 Token = null,
                 ExpiresAt = null,
                 MfaHash = await _mfaHashService.GenerateHashAsync(account),
                 Status = AuthenticationResponseStatus.RequiresMFA
-            };
+            }, null);
         }
 
         account.LastIp = ipAddress.ToString();
@@ -106,15 +106,15 @@ public class AccountService : IAccountService
 
         await _accountRepository.UpdateAsync(account, cancellationToken);
 
-        return new AuthenticateResponse
+        return (new AuthenticateResponse
         {
             Token = _jwtUtils.GenerateJwtToken(account),
             ExpiresAt = DateTimeOffset.UtcNow.AddMinutes(_authConfig.AccessTokenLifetimeMinutes).ToUnixTimeSeconds(),
             Status = AuthenticationResponseStatus.Success
-        };
+        }, account.Id);
     }
 
-    public async Task<RegisterResponse> Register(RegisterRequest model, string userAgent, IPAddress ipAddress,
+    public async Task<(RegisterResponse Response, AccountId AccountId)> Register(RegisterRequest model, string userAgent, IPAddress ipAddress,
         CancellationToken cancellationToken)
     {
         var existingAccount = await _accountRepository.FindByUserNameAsync(
@@ -162,12 +162,11 @@ public class AccountService : IAccountService
             TrustEnd = DateTime.UtcNow,
         }, cancellationToken);
 
-        return new RegisterResponse
+        return (new RegisterResponse
         {
             Token = _jwtUtils.GenerateJwtToken(account),
-            RefreshToken = "",
             ExpiresAt = DateTimeOffset.UtcNow.AddMinutes(_authConfig.AccessTokenLifetimeMinutes).ToUnixTimeSeconds(),
-        };
+        }, account.Id);
     }
 
     public async Task<PagedResult<Account>> Paginate(AccountPaginateFilters filters, CancellationToken cancellationToken)

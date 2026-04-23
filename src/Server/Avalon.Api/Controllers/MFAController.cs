@@ -2,6 +2,7 @@ using Avalon.Api.Authentication;
 using Avalon.Api.Authentication.Jwt;
 using Avalon.Api.Config;
 using Avalon.Api.Contract;
+using Avalon.Api.Services;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Infrastructure.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -19,15 +20,17 @@ public class MFAController : BaseController
     private readonly AuthenticationConfig _authConfig;
     private readonly IJwtUtils _jwtUtils;
     private readonly IAccountRepository _accountRepository;
+    private readonly IRefreshTokenService _refreshService;
 
     public MFAController(IMFAService mfaService, IAuthContext authContext, AuthenticationConfig authConfig,
-        IJwtUtils jwtUtils, IAccountRepository accountRepository)
+        IJwtUtils jwtUtils, IAccountRepository accountRepository, IRefreshTokenService refreshService)
     {
         _mfaService = mfaService;
         _authContext = authContext;
         _authConfig = authConfig;
         _jwtUtils = jwtUtils;
         _accountRepository = accountRepository;
+        _refreshService = refreshService;
     }
 
     [HttpGet("setup", Name = "Setup MFA for the logged account")]
@@ -80,6 +83,9 @@ public class MFAController : BaseController
         account.LastIp = IpAddress.ToString();
         account.LastLogin = DateTime.UtcNow;
         await _accountRepository.UpdateAsync(account, CancellationToken);
+
+        var issue = await _refreshService.IssueAsync(account.Id, CancellationToken);
+        SetRefreshCookie(issue.RawToken, issue.ExpiresAt, _authConfig);
 
         return new AuthenticateResponse
         {

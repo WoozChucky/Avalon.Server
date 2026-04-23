@@ -1,5 +1,6 @@
 using Avalon.Api.Authentication;
 using Avalon.Api.Authorization;
+using Avalon.Api.Config;
 using Avalon.Api.Contract;
 using Avalon.Api.Contract.Mappers;
 using Avalon.Api.Services;
@@ -19,12 +20,17 @@ public class AccountController : BaseController
     private readonly IAccountService _accountService;
     private readonly IAuthContext _authContext;
     private readonly IAuthorizationService _authz;
+    private readonly IRefreshTokenService _refreshService;
+    private readonly AuthenticationConfig _authConfig;
 
-    public AccountController(IAccountService accountService, IAuthContext authContext, IAuthorizationService authz)
+    public AccountController(IAccountService accountService, IAuthContext authContext, IAuthorizationService authz,
+        IRefreshTokenService refreshService, AuthenticationConfig authConfig)
     {
         _accountService = accountService;
         _authContext = authContext;
         _authz = authz;
+        _refreshService = refreshService;
+        _authConfig = authConfig;
     }
 
     [HttpGet(Name = "GetAccount")]
@@ -63,7 +69,13 @@ public class AccountController : BaseController
     [HttpPost("authenticate", Name = "Authenticate")]
     public async Task<AuthenticateResponse> Authenticate([FromBody] AuthenticateRequest model)
     {
-        return await _accountService.Authenticate(model, IpAddress, CancellationToken);
+        var (response, accountId) = await _accountService.Authenticate(model, IpAddress, CancellationToken);
+        if (accountId is not null)
+        {
+            var issue = await _refreshService.IssueAsync(accountId.Value, CancellationToken);
+            SetRefreshCookie(issue.RawToken, issue.ExpiresAt, _authConfig);
+        }
+        return response;
     }
 
     [AllowAnonymous]
@@ -72,7 +84,10 @@ public class AccountController : BaseController
     {
         var userAgent = Request.Headers.UserAgent.ToString();
         var language = Request.Headers.AcceptLanguage.ToString();
-        return await _accountService.Register(model, userAgent, IpAddress, CancellationToken);
+        var (response, accountId) = await _accountService.Register(model, userAgent, IpAddress, CancellationToken);
+        var issue = await _refreshService.IssueAsync(accountId, CancellationToken);
+        SetRefreshCookie(issue.RawToken, issue.ExpiresAt, _authConfig);
+        return response;
     }
 
     [HttpPost("password")]
