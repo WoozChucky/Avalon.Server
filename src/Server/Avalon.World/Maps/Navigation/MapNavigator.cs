@@ -40,6 +40,13 @@ public class MapNavigator : IMapNavigator
         _queryFilter = new DtQueryDefaultFilter();
     }
 
+    public void LoadFromNavMesh(DtNavMesh navMesh)
+    {
+        _navMesh = navMesh;
+        _findPathOption = new DtFindPathOption(EnableRaycast ? DtFindPathOptions.DT_FINDPATH_ANY_ANGLE : 0, float.MaxValue);
+        _queryFilter = new DtQueryDefaultFilter();
+    }
+
     public List<Vector3> FindPath(Vector3 start, Vector3 end)
     {
         try
