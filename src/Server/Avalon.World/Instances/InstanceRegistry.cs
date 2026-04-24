@@ -1,10 +1,12 @@
 using System.Collections.Concurrent;
 using Avalon.Common.ValueObjects;
+using Avalon.Database.World.Repositories;
 using Avalon.Domain.World;
 using Avalon.World.Maps;
 using Avalon.World.Maps.Navigation;
 using Avalon.World.Maps.Virtualized;
 using Avalon.World.Pools;
+using Avalon.World.Procedural;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Instances;
 using Avalon.World.Public.Maps;
@@ -22,17 +24,30 @@ public class InstanceRegistry : IInstanceRegistry
     private readonly ILogger<InstanceRegistry> _logger;
     private readonly IAvalonMapManager _mapManager;
     private readonly IServiceProvider _serviceProvider;
+    private readonly IProceduralInstanceFactory _proceduralFactory;
+    private readonly IServiceScopeFactory _scopeFactory;
 
     // Cache of loaded VirtualizedMap data per template, populated lazily
     private readonly ConcurrentDictionary<MapTemplateId, VirtualizedMap> _virtualMapCache = new();
 
-    public InstanceRegistry(ILoggerFactory loggerFactory, IAvalonMapManager mapManager,
-        IServiceProvider serviceProvider)
+    private readonly object _seedLock = new();
+    private readonly Random _seedRng = new();
+
+    public InstanceRegistry(
+        ILoggerFactory loggerFactory,
+        IAvalonMapManager mapManager,
+        IServiceProvider serviceProvider,
+        IProceduralInstanceFactory proceduralFactory,
+        IServiceScopeFactory scopeFactory)
     {
         _logger = loggerFactory.CreateLogger<InstanceRegistry>();
         _mapManager = mapManager;
         _serviceProvider = serviceProvider;
+        _proceduralFactory = proceduralFactory;
+        _scopeFactory = scopeFactory;
     }
+
+    private int NextSeed() { lock (_seedLock) return _seedRng.Next(); }
 
     public IReadOnlyCollection<IMapInstance> ActiveInstances => _instances.Values.ToList();
 
@@ -158,10 +173,28 @@ public class InstanceRegistry : IInstanceRegistry
         long? ownerAccountId, CancellationToken cancellationToken = default)
     {
         MapTemplate template = _mapManager.Templates.FirstOrDefault(t => t.Id == templateId)
-                               ?? throw new InvalidOperationException(
-                                   $"MapTemplate {templateId} not found.");
+                               ?? throw new InvalidOperationException($"MapTemplate {templateId} not found.");
 
-        VirtualizedMap virtualMap = await GetOrLoadVirtualMapAsync(template, cancellationToken);
+        MapInstance instance;
+        if (mapType == MapType.Town)
+        {
+            instance = await BuildTownInstanceAsync(template, ownerAccountId, cancellationToken);
+        }
+        else
+        {
+            instance = await BuildProceduralInstanceAsync(template, ownerAccountId, cancellationToken);
+        }
+
+        _instances[instance.InstanceId] = instance;
+        _logger.LogInformation("Created {MapType} instance {InstanceId} for map {TemplateId}",
+            mapType, instance.InstanceId, templateId);
+        return instance;
+    }
+
+    private async Task<MapInstance> BuildTownInstanceAsync(MapTemplate template, long? ownerAccountId,
+        CancellationToken ct)
+    {
+        VirtualizedMap virtualMap = await GetOrLoadVirtualMapAsync(template, ct);
 
         ILoggerFactory loggerFactory = _serviceProvider.GetRequiredService<ILoggerFactory>();
         IWorld world = _serviceProvider.GetRequiredService<IWorld>();
@@ -172,8 +205,8 @@ public class InstanceRegistry : IInstanceRegistry
             _serviceProvider,
             world,
             poolManager,
-            templateId,
-            mapType,
+            template.Id,
+            template.MapType,
             ownerAccountId);
 
         foreach (MapRegion region in virtualMap.Regions)
@@ -184,14 +217,21 @@ public class InstanceRegistry : IInstanceRegistry
         }
 
         instance.SpawnStartingEntities();
-
-        _instances[instance.InstanceId] = instance;
-
-        _logger.LogInformation(
-            "Created {MapType} instance {InstanceId} for map {TemplateId}",
-            mapType, instance.InstanceId, templateId);
-
         return instance;
+    }
+
+    private async Task<MapInstance> BuildProceduralInstanceAsync(MapTemplate template, long? ownerAccountId,
+        CancellationToken ct)
+    {
+        await using AsyncServiceScope scope = _scopeFactory.CreateAsyncScope();
+        IProceduralMapConfigRepository configRepo =
+            scope.ServiceProvider.GetRequiredService<IProceduralMapConfigRepository>();
+        ProceduralMapConfig config = await configRepo.FindByTemplateIdAsync(template.Id, ct)
+            ?? throw new InvalidProceduralConfigException(
+                $"No ProceduralMapConfig for map {template.Id.Value}");
+
+        int seed = NextSeed();
+        return await _proceduralFactory.CreateAsync(template, config, ownerAccountId, seed, ct);
     }
 
     private async Task<VirtualizedMap> GetOrLoadVirtualMapAsync(MapTemplate template, CancellationToken cancellationToken = default)
