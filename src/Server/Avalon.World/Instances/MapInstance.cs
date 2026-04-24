@@ -7,6 +7,7 @@ using Avalon.Network.Packets.Combat;
 using Avalon.Network.Packets.State;
 using Avalon.World.Entities;
 using Avalon.World.Pools;
+using Avalon.World.Procedural;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
@@ -24,7 +25,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Instances;
 
-public class MapInstance : IMapInstance
+public class MapInstance : IMapInstance, IPortalSink
 {
     private const float BroadcastInterval = 0.1f;
 
@@ -40,6 +41,7 @@ public class MapInstance : IMapInstance
     private float _lastBroadcastTime;
     private readonly Dictionary<ObjectGuid, GameEntityFields> _frameDirtyFields = new(256);
     private readonly Dictionary<ObjectGuid, PerPlayerBroadcastState> _broadcastStates = [];
+    private readonly List<PortalInstance> _portals = new();
 
     public MapInstance(
         ILoggerFactory loggerFactory,
@@ -74,6 +76,47 @@ public class MapInstance : IMapInstance
         CharacterEntity.OnSelfDamaged += OnCharacterSelfDamaged;
     }
 
+    public MapInstance(
+        ILoggerFactory loggerFactory,
+        IServiceProvider serviceProvider,
+        IWorld world,
+        MapTemplateId templateId,
+        long? ownerAccountId,
+        ProceduralLayout layout,
+        IMapNavigator navigator,
+        int seed)
+    {
+        _logger = loggerFactory.CreateLogger<MapInstance>();
+        _world = world;
+        _poolManager = null!; // procedural path does not use PoolManager
+        InstanceId = Guid.NewGuid();
+        TemplateId = templateId;
+        MapType = MapType.Normal;
+        OwnerAccountId = ownerAccountId;
+        AllowedAccounts = ownerAccountId.HasValue ? new[] { ownerAccountId.Value } : Array.Empty<long>();
+        Layout = layout;
+        EntrySpawnWorldPos = layout.EntrySpawnWorldPos;
+        Seed = seed;
+
+        _spellSystem = new InstanceSpellSystem(loggerFactory, serviceProvider,
+            serviceProvider.GetRequiredService<IScriptManager>());
+        _creatureRespawner = new NoOpCreatureRespawner();
+
+        _navigators.Add((
+            new MapRegion { Position = Vector3.zero, Size = new Vector3(1_000_000, 0, 1_000_000) },
+            navigator));
+
+        Creature.OnCreatureKilled += OnCreatureKilled;
+        Creature.OnUnitAttackAnimation += BroadcastUnitAttackAnimation;
+        Creature.OnUnitFinishedCastAnimation += BroadcastFinishCastAnimation;
+        Creature.OnUnitInterruptedCastAnimation += BroadcastInterruptedCastAnimation;
+        CharacterEntity.OnUnitAttackAnimation += BroadcastUnitAttackAnimation;
+        CharacterEntity.OnUnitFinishedCastAnimation += BroadcastFinishCastAnimation;
+        CharacterEntity.OnUnitInterruptedCastAnimation += BroadcastInterruptedCastAnimation;
+        CharacterEntity.OnUnitDamaged += OnCharacterHit;
+        CharacterEntity.OnSelfDamaged += OnCharacterSelfDamaged;
+    }
+
     public Guid InstanceId { get; }
     public MapTemplateId TemplateId { get; }
     public MapType MapType { get; }
@@ -81,6 +124,10 @@ public class MapInstance : IMapInstance
     public IReadOnlyList<long> AllowedAccounts { get; }
     public int PlayerCount => _characters.Count;
     public DateTime? LastEmptyAt { get; private set; }
+    public int Seed { get; }
+    public ProceduralLayout? Layout { get; }
+    public Vector3? EntrySpawnWorldPos { get; }
+    public IReadOnlyList<PortalInstance> Portals => _portals;
 
     public IReadOnlyDictionary<ObjectGuid, ICharacter> Characters => _characters;
     public IReadOnlyDictionary<ObjectGuid, ICreature> Creatures => _creatures;
@@ -93,6 +140,8 @@ public class MapInstance : IMapInstance
     /// <summary>Registers a loaded navigator for a map region.</summary>
     public void AddNavigator(MapRegion region, IMapNavigator navigator) =>
         _navigators.Add((region, navigator));
+
+    public void AddPortal(PortalInstance portal) => _portals.Add(portal);
 
     public IMapNavigator GetNavigatorForPosition(Vector3 position)
     {
@@ -302,6 +351,12 @@ public class MapInstance : IMapInstance
                             continue;
                         writer.Write(addedSpell);
                         break;
+                    case ObjectType.Portal:
+                        PortalInstance? addedPortal = _portals.FirstOrDefault(p => p.Guid == addedObjectGuid);
+                        if (addedPortal is null)
+                            continue;
+                        writer.Write(addedPortal);
+                        break;
                     default:
                         _logger.LogWarning("Unknown object type {ObjectType} on NewObjects serialization",
                             addedObjectGuid.Type);
@@ -354,6 +409,8 @@ public class MapInstance : IMapInstance
                             continue;
                         writer.Write(updatedSpell, updatedObject.Fields);
                         break;
+                    case ObjectType.Portal:
+                        continue; // portals are immutable in PoC — no delta updates
                     default:
                         _logger.LogWarning("Unknown object type {ObjectType} on UpdatedObjects serialization",
                             updatedObject.Guid.Type);
@@ -484,6 +541,12 @@ public class MapInstance : IMapInstance
         {
             character.Experience += creatureExperience;
         }
+    }
+
+    private sealed class NoOpCreatureRespawner : ICreatureRespawner
+    {
+        public void Update(TimeSpan deltaTime) { }
+        public void ScheduleRespawn(ICreature creature) { }
     }
 
     private sealed class PerPlayerBroadcastState
