@@ -67,6 +67,6 @@ public class MapTemplateController : BaseController
         DefaultSpawnX = t.DefaultSpawnX,
         DefaultSpawnY = t.DefaultSpawnY,
         DefaultSpawnZ = t.DefaultSpawnZ,
-        ReturnMapId = t.ReturnMapId,
+        LogoutMapId = t.LogoutMapId,
     };
 }

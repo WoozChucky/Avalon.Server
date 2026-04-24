@@ -144,11 +144,11 @@ public class World : IWorld
             {
                 MapTemplate? normalTemplate =
                     _mapManager.Templates.FirstOrDefault(t => t.Id == instance.TemplateId);
-                if (normalTemplate?.ReturnMapId is { } returnMapId)
+                if (normalTemplate?.LogoutMapId is { } logoutMapId)
                 {
                     MapTemplate? town = _mapManager.Templates.FirstOrDefault(t =>
-                        t.Id == (MapTemplateId)returnMapId);
-                    dbCharacter.Map = returnMapId;
+                        t.Id == (MapTemplateId)logoutMapId);
+                    dbCharacter.Map = logoutMapId;
                     dbCharacter.X = town?.DefaultSpawnX ?? 0f;
                     dbCharacter.Y = town?.DefaultSpawnY ?? 0f;
                     dbCharacter.Z = town?.DefaultSpawnZ ?? 0f;

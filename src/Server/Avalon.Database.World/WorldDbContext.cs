@@ -696,7 +696,7 @@ public class WorldDbContext(ILoggerFactory loggerFactory, IOptions<DatabaseConfi
             DefaultSpawnX = 25f,
             DefaultSpawnY = 51f,
             DefaultSpawnZ = 25f,
-            ReturnMapId = null
+            LogoutMapId = null
         });
     }
 

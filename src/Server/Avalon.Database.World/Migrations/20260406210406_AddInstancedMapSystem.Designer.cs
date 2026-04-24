@@ -982,7 +982,7 @@ namespace Avalon.Database.World.Migrations
                     b.Property<bool>("PvP")
                         .HasColumnType("boolean");
 
-                    b.Property<int?>("ReturnMapId")
+                    b.Property<int?>("LogoutMapId")
                         .HasColumnType("integer");
 
                     b.HasKey("Id");
