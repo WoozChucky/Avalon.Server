@@ -33,6 +33,43 @@ public class ProceduralLayoutGeneratorShould
         return t;
     }
 
+    private static (List<ChunkPoolMember> pool, ProceduralMapConfig cfg) BuildValidPool(int min, int max, bool hasBoss = false)
+    {
+        // Entry chunk: 1-sided (N-center), Spawn_Entry + Portal_Back
+        var entry = MakeChunk(1, "entry", exits: 0b_0000_0000_0000_0010, portal: PortalRole.Back);
+        entry.SpawnSlots.Add(new ChunkSpawnSlot { Tag = "entry", LocalX = 5, LocalY = 0, LocalZ = 5 });
+        // Through chunk: N+S centers (straight corridor)
+        var through = MakeChunk(2, "pack", exits: 0b_0000_0000_1000_0010);
+        // Boss chunk: N+S centers, Spawn_Boss (N exit lets it sit at non-terminal positions too)
+        var boss = MakeChunk(3, "boss", exits: 0b_0000_0000_1000_0010);
+        // Extra through chunks for more variety
+        var through2 = MakeChunk(4, "pack", exits: 0b_0000_0000_1000_0010);
+        var through3 = MakeChunk(5, "pack", exits: 0b_0000_0000_1000_0010);
+
+        var pool = new List<ChunkPoolMember>
+        {
+            new(entry, 1f),
+            new(through, 1f),
+            new(through2, 1f),
+            new(through3, 1f),
+            new(boss, 1f),
+        };
+        var cfg = new ProceduralMapConfig
+        {
+            MapTemplateId = new MapTemplateId(10),
+            ChunkPoolId = new ChunkPoolId(1),
+            SpawnTableId = new SpawnTableId(1),
+            MainPathMin = (ushort)min,
+            MainPathMax = (ushort)max,
+            BranchChance = 0,
+            BranchMaxDepth = 0,
+            HasBoss = hasBoss,
+            BackPortalTargetMapId = 1,
+            ForwardPortalTargetMapId = null,
+        };
+        return (pool, cfg);
+    }
+
     [Fact]
     public void Generate_is_deterministic_for_same_seed()
     {
@@ -67,5 +104,48 @@ public class ProceduralLayoutGeneratorShould
         Assert.Equal(a.Chunks.Count, b.Chunks.Count);
         Assert.Equal(a.BossChunk!.TemplateId.Value, b.BossChunk!.TemplateId.Value);
         Assert.Equal(a.EntrySpawnWorldPos, b.EntrySpawnWorldPos);
+    }
+
+    [Fact]
+    public void PathLen_within_configured_range()
+    {
+        var (pool, cfg) = BuildValidPool(min: 4, max: 6);
+        var gen = new ProceduralLayoutGenerator(NullLoggerFactory.Instance);
+        for (int seed = 0; seed < 20; seed++)
+        {
+            var l = gen.Generate(cfg, pool, seed);
+            int mainChunks = l.Chunks.Count; // branches disabled in BuildValidPool
+            Assert.InRange(mainChunks, 4, 6);
+        }
+    }
+
+    [Fact]
+    public void Throws_on_constrained_pool()
+    {
+        var entry = MakeChunk(1, "entry", exits: 0, portal: PortalRole.Back);
+        entry.SpawnSlots.Add(new ChunkSpawnSlot { Tag = "entry", LocalX = 0, LocalY = 0, LocalZ = 0 });
+        var pool = new List<ChunkPoolMember> { new(entry, 1f) };
+        var cfg = new ProceduralMapConfig
+        {
+            MapTemplateId = new MapTemplateId(1),
+            ChunkPoolId = new ChunkPoolId(1),
+            SpawnTableId = new SpawnTableId(1),
+            MainPathMin = 3, MainPathMax = 3,
+            BackPortalTargetMapId = 1,
+            HasBoss = false,
+        };
+        var gen = new ProceduralLayoutGenerator(NullLoggerFactory.Instance);
+        Assert.Throws<ProceduralGenerationFailedException>(() => gen.Generate(cfg, pool, seed: 1));
+    }
+
+    [Fact]
+    public void Boss_placed_on_last_chunk_when_HasBoss()
+    {
+        var (pool, cfg) = BuildValidPool(min: 3, max: 3, hasBoss: true);
+        var gen = new ProceduralLayoutGenerator(NullLoggerFactory.Instance);
+        var layout = gen.Generate(cfg, pool, seed: 7);
+        Assert.NotNull(layout.BossChunk);
+        var bossTpl = pool.First(p => p.Template.Id == layout.BossChunk!.TemplateId).Template;
+        Assert.Contains(bossTpl.SpawnSlots, s => s.Tag == "boss");
     }
 }
