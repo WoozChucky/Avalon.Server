@@ -6,11 +6,12 @@ namespace Avalon.Network.Packets.World;
 
 public enum MapTransitionResult : byte
 {
-    Success       = 0,
-    MapNotFound   = 1,
-    NotNearPortal = 2,
-    LevelTooLow   = 3,
-    LevelTooHigh  = 4,
+    Success          = 0,
+    MapNotFound      = 1,
+    NotNearPortal    = 2,
+    LevelTooLow      = 3,
+    LevelTooHigh     = 4,
+    GenerationFailed = 5,
 }
 
 [ProtoContract]

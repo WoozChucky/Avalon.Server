@@ -101,6 +101,7 @@ public enum NetworkPacketType : short
     // Map
     SMSG_MAP_TELEPORT    = 0x3030,
     SMSG_MAP_TRANSITION  = 0x3031,
+    SMSG_PROCEDURAL_LAYOUT = 0x3032,
 
     // World
     SMSG_WORLD_STATE_ADD = 0x3040,
