@@ -6,6 +6,7 @@ using Avalon.Domain.World;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.World;
 using Avalon.World.Entities;
+using Avalon.World.Instances;
 using Avalon.World.Maps;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Enums;
@@ -47,31 +48,54 @@ public class EnterMapHandler(
         }
 
         // 4. Find a portal on the current map that leads to the target
-        // GetPortalsFrom takes ushort: chain MapTemplateId → MapId → ushort
-        ushort sourceMapId = currentInstance != null
-            ? (ushort)(MapId)currentInstance.TemplateId
-            : (ushort)character.Map;
+        bool portalFound = false;
+        Vector3 portalPosition = default;
+        float portalRadius = 0;
 
-        IReadOnlyList<MapPortal> portals = mapManager.GetPortalsFrom(sourceMapId);
-        MapPortal? portal = portals.FirstOrDefault(p => p.TargetMapId == packet.TargetMapId);
+        if (currentInstance is MapInstance mi && mi.Layout is not null)
+        {
+            // Procedural source: iterate PortalInstance list on the instance.
+            PortalInstance? match = mi.Portals.FirstOrDefault(p => p.TargetMapId == packet.TargetMapId);
+            if (match is not null)
+            {
+                portalFound = true;
+                portalPosition = match.Position;
+                portalRadius = match.Radius;
+            }
+        }
+        else
+        {
+            // Town source: existing DB-based MapPortal lookup.
+            // GetPortalsFrom takes ushort: chain MapTemplateId → MapId → ushort
+            ushort sourceMapId = currentInstance != null
+                ? (ushort)(MapId)currentInstance.TemplateId
+                : (ushort)character.Map;
+
+            IReadOnlyList<MapPortal> portals = mapManager.GetPortalsFrom(sourceMapId);
+            MapPortal? dbPortal = portals.FirstOrDefault(p => p.TargetMapId == packet.TargetMapId);
+            if (dbPortal is not null)
+            {
+                portalFound = true;
+                portalPosition = new Vector3(dbPortal.X, dbPortal.Y, dbPortal.Z);
+                portalRadius = dbPortal.Radius;
+            }
+        }
 
         // 5. No portal → MapNotFound
-        if (portal == null)
+        if (!portalFound)
         {
-            logger.LogDebug("EnterMap: no portal from map {SourceMapId} to {TargetMapId}", sourceMapId,
-                packet.TargetMapId);
+            logger.LogDebug("EnterMap: no portal to {TargetMapId}", packet.TargetMapId);
             connection.Send(SMapTransitionPacket.CreateFailure(MapTransitionResult.MapNotFound,
                 connection.CryptoSession.Encrypt));
             return;
         }
 
         // 6. Proximity check
-        Vector3 portalPosition = new(portal.X, portal.Y, portal.Z);
-        if (Vector3.Distance(character.Position, portalPosition) > portal.Radius)
+        if (Vector3.Distance(character.Position, portalPosition) > portalRadius)
         {
             logger.LogDebug(
                 "EnterMap: character {Name} is too far from portal (distance {Distance}, radius {Radius})",
-                character.Name, Vector3.Distance(character.Position, portalPosition), portal.Radius);
+                character.Name, Vector3.Distance(character.Position, portalPosition), portalRadius);
             connection.Send(SMapTransitionPacket.CreateFailure(MapTransitionResult.NotNearPortal,
                 connection.CryptoSession.Encrypt));
             return;
@@ -116,26 +140,57 @@ public class EnterMapHandler(
         // 9. Transfer the player (removes from current, updates position & InstanceIdGuid, adds to target)
         world.TransferPlayer(connection, targetInstance);
 
-        // 10. Send success response
+        // 10. Resolve spawn coords: procedural uses instance.EntrySpawnWorldPos; town uses template defaults.
+        float spawnX, spawnY, spawnZ;
+        if (targetTemplate.MapType == MapType.Normal
+            && targetInstance is MapInstance procMiSpawn
+            && procMiSpawn.EntrySpawnWorldPos is Vector3 entrySpawn)
+        {
+            spawnX = entrySpawn.x;
+            spawnY = entrySpawn.y;
+            spawnZ = entrySpawn.z;
+        }
+        else
+        {
+            spawnX = targetTemplate.DefaultSpawnX;
+            spawnY = targetTemplate.DefaultSpawnY;
+            spawnZ = targetTemplate.DefaultSpawnZ;
+        }
+
+        // 11. Send success response
         connection.Send(SMapTransitionPacket.Create(
             MapTransitionResult.Success,
             targetInstance.InstanceId,
             targetMapId,
-            targetTemplate.DefaultSpawnX,
-            targetTemplate.DefaultSpawnY,
-            targetTemplate.DefaultSpawnZ,
+            spawnX, spawnY, spawnZ,
             targetTemplate.Name,
             targetTemplate.Description,
             connection.CryptoSession.Encrypt));
 
-        // 11. Persist updated map and position
+        // 12. Send procedural layout packet for Normal maps with a generated layout.
+        if (targetTemplate.MapType == MapType.Normal
+            && targetInstance is MapInstance procMi
+            && procMi.Layout is not null)
+        {
+            var chunks = procMi.Layout.Chunks
+                .Select(c => (c.TemplateId.Value, c.GridX, c.GridZ, c.Rotation))
+                .ToList();
+            connection.Send(SProceduralLayoutPacket.Create(
+                procMi.Layout.Seed,
+                procMi.InstanceId,
+                procMi.Layout.CellSize,
+                chunks,
+                connection.CryptoSession.Encrypt));
+        }
+
+        // 13. Persist updated map and position
         if (connection.Character is CharacterEntity {Data: { } dbCharacter})
         {
             dbCharacter.Map = targetMapId;
             dbCharacter.InstanceId = targetInstance.InstanceId.ToString();
-            dbCharacter.X = targetTemplate.DefaultSpawnX;
-            dbCharacter.Y = targetTemplate.DefaultSpawnY;
-            dbCharacter.Z = targetTemplate.DefaultSpawnZ;
+            dbCharacter.X = spawnX;
+            dbCharacter.Y = spawnY;
+            dbCharacter.Z = spawnZ;
 
             connection.EnqueueContinuation(characterRepository.UpdateAsync(dbCharacter, CancellationToken.None), () =>
             {
