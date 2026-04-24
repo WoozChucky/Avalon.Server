@@ -242,10 +242,10 @@ IMapInstance? instance = InstanceRegistry.GetInstanceById(connection.Character.I
 if (instance?.MapType == MapType.Normal)
 {
     MapTemplate? template = _mapManager.Templates.FirstOrDefault(t => t.Id == instance.TemplateId);
-    if (template?.ReturnMapId is { } returnMapId)
+    if (template?.LogoutMapId is { } logoutMapId)
     {
-        MapTemplate? town = _mapManager.Templates.FirstOrDefault(t => t.Id == returnMapId);
-        dbCharacter.Map = returnMapId.Value;
+        MapTemplate? town = _mapManager.Templates.FirstOrDefault(t => t.Id == logoutMapId);
+        dbCharacter.Map = logoutMapId.Value;
         dbCharacter.X   = town?.DefaultSpawnX ?? 0f;
         dbCharacter.Y   = town?.DefaultSpawnY ?? 0f;
         dbCharacter.Z   = town?.DefaultSpawnZ ?? 0f;
@@ -265,7 +265,7 @@ The instance is **not** freed on logout — its `LastEmptyAt` timer governs clea
 |---|---|
 | `MapType MapType` | `Town` or `Normal` |
 | `float DefaultSpawnX/Y/Z` | Where players appear when entering this map |
-| `MapTemplateId? ReturnMapId` | Normal maps point to their home town; null for towns |
+| `MapTemplateId? LogoutMapId` | Normal maps point to their home town; null for towns |
 
 ### `MapPortal`
 

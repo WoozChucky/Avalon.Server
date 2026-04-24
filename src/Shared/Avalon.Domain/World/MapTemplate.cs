@@ -38,8 +38,8 @@ public class MapTemplate : IDbEntity<MapTemplateId>
     public float DefaultSpawnZ { get; set; }
 
     /// <summary>
-    /// For Normal maps: the Town map ID players are returned to when they log out.
-    /// Null for Town maps (no redirect on logout).
+    /// For Normal maps: the Town map ID players respawn to on login / corpse release.
+    /// Null for Town maps.
     /// </summary>
-    public ushort? ReturnMapId { get; set; }
+    public ushort? LogoutMapId { get; set; }
 }

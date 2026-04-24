@@ -26,6 +26,6 @@ public sealed class MapTemplateDto
     public float DefaultSpawnY { get; set; }
     public float DefaultSpawnZ { get; set; }
 
-    /// <summary>For Normal maps: the Town map ID players are returned to when they log out.</summary>
-    public ushort? ReturnMapId { get; set; }
+    /// <summary>For Normal maps: the Town map ID players respawn to on login / corpse release.</summary>
+    public ushort? LogoutMapId { get; set; }
 }
