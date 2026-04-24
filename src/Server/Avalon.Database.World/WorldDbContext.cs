@@ -699,26 +699,50 @@ public class WorldDbContext(ILoggerFactory loggerFactory, IOptions<DatabaseConfi
             )
             .IsRequired();
 
+        // NOTE: ForestDungeon (Id=2) requires a ProceduralMapConfig row + a populated ChunkPool
+        // + a SpawnTable to be functional. These will be seeded manually via SQL once real chunks
+        // are imported. Until then, attempting to enter ForestDungeon will fail gracefully.
         builder.HasData(new MapTemplate
-        {
-            Id = 1,
-            Name = "world.bin",
-            Description = "Glimmerdell",
-            Directory = "Maps/",
-            MapType = MapType.Town,
-            PvP = false,
-            MinLevel = 1,
-            MaxLevel = 60,
-            AreaTableId = 0,
-            LoadingScreenId = 0,
-            CorpseX = 0,
-            CorpseY = 0,
-            MaxPlayers = 30,
-            DefaultSpawnX = 25f,
-            DefaultSpawnY = 51f,
-            DefaultSpawnZ = 25f,
-            LogoutMapId = null
-        });
+            {
+                Id = 1,
+                Name = "world.bin",
+                Description = "Glimmerdell",
+                Directory = "Maps/",
+                MapType = MapType.Town,
+                PvP = false,
+                MinLevel = 1,
+                MaxLevel = 60,
+                AreaTableId = 0,
+                LoadingScreenId = 0,
+                CorpseX = 0,
+                CorpseY = 0,
+                MaxPlayers = 30,
+                DefaultSpawnX = 25f,
+                DefaultSpawnY = 51f,
+                DefaultSpawnZ = 25f,
+                LogoutMapId = null
+            },
+            new MapTemplate
+            {
+                Id = 2,
+                Name = "ForestDungeon",
+                Description = "Forest Dungeon",
+                Directory = "Maps/",
+                MapType = MapType.Normal,
+                PvP = false,
+                MinLevel = 1,
+                MaxLevel = 10,
+                AreaTableId = 0,
+                LoadingScreenId = 0,
+                MaxPlayers = 1,
+                DefaultSpawnX = 0,
+                DefaultSpawnY = 0,
+                DefaultSpawnZ = 0,
+                CorpseX = null,
+                CorpseY = null,
+                CorpseZ = null,
+                LogoutMapId = 1
+            });
     }
 
     private static void Configure(EntityTypeBuilder<MapPortal> builder)
@@ -726,9 +750,17 @@ public class WorldDbContext(ILoggerFactory loggerFactory, IOptions<DatabaseConfi
         builder.HasKey(b => b.Id);
         builder.Property(b => b.Id).ValueGeneratedOnAdd();
 
-        // No seed data — portals are defined per-game-design when maps are connected.
-        // Example insert when a Normal map is added:
-        //   builder.HasData(new MapPortal { Id = 1, SourceMapId = 1, TargetMapId = 2, X = 50f, Y = 51f, Z = 50f, Radius = 3f });
+        // Town (Id=1) → ForestDungeon (Id=2).
+        builder.HasData(new MapPortal
+        {
+            Id = 1,
+            SourceMapId = 1,
+            TargetMapId = 2,
+            X = 50f,
+            Y = 51f,
+            Z = 50f,
+            Radius = 3f
+        });
     }
 
     private static void Configure(EntityTypeBuilder<ChunkTemplate> builder)
