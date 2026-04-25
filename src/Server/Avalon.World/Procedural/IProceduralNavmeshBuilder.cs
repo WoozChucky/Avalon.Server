@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Avalon.Common.Mathematics;
 using DotRecast.Core;
 using DotRecast.Detour;
@@ -44,6 +45,9 @@ public class ProceduralNavmeshBuilder : IProceduralNavmeshBuilder
         }
     }
 
+    [SuppressMessage("Performance", "MA0045",
+        Justification = "CPU-bound navmesh bake runs on a Task.Run worker. " +
+                        "File I/O is tiny (KB-sized local chunk objs) and dwarfed by DotRecast bake cost.")]
     private static string ComposeCombinedObjToTempFile(ProceduralLayout layout)
     {
         var sb = new System.Text.StringBuilder();
