@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using Avalon.Api.Authentication;
+using Avalon.Api.Config;
 using Avalon.Api.Contract;
 using Avalon.Api.Controllers;
 using Avalon.Api.Services;
@@ -18,9 +19,11 @@ public class AccountControllerShould
     private readonly IAccountService _accountService = Substitute.For<IAccountService>();
     private readonly IAuthorizationService _authz = Substitute.For<IAuthorizationService>();
     private readonly IAuthContext _authContext = Substitute.For<IAuthContext>();
+    private readonly IRefreshTokenService _refreshService = Substitute.For<IRefreshTokenService>();
+    private readonly AuthenticationConfig _authConfig = new();
 
     private AccountController MakeSut(ClaimsPrincipal user) =>
-        new(_accountService, _authContext, _authz)
+        new(_accountService, _authContext, _authz, _refreshService, _authConfig)
         {
             ControllerContext = new ControllerContext
             {
@@ -151,12 +154,12 @@ public class AccountControllerShould
         var sut = MakeSut(user);
 
         var result = await sut.UpdateStatus(7,
-            new AccountStatusPatchRequest { State = AccountStatus.Banned, Reason = "cheat" },
+            new AccountStatusPatchRequest { State = Avalon.Api.Contract.AccountStatus.Banned, Reason = "cheat" },
             CancellationToken.None);
 
         Assert.IsType<NoContentResult>(result);
         await _accountService.Received(1).UpdateStatusAsync(
-            new AccountId(7), AccountStatus.Banned, "cheat", new AccountId(99), Arg.Any<CancellationToken>());
+            new AccountId(7), Avalon.Api.Contract.AccountStatus.Banned, "cheat", new AccountId(99), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -166,13 +169,13 @@ public class AccountControllerShould
         var sut = MakeSut(user);
 
         var result = await sut.UpdateRoles(7,
-            new AccountRolesPatchRequest { Roles = AccountAccessLevel.Player | AccountAccessLevel.GameMaster },
+            new AccountRolesPatchRequest { Roles = Contract.AccountAccessLevel.Player | Contract.AccountAccessLevel.GameMaster },
             CancellationToken.None);
 
         Assert.IsType<NoContentResult>(result);
         await _accountService.Received(1).UpdateRolesAsync(
             new AccountId(7),
-            AccountAccessLevel.Player | AccountAccessLevel.GameMaster,
+            Contract.AccountAccessLevel.Player | Contract.AccountAccessLevel.GameMaster,
             Arg.Any<CancellationToken>());
     }
 }
