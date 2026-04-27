@@ -17,12 +17,6 @@ public class PredefinedChunkLayoutSource : IChunkLayoutSource
     /// <see cref="IServiceScopeFactory"/> rather than capturing a stale Scoped reference.
     /// Mirrors <see cref="ProceduralChunkLayoutSource"/>.
     /// </summary>
-    /// <remarks>
-    /// <see cref="ActivatorUtilitiesConstructorAttribute"/> disambiguates from the test ctor
-    /// below — both are public + 2-arg, so without the attribute MS.DI throws "ambiguous
-    /// constructors" at host startup.
-    /// </remarks>
-    [ActivatorUtilitiesConstructor]
     public PredefinedChunkLayoutSource(IServiceScopeFactory scopeFactory, IChunkLibrary library)
     {
         _scopeFactory = scopeFactory;
@@ -30,15 +24,20 @@ public class PredefinedChunkLayoutSource : IChunkLayoutSource
     }
 
     /// <summary>
-    /// Test ctor: accepts the repository directly so unit tests can substitute it without
-    /// having to arrange an <see cref="IServiceScopeFactory"/>. Captures the repo as a
-    /// stand-in scope factory that returns the same instance on every call.
+    /// Test factory: builds a source against a substituted repository without forcing the
+    /// caller to wire a real <see cref="IServiceScopeFactory"/>. Wraps the repo in a stand-in
+    /// scope factory that returns the same instance on every call. Production code MUST NOT
+    /// call this — use the DI ctor.
     /// </summary>
-    public PredefinedChunkLayoutSource(IMapChunkPlacementRepository repo, IChunkLibrary library)
-    {
-        _scopeFactory = new SingleRepoScopeFactory(repo);
-        _library = library;
-    }
+    /// <remarks>
+    /// Lives as a static factory rather than a second public ctor because Microsoft.Extensions
+    /// .DependencyInjection's <c>ServiceProvider</c> selects ctors by arity-then-resolvability
+    /// and throws on ambiguity. <see cref="ActivatorUtilitiesConstructorAttribute"/> is honored
+    /// only by <c>ActivatorUtilities.CreateInstance</c>, not by the container's own resolver,
+    /// so two public 2-arg ctors here would crash host startup.
+    /// </remarks>
+    public static PredefinedChunkLayoutSource ForTesting(IMapChunkPlacementRepository repo, IChunkLibrary library)
+        => new(new SingleRepoScopeFactory(repo), library);
 
     public async Task<ChunkLayout> BuildAsync(MapTemplate template, CancellationToken ct)
     {
