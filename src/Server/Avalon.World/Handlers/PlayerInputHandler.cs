@@ -61,6 +61,14 @@ public class PlayerInputHandler(
         var groundY = navigator.SampleGroundHeight(clamped.x, ch.Position.y, clamped.z);
         var newPosition = new Vector3(clamped.x, groundY, clamped.z);
 
+        // TEMP DEBUG: log the actual input -> integration -> clamp pipeline when input is non-zero.
+        // Throttled to ~once per 30 inputs (~half second) to avoid log spam.
+        if ((dir.x != 0f || dir.z != 0f) && (_debugCounter % 30) == 0)
+        {
+            logger.LogError("[NavDebug] move: dir=({DirX:F2},{DirZ:F2}) speed={Speed} from={From} desired={Desired} clamped={Clamped} groundY={GroundY:F3} new={New}",
+                dir.x, dir.z, speed, ch.Position, desired, clamped, groundY, newPosition);
+        }
+
         // Setting these properties marks the dirty fields automatically on CharacterEntity.
         ch.Position = newPosition;
         ch.Velocity = new Vector3(dir.x * speed, 0f, dir.z * speed);
