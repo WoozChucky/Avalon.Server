@@ -16,10 +16,12 @@ public interface IChunkLayoutNavmeshBuilder
 public class ChunkLayoutNavmeshBuilder : IChunkLayoutNavmeshBuilder
 {
     private readonly ILogger<ChunkLayoutNavmeshBuilder> _logger;
+    private readonly IChunkLibrary _library;
 
-    public ChunkLayoutNavmeshBuilder(ILoggerFactory lf)
+    public ChunkLayoutNavmeshBuilder(ILoggerFactory lf, IChunkLibrary library)
     {
         _logger = lf.CreateLogger<ChunkLayoutNavmeshBuilder>();
+        _library = library;
     }
 
     public Task<DtNavMesh> BuildAsync(ChunkLayout layout, CancellationToken ct) =>
@@ -47,14 +49,19 @@ public class ChunkLayoutNavmeshBuilder : IChunkLayoutNavmeshBuilder
     [SuppressMessage("Performance", "MA0045",
         Justification = "CPU-bound navmesh bake runs on a Task.Run worker. " +
                         "File I/O is tiny (KB-sized local chunk objs) and dwarfed by DotRecast bake cost.")]
-    private static string ComposeCombinedObjToTempFile(ChunkLayout layout)
+    private string ComposeCombinedObjToTempFile(ChunkLayout layout)
     {
         var sb = new System.Text.StringBuilder();
         int vOffset = 0;
         foreach (var chunk in layout.Chunks)
         {
+            // Chunk objs are stored on disk by ChunkTemplate.Name (matches ChunkImporter
+            // which copies <ExportDir>/<name>/chunk.obj → Maps/Chunks/<name>.obj). The
+            // ChunkTemplateId is a DB surrogate key, NOT the filename — resolve it through
+            // the in-memory chunk library.
+            var name = _library.GetById(chunk.TemplateId).Name;
             string path = Path.Combine(Directory.GetCurrentDirectory(), "Maps", "Chunks",
-                $"{chunk.TemplateId.Value}.obj");
+                $"{name}.obj");
             if (!File.Exists(path))
                 throw new NavmeshBuildFailedException($"Chunk obj not found: {path}");
             int vCount = AppendTransformed(sb, File.ReadAllText(path), chunk.WorldPos, chunk.Rotation, vOffset);
