@@ -260,6 +260,59 @@ public class MapNavigator : IMapNavigator
         }
     }
 
+    public Vector3 RaycastWalkable(Vector3 from, Vector3 to)
+    {
+        if (_navMesh == null) return to;
+
+        var query = new DtNavMeshQuery(_navMesh);
+
+        var startVec = new RcVec3f(from.x, from.y, from.z);
+        var status = query.FindNearestPoly(startVec, PolyPickExt, _queryFilter, out var startRef, out _, out _);
+        if (status.Failed() || startRef == 0)
+        {
+            return from;
+        }
+
+        var endVec = new RcVec3f(to.x, to.y, to.z);
+        List<long> path = [];
+        var hitStatus = query.Raycast(startRef, startVec, endVec, _queryFilter, out var t, out _, ref path);
+        if (hitStatus.Failed())
+        {
+            return from;
+        }
+
+        if (t >= 1.0f)
+        {
+            return to;
+        }
+
+        var clampedX = from.x + (to.x - from.x) * t;
+        var clampedY = from.y + (to.y - from.y) * t;
+        var clampedZ = from.z + (to.z - from.z) * t;
+        return new Vector3(clampedX, clampedY, clampedZ);
+    }
+
+    public float SampleGroundHeight(float x, float z)
+    {
+        if (_navMesh == null) return 0f;
+
+        var query = new DtNavMeshQuery(_navMesh);
+        var center = new RcVec3f(x, 0f, z);
+        var status = query.FindNearestPoly(center, PolyPickExt, _queryFilter, out var nearestRef, out _, out _);
+        if (status.Failed() || nearestRef == 0)
+        {
+            return 0f;
+        }
+
+        var pos = new RcVec3f(x, 0f, z);
+        if (query.GetPolyHeight(nearestRef, pos, out var h).Succeeded())
+        {
+            return h;
+        }
+
+        return 0f;
+    }
+
     private static void CheckStatus(DtStatus status)
     {
         if (!status.Succeeded())
