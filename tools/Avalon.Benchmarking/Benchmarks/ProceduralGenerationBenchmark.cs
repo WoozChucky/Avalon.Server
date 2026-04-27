@@ -1,6 +1,6 @@
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
-using Avalon.World.Procedural;
+using Avalon.World.ChunkLayouts;
 using BenchmarkDotNet.Attributes;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -9,7 +9,7 @@ namespace Avalon.Benchmarking.Benchmarks;
 [MemoryDiagnoser]
 public class ProceduralGenerationBenchmark
 {
-    private ProceduralLayoutGenerator _gen = default!;
+    private ProceduralChunkLayoutSource _gen = default!;
     private IReadOnlyList<ChunkPoolMember> _pool = default!;
     private ProceduralMapConfig _cfg = default!;
 
@@ -19,7 +19,7 @@ public class ProceduralGenerationBenchmark
     [GlobalSetup]
     public void Setup()
     {
-        _gen = new ProceduralLayoutGenerator(NullLoggerFactory.Instance);
+        _gen = new ProceduralChunkLayoutSource(NullLoggerFactory.Instance);
         _pool = BuildTestPool(PoolSize);
         _cfg = new ProceduralMapConfig
         {
@@ -37,7 +37,7 @@ public class ProceduralGenerationBenchmark
     }
 
     [Benchmark]
-    public ProceduralLayout Generate() => _gen.Generate(_cfg, _pool, seed: 1);
+    public ChunkLayout Generate() => _gen.Generate(_cfg, _pool, seed: 1);
 
     private static IReadOnlyList<ChunkPoolMember> BuildTestPool(int size)
     {

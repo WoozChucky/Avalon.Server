@@ -6,7 +6,7 @@ using Avalon.World.Maps;
 using Avalon.World.Maps.Navigation;
 using Avalon.World.Maps.Virtualized;
 using Avalon.World.Pools;
-using Avalon.World.Procedural;
+using Avalon.World.ChunkLayouts;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Instances;
 using Avalon.World.Public.Maps;
@@ -24,7 +24,7 @@ public class InstanceRegistry : IInstanceRegistry
     private readonly ILogger<InstanceRegistry> _logger;
     private readonly IAvalonMapManager _mapManager;
     private readonly IServiceProvider _serviceProvider;
-    private readonly IProceduralInstanceFactory _proceduralFactory;
+    private readonly IChunkLayoutInstanceFactory _proceduralFactory;
     private readonly IServiceScopeFactory _scopeFactory;
 
     // Cache of loaded VirtualizedMap data per template, populated lazily
@@ -37,7 +37,7 @@ public class InstanceRegistry : IInstanceRegistry
         ILoggerFactory loggerFactory,
         IAvalonMapManager mapManager,
         IServiceProvider serviceProvider,
-        IProceduralInstanceFactory proceduralFactory,
+        IChunkLayoutInstanceFactory proceduralFactory,
         IServiceScopeFactory scopeFactory)
     {
         _logger = loggerFactory.CreateLogger<InstanceRegistry>();

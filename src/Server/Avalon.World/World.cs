@@ -11,7 +11,7 @@ using Avalon.World.Configuration;
 using Avalon.World.Entities;
 using Avalon.World.Instances;
 using Avalon.World.Maps;
-using Avalon.World.Procedural;
+using Avalon.World.ChunkLayouts;
 using Avalon.World.Public;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
@@ -189,7 +189,7 @@ public class World : IWorld
         await _mapManager.LoadAsync();
         await _chunkLibrary.LoadAsync(token);
 
-        var proceduralFactory = _serviceProvider.GetRequiredService<IProceduralInstanceFactory>();
+        var proceduralFactory = _serviceProvider.GetRequiredService<IChunkLayoutInstanceFactory>();
         var scopeFactory = _serviceProvider.GetRequiredService<IServiceScopeFactory>();
         InstanceRegistry = new InstanceRegistry(_loggerFactory, _mapManager, _serviceProvider, proceduralFactory, scopeFactory);
     }

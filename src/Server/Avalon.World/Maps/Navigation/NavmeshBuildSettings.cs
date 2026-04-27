@@ -4,7 +4,7 @@ namespace Avalon.World.Maps.Navigation;
 
 /// <summary>
 /// Single source of truth for DotRecast bake parameters.
-/// Both server bakers (NavigationMeshBaker for town .obj→.nav, ProceduralNavmeshBuilder
+/// Both server bakers (NavigationMeshBaker for town .obj→.nav, ChunkLayoutNavmeshBuilder
 /// for in-memory procedural maps) and any client-side mirror bake MUST use these values.
 /// Drift here = drift in the baked DtNavMesh = drift in RaycastWalkable results.
 /// </summary>

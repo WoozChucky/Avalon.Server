@@ -9,7 +9,7 @@ using Avalon.World.Entities;
 using Avalon.World.Maps;
 using Avalon.World.Maps.Navigation;
 using Avalon.World.Pools;
-using Avalon.World.Procedural;
+using Avalon.World.ChunkLayouts;
 using Avalon.World.Scripts;
 using Avalon.World.Scripts.Abstractions;
 using Microsoft.Extensions.Configuration;
@@ -50,11 +50,11 @@ public static class ServiceExtensions
         services.AddSingleton<IScriptManager, ScriptManager>();
         services.AddSingleton<ICreatureSpawner, CreatureSpawner>();
         services.AddSingleton<IChunkLibrary, ChunkLibrary>();
-        services.AddSingleton<IProceduralLayoutGenerator, ProceduralLayoutGenerator>();
-        services.AddSingleton<IProceduralNavmeshBuilder, ProceduralNavmeshBuilder>();
+        services.AddSingleton<ProceduralChunkLayoutSource>();
+        services.AddSingleton<IChunkLayoutNavmeshBuilder, ChunkLayoutNavmeshBuilder>();
         services.AddSingleton<ICreaturePlacementService, CreaturePlacementService>();
         services.AddSingleton<IPortalPlacementService, PortalPlacementService>();
-        services.AddSingleton<IProceduralInstanceFactory, ProceduralInstanceFactory>();
+        services.AddSingleton<IChunkLayoutInstanceFactory, ChunkLayoutInstanceFactory>();
         // Scripting
         services.AddSingleton<IScriptCompiler, ScriptCompiler>();
         services.AddSingleton<IScriptHotReloader, ScriptHotReloader>();
