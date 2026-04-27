@@ -1,7 +1,7 @@
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
-using Avalon.World.Procedural;
+using Avalon.World.ChunkLayouts;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
@@ -97,7 +97,7 @@ public class ProceduralLayoutGeneratorShould
             ForwardPortalTargetMapId = 99,
         };
 
-        var gen = new ProceduralLayoutGenerator(NullLoggerFactory.Instance);
+        var gen = new ProceduralChunkLayoutSource(NullLoggerFactory.Instance);
         var a = gen.Generate(config, pool, seed: 42);
         var b = gen.Generate(config, pool, seed: 42);
 
@@ -110,7 +110,7 @@ public class ProceduralLayoutGeneratorShould
     public void PathLen_within_configured_range()
     {
         var (pool, cfg) = BuildValidPool(min: 4, max: 6);
-        var gen = new ProceduralLayoutGenerator(NullLoggerFactory.Instance);
+        var gen = new ProceduralChunkLayoutSource(NullLoggerFactory.Instance);
         for (int seed = 0; seed < 20; seed++)
         {
             var l = gen.Generate(cfg, pool, seed);
@@ -134,7 +134,7 @@ public class ProceduralLayoutGeneratorShould
             BackPortalTargetMapId = 1,
             HasBoss = false,
         };
-        var gen = new ProceduralLayoutGenerator(NullLoggerFactory.Instance);
+        var gen = new ProceduralChunkLayoutSource(NullLoggerFactory.Instance);
         Assert.Throws<ProceduralGenerationFailedException>(() => gen.Generate(cfg, pool, seed: 1));
     }
 
@@ -142,7 +142,7 @@ public class ProceduralLayoutGeneratorShould
     public void Boss_placed_on_last_chunk_when_HasBoss()
     {
         var (pool, cfg) = BuildValidPool(min: 3, max: 3, hasBoss: true);
-        var gen = new ProceduralLayoutGenerator(NullLoggerFactory.Instance);
+        var gen = new ProceduralChunkLayoutSource(NullLoggerFactory.Instance);
         var layout = gen.Generate(cfg, pool, seed: 7);
         Assert.NotNull(layout.BossChunk);
         var bossTpl = pool.First(p => p.Template.Id == layout.BossChunk!.TemplateId).Template;

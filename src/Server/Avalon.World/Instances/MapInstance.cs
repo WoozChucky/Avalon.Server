@@ -7,7 +7,7 @@ using Avalon.Network.Packets.Combat;
 using Avalon.Network.Packets.State;
 using Avalon.World.Entities;
 using Avalon.World.Pools;
-using Avalon.World.Procedural;
+using Avalon.World.ChunkLayouts;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
@@ -82,7 +82,7 @@ public class MapInstance : IMapInstance, IPortalSink
         IWorld world,
         MapTemplateId templateId,
         long? ownerAccountId,
-        ProceduralLayout layout,
+        ChunkLayout layout,
         IMapNavigator navigator,
         int seed)
     {
@@ -125,7 +125,7 @@ public class MapInstance : IMapInstance, IPortalSink
     public int PlayerCount => _characters.Count;
     public DateTime? LastEmptyAt { get; private set; }
     public int Seed { get; }
-    public ProceduralLayout? Layout { get; }
+    public ChunkLayout? Layout { get; }
     public Vector3? EntrySpawnWorldPos { get; }
     public IReadOnlyList<PortalInstance> Portals => _portals;
 

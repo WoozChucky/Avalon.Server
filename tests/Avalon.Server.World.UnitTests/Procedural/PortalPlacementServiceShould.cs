@@ -2,7 +2,7 @@ using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.World.Entities;
-using Avalon.World.Procedural;
+using Avalon.World.ChunkLayouts;
 using NSubstitute;
 using Xunit;
 
@@ -18,7 +18,7 @@ public class PortalPlacementServiceShould
         sink.When(s => s.AddPortal(Arg.Any<PortalInstance>()))
             .Do(ci => captured.Add(ci.Arg<PortalInstance>()));
 
-        var layout = new ProceduralLayout(
+        var layout = new ChunkLayout(
             Seed: 1,
             Chunks: new[] { new PlacedChunk(new ChunkTemplateId(1), 0, 0, 0, Vector3.zero) },
             EntryChunk: new PlacedChunk(new ChunkTemplateId(1), 0, 0, 0, Vector3.zero),
@@ -45,7 +45,7 @@ public class PortalPlacementServiceShould
         sink.When(s => s.AddPortal(Arg.Any<PortalInstance>()))
             .Do(ci => captured.Add(ci.Arg<PortalInstance>()));
 
-        var layout = new ProceduralLayout(
+        var layout = new ChunkLayout(
             Seed: 1,
             Chunks: Array.Empty<PlacedChunk>(),
             EntryChunk: new PlacedChunk(new ChunkTemplateId(1), 0, 0, 0, Vector3.zero),

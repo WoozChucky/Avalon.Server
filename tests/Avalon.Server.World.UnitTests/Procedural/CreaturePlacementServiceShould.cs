@@ -3,7 +3,7 @@ using Avalon.Common.ValueObjects;
 using Avalon.Database.World.Repositories;
 using Avalon.Domain.World;
 using Avalon.World.Entities;
-using Avalon.World.Procedural;
+using Avalon.World.ChunkLayouts;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Instances;
 using Avalon.World.Public.Maps;
@@ -43,7 +43,7 @@ public class CreaturePlacementServiceShould
             });
 
         var instance = Substitute.For<IMapInstance>();
-        var layout = new ProceduralLayout(
+        var layout = new ChunkLayout(
             Seed: 1,
             Chunks: new[] { new PlacedChunk(new ChunkTemplateId(1), 0, 0, 0, Vector3.zero) },
             EntryChunk: new PlacedChunk(new ChunkTemplateId(1), 0, 0, 0, Vector3.zero),
@@ -81,7 +81,7 @@ public class CreaturePlacementServiceShould
             .Returns(new SpawnTable { Id = new SpawnTableId(1), Entries = new List<SpawnTableEntry>() });
 
         var instance = Substitute.For<IMapInstance>();
-        var layout = new ProceduralLayout(
+        var layout = new ChunkLayout(
             Seed: 1,
             Chunks: new[] { new PlacedChunk(new ChunkTemplateId(1), 0, 0, 0, Vector3.zero) },
             EntryChunk: new PlacedChunk(new ChunkTemplateId(1), 0, 0, 0, Vector3.zero),
