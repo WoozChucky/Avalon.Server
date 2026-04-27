@@ -25,7 +25,7 @@ public class PredefinedChunkLayoutSourceShould
             .Returns(new List<MapChunkPlacement>());
 
         var library = Substitute.For<IChunkLibrary>();
-        var source = new PredefinedChunkLayoutSource(repo, library);
+        var source = PredefinedChunkLayoutSource.ForTesting(repo, library);
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
             source.BuildAsync(Town(1), CancellationToken.None));
@@ -62,7 +62,7 @@ public class PredefinedChunkLayoutSourceShould
         library.LookupByIds(Arg.Any<IEnumerable<ChunkTemplateId>>())
             .Returns(new Dictionary<ChunkTemplateId, ChunkTemplate> { [chunkId] = chunkTemplate });
 
-        var source = new PredefinedChunkLayoutSource(repo, library);
+        var source = PredefinedChunkLayoutSource.ForTesting(repo, library);
         var layout = await source.BuildAsync(
             new MapTemplate
             {
