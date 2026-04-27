@@ -56,6 +56,7 @@ public enum NetworkPacketType : short
     CMSG_CHAT_OPEN = 0x2008,
     CMSG_CHAT_CLOSE = 0x2009,
     CMSG_GROUP_INVITE_RESULT = 0x200A,
+    CMSG_PLAYER_INPUT = 0x2060,
 
     // MFA
     CMSG_MFA_VERIFY = 0x200B,
@@ -107,6 +108,7 @@ public enum NetworkPacketType : short
     SMSG_WORLD_STATE_ADD = 0x3040,
     SMSG_WORLD_STATE_UPDATE = 0x3041,
     SMSG_WORLD_STATE_REMOVE = 0x3042,
+    SMSG_PLAYER_STATE_ACK = 0x3060,
 
     // Combat
     SMSG_CHARACTER_DAMAGED = 0x3100,
