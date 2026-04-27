@@ -4,6 +4,7 @@ using Avalon.World;
 using Avalon.World.Handlers;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
+using Avalon.World.Public.Instances;
 using Avalon.World.Public.Maps;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
@@ -17,9 +18,12 @@ public class PlayerInputHandlerShould
 
     private static (PlayerInputHandler handler, IWorldConnection conn, ICharacter ch, IMapNavigator nav) Setup(float speed = 5f, Vector3 startPos = default)
     {
+        var instanceId = Guid.NewGuid();
+
         var ch = Substitute.For<ICharacter>();
         ch.Position.Returns(startPos);
         ch.GetMovementSpeed().Returns(speed);
+        ch.InstanceId.Returns(instanceId);
 
         var conn = Substitute.For<IWorldConnection>();
         conn.Character.Returns(ch);
@@ -32,8 +36,16 @@ public class PlayerInputHandlerShould
             .Returns(call => call.ArgAt<Vector3>(1));   // returns 'to'
         nav.SampleGroundHeight(Arg.Any<float>(), Arg.Any<float>()).Returns(0f);
 
+        var instance = Substitute.For<IMapInstance>();
+        instance.GetNavigatorForPosition(Arg.Any<Vector3>()).Returns(nav);
+
+        var registry = Substitute.For<IInstanceRegistry>();
+        registry.GetInstanceById(instanceId).Returns(instance);
+
         var world = Substitute.For<IWorld>();
-        var handler = new PlayerInputHandler(NullLogger<PlayerInputHandler>.Instance, world, nav);
+        world.InstanceRegistry.Returns(registry);
+
+        var handler = new PlayerInputHandler(NullLogger<PlayerInputHandler>.Instance, world);
         return (handler, conn, ch, nav);
     }
 
