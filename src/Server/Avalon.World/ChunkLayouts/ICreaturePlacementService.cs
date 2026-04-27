@@ -6,11 +6,11 @@ using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Instances;
 using Avalon.World.Public.Maps;
 
-namespace Avalon.World.Procedural;
+namespace Avalon.World.ChunkLayouts;
 
 public interface ICreaturePlacementService
 {
-    Task PlaceAsync(IMapInstance instance, ProceduralLayout layout, ProceduralMapConfig cfg, int seed, CancellationToken ct);
+    Task PlaceAsync(IMapInstance instance, ChunkLayout layout, ProceduralMapConfig cfg, int seed, CancellationToken ct);
 }
 
 public class CreaturePlacementService : ICreaturePlacementService
@@ -26,7 +26,7 @@ public class CreaturePlacementService : ICreaturePlacementService
         _spawnTableRepo = spawnTableRepo;
     }
 
-    public async Task PlaceAsync(IMapInstance instance, ProceduralLayout layout, ProceduralMapConfig cfg, int seed, CancellationToken ct)
+    public async Task PlaceAsync(IMapInstance instance, ChunkLayout layout, ProceduralMapConfig cfg, int seed, CancellationToken ct)
     {
         var table = await _spawnTableRepo.FindByIdAsync(cfg.SpawnTableId, track: false, ct)
                     ?? throw new InvalidProceduralConfigException($"SpawnTable {cfg.SpawnTableId.Value} not found");

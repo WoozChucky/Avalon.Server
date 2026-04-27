@@ -6,35 +6,35 @@ using DotRecast.Detour;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
-namespace Avalon.World.Procedural;
+namespace Avalon.World.ChunkLayouts;
 
-public interface IProceduralInstanceFactory
+public interface IChunkLayoutInstanceFactory
 {
     Task<MapInstance> CreateAsync(MapTemplate template, ProceduralMapConfig config, long? ownerAccountId, int seed, CancellationToken ct);
 }
 
-public class ProceduralInstanceFactory : IProceduralInstanceFactory
+public class ChunkLayoutInstanceFactory : IChunkLayoutInstanceFactory
 {
     private readonly ILoggerFactory _lf;
-    private readonly ILogger<ProceduralInstanceFactory> _logger;
+    private readonly ILogger<ChunkLayoutInstanceFactory> _logger;
     private readonly IChunkLibrary _library;
-    private readonly IProceduralLayoutGenerator _layoutGen;
-    private readonly IProceduralNavmeshBuilder _navBuilder;
+    private readonly ProceduralChunkLayoutSource _layoutGen;
+    private readonly IChunkLayoutNavmeshBuilder _navBuilder;
     private readonly ICreaturePlacementService _creaturePlace;
     private readonly IPortalPlacementService _portalPlace;
     private readonly IServiceProvider _sp;
 
-    public ProceduralInstanceFactory(
+    public ChunkLayoutInstanceFactory(
         ILoggerFactory lf,
         IChunkLibrary library,
-        IProceduralLayoutGenerator layoutGen,
-        IProceduralNavmeshBuilder navBuilder,
+        ProceduralChunkLayoutSource layoutGen,
+        IChunkLayoutNavmeshBuilder navBuilder,
         ICreaturePlacementService creaturePlace,
         IPortalPlacementService portalPlace,
         IServiceProvider sp)
     {
         _lf = lf;
-        _logger = lf.CreateLogger<ProceduralInstanceFactory>();
+        _logger = lf.CreateLogger<ChunkLayoutInstanceFactory>();
         _library = library;
         _layoutGen = layoutGen;
         _navBuilder = navBuilder;

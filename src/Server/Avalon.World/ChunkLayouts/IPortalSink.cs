@@ -1,6 +1,6 @@
 using Avalon.World.Entities;
 
-namespace Avalon.World.Procedural;
+namespace Avalon.World.ChunkLayouts;
 
 public interface IPortalSink
 {

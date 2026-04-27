@@ -1,6 +1,6 @@
 using Avalon.Common.Mathematics;
 
-namespace Avalon.World.Procedural;
+namespace Avalon.World.ChunkLayouts;
 
 public enum ExitSide : byte { N = 0, E = 1, S = 2, W = 3 }
 public enum ExitSlot : byte { Left = 0, Center = 1, Right = 2 }

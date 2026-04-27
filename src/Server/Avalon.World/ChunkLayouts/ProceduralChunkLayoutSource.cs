@@ -3,24 +3,19 @@ using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Microsoft.Extensions.Logging;
 
-namespace Avalon.World.Procedural;
+namespace Avalon.World.ChunkLayouts;
 
-public interface IProceduralLayoutGenerator
-{
-    ProceduralLayout Generate(ProceduralMapConfig config, IReadOnlyList<ChunkPoolMember> pool, int seed);
-}
-
-public class ProceduralLayoutGenerator : IProceduralLayoutGenerator
+public class ProceduralChunkLayoutSource
 {
     private const int MaxRetries = 3;
-    private readonly ILogger<ProceduralLayoutGenerator> _logger;
+    private readonly ILogger<ProceduralChunkLayoutSource> _logger;
 
-    public ProceduralLayoutGenerator(ILoggerFactory loggerFactory)
+    public ProceduralChunkLayoutSource(ILoggerFactory loggerFactory)
     {
-        _logger = loggerFactory.CreateLogger<ProceduralLayoutGenerator>();
+        _logger = loggerFactory.CreateLogger<ProceduralChunkLayoutSource>();
     }
 
-    public ProceduralLayout Generate(ProceduralMapConfig config, IReadOnlyList<ChunkPoolMember> pool, int seed)
+    public ChunkLayout Generate(ProceduralMapConfig config, IReadOnlyList<ChunkPoolMember> pool, int seed)
     {
         for (int attempt = 0; attempt < MaxRetries; attempt++)
         {
@@ -34,7 +29,7 @@ public class ProceduralLayoutGenerator : IProceduralLayoutGenerator
     }
 
     private bool TryGenerate(ProceduralMapConfig cfg, IReadOnlyList<ChunkPoolMember> pool, int seed,
-        out ProceduralLayout? layout, out string? error)
+        out ChunkLayout? layout, out string? error)
     {
         layout = null; error = null;
         var rng = new Random(seed);
@@ -98,7 +93,7 @@ public class ProceduralLayoutGenerator : IProceduralLayoutGenerator
 
         var portals = BuildPortals(entry, entryMember.Template, boss, bossRec?.Template, cfg);
 
-        layout = new ProceduralLayout(seed, placedChunks, entry, boss, portals, entrySpawnWorldPos, cellSize);
+        layout = new ChunkLayout(seed, placedChunks, entry, boss, portals, entrySpawnWorldPos, cellSize);
         return true;
     }
 

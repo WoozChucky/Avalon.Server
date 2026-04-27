@@ -6,26 +6,26 @@ using DotRecast.Recast.Toolset.Builder;
 using DotRecast.Recast.Toolset.Geom;
 using Microsoft.Extensions.Logging;
 
-namespace Avalon.World.Procedural;
+namespace Avalon.World.ChunkLayouts;
 
-public interface IProceduralNavmeshBuilder
+public interface IChunkLayoutNavmeshBuilder
 {
-    Task<DtNavMesh> BuildAsync(ProceduralLayout layout, CancellationToken ct);
+    Task<DtNavMesh> BuildAsync(ChunkLayout layout, CancellationToken ct);
 }
 
-public class ProceduralNavmeshBuilder : IProceduralNavmeshBuilder
+public class ChunkLayoutNavmeshBuilder : IChunkLayoutNavmeshBuilder
 {
-    private readonly ILogger<ProceduralNavmeshBuilder> _logger;
+    private readonly ILogger<ChunkLayoutNavmeshBuilder> _logger;
 
-    public ProceduralNavmeshBuilder(ILoggerFactory lf)
+    public ChunkLayoutNavmeshBuilder(ILoggerFactory lf)
     {
-        _logger = lf.CreateLogger<ProceduralNavmeshBuilder>();
+        _logger = lf.CreateLogger<ChunkLayoutNavmeshBuilder>();
     }
 
-    public Task<DtNavMesh> BuildAsync(ProceduralLayout layout, CancellationToken ct) =>
+    public Task<DtNavMesh> BuildAsync(ChunkLayout layout, CancellationToken ct) =>
         Task.Run(() => BakeNavmesh(layout), ct);
 
-    private DtNavMesh BakeNavmesh(ProceduralLayout layout)
+    private DtNavMesh BakeNavmesh(ChunkLayout layout)
     {
         var combinedObjPath = ComposeCombinedObjToTempFile(layout);
         try
@@ -47,7 +47,7 @@ public class ProceduralNavmeshBuilder : IProceduralNavmeshBuilder
     [SuppressMessage("Performance", "MA0045",
         Justification = "CPU-bound navmesh bake runs on a Task.Run worker. " +
                         "File I/O is tiny (KB-sized local chunk objs) and dwarfed by DotRecast bake cost.")]
-    private static string ComposeCombinedObjToTempFile(ProceduralLayout layout)
+    private static string ComposeCombinedObjToTempFile(ChunkLayout layout)
     {
         var sb = new System.Text.StringBuilder();
         int vOffset = 0;

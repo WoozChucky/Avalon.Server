@@ -1,4 +1,4 @@
-namespace Avalon.World.Procedural;
+namespace Avalon.World.ChunkLayouts;
 
 public class InvalidProceduralConfigException : Exception
 {
