@@ -17,6 +17,12 @@ public class PredefinedChunkLayoutSource : IChunkLayoutSource
     /// <see cref="IServiceScopeFactory"/> rather than capturing a stale Scoped reference.
     /// Mirrors <see cref="ProceduralChunkLayoutSource"/>.
     /// </summary>
+    /// <remarks>
+    /// <see cref="ActivatorUtilitiesConstructorAttribute"/> disambiguates from the test ctor
+    /// below — both are public + 2-arg, so without the attribute MS.DI throws "ambiguous
+    /// constructors" at host startup.
+    /// </remarks>
+    [ActivatorUtilitiesConstructor]
     public PredefinedChunkLayoutSource(IServiceScopeFactory scopeFactory, IChunkLibrary library)
     {
         _scopeFactory = scopeFactory;
