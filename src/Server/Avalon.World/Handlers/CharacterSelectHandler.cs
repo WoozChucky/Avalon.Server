@@ -8,8 +8,11 @@ using Avalon.Domain.Characters;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Character;
+using Avalon.Network.Packets.World;
+using Avalon.World.ChunkLayouts;
 using Avalon.World.Configuration;
 using Avalon.World.Entities;
+using Avalon.World.Instances;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Instances;
@@ -27,6 +30,7 @@ public class CharacterSelectHandler(
     ICharacterRepository characterRepository,
     ICharacterInventoryRepository characterInventoryRepository,
     ICharacterSpellRepository characterSpellRepository,
+    IChunkLibrary chunkLibrary,
     IWorld world,
     IOptions<RegenConfiguration> regenConfig) : WorldPacketHandler<CCharacterSelectedPacket>
 {
@@ -172,6 +176,28 @@ public class CharacterSelectHandler(
         };
 
         connection.Send(SCharacterSelectedPacket.Create(characterInfo, mapInfo, connection.CryptoSession.Encrypt));
+
+        // Send chunk layout so the client can compose the stitched map
+        // and bake its local navmesh. Town + normal both flow through
+        // ChunkLayoutInstanceFactory now, so any MapInstance with a Layout qualifies.
+        if (instance is MapInstance layoutMi && layoutMi.Layout is { } layout)
+        {
+            var dtos = layout.Chunks.Select(c => new PlacedChunkDto
+            {
+                ChunkTemplateId = c.TemplateId.Value,
+                ChunkName = chunkLibrary.GetById(c.TemplateId).Name,
+                GridX = c.GridX,
+                GridZ = c.GridZ,
+                Rotation = c.Rotation,
+            }).ToList();
+            connection.Send(SChunkLayoutPacket.Create(
+                layout.Seed,
+                layoutMi.InstanceId,
+                layout.CellSize,
+                dtos,
+                layout.EntrySpawnWorldPos,
+                connection.CryptoSession.Encrypt));
+        }
 
         connection.EnqueueContinuation(characterRepository.UpdateAsync(character, CancellationToken.None), _ =>
         {
