@@ -56,6 +56,10 @@ public class CharacterEntity : ICharacter
         CharacterGameState = new CharacterCharacterGameState();
         Guid = new ObjectGuid(ObjectType.Character, character.Id);
         _regenConfig = regenConfig;
+        // Initialise MovementSpeed from persisted Running state. Without this, MovementSpeed
+        // stays at the float default (0) until SetRunning is called externally — which would
+        // pin the player in place. Reads Data.Running which was just hydrated from the DB.
+        CalculateMovementSpeed();
     }
 
     public Character? Data { get; init; }
