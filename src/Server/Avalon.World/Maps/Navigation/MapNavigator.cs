@@ -277,7 +277,7 @@ public class MapNavigator : IMapNavigator
             // if THAT succeeds, the bake doesn't follow the X-flip convention.
             var altStart = new RcVec3f(from.x, from.y, from.z);
             var altStatus = query.FindNearestPoly(altStart, PolyPickExt, _queryFilter, out var altRef, out _, out _);
-            _logger.LogWarning("[NavDebug] RaycastWalkable miss: from={From} flipQ=(failed={FailF},ref={RefF}) noFlipQ=(failed={FailN},ref={RefN})",
+            _logger.LogError("[NavDebug] RaycastWalkable miss: from={From} flipQ=(failed={FailF},ref={RefF}) noFlipQ=(failed={FailN},ref={RefN})",
                 from, status.Failed(), startRef, altStatus.Failed(), altRef);
             return from;
         }
