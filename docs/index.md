@@ -24,4 +24,6 @@ For a full project overview, see the [README](https://github.com/WoozChucky/Aval
 - [Configuration Reference](configuration-reference.md)
 - [Architecture Overview](architecture-startup-flow.md)
 - [Packet Protocol](networking-packet-protocol.md)
+- [Map Generation](map-generation.md)
+- [Instanced Map System](instanced-maps.md)
 - [Contributing](contributing.md)
