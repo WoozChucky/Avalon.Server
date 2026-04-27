@@ -256,14 +256,19 @@ public class MapNavigator : IMapNavigator
 
         var query = _query!;
 
-        var startVec = new RcVec3f(-from.x, from.y, from.z);
+        // Chunk objs are exported from Unity in chunk-local space and stitched into the
+        // baked navmesh without any axis flip (see ChunkLayoutNavmeshBuilder.AppendTransformed).
+        // Queries must use the same coords — do NOT negate X. (The legacy FindPath /
+        // HasVisibility routines above keep the -X convention from the obsolete (x,z).obj
+        // pipeline; they remain unchanged because nothing exercises them on chunk maps yet.)
+        var startVec = new RcVec3f(from.x, from.y, from.z);
         var status = query.FindNearestPoly(startVec, PolyPickExt, _queryFilter, out var startRef, out _, out _);
         if (status.Failed() || startRef == 0)
         {
             return from;
         }
 
-        var endVec = new RcVec3f(-to.x, to.y, to.z);
+        var endVec = new RcVec3f(to.x, to.y, to.z);
         List<long> path = [];
         var hitStatus = query.Raycast(startRef, startVec, endVec, _queryFilter, out var t, out _, ref path);
         if (hitStatus.Failed())
@@ -287,7 +292,7 @@ public class MapNavigator : IMapNavigator
         if (_navMesh == null) return y;
 
         var query = _query!;
-        var center = new RcVec3f(-x, y, z);
+        var center = new RcVec3f(x, y, z);
         var status = query.FindNearestPoly(center, PolyPickExt, _queryFilter, out var nearestRef, out _, out _);
         if (status.Failed() || nearestRef == 0)
         {
