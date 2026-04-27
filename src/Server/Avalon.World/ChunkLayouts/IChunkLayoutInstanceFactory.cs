@@ -10,15 +10,19 @@ namespace Avalon.World.ChunkLayouts;
 
 public interface IChunkLayoutInstanceFactory
 {
-    Task<MapInstance> CreateAsync(MapTemplate template, ProceduralMapConfig config, long? ownerAccountId, int seed, CancellationToken ct);
+    /// <summary>
+    /// Builds a <see cref="MapInstance"/> for <paramref name="template"/> by resolving the matching
+    /// <see cref="IChunkLayoutSource"/> (predefined for towns, procedural for normals), baking a
+    /// navmesh from the resulting <see cref="ChunkLayout"/>, and applying creature/portal placement.
+    /// </summary>
+    Task<MapInstance> BuildAsync(MapTemplate template, long? ownerAccountId, CancellationToken ct);
 }
 
 public class ChunkLayoutInstanceFactory : IChunkLayoutInstanceFactory
 {
     private readonly ILoggerFactory _lf;
     private readonly ILogger<ChunkLayoutInstanceFactory> _logger;
-    private readonly IChunkLibrary _library;
-    private readonly ProceduralChunkLayoutSource _layoutGen;
+    private readonly IChunkLayoutSourceResolver _resolver;
     private readonly IChunkLayoutNavmeshBuilder _navBuilder;
     private readonly ICreaturePlacementService _creaturePlace;
     private readonly IPortalPlacementService _portalPlace;
@@ -26,8 +30,7 @@ public class ChunkLayoutInstanceFactory : IChunkLayoutInstanceFactory
 
     public ChunkLayoutInstanceFactory(
         ILoggerFactory lf,
-        IChunkLibrary library,
-        ProceduralChunkLayoutSource layoutGen,
+        IChunkLayoutSourceResolver resolver,
         IChunkLayoutNavmeshBuilder navBuilder,
         ICreaturePlacementService creaturePlace,
         IPortalPlacementService portalPlace,
@@ -35,18 +38,17 @@ public class ChunkLayoutInstanceFactory : IChunkLayoutInstanceFactory
     {
         _lf = lf;
         _logger = lf.CreateLogger<ChunkLayoutInstanceFactory>();
-        _library = library;
-        _layoutGen = layoutGen;
+        _resolver = resolver;
         _navBuilder = navBuilder;
         _creaturePlace = creaturePlace;
         _portalPlace = portalPlace;
         _sp = sp;
     }
 
-    public async Task<MapInstance> CreateAsync(MapTemplate template, ProceduralMapConfig config, long? ownerAccountId, int seed, CancellationToken ct)
+    public async Task<MapInstance> BuildAsync(MapTemplate template, long? ownerAccountId, CancellationToken ct)
     {
-        var pool = _library.GetByPool(config.ChunkPoolId);
-        var layout = _layoutGen.Generate(config, pool, seed);
+        var source = _resolver.Resolve(template, out var kind);
+        var layout = await source.BuildAsync(template, ct);
 
         DtNavMesh navMesh = await _navBuilder.BuildAsync(layout, ct);
 
@@ -54,13 +56,19 @@ public class ChunkLayoutInstanceFactory : IChunkLayoutInstanceFactory
         navigator.LoadFromNavMesh(navMesh);
 
         var world = _sp.GetRequiredService<IWorld>();
-        var instance = new MapInstance(_lf, _sp, world, template.Id, ownerAccountId, layout, navigator, seed);
+        var instance = new MapInstance(_lf, _sp, world, template.Id, ownerAccountId, layout, navigator, layout.Seed, template.MapType);
 
-        await _creaturePlace.PlaceAsync(instance, layout, config, seed, ct);
-        _portalPlace.Place(instance, layout, config);
+        // Creatures only spawn on procedural maps; predefined town layouts leave Config null.
+        if (kind == ChunkLayoutSourceKind.Procedural && layout.Config is { } cfg)
+        {
+            await _creaturePlace.PlaceAsync(instance, layout, cfg, layout.Seed, ct);
+        }
 
-        _logger.LogInformation("Built chunk-layout instance {InstanceId} for map {MapId} seed {Seed}",
-            instance.InstanceId, template.Id.Value, seed);
+        // PortalPlacementService tolerates a null config (towns) — portals are read off ChunkLayout.Portals.
+        _portalPlace.Place(instance, layout, layout.Config);
+
+        _logger.LogInformation("Built {Kind} instance {InstanceId} for map {MapId}",
+            kind, instance.InstanceId, template.Id.Value);
         return instance;
     }
 }

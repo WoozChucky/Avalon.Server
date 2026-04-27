@@ -2,23 +2,43 @@ using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Database.World.Repositories;
 using Avalon.Domain.World;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Avalon.World.ChunkLayouts;
 
 public class PredefinedChunkLayoutSource : IChunkLayoutSource
 {
-    private readonly IMapChunkPlacementRepository _repo;
+    private readonly IServiceScopeFactory _scopeFactory;
     private readonly IChunkLibrary _library;
 
+    /// <summary>
+    /// DI ctor: <see cref="IMapChunkPlacementRepository"/> is Scoped (it depends on the
+    /// EF <c>WorldDbContext</c>), so this Singleton resolves it per-call via
+    /// <see cref="IServiceScopeFactory"/> rather than capturing a stale Scoped reference.
+    /// Mirrors <see cref="ProceduralChunkLayoutSource"/>.
+    /// </summary>
+    public PredefinedChunkLayoutSource(IServiceScopeFactory scopeFactory, IChunkLibrary library)
+    {
+        _scopeFactory = scopeFactory;
+        _library = library;
+    }
+
+    /// <summary>
+    /// Test ctor: accepts the repository directly so unit tests can substitute it without
+    /// having to arrange an <see cref="IServiceScopeFactory"/>. Captures the repo as a
+    /// stand-in scope factory that returns the same instance on every call.
+    /// </summary>
     public PredefinedChunkLayoutSource(IMapChunkPlacementRepository repo, IChunkLibrary library)
     {
-        _repo = repo;
+        _scopeFactory = new SingleRepoScopeFactory(repo);
         _library = library;
     }
 
     public async Task<ChunkLayout> BuildAsync(MapTemplate template, CancellationToken ct)
     {
-        var rows = await _repo.FindByMapAsync(template.Id, ct);
+        await using var scope = _scopeFactory.CreateAsyncScope();
+        var repo = scope.ServiceProvider.GetRequiredService<IMapChunkPlacementRepository>();
+        var rows = await repo.FindByMapAsync(template.Id, ct);
         if (rows.Count == 0)
             throw new InvalidOperationException(
                 $"No MapChunkPlacement rows for town map {template.Id.Value}. Run Avalon.ChunkImporter.");
@@ -97,5 +117,28 @@ public class PredefinedChunkLayoutSource : IChunkLayoutSource
             _ => (lx, lz),
         };
         return new Vector3(origin.x + rx, origin.y + ly, origin.z + rz);
+    }
+
+    /// <summary>
+    /// Test-only scope factory that hands out the same <see cref="IMapChunkPlacementRepository"/>
+    /// each time, so the legacy two-arg test ctor still works without requiring the test author
+    /// to wire a scope factory. Production uses the real Microsoft.Extensions.DI scope factory.
+    /// </summary>
+    private sealed class SingleRepoScopeFactory : IServiceScopeFactory
+    {
+        private readonly IMapChunkPlacementRepository _repo;
+        public SingleRepoScopeFactory(IMapChunkPlacementRepository repo) => _repo = repo;
+
+        public IServiceScope CreateScope() => new SingleRepoScope(_repo);
+
+        private sealed class SingleRepoScope : IServiceScope, IServiceProvider
+        {
+            private readonly IMapChunkPlacementRepository _repo;
+            public SingleRepoScope(IMapChunkPlacementRepository repo) => _repo = repo;
+            public IServiceProvider ServiceProvider => this;
+            public object? GetService(Type serviceType) =>
+                serviceType == typeof(IMapChunkPlacementRepository) ? _repo : null;
+            public void Dispose() { }
+        }
     }
 }
