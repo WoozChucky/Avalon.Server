@@ -1,5 +1,6 @@
 using Avalon.Common.Mathematics;
 using Avalon.Network.Packets.Movement;
+using Avalon.World;
 using Avalon.World.Handlers;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
@@ -23,11 +24,12 @@ public class PlayerInputHandlerShould
         var conn = Substitute.For<IWorldConnection>();
         conn.Character.Returns(ch);
         conn.LastInputSeq.Returns(0u);
+        conn.CryptoSession.Returns(new FakeAvalonCryptoSession());
 
         var nav = Substitute.For<IMapNavigator>();
         // Default: clear path — RaycastWalkable returns whatever the desired endpoint was.
         nav.RaycastWalkable(Arg.Any<Vector3>(), Arg.Any<Vector3>())
-            .Returns(call => call.Arg<Vector3>(1));   // returns 'to'
+            .Returns(call => call.ArgAt<Vector3>(1));   // returns 'to'
         nav.SampleGroundHeight(Arg.Any<float>(), Arg.Any<float>()).Returns(0f);
 
         var world = Substitute.For<IWorld>();
