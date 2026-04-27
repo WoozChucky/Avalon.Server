@@ -82,6 +82,7 @@ public class WorldDbContext(ILoggerFactory loggerFactory, IOptions<DatabaseConfi
     public DbSet<ChunkPool> ChunkPools { get; set; } = null!;
     public DbSet<SpawnTable> SpawnTables { get; set; } = null!;
     public DbSet<ProceduralMapConfig> ProceduralMapConfigs { get; set; } = null!;
+    public DbSet<MapChunkPlacement> MapChunkPlacements { get; set; } = null!;
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
@@ -110,6 +111,7 @@ public class WorldDbContext(ILoggerFactory loggerFactory, IOptions<DatabaseConfi
         Configure(modelBuilder.Entity<ChunkPool>());
         Configure(modelBuilder.Entity<SpawnTable>());
         Configure(modelBuilder.Entity<ProceduralMapConfig>());
+        Configure(modelBuilder.Entity<MapChunkPlacement>());
 
         modelBuilder.Entity<ChunkPoolMembership>(e =>
         {
@@ -837,6 +839,26 @@ public class WorldDbContext(ILoggerFactory loggerFactory, IOptions<DatabaseConfi
             .HasConversion(v => v.Value, v => new ChunkPoolId(v));
         builder.Property(b => b.SpawnTableId)
             .HasConversion(v => v.Value, v => new SpawnTableId(v));
+    }
+
+    private static void Configure(EntityTypeBuilder<MapChunkPlacement> builder)
+    {
+        builder.ToTable("MapChunkPlacements");
+        builder.HasKey(b => b.Id);
+        builder.Property(b => b.Id)
+            .HasConversion(v => v.Value, v => new MapChunkPlacementId(v))
+            .IsRequired()
+            .ValueGeneratedOnAdd();
+
+        builder.Property(b => b.MapTemplateId)
+            .HasConversion(v => v.Value, v => new MapTemplateId(v))
+            .IsRequired();
+        builder.Property(b => b.ChunkTemplateId)
+            .HasConversion(v => v.Value, v => new ChunkTemplateId(v))
+            .IsRequired();
+
+        builder.HasIndex(b => b.MapTemplateId);
+        builder.HasIndex(b => new { b.MapTemplateId, b.GridX, b.GridZ }).IsUnique();
     }
 
     private static void Configure(EntityTypeBuilder<SpellTemplate> builder)

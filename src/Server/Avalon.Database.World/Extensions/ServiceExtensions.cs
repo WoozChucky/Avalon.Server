@@ -32,7 +32,8 @@ public static class ServiceExtensions
             .AddScoped<IChunkTemplateRepository, ChunkTemplateRepository>()
             .AddScoped<IChunkPoolRepository, ChunkPoolRepository>()
             .AddScoped<ISpawnTableRepository, SpawnTableRepository>()
-            .AddScoped<IProceduralMapConfigRepository, ProceduralMapConfigRepository>();
+            .AddScoped<IProceduralMapConfigRepository, ProceduralMapConfigRepository>()
+            .AddScoped<IMapChunkPlacementRepository, MapChunkPlacementRepository>();
 
         return services;
     }
