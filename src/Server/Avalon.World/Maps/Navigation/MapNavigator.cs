@@ -265,11 +265,6 @@ public class MapNavigator : IMapNavigator
 
     public Vector3 RaycastWalkable(Vector3 from, Vector3 to)
     {
-        // No navmesh data means we have no opinion — trust the caller's desired endpoint.
-        // Same policy when the start position is off-mesh (FindNearestPoly fails) or the
-        // raycast itself errors: returning `from` would pin the entity in place, which is
-        // worse than letting motion through unchecked. Caller is expected to apply other
-        // safeguards (max-speed clamp, server-authoritative state) on top.
         if (_navMesh == null) return to;
 
         var query = _query!;
@@ -278,7 +273,7 @@ public class MapNavigator : IMapNavigator
         var status = query.FindNearestPoly(startVec, PolyPickExt, _queryFilter, out var startRef, out _, out _);
         if (status.Failed() || startRef == 0)
         {
-            return to;
+            return from;
         }
 
         var endVec = new RcVec3f(-to.x, to.y, to.z);
@@ -286,7 +281,7 @@ public class MapNavigator : IMapNavigator
         var hitStatus = query.Raycast(startRef, startVec, endVec, _queryFilter, out var t, out _, ref path);
         if (hitStatus.Failed())
         {
-            return to;
+            return from;
         }
 
         if (t >= float.MaxValue)
