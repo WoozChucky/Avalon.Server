@@ -2,7 +2,6 @@ using Avalon.Common.Mathematics;
 using Avalon.World.Public.Maps;
 using DotRecast.Core.Numerics;
 using DotRecast.Detour;
-using DotRecast.Detour.Io;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Maps.Navigation;
@@ -28,18 +27,6 @@ public class MapNavigator : IMapNavigator
     public MapNavigator(ILoggerFactory loggerFactory)
     {
         _logger = loggerFactory.CreateLogger<MapNavigator>();
-    }
-
-    public async Task LoadAsync(string meshFilename)
-    {
-        var path = Path.Combine(Directory.GetCurrentDirectory(), "Maps", meshFilename);
-        await using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
-        using var br = new BinaryReader(fs);
-        var reader = new DtMeshSetReader();
-        _navMesh = reader.Read(br, 6);
-        _query = new DtNavMeshQuery(_navMesh);
-        _findPathOption = new DtFindPathOption(EnableRaycast ? DtFindPathOptions.DT_FINDPATH_ANY_ANGLE : 0, float.MaxValue);
-        _queryFilter = new DtQueryDefaultFilter();
     }
 
     public void LoadFromNavMesh(DtNavMesh navMesh)

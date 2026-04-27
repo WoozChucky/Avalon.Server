@@ -6,7 +6,6 @@ using Avalon.Domain.World;
 using Avalon.Network.Packets.Combat;
 using Avalon.Network.Packets.State;
 using Avalon.World.Entities;
-using Avalon.World.Pools;
 using Avalon.World.ChunkLayouts;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
@@ -14,9 +13,9 @@ using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Instances;
 using Avalon.World.Public.Maps;
+using Avalon.World.Public.Scripts;
 using Avalon.World.Public.Spells;
 using Avalon.World.Public.Units;
-using Avalon.World.Public.Scripts;
 using Avalon.World.Scripts;
 using Avalon.World.Serialization;
 using Avalon.World.Spells;
@@ -34,47 +33,13 @@ public class MapInstance : IMapInstance, IPortalSink
     private readonly ICreatureRespawner _creatureRespawner;
     private readonly Dictionary<ObjectGuid, ICreature> _creatures = [];
     private readonly ILogger<MapInstance> _logger;
-    private readonly List<(MapRegion Region, IMapNavigator Navigator)> _navigators = [];
-    private readonly IPoolManager _poolManager;
+    private readonly IMapNavigator _navigator;
     private readonly ISpellQueueSystem _spellSystem;
     private readonly IWorld _world;
     private float _lastBroadcastTime;
     private readonly Dictionary<ObjectGuid, GameEntityFields> _frameDirtyFields = new(256);
     private readonly Dictionary<ObjectGuid, PerPlayerBroadcastState> _broadcastStates = [];
     private readonly List<PortalInstance> _portals = new();
-
-    public MapInstance(
-        ILoggerFactory loggerFactory,
-        IServiceProvider serviceProvider,
-        IWorld world,
-        IPoolManager poolManager,
-        MapTemplateId templateId,
-        MapType mapType,
-        long? ownerAccountId)
-    {
-        _logger = loggerFactory.CreateLogger<MapInstance>();
-        _world = world;
-        _poolManager = poolManager;
-        InstanceId = Guid.NewGuid();
-        TemplateId = templateId;
-        MapType = mapType;
-        OwnerAccountId = ownerAccountId;
-        AllowedAccounts = ownerAccountId.HasValue ? [ownerAccountId.Value] : [];
-
-        _spellSystem = new InstanceSpellSystem(loggerFactory, serviceProvider,
-            serviceProvider.GetRequiredService<IScriptManager>());
-        _creatureRespawner = new CreatureRespawner(this);
-
-        Creature.OnCreatureKilled += OnCreatureKilled;
-        Creature.OnUnitAttackAnimation += BroadcastUnitAttackAnimation;
-        Creature.OnUnitFinishedCastAnimation += BroadcastFinishCastAnimation;
-        Creature.OnUnitInterruptedCastAnimation += BroadcastInterruptedCastAnimation;
-        CharacterEntity.OnUnitAttackAnimation += BroadcastUnitAttackAnimation;
-        CharacterEntity.OnUnitFinishedCastAnimation += BroadcastFinishCastAnimation;
-        CharacterEntity.OnUnitInterruptedCastAnimation += BroadcastInterruptedCastAnimation;
-        CharacterEntity.OnUnitDamaged += OnCharacterHit;
-        CharacterEntity.OnSelfDamaged += OnCharacterSelfDamaged;
-    }
 
     public MapInstance(
         ILoggerFactory loggerFactory,
@@ -89,7 +54,6 @@ public class MapInstance : IMapInstance, IPortalSink
     {
         _logger = loggerFactory.CreateLogger<MapInstance>();
         _world = world;
-        _poolManager = null!; // chunk-layout path does not use PoolManager
         InstanceId = Guid.NewGuid();
         TemplateId = templateId;
         MapType = mapType;
@@ -98,14 +62,11 @@ public class MapInstance : IMapInstance, IPortalSink
         Layout = layout;
         EntrySpawnWorldPos = layout.EntrySpawnWorldPos;
         Seed = seed;
+        _navigator = navigator;
 
         _spellSystem = new InstanceSpellSystem(loggerFactory, serviceProvider,
             serviceProvider.GetRequiredService<IScriptManager>());
         _creatureRespawner = new NoOpCreatureRespawner();
-
-        _navigators.Add((
-            new MapRegion { Position = Vector3.zero, Size = new Vector3(1_000_000, 0, 1_000_000) },
-            navigator));
 
         Creature.OnCreatureKilled += OnCreatureKilled;
         Creature.OnUnitAttackAnimation += BroadcastUnitAttackAnimation;
@@ -138,40 +99,9 @@ public class MapInstance : IMapInstance, IPortalSink
 
     public bool CanAcceptPlayer(ushort maxPlayers) => _characters.Count < maxPlayers;
 
-    /// <summary>Registers a loaded navigator for a map region.</summary>
-    public void AddNavigator(MapRegion region, IMapNavigator navigator) =>
-        _navigators.Add((region, navigator));
-
     public void AddPortal(PortalInstance portal) => _portals.Add(portal);
 
-    public IMapNavigator GetNavigatorForPosition(Vector3 position)
-    {
-        foreach ((MapRegion region, IMapNavigator navigator) in _navigators)
-        {
-            if (position.x >= region.Position.x &&
-                position.x < region.Position.x + region.Size.x &&
-                position.z >= region.Position.z &&
-                position.z < region.Position.z + region.Size.z)
-            {
-                return navigator;
-            }
-        }
-
-        if (_navigators.Count > 0)
-        {
-            return _navigators[0].Navigator;
-        }
-
-        throw new InvalidOperationException($"No navigators loaded for instance {InstanceId}.");
-    }
-
-    public void SpawnStartingEntities()
-    {
-        // Chunk-layout instances do not use the pool-driven starter spawn path;
-        // creature placement is handled by ICreaturePlacementService via the layout.
-        if (_poolManager is null) return;
-        _poolManager.SpawnStartingEntities(this, _navigators.Select(n => n.Region).ToList());
-    }
+    public IMapNavigator GetNavigatorForPosition(Vector3 position) => _navigator;
 
     public void AddCharacter(IWorldConnection connection)
     {
@@ -204,9 +134,8 @@ public class MapInstance : IMapInstance, IPortalSink
 
     public void RespawnCreature(ICreature creature)
     {
-        // No-op for chunk-layout instances — they use the no-op respawner.
-        if (_poolManager is null) return;
-        _poolManager.SpawnEntity(this, _navigators.Select(n => n.Region).ToList(), creature);
+        // No-op: chunk-layout instances install NoOpCreatureRespawner so this
+        // path is never invoked. Kept to satisfy ISimulationContext contract.
     }
 
     public void BroadcastUnitHit(IUnit attacker, IUnit target, uint currentHealth, uint damage)

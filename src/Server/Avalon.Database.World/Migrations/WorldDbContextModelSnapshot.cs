@@ -1080,10 +1080,6 @@ namespace Avalon.Database.World.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<string>("Directory")
-                        .IsRequired()
-                        .HasColumnType("text");
-
                     b.Property<int>("LoadingScreenId")
                         .HasColumnType("integer");
 
@@ -1124,7 +1120,6 @@ namespace Avalon.Database.World.Migrations
                             DefaultSpawnY = 51f,
                             DefaultSpawnZ = 25f,
                             Description = "Glimmerdell",
-                            Directory = "Maps/",
                             LoadingScreenId = 0,
                             MapType = 0,
                             MaxLevel = 60,
@@ -1141,7 +1136,6 @@ namespace Avalon.Database.World.Migrations
                             DefaultSpawnY = 0f,
                             DefaultSpawnZ = 0f,
                             Description = "Forest Dungeon",
-                            Directory = "Maps/",
                             LoadingScreenId = 0,
                             LogoutMapId = 1,
                             MapType = 1,

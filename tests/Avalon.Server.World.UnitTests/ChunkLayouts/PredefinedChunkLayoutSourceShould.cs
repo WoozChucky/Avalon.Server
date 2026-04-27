@@ -15,7 +15,6 @@ public class PredefinedChunkLayoutSourceShould
         MapType = MapType.Town,
         Name = $"town_{id}",
         Description = string.Empty,
-        Directory = string.Empty
     };
 
     [Fact]
@@ -71,7 +70,6 @@ public class PredefinedChunkLayoutSourceShould
                 MapType = MapType.Town,
                 Name = "t",
                 Description = string.Empty,
-                Directory = string.Empty
             },
             CancellationToken.None);
 

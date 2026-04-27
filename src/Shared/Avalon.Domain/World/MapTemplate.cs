@@ -8,7 +8,6 @@ public class MapTemplate : IDbEntity<MapTemplateId>
     public MapTemplateId Id { get; set; }
     public string Name { get; set; }
     public string Description { get; set; }
-    public string Directory { get; set; }
 
     /// <summary>Whether this map is a shared Town hub or a private Normal instanced map.</summary>
     public MapType MapType { get; set; }

@@ -1,8 +1,5 @@
-using System.Runtime.CompilerServices;
 using Avalon.Database.World.Repositories;
 using Avalon.Domain.World;
-using Avalon.World.Maps.Virtualized;
-using Avalon.World.Public.Enums;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -18,15 +15,8 @@ public interface IAvalonMapManager
 
     Task LoadAsync();
 
-    /// <summary>Loads the binary map data for a given template.</summary>
-    Task<VirtualizedMap> LoadMapDataAsync(MapTemplate template, CancellationToken token = default);
-
     /// <summary>Returns portals whose source matches <paramref name="sourceMapId" />.</summary>
     IReadOnlyList<MapPortal> GetPortalsFrom(ushort sourceMapId);
-
-    // Used by World.LoadAsync to start Town instances at startup.
-    IAsyncEnumerable<(VirtualizedMap map, MapTemplate metadata)> EnumerateTownMapsAsync(
-        CancellationToken token = default);
 }
 
 public class AvalonMapManager(ILoggerFactory loggerFactory, IServiceScopeFactory scopeFactory)
@@ -55,38 +45,6 @@ public class AvalonMapManager(ILoggerFactory loggerFactory, IServiceScopeFactory
         _logger.LogInformation("Loaded {Count} map portals", _portals.Count);
     }
 
-    public async Task<VirtualizedMap> LoadMapDataAsync(MapTemplate template, CancellationToken token = default)
-    {
-        string path = Path.Combine(Directory.GetCurrentDirectory(), template.Directory, template.Name);
-        return await BinaryDeserializationHelper.ReadMapFromFile(path, token);
-    }
-
     public IReadOnlyList<MapPortal> GetPortalsFrom(ushort sourceMapId)
         => _portals.Where(p => p.SourceMapId == sourceMapId).ToList();
-
-    public async IAsyncEnumerable<(VirtualizedMap map, MapTemplate metadata)> EnumerateTownMapsAsync(
-        [EnumeratorCancellation] CancellationToken token = default)
-    {
-        List<MapTemplate> townTemplates = _templates.Where(m => m.MapType == MapType.Town).ToList();
-
-        List<Task<VirtualizedMap>> tasks = townTemplates
-            .Select(template => LoadMapDataAsync(template, token))
-            .ToList();
-
-        while (tasks.Count != 0)
-        {
-            if (token.IsCancellationRequested)
-            {
-                yield break;
-            }
-
-            Task<VirtualizedMap> completedTask = await Task.WhenAny(tasks);
-            tasks.Remove(completedTask);
-
-            VirtualizedMap virtualizedMap = await completedTask;
-            MapTemplate metadata = townTemplates.First(m => m.Id == virtualizedMap.Id);
-
-            yield return (virtualizedMap, metadata);
-        }
-    }
 }

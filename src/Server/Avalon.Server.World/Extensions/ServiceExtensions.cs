@@ -7,8 +7,6 @@ using Avalon.World.Chat;
 using Avalon.World.Configuration;
 using Avalon.World.Entities;
 using Avalon.World.Maps;
-using Avalon.World.Maps.Navigation;
-using Avalon.World.Pools;
 using Avalon.World.ChunkLayouts;
 using Avalon.World.Scripts;
 using Avalon.World.Scripts.Abstractions;
@@ -44,9 +42,7 @@ public static class ServiceExtensions
             .AddCache();
 
         services.AddSingleton<IWorld, Avalon.World.World>();
-        services.AddSingleton<INavigationMeshBaker, NavigationMeshBaker>();
         services.AddSingleton<IAvalonMapManager, AvalonMapManager>();
-        services.AddSingleton<IPoolManager, PoolManager>();
         services.AddSingleton<IScriptManager, ScriptManager>();
         services.AddSingleton<ICreatureSpawner, CreatureSpawner>();
         services.AddSingleton<IChunkLibrary, ChunkLibrary>();
