@@ -1,8 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 using Avalon.Common.Mathematics;
-using DotRecast.Core;
+using Avalon.World.Maps.Navigation;
 using DotRecast.Detour;
-using DotRecast.Recast.Toolset;
 using DotRecast.Recast.Toolset.Builder;
 using DotRecast.Recast.Toolset.Geom;
 using Microsoft.Extensions.Logging;
@@ -33,7 +32,7 @@ public class ProceduralNavmeshBuilder : IProceduralNavmeshBuilder
         {
             var geom = DemoInputGeomProvider.LoadFile(combinedObjPath);
             var builder = new TileNavMeshBuilder();
-            var result = builder.Build(geom, BuildSettings());
+            var result = builder.Build(geom, NavmeshBuildSettings.Create());
             if (result?.NavMesh is null)
                 throw new NavmeshBuildFailedException($"DotRecast returned null mesh for layout (seed {layout.Seed})");
             _logger.LogInformation("Navmesh baked for layout seed {Seed} ({ChunkCount} chunks)", layout.Seed, layout.Chunks.Count);
@@ -107,47 +106,4 @@ public class ProceduralNavmeshBuilder : IProceduralNavmeshBuilder
         return vCount;
     }
 
-    private static RcNavMeshBuildSettings BuildSettings()
-    {
-        // Mirror existing NavigationMeshBaker values.
-        var bs = new RcNavMeshBuildSettings();
-
-        // Rasterization
-        bs.cellSize = 0.3f;
-        bs.cellHeight = 0.2f;
-
-        // Agent
-        bs.agentHeight = 2.0f;
-        bs.agentRadius = 0.6f;
-        bs.agentMaxClimb = 0.9f;
-        bs.agentMaxSlope = 45f;
-        bs.agentMaxAcceleration = 8.0f;
-        bs.agentMaxSpeed = 3.5f;
-
-        // Region
-        bs.minRegionSize = 8;
-        bs.mergedRegionSize = 20;
-
-        // Filtering
-        bs.filterLowHangingObstacles = true;
-        bs.filterLedgeSpans = true;
-        bs.filterWalkableLowHeightSpans = true;
-
-        // Polygonization
-        bs.edgeMaxLen = 12f;
-        bs.edgeMaxError = 1.3f;
-        bs.vertsPerPoly = 6;
-
-        // Detail Mesh
-        bs.detailSampleDist = 6f;
-        bs.detailSampleMaxError = 1f;
-
-        bs.buildAll = true;
-
-        // Tiles
-        bs.tiled = true;
-        bs.tileSize = 32;
-
-        return bs;
-    }
 }
