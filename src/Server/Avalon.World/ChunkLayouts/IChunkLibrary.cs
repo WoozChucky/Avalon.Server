@@ -4,7 +4,7 @@ using Avalon.Domain.World;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
-namespace Avalon.World.Procedural;
+namespace Avalon.World.ChunkLayouts;
 
 public interface IChunkLibrary
 {

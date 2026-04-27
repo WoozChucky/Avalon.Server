@@ -2,7 +2,7 @@ using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 
-namespace Avalon.World.Procedural;
+namespace Avalon.World.ChunkLayouts;
 
 public record PlacedChunk(
     ChunkTemplateId TemplateId,
@@ -17,7 +17,7 @@ public record PortalPlacement(
     ushort TargetMapId,
     float Radius = 3.0f);
 
-public record ProceduralLayout(
+public record ChunkLayout(
     int Seed,
     IReadOnlyList<PlacedChunk> Chunks,
     PlacedChunk EntryChunk,
