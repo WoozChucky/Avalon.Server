@@ -24,4 +24,5 @@ public record ChunkLayout(
     PlacedChunk? BossChunk,
     IReadOnlyList<PortalPlacement> Portals,
     Vector3 EntrySpawnWorldPos,
-    float CellSize);
+    float CellSize,
+    ProceduralMapConfig? Config = null);

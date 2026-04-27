@@ -11,6 +11,7 @@ public interface IChunkLibrary
     Task LoadAsync(CancellationToken ct);
     ChunkTemplate GetById(ChunkTemplateId id);
     IReadOnlyList<ChunkPoolMember> GetByPool(ChunkPoolId poolId);
+    IReadOnlyDictionary<ChunkTemplateId, ChunkTemplate> LookupByIds(IEnumerable<ChunkTemplateId> ids);
 }
 
 public record ChunkPoolMember(ChunkTemplate Template, float Weight);
@@ -58,6 +59,18 @@ public class ChunkLibrary : IChunkLibrary
 
     public IReadOnlyList<ChunkPoolMember> GetByPool(ChunkPoolId poolId) =>
         _pools.TryGetValue(poolId, out var list) ? list : Array.Empty<ChunkPoolMember>();
+
+    public IReadOnlyDictionary<ChunkTemplateId, ChunkTemplate> LookupByIds(IEnumerable<ChunkTemplateId> ids)
+    {
+        var result = new Dictionary<ChunkTemplateId, ChunkTemplate>();
+        foreach (var id in ids)
+        {
+            if (!_templates.TryGetValue(id, out var t))
+                throw new KeyNotFoundException($"ChunkTemplate {id.Value}");
+            result[id] = t;
+        }
+        return result;
+    }
 
     private void ValidatePool(ProceduralMapConfig cfg)
     {
