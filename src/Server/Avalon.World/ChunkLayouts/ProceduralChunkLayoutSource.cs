@@ -1,18 +1,52 @@
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
+using Avalon.Database.World.Repositories;
 using Avalon.Domain.World;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.ChunkLayouts;
 
-public class ProceduralChunkLayoutSource
+public class ProceduralChunkLayoutSource : IChunkLayoutSource
 {
     private const int MaxRetries = 3;
     private readonly ILogger<ProceduralChunkLayoutSource> _logger;
+    private readonly IChunkLibrary _library;
+    private readonly IServiceScopeFactory _scopeFactory;
+    private readonly Random _seedRng = new();
+    private readonly object _seedLock = new();
 
-    public ProceduralChunkLayoutSource(ILoggerFactory loggerFactory)
+    public ProceduralChunkLayoutSource(
+        ILoggerFactory loggerFactory,
+        IChunkLibrary library,
+        IServiceScopeFactory scopeFactory)
     {
         _logger = loggerFactory.CreateLogger<ProceduralChunkLayoutSource>();
+        _library = library;
+        _scopeFactory = scopeFactory;
+    }
+
+    public async Task<ChunkLayout> BuildAsync(MapTemplate template, CancellationToken ct)
+    {
+        await using var scope = _scopeFactory.CreateAsyncScope();
+        var configRepo = scope.ServiceProvider.GetRequiredService<IProceduralMapConfigRepository>();
+        var config = await configRepo.FindByTemplateIdAsync(template.Id, ct)
+            ?? throw new InvalidProceduralConfigException(
+                $"No ProceduralMapConfig for map {template.Id.Value}");
+
+        var pool = _library.GetByPool(config.ChunkPoolId);
+        return Generate(config, pool, NextSeed());
+    }
+
+    /// <summary>
+    /// Fresh seed drawn from the source's internal RNG. Exposed so the legacy
+    /// <c>InstanceRegistry.BuildProceduralInstanceAsync</c> path can keep calling
+    /// the factory by seed until Task 5 collapses the build paths through
+    /// <see cref="BuildAsync"/>.
+    /// </summary>
+    public int NextSeed()
+    {
+        lock (_seedLock) return _seedRng.Next();
     }
 
     public ChunkLayout Generate(ProceduralMapConfig config, IReadOnlyList<ChunkPoolMember> pool, int seed)

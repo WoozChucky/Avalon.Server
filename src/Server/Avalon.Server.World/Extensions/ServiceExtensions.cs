@@ -50,7 +50,9 @@ public static class ServiceExtensions
         services.AddSingleton<IScriptManager, ScriptManager>();
         services.AddSingleton<ICreatureSpawner, CreatureSpawner>();
         services.AddSingleton<IChunkLibrary, ChunkLibrary>();
+        services.AddSingleton<PredefinedChunkLayoutSource>();
         services.AddSingleton<ProceduralChunkLayoutSource>();
+        services.AddSingleton<IChunkLayoutSourceResolver, ChunkLayoutSourceResolver>();
         services.AddSingleton<IChunkLayoutNavmeshBuilder, ChunkLayoutNavmeshBuilder>();
         services.AddSingleton<ICreaturePlacementService, CreaturePlacementService>();
         services.AddSingleton<IPortalPlacementService, PortalPlacementService>();

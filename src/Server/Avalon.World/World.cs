@@ -189,9 +189,10 @@ public class World : IWorld
         await _mapManager.LoadAsync();
         await _chunkLibrary.LoadAsync(token);
 
-        var proceduralFactory = _serviceProvider.GetRequiredService<IChunkLayoutInstanceFactory>();
+        var chunkLayoutFactory = _serviceProvider.GetRequiredService<IChunkLayoutInstanceFactory>();
+        var proceduralSource = _serviceProvider.GetRequiredService<ProceduralChunkLayoutSource>();
         var scopeFactory = _serviceProvider.GetRequiredService<IServiceScopeFactory>();
-        InstanceRegistry = new InstanceRegistry(_loggerFactory, _mapManager, _serviceProvider, proceduralFactory, scopeFactory);
+        InstanceRegistry = new InstanceRegistry(_loggerFactory, _mapManager, _serviceProvider, chunkLayoutFactory, proceduralSource, scopeFactory);
     }
 
     public void Update(TimeSpan deltaTime)

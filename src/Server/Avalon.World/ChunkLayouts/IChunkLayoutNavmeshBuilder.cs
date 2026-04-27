@@ -60,7 +60,7 @@ public class ChunkLayoutNavmeshBuilder : IChunkLayoutNavmeshBuilder
             int vCount = AppendTransformed(sb, File.ReadAllText(path), chunk.WorldPos, chunk.Rotation, vOffset);
             vOffset += vCount;
         }
-        var tempPath = Path.Combine(Path.GetTempPath(), $"avalon-procmap-{layout.Seed}-{Guid.NewGuid():N}.obj");
+        var tempPath = Path.Combine(Path.GetTempPath(), $"avalon-chunklayout-{layout.Seed}-{Guid.NewGuid():N}.obj");
         File.WriteAllText(tempPath, sb.ToString());
         return tempPath;
     }

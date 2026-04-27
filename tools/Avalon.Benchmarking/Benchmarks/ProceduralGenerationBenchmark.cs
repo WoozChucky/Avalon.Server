@@ -19,7 +19,10 @@ public class ProceduralGenerationBenchmark
     [GlobalSetup]
     public void Setup()
     {
-        _gen = new ProceduralChunkLayoutSource(NullLoggerFactory.Instance);
+        // Library + scope factory are only used by BuildAsync (not exercised here).
+        // The benchmark calls Generate(config, pool, seed) directly, so passing
+        // null! is safe and avoids adding an NSubstitute dep to the bench project.
+        _gen = new ProceduralChunkLayoutSource(NullLoggerFactory.Instance, library: null!, scopeFactory: null!);
         _pool = BuildTestPool(PoolSize);
         _cfg = new ProceduralMapConfig
         {

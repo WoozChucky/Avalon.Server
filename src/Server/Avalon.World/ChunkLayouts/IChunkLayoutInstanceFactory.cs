@@ -59,7 +59,7 @@ public class ChunkLayoutInstanceFactory : IChunkLayoutInstanceFactory
         await _creaturePlace.PlaceAsync(instance, layout, config, seed, ct);
         _portalPlace.Place(instance, layout, config);
 
-        _logger.LogInformation("Built procedural instance {InstanceId} for map {MapId} seed {Seed}",
+        _logger.LogInformation("Built chunk-layout instance {InstanceId} for map {MapId} seed {Seed}",
             instance.InstanceId, template.Id.Value, seed);
         return instance;
     }

@@ -2,7 +2,9 @@ using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.World.ChunkLayouts;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using NSubstitute;
 using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Procedural;
@@ -97,7 +99,10 @@ public class ProceduralLayoutGeneratorShould
             ForwardPortalTargetMapId = 99,
         };
 
-        var gen = new ProceduralChunkLayoutSource(NullLoggerFactory.Instance);
+        var gen = new ProceduralChunkLayoutSource(
+            NullLoggerFactory.Instance,
+            Substitute.For<IChunkLibrary>(),
+            Substitute.For<IServiceScopeFactory>());
         var a = gen.Generate(config, pool, seed: 42);
         var b = gen.Generate(config, pool, seed: 42);
 
@@ -110,7 +115,10 @@ public class ProceduralLayoutGeneratorShould
     public void PathLen_within_configured_range()
     {
         var (pool, cfg) = BuildValidPool(min: 4, max: 6);
-        var gen = new ProceduralChunkLayoutSource(NullLoggerFactory.Instance);
+        var gen = new ProceduralChunkLayoutSource(
+            NullLoggerFactory.Instance,
+            Substitute.For<IChunkLibrary>(),
+            Substitute.For<IServiceScopeFactory>());
         for (int seed = 0; seed < 20; seed++)
         {
             var l = gen.Generate(cfg, pool, seed);
@@ -134,7 +142,10 @@ public class ProceduralLayoutGeneratorShould
             BackPortalTargetMapId = 1,
             HasBoss = false,
         };
-        var gen = new ProceduralChunkLayoutSource(NullLoggerFactory.Instance);
+        var gen = new ProceduralChunkLayoutSource(
+            NullLoggerFactory.Instance,
+            Substitute.For<IChunkLibrary>(),
+            Substitute.For<IServiceScopeFactory>());
         Assert.Throws<ProceduralGenerationFailedException>(() => gen.Generate(cfg, pool, seed: 1));
     }
 
@@ -142,7 +153,10 @@ public class ProceduralLayoutGeneratorShould
     public void Boss_placed_on_last_chunk_when_HasBoss()
     {
         var (pool, cfg) = BuildValidPool(min: 3, max: 3, hasBoss: true);
-        var gen = new ProceduralChunkLayoutSource(NullLoggerFactory.Instance);
+        var gen = new ProceduralChunkLayoutSource(
+            NullLoggerFactory.Instance,
+            Substitute.For<IChunkLibrary>(),
+            Substitute.For<IServiceScopeFactory>());
         var layout = gen.Generate(cfg, pool, seed: 7);
         Assert.NotNull(layout.BossChunk);
         var bossTpl = pool.First(p => p.Template.Id == layout.BossChunk!.TemplateId).Template;
