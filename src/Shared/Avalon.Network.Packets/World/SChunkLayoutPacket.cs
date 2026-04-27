@@ -1,3 +1,4 @@
+using Avalon.Common.Mathematics;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Serialization;
 using ProtoBuf;
@@ -11,12 +12,23 @@ public class PlacedChunkDto
     [ProtoMember(2)] public short GridX { get; set; }
     [ProtoMember(3)] public short GridZ { get; set; }
     [ProtoMember(4)] public byte Rotation { get; set; }
+    [ProtoMember(5)] public string ChunkName { get; set; } = string.Empty;
 }
 
 [ProtoContract]
-public class SProceduralLayoutPacket : Packet
+public class Vector3Dto
 {
-    public static NetworkPacketType PacketType = NetworkPacketType.SMSG_PROCEDURAL_LAYOUT;
+    [ProtoMember(1)] public float X { get; set; }
+    [ProtoMember(2)] public float Y { get; set; }
+    [ProtoMember(3)] public float Z { get; set; }
+
+    public static Vector3Dto From(Vector3 v) => new() { X = v.x, Y = v.y, Z = v.z };
+}
+
+[ProtoContract]
+public class SChunkLayoutPacket : Packet
+{
+    public static NetworkPacketType PacketType = NetworkPacketType.SMSG_CHUNK_LAYOUT;
     public static NetworkProtocol Protocol = NetworkProtocol.Tcp;
     public static NetworkPacketFlags Flags = NetworkPacketFlags.Encrypted;
 
@@ -24,26 +36,23 @@ public class SProceduralLayoutPacket : Packet
     [ProtoMember(2)] public Guid InstanceId { get; set; }
     [ProtoMember(3)] public float CellSize { get; set; }
     [ProtoMember(4)] public List<PlacedChunkDto> Chunks { get; set; } = new();
+    [ProtoMember(5)] public Vector3Dto EntrySpawn { get; set; } = new();
 
     public static NetworkPacket Create(
         int seed,
         Guid instanceId,
         float cellSize,
-        IReadOnlyList<(int templateId, short gridX, short gridZ, byte rotation)> chunks,
+        IReadOnlyList<PlacedChunkDto> chunks,
+        Vector3 entrySpawn,
         EncryptFunc encrypt)
     {
-        var pkt = new SProceduralLayoutPacket
+        var pkt = new SChunkLayoutPacket
         {
             Seed = seed,
             InstanceId = instanceId,
             CellSize = cellSize,
-            Chunks = chunks.Select(c => new PlacedChunkDto
-            {
-                ChunkTemplateId = c.templateId,
-                GridX = c.gridX,
-                GridZ = c.gridZ,
-                Rotation = c.rotation,
-            }).ToList(),
+            Chunks = chunks.ToList(),
+            EntrySpawn = Vector3Dto.From(entrySpawn),
         };
         return PacketSerializationHelper.Serialize(pkt, PacketType, Flags, Protocol, encrypt);
     }

@@ -5,6 +5,7 @@ using Avalon.Database.Character.Repositories;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.World;
+using Avalon.World.ChunkLayouts;
 using Avalon.World.Entities;
 using Avalon.World.Instances;
 using Avalon.World.Maps;
@@ -20,6 +21,7 @@ public class EnterMapHandler(
     ILogger<EnterMapHandler> logger,
     IAvalonMapManager mapManager,
     ICharacterRepository characterRepository,
+    IChunkLibrary chunkLibrary,
     IWorld world) : WorldPacketHandler<CEnterMapPacket>
 {
     public override void Execute(IWorldConnection connection, CEnterMapPacket packet)
@@ -167,19 +169,24 @@ public class EnterMapHandler(
             targetTemplate.Description,
             connection.CryptoSession.Encrypt));
 
-        // 12. Send procedural layout packet for Normal maps with a generated layout.
-        if (targetTemplate.MapType == MapType.Normal
-            && targetInstance is MapInstance procMi
-            && procMi.Layout is not null)
+        // 12. Send chunk layout packet for any instance backed by a ChunkLayout
+        // (town + normal both flow through ChunkLayoutInstanceFactory now).
+        if (targetInstance is MapInstance layoutMi && layoutMi.Layout is { } layout)
         {
-            var chunks = procMi.Layout.Chunks
-                .Select(c => (c.TemplateId.Value, c.GridX, c.GridZ, c.Rotation))
-                .ToList();
-            connection.Send(SProceduralLayoutPacket.Create(
-                procMi.Layout.Seed,
-                procMi.InstanceId,
-                procMi.Layout.CellSize,
-                chunks,
+            var dtos = layout.Chunks.Select(c => new PlacedChunkDto
+            {
+                ChunkTemplateId = c.TemplateId.Value,
+                ChunkName = chunkLibrary.GetById(c.TemplateId).Name,
+                GridX = c.GridX,
+                GridZ = c.GridZ,
+                Rotation = c.Rotation,
+            }).ToList();
+            connection.Send(SChunkLayoutPacket.Create(
+                layout.Seed,
+                layoutMi.InstanceId,
+                layout.CellSize,
+                dtos,
+                layout.EntrySpawnWorldPos,
                 connection.CryptoSession.Encrypt));
         }
 
