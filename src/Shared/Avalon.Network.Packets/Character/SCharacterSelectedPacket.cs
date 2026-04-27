@@ -27,13 +27,9 @@ public class MapInfo
     [ProtoMember(2)] public Guid InstanceId { get; set; }
     [ProtoMember(3)] public string Name { get; set; }
     [ProtoMember(4)] public string Description { get; set; }
-    [ProtoMember(5)] public string Atlas { get; set; }
-    [ProtoMember(6)] public string Directory { get; set; }
-    [ProtoMember(7)] public byte[] Data { get; set; }
-    [ProtoMember(8)] public byte[][] TilesetsData { get; set; }
 
     public override string ToString()
     {
-        return $"MapId: {MapId}, InstanceId: {InstanceId}, Name: {Name}, Atlas: {Atlas}, Directory: {Directory}";
+        return $"MapId: {MapId}, InstanceId: {InstanceId}, Name: {Name}";
     }
 }

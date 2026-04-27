@@ -164,6 +164,8 @@ Use to regress-check simulation hot paths.
 | [Networking — Graceful Shutdown](docs/networking-graceful-shutdown.md) | Connection lifecycle, `SDisconnectPacket` schema, shutdown sequences |
 | [Security — Session Management](docs/security-session-management.md) | Auth flow, world key CSPRNG, bearer token validation, duplicate session guard |
 | [Architecture — Startup Flow](docs/architecture-startup-flow.md) | Bootstrap sequence for API, Auth Server, and World Server |
+| [Map Generation](docs/map-generation.md) | Chunk authoring, town + procedural pipelines, end-to-end Unity → bake → playable, troubleshooting |
+| [Instanced Map System](docs/instanced-maps.md) | Instance lifecycle: town routing, normal map re-entry, expiry, transitions, logout |
 | [ValueObject — OpenAPI Integration](docs/valueobject-openapi.md) | Schema transformer pattern, registration, and shape transformation |
 | [Configuration Reference](docs/configuration-reference.md) | All `appsettings.json` keys, validation rules, environment override guidance |
 | [Redis Cache Keys](docs/redis-cache-keys.md) | All Redis key patterns and pub/sub channels: purpose, TTL, writer/consumer |

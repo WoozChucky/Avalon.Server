@@ -11,6 +11,7 @@ using Avalon.World.Configuration;
 using Avalon.World.Entities;
 using Avalon.World.Instances;
 using Avalon.World.Maps;
+using Avalon.World.ChunkLayouts;
 using Avalon.World.Public;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
@@ -48,6 +49,7 @@ public class World : IWorld
     private const ushort HotReloadTimer = 0;
     private readonly IOptions<GameConfiguration> _configuration;
 
+    private readonly IChunkLibrary _chunkLibrary;
     private readonly ILogger<World> _logger;
     private readonly ILoggerFactory _loggerFactory;
     private readonly IAvalonMapManager _mapManager;
@@ -71,7 +73,8 @@ public class World : IWorld
         IItemTemplateRepository itemTemplateRepository,
         ISpellTemplateRepository spellTemplateRepository,
         ICharacterLevelExperienceRepository characterLevelExperienceRepository,
-        IScriptHotReloader scriptHotReloader)
+        IScriptHotReloader scriptHotReloader,
+        IChunkLibrary chunkLibrary)
     {
         _logger = loggerFactory.CreateLogger<World>();
         _loggerFactory = loggerFactory;
@@ -81,6 +84,7 @@ public class World : IWorld
         _mapManager = mapManager;
         _serviceScopeFactory = serviceScopeFactory;
         _scriptHotReloader = scriptHotReloader;
+        _chunkLibrary = chunkLibrary;
         Data = new StaticData(characterCreateInfoRepository, classLevelStatRepository, itemTemplateRepository,
             spellTemplateRepository, characterLevelExperienceRepository);
 
@@ -144,11 +148,11 @@ public class World : IWorld
             {
                 MapTemplate? normalTemplate =
                     _mapManager.Templates.FirstOrDefault(t => t.Id == instance.TemplateId);
-                if (normalTemplate?.ReturnMapId is { } returnMapId)
+                if (normalTemplate?.LogoutMapId is { } logoutMapId)
                 {
                     MapTemplate? town = _mapManager.Templates.FirstOrDefault(t =>
-                        t.Id == (MapTemplateId)returnMapId);
-                    dbCharacter.Map = returnMapId;
+                        t.Id == (MapTemplateId)logoutMapId);
+                    dbCharacter.Map = logoutMapId;
                     dbCharacter.X = town?.DefaultSpawnX ?? 0f;
                     dbCharacter.Y = town?.DefaultSpawnY ?? 0f;
                     dbCharacter.Z = town?.DefaultSpawnZ ?? 0f;
@@ -183,8 +187,10 @@ public class World : IWorld
 
         await Data.LoadAsync(token);
         await _mapManager.LoadAsync();
+        await _chunkLibrary.LoadAsync(token);
 
-        InstanceRegistry = new InstanceRegistry(_loggerFactory, _mapManager, _serviceProvider);
+        var chunkLayoutFactory = _serviceProvider.GetRequiredService<IChunkLayoutInstanceFactory>();
+        InstanceRegistry = new InstanceRegistry(_loggerFactory, _mapManager, chunkLayoutFactory);
     }
 
     public void Update(TimeSpan deltaTime)

@@ -17,7 +17,7 @@ namespace Avalon.Database.Character.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "9.0.8")
+                .HasAnnotation("ProductVersion", "10.0.6")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -99,9 +99,6 @@ namespace Avalon.Database.Character.Migrations
 
                     b.Property<float>("Rotation")
                         .HasColumnType("real");
-
-                    b.Property<bool>("Running")
-                        .HasColumnType("boolean");
 
                     b.Property<int>("TodayKills")
                         .HasColumnType("integer");

@@ -12,13 +12,13 @@ public class ConnectionPacketCounterShould
     {
         var probe = new ProbeConnection();
 
-        probe.Account(NetworkPacketType.CMSG_MOVEMENT, 24);
-        probe.Account(NetworkPacketType.CMSG_MOVEMENT, 24);
+        probe.Account(NetworkPacketType.CMSG_PING, 24);
+        probe.Account(NetworkPacketType.CMSG_PING, 24);
         probe.Account(NetworkPacketType.CMSG_PONG, 16);
 
         ConcurrentDictionary<NetworkPacketType, long> snapshot = probe.SnapshotPacketTypeCounts();
 
-        Assert.Equal(2L, snapshot[NetworkPacketType.CMSG_MOVEMENT]);
+        Assert.Equal(2L, snapshot[NetworkPacketType.CMSG_PING]);
         Assert.Equal(1L, snapshot[NetworkPacketType.CMSG_PONG]);
     }
 

@@ -39,8 +39,8 @@ public interface IWorldConnection : IConnection
     /// </summary>
     public bool InMap { get; }
 
-    /// <summary>Gets or sets the last movement time of the connection.</summary>
-    public double LastMovementTime { get; set; }
+    /// <summary>Gets or sets the last accepted input sequence number.</summary>
+    public uint LastInputSeq { get; set; }
 
     /// <summary>
     ///     Sends a single time-synchronization ping to the client.

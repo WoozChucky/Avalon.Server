@@ -56,21 +56,12 @@ public class CharacterEntity : ICharacter
         CharacterGameState = new CharacterCharacterGameState();
         Guid = new ObjectGuid(ObjectType.Character, character.Id);
         _regenConfig = regenConfig;
+        // Compute initial MovementSpeed from base + equipment + buff modifiers.
+        // Without this MovementSpeed stays at the float default (0) and pins the player.
+        CalculateMovementSpeed();
     }
 
     public Character? Data { get; init; }
-
-    private bool Running
-    {
-        get => Data?.Running ?? false;
-        set
-        {
-            if (Data != null)
-            {
-                Data.Running = value;
-            }
-        }
-    }
 
     private float MovementSpeed { get; set; }
 
@@ -308,12 +299,6 @@ public class CharacterEntity : ICharacter
 
     public float GetMovementSpeed() => MovementSpeed;
 
-    public void SetRunning(bool running)
-    {
-        Running = running;
-        CalculateMovementSpeed();
-    }
-
     public void Update(TimeSpan deltaTime)
     {
         Spells.Update(deltaTime);
@@ -376,11 +361,8 @@ public class CharacterEntity : ICharacter
 
     private void CalculateMovementSpeed()
     {
-        const float defaultRunSpeed = 1.0f;
-        const float defaultWalkSpeed = 0.4f;
-
-        // In the future, speed modifiers will be applied here
-
-        MovementSpeed = Running ? defaultRunSpeed : defaultWalkSpeed;
+        const float baseSpeed = 4.0f;
+        // TODO: apply equipment + buff modifiers here once stat aggregation lands.
+        MovementSpeed = baseSpeed;
     }
 }

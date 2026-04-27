@@ -1,4 +1,5 @@
 using Avalon.Common.Mathematics;
+using Avalon.World.Entities;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
@@ -71,6 +72,14 @@ public class WorldObjectWriter(byte[] buffer) : BinaryWriter(new MemoryStream(bu
         }
 
         Write(character.Name);
+    }
+
+    public void Write(PortalInstance portal)
+    {
+        Write(portal.Position);
+        Write(portal.Radius);
+        Write(portal.TargetMapId);
+        BaseStream.WriteByte(portal.Role);
     }
 
     private void Write(IUnit worldObject, GameEntityFields fields)

@@ -17,7 +17,7 @@ namespace Avalon.Database.World.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.5")
+                .HasAnnotation("ProductVersion", "10.0.6")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -192,6 +192,76 @@ namespace Avalon.Database.World.Migrations
                             Level = 15,
                             Experience = 13600m
                         });
+                });
+
+            modelBuilder.Entity("Avalon.Domain.World.ChunkPool", b =>
+                {
+                    b.Property<int>("Id")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("ChunkPools");
+                });
+
+            modelBuilder.Entity("Avalon.Domain.World.ChunkPoolMembership", b =>
+                {
+                    b.Property<int>("ChunkPoolId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("ChunkTemplateId")
+                        .HasColumnType("integer");
+
+                    b.Property<float>("Weight")
+                        .HasColumnType("real");
+
+                    b.HasKey("ChunkPoolId", "ChunkTemplateId");
+
+                    b.HasIndex("ChunkTemplateId");
+
+                    b.ToTable("ChunkPoolMembership");
+                });
+
+            modelBuilder.Entity("Avalon.Domain.World.ChunkTemplate", b =>
+                {
+                    b.Property<int>("Id")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("AssetKey")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<byte>("CellFootprintX")
+                        .HasColumnType("smallint");
+
+                    b.Property<byte>("CellFootprintZ")
+                        .HasColumnType("smallint");
+
+                    b.Property<float>("CellSize")
+                        .HasColumnType("real");
+
+                    b.Property<int>("Exits")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("GeometryFile")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Tags")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("ChunkTemplates");
                 });
 
             modelBuilder.Entity("Avalon.Domain.World.ClassLevelStat", b =>
@@ -892,6 +962,51 @@ namespace Avalon.Database.World.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Avalon.Domain.World.MapChunkPlacement", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("ChunkTemplateId")
+                        .HasColumnType("integer");
+
+                    b.Property<float>("EntryLocalX")
+                        .HasColumnType("real");
+
+                    b.Property<float>("EntryLocalY")
+                        .HasColumnType("real");
+
+                    b.Property<float>("EntryLocalZ")
+                        .HasColumnType("real");
+
+                    b.Property<short>("GridX")
+                        .HasColumnType("smallint");
+
+                    b.Property<short>("GridZ")
+                        .HasColumnType("smallint");
+
+                    b.Property<bool>("IsEntry")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("MapTemplateId")
+                        .HasColumnType("integer");
+
+                    b.Property<byte>("Rotation")
+                        .HasColumnType("smallint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MapTemplateId");
+
+                    b.HasIndex("MapTemplateId", "GridX", "GridZ")
+                        .IsUnique();
+
+                    b.ToTable("MapChunkPlacements", (string)null);
+                });
+
             modelBuilder.Entity("Avalon.Domain.World.MapPortal", b =>
                 {
                     b.Property<int>("Id")
@@ -921,6 +1036,18 @@ namespace Avalon.Database.World.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("MapPortals");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            Radius = 3f,
+                            SourceMapId = 1,
+                            TargetMapId = 2,
+                            X = 50f,
+                            Y = 51f,
+                            Z = 50f
+                        });
                 });
 
             modelBuilder.Entity("Avalon.Domain.World.MapTemplate", b =>
@@ -953,11 +1080,10 @@ namespace Avalon.Database.World.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<string>("Directory")
-                        .IsRequired()
-                        .HasColumnType("text");
-
                     b.Property<int>("LoadingScreenId")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("LogoutMapId")
                         .HasColumnType("integer");
 
                     b.Property<int>("MapType")
@@ -979,9 +1105,6 @@ namespace Avalon.Database.World.Migrations
                     b.Property<bool>("PvP")
                         .HasColumnType("boolean");
 
-                    b.Property<int?>("ReturnMapId")
-                        .HasColumnType("integer");
-
                     b.HasKey("Id");
 
                     b.ToTable("MapTemplates");
@@ -997,7 +1120,6 @@ namespace Avalon.Database.World.Migrations
                             DefaultSpawnY = 51f,
                             DefaultSpawnZ = 25f,
                             Description = "Glimmerdell",
-                            Directory = "Maps/",
                             LoadingScreenId = 0,
                             MapType = 0,
                             MaxLevel = 60,
@@ -1005,7 +1127,61 @@ namespace Avalon.Database.World.Migrations
                             MinLevel = 1,
                             Name = "world.bin",
                             PvP = false
+                        },
+                        new
+                        {
+                            Id = 2,
+                            AreaTableId = 0,
+                            DefaultSpawnX = 0f,
+                            DefaultSpawnY = 0f,
+                            DefaultSpawnZ = 0f,
+                            Description = "Forest Dungeon",
+                            LoadingScreenId = 0,
+                            LogoutMapId = 1,
+                            MapType = 1,
+                            MaxLevel = 10,
+                            MaxPlayers = 1,
+                            MinLevel = 1,
+                            Name = "ForestDungeon",
+                            PvP = false
                         });
+                });
+
+            modelBuilder.Entity("Avalon.Domain.World.ProceduralMapConfig", b =>
+                {
+                    b.Property<int>("MapTemplateId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("BackPortalTargetMapId")
+                        .HasColumnType("integer");
+
+                    b.Property<float>("BranchChance")
+                        .HasColumnType("real");
+
+                    b.Property<byte>("BranchMaxDepth")
+                        .HasColumnType("smallint");
+
+                    b.Property<int>("ChunkPoolId")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("ForwardPortalTargetMapId")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("HasBoss")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("MainPathMax")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("MainPathMin")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("SpawnTableId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("MapTemplateId");
+
+                    b.ToTable("ProceduralMapConfigs");
                 });
 
             modelBuilder.Entity("Avalon.Domain.World.QuestReward", b =>
@@ -1103,6 +1279,20 @@ namespace Avalon.Database.World.Migrations
                     b.ToTable("QuestTemplates");
                 });
 
+            modelBuilder.Entity("Avalon.Domain.World.SpawnTable", b =>
+                {
+                    b.Property<int>("Id")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("SpawnTables");
+                });
+
             modelBuilder.Entity("Avalon.Domain.World.SpellTemplate", b =>
                 {
                     b.Property<long>("Id")
@@ -1171,6 +1361,99 @@ namespace Avalon.Database.World.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Avalon.Domain.World.ChunkPoolMembership", b =>
+                {
+                    b.HasOne("Avalon.Domain.World.ChunkPool", "Pool")
+                        .WithMany("Memberships")
+                        .HasForeignKey("ChunkPoolId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Avalon.Domain.World.ChunkTemplate", "Template")
+                        .WithMany()
+                        .HasForeignKey("ChunkTemplateId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Pool");
+
+                    b.Navigation("Template");
+                });
+
+            modelBuilder.Entity("Avalon.Domain.World.ChunkTemplate", b =>
+                {
+                    b.OwnsMany("Avalon.Domain.World.ChunkPortalSlot", "PortalSlots", b1 =>
+                        {
+                            b1.Property<int>("Id")
+                                .ValueGeneratedOnAdd()
+                                .HasColumnType("integer");
+
+                            NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b1.Property<int>("Id"));
+
+                            b1.Property<int>("ChunkTemplateId")
+                                .HasColumnType("integer");
+
+                            b1.Property<float>("LocalX")
+                                .HasColumnType("real");
+
+                            b1.Property<float>("LocalY")
+                                .HasColumnType("real");
+
+                            b1.Property<float>("LocalZ")
+                                .HasColumnType("real");
+
+                            b1.Property<byte>("Role")
+                                .HasColumnType("smallint");
+
+                            b1.HasKey("Id");
+
+                            b1.HasIndex("ChunkTemplateId");
+
+                            b1.ToTable("ChunkPortalSlot");
+
+                            b1.WithOwner()
+                                .HasForeignKey("ChunkTemplateId");
+                        });
+
+                    b.OwnsMany("Avalon.Domain.World.ChunkSpawnSlot", "SpawnSlots", b1 =>
+                        {
+                            b1.Property<int>("Id")
+                                .ValueGeneratedOnAdd()
+                                .HasColumnType("integer");
+
+                            NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b1.Property<int>("Id"));
+
+                            b1.Property<int>("ChunkTemplateId")
+                                .HasColumnType("integer");
+
+                            b1.Property<float>("LocalX")
+                                .HasColumnType("real");
+
+                            b1.Property<float>("LocalY")
+                                .HasColumnType("real");
+
+                            b1.Property<float>("LocalZ")
+                                .HasColumnType("real");
+
+                            b1.Property<string>("Tag")
+                                .IsRequired()
+                                .HasColumnType("text");
+
+                            b1.HasKey("Id");
+
+                            b1.HasIndex("ChunkTemplateId");
+
+                            b1.ToTable("ChunkSpawnSlot");
+
+                            b1.WithOwner()
+                                .HasForeignKey("ChunkTemplateId");
+                        });
+
+                    b.Navigation("PortalSlots");
+
+                    b.Navigation("SpawnSlots");
+                });
+
             modelBuilder.Entity("Avalon.Domain.World.ItemInstance", b =>
                 {
                     b.HasOne("Avalon.Domain.World.ItemTemplate", "Template")
@@ -1199,6 +1482,53 @@ namespace Avalon.Database.World.Migrations
                     b.Navigation("Quest");
 
                     b.Navigation("Reward");
+                });
+
+            modelBuilder.Entity("Avalon.Domain.World.SpawnTable", b =>
+                {
+                    b.OwnsMany("Avalon.Domain.World.SpawnTableEntry", "Entries", b1 =>
+                        {
+                            b1.Property<int>("Id")
+                                .ValueGeneratedOnAdd()
+                                .HasColumnType("integer");
+
+                            NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b1.Property<int>("Id"));
+
+                            b1.Property<decimal>("CreatureId")
+                                .HasColumnType("numeric(20,0)");
+
+                            b1.Property<byte>("MaxCount")
+                                .HasColumnType("smallint");
+
+                            b1.Property<byte>("MinCount")
+                                .HasColumnType("smallint");
+
+                            b1.Property<int>("SpawnTableId")
+                                .HasColumnType("integer");
+
+                            b1.Property<string>("Tag")
+                                .IsRequired()
+                                .HasColumnType("text");
+
+                            b1.Property<float>("Weight")
+                                .HasColumnType("real");
+
+                            b1.HasKey("Id");
+
+                            b1.HasIndex("SpawnTableId");
+
+                            b1.ToTable("SpawnTableEntry");
+
+                            b1.WithOwner()
+                                .HasForeignKey("SpawnTableId");
+                        });
+
+                    b.Navigation("Entries");
+                });
+
+            modelBuilder.Entity("Avalon.Domain.World.ChunkPool", b =>
+                {
+                    b.Navigation("Memberships");
                 });
 
             modelBuilder.Entity("Avalon.Domain.World.QuestTemplate", b =>
