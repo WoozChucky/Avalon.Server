@@ -35,7 +35,7 @@ public enum NetworkPacketType : short
     CMSG_CHARACTER_DELETE = 0x2012,
     CMSG_CHARACTER_SELECTED = 0x2013,
     CMSG_CHARACTER_LOADED = 0x2014,
-    CMSG_CHARACTER_RUN_WALK = 0x2015,
+    // 0x2015 retired (CMSG_CHARACTER_RUN_WALK)
 
     // Map
     CMSG_MAP_TELEPORT = 0x2020,
@@ -49,13 +49,13 @@ public enum NetworkPacketType : short
     // World
     CMSG_INTERACT = 0x2030,
 
-    CMSG_MOVEMENT = 0x2004,
     CMSG_PING = 0x2005,
     CMSG_PONG = 0x2006,
     CMSG_CHAT_MESSAGE = 0x2007,
     CMSG_CHAT_OPEN = 0x2008,
     CMSG_CHAT_CLOSE = 0x2009,
     CMSG_GROUP_INVITE_RESULT = 0x200A,
+    CMSG_PLAYER_INPUT = 0x2060,
 
     // MFA
     CMSG_MFA_VERIFY = 0x200B,
@@ -101,11 +101,13 @@ public enum NetworkPacketType : short
     // Map
     SMSG_MAP_TELEPORT    = 0x3030,
     SMSG_MAP_TRANSITION  = 0x3031,
+    SMSG_CHUNK_LAYOUT = 0x3032,
 
     // World
     SMSG_WORLD_STATE_ADD = 0x3040,
     SMSG_WORLD_STATE_UPDATE = 0x3041,
     SMSG_WORLD_STATE_REMOVE = 0x3042,
+    SMSG_PLAYER_STATE_ACK = 0x3060,
 
     // Combat
     SMSG_CHARACTER_DAMAGED = 0x3100,
@@ -121,7 +123,6 @@ public enum NetworkPacketType : short
     SMSG_PING = 0x3007,
     SMSG_DISCONNECT = 0x3008,
 
-    SMSG_PLAYER_POSITION_UPDATE = 0x3005,
     SMSG_CHAT_MESSAGE = 0x3009,
     SMSG_CHAT_OPEN = 0x300A,
     SMSG_CHAT_CLOSE = 0x300B,

@@ -14,7 +14,6 @@ using Avalon.Network.Packets;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Generic;
 using Avalon.World.Entities;
-using Avalon.World.Maps.Navigation;
 using Avalon.World.Public;
 using Avalon.World.Scripts;
 using Avalon.World.Scripts.Abstractions;
@@ -114,7 +113,6 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
     private readonly ICreatureSpawner _creatureSpawner;
     private readonly Stopwatch _gameTime = new();
     private readonly ILogger<WorldServer> _logger;
-    private readonly INavigationMeshBaker _navigationMeshBaker;
     private readonly IScriptHotReloader _scriptHotReloader;
     private readonly IScriptManager _scriptManager;
     private readonly Stopwatch _serverTimer = new();
@@ -151,8 +149,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         IScriptManager scriptManager,
         ICreatureSpawner creatureSpawner,
         IReplicatedCache cache,
-        IScriptHotReloader scriptHotReloader,
-        INavigationMeshBaker navigationMeshBaker) : base(packetManager, loggerFactory.CreateLogger<WorldServer>(),
+        IScriptHotReloader scriptHotReloader) : base(packetManager, loggerFactory.CreateLogger<WorldServer>(),
         serviceProvider,
         hostingOptions)
     {
@@ -160,7 +157,6 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         _creatureSpawner = creatureSpawner;
         _cache = cache;
         _scriptHotReloader = scriptHotReloader;
-        _navigationMeshBaker = navigationMeshBaker;
         _logger = loggerFactory.CreateLogger<WorldServer>();
         _world = world as World ?? throw new InvalidOperationException("Invalid world instance");
         
@@ -209,7 +205,6 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         await Task.WhenAll(
-            _navigationMeshBaker.ExecuteAsync(),
             Task.Run(() => _scriptManager.Load(), stoppingToken),
             _creatureSpawner.LoadAsync()
         );

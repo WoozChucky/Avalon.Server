@@ -8,8 +8,11 @@ using Avalon.Domain.Characters;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Character;
+using Avalon.Network.Packets.World;
+using Avalon.World.ChunkLayouts;
 using Avalon.World.Configuration;
 using Avalon.World.Entities;
+using Avalon.World.Instances;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Instances;
@@ -27,6 +30,7 @@ public class CharacterSelectHandler(
     ICharacterRepository characterRepository,
     ICharacterInventoryRepository characterInventoryRepository,
     ICharacterSpellRepository characterSpellRepository,
+    IChunkLibrary chunkLibrary,
     IWorld world,
     IOptions<RegenConfiguration> regenConfig) : WorldPacketHandler<CCharacterSelectedPacket>
 {
@@ -148,19 +152,36 @@ public class CharacterSelectHandler(
 
         Character character = entity.Data!;
 
+        // Towns spawn the player at the chunk-layout entry — overriding the persisted
+        // Character.X/Y/Z. The persisted coords are not authoritative for hubs (they were
+        // baked under the old world.bin pipeline and would put returning players in random
+        // spots inside the new chunk-composed town). Procedural maps still use the
+        // persisted coords (set by EnterMapHandler when the player traversed in).
+        float spawnX = character.X;
+        float spawnY = character.Y;
+        float spawnZ = character.Z;
+        if (instance is MapInstance townMi && townMi.Layout is { } townLayout
+            && townTemplate.MapType == MapType.Town)
+        {
+            spawnX = townLayout.EntrySpawnWorldPos.x;
+            spawnY = townLayout.EntrySpawnWorldPos.y;
+            spawnZ = townLayout.EntrySpawnWorldPos.z;
+            entity.Position = new Vector3(spawnX, spawnY, spawnZ);
+        }
+
         CharacterInfo characterInfo = new()
         {
             CharacterId = character.Id,
             Name = character.Name,
             Level = character.Level,
             Class = (ushort)character.Class,
-            X = character.X,
-            Y = character.Y,
-            Z = character.Z,
+            X = spawnX,
+            Y = spawnY,
+            Z = spawnZ,
             Orientation = character.Rotation,
-            Running = character.Running,
             Experience = character.Experience,
-            RequiredExperience = entity.RequiredExperience
+            RequiredExperience = entity.RequiredExperience,
+            MovementSpeed = entity.GetMovementSpeed(),
         };
 
         MapInfo mapInfo = new()
@@ -172,6 +193,28 @@ public class CharacterSelectHandler(
         };
 
         connection.Send(SCharacterSelectedPacket.Create(characterInfo, mapInfo, connection.CryptoSession.Encrypt));
+
+        // Send chunk layout so the client can compose the stitched map
+        // and bake its local navmesh. Town + normal both flow through
+        // ChunkLayoutInstanceFactory now, so any MapInstance with a Layout qualifies.
+        if (instance is MapInstance layoutMi && layoutMi.Layout is { } layout)
+        {
+            var dtos = layout.Chunks.Select(c => new PlacedChunkDto
+            {
+                ChunkTemplateId = c.TemplateId.Value,
+                ChunkName = chunkLibrary.GetById(c.TemplateId).Name,
+                GridX = c.GridX,
+                GridZ = c.GridZ,
+                Rotation = c.Rotation,
+            }).ToList();
+            connection.Send(SChunkLayoutPacket.Create(
+                layout.Seed,
+                layoutMi.InstanceId,
+                layout.CellSize,
+                dtos,
+                layout.EntrySpawnWorldPos,
+                connection.CryptoSession.Encrypt));
+        }
 
         connection.EnqueueContinuation(characterRepository.UpdateAsync(character, CancellationToken.None), _ =>
         {

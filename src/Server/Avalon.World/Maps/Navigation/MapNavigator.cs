@@ -2,7 +2,6 @@ using Avalon.Common.Mathematics;
 using Avalon.World.Public.Maps;
 using DotRecast.Core.Numerics;
 using DotRecast.Detour;
-using DotRecast.Detour.Io;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Maps.Navigation;
@@ -11,6 +10,7 @@ public class MapNavigator : IMapNavigator
 {
     private readonly ILogger<MapNavigator> _logger;
     private DtNavMesh? _navMesh;
+    private DtNavMeshQuery? _query;
     private DtFindPathOption _findPathOption;
     private IDtQueryFilter _queryFilter;
 
@@ -29,13 +29,10 @@ public class MapNavigator : IMapNavigator
         _logger = loggerFactory.CreateLogger<MapNavigator>();
     }
 
-    public async Task LoadAsync(string meshFilename)
+    public void LoadFromNavMesh(DtNavMesh navMesh)
     {
-        var path = Path.Combine(Directory.GetCurrentDirectory(), "Maps", meshFilename);
-        await using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
-        using var br = new BinaryReader(fs);
-        var reader = new DtMeshSetReader();
-        _navMesh = reader.Read(br, 6);
+        _navMesh = navMesh;
+        _query = new DtNavMeshQuery(_navMesh);
         _findPathOption = new DtFindPathOption(EnableRaycast ? DtFindPathOptions.DT_FINDPATH_ANY_ANGLE : 0, float.MaxValue);
         _queryFilter = new DtQueryDefaultFilter();
     }
@@ -49,7 +46,7 @@ public class MapNavigator : IMapNavigator
                 throw new Exception("NavMesh is not loaded");
             }
 
-            var query = new DtNavMeshQuery(_navMesh);
+            var query = _query!;
 
             var startPos = new RcVec3f(-start.x, start.y, start.z); // new RcVec3f(-23.1f, 100, 40.5f);
             var endPos = new RcVec3f(-end.x, end.y, end.z); // RcVec3f(-5.6f, 100, 31f);
@@ -210,7 +207,7 @@ public class MapNavigator : IMapNavigator
                 throw new Exception("NavMesh is not loaded");
             }
 
-            var query = new DtNavMeshQuery(_navMesh);
+            var query = _query!;
 
             var startPos = new RcVec3f(-start.x, start.y, start.z);
             var endPos = new RcVec3f(-end.x, end.y, end.z);
@@ -251,6 +248,64 @@ public class MapNavigator : IMapNavigator
             _logger.LogError(e, "Raycast failed");
             return false;
         }
+    }
+
+    public Vector3 RaycastWalkable(Vector3 from, Vector3 to)
+    {
+        if (_navMesh == null) return to;
+
+        var query = _query!;
+
+        // Chunk objs are exported from Unity in chunk-local space and stitched into the
+        // baked navmesh without any axis flip (see ChunkLayoutNavmeshBuilder.AppendTransformed).
+        // Queries must use the same coords — do NOT negate X. (The legacy FindPath /
+        // HasVisibility routines above keep the -X convention from the obsolete (x,z).obj
+        // pipeline; they remain unchanged because nothing exercises them on chunk maps yet.)
+        var startVec = new RcVec3f(from.x, from.y, from.z);
+        var status = query.FindNearestPoly(startVec, PolyPickExt, _queryFilter, out var startRef, out _, out _);
+        if (status.Failed() || startRef == 0)
+        {
+            return from;
+        }
+
+        var endVec = new RcVec3f(to.x, to.y, to.z);
+        List<long> path = [];
+        var hitStatus = query.Raycast(startRef, startVec, endVec, _queryFilter, out var t, out _, ref path);
+        if (hitStatus.Failed())
+        {
+            return from;
+        }
+
+        if (t >= float.MaxValue)
+        {
+            return to;
+        }
+
+        var clampedX = from.x + (to.x - from.x) * t;
+        var clampedY = from.y + (to.y - from.y) * t;
+        var clampedZ = from.z + (to.z - from.z) * t;
+        return new Vector3(clampedX, clampedY, clampedZ);
+    }
+
+    public float SampleGroundHeight(float x, float y, float z)
+    {
+        if (_navMesh == null) return y;
+
+        var query = _query!;
+        var center = new RcVec3f(x, y, z);
+        var status = query.FindNearestPoly(center, PolyPickExt, _queryFilter, out var nearestRef, out _, out _);
+        if (status.Failed() || nearestRef == 0)
+        {
+            return y;
+        }
+
+        var pos = center;
+        if (query.GetPolyHeight(nearestRef, pos, out var h).Succeeded())
+        {
+            return h;
+        }
+
+        return y;
     }
 
     private static void CheckStatus(DtStatus status)

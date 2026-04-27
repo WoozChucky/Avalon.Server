@@ -1,14 +1,10 @@
 using System.Collections.Concurrent;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
+using Avalon.World.ChunkLayouts;
 using Avalon.World.Maps;
-using Avalon.World.Maps.Navigation;
-using Avalon.World.Maps.Virtualized;
-using Avalon.World.Pools;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Instances;
-using Avalon.World.Public.Maps;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Instances;
@@ -21,17 +17,16 @@ public class InstanceRegistry : IInstanceRegistry
 
     private readonly ILogger<InstanceRegistry> _logger;
     private readonly IAvalonMapManager _mapManager;
-    private readonly IServiceProvider _serviceProvider;
+    private readonly IChunkLayoutInstanceFactory _chunkLayoutFactory;
 
-    // Cache of loaded VirtualizedMap data per template, populated lazily
-    private readonly ConcurrentDictionary<MapTemplateId, VirtualizedMap> _virtualMapCache = new();
-
-    public InstanceRegistry(ILoggerFactory loggerFactory, IAvalonMapManager mapManager,
-        IServiceProvider serviceProvider)
+    public InstanceRegistry(
+        ILoggerFactory loggerFactory,
+        IAvalonMapManager mapManager,
+        IChunkLayoutInstanceFactory chunkLayoutFactory)
     {
         _logger = loggerFactory.CreateLogger<InstanceRegistry>();
         _mapManager = mapManager;
-        _serviceProvider = serviceProvider;
+        _chunkLayoutFactory = chunkLayoutFactory;
     }
 
     public IReadOnlyCollection<IMapInstance> ActiveInstances => _instances.Values.ToList();
@@ -142,67 +137,17 @@ public class InstanceRegistry : IInstanceRegistry
         }
     }
 
-    /// <summary>Registers a pre-built instance (used by World.LoadAsync for town startup instances).</summary>
-    public void RegisterInstance(MapInstance instance)
-    {
-        _instances[instance.InstanceId] = instance;
-        _logger.LogInformation("Registered {MapType} instance {InstanceId} for map {TemplateId}",
-            instance.MapType, instance.InstanceId, instance.TemplateId);
-    }
-
-    /// <summary>Pre-populates the VirtualizedMap cache so on-demand instantiation avoids a file read.</summary>
-    public void CacheMapData(MapTemplateId templateId, VirtualizedMap virtualMap) =>
-        _virtualMapCache[templateId] = virtualMap;
-
     private async Task<MapInstance> CreateAndInitializeInstanceAsync(MapTemplateId templateId, MapType mapType,
         long? ownerAccountId, CancellationToken cancellationToken = default)
     {
         MapTemplate template = _mapManager.Templates.FirstOrDefault(t => t.Id == templateId)
-                               ?? throw new InvalidOperationException(
-                                   $"MapTemplate {templateId} not found.");
+                               ?? throw new InvalidOperationException($"MapTemplate {templateId} not found.");
 
-        VirtualizedMap virtualMap = await GetOrLoadVirtualMapAsync(template, cancellationToken);
-
-        ILoggerFactory loggerFactory = _serviceProvider.GetRequiredService<ILoggerFactory>();
-        IWorld world = _serviceProvider.GetRequiredService<IWorld>();
-        IPoolManager poolManager = _serviceProvider.GetRequiredService<IPoolManager>();
-
-        MapInstance instance = new(
-            loggerFactory,
-            _serviceProvider,
-            world,
-            poolManager,
-            templateId,
-            mapType,
-            ownerAccountId);
-
-        foreach (MapRegion region in virtualMap.Regions)
-        {
-            MapNavigator navigator = new(loggerFactory);
-            await navigator.LoadAsync(region.MeshFile);
-            instance.AddNavigator(region, navigator);
-        }
-
-        instance.SpawnStartingEntities();
+        MapInstance instance = await _chunkLayoutFactory.BuildAsync(template, ownerAccountId, cancellationToken);
 
         _instances[instance.InstanceId] = instance;
-
-        _logger.LogInformation(
-            "Created {MapType} instance {InstanceId} for map {TemplateId}",
+        _logger.LogInformation("Created {MapType} instance {InstanceId} for map {TemplateId}",
             mapType, instance.InstanceId, templateId);
-
         return instance;
-    }
-
-    private async Task<VirtualizedMap> GetOrLoadVirtualMapAsync(MapTemplate template, CancellationToken cancellationToken = default)
-    {
-        if (_virtualMapCache.TryGetValue(template.Id, out VirtualizedMap? cached))
-        {
-            return cached;
-        }
-
-        VirtualizedMap loaded = await _mapManager.LoadMapDataAsync(template, cancellationToken);
-        _virtualMapCache[template.Id] = loaded;
-        return loaded;
     }
 }

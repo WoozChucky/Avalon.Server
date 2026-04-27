@@ -31,11 +31,11 @@ public sealed class CharacterDbContextFactory : IDesignTimeDbContextFactory<Worl
         DatabaseConfiguration dbConfig = new();
         configuration.GetSection("Database").Bind(dbConfig);
 
-        string authConn = dbConfig.Auth?.ConnectionString
-                          ?? configuration["Database:Characters:ConnectionString"]
-                          ?? throw new InvalidOperationException(
-                              "World connection string not found for design time. " +
-                              "Provide Database:World:ConnectionString in appsettings.Design.json or Database__World__ConnectionString env var.");
+        string worldConn = dbConfig.World?.ConnectionString
+                           ?? configuration["Database:World:ConnectionString"]
+                           ?? throw new InvalidOperationException(
+                               "World connection string not found for design time. " +
+                               "Provide Database:World:ConnectionString in appsettings.Design.json or Database__World__ConnectionString env var.");
 
         // 3) Minimal logger factory (keeps parity with your OnConfiguring)
         ILoggerFactory loggerFactory = LoggerFactory.Create(b =>
@@ -48,7 +48,7 @@ public sealed class CharacterDbContextFactory : IDesignTimeDbContextFactory<Worl
         //    context reads opts.Value.World.ConnectionString internally.
         IOptions<DatabaseConfiguration> opts = Options.Create(new DatabaseConfiguration
         {
-            World = new DatabaseConnection {ConnectionString = authConn}
+            World = new DatabaseConnection {ConnectionString = worldConn}
         });
 
         WorldDbContext ctx = new(loggerFactory, opts);
@@ -78,6 +78,11 @@ public class WorldDbContext(ILoggerFactory loggerFactory, IOptions<DatabaseConfi
     public DbSet<CharacterLevelExperience> CharacterLevelExperiences { get; set; } = null!;
     public DbSet<CharacterCreateInfo> CharacterCreateInfos { get; set; } = null!;
     public DbSet<SpellTemplate> SpellTemplates { get; set; } = null!;
+    public DbSet<ChunkTemplate> ChunkTemplates { get; set; } = null!;
+    public DbSet<ChunkPool> ChunkPools { get; set; } = null!;
+    public DbSet<SpawnTable> SpawnTables { get; set; } = null!;
+    public DbSet<ProceduralMapConfig> ProceduralMapConfigs { get; set; } = null!;
+    public DbSet<MapChunkPlacement> MapChunkPlacements { get; set; } = null!;
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
@@ -102,6 +107,24 @@ public class WorldDbContext(ILoggerFactory loggerFactory, IOptions<DatabaseConfi
         Configure(modelBuilder.Entity<CharacterLevelExperience>());
         Configure(modelBuilder.Entity<CharacterCreateInfo>());
         Configure(modelBuilder.Entity<SpellTemplate>());
+        Configure(modelBuilder.Entity<ChunkTemplate>());
+        Configure(modelBuilder.Entity<ChunkPool>());
+        Configure(modelBuilder.Entity<SpawnTable>());
+        Configure(modelBuilder.Entity<ProceduralMapConfig>());
+        Configure(modelBuilder.Entity<MapChunkPlacement>());
+
+        modelBuilder.Entity<ChunkPoolMembership>(e =>
+        {
+            e.HasKey(m => new { m.ChunkPoolId, m.ChunkTemplateId });
+            e.Property(m => m.ChunkPoolId)
+                .HasConversion(v => v.Value, v => new ChunkPoolId(v));
+            e.Property(m => m.ChunkTemplateId)
+                .HasConversion(v => v.Value, v => new ChunkTemplateId(v));
+            e.HasOne(m => m.Template)
+                .WithMany()
+                .HasForeignKey(m => m.ChunkTemplateId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
     }
 
     private static void Configure(EntityTypeBuilder<CharacterLevelExperience> builder)
@@ -678,26 +701,48 @@ public class WorldDbContext(ILoggerFactory loggerFactory, IOptions<DatabaseConfi
             )
             .IsRequired();
 
+        // NOTE: ForestDungeon (Id=2) requires a ProceduralMapConfig row + a populated ChunkPool
+        // + a SpawnTable to be functional. These will be seeded manually via SQL once real chunks
+        // are imported. Until then, attempting to enter ForestDungeon will fail gracefully.
         builder.HasData(new MapTemplate
-        {
-            Id = 1,
-            Name = "world.bin",
-            Description = "Glimmerdell",
-            Directory = "Maps/",
-            MapType = MapType.Town,
-            PvP = false,
-            MinLevel = 1,
-            MaxLevel = 60,
-            AreaTableId = 0,
-            LoadingScreenId = 0,
-            CorpseX = 0,
-            CorpseY = 0,
-            MaxPlayers = 30,
-            DefaultSpawnX = 25f,
-            DefaultSpawnY = 51f,
-            DefaultSpawnZ = 25f,
-            ReturnMapId = null
-        });
+            {
+                Id = 1,
+                Name = "world.bin",
+                Description = "Glimmerdell",
+                MapType = MapType.Town,
+                PvP = false,
+                MinLevel = 1,
+                MaxLevel = 60,
+                AreaTableId = 0,
+                LoadingScreenId = 0,
+                CorpseX = 0,
+                CorpseY = 0,
+                MaxPlayers = 30,
+                DefaultSpawnX = 25f,
+                DefaultSpawnY = 51f,
+                DefaultSpawnZ = 25f,
+                LogoutMapId = null
+            },
+            new MapTemplate
+            {
+                Id = 2,
+                Name = "ForestDungeon",
+                Description = "Forest Dungeon",
+                MapType = MapType.Normal,
+                PvP = false,
+                MinLevel = 1,
+                MaxLevel = 10,
+                AreaTableId = 0,
+                LoadingScreenId = 0,
+                MaxPlayers = 1,
+                DefaultSpawnX = 0,
+                DefaultSpawnY = 0,
+                DefaultSpawnZ = 0,
+                CorpseX = null,
+                CorpseY = null,
+                CorpseZ = null,
+                LogoutMapId = 1
+            });
     }
 
     private static void Configure(EntityTypeBuilder<MapPortal> builder)
@@ -705,9 +750,113 @@ public class WorldDbContext(ILoggerFactory loggerFactory, IOptions<DatabaseConfi
         builder.HasKey(b => b.Id);
         builder.Property(b => b.Id).ValueGeneratedOnAdd();
 
-        // No seed data — portals are defined per-game-design when maps are connected.
-        // Example insert when a Normal map is added:
-        //   builder.HasData(new MapPortal { Id = 1, SourceMapId = 1, TargetMapId = 2, X = 50f, Y = 51f, Z = 50f, Radius = 3f });
+        // Town (Id=1) → ForestDungeon (Id=2).
+        builder.HasData(new MapPortal
+        {
+            Id = 1,
+            SourceMapId = 1,
+            TargetMapId = 2,
+            X = 50f,
+            Y = 51f,
+            Z = 50f,
+            Radius = 3f
+        });
+    }
+
+    private static void Configure(EntityTypeBuilder<ChunkTemplate> builder)
+    {
+        builder.HasKey(b => b.Id);
+        builder.Property(b => b.Id)
+            .HasConversion(v => v.Value, v => new ChunkTemplateId(v))
+            .IsRequired();
+
+        builder.OwnsMany(b => b.SpawnSlots, s =>
+        {
+            s.WithOwner().HasForeignKey("ChunkTemplateId");
+            s.Property<int>("Id");
+            s.HasKey("Id");
+        });
+        builder.OwnsMany(b => b.PortalSlots, s =>
+        {
+            s.WithOwner().HasForeignKey("ChunkTemplateId");
+            s.Property<int>("Id");
+            s.HasKey("Id");
+        });
+
+        ValueConverter<string[], string> tagsConverter = new(
+            v => string.Join(',', v),
+            v => v.Split(',', StringSplitOptions.RemoveEmptyEntries));
+        ValueComparer<string[]> tagsComparer = new(
+            (a, b) => (a ?? Array.Empty<string>()).SequenceEqual(b ?? Array.Empty<string>()),
+            c => c.Aggregate(0, (h, s) => HashCode.Combine(h, s.GetHashCode())),
+            c => c.ToArray());
+        builder.Property(b => b.Tags)
+            .HasConversion(tagsConverter)
+            .Metadata.SetValueComparer(tagsComparer);
+    }
+
+    private static void Configure(EntityTypeBuilder<ChunkPool> builder)
+    {
+        builder.HasKey(b => b.Id);
+        builder.Property(b => b.Id)
+            .HasConversion(v => v.Value, v => new ChunkPoolId(v))
+            .IsRequired();
+
+        builder.HasMany(b => b.Memberships)
+            .WithOne(m => m.Pool)
+            .HasForeignKey(m => m.ChunkPoolId)
+            .OnDelete(DeleteBehavior.Cascade);
+    }
+
+    private static void Configure(EntityTypeBuilder<SpawnTable> builder)
+    {
+        builder.HasKey(b => b.Id);
+        builder.Property(b => b.Id)
+            .HasConversion(v => v.Value, v => new SpawnTableId(v))
+            .IsRequired();
+
+        builder.OwnsMany(b => b.Entries, e =>
+        {
+            e.WithOwner().HasForeignKey(x => x.SpawnTableId);
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Id).ValueGeneratedOnAdd();
+            e.Property(x => x.SpawnTableId)
+                .HasConversion(v => v.Value, v => new SpawnTableId(v));
+            e.Property(x => x.CreatureId)
+                .HasConversion(v => v.Value, v => new CreatureTemplateId(v));
+        });
+    }
+
+    private static void Configure(EntityTypeBuilder<ProceduralMapConfig> builder)
+    {
+        builder.HasKey(b => b.MapTemplateId);
+        builder.Property(b => b.MapTemplateId)
+            .HasConversion(v => v.Value, v => new MapTemplateId(v))
+            .IsRequired();
+        builder.Property(b => b.ChunkPoolId)
+            .HasConversion(v => v.Value, v => new ChunkPoolId(v));
+        builder.Property(b => b.SpawnTableId)
+            .HasConversion(v => v.Value, v => new SpawnTableId(v));
+    }
+
+    private static void Configure(EntityTypeBuilder<MapChunkPlacement> builder)
+    {
+        builder.ToTable("MapChunkPlacements");
+        builder.HasKey(b => b.Id);
+        builder.Property(b => b.Id)
+            .HasConversion(v => v.Value, v => new MapChunkPlacementId(v))
+            .IsRequired()
+            .ValueGeneratedOnAdd();
+
+        builder.Property(b => b.MapTemplateId)
+            .HasConversion(v => v.Value, v => new MapTemplateId(v))
+            .IsRequired();
+        builder.Property(b => b.ChunkTemplateId)
+            .HasConversion(v => v.Value, v => new ChunkTemplateId(v))
+            .IsRequired();
+
+        builder.HasIndex(b => b.MapTemplateId);
+        builder.HasIndex(b => new { b.MapTemplateId, b.GridX, b.GridZ }).IsUnique();
     }
 
     private static void Configure(EntityTypeBuilder<SpellTemplate> builder)

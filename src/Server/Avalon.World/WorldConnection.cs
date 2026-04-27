@@ -140,7 +140,7 @@ public class WorldConnection : Connection, IWorldConnection
         }
     }
 
-    public double LastMovementTime { get; set; }
+    public uint LastInputSeq { get; set; }
 
     public override void Send(NetworkPacket packet)
     {

@@ -8,6 +8,8 @@ This document describes the instanced map architecture used by the World server.
 
 Avalon uses a Path of Exile-style instanced map system rather than a single persistent open world.
 
+> **Map geometry / authoring:** instances are built from chunk-composed layouts — the same pipeline drives both town and procedural maps. See **[Map Generation](map-generation.md)** for chunk authoring, town layout authoring, the `ChunkLayoutInstanceFactory` build flow, and the `SChunkLayoutPacket` wire format. This document covers instance lifecycle (creation, routing, transitions, expiry); the geometry stack lives in the map-generation doc.
+
 ### Map Types
 
 | Type    | Description |
@@ -72,7 +74,7 @@ public interface IMapInstance : ISimulationContext
 
     void AddCharacter(IWorldConnection connection);
     void RemoveCharacter(IWorldConnection connection);
-    void SpawnStartingEntities(IPoolManager poolManager);
+    void SpawnStartingEntities();
     void Update(TimeSpan deltaTime);
 }
 ```
@@ -86,15 +88,17 @@ public interface IInstanceRegistry
     IReadOnlyCollection<IMapInstance> ActiveInstances { get; }
 
     /// <summary>Returns the least-full town instance. Creates a new one if all are at capacity.</summary>
-    IMapInstance GetOrCreateTownInstance(MapTemplateId templateId, ushort maxPlayers);
+    Task<IMapInstance> GetOrCreateTownInstanceAsync(MapTemplateId templateId, ushort maxPlayers);
 
     /// <summary>Returns the player's existing live instance if within expiry window; else creates a new one.</summary>
-    IMapInstance GetOrCreateNormalInstance(long accountId, MapTemplateId templateId);
+    Task<IMapInstance> GetOrCreateNormalInstanceAsync(long accountId, MapTemplateId templateId);
 
     IMapInstance? GetInstanceById(Guid instanceId);
     void ProcessExpiredInstances(TimeSpan normalMapExpiry);
 }
 ```
+
+Both factory methods are async because `ChunkLayoutInstanceFactory.BuildAsync` runs the navmesh bake on a worker thread (`Task.Run`).
 
 ---
 
@@ -110,7 +114,8 @@ public interface IInstanceRegistry
 | `Dictionary<ObjectGuid, ICreature> _creatures` | Active creatures |
 | `ISpellQueueSystem _spellSystem` | Scoped to this instance |
 | `ICreatureRespawner _creatureRespawner` | Receives `ISimulationContext = this` |
-| `List<(MapRegion, IMapNavigator)> _navigators` | One navmesh per map region |
+| `MapNavigator _navigator` | Single combined navmesh for the whole instance, baked from the chunk layout |
+| `ChunkLayout Layout` | Authoritative layout (chunks, entry spawn, portals) sent to clients via `SChunkLayoutPacket` |
 
 ### Update Loop
 
@@ -134,16 +139,16 @@ public interface IInstanceRegistry
 
 ### Town Routing
 
-`GetOrCreateTownInstance`:
+`GetOrCreateTownInstanceAsync`:
 1. Filter active instances by `TemplateId` and `MapType == Town`
 2. Pick the one with the lowest `PlayerCount` that passes `CanAcceptPlayer(maxPlayers)`
-3. If none found (all full or none exist): create a new `MapInstance`, call `SpawnStartingEntities`, register it
+3. If none found (all full or none exist): build a new `MapInstance` via `ChunkLayoutInstanceFactory.BuildAsync(template, ownerAccountId: null, ct)`, call `SpawnStartingEntities`, register it
 
 ### Normal Map Re-entry
 
-`GetOrCreateNormalInstance`:
+`GetOrCreateNormalInstanceAsync`:
 1. Check account's existing instance map — if the Guid maps to an existing, non-expired instance: return it
-2. Otherwise: create a new `MapInstance` (`OwnerAccountId = accountId`), register it
+2. Otherwise: build a new `MapInstance` via `ChunkLayoutInstanceFactory.BuildAsync(template, ownerAccountId, ct)` (same factory used for towns; the layout source resolver picks `ProceduralChunkLayoutSource` for `MapType.Normal`), register it
 
 ### Expiry Cleanup
 
@@ -167,7 +172,7 @@ public void Update(TimeSpan deltaTime)
 }
 ```
 
-Town instances are pre-created at startup via `World.LoadAsync`. Normal map instances are spawned on demand by `EnterMapHandler`.
+Town instances are pre-created at startup via `World.LoadAsync` (iterates `MapTemplate`s with `MapType == Town` and calls `GetOrCreateTownInstanceAsync` for each). Normal map instances are spawned on demand by `EnterMapHandler` and `CharacterSelectHandler`.
 
 ---
 
@@ -242,10 +247,10 @@ IMapInstance? instance = InstanceRegistry.GetInstanceById(connection.Character.I
 if (instance?.MapType == MapType.Normal)
 {
     MapTemplate? template = _mapManager.Templates.FirstOrDefault(t => t.Id == instance.TemplateId);
-    if (template?.ReturnMapId is { } returnMapId)
+    if (template?.LogoutMapId is { } logoutMapId)
     {
-        MapTemplate? town = _mapManager.Templates.FirstOrDefault(t => t.Id == returnMapId);
-        dbCharacter.Map = returnMapId.Value;
+        MapTemplate? town = _mapManager.Templates.FirstOrDefault(t => t.Id == logoutMapId);
+        dbCharacter.Map = logoutMapId.Value;
         dbCharacter.X   = town?.DefaultSpawnX ?? 0f;
         dbCharacter.Y   = town?.DefaultSpawnY ?? 0f;
         dbCharacter.Z   = town?.DefaultSpawnZ ?? 0f;
@@ -265,7 +270,7 @@ The instance is **not** freed on logout — its `LastEmptyAt` timer governs clea
 |---|---|
 | `MapType MapType` | `Town` or `Normal` |
 | `float DefaultSpawnX/Y/Z` | Where players appear when entering this map |
-| `MapTemplateId? ReturnMapId` | Normal maps point to their home town; null for towns |
+| `MapTemplateId? LogoutMapId` | Normal maps point to their home town; null for towns |
 
 ### `MapPortal`
 

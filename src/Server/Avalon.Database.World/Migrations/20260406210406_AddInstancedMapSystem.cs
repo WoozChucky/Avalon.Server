@@ -38,7 +38,7 @@ namespace Avalon.Database.World.Migrations
                 defaultValue: 0f);
 
             migrationBuilder.AddColumn<int>(
-                name: "ReturnMapId",
+                name: "LogoutMapId",
                 table: "MapTemplates",
                 type: "integer",
                 nullable: true);
@@ -65,7 +65,7 @@ namespace Avalon.Database.World.Migrations
                 table: "MapTemplates",
                 keyColumn: "Id",
                 keyValue: 1,
-                columns: new[] { "DefaultSpawnX", "DefaultSpawnY", "DefaultSpawnZ", "MaxPlayers", "ReturnMapId" },
+                columns: new[] { "DefaultSpawnX", "DefaultSpawnY", "DefaultSpawnZ", "MaxPlayers", "LogoutMapId" },
                 values: new object[] { 25f, 51f, 25f, 30, null });
         }
 
@@ -88,7 +88,7 @@ namespace Avalon.Database.World.Migrations
                 table: "MapTemplates");
 
             migrationBuilder.DropColumn(
-                name: "ReturnMapId",
+                name: "LogoutMapId",
                 table: "MapTemplates");
 
             migrationBuilder.RenameColumn(

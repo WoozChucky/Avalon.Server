@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.6"/>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Server\Avalon.Database.World\Avalon.Database.World.csproj"/>
+    <ProjectReference Include="..\..\src\Shared\Avalon.Domain\Avalon.Domain.csproj"/>
+    <ProjectReference Include="..\..\src\Shared\Avalon.Common\Avalon.Common.csproj"/>
+  </ItemGroup>
+
+</Project>

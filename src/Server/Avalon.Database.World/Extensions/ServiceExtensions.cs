@@ -28,7 +28,12 @@ public static class ServiceExtensions
             .AddScoped<IClassLevelStatRepository, ClassLevelStatRepository>()
             .AddScoped<ICharacterCreateInfoRepository, CharacterCreateInfoRepository>()
             .AddScoped<ICharacterLevelExperienceRepository, CharacterLevelExperienceRepository>()
-            .AddScoped<ISpellTemplateRepository, SpellTemplateRepository>();
+            .AddScoped<ISpellTemplateRepository, SpellTemplateRepository>()
+            .AddScoped<IChunkTemplateRepository, ChunkTemplateRepository>()
+            .AddScoped<IChunkPoolRepository, ChunkPoolRepository>()
+            .AddScoped<ISpawnTableRepository, SpawnTableRepository>()
+            .AddScoped<IProceduralMapConfigRepository, ProceduralMapConfigRepository>()
+            .AddScoped<IMapChunkPlacementRepository, MapChunkPlacementRepository>();
 
         return services;
     }

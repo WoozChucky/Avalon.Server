@@ -9,7 +9,8 @@ public enum ObjectType
     Character,
     Creature,
     Spell,
-    SpellProjectile
+    SpellProjectile,
+    Portal,
 }
 
 /// <summary>

@@ -204,6 +204,11 @@ dotnet_diagnostic.MA0045.severity = warning
 # renaming the World class would be invasive across the simulation layer.
 dotnet_diagnostic.MA0049.severity = none
 
+# ConfigureAwait(false). All hosts here run without a SynchronizationContext
+# (ASP.NET Core, IHostedService, console). Tick thread is dedicated and never
+# awaits. Capture is a no-op everywhere -> rule is pure noise.
+dotnet_diagnostic.MA0004.severity = none
+
 # Mock-chain calls in tests and benchmark setup don't need CT annotation noise.
 [{tests,tools}/**/*.cs]
 dotnet_diagnostic.MA0032.severity = none

@@ -6,16 +6,16 @@ using Avalon.Domain.World;
 using Avalon.Network.Packets.Combat;
 using Avalon.Network.Packets.State;
 using Avalon.World.Entities;
-using Avalon.World.Pools;
+using Avalon.World.ChunkLayouts;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Instances;
 using Avalon.World.Public.Maps;
+using Avalon.World.Public.Scripts;
 using Avalon.World.Public.Spells;
 using Avalon.World.Public.Units;
-using Avalon.World.Public.Scripts;
 using Avalon.World.Scripts;
 using Avalon.World.Serialization;
 using Avalon.World.Spells;
@@ -24,7 +24,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Instances;
 
-public class MapInstance : IMapInstance
+public class MapInstance : IMapInstance, IPortalSink
 {
     private const float BroadcastInterval = 0.1f;
 
@@ -33,35 +33,40 @@ public class MapInstance : IMapInstance
     private readonly ICreatureRespawner _creatureRespawner;
     private readonly Dictionary<ObjectGuid, ICreature> _creatures = [];
     private readonly ILogger<MapInstance> _logger;
-    private readonly List<(MapRegion Region, IMapNavigator Navigator)> _navigators = [];
-    private readonly IPoolManager _poolManager;
+    private readonly IMapNavigator _navigator;
     private readonly ISpellQueueSystem _spellSystem;
     private readonly IWorld _world;
     private float _lastBroadcastTime;
     private readonly Dictionary<ObjectGuid, GameEntityFields> _frameDirtyFields = new(256);
     private readonly Dictionary<ObjectGuid, PerPlayerBroadcastState> _broadcastStates = [];
+    private readonly List<PortalInstance> _portals = new();
 
     public MapInstance(
         ILoggerFactory loggerFactory,
         IServiceProvider serviceProvider,
         IWorld world,
-        IPoolManager poolManager,
         MapTemplateId templateId,
-        MapType mapType,
-        long? ownerAccountId)
+        long? ownerAccountId,
+        ChunkLayout layout,
+        IMapNavigator navigator,
+        int seed,
+        MapType mapType = MapType.Normal)
     {
         _logger = loggerFactory.CreateLogger<MapInstance>();
         _world = world;
-        _poolManager = poolManager;
         InstanceId = Guid.NewGuid();
         TemplateId = templateId;
         MapType = mapType;
         OwnerAccountId = ownerAccountId;
-        AllowedAccounts = ownerAccountId.HasValue ? [ownerAccountId.Value] : [];
+        AllowedAccounts = ownerAccountId.HasValue ? new[] { ownerAccountId.Value } : Array.Empty<long>();
+        Layout = layout;
+        EntrySpawnWorldPos = layout.EntrySpawnWorldPos;
+        Seed = seed;
+        _navigator = navigator;
 
         _spellSystem = new InstanceSpellSystem(loggerFactory, serviceProvider,
             serviceProvider.GetRequiredService<IScriptManager>());
-        _creatureRespawner = new CreatureRespawner(this);
+        _creatureRespawner = new NoOpCreatureRespawner();
 
         Creature.OnCreatureKilled += OnCreatureKilled;
         Creature.OnUnitAttackAnimation += BroadcastUnitAttackAnimation;
@@ -81,6 +86,10 @@ public class MapInstance : IMapInstance
     public IReadOnlyList<long> AllowedAccounts { get; }
     public int PlayerCount => _characters.Count;
     public DateTime? LastEmptyAt { get; private set; }
+    public int Seed { get; }
+    public ChunkLayout? Layout { get; }
+    public Vector3? EntrySpawnWorldPos { get; }
+    public IReadOnlyList<PortalInstance> Portals => _portals;
 
     public IReadOnlyDictionary<ObjectGuid, ICharacter> Characters => _characters;
     public IReadOnlyDictionary<ObjectGuid, ICreature> Creatures => _creatures;
@@ -90,33 +99,9 @@ public class MapInstance : IMapInstance
 
     public bool CanAcceptPlayer(ushort maxPlayers) => _characters.Count < maxPlayers;
 
-    /// <summary>Registers a loaded navigator for a map region.</summary>
-    public void AddNavigator(MapRegion region, IMapNavigator navigator) =>
-        _navigators.Add((region, navigator));
+    public void AddPortal(PortalInstance portal) => _portals.Add(portal);
 
-    public IMapNavigator GetNavigatorForPosition(Vector3 position)
-    {
-        foreach ((MapRegion region, IMapNavigator navigator) in _navigators)
-        {
-            if (position.x >= region.Position.x &&
-                position.x < region.Position.x + region.Size.x &&
-                position.z >= region.Position.z &&
-                position.z < region.Position.z + region.Size.z)
-            {
-                return navigator;
-            }
-        }
-
-        if (_navigators.Count > 0)
-        {
-            return _navigators[0].Navigator;
-        }
-
-        throw new InvalidOperationException($"No navigators loaded for instance {InstanceId}.");
-    }
-
-    public void SpawnStartingEntities() =>
-        _poolManager.SpawnStartingEntities(this, _navigators.Select(n => n.Region).ToList());
+    public IMapNavigator GetNavigatorForPosition(Vector3 position) => _navigator;
 
     public void AddCharacter(IWorldConnection connection)
     {
@@ -147,8 +132,11 @@ public class MapInstance : IMapInstance
     public bool QueueSpell(ICharacter caster, IUnit? target, ISpell spell) =>
         _spellSystem.QueueSpell(caster, target, spell);
 
-    public void RespawnCreature(ICreature creature) =>
-        _poolManager.SpawnEntity(this, _navigators.Select(n => n.Region).ToList(), creature);
+    public void RespawnCreature(ICreature creature)
+    {
+        // No-op: chunk-layout instances install NoOpCreatureRespawner so this
+        // path is never invoked. Kept to satisfy ISimulationContext contract.
+    }
 
     public void BroadcastUnitHit(IUnit attacker, IUnit target, uint currentHealth, uint damage)
     {
@@ -289,7 +277,8 @@ public class MapInstance : IMapInstance
                     case ObjectType.Character:
                         if (!_characters.TryGetValue(addedObjectGuid, out ICharacter? addedCharacter))
                             continue;
-                        writer.Write(addedCharacter, GameEntityFields.All);
+                        var addFields = MaskSelfSuppression(GameEntityFields.All, addedObjectGuid, character.Guid);
+                        writer.Write(addedCharacter, addFields);
                         break;
                     case ObjectType.Creature:
                         if (!_creatures.TryGetValue(addedObjectGuid, out ICreature? addedCreature))
@@ -301,6 +290,12 @@ public class MapInstance : IMapInstance
                         if (addedSpell is null)
                             continue;
                         writer.Write(addedSpell);
+                        break;
+                    case ObjectType.Portal:
+                        PortalInstance? addedPortal = _portals.FirstOrDefault(p => p.Guid == addedObjectGuid);
+                        if (addedPortal is null)
+                            continue;
+                        writer.Write(addedPortal);
                         break;
                     default:
                         _logger.LogWarning("Unknown object type {ObjectType} on NewObjects serialization",
@@ -341,7 +336,8 @@ public class MapInstance : IMapInstance
                     case ObjectType.Character:
                         if (!_characters.TryGetValue(updatedObject.Guid, out ICharacter? updatedCharacter))
                             continue;
-                        writer.Write(updatedCharacter, GameEntityFields.CharacterUpdate);
+                        var updFields = MaskSelfSuppression(GameEntityFields.CharacterUpdate, updatedObject.Guid, character.Guid);
+                        writer.Write(updatedCharacter, updFields);
                         break;
                     case ObjectType.Creature:
                         if (!_creatures.TryGetValue(updatedObject.Guid, out ICreature? updatedCreature))
@@ -354,6 +350,8 @@ public class MapInstance : IMapInstance
                             continue;
                         writer.Write(updatedSpell, updatedObject.Fields);
                         break;
+                    case ObjectType.Portal:
+                        continue; // portals are immutable in PoC — no delta updates
                     default:
                         _logger.LogWarning("Unknown object type {ObjectType} on UpdatedObjects serialization",
                             updatedObject.Guid.Type);
@@ -484,6 +482,23 @@ public class MapInstance : IMapInstance
         {
             character.Experience += creatureExperience;
         }
+    }
+
+    /// <summary>
+    /// Strips position/velocity/orientation from the field bitmap when the broadcast recipient
+    /// is the same entity as the subject. Self-position flows via SPlayerStateAckPacket only;
+    /// state fields (HP, Power, etc.) still ride this broadcast.
+    /// </summary>
+    public static GameEntityFields MaskSelfSuppression(GameEntityFields fields, ObjectGuid subjectGuid, ObjectGuid recipientGuid)
+    {
+        if (subjectGuid != recipientGuid) return fields;
+        return fields & ~(GameEntityFields.Position | GameEntityFields.Velocity | GameEntityFields.Orientation);
+    }
+
+    private sealed class NoOpCreatureRespawner : ICreatureRespawner
+    {
+        public void Update(TimeSpan deltaTime) { }
+        public void ScheduleRespawn(ICreature creature) { }
     }
 
     private sealed class PerPlayerBroadcastState
