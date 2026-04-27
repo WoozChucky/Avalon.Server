@@ -24,30 +24,28 @@ public class InstanceRegistry : IInstanceRegistry
     private readonly ILogger<InstanceRegistry> _logger;
     private readonly IAvalonMapManager _mapManager;
     private readonly IServiceProvider _serviceProvider;
-    private readonly IChunkLayoutInstanceFactory _proceduralFactory;
+    private readonly IChunkLayoutInstanceFactory _chunkLayoutFactory;
+    private readonly ProceduralChunkLayoutSource _proceduralSource;
     private readonly IServiceScopeFactory _scopeFactory;
 
     // Cache of loaded VirtualizedMap data per template, populated lazily
     private readonly ConcurrentDictionary<MapTemplateId, VirtualizedMap> _virtualMapCache = new();
 
-    private readonly object _seedLock = new();
-    private readonly Random _seedRng = new();
-
     public InstanceRegistry(
         ILoggerFactory loggerFactory,
         IAvalonMapManager mapManager,
         IServiceProvider serviceProvider,
-        IChunkLayoutInstanceFactory proceduralFactory,
+        IChunkLayoutInstanceFactory chunkLayoutFactory,
+        ProceduralChunkLayoutSource proceduralSource,
         IServiceScopeFactory scopeFactory)
     {
         _logger = loggerFactory.CreateLogger<InstanceRegistry>();
         _mapManager = mapManager;
         _serviceProvider = serviceProvider;
-        _proceduralFactory = proceduralFactory;
+        _chunkLayoutFactory = chunkLayoutFactory;
+        _proceduralSource = proceduralSource;
         _scopeFactory = scopeFactory;
     }
-
-    private int NextSeed() { lock (_seedLock) return _seedRng.Next(); }
 
     public IReadOnlyCollection<IMapInstance> ActiveInstances => _instances.Values.ToList();
 
@@ -230,8 +228,8 @@ public class InstanceRegistry : IInstanceRegistry
             ?? throw new InvalidProceduralConfigException(
                 $"No ProceduralMapConfig for map {template.Id.Value}");
 
-        int seed = NextSeed();
-        return await _proceduralFactory.CreateAsync(template, config, ownerAccountId, seed, ct);
+        int seed = _proceduralSource.NextSeed();
+        return await _chunkLayoutFactory.CreateAsync(template, config, ownerAccountId, seed, ct);
     }
 
     private async Task<VirtualizedMap> GetOrLoadVirtualMapAsync(MapTemplate template, CancellationToken cancellationToken = default)
