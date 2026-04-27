@@ -43,8 +43,9 @@ public class PlayerInputHandler(
 
         // Horizontal collision via navmesh raycast.
         var clamped = navigator.RaycastWalkable(ch.Position, desired);
-        // Y from ground sample.
-        var groundY = navigator.SampleGroundHeight(clamped.x, clamped.z);
+        // Y from ground sample — pass current Y so the navmesh search box finds the correct
+        // floor on multi-storey maps. Returns ch.Position.y unchanged on lookup failure.
+        var groundY = navigator.SampleGroundHeight(clamped.x, ch.Position.y, clamped.z);
         var newPosition = new Vector3(clamped.x, groundY, clamped.z);
 
         // Setting these properties marks the dirty fields automatically on CharacterEntity.

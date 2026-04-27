@@ -34,7 +34,7 @@ public class PlayerInputHandlerShould
         // Default: clear path — RaycastWalkable returns whatever the desired endpoint was.
         nav.RaycastWalkable(Arg.Any<Vector3>(), Arg.Any<Vector3>())
             .Returns(call => call.ArgAt<Vector3>(1));   // returns 'to'
-        nav.SampleGroundHeight(Arg.Any<float>(), Arg.Any<float>()).Returns(0f);
+        nav.SampleGroundHeight(Arg.Any<float>(), Arg.Any<float>(), Arg.Any<float>()).Returns(0f);
 
         var instance = Substitute.For<IMapInstance>();
         instance.GetNavigatorForPosition(Arg.Any<Vector3>()).Returns(nav);
@@ -99,7 +99,7 @@ public class PlayerInputHandlerShould
     public void Y_from_ground_sample_not_input()
     {
         var (handler, conn, ch, nav) = Setup(speed: 5f);
-        nav.SampleGroundHeight(Arg.Any<float>(), Arg.Any<float>()).Returns(2.5f);
+        nav.SampleGroundHeight(Arg.Any<float>(), Arg.Any<float>(), Arg.Any<float>()).Returns(2.5f);
 
         handler.Execute(conn, new CPlayerInputPacket { Seq = 1, DirX = 1, DirZ = 0 });
 
