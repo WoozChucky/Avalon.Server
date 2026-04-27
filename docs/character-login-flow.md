@@ -71,13 +71,15 @@ Sent immediately after the character entity is built and spawned. Contains:
 | `Name`             | `character.Name`                        |
 | `Level`            | `character.Level`                       |
 | `Class`            | `(ushort)character.Class`               |
-| `X, Y, Z`         | `character.X/Y/Z`                       |
+| `X, Y, Z`         | `character.X/Y/Z` for procedural maps; **for towns, overridden with `instance.Layout.EntrySpawnWorldPos`** because persisted DB coords would land returning players outside the new chunk-composed town |
 | `Orientation`      | `character.Rotation`                    |
-| `Running`          | `character.Running`                     |
+| `MovementSpeed`    | `entity.GetMovementSpeed()` (base + future equipment/buff modifiers) |
 | `Experience`       | `character.Experience`                  |
 | `RequiredExperience`| `entity.RequiredExperience`            |
 | `MapId`            | `character.Map`                         |
 | `InstanceId`       | See [Instance ID section](#instance-id) |
+
+Immediately after `SCharacterSelectedPacket`, the server emits `SChunkLayoutPacket` carrying the chunk layout (chunks, entry spawn, cell size, portal placements). The client's `AuthFlowOrchestrator` pre-subscribes to this packet BEFORE sending `CCharacterSelected` so the dispatcher's fire-and-forget delivery doesn't drop it during the scene-load gap; the captured packet stashes on `GameSession.InitialChunkLayout` for the in-scene `PlayerMovementPredictor` / `ClientMapNavigator` / `ChunkLayoutVisualizer` / `ChunkMarkerVisualizer` to consume on `Start`. See **[Map Generation](map-generation.md)** for the full layout pipeline.
 
 ---
 
