@@ -17,4 +17,7 @@ public class MapChunkPlacement : IDbEntity<MapChunkPlacementId>
     public float EntryLocalX { get; set; }
     public float EntryLocalY { get; set; }
     public float EntryLocalZ { get; set; }
+
+    public ushort? BackPortalTargetMapId { get; set; }
+    public ushort? ForwardPortalTargetMapId { get; set; }
 }

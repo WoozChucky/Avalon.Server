@@ -857,6 +857,9 @@ public class WorldDbContext(ILoggerFactory loggerFactory, IOptions<DatabaseConfi
 
         builder.HasIndex(b => b.MapTemplateId);
         builder.HasIndex(b => new { b.MapTemplateId, b.GridX, b.GridZ }).IsUnique();
+
+        builder.Property(p => p.BackPortalTargetMapId).IsRequired(false);
+        builder.Property(p => p.ForwardPortalTargetMapId).IsRequired(false);
     }
 
     private static void Configure(EntityTypeBuilder<SpellTemplate> builder)
