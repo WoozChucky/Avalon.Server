@@ -31,11 +31,11 @@ public sealed class CharacterDbContextFactory : IDesignTimeDbContextFactory<Worl
         DatabaseConfiguration dbConfig = new();
         configuration.GetSection("Database").Bind(dbConfig);
 
-        string authConn = dbConfig.Auth?.ConnectionString
-                          ?? configuration["Database:Characters:ConnectionString"]
-                          ?? throw new InvalidOperationException(
-                              "World connection string not found for design time. " +
-                              "Provide Database:World:ConnectionString in appsettings.Design.json or Database__World__ConnectionString env var.");
+        string worldConn = dbConfig.World?.ConnectionString
+                           ?? configuration["Database:World:ConnectionString"]
+                           ?? throw new InvalidOperationException(
+                               "World connection string not found for design time. " +
+                               "Provide Database:World:ConnectionString in appsettings.Design.json or Database__World__ConnectionString env var.");
 
         // 3) Minimal logger factory (keeps parity with your OnConfiguring)
         ILoggerFactory loggerFactory = LoggerFactory.Create(b =>
@@ -48,7 +48,7 @@ public sealed class CharacterDbContextFactory : IDesignTimeDbContextFactory<Worl
         //    context reads opts.Value.World.ConnectionString internally.
         IOptions<DatabaseConfiguration> opts = Options.Create(new DatabaseConfiguration
         {
-            World = new DatabaseConnection {ConnectionString = authConn}
+            World = new DatabaseConnection {ConnectionString = worldConn}
         });
 
         WorldDbContext ctx = new(loggerFactory, opts);

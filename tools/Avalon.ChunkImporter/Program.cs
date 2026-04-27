@@ -1,8 +1,11 @@
 using System.Text.Json;
-using Avalon.Common.ValueObjects;
+using Avalon.Configuration;
 using Avalon.Database.World;
 using Avalon.Domain.World;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 
 var exportDir = args.Length > 0 ? args[0] : "chunks-export";
 var chunksOutDir = "src/Server/Avalon.Server.World/Maps/Chunks";
@@ -16,6 +19,10 @@ if (!Directory.Exists(exportDir))
 
 using var ctx = BuildDbContext();
 int added = 0, updated = 0;
+
+int nextId = (await ctx.ChunkTemplates.AnyAsync())
+    ? await ctx.ChunkTemplates.MaxAsync(t => (int)t.Id.Value) + 1
+    : 1;
 
 foreach (var dir in Directory.EnumerateDirectories(exportDir))
 {
@@ -32,7 +39,7 @@ foreach (var dir in Directory.EnumerateDirectories(exportDir))
         ?? throw new InvalidDataException(jsonPath);
 
     var existing = await ctx.ChunkTemplates.FirstOrDefaultAsync(t => t.Name == meta.Name);
-    var target = existing ?? new ChunkTemplate();
+    var target = existing ?? new ChunkTemplate { Id = new Avalon.Common.ValueObjects.ChunkTemplateId(nextId++) };
     target.Name = meta.Name;
     target.AssetKey = meta.AssetKey;
     target.GeometryFile = $"Chunks/{meta.Name}.obj";
@@ -78,13 +85,27 @@ static ushort BuildExitMask(IDictionary<string, string[]> exits)
 
 static WorldDbContext BuildDbContext()
 {
-    // TODO(Task 24 scaffold): Fill in the real context construction by copying the body of
-    //   src/Server/Avalon.Database.World/WorldDbContext.cs → CharacterDbContextFactory.CreateDbContext.
-    // It loads appsettings.Design.json + env vars, binds DatabaseConfiguration, resolves World.ConnectionString,
-    // creates a NullLoggerFactory, and constructs WorldDbContext(loggerFactory, Options.Create(dbConfig)).
-    // When the first real chunks arrive from Unity, fill this in before running the importer.
-    throw new NotImplementedException(
-        "BuildDbContext is a scaffold. See CharacterDbContextFactory.CreateDbContext for the pattern to copy.");
+    var config = new ConfigurationBuilder()
+        .SetBasePath(Directory.GetCurrentDirectory())
+        .AddJsonFile("appsettings.Design.json", optional: true)
+        .AddJsonFile("appsettings.json", optional: true)
+        .AddEnvironmentVariables()
+        .Build();
+
+    var dbConfig = new DatabaseConfiguration();
+    config.GetSection("Database").Bind(dbConfig);
+
+    var conn = dbConfig.World?.ConnectionString
+        ?? config["Database:World:ConnectionString"]
+        ?? throw new InvalidOperationException(
+            "World connection string not configured. Set Database:World:ConnectionString in appsettings.Design.json or Database__World__ConnectionString env var.");
+
+    var opts = Options.Create(new DatabaseConfiguration
+    {
+        World = new DatabaseConnection { ConnectionString = conn }
+    });
+
+    return new WorldDbContext(NullLoggerFactory.Instance, opts);
 }
 
 record ChunkMetaDto(
