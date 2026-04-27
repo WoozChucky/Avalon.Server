@@ -29,10 +29,10 @@ public class MapNavigatorShould
     }
 
     [Fact]
-    public void SampleGroundHeight_returns_zero_when_navmesh_unloaded()
+    public void SampleGroundHeight_returns_input_y_when_navmesh_unloaded()
     {
         var nav = BuildUnloaded();
-        var y = nav.SampleGroundHeight(2.5f, 3.5f);
-        Assert.Equal(0f, y);
+        var y = nav.SampleGroundHeight(2.5f, 30f, 3.5f);
+        Assert.Equal(30f, y);
     }
 }

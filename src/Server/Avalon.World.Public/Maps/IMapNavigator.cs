@@ -18,10 +18,14 @@ public interface IMapNavigator
     Vector3 RaycastWalkable(Vector3 from, Vector3 to);
 
     /// <summary>
-    /// Returns the navmesh ground height at column <paramref name="x"/>, <paramref name="z"/>.
-    /// Returns 0f when no navmesh is loaded or the column is off-mesh.
+    /// Returns the navmesh ground height at column <paramref name="x"/>, <paramref name="z"/>,
+    /// using <paramref name="y"/> as the search-box centre on the vertical axis. Pass the
+    /// caller's current Y so multi-storey maps return the correct floor (the search box has
+    /// limited vertical range; a wrong Y will miss the poly entirely).
+    /// Returns <paramref name="y"/> unchanged when no navmesh is loaded, the column is
+    /// off-mesh, or the height query fails.
     /// </summary>
-    float SampleGroundHeight(float x, float z);
+    float SampleGroundHeight(float x, float y, float z);
 
     object? Mesh { get; }
 }

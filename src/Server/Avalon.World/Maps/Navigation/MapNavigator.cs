@@ -295,16 +295,16 @@ public class MapNavigator : IMapNavigator
         return new Vector3(clampedX, clampedY, clampedZ);
     }
 
-    public float SampleGroundHeight(float x, float z)
+    public float SampleGroundHeight(float x, float y, float z)
     {
-        if (_navMesh == null) return 0f;
+        if (_navMesh == null) return y;
 
         var query = _query!;
-        var center = new RcVec3f(-x, 0f, z);
+        var center = new RcVec3f(-x, y, z);
         var status = query.FindNearestPoly(center, PolyPickExt, _queryFilter, out var nearestRef, out _, out _);
         if (status.Failed() || nearestRef == 0)
         {
-            return 0f;
+            return y;
         }
 
         var pos = center;
@@ -313,7 +313,7 @@ public class MapNavigator : IMapNavigator
             return h;
         }
 
-        return 0f;
+        return y;
     }
 
     private static void CheckStatus(DtStatus status)
