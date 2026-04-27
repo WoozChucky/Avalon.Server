@@ -142,11 +142,11 @@ public class EnterMapHandler(
         // 9. Transfer the player (removes from current, updates position & InstanceIdGuid, adds to target)
         world.TransferPlayer(connection, targetInstance);
 
-        // 10. Resolve spawn coords: procedural uses instance.EntrySpawnWorldPos; town uses template defaults.
+        // 10. Resolve spawn coords: every chunk-layout-built instance (town + normal) carries
+        // the canonical entry spawn on its Layout. Fall back to template defaults only if the
+        // instance somehow lacks one (defensive — should not happen post-Task 7).
         float spawnX, spawnY, spawnZ;
-        if (targetTemplate.MapType == MapType.Normal
-            && targetInstance is MapInstance procMiSpawn
-            && procMiSpawn.EntrySpawnWorldPos is Vector3 entrySpawn)
+        if (targetInstance is MapInstance miSpawn && miSpawn.EntrySpawnWorldPos is Vector3 entrySpawn)
         {
             spawnX = entrySpawn.x;
             spawnY = entrySpawn.y;

@@ -63,7 +63,7 @@ public class MapTemplateControllerShould
     {
         _repository
             .FindByIdAsync(Arg.Any<MapTemplateId>(), false, Arg.Any<CancellationToken>())
-            .Returns(new MapTemplate { Id = new MapTemplateId(1), Name = "Stormwind", Description = "", Directory = "" });
+            .Returns(new MapTemplate { Id = new MapTemplateId(1), Name = "Stormwind", Description = "" });
 
         var sut = MakeSut(User(7, AvalonRoles.Player));
         var result = await sut.Get(1, CancellationToken.None);

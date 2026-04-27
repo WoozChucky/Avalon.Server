@@ -144,7 +144,6 @@ public class InstanceRegistry : IInstanceRegistry
                                ?? throw new InvalidOperationException($"MapTemplate {templateId} not found.");
 
         MapInstance instance = await _chunkLayoutFactory.BuildAsync(template, ownerAccountId, cancellationToken);
-        instance.SpawnStartingEntities();
 
         _instances[instance.InstanceId] = instance;
         _logger.LogInformation("Created {MapType} instance {InstanceId} for map {TemplateId}",

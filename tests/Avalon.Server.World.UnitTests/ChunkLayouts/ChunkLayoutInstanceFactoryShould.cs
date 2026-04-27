@@ -23,7 +23,6 @@ public class ChunkLayoutInstanceFactoryShould
         MapType = MapType.Town,
         Name = $"town_{id}",
         Description = string.Empty,
-        Directory = string.Empty,
     };
 
     private static MapTemplate Normal(ushort id) => new()
@@ -32,7 +31,6 @@ public class ChunkLayoutInstanceFactoryShould
         MapType = MapType.Normal,
         Name = $"normal_{id}",
         Description = string.Empty,
-        Directory = string.Empty,
     };
 
     private static ChunkLayout MakeLayout(ProceduralMapConfig? cfg = null)
