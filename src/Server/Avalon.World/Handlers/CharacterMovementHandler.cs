@@ -19,17 +19,18 @@ public class CharacterMovementHandler(ILogger<CharacterMovementHandler> logger, 
 
         float currentMovementSpeed = connection.Character!.GetMovementSpeed();
 
-        double timeSinceLastPacket = packet.Timestamp - connection.LastMovementTime;
+        // double timeSinceLastPacket = packet.Timestamp - connection.LastMovementTime;  // removed: replaced by LastInputSeq, see PlayerInputHandler
 
-        double timeSinceLastPacketSeconds = timeSinceLastPacket / 1000;
+        // double timeSinceLastPacketSeconds = timeSinceLastPacket / 1000;
 
         // Due to natural gravity, the client sends a velocity of -2 when not falling or jumping
         float yVelovity = Mathf.Approximately(packet.VelocityY, DefaultGravity) ? 0 : packet.VelocityY;
 
         // Interpolate the new position based on the velocity and time since the last movement packet was received
         Vector3 direction = new Vector3(packet.VelocityX, yVelovity, packet.VelocityZ);
-        Vector3 interpolatedPosition = connection.Character!.Position +
-                                       direction * currentMovementSpeed * (float)timeSinceLastPacketSeconds;
+        // Vector3 interpolatedPosition = connection.Character!.Position +
+        //                                direction * currentMovementSpeed * (float)timeSinceLastPacketSeconds;
+        Vector3 interpolatedPosition = connection.Character!.Position;  // TODO: restore when PlayerInputHandler is implemented
 
         // Calculate the nwe position based on the server's delta time
         // var newPosition = connection.Character!.Position + direction * currentMovementSpeed * (float) deltaTime.TotalSeconds;
@@ -54,7 +55,7 @@ public class CharacterMovementHandler(ILogger<CharacterMovementHandler> logger, 
         connection.Character!.Position = clientSentPosition;
         connection.Character.Velocity = direction;
         connection.Character.Orientation = new Vector3(0, packet.Rotation, 0);
-        connection.LastMovementTime = packet.Timestamp;
+        // connection.LastMovementTime = packet.Timestamp;  // removed: replaced by LastInputSeq, see PlayerInputHandler (handler will be deleted in T12)
     }
 }
 
