@@ -273,12 +273,6 @@ public class MapNavigator : IMapNavigator
         var status = query.FindNearestPoly(startVec, PolyPickExt, _queryFilter, out var startRef, out _, out _);
         if (status.Failed() || startRef == 0)
         {
-            // TEMP DEBUG: diagnose off-mesh-pin failures. Probe alt non-flipped query —
-            // if THAT succeeds, the bake doesn't follow the X-flip convention.
-            var altStart = new RcVec3f(from.x, from.y, from.z);
-            var altStatus = query.FindNearestPoly(altStart, PolyPickExt, _queryFilter, out var altRef, out _, out _);
-            _logger.LogError("[NavDebug] RaycastWalkable miss: from={From} flipQ=(failed={FailF},ref={RefF}) noFlipQ=(failed={FailN},ref={RefN})",
-                from, status.Failed(), startRef, altStatus.Failed(), altRef);
             return from;
         }
 
