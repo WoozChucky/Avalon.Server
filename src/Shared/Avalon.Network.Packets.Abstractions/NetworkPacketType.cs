@@ -49,7 +49,6 @@ public enum NetworkPacketType : short
     // World
     CMSG_INTERACT = 0x2030,
 
-    CMSG_MOVEMENT = 0x2004,
     CMSG_PING = 0x2005,
     CMSG_PONG = 0x2006,
     CMSG_CHAT_MESSAGE = 0x2007,
@@ -124,7 +123,6 @@ public enum NetworkPacketType : short
     SMSG_PING = 0x3007,
     SMSG_DISCONNECT = 0x3008,
 
-    SMSG_PLAYER_POSITION_UPDATE = 0x3005,
     SMSG_CHAT_MESSAGE = 0x3009,
     SMSG_CHAT_OPEN = 0x300A,
     SMSG_CHAT_CLOSE = 0x300B,
