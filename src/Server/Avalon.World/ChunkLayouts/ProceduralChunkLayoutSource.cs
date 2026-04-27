@@ -38,17 +38,17 @@ public class ProceduralChunkLayoutSource : IChunkLayoutSource
         return Generate(config, pool, NextSeed());
     }
 
-    /// <summary>
-    /// Fresh seed drawn from the source's internal RNG. Exposed so the legacy
-    /// <c>InstanceRegistry.BuildProceduralInstanceAsync</c> path can keep calling
-    /// the factory by seed until Task 5 collapses the build paths through
-    /// <see cref="BuildAsync"/>.
-    /// </summary>
-    public int NextSeed()
+    private int NextSeed()
     {
         lock (_seedLock) return _seedRng.Next();
     }
 
+    /// <summary>
+    /// Deterministic generation entry point. Public so unit tests and benchmarks can drive the
+    /// algorithm directly with a fixed seed without arranging the full <see cref="BuildAsync"/>
+    /// dependency graph (config repository, scope factory). Production code goes through
+    /// <see cref="BuildAsync"/> which loads the config and calls this internally.
+    /// </summary>
     public ChunkLayout Generate(ProceduralMapConfig config, IReadOnlyList<ChunkPoolMember> pool, int seed)
     {
         for (int attempt = 0; attempt < MaxRetries; attempt++)
@@ -127,7 +127,7 @@ public class ProceduralChunkLayoutSource : IChunkLayoutSource
 
         var portals = BuildPortals(entry, entryMember.Template, boss, bossRec?.Template, cfg);
 
-        layout = new ChunkLayout(seed, placedChunks, entry, boss, portals, entrySpawnWorldPos, cellSize);
+        layout = new ChunkLayout(seed, placedChunks, entry, boss, portals, entrySpawnWorldPos, cellSize, Config: cfg);
         return true;
     }
 

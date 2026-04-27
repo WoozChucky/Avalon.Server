@@ -84,14 +84,15 @@ public class MapInstance : IMapInstance, IPortalSink
         long? ownerAccountId,
         ChunkLayout layout,
         IMapNavigator navigator,
-        int seed)
+        int seed,
+        MapType mapType = MapType.Normal)
     {
         _logger = loggerFactory.CreateLogger<MapInstance>();
         _world = world;
-        _poolManager = null!; // procedural path does not use PoolManager
+        _poolManager = null!; // chunk-layout path does not use PoolManager
         InstanceId = Guid.NewGuid();
         TemplateId = templateId;
-        MapType = MapType.Normal;
+        MapType = mapType;
         OwnerAccountId = ownerAccountId;
         AllowedAccounts = ownerAccountId.HasValue ? new[] { ownerAccountId.Value } : Array.Empty<long>();
         Layout = layout;
@@ -164,8 +165,13 @@ public class MapInstance : IMapInstance, IPortalSink
         throw new InvalidOperationException($"No navigators loaded for instance {InstanceId}.");
     }
 
-    public void SpawnStartingEntities() =>
+    public void SpawnStartingEntities()
+    {
+        // Chunk-layout instances do not use the pool-driven starter spawn path;
+        // creature placement is handled by ICreaturePlacementService via the layout.
+        if (_poolManager is null) return;
         _poolManager.SpawnStartingEntities(this, _navigators.Select(n => n.Region).ToList());
+    }
 
     public void AddCharacter(IWorldConnection connection)
     {
@@ -196,8 +202,12 @@ public class MapInstance : IMapInstance, IPortalSink
     public bool QueueSpell(ICharacter caster, IUnit? target, ISpell spell) =>
         _spellSystem.QueueSpell(caster, target, spell);
 
-    public void RespawnCreature(ICreature creature) =>
+    public void RespawnCreature(ICreature creature)
+    {
+        // No-op for chunk-layout instances — they use the no-op respawner.
+        if (_poolManager is null) return;
         _poolManager.SpawnEntity(this, _navigators.Select(n => n.Region).ToList(), creature);
+    }
 
     public void BroadcastUnitHit(IUnit attacker, IUnit target, uint currentHealth, uint damage)
     {
