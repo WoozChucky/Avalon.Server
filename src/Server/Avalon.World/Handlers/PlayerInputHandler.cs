@@ -13,6 +13,7 @@ public class PlayerInputHandler(
     : WorldPacketHandler<CPlayerInputPacket>
 {
     private const float TickDt = 1f / 60f;
+    private static int _debugCounter;
 
     public override void Execute(IWorldConnection connection, CPlayerInputPacket packet)
     {
@@ -25,8 +26,20 @@ public class PlayerInputHandler(
         // Resolve the per-instance navmesh navigator. IMapNavigator is not a global DI service —
         // each MapInstance owns its own (per-region) navigators. Look up via the instance registry.
         var instance = world.InstanceRegistry.GetInstanceById(ch.InstanceId);
-        if (instance == null) return;
+        if (instance == null)
+        {
+            logger.LogError("[NavDebug] PlayerInputHandler: instance lookup failed for InstanceId={InstanceId}", ch.InstanceId);
+            return;
+        }
         var navigator = instance.GetNavigatorForPosition(ch.Position);
+
+        // TEMP DEBUG: throttled entry log — every 60 inputs (~1s) confirms handler is being hit
+        // and which navigator the lookup returned.
+        if ((_debugCounter++ % 60) == 0)
+        {
+            logger.LogError("[NavDebug] handler tick: pos={Pos} navigator.Mesh={Mesh} navigator.Type={Type}",
+                ch.Position, navigator.Mesh != null ? "loaded" : "NULL", navigator.GetType().Name);
+        }
 
         // Clamp direction magnitude to unit length.
         var dir = new Vector3(packet.DirX, 0f, packet.DirZ);
