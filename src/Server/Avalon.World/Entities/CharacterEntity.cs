@@ -361,7 +361,7 @@ public class CharacterEntity : ICharacter
 
     private void CalculateMovementSpeed()
     {
-        const float baseSpeed = 1.0f;
+        const float baseSpeed = 4.0f;
         // TODO: apply equipment + buff modifiers here once stat aggregation lands.
         MovementSpeed = baseSpeed;
     }
