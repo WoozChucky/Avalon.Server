@@ -2,7 +2,6 @@ using Avalon.Common.Mathematics;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Movement;
 using Avalon.World.Public;
-using Avalon.World.Public.Maps;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Handlers;
@@ -10,8 +9,7 @@ namespace Avalon.World.Handlers;
 [PacketHandler(NetworkPacketType.CMSG_PLAYER_INPUT)]
 public class PlayerInputHandler(
     ILogger<PlayerInputHandler> logger,
-    IWorld world,
-    IMapNavigator navigator)
+    IWorld world)
     : WorldPacketHandler<CPlayerInputPacket>
 {
     private const float TickDt = 1f / 60f;
@@ -23,6 +21,12 @@ public class PlayerInputHandler(
 
         // Defensive: reject duplicate / out-of-order seq. TCP guarantees order so this should never fire.
         if (packet.Seq <= connection.LastInputSeq) return;
+
+        // Resolve the per-instance navmesh navigator. IMapNavigator is not a global DI service —
+        // each MapInstance owns its own (per-region) navigators. Look up via the instance registry.
+        var instance = world.InstanceRegistry.GetInstanceById(ch.InstanceId);
+        if (instance == null) return;
+        var navigator = instance.GetNavigatorForPosition(ch.Position);
 
         // Clamp direction magnitude to unit length.
         var dir = new Vector3(packet.DirX, 0f, packet.DirZ);
