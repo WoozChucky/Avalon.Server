@@ -152,15 +152,32 @@ public class CharacterSelectHandler(
 
         Character character = entity.Data!;
 
+        // Towns spawn the player at the chunk-layout entry — overriding the persisted
+        // Character.X/Y/Z. The persisted coords are not authoritative for hubs (they were
+        // baked under the old world.bin pipeline and would put returning players in random
+        // spots inside the new chunk-composed town). Procedural maps still use the
+        // persisted coords (set by EnterMapHandler when the player traversed in).
+        float spawnX = character.X;
+        float spawnY = character.Y;
+        float spawnZ = character.Z;
+        if (instance is MapInstance townMi && townMi.Layout is { } townLayout
+            && townTemplate.MapType == MapType.Town)
+        {
+            spawnX = townLayout.EntrySpawnWorldPos.x;
+            spawnY = townLayout.EntrySpawnWorldPos.y;
+            spawnZ = townLayout.EntrySpawnWorldPos.z;
+            entity.Position = new Vector3(spawnX, spawnY, spawnZ);
+        }
+
         CharacterInfo characterInfo = new()
         {
             CharacterId = character.Id,
             Name = character.Name,
             Level = character.Level,
             Class = (ushort)character.Class,
-            X = character.X,
-            Y = character.Y,
-            Z = character.Z,
+            X = spawnX,
+            Y = spawnY,
+            Z = spawnZ,
             Orientation = character.Rotation,
             Experience = character.Experience,
             RequiredExperience = entity.RequiredExperience,
