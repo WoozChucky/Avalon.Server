@@ -118,7 +118,6 @@ public class CharacterCreateHandler(
             Power1 = (int)CharacterStats.GetBasePower(@class, classLevelStats.Intellect, classLevelStats.Agility, classLevelStats.Level),
             Power2 = 0,
             Experience = 0,
-            Running = true,
         };
 
         connection.EnqueueContinuation(characterRepository.CreateAsync(character, CancellationToken.None), createdCharacter =>

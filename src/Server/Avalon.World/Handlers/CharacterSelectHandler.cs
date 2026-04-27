@@ -158,9 +158,9 @@ public class CharacterSelectHandler(
             Y = character.Y,
             Z = character.Z,
             Orientation = character.Rotation,
-            Running = character.Running,
             Experience = character.Experience,
-            RequiredExperience = entity.RequiredExperience
+            RequiredExperience = entity.RequiredExperience,
+            MovementSpeed = entity.GetMovementSpeed(),
         };
 
         MapInfo mapInfo = new()
