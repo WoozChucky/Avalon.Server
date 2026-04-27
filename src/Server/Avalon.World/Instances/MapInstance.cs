@@ -338,7 +338,8 @@ public class MapInstance : IMapInstance, IPortalSink
                     case ObjectType.Character:
                         if (!_characters.TryGetValue(addedObjectGuid, out ICharacter? addedCharacter))
                             continue;
-                        writer.Write(addedCharacter, GameEntityFields.All);
+                        var addFields = MaskSelfSuppression(GameEntityFields.All, addedObjectGuid, character.Guid);
+                        writer.Write(addedCharacter, addFields);
                         break;
                     case ObjectType.Creature:
                         if (!_creatures.TryGetValue(addedObjectGuid, out ICreature? addedCreature))
@@ -396,7 +397,8 @@ public class MapInstance : IMapInstance, IPortalSink
                     case ObjectType.Character:
                         if (!_characters.TryGetValue(updatedObject.Guid, out ICharacter? updatedCharacter))
                             continue;
-                        writer.Write(updatedCharacter, GameEntityFields.CharacterUpdate);
+                        var updFields = MaskSelfSuppression(GameEntityFields.CharacterUpdate, updatedObject.Guid, character.Guid);
+                        writer.Write(updatedCharacter, updFields);
                         break;
                     case ObjectType.Creature:
                         if (!_creatures.TryGetValue(updatedObject.Guid, out ICreature? updatedCreature))
@@ -541,6 +543,17 @@ public class MapInstance : IMapInstance, IPortalSink
         {
             character.Experience += creatureExperience;
         }
+    }
+
+    /// <summary>
+    /// Strips position/velocity/orientation from the field bitmap when the broadcast recipient
+    /// is the same entity as the subject. Self-position flows via SPlayerStateAckPacket only;
+    /// state fields (HP, Power, etc.) still ride this broadcast.
+    /// </summary>
+    public static GameEntityFields MaskSelfSuppression(GameEntityFields fields, ObjectGuid subjectGuid, ObjectGuid recipientGuid)
+    {
+        if (subjectGuid != recipientGuid) return fields;
+        return fields & ~(GameEntityFields.Position | GameEntityFields.Velocity | GameEntityFields.Orientation);
     }
 
     private sealed class NoOpCreatureRespawner : ICreatureRespawner
