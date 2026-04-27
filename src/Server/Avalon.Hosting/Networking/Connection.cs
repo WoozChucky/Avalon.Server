@@ -127,7 +127,8 @@ public abstract class Connection : BackgroundService, IConnection
                     InboundPacketFrame frame = InboundPacketFrame.ParseFrame(raw);
 
                     if (_logger.IsEnabled(LogLevel.Debug) &&
-                        frame.Header.Type != NetworkPacketType.CMSG_PONG)
+                        frame.Header.Type != NetworkPacketType.CMSG_PONG &&
+                        frame.Header.Type != NetworkPacketType.CMSG_PLAYER_INPUT)
                     {
                         _logger.LogDebug("IN: {Type}", frame.Header.Type);
                     }
