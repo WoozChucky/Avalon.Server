@@ -207,12 +207,20 @@ public class CharacterSelectHandler(
                 GridZ = c.GridZ,
                 Rotation = c.Rotation,
             }).ToList();
+            var portalDtos = layout.Portals.Select(p => new PortalPlacementDto
+            {
+                Role = (byte)p.Role,
+                WorldPos = Vector3Dto.From(p.WorldPos),
+                Radius = p.Radius,
+                TargetMapId = p.TargetMapId,
+            }).ToList();
             connection.Send(SChunkLayoutPacket.Create(
                 layout.Seed,
                 layoutMi.InstanceId,
                 layout.CellSize,
                 dtos,
                 layout.EntrySpawnWorldPos,
+                portalDtos,
                 connection.CryptoSession.Encrypt));
         }
 
