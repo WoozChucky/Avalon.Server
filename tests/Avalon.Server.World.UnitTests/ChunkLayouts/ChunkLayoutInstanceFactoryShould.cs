@@ -88,7 +88,7 @@ public class ChunkLayoutInstanceFactoryShould
             portalPlace,
             sp);
 
-        var instance = await factory.BuildAsync(template, ownerAccountId: null, CancellationToken.None);
+        var instance = await factory.BuildAsync(template, ownerCharacterId: null, CancellationToken.None);
 
         Assert.Equal(template.Id, instance.TemplateId);
         await navBuilder.Received(1).BuildAsync(layout, Arg.Any<CancellationToken>());
@@ -139,7 +139,7 @@ public class ChunkLayoutInstanceFactoryShould
             portalPlace,
             sp);
 
-        var instance = await factory.BuildAsync(template, ownerAccountId: 99L, CancellationToken.None);
+        var instance = await factory.BuildAsync(template, ownerCharacterId: 99u, CancellationToken.None);
 
         Assert.Equal(template.Id, instance.TemplateId);
         Assert.Equal(1234, instance.Seed);

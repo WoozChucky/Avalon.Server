@@ -108,8 +108,10 @@ public class EnterMapHandler(
             return;
         }
 
-        // 8. Resolve target instance
-        long accountId = connection.AccountId!;
+        // 8. Resolve target instance. Procedural maps key per CHARACTER (not per account) so
+        // alts on the same account get fresh instances even within the 15-min re-entry window.
+        // Town instances are shared and don't need an owner identity.
+        uint characterId = character.Guid.Id;
 
         if (targetTemplate.MapType == MapType.Town)
         {
@@ -121,7 +123,7 @@ public class EnterMapHandler(
         else
         {
             connection.EnqueueContinuation(
-                world.InstanceRegistry.GetOrCreateNormalInstanceAsync(accountId, targetTemplate.Id),
+                world.InstanceRegistry.GetOrCreateNormalInstanceAsync(characterId, targetTemplate.Id),
                 targetInstance => OnInstanceReceived(connection, targetInstance, targetTemplate, packet.TargetMapId));
         }
     }

@@ -15,7 +15,7 @@ public interface IChunkLayoutInstanceFactory
     /// <see cref="IChunkLayoutSource"/> (predefined for towns, procedural for normals), baking a
     /// navmesh from the resulting <see cref="ChunkLayout"/>, and applying creature/portal placement.
     /// </summary>
-    Task<MapInstance> BuildAsync(MapTemplate template, long? ownerAccountId, CancellationToken ct);
+    Task<MapInstance> BuildAsync(MapTemplate template, uint? ownerCharacterId, CancellationToken ct);
 }
 
 public class ChunkLayoutInstanceFactory : IChunkLayoutInstanceFactory
@@ -45,7 +45,7 @@ public class ChunkLayoutInstanceFactory : IChunkLayoutInstanceFactory
         _sp = sp;
     }
 
-    public async Task<MapInstance> BuildAsync(MapTemplate template, long? ownerAccountId, CancellationToken ct)
+    public async Task<MapInstance> BuildAsync(MapTemplate template, uint? ownerCharacterId, CancellationToken ct)
     {
         var source = _resolver.Resolve(template, out var kind);
         var layout = await source.BuildAsync(template, ct);
@@ -56,7 +56,7 @@ public class ChunkLayoutInstanceFactory : IChunkLayoutInstanceFactory
         navigator.LoadFromNavMesh(navMesh);
 
         var world = _sp.GetRequiredService<IWorld>();
-        var instance = new MapInstance(_lf, _sp, world, template.Id, ownerAccountId, layout, navigator, layout.Seed, template.MapType);
+        var instance = new MapInstance(_lf, _sp, world, template.Id, ownerCharacterId, layout, navigator, layout.Seed, template.MapType);
 
         // Creatures only spawn on procedural maps; predefined town layouts leave Config null.
         if (kind == ChunkLayoutSourceKind.Procedural && layout.Config is { } cfg)

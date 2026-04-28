@@ -12,11 +12,13 @@ public interface IMapInstance : ISimulationContext
     MapTemplateId TemplateId { get; }
     MapType MapType { get; }
 
-    /// <summary>Account ID of the player who created this instance. Null for Town instances.</summary>
-    long? OwnerAccountId { get; }
+    /// <summary>Character ID of the player who created this instance. Null for Town instances.
+    /// Per-character keying ensures different characters on the same account get different
+    /// procedural instances even within the 15-minute re-entry window.</summary>
+    uint? OwnerCharacterId { get; }
 
-    /// <summary>Stub for future group support. Contains OwnerAccountId for Normal maps.</summary>
-    IReadOnlyList<long> AllowedAccounts { get; }
+    /// <summary>Stub for future group support. Contains OwnerCharacterId for Normal maps.</summary>
+    IReadOnlyList<uint> AllowedCharacters { get; }
 
     int PlayerCount { get; }
 

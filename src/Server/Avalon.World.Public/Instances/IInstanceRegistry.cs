@@ -16,10 +16,11 @@ public interface IInstanceRegistry
     Task<IMapInstance> GetOrCreateTownInstanceAsync(MapTemplateId templateId, ushort maxPlayers);
 
     /// <summary>
-    ///     Returns the existing Normal map instance for <paramref name="accountId" /> if it is still alive
-    ///     (not expired), otherwise creates a fresh one.
+    ///     Returns the existing Normal map instance for <paramref name="characterId" /> if it is still alive
+    ///     (not expired), otherwise creates a fresh one. Keying by character (not account) ensures
+    ///     two characters on the same account cannot share a procedural instance.
     /// </summary>
-    Task<IMapInstance> GetOrCreateNormalInstanceAsync(long accountId, MapTemplateId templateId);
+    Task<IMapInstance> GetOrCreateNormalInstanceAsync(uint characterId, MapTemplateId templateId);
 
     IMapInstance? GetInstanceById(Guid instanceId);
     void RemoveInstance(Guid instanceId);
