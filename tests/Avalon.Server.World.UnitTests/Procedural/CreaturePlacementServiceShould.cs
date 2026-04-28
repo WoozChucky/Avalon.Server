@@ -51,7 +51,10 @@ public class CreaturePlacementServiceShould
             EntrySpawnWorldPos: Vector3.zero, CellSize: 30f);
         var cfg = new ProceduralMapConfig { SpawnTableId = new SpawnTableId(1) };
 
-        var svc = new CreaturePlacementService(spawner, library, spawnTableRepo);
+        var svc = new CreaturePlacementService(spawner, library, spawnTableRepo,
+            Substitute.For<Avalon.World.Scripts.IScriptManager>(),
+            Substitute.For<IServiceProvider>(),
+            Microsoft.Extensions.Logging.Abstractions.NullLoggerFactory.Instance);
         await svc.PlaceAsync(instance, layout, cfg, seed: 7, CancellationToken.None);
 
         instance.Received(1).AddCreature(Arg.Any<ICreature>());
@@ -89,7 +92,10 @@ public class CreaturePlacementServiceShould
             EntrySpawnWorldPos: Vector3.zero, CellSize: 30f);
         var cfg = new ProceduralMapConfig { SpawnTableId = new SpawnTableId(1) };
 
-        var svc = new CreaturePlacementService(spawner, library, spawnTableRepo);
+        var svc = new CreaturePlacementService(spawner, library, spawnTableRepo,
+            Substitute.For<Avalon.World.Scripts.IScriptManager>(),
+            Substitute.For<IServiceProvider>(),
+            Microsoft.Extensions.Logging.Abstractions.NullLoggerFactory.Instance);
         await svc.PlaceAsync(instance, layout, cfg, seed: 7, CancellationToken.None);
 
         instance.DidNotReceive().AddCreature(Arg.Any<ICreature>());

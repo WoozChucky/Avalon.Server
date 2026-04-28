@@ -5,6 +5,10 @@ using Avalon.World.Entities;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Instances;
 using Avalon.World.Public.Maps;
+using Avalon.World.Public.Scripts;
+using Avalon.World.Scripts;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.ChunkLayouts;
 
@@ -18,12 +22,24 @@ public class CreaturePlacementService : ICreaturePlacementService
     private readonly ICreatureSpawner _spawner;
     private readonly IChunkLibrary _library;
     private readonly ISpawnTableRepository _spawnTableRepo;
+    private readonly IScriptManager _scriptManager;
+    private readonly IServiceProvider _sp;
+    private readonly ILogger<CreaturePlacementService> _logger;
 
-    public CreaturePlacementService(ICreatureSpawner spawner, IChunkLibrary library, ISpawnTableRepository spawnTableRepo)
+    public CreaturePlacementService(
+        ICreatureSpawner spawner,
+        IChunkLibrary library,
+        ISpawnTableRepository spawnTableRepo,
+        IScriptManager scriptManager,
+        IServiceProvider sp,
+        ILoggerFactory loggerFactory)
     {
         _spawner = spawner;
         _library = library;
         _spawnTableRepo = spawnTableRepo;
+        _scriptManager = scriptManager;
+        _sp = sp;
+        _logger = loggerFactory.CreateLogger<CreaturePlacementService>();
     }
 
     public async Task PlaceAsync(IMapInstance instance, ChunkLayout layout, ProceduralMapConfig cfg, int seed, CancellationToken ct)
@@ -58,9 +74,31 @@ public class CreaturePlacementService : ICreaturePlacementService
                         PrototypeIndex = entry.CreatureId.Value,
                     };
                     var creature = _spawner.Spawn(creatureInfo);
+                    AttachScript(creature, instance);
                     instance.AddCreature(creature);
                 }
             }
+        }
+    }
+
+    private void AttachScript(ICreature creature, IMapInstance instance)
+    {
+        if (string.IsNullOrWhiteSpace(creature.ScriptName)) return;
+
+        var scriptType = _scriptManager.GetAiScript(creature.ScriptName);
+        if (scriptType is null)
+        {
+            _logger.LogWarning("AI script '{ScriptName}' not found for creature {Id}", creature.ScriptName, creature.Guid);
+            return;
+        }
+
+        try
+        {
+            creature.Script = ActivatorUtilities.CreateInstance(_sp, scriptType, creature, instance) as AiScript;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to construct AI script '{ScriptName}' for creature {Id}", creature.ScriptName, creature.Guid);
         }
     }
 
