@@ -109,20 +109,31 @@ public class CreatureCombatScript : AiScript
         {
             if (Vector3.Distance(currentPosition, _initialPosition) < 0.1f)
             {
-                State = CombatState.None;
-                _target = null;
-                _initialPosition = Vector3.zero;
-                _currentPath.Clear();
-                Creature.Velocity = Vector3.zero;
-                Creature.MoveState = MoveState.Idle;
-            }
-            else
-            {
-                Creature.MoveState = MoveState.Running;
-                Creature.Speed = Creature.Metadata.SpeedRun;
-                FollowPath(deltaTime);
+                ResetToIdleAtSpawn();
+                return;
             }
 
+            // Path may be empty either because GeneratePath at transition-time failed (DotRecast
+            // returned no route — happens when start/end land on disconnected nav polygons) or
+            // because FollowPath consumed the last waypoint without us hitting the < 0.1f gate
+            // above (e.g. smoothed last point ≠ exact spawn). Without a regen the creature
+            // drifts: server keeps Position static but MoveState=Running + Velocity is stale,
+            // so the client extrapolates indefinitely.
+            if (_currentPath.Count == 0)
+            {
+                _currentPath = GeneratePath(currentPosition, _initialPosition);
+                if (_currentPath.Count == 0)
+                {
+                    // Planner can't reach spawn — snap home rather than drift forever.
+                    Creature.Position = _initialPosition;
+                    ResetToIdleAtSpawn();
+                    return;
+                }
+            }
+
+            Creature.MoveState = MoveState.Running;
+            Creature.Speed = Creature.Metadata.SpeedRun;
+            FollowPath(deltaTime);
             return;
         }
 
@@ -186,10 +197,24 @@ public class CreatureCombatScript : AiScript
         return new Queue<Vector3>(path);
     }
 
+    private void ResetToIdleAtSpawn()
+    {
+        State = CombatState.None;
+        _target = null;
+        _initialPosition = Vector3.zero;
+        _currentPath.Clear();
+        Creature.Velocity = Vector3.zero;
+        Creature.MoveState = MoveState.Idle;
+    }
+
     private void FollowPath(TimeSpan deltaTime)
     {
         if (_currentPath.Count == 0)
         {
+            // Defensive: never leave Velocity / MoveState set to a moving value when there's
+            // nothing to walk towards. Caller (Update) is expected to refill the path.
+            Creature.Velocity = Vector3.zero;
+            Creature.MoveState = MoveState.Idle;
             return;
         }
 
