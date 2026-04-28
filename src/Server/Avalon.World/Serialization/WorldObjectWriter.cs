@@ -142,5 +142,15 @@ public class WorldObjectWriter(byte[] buffer) : BinaryWriter(new MemoryStream(bu
         {
             Write(worldObject.Level);
         }
+
+        if (fields.HasFlag(GameEntityFields.IsDead))
+        {
+            // Single byte: 1 = dead, 0 = alive. Read in the same position by the
+            // client EntityFieldDecoder.DecodeUnit. Only Character gates today; if the
+            // worldObject is a Creature (no IsDead), we still write 0 to keep wire
+            // alignment correct — the client decoder mirror reads this byte position
+            // whenever the IsDead bit is set in the fields header.
+            BaseStream.WriteByte(((worldObject as Avalon.World.Public.Characters.ICharacter)?.IsDead ?? false) ? (byte)1 : (byte)0);
+        }
     }
 }
