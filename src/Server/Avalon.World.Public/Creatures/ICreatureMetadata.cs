@@ -19,4 +19,7 @@ public interface ICreatureMetadata
 
     /// <summary>How long before this creature's corpse is removed from the world.</summary>
     TimeSpan BodyRemoveTimer { get; set; }
+
+    /// <summary>Aggro radius. Creatures with 0 fall back to a script-defined default.</summary>
+    float DetectionRange { get; set; }
 }
