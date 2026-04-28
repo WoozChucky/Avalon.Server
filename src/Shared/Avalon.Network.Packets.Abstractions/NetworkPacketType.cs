@@ -40,6 +40,7 @@ public enum NetworkPacketType : short
     // Map
     // 0x2020 retired (CMSG_MAP_TELEPORT — admin teleport never wired)
     CMSG_ENTER_MAP    = 0x2021,
+    CMSG_RESPAWN_AT_TOWN = 0x2022,
 
     // Quest
     CMSG_QUEST_STATUS = 0x2040,

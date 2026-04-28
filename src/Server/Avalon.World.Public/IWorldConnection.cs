@@ -42,6 +42,11 @@ public interface IWorldConnection : IConnection
     /// <summary>Gets or sets the last accepted input sequence number.</summary>
     public uint LastInputSeq { get; set; }
 
+    /// <summary>True between accepting a CMSG_RESPAWN_AT_TOWN and completing the transfer.
+    /// Used by the respawn handler to drop concurrent respawn requests during the async
+    /// resolver+instance-load chain.</summary>
+    bool RespawnInFlight { get; set; }
+
     /// <summary>
     ///     Sends a single time-synchronization ping to the client.
     ///     Driven by <c>WorldServer</c>'s tick loop on a fixed cadence.
