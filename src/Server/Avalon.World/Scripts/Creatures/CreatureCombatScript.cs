@@ -142,6 +142,19 @@ public class CreatureCombatScript : AiScript
             return;
         }
 
+        // Disengage if the target became dead (player hit 0 HP and is in respawn modal,
+        // or another mob landed the killing blow). Without this the creature keeps grinding
+        // attacks against the corpse — visible client-side as repeated hit packets after
+        // the death overlay shows up. Drop target + return to spawn.
+        if (_target is ICharacter targetChar && targetChar.IsDead)
+        {
+            _target = null;
+            State = CombatState.Returning;
+            _currentPath = GeneratePath(currentPosition, _initialPosition);
+            Creature.CurrentHealth = Creature.Health;
+            return;
+        }
+
         Vector3 targetPosition = _target.Position;
 
         if (Vector3.Distance(currentPosition, _initialPosition) > MaxChaseDistance)
