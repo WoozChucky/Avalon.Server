@@ -123,9 +123,9 @@ public class ProceduralChunkLayoutSource : IChunkLayoutSource
         var boss = bossRec is null ? null : placedChunks.First(p => p.GridX == bossRec.GridX && p.GridZ == bossRec.GridZ);
 
         var entrySlot = entryMember.Template.SpawnSlots.First(s => s.Tag.Equals("entry", StringComparison.OrdinalIgnoreCase));
-        var entrySpawnWorldPos = TransformLocal(entrySlot.LocalX, entrySlot.LocalY, entrySlot.LocalZ, entry.WorldPos, entry.Rotation);
+        var entrySpawnWorldPos = ChunkRotation.LocalToWorld(entrySlot.LocalX, entrySlot.LocalY, entrySlot.LocalZ, entry.Rotation, cellSize, entry.WorldPos);
 
-        var portals = BuildPortals(entry, entryMember.Template, boss, bossRec?.Template, cfg);
+        var portals = BuildPortals(entry, entryMember.Template, boss, bossRec?.Template, cfg, cellSize);
 
         layout = new ChunkLayout(seed, placedChunks, entry, boss, portals, entrySpawnWorldPos, cellSize, Config: cfg);
         return true;
@@ -176,33 +176,20 @@ public class ProceduralChunkLayoutSource : IChunkLayoutSource
     }
 
     private static IReadOnlyList<PortalPlacement> BuildPortals(
-        PlacedChunk entry, ChunkTemplate entryT, PlacedChunk? boss, ChunkTemplate? bossT, ProceduralMapConfig cfg)
+        PlacedChunk entry, ChunkTemplate entryT, PlacedChunk? boss, ChunkTemplate? bossT, ProceduralMapConfig cfg, float cellSize)
     {
         var list = new List<PortalPlacement>();
         var backSlot = entryT.PortalSlots.First(p => p.Role == PortalRole.Back);
-        var backWorld = TransformLocal(backSlot.LocalX, backSlot.LocalY, backSlot.LocalZ, entry.WorldPos, entry.Rotation);
+        var backWorld = ChunkRotation.LocalToWorld(backSlot.LocalX, backSlot.LocalY, backSlot.LocalZ, entry.Rotation, cellSize, entry.WorldPos);
         list.Add(new PortalPlacement(PortalRole.Back, backWorld, cfg.BackPortalTargetMapId));
 
         if (cfg.ForwardPortalTargetMapId is ushort fwd && boss is not null && bossT is not null)
         {
             var fSlot = bossT.PortalSlots.First(p => p.Role == PortalRole.Forward);
-            var fWorld = TransformLocal(fSlot.LocalX, fSlot.LocalY, fSlot.LocalZ, boss.WorldPos, boss.Rotation);
+            var fWorld = ChunkRotation.LocalToWorld(fSlot.LocalX, fSlot.LocalY, fSlot.LocalZ, boss.Rotation, cellSize, boss.WorldPos);
             list.Add(new PortalPlacement(PortalRole.Forward, fWorld, fwd));
         }
         return list;
-    }
-
-    private static Vector3 TransformLocal(float lx, float ly, float lz, Vector3 origin, byte rotation)
-    {
-        (float rx, float rz) = rotation switch
-        {
-            0 => (lx, lz),
-            1 => (lz, -lx),
-            2 => (-lx, -lz),
-            3 => (-lz, lx),
-            _ => (lx, lz),
-        };
-        return new Vector3(origin.x + rx, origin.y + ly, origin.z + rz);
     }
 
     private static ChunkPoolMember WeightedPick(IList<ChunkPoolMember> items, Random rng)

@@ -64,7 +64,7 @@ public class ChunkLayoutNavmeshBuilder : IChunkLayoutNavmeshBuilder
                 $"{name}.obj");
             if (!File.Exists(path))
                 throw new NavmeshBuildFailedException($"Chunk obj not found: {path}");
-            int vCount = AppendTransformed(sb, File.ReadAllText(path), chunk.WorldPos, chunk.Rotation, vOffset);
+            int vCount = AppendTransformed(sb, File.ReadAllText(path), chunk.WorldPos, chunk.Rotation, layout.CellSize, vOffset);
             vOffset += vCount;
         }
         var tempPath = Path.Combine(Path.GetTempPath(), $"avalon-chunklayout-{layout.Seed}-{Guid.NewGuid():N}.obj");
@@ -72,7 +72,7 @@ public class ChunkLayoutNavmeshBuilder : IChunkLayoutNavmeshBuilder
         return tempPath;
     }
 
-    private static int AppendTransformed(System.Text.StringBuilder sb, string objText, Vector3 origin, byte rotation, int vOffset)
+    private static int AppendTransformed(System.Text.StringBuilder sb, string objText, Vector3 origin, byte rotation, float cellSize, int vOffset)
     {
         int vCount = 0;
         foreach (var raw in objText.Split('\n'))
@@ -84,18 +84,11 @@ public class ChunkLayoutNavmeshBuilder : IChunkLayoutNavmeshBuilder
                 float x = float.Parse(parts[1], System.Globalization.CultureInfo.InvariantCulture);
                 float y = float.Parse(parts[2], System.Globalization.CultureInfo.InvariantCulture);
                 float z = float.Parse(parts[3], System.Globalization.CultureInfo.InvariantCulture);
-                (float rx, float rz) = rotation switch
-                {
-                    0 => (x, z),
-                    1 => (z, -x),
-                    2 => (-x, -z),
-                    3 => (-z, x),
-                    _ => (x, z),
-                };
+                var w = ChunkRotation.LocalToWorld(x, y, z, rotation, cellSize, origin);
                 sb.Append("v ")
-                  .Append((origin.x + rx).ToString(System.Globalization.CultureInfo.InvariantCulture)).Append(' ')
-                  .Append((origin.y + y).ToString(System.Globalization.CultureInfo.InvariantCulture)).Append(' ')
-                  .Append((origin.z + rz).ToString(System.Globalization.CultureInfo.InvariantCulture)).Append('\n');
+                  .Append(w.x.ToString(System.Globalization.CultureInfo.InvariantCulture)).Append(' ')
+                  .Append(w.y.ToString(System.Globalization.CultureInfo.InvariantCulture)).Append(' ')
+                  .Append(w.z.ToString(System.Globalization.CultureInfo.InvariantCulture)).Append('\n');
                 vCount++;
             }
             else if (line.StartsWith("f "))

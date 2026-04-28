@@ -72,15 +72,15 @@ public class PredefinedChunkLayoutSource : IChunkLayoutSource
             new Vector3(r.GridX * cellSize, 0, r.GridZ * cellSize))).ToList();
 
         var entryPlaced = placed.Single(p => p.GridX == entryRow.GridX && p.GridZ == entryRow.GridZ);
-        var entrySpawnWorld = TransformLocal(
+        var entrySpawnWorld = ChunkRotation.LocalToWorld(
             entryRow.EntryLocalX, entryRow.EntryLocalY, entryRow.EntryLocalZ,
-            entryPlaced.WorldPos, entryPlaced.Rotation);
+            entryPlaced.Rotation, cellSize, entryPlaced.WorldPos);
 
         // Index placements by (GridX, GridZ) so BuildPortals can look up the row that produced
         // each PlacedChunk and read its target columns.
         var rowByCell = rows.ToDictionary(r => (r.GridX, r.GridZ));
 
-        var portals = BuildPortals(placed, byId, rowByCell);
+        var portals = BuildPortals(placed, byId, rowByCell, cellSize);
 
         return new ChunkLayout(
             Seed: 0,
@@ -100,7 +100,8 @@ public class PredefinedChunkLayoutSource : IChunkLayoutSource
     private static IReadOnlyList<PortalPlacement> BuildPortals(
         IReadOnlyList<PlacedChunk> chunks,
         IReadOnlyDictionary<ChunkTemplateId, ChunkTemplate> byId,
-        IReadOnlyDictionary<(short GridX, short GridZ), MapChunkPlacement> rowByCell)
+        IReadOnlyDictionary<(short GridX, short GridZ), MapChunkPlacement> rowByCell,
+        float cellSize)
     {
         var result = new List<PortalPlacement>();
         foreach (var p in chunks)
@@ -117,24 +118,11 @@ public class PredefinedChunkLayoutSource : IChunkLayoutSource
                 };
                 if (target is null) continue;
 
-                var world = TransformLocal(slot.LocalX, slot.LocalY, slot.LocalZ, p.WorldPos, p.Rotation);
+                var world = ChunkRotation.LocalToWorld(slot.LocalX, slot.LocalY, slot.LocalZ, p.Rotation, cellSize, p.WorldPos);
                 result.Add(new PortalPlacement(slot.Role, world, target.Value));
             }
         }
         return result;
-    }
-
-    private static Vector3 TransformLocal(float lx, float ly, float lz, Vector3 origin, byte rotation)
-    {
-        (float rx, float rz) = rotation switch
-        {
-            0 => (lx, lz),
-            1 => (lz, -lx),
-            2 => (-lx, -lz),
-            3 => (-lz, lx),
-            _ => (lx, lz),
-        };
-        return new Vector3(origin.x + rx, origin.y + ly, origin.z + rz);
     }
 
     /// <summary>
