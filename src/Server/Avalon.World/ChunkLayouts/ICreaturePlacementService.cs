@@ -48,7 +48,7 @@ public class CreaturePlacementService : ICreaturePlacementService
 
                 var entry = WeightedPick(entries, rng);
                 int count = rng.Next(entry.MinCount, entry.MaxCount + 1);
-                var worldPos = RotateLocal(slot.LocalX, slot.LocalY, slot.LocalZ, chunk);
+                var worldPos = ChunkRotation.LocalToWorld(slot.LocalX, slot.LocalY, slot.LocalZ, chunk.Rotation, layout.CellSize, chunk.WorldPos);
 
                 for (int i = 0; i < count; i++)
                 {
@@ -62,19 +62,6 @@ public class CreaturePlacementService : ICreaturePlacementService
                 }
             }
         }
-    }
-
-    private static Vector3 RotateLocal(float lx, float ly, float lz, PlacedChunk chunk)
-    {
-        (float rx, float rz) = chunk.Rotation switch
-        {
-            0 => (lx, lz),
-            1 => (lz, -lx),
-            2 => (-lx, -lz),
-            3 => (-lz, lx),
-            _ => (lx, lz),
-        };
-        return new Vector3(chunk.WorldPos.x + rx, chunk.WorldPos.y + ly, chunk.WorldPos.z + rz);
     }
 
     private static SpawnTableEntry WeightedPick(IList<SpawnTableEntry> items, Random rng)
