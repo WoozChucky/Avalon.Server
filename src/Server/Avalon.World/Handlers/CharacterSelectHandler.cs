@@ -17,6 +17,7 @@ using Avalon.World.Public.Characters;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Instances;
 using Avalon.World.Public.Spells;
+using Avalon.World.Respawn;
 using Avalon.World.Spells;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -32,6 +33,7 @@ public class CharacterSelectHandler(
     ICharacterSpellRepository characterSpellRepository,
     IChunkLibrary chunkLibrary,
     IWorld world,
+    IRespawnTargetResolver respawnTargetResolver,
     IOptions<RegenConfiguration> regenConfig) : WorldPacketHandler<CCharacterSelectedPacket>
 {
     private Activity? _parentActivity;
@@ -122,8 +124,8 @@ public class CharacterSelectHandler(
         // connection.Character is NOT assigned here. Assignment is deferred to OnSpellsReceived
         // so the tick loop only sees a fully-initialized entity (inventory + spells loaded).
 
-        MapTemplate? townTemplate = world.MapTemplates.FirstOrDefault(t => t.Id == (MapTemplateId)character.Map);
-        if (townTemplate == null)
+        MapTemplate? loadedTemplate = world.MapTemplates.FirstOrDefault(t => t.Id == (MapTemplateId)character.Map);
+        if (loadedTemplate == null)
         {
             logger.LogError("MapTemplate {MapId} not found for character {CharacterId}", character.Map,
                 character.Id);
@@ -131,11 +133,48 @@ public class CharacterSelectHandler(
             return;
         }
 
+        // Login MUST land in a town. The persisted Map column should already point at a town
+        // because DeSpawnPlayerAsync redirects on logout — but a force-quit before the save
+        // path runs (e.g. server crash, abrupt connection drop pre-DeSpawn) can leave the row
+        // pointing at a procedural/dungeon map. Walk the back-portal chain to the nearest
+        // town as the same resolver used by death + logout-while-dead. Persist forward so
+        // the row gets corrected on next save.
+        if (loadedTemplate.MapType != MapType.Town)
+        {
+            logger.LogWarning(
+                "Character {CharacterId} ({Name}) persisted in non-town map {MapId}; redirecting to nearest town",
+                character.Id, character.Name, character.Map);
+            connection.EnqueueContinuation(
+                respawnTargetResolver.ResolveTownAsync(loadedTemplate.Id, CancellationToken.None),
+                townMapId =>
+                {
+                    var townTpl = world.MapTemplates.FirstOrDefault(t => t.Id == townMapId);
+                    if (townTpl == null)
+                    {
+                        logger.LogError("Resolved town map {TownMapId} not found in MapTemplates",
+                            townMapId.Value);
+                        return;
+                    }
+                    character.Map = townMapId.Value;
+                    character.X = townTpl.DefaultSpawnX;
+                    character.Y = townTpl.DefaultSpawnY;
+                    character.Z = townTpl.DefaultSpawnZ;
+                    entity.Position = new Vector3(character.X, character.Y, character.Z);
+                    EnterTownInstance(connection, entity, townTpl);
+                });
+            _parentActivity = activity;
+            return;
+        }
+
+        EnterTownInstance(connection, entity, loadedTemplate);
+        _parentActivity = activity;
+    }
+
+    private void EnterTownInstance(IWorldConnection connection, CharacterEntity entity, MapTemplate townTemplate)
+    {
         connection.EnqueueContinuation(
             world.InstanceRegistry.GetOrCreateTownInstanceAsync(townTemplate.Id, townTemplate.MaxPlayers ?? 30),
             mapInstance => OnInstanceObtained(connection, entity, townTemplate, mapInstance));
-
-        _parentActivity = activity;
     }
 
     private void OnInstanceObtained(IWorldConnection connection, CharacterEntity entity, MapTemplate townTemplate,
