@@ -24,6 +24,7 @@ public class MapSessionFilter(IWorldConnection connection) : PacketFilter
             NetworkPacketType.CMSG_PLAYER_INPUT => true,
             NetworkPacketType.CMSG_ATTACK => true,
             NetworkPacketType.CMSG_ENTER_MAP => true,
+            NetworkPacketType.CMSG_RESPAWN_AT_TOWN => true,
             NetworkPacketType.CMSG_CHAT_MESSAGE => true,
             _ => false
         };
