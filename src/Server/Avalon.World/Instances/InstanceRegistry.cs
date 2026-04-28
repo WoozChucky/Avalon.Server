@@ -11,8 +11,10 @@ namespace Avalon.World.Instances;
 
 public class InstanceRegistry : IInstanceRegistry
 {
-    // accountId → { templateId → instanceId } for Normal map re-entry
-    private readonly ConcurrentDictionary<long, Dictionary<MapTemplateId, Guid>> _accountInstanceMap = new();
+    // characterId → { templateId → instanceId } for Normal map re-entry. Keyed by character
+    // (not account) so different characters on the same account land in different instances
+    // even within the 15-min re-entry window.
+    private readonly ConcurrentDictionary<uint, Dictionary<MapTemplateId, Guid>> _characterInstanceMap = new();
     private readonly ConcurrentDictionary<Guid, MapInstance> _instances = new();
 
     private readonly ILogger<InstanceRegistry> _logger;
@@ -68,25 +70,25 @@ public class InstanceRegistry : IInstanceRegistry
         return newInstance;
     }
 
-    public async Task<IMapInstance> GetOrCreateNormalInstanceAsync(long accountId, MapTemplateId templateId)
+    public async Task<IMapInstance> GetOrCreateNormalInstanceAsync(uint characterId, MapTemplateId templateId)
     {
-        if (_accountInstanceMap.TryGetValue(accountId, out Dictionary<MapTemplateId, Guid>? accountMap))
+        if (_characterInstanceMap.TryGetValue(characterId, out Dictionary<MapTemplateId, Guid>? characterMap))
         {
-            if (accountMap.TryGetValue(templateId, out Guid existingId) &&
+            if (characterMap.TryGetValue(templateId, out Guid existingId) &&
                 _instances.TryGetValue(existingId, out MapInstance? existing) &&
                 !existing.IsExpired(TimeSpan.FromMinutes(15)))
             {
                 _logger.LogInformation(
-                    "Returning existing Normal instance {InstanceId} for account {AccountId}, map {TemplateId}",
-                    existingId, accountId, templateId);
+                    "Returning existing Normal instance {InstanceId} for character {CharacterId}, map {TemplateId}",
+                    existingId, characterId, templateId);
                 return existing;
             }
         }
 
-        MapInstance instance = await CreateAndInitializeInstanceAsync(templateId, MapType.Normal, accountId);
+        MapInstance instance = await CreateAndInitializeInstanceAsync(templateId, MapType.Normal, characterId);
 
-        _accountInstanceMap.AddOrUpdate(
-            accountId,
+        _characterInstanceMap.AddOrUpdate(
+            characterId,
             _ => new Dictionary<MapTemplateId, Guid> {{templateId, instance.InstanceId}},
             (_, existing) =>
             {
@@ -127,23 +129,23 @@ public class InstanceRegistry : IInstanceRegistry
                 "Normal map instance {InstanceId} for map {TemplateId} freed after expiry",
                 id, instance.TemplateId);
 
-            // Clean up account instance map
-            if (instance.OwnerAccountId.HasValue &&
-                _accountInstanceMap.TryGetValue(instance.OwnerAccountId.Value,
-                    out Dictionary<MapTemplateId, Guid>? accountMap))
+            // Clean up character instance map
+            if (instance.OwnerCharacterId.HasValue &&
+                _characterInstanceMap.TryGetValue(instance.OwnerCharacterId.Value,
+                    out Dictionary<MapTemplateId, Guid>? characterMap))
             {
-                accountMap.Remove(instance.TemplateId);
+                characterMap.Remove(instance.TemplateId);
             }
         }
     }
 
     private async Task<MapInstance> CreateAndInitializeInstanceAsync(MapTemplateId templateId, MapType mapType,
-        long? ownerAccountId, CancellationToken cancellationToken = default)
+        uint? ownerCharacterId, CancellationToken cancellationToken = default)
     {
         MapTemplate template = _mapManager.Templates.FirstOrDefault(t => t.Id == templateId)
                                ?? throw new InvalidOperationException($"MapTemplate {templateId} not found.");
 
-        MapInstance instance = await _chunkLayoutFactory.BuildAsync(template, ownerAccountId, cancellationToken);
+        MapInstance instance = await _chunkLayoutFactory.BuildAsync(template, ownerCharacterId, cancellationToken);
 
         _instances[instance.InstanceId] = instance;
         _logger.LogInformation("Created {MapType} instance {InstanceId} for map {TemplateId}",

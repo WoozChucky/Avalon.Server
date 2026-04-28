@@ -46,7 +46,7 @@ public class MapInstance : IMapInstance, IPortalSink
         IServiceProvider serviceProvider,
         IWorld world,
         MapTemplateId templateId,
-        long? ownerAccountId,
+        uint? ownerCharacterId,
         ChunkLayout layout,
         IMapNavigator navigator,
         int seed,
@@ -57,8 +57,8 @@ public class MapInstance : IMapInstance, IPortalSink
         InstanceId = Guid.NewGuid();
         TemplateId = templateId;
         MapType = mapType;
-        OwnerAccountId = ownerAccountId;
-        AllowedAccounts = ownerAccountId.HasValue ? new[] { ownerAccountId.Value } : Array.Empty<long>();
+        OwnerCharacterId = ownerCharacterId;
+        AllowedCharacters = ownerCharacterId.HasValue ? new[] { ownerCharacterId.Value } : Array.Empty<uint>();
         Layout = layout;
         EntrySpawnWorldPos = layout.EntrySpawnWorldPos;
         Seed = seed;
@@ -82,8 +82,8 @@ public class MapInstance : IMapInstance, IPortalSink
     public Guid InstanceId { get; }
     public MapTemplateId TemplateId { get; }
     public MapType MapType { get; }
-    public long? OwnerAccountId { get; }
-    public IReadOnlyList<long> AllowedAccounts { get; }
+    public uint? OwnerCharacterId { get; }
+    public IReadOnlyList<uint> AllowedCharacters { get; }
     public int PlayerCount => _characters.Count;
     public DateTime? LastEmptyAt { get; private set; }
     public int Seed { get; }
