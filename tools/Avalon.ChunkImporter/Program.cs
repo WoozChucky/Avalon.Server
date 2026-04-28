@@ -146,6 +146,8 @@ static async Task ImportTownLayoutAsync(WorldDbContext ctx, TownLayoutImportDto 
         EntryLocalX = c.EntrySpawn?.LocalX ?? 0,
         EntryLocalY = c.EntrySpawn?.LocalY ?? 0,
         EntryLocalZ = c.EntrySpawn?.LocalZ ?? 0,
+        BackPortalTargetMapId = c.BackPortalTargetMapId,
+        ForwardPortalTargetMapId = c.ForwardPortalTargetMapId,
     }).ToList();
 
     await ctx.MapChunkPlacements.AddRangeAsync(inserts);
@@ -224,6 +226,8 @@ record TownChunkPlacementDto(
     short GridZ,
     byte Rotation,
     bool IsEntry,
-    EntrySpawnDto? EntrySpawn);
+    EntrySpawnDto? EntrySpawn,
+    ushort? BackPortalTargetMapId,
+    ushort? ForwardPortalTargetMapId);
 
 record EntrySpawnDto(float LocalX, float LocalY, float LocalZ);
