@@ -218,9 +218,11 @@ public class SMapTransitionPacket : Packet
 [PacketHandler(NetworkPacketType.CMSG_ENTER_MAP)]
 
 1.  Guard: connection.InGame — else ignore
-2.  Resolve current instance from InstanceRegistry
+2.  Resolve current instance from InstanceRegistry (must be a MapInstance with Layout)
 3.  Load MapTemplate for packet.TargetMapId
-4.  Find portal from current map where TargetMapId == packet.TargetMapId
+4.  Look up matching PortalInstance on mi.Portals where TargetMapId == packet.TargetMapId
+       (portals are surfaced from ChunkLayout.Portals at instance build time —
+        single source of truth, no DB fallback)
 5.  No portal → send MapNotFound, return
 6.  Proximity check: Vector3.Distance(character.Position, portal.Position) <= portal.Radius
        → too far: send NotNearPortal, return
@@ -230,9 +232,10 @@ public class SMapTransitionPacket : Packet
        Normal → GetOrCreateNormalInstance(accountId, targetMapId)
 9.  world.TransferPlayer(connection, targetInstance):
        a. currentInstance.RemoveCharacter(connection)
-       b. character.Map = targetMapId; character.Position = spawn position
-       c. targetInstance.AddCharacter(connection)
-10. Send SMapTransitionPacket(Success, instanceId, spawnPosition, ...)
+       b. character.InstanceId = targetInstance.InstanceId
+       c. targetInstance.AddCharacter(connection) — also resets connection.LastInputSeq = 0
+10. Send SMapTransitionPacket(Success, instanceId, spawnPosition, ...) followed by
+    SChunkLayoutPacket for the new instance
 11. Enqueue DB update for character.Map + position
 ```
 
@@ -272,22 +275,7 @@ The instance is **not** freed on logout — its `LastEmptyAt` timer governs clea
 | `float DefaultSpawnX/Y/Z` | Where players appear when entering this map |
 | `MapTemplateId? LogoutMapId` | Normal maps point to their home town; null for towns |
 
-### `MapPortal`
-
-```csharp
-public class MapPortal
-{
-    public int Id { get; set; }
-    public MapTemplateId SourceMapId { get; set; }
-    public MapTemplateId TargetMapId { get; set; }
-    public float X { get; set; }
-    public float Y { get; set; }
-    public float Z { get; set; }
-    public float Radius { get; set; }
-}
-```
-
-Stored in the `map_portals` table (EF migration `AddInstancedMapSystem`).
+Portals come from `ChunkLayout.Portals` populated at instance build time. See [Map Generation](map-generation.md) for the per-placement routing config.
 
 ---
 

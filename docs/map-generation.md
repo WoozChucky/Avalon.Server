@@ -196,7 +196,7 @@ Two repos:
 - Client (`C:\dev\3D`): `Assets/Scenes/ChunkAuthoring.unity`, `Assets/StreamingAssets/Chunks/<name>.obj`, `<name>.json` + meta files.
 - Server (`C:\dev\Avalon.Server`): `src/Server/Avalon.Server.World/Maps/Chunks/<name>.obj`.
 
-Stage explicitly. Author MUST be `Nuno Silva <nuno.levezinho@live.com.pt>` per repo policy.
+Stage explicitly.
 
 ---
 
@@ -384,6 +384,55 @@ Don't. The importer matches by `Name` and would treat the rename as a NEW chunk 
 ### Adding a new chunk to an existing town
 
 Edit the town's TownLayoutAuthoring scene → add a new `TownChunkPlacement` child → re-export → import. Importer's `ReplaceForMapAsync` handles the upsert.
+
+---
+
+## Map teleportation
+
+Portals route the player between maps. Each portal is one of two roles:
+`Back` (returns to a previous map) or `Forward` (advances to the next).
+
+### Authoring a portal
+
+1. In `ChunkAuthoring.unity`: place a `ChunkPortalSlotMarker` on the chunk
+   at the desired chunk-local position. Pick `Role` = `Back` or `Forward`.
+2. Re-export chunks + sync.
+3. In `TownLayoutAuthoring.unity` (for towns): on the `TownChunkPlacement`
+   that holds this chunk, set `BackPortalTargetMapId` or
+   `ForwardPortalTargetMapId` to the destination map's `MapTemplate.Id`.
+   Leave 0 if the slot is decorative / not routed.
+4. Re-export layout + run `Avalon.ChunkImporter`.
+
+For procedural maps the targets come from
+`ProceduralMapConfig.BackPortalTargetMapId` / `ForwardPortalTargetMapId` —
+no per-placement override.
+
+### Runtime flow
+
+Server-side `PredefinedChunkLayoutSource.BuildPortals` reads the per-
+placement targets and emits `PortalPlacement(role, world, targetMapId)`
+into `ChunkLayout.Portals`. `PortalPlacementService.Place` materialises
+them as `PortalInstance`s on the `MapInstance`. The wire packet
+`SChunkLayoutPacket` ships the placements as `PortalPlacementDto[]`.
+
+Client `PortalRuntimeSpawner` instantiates a clickable cylinder per
+portal (`PortalRuntime` MonoBehaviour). On click, `PortalRuntime` checks
+proximity vs the player and sends `CEnterMapPacket(TargetMapId)`. The
+server validates proximity again (anti-cheat), resolves / creates the
+target instance via `ChunkLayoutInstanceFactory`, calls
+`World.TransferPlayer`, and emits `SMapTransitionPacket(Success, ...)`
+followed by `SChunkLayoutPacket` for the new instance.
+
+Client `MapTransitionService` receives the success packet, warps the
+player + calls `PlayerMovementPredictor.ResetForTransition` (clears ring
+buffer, `_nextSeq=1`, sets `_transitionInFlight=true`).
+`MapTransitionLoadingOverlay` fades a fullscreen black layer in. The
+new `SChunkLayoutPacket` triggers `ClientMapNavigator.LoadFromLayoutAsync`
+(invalidates prior navmesh + background bake). When `IsReady` flips, the
+overlay fades out and the predictor's input gate releases.
+
+Server resets `connection.LastInputSeq = 0` in `MapInstance.AddCharacter`
+so the client's reset seq=1 is accepted.
 
 ---
 
