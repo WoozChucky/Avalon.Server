@@ -87,8 +87,12 @@ public class ProceduralChunkLayoutSource : IChunkLayoutSource
         {
             bool requiredForward = step == pathLen - 1 && cfg.ForwardPortalTargetMapId is not null;
             bool requiredBoss    = step == pathLen - 1 && cfg.HasBoss;
+            // Mid-path chunks must have ≥2 exits — single-exit chunks (deadends, boss with
+            // S-only) trap the walk on their second tick (only exit is the one we entered
+            // through). Last step is exempt: boss has 1 exit by design.
+            bool excludeSingleExit = !requiredBoss && !requiredForward;
 
-            if (!TryAttachNextChunk(mainPath[^1], pool, grid, rng, requiredBoss, requiredForward, out var placed))
+            if (!TryAttachNextChunk(mainPath[^1], pool, grid, rng, requiredBoss, requiredForward, excludeSingleExit, out var placed))
             {
                 error = $"Could not attach at step {step}";
                 return false;
@@ -105,7 +109,8 @@ public class ProceduralChunkLayoutSource : IChunkLayoutSource
             var tail = mainPath[i];
             for (int b = 0; b < branchLen; b++)
             {
-                if (!TryAttachNextChunk(tail, pool, grid, rng, requiredBoss: false, requiredForward: false, out var placed))
+                // Branches may end in deadends, so single-exit chunks are fair game.
+                if (!TryAttachNextChunk(tail, pool, grid, rng, requiredBoss: false, requiredForward: false, excludeSingleExit: false, out var placed))
                     break;
                 grid[(placed!.GridX, placed.GridZ)] = placed;
                 tail = placed;
@@ -134,7 +139,7 @@ public class ProceduralChunkLayoutSource : IChunkLayoutSource
     private static bool TryAttachNextChunk(
         PlacedChunkRecord current, IReadOnlyList<ChunkPoolMember> pool,
         Dictionary<(int, int), PlacedChunkRecord> grid, Random rng,
-        bool requiredBoss, bool requiredForward, out PlacedChunkRecord? placed)
+        bool requiredBoss, bool requiredForward, bool excludeSingleExit, out PlacedChunkRecord? placed)
     {
         placed = null;
         ushort rotatedExits = ExitMask.Rotate(current.Template.Exits, current.Rotation);
@@ -156,6 +161,7 @@ public class ProceduralChunkLayoutSource : IChunkLayoutSource
                 {
                     if (requiredBoss && !m.Template.SpawnSlots.Any(s => s.Tag.Equals("boss", StringComparison.OrdinalIgnoreCase))) continue;
                     if (requiredForward && !m.Template.PortalSlots.Any(p => p.Role == PortalRole.Forward)) continue;
+                    if (excludeSingleExit && CountExits(m.Template.Exits) <= 1) continue;
                     for (byte r = 0; r < 4; r++)
                     {
                         ushort rot = ExitMask.Rotate(m.Template.Exits, r);
@@ -173,6 +179,13 @@ public class ProceduralChunkLayoutSource : IChunkLayoutSource
             }
         }
         return false;
+    }
+
+    private static int CountExits(ushort mask)
+    {
+        int n = 0;
+        for (int i = 0; i < 12; i++) if ((mask & (1 << i)) != 0) n++;
+        return n;
     }
 
     private static IReadOnlyList<PortalPlacement> BuildPortals(
