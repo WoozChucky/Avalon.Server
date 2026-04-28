@@ -22,7 +22,6 @@ public static class ServiceExtensions
         services
             .AddScoped<ICreatureTemplateRepository, CreatureTemplateRepository>()
             .AddScoped<IMapTemplateRepository, MapTemplateRepository>()
-            .AddScoped<IMapPortalRepository, MapPortalRepository>()
             .AddScoped<IItemTemplateRepository, ItemTemplateRepository>()
             .AddScoped<IItemInstanceRepository, ItemInstanceRepository>()
             .AddScoped<IClassLevelStatRepository, ClassLevelStatRepository>()
