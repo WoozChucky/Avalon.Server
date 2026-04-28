@@ -173,14 +173,21 @@ public class CharacterEntity : ICharacter
 
     public void OnHit(IUnit attacker, uint damage)
     {
+        if (IsDead) return; // corpse — no further state changes or broadcast
+
         _logger.LogInformation("{Name} has been hit by unit {Attacker} for {Damage} damage", Name, attacker.Guid,
             damage);
         MarkCombat();
-        CurrentHealth -= damage;
-        if (CurrentHealth <= 0)
+
+        if (damage >= CurrentHealth)
         {
             _logger.LogInformation("{Name} has died", Name);
-            CurrentHealth = Health; // reset health while developing
+            CurrentHealth = 0;
+            IsDead = true;
+        }
+        else
+        {
+            CurrentHealth -= damage;
         }
 
         // Send to self (routed via MapInstance which holds the connection)
