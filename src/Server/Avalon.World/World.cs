@@ -13,10 +13,12 @@ using Avalon.World.Instances;
 using Avalon.World.Maps;
 using Avalon.World.ChunkLayouts;
 using Avalon.World.Public;
+using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Instances;
 using Avalon.World.Public.Scripts;
+using Avalon.World.Respawn;
 using Avalon.World.Scripts.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -135,8 +137,19 @@ public class World : IWorld
             CharacterEntity? entity = connection.Character! as CharacterEntity;
             Character dbCharacter = entity!.Data!;
 
+            if (connection.Character.IsDead)
+            {
+                await ApplyDeathLogoutAsync(connection.Character, dbCharacter,
+                    scope.ServiceProvider.GetRequiredService<IRespawnTargetResolver>(),
+                    CancellationToken.None);
+
+                var townTemplate = _mapManager.Templates.FirstOrDefault(t => t.Id == new MapTemplateId(dbCharacter.Map));
+                dbCharacter.X = townTemplate?.DefaultSpawnX ?? 0f;
+                dbCharacter.Y = townTemplate?.DefaultSpawnY ?? 0f;
+                dbCharacter.Z = townTemplate?.DefaultSpawnZ ?? 0f;
+            }
             // If logging out from a Normal map, redirect the character to the associated town
-            if (instance?.MapType == MapType.Normal)
+            else if (instance?.MapType == MapType.Normal)
             {
                 MapTemplate? normalTemplate =
                     _mapManager.Templates.FirstOrDefault(t => t.Id == instance.TemplateId);
@@ -226,6 +239,27 @@ public class World : IWorld
         }
 
         InstanceRegistry.ProcessExpiredInstances(TimeSpan.FromMinutes(15));
+    }
+
+    /// <summary>
+    /// Applies the "logout while dead" branch in isolation — resolves the respawn town,
+    /// revives the live entity, and rewrites the persisted Character row to land at the
+    /// town with full HP. No outbound packets are sent (the connection is gone). Public
+    /// so the unit-test for this branch can drive it without standing up the full
+    /// DeSpawnPlayerAsync DI graph.
+    /// </summary>
+    public static async Task ApplyDeathLogoutAsync(
+        ICharacter character,
+        Character dbCharacter,
+        IRespawnTargetResolver resolver,
+        CancellationToken ct)
+    {
+        var townId = await resolver.ResolveTownAsync(new MapTemplateId(character.Map.Value), ct);
+        character.Revive();
+        dbCharacter.Map = townId.Value;
+        dbCharacter.Health = (int)character.Health;
+        // Position is overwritten by the caller (DeSpawnPlayerAsync) using
+        // MapTemplate.DefaultSpawn{X,Y,Z}.
     }
 
     private void ApplyScriptsHotReload(List<Type> aiScriptTypes)
