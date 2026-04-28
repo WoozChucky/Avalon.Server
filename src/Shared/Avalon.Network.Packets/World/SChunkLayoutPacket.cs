@@ -26,6 +26,15 @@ public class Vector3Dto
 }
 
 [ProtoContract]
+public class PortalPlacementDto
+{
+    [ProtoMember(1)] public byte Role { get; set; }
+    [ProtoMember(2)] public Vector3Dto WorldPos { get; set; } = new();
+    [ProtoMember(3)] public float Radius { get; set; }
+    [ProtoMember(4)] public ushort TargetMapId { get; set; }
+}
+
+[ProtoContract]
 public class SChunkLayoutPacket : Packet
 {
     public static NetworkPacketType PacketType = NetworkPacketType.SMSG_CHUNK_LAYOUT;
@@ -37,6 +46,7 @@ public class SChunkLayoutPacket : Packet
     [ProtoMember(3)] public float CellSize { get; set; }
     [ProtoMember(4)] public List<PlacedChunkDto> Chunks { get; set; } = new();
     [ProtoMember(5)] public Vector3Dto EntrySpawn { get; set; } = new();
+    [ProtoMember(6)] public List<PortalPlacementDto> Portals { get; set; } = new();
 
     public static NetworkPacket Create(
         int seed,
@@ -44,6 +54,7 @@ public class SChunkLayoutPacket : Packet
         float cellSize,
         IReadOnlyList<PlacedChunkDto> chunks,
         Vector3 entrySpawn,
+        IReadOnlyList<PortalPlacementDto> portals,
         EncryptFunc encrypt)
     {
         var pkt = new SChunkLayoutPacket
@@ -53,6 +64,7 @@ public class SChunkLayoutPacket : Packet
             CellSize = cellSize,
             Chunks = chunks.ToList(),
             EntrySpawn = Vector3Dto.From(entrySpawn),
+            Portals = portals.ToList(),
         };
         return PacketSerializationHelper.Serialize(pkt, PacketType, Flags, Protocol, encrypt);
     }

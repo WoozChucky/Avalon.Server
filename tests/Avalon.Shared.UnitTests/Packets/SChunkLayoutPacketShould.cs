@@ -42,4 +42,31 @@ public class SChunkLayoutPacketShould
         Assert.Equal(0f, round.EntrySpawn.Y);
         Assert.Equal(17f, round.EntrySpawn.Z);
     }
+
+    [Fact]
+    public void Round_trip_preserves_portals()
+    {
+        var pkt = new SChunkLayoutPacket
+        {
+            Seed = 0,
+            InstanceId = Guid.NewGuid(),
+            CellSize = 30f,
+            EntrySpawn = new Vector3Dto { X = 15, Y = 0, Z = 15 },
+            Portals = new List<PortalPlacementDto>
+            {
+                new() { Role = 1 /* Forward */, WorldPos = new Vector3Dto { X = 15, Y = 0, Z = 45 }, Radius = 3f, TargetMapId = 2 }
+            }
+        };
+
+        using var ms = new MemoryStream();
+        Serializer.Serialize(ms, pkt);
+        ms.Position = 0;
+        var round = Serializer.Deserialize<SChunkLayoutPacket>(ms);
+
+        Assert.Single(round.Portals);
+        Assert.Equal(1, round.Portals[0].Role);
+        Assert.Equal((ushort)2, round.Portals[0].TargetMapId);
+        Assert.Equal(45f, round.Portals[0].WorldPos.Z);
+        Assert.Equal(3f, round.Portals[0].Radius);
+    }
 }
