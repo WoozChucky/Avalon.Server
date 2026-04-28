@@ -1,6 +1,7 @@
 using Avalon.Domain.Characters;
 using Avalon.World.Configuration;
 using Avalon.World.Entities;
+using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
@@ -89,7 +90,8 @@ public class CharacterEntityShould
         Assert.True(entity.IsDead);
 
         bool damagedRaised = false;
-        CharacterEntity.OnUnitDamaged += (_, _, _) => damagedRaised = true;
+        UnitDamagedDelegate handler = (_, _, _) => damagedRaised = true;
+        CharacterEntity.OnUnitDamaged += handler;
 
         try
         {
@@ -101,7 +103,7 @@ public class CharacterEntityShould
         }
         finally
         {
-            CharacterEntity.OnUnitDamaged -= (_, _, _) => damagedRaised = true;
+            CharacterEntity.OnUnitDamaged -= handler;
         }
     }
 }
