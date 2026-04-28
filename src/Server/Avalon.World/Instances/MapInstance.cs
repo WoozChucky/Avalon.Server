@@ -105,6 +105,11 @@ public class MapInstance : IMapInstance, IPortalSink
 
     public void AddCharacter(IWorldConnection connection)
     {
+        // Reset the per-connection input sequence so the client's predictor — which resets
+        // _nextSeq = 1 on map transition (see PlayerMovementPredictor.ResetForTransition) —
+        // has its first packet accepted (PlayerInputHandler rejects packet.Seq <= LastInputSeq).
+        connection.LastInputSeq = 0;
+
         _characters[connection.Character!.Guid] = connection.Character;
         _connections[connection.Character.Guid] = connection;
         _broadcastStates[connection.Character.Guid] = new PerPlayerBroadcastState();

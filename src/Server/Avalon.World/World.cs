@@ -108,19 +108,11 @@ public class World : IWorld
 
     public void TransferPlayer(IWorldConnection connection, IMapInstance targetInstance)
     {
-        // Remove from current instance
         IMapInstance? current = InstanceRegistry.GetInstanceById(connection.Character!.InstanceId);
         current?.RemoveCharacter(connection);
 
-        // Update character map and spawn position from the target template
-        MapTemplate? template = _mapManager.Templates.FirstOrDefault(t => t.Id == targetInstance.TemplateId);
-        if (template != null)
-        {
-            connection.Character.Map = template.Id;
-            connection.Character.Position =
-                new Vector3(template.DefaultSpawnX, template.DefaultSpawnY, template.DefaultSpawnZ);
-        }
-
+        // Position is set by the caller (EnterMapHandler / CharacterSelectHandler) which knows
+        // the canonical Layout.EntrySpawnWorldPos. TransferPlayer owns instance membership only.
         connection.Character.InstanceId = targetInstance.InstanceId;
         targetInstance.AddCharacter(connection);
     }
