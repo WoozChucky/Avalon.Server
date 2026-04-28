@@ -196,30 +196,39 @@ public class MapInstance : IMapInstance, IPortalSink
             creature.Script?.Update(deltaTime);
         }
 
-        // Step 5a: Snapshot dirty fields for this frame (once, before any client broadcast)
+        // Step 5a: Snapshot dirty fields — ONLY on broadcast ticks. Entity _dirtyFields use
+        // |= to accumulate, so OR-ing all changes between broadcasts is captured by a single
+        // ConsumeDirtyFields() at broadcast time. Consuming every tick (with sends gated to
+        // 10Hz) silently drops every state-change that happened on a non-broadcast tick —
+        // notably "creature stopped moving" frames after combat/return resolve, which made
+        // creatures appear to drift forever on clients.
         _frameDirtyFields.Clear();
+        bool shouldBroadcastUpdates = _lastBroadcastTime >= BroadcastInterval;
 
-        foreach (var creature in _creatures.Values)
+        if (shouldBroadcastUpdates)
         {
-            var dirty = creature.ConsumeDirtyFields();
-            if (dirty != GameEntityFields.None)
-                _frameDirtyFields[creature.Guid] = dirty;
-        }
-
-        foreach (var character in _characters.Values)
-        {
-            var dirty = character.ConsumeDirtyFields();
-            if (dirty != GameEntityFields.None)
-                _frameDirtyFields[character.Guid] = dirty;
-        }
-
-        foreach (var obj in objectSpells)
-        {
-            if (obj is SpellScript spell)
+            foreach (var creature in _creatures.Values)
             {
-                var dirty = spell.ConsumeDirtyFields();
+                var dirty = creature.ConsumeDirtyFields();
                 if (dirty != GameEntityFields.None)
-                    _frameDirtyFields[spell.Guid] = dirty;
+                    _frameDirtyFields[creature.Guid] = dirty;
+            }
+
+            foreach (var character in _characters.Values)
+            {
+                var dirty = character.ConsumeDirtyFields();
+                if (dirty != GameEntityFields.None)
+                    _frameDirtyFields[character.Guid] = dirty;
+            }
+
+            foreach (var obj in objectSpells)
+            {
+                if (obj is SpellScript spell)
+                {
+                    var dirty = spell.ConsumeDirtyFields();
+                    if (dirty != GameEntityFields.None)
+                        _frameDirtyFields[spell.Guid] = dirty;
+                }
             }
         }
 
@@ -382,7 +391,9 @@ public class MapInstance : IMapInstance, IPortalSink
             if (state.AddedObjects.Count > 0)
                 connection.Send(SInstanceStateAddPacket.Create(state.AddedObjects, connection.CryptoSession.Encrypt));
 
-            if (_lastBroadcastTime >= BroadcastInterval && state.UpdatedObjects.Count > 0)
+            // _frameDirtyFields is populated only on broadcast ticks (see Step 5a in Update),
+            // so UpdatedObjects.Count > 0 already implies a broadcast cadence hit.
+            if (state.UpdatedObjects.Count > 0)
                 connection.Send(SInstanceStateUpdatePacket.Create(state.UpdatedObjects, connection.CryptoSession.Encrypt));
 
             if (character.CharacterGameState.RemovedObjects.Count > 0)
