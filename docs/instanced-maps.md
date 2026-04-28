@@ -64,8 +64,8 @@ public interface IMapInstance : ISimulationContext
     Guid         InstanceId      { get; }
     MapTemplateId TemplateId     { get; }
     MapType       MapType        { get; }
-    long?         OwnerAccountId { get; }              // null for Town instances
-    IReadOnlyList<long> AllowedAccounts { get; }
+    uint?         OwnerCharacterId { get; }            // null for Town instances; per-character keying
+    IReadOnlyList<uint> AllowedCharacters { get; }     // stub for future group support
     int           PlayerCount    { get; }
     DateTime?     LastEmptyAt    { get; }              // null while any player is inside
 
@@ -90,8 +90,9 @@ public interface IInstanceRegistry
     /// <summary>Returns the least-full town instance. Creates a new one if all are at capacity.</summary>
     Task<IMapInstance> GetOrCreateTownInstanceAsync(MapTemplateId templateId, ushort maxPlayers);
 
-    /// <summary>Returns the player's existing live instance if within expiry window; else creates a new one.</summary>
-    Task<IMapInstance> GetOrCreateNormalInstanceAsync(long accountId, MapTemplateId templateId);
+    /// <summary>Returns the character's existing live instance if within expiry window; else creates a new one.
+    /// Keyed by character (not account) so alts on the same account get separate instances.</summary>
+    Task<IMapInstance> GetOrCreateNormalInstanceAsync(uint characterId, MapTemplateId templateId);
 
     IMapInstance? GetInstanceById(Guid instanceId);
     void ProcessExpiredInstances(TimeSpan normalMapExpiry);
@@ -142,13 +143,15 @@ Both factory methods are async because `ChunkLayoutInstanceFactory.BuildAsync` r
 `GetOrCreateTownInstanceAsync`:
 1. Filter active instances by `TemplateId` and `MapType == Town`
 2. Pick the one with the lowest `PlayerCount` that passes `CanAcceptPlayer(maxPlayers)`
-3. If none found (all full or none exist): build a new `MapInstance` via `ChunkLayoutInstanceFactory.BuildAsync(template, ownerAccountId: null, ct)`, call `SpawnStartingEntities`, register it
+3. If none found (all full or none exist): build a new `MapInstance` via `ChunkLayoutInstanceFactory.BuildAsync(template, ownerCharacterId: null, ct)`, call `SpawnStartingEntities`, register it
 
 ### Normal Map Re-entry
 
 `GetOrCreateNormalInstanceAsync`:
-1. Check account's existing instance map — if the Guid maps to an existing, non-expired instance: return it
-2. Otherwise: build a new `MapInstance` via `ChunkLayoutInstanceFactory.BuildAsync(template, ownerAccountId, ct)` (same factory used for towns; the layout source resolver picks `ProceduralChunkLayoutSource` for `MapType.Normal`), register it
+1. Check the character's existing instance map — if the Guid maps to an existing, non-expired instance: return it
+2. Otherwise: build a new `MapInstance` via `ChunkLayoutInstanceFactory.BuildAsync(template, ownerCharacterId, ct)` (same factory used for towns; the layout source resolver picks `ProceduralChunkLayoutSource` for `MapType.Normal`), register it
+
+The cache is keyed by `characterId` (the in-game character id surfaced via `ObjectGuid.Id`), NOT by `accountId`. Two characters on the same account that walk into the same procedural map within the 15-min re-entry window get separate instances.
 
 ### Expiry Cleanup
 
@@ -229,7 +232,7 @@ public class SMapTransitionPacket : Packet
 7.  Level check → send LevelTooLow / LevelTooHigh if out of range
 8.  Resolve target instance:
        Town   → GetOrCreateTownInstance(targetMapId, maxPlayers)
-       Normal → GetOrCreateNormalInstance(accountId, targetMapId)
+       Normal → GetOrCreateNormalInstance(characterId, targetMapId)
 9.  world.TransferPlayer(connection, targetInstance):
        a. currentInstance.RemoveCharacter(connection)
        b. character.InstanceId = targetInstance.InstanceId
