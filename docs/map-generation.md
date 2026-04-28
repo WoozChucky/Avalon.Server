@@ -243,7 +243,7 @@ For each chunk you want to place, add an empty child GameObject and attach **`To
 
 - **ChunkName**: must match a `ChunkTemplate.Name` already in the DB (i.e., already imported via `Avalon.ChunkImporter`).
 - **GridX / GridZ**: integer cell coordinates. World position will be `(GridX*CellSize, 0, GridZ*CellSize)`. Cell `(0, 0)` is the SW corner; `+X` is east, `+Z` is north.
-- **Rotation**: 0–3 (90° steps clockwise around Y). All chunks at rotation 0 sit in their authored orientation; non-zero rotates the chunk in-place around its local origin. *Note: rotation > 0 currently moves the chunk's footprint outside its declared cell because chunks are authored with their origin at the SW corner; rotated chunks need authoring with origin at cell center for correct placement. Use rotation = 0 for now and design distinct chunks per orientation.*
+- **Rotation**: 0–3 (90° steps clockwise around Y). All chunks at rotation 0 sit in their authored orientation; non-zero rotates the chunk **around its centre** (`cellSize/2, cellSize/2` of the SW-anchored authoring frame) so the footprint stays inside the declared `(GridX, GridZ)` cell. The single source of truth for that pivot is `ChunkRotation.LocalToWorld` (mirrored on server + client); both bake and visualizer call it. The procedural generator uses all 4 rotations to fit chunk exits to neighbouring cells.
 - **IsEntry**: exactly ONE placement per layout must have `IsEntry = true`. The player spawns at this chunk.
 - **EntrySpawnLocal**: chunk-local spawn coordinates (only honored when `IsEntry = true`). Defaults to `(15, 0, 15)` for a 30×30 cell. Server's `PredefinedChunkLayoutSource` transforms this to world space and uses it for `ChunkLayout.EntrySpawnWorldPos`.
 
