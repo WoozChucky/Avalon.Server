@@ -175,6 +175,7 @@ public class EnterMapHandler(
             connection.Send(SChunkLayoutPacket.Create(
                 layout.Seed,
                 layoutMi.InstanceId,
+                targetMapId.Value,
                 layout.CellSize,
                 dtos,
                 layout.EntrySpawnWorldPos,

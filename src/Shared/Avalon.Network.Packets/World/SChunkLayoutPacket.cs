@@ -47,10 +47,12 @@ public class SChunkLayoutPacket : Packet
     [ProtoMember(4)] public List<PlacedChunkDto> Chunks { get; set; } = new();
     [ProtoMember(5)] public Vector3Dto EntrySpawn { get; set; } = new();
     [ProtoMember(6)] public List<PortalPlacementDto> Portals { get; set; } = new();
+    [ProtoMember(7)] public ushort MapId { get; set; }
 
     public static NetworkPacket Create(
         int seed,
         Guid instanceId,
+        ushort mapId,
         float cellSize,
         IReadOnlyList<PlacedChunkDto> chunks,
         Vector3 entrySpawn,
@@ -61,6 +63,7 @@ public class SChunkLayoutPacket : Packet
         {
             Seed = seed,
             InstanceId = instanceId,
+            MapId = mapId,
             CellSize = cellSize,
             Chunks = chunks.ToList(),
             EntrySpawn = Vector3Dto.From(entrySpawn),

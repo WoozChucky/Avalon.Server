@@ -217,6 +217,7 @@ public class CharacterSelectHandler(
             connection.Send(SChunkLayoutPacket.Create(
                 layout.Seed,
                 layoutMi.InstanceId,
+                character.Map,
                 layout.CellSize,
                 dtos,
                 layout.EntrySpawnWorldPos,
