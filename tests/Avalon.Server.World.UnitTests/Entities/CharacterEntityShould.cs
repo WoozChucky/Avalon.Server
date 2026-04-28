@@ -3,6 +3,7 @@ using Avalon.World.Configuration;
 using Avalon.World.Entities;
 using Avalon.World.Public.Enums;
 using Microsoft.Extensions.Logging.Abstractions;
+using NSubstitute;
 using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Entities;
@@ -65,5 +66,42 @@ public class CharacterEntityShould
         var dirty = entity.ConsumeDirtyFields();
         Assert.True((dirty & GameEntityFields.IsDead) != 0);
         Assert.True((dirty & GameEntityFields.CurrentHealth) != 0);
+    }
+
+    [Fact]
+    public void Set_IsDead_and_clamp_health_to_zero_when_OnHit_takes_HP_below_zero()
+    {
+        var entity = NewEntity();
+        var attacker = Substitute.For<Avalon.World.Public.Units.IUnit>();
+
+        entity.OnHit(attacker, damage: 9999);
+
+        Assert.True(entity.IsDead);
+        Assert.Equal(0u, entity.CurrentHealth);
+    }
+
+    [Fact]
+    public void Ignore_subsequent_OnHit_while_dead()
+    {
+        var entity = NewEntity();
+        var attacker = Substitute.For<Avalon.World.Public.Units.IUnit>();
+        entity.OnHit(attacker, damage: 9999);
+        Assert.True(entity.IsDead);
+
+        bool damagedRaised = false;
+        CharacterEntity.OnUnitDamaged += (_, _, _) => damagedRaised = true;
+
+        try
+        {
+            entity.OnHit(attacker, damage: 5);
+
+            Assert.False(damagedRaised);
+            Assert.Equal(0u, entity.CurrentHealth);
+            Assert.True(entity.IsDead);
+        }
+        finally
+        {
+            CharacterEntity.OnUnitDamaged -= (_, _, _) => damagedRaised = true;
+        }
     }
 }
