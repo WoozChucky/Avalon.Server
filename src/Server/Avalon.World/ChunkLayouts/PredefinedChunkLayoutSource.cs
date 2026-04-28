@@ -76,7 +76,11 @@ public class PredefinedChunkLayoutSource : IChunkLayoutSource
             entryRow.EntryLocalX, entryRow.EntryLocalY, entryRow.EntryLocalZ,
             entryPlaced.WorldPos, entryPlaced.Rotation);
 
-        var portals = BuildPortals(placed, byId);
+        // Index placements by (GridX, GridZ) so BuildPortals can look up the row that produced
+        // each PlacedChunk and read its target columns.
+        var rowByCell = rows.ToDictionary(r => (r.GridX, r.GridZ));
+
+        var portals = BuildPortals(placed, byId, rowByCell);
 
         return new ChunkLayout(
             Seed: 0,
@@ -89,23 +93,32 @@ public class PredefinedChunkLayoutSource : IChunkLayoutSource
             Config: null);
     }
 
-    // For predefined towns, every PortalSlot declared on a chunk template becomes a portal.
-    // Target map id resolution: phase 1 uses TargetMapId = 0 (server treats 0 as "no target",
-    // logs warning if traversed). Per-portal config table is future work for connecting
-    // towns to dungeons.
+    // For predefined towns, each PortalSlot declared on a chunk template is emitted only when
+    // the producing MapChunkPlacement row has a non-null target map id for that slot's role.
+    // Slots without a configured target are skipped (chunk may be reused on a map that doesn't
+    // route this portal).
     private static IReadOnlyList<PortalPlacement> BuildPortals(
         IReadOnlyList<PlacedChunk> chunks,
-        IReadOnlyDictionary<ChunkTemplateId, ChunkTemplate> byId)
+        IReadOnlyDictionary<ChunkTemplateId, ChunkTemplate> byId,
+        IReadOnlyDictionary<(short GridX, short GridZ), MapChunkPlacement> rowByCell)
     {
         var result = new List<PortalPlacement>();
         foreach (var p in chunks)
         {
             var ct2 = byId[p.TemplateId];
+            var row = rowByCell[(p.GridX, p.GridZ)];
             foreach (var slot in ct2.PortalSlots)
             {
+                ushort? target = slot.Role switch
+                {
+                    PortalRole.Back => row.BackPortalTargetMapId,
+                    PortalRole.Forward => row.ForwardPortalTargetMapId,
+                    _ => null,
+                };
+                if (target is null) continue;
+
                 var world = TransformLocal(slot.LocalX, slot.LocalY, slot.LocalZ, p.WorldPos, p.Rotation);
-                ushort targetMapId = 0; // TODO: resolve via per-portal config table once towns connect to dungeons
-                result.Add(new PortalPlacement(slot.Role, world, targetMapId));
+                result.Add(new PortalPlacement(slot.Role, world, target.Value));
             }
         }
         return result;
