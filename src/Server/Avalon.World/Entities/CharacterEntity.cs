@@ -282,6 +282,25 @@ public class CharacterEntity : ICharacter
         }
     }
 
+    private bool _isDead;
+    public bool IsDead
+    {
+        get => _isDead;
+        set
+        {
+            if (_isDead == value) return;
+            _isDead = value;
+            _dirtyFields |= GameEntityFields.IsDead;
+        }
+    }
+
+    public void Revive()
+    {
+        // Clear flag first so no invariant observes "alive but at 0 HP" or "dead but at full HP".
+        IsDead = false;
+        CurrentHealth = Health;
+    }
+
     public ushort Level
     {
         get => Data?.Level ?? 0;
