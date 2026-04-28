@@ -34,7 +34,7 @@ public sealed class RespawnTargetResolver : IRespawnTargetResolver
 
     public async Task<MapTemplateId> ResolveTownAsync(MapTemplateId from, CancellationToken ct)
     {
-        using var scope = _scopeFactory.CreateScope();
+        await using var scope = _scopeFactory.CreateAsyncScope();
         var mapRepo = scope.ServiceProvider.GetRequiredService<IMapTemplateRepository>();
         var cfgRepo = scope.ServiceProvider.GetRequiredService<IProceduralMapConfigRepository>();
 
