@@ -19,6 +19,12 @@ public class PlayerInputHandler(
         var ch = connection.Character;
         if (ch == null) return;
 
+        if (ch.IsDead)
+        {
+            logger.LogDebug("Dropped CMSG_PLAYER_INPUT from dead char {Name}", ch.Name);
+            return;
+        }
+
         // Defensive: reject duplicate / out-of-order seq. TCP guarantees order so this should never fire.
         if (packet.Seq <= connection.LastInputSeq) return;
 

@@ -30,6 +30,12 @@ public class EnterMapHandler(
             return;
         }
 
+        if (connection.Character is { IsDead: true } deadChar)
+        {
+            logger.LogDebug("Dropped CMSG_ENTER_MAP from dead char {Name}", deadChar.Name);
+            return;
+        }
+
         ICharacter character = connection.Character!;
 
         // 2. Resolve the current instance

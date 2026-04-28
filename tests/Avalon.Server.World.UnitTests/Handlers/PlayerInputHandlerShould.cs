@@ -122,4 +122,32 @@ public class PlayerInputHandlerShould
         handler.Execute(conn, new CPlayerInputPacket { Seq = 7, DirX = 1, DirZ = 0 });
         conn.Received(1).LastInputSeq = 7u;
     }
+
+    [Fact]
+    public void Drop_input_packet_when_character_is_dead()
+    {
+        var character = Substitute.For<ICharacter>();
+        character.IsDead.Returns(true);
+        character.Position.Returns(Vector3.zero);
+        character.InstanceId.Returns(Guid.NewGuid());
+
+        var connection = Substitute.For<IWorldConnection>();
+        connection.Character.Returns(character);
+        connection.LastInputSeq.Returns(0u);
+
+        var instance = Substitute.For<IMapInstance>();
+        var nav = Substitute.For<IMapNavigator>();
+        instance.GetNavigatorForPosition(Arg.Any<Vector3>()).Returns(nav);
+
+        var world = Substitute.For<IWorld>();
+        world.InstanceRegistry.GetInstanceById(Arg.Any<Guid>()).Returns(instance);
+
+        var handler = new PlayerInputHandler(NullLogger<PlayerInputHandler>.Instance, world);
+
+        handler.Execute(connection, new CPlayerInputPacket { Seq = 1, DirX = 1f, DirZ = 0f });
+
+        // Dead char => no nav lookup, no position write.
+        instance.DidNotReceive().GetNavigatorForPosition(Arg.Any<Vector3>());
+        character.DidNotReceiveWithAnyArgs().Position = default;
+    }
 }
