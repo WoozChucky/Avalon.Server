@@ -75,9 +75,13 @@ public class EnterMapHandler(
         // 6. Proximity check
         if (Vector3.Distance(character.Position, portalPosition) > portalRadius)
         {
-            logger.LogDebug(
-                "EnterMap: character {Name} is too far from portal (distance {Distance}, radius {Radius})",
-                character.Name, Vector3.Distance(character.Position, portalPosition), portalRadius);
+            // TEMP DIAG: include character + portal world coords + current instance id so we can
+            // correlate stale-state cases (player position not advancing on server post-transition).
+            logger.LogWarning(
+                "EnterMap: {Name} too far from portal — charPos={CharPos} portalPos={PortalPos} distance={Distance:F2} radius={Radius:F2} charInstance={CharInstance} targetMap={TargetMap}",
+                character.Name, character.Position, portalPosition,
+                Vector3.Distance(character.Position, portalPosition), portalRadius,
+                character.InstanceId, packet.TargetMapId);
             connection.Send(SMapTransitionPacket.CreateFailure(MapTransitionResult.NotNearPortal,
                 connection.CryptoSession.Encrypt));
             return;

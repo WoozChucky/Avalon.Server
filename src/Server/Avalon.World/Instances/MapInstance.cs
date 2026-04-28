@@ -105,10 +105,14 @@ public class MapInstance : IMapInstance, IPortalSink
 
     public void AddCharacter(IWorldConnection connection)
     {
-        // Reset the per-connection input sequence so the client's predictor — which resets
-        // _nextSeq = 1 on map transition (see PlayerMovementPredictor.ResetForTransition) —
-        // has its first packet accepted (PlayerInputHandler rejects packet.Seq <= LastInputSeq).
-        connection.LastInputSeq = 0;
+        // LastInputSeq is intentionally NOT reset here. Resetting created a race: any stale
+        // PlayerInputPacket from the previous instance still in-flight in the inbound queue
+        // would land after this reset with a high seq, bumping LastInputSeq up — then the
+        // client's freshly-reset _nextSeq=1 packets would all be rejected by
+        // PlayerInputHandler's monotonicity guard. Instead, both sides keep _nextSeq /
+        // LastInputSeq monotonic for the connection's lifetime; stale inputs from the
+        // previous instance arrive with a seq < current LastInputSeq and get correctly
+        // rejected, while new post-transition inputs arrive with a higher seq and pass.
 
         _characters[connection.Character!.Guid] = connection.Character;
         _connections[connection.Character.Guid] = connection;
