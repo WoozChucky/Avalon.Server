@@ -3,6 +3,7 @@ using Avalon.World.Configuration;
 using Avalon.World.Entities;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
+using Avalon.World.Public.Spells;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Xunit;
@@ -19,7 +20,10 @@ public class CharacterEntityShould
             Health = 100,
             Power1 = 0,
         };
-        return new CharacterEntity(NullLoggerFactory.Instance, character, new RegenConfiguration());
+        var entity = new CharacterEntity(NullLoggerFactory.Instance, character, new RegenConfiguration());
+        // Initialize spells with an empty collection to avoid NullReferenceException in Update
+        entity.Spells.Load(new List<ISpell>());
+        return entity;
     }
 
     [Fact]
@@ -105,5 +109,23 @@ public class CharacterEntityShould
         {
             CharacterEntity.OnUnitDamaged -= handler;
         }
+    }
+
+    [Fact]
+    public void Regen_does_not_increase_health_while_dead()
+    {
+        var entity = NewEntity();
+        var attacker = Substitute.For<Avalon.World.Public.Units.IUnit>();
+        entity.OnHit(attacker, damage: 9999);
+        Assert.True(entity.IsDead);
+        Assert.Equal(0u, entity.CurrentHealth);
+
+        // Run several update ticks. Even outside-combat regen should not move CurrentHealth.
+        for (int i = 0; i < 60; i++)
+        {
+            entity.Update(TimeSpan.FromSeconds(1));
+        }
+
+        Assert.Equal(0u, entity.CurrentHealth);
     }
 }

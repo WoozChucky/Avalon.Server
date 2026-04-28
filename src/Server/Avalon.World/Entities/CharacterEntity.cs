@@ -338,14 +338,14 @@ public class CharacterEntity : ICharacter
         float dt = (float)deltaTime.TotalSeconds;
 
         // Health regeneration (skipped if dead or in combat)
-        if (!IsInCombat && CurrentHealth > 0 && CurrentHealth < Health && Stamina > 0)
+        if (!IsInCombat && !IsDead && CurrentHealth > 0 && CurrentHealth < Health && Stamina > 0)
         {
             uint regen = (uint)Math.Max(1f, Stamina * _regenConfig.HealthRegenOutOfCombatPerStamina * dt);
             CurrentHealth = Math.Min(Health, CurrentHealth + regen);
         }
 
         // Power regeneration (Mana / Energy only; Fury is deferred)
-        if (CurrentPower.HasValue && Power.HasValue &&
+        if (!IsDead && CurrentPower.HasValue && Power.HasValue &&
             CurrentPower.Value < Power.Value &&
             RegenStat > 0 &&
             PowerType is PowerType.Mana or PowerType.Energy)
