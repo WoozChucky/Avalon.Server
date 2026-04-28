@@ -18,10 +18,10 @@ public enum GameEntityFields
     Name = 1 << 12,
     Experience = 1 << 13,
     RequiredExperience = 1 << 14,
+    IsDead = 1 << 15,
 
     WorldObjectUpdate = Position | Velocity | Orientation,
     CreatureUpdate = Position | CurrentHealth | CurrentPower | Velocity | Orientation | MoveState | PowerType,
-    CharacterUpdate = Position | CurrentHealth | CurrentPower | Velocity | Orientation | MoveState | Level | Health | Power | PowerType | Experience | RequiredExperience,
-    All = Position | CurrentHealth | CurrentPower | Velocity | Orientation | MoveState | Level | Power | Health | PowerType | CreatureMetadataId | Name | Experience | RequiredExperience
-
+    CharacterUpdate = Position | CurrentHealth | CurrentPower | Velocity | Orientation | MoveState | Level | Health | Power | PowerType | Experience | RequiredExperience | IsDead,
+    All = Position | CurrentHealth | CurrentPower | Velocity | Orientation | MoveState | Level | Power | Health | PowerType | CreatureMetadataId | Name | Experience | RequiredExperience | IsDead
 }
