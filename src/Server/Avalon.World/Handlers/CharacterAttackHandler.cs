@@ -58,6 +58,12 @@ public class CharacterAttackHandler(ILogger<CharacterAttackHandler> logger, IWor
 
         ICharacter attacker = connection.Character!;
 
+        if (attacker.IsDead)
+        {
+            logger.LogDebug("Dropped CMSG_ATTACK from dead char {Name}", attacker.Name);
+            return;
+        }
+
         ISimulationContext? context = world.InstanceRegistry.GetInstanceById(attacker.InstanceId);
         if (context == null)
         {
