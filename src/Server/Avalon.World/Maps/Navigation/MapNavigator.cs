@@ -48,8 +48,13 @@ public class MapNavigator : IMapNavigator
 
             var query = _query!;
 
-            var startPos = new RcVec3f(-start.x, start.y, start.z); // new RcVec3f(-23.1f, 100, 40.5f);
-            var endPos = new RcVec3f(-end.x, end.y, end.z); // RcVec3f(-5.6f, 100, 31f);
+            // Chunk-layout navmesh is baked from chunk objs in Unity coords without an X-flip
+            // (see ChunkLayoutNavmeshBuilder.AppendTransformed → ChunkRotation.LocalToWorld).
+            // Queries MUST use the same convention. The previous (-x) negation came from the
+            // obsolete world.bin (x,z).obj pipeline that flipped X at bake time; both maps
+            // fed by that pipeline are gone.
+            var startPos = new RcVec3f(start.x, start.y, start.z);
+            var endPos = new RcVec3f(end.x, end.y, end.z);
             var path = new List<long>();
 
             var status = query.FindNearestPoly(startPos, PolyPickExt, _queryFilter, out var startRef, out _, out _);
@@ -189,7 +194,7 @@ public class MapNavigator : IMapNavigator
                 }
             }
 
-            return smoothPath.Select(v => new Vector3(-v.X, v.Y, v.Z)).ToList();
+            return smoothPath.Select(v => new Vector3(v.X, v.Y, v.Z)).ToList();
         }
         catch (Exception e)
         {
@@ -209,8 +214,9 @@ public class MapNavigator : IMapNavigator
 
             var query = _query!;
 
-            var startPos = new RcVec3f(-start.x, start.y, start.z);
-            var endPos = new RcVec3f(-end.x, end.y, end.z);
+            // No X-flip — see FindPath comment.
+            var startPos = new RcVec3f(start.x, start.y, start.z);
+            var endPos = new RcVec3f(end.x, end.y, end.z);
 
             // Find the nearest polygons to the start and end points
             var status = query.FindNearestPoly(startPos, PolyPickExt, _queryFilter, out var startRef, out _, out _);
@@ -258,9 +264,7 @@ public class MapNavigator : IMapNavigator
 
         // Chunk objs are exported from Unity in chunk-local space and stitched into the
         // baked navmesh without any axis flip (see ChunkLayoutNavmeshBuilder.AppendTransformed).
-        // Queries must use the same coords — do NOT negate X. (The legacy FindPath /
-        // HasVisibility routines above keep the -X convention from the obsolete (x,z).obj
-        // pipeline; they remain unchanged because nothing exercises them on chunk maps yet.)
+        // Queries must use the same coords — do NOT negate X.
         var startVec = new RcVec3f(from.x, from.y, from.z);
         var status = query.FindNearestPoly(startVec, PolyPickExt, _queryFilter, out var startRef, out _, out _);
         if (status.Failed() || startRef == 0)
