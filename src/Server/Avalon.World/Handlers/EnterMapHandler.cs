@@ -8,7 +8,6 @@ using Avalon.Network.Packets.World;
 using Avalon.World.ChunkLayouts;
 using Avalon.World.Entities;
 using Avalon.World.Instances;
-using Avalon.World.Maps;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Instances;
@@ -19,7 +18,6 @@ namespace Avalon.World.Handlers;
 [PacketHandler(NetworkPacketType.CMSG_ENTER_MAP)]
 public class EnterMapHandler(
     ILogger<EnterMapHandler> logger,
-    IAvalonMapManager mapManager,
     ICharacterRepository characterRepository,
     IChunkLibrary chunkLibrary,
     IWorld world) : WorldPacketHandler<CEnterMapPacket>
@@ -49,48 +47,30 @@ public class EnterMapHandler(
             return;
         }
 
-        // 4. Find a portal on the current map that leads to the target
-        bool portalFound = false;
-        Vector3 portalPosition = default;
-        float portalRadius = 0;
-
-        if (currentInstance is MapInstance mi && mi.Layout is not null)
+        // 4. Find a portal on the current map that leads to the target.
+        // Every instance is now chunk-layout-built and carries its portals on Layout.Portals
+        // (surfaced as PortalInstance via PortalPlacementService). The legacy DB MapPortal
+        // fallback was deleted with this task.
+        if (currentInstance is not MapInstance mi || mi.Layout is null)
         {
-            // Procedural source: iterate PortalInstance list on the instance.
-            PortalInstance? match = mi.Portals.FirstOrDefault(p => p.TargetMapId == packet.TargetMapId);
-            if (match is not null)
-            {
-                portalFound = true;
-                portalPosition = match.Position;
-                portalRadius = match.Radius;
-            }
-        }
-        else
-        {
-            // Town source: existing DB-based MapPortal lookup.
-            // GetPortalsFrom takes ushort: chain MapTemplateId → MapId → ushort
-            ushort sourceMapId = currentInstance != null
-                ? (ushort)(MapId)currentInstance.TemplateId
-                : (ushort)character.Map;
-
-            IReadOnlyList<MapPortal> portals = mapManager.GetPortalsFrom(sourceMapId);
-            MapPortal? dbPortal = portals.FirstOrDefault(p => p.TargetMapId == packet.TargetMapId);
-            if (dbPortal is not null)
-            {
-                portalFound = true;
-                portalPosition = new Vector3(dbPortal.X, dbPortal.Y, dbPortal.Z);
-                portalRadius = dbPortal.Radius;
-            }
+            logger.LogError("EnterMap: current instance has no Layout; refusing teleport for character {Name}",
+                character.Name);
+            connection.Send(SMapTransitionPacket.CreateFailure(MapTransitionResult.MapNotFound,
+                connection.CryptoSession.Encrypt));
+            return;
         }
 
-        // 5. No portal → MapNotFound
-        if (!portalFound)
+        PortalInstance? match = mi.Portals.FirstOrDefault(p => p.TargetMapId == packet.TargetMapId);
+        if (match is null)
         {
             logger.LogDebug("EnterMap: no portal to {TargetMapId}", packet.TargetMapId);
             connection.Send(SMapTransitionPacket.CreateFailure(MapTransitionResult.MapNotFound,
                 connection.CryptoSession.Encrypt));
             return;
         }
+
+        Vector3 portalPosition = match.Position;
+        float portalRadius = match.Radius;
 
         // 6. Proximity check
         if (Vector3.Distance(character.Position, portalPosition) > portalRadius)
