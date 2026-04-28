@@ -4,6 +4,7 @@ using Avalon.Domain.World;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Character;
 using Avalon.Network.Packets.World;
+using Avalon.World.ChunkLayouts;
 using Avalon.World.Instances;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
@@ -18,7 +19,8 @@ namespace Avalon.World.Handlers;
 public class RespawnAtTownHandler(
     ILogger<RespawnAtTownHandler> logger,
     IWorld world,
-    IRespawnTargetResolver resolver) : WorldPacketHandler<CRespawnAtTownPacket>
+    IRespawnTargetResolver resolver,
+    IChunkLibrary chunkLibrary) : WorldPacketHandler<CRespawnAtTownPacket>
 {
     public override void Execute(IWorldConnection connection, CRespawnAtTownPacket packet)
     {
@@ -92,6 +94,38 @@ public class RespawnAtTownHandler(
             townTemplate.Name,
             townTemplate.Description,
             connection.CryptoSession.Encrypt));
+
+        // Mirror EnterMapHandler.OnInstanceReceived: every chunk-layout-built instance ships
+        // its layout to the client so ClientMapNavigator can rebake the navmesh, the
+        // ChunkLayoutVisualizer can repaint geometry, and PortalRuntimeSpawner can recreate
+        // portal triggers. Town instances always have a Layout; fallback is defensive.
+        if (townInstance is MapInstance layoutMi && layoutMi.Layout is { } layout)
+        {
+            var dtos = layout.Chunks.Select(c => new PlacedChunkDto
+            {
+                ChunkTemplateId = c.TemplateId.Value,
+                ChunkName = chunkLibrary.GetById(c.TemplateId).Name,
+                GridX = c.GridX,
+                GridZ = c.GridZ,
+                Rotation = c.Rotation,
+            }).ToList();
+            var portalDtos = layout.Portals.Select(p => new PortalPlacementDto
+            {
+                Role = (byte)p.Role,
+                WorldPos = Vector3Dto.From(p.WorldPos),
+                Radius = p.Radius,
+                TargetMapId = p.TargetMapId,
+            }).ToList();
+            connection.Send(SChunkLayoutPacket.Create(
+                layout.Seed,
+                layoutMi.InstanceId,
+                townMapId.Value,
+                layout.CellSize,
+                dtos,
+                layout.EntrySpawnWorldPos,
+                portalDtos,
+                connection.CryptoSession.Encrypt));
+        }
 
         logger.LogInformation("Character {Name} respawned at town {Map} instance {Instance}",
             ch.Name, townMapId.Value, townInstance.InstanceId);
