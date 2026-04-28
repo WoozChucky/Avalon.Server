@@ -38,7 +38,7 @@ public enum NetworkPacketType : short
     // 0x2015 retired (CMSG_CHARACTER_RUN_WALK)
 
     // Map
-    CMSG_MAP_TELEPORT = 0x2020,
+    // 0x2020 retired (CMSG_MAP_TELEPORT — admin teleport never wired)
     CMSG_ENTER_MAP    = 0x2021,
 
     // Quest
