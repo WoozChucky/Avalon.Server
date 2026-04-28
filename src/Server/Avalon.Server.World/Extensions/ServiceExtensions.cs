@@ -8,6 +8,7 @@ using Avalon.World.Configuration;
 using Avalon.World.Entities;
 using Avalon.World.Maps;
 using Avalon.World.ChunkLayouts;
+using Avalon.World.Respawn;
 using Avalon.World.Scripts;
 using Avalon.World.Scripts.Abstractions;
 using Microsoft.Extensions.Configuration;
@@ -59,6 +60,8 @@ public static class ServiceExtensions
         services.AddSingleton<IScriptDatabase, ScriptDatabase>();
 
         //services.AddSingleton<IQuestManager, QuestManager>();
+
+        services.AddSingleton<IRespawnTargetResolver, RespawnTargetResolver>();
 
         // Chat commands
         services.AddSingleton<ICommand, GroupInviteCommand>();
