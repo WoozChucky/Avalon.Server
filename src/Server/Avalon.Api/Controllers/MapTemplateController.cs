@@ -1,10 +1,7 @@
 using Avalon.Api.Authentication;
 using Avalon.Api.Contract;
-using Avalon.Common.ValueObjects;
+using Avalon.Api.Services;
 using Avalon.Database;
-using Avalon.Database.Extensions;
-using Avalon.Database.World.Repositories;
-using Avalon.Domain.World;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -15,57 +12,63 @@ namespace Avalon.Api.Controllers;
 [Route("map-template")]
 public class MapTemplateController : BaseController
 {
-    private readonly IMapTemplateRepository _repository;
+    private readonly IMapService _service;
 
-    public MapTemplateController(IMapTemplateRepository repository)
+    public MapTemplateController(IMapService service)
     {
-        _repository = repository;
+        _service = service;
     }
 
     [HttpGet(Name = "ListMapTemplates")]
     [ProducesResponseType(typeof(PagedResult<MapTemplateDto>), StatusCodes.Status200OK)]
-    public async Task<PagedResult<MapTemplateDto>> List(
+    public Task<PagedResult<MapTemplateDto>> List(
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 50,
-        CancellationToken ct = default)
-    {
-        var filter = new MapTemplatePaginateFilters
-        {
-            Page = page < 1 ? 1 : page,
-            PageSize = pageSize is < 1 or > 50 ? 50 : pageSize,
-        };
-
-        var result = await _repository.PaginateAsync(filter, track: false, ct);
-        return result.MapTo(ToDto);
-    }
+        CancellationToken ct = default) =>
+        _service.ListAsync(page, pageSize, ct);
 
     [HttpGet("{id:int}", Name = "GetMapTemplateById")]
     [ProducesResponseType(typeof(MapTemplateDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Get([FromRoute] ushort id, CancellationToken ct)
     {
-        var template = await _repository.FindByIdAsync(new MapTemplateId(id), track: false, ct);
-        return template is null ? NotFound() : Ok(ToDto(template));
+        var template = await _service.GetAsync(id, ct);
+        return template is null ? NotFound() : Ok(template);
     }
 
-    private static MapTemplateDto ToDto(MapTemplate t) => new()
+    /// <summary>
+    /// Admin debug: runs the procedural layout generator against the persisted
+    /// <see cref="Avalon.Domain.World.ProceduralMapConfig"/> + chunk pool for a given map.
+    /// If no seed is supplied a random one is picked. Returns the resulting layout as JSON
+    /// for the admin SPA to render. Does not persist anything; safe to call repeatedly.
+    /// </summary>
+    [HttpGet("{id:int}/preview-layout", Name = "PreviewMapLayout")]
+    [Authorize(Policy = AvalonRoles.Admin)]
+    [ProducesResponseType(typeof(LayoutPreviewDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> PreviewLayout(
+        [FromRoute] ushort id,
+        [FromQuery] int? seed,
+        CancellationToken ct)
     {
-        Id = t.Id.Value,
-        Name = t.Name,
-        Description = t.Description,
-        MapType = (Avalon.Api.Contract.MapType)t.MapType,
-        PvP = t.PvP,
-        MinLevel = t.MinLevel,
-        MaxLevel = t.MaxLevel,
-        AreaTableId = t.AreaTableId,
-        LoadingScreenId = t.LoadingScreenId,
-        CorpseX = t.CorpseX,
-        CorpseY = t.CorpseY,
-        CorpseZ = t.CorpseZ,
-        MaxPlayers = t.MaxPlayers,
-        DefaultSpawnX = t.DefaultSpawnX,
-        DefaultSpawnY = t.DefaultSpawnY,
-        DefaultSpawnZ = t.DefaultSpawnZ,
-        LogoutMapId = t.LogoutMapId,
-    };
+        var layout = await _service.PreviewLayoutAsync(id, seed, ct);
+        return layout is null ? NotFound() : Ok(layout);
+    }
+
+    /// <summary>
+    /// Admin debug: returns raw .obj bytes for a chunk template's geometry file. The
+    /// route segment is whitelisted against persisted <c>ChunkTemplate.GeometryFile</c>
+    /// values to block path traversal. The SPA fetches one of these per unique chunk in
+    /// a layout preview to render the 3D scene with three.js + OBJLoader.
+    /// </summary>
+    [HttpGet("chunk-asset/{*filename}", Name = "GetChunkAsset")]
+    [Authorize(Policy = AvalonRoles.Admin)]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> ChunkAsset([FromRoute] string filename, CancellationToken ct)
+    {
+        var asset = await _service.GetChunkAssetAsync(filename, ct);
+        return asset is null ? NotFound() : File(asset.Bytes, asset.ContentType);
+    }
 }

@@ -31,9 +31,13 @@ public static class ServiceRegistration
         services.AddOptions<CacheConfiguration>()
             .BindConfiguration("Application:Cache");
 
+        services.AddOptions<MapAssetConfig>()
+            .BindConfiguration("Application:MapAssets");
+
         services.AddScoped<IAccountService, AccountService>();
         services.AddScoped<ICharacterService, CharacterService>();
         services.AddScoped<IWorldService, WorldService>();
+        services.AddScoped<IMapService, MapService>();
         services.AddScoped<IPersonalAccessTokenService, PersonalAccessTokenService>();
         services.AddScoped<IRefreshTokenService, RefreshTokenService>();
         services.AddSingleton(TimeProvider.System);
