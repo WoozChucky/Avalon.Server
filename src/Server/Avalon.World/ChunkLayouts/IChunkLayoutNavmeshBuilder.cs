@@ -2,8 +2,8 @@ using System.Diagnostics.CodeAnalysis;
 using Avalon.Common.Mathematics;
 using Avalon.World.Maps.Navigation;
 using DotRecast.Detour;
+using DotRecast.Recast.Geom;
 using DotRecast.Recast.Toolset.Builder;
-using DotRecast.Recast.Toolset.Geom;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.ChunkLayouts;
@@ -32,7 +32,7 @@ public class ChunkLayoutNavmeshBuilder : IChunkLayoutNavmeshBuilder
         var combinedObjPath = ComposeCombinedObjToTempFile(layout);
         try
         {
-            var geom = DemoInputGeomProvider.LoadFile(combinedObjPath);
+            var geom = RcSampleInputGeomProvider.LoadFile(combinedObjPath);
             var builder = new TileNavMeshBuilder();
             var result = builder.Build(geom, NavmeshBuildSettings.Create());
             if (result?.NavMesh is null)
