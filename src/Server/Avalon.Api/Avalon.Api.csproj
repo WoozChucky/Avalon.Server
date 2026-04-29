@@ -39,6 +39,7 @@
     <ProjectReference Include="..\Avalon.Database.Character\Avalon.Database.Character.csproj"/>
     <ProjectReference Include="..\Avalon.Database.World\Avalon.Database.World.csproj"/>
     <ProjectReference Include="..\Avalon.Database\Avalon.Database.csproj"/>
+    <ProjectReference Include="..\Avalon.World.Generation\Avalon.World.Generation.csproj"/>
     <ProjectReference Include="..\Avalon.Infrastructure\Avalon.Infrastructure.csproj"/>
     <ProjectReference Include="..\Avalon.ServiceDefaults\Avalon.ServiceDefaults.csproj"/>
   </ItemGroup>

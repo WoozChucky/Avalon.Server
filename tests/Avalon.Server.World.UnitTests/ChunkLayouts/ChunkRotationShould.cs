@@ -2,9 +2,7 @@ using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.World.ChunkLayouts;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
-using NSubstitute;
 
 namespace Avalon.Server.World.UnitTests.ChunkLayouts;
 
@@ -81,10 +79,7 @@ public class ChunkRotationShould
     public void Forest_pool_generates_for_many_seeds()
     {
         var (pool, cfg) = BuildForestPool();
-        var gen = new ProceduralChunkLayoutSource(
-            NullLoggerFactory.Instance,
-            Substitute.For<IChunkLibrary>(),
-            Substitute.For<IServiceScopeFactory>());
+        var gen = new ProceduralLayoutGenerator(NullLoggerFactory.Instance);
 
         for (int seed = 0; seed < 50; seed++)
         {
@@ -106,10 +101,7 @@ public class ChunkRotationShould
     public void Forest_pool_seed_399888156_produces_non_overlapping_footprints()
     {
         var (pool, cfg) = BuildForestPool();
-        var gen = new ProceduralChunkLayoutSource(
-            NullLoggerFactory.Instance,
-            Substitute.For<IChunkLibrary>(),
-            Substitute.For<IServiceScopeFactory>());
+        var gen = new ProceduralLayoutGenerator(NullLoggerFactory.Instance);
 
         var layout = gen.Generate(cfg, pool, seed: 399888156);
 

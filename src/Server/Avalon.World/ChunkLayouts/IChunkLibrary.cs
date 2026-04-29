@@ -14,8 +14,6 @@ public interface IChunkLibrary
     IReadOnlyDictionary<ChunkTemplateId, ChunkTemplate> LookupByIds(IEnumerable<ChunkTemplateId> ids);
 }
 
-public record ChunkPoolMember(ChunkTemplate Template, float Weight);
-
 public class ChunkLibrary : IChunkLibrary
 {
     private readonly ILogger<ChunkLibrary> _logger;
