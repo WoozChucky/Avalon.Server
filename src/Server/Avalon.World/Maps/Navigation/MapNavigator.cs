@@ -11,10 +11,8 @@ public class MapNavigator : IMapNavigator
     private readonly ILogger<MapNavigator> _logger;
     private DtNavMesh? _navMesh;
     private DtNavMeshQuery? _query;
-    private DtFindPathOption _findPathOption;
     private IDtQueryFilter _queryFilter;
 
-    private const bool EnableRaycast = true;
     private const float StepSize = 0.5f;
     private const float Slop = 0.01f;
     private const int MaxSmooth = 2048;
@@ -33,7 +31,6 @@ public class MapNavigator : IMapNavigator
     {
         _navMesh = navMesh;
         _query = new DtNavMeshQuery(_navMesh);
-        _findPathOption = new DtFindPathOption(EnableRaycast ? DtFindPathOptions.DT_FINDPATH_ANY_ANGLE : 0, float.MaxValue);
         _queryFilter = new DtQueryDefaultFilter();
     }
 
@@ -55,7 +52,11 @@ public class MapNavigator : IMapNavigator
             // fed by that pipeline are gone.
             var startPos = new RcVec3f(start.x, start.y, start.z);
             var endPos = new RcVec3f(end.x, end.y, end.z);
-            var path = new List<long>();
+            // Post-DotRecast-update path returns Span<long> + out int count instead of mutating
+            // a List. Allocate once on the heap (MaxPolys-sized array) so the off-mesh-connection
+            // branch below can slide entries in-place via Span.CopyTo without copying twice.
+            long[] pathArray = new long[MaxPolys];
+            Span<long> path = pathArray;
 
             var status = query.FindNearestPoly(startPos, PolyPickExt, _queryFilter, out var startRef, out _, out _);
             CheckStatus(status);
@@ -73,15 +74,13 @@ public class MapNavigator : IMapNavigator
                 return [];
             }
 
-            status = query.FindPath(startRef, endRef, startPos, endPos, _queryFilter, ref path, _findPathOption);
+            status = query.FindPath(startRef, endRef, startPos, endPos, _queryFilter, path, out var pathCount, MaxPolys);
             CheckStatus(status);
-            if (path.Count == 0)
+            if (pathCount == 0)
             {
                 _logger.LogWarning("Failed to find path");
                 return [];
             }
-
-            var pathCount = path.Count;
 
             query.ClosestPointOnPoly(startRef, startPos, out var iterPos, out _);
             query.ClosestPointOnPoly(path[pathCount - 1], endPos, out var targetPos, out _);
@@ -124,8 +123,8 @@ public class MapNavigator : IMapNavigator
 
                 iterPos = result;
 
-                pathCount = DtPathUtils.MergeCorridorStartMoved(ref path, pathCount, MaxPolys, visited, nvisited);
-                pathCount = DtPathUtils.FixupShortcuts(ref path, pathCount, query);
+                pathCount = DtPathUtils.MergeCorridorStartMoved(path, pathCount, MaxPolys, visited, nvisited);
+                pathCount = DtPathUtils.FixupShortcuts(path, pathCount, query);
 
                 status = query.GetPolyHeight(path[0], result, out var h);
                 if (status.Succeeded())
@@ -163,7 +162,11 @@ public class MapNavigator : IMapNavigator
                         npos++;
                     }
 
-                    path = path.GetRange(npos, path.Count - npos);
+                    // Slide remaining entries to the start of the buffer in-place.
+                    if (npos > 0 && npos < pathCount)
+                    {
+                        path.Slice(npos, pathCount - npos).CopyTo(path);
+                    }
                     pathCount -= npos;
 
                     // Handle the connection.
@@ -235,10 +238,11 @@ public class MapNavigator : IMapNavigator
                 return false;
             }
 
-            List<long> path = [];
+            Span<long> path = stackalloc long[MaxPolys];
 
-            // Perform the raycast
-            var hitResult = query.Raycast(startRef, startPos, endPos, _queryFilter, out var hit, out _, ref path);
+            // Perform the raycast — new DotRecast API uses Span + explicit pathCount + maxPath.
+            var hitResult = query.Raycast(startRef, startPos, endPos, _queryFilter,
+                out var hit, out _, path, out _, MaxPolys);
 
             if (hitResult.Failed() || hit < 1.0f)
             {
@@ -273,8 +277,9 @@ public class MapNavigator : IMapNavigator
         }
 
         var endVec = new RcVec3f(to.x, to.y, to.z);
-        List<long> path = [];
-        var hitStatus = query.Raycast(startRef, startVec, endVec, _queryFilter, out var t, out _, ref path);
+        Span<long> path = stackalloc long[MaxPolys];
+        var hitStatus = query.Raycast(startRef, startVec, endVec, _queryFilter,
+            out var t, out _, path, out _, MaxPolys);
         if (hitStatus.Failed())
         {
             return from;
