@@ -1,10 +1,9 @@
 using System.Security.Claims;
 using Avalon.Api.Authentication;
+using Avalon.Api.Contract;
 using Avalon.Api.Controllers;
-using Avalon.Common.ValueObjects;
+using Avalon.Api.Services;
 using Avalon.Database;
-using Avalon.Database.World.Repositories;
-using Avalon.Domain.World;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using NSubstitute;
@@ -14,10 +13,10 @@ namespace Avalon.Api.UnitTests.Controllers;
 
 public class MapTemplateControllerShould
 {
-    private readonly IMapTemplateRepository _repository = Substitute.For<IMapTemplateRepository>();
+    private readonly IMapService _service = Substitute.For<IMapService>();
 
     private MapTemplateController MakeSut(ClaimsPrincipal user) =>
-        new(_repository)
+        new(_service)
         {
             ControllerContext = new ControllerContext
             {
@@ -35,9 +34,9 @@ public class MapTemplateControllerShould
     [Fact]
     public async Task List_ReturnsPage()
     {
-        _repository
-            .PaginateAsync(Arg.Any<EntityPaginateFilter<MapTemplate>>(), false, Arg.Any<CancellationToken>())
-            .Returns(new PagedResult<MapTemplate>(1, 50, 0, new List<MapTemplate>()));
+        _service
+            .ListAsync(1, 50, Arg.Any<CancellationToken>())
+            .Returns(new PagedResult<MapTemplateDto>(1, 50, 0, new List<MapTemplateDto>()));
 
         var sut = MakeSut(User(7, AvalonRoles.Player));
         var result = await sut.List(1, 50, CancellationToken.None);
@@ -48,9 +47,9 @@ public class MapTemplateControllerShould
     [Fact]
     public async Task Get_Returns404_WhenMissing()
     {
-        _repository
-            .FindByIdAsync(Arg.Any<MapTemplateId>(), false, Arg.Any<CancellationToken>())
-            .Returns((MapTemplate?)null);
+        _service
+            .GetAsync(1, Arg.Any<CancellationToken>())
+            .Returns((MapTemplateDto?)null);
 
         var sut = MakeSut(User(7, AvalonRoles.Player));
         var result = await sut.Get(1, CancellationToken.None);
@@ -61,9 +60,9 @@ public class MapTemplateControllerShould
     [Fact]
     public async Task Get_Returns200_WhenFound()
     {
-        _repository
-            .FindByIdAsync(Arg.Any<MapTemplateId>(), false, Arg.Any<CancellationToken>())
-            .Returns(new MapTemplate { Id = new MapTemplateId(1), Name = "Stormwind", Description = "" });
+        _service
+            .GetAsync(1, Arg.Any<CancellationToken>())
+            .Returns(new MapTemplateDto { Id = 1, Name = "Stormwind" });
 
         var sut = MakeSut(User(7, AvalonRoles.Player));
         var result = await sut.Get(1, CancellationToken.None);

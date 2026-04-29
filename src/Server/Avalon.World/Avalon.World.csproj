@@ -19,6 +19,7 @@
     <ProjectReference Include="..\..\..\vendor\DotRecast\src\DotRecast.Detour\DotRecast.Detour.csproj"/>
     <ProjectReference Include="..\..\..\vendor\DotRecast\src\DotRecast.Recast.Toolset\DotRecast.Recast.Toolset.csproj"/>
     <ProjectReference Include="..\..\Shared\Avalon.Domain\Avalon.Domain.csproj"/>
+    <ProjectReference Include="..\Avalon.World.Generation\Avalon.World.Generation.csproj"/>
     <ProjectReference Include="..\Avalon.Database.Auth\Avalon.Database.Auth.csproj"/>
     <ProjectReference Include="..\Avalon.Database.Character\Avalon.Database.Character.csproj"/>
     <ProjectReference Include="..\Avalon.Database.World\Avalon.Database.World.csproj"/>
