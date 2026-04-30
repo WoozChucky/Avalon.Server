@@ -106,18 +106,21 @@ public class ChatMessageHandlerShould
     }
 
     [Fact]
-    public void Not_Broadcast_To_Sender()
+    public void Sender_Receives_Echo_But_Not_Broadcast()
     {
         var character = Substitute.For<ICharacter>();
         character.Name.Returns("HeroOne");
         character.Guid.Returns(new ObjectGuid(ObjectType.Character, 42));
         _senderConnection.Character.Returns(character);
 
+        // Sender is in the world connections list but should be skipped by the broadcast loop;
+        // the only Send to the sender is the echo before the loop.
         _worldServer.Connections.Returns(ImmutableArray.Create(_senderConnection));
 
         _handler.Execute(_senderConnection, MakePacket("Hello world"));
 
-        _senderConnection.DidNotReceive().Send(Arg.Any<NetworkPacket>());
+        // Exactly one send: the echo — NOT a second one from the broadcast loop.
+        _senderConnection.Received(1).Send(Arg.Any<NetworkPacket>());
     }
 
     [Fact]
@@ -129,6 +132,7 @@ public class ChatMessageHandlerShould
 
         var character = Substitute.For<ICharacter>();
         character.Name.Returns("HeroOne");
+        character.Guid.Returns(new ObjectGuid(ObjectType.Character, 42));
         _senderConnection.Character.Returns(character);
 
         _worldServer.Connections.Returns(ImmutableArray.Create(offlineConnection));
