@@ -39,6 +39,16 @@ public class ChatMessageHandler(IWorldServer worldServer, ICommandDispatcher com
             return;
         }
 
+        connection.Send(SChatMessagePacket.Create(
+            (ulong)(long)connection.AccountId!,
+            connection.Character!.Guid.Id,
+            connection.Character.Name,
+            message,
+            packet.DateTime,
+            connection.CryptoSession.Encrypt));
+
+        // TODO: Message should be sent to players in same instance as current connection, not all players in the world
+        //  Also, in the future, we need to have chat channels (local, global, party, trade, system)
         foreach (IWorldConnection target in worldServer.Connections)
         {
             if (!target.InGame || target.AccountId == connection.AccountId)
