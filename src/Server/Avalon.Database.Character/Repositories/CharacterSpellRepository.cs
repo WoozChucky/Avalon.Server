@@ -6,9 +6,9 @@ namespace Avalon.Database.Character.Repositories;
 
 public interface ICharacterSpellRepository
 {
-    Task<CharacterSpell> CreateAsync(CharacterSpell spell, CancellationToken cancellationToken = default);
-    Task<IList<CharacterSpell>> CreateAsync(IList<CharacterSpell> spells, CancellationToken cancellationToken = default);
-    Task<IReadOnlyCollection<CharacterSpell>> GetCharacterSpellsAsync(CharacterId characterId, CancellationToken cancellationToken = default);
+    Task<CharacterAbility> CreateAsync(CharacterAbility spell, CancellationToken cancellationToken = default);
+    Task<IList<CharacterAbility>> CreateAsync(IList<CharacterAbility> spells, CancellationToken cancellationToken = default);
+    Task<IReadOnlyCollection<CharacterAbility>> GetCharacterSpellsAsync(CharacterId characterId, CancellationToken cancellationToken = default);
 }
 
 public class CharacterSpellRepository : ICharacterSpellRepository
@@ -20,16 +20,16 @@ public class CharacterSpellRepository : ICharacterSpellRepository
         _dbContext = dbContext;
     }
 
-    public async Task<CharacterSpell> CreateAsync(CharacterSpell spell, CancellationToken cancellationToken = default)
+    public async Task<CharacterAbility> CreateAsync(CharacterAbility spell, CancellationToken cancellationToken = default)
     {
         var entity = await _dbContext.CharacterSpells.AddAsync(spell, cancellationToken);
         await _dbContext.SaveChangesAsync(cancellationToken);
         return entity.Entity;
     }
 
-    public async Task<IList<CharacterSpell>> CreateAsync(IList<CharacterSpell> spells, CancellationToken cancellationToken = default)
+    public async Task<IList<CharacterAbility>> CreateAsync(IList<CharacterAbility> spells, CancellationToken cancellationToken = default)
     {
-        var entityList = new List<CharacterSpell>();
+        var entityList = new List<CharacterAbility>();
         foreach (var spell in spells)
         {
             var entity = await _dbContext.CharacterSpells.AddAsync(spell, cancellationToken);
@@ -39,7 +39,7 @@ public class CharacterSpellRepository : ICharacterSpellRepository
         return entityList;
     }
 
-    public async Task<IReadOnlyCollection<CharacterSpell>> GetCharacterSpellsAsync(CharacterId characterId, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyCollection<CharacterAbility>> GetCharacterSpellsAsync(CharacterId characterId, CancellationToken cancellationToken = default)
     {
         return await _dbContext.CharacterSpells
             .AsNoTracking()

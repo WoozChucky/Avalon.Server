@@ -66,7 +66,7 @@ public class CharacterDbContext(ILoggerFactory loggerFactory, IOptions<DatabaseC
     public DbSet<Domain.Characters.Character> Characters { get; set; } = null!;
     public DbSet<CharacterStats> CharacterStats { get; set; } = null!;
     public DbSet<CharacterInventory> CharacterInventory { get; set; } = null!;
-    public DbSet<CharacterSpell> CharacterSpells { get; set; } = null!;
+    public DbSet<CharacterAbility> CharacterSpells { get; set; } = null!;
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
@@ -82,7 +82,7 @@ public class CharacterDbContext(ILoggerFactory loggerFactory, IOptions<DatabaseC
         Configure(modelBuilder.Entity<Domain.Characters.Character>());
         Configure(modelBuilder.Entity<CharacterStats>());
         Configure(modelBuilder.Entity<CharacterInventory>());
-        Configure(modelBuilder.Entity<CharacterSpell>());
+        Configure(modelBuilder.Entity<CharacterAbility>());
     }
 
     private static void Configure(EntityTypeBuilder<Domain.Characters.Character> builder)
@@ -145,7 +145,7 @@ public class CharacterDbContext(ILoggerFactory loggerFactory, IOptions<DatabaseC
         builder.HasIndex(b => b.CharacterId);
     }
 
-    private static void Configure(EntityTypeBuilder<CharacterSpell> builder)
+    private static void Configure(EntityTypeBuilder<CharacterAbility> builder)
     {
         builder.HasKey(b => new {b.CharacterId, b.AbilityId});
 

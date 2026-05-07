@@ -4,7 +4,8 @@ using Avalon.Common.ValueObjects;
 
 namespace Avalon.Domain.Characters;
 
-public class CharacterSpell
+[Table("CharacterSpells")]
+public class CharacterAbility
 {
     [Required]
     public Character Character { get; set; }
