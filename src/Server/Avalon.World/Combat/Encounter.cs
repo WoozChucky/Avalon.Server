@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Avalon.Common.Mathematics;
 using Avalon.World.Public.Combat;
 using Avalon.World.Public.Units;
 
@@ -94,6 +95,24 @@ public sealed class Encounter : IEncounter
 
     public void Update(TimeSpan deltaTime)
     {
-        // Decay + end-check filled in Phase F. Stub for now.
+        float dt = (float)deltaTime.TotalSeconds;
+        foreach (var (hostile, threatList) in _threat)
+        {
+            var toRemove = new List<IUnit>();
+            foreach (var (attacker, threat) in threatList)
+            {
+                float rate = _config.DefaultDecayRatePerSecond;
+                if (Vector3.Distance(attacker.Position, hostile.Position) > _config.EngagementRadius)
+                    rate *= _config.OutOfRangeDecayMultiplier;
+                float next = threat - rate * dt;
+                if (next <= 0) toRemove.Add(attacker);
+                else           threatList[attacker] = next;
+            }
+            foreach (var u in toRemove) threatList.Remove(u);
+        }
+
+        bool noHostiles = _hostiles.Count == 0;
+        bool pastGrace  = (DateTime.UtcNow - LastDamageTime).TotalSeconds >= _config.EncounterEndGraceSeconds;
+        ShouldEnd = noHostiles && pastGrace;
     }
 }
