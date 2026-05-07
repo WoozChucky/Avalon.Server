@@ -58,7 +58,12 @@ public sealed class CombatService : ICombatService
     // Phase F/G/H — stub implementations that throw until those phases land.
     public void ApplyHeal(IUnit healer,   IUnit target, uint amount,     IAbility ability) => throw new NotImplementedException("ApplyHeal — Phase F");
     public void ApplyTaunt(IUnit caster,  IUnit target, uint durationMs)                   => throw new NotImplementedException("ApplyTaunt — Phase F");
-    public void EnterCombat(IUnit hostile, IUnit player)                                   => throw new NotImplementedException("EnterCombat — Phase D7");
+    public void EnterCombat(IUnit hostile, IUnit player)
+    {
+        // Resolve-or-spawn handles both directions; arg order matches the merge logic in ApplyDamage.
+        ResolveOrSpawn(player, hostile);
+    }
+
     public void DropPlayerFromEncounter(IUnit player)                                      => throw new NotImplementedException("DropPlayerFromEncounter — Phase H");
     public void RevivePlayer(IUnit player, Vector3 position)                               => throw new NotImplementedException("RevivePlayer — Phase G");
 
