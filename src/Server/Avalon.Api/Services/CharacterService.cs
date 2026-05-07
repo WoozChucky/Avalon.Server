@@ -161,9 +161,7 @@ public class CharacterService : ICharacterService
                 EffectValue = template.EffectValue,
                 AllowedClasses = template.AllowedClasses is null
                     ? []
-                    : template.AllowedClasses
-                        .Select(c => (Avalon.Api.Contract.CharacterClass)c)
-                        .ToList(),
+                    : template.AllowedClasses.ToList(),
             },
         };
     }
