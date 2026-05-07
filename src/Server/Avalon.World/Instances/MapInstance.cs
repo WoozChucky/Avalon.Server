@@ -153,6 +153,9 @@ public class MapInstance : IMapInstance, IPortalSink
     public bool QueueAbility(ICharacter caster, IUnit? target, IAbility ability) =>
         _abilityCastSystem.QueueAbility(caster, target, ability);
 
+    public void RunInstantAbility(IUnit caster, IUnit? target, IAbility ability) =>
+        _abilityCastSystem.RunInstant(caster, target, ability);
+
     public void RespawnCreature(ICreature creature)
     {
         // No-op: chunk-layout instances install NoOpCreatureRespawner so this

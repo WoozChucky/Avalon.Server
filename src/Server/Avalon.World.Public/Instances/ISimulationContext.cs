@@ -25,6 +25,15 @@ public interface ISimulationContext
     IMapNavigator GetNavigatorForPosition(Vector3 position);
 
     bool QueueAbility(ICharacter caster, IUnit? target, IAbility ability);
+
+    /// <summary>
+    /// Runs an instant-cast ability immediately, bypassing the cast queue. Used by
+    /// <c>CastAbilityHandler</c> for abilities with <c>CastTime == 0</c>: the script's
+    /// effect runs in this tick, the ability's cooldown is started, and a finish-cast
+    /// broadcast is emitted to mirror the queue-completion path.
+    /// </summary>
+    void RunInstantAbility(IUnit caster, IUnit? target, IAbility ability);
+
     void AddCreature(ICreature creature);
     void RespawnCreature(ICreature creature);
     void RemoveCreature(ICreature creature);
