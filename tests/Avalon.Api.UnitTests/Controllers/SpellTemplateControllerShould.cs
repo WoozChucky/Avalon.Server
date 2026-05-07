@@ -36,8 +36,8 @@ public class SpellTemplateControllerShould
     public async Task List_ReturnsPage()
     {
         _repository
-            .PaginateAsync(Arg.Any<EntityPaginateFilter<SpellTemplate>>(), false, Arg.Any<CancellationToken>())
-            .Returns(new PagedResult<SpellTemplate>(1, 50, 0, new List<SpellTemplate>()));
+            .PaginateAsync(Arg.Any<EntityPaginateFilter<AbilityTemplate>>(), false, Arg.Any<CancellationToken>())
+            .Returns(new PagedResult<AbilityTemplate>(1, 50, 0, new List<AbilityTemplate>()));
 
         var sut = MakeSut(User(7, AvalonRoles.Player));
         var result = await sut.List(1, 50, CancellationToken.None);
@@ -50,7 +50,7 @@ public class SpellTemplateControllerShould
     {
         _repository
             .FindByIdAsync(Arg.Any<AbilityId>(), false, Arg.Any<CancellationToken>())
-            .Returns((SpellTemplate?)null);
+            .Returns((AbilityTemplate?)null);
 
         var sut = MakeSut(User(7, AvalonRoles.Player));
         var result = await sut.Get(1, CancellationToken.None);
@@ -63,7 +63,7 @@ public class SpellTemplateControllerShould
     {
         _repository
             .FindByIdAsync(Arg.Any<AbilityId>(), false, Arg.Any<CancellationToken>())
-            .Returns(new SpellTemplate { Id = new AbilityId(1), Name = "Fireball", SpellScript = "fireball.cs" });
+            .Returns(new AbilityTemplate { Id = new AbilityId(1), Name = "Fireball", SpellScript = "fireball.cs" });
 
         var sut = MakeSut(User(7, AvalonRoles.Player));
         var result = await sut.Get(1, CancellationToken.None);

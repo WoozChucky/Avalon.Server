@@ -4,13 +4,13 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Avalon.Database.World.Repositories;
 
-public interface ISpellTemplateRepository : IRepository<SpellTemplate, AbilityId>
+public interface ISpellTemplateRepository : IRepository<AbilityTemplate, AbilityId>
 {
-    Task<IReadOnlyList<SpellTemplate>> GetByIdsAsync(
+    Task<IReadOnlyList<AbilityTemplate>> GetByIdsAsync(
         IEnumerable<AbilityId> ids, CancellationToken cancellationToken = default);
 }
 
-public class SpellTemplateRepository : EntityFrameworkRepository<SpellTemplate, AbilityId>, ISpellTemplateRepository
+public class SpellTemplateRepository : EntityFrameworkRepository<AbilityTemplate, AbilityId>, ISpellTemplateRepository
 {
     private readonly WorldDbContext _dbContext;
 
@@ -20,11 +20,11 @@ public class SpellTemplateRepository : EntityFrameworkRepository<SpellTemplate, 
         _dbContext = dbContext;
     }
 
-    public async Task<IReadOnlyList<SpellTemplate>> GetByIdsAsync(
+    public async Task<IReadOnlyList<AbilityTemplate>> GetByIdsAsync(
         IEnumerable<AbilityId> ids, CancellationToken cancellationToken = default)
     {
         var idSet = ids.Distinct().ToArray();
-        if (idSet.Length == 0) return Array.Empty<SpellTemplate>();
+        if (idSet.Length == 0) return Array.Empty<AbilityTemplate>();
 
         return await _dbContext.SpellTemplates
             .AsNoTracking()

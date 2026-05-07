@@ -22,6 +22,6 @@ public class StaticData(
     public IReadOnlyCollection<CharacterCreateInfo> CharacterCreateInfos { get; private set; }
     public IReadOnlyCollection<ClassLevelStat> ClassLevelStats { get; private set; }
     public IReadOnlyCollection<ItemTemplate> ItemTemplates { get; private set; }
-    public IReadOnlyCollection<SpellTemplate> SpellTemplates { get; private set; }
+    public IReadOnlyCollection<AbilityTemplate> SpellTemplates { get; private set; }
     public IReadOnlyCollection<CharacterLevelExperience> CharacterLevelExperiences { get; private set; }
 }
