@@ -39,4 +39,11 @@ public interface ISimulationContext
     void RemoveCreature(ICreature creature);
     void BroadcastUnitHit(IUnit attacker, IUnit target, uint currentHealth, uint damage);
     void BroadcastUnitStartCast(IUnit caster, float castTime);
+
+    /// <summary>
+    /// Broadcasts a death event to all connections in the instance. Called by
+    /// <see cref="ICombatService"/> when <see cref="ICombatService.ApplyDamage(IUnit,IUnit,uint,IAbility)"/>
+    /// (or its raw-damage overload) brings <paramref name="unit"/> to 0 HP / dead state.
+    /// </summary>
+    void BroadcastUnitDeath(IUnit unit, IUnit? killer);
 }

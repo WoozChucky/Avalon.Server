@@ -6,22 +6,31 @@ using Avalon.World.Public.Characters;
 using Avalon.World.Public.Combat;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
+using Avalon.World.Public.Instances;
 using Avalon.World.Public.Units;
 
 namespace Avalon.World.Combat;
 
 public sealed class CombatService : ICombatService
 {
-    private readonly CombatConfig      _config;
-    private readonly EncounterRegistry _registry;
+    private readonly CombatConfig        _config;
+    private readonly EncounterRegistry   _registry;
+    private readonly ISimulationContext? _context;
 
-    public CombatService(CombatConfig config, EncounterRegistry registry)
+    public CombatService(CombatConfig config, EncounterRegistry registry, ISimulationContext? context = null)
     {
         _config   = config;
         _registry = registry;
+        _context  = context;
     }
 
     public void ApplyDamage(IUnit attacker, IUnit target, uint damage, IAbility ability)
+        => ApplyDamageCore(attacker, target, damage, ability.Metadata.ThreatMultiplier);
+
+    public void ApplyDamage(IUnit attacker, IUnit target, uint damage)
+        => ApplyDamageCore(attacker, target, damage, 1.0f);
+
+    private void ApplyDamageCore(IUnit attacker, IUnit target, uint damage, float threatMultiplier)
     {
         Encounter enc = ResolveOrSpawn(attacker, target);
 
@@ -30,18 +39,32 @@ public sealed class CombatService : ICombatService
         {
             CharacterClass attackerClass = (attacker as ICharacter)?.Class ?? CharacterClass.Hunter;
             float threat = damage
-                         * ability.Metadata.ThreatMultiplier
+                         * threatMultiplier
                          * ClassThreatModifier.Get(attackerClass);
             enc.AddThreat(target, attacker, threat);
         }
 
-        // Damage application — currently goes through IUnit.OnHit. Future Phase G: also broadcast death.
+        // Damage application — IUnit.OnHit mutates HP / sets death flags.
         target.OnHit(attacker, damage);
 
         // Combat tag — MarkCombat exists only on ICharacter (see ICharacter.cs). Apply to whichever
         // participants are characters; creature in-combat state is tracked through encounter membership.
         if (attacker is ICharacter attackerCharacter) attackerCharacter.MarkCombat();
         if (target   is ICharacter targetCharacter)   targetCharacter.MarkCombat();
+
+        // Death detection (G1): if the OnHit above pushed the target to a lethal state, notify the
+        // encounter and broadcast SUnitDeathPacket. ICharacter exposes IsDead explicitly; creatures
+        // signal death via CurrentHealth == 0 (their script sets it before raising Died()).
+        NotifyDeathIfApplicable(enc, target, attacker);
+    }
+
+    private void NotifyDeathIfApplicable(Encounter enc, IUnit target, IUnit attacker)
+    {
+        bool dead = (target is ICharacter c && c.IsDead) || target.CurrentHealth == 0;
+        if (!dead) return;
+
+        enc.OnParticipantDied(target);
+        _context?.BroadcastUnitDeath(target, attacker);
     }
 
     private Encounter ResolveOrSpawn(IUnit attacker, IUnit target)

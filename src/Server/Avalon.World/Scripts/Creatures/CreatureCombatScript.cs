@@ -236,7 +236,13 @@ public class CreatureCombatScript : AiScript
         if (_attackCooldownTimer <= 0.0f)
         {
             Creature.SendAttackAnimation(null); // TODO: spells for creatures
-            _target?.OnHit(Creature, 10);
+            // Route melee through CombatService so threat / encounter membership / death broadcast
+            // all trigger from the canonical chokepoint (spec section 3: "all damage funnels ApplyDamage").
+            // No ability — uses the raw-damage overload with default ThreatMultiplier=1.0.
+            if (_target is not null)
+            {
+                Context.CombatService.ApplyDamage(Creature, _target, 10);
+            }
             _attackCooldownTimer = AttackCooldown;
         }
         else

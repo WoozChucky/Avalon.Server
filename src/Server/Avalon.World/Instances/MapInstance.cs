@@ -75,7 +75,7 @@ public class MapInstance : IMapInstance, IPortalSink
         // between MapInstances.
         CombatConfig combatConfig = serviceProvider.GetRequiredService<CombatConfig>();
         _encounterRegistry = new EncounterRegistry(combatConfig);
-        _combatService     = new CombatService(combatConfig, _encounterRegistry);
+        _combatService     = new CombatService(combatConfig, _encounterRegistry, this);
 
         // Cast system gets `this` as ISimulationContext so it can forward the context to
         // ability scripts (E7): scripts route damage through CombatService.ApplyDamage rather
@@ -181,6 +181,15 @@ public class MapInstance : IMapInstance, IPortalSink
         foreach ((ObjectGuid guid, IWorldConnection connection) in _connections)
         {
             connection.Send(SUnitStartCastPacket.Create(caster.Guid, castTime,
+                connection.CryptoSession.Encrypt));
+        }
+    }
+
+    public void BroadcastUnitDeath(IUnit unit, IUnit? killer)
+    {
+        foreach ((ObjectGuid guid, IWorldConnection connection) in _connections)
+        {
+            connection.Send(SUnitDeathPacket.Create(unit.Guid, killer?.Guid,
                 connection.CryptoSession.Encrypt));
         }
     }
