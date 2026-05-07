@@ -5,22 +5,22 @@ using Avalon.Network.Packets.Serialization;
 namespace Avalon.Network.Packets.Character;
 
 [ProtoContract]
-public class SCharacterSpellsPacket : Packet
+public class SCharacterAbilitiesPacket : Packet
 {
-    public static NetworkPacketType PacketType = NetworkPacketType.SMSG_CHARACTER_SPELLS;
+    public static NetworkPacketType PacketType = NetworkPacketType.SMSG_CHARACTER_ABILITIES;
     public static NetworkProtocol Protocol = NetworkProtocol.Tcp;
     public static NetworkPacketFlags Flags = NetworkPacketFlags.Encrypted;
 
-    [ProtoMember(1)] public SpellInfo[] Spells { get; set; }
+    [ProtoMember(1)] public AbilityInfo[] Spells { get; set; }
 
-    public static NetworkPacket Create(SpellInfo[] spells, EncryptFunc encrypt)
+    public static NetworkPacket Create(AbilityInfo[] spells, EncryptFunc encrypt)
         => PacketSerializationHelper.Serialize(
-            new SCharacterSpellsPacket { Spells = spells },
+            new SCharacterAbilitiesPacket { Spells = spells },
             PacketType, Flags, Protocol, encrypt);
 }
 
 [ProtoContract]
-public class SpellInfo
+public class AbilityInfo
 {
     [ProtoMember(1)] public uint AbilityId { get; set; }
     [ProtoMember(2)] public string Name { get; set; }
