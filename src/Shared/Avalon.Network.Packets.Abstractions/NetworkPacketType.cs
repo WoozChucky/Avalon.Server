@@ -66,6 +66,7 @@ public enum NetworkPacketType : short
 
     // Combat
     CMSG_ATTACK = 0x2100,
+    CMSG_CAST_ABILITY = 0x2101,
 
     /**************************************************************************
      * Server Packets
@@ -118,6 +119,9 @@ public enum NetworkPacketType : short
     SMSG_ABILITY_NOT_READY = 0x3104,
     SMSG_SPELL_INTERRUPTED = 0x3105,
     SMSG_UNIT_FINISH_CAST = 0x3106,
+    SMSG_UNIT_DEATH = 0x3107,
+    SMSG_UNIT_REVIVE = 0x3108,
+    SMSG_THREAT_LIST = 0x3109,
 
 
     SMSG_PONG = 0x3006,
