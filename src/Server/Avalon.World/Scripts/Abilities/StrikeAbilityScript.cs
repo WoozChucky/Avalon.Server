@@ -7,10 +7,10 @@ using Avalon.World.Public.Scripts;
 using Avalon.World.Public.Units;
 using Microsoft.Extensions.Logging;
 
-namespace Avalon.World.Scripts.Spells;
+namespace Avalon.World.Scripts.Abilities;
 
-public class StrikeSpellScript(ILogger<StrikeSpellScript> logger, IAbility spell, IUnit caster, IUnit? target)
-    : AbilityScript(spell,
+public class StrikeAbilityScript(ILogger<StrikeAbilityScript> logger, IAbility ability, IUnit caster, IUnit? target)
+    : AbilityScript(ability,
         caster, target)
 {
     public override Vector3 Position { get; set; }
@@ -26,7 +26,7 @@ public class StrikeSpellScript(ILogger<StrikeSpellScript> logger, IAbility spell
         Position = Caster.Position;
         if (Target == null)
         {
-            logger.LogWarning("Strike spell has no target");
+            logger.LogWarning("Strike ability has no target");
             State = SpellState.Finished;
         }
     }
@@ -38,11 +38,11 @@ public class StrikeSpellScript(ILogger<StrikeSpellScript> logger, IAbility spell
             return;
         }
 
-        if (Vector3.Distance(Position, Target!.Position) <= (uint)Spell.Metadata.Range + 1)
+        if (Vector3.Distance(Position, Target!.Position) <= (uint)Ability.Metadata.Range + 1)
         {
-            Caster.SendAttackAnimation(Spell);
-            logger.LogInformation("Spell {AbilityId} hit {CreatureId}", Spell.AbilityId, Target.Guid);
-            Target.OnHit(Caster, Spell.Metadata.EffectValue);
+            Caster.SendAttackAnimation(Ability);
+            logger.LogInformation("Ability {AbilityId} hit {CreatureId}", Ability.AbilityId, Target.Guid);
+            Target.OnHit(Caster, Ability.Metadata.EffectValue);
             State = SpellState.Finished;
         }
     }
@@ -51,7 +51,7 @@ public class StrikeSpellScript(ILogger<StrikeSpellScript> logger, IAbility spell
 
     public override AbilityScript Clone()
     {
-        StrikeSpellScript clone = new(logger, Spell, Caster, Target)
+        StrikeAbilityScript clone = new(logger, Ability, Caster, Target)
         {
             Guid = Guid, Position = Position, Velocity = Velocity, Orientation = Orientation
         };

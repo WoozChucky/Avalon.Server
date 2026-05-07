@@ -11,7 +11,7 @@ using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Units;
-using Avalon.World.Spells;
+using Avalon.World.Abilities;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Entities;
@@ -52,7 +52,7 @@ public class CharacterEntity : ICharacter
         _equipment = new CharacterInventoryContainer(loggerFactory, InventoryType.Equipment);
         _bag = new CharacterInventoryContainer(loggerFactory, InventoryType.Bag);
         _bank = new CharacterInventoryContainer(loggerFactory, InventoryType.Bank);
-        Spells = new CharacterSpellContainer(loggerFactory);
+        Spells = new CharacterAbilityContainer(loggerFactory);
         CharacterGameState = new CharacterCharacterGameState();
         Guid = new ObjectGuid(ObjectType.Character, character.Id);
         _regenConfig = regenConfig;

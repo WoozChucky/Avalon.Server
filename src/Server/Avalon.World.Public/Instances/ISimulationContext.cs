@@ -20,7 +20,7 @@ public interface ISimulationContext
     /// <summary>Returns the navigator whose bounds contain <paramref name="position"/>.</summary>
     IMapNavigator GetNavigatorForPosition(Vector3 position);
 
-    bool QueueSpell(ICharacter caster, IUnit? target, IAbility spell);
+    bool QueueAbility(ICharacter caster, IUnit? target, IAbility ability);
     void AddCreature(ICreature creature);
     void RespawnCreature(ICreature creature);
     void RemoveCreature(ICreature creature);

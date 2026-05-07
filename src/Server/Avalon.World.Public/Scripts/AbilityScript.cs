@@ -6,13 +6,13 @@ using Avalon.World.Public.Units;
 
 namespace Avalon.World.Public.Scripts;
 
-public abstract class AbilityScript(IAbility spell, IUnit caster, IUnit? target) : IWorldObject
+public abstract class AbilityScript(IAbility ability, IUnit caster, IUnit? target) : IWorldObject
 {
     protected IUnit Caster { get; } = caster;
 
     protected IUnit? Target { get; } = target;
 
-    protected IAbility Spell { get; } = spell;
+    protected IAbility Ability { get; } = ability;
 
     protected List<AbilityScript> ChainedScripts { get; private set; } = new();
 
