@@ -7,14 +7,14 @@ using NSubstitute;
 
 namespace Avalon.Server.World.UnitTests.Scripts;
 
-public class SpellScriptCloneShould
+public class AbilityScriptCloneShould
 {
     // ──────────────────────────────────────────────
     // Minimal concrete stub — does NOT override Clone()
     // ──────────────────────────────────────────────
 
-    private sealed class StubSpellScript(IAbility spell, IUnit caster, IUnit? target)
-        : AbilityScript(spell, caster, target)
+    private sealed class StubAbilityScript(IAbility ability, IUnit caster, IUnit? target)
+        : AbilityScript(ability, caster, target)
     {
         public override object State { get; set; } = null!;
         public override Vector3 Position { get; set; }
@@ -26,28 +26,28 @@ public class SpellScriptCloneShould
         // intentionally no Clone() override — uses base implementation
 
         public List<AbilityScript> Chain => ChainedScripts;
-        public IAbility ExposedSpell => Spell;
+        public IAbility ExposedAbility => Ability;
     }
 
-    private static StubSpellScript MakeScript(IAbility? spell = null, IUnit? caster = null)
-        => new(spell ?? Substitute.For<IAbility>(), caster ?? Substitute.For<IUnit>(), null);
+    private static StubAbilityScript MakeScript(IAbility? ability = null, IUnit? caster = null)
+        => new(ability ?? Substitute.For<IAbility>(), caster ?? Substitute.For<IUnit>(), null);
 
     // ──────────────────────────────────────────────
     // Tests
     // ──────────────────────────────────────────────
 
     [Fact]
-    public void Clone_ReturnsSameSpellReference()
+    public void Clone_ReturnsSameAbilityReference()
     {
-        var spell = Substitute.For<IAbility>();
+        var ability = Substitute.For<IAbility>();
         var caster = Substitute.For<IUnit>();
-        var original = new StubSpellScript(spell, caster, null);
+        var original = new StubAbilityScript(ability, caster, null);
 
-        var clone = (StubSpellScript)original.Clone();
+        var clone = (StubAbilityScript)original.Clone();
 
         Assert.NotSame(original, clone);
-        // Spell is shared data: same reference on both
-        Assert.Same(original.ExposedSpell, clone.ExposedSpell);
+        // Ability is shared data: same reference on both
+        Assert.Same(original.ExposedAbility, clone.ExposedAbility);
     }
 
     [Fact]
@@ -57,7 +57,7 @@ public class SpellScriptCloneShould
         var chained = MakeScript();
         original.Chain(chained);
 
-        var clone = (StubSpellScript)original.Clone();
+        var clone = (StubAbilityScript)original.Clone();
 
         // Both reference the same chained entries at clone time
         Assert.Single(clone.Chain);
@@ -74,7 +74,7 @@ public class SpellScriptCloneShould
         original.Chain(MakeScript());
         original.Chain(MakeScript());
 
-        var clone = (StubSpellScript)original.Clone();
+        var clone = (StubAbilityScript)original.Clone();
         clone.Chain.Clear();
 
         // Original chain is unaffected
@@ -89,7 +89,7 @@ public class SpellScriptCloneShould
 
         var clone = original.Clone();
 
-        Assert.IsType<StubSpellScript>(clone);
+        Assert.IsType<StubAbilityScript>(clone);
         Assert.NotSame(original, clone);
     }
 
@@ -100,7 +100,7 @@ public class SpellScriptCloneShould
         var inner = MakeScript();
         original.Chain(inner);
 
-        var clone = (StubSpellScript)original.Clone();
+        var clone = (StubAbilityScript)original.Clone();
 
         // The chained entry in the clone must itself be a separate instance
         Assert.NotSame(

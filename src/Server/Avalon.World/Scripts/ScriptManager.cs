@@ -8,7 +8,7 @@ public interface IScriptManager
 {
     void Load();
     Type? GetAiScript(string name);
-    Type? GetSpellScript(string name);
+    Type? GetAbilityScript(string name);
 }
 
 public class ScriptManager : IScriptManager
@@ -16,7 +16,7 @@ public class ScriptManager : IScriptManager
     private readonly ILogger<ScriptManager> _logger;
 
     private IDictionary<string, Type> _aiScripts;
-    private IDictionary<string, Type> _spellScripts;
+    private IDictionary<string, Type> _abilityScripts;
 
     public ScriptManager(ILoggerFactory loggerFactory)
     {
@@ -31,11 +31,11 @@ public class ScriptManager : IScriptManager
 
         _aiScripts = aiScripts.ToDictionary(t => t.Name, t => t);
 
-        var spellScripts = FindScriptTypes<AbilityScript>();
+        var abilityScripts = FindScriptTypes<AbilityScript>();
 
-        _logger.LogInformation("Loaded {Count} spell scripts", spellScripts.Count);
+        _logger.LogInformation("Loaded {Count} ability scripts", abilityScripts.Count);
 
-        _spellScripts = spellScripts.ToDictionary(t => t.Name, t => t);
+        _abilityScripts = abilityScripts.ToDictionary(t => t.Name, t => t);
     }
 
     public Type? GetAiScript(string name)
@@ -43,9 +43,9 @@ public class ScriptManager : IScriptManager
         return _aiScripts.TryGetValue(name, out var scriptType) ? scriptType : null;
     }
 
-    public Type? GetSpellScript(string name)
+    public Type? GetAbilityScript(string name)
     {
-        return _spellScripts.TryGetValue(name, out var scriptType) ? scriptType : null;
+        return _abilityScripts.TryGetValue(name, out var scriptType) ? scriptType : null;
     }
 
     private List<Type> FindScriptTypes<TBaseType>()

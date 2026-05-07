@@ -18,7 +18,7 @@ using Avalon.World.Public.Characters;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Instances;
 using Avalon.World.Respawn;
-using Avalon.World.Spells;
+using Avalon.World.Abilities;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -302,7 +302,7 @@ public class CharacterSelectHandler(
         activity?.SetTag(nameof(connection.AccountId), connection.AccountId);
         activity?.SetTag("Spells.Count", spells.Count);
 
-        List<GameSpell> gameSpells = [];
+        List<GameAbility> gameAbilities = [];
 
         foreach (CharacterAbility characterAbility in spells)
         {
@@ -314,7 +314,7 @@ public class CharacterSelectHandler(
                 continue;
             }
 
-            GameSpell gameSpell = new()
+            GameAbility gameAbility = new()
             {
                 AbilityId = characterAbility.AbilityId,
                 Metadata = new AbilityMetadata
@@ -332,12 +332,12 @@ public class CharacterSelectHandler(
                 CooldownTimer = characterAbility.Cooldown
             };
 
-            gameSpells.Add(gameSpell);
+            gameAbilities.Add(gameAbility);
         }
 
-        entity.Spells.Load(gameSpells);
+        entity.Spells.Load(gameAbilities);
 
-        SpellInfo[] spellInfos = gameSpells.Select(s => new SpellInfo
+        SpellInfo[] spellInfos = gameAbilities.Select(s => new SpellInfo
         {
             AbilityId = s.AbilityId,
             Name = s.Metadata.Name,

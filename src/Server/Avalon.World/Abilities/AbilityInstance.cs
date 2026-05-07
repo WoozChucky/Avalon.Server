@@ -5,12 +5,12 @@ using Avalon.Common.Mathematics;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Units;
 
-namespace Avalon.World.Spells;
+namespace Avalon.World.Abilities;
 
-public class SpellInstance
+public class AbilityInstance
 {
     public required IUnit Caster { get; init; }
     public IUnit? Target { get; set; }
-    public required IAbility SpellInfo { get; init; }
+    public required IAbility Ability { get; init; }
     public required Vector3 CastStartPosition { get; init; }
 }

@@ -132,7 +132,7 @@ public class CharacterAttackHandler(ILogger<CharacterAttackHandler> logger, IWor
             }
 
             if (!attacker.Spells.IsCasting && spell is {CooldownTimer: <= 0, Casting: false} &&
-                context.QueueSpell(attacker, target, spell))
+                context.QueueAbility(attacker, target, spell))
             {
                 attacker.MarkCombat();
                 // Send spell start cast packet

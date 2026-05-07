@@ -9,7 +9,7 @@ public interface IAbilityProjectile
     static readonly Vector3 HeightOffset = new(0, 0.5f, 0);
 
     ulong Id { get; set; }
-    IAbility Spell { get; set; }
+    IAbility Ability { get; set; }
     ICharacter Caster { get; set; }
     IUnit Target { get; set; }
     Vector3 Position { get; set; }

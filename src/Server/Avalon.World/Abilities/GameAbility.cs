@@ -1,9 +1,9 @@
 using Avalon.Common.ValueObjects;
 using Avalon.World.Public.Abilities;
 
-namespace Avalon.World.Spells;
+namespace Avalon.World.Abilities;
 
-public class GameSpell : IAbility
+public class GameAbility : IAbility
 {
     public required AbilityId AbilityId { get; init; }
 
@@ -14,7 +14,7 @@ public class GameSpell : IAbility
 
     public IAbility Clone()
     {
-        return new GameSpell
+        return new GameAbility
         {
             AbilityId = AbilityId,
             Metadata = Metadata.Clone(),

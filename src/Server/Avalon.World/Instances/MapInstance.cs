@@ -16,9 +16,9 @@ using Avalon.World.Public.Instances;
 using Avalon.World.Public.Maps;
 using Avalon.World.Public.Scripts;
 using Avalon.World.Public.Units;
+using Avalon.World.Abilities;
 using Avalon.World.Scripts;
 using Avalon.World.Serialization;
-using Avalon.World.Spells;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -34,7 +34,7 @@ public class MapInstance : IMapInstance, IPortalSink
     private readonly Dictionary<ObjectGuid, ICreature> _creatures = [];
     private readonly ILogger<MapInstance> _logger;
     private readonly IMapNavigator _navigator;
-    private readonly ISpellQueueSystem _spellSystem;
+    private readonly IAbilityCastSystem _abilityCastSystem;
     private readonly IWorld _world;
     private float _lastBroadcastTime;
     private readonly Dictionary<ObjectGuid, GameEntityFields> _frameDirtyFields = new(256);
@@ -64,7 +64,7 @@ public class MapInstance : IMapInstance, IPortalSink
         Seed = seed;
         _navigator = navigator;
 
-        _spellSystem = new InstanceSpellSystem(loggerFactory, serviceProvider,
+        _abilityCastSystem = new InstanceAbilityCastSystem(loggerFactory, serviceProvider,
             serviceProvider.GetRequiredService<IScriptManager>());
         _creatureRespawner = new NoOpCreatureRespawner();
 
@@ -138,8 +138,8 @@ public class MapInstance : IMapInstance, IPortalSink
 
     public void RemoveCreature(ICreature creature) => _creatures.Remove(creature.Guid);
 
-    public bool QueueSpell(ICharacter caster, IUnit? target, IAbility spell) =>
-        _spellSystem.QueueSpell(caster, target, spell);
+    public bool QueueAbility(ICharacter caster, IUnit? target, IAbility ability) =>
+        _abilityCastSystem.QueueAbility(caster, target, ability);
 
     public void RespawnCreature(ICreature creature)
     {
@@ -187,8 +187,8 @@ public class MapInstance : IMapInstance, IPortalSink
 
         List<IWorldObject> objectSpells = [];
 
-        // Step 3: Spell system update
-        _spellSystem.Update(deltaTime, objectSpells);
+        // Step 3: Ability cast system update
+        _abilityCastSystem.Update(deltaTime, objectSpells);
 
         // Step 4: Update creature scripts
         foreach (ICreature creature in _creatures.Values)
@@ -304,7 +304,7 @@ public class MapInstance : IMapInstance, IPortalSink
                         writer.Write(addedCreature, GameEntityFields.All);
                         break;
                     case ObjectType.SpellProjectile:
-                        IWorldObject? addedSpell = _spellSystem.GetSpell(addedObjectGuid);
+                        IWorldObject? addedSpell = _abilityCastSystem.GetAbility(addedObjectGuid);
                         if (addedSpell is null)
                             continue;
                         writer.Write(addedSpell);
@@ -363,7 +363,7 @@ public class MapInstance : IMapInstance, IPortalSink
                         writer.Write(updatedCreature, GameEntityFields.CreatureUpdate);
                         break;
                     case ObjectType.SpellProjectile:
-                        IWorldObject? updatedSpell = _spellSystem.GetSpell(updatedObject.Guid);
+                        IWorldObject? updatedSpell = _abilityCastSystem.GetAbility(updatedObject.Guid);
                         if (updatedSpell is null)
                             continue;
                         writer.Write(updatedSpell, updatedObject.Fields);
