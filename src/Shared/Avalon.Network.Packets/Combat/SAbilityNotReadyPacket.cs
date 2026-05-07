@@ -12,11 +12,11 @@ public class SAbilityNotReadyPacket : Packet
     public static NetworkPacketFlags Flags = NetworkPacketFlags.Encrypted;
 
     [ProtoMember(1)] public uint AbilityId { get; set; }
-    [ProtoMember(2)] public float Cooldown { get; set; }
+    [ProtoMember(2)] public uint CooldownMs { get; set; }
 
-    public static NetworkPacket Create(uint abilityId, float cooldown, EncryptFunc encryptFunc)
+    public static NetworkPacket Create(uint abilityId, uint cooldownMs, EncryptFunc encryptFunc)
         => PacketSerializationHelper.Serialize(
-            new SAbilityNotReadyPacket { AbilityId = abilityId, Cooldown = cooldown },
+            new SAbilityNotReadyPacket { AbilityId = abilityId, CooldownMs = cooldownMs },
             PacketType, Flags, Protocol, encryptFunc);
 
 }

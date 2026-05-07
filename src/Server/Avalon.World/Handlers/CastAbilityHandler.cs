@@ -53,7 +53,9 @@ public class CastAbilityHandler(ILogger<CastAbilityHandler> logger, IWorld world
 
         if (ability.CooldownTimer > 0)
         {
-            connection.Send(SAbilityNotReadyPacket.Create(packet.AbilityId, ability.CooldownTimer,
+            // CooldownTimer is float seconds; the wire field is uint milliseconds.
+            uint cooldownMs = (uint)(ability.CooldownTimer * 1000f);
+            connection.Send(SAbilityNotReadyPacket.Create(packet.AbilityId, cooldownMs,
                 connection.CryptoSession.Encrypt));
             return;
         }
@@ -64,13 +66,13 @@ public class CastAbilityHandler(ILogger<CastAbilityHandler> logger, IWorld world
         // out-of-combat; others (e.g. execute-style finishers) only fire in-combat.
         if (meta.Flags.HasFlag(AbilityFlags.RequiresOutOfCombat) && attacker.IsInCombat)
         {
-            connection.Send(SAbilityNotReadyPacket.Create(packet.AbilityId, 0,
+            connection.Send(SAbilityNotReadyPacket.Create(packet.AbilityId, 0u,
                 connection.CryptoSession.Encrypt));
             return;
         }
         if (meta.Flags.HasFlag(AbilityFlags.RequiresInCombat) && !attacker.IsInCombat)
         {
-            connection.Send(SAbilityNotReadyPacket.Create(packet.AbilityId, 0,
+            connection.Send(SAbilityNotReadyPacket.Create(packet.AbilityId, 0u,
                 connection.CryptoSession.Encrypt));
             return;
         }
@@ -80,7 +82,7 @@ public class CastAbilityHandler(ILogger<CastAbilityHandler> logger, IWorld world
         // path we mirror that here so the resource cost is paid before script execution.
         if (meta.Cost > 0 && (attacker.CurrentPower ?? 0) < meta.Cost)
         {
-            connection.Send(SAbilityNotReadyPacket.Create(packet.AbilityId, 0,
+            connection.Send(SAbilityNotReadyPacket.Create(packet.AbilityId, 0u,
                 connection.CryptoSession.Encrypt));
             return;
         }
@@ -116,7 +118,7 @@ public class CastAbilityHandler(ILogger<CastAbilityHandler> logger, IWorld world
             float distance = Vector3.Distance(attacker.Position, target.Position);
             if (distance > (float)meta.Range)
             {
-                connection.Send(SAbilityNotReadyPacket.Create(packet.AbilityId, 0,
+                connection.Send(SAbilityNotReadyPacket.Create(packet.AbilityId, 0u,
                     connection.CryptoSession.Encrypt));
                 return;
             }

@@ -11,7 +11,7 @@ namespace Avalon.Network.Packets.Combat;
 [ProtoContract]
 public class SCharacterInterruptedCastPacket : Packet
 {
-    public static NetworkPacketType PacketType = NetworkPacketType.SMSG_SPELL_INTERRUPTED;
+    public static NetworkPacketType PacketType = NetworkPacketType.SMSG_INTERRUPTED_CAST;
     public static NetworkProtocol Protocol = NetworkProtocol.Tcp;
     public static NetworkPacketFlags Flags = NetworkPacketFlags.Encrypted;
 

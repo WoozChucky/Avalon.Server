@@ -861,7 +861,7 @@ public class WorldDbContext(ILoggerFactory loggerFactory, IOptions<DatabaseConfi
             Effects = SpellEffect.Damage,
             EffectValue = 10,
             AllowedClasses = [CharacterClass.Warrior],
-            SpellScript = "StrikeSpellScript"
+            SpellScript = "StrikeAbilityScript"
         }, new AbilityTemplate
         {
             Id = 2,
@@ -873,7 +873,7 @@ public class WorldDbContext(ILoggerFactory loggerFactory, IOptions<DatabaseConfi
             Effects = SpellEffect.Damage,
             EffectValue = 10,
             AllowedClasses = [CharacterClass.Warrior, CharacterClass.Wizard],
-            SpellScript = "FireballSpellScript"
+            SpellScript = "FireballAbilityScript"
         }, new AbilityTemplate
         {
             // Basic attack — Warrior
