@@ -22,7 +22,6 @@ public class MapSessionFilter(IWorldConnection connection) : PacketFilter
         return type switch
         {
             NetworkPacketType.CMSG_PLAYER_INPUT => true,
-            NetworkPacketType.CMSG_ATTACK => true,
             NetworkPacketType.CMSG_CAST_ABILITY => true,
             NetworkPacketType.CMSG_ENTER_MAP => true,
             NetworkPacketType.CMSG_RESPAWN_AT_TOWN => true,
