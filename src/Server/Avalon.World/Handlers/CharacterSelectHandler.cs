@@ -337,7 +337,7 @@ public class CharacterSelectHandler(
 
         entity.Spells.Load(gameAbilities);
 
-        AbilityInfo[] spellInfos = gameAbilities.Select(s => new AbilityInfo
+        AbilityInfo[] abilityInfos = gameAbilities.Select(s => new AbilityInfo
         {
             AbilityId = s.AbilityId,
             Name = s.Metadata.Name,
@@ -347,7 +347,7 @@ public class CharacterSelectHandler(
             Range = (ushort)s.Metadata.Range
         }).ToArray();
 
-        connection.Send(SCharacterAbilitiesPacket.Create(spellInfos, connection.CryptoSession.Encrypt));
+        connection.Send(SCharacterAbilitiesPacket.Create(abilityInfos, connection.CryptoSession.Encrypt));
 
         // All data loaded: assign character and spawn atomically on the tick thread.
         // After this point the entity is visible to MapInstance.Update.

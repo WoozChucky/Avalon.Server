@@ -11,11 +11,11 @@ public class SCharacterAbilitiesPacket : Packet
     public static NetworkProtocol Protocol = NetworkProtocol.Tcp;
     public static NetworkPacketFlags Flags = NetworkPacketFlags.Encrypted;
 
-    [ProtoMember(1)] public AbilityInfo[] Spells { get; set; }
+    [ProtoMember(1)] public AbilityInfo[] Abilities { get; set; }
 
-    public static NetworkPacket Create(AbilityInfo[] spells, EncryptFunc encrypt)
+    public static NetworkPacket Create(AbilityInfo[] abilities, EncryptFunc encrypt)
         => PacketSerializationHelper.Serialize(
-            new SCharacterAbilitiesPacket { Spells = spells },
+            new SCharacterAbilitiesPacket { Abilities = abilities },
             PacketType, Flags, Protocol, encrypt);
 }
 
