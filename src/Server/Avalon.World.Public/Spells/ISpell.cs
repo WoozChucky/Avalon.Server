@@ -4,7 +4,7 @@ namespace Avalon.World.Public.Spells;
 
 public interface ISpell
 {
-    SpellId SpellId { get; init; }
+    AbilityId AbilityId { get; init; }
     SpellMetadata Metadata { get; }
     float CooldownTimer { get; set; } // in seconds (remaining time until spell is ready after being cast)
     float CastTimeTimer { get; set; } // in seconds (remaining time until spell is cast)

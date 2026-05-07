@@ -11,12 +11,12 @@ public class SSpellNotReadyPacket : Packet
     public static NetworkProtocol Protocol = NetworkProtocol.Tcp;
     public static NetworkPacketFlags Flags = NetworkPacketFlags.Encrypted;
 
-    [ProtoMember(1)] public uint SpellId { get; set; }
+    [ProtoMember(1)] public uint AbilityId { get; set; }
     [ProtoMember(2)] public float Cooldown { get; set; }
 
-    public static NetworkPacket Create(uint spellId, float cooldown, EncryptFunc encryptFunc)
+    public static NetworkPacket Create(uint abilityId, float cooldown, EncryptFunc encryptFunc)
         => PacketSerializationHelper.Serialize(
-            new SSpellNotReadyPacket { SpellId = spellId, Cooldown = cooldown },
+            new SSpellNotReadyPacket { AbilityId = abilityId, Cooldown = cooldown },
             PacketType, Flags, Protocol, encryptFunc);
 
 }

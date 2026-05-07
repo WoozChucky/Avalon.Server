@@ -131,7 +131,7 @@ public class CharacterService : ICharacterService
 
         var spellRows = await _characterSpellRepository.GetCharacterSpellsAsync(id, cancellationToken);
         var templates = await _spellTemplateRepository.GetByIdsAsync(
-            spellRows.Select(s => s.SpellId), cancellationToken);
+            spellRows.Select(s => s.AbilityId), cancellationToken);
         var templateById = templates.ToDictionary(t => t.Id);
 
         return new CharacterSpellsDto
@@ -143,12 +143,12 @@ public class CharacterService : ICharacterService
 
     private static CharacterSpellDto MapSpell(
         CharacterSpell row,
-        Dictionary<SpellId, SpellTemplate> templateById)
+        Dictionary<AbilityId, SpellTemplate> templateById)
     {
-        templateById.TryGetValue(row.SpellId, out var template);
+        templateById.TryGetValue(row.AbilityId, out var template);
         return new CharacterSpellDto
         {
-            SpellId = row.SpellId.Value,
+            AbilityId = row.AbilityId.Value,
             Template = template is null ? null : new CharacterSpellTemplateDto
             {
                 Id = template.Id.Value,

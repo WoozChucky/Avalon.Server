@@ -49,7 +49,7 @@ public class SpellTemplateControllerShould
     public async Task Get_Returns404_WhenMissing()
     {
         _repository
-            .FindByIdAsync(Arg.Any<SpellId>(), false, Arg.Any<CancellationToken>())
+            .FindByIdAsync(Arg.Any<AbilityId>(), false, Arg.Any<CancellationToken>())
             .Returns((SpellTemplate?)null);
 
         var sut = MakeSut(User(7, AvalonRoles.Player));
@@ -62,8 +62,8 @@ public class SpellTemplateControllerShould
     public async Task Get_Returns200_WhenFound()
     {
         _repository
-            .FindByIdAsync(Arg.Any<SpellId>(), false, Arg.Any<CancellationToken>())
-            .Returns(new SpellTemplate { Id = new SpellId(1), Name = "Fireball", SpellScript = "fireball.cs" });
+            .FindByIdAsync(Arg.Any<AbilityId>(), false, Arg.Any<CancellationToken>())
+            .Returns(new SpellTemplate { Id = new AbilityId(1), Name = "Fireball", SpellScript = "fireball.cs" });
 
         var sut = MakeSut(User(7, AvalonRoles.Player));
         var result = await sut.Get(1, CancellationToken.None);

@@ -306,17 +306,17 @@ public class CharacterSelectHandler(
 
         foreach (CharacterSpell characterSpell in spells)
         {
-            SpellTemplate? template = world.Data.SpellTemplates.FirstOrDefault(sp => sp.Id == characterSpell.SpellId);
+            SpellTemplate? template = world.Data.SpellTemplates.FirstOrDefault(sp => sp.Id == characterSpell.AbilityId);
             if (template == null)
             {
-                logger.LogWarning("Spell template not found for spell {SpellId}", characterSpell.SpellId);
+                logger.LogWarning("Spell template not found for spell {AbilityId}", characterSpell.AbilityId);
                 activity?.AddEvent(new ActivityEvent("SpellTemplateNotFound"));
                 continue;
             }
 
             GameSpell gameSpell = new()
             {
-                SpellId = characterSpell.SpellId,
+                AbilityId = characterSpell.AbilityId,
                 Metadata = new SpellMetadata
                 {
                     Name = template.Name,
@@ -339,7 +339,7 @@ public class CharacterSelectHandler(
 
         SpellInfo[] spellInfos = gameSpells.Select(s => new SpellInfo
         {
-            SpellId = s.SpellId,
+            AbilityId = s.AbilityId,
             Name = s.Metadata.Name,
             Cooldown = s.Metadata.Cooldown,
             CastTime = s.Metadata.CastTime,

@@ -109,14 +109,14 @@ public class CharacterAttackHandler(ILogger<CharacterAttackHandler> logger, IWor
         else
         {
             // Cast spell
-            if (packet.SpellId == null)
+            if (packet.AbilityId == null)
             {
-                logger.LogWarning("SpellId is null");
-                activity?.AddEvent(new ActivityEvent("SpellIdNull"));
+                logger.LogWarning("AbilityId is null");
+                activity?.AddEvent(new ActivityEvent("AbilityIdNull"));
                 return;
             }
 
-            ISpell? spell = attacker.Spells[packet.SpellId];
+            ISpell? spell = attacker.Spells[packet.AbilityId];
             if (spell == null)
             {
                 logger.LogWarning("Spell not found");
@@ -144,7 +144,7 @@ public class CharacterAttackHandler(ILogger<CharacterAttackHandler> logger, IWor
             else
             {
                 // Send spell not ready packet
-                connection.Send(SSpellNotReadyPacket.Create(packet.SpellId.Value, spell.CooldownTimer,
+                connection.Send(SSpellNotReadyPacket.Create(packet.AbilityId.Value, spell.CooldownTimer,
                     connection.CryptoSession.Encrypt));
             }
         }

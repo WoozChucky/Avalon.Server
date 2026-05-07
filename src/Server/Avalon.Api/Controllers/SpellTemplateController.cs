@@ -44,7 +44,7 @@ public class SpellTemplateController : BaseController
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Get([FromRoute] uint id, CancellationToken ct)
     {
-        var template = await _repository.FindByIdAsync(new SpellId(id), track: false, ct);
+        var template = await _repository.FindByIdAsync(new AbilityId(id), track: false, ct);
         return template is null ? NotFound() : Ok(ToDto(template));
     }
 

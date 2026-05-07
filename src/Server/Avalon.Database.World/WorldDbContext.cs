@@ -166,12 +166,12 @@ public class WorldDbContext(ILoggerFactory loggerFactory, IOptions<DatabaseConfi
             .HasConversion(itemIdConverter)
             .Metadata.SetValueComparer(itemIdComparer);
 
-        ValueConverter<List<SpellId>, string> spellIdConverter = new(
+        ValueConverter<List<AbilityId>, string> spellIdConverter = new(
             v => string.Join(",", v.Select(i => i.Value)),
             v => v.Split(new[] {','}, StringSplitOptions.RemoveEmptyEntries)
-                .Select(val => new SpellId(uint.Parse(val))).ToList());
+                .Select(val => new AbilityId(uint.Parse(val))).ToList());
 
-        ValueComparer<List<SpellId>> spellIdComparer = new(
+        ValueComparer<List<AbilityId>> spellIdComparer = new(
             (c1, c2) => c1!.SequenceEqual(c2!),
             c => c.Aggregate(0, (a, v) => HashCode.Combine(a, v.GetHashCode())),
             c => c.ToList());
@@ -847,7 +847,7 @@ public class WorldDbContext(ILoggerFactory loggerFactory, IOptions<DatabaseConfi
         builder.Property(b => b.Id)
             .HasConversion(
                 v => v.Value,
-                v => new SpellId(v)
+                v => new AbilityId(v)
             ).IsRequired();
 
         builder.HasData(new SpellTemplate

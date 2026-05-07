@@ -4,10 +4,10 @@ using Avalon.World.Public.Enums;
 
 namespace Avalon.Domain.World;
 
-public class SpellTemplate : IDbEntity<SpellId>
+public class SpellTemplate : IDbEntity<AbilityId>
 {
     [Key]
-    public SpellId Id { get; set; }
+    public AbilityId Id { get; set; }
 
     public string Name { get; set; }
 

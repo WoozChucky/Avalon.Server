@@ -17,9 +17,9 @@ public class CCharacterAttackPacket : Packet
 
     [ProtoMember(1)] public ulong Target { get; set; }
     [ProtoMember(2)] public bool AutoAttack { get; set; }
-    [ProtoMember(3)] public uint? SpellId { get; set; }
+    [ProtoMember(3)] public uint? AbilityId { get; set; }
 
-    public static NetworkPacket Create(CreatureId target, bool autoAttack, uint? spellId, EncryptFunc encryptFunc)
+    public static NetworkPacket Create(CreatureId target, bool autoAttack, uint? abilityId, EncryptFunc encryptFunc)
     {
         using var memoryStream = new MemoryStream();
 
@@ -27,7 +27,7 @@ public class CCharacterAttackPacket : Packet
         {
             Target = target,
             AutoAttack = autoAttack,
-            SpellId = spellId
+            AbilityId = abilityId
         };
 
         Serializer.Serialize(memoryStream, p);

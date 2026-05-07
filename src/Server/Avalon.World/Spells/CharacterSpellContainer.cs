@@ -12,7 +12,7 @@ public class CharacterSpellContainer(ILoggerFactory loggerFactory) : ICharacterS
     private readonly ILogger<CharacterSpellContainer> _logger = loggerFactory.CreateLogger<CharacterSpellContainer>();
     private IReadOnlyCollection<ISpell> _spells;
 
-    public ISpell? this[SpellId spellId] => _spells.FirstOrDefault(x => x.SpellId == spellId);
+    public ISpell? this[AbilityId abilityId] => _spells.FirstOrDefault(x => x.AbilityId == abilityId);
 
     public bool IsCasting => _spells.Any(x => x.Casting);
 

@@ -41,7 +41,7 @@ public class StrikeSpellScript(ILogger<StrikeSpellScript> logger, ISpell spell, 
         if (Vector3.Distance(Position, Target!.Position) <= (uint)Spell.Metadata.Range + 1)
         {
             Caster.SendAttackAnimation(Spell);
-            logger.LogInformation("Spell {SpellId} hit {CreatureId}", Spell.SpellId, Target.Guid);
+            logger.LogInformation("Spell {AbilityId} hit {CreatureId}", Spell.AbilityId, Target.Guid);
             Target.OnHit(Caster, Spell.Metadata.EffectValue);
             State = SpellState.Finished;
         }

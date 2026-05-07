@@ -16,10 +16,10 @@ public class SUnitFinishCastPacket : Packet
     public static NetworkPacketFlags Flags = NetworkPacketFlags.Encrypted;
 
     [ProtoMember(1)] public ulong Caster { get; set; }
-    [ProtoMember(2)] public uint SpellId { get; set; }
+    [ProtoMember(2)] public uint AbilityId { get; set; }
 
-    public static NetworkPacket Create(ObjectGuid caster, SpellId spell, EncryptFunc encryptFunc)
+    public static NetworkPacket Create(ObjectGuid caster, AbilityId ability, EncryptFunc encryptFunc)
         => PacketSerializationHelper.Serialize(
-            new SUnitFinishCastPacket { Caster = caster.RawValue, SpellId = spell.Value },
+            new SUnitFinishCastPacket { Caster = caster.RawValue, AbilityId = ability.Value },
             PacketType, Flags, Protocol, encryptFunc);
 }

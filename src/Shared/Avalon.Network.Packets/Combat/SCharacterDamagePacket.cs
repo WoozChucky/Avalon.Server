@@ -15,10 +15,10 @@ public class SCharacterDamagePacket : Packet
     [ProtoMember(2)] public ulong Target { get; set; }
     [ProtoMember(3)] public uint CurrentHealth { get; set; }
     [ProtoMember(4)] public uint Damage { get; set; }
-    [ProtoMember(5)] public uint? SpellId { get; set; }
+    [ProtoMember(5)] public uint? AbilityId { get; set; }
 
-    public static NetworkPacket Create(ulong attacker, ulong target, uint currentHealth, uint damage, uint? spellId, EncryptFunc encryptFunc)
+    public static NetworkPacket Create(ulong attacker, ulong target, uint currentHealth, uint damage, uint? abilityId, EncryptFunc encryptFunc)
         => PacketSerializationHelper.Serialize(
-            new SCharacterDamagePacket { Attacker = attacker, Target = target, CurrentHealth = currentHealth, Damage = damage, SpellId = spellId },
+            new SCharacterDamagePacket { Attacker = attacker, Target = target, CurrentHealth = currentHealth, Damage = damage, AbilityId = abilityId },
             PacketType, Flags, Protocol, encryptFunc);
 }

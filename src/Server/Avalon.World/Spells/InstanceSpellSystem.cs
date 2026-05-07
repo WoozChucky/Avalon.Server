@@ -105,8 +105,8 @@ public class InstanceSpellSystem(ILoggerFactory factory, IServiceProvider servic
             spellScript.Prepare();
             _activeSpells.Add(spellScript);
 
-            _logger.LogDebug("Finished spell {SpellId} cast by {CharacterId} on {CreatureId}",
-                spellInstance.SpellInfo.SpellId, spellInstance.Caster.Guid, spellInstance.Target?.Guid);
+            _logger.LogDebug("Finished spell {AbilityId} cast by {CharacterId} on {CreatureId}",
+                spellInstance.SpellInfo.AbilityId, spellInstance.Caster.Guid, spellInstance.Target?.Guid);
         }
 
         foreach (SpellScript spell in _activeSpells)

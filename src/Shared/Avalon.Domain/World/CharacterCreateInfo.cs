@@ -14,5 +14,5 @@ public class CharacterCreateInfo
 
     public List<ItemTemplateId> StartingItems { get; set; } = [];
 
-    public List<SpellId> StartingSpells { get; set; } = [];
+    public List<AbilityId> StartingSpells { get; set; } = [];
 }
