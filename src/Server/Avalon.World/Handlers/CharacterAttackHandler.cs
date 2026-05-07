@@ -144,7 +144,7 @@ public class CharacterAttackHandler(ILogger<CharacterAttackHandler> logger, IWor
             else
             {
                 // Send spell not ready packet
-                connection.Send(SSpellNotReadyPacket.Create(packet.AbilityId.Value, spell.CooldownTimer,
+                connection.Send(SAbilityNotReadyPacket.Create(packet.AbilityId.Value, spell.CooldownTimer,
                     connection.CryptoSession.Encrypt));
             }
         }

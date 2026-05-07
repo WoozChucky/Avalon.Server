@@ -5,9 +5,9 @@ using Avalon.Network.Packets.Serialization;
 namespace Avalon.Network.Packets.Combat;
 
 [ProtoContract]
-public class SSpellNotReadyPacket : Packet
+public class SAbilityNotReadyPacket : Packet
 {
-    public static NetworkPacketType PacketType = NetworkPacketType.SMSG_SPELL_NOT_READY;
+    public static NetworkPacketType PacketType = NetworkPacketType.SMSG_ABILITY_NOT_READY;
     public static NetworkProtocol Protocol = NetworkProtocol.Tcp;
     public static NetworkPacketFlags Flags = NetworkPacketFlags.Encrypted;
 
@@ -16,7 +16,7 @@ public class SSpellNotReadyPacket : Packet
 
     public static NetworkPacket Create(uint abilityId, float cooldown, EncryptFunc encryptFunc)
         => PacketSerializationHelper.Serialize(
-            new SSpellNotReadyPacket { AbilityId = abilityId, Cooldown = cooldown },
+            new SAbilityNotReadyPacket { AbilityId = abilityId, Cooldown = cooldown },
             PacketType, Flags, Protocol, encryptFunc);
 
 }
