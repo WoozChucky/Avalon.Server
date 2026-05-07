@@ -173,6 +173,29 @@ public class CombatServiceShould
         Assert.DoesNotContain(h2, enc.Hostiles);
     }
 
+    [Fact]
+    public void Should_cap_merge_at_50_hostile_participants()
+    {
+        var (svc, reg) = BuildService();
+        var attacker = StubCharacter(CharacterClass.Warrior);
+        var ability  = StubAbility(1.0f);
+
+        for (int i = 0; i < 51; i++)
+        {
+            var h = Substitute.For<ICreature>();
+            svc.ApplyDamage(attacker, h, 1, ability);
+        }
+
+        // Expect 2 encounters: first capped at 50, the 51st spawns a new encounter.
+        Assert.Equal(2, reg.Active.Count);
+        var encounters = System.Linq.Enumerable.ToList(reg.Active);
+        int firstCount  = encounters[0].Hostiles.Count;
+        int secondCount = encounters[1].Hostiles.Count;
+        Assert.True(firstCount + secondCount == 51);
+        Assert.True(firstCount == 50 || secondCount == 50);
+        Assert.True(firstCount == 1  || secondCount == 1);
+    }
+
     private static (CombatService, EncounterRegistry) BuildService(float initialThreatSeed = 1.0f)
     {
         var cfg = new CombatConfig { InitialThreatSeed = initialThreatSeed };

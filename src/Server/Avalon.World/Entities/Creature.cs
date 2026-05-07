@@ -95,6 +95,8 @@ public class Creature : ICreature
         set { _moveState = value; _dirtyFields |= GameEntityFields.MoveState; }
     }
 
+    public DateTime LastCastStartTime { get; set; } = DateTime.MinValue;
+
     public GameEntityFields ConsumeDirtyFields()
     {
         var dirty = _dirtyFields;
