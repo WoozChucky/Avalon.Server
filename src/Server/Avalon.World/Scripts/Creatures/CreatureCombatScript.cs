@@ -2,6 +2,7 @@ using Avalon.Common.Mathematics;
 using Avalon.Network.Packets.State;
 using Avalon.World.Entities;
 using Avalon.World.Public.Characters;
+using Avalon.World.Public.Combat;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Instances;
 using Avalon.World.Public.Scripts;
@@ -105,6 +106,24 @@ public class CreatureCombatScript : AiScript
 
         Vector3 currentPosition = Creature.Position;
 
+        // Reconcile current target with the encounter's authoritative threat list (and any
+        // active taunt). The local _target field still seeds initial engagement (set by
+        // OnEnteredRange / OnHit) and survives ticks when no encounter is active, but as
+        // soon as CombatService spawns or updates an encounter for this creature, the
+        // top-threat attacker (or the taunter, while the taunt is active) becomes the
+        // authoritative pick. Only switch targets while actively engaging — Returning is
+        // handled by its own block below.
+        if (State is CombatState.Combat or CombatState.Chase)
+        {
+            IUnit? picked = PickTarget();
+            if (picked is not null && !ReferenceEquals(picked, _target))
+            {
+                _target = picked;
+                _lastKnownTargetPosition = picked.Position;
+                _currentPath.Clear();
+            }
+        }
+
         if (State is CombatState.Returning)
         {
             if (Vector3.Distance(currentPosition, _initialPosition) < 0.1f)
@@ -187,6 +206,28 @@ public class CreatureCombatScript : AiScript
 
             FollowPath(deltaTime);
         }
+    }
+
+    /// <summary>
+    /// Authoritative target picker. Honours an active taunt first (creature is forced onto
+    /// the taunter until <see cref="ICreature.TauntExpiresAt"/> elapses), then falls back to
+    /// the encounter's top-threat unit. Returns <c>null</c> when no encounter exists for
+    /// this creature (e.g. very first tick after OnEnteredRange, before damage has been
+    /// routed through <see cref="ICombatService"/>); callers keep the existing target in
+    /// that case.
+    /// </summary>
+    public IUnit? PickTarget()
+    {
+        // Taunt override: while the taunt is active, the creature is locked onto the
+        // taunter regardless of threat ordering. This mirrors CombatService.ApplyTaunt
+        // which sets these fields and bumps threat above the current top.
+        if (Creature.TauntedBy is { } tauntedBy && DateTime.UtcNow < Creature.TauntExpiresAt)
+        {
+            return tauntedBy;
+        }
+
+        IEncounter? encounter = Context.CombatService.GetEncounterFor(Creature);
+        return encounter?.GetTopThreat(Creature);
     }
 
     private void AttackTarget(TimeSpan deltaTime)
