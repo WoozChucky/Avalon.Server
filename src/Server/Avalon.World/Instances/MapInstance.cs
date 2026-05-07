@@ -185,10 +185,10 @@ public class MapInstance : IMapInstance, IPortalSink
             character.Update(deltaTime);
         }
 
-        List<IWorldObject> objectSpells = [];
+        List<IWorldObject> objectAbilities = [];
 
         // Step 3: Ability cast system update
-        _abilityCastSystem.Update(deltaTime, objectSpells);
+        _abilityCastSystem.Update(deltaTime, objectAbilities);
 
         // Step 4: Update creature scripts
         foreach (ICreature creature in _creatures.Values)
@@ -221,13 +221,13 @@ public class MapInstance : IMapInstance, IPortalSink
                     _frameDirtyFields[character.Guid] = dirty;
             }
 
-            foreach (var obj in objectSpells)
+            foreach (var obj in objectAbilities)
             {
-                if (obj is AbilityScript spell)
+                if (obj is AbilityScript ability)
                 {
-                    var dirty = spell.ConsumeDirtyFields();
+                    var dirty = ability.ConsumeDirtyFields();
                     if (dirty != GameEntityFields.None)
-                        _frameDirtyFields[spell.Guid] = dirty;
+                        _frameDirtyFields[ability.Guid] = dirty;
                 }
             }
         }
@@ -235,7 +235,7 @@ public class MapInstance : IMapInstance, IPortalSink
         // Step 5b: Update entity visibility state per character
         foreach (ICharacter character in _characters.Values)
         {
-            character.CharacterGameState.Update(_creatures, _characters, objectSpells, _frameDirtyFields);
+            character.CharacterGameState.Update(_creatures, _characters, objectAbilities, _frameDirtyFields);
         }
 
         // Step 6: Broadcast instance state to each character
@@ -304,10 +304,10 @@ public class MapInstance : IMapInstance, IPortalSink
                         writer.Write(addedCreature, GameEntityFields.All);
                         break;
                     case ObjectType.SpellProjectile:
-                        IWorldObject? addedSpell = _abilityCastSystem.GetAbility(addedObjectGuid);
-                        if (addedSpell is null)
+                        IWorldObject? addedAbility = _abilityCastSystem.GetAbility(addedObjectGuid);
+                        if (addedAbility is null)
                             continue;
-                        writer.Write(addedSpell);
+                        writer.Write(addedAbility);
                         break;
                     case ObjectType.Portal:
                         PortalInstance? addedPortal = _portals.FirstOrDefault(p => p.Guid == addedObjectGuid);
@@ -363,10 +363,10 @@ public class MapInstance : IMapInstance, IPortalSink
                         writer.Write(updatedCreature, GameEntityFields.CreatureUpdate);
                         break;
                     case ObjectType.SpellProjectile:
-                        IWorldObject? updatedSpell = _abilityCastSystem.GetAbility(updatedObject.Guid);
-                        if (updatedSpell is null)
+                        IWorldObject? updatedAbility = _abilityCastSystem.GetAbility(updatedObject.Guid);
+                        if (updatedAbility is null)
                             continue;
-                        writer.Write(updatedSpell, updatedObject.Fields);
+                        writer.Write(updatedAbility, updatedObject.Fields);
                         break;
                     case ObjectType.Portal:
                         continue; // portals are immutable in PoC — no delta updates
