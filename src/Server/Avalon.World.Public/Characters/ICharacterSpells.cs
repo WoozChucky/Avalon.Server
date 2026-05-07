@@ -7,7 +7,7 @@ public interface ICharacterSpells
 {
     void Load(IReadOnlyCollection<ISpell> spells);
 
-    ISpell? this[SpellId spellId] { get; }
+    ISpell? this[AbilityId abilityId] { get; }
 
     bool IsCasting { get; }
 

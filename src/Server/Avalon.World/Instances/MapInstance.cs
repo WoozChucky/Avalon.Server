@@ -433,7 +433,7 @@ public class MapInstance : IMapInstance, IPortalSink
 
         foreach ((ObjectGuid guid, IWorldConnection connection) in _connections)
         {
-            connection.Send(SUnitFinishCastPacket.Create(attacker.Guid, spell.SpellId,
+            connection.Send(SUnitFinishCastPacket.Create(attacker.Guid, spell.AbilityId,
                 connection.CryptoSession.Encrypt));
         }
     }
@@ -447,7 +447,7 @@ public class MapInstance : IMapInstance, IPortalSink
 
         foreach ((ObjectGuid guid, IWorldConnection connection) in _connections)
         {
-            connection.Send(SCharacterInterruptedCastPacket.Create(attacker.Guid, spell.SpellId,
+            connection.Send(SCharacterInterruptedCastPacket.Create(attacker.Guid, spell.AbilityId,
                 connection.CryptoSession.Encrypt));
         }
     }

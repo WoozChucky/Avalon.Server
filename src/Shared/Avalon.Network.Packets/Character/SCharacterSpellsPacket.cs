@@ -22,7 +22,7 @@ public class SCharacterSpellsPacket : Packet
 [ProtoContract]
 public class SpellInfo
 {
-    [ProtoMember(1)] public uint SpellId { get; set; }
+    [ProtoMember(1)] public uint AbilityId { get; set; }
     [ProtoMember(2)] public string Name { get; set; }
     [ProtoMember(3)] public float Cooldown { get; set; }
     [ProtoMember(4)] public float CastTime { get; set; }

@@ -147,7 +147,7 @@ public class CharacterDbContext(ILoggerFactory loggerFactory, IOptions<DatabaseC
 
     private static void Configure(EntityTypeBuilder<CharacterSpell> builder)
     {
-        builder.HasKey(b => new {b.CharacterId, b.SpellId});
+        builder.HasKey(b => new {b.CharacterId, b.AbilityId});
 
         builder.Property(b => b.CharacterId)
             .HasConversion(
@@ -155,10 +155,10 @@ public class CharacterDbContext(ILoggerFactory loggerFactory, IOptions<DatabaseC
                 v => new CharacterId(v)
             ).IsRequired();
 
-        builder.Property(b => b.SpellId)
+        builder.Property(b => b.AbilityId)
             .HasConversion(
                 v => v.Value,
-                v => new SpellId(v)
+                v => new AbilityId(v)
             );
 
         builder.HasOne(e => e.Character)

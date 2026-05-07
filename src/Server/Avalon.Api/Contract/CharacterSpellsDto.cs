@@ -8,7 +8,7 @@ public sealed class CharacterSpellsDto
 
 public sealed class CharacterSpellDto
 {
-    public uint SpellId { get; set; }
+    public uint AbilityId { get; set; }
     public CharacterSpellTemplateDto? Template { get; set; }
 }
 
