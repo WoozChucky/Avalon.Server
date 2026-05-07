@@ -142,6 +142,7 @@ public class WorldConnection : Connection, IWorldConnection
 
     public uint LastInputSeq { get; set; }
     public bool RespawnInFlight { get; set; }
+    public ulong? CurrentTargetGuid { get; set; }
 
     public override void Send(NetworkPacket packet)
     {

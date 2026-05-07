@@ -39,6 +39,7 @@ public class MapInstance : IMapInstance, IPortalSink
     private readonly IAbilityCastSystem _abilityCastSystem;
     private readonly EncounterRegistry _encounterRegistry;
     private readonly CombatService _combatService;
+    private readonly ThreatBroadcastService _threatBroadcast;
     private readonly IWorld _world;
     private float _lastBroadcastTime;
     private readonly Dictionary<ObjectGuid, GameEntityFields> _frameDirtyFields = new(256);
@@ -76,6 +77,7 @@ public class MapInstance : IMapInstance, IPortalSink
         CombatConfig combatConfig = serviceProvider.GetRequiredService<CombatConfig>();
         _encounterRegistry = new EncounterRegistry(combatConfig);
         _combatService     = new CombatService(combatConfig, _encounterRegistry, this);
+        _threatBroadcast   = new ThreatBroadcastService(combatConfig);
 
         // Cast system gets `this` as ISimulationContext so it can forward the context to
         // ability scripts (E7): scripts route damage through CombatService.ApplyDamage rather
@@ -143,6 +145,7 @@ public class MapInstance : IMapInstance, IPortalSink
         _characters.Remove(connection.Character.Guid);
         _connections.Remove(connection.Character.Guid);
         _broadcastStates.Remove(connection.Character.Guid);
+        _threatBroadcast.Forget(connection);
 
         if (_characters.Count == 0)
         {
@@ -230,6 +233,12 @@ public class MapInstance : IMapInstance, IPortalSink
 
         // Step 3b: Tick combat service — decays threat, ends stale encounters.
         _combatService.Update(deltaTime);
+
+        // Step 3c: Mirror threat lists for each player's currently-targeted hostile.
+        // Throttled (250 ms / 5 % delta) inside the service; iterating _connections.Values
+        // here is safe because no inbound packet handler dequeued above mutates _connections
+        // (target-unit just stores a ulong on the connection itself).
+        _threatBroadcast.Tick(_connections.Values, _creatures, _combatService);
 
         // Step 4: Update creature scripts
         foreach (ICreature creature in _creatures.Values)
