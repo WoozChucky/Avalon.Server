@@ -1,6 +1,7 @@
 // Licensed to the Avalon ARPG Game under one or more agreements.
 // Avalon ARPG Game licenses this file to you under the MIT license.
 
+using System;
 using Avalon.Network.Packets.State;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Enums;
@@ -16,6 +17,7 @@ public interface IUnit : IWorldObject
     uint? Power { get; set; }
     uint? CurrentPower { get; set; }
     MoveState MoveState { get; set; }
+    DateTime LastCastStartTime { get; set; }
 
     GameEntityFields ConsumeDirtyFields();
 

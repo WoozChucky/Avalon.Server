@@ -162,6 +162,8 @@ public class CharacterEntity : ICharacter
         }
     }
 
+    public DateTime LastCastStartTime { get; set; } = DateTime.MinValue;
+
     public GameEntityFields ConsumeDirtyFields()
     {
         var dirty = _dirtyFields;

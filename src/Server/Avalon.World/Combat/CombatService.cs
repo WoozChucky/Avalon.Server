@@ -49,8 +49,22 @@ public sealed class CombatService : ICombatService
         Encounter? existing = (_registry.FindEncounterContaining(attacker)
                             ?? _registry.FindEncounterContaining(target)) as Encounter;
 
+        bool wouldExceedCap = existing is not null
+                           && target is ICreature
+                           && !existing.Hostiles.Contains(target)
+                           && existing.Hostiles.Count >= _config.MergeCapHostileParticipants;
+
+        if (wouldExceedCap)
+        {
+            // Overflow: spawn a new encounter to receive the new hostile.
+            Encounter spillover = (Encounter)_registry.CreateEncounter();
+            if (attacker is ICharacter) spillover.AddPlayer(attacker);
+            if (target   is ICreature)  spillover.AddHostile(target);
+            return spillover;
+        }
+
         Encounter enc = existing ?? (Encounter)_registry.CreateEncounter();
-        if (target is ICreature)    enc.AddHostile(target);
+        if (target  is ICreature)   enc.AddHostile(target);
         if (attacker is ICharacter) enc.AddPlayer(attacker);
         return enc;
     }
