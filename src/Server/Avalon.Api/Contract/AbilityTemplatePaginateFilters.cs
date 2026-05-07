@@ -5,7 +5,7 @@ using LinqKit;
 
 namespace Avalon.Api.Contract;
 
-public class SpellTemplatePaginateFilters : EntityPaginateFilter<AbilityTemplate>
+public class AbilityTemplatePaginateFilters : EntityPaginateFilter<AbilityTemplate>
 {
     public override Expression<Func<AbilityTemplate, bool>> GetFilter()
     {

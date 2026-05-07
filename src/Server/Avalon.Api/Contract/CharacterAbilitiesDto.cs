@@ -1,18 +1,18 @@
 namespace Avalon.Api.Contract;
 
-public sealed class CharacterSpellsDto
+public sealed class CharacterAbilitiesDto
 {
     public uint CharacterId { get; set; }
-    public List<CharacterSpellDto> Spells { get; set; } = new();
+    public List<CharacterAbilityDto> Abilities { get; set; } = new();
 }
 
-public sealed class CharacterSpellDto
+public sealed class CharacterAbilityDto
 {
     public uint AbilityId { get; set; }
-    public CharacterSpellTemplateDto? Template { get; set; }
+    public CharacterAbilityTemplateDto? Template { get; set; }
 }
 
-public sealed class CharacterSpellTemplateDto
+public sealed class CharacterAbilityTemplateDto
 {
     public uint Id { get; set; }
     public string Name { get; set; } = string.Empty;

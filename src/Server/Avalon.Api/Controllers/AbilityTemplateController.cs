@@ -12,24 +12,24 @@ namespace Avalon.Api.Controllers;
 
 [ApiController]
 [Authorize(Policy = AvalonRoles.Player)]
-[Route("spell-template")]
-public class SpellTemplateController : BaseController
+[Route("ability-template")]
+public class AbilityTemplateController : BaseController
 {
-    private readonly ISpellTemplateRepository _repository;
+    private readonly IAbilityTemplateRepository _repository;
 
-    public SpellTemplateController(ISpellTemplateRepository repository)
+    public AbilityTemplateController(IAbilityTemplateRepository repository)
     {
         _repository = repository;
     }
 
-    [HttpGet(Name = "ListSpellTemplates")]
-    [ProducesResponseType(typeof(PagedResult<SpellTemplateDto>), StatusCodes.Status200OK)]
-    public async Task<PagedResult<SpellTemplateDto>> List(
+    [HttpGet(Name = "ListAbilityTemplates")]
+    [ProducesResponseType(typeof(PagedResult<AbilityTemplateDto>), StatusCodes.Status200OK)]
+    public async Task<PagedResult<AbilityTemplateDto>> List(
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 50,
         CancellationToken ct = default)
     {
-        var filter = new SpellTemplatePaginateFilters
+        var filter = new AbilityTemplatePaginateFilters
         {
             Page = page < 1 ? 1 : page,
             PageSize = pageSize is < 1 or > 50 ? 50 : pageSize,
@@ -39,8 +39,8 @@ public class SpellTemplateController : BaseController
         return result.MapTo(ToDto);
     }
 
-    [HttpGet("{id:long}", Name = "GetSpellTemplateById")]
-    [ProducesResponseType(typeof(SpellTemplateDto), StatusCodes.Status200OK)]
+    [HttpGet("{id:long}", Name = "GetAbilityTemplateById")]
+    [ProducesResponseType(typeof(AbilityTemplateDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Get([FromRoute] uint id, CancellationToken ct)
     {
@@ -48,7 +48,7 @@ public class SpellTemplateController : BaseController
         return template is null ? NotFound() : Ok(ToDto(template));
     }
 
-    private static SpellTemplateDto ToDto(AbilityTemplate t) => new()
+    private static AbilityTemplateDto ToDto(AbilityTemplate t) => new()
     {
         Id = t.Id.Value,
         Name = t.Name,

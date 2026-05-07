@@ -66,7 +66,7 @@ public class CharacterDbContext(ILoggerFactory loggerFactory, IOptions<DatabaseC
     public DbSet<Domain.Characters.Character> Characters { get; set; } = null!;
     public DbSet<CharacterStats> CharacterStats { get; set; } = null!;
     public DbSet<CharacterInventory> CharacterInventory { get; set; } = null!;
-    public DbSet<CharacterAbility> CharacterSpells { get; set; } = null!;
+    public DbSet<CharacterAbility> CharacterAbilities { get; set; } = null!;
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {

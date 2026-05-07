@@ -30,7 +30,7 @@ public class CharacterSelectHandler(
     ILoggerFactory loggerFactory,
     ICharacterRepository characterRepository,
     ICharacterInventoryRepository characterInventoryRepository,
-    ICharacterSpellRepository characterSpellRepository,
+    ICharacterAbilityRepository characterAbilityRepository,
     IChunkLibrary chunkLibrary,
     IWorld world,
     IRespawnTargetResolver respawnTargetResolver,
@@ -288,7 +288,7 @@ public class CharacterSelectHandler(
 
         //TODO: Send inventory to the client
 
-        connection.EnqueueContinuation(characterSpellRepository.GetCharacterSpellsAsync(character.Id, CancellationToken.None),
+        connection.EnqueueContinuation(characterAbilityRepository.GetCharacterAbilitiesAsync(character.Id, CancellationToken.None),
             spells => OnSpellsReceived(connection, entity, instance, spells));
         _parentActivity = activity;
     }
@@ -306,7 +306,7 @@ public class CharacterSelectHandler(
 
         foreach (CharacterAbility characterAbility in spells)
         {
-            AbilityTemplate? template = world.Data.SpellTemplates.FirstOrDefault(sp => sp.Id == characterAbility.AbilityId);
+            AbilityTemplate? template = world.Data.AbilityTemplates.FirstOrDefault(sp => sp.Id == characterAbility.AbilityId);
             if (template == null)
             {
                 logger.LogWarning("Spell template not found for spell {AbilityId}", characterAbility.AbilityId);

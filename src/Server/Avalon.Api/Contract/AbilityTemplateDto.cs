@@ -1,6 +1,6 @@
 namespace Avalon.Api.Contract;
 
-public sealed class SpellTemplateDto
+public sealed class AbilityTemplateDto
 {
     public uint Id { get; set; }
     public string Name { get; set; } = "";
