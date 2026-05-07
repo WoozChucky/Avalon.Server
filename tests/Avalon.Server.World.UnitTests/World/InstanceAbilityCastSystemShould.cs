@@ -3,6 +3,7 @@ using Avalon.World.Abilities;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Enums;
+using Avalon.World.Public.Instances;
 using Avalon.World.Public.Units;
 using Avalon.World.Scripts;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -15,12 +16,13 @@ public class InstanceAbilityCastSystemShould
 {
     private readonly IScriptManager _scriptManager = Substitute.For<IScriptManager>();
     private readonly IServiceProvider _serviceProvider = Substitute.For<IServiceProvider>();
+    private readonly ISimulationContext _simulationContext = Substitute.For<ISimulationContext>();
     private readonly InstanceAbilityCastSystem _sut;
 
     public InstanceAbilityCastSystemShould()
     {
         _serviceProvider.GetService(typeof(IScriptManager)).Returns(_scriptManager);
-        _sut = new InstanceAbilityCastSystem(NullLoggerFactory.Instance, _serviceProvider, _scriptManager);
+        _sut = new InstanceAbilityCastSystem(NullLoggerFactory.Instance, _serviceProvider, _scriptManager, _simulationContext);
     }
 
     private static IAbility MakeAbility(uint cost) =>

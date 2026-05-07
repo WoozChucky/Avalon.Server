@@ -3,13 +3,19 @@ using Avalon.Common.Mathematics;
 using Avalon.World.Public;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Enums;
+using Avalon.World.Public.Instances;
 using Avalon.World.Public.Scripts;
 using Avalon.World.Public.Units;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Scripts.Abilities;
 
-public class FireballAbilityScript(ILogger<FireballAbilityScript> logger, IAbility ability, IUnit caster, IUnit? target)
+public class FireballAbilityScript(
+    ILogger<FireballAbilityScript> logger,
+    IAbility ability,
+    IUnit caster,
+    IUnit? target,
+    ISimulationContext context)
     : AbilityScript(ability, caster, target)
 {
     private const float ProjectileSpeed = 5f;
@@ -47,7 +53,7 @@ public class FireballAbilityScript(ILogger<FireballAbilityScript> logger, IAbili
         if (Vector3.Distance(Position, Target!.Position + AbilityHeightOffset) < 0.1f)
         {
             logger.LogInformation("Ability {AbilityId} hit {CreatureId}", Ability.AbilityId, Target.Guid);
-            Target.OnHit(Caster, Ability.Metadata.EffectValue);
+            context.CombatService.ApplyDamage(Caster, Target, Ability.Metadata.EffectValue, Ability);
             State = SpellState.Finished;
             return;
         }
@@ -58,7 +64,7 @@ public class FireballAbilityScript(ILogger<FireballAbilityScript> logger, IAbili
 
     public override AbilityScript Clone()
     {
-        FireballAbilityScript clone = new(logger, Ability, Caster, Target)
+        FireballAbilityScript clone = new(logger, Ability, Caster, Target, context)
         {
             Guid = Guid, Position = Position, Velocity = Velocity, Orientation = Orientation
         };

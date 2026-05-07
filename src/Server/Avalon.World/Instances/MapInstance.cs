@@ -68,8 +68,6 @@ public class MapInstance : IMapInstance, IPortalSink
         Seed = seed;
         _navigator = navigator;
 
-        _abilityCastSystem = new InstanceAbilityCastSystem(loggerFactory, serviceProvider,
-            serviceProvider.GetRequiredService<IScriptManager>());
         _creatureRespawner = new NoOpCreatureRespawner();
 
         // Per-instance combat state. CombatConfig is a process-wide singleton (V1: defaults);
@@ -78,6 +76,13 @@ public class MapInstance : IMapInstance, IPortalSink
         CombatConfig combatConfig = serviceProvider.GetRequiredService<CombatConfig>();
         _encounterRegistry = new EncounterRegistry(combatConfig);
         _combatService     = new CombatService(combatConfig, _encounterRegistry);
+
+        // Cast system gets `this` as ISimulationContext so it can forward the context to
+        // ability scripts (E7): scripts route damage through CombatService.ApplyDamage rather
+        // than directly calling Target.OnHit. CombatService must be assigned BEFORE this so
+        // any first-tick cast resolves through a non-null service.
+        _abilityCastSystem = new InstanceAbilityCastSystem(loggerFactory, serviceProvider,
+            serviceProvider.GetRequiredService<IScriptManager>(), this);
 
         Creature.OnCreatureKilled += OnCreatureKilled;
         Creature.OnUnitAttackAnimation += BroadcastUnitAttackAnimation;
