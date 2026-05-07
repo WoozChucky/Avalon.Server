@@ -1,3 +1,5 @@
+using System;
+using Avalon.Common.Mathematics;
 using Avalon.World.Combat;
 using Avalon.World.Public.Combat;
 using Avalon.World.Public.Units;
@@ -115,5 +117,108 @@ public class EncounterShould
         Assert.DoesNotContain(p, enc.Players);
         Assert.False(enc.GetThreatList(h1).ContainsKey(p));
         Assert.False(enc.GetThreatList(h2).ContainsKey(p));
+    }
+
+    [Fact]
+    public void Should_decay_threat_per_tick()
+    {
+        var enc = new Encounter(new CombatConfig {
+            DefaultDecayRatePerSecond = 1.0f,
+            EngagementRadius = 1000.0f,
+            InitialThreatSeed = 0
+        });
+        var hostile = Substitute.For<IUnit>();
+        var attacker = Substitute.For<IUnit>();
+        attacker.Position.Returns(new Vector3(0,0,0));
+        hostile.Position.Returns(new Vector3(0,0,0));
+
+        enc.AddHostile(hostile);
+        enc.AddPlayer(attacker);
+        enc.AddThreat(hostile, attacker, 5.0f);
+
+        enc.Update(TimeSpan.FromSeconds(1));
+
+        Assert.Equal(4.0f, enc.GetThreatList(hostile)[attacker], 3);
+    }
+
+    [Fact]
+    public void Should_remove_threat_entry_when_decayed_to_zero()
+    {
+        var cfg = new CombatConfig {
+            DefaultDecayRatePerSecond = 100.0f,
+            EngagementRadius = 1000.0f,
+            InitialThreatSeed = 0
+        };
+        var enc = new Encounter(cfg);
+        var hostile = Substitute.For<IUnit>();
+        var attacker = Substitute.For<IUnit>();
+        hostile.Position.Returns(default(Vector3));
+        attacker.Position.Returns(default(Vector3));
+
+        enc.AddHostile(hostile);
+        enc.AddPlayer(attacker);
+        enc.AddThreat(hostile, attacker, 0.5f);
+
+        enc.Update(TimeSpan.FromSeconds(1));
+
+        Assert.False(enc.GetThreatList(hostile).ContainsKey(attacker));
+    }
+
+    [Fact]
+    public void Should_accelerate_decay_when_attacker_outside_engagement_radius()
+    {
+        var cfg = new CombatConfig {
+            DefaultDecayRatePerSecond = 1.0f,
+            OutOfRangeDecayMultiplier = 5.0f,
+            EngagementRadius = 1.0f,
+            InitialThreatSeed = 0
+        };
+        var enc = new Encounter(cfg);
+        var hostile = Substitute.For<IUnit>();
+        var attacker = Substitute.For<IUnit>();
+        hostile.Position.Returns(default(Vector3));
+        attacker.Position.Returns(new Vector3(100,0,0));
+
+        enc.AddHostile(hostile);
+        enc.AddPlayer(attacker);
+        enc.AddThreat(hostile, attacker, 10.0f);
+
+        enc.Update(TimeSpan.FromSeconds(1));
+
+        Assert.Equal(5.0f, enc.GetThreatList(hostile)[attacker], 3);
+    }
+
+    [Fact]
+    public void Should_not_end_during_5_second_grace_window()
+    {
+        var enc = new Encounter(new CombatConfig {
+            EncounterEndGraceSeconds = 5.0f,
+            InitialThreatSeed = 0
+        });
+        var hostile = Substitute.For<IUnit>();
+        enc.AddHostile(hostile);
+        enc.OnParticipantDied(hostile);    // all hostiles dead
+
+        enc.Update(TimeSpan.FromSeconds(2));   // less than grace
+
+        Assert.False(enc.ShouldEnd);
+    }
+
+    [Fact]
+    public void Should_end_when_all_hostiles_dead_after_grace()
+    {
+        var enc = new Encounter(new CombatConfig {
+            EncounterEndGraceSeconds = 1.0f,
+            InitialThreatSeed = 0
+        });
+        var hostile = Substitute.For<IUnit>();
+        enc.AddHostile(hostile);
+        enc.OnParticipantDied(hostile);
+        // Force LastDamageTime back so grace has elapsed at Update time
+        System.Threading.Thread.Sleep(1100);
+
+        enc.Update(TimeSpan.FromSeconds(2));
+
+        Assert.True(enc.ShouldEnd);
     }
 }

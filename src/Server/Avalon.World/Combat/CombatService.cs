@@ -127,6 +127,9 @@ public sealed class CombatService : ICombatService
     public void Update(TimeSpan deltaTime)
     {
         foreach (var enc in _registry.Active.OfType<Encounter>().ToList())
+        {
             enc.Update(deltaTime);
+            if (enc.ShouldEnd) _registry.Dispose(enc);
+        }
     }
 }

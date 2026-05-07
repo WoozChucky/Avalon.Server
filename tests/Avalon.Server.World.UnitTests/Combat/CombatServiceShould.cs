@@ -1,3 +1,4 @@
+using System;
 using Avalon.World.Combat;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Characters;
@@ -322,6 +323,28 @@ public class CombatServiceShould
 
         Assert.Empty(reg.Active);
         Assert.Null(hostile.TauntedBy);
+    }
+
+    [Fact]
+    public void Should_dispose_encounter_when_ended()
+    {
+        var cfg = new CombatConfig { InitialThreatSeed = 0, EncounterEndGraceSeconds = 0.05f };
+        var reg = new EncounterRegistry(cfg);
+        var svc = new CombatService(cfg, reg);
+
+        var attacker = StubCharacter(CharacterClass.Warrior);
+        var target   = Substitute.For<ICreature>();
+        target.Position.Returns(default(Avalon.Common.Mathematics.Vector3));
+        var ability  = StubAbility(1.0f);
+
+        svc.ApplyDamage(attacker, target, 10, ability);
+        var enc = (Encounter)System.Linq.Enumerable.First(reg.Active);
+        enc.OnParticipantDied(target);
+
+        System.Threading.Thread.Sleep(60);   // exceed 50ms grace
+        svc.Update(TimeSpan.FromMilliseconds(10));
+
+        Assert.Empty(reg.Active);
     }
 
     private static (CombatService, EncounterRegistry) BuildService(float initialThreatSeed = 1.0f)
