@@ -49,6 +49,8 @@ public sealed class CombatService : ICombatService
         Encounter? existing = (_registry.FindEncounterContaining(attacker)
                             ?? _registry.FindEncounterContaining(target)) as Encounter;
 
+        // Classify each participant by TYPE, not by ROLE — so creature-attacks-player and
+        // player-attacks-creature both populate the encounter correctly.
         bool wouldExceedCap = existing is not null
                            && target is ICreature
                            && !existing.Hostiles.Contains(target)
@@ -56,17 +58,22 @@ public sealed class CombatService : ICombatService
 
         if (wouldExceedCap)
         {
-            // Overflow: spawn a new encounter to receive the new hostile.
             Encounter spillover = (Encounter)_registry.CreateEncounter();
-            if (attacker is ICharacter) spillover.AddPlayer(attacker);
-            if (target   is ICreature)  spillover.AddHostile(target);
+            ClassifyAndAdd(spillover, attacker);
+            ClassifyAndAdd(spillover, target);
             return spillover;
         }
 
         Encounter enc = existing ?? (Encounter)_registry.CreateEncounter();
-        if (target  is ICreature)   enc.AddHostile(target);
-        if (attacker is ICharacter) enc.AddPlayer(attacker);
+        ClassifyAndAdd(enc, attacker);
+        ClassifyAndAdd(enc, target);
         return enc;
+    }
+
+    private static void ClassifyAndAdd(Encounter enc, IUnit unit)
+    {
+        if (unit is ICreature)        enc.AddHostile(unit);
+        else if (unit is ICharacter)  enc.AddPlayer(unit);
     }
 
     public void ApplyHeal(IUnit healer, IUnit target, uint amount, IAbility ability)
