@@ -28,6 +28,24 @@ public class CombatServiceShould
     }
 
     [Fact]
+    public void Should_populate_encounter_when_creature_attacks_character()
+    {
+        // Regression: ResolveOrSpawn must classify by TYPE, not by ROLE.
+        // mob-attacks-player is the primary combat scenario and must populate the encounter.
+        var (svc, reg) = BuildService();
+        var attacker = Substitute.For<ICreature>();
+        var target   = StubCharacter(CharacterClass.Warrior);
+        var ability  = StubAbility(threatMul: 1.0f);
+
+        svc.ApplyDamage(attacker, target, 10, ability);
+
+        Assert.Single(reg.Active);
+        var enc = (Encounter)System.Linq.Enumerable.First(reg.Active);
+        Assert.Contains(attacker, enc.Hostiles);
+        Assert.Contains(target,   enc.Players);
+    }
+
+    [Fact]
     public void Should_call_OnHit_on_target_with_attacker_and_damage()
     {
         var (svc, _) = BuildService();
