@@ -21,6 +21,11 @@ public class AbilityMetadata
 
     public uint EffectValue { get; init; }
 
+    public float        ThreatMultiplier { get; init; } = 1.0f;
+    public float        HealThreatPerHp  { get; init; } = 0.0f;
+    public uint         TauntDurationMs  { get; init; } = 0;
+    public AbilityFlags Flags            { get; init; } = AbilityFlags.None;
+
     public AbilityMetadata Clone() =>
         new()
         {
@@ -31,6 +36,10 @@ public class AbilityMetadata
             ScriptName = ScriptName,
             Range = Range,
             Effects = Effects,
-            EffectValue = EffectValue
+            EffectValue = EffectValue,
+            ThreatMultiplier = ThreatMultiplier,
+            HealThreatPerHp = HealThreatPerHp,
+            TauntDurationMs = TauntDurationMs,
+            Flags = Flags,
         };
 }
