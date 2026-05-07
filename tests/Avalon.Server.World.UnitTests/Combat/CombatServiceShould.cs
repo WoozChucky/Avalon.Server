@@ -104,6 +104,75 @@ public class CombatServiceShould
         target.Received(1).OnHit(attacker, 10u);
     }
 
+    [Fact]
+    public void Should_spawn_encounter_on_aggro_range_entry()
+    {
+        var (svc, reg) = BuildService();
+        var hostile = Substitute.For<ICreature>();
+        var player  = StubCharacter(CharacterClass.Hunter);
+
+        svc.EnterCombat(hostile, player);
+
+        Assert.Single(reg.Active);
+        var enc = (Encounter)System.Linq.Enumerable.First(reg.Active);
+        Assert.Contains(hostile, enc.Hostiles);
+        Assert.Contains(player,  enc.Players);
+        Assert.Equal(1.0f, enc.GetThreatList(hostile)[player]);
+    }
+
+    [Fact]
+    public void Should_use_existing_encounter_when_aggro_added_to_already_engaged_pack()
+    {
+        var (svc, reg) = BuildService();
+        var h1 = Substitute.For<ICreature>();
+        var h2 = Substitute.For<ICreature>();
+        var player = StubCharacter(CharacterClass.Hunter);
+        var ability = StubAbility(1.0f);
+
+        svc.ApplyDamage(player, h1, 10, ability);
+        svc.EnterCombat(h2, player);   // h2 wanders into aggro range during fight
+
+        Assert.Single(reg.Active);
+        var enc = (Encounter)System.Linq.Enumerable.First(reg.Active);
+        Assert.Contains(h1, enc.Hostiles);
+        Assert.Contains(h2, enc.Hostiles);
+    }
+
+    [Fact]
+    public void Should_merge_when_attacker_in_existing_encounter_attacks_new_hostile()
+    {
+        var (svc, reg) = BuildService();
+        var attacker = StubCharacter(CharacterClass.Warrior);
+        var h1 = Substitute.For<ICreature>();
+        var h2 = Substitute.For<ICreature>();
+        var ability = StubAbility(1.0f);
+
+        svc.ApplyDamage(attacker, h1, 10, ability);
+        svc.ApplyDamage(attacker, h2, 10, ability);
+
+        Assert.Single(reg.Active);
+        var enc = (Encounter)System.Linq.Enumerable.First(reg.Active);
+        Assert.Contains(h1, enc.Hostiles);
+        Assert.Contains(h2, enc.Hostiles);
+    }
+
+    [Fact]
+    public void Should_keep_separate_encounters_when_neutral_pack_not_attacked()
+    {
+        var (svc, reg) = BuildService();
+        var p   = StubCharacter(CharacterClass.Warrior);
+        var h1  = Substitute.For<ICreature>();
+        var h2  = Substitute.For<ICreature>();   // neutral pack — never attacked
+        var ab  = StubAbility(1.0f);
+
+        svc.ApplyDamage(p, h1, 10, ab);
+        // h2 never engaged → no encounter for it
+
+        Assert.Single(reg.Active);
+        var enc = (Encounter)System.Linq.Enumerable.First(reg.Active);
+        Assert.DoesNotContain(h2, enc.Hostiles);
+    }
+
     private static (CombatService, EncounterRegistry) BuildService(float initialThreatSeed = 1.0f)
     {
         var cfg = new CombatConfig { InitialThreatSeed = initialThreatSeed };
