@@ -124,6 +124,8 @@ public sealed class CombatService : ICombatService
     public void DropPlayerFromEncounter(IUnit player)                                      => throw new NotImplementedException("DropPlayerFromEncounter — Phase H");
     public void RevivePlayer(IUnit player, Vector3 position)                               => throw new NotImplementedException("RevivePlayer — Phase G");
 
+    public IEncounter? GetEncounterFor(IUnit unit) => _registry.FindEncounterContaining(unit);
+
     public void Update(TimeSpan deltaTime)
     {
         foreach (var enc in _registry.Active.OfType<Encounter>().ToList())

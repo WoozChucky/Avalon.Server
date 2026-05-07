@@ -14,4 +14,11 @@ public interface ICombatService
     void DropPlayerFromEncounter(IUnit player);
     void RevivePlayer(IUnit player, Vector3 position);
     void Update(TimeSpan deltaTime);
+
+    /// <summary>
+    /// Returns the active encounter that contains <paramref name="unit"/> as either a hostile
+    /// or a player participant, or <c>null</c> when the unit is not currently in combat.
+    /// AI scripts use this to read the encounter's threat list and pick the top-threat target.
+    /// </summary>
+    IEncounter? GetEncounterFor(IUnit unit);
 }
