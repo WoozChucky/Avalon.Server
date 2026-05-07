@@ -326,7 +326,12 @@ public class CharacterSelectHandler(
                     Range = template.Range,
                     Effects = template.Effects,
                     EffectValue = template.EffectValue,
-                    ScriptName = template.SpellScript
+                    ScriptName = template.SpellScript,
+                    ThreatMultiplier = template.ThreatMultiplier,
+                    HealThreatPerHp = template.HealThreatPerHp,
+                    TauntDurationMs = template.TauntDurationMs,
+                    Flags = template.Flags,
+                    AnimationId = template.AnimationId
                 },
                 CastTimeTimer = (float)template.CastTime / 1000,
                 CooldownTimer = characterAbility.Cooldown

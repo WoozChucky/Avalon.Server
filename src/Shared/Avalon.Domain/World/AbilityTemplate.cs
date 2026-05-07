@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using Avalon.Common.ValueObjects;
+using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Enums;
 
 namespace Avalon.Domain.World;
@@ -26,4 +27,14 @@ public class AbilityTemplate : IDbEntity<AbilityId>
     public uint EffectValue { get; set; }
 
     public List<CharacterClass> AllowedClasses { get; set; } = []; // Default to no classes
+
+    [Required] public float ThreatMultiplier { get; set; } = 1.0f;
+
+    [Required] public float HealThreatPerHp { get; set; } = 0.0f;
+
+    [Required] public uint TauntDurationMs { get; set; } = 0;
+
+    [Required] public AbilityFlags Flags { get; set; } = AbilityFlags.None;
+
+    [Required] public uint AnimationId { get; set; } = 0;
 }

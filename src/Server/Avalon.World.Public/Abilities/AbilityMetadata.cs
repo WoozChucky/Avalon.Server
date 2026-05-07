@@ -25,6 +25,7 @@ public class AbilityMetadata
     public float        HealThreatPerHp  { get; init; } = 0.0f;
     public uint         TauntDurationMs  { get; init; } = 0;
     public AbilityFlags Flags            { get; init; } = AbilityFlags.None;
+    public uint         AnimationId      { get; init; } = 0;
 
     public AbilityMetadata Clone() =>
         new()
@@ -41,5 +42,6 @@ public class AbilityMetadata
             HealThreatPerHp = HealThreatPerHp,
             TauntDurationMs = TauntDurationMs,
             Flags = Flags,
+            AnimationId = AnimationId,
         };
 }
