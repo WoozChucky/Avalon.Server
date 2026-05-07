@@ -189,7 +189,7 @@ public class WorldDbContext(ILoggerFactory loggerFactory, IOptions<DatabaseConfi
             Z = 25,
             Rotation = 0,
             StartingItems = [1, 2, 3],
-            StartingSpells = [1, 2]
+            StartingSpells = [1, 2, 100]
         }, new CharacterCreateInfo
         {
             Class = CharacterClass.Wizard,
@@ -199,7 +199,7 @@ public class WorldDbContext(ILoggerFactory loggerFactory, IOptions<DatabaseConfi
             Z = 25,
             Rotation = 0,
             StartingItems = [1, 2],
-            StartingSpells = [2]
+            StartingSpells = [2, 101]
         }, new CharacterCreateInfo
         {
             Class = CharacterClass.Hunter,
@@ -209,7 +209,7 @@ public class WorldDbContext(ILoggerFactory loggerFactory, IOptions<DatabaseConfi
             Z = 25,
             Rotation = 0,
             StartingItems = [1, 2],
-            StartingSpells = []
+            StartingSpells = [102]
         }, new CharacterCreateInfo
         {
             Class = CharacterClass.Healer,
@@ -219,7 +219,7 @@ public class WorldDbContext(ILoggerFactory loggerFactory, IOptions<DatabaseConfi
             Z = 25,
             Rotation = 0,
             StartingItems = [1, 2],
-            StartingSpells = []
+            StartingSpells = [103]
         });
     }
 
@@ -874,6 +874,62 @@ public class WorldDbContext(ILoggerFactory loggerFactory, IOptions<DatabaseConfi
             EffectValue = 10,
             AllowedClasses = [CharacterClass.Warrior, CharacterClass.Wizard],
             SpellScript = "FireballSpellScript"
+        }, new AbilityTemplate
+        {
+            // Basic attack — Warrior
+            Id = 100,
+            Name = "Warrior Slash",
+            CastTime = 0,
+            Cooldown = 500,
+            Cost = 0,
+            Range = SpellRange.Melee,
+            Effects = SpellEffect.Damage,
+            EffectValue = 15,
+            AllowedClasses = [CharacterClass.Warrior],
+            SpellScript = "StrikeAbilityScript",
+            ThreatMultiplier = 1.5f
+        }, new AbilityTemplate
+        {
+            // Basic attack — Wizard
+            Id = 101,
+            Name = "Wizard Bolt",
+            CastTime = 200,
+            Cooldown = 700,
+            Cost = 0,
+            Range = SpellRange.Medium,
+            Effects = SpellEffect.Damage,
+            EffectValue = 8,
+            AllowedClasses = [CharacterClass.Wizard],
+            SpellScript = "StrikeAbilityScript",
+            ThreatMultiplier = 1.0f
+        }, new AbilityTemplate
+        {
+            // Basic attack — Hunter
+            Id = 102,
+            Name = "Hunter Shot",
+            CastTime = 0,
+            Cooldown = 600,
+            Cost = 0,
+            Range = SpellRange.Long,
+            Effects = SpellEffect.Damage,
+            EffectValue = 10,
+            AllowedClasses = [CharacterClass.Hunter],
+            SpellScript = "StrikeAbilityScript",
+            ThreatMultiplier = 1.0f
+        }, new AbilityTemplate
+        {
+            // Basic attack — Healer
+            Id = 103,
+            Name = "Healer Wand",
+            CastTime = 300,
+            Cooldown = 800,
+            Cost = 0,
+            Range = SpellRange.Medium,
+            Effects = SpellEffect.Damage,
+            EffectValue = 5,
+            AllowedClasses = [CharacterClass.Healer],
+            SpellScript = "StrikeAbilityScript",
+            ThreatMultiplier = 0.8f
         });
     }
 }
