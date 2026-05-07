@@ -73,7 +73,7 @@ public class World : IWorld
         ICharacterCreateInfoRepository characterCreateInfoRepository,
         IClassLevelStatRepository classLevelStatRepository,
         IItemTemplateRepository itemTemplateRepository,
-        ISpellTemplateRepository spellTemplateRepository,
+        IAbilityTemplateRepository abilityTemplateRepository,
         ICharacterLevelExperienceRepository characterLevelExperienceRepository,
         IScriptHotReloader scriptHotReloader,
         IChunkLibrary chunkLibrary)
@@ -88,7 +88,7 @@ public class World : IWorld
         _scriptHotReloader = scriptHotReloader;
         _chunkLibrary = chunkLibrary;
         Data = new StaticData(characterCreateInfoRepository, classLevelStatRepository, itemTemplateRepository,
-            spellTemplateRepository, characterLevelExperienceRepository);
+            abilityTemplateRepository, characterLevelExperienceRepository);
 
         for (int i = 0; i < WorldTimersCount; ++i)
         {

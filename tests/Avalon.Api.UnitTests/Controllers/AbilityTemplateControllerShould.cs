@@ -12,11 +12,11 @@ using Xunit;
 
 namespace Avalon.Api.UnitTests.Controllers;
 
-public class SpellTemplateControllerShould
+public class AbilityTemplateControllerShould
 {
-    private readonly ISpellTemplateRepository _repository = Substitute.For<ISpellTemplateRepository>();
+    private readonly IAbilityTemplateRepository _repository = Substitute.For<IAbilityTemplateRepository>();
 
-    private SpellTemplateController MakeSut(ClaimsPrincipal user) =>
+    private AbilityTemplateController MakeSut(ClaimsPrincipal user) =>
         new(_repository)
         {
             ControllerContext = new ControllerContext

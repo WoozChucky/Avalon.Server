@@ -76,7 +76,7 @@ public class WorldDbContext(ILoggerFactory loggerFactory, IOptions<DatabaseConfi
     public DbSet<ClassLevelStat> ClassLevelStats { get; set; } = null!;
     public DbSet<CharacterLevelExperience> CharacterLevelExperiences { get; set; } = null!;
     public DbSet<CharacterCreateInfo> CharacterCreateInfos { get; set; } = null!;
-    public DbSet<AbilityTemplate> SpellTemplates { get; set; } = null!;
+    public DbSet<AbilityTemplate> AbilityTemplates { get; set; } = null!;
     public DbSet<ChunkTemplate> ChunkTemplates { get; set; } = null!;
     public DbSet<ChunkPool> ChunkPools { get; set; } = null!;
     public DbSet<SpawnTable> SpawnTables { get; set; } = null!;

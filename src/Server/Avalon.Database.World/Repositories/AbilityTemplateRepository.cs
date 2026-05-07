@@ -4,17 +4,17 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Avalon.Database.World.Repositories;
 
-public interface ISpellTemplateRepository : IRepository<AbilityTemplate, AbilityId>
+public interface IAbilityTemplateRepository : IRepository<AbilityTemplate, AbilityId>
 {
     Task<IReadOnlyList<AbilityTemplate>> GetByIdsAsync(
         IEnumerable<AbilityId> ids, CancellationToken cancellationToken = default);
 }
 
-public class SpellTemplateRepository : EntityFrameworkRepository<AbilityTemplate, AbilityId>, ISpellTemplateRepository
+public class AbilityTemplateRepository : EntityFrameworkRepository<AbilityTemplate, AbilityId>, IAbilityTemplateRepository
 {
     private readonly WorldDbContext _dbContext;
 
-    public SpellTemplateRepository(WorldDbContext dbContext)
+    public AbilityTemplateRepository(WorldDbContext dbContext)
         : base(dbContext)
     {
         _dbContext = dbContext;
@@ -26,7 +26,7 @@ public class SpellTemplateRepository : EntityFrameworkRepository<AbilityTemplate
         var idSet = ids.Distinct().ToArray();
         if (idSet.Length == 0) return Array.Empty<AbilityTemplate>();
 
-        return await _dbContext.SpellTemplates
+        return await _dbContext.AbilityTemplates
             .AsNoTracking()
             .Where(t => idSet.Contains(t.Id))
             .ToListAsync(cancellationToken);
