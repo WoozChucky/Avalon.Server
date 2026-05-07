@@ -221,4 +221,60 @@ public class EncounterShould
 
         Assert.True(enc.ShouldEnd);
     }
+
+    [Fact]
+    public void Should_keep_other_hostiles_when_one_hostile_dies()
+    {
+        // Multi-mob pack: killing one mob must not affect the other or its threat list.
+        var enc = new Encounter(new CombatConfig { InitialThreatSeed = 0 });
+        var h1 = Substitute.For<IUnit>();
+        var h2 = Substitute.For<IUnit>();
+        var p  = Substitute.For<IUnit>();
+        enc.AddHostile(h1);
+        enc.AddHostile(h2);
+        enc.AddPlayer(p);
+        enc.AddThreat(h1, p, 5.0f);
+        enc.AddThreat(h2, p, 7.0f);
+
+        enc.OnParticipantDied(h1);
+
+        Assert.DoesNotContain(h1, enc.Hostiles);
+        Assert.Contains(h2, enc.Hostiles);
+        Assert.Equal(7.0f, enc.GetThreatList(h2)[p], 3);
+    }
+
+    [Fact]
+    public void Should_not_remove_player_when_player_dies()
+    {
+        // Per Encounter.cs: player death keeps the participant entry (downed state) — explicit
+        // RemovePlayer is the only way to evict a player from an active encounter.
+        var enc = new Encounter(new CombatConfig { InitialThreatSeed = 0 });
+        var hostile = Substitute.For<IUnit>();
+        var player  = Substitute.For<IUnit>();
+        enc.AddHostile(hostile);
+        enc.AddPlayer(player);
+        enc.AddThreat(hostile, player, 5.0f);
+
+        enc.OnParticipantDied(player);
+
+        Assert.Contains(player, enc.Players);
+        // Threat entry for player is preserved against the still-living hostile.
+        Assert.Equal(5.0f, enc.GetThreatList(hostile)[player], 3);
+    }
+
+    [Fact]
+    public void Should_be_idempotent_when_called_twice_for_same_hostile()
+    {
+        // Defensive: a duplicate death notification (e.g. same hostile receives two lethal hits
+        // in the same tick from competing attackers) must not throw or corrupt state.
+        var enc = new Encounter(new CombatConfig());
+        var hostile = Substitute.For<IUnit>();
+        enc.AddHostile(hostile);
+
+        enc.OnParticipantDied(hostile);
+        var ex = Record.Exception(() => enc.OnParticipantDied(hostile));
+
+        Assert.Null(ex);
+        Assert.DoesNotContain(hostile, enc.Hostiles);
+    }
 }

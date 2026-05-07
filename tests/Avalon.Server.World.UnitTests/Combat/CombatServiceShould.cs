@@ -5,6 +5,8 @@ using Avalon.World.Public.Characters;
 using Avalon.World.Public.Combat;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
+using Avalon.World.Public.Instances;
+using Avalon.World.Public.Units;
 using NSubstitute;
 using Xunit;
 
@@ -17,7 +19,7 @@ public class CombatServiceShould
     {
         var (svc, reg) = BuildService();
         var attacker = StubCharacter(CharacterClass.Warrior);
-        var target   = Substitute.For<ICreature>();
+        var target   = StubCreature();
         var ability  = StubAbility(threatMul: 1.0f);
 
         svc.ApplyDamage(attacker, target, 10, ability);
@@ -34,7 +36,7 @@ public class CombatServiceShould
         // Regression: ResolveOrSpawn must classify by TYPE, not by ROLE.
         // mob-attacks-player is the primary combat scenario and must populate the encounter.
         var (svc, reg) = BuildService();
-        var attacker = Substitute.For<ICreature>();
+        var attacker = StubCreature();
         var target   = StubCharacter(CharacterClass.Warrior);
         var ability  = StubAbility(threatMul: 1.0f);
 
@@ -51,7 +53,7 @@ public class CombatServiceShould
     {
         var (svc, _) = BuildService();
         var attacker = StubCharacter(CharacterClass.Warrior);
-        var target   = Substitute.For<ICreature>();
+        var target   = StubCreature();
         var ability  = StubAbility(1.0f);
 
         svc.ApplyDamage(attacker, target, 25, ability);
@@ -66,7 +68,7 @@ public class CombatServiceShould
         // Combat tag is therefore only applied to character participants.
         var (svc, _) = BuildService();
         var attacker = StubCharacter(CharacterClass.Warrior);
-        var target   = Substitute.For<ICreature>();
+        var target   = StubCreature();
         var ability  = StubAbility(1.0f);
 
         svc.ApplyDamage(attacker, target, 10, ability);
@@ -81,7 +83,7 @@ public class CombatServiceShould
         // Expected threat = 10 * 1.5 * 2.0 = 30.0 (seed = 0)
         var (svc, reg) = BuildService(initialThreatSeed: 0);
         var attacker = StubCharacter(CharacterClass.Warrior);
-        var target   = Substitute.For<ICreature>();
+        var target   = StubCreature();
         var ability  = StubAbility(threatMul: 1.5f);
 
         svc.ApplyDamage(attacker, target, 10, ability);
@@ -96,8 +98,8 @@ public class CombatServiceShould
     {
         var (svc, reg) = BuildService();
         var attacker = StubCharacter(CharacterClass.Warrior);
-        var t1       = Substitute.For<ICreature>();
-        var t2       = Substitute.For<ICreature>();
+        var t1       = StubCreature();
+        var t2       = StubCreature();
         var ability  = StubAbility(1.0f);
 
         svc.ApplyDamage(attacker, t1, 10, ability);
@@ -127,7 +129,7 @@ public class CombatServiceShould
     public void Should_spawn_encounter_on_aggro_range_entry()
     {
         var (svc, reg) = BuildService();
-        var hostile = Substitute.For<ICreature>();
+        var hostile = StubCreature();
         var player  = StubCharacter(CharacterClass.Hunter);
 
         svc.EnterCombat(hostile, player);
@@ -143,8 +145,8 @@ public class CombatServiceShould
     public void Should_use_existing_encounter_when_aggro_added_to_already_engaged_pack()
     {
         var (svc, reg) = BuildService();
-        var h1 = Substitute.For<ICreature>();
-        var h2 = Substitute.For<ICreature>();
+        var h1 = StubCreature();
+        var h2 = StubCreature();
         var player = StubCharacter(CharacterClass.Hunter);
         var ability = StubAbility(1.0f);
 
@@ -162,8 +164,8 @@ public class CombatServiceShould
     {
         var (svc, reg) = BuildService();
         var attacker = StubCharacter(CharacterClass.Warrior);
-        var h1 = Substitute.For<ICreature>();
-        var h2 = Substitute.For<ICreature>();
+        var h1 = StubCreature();
+        var h2 = StubCreature();
         var ability = StubAbility(1.0f);
 
         svc.ApplyDamage(attacker, h1, 10, ability);
@@ -180,8 +182,8 @@ public class CombatServiceShould
     {
         var (svc, reg) = BuildService();
         var p   = StubCharacter(CharacterClass.Warrior);
-        var h1  = Substitute.For<ICreature>();
-        var h2  = Substitute.For<ICreature>();   // neutral pack — never attacked
+        var h1  = StubCreature();
+        var h2  = StubCreature();   // neutral pack — never attacked
         var ab  = StubAbility(1.0f);
 
         svc.ApplyDamage(p, h1, 10, ab);
@@ -201,7 +203,7 @@ public class CombatServiceShould
 
         for (int i = 0; i < 51; i++)
         {
-            var h = Substitute.For<ICreature>();
+            var h = StubCreature();
             svc.ApplyDamage(attacker, h, 1, ability);
         }
 
@@ -221,8 +223,8 @@ public class CombatServiceShould
         var (svc, reg) = BuildService(initialThreatSeed: 0);
         var healer = StubCharacter(CharacterClass.Healer);
         var ally   = StubCharacter(CharacterClass.Warrior);
-        var hostile1 = Substitute.For<ICreature>();
-        var hostile2 = Substitute.For<ICreature>();
+        var hostile1 = StubCreature();
+        var hostile2 = StubCreature();
         var healAbility = Substitute.For<IAbility>();
         healAbility.Metadata.Returns(new AbilityMetadata { Name = "H", ScriptName = "h", HealThreatPerHp = 0.5f });
 
@@ -259,7 +261,7 @@ public class CombatServiceShould
         var (svc, reg) = BuildService(initialThreatSeed: 0);
         var healer = StubCharacter(CharacterClass.Healer);
         var ally   = StubCharacter(CharacterClass.Warrior);
-        var hostile = Substitute.For<ICreature>();
+        var hostile = StubCreature();
         var healAbility = Substitute.For<IAbility>();
         healAbility.Metadata.Returns(new AbilityMetadata { Name = "H", ScriptName = "h", HealThreatPerHp = 0.0f });
 
@@ -300,7 +302,7 @@ public class CombatServiceShould
     public void Should_set_taunt_expires_at_in_future()
     {
         var (svc, _) = BuildService();
-        var hostile = Substitute.For<ICreature>();
+        var hostile = StubCreature();
         var caster  = StubCharacter(CharacterClass.Warrior);
         var dmgAb = StubAbility(1.0f);
 
@@ -330,10 +332,11 @@ public class CombatServiceShould
     {
         var cfg = new CombatConfig { InitialThreatSeed = 0, EncounterEndGraceSeconds = 0.05f };
         var reg = new EncounterRegistry(cfg);
-        var svc = new CombatService(cfg, reg);
+        var ctx = Substitute.For<ISimulationContext>();
+        var svc = new CombatService(cfg, reg, ctx);
 
         var attacker = StubCharacter(CharacterClass.Warrior);
-        var target   = Substitute.For<ICreature>();
+        var target   = StubCreature();
         target.Position.Returns(default(Avalon.Common.Mathematics.Vector3));
         var ability  = StubAbility(1.0f);
 
@@ -347,18 +350,105 @@ public class CombatServiceShould
         Assert.Empty(reg.Active);
     }
 
+    [Fact]
+    public void Should_broadcast_death_when_lethal_hit_kills_creature()
+    {
+        // Lethal blow — creature's CurrentHealth is 0 after OnHit. CombatService should
+        // call OnParticipantDied and broadcast SUnitDeathPacket via the simulation context.
+        var (svc, _, ctx) = BuildServiceWithContext();
+        var attacker = StubCharacter(CharacterClass.Warrior);
+        var target   = StubCreature();
+        // Substitute creature: simulate the script's lethal-hit behaviour by returning 0 HP after OnHit.
+        target.CurrentHealth.Returns(0u);
+        var ab = StubAbility(1.0f);
+
+        svc.ApplyDamage(attacker, target, 9999u, ab);
+
+        ctx.Received(1).BroadcastUnitDeath(target, attacker);
+    }
+
+    [Fact]
+    public void Should_broadcast_death_when_character_isdead_after_hit()
+    {
+        // Character death path — IsDead flag, not CurrentHealth==0 alone.
+        var (svc, _, ctx) = BuildServiceWithContext();
+        var attacker = StubCreature();
+        var target   = StubCharacter(CharacterClass.Hunter);
+        target.IsDead.Returns(true);   // simulate post-OnHit death state
+        var ab = StubAbility(1.0f);
+
+        svc.ApplyDamage(attacker, target, 9999u, ab);
+
+        ctx.Received(1).BroadcastUnitDeath(target, attacker);
+    }
+
+    [Fact]
+    public void Should_not_broadcast_death_when_target_survives()
+    {
+        var (svc, _, ctx) = BuildServiceWithContext();
+        var attacker = StubCharacter(CharacterClass.Warrior);
+        var target   = StubCreature();
+        target.CurrentHealth.Returns(50u);   // alive after the hit
+        var ab = StubAbility(1.0f);
+
+        svc.ApplyDamage(attacker, target, 10u, ab);
+
+        ctx.DidNotReceive().BroadcastUnitDeath(Arg.Any<IUnit>(), Arg.Any<IUnit>());
+    }
+
+    [Fact]
+    public void Should_route_raw_damage_through_apply_damage()
+    {
+        // Raw-damage overload — used by CreatureCombatScript for melee swings (no IAbility).
+        var (svc, reg, _) = BuildServiceWithContext();
+        var attacker = StubCreature();
+        var target   = StubCharacter(CharacterClass.Warrior);
+        target.CurrentHealth.Returns(100u);   // alive
+
+        svc.ApplyDamage(attacker, target, 5u);
+
+        target.Received(1).OnHit(attacker, 5u);
+        Assert.Single(reg.Active);
+    }
+
+    [Fact]
+    public void Should_apply_default_threat_multiplier_on_raw_damage()
+    {
+        // Warrior class threat = 2.0; default multiplier = 1.0; damage = 10 → 20.0 (seed = 0).
+        var (svc, reg, _) = BuildServiceWithContext(initialThreatSeed: 0);
+        var attacker = StubCharacter(CharacterClass.Warrior);
+        var target   = StubCreature();
+        target.CurrentHealth.Returns(50u);
+
+        svc.ApplyDamage(attacker, target, 10u);
+
+        var enc = (Encounter)System.Linq.Enumerable.First(reg.Active);
+        Assert.Equal(20.0f, enc.GetThreatList(target)[attacker], 3);
+    }
+
     private static (CombatService, EncounterRegistry) BuildService(float initialThreatSeed = 1.0f)
+    {
+        var (svc, reg, _) = BuildServiceWithContext(initialThreatSeed);
+        return (svc, reg);
+    }
+
+    private static (CombatService, EncounterRegistry, ISimulationContext) BuildServiceWithContext(float initialThreatSeed = 1.0f)
     {
         var cfg = new CombatConfig { InitialThreatSeed = initialThreatSeed };
         var reg = new EncounterRegistry(cfg);
-        var svc = new CombatService(cfg, reg);
-        return (svc, reg);
+        var ctx = Substitute.For<ISimulationContext>();
+        var svc = new CombatService(cfg, reg, ctx);
+        return (svc, reg, ctx);
     }
 
     private static ICharacter StubCharacter(CharacterClass cls)
     {
         var c = Substitute.For<ICharacter>();
         c.Class.Returns(cls);
+        // CurrentHealth defaults to 0u for value-type substitutes, which would trip the new
+        // death-detection check in CombatService. Default to "alive" so existing tests stay green;
+        // tests that exercise the death path explicitly opt in via IsDead.Returns(true).
+        c.CurrentHealth.Returns(100u);
         return c;
     }
 
@@ -367,8 +457,13 @@ public class CombatServiceShould
         // NSubstitute auto-substitutes reference-type property reads. Initialize TauntedBy via
         // its setter so the substitute remembers the value (null) instead of returning an auto-sub.
         // Subsequent setter calls by the service-under-test will overwrite this stored value.
+        // CurrentHealth defaults to 0u for value-type substitutes — that would trigger the new
+        // death-detection path in CombatService and remove the creature from the encounter
+        // unintentionally. Default to "alive" (positive HP) so existing tests stay green; tests
+        // that exercise the death path explicitly set CurrentHealth back to 0.
         var c = Substitute.For<ICreature>();
         c.TauntedBy = null;
+        c.CurrentHealth.Returns(100u);
         return c;
     }
 
