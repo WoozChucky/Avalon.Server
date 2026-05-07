@@ -75,7 +75,7 @@ public static class Extensions
                     //.AddGrpcClientInstrumentation()
                     .AddHttpClientInstrumentation()
                     .AddAspNetCoreInstrumentation(options => { options.RecordException = true; })
-                    .AddEntityFrameworkCoreInstrumentation(options => { options.SetDbStatementForText = true; })
+                    .AddEntityFrameworkCoreInstrumentation()
                     .AddRedisInstrumentation(options => { options.EnrichActivityWithTimingEvents = true; });
             });
 
