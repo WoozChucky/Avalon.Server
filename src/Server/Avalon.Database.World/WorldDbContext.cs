@@ -166,19 +166,19 @@ public class WorldDbContext(ILoggerFactory loggerFactory, IOptions<DatabaseConfi
             .HasConversion(itemIdConverter)
             .Metadata.SetValueComparer(itemIdComparer);
 
-        ValueConverter<List<AbilityId>, string> spellIdConverter = new(
+        ValueConverter<List<AbilityId>, string> abilityIdConverter = new(
             v => string.Join(",", v.Select(i => i.Value)),
             v => v.Split(new[] {','}, StringSplitOptions.RemoveEmptyEntries)
                 .Select(val => new AbilityId(uint.Parse(val))).ToList());
 
-        ValueComparer<List<AbilityId>> spellIdComparer = new(
+        ValueComparer<List<AbilityId>> abilityIdComparer = new(
             (c1, c2) => c1!.SequenceEqual(c2!),
             c => c.Aggregate(0, (a, v) => HashCode.Combine(a, v.GetHashCode())),
             c => c.ToList());
 
         builder.Property(b => b.StartingSpells)
-            .HasConversion(spellIdConverter)
-            .Metadata.SetValueComparer(spellIdComparer);
+            .HasConversion(abilityIdConverter)
+            .Metadata.SetValueComparer(abilityIdComparer);
 
         builder.HasData(new CharacterCreateInfo
         {
