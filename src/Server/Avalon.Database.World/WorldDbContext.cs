@@ -76,7 +76,7 @@ public class WorldDbContext(ILoggerFactory loggerFactory, IOptions<DatabaseConfi
     public DbSet<ClassLevelStat> ClassLevelStats { get; set; } = null!;
     public DbSet<CharacterLevelExperience> CharacterLevelExperiences { get; set; } = null!;
     public DbSet<CharacterCreateInfo> CharacterCreateInfos { get; set; } = null!;
-    public DbSet<SpellTemplate> SpellTemplates { get; set; } = null!;
+    public DbSet<AbilityTemplate> SpellTemplates { get; set; } = null!;
     public DbSet<ChunkTemplate> ChunkTemplates { get; set; } = null!;
     public DbSet<ChunkPool> ChunkPools { get; set; } = null!;
     public DbSet<SpawnTable> SpawnTables { get; set; } = null!;
@@ -104,7 +104,7 @@ public class WorldDbContext(ILoggerFactory loggerFactory, IOptions<DatabaseConfi
         Configure(modelBuilder.Entity<ClassLevelStat>());
         Configure(modelBuilder.Entity<CharacterLevelExperience>());
         Configure(modelBuilder.Entity<CharacterCreateInfo>());
-        Configure(modelBuilder.Entity<SpellTemplate>());
+        Configure(modelBuilder.Entity<AbilityTemplate>());
         Configure(modelBuilder.Entity<ChunkTemplate>());
         Configure(modelBuilder.Entity<ChunkPool>());
         Configure(modelBuilder.Entity<SpawnTable>());
@@ -842,7 +842,7 @@ public class WorldDbContext(ILoggerFactory loggerFactory, IOptions<DatabaseConfi
         builder.Property(p => p.ForwardPortalTargetMapId).IsRequired(false);
     }
 
-    private static void Configure(EntityTypeBuilder<SpellTemplate> builder)
+    private static void Configure(EntityTypeBuilder<AbilityTemplate> builder)
     {
         builder.Property(b => b.Id)
             .HasConversion(
@@ -850,7 +850,7 @@ public class WorldDbContext(ILoggerFactory loggerFactory, IOptions<DatabaseConfi
                 v => new AbilityId(v)
             ).IsRequired();
 
-        builder.HasData(new SpellTemplate
+        builder.HasData(new AbilityTemplate
         {
             Id = 1,
             Name = "Strike",
@@ -862,7 +862,7 @@ public class WorldDbContext(ILoggerFactory loggerFactory, IOptions<DatabaseConfi
             EffectValue = 10,
             AllowedClasses = [CharacterClass.Warrior],
             SpellScript = "StrikeSpellScript"
-        }, new SpellTemplate
+        }, new AbilityTemplate
         {
             Id = 2,
             Name = "Fireball",

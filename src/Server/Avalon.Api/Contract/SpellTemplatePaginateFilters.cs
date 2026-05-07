@@ -5,14 +5,14 @@ using LinqKit;
 
 namespace Avalon.Api.Contract;
 
-public class SpellTemplatePaginateFilters : EntityPaginateFilter<SpellTemplate>
+public class SpellTemplatePaginateFilters : EntityPaginateFilter<AbilityTemplate>
 {
-    public override Expression<Func<SpellTemplate, bool>> GetFilter()
+    public override Expression<Func<AbilityTemplate, bool>> GetFilter()
     {
-        return PredicateBuilder.New<SpellTemplate>(true);
+        return PredicateBuilder.New<AbilityTemplate>(true);
     }
 
-    public override Expression<Func<SpellTemplate, object>>? GetSortKeySelector()
+    public override Expression<Func<AbilityTemplate, object>>? GetSortKeySelector()
     {
         if (string.IsNullOrEmpty(SortBy))
             return t => t.Id;

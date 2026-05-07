@@ -306,7 +306,7 @@ public class CharacterSelectHandler(
 
         foreach (CharacterSpell characterSpell in spells)
         {
-            SpellTemplate? template = world.Data.SpellTemplates.FirstOrDefault(sp => sp.Id == characterSpell.AbilityId);
+            AbilityTemplate? template = world.Data.SpellTemplates.FirstOrDefault(sp => sp.Id == characterSpell.AbilityId);
             if (template == null)
             {
                 logger.LogWarning("Spell template not found for spell {AbilityId}", characterSpell.AbilityId);

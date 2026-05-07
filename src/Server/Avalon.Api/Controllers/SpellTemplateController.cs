@@ -48,7 +48,7 @@ public class SpellTemplateController : BaseController
         return template is null ? NotFound() : Ok(ToDto(template));
     }
 
-    private static SpellTemplateDto ToDto(SpellTemplate t) => new()
+    private static SpellTemplateDto ToDto(AbilityTemplate t) => new()
     {
         Id = t.Id.Value,
         Name = t.Name,
