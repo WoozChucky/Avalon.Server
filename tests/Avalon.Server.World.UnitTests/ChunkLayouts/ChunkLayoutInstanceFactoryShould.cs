@@ -5,6 +5,7 @@ using Avalon.World;
 using Avalon.World.ChunkLayouts;
 using Avalon.World.Instances;
 using Avalon.World.Public;
+using Avalon.World.Public.Combat;
 using Avalon.World.Public.Enums;
 using Avalon.World.Scripts;
 using DotRecast.Detour;
@@ -52,6 +53,7 @@ public class ChunkLayoutInstanceFactoryShould
         var sp = Substitute.For<IServiceProvider>();
         sp.GetService(typeof(IScriptManager)).Returns(Substitute.For<IScriptManager>());
         sp.GetService(typeof(IWorld)).Returns(Substitute.For<IWorld>());
+        sp.GetService(typeof(CombatConfig)).Returns(new CombatConfig());
         return sp;
     }
 

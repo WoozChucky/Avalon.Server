@@ -17,6 +17,8 @@ using Avalon.World.Public.Maps;
 using Avalon.World.Public.Scripts;
 using Avalon.World.Public.Units;
 using Avalon.World.Abilities;
+using Avalon.World.Combat;
+using Avalon.World.Public.Combat;
 using Avalon.World.Scripts;
 using Avalon.World.Serialization;
 using Microsoft.Extensions.DependencyInjection;
@@ -35,6 +37,8 @@ public class MapInstance : IMapInstance, IPortalSink
     private readonly ILogger<MapInstance> _logger;
     private readonly IMapNavigator _navigator;
     private readonly IAbilityCastSystem _abilityCastSystem;
+    private readonly EncounterRegistry _encounterRegistry;
+    private readonly CombatService _combatService;
     private readonly IWorld _world;
     private float _lastBroadcastTime;
     private readonly Dictionary<ObjectGuid, GameEntityFields> _frameDirtyFields = new(256);
@@ -68,6 +72,13 @@ public class MapInstance : IMapInstance, IPortalSink
             serviceProvider.GetRequiredService<IScriptManager>());
         _creatureRespawner = new NoOpCreatureRespawner();
 
+        // Per-instance combat state. CombatConfig is a process-wide singleton (V1: defaults);
+        // EncounterRegistry + CombatService are instance-scoped so encounters cannot bleed
+        // between MapInstances.
+        CombatConfig combatConfig = serviceProvider.GetRequiredService<CombatConfig>();
+        _encounterRegistry = new EncounterRegistry(combatConfig);
+        _combatService     = new CombatService(combatConfig, _encounterRegistry);
+
         Creature.OnCreatureKilled += OnCreatureKilled;
         Creature.OnUnitAttackAnimation += BroadcastUnitAttackAnimation;
         Creature.OnUnitFinishedCastAnimation += BroadcastFinishCastAnimation;
@@ -93,6 +104,7 @@ public class MapInstance : IMapInstance, IPortalSink
 
     public IReadOnlyDictionary<ObjectGuid, ICharacter> Characters => _characters;
     public IReadOnlyDictionary<ObjectGuid, ICreature> Creatures => _creatures;
+    public ICombatService CombatService => _combatService;
 
     public bool IsExpired(TimeSpan expiry) =>
         LastEmptyAt.HasValue && (DateTime.UtcNow - LastEmptyAt.Value) >= expiry;
@@ -189,6 +201,9 @@ public class MapInstance : IMapInstance, IPortalSink
 
         // Step 3: Ability cast system update
         _abilityCastSystem.Update(deltaTime, objectAbilities);
+
+        // Step 3b: Tick combat service — decays threat, ends stale encounters.
+        _combatService.Update(deltaTime);
 
         // Step 4: Update creature scripts
         foreach (ICreature creature in _creatures.Values)

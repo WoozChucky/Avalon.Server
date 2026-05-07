@@ -2,6 +2,7 @@ using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Characters;
+using Avalon.World.Public.Combat;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Maps;
 using Avalon.World.Public.Units;
@@ -16,6 +17,9 @@ public interface ISimulationContext
 {
     IReadOnlyDictionary<ObjectGuid, ICharacter> Characters { get; }
     IReadOnlyDictionary<ObjectGuid, ICreature> Creatures { get; }
+
+    /// <summary>Per-instance combat service: damage/heal/threat application and encounter lifecycle.</summary>
+    ICombatService CombatService { get; }
 
     /// <summary>Returns the navigator whose bounds contain <paramref name="position"/>.</summary>
     IMapNavigator GetNavigatorForPosition(Vector3 position);

@@ -8,6 +8,7 @@ using Avalon.World.Configuration;
 using Avalon.World.Entities;
 using Avalon.World.Maps;
 using Avalon.World.ChunkLayouts;
+using Avalon.World.Public.Combat;
 using Avalon.World.Respawn;
 using Avalon.World.Scripts;
 using Avalon.World.Scripts.Abstractions;
@@ -62,6 +63,10 @@ public static class ServiceExtensions
         //services.AddSingleton<IQuestManager, QuestManager>();
 
         services.AddSingleton<IRespawnTargetResolver, RespawnTargetResolver>();
+
+        // Combat (Phase D): V1 uses default CombatConfig values. EncounterRegistry +
+        // CombatService are constructed per MapInstance, not registered as singletons.
+        services.AddSingleton<CombatConfig>();
 
         // Chat commands
         services.AddSingleton<ICommand, GroupInviteCommand>();
