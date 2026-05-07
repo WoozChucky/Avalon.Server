@@ -11,11 +11,6 @@ namespace Avalon.Database.World.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.RenameColumn(
-                name: "ReturnMapId",
-                table: "MapTemplates",
-                newName: "LogoutMapId");
-
             migrationBuilder.CreateTable(
                 name: "ChunkPools",
                 columns: table => new
@@ -221,11 +216,6 @@ namespace Avalon.Database.World.Migrations
 
             migrationBuilder.DropTable(
                 name: "SpawnTables");
-
-            migrationBuilder.RenameColumn(
-                name: "LogoutMapId",
-                table: "MapTemplates",
-                newName: "ReturnMapId");
         }
     }
 }
