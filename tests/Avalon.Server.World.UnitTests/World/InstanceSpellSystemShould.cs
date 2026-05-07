@@ -1,7 +1,7 @@
 using Avalon.Common.ValueObjects;
+using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Enums;
-using Avalon.World.Public.Spells;
 using Avalon.World.Public.Units;
 using Avalon.World.Scripts;
 using Avalon.World.Spells;
@@ -23,13 +23,13 @@ public class InstanceSpellSystemShould
         _sut = new InstanceSpellSystem(NullLoggerFactory.Instance, _serviceProvider, _scriptManager);
     }
 
-    private static ISpell MakeSpell(uint cost) =>
+    private static IAbility MakeSpell(uint cost) =>
         MakeSpell(cost, PowerType.Mana); // default power type for spell metadata is irrelevant here
 
-    private static ISpell MakeSpell(uint cost, PowerType _)
+    private static IAbility MakeSpell(uint cost, PowerType _)
     {
-        var spell = Substitute.For<ISpell>();
-        spell.Metadata.Returns(new SpellMetadata
+        var spell = Substitute.For<IAbility>();
+        spell.Metadata.Returns(new AbilityMetadata
         {
             Name = "TestSpell",
             Cost = cost,

@@ -11,7 +11,7 @@ public interface ICharacter : IUnit
     ICharacterGameState CharacterGameState { get; }
     ICharacterInventory this[InventoryType type] { get; }
 
-    ICharacterSpells Spells { get; }
+    ICharacterAbilities Spells { get; }
 
     /// <summary>The live instance this character is currently in.</summary>
     Guid InstanceId { get; set; }

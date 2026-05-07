@@ -1,16 +1,16 @@
 using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.World.Public;
+using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Scripts;
-using Avalon.World.Public.Spells;
 using Avalon.World.Public.Units;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Scripts.Spells;
 
-public class StrikeSpellScript(ILogger<StrikeSpellScript> logger, ISpell spell, IUnit caster, IUnit? target)
-    : SpellScript(spell,
+public class StrikeSpellScript(ILogger<StrikeSpellScript> logger, IAbility spell, IUnit caster, IUnit? target)
+    : AbilityScript(spell,
         caster, target)
 {
     public override Vector3 Position { get; set; }
@@ -49,7 +49,7 @@ public class StrikeSpellScript(ILogger<StrikeSpellScript> logger, ISpell spell, 
 
     protected override bool ShouldRun() => true;
 
-    public override SpellScript Clone()
+    public override AbilityScript Clone()
     {
         StrikeSpellScript clone = new(logger, Spell, Caster, Target)
         {

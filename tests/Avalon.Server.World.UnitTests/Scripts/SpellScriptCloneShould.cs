@@ -1,7 +1,7 @@
 using Avalon.Common;
 using Avalon.Common.Mathematics;
+using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Scripts;
-using Avalon.World.Public.Spells;
 using Avalon.World.Public.Units;
 using NSubstitute;
 
@@ -13,8 +13,8 @@ public class SpellScriptCloneShould
     // Minimal concrete stub — does NOT override Clone()
     // ──────────────────────────────────────────────
 
-    private sealed class StubSpellScript(ISpell spell, IUnit caster, IUnit? target)
-        : SpellScript(spell, caster, target)
+    private sealed class StubSpellScript(IAbility spell, IUnit caster, IUnit? target)
+        : AbilityScript(spell, caster, target)
     {
         public override object State { get; set; } = null!;
         public override Vector3 Position { get; set; }
@@ -25,12 +25,12 @@ public class SpellScriptCloneShould
         protected override bool ShouldRun() => true;
         // intentionally no Clone() override — uses base implementation
 
-        public List<SpellScript> Chain => ChainedScripts;
-        public ISpell ExposedSpell => Spell;
+        public List<AbilityScript> Chain => ChainedScripts;
+        public IAbility ExposedSpell => Spell;
     }
 
-    private static StubSpellScript MakeScript(ISpell? spell = null, IUnit? caster = null)
-        => new(spell ?? Substitute.For<ISpell>(), caster ?? Substitute.For<IUnit>(), null);
+    private static StubSpellScript MakeScript(IAbility? spell = null, IUnit? caster = null)
+        => new(spell ?? Substitute.For<IAbility>(), caster ?? Substitute.For<IUnit>(), null);
 
     // ──────────────────────────────────────────────
     // Tests
@@ -39,7 +39,7 @@ public class SpellScriptCloneShould
     [Fact]
     public void Clone_ReturnsSameSpellReference()
     {
-        var spell = Substitute.For<ISpell>();
+        var spell = Substitute.For<IAbility>();
         var caster = Substitute.For<IUnit>();
         var original = new StubSpellScript(spell, caster, null);
 

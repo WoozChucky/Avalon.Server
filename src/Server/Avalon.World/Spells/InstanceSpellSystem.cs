@@ -1,9 +1,9 @@
 using Avalon.Common;
 using Avalon.World.Public;
+using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Scripts;
-using Avalon.World.Public.Spells;
 using Avalon.World.Public.Units;
 using Avalon.World.Scripts;
 using Microsoft.Extensions.DependencyInjection;
@@ -13,7 +13,7 @@ namespace Avalon.World.Spells;
 
 public interface ISpellQueueSystem
 {
-    bool QueueSpell(ICharacter character, IUnit? target, ISpell spell);
+    bool QueueSpell(ICharacter character, IUnit? target, IAbility spell);
     void Update(TimeSpan deltaTime, List<IWorldObject> objects);
     IWorldObject? GetSpell(ObjectGuid guid);
 }
@@ -21,13 +21,13 @@ public interface ISpellQueueSystem
 public class InstanceSpellSystem(ILoggerFactory factory, IServiceProvider serviceProvider, IScriptManager scriptManager)
     : ISpellQueueSystem
 {
-    private readonly List<SpellScript> _activeSpells = [];
+    private readonly List<AbilityScript> _activeSpells = [];
     private readonly ILogger<InstanceSpellSystem> _logger = factory.CreateLogger<InstanceSpellSystem>();
     private readonly HashSet<ObjectGuid> _removeScheduled = [];
 
     private readonly HashSet<SpellInstance> _spellQueue = [];
 
-    public bool QueueSpell(ICharacter character, IUnit? target, ISpell spell)
+    public bool QueueSpell(ICharacter character, IUnit? target, IAbility spell)
     {
         // Power cost deduction: only Mana and Energy are depletion-based resources.
         // Fury and None are blocked until their mechanics are designed.
@@ -88,11 +88,11 @@ public class InstanceSpellSystem(ILoggerFactory factory, IServiceProvider servic
                 continue;
             }
 
-            ISpell info = spellInstance.SpellInfo.Clone();
+            IAbility info = spellInstance.SpellInfo.Clone();
 
 #pragma warning disable CS8604 // Possible null reference argument.
             if (ActivatorUtilities.CreateInstance(serviceProvider, scriptType, info, spellInstance.Caster,
-                    spellInstance.Target) is not SpellScript spellScript)
+                    spellInstance.Target) is not AbilityScript spellScript)
 #pragma warning restore CS8604 // Possible null reference argument.
             {
                 _logger.LogWarning("Failed to create spell script {ScriptName}",
@@ -109,7 +109,7 @@ public class InstanceSpellSystem(ILoggerFactory factory, IServiceProvider servic
                 spellInstance.SpellInfo.AbilityId, spellInstance.Caster.Guid, spellInstance.Target?.Guid);
         }
 
-        foreach (SpellScript spell in _activeSpells)
+        foreach (AbilityScript spell in _activeSpells)
         {
             spell.Update(deltaTime);
 

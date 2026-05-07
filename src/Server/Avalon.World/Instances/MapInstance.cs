@@ -8,13 +8,13 @@ using Avalon.Network.Packets.State;
 using Avalon.World.Entities;
 using Avalon.World.ChunkLayouts;
 using Avalon.World.Public;
+using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Instances;
 using Avalon.World.Public.Maps;
 using Avalon.World.Public.Scripts;
-using Avalon.World.Public.Spells;
 using Avalon.World.Public.Units;
 using Avalon.World.Scripts;
 using Avalon.World.Serialization;
@@ -138,7 +138,7 @@ public class MapInstance : IMapInstance, IPortalSink
 
     public void RemoveCreature(ICreature creature) => _creatures.Remove(creature.Guid);
 
-    public bool QueueSpell(ICharacter caster, IUnit? target, ISpell spell) =>
+    public bool QueueSpell(ICharacter caster, IUnit? target, IAbility spell) =>
         _spellSystem.QueueSpell(caster, target, spell);
 
     public void RespawnCreature(ICreature creature)
@@ -223,7 +223,7 @@ public class MapInstance : IMapInstance, IPortalSink
 
             foreach (var obj in objectSpells)
             {
-                if (obj is SpellScript spell)
+                if (obj is AbilityScript spell)
                 {
                     var dirty = spell.ConsumeDirtyFields();
                     if (dirty != GameEntityFields.None)
@@ -410,7 +410,7 @@ public class MapInstance : IMapInstance, IPortalSink
         }
     }
 
-    private void BroadcastUnitAttackAnimation(IUnit attacker, ISpell? spell)
+    private void BroadcastUnitAttackAnimation(IUnit attacker, IAbility? spell)
     {
         if (!_creatures.ContainsKey(attacker.Guid) && !_characters.ContainsKey(attacker.Guid))
         {
@@ -424,7 +424,7 @@ public class MapInstance : IMapInstance, IPortalSink
         }
     }
 
-    private void BroadcastFinishCastAnimation(IUnit attacker, ISpell spell)
+    private void BroadcastFinishCastAnimation(IUnit attacker, IAbility spell)
     {
         if (!_creatures.ContainsKey(attacker.Guid) && !_characters.ContainsKey(attacker.Guid))
         {
@@ -438,7 +438,7 @@ public class MapInstance : IMapInstance, IPortalSink
         }
     }
 
-    private void BroadcastInterruptedCastAnimation(IUnit attacker, ISpell spell)
+    private void BroadcastInterruptedCastAnimation(IUnit attacker, IAbility spell)
     {
         if (!_creatures.ContainsKey(attacker.Guid) && !_characters.ContainsKey(attacker.Guid))
         {

@@ -2,10 +2,10 @@ using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Network.Packets.State;
+using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Scripts;
-using Avalon.World.Public.Spells;
 using Avalon.World.Public.Units;
 
 namespace Avalon.World.Entities;
@@ -123,11 +123,11 @@ public class Creature : ICreature
 
     public void OnHit(IUnit attacker, uint damage) => Script?.OnHit(attacker, damage);
 
-    public void SendAttackAnimation(ISpell? spell) => OnUnitAttackAnimation?.Invoke(this, spell);
+    public void SendAttackAnimation(IAbility? spell) => OnUnitAttackAnimation?.Invoke(this, spell);
 
-    public void SendFinishCastAnimation(ISpell spell) => OnUnitFinishedCastAnimation?.Invoke(this, spell);
+    public void SendFinishCastAnimation(IAbility spell) => OnUnitFinishedCastAnimation?.Invoke(this, spell);
 
-    public void SendInterruptedCastAnimation(ISpell spell) => OnUnitInterruptedCastAnimation?.Invoke(this, spell);
+    public void SendInterruptedCastAnimation(IAbility spell) => OnUnitInterruptedCastAnimation?.Invoke(this, spell);
 
     public static event CreatureKilledDelegate? OnCreatureKilled;
     public static event UnitAttackAnimationDelegate? OnUnitAttackAnimation;

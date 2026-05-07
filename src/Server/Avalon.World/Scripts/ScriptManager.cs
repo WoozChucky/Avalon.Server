@@ -31,7 +31,7 @@ public class ScriptManager : IScriptManager
 
         _aiScripts = aiScripts.ToDictionary(t => t.Name, t => t);
 
-        var spellScripts = FindScriptTypes<SpellScript>();
+        var spellScripts = FindScriptTypes<AbilityScript>();
 
         _logger.LogInformation("Loaded {Count} spell scripts", spellScripts.Count);
 

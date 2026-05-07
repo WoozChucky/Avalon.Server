@@ -1,16 +1,16 @@
 using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.World.Public;
+using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Scripts;
-using Avalon.World.Public.Spells;
 using Avalon.World.Public.Units;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Scripts.Spells;
 
-public class FireballSpellScript(ILogger<FireballSpellScript> logger, ISpell spell, IUnit caster, IUnit? target)
-    : SpellScript(spell, caster, target)
+public class FireballSpellScript(ILogger<FireballSpellScript> logger, IAbility spell, IUnit caster, IUnit? target)
+    : AbilityScript(spell, caster, target)
 {
     private const float ProjectileSpeed = 5f;
 
@@ -56,7 +56,7 @@ public class FireballSpellScript(ILogger<FireballSpellScript> logger, ISpell spe
         Position += Velocity * ProjectileSpeed * (float)deltaTime.TotalSeconds;
     }
 
-    public override SpellScript Clone()
+    public override AbilityScript Clone()
     {
         FireballSpellScript clone = new(logger, Spell, Caster, Target)
         {

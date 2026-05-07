@@ -1,9 +1,9 @@
 using Avalon.Common;
 using Avalon.Common.Mathematics;
+using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Maps;
-using Avalon.World.Public.Spells;
 using Avalon.World.Public.Units;
 
 namespace Avalon.World.Public.Instances;
@@ -20,7 +20,7 @@ public interface ISimulationContext
     /// <summary>Returns the navigator whose bounds contain <paramref name="position"/>.</summary>
     IMapNavigator GetNavigatorForPosition(Vector3 position);
 
-    bool QueueSpell(ICharacter caster, IUnit? target, ISpell spell);
+    bool QueueSpell(ICharacter caster, IUnit? target, IAbility spell);
     void AddCreature(ICreature creature);
     void RespawnCreature(ICreature creature);
     void RemoveCreature(ICreature creature);
