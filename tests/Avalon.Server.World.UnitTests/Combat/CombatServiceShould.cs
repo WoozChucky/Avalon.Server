@@ -412,6 +412,70 @@ public class CombatServiceShould
     }
 
     [Fact]
+    public void Should_revive_player_at_configured_health_fraction_and_broadcast()
+    {
+        // RevivePlayer clears IsDead, sets CurrentHealth to MaxHealth * ReviveHealthFraction,
+        // moves the character to the supplied position, and broadcasts SUnitRevivePacket.
+        var cfg = new CombatConfig { ReviveHealthFraction = 0.25f };
+        var reg = new EncounterRegistry(cfg);
+        var ctx = Substitute.For<ISimulationContext>();
+        var svc = new CombatService(cfg, reg, ctx);
+
+        var ch = StubCharacter(CharacterClass.Warrior);
+        ch.Health.Returns(400u);
+        ch.IsDead.Returns(true);
+        var pos = new Avalon.Common.Mathematics.Vector3(1, 2, 3);
+
+        svc.RevivePlayer(ch, pos);
+
+        Assert.False(ch.IsDead);
+        ch.Received().CurrentHealth = 100u;       // 400 * 0.25
+        ch.Received().Position      = pos;
+        ctx.Received(1).BroadcastUnitRevive(ch, pos, 100u);
+    }
+
+    [Fact]
+    public void Should_revive_at_minimum_one_hp_when_fraction_truncates_to_zero()
+    {
+        // Defensive: if MaxHealth * ReviveHealthFraction truncates to 0 but max>0, revive at 1 HP
+        // so the state is internally consistent (alive but at 0 HP would be a degenerate state).
+        var cfg = new CombatConfig { ReviveHealthFraction = 0.001f };
+        var reg = new EncounterRegistry(cfg);
+        var ctx = Substitute.For<ISimulationContext>();
+        var svc = new CombatService(cfg, reg, ctx);
+
+        var ch = StubCharacter(CharacterClass.Warrior);
+        ch.Health.Returns(100u);          // 100 * 0.001 = 0.1 → truncates to 0
+        ch.IsDead.Returns(true);
+        var pos = new Avalon.Common.Mathematics.Vector3(0, 0, 0);
+
+        svc.RevivePlayer(ch, pos);
+
+        Assert.False(ch.IsDead);
+        ch.Received().CurrentHealth = 1u;
+        ctx.Received(1).BroadcastUnitRevive(ch, pos, 1u);
+    }
+
+    [Fact]
+    public void Should_noop_revive_when_target_is_not_a_character()
+    {
+        // RevivePlayer is character-only (creatures use respawner, not revive).
+        var cfg = new CombatConfig();
+        var reg = new EncounterRegistry(cfg);
+        var ctx = Substitute.For<ISimulationContext>();
+        var svc = new CombatService(cfg, reg, ctx);
+
+        var creature = Substitute.For<ICreature>();
+
+        svc.RevivePlayer(creature, default);
+
+        ctx.DidNotReceive().BroadcastUnitRevive(
+            Arg.Any<IUnit>(),
+            Arg.Any<Avalon.Common.Mathematics.Vector3>(),
+            Arg.Any<uint>());
+    }
+
+    [Fact]
     public void Should_apply_default_threat_multiplier_on_raw_damage()
     {
         // Warrior class threat = 2.0; default multiplier = 1.0; damage = 10 → 20.0 (seed = 0).
