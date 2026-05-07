@@ -294,7 +294,7 @@ public class CharacterSelectHandler(
     }
 
     private void OnSpellsReceived(IWorldConnection connection, CharacterEntity entity, IMapInstance instance,
-        IReadOnlyCollection<CharacterSpell> spells)
+        IReadOnlyCollection<CharacterAbility> spells)
     {
         using Activity? activity = DiagnosticsConfig.World.Source.StartActivity(nameof(OnSpellsReceived),
             ActivityKind.Internal,
@@ -304,19 +304,19 @@ public class CharacterSelectHandler(
 
         List<GameSpell> gameSpells = [];
 
-        foreach (CharacterSpell characterSpell in spells)
+        foreach (CharacterAbility characterAbility in spells)
         {
-            AbilityTemplate? template = world.Data.SpellTemplates.FirstOrDefault(sp => sp.Id == characterSpell.AbilityId);
+            AbilityTemplate? template = world.Data.SpellTemplates.FirstOrDefault(sp => sp.Id == characterAbility.AbilityId);
             if (template == null)
             {
-                logger.LogWarning("Spell template not found for spell {AbilityId}", characterSpell.AbilityId);
+                logger.LogWarning("Spell template not found for spell {AbilityId}", characterAbility.AbilityId);
                 activity?.AddEvent(new ActivityEvent("SpellTemplateNotFound"));
                 continue;
             }
 
             GameSpell gameSpell = new()
             {
-                AbilityId = characterSpell.AbilityId,
+                AbilityId = characterAbility.AbilityId,
                 Metadata = new SpellMetadata
                 {
                     Name = template.Name,
@@ -329,7 +329,7 @@ public class CharacterSelectHandler(
                     ScriptName = template.SpellScript
                 },
                 CastTimeTimer = (float)template.CastTime / 1000,
-                CooldownTimer = characterSpell.Cooldown
+                CooldownTimer = characterAbility.Cooldown
             };
 
             gameSpells.Add(gameSpell);

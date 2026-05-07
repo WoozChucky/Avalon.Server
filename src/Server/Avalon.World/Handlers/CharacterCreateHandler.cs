@@ -158,9 +158,9 @@ public class CharacterCreateHandler(
     {
         var characterSpellIds = createInfo.StartingSpells;
 
-        var characterSpells = characterSpellIds.Select(abilityId => new CharacterSpell { CharacterId = character.Id, AbilityId = abilityId, }).ToList();
+        var characterAbilities = characterSpellIds.Select(abilityId => new CharacterAbility { CharacterId = character.Id, AbilityId = abilityId, }).ToList();
 
-        connection.EnqueueContinuation(characterSpellRepository.CreateAsync(characterSpells, CancellationToken.None), createdSpells =>
+        connection.EnqueueContinuation(characterSpellRepository.CreateAsync(characterAbilities, CancellationToken.None), createdSpells =>
         {
             OnCharacterSpellsCreated(connection, character, createInfo);
         });

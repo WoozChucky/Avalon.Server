@@ -142,7 +142,7 @@ public class CharacterService : ICharacterService
     }
 
     private static CharacterSpellDto MapSpell(
-        CharacterSpell row,
+        CharacterAbility row,
         Dictionary<AbilityId, AbilityTemplate> templateById)
     {
         templateById.TryGetValue(row.AbilityId, out var template);
