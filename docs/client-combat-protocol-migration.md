@@ -36,7 +36,7 @@ The on-the-wire numeric tags (`NetworkPacketType` enum values and `[ProtoMember(
 
 If the client uses generated proto types from the shared schema, recompiling against the latest schema is sufficient. If the client hand-rolls deserialization, only the C# property names need updating — the wire layout is byte-identical.
 
-Note: the underlying enum constant for the cast-interruption packet is still spelled `SMSG_SPELL_INTERRUPTED` (`0x3105`) on the server, but the C# class is `SCharacterInterruptedCastPacket`. This is intentional: only the class names were swept; the enum spelling stays for value stability.
+Note: the cast-interruption enum constant has been renamed to `SMSG_INTERRUPTED_CAST` (numeric value `0x3105` preserved for wire compatibility). The corresponding C# class is `SCharacterInterruptedCastPacket`.
 
 ## 4. New Packets
 
@@ -104,8 +104,7 @@ Each `ThreatEntry`:
 ## 5. Cast Pipeline Expectations (Client Side)
 
 - Click → emit `CCastAbilityPacket {AbilityId, TargetGuid?, GroundPos?}`. The server validates everything; the client must NOT pre-gate.
-- On rejection, the server replies with `SAbilityNotReadyPacket {AbilityId, Cooldown}`. Trigger reasons: GCD, per-ability cooldown, cost shortfall, combat-state mismatch (`RequiresOutOfCombat` / `RequiresInCombat`), out of range, not facing, dead. Use the `Cooldown` field to drive HUD feedback.
-  - **Unit caveat.** The server currently fills `Cooldown` from two paths with different units: the GCD-rejection path sends remaining-milliseconds (cast from `int`), while the per-ability-cooldown path sends remaining-seconds (`float`). Client HUD code should treat this as "remaining cooldown, magnitude unspecified, render as a percentage of the ability's known cooldown" rather than displaying it as an absolute time. Other rejection reasons send `Cooldown = 0`. This will be normalized in a follow-up.
+- On rejection, the server replies with `SAbilityNotReadyPacket {AbilityId, CooldownMs (uint)}`. Trigger reasons: GCD, per-ability cooldown, cost shortfall, combat-state mismatch (`RequiresOutOfCombat` / `RequiresInCombat`), out of range, not facing, dead. Use the `CooldownMs` field (remaining cooldown in milliseconds) to drive HUD feedback. Other rejection reasons (cost, range, combat-state) send `CooldownMs = 0`.
 - For abilities with `CastTime > 0`, the server replies `SUnitStartCastPacket` (existing, generic). Render the cast bar from the `CastTime` field on the packet.
 - On completion, the server replies `SUnitFinishCastPacket` (existing, generic). End the cast bar and play the cast-finish animation.
 - On movement-interrupt, the server replies `SCharacterInterruptedCastPacket {Caster, AbilityId}` (existing). Power refund is handled server-side; the client just ends the cast bar.
@@ -134,7 +133,7 @@ The client never emits a separate "interrupt" or "cancel" packet — moving canc
 ## 9. Test Checklist (Client)
 
 - [ ] Click on enemy → basic attack fires; server replies `SUnitDamagePacket` (and `SCharacterDamagePacket` for player damage).
-- [ ] Spam click → server enforces GCD; sub-200 ms casts get `SAbilityNotReadyPacket` with non-zero `Cooldown`.
+- [ ] Spam click → server enforces GCD; sub-200 ms casts get `SAbilityNotReadyPacket` with non-zero `CooldownMs`.
 - [ ] Cast a cast-time ability while moving → `SCharacterInterruptedCastPacket` arrives; cast bar clears.
 - [ ] Get hit → combat icon visible (existing `IsInCombat` channel).
 - [ ] Acquire a hostile target with `CTargetUnitPacket` → `SThreatListPacket` arrives once you have aggro; threat % updates throttled to ~250 ms.
