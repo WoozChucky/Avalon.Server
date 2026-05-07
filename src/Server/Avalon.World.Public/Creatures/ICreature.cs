@@ -1,3 +1,4 @@
+using System;
 using Avalon.Common.Mathematics;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Scripts;
@@ -22,6 +23,9 @@ public interface ICreature : IUnit
     float Speed { get; set; }
     string ScriptName { get; set; }
     AiScript? Script { get; set; }
+
+    IUnit?   TauntedBy      { get; set; }
+    DateTime TauntExpiresAt { get; set; }
 
     void LookAt(Vector3 target);
     bool IsLookingAt(Vector3 target, float threshold = 0.1f);

@@ -196,6 +196,116 @@ public class CombatServiceShould
         Assert.True(firstCount == 1  || secondCount == 1);
     }
 
+    [Fact]
+    public void Should_split_heal_threat_evenly_across_hostiles_in_encounter()
+    {
+        var (svc, reg) = BuildService(initialThreatSeed: 0);
+        var healer = StubCharacter(CharacterClass.Healer);
+        var ally   = StubCharacter(CharacterClass.Warrior);
+        var hostile1 = Substitute.For<ICreature>();
+        var hostile2 = Substitute.For<ICreature>();
+        var healAbility = Substitute.For<IAbility>();
+        healAbility.Metadata.Returns(new AbilityMetadata { Name = "H", ScriptName = "h", HealThreatPerHp = 0.5f });
+
+        // Set up encounter: ally is engaged with both hostiles.
+        svc.EnterCombat(hostile1, ally);
+        svc.EnterCombat(hostile2, ally);
+
+        // Now healer heals ally for 100. Heal-threat = 100 * 0.5 * 1.0 = 50, split across 2 hostiles = 25 each.
+        // (Initial threat seed is 0 in this test, so the seeded entry from EnterCombat is 0, then +25 from heal.)
+        svc.ApplyHeal(healer, ally, 100, healAbility);
+
+        var enc = (Encounter)System.Linq.Enumerable.First(reg.Active);
+        Assert.Equal(25.0f, enc.GetThreatList(hostile1)[healer], 3);
+        Assert.Equal(25.0f, enc.GetThreatList(hostile2)[healer], 3);
+    }
+
+    [Fact]
+    public void Should_not_generate_heal_threat_when_target_not_in_encounter()
+    {
+        var (svc, reg) = BuildService();
+        var healer = StubCharacter(CharacterClass.Healer);
+        var ally   = StubCharacter(CharacterClass.Warrior);
+        var ab = Substitute.For<IAbility>();
+        ab.Metadata.Returns(new AbilityMetadata { Name = "H", ScriptName = "h", HealThreatPerHp = 0.5f });
+
+        svc.ApplyHeal(healer, ally, 100, ab);
+
+        Assert.Empty(reg.Active);
+    }
+
+    [Fact]
+    public void Should_skip_heal_threat_when_HealThreatPerHp_is_zero()
+    {
+        var (svc, reg) = BuildService(initialThreatSeed: 0);
+        var healer = StubCharacter(CharacterClass.Healer);
+        var ally   = StubCharacter(CharacterClass.Warrior);
+        var hostile = Substitute.For<ICreature>();
+        var healAbility = Substitute.For<IAbility>();
+        healAbility.Metadata.Returns(new AbilityMetadata { Name = "H", ScriptName = "h", HealThreatPerHp = 0.0f });
+
+        svc.EnterCombat(hostile, ally);
+        svc.ApplyHeal(healer, ally, 100, healAbility);
+
+        var enc = (Encounter)System.Linq.Enumerable.First(reg.Active);
+        var threats = enc.GetThreatList(hostile);
+        Assert.False(threats.ContainsKey(healer));
+    }
+
+    [Fact]
+    public void Should_set_taunt_caster_above_top_threat()
+    {
+        var (svc, reg) = BuildService(initialThreatSeed: 0);
+        var hostile = StubCreature();
+        var dpsCharacter = StubCharacter(CharacterClass.Hunter);
+        var tankCharacter = StubCharacter(CharacterClass.Warrior);
+        var dmgAbility = StubAbility(1.0f);
+
+        // DPS deals damage and pulls aggro.
+        svc.ApplyDamage(dpsCharacter, hostile, 100, dmgAbility);
+
+        float beforeTaunt = ((Encounter)System.Linq.Enumerable.First(reg.Active))
+                            .GetThreatList(hostile)[dpsCharacter];
+
+        // Tank taunts.
+        svc.ApplyTaunt(tankCharacter, hostile, 5000);
+
+        var enc = (Encounter)System.Linq.Enumerable.First(reg.Active);
+        var threats = enc.GetThreatList(hostile);
+        Assert.True(threats[tankCharacter] > beforeTaunt);
+        Assert.True(threats[tankCharacter] > threats[dpsCharacter]);
+        Assert.Same(tankCharacter, hostile.TauntedBy);
+    }
+
+    [Fact]
+    public void Should_set_taunt_expires_at_in_future()
+    {
+        var (svc, _) = BuildService();
+        var hostile = Substitute.For<ICreature>();
+        var caster  = StubCharacter(CharacterClass.Warrior);
+        var dmgAb = StubAbility(1.0f);
+
+        svc.ApplyDamage(caster, hostile, 1, dmgAb);   // ensure encounter exists
+        var before = System.DateTime.UtcNow;
+        svc.ApplyTaunt(caster, hostile, 5000);
+
+        Assert.True(hostile.TauntExpiresAt >= before.AddMilliseconds(4900));
+        Assert.True(hostile.TauntExpiresAt <= before.AddMilliseconds(5100));
+    }
+
+    [Fact]
+    public void Should_noop_taunt_when_target_not_in_encounter()
+    {
+        var (svc, reg) = BuildService();
+        var hostile = StubCreature();
+        var caster  = StubCharacter(CharacterClass.Warrior);
+
+        svc.ApplyTaunt(caster, hostile, 5000);
+
+        Assert.Empty(reg.Active);
+        Assert.Null(hostile.TauntedBy);
+    }
+
     private static (CombatService, EncounterRegistry) BuildService(float initialThreatSeed = 1.0f)
     {
         var cfg = new CombatConfig { InitialThreatSeed = initialThreatSeed };
@@ -208,6 +318,16 @@ public class CombatServiceShould
     {
         var c = Substitute.For<ICharacter>();
         c.Class.Returns(cls);
+        return c;
+    }
+
+    private static ICreature StubCreature()
+    {
+        // NSubstitute auto-substitutes reference-type property reads. Initialize TauntedBy via
+        // its setter so the substitute remembers the value (null) instead of returning an auto-sub.
+        // Subsequent setter calls by the service-under-test will overwrite this stored value.
+        var c = Substitute.For<ICreature>();
+        c.TauntedBy = null;
         return c;
     }
 

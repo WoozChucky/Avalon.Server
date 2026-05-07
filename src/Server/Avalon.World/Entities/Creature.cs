@@ -35,6 +35,9 @@ public class Creature : ICreature
     public string ScriptName { get; set; } = string.Empty;
     public AiScript? Script { get; set; }
 
+    public IUnit?   TauntedBy      { get; set; }
+    public DateTime TauntExpiresAt { get; set; } = DateTime.MinValue;
+
     public ushort Level
     {
         get => _level;
