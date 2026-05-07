@@ -254,6 +254,8 @@ public class CharacterEntity : ICharacter
         }
     }
 
+    public CharacterClass Class => Data?.Class ?? default;
+
     public MapId Map
     {
         get => Data?.Map ?? 0;

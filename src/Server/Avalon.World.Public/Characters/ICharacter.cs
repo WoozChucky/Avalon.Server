@@ -18,6 +18,10 @@ public interface ICharacter : IUnit
 
     string Name { get; set; }
 
+    /// <summary>The character's class — used by the combat system to apply per-class threat baseline
+    /// (see <c>ClassThreatModifier</c>).</summary>
+    CharacterClass Class { get; }
+
     MapId Map { get; set; }
     ulong Experience { get; set; }
     ulong RequiredExperience { get; set; }
