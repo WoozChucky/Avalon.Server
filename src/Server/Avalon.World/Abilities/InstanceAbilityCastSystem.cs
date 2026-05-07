@@ -3,6 +3,7 @@ using Avalon.World.Public;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Enums;
+using Avalon.World.Public.Instances;
 using Avalon.World.Public.Scripts;
 using Avalon.World.Public.Units;
 using Avalon.World.Scripts;
@@ -28,7 +29,11 @@ public interface IAbilityCastSystem
     IWorldObject? GetAbility(ObjectGuid guid);
 }
 
-public class InstanceAbilityCastSystem(ILoggerFactory factory, IServiceProvider serviceProvider, IScriptManager scriptManager)
+public class InstanceAbilityCastSystem(
+    ILoggerFactory factory,
+    IServiceProvider serviceProvider,
+    IScriptManager scriptManager,
+    ISimulationContext simulationContext)
     : IAbilityCastSystem
 {
     private readonly List<AbilityScript> _activeAbilities = [];
@@ -79,7 +84,7 @@ public class InstanceAbilityCastSystem(ILoggerFactory factory, IServiceProvider 
         IAbility info = ability.Clone();
 
 #pragma warning disable CS8604 // Possible null reference argument.
-        if (ActivatorUtilities.CreateInstance(serviceProvider, scriptType, info, caster, target)
+        if (ActivatorUtilities.CreateInstance(serviceProvider, scriptType, info, caster, target, simulationContext)
             is not AbilityScript abilityScript)
 #pragma warning restore CS8604
         {
@@ -137,7 +142,7 @@ public class InstanceAbilityCastSystem(ILoggerFactory factory, IServiceProvider 
 
 #pragma warning disable CS8604 // Possible null reference argument.
             if (ActivatorUtilities.CreateInstance(serviceProvider, scriptType, info, abilityInstance.Caster,
-                    abilityInstance.Target) is not AbilityScript abilityScript)
+                    abilityInstance.Target, simulationContext) is not AbilityScript abilityScript)
 #pragma warning restore CS8604 // Possible null reference argument.
             {
                 _logger.LogWarning("Failed to create ability script {ScriptName}",

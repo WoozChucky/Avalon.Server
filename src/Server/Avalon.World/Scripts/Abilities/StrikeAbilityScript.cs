@@ -3,15 +3,20 @@ using Avalon.Common.Mathematics;
 using Avalon.World.Public;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Enums;
+using Avalon.World.Public.Instances;
 using Avalon.World.Public.Scripts;
 using Avalon.World.Public.Units;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Scripts.Abilities;
 
-public class StrikeAbilityScript(ILogger<StrikeAbilityScript> logger, IAbility ability, IUnit caster, IUnit? target)
-    : AbilityScript(ability,
-        caster, target)
+public class StrikeAbilityScript(
+    ILogger<StrikeAbilityScript> logger,
+    IAbility ability,
+    IUnit caster,
+    IUnit? target,
+    ISimulationContext context)
+    : AbilityScript(ability, caster, target)
 {
     public override Vector3 Position { get; set; }
     public override Vector3 Velocity { get; set; }
@@ -42,7 +47,7 @@ public class StrikeAbilityScript(ILogger<StrikeAbilityScript> logger, IAbility a
         {
             Caster.SendAttackAnimation(Ability);
             logger.LogInformation("Ability {AbilityId} hit {CreatureId}", Ability.AbilityId, Target.Guid);
-            Target.OnHit(Caster, Ability.Metadata.EffectValue);
+            context.CombatService.ApplyDamage(Caster, Target, Ability.Metadata.EffectValue, Ability);
             State = SpellState.Finished;
         }
     }
@@ -51,7 +56,7 @@ public class StrikeAbilityScript(ILogger<StrikeAbilityScript> logger, IAbility a
 
     public override AbilityScript Clone()
     {
-        StrikeAbilityScript clone = new(logger, Ability, Caster, Target)
+        StrikeAbilityScript clone = new(logger, Ability, Caster, Target, context)
         {
             Guid = Guid, Position = Position, Velocity = Velocity, Orientation = Orientation
         };
