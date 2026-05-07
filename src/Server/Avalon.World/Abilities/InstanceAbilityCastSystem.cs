@@ -14,6 +14,16 @@ namespace Avalon.World.Abilities;
 public interface IAbilityCastSystem
 {
     bool QueueAbility(ICharacter character, IUnit? target, IAbility ability);
+
+    /// <summary>
+    /// Instant-cast counterpart to <see cref="QueueAbility"/>: builds the script, fires the
+    /// finish-cast animation, runs <c>Prepare()</c>, starts the cooldown, and registers the
+    /// script with the active list so its post-cast effects (e.g. projectile travel,
+    /// timed-damage scripts) tick in subsequent updates. Mirrors the cast-completion branch
+    /// of <see cref="Update"/> exactly so queued and instant abilities resolve identically.
+    /// </summary>
+    void RunInstant(IUnit caster, IUnit? target, IAbility ability);
+
     void Update(TimeSpan deltaTime, List<IWorldObject> objects);
     IWorldObject? GetAbility(ObjectGuid guid);
 }
@@ -48,6 +58,41 @@ public class InstanceAbilityCastSystem(ILoggerFactory factory, IServiceProvider 
             Caster = character, Target = target, Ability = ability, CastStartPosition = character.Position
         };
         return _abilityQueue.Add(abilityInstance);
+    }
+
+    public void RunInstant(IUnit caster, IUnit? target, IAbility ability)
+    {
+        // Mirror the completion branch of Update: cooldown is started, script is created,
+        // finish-cast is broadcast, and the script is added to the active list so any
+        // post-cast effects continue to tick.
+        ability.Casting       = false;
+        ability.CooldownTimer = ability.Metadata.Cooldown;
+        ability.CastTimeTimer = ability.Metadata.CastTime;
+
+        Type? scriptType = scriptManager.GetAbilityScript(ability.Metadata.ScriptName);
+        if (scriptType is null)
+        {
+            _logger.LogWarning("Ability script {ScriptName} not found", ability.Metadata.ScriptName);
+            return;
+        }
+
+        IAbility info = ability.Clone();
+
+#pragma warning disable CS8604 // Possible null reference argument.
+        if (ActivatorUtilities.CreateInstance(serviceProvider, scriptType, info, caster, target)
+            is not AbilityScript abilityScript)
+#pragma warning restore CS8604
+        {
+            _logger.LogWarning("Failed to create ability script {ScriptName}", ability.Metadata.ScriptName);
+            return;
+        }
+
+        caster.SendFinishCastAnimation(ability);
+        abilityScript.Prepare();
+        _activeAbilities.Add(abilityScript);
+
+        _logger.LogDebug("Finished instant ability {AbilityId} cast by {CasterId} on {TargetId}",
+            ability.AbilityId, caster.Guid, target?.Guid);
     }
 
     public void Update(TimeSpan deltaTime, List<IWorldObject> objects)
