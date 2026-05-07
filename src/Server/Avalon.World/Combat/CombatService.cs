@@ -137,15 +137,40 @@ public sealed class CombatService : ICombatService
         creature.TauntExpiresAt = DateTime.UtcNow.AddMilliseconds(durationMs);
     }
 
-    // Phase G/H — stub implementations that throw until those phases land.
     public void EnterCombat(IUnit hostile, IUnit player)
     {
         // Resolve-or-spawn handles both directions; arg order matches the merge logic in ApplyDamage.
         ResolveOrSpawn(player, hostile);
     }
 
+    // Phase H stub — throws until that phase lands.
     public void DropPlayerFromEncounter(IUnit player)                                      => throw new NotImplementedException("DropPlayerFromEncounter — Phase H");
-    public void RevivePlayer(IUnit player, Vector3 position)                               => throw new NotImplementedException("RevivePlayer — Phase G");
+
+    public void RevivePlayer(IUnit player, Vector3 position)
+    {
+        // Revive is a character-only operation. Creatures use the respawner pipeline
+        // (CreatureRespawner/ICreatureMetadata), not RevivePlayer.
+        if (player is not ICharacter character) return;
+
+        // Note: ICharacter has a Revive() helper but it forces CurrentHealth to Health
+        // (full restore). We need a partial revive driven by ReviveHealthFraction, so we
+        // clear IsDead directly via the setter and assign the partial HP value ourselves.
+        uint maxHealth = character.Health;
+        uint reviveHp  = (uint)(maxHealth * _config.ReviveHealthFraction);
+
+        // Defensive: a tiny ReviveHealthFraction × small max can truncate to 0. Reviving
+        // alive-but-at-0HP would be a degenerate state (death detection treats HP==0 as
+        // dead for creatures), so floor to 1 HP whenever the unit has any max health.
+        if (reviveHp == 0 && maxHealth > 0) reviveHp = 1;
+
+        // Clear dead-flag first so observers don't see "alive but at 0 HP" mid-revive
+        // (mirrors the ordering inside CharacterEntity.Revive()).
+        character.IsDead        = false;
+        character.CurrentHealth = reviveHp;
+        character.Position      = position;
+
+        _context?.BroadcastUnitRevive(character, position, reviveHp);
+    }
 
     public IEncounter? GetEncounterFor(IUnit unit) => _registry.FindEncounterContaining(unit);
 

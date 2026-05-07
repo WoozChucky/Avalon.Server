@@ -46,4 +46,12 @@ public interface ISimulationContext
     /// (or its raw-damage overload) brings <paramref name="unit"/> to 0 HP / dead state.
     /// </summary>
     void BroadcastUnitDeath(IUnit unit, IUnit? killer);
+
+    /// <summary>
+    /// Broadcasts a revive event to all connections in the instance. Called by
+    /// <see cref="ICombatService.RevivePlayer(IUnit, Vector3)"/> after the unit's dead flag
+    /// is cleared, position is updated, and <c>CurrentHealth</c> is restored to the
+    /// configured fraction of <c>Health</c>.
+    /// </summary>
+    void BroadcastUnitRevive(IUnit unit, Vector3 position, uint health);
 }

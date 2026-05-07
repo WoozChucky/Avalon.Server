@@ -194,6 +194,15 @@ public class MapInstance : IMapInstance, IPortalSink
         }
     }
 
+    public void BroadcastUnitRevive(IUnit unit, Vector3 position, uint health)
+    {
+        foreach ((ObjectGuid guid, IWorldConnection connection) in _connections)
+        {
+            connection.Send(SUnitRevivePacket.Create(unit.Guid, position, health,
+                connection.CryptoSession.Encrypt));
+        }
+    }
+
     public void Update(TimeSpan deltaTime)
     {
         if (_characters.Count == 0)
