@@ -128,6 +128,14 @@ public class World : IWorld
         {
             IMapInstance? instance =
                 InstanceRegistry.GetInstanceById(connection.Character.InstanceId);
+
+            // Exit-path (Phase H): drop the character from any in-progress encounter before
+            // unregistering them from the instance. Single hook covers logout, alt-F4, and TCP
+            // timeout — all disconnect paths flow through DeSpawnPlayerAsync. Done before
+            // RemoveCharacter (and before ApplyDeathLogoutAsync below) so the encounter doesn't
+            // hold a stale dead-player participant after Revive() runs.
+            instance?.CombatService.DropPlayerFromEncounter(connection.Character);
+
             instance?.RemoveCharacter(connection);
 
             await using AsyncServiceScope scope = _serviceScopeFactory.CreateAsyncScope();

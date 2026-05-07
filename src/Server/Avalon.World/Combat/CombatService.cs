@@ -143,8 +143,15 @@ public sealed class CombatService : ICombatService
         ResolveOrSpawn(player, hostile);
     }
 
-    // Phase H stub — throws until that phase lands.
-    public void DropPlayerFromEncounter(IUnit player)                                      => throw new NotImplementedException("DropPlayerFromEncounter — Phase H");
+    public void DropPlayerFromEncounter(IUnit player)
+    {
+        // V1 invariant: a player can be in at most one encounter. Find it (if any) and prune
+        // the player from participants and from every hostile's threat list. Idempotent: if
+        // the player isn't in any encounter, this is a no-op (called from disconnect/transition
+        // exit-paths that fire whether or not the player was ever in combat).
+        var enc = _registry.FindEncounterContaining(player) as Encounter;
+        enc?.RemovePlayer(player);
+    }
 
     public void RevivePlayer(IUnit player, Vector3 position)
     {

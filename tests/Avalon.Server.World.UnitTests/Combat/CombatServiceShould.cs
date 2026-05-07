@@ -476,6 +476,37 @@ public class CombatServiceShould
     }
 
     [Fact]
+    public void Should_drop_player_zeroing_threat_across_all_hostiles()
+    {
+        var (svc, reg) = BuildService(initialThreatSeed: 0);
+        var attacker = StubCharacter(CharacterClass.Warrior);
+        var hostile1 = StubCreature();
+        var hostile2 = StubCreature();
+        var ability  = StubAbility(1.0f);
+
+        svc.ApplyDamage(attacker, hostile1, 10, ability);
+        svc.ApplyDamage(attacker, hostile2, 10, ability);
+
+        svc.DropPlayerFromEncounter(attacker);
+
+        var enc = (Encounter)System.Linq.Enumerable.First(reg.Active);
+        Assert.DoesNotContain(attacker, enc.Players);
+        Assert.False(enc.GetThreatList(hostile1).ContainsKey(attacker));
+        Assert.False(enc.GetThreatList(hostile2).ContainsKey(attacker));
+    }
+
+    [Fact]
+    public void Should_noop_drop_when_player_not_in_any_encounter()
+    {
+        var (svc, reg) = BuildService();
+        var attacker = StubCharacter(CharacterClass.Warrior);
+
+        var ex = Record.Exception(() => svc.DropPlayerFromEncounter(attacker));
+        Assert.Null(ex);
+        Assert.Empty(reg.Active);
+    }
+
+    [Fact]
     public void Should_apply_default_threat_multiplier_on_raw_damage()
     {
         // Warrior class threat = 2.0; default multiplier = 1.0; damage = 10 → 20.0 (seed = 0).
