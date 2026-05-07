@@ -13,10 +13,10 @@ using Avalon.World.ChunkLayouts;
 using Avalon.World.Configuration;
 using Avalon.World.Entities;
 using Avalon.World.Instances;
+using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Instances;
-using Avalon.World.Public.Spells;
 using Avalon.World.Respawn;
 using Avalon.World.Spells;
 using Microsoft.Extensions.Logging;
@@ -317,7 +317,7 @@ public class CharacterSelectHandler(
             GameSpell gameSpell = new()
             {
                 AbilityId = characterAbility.AbilityId,
-                Metadata = new SpellMetadata
+                Metadata = new AbilityMetadata
                 {
                     Name = template.Name,
                     Cooldown = (float)template.Cooldown / 1000,

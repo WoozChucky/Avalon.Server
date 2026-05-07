@@ -6,10 +6,10 @@ using Avalon.Network.Packets.Combat;
 using Avalon.Network.Packets.State;
 using Avalon.World.Configuration;
 using Avalon.World.Public;
+using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
-using Avalon.World.Public.Spells;
 using Avalon.World.Public.Units;
 using Avalon.World.Spells;
 using Microsoft.Extensions.Logging;
@@ -84,7 +84,7 @@ public class CharacterEntity : ICharacter
         _ => throw new ArgumentOutOfRangeException(nameof(type), type, null)
     };
 
-    public ICharacterSpells Spells { get; }
+    public ICharacterAbilities Spells { get; }
 
     public ObjectGuid Guid { get; set; }
 
@@ -196,11 +196,11 @@ public class CharacterEntity : ICharacter
         OnUnitDamaged?.Invoke(this, attacker, damage);
     }
 
-    public void SendAttackAnimation(ISpell? spell) => OnUnitAttackAnimation?.Invoke(this, spell);
+    public void SendAttackAnimation(IAbility? spell) => OnUnitAttackAnimation?.Invoke(this, spell);
 
-    public void SendFinishCastAnimation(ISpell spell) => OnUnitFinishedCastAnimation?.Invoke(this, spell);
+    public void SendFinishCastAnimation(IAbility spell) => OnUnitFinishedCastAnimation?.Invoke(this, spell);
 
-    public void SendInterruptedCastAnimation(ISpell spell) => OnUnitInterruptedCastAnimation?.Invoke(this, spell);
+    public void SendInterruptedCastAnimation(IAbility spell) => OnUnitInterruptedCastAnimation?.Invoke(this, spell);
 
     public Vector3 Position
     {

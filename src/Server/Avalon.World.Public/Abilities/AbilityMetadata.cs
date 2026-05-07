@@ -3,9 +3,9 @@
 
 using Avalon.World.Public.Enums;
 
-namespace Avalon.World.Public.Spells;
+namespace Avalon.World.Public.Abilities;
 
-public class SpellMetadata
+public class AbilityMetadata
 {
     public string Name { get; init; }
 
@@ -21,7 +21,7 @@ public class SpellMetadata
 
     public uint EffectValue { get; init; }
 
-    public SpellMetadata Clone() =>
+    public AbilityMetadata Clone() =>
         new()
         {
             Name = Name,

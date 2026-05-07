@@ -1,9 +1,9 @@
 using Avalon.Domain.Characters;
 using Avalon.World.Configuration;
 using Avalon.World.Entities;
+using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
-using Avalon.World.Public.Spells;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Xunit;
@@ -22,7 +22,7 @@ public class CharacterEntityShould
         };
         var entity = new CharacterEntity(NullLoggerFactory.Instance, character, new RegenConfiguration());
         // Initialize spells with an empty collection to avoid NullReferenceException in Update
-        entity.Spells.Load(new List<ISpell>());
+        entity.Spells.Load(new List<IAbility>());
         return entity;
     }
 

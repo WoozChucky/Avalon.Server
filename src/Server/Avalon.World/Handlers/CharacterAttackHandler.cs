@@ -5,10 +5,10 @@ using Avalon.Common.Mathematics;
 using Avalon.Common.Telemetry;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Combat;
+using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Instances;
-using Avalon.World.Public.Spells;
 using Avalon.World.Public.Units;
 using Microsoft.Extensions.Logging;
 
@@ -116,7 +116,7 @@ public class CharacterAttackHandler(ILogger<CharacterAttackHandler> logger, IWor
                 return;
             }
 
-            ISpell? spell = attacker.Spells[packet.AbilityId];
+            IAbility? spell = attacker.Spells[packet.AbilityId];
             if (spell == null)
             {
                 logger.LogWarning("Spell not found");

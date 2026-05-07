@@ -1,20 +1,20 @@
 using Avalon.Common;
 using Avalon.Common.Mathematics;
+using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Enums;
-using Avalon.World.Public.Spells;
 using Avalon.World.Public.Units;
 
 namespace Avalon.World.Public.Scripts;
 
-public abstract class SpellScript(ISpell spell, IUnit caster, IUnit? target) : IWorldObject
+public abstract class AbilityScript(IAbility spell, IUnit caster, IUnit? target) : IWorldObject
 {
     protected IUnit Caster { get; } = caster;
 
     protected IUnit? Target { get; } = target;
 
-    protected ISpell Spell { get; } = spell;
+    protected IAbility Spell { get; } = spell;
 
-    protected List<SpellScript> ChainedScripts { get; private set; } = new();
+    protected List<AbilityScript> ChainedScripts { get; private set; } = new();
 
     protected GameEntityFields _dirtyFields;
 
@@ -35,7 +35,7 @@ public abstract class SpellScript(ISpell spell, IUnit caster, IUnit? target) : I
 
     public abstract void Prepare();
 
-    public SpellScript Chain(SpellScript script)
+    public AbilityScript Chain(AbilityScript script)
     {
         ChainedScripts.Add(script);
         return this;
@@ -43,7 +43,7 @@ public abstract class SpellScript(ISpell spell, IUnit caster, IUnit? target) : I
 
     public virtual void Update(TimeSpan deltaTime)
     {
-        foreach (SpellScript script in ChainedScripts)
+        foreach (AbilityScript script in ChainedScripts)
         {
             if (script.ShouldRun())
             {
@@ -54,11 +54,11 @@ public abstract class SpellScript(ISpell spell, IUnit caster, IUnit? target) : I
 
     protected abstract bool ShouldRun();
 
-    public virtual SpellScript Clone()
+    public virtual AbilityScript Clone()
     {
-        var clone = (SpellScript)MemberwiseClone();
-        clone.ChainedScripts = new List<SpellScript>(ChainedScripts.Count);
-        foreach (SpellScript script in ChainedScripts)
+        var clone = (AbilityScript)MemberwiseClone();
+        clone.ChainedScripts = new List<AbilityScript>(ChainedScripts.Count);
+        foreach (AbilityScript script in ChainedScripts)
             clone.ChainedScripts.Add(script.Clone());
         return clone;
     }

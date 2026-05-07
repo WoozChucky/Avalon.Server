@@ -2,8 +2,8 @@ using Avalon.Domain.Characters;
 using Avalon.World.Configuration;
 using Avalon.World.Entities;
 using Avalon.World.Public;
+using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Enums;
-using Avalon.World.Public.Spells;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 
@@ -36,7 +36,7 @@ public class CharacterEntityRegenShould
         entity.Stamina = stamina;
         entity.RegenStat = regenStat;
         entity.PowerType = powerType;
-        entity.Spells.Load(Array.Empty<ISpell>());
+        entity.Spells.Load(Array.Empty<IAbility>());
         return entity;
     }
 
