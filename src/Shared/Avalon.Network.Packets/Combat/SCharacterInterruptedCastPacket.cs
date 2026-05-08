@@ -11,15 +11,15 @@ namespace Avalon.Network.Packets.Combat;
 [ProtoContract]
 public class SCharacterInterruptedCastPacket : Packet
 {
-    public static NetworkPacketType PacketType = NetworkPacketType.SMSG_SPELL_INTERRUPTED;
+    public static NetworkPacketType PacketType = NetworkPacketType.SMSG_INTERRUPTED_CAST;
     public static NetworkProtocol Protocol = NetworkProtocol.Tcp;
     public static NetworkPacketFlags Flags = NetworkPacketFlags.Encrypted;
 
     [ProtoMember(1)] public ulong Caster { get; set; }
-    [ProtoMember(2)] public uint SpellId { get; set; }
+    [ProtoMember(2)] public uint AbilityId { get; set; }
 
-    public static NetworkPacket Create(ObjectGuid caster, SpellId spell, EncryptFunc encryptFunc)
+    public static NetworkPacket Create(ObjectGuid caster, AbilityId ability, EncryptFunc encryptFunc)
         => PacketSerializationHelper.Serialize(
-            new SCharacterInterruptedCastPacket { Caster = caster.RawValue, SpellId = spell.Value },
+            new SCharacterInterruptedCastPacket { Caster = caster.RawValue, AbilityId = ability.Value },
             PacketType, Flags, Protocol, encryptFunc);
 }

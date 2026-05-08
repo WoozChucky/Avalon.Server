@@ -42,6 +42,14 @@ public interface IWorldConnection : IConnection
     /// <summary>Gets or sets the last accepted input sequence number.</summary>
     public uint LastInputSeq { get; set; }
 
+    /// <summary>
+    ///     Raw <c>ObjectGuid</c> of the unit the player is currently targeting, or <c>null</c>
+    ///     when no target is selected. Updated by <c>CMSG_TARGET_UNIT</c>; read by
+    ///     <c>ThreatBroadcastService</c> to decide which encounter's threat list to mirror back
+    ///     to this client via <c>SThreatListPacket</c>.
+    /// </summary>
+    public ulong? CurrentTargetGuid { get; set; }
+
     /// <summary>True between accepting a CMSG_RESPAWN_AT_TOWN and completing the transfer.
     /// Used by the respawn handler to drop concurrent respawn requests during the async
     /// resolver+instance-load chain.</summary>

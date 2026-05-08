@@ -22,7 +22,7 @@ public static class ServiceExtensions
         services
             .AddScoped<ICharacterRepository, CharacterRepository>()
             .AddScoped<ICharacterStatsRepository, CharacterStatsRepository>()
-            .AddScoped<ICharacterSpellRepository, CharacterSpellRepository>()
+            .AddScoped<ICharacterAbilityRepository, CharacterAbilityRepository>()
             .AddScoped<ICharacterInventoryRepository, CharacterInventoryRepository>();
 
         return services;

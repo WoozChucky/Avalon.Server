@@ -19,6 +19,11 @@ public interface ICreaturePlacementService
 
 public class CreaturePlacementService : ICreaturePlacementService
 {
+    // Half-extent (metres) of the random box around a slot center for multi-spawn packs.
+    // 1.5 m gives ~3 m diameter, enough to keep individual creatures visually separated
+    // without spilling out of the chunk's spawn slot footprint.
+    private const float SpawnSpreadRadius = 1.5f;
+
     private readonly ICreatureSpawner _spawner;
     private readonly IChunkLibrary _library;
     private readonly ISpawnTableRepository _spawnTableRepo;
@@ -64,13 +69,22 @@ public class CreaturePlacementService : ICreaturePlacementService
 
                 var entry = WeightedPick(entries, rng);
                 int count = rng.Next(entry.MinCount, entry.MaxCount + 1);
-                var worldPos = ChunkRotation.LocalToWorld(slot.LocalX, slot.LocalY, slot.LocalZ, chunk.Rotation, layout.CellSize, chunk.WorldPos);
+                var slotCenter = ChunkRotation.LocalToWorld(slot.LocalX, slot.LocalY, slot.LocalZ, chunk.Rotation, layout.CellSize, chunk.WorldPos);
 
                 for (int i = 0; i < count; i++)
                 {
+                    // Spread multi-spawn packs around the slot center so they don't stack
+                    // on top of each other. Single-spawn entries (boss) land exactly on center.
+                    var spawnPos = count == 1
+                        ? slotCenter
+                        : slotCenter + new Vector3(
+                            (float)(rng.NextDouble() - 0.5) * 2.0f * SpawnSpreadRadius,
+                            0f,
+                            (float)(rng.NextDouble() - 0.5) * 2.0f * SpawnSpreadRadius);
+
                     var creatureInfo = new CreatureInfo
                     {
-                        Position = worldPos,
+                        Position = spawnPos,
                         PrototypeIndex = entry.CreatureId.Value,
                     };
                     var creature = _spawner.Spawn(creatureInfo);

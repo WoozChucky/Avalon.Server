@@ -17,7 +17,7 @@ namespace Avalon.Database.Character.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.6")
+                .HasAnnotation("ProductVersion", "10.0.7")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -126,6 +126,24 @@ namespace Avalon.Database.Character.Migrations
                     b.ToTable("Characters");
                 });
 
+            modelBuilder.Entity("Avalon.Domain.Characters.CharacterAbility", b =>
+                {
+                    b.Property<long>("CharacterId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("AbilityId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("Cooldown")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("CharacterId", "AbilityId");
+
+                    b.HasIndex("CharacterId");
+
+                    b.ToTable("CharacterAbilities");
+                });
+
             modelBuilder.Entity("Avalon.Domain.Characters.CharacterInventory", b =>
                 {
                     b.Property<long>("CharacterId")
@@ -145,24 +163,6 @@ namespace Avalon.Database.Character.Migrations
                     b.HasIndex("CharacterId");
 
                     b.ToTable("CharacterInventory");
-                });
-
-            modelBuilder.Entity("Avalon.Domain.Characters.CharacterSpell", b =>
-                {
-                    b.Property<long>("CharacterId")
-                        .HasColumnType("bigint");
-
-                    b.Property<long>("SpellId")
-                        .HasColumnType("bigint");
-
-                    b.Property<long>("Cooldown")
-                        .HasColumnType("bigint");
-
-                    b.HasKey("CharacterId", "SpellId");
-
-                    b.HasIndex("CharacterId");
-
-                    b.ToTable("CharacterSpells");
                 });
 
             modelBuilder.Entity("Avalon.Domain.Characters.CharacterStats", b =>
@@ -216,7 +216,7 @@ namespace Avalon.Database.Character.Migrations
                     b.ToTable("CharacterStats");
                 });
 
-            modelBuilder.Entity("Avalon.Domain.Characters.CharacterInventory", b =>
+            modelBuilder.Entity("Avalon.Domain.Characters.CharacterAbility", b =>
                 {
                     b.HasOne("Avalon.Domain.Characters.Character", "Character")
                         .WithMany()
@@ -227,7 +227,7 @@ namespace Avalon.Database.Character.Migrations
                     b.Navigation("Character");
                 });
 
-            modelBuilder.Entity("Avalon.Domain.Characters.CharacterSpell", b =>
+            modelBuilder.Entity("Avalon.Domain.Characters.CharacterInventory", b =>
                 {
                     b.HasOne("Avalon.Domain.Characters.Character", "Character")
                         .WithMany()

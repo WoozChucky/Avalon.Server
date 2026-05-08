@@ -16,7 +16,7 @@ public interface ICharacterService
     Task UpdateCosmeticAsync(Character character, string? newName, CancellationToken cancellationToken = default);
     Task UpdateAnyAsync(Character character, CharacterPatchDto dto, CancellationToken cancellationToken = default);
     Task<CharacterInventoryDto?> GetInventoryAsync(CharacterId id, CancellationToken cancellationToken = default);
-    Task<CharacterSpellsDto?> GetSpellsAsync(CharacterId id, CancellationToken cancellationToken = default);
+    Task<CharacterAbilitiesDto?> GetAbilitiesAsync(CharacterId id, CancellationToken cancellationToken = default);
     Task<PagedResult<Character>> PaginateAsync(CharacterPaginateFilters filters, CancellationToken cancellationToken = default);
 }
 
@@ -25,21 +25,21 @@ public class CharacterService : ICharacterService
     private readonly ICharacterRepository _characterRepository;
     private readonly ICharacterInventoryRepository _inventoryRepository;
     private readonly IItemInstanceRepository _itemInstanceRepository;
-    private readonly ICharacterSpellRepository _characterSpellRepository;
-    private readonly ISpellTemplateRepository _spellTemplateRepository;
+    private readonly ICharacterAbilityRepository _characterAbilityRepository;
+    private readonly IAbilityTemplateRepository _abilityTemplateRepository;
 
     public CharacterService(
         ICharacterRepository characterRepository,
         ICharacterInventoryRepository inventoryRepository,
         IItemInstanceRepository itemInstanceRepository,
-        ICharacterSpellRepository characterSpellRepository,
-        ISpellTemplateRepository spellTemplateRepository)
+        ICharacterAbilityRepository characterAbilityRepository,
+        IAbilityTemplateRepository abilityTemplateRepository)
     {
         _characterRepository = characterRepository;
         _inventoryRepository = inventoryRepository;
         _itemInstanceRepository = itemInstanceRepository;
-        _characterSpellRepository = characterSpellRepository;
-        _spellTemplateRepository = spellTemplateRepository;
+        _characterAbilityRepository = characterAbilityRepository;
+        _abilityTemplateRepository = abilityTemplateRepository;
     }
 
     public Task<List<Character>> GetAllCharactersAsync(AccountId id, CancellationToken cancellationToken = default) =>
@@ -124,32 +124,32 @@ public class CharacterService : ICharacterService
         };
     }
 
-    public async Task<CharacterSpellsDto?> GetSpellsAsync(CharacterId id, CancellationToken cancellationToken = default)
+    public async Task<CharacterAbilitiesDto?> GetAbilitiesAsync(CharacterId id, CancellationToken cancellationToken = default)
     {
         var character = await _characterRepository.FindByIdAsync(id, track: false, cancellationToken);
         if (character is null) return null;
 
-        var spellRows = await _characterSpellRepository.GetCharacterSpellsAsync(id, cancellationToken);
-        var templates = await _spellTemplateRepository.GetByIdsAsync(
-            spellRows.Select(s => s.SpellId), cancellationToken);
+        var abilityRows = await _characterAbilityRepository.GetCharacterAbilitiesAsync(id, cancellationToken);
+        var templates = await _abilityTemplateRepository.GetByIdsAsync(
+            abilityRows.Select(s => s.AbilityId), cancellationToken);
         var templateById = templates.ToDictionary(t => t.Id);
 
-        return new CharacterSpellsDto
+        return new CharacterAbilitiesDto
         {
             CharacterId = character.Id.Value,
-            Spells = spellRows.Select(row => MapSpell(row, templateById)).ToList(),
+            Abilities = abilityRows.Select(row => MapAbility(row, templateById)).ToList(),
         };
     }
 
-    private static CharacterSpellDto MapSpell(
-        CharacterSpell row,
-        Dictionary<SpellId, SpellTemplate> templateById)
+    private static CharacterAbilityDto MapAbility(
+        CharacterAbility row,
+        Dictionary<AbilityId, AbilityTemplate> templateById)
     {
-        templateById.TryGetValue(row.SpellId, out var template);
-        return new CharacterSpellDto
+        templateById.TryGetValue(row.AbilityId, out var template);
+        return new CharacterAbilityDto
         {
-            SpellId = row.SpellId.Value,
-            Template = template is null ? null : new CharacterSpellTemplateDto
+            AbilityId = row.AbilityId.Value,
+            Template = template is null ? null : new CharacterAbilityTemplateDto
             {
                 Id = template.Id.Value,
                 Name = template.Name ?? string.Empty,
@@ -161,9 +161,7 @@ public class CharacterService : ICharacterService
                 EffectValue = template.EffectValue,
                 AllowedClasses = template.AllowedClasses is null
                     ? []
-                    : template.AllowedClasses
-                        .Select(c => (Avalon.Api.Contract.CharacterClass)c)
-                        .ToList(),
+                    : template.AllowedClasses.ToList(),
             },
         };
     }

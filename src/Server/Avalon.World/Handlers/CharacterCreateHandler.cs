@@ -15,7 +15,7 @@ public class CharacterCreateHandler(
     ILogger<CharacterCreateHandler> logger,
     ICharacterRepository characterRepository,
     ICharacterStatsRepository characterStatsRepository,
-    ICharacterSpellRepository characterSpellRepository,
+    ICharacterAbilityRepository characterAbilityRepository,
     ICharacterInventoryRepository characterInventoryRepository,
     IItemInstanceRepository itemInstanceRepository,
     IWorld world)
@@ -158,9 +158,9 @@ public class CharacterCreateHandler(
     {
         var characterSpellIds = createInfo.StartingSpells;
 
-        var characterSpells = characterSpellIds.Select(spellId => new CharacterSpell { CharacterId = character.Id, SpellId = spellId, }).ToList();
+        var characterAbilities = characterSpellIds.Select(abilityId => new CharacterAbility { CharacterId = character.Id, AbilityId = abilityId, }).ToList();
 
-        connection.EnqueueContinuation(characterSpellRepository.CreateAsync(characterSpells, CancellationToken.None), createdSpells =>
+        connection.EnqueueContinuation(characterAbilityRepository.CreateAsync(characterAbilities, CancellationToken.None), createdSpells =>
         {
             OnCharacterSpellsCreated(connection, character, createInfo);
         });

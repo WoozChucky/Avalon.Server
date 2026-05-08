@@ -7,7 +7,7 @@ public class StaticData(
     ICharacterCreateInfoRepository characterCreateInfoRepository,
     IClassLevelStatRepository classLevelStatRepository,
     IItemTemplateRepository itemTemplateRepository,
-    ISpellTemplateRepository spellTemplateRepository,
+    IAbilityTemplateRepository abilityTemplateRepository,
     ICharacterLevelExperienceRepository characterLevelExperienceRepository)
 {
     public async Task LoadAsync(CancellationToken cancellationToken = default)
@@ -15,13 +15,13 @@ public class StaticData(
         CharacterCreateInfos = await characterCreateInfoRepository.FindAllAsync(cancellationToken);
         ClassLevelStats = await classLevelStatRepository.FindAllAsync(cancellationToken);
         ItemTemplates = (await itemTemplateRepository.FindAllAsync(true, cancellationToken)).AsReadOnly();
-        SpellTemplates = (await spellTemplateRepository.FindAllAsync(false, cancellationToken)).AsReadOnly();
+        AbilityTemplates = (await abilityTemplateRepository.FindAllAsync(false, cancellationToken)).AsReadOnly();
         CharacterLevelExperiences = await characterLevelExperienceRepository.GetAllAsync(cancellationToken);
     }
 
     public IReadOnlyCollection<CharacterCreateInfo> CharacterCreateInfos { get; private set; }
     public IReadOnlyCollection<ClassLevelStat> ClassLevelStats { get; private set; }
     public IReadOnlyCollection<ItemTemplate> ItemTemplates { get; private set; }
-    public IReadOnlyCollection<SpellTemplate> SpellTemplates { get; private set; }
+    public IReadOnlyCollection<AbilityTemplate> AbilityTemplates { get; private set; }
     public IReadOnlyCollection<CharacterLevelExperience> CharacterLevelExperiences { get; private set; }
 }

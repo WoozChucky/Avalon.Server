@@ -1,8 +1,8 @@
 using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.World.Entities;
+using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Creatures;
-using Avalon.World.Public.Spells;
 using Avalon.World.Public.Units;
 using NSubstitute;
 using Xunit;
@@ -198,7 +198,7 @@ public class CreatureShould
     {
         // Isolated creature — if no handlers, this should be a no-op
         var creature = MakeCreature();
-        var ex = Record.Exception(() => creature.SendAttackAnimation(Substitute.For<ISpell>()));
+        var ex = Record.Exception(() => creature.SendAttackAnimation(Substitute.For<IAbility>()));
         Assert.Null(ex);
     }
 }
