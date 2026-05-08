@@ -467,12 +467,23 @@ public class MapInstance : IMapInstance, IPortalSink
             return;
         }
 
+        ushort animationId = ResolveBroadcastAnimationId(spell);
         foreach ((ObjectGuid guid, IWorldConnection connection) in _connections)
         {
-            connection.Send(SUnitAttackAnimationPacket.Create(attacker.Guid, 1,
+            connection.Send(SUnitAttackAnimationPacket.Create(attacker.Guid, animationId,
                 connection.CryptoSession.Encrypt));
         }
     }
+
+    /// <summary>
+    /// Pure helper, exposed for unit tests. Returns the AnimationId the broadcast
+    /// should carry: the ability's metadata AnimationId, or 1 (legacy default for melee
+    /// auto-attacks) when no ability backs the swing.
+    /// AbilityMetadata stores AnimationId as uint; the wire packet field is ushort
+    /// (animation IDs are practically &lt;= 65535).
+    /// </summary>
+    public static ushort ResolveBroadcastAnimationId(IAbility? ability)
+        => (ushort)(ability?.Metadata.AnimationId ?? 1u);
 
     private void BroadcastFinishCastAnimation(IUnit attacker, IAbility spell)
     {
