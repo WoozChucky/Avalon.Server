@@ -6,12 +6,12 @@ using Avalon.Network.Packets.Combat;
 using Avalon.Network.Packets.State;
 using Avalon.World.Configuration;
 using Avalon.World.Public;
+using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
-using Avalon.World.Public.Spells;
 using Avalon.World.Public.Units;
-using Avalon.World.Spells;
+using Avalon.World.Abilities;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Entities;
@@ -52,7 +52,7 @@ public class CharacterEntity : ICharacter
         _equipment = new CharacterInventoryContainer(loggerFactory, InventoryType.Equipment);
         _bag = new CharacterInventoryContainer(loggerFactory, InventoryType.Bag);
         _bank = new CharacterInventoryContainer(loggerFactory, InventoryType.Bank);
-        Spells = new CharacterSpellContainer(loggerFactory);
+        Spells = new CharacterAbilityContainer(loggerFactory);
         CharacterGameState = new CharacterCharacterGameState();
         Guid = new ObjectGuid(ObjectType.Character, character.Id);
         _regenConfig = regenConfig;
@@ -84,7 +84,7 @@ public class CharacterEntity : ICharacter
         _ => throw new ArgumentOutOfRangeException(nameof(type), type, null)
     };
 
-    public ICharacterSpells Spells { get; }
+    public ICharacterAbilities Spells { get; }
 
     public ObjectGuid Guid { get; set; }
 
@@ -162,6 +162,8 @@ public class CharacterEntity : ICharacter
         }
     }
 
+    public DateTime LastCastStartTime { get; set; } = DateTime.MinValue;
+
     public GameEntityFields ConsumeDirtyFields()
     {
         var dirty = _dirtyFields;
@@ -196,11 +198,11 @@ public class CharacterEntity : ICharacter
         OnUnitDamaged?.Invoke(this, attacker, damage);
     }
 
-    public void SendAttackAnimation(ISpell? spell) => OnUnitAttackAnimation?.Invoke(this, spell);
+    public void SendAttackAnimation(IAbility? spell) => OnUnitAttackAnimation?.Invoke(this, spell);
 
-    public void SendFinishCastAnimation(ISpell spell) => OnUnitFinishedCastAnimation?.Invoke(this, spell);
+    public void SendFinishCastAnimation(IAbility spell) => OnUnitFinishedCastAnimation?.Invoke(this, spell);
 
-    public void SendInterruptedCastAnimation(ISpell spell) => OnUnitInterruptedCastAnimation?.Invoke(this, spell);
+    public void SendInterruptedCastAnimation(IAbility spell) => OnUnitInterruptedCastAnimation?.Invoke(this, spell);
 
     public Vector3 Position
     {
@@ -253,6 +255,8 @@ public class CharacterEntity : ICharacter
             }
         }
     }
+
+    public CharacterClass Class => Data?.Class ?? default;
 
     public MapId Map
     {

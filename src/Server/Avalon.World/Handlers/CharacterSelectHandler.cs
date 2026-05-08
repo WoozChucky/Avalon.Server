@@ -13,12 +13,12 @@ using Avalon.World.ChunkLayouts;
 using Avalon.World.Configuration;
 using Avalon.World.Entities;
 using Avalon.World.Instances;
+using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Instances;
-using Avalon.World.Public.Spells;
 using Avalon.World.Respawn;
-using Avalon.World.Spells;
+using Avalon.World.Abilities;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -30,7 +30,7 @@ public class CharacterSelectHandler(
     ILoggerFactory loggerFactory,
     ICharacterRepository characterRepository,
     ICharacterInventoryRepository characterInventoryRepository,
-    ICharacterSpellRepository characterSpellRepository,
+    ICharacterAbilityRepository characterAbilityRepository,
     IChunkLibrary chunkLibrary,
     IWorld world,
     IRespawnTargetResolver respawnTargetResolver,
@@ -288,13 +288,13 @@ public class CharacterSelectHandler(
 
         //TODO: Send inventory to the client
 
-        connection.EnqueueContinuation(characterSpellRepository.GetCharacterSpellsAsync(character.Id, CancellationToken.None),
+        connection.EnqueueContinuation(characterAbilityRepository.GetCharacterAbilitiesAsync(character.Id, CancellationToken.None),
             spells => OnSpellsReceived(connection, entity, instance, spells));
         _parentActivity = activity;
     }
 
     private void OnSpellsReceived(IWorldConnection connection, CharacterEntity entity, IMapInstance instance,
-        IReadOnlyCollection<CharacterSpell> spells)
+        IReadOnlyCollection<CharacterAbility> spells)
     {
         using Activity? activity = DiagnosticsConfig.World.Source.StartActivity(nameof(OnSpellsReceived),
             ActivityKind.Internal,
@@ -302,22 +302,22 @@ public class CharacterSelectHandler(
         activity?.SetTag(nameof(connection.AccountId), connection.AccountId);
         activity?.SetTag("Spells.Count", spells.Count);
 
-        List<GameSpell> gameSpells = [];
+        List<GameAbility> gameAbilities = [];
 
-        foreach (CharacterSpell characterSpell in spells)
+        foreach (CharacterAbility characterAbility in spells)
         {
-            SpellTemplate? template = world.Data.SpellTemplates.FirstOrDefault(sp => sp.Id == characterSpell.SpellId);
+            AbilityTemplate? template = world.Data.AbilityTemplates.FirstOrDefault(sp => sp.Id == characterAbility.AbilityId);
             if (template == null)
             {
-                logger.LogWarning("Spell template not found for spell {SpellId}", characterSpell.SpellId);
+                logger.LogWarning("Spell template not found for spell {AbilityId}", characterAbility.AbilityId);
                 activity?.AddEvent(new ActivityEvent("SpellTemplateNotFound"));
                 continue;
             }
 
-            GameSpell gameSpell = new()
+            GameAbility gameAbility = new()
             {
-                SpellId = characterSpell.SpellId,
-                Metadata = new SpellMetadata
+                AbilityId = characterAbility.AbilityId,
+                Metadata = new AbilityMetadata
                 {
                     Name = template.Name,
                     Cooldown = (float)template.Cooldown / 1000,
@@ -326,20 +326,25 @@ public class CharacterSelectHandler(
                     Range = template.Range,
                     Effects = template.Effects,
                     EffectValue = template.EffectValue,
-                    ScriptName = template.SpellScript
+                    ScriptName = template.SpellScript,
+                    ThreatMultiplier = template.ThreatMultiplier,
+                    HealThreatPerHp = template.HealThreatPerHp,
+                    TauntDurationMs = template.TauntDurationMs,
+                    Flags = template.Flags,
+                    AnimationId = template.AnimationId
                 },
                 CastTimeTimer = (float)template.CastTime / 1000,
-                CooldownTimer = characterSpell.Cooldown
+                CooldownTimer = characterAbility.Cooldown
             };
 
-            gameSpells.Add(gameSpell);
+            gameAbilities.Add(gameAbility);
         }
 
-        entity.Spells.Load(gameSpells);
+        entity.Spells.Load(gameAbilities);
 
-        SpellInfo[] spellInfos = gameSpells.Select(s => new SpellInfo
+        AbilityInfo[] abilityInfos = gameAbilities.Select(s => new AbilityInfo
         {
-            SpellId = s.SpellId,
+            AbilityId = s.AbilityId,
             Name = s.Metadata.Name,
             Cooldown = s.Metadata.Cooldown,
             CastTime = s.Metadata.CastTime,
@@ -347,7 +352,7 @@ public class CharacterSelectHandler(
             Range = (ushort)s.Metadata.Range
         }).ToArray();
 
-        connection.Send(SCharacterSpellsPacket.Create(spellInfos, connection.CryptoSession.Encrypt));
+        connection.Send(SCharacterAbilitiesPacket.Create(abilityInfos, connection.CryptoSession.Encrypt));
 
         // All data loaded: assign character and spawn atomically on the tick thread.
         // After this point the entity is visible to MapInstance.Update.

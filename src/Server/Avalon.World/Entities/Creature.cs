@@ -2,10 +2,10 @@ using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Network.Packets.State;
+using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Scripts;
-using Avalon.World.Public.Spells;
 using Avalon.World.Public.Units;
 
 namespace Avalon.World.Entities;
@@ -34,6 +34,9 @@ public class Creature : ICreature
     public float Speed { get; set; }
     public string ScriptName { get; set; } = string.Empty;
     public AiScript? Script { get; set; }
+
+    public IUnit?   TauntedBy      { get; set; }
+    public DateTime TauntExpiresAt { get; set; } = DateTime.MinValue;
 
     public ushort Level
     {
@@ -95,6 +98,8 @@ public class Creature : ICreature
         set { _moveState = value; _dirtyFields |= GameEntityFields.MoveState; }
     }
 
+    public DateTime LastCastStartTime { get; set; } = DateTime.MinValue;
+
     public GameEntityFields ConsumeDirtyFields()
     {
         var dirty = _dirtyFields;
@@ -123,11 +128,11 @@ public class Creature : ICreature
 
     public void OnHit(IUnit attacker, uint damage) => Script?.OnHit(attacker, damage);
 
-    public void SendAttackAnimation(ISpell? spell) => OnUnitAttackAnimation?.Invoke(this, spell);
+    public void SendAttackAnimation(IAbility? spell) => OnUnitAttackAnimation?.Invoke(this, spell);
 
-    public void SendFinishCastAnimation(ISpell spell) => OnUnitFinishedCastAnimation?.Invoke(this, spell);
+    public void SendFinishCastAnimation(IAbility spell) => OnUnitFinishedCastAnimation?.Invoke(this, spell);
 
-    public void SendInterruptedCastAnimation(ISpell spell) => OnUnitInterruptedCastAnimation?.Invoke(this, spell);
+    public void SendInterruptedCastAnimation(IAbility spell) => OnUnitInterruptedCastAnimation?.Invoke(this, spell);
 
     public static event CreatureKilledDelegate? OnCreatureKilled;
     public static event UnitAttackAnimationDelegate? OnUnitAttackAnimation;

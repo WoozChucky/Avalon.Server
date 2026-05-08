@@ -8,17 +8,19 @@ using Avalon.Network.Packets.State;
 using Avalon.World.Entities;
 using Avalon.World.ChunkLayouts;
 using Avalon.World.Public;
+using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Instances;
 using Avalon.World.Public.Maps;
 using Avalon.World.Public.Scripts;
-using Avalon.World.Public.Spells;
 using Avalon.World.Public.Units;
+using Avalon.World.Abilities;
+using Avalon.World.Combat;
+using Avalon.World.Public.Combat;
 using Avalon.World.Scripts;
 using Avalon.World.Serialization;
-using Avalon.World.Spells;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -34,7 +36,10 @@ public class MapInstance : IMapInstance, IPortalSink
     private readonly Dictionary<ObjectGuid, ICreature> _creatures = [];
     private readonly ILogger<MapInstance> _logger;
     private readonly IMapNavigator _navigator;
-    private readonly ISpellQueueSystem _spellSystem;
+    private readonly IAbilityCastSystem _abilityCastSystem;
+    private readonly EncounterRegistry _encounterRegistry;
+    private readonly CombatService _combatService;
+    private readonly ThreatBroadcastService _threatBroadcast;
     private readonly IWorld _world;
     private float _lastBroadcastTime;
     private readonly Dictionary<ObjectGuid, GameEntityFields> _frameDirtyFields = new(256);
@@ -64,9 +69,22 @@ public class MapInstance : IMapInstance, IPortalSink
         Seed = seed;
         _navigator = navigator;
 
-        _spellSystem = new InstanceSpellSystem(loggerFactory, serviceProvider,
-            serviceProvider.GetRequiredService<IScriptManager>());
         _creatureRespawner = new NoOpCreatureRespawner();
+
+        // Per-instance combat state. CombatConfig is a process-wide singleton (V1: defaults);
+        // EncounterRegistry + CombatService are instance-scoped so encounters cannot bleed
+        // between MapInstances.
+        CombatConfig combatConfig = serviceProvider.GetRequiredService<CombatConfig>();
+        _encounterRegistry = new EncounterRegistry(combatConfig);
+        _combatService     = new CombatService(combatConfig, _encounterRegistry, this);
+        _threatBroadcast   = new ThreatBroadcastService(combatConfig);
+
+        // Cast system gets `this` as ISimulationContext so it can forward the context to
+        // ability scripts (E7): scripts route damage through CombatService.ApplyDamage rather
+        // than directly calling Target.OnHit. CombatService must be assigned BEFORE this so
+        // any first-tick cast resolves through a non-null service.
+        _abilityCastSystem = new InstanceAbilityCastSystem(loggerFactory, serviceProvider,
+            serviceProvider.GetRequiredService<IScriptManager>(), this);
 
         Creature.OnCreatureKilled += OnCreatureKilled;
         Creature.OnUnitAttackAnimation += BroadcastUnitAttackAnimation;
@@ -93,6 +111,7 @@ public class MapInstance : IMapInstance, IPortalSink
 
     public IReadOnlyDictionary<ObjectGuid, ICharacter> Characters => _characters;
     public IReadOnlyDictionary<ObjectGuid, ICreature> Creatures => _creatures;
+    public ICombatService CombatService => _combatService;
 
     public bool IsExpired(TimeSpan expiry) =>
         LastEmptyAt.HasValue && (DateTime.UtcNow - LastEmptyAt.Value) >= expiry;
@@ -126,6 +145,7 @@ public class MapInstance : IMapInstance, IPortalSink
         _characters.Remove(connection.Character.Guid);
         _connections.Remove(connection.Character.Guid);
         _broadcastStates.Remove(connection.Character.Guid);
+        _threatBroadcast.Forget(connection);
 
         if (_characters.Count == 0)
         {
@@ -138,8 +158,11 @@ public class MapInstance : IMapInstance, IPortalSink
 
     public void RemoveCreature(ICreature creature) => _creatures.Remove(creature.Guid);
 
-    public bool QueueSpell(ICharacter caster, IUnit? target, ISpell spell) =>
-        _spellSystem.QueueSpell(caster, target, spell);
+    public bool QueueAbility(ICharacter caster, IUnit? target, IAbility ability) =>
+        _abilityCastSystem.QueueAbility(caster, target, ability);
+
+    public void RunInstantAbility(IUnit caster, IUnit? target, IAbility ability) =>
+        _abilityCastSystem.RunInstant(caster, target, ability);
 
     public void RespawnCreature(ICreature creature)
     {
@@ -165,6 +188,24 @@ public class MapInstance : IMapInstance, IPortalSink
         }
     }
 
+    public void BroadcastUnitDeath(IUnit unit, IUnit? killer)
+    {
+        foreach ((ObjectGuid guid, IWorldConnection connection) in _connections)
+        {
+            connection.Send(SUnitDeathPacket.Create(unit.Guid, killer?.Guid,
+                connection.CryptoSession.Encrypt));
+        }
+    }
+
+    public void BroadcastUnitRevive(IUnit unit, Vector3 position, uint health)
+    {
+        foreach ((ObjectGuid guid, IWorldConnection connection) in _connections)
+        {
+            connection.Send(SUnitRevivePacket.Create(unit.Guid, position, health,
+                connection.CryptoSession.Encrypt));
+        }
+    }
+
     public void Update(TimeSpan deltaTime)
     {
         if (_characters.Count == 0)
@@ -185,10 +226,19 @@ public class MapInstance : IMapInstance, IPortalSink
             character.Update(deltaTime);
         }
 
-        List<IWorldObject> objectSpells = [];
+        List<IWorldObject> objectAbilities = [];
 
-        // Step 3: Spell system update
-        _spellSystem.Update(deltaTime, objectSpells);
+        // Step 3: Ability cast system update
+        _abilityCastSystem.Update(deltaTime, objectAbilities);
+
+        // Step 3b: Tick combat service — decays threat, ends stale encounters.
+        _combatService.Update(deltaTime);
+
+        // Step 3c: Mirror threat lists for each player's currently-targeted hostile.
+        // Throttled (250 ms / 5 % delta) inside the service; iterating _connections.Values
+        // here is safe because no inbound packet handler dequeued above mutates _connections
+        // (target-unit just stores a ulong on the connection itself).
+        _threatBroadcast.Tick(_connections.Values, _creatures, _combatService);
 
         // Step 4: Update creature scripts
         foreach (ICreature creature in _creatures.Values)
@@ -221,13 +271,13 @@ public class MapInstance : IMapInstance, IPortalSink
                     _frameDirtyFields[character.Guid] = dirty;
             }
 
-            foreach (var obj in objectSpells)
+            foreach (var obj in objectAbilities)
             {
-                if (obj is SpellScript spell)
+                if (obj is AbilityScript ability)
                 {
-                    var dirty = spell.ConsumeDirtyFields();
+                    var dirty = ability.ConsumeDirtyFields();
                     if (dirty != GameEntityFields.None)
-                        _frameDirtyFields[spell.Guid] = dirty;
+                        _frameDirtyFields[ability.Guid] = dirty;
                 }
             }
         }
@@ -235,7 +285,7 @@ public class MapInstance : IMapInstance, IPortalSink
         // Step 5b: Update entity visibility state per character
         foreach (ICharacter character in _characters.Values)
         {
-            character.CharacterGameState.Update(_creatures, _characters, objectSpells, _frameDirtyFields);
+            character.CharacterGameState.Update(_creatures, _characters, objectAbilities, _frameDirtyFields);
         }
 
         // Step 6: Broadcast instance state to each character
@@ -304,10 +354,10 @@ public class MapInstance : IMapInstance, IPortalSink
                         writer.Write(addedCreature, GameEntityFields.All);
                         break;
                     case ObjectType.SpellProjectile:
-                        IWorldObject? addedSpell = _spellSystem.GetSpell(addedObjectGuid);
-                        if (addedSpell is null)
+                        IWorldObject? addedAbility = _abilityCastSystem.GetAbility(addedObjectGuid);
+                        if (addedAbility is null)
                             continue;
-                        writer.Write(addedSpell);
+                        writer.Write(addedAbility);
                         break;
                     case ObjectType.Portal:
                         PortalInstance? addedPortal = _portals.FirstOrDefault(p => p.Guid == addedObjectGuid);
@@ -363,10 +413,10 @@ public class MapInstance : IMapInstance, IPortalSink
                         writer.Write(updatedCreature, GameEntityFields.CreatureUpdate);
                         break;
                     case ObjectType.SpellProjectile:
-                        IWorldObject? updatedSpell = _spellSystem.GetSpell(updatedObject.Guid);
-                        if (updatedSpell is null)
+                        IWorldObject? updatedAbility = _abilityCastSystem.GetAbility(updatedObject.Guid);
+                        if (updatedAbility is null)
                             continue;
-                        writer.Write(updatedSpell, updatedObject.Fields);
+                        writer.Write(updatedAbility, updatedObject.Fields);
                         break;
                     case ObjectType.Portal:
                         continue; // portals are immutable in PoC — no delta updates
@@ -410,7 +460,7 @@ public class MapInstance : IMapInstance, IPortalSink
         }
     }
 
-    private void BroadcastUnitAttackAnimation(IUnit attacker, ISpell? spell)
+    private void BroadcastUnitAttackAnimation(IUnit attacker, IAbility? spell)
     {
         if (!_creatures.ContainsKey(attacker.Guid) && !_characters.ContainsKey(attacker.Guid))
         {
@@ -424,7 +474,7 @@ public class MapInstance : IMapInstance, IPortalSink
         }
     }
 
-    private void BroadcastFinishCastAnimation(IUnit attacker, ISpell spell)
+    private void BroadcastFinishCastAnimation(IUnit attacker, IAbility spell)
     {
         if (!_creatures.ContainsKey(attacker.Guid) && !_characters.ContainsKey(attacker.Guid))
         {
@@ -433,12 +483,12 @@ public class MapInstance : IMapInstance, IPortalSink
 
         foreach ((ObjectGuid guid, IWorldConnection connection) in _connections)
         {
-            connection.Send(SUnitFinishCastPacket.Create(attacker.Guid, spell.SpellId,
+            connection.Send(SUnitFinishCastPacket.Create(attacker.Guid, spell.AbilityId,
                 connection.CryptoSession.Encrypt));
         }
     }
 
-    private void BroadcastInterruptedCastAnimation(IUnit attacker, ISpell spell)
+    private void BroadcastInterruptedCastAnimation(IUnit attacker, IAbility spell)
     {
         if (!_creatures.ContainsKey(attacker.Guid) && !_characters.ContainsKey(attacker.Guid))
         {
@@ -447,7 +497,7 @@ public class MapInstance : IMapInstance, IPortalSink
 
         foreach ((ObjectGuid guid, IWorldConnection connection) in _connections)
         {
-            connection.Send(SCharacterInterruptedCastPacket.Create(attacker.Guid, spell.SpellId,
+            connection.Send(SCharacterInterruptedCastPacket.Create(attacker.Guid, spell.AbilityId,
                 connection.CryptoSession.Encrypt));
         }
     }

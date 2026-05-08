@@ -66,7 +66,7 @@ public class CharacterDbContext(ILoggerFactory loggerFactory, IOptions<DatabaseC
     public DbSet<Domain.Characters.Character> Characters { get; set; } = null!;
     public DbSet<CharacterStats> CharacterStats { get; set; } = null!;
     public DbSet<CharacterInventory> CharacterInventory { get; set; } = null!;
-    public DbSet<CharacterSpell> CharacterSpells { get; set; } = null!;
+    public DbSet<CharacterAbility> CharacterAbilities { get; set; } = null!;
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
@@ -82,7 +82,7 @@ public class CharacterDbContext(ILoggerFactory loggerFactory, IOptions<DatabaseC
         Configure(modelBuilder.Entity<Domain.Characters.Character>());
         Configure(modelBuilder.Entity<CharacterStats>());
         Configure(modelBuilder.Entity<CharacterInventory>());
-        Configure(modelBuilder.Entity<CharacterSpell>());
+        Configure(modelBuilder.Entity<CharacterAbility>());
     }
 
     private static void Configure(EntityTypeBuilder<Domain.Characters.Character> builder)
@@ -145,9 +145,9 @@ public class CharacterDbContext(ILoggerFactory loggerFactory, IOptions<DatabaseC
         builder.HasIndex(b => b.CharacterId);
     }
 
-    private static void Configure(EntityTypeBuilder<CharacterSpell> builder)
+    private static void Configure(EntityTypeBuilder<CharacterAbility> builder)
     {
-        builder.HasKey(b => new {b.CharacterId, b.SpellId});
+        builder.HasKey(b => new {b.CharacterId, b.AbilityId});
 
         builder.Property(b => b.CharacterId)
             .HasConversion(
@@ -155,10 +155,10 @@ public class CharacterDbContext(ILoggerFactory loggerFactory, IOptions<DatabaseC
                 v => new CharacterId(v)
             ).IsRequired();
 
-        builder.Property(b => b.SpellId)
+        builder.Property(b => b.AbilityId)
             .HasConversion(
                 v => v.Value,
-                v => new SpellId(v)
+                v => new AbilityId(v)
             );
 
         builder.HasOne(e => e.Character)

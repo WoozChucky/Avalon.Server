@@ -17,10 +17,175 @@ namespace Avalon.Database.World.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.6")
+                .HasAnnotation("ProductVersion", "10.0.7")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
+
+            modelBuilder.Entity("Avalon.Domain.World.AbilityTemplate", b =>
+                {
+                    b.Property<long>("Id")
+                        .HasColumnType("bigint");
+
+                    b.PrimitiveCollection<int[]>("AllowedClasses")
+                        .IsRequired()
+                        .HasColumnType("integer[]");
+
+                    b.Property<long>("AnimationId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("CastTime")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("Cooldown")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("Cost")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("EffectValue")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("Effects")
+                        .HasColumnType("integer");
+
+                    b.Property<long>("Flags")
+                        .HasColumnType("bigint");
+
+                    b.Property<float>("HealThreatPerHp")
+                        .HasColumnType("real");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("Range")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("SpellScript")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<long>("TauntDurationMs")
+                        .HasColumnType("bigint");
+
+                    b.Property<float>("ThreatMultiplier")
+                        .HasColumnType("real");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("AbilityTemplates");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1L,
+                            AllowedClasses = new[] { 1 },
+                            AnimationId = 0L,
+                            CastTime = 0L,
+                            Cooldown = 2500L,
+                            Cost = 25L,
+                            EffectValue = 10L,
+                            Effects = 1,
+                            Flags = 0L,
+                            HealThreatPerHp = 0f,
+                            Name = "Strike",
+                            Range = 2,
+                            SpellScript = "StrikeAbilityScript",
+                            TauntDurationMs = 0L,
+                            ThreatMultiplier = 1f
+                        },
+                        new
+                        {
+                            Id = 2L,
+                            AllowedClasses = new[] { 1, 2 },
+                            AnimationId = 0L,
+                            CastTime = 2000L,
+                            Cooldown = 1000L,
+                            Cost = 10L,
+                            EffectValue = 10L,
+                            Effects = 1,
+                            Flags = 0L,
+                            HealThreatPerHp = 0f,
+                            Name = "Fireball",
+                            Range = 10,
+                            SpellScript = "FireballAbilityScript",
+                            TauntDurationMs = 0L,
+                            ThreatMultiplier = 1f
+                        },
+                        new
+                        {
+                            Id = 100L,
+                            AllowedClasses = new[] { 1 },
+                            AnimationId = 0L,
+                            CastTime = 0L,
+                            Cooldown = 500L,
+                            Cost = 0L,
+                            EffectValue = 15L,
+                            Effects = 1,
+                            Flags = 0L,
+                            HealThreatPerHp = 0f,
+                            Name = "Warrior Slash",
+                            Range = 2,
+                            SpellScript = "StrikeAbilityScript",
+                            TauntDurationMs = 0L,
+                            ThreatMultiplier = 1.5f
+                        },
+                        new
+                        {
+                            Id = 101L,
+                            AllowedClasses = new[] { 2 },
+                            AnimationId = 0L,
+                            CastTime = 200L,
+                            Cooldown = 700L,
+                            Cost = 0L,
+                            EffectValue = 8L,
+                            Effects = 1,
+                            Flags = 0L,
+                            HealThreatPerHp = 0f,
+                            Name = "Wizard Bolt",
+                            Range = 10,
+                            SpellScript = "StrikeAbilityScript",
+                            TauntDurationMs = 0L,
+                            ThreatMultiplier = 1f
+                        },
+                        new
+                        {
+                            Id = 102L,
+                            AllowedClasses = new[] { 3 },
+                            AnimationId = 0L,
+                            CastTime = 0L,
+                            Cooldown = 600L,
+                            Cost = 0L,
+                            EffectValue = 10L,
+                            Effects = 1,
+                            Flags = 0L,
+                            HealThreatPerHp = 0f,
+                            Name = "Hunter Shot",
+                            Range = 20,
+                            SpellScript = "StrikeAbilityScript",
+                            TauntDurationMs = 0L,
+                            ThreatMultiplier = 1f
+                        },
+                        new
+                        {
+                            Id = 103L,
+                            AllowedClasses = new[] { 4 },
+                            AnimationId = 0L,
+                            CastTime = 300L,
+                            Cooldown = 800L,
+                            Cost = 0L,
+                            EffectValue = 5L,
+                            Effects = 1,
+                            Flags = 0L,
+                            HealThreatPerHp = 0f,
+                            Name = "Healer Wand",
+                            Range = 10,
+                            SpellScript = "StrikeAbilityScript",
+                            TauntDurationMs = 0L,
+                            ThreatMultiplier = 0.8f
+                        });
+                });
 
             modelBuilder.Entity("Avalon.Domain.World.CharacterCreateInfo", b =>
                 {
@@ -61,7 +226,7 @@ namespace Avalon.Database.World.Migrations
                             Map = 1,
                             Rotation = 0f,
                             StartingItems = "1,2,3",
-                            StartingSpells = "1,2",
+                            StartingSpells = "1,2,100",
                             X = 25f,
                             Y = 51f,
                             Z = 25f
@@ -72,7 +237,7 @@ namespace Avalon.Database.World.Migrations
                             Map = 1,
                             Rotation = 0f,
                             StartingItems = "1,2",
-                            StartingSpells = "2",
+                            StartingSpells = "2,101",
                             X = 25f,
                             Y = 51f,
                             Z = 25f
@@ -83,7 +248,7 @@ namespace Avalon.Database.World.Migrations
                             Map = 1,
                             Rotation = 0f,
                             StartingItems = "1,2",
-                            StartingSpells = "",
+                            StartingSpells = "102",
                             X = 25f,
                             Y = 51f,
                             Z = 25f
@@ -94,7 +259,7 @@ namespace Avalon.Database.World.Migrations
                             Map = 1,
                             Rotation = 0f,
                             StartingItems = "1,2",
-                            StartingSpells = "",
+                            StartingSpells = "103",
                             X = 25f,
                             Y = 51f,
                             Z = 25f
@@ -1254,74 +1419,6 @@ namespace Avalon.Database.World.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("SpawnTables");
-                });
-
-            modelBuilder.Entity("Avalon.Domain.World.SpellTemplate", b =>
-                {
-                    b.Property<long>("Id")
-                        .HasColumnType("bigint");
-
-                    b.PrimitiveCollection<int[]>("AllowedClasses")
-                        .IsRequired()
-                        .HasColumnType("integer[]");
-
-                    b.Property<long>("CastTime")
-                        .HasColumnType("bigint");
-
-                    b.Property<long>("Cooldown")
-                        .HasColumnType("bigint");
-
-                    b.Property<long>("Cost")
-                        .HasColumnType("bigint");
-
-                    b.Property<long>("EffectValue")
-                        .HasColumnType("bigint");
-
-                    b.Property<int>("Effects")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<int>("Range")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("SpellScript")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("SpellTemplates");
-
-                    b.HasData(
-                        new
-                        {
-                            Id = 1L,
-                            AllowedClasses = new[] { 1 },
-                            CastTime = 0L,
-                            Cooldown = 2500L,
-                            Cost = 25L,
-                            EffectValue = 10L,
-                            Effects = 1,
-                            Name = "Strike",
-                            Range = 1,
-                            SpellScript = "StrikeSpellScript"
-                        },
-                        new
-                        {
-                            Id = 2L,
-                            AllowedClasses = new[] { 1, 2 },
-                            CastTime = 2000L,
-                            Cooldown = 1000L,
-                            Cost = 10L,
-                            EffectValue = 10L,
-                            Effects = 1,
-                            Name = "Fireball",
-                            Range = 10,
-                            SpellScript = "FireballSpellScript"
-                        });
                 });
 
             modelBuilder.Entity("Avalon.Domain.World.ChunkPoolMembership", b =>

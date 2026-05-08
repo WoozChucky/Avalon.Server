@@ -76,7 +76,7 @@ public class WorldDbContext(ILoggerFactory loggerFactory, IOptions<DatabaseConfi
     public DbSet<ClassLevelStat> ClassLevelStats { get; set; } = null!;
     public DbSet<CharacterLevelExperience> CharacterLevelExperiences { get; set; } = null!;
     public DbSet<CharacterCreateInfo> CharacterCreateInfos { get; set; } = null!;
-    public DbSet<SpellTemplate> SpellTemplates { get; set; } = null!;
+    public DbSet<AbilityTemplate> AbilityTemplates { get; set; } = null!;
     public DbSet<ChunkTemplate> ChunkTemplates { get; set; } = null!;
     public DbSet<ChunkPool> ChunkPools { get; set; } = null!;
     public DbSet<SpawnTable> SpawnTables { get; set; } = null!;
@@ -104,7 +104,7 @@ public class WorldDbContext(ILoggerFactory loggerFactory, IOptions<DatabaseConfi
         Configure(modelBuilder.Entity<ClassLevelStat>());
         Configure(modelBuilder.Entity<CharacterLevelExperience>());
         Configure(modelBuilder.Entity<CharacterCreateInfo>());
-        Configure(modelBuilder.Entity<SpellTemplate>());
+        Configure(modelBuilder.Entity<AbilityTemplate>());
         Configure(modelBuilder.Entity<ChunkTemplate>());
         Configure(modelBuilder.Entity<ChunkPool>());
         Configure(modelBuilder.Entity<SpawnTable>());
@@ -166,19 +166,19 @@ public class WorldDbContext(ILoggerFactory loggerFactory, IOptions<DatabaseConfi
             .HasConversion(itemIdConverter)
             .Metadata.SetValueComparer(itemIdComparer);
 
-        ValueConverter<List<SpellId>, string> spellIdConverter = new(
+        ValueConverter<List<AbilityId>, string> abilityIdConverter = new(
             v => string.Join(",", v.Select(i => i.Value)),
             v => v.Split(new[] {','}, StringSplitOptions.RemoveEmptyEntries)
-                .Select(val => new SpellId(uint.Parse(val))).ToList());
+                .Select(val => new AbilityId(uint.Parse(val))).ToList());
 
-        ValueComparer<List<SpellId>> spellIdComparer = new(
+        ValueComparer<List<AbilityId>> abilityIdComparer = new(
             (c1, c2) => c1!.SequenceEqual(c2!),
             c => c.Aggregate(0, (a, v) => HashCode.Combine(a, v.GetHashCode())),
             c => c.ToList());
 
         builder.Property(b => b.StartingSpells)
-            .HasConversion(spellIdConverter)
-            .Metadata.SetValueComparer(spellIdComparer);
+            .HasConversion(abilityIdConverter)
+            .Metadata.SetValueComparer(abilityIdComparer);
 
         builder.HasData(new CharacterCreateInfo
         {
@@ -189,7 +189,7 @@ public class WorldDbContext(ILoggerFactory loggerFactory, IOptions<DatabaseConfi
             Z = 25,
             Rotation = 0,
             StartingItems = [1, 2, 3],
-            StartingSpells = [1, 2]
+            StartingSpells = [1, 2, 100]
         }, new CharacterCreateInfo
         {
             Class = CharacterClass.Wizard,
@@ -199,7 +199,7 @@ public class WorldDbContext(ILoggerFactory loggerFactory, IOptions<DatabaseConfi
             Z = 25,
             Rotation = 0,
             StartingItems = [1, 2],
-            StartingSpells = [2]
+            StartingSpells = [2, 101]
         }, new CharacterCreateInfo
         {
             Class = CharacterClass.Hunter,
@@ -209,7 +209,7 @@ public class WorldDbContext(ILoggerFactory loggerFactory, IOptions<DatabaseConfi
             Z = 25,
             Rotation = 0,
             StartingItems = [1, 2],
-            StartingSpells = []
+            StartingSpells = [102]
         }, new CharacterCreateInfo
         {
             Class = CharacterClass.Healer,
@@ -219,7 +219,7 @@ public class WorldDbContext(ILoggerFactory loggerFactory, IOptions<DatabaseConfi
             Z = 25,
             Rotation = 0,
             StartingItems = [1, 2],
-            StartingSpells = []
+            StartingSpells = [103]
         });
     }
 
@@ -842,15 +842,15 @@ public class WorldDbContext(ILoggerFactory loggerFactory, IOptions<DatabaseConfi
         builder.Property(p => p.ForwardPortalTargetMapId).IsRequired(false);
     }
 
-    private static void Configure(EntityTypeBuilder<SpellTemplate> builder)
+    private static void Configure(EntityTypeBuilder<AbilityTemplate> builder)
     {
         builder.Property(b => b.Id)
             .HasConversion(
                 v => v.Value,
-                v => new SpellId(v)
+                v => new AbilityId(v)
             ).IsRequired();
 
-        builder.HasData(new SpellTemplate
+        builder.HasData(new AbilityTemplate
         {
             Id = 1,
             Name = "Strike",
@@ -861,8 +861,8 @@ public class WorldDbContext(ILoggerFactory loggerFactory, IOptions<DatabaseConfi
             Effects = SpellEffect.Damage,
             EffectValue = 10,
             AllowedClasses = [CharacterClass.Warrior],
-            SpellScript = "StrikeSpellScript"
-        }, new SpellTemplate
+            SpellScript = "StrikeAbilityScript"
+        }, new AbilityTemplate
         {
             Id = 2,
             Name = "Fireball",
@@ -873,7 +873,63 @@ public class WorldDbContext(ILoggerFactory loggerFactory, IOptions<DatabaseConfi
             Effects = SpellEffect.Damage,
             EffectValue = 10,
             AllowedClasses = [CharacterClass.Warrior, CharacterClass.Wizard],
-            SpellScript = "FireballSpellScript"
+            SpellScript = "FireballAbilityScript"
+        }, new AbilityTemplate
+        {
+            // Basic attack — Warrior
+            Id = 100,
+            Name = "Warrior Slash",
+            CastTime = 0,
+            Cooldown = 500,
+            Cost = 0,
+            Range = SpellRange.Melee,
+            Effects = SpellEffect.Damage,
+            EffectValue = 15,
+            AllowedClasses = [CharacterClass.Warrior],
+            SpellScript = "StrikeAbilityScript",
+            ThreatMultiplier = 1.5f
+        }, new AbilityTemplate
+        {
+            // Basic attack — Wizard
+            Id = 101,
+            Name = "Wizard Bolt",
+            CastTime = 200,
+            Cooldown = 700,
+            Cost = 0,
+            Range = SpellRange.Medium,
+            Effects = SpellEffect.Damage,
+            EffectValue = 8,
+            AllowedClasses = [CharacterClass.Wizard],
+            SpellScript = "StrikeAbilityScript",
+            ThreatMultiplier = 1.0f
+        }, new AbilityTemplate
+        {
+            // Basic attack — Hunter
+            Id = 102,
+            Name = "Hunter Shot",
+            CastTime = 0,
+            Cooldown = 600,
+            Cost = 0,
+            Range = SpellRange.Long,
+            Effects = SpellEffect.Damage,
+            EffectValue = 10,
+            AllowedClasses = [CharacterClass.Hunter],
+            SpellScript = "StrikeAbilityScript",
+            ThreatMultiplier = 1.0f
+        }, new AbilityTemplate
+        {
+            // Basic attack — Healer
+            Id = 103,
+            Name = "Healer Wand",
+            CastTime = 300,
+            Cooldown = 800,
+            Cost = 0,
+            Range = SpellRange.Medium,
+            Effects = SpellEffect.Damage,
+            EffectValue = 5,
+            AllowedClasses = [CharacterClass.Healer],
+            SpellScript = "StrikeAbilityScript",
+            ThreatMultiplier = 0.8f
         });
     }
 }

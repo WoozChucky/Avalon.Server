@@ -11,12 +11,16 @@ public interface ICharacter : IUnit
     ICharacterGameState CharacterGameState { get; }
     ICharacterInventory this[InventoryType type] { get; }
 
-    ICharacterSpells Spells { get; }
+    ICharacterAbilities Spells { get; }
 
     /// <summary>The live instance this character is currently in.</summary>
     Guid InstanceId { get; set; }
 
     string Name { get; set; }
+
+    /// <summary>The character's class — used by the combat system to apply per-class threat baseline
+    /// (see <c>ClassThreatModifier</c>).</summary>
+    CharacterClass Class { get; }
 
     MapId Map { get; set; }
     ulong Experience { get; set; }
@@ -33,6 +37,12 @@ public interface ICharacter : IUnit
 
     /// <summary>Records a combat event (hit received or attack sent). Resets the out-of-combat timer.</summary>
     void MarkCombat();
+
+    /// <summary>True while the combat-leave timer is active (last combat event within the
+    /// configured leave-delay window). Drives in-combat regen rules and ability gating
+    /// (<see cref="Avalon.World.Public.Abilities.AbilityFlags.RequiresInCombat"/> /
+    /// <see cref="Avalon.World.Public.Abilities.AbilityFlags.RequiresOutOfCombat"/>).</summary>
+    bool IsInCombat { get; }
 
     void OnDisconnected();
     float GetMovementSpeed();

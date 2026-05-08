@@ -1,5 +1,6 @@
 using Avalon.Domain.Auth;
 using Avalon.Domain.Characters;
+using Avalon.World.Public.Enums;
 
 namespace Avalon.Api.Contract.Mappers;
 
@@ -26,7 +27,7 @@ public static class MappingExtensions
     {
         Id = character.Id,
         Name = character.Name,
-        Class = (CharacterClass) character.Class,
+        Class = character.Class,
         Gender = (CharacterGender) character.Gender,
         Level = character.Level,
         Experience = character.Experience,

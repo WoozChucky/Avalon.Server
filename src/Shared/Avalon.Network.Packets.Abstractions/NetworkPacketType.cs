@@ -65,7 +65,9 @@ public enum NetworkPacketType : short
     CMSG_MFA_RESET = 0x200E,
 
     // Combat
-    CMSG_ATTACK = 0x2100,
+    // 0x2100 retired (CMSG_ATTACK — replaced by CMSG_CAST_ABILITY in V1 combat system)
+    CMSG_CAST_ABILITY = 0x2101,
+    CMSG_TARGET_UNIT  = 0x2102,
 
     /**************************************************************************
      * Server Packets
@@ -97,7 +99,7 @@ public enum NetworkPacketType : short
     SMSG_CHARACTER_CREATED = 0x3024,
     SMSG_CHARACTER_DELETED = 0x3025,
     SMSG_CHARACTER_SELECTED = 0x3026,
-    SMSG_CHARACTER_SPELLS = 0x3027,
+    SMSG_CHARACTER_ABILITIES = 0x3027,
 
     // Map
     SMSG_MAP_TELEPORT    = 0x3030,
@@ -115,9 +117,12 @@ public enum NetworkPacketType : short
     SMSG_CREATURE_ATTACK_ANIMATION = 0x3101,
     SMSG_CREATURE_DAMAGED = 0x3102,
     SMSG_UNIT_START_CAST = 0x3103,
-    SMSG_SPELL_NOT_READY = 0x3104,
-    SMSG_SPELL_INTERRUPTED = 0x3105,
+    SMSG_ABILITY_NOT_READY = 0x3104,
+    SMSG_INTERRUPTED_CAST = 0x3105,
     SMSG_UNIT_FINISH_CAST = 0x3106,
+    SMSG_UNIT_DEATH = 0x3107,
+    SMSG_UNIT_REVIVE = 0x3108,
+    SMSG_THREAT_LIST = 0x3109,
 
 
     SMSG_PONG = 0x3006,

@@ -1,9 +1,10 @@
 using Avalon.Common;
 using Avalon.Common.Mathematics;
+using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Characters;
+using Avalon.World.Public.Combat;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Maps;
-using Avalon.World.Public.Spells;
 using Avalon.World.Public.Units;
 
 namespace Avalon.World.Public.Instances;
@@ -17,13 +18,40 @@ public interface ISimulationContext
     IReadOnlyDictionary<ObjectGuid, ICharacter> Characters { get; }
     IReadOnlyDictionary<ObjectGuid, ICreature> Creatures { get; }
 
+    /// <summary>Per-instance combat service: damage/heal/threat application and encounter lifecycle.</summary>
+    ICombatService CombatService { get; }
+
     /// <summary>Returns the navigator whose bounds contain <paramref name="position"/>.</summary>
     IMapNavigator GetNavigatorForPosition(Vector3 position);
 
-    bool QueueSpell(ICharacter caster, IUnit? target, ISpell spell);
+    bool QueueAbility(ICharacter caster, IUnit? target, IAbility ability);
+
+    /// <summary>
+    /// Runs an instant-cast ability immediately, bypassing the cast queue. Used by
+    /// <c>CastAbilityHandler</c> for abilities with <c>CastTime == 0</c>: the script's
+    /// effect runs in this tick, the ability's cooldown is started, and a finish-cast
+    /// broadcast is emitted to mirror the queue-completion path.
+    /// </summary>
+    void RunInstantAbility(IUnit caster, IUnit? target, IAbility ability);
+
     void AddCreature(ICreature creature);
     void RespawnCreature(ICreature creature);
     void RemoveCreature(ICreature creature);
     void BroadcastUnitHit(IUnit attacker, IUnit target, uint currentHealth, uint damage);
     void BroadcastUnitStartCast(IUnit caster, float castTime);
+
+    /// <summary>
+    /// Broadcasts a death event to all connections in the instance. Called by
+    /// <see cref="ICombatService"/> when <see cref="ICombatService.ApplyDamage(IUnit,IUnit,uint,IAbility)"/>
+    /// (or its raw-damage overload) brings <paramref name="unit"/> to 0 HP / dead state.
+    /// </summary>
+    void BroadcastUnitDeath(IUnit unit, IUnit? killer);
+
+    /// <summary>
+    /// Broadcasts a revive event to all connections in the instance. Called by
+    /// <see cref="ICombatService.RevivePlayer(IUnit, Vector3)"/> after the unit's dead flag
+    /// is cleared, position is updated, and <c>CurrentHealth</c> is restored to the
+    /// configured fraction of <c>Health</c>.
+    /// </summary>
+    void BroadcastUnitRevive(IUnit unit, Vector3 position, uint health);
 }

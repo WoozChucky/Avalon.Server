@@ -131,6 +131,13 @@ public class EnterMapHandler(
     private void OnInstanceReceived(IWorldConnection connection, IMapInstance targetInstance, MapTemplate targetTemplate,
         MapId targetMapId)
     {
+        // 8b. Exit-path (Phase H): drop the character from any in-progress encounter on the
+        // SOURCE instance before transferring. Combat-state gating allows in-combat map
+        // transitions per spec section 7; the encounter would be left dangling otherwise
+        // because TransferPlayer only manages instance membership, not combat membership.
+        IMapInstance? sourceInstance = world.InstanceRegistry.GetInstanceById(connection.Character!.InstanceId);
+        sourceInstance?.CombatService.DropPlayerFromEncounter(connection.Character);
+
         // 9. Transfer the player (removes from current, updates position & InstanceIdGuid, adds to target)
         world.TransferPlayer(connection, targetInstance);
 

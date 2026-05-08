@@ -73,7 +73,7 @@ public class World : IWorld
         ICharacterCreateInfoRepository characterCreateInfoRepository,
         IClassLevelStatRepository classLevelStatRepository,
         IItemTemplateRepository itemTemplateRepository,
-        ISpellTemplateRepository spellTemplateRepository,
+        IAbilityTemplateRepository abilityTemplateRepository,
         ICharacterLevelExperienceRepository characterLevelExperienceRepository,
         IScriptHotReloader scriptHotReloader,
         IChunkLibrary chunkLibrary)
@@ -88,7 +88,7 @@ public class World : IWorld
         _scriptHotReloader = scriptHotReloader;
         _chunkLibrary = chunkLibrary;
         Data = new StaticData(characterCreateInfoRepository, classLevelStatRepository, itemTemplateRepository,
-            spellTemplateRepository, characterLevelExperienceRepository);
+            abilityTemplateRepository, characterLevelExperienceRepository);
 
         for (int i = 0; i < WorldTimersCount; ++i)
         {
@@ -128,6 +128,14 @@ public class World : IWorld
         {
             IMapInstance? instance =
                 InstanceRegistry.GetInstanceById(connection.Character.InstanceId);
+
+            // Exit-path (Phase H): drop the character from any in-progress encounter before
+            // unregistering them from the instance. Single hook covers logout, alt-F4, and TCP
+            // timeout — all disconnect paths flow through DeSpawnPlayerAsync. Done before
+            // RemoveCharacter (and before ApplyDeathLogoutAsync below) so the encounter doesn't
+            // hold a stale dead-player participant after Revive() runs.
+            instance?.CombatService.DropPlayerFromEncounter(connection.Character);
+
             instance?.RemoveCharacter(connection);
 
             await using AsyncServiceScope scope = _serviceScopeFactory.CreateAsyncScope();
