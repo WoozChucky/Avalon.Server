@@ -39,6 +39,7 @@ public class CastAbilityHandler(ILogger<CastAbilityHandler> logger, IWorld world
         if (sinceLastCast < combatConfig.GcdMs)
         {
             uint remaining = (uint)(combatConfig.GcdMs - sinceLastCast);
+            logger.LogDebug("Cast reject GCD ability={AbilityId} remainingMs={Remaining}", packet.AbilityId, remaining);
             connection.Send(SAbilityNotReadyPacket.Create(packet.AbilityId, remaining,
                 connection.CryptoSession.Encrypt));
             return;
@@ -47,7 +48,7 @@ public class CastAbilityHandler(ILogger<CastAbilityHandler> logger, IWorld world
         IAbility? ability = attacker.Spells[packet.AbilityId];
         if (ability is null)
         {
-            logger.LogDebug("Ability {AbilityId} not owned", packet.AbilityId);
+            logger.LogInformation("Cast reject NotOwned ability={AbilityId}", packet.AbilityId);
             return;
         }
 
@@ -55,6 +56,7 @@ public class CastAbilityHandler(ILogger<CastAbilityHandler> logger, IWorld world
         {
             // CooldownTimer is float seconds; the wire field is uint milliseconds.
             uint cooldownMs = (uint)(ability.CooldownTimer * 1000f);
+            logger.LogDebug("Cast reject Cooldown ability={AbilityId} remainingMs={Remaining}", packet.AbilityId, cooldownMs);
             connection.Send(SAbilityNotReadyPacket.Create(packet.AbilityId, cooldownMs,
                 connection.CryptoSession.Encrypt));
             return;
@@ -66,12 +68,14 @@ public class CastAbilityHandler(ILogger<CastAbilityHandler> logger, IWorld world
         // out-of-combat; others (e.g. execute-style finishers) only fire in-combat.
         if (meta.Flags.HasFlag(AbilityFlags.RequiresOutOfCombat) && attacker.IsInCombat)
         {
+            logger.LogInformation("Cast reject RequiresOutOfCombat ability={AbilityId}", packet.AbilityId);
             connection.Send(SAbilityNotReadyPacket.Create(packet.AbilityId, 0u,
                 connection.CryptoSession.Encrypt));
             return;
         }
         if (meta.Flags.HasFlag(AbilityFlags.RequiresInCombat) && !attacker.IsInCombat)
         {
+            logger.LogInformation("Cast reject RequiresInCombat ability={AbilityId}", packet.AbilityId);
             connection.Send(SAbilityNotReadyPacket.Create(packet.AbilityId, 0u,
                 connection.CryptoSession.Encrypt));
             return;
@@ -82,6 +86,8 @@ public class CastAbilityHandler(ILogger<CastAbilityHandler> logger, IWorld world
         // path we mirror that here so the resource cost is paid before script execution.
         if (meta.Cost > 0 && (attacker.CurrentPower ?? 0) < meta.Cost)
         {
+            logger.LogDebug("Cast reject Cost ability={AbilityId} need={Cost} have={Have}",
+                packet.AbilityId, meta.Cost, attacker.CurrentPower ?? 0);
             connection.Send(SAbilityNotReadyPacket.Create(packet.AbilityId, 0u,
                 connection.CryptoSession.Encrypt));
             return;
@@ -103,7 +109,8 @@ public class CastAbilityHandler(ILogger<CastAbilityHandler> logger, IWorld world
             target = ResolveTarget(context, new ObjectGuid(targetGuidRaw));
             if (target is null)
             {
-                logger.LogDebug("Target {TargetGuid} not found", targetGuidRaw);
+                logger.LogInformation("Cast reject TargetNotFound ability={AbilityId} target={TargetGuid}",
+                    packet.AbilityId, targetGuidRaw);
                 return;
             }
 
@@ -111,13 +118,16 @@ public class CastAbilityHandler(ILogger<CastAbilityHandler> logger, IWorld world
             // client tracks orientation and shouldn't ever fire a cast it can't satisfy.
             if (!IsFacingTarget(attacker, target))
             {
-                logger.LogTrace("Character {Name} is not facing target {Target}", attacker.Name, target.Guid);
+                logger.LogInformation("Cast reject Facing ability={AbilityId} caster={Name} target={Target}",
+                    packet.AbilityId, attacker.Name, target.Guid);
                 return;
             }
 
             float distance = Vector3.Distance(attacker.Position, target.Position);
             if (distance > (float)meta.Range)
             {
+                logger.LogDebug("Cast reject Range ability={AbilityId} dist={Distance} max={Range}",
+                    packet.AbilityId, distance, meta.Range);
                 connection.Send(SAbilityNotReadyPacket.Create(packet.AbilityId, 0u,
                     connection.CryptoSession.Encrypt));
                 return;

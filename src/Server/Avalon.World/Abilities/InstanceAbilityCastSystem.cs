@@ -49,10 +49,18 @@ public class InstanceAbilityCastSystem(
         if (ability.Metadata.Cost > 0)
         {
             if (character.PowerType is not (PowerType.Mana or PowerType.Energy))
+            {
+                _logger.LogInformation("QueueAbility reject PowerTypeMismatch ability={AbilityId} powerType={PowerType}",
+                    ability.AbilityId, character.PowerType);
                 return false;
+            }
 
             if (character.CurrentPower < ability.Metadata.Cost)
+            {
+                _logger.LogInformation("QueueAbility reject Cost ability={AbilityId} need={Cost} have={Have}",
+                    ability.AbilityId, ability.Metadata.Cost, character.CurrentPower);
                 return false;
+            }
 
             character.CurrentPower -= ability.Metadata.Cost;
         }
@@ -62,7 +70,10 @@ public class InstanceAbilityCastSystem(
         {
             Caster = character, Target = target, Ability = ability, CastStartPosition = character.Position
         };
-        return _abilityQueue.Add(abilityInstance);
+        bool added = _abilityQueue.Add(abilityInstance);
+        _logger.LogDebug("QueueAbility queued ability={AbilityId} caster={CharId} target={TargetGuid} castTimeMs={CastTime} added={Added} queueSize={Size}",
+            ability.AbilityId, character.Guid, target?.Guid, ability.Metadata.CastTime, added, _abilityQueue.Count);
+        return added;
     }
 
     public void RunInstant(IUnit caster, IUnit? target, IAbility ability)
@@ -110,6 +121,8 @@ public class InstanceAbilityCastSystem(
             if (abilityInstance.CastStartPosition != abilityInstance.Caster.Position &&
                 abilityInstance.Ability.Metadata.CastTime > 0)
             {
+                _logger.LogInformation("QueueAbility interrupt-by-movement ability={AbilityId} caster={CharId}",
+                    abilityInstance.Ability.AbilityId, abilityInstance.Caster.Guid);
                 abilityInstance.Ability.CastTimeTimer = abilityInstance.Ability.Metadata.CastTime;
                 abilityInstance.Ability.Casting = false;
                 if (abilityInstance.Caster is ICharacter character)
@@ -155,8 +168,8 @@ public class InstanceAbilityCastSystem(
             abilityScript.Prepare();
             _activeAbilities.Add(abilityScript);
 
-            _logger.LogDebug("Finished ability {AbilityId} cast by {CharacterId} on {CreatureId}",
-                abilityInstance.Ability.AbilityId, abilityInstance.Caster.Guid, abilityInstance.Target?.Guid);
+            _logger.LogDebug("QueueAbility cast-finished ability={AbilityId} caster={CharId} target={TargetGuid} activeCount={Active}",
+                abilityInstance.Ability.AbilityId, abilityInstance.Caster.Guid, abilityInstance.Target?.Guid, _activeAbilities.Count);
         }
 
         foreach (AbilityScript ability in _activeAbilities)
