@@ -46,7 +46,7 @@ jobs:
 
       - name: Extract metadata for World Server image
         id: meta-world
-        uses: docker/metadata-action@v6.0.0
+        uses: docker/metadata-action@v6.1.0
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/world
           tags: |
@@ -64,7 +64,7 @@ jobs:
 
       - name: Extract metadata for Auth Server image
         id: meta-auth
-        uses: docker/metadata-action@v6.0.0
+        uses: docker/metadata-action@v6.1.0
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/auth
           tags: |
@@ -82,7 +82,7 @@ jobs:
 
       - name: Extract metadata for API image
         id: meta-api
-        uses: docker/metadata-action@v6.0.0
+        uses: docker/metadata-action@v6.1.0
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/api
           tags: |
