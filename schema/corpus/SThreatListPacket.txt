@@ -84,10 +84,10 @@ variant float-specials
   field 2 Entries : ThreatEntry[] = 2 elements
     element 0
       field 1 AttackerGuid : ulong = 1000000
-      field 2 ThreatPercent : float = 1.17549421E-38 (0x007fffff)
+      field 2 ThreatPercent : float = NaN (0xffc00000)
     element 1
       field 1 AttackerGuid : ulong = 7
-      field 2 ThreatPercent : float = 3.40282347E+38 (0x7f7fffff)
+      field 2 ThreatPercent : float = NaN (0x7fc00001)
   bytes 24
-    08 ff ff 03 12 09 08 c0 84 3d 15 ff ff 7f 00 12
-    07 08 07 15 ff ff 7f 7f
+    08 ff ff 03 12 09 08 c0 84 3d 15 00 00 c0 ff 12
+    07 08 07 15 01 00 c0 7f

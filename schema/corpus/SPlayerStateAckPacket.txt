@@ -86,12 +86,12 @@ variant varint-edges
 
 variant float-specials
   field 1 Seq : uint = 300
-  field 2 X : float = Infinity (0x7f800000)
-  field 3 Y : float = -Infinity (0xff800000)
-  field 4 Z : float = -0 (0x80000000)
-  field 5 VelX : float = NaN (0xffc00000)
-  field 6 VelZ : float = NaN (0x7fc00001)
+  field 2 X : float = -0 (0x80000000)
+  field 3 Y : float = 1.40129846E-45 (0x00000001)
+  field 4 Z : float = 1.17549421E-38 (0x007fffff)
+  field 5 VelX : float = Infinity (0x7f800000)
+  field 6 VelZ : float = -Infinity (0xff800000)
   field 7 YawDeg : ushort = 19
   bytes 25
-    08 ac 02 15 00 00 80 7f 1d 00 00 80 ff 2d 00 00
-    c0 ff 35 01 00 c0 7f 38 13
+    08 ac 02 1d 01 00 00 00 25 ff ff 7f 00 2d 00 00
+    80 7f 35 00 00 80 ff 38 13

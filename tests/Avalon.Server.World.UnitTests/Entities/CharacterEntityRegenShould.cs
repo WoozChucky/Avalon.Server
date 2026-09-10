@@ -1,4 +1,4 @@
-using Avalon.Domain.Characters;
+﻿using Avalon.Domain.Characters;
 using Avalon.World.Configuration;
 using Avalon.World.Entities;
 using Avalon.World.Public;
@@ -6,6 +6,7 @@ using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Enums;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
+using Avalon.Network.Packets.State;
 
 namespace Avalon.Server.World.UnitTests.Entities;
 

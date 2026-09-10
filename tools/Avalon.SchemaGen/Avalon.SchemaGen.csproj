@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
@@ -20,9 +20,6 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Shared\Avalon.Network.Packets\Avalon.Network.Packets.csproj"/>
     <ProjectReference Include="..\..\src\Shared\Avalon.Network.Packets.Abstractions\Avalon.Network.Packets.Abstractions.csproj"/>
-    <!-- GameEntityFields is wire-carried but lives outside the packet contracts, so the export
-         reaches for it here rather than reproducing its bit values. -->
-    <ProjectReference Include="..\..\src\Server\Avalon.World.Public\Avalon.World.Public.csproj"/>
   </ItemGroup>
 
 </Project>

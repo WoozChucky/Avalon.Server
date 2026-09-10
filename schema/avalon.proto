@@ -252,6 +252,12 @@ enum MapTransitionResult {
    MapTransitionResult_LevelTooHigh = 4;
    MapTransitionResult_GenerationFailed = 5;
 }
+enum MoveState {
+   MoveState_Idle = 0;
+   MoveState_Walking = 1;
+   MoveState_Running = 2;
+   MoveState_Swimming = 3;
+}
 message NetworkPacket {
    NetworkPacketHeader Header = 1;
    optional bytes Payload = 2;
@@ -361,13 +367,26 @@ enum NetworkProtocol {
    NetworkProtocol_Udp = 2;
    NetworkProtocol_Both = 3;
 }
-message ObjectAdd {
+message ObjectState {
    uint64 Guid = 1;
-   optional bytes Fields = 2;
-}
-message ObjectUpdate {
-   uint64 Guid = 1;
-   optional bytes Fields = 2;
+   Vec3 Position = 2;
+   Vec3 Velocity = 3;
+   optional float Orientation = 4;
+   optional MoveState MoveState = 5;
+   optional uint32 Health = 6;
+   optional uint32 CurrentHealth = 7;
+   optional PowerType PowerType = 8;
+   optional uint32 Power = 9;
+   optional uint32 CurrentPower = 10;
+   optional uint32 Level = 11;
+   optional bool IsDead = 12;
+   optional uint64 Experience = 13;
+   optional uint64 RequiredExperience = 14;
+   optional uint64 CreatureMetadataId = 15;
+   optional string Name = 16;
+   optional float PortalRadius = 17;
+   optional uint32 PortalTargetMapId = 18;
+   optional uint32 PortalRole = 19;
 }
 message PlacedChunkDto {
    int32 ChunkTemplateId = 1;
@@ -381,6 +400,12 @@ message PortalPlacementDto {
    Vector3Dto WorldPos = 2;
    float Radius = 3;
    uint32 TargetMapId = 4;
+}
+enum PowerType {
+   PowerType_None = 0;
+   PowerType_Mana = 1;
+   PowerType_Fury = 2;
+   PowerType_Energy = 3;
 }
 enum RegisterResult {
    RegisterResult_UnknownError = 0;
@@ -498,13 +523,13 @@ message SHandshakeResultPacket {
    bool Verified = 1;
 }
 message SInstanceStateAddPacket {
-   repeated ObjectAdd Adds = 1;
+   repeated ObjectState Adds = 1;
 }
 message SInstanceStateRemovePacket {
    repeated uint64 Removes = 1 [packed = false];
 }
 message SInstanceStateUpdatePacket {
-   repeated ObjectUpdate Updates = 1;
+   repeated ObjectState Updates = 1;
 }
 message SLogoutPacket {
    LogoutResult Result = 1;
@@ -623,6 +648,11 @@ enum ServerInfoResult {
 message ThreatEntry {
    uint64 AttackerGuid = 1;
    float ThreatPercent = 2;
+}
+message Vec3 {
+   float X = 1;
+   float Y = 2;
+   float Z = 3;
 }
 message Vector3Dto {
    float X = 1;

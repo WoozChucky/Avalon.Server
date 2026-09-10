@@ -51,6 +51,6 @@ variant varint-edges
 
 variant float-specials
   field 1 AttackerGuid : ulong = 1000000
-  field 2 ThreatPercent : float = 1.17549421E-38 (0x007fffff)
+  field 2 ThreatPercent : float = NaN (0xffc00000)
   bytes 9
-    08 c0 84 3d 15 ff ff 7f 00
+    08 c0 84 3d 15 00 00 c0 ff

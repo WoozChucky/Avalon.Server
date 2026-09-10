@@ -1,4 +1,4 @@
-using Avalon.Common.ValueObjects;
+﻿using Avalon.Common.ValueObjects;
 using Avalon.World.Abilities;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Characters;
@@ -9,6 +9,7 @@ using Avalon.World.Scripts;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Xunit;
+using Avalon.Network.Packets.State;
 
 namespace Avalon.Server.World.UnitTests.World;
 
