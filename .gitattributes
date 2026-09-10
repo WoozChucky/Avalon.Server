@@ -1,0 +1,5 @@
+# Generated wire schema and its vendored dependency are LF so that regenerating on any
+# platform produces a byte-identical file.
+*.proto text eol=lf
+schema/*.json text eol=lf
+schema/corpus/*.txt text eol=lf

@@ -1,0 +1,52 @@
+# SUnitDeathPacket - golden wire vectors.
+#
+# GENERATED FILE. The bytes below are what the server's serializer writes for the
+# values shown above them, so a client is conformant when it produces the same ones,
+# and a change in what the server emits arrives here as a diff.
+#
+#   Emitted by  tools/Avalon.SchemaGen
+#   Regenerate  dotnet run --project tools/Avalon.SchemaGen
+#   Format      described in schema/README.md
+#   Schema      the message of this name in schema/avalon.proto
+#
+# A variant is one shape of the same message. "absent" sets nothing, "empty" sets
+# everything to a present-but-empty value, and the rest carry values chosen to make
+# a particular encoding decision observable.
+
+message SUnitDeathPacket
+
+variant absent
+  field 1 UnitGuid : ulong = 0
+  field 2 KillerGuid : ulong? = null
+  bytes 0
+
+variant empty
+  field 1 UnitGuid : ulong = 0
+  field 2 KillerGuid : ulong? = 0
+  bytes 2
+    10 00
+
+variant populated
+  field 1 UnitGuid : ulong = 42
+  field 2 KillerGuid : ulong? = 42
+  bytes 4
+    08 2a 10 2a
+
+variant maxima
+  field 1 UnitGuid : ulong = 18446744073709551615
+  field 2 KillerGuid : ulong? = 18446744073709551615
+  bytes 22
+    08 ff ff ff ff ff ff ff ff ff 01 10 ff ff ff ff
+    ff ff ff ff ff 01
+
+variant minima
+  field 1 UnitGuid : ulong = 0
+  field 2 KillerGuid : ulong? = 0
+  bytes 2
+    10 00
+
+variant varint-edges
+  field 1 UnitGuid : ulong = 16384
+  field 2 KillerGuid : ulong? = 16383
+  bytes 7
+    08 80 80 01 10 ff 7f

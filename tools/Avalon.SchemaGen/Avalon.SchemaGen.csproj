@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!--
+      No version here, deliberately. The emitter decides what the exported schema looks like,
+      so it has to be the protobuf-net the packet contracts serialize with, and the version
+      arrives from the server's central file through the Directory.Packages.props beside this
+      one. Writing a version here is a restore error, which is the point.
+    -->
+    <PackageReference Include="protobuf-net"/>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Shared\Avalon.Network.Packets\Avalon.Network.Packets.csproj"/>
+    <ProjectReference Include="..\..\src\Shared\Avalon.Network.Packets.Abstractions\Avalon.Network.Packets.Abstractions.csproj"/>
+  </ItemGroup>
+
+</Project>

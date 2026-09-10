@@ -9,6 +9,7 @@ using Avalon.World.Public.Units;
 using Avalon.World.Scripts;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Avalon.Network.Packets.State;
 
 namespace Avalon.World.Abilities;
 

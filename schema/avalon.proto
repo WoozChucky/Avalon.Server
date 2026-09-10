@@ -1,0 +1,676 @@
+// avalon.proto - the wire format of the Avalon TCP protocol.
+//
+// GENERATED FILE. An edit made here is discarded by the next regeneration and, until
+// then, describes bytes nobody sends.
+//
+//   Defined by  the [ProtoContract] types in Avalon.Network.Packets and
+//               Avalon.Network.Packets.Abstractions. Those attributes are the
+//               protocol; this file reports them.
+//   Emitted by  tools/Avalon.SchemaGen
+//   Regenerate  dotnet run --project tools/Avalon.SchemaGen
+//   Guarded by  WireSchemaShould in tests/Avalon.Shared.UnitTests, which regenerates
+//               and compares, so a contract change that is not re-exported is a red
+//               build rather than a wrong client.
+//
+// Ownership runs one way. A field a client needs is a C# edit followed by a
+// regeneration, never an edit here.
+//
+// Three things about this file are not protobuf-net defaults:
+//
+//   Enum values carry their enum's name as a prefix. protobuf enum values are
+//   siblings of their type in the enclosing scope rather than children of it, so the
+//   seven enums that each declare a "Success" member would collide and this file
+//   would not compile. Names only; the wire carries the number.
+//
+//   Members are marked "optional" wherever the server can write a value that plain
+//   proto3 reads as absent. That is every singular string and bytes member, because
+//   protobuf-net writes an empty one as a present field of length zero while proto3
+//   treats it as the default and drops it; and every nullable scalar, because for
+//   those null and zero are different bytes and the difference is meaningful - a null
+//   target guid means "clear the target". Repeated members are not marked and cannot
+//   be: an empty list and an absent one are one thing on the wire. Singular message
+//   members are not marked because they have presence already. The keyword restores
+//   the distinction without changing how a present value encodes, so it costs no
+//   bytes. C# nullability is not the criterion and would be the wrong one: a
+//   ReadOnlyMemory<byte> member cannot be null, and it is one of the members the
+//   server always writes.
+//
+//   "[packed = false]" on repeated scalars matches what the server writes. Readers
+//   accept either encoding, so losing it would not fail loudly.
+//
+// .bcl.DateTime and .bcl.Guid are protobuf-net's own representations and NOT the
+// google.protobuf well-known types. bcl.DateTime is a scaled offset from the Unix
+// epoch; bcl.Guid is two fixed64s in .NET's byte order rather than sixteen bytes in
+// RFC order. A consumer must convert, and one that assumes the well-known types
+// reads plausible wrong values with no error. protobuf-net/bcl.proto is vendored
+// next to this file. Whether those five fields could instead be int64 and bytes is
+// open: nothing has established whether a database column depends on the Guid form.
+//
+// optimize_for = LITE_RUNTIME governs generated C++ only and is inert for C#. Note
+// that bcl.proto is not itself lite.
+syntax = "proto3";
+package avalon;
+import "protobuf-net/bcl.proto"; // schema for protobuf-net's handling of core .NET types
+option optimize_for = LITE_RUNTIME;
+
+message AbilityInfo {
+   uint32 AbilityId = 1;
+   optional string Name = 2;
+   float Cooldown = 3;
+   float CastTime = 4;
+   uint32 Cost = 5;
+   uint32 Range = 6;
+}
+enum AuthResult {
+   AuthResult_INVALID_CREDENTIALS = 0;
+   AuthResult_WRONG_KEY = 1;
+   AuthResult_MFA_REQUIRED = 2;
+   AuthResult_LOCKED = 3;
+   AuthResult_SUCCESS = 4;
+   AuthResult_ALREADY_CONNECTED = 5;
+   AuthResult_MFA_FAILED = 6;
+}
+message CAudioRecordPacket {
+   optional bytes SoundBuffer = 1;
+}
+message CAuthPacket {
+   optional string Username = 1;
+   optional string Password = 2;
+}
+message CAuthPatchPacket {
+   int32 AccountId = 1;
+   optional bytes PublicKey = 2;
+}
+message CCastAbilityPacket {
+   uint32 AbilityId = 1;
+   optional uint64 TargetGuid = 2;
+   Vector3Dto GroundPos = 3;
+}
+message CCharacterCreatePacket {
+   optional string Name = 1;
+   int32 Class = 2;
+}
+message CCharacterDeletePacket {
+   uint32 CharacterId = 1;
+}
+message CCharacterListPacket {
+}
+message CCharacterLoadedPacket {
+}
+message CCharacterSelectedPacket {
+   uint32 CharacterId = 1;
+}
+message CChatMessagePacket {
+   optional string Message = 1;
+   .bcl.DateTime DateTime = 2;
+}
+message CClientInfoPacket {
+   optional bytes PublicKey = 1;
+}
+message CCloseChatPacket {
+   uint64 AccountId = 1;
+   uint64 CharacterId = 2;
+}
+message CEnterMapPacket {
+   uint32 TargetMapId = 1;
+}
+message CExchangeWorldKeyPacket {
+   optional bytes WorldKey = 1;
+   optional bytes PublicKey = 2;
+}
+message CGroupInviteResultPacket {
+   uint64 AccountId = 1;
+   uint64 CharacterId = 2;
+   uint64 InviterAccountId = 3;
+   uint64 InviterCharacterId = 4;
+   bool Accepted = 5;
+}
+message CHandshakePacket {
+   optional bytes HandshakeData = 1;
+}
+message CInteractPacket {
+   uint64 AccountId = 1;
+   uint64 PlayerId = 2;
+   int32 X = 3;
+   int32 Y = 4;
+   int32 Width = 5;
+   int32 Height = 6;
+}
+message CLogoutPacket {
+   uint64 AccountId = 1;
+}
+message CMFAConfirmPacket {
+   optional string Code = 1;
+}
+message CMFAResetPacket {
+   optional string RecoveryCode1 = 1;
+   optional string RecoveryCode2 = 2;
+   optional string RecoveryCode3 = 3;
+}
+message CMFASetupPacket {
+}
+message CMFAVerifyPacket {
+   optional string MfaHash = 1;
+   optional string Code = 2;
+}
+message COpenChatPacket {
+   uint64 AccountId = 1;
+   uint64 CharacterId = 2;
+}
+message CPingPacket {
+   int64 SequenceNumber = 1;
+   int64 Ticks = 2;
+}
+message CPlayerInputPacket {
+   uint32 Seq = 1;
+   float DirX = 2;
+   float DirZ = 3;
+   uint32 YawDeg = 4;
+   uint32 InputFlags = 5;
+}
+message CPongPacket {
+   int64 LastServerTimestamp = 1;
+   int64 ClientReceivedTimestamp = 2;
+   int64 ClientSentTimestamp = 3;
+}
+message CQuestListPacket {
+   int32 AccountId = 1;
+   int32 CharacterId = 2;
+   int32 MapId = 3;
+}
+message CQuestStatusPacket {
+   int32 AccountId = 1;
+   int32 CharacterId = 2;
+   int32 QuestId = 3;
+}
+message CRegisterPacket {
+   optional string Username = 1;
+   optional string Email = 2;
+   optional string Password = 3;
+}
+message CRequestServerInfoPacket {
+   optional string ClientVersion = 1;
+}
+message CRespawnAtTownPacket {
+}
+message CTargetUnitPacket {
+   optional uint64 TargetGuid = 1;
+}
+message CWorldHandshakePacket {
+   optional string Version = 1;
+}
+message CWorldListPacket {
+}
+message CWorldSelectPacket {
+   uint32 WorldId = 1;
+}
+message CharacterInfo {
+   uint32 CharacterId = 1;
+   optional string Name = 2;
+   int32 Level = 3;
+   uint32 Class = 4;
+   float X = 5;
+   float Y = 6;
+   float Z = 7;
+   float Orientation = 8;
+   uint64 Experience = 10;
+   uint64 RequiredExperience = 11;
+   float MovementSpeed = 12;
+}
+enum DisconnectReason {
+   DisconnectReason_Unknown = 0;
+   DisconnectReason_ServerShutdown = 1;
+   DisconnectReason_DuplicateLogin = 2;
+   DisconnectReason_Kicked = 3;
+}
+enum LogoutResult {
+   LogoutResult_Success = 0;
+   LogoutResult_RecentlyInCombat = 1;
+   LogoutResult_NotInGame = 2;
+   LogoutResult_NotSameAccount = 3;
+   LogoutResult_InternalError = 4;
+   LogoutResult_ConnectedElsewhere = 5;
+}
+enum MFAOperationResult {
+   MFAOperationResult_Success = 0;
+   MFAOperationResult_AlreadyEnabled = 1;
+   MFAOperationResult_InvalidCode = 2;
+   MFAOperationResult_NotEnabled = 3;
+   MFAOperationResult_Error = 4;
+}
+message MapInfo {
+   int32 MapId = 1;
+   .bcl.Guid InstanceId = 2; // default value could not be applied: 00000000-0000-0000-0000-000000000000
+   optional string Name = 3;
+   optional string Description = 4;
+}
+enum MapTransitionResult {
+   MapTransitionResult_Success = 0;
+   MapTransitionResult_MapNotFound = 1;
+   MapTransitionResult_NotNearPortal = 2;
+   MapTransitionResult_LevelTooLow = 3;
+   MapTransitionResult_LevelTooHigh = 4;
+   MapTransitionResult_GenerationFailed = 5;
+}
+enum MoveState {
+   MoveState_Idle = 0;
+   MoveState_Walking = 1;
+   MoveState_Running = 2;
+   MoveState_Swimming = 3;
+}
+message NetworkPacket {
+   NetworkPacketHeader Header = 1;
+   optional bytes Payload = 2;
+}
+enum NetworkPacketFlags {
+   // this is a composite/flags enumeration
+   NetworkPacketFlags_None = 0;
+   NetworkPacketFlags_ClearText = 1;
+   NetworkPacketFlags_Handshake = 2;
+   NetworkPacketFlags_Encrypted = 4;
+}
+message NetworkPacketHeader {
+   NetworkPacketType Type = 1;
+   NetworkPacketFlags Flags = 2;
+   NetworkProtocol Protocol = 3;
+   int32 Version = 4;
+}
+enum NetworkPacketType {
+   NetworkPacketType_UNKNOWN = 0;
+   NetworkPacketType_CMSG_SERVER_INFO = 4096;
+   NetworkPacketType_CMSG_CLIENT_INFO = 4097;
+   NetworkPacketType_CMSG_CLIENT_HANDSHAKE = 4098;
+   NetworkPacketType_CMSG_AUTH = 8192;
+   NetworkPacketType_CMSG_AUTH_PATCH = 8193;
+   NetworkPacketType_CMSG_LOGOUT = 8194;
+   NetworkPacketType_CMSG_REGISTER = 8195;
+   NetworkPacketType_CMSG_PING = 8197;
+   NetworkPacketType_CMSG_PONG = 8198;
+   NetworkPacketType_CMSG_CHAT_MESSAGE = 8199;
+   NetworkPacketType_CMSG_CHAT_OPEN = 8200;
+   NetworkPacketType_CMSG_CHAT_CLOSE = 8201;
+   NetworkPacketType_CMSG_GROUP_INVITE_RESULT = 8202;
+   NetworkPacketType_CMSG_MFA_VERIFY = 8203;
+   NetworkPacketType_CMSG_MFA_SETUP = 8204;
+   NetworkPacketType_CMSG_MFA_CONFIRM = 8205;
+   NetworkPacketType_CMSG_MFA_RESET = 8206;
+   NetworkPacketType_CMSG_CHARACTER_LIST = 8208;
+   NetworkPacketType_CMSG_CHARACTER_CREATE = 8209;
+   NetworkPacketType_CMSG_CHARACTER_DELETE = 8210;
+   NetworkPacketType_CMSG_CHARACTER_SELECTED = 8211;
+   NetworkPacketType_CMSG_CHARACTER_LOADED = 8212;
+   NetworkPacketType_CMSG_WORLD_LIST = 8218;
+   NetworkPacketType_CMSG_WORLD_SELECT = 8219;
+   NetworkPacketType_CMSG_EXCHANGE_WORLD_KEY = 8220;
+   NetworkPacketType_CMSG_WORLD_HANDSHAKE = 8221;
+   NetworkPacketType_CMSG_ENTER_MAP = 8225;
+   NetworkPacketType_CMSG_RESPAWN_AT_TOWN = 8226;
+   NetworkPacketType_CMSG_INTERACT = 8240;
+   NetworkPacketType_CMSG_QUEST_STATUS = 8256;
+   NetworkPacketType_CMSG_QUEST_LIST = 8257;
+   NetworkPacketType_CMSG_QUEST_QUERY_AVAILABLE = 8258;
+   NetworkPacketType_CMSG_AUDIO_RECORD = 8272;
+   NetworkPacketType_CMSG_PLAYER_INPUT = 8288;
+   NetworkPacketType_CMSG_CAST_ABILITY = 8449;
+   NetworkPacketType_CMSG_TARGET_UNIT = 8450;
+   NetworkPacketType_SMSG_SERVER_INFO = 12288;
+   NetworkPacketType_SMSG_SERVER_HANDSHAKE_RESULT = 12289;
+   NetworkPacketType_SMSG_SERVER_HANDSHAKE = 12290;
+   NetworkPacketType_SMSG_PONG = 12294;
+   NetworkPacketType_SMSG_PING = 12295;
+   NetworkPacketType_SMSG_DISCONNECT = 12296;
+   NetworkPacketType_SMSG_CHAT_MESSAGE = 12297;
+   NetworkPacketType_SMSG_CHAT_OPEN = 12298;
+   NetworkPacketType_SMSG_CHAT_CLOSE = 12299;
+   NetworkPacketType_SMSG_GROUP_INVITE = 12301;
+   NetworkPacketType_SMSG_GROUP_INVITE_RESULT = 12302;
+   NetworkPacketType_SMSG_MFA_SETUP = 12303;
+   NetworkPacketType_SMSG_AUTH_RESULT = 12304;
+   NetworkPacketType_SMSG_LOGOUT = 12305;
+   NetworkPacketType_SMSG_REGISTER_RESULT = 12306;
+   NetworkPacketType_SMSG_MFA_CONFIRM = 12307;
+   NetworkPacketType_SMSG_MFA_RESET = 12308;
+   NetworkPacketType_SMSG_WORLD_LIST = 12314;
+   NetworkPacketType_SMSG_WORLD_SELECT = 12315;
+   NetworkPacketType_SMSG_EXCHANGE_WORLD_KEY = 12316;
+   NetworkPacketType_SMSG_WORLD_HANDSHAKE = 12317;
+   NetworkPacketType_SMSG_CHARACTER_CONNECTED = 12320;
+   NetworkPacketType_SMSG_CHARACTER_DISCONNECTED = 12321;
+   NetworkPacketType_SMSG_CHARACTER_LIST = 12323;
+   NetworkPacketType_SMSG_CHARACTER_CREATED = 12324;
+   NetworkPacketType_SMSG_CHARACTER_DELETED = 12325;
+   NetworkPacketType_SMSG_CHARACTER_SELECTED = 12326;
+   NetworkPacketType_SMSG_CHARACTER_ABILITIES = 12327;
+   NetworkPacketType_SMSG_MAP_TELEPORT = 12336;
+   NetworkPacketType_SMSG_MAP_TRANSITION = 12337;
+   NetworkPacketType_SMSG_CHUNK_LAYOUT = 12338;
+   NetworkPacketType_SMSG_WORLD_STATE_ADD = 12352;
+   NetworkPacketType_SMSG_WORLD_STATE_UPDATE = 12353;
+   NetworkPacketType_SMSG_WORLD_STATE_REMOVE = 12354;
+   NetworkPacketType_SMSG_AUDIO_RECORD = 12368;
+   NetworkPacketType_SMSG_PLAYER_STATE_ACK = 12384;
+   NetworkPacketType_SMSG_CHARACTER_DAMAGED = 12544;
+   NetworkPacketType_SMSG_CREATURE_ATTACK_ANIMATION = 12545;
+   NetworkPacketType_SMSG_CREATURE_DAMAGED = 12546;
+   NetworkPacketType_SMSG_UNIT_START_CAST = 12547;
+   NetworkPacketType_SMSG_ABILITY_NOT_READY = 12548;
+   NetworkPacketType_SMSG_INTERRUPTED_CAST = 12549;
+   NetworkPacketType_SMSG_UNIT_FINISH_CAST = 12550;
+   NetworkPacketType_SMSG_UNIT_DEATH = 12551;
+   NetworkPacketType_SMSG_UNIT_REVIVE = 12552;
+   NetworkPacketType_SMSG_THREAT_LIST = 12553;
+   NetworkPacketType_ERROR = -1;
+}
+enum NetworkProtocol {
+   NetworkProtocol_Invalid = 0;
+   NetworkProtocol_Tcp = 1;
+   NetworkProtocol_Udp = 2;
+   NetworkProtocol_Both = 3;
+}
+message ObjectState {
+   uint64 Guid = 1;
+   Vec3 Position = 2;
+   Vec3 Velocity = 3;
+   optional float Orientation = 4;
+   optional MoveState MoveState = 5;
+   optional uint32 Health = 6;
+   optional uint32 CurrentHealth = 7;
+   optional PowerType PowerType = 8;
+   optional uint32 Power = 9;
+   optional uint32 CurrentPower = 10;
+   optional uint32 Level = 11;
+   optional bool IsDead = 12;
+   optional uint64 Experience = 13;
+   optional uint64 RequiredExperience = 14;
+   optional uint64 CreatureMetadataId = 15;
+   optional string Name = 16;
+   optional float PortalRadius = 17;
+   optional uint32 PortalTargetMapId = 18;
+   optional uint32 PortalRole = 19;
+}
+message PlacedChunkDto {
+   int32 ChunkTemplateId = 1;
+   int32 GridX = 2;
+   int32 GridZ = 3;
+   uint32 Rotation = 4;
+   optional string ChunkName = 5;
+}
+message PortalPlacementDto {
+   uint32 Role = 1;
+   Vector3Dto WorldPos = 2;
+   float Radius = 3;
+   uint32 TargetMapId = 4;
+}
+enum PowerType {
+   PowerType_None = 0;
+   PowerType_Mana = 1;
+   PowerType_Fury = 2;
+   PowerType_Energy = 3;
+}
+enum RegisterResult {
+   RegisterResult_UnknownError = 0;
+   RegisterResult_EmptyUsername = 1;
+   RegisterResult_EmptyEmail = 2;
+   RegisterResult_EmptyPassword = 3;
+   RegisterResult_DuplicateUsername = 4;
+   RegisterResult_DuplicateEmail = 5;
+   RegisterResult_PasswordTooShort = 6;
+   RegisterResult_PasswordTooLong = 7;
+   RegisterResult_InvalidEmail = 8;
+   RegisterResult_Ok = 9;
+}
+message SAbilityNotReadyPacket {
+   uint32 AbilityId = 1;
+   uint32 CooldownMs = 2;
+}
+message SAudioRecordPacket {
+   optional bytes SoundBuffer = 1;
+}
+message SAuthResultPacket {
+   int64 AccountId = 1;
+   AuthResult Result = 2;
+   optional string MfaHash = 3;
+}
+message SCharacterAbilitiesPacket {
+   repeated AbilityInfo Abilities = 1;
+}
+enum SCharacterCreateResult {
+   SCharacterCreateResult_Success = 0;
+   SCharacterCreateResult_NameAlreadyExists = 1;
+   SCharacterCreateResult_NameTooShort = 2;
+   SCharacterCreateResult_NameTooLong = 3;
+   SCharacterCreateResult_InvalidClass = 4;
+   SCharacterCreateResult_MaxCharactersReached = 5;
+   SCharacterCreateResult_AlreadyInGame = 6;
+   SCharacterCreateResult_InternalDatabaseError = 7;
+}
+message SCharacterCreatedPacket {
+   SCharacterCreateResult Result = 1;
+}
+message SCharacterDamagePacket {
+   uint64 Attacker = 1;
+   uint64 Target = 2;
+   uint32 CurrentHealth = 3;
+   uint32 Damage = 4;
+   optional uint32 AbilityId = 5;
+}
+message SCharacterDeletedPacket {
+   SCharacterDeletedResult Result = 1;
+}
+enum SCharacterDeletedResult {
+   SCharacterDeletedResult_Success = 0;
+   SCharacterDeletedResult_InGame = 1;
+   SCharacterDeletedResult_InternalError = 2;
+   SCharacterDeletedResult_Mail = 3;
+   SCharacterDeletedResult_Auction = 4;
+}
+message SCharacterInterruptedCastPacket {
+   uint64 Caster = 1;
+   uint32 AbilityId = 2;
+}
+message SCharacterListPacket {
+   int32 CharacterCount = 1;
+   int32 MaxCharacterCount = 2;
+   repeated CharacterInfo Characters = 3;
+}
+message SCharacterSelectedPacket {
+   CharacterInfo Character = 1;
+   MapInfo Map = 2;
+}
+message SChatMessagePacket {
+   uint64 AccountId = 1;
+   uint64 CharacterId = 2;
+   optional string CharacterName = 3;
+   optional string Message = 4;
+   .bcl.DateTime DateTime = 5;
+}
+message SChunkLayoutPacket {
+   int32 Seed = 1;
+   .bcl.Guid InstanceId = 2; // default value could not be applied: 00000000-0000-0000-0000-000000000000
+   float CellSize = 3;
+   repeated PlacedChunkDto Chunks = 4;
+   Vector3Dto EntrySpawn = 5;
+   repeated PortalPlacementDto Portals = 6;
+   uint32 MapId = 7;
+}
+message SCloseChatPacket {
+   optional string ClientId = 1;
+}
+message SDisconnectPacket {
+   optional string Reason = 1;
+   DisconnectReason ReasonCode = 2;
+}
+message SExchangeWorldKeyPacket {
+   optional bytes PublicKey = 1;
+}
+message SGroupInvitePacket {
+   int32 AccountId = 1;
+   int32 InviterAccountId = 2;
+   int32 InviterCharacterId = 3;
+   optional string InviterName = 4;
+}
+message SGroupResultPacket {
+   int32 AccountId = 1;
+   int32 CharacterId = 2;
+   int32 InviterAccountId = 3;
+   int32 InviterCharacterId = 4;
+   bool Accepted = 5;
+}
+message SHandshakePacket {
+   optional bytes HandshakeData = 1;
+}
+message SHandshakeResultPacket {
+   bool Verified = 1;
+}
+message SInstanceStateAddPacket {
+   repeated ObjectState Adds = 1;
+}
+message SInstanceStateRemovePacket {
+   repeated uint64 Removes = 1 [packed = false];
+}
+message SInstanceStateUpdatePacket {
+   repeated ObjectState Updates = 1;
+}
+message SLogoutPacket {
+   LogoutResult Result = 1;
+}
+message SMFAConfirmPacket {
+   repeated string RecoveryCodes = 1;
+   MFAOperationResult Result = 2;
+}
+message SMFAResetPacket {
+   MFAOperationResult Result = 1;
+}
+message SMFASetupPacket {
+   optional string OtpUri = 1;
+   MFAOperationResult Result = 2;
+}
+message SMapTeleportPacket {
+   MapInfo Map = 1;
+   float X = 2;
+   float Y = 3;
+}
+message SMapTransitionPacket {
+   MapTransitionResult Result = 1;
+   .bcl.Guid InstanceId = 2; // default value could not be applied: 00000000-0000-0000-0000-000000000000
+   uint32 MapId = 3;
+   float SpawnX = 4;
+   float SpawnY = 5;
+   float SpawnZ = 6;
+   optional string MapName = 7;
+   optional string MapDescription = 8;
+}
+message SOpenChatPacket {
+   optional string ClientId = 1;
+}
+message SPingPacket {
+   int64 ServerTimestamp = 1;
+   int64 ClientTimestamp = 2;
+   int64 Rtt = 3;
+   int64 Offset = 4;
+}
+message SPlayerConnectedPacket {
+   uint64 AccountId = 1;
+   uint64 CharacterId = 2;
+   optional string Name = 3;
+}
+message SPlayerDisconnectedPacket {
+   uint64 AccountId = 1;
+   uint64 CharacterId = 2;
+}
+message SPlayerStateAckPacket {
+   uint32 Seq = 1;
+   float X = 2;
+   float Y = 3;
+   float Z = 4;
+   float VelX = 5;
+   float VelZ = 6;
+   uint32 YawDeg = 7;
+}
+message SPongPacket {
+   int64 SequenceNumber = 1;
+   int64 Ticks = 2;
+}
+message SRegisterResultPacket {
+   RegisterResult Result = 1;
+}
+message SServerInfoPacket {
+   uint32 ServerVersion = 1;
+   optional bytes PublicKey = 2;
+   ServerInfoResult Result = 3;
+}
+message SThreatListPacket {
+   uint64 TargetGuid = 1;
+   repeated ThreatEntry Entries = 2;
+}
+message SUnitAttackAnimationPacket {
+   uint64 Attacker = 1;
+   uint32 AnimationId = 2;
+}
+message SUnitDamagePacket {
+   uint64 Attacker = 1;
+   uint64 Target = 2;
+   uint32 CurrentHealth = 3;
+   uint32 Damage = 4;
+}
+message SUnitDeathPacket {
+   uint64 UnitGuid = 1;
+   optional uint64 KillerGuid = 2;
+}
+message SUnitFinishCastPacket {
+   uint64 Caster = 1;
+   uint32 AbilityId = 2;
+}
+message SUnitRevivePacket {
+   uint64 UnitGuid = 1;
+   Vector3Dto Position = 2;
+   uint32 Health = 3;
+}
+message SUnitStartCastPacket {
+   uint64 Caster = 1;
+   float CastTime = 2;
+}
+message SWorldHandshakePacket {
+   optional int64 AccountId = 1;
+   bool Verified = 2;
+}
+message SWorldListPacket {
+   repeated WorldInfo Worlds = 1;
+}
+message SWorldSelectPacket {
+   optional bytes WorldKey = 1;
+   WorldSelectResult Result = 2;
+}
+enum ServerInfoResult {
+   ServerInfoResult_Success = 0;
+   ServerInfoResult_ClientVersionTooOld = 1;
+}
+message ThreatEntry {
+   uint64 AttackerGuid = 1;
+   float ThreatPercent = 2;
+}
+message Vec3 {
+   float X = 1;
+   float Y = 2;
+   float Z = 3;
+}
+message Vector3Dto {
+   float X = 1;
+   float Y = 2;
+   float Z = 3;
+}
+message WorldInfo {
+   uint32 Id = 1;
+   optional string Name = 2;
+   int32 Type = 3;
+   int32 AccessLevelRequired = 4;
+   optional string Host = 5;
+   int32 Port = 6;
+   optional string MinVersion = 7;
+   optional string Version = 8;
+   int32 Status = 9;
+}
+enum WorldSelectResult {
+   WorldSelectResult_Success = 0;
+   WorldSelectResult_DuplicateSession = 1;
+}

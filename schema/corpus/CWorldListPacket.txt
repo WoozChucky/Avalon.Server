@@ -1,0 +1,34 @@
+# CWorldListPacket - golden wire vectors.
+#
+# GENERATED FILE. The bytes below are what the server's serializer writes for the
+# values shown above them, so a client is conformant when it produces the same ones,
+# and a change in what the server emits arrives here as a diff.
+#
+#   Emitted by  tools/Avalon.SchemaGen
+#   Regenerate  dotnet run --project tools/Avalon.SchemaGen
+#   Format      described in schema/README.md
+#   Schema      the message of this name in schema/avalon.proto
+#
+# A variant is one shape of the same message. "absent" sets nothing, "empty" sets
+# everything to a present-but-empty value, and the rest carry values chosen to make
+# a particular encoding decision observable.
+
+message CWorldListPacket
+
+variant absent
+  bytes 0
+
+variant empty
+  bytes 0
+
+variant populated
+  bytes 0
+
+variant maxima
+  bytes 0
+
+variant minima
+  bytes 0
+
+variant varint-edges
+  bytes 0

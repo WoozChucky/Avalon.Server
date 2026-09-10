@@ -1,4 +1,3 @@
-using System.Buffers;
 using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
@@ -305,158 +304,116 @@ public class MapInstance : IMapInstance, IPortalSink
         IWorldConnection connection = _connections[character.Guid];
         PerPlayerBroadcastState state = _broadcastStates[character.Guid];
 
-        // One rented buffer accumulates all entity blobs for this player.
-        // 65 536 bytes ≈ 800 entities at ~80 bytes each (GameEntityFields.All);
-        // worst-case per-entity (character with max-length name) is ~300 bytes,
-        // giving headroom for ~200 entities before the guard below triggers.
-        byte[] buffer = ArrayPool<byte>.Shared.Rent(65536);
-        try
+        state.AddedObjects.Clear();
+        state.UpdatedObjects.Clear();
+
+        foreach (ObjectGuid addedObjectGuid in character.CharacterGameState.NewObjects)
         {
-            // Sync per-tick broadcast path: await using would force this method async and
-            // ripple through the 60Hz tick loop; the underlying MemoryStream has nothing to flush.
-#pragma warning disable MA0045
-            using WorldObjectWriter writer = new(buffer);
-#pragma warning restore MA0045
+            ObjectState? added = DescribeNewObject(addedObjectGuid, character.Guid);
 
-            state.AddedObjects.Clear();
-            state.UpdatedObjects.Clear();
-
-            foreach (ObjectGuid addedObjectGuid in character.CharacterGameState.NewObjects)
+            if (added is not null)
             {
-                if (buffer.Length - (int)writer.BaseStream.Position < 2048)
-                {
-                    // IMPORTANT: This guard is a last-resort safety valve. Triggering it requires
-                    // 200+ simultaneous entity adds per player (at ~80 bytes each for typical entities,
-                    // or 32+ entities at worst-case ~300 bytes for a character with a maximum-length name).
-                    // A skipped add will NOT be retried: EntityTrackingSystem already marked this GUID
-                    // as known, so it will not re-appear in NewObjects next tick. The client will receive
-                    // subsequent delta updates for an entity it has never seen, producing a corrupt state.
-                    // If this warning appears in production, the buffer size (currently 65536) must be increased.
-                    _logger.LogWarning(
-                        "BroadcastStateTo: buffer capacity exhausted — skipped add for object {Guid} (client state corrupt until reconnect)",
-                        addedObjectGuid.RawValue);
-                    continue;
-                }
-
-                int startOffset = (int)writer.BaseStream.Position;
-
-                switch (addedObjectGuid.Type)
-                {
-                    case ObjectType.Character:
-                        if (!_characters.TryGetValue(addedObjectGuid, out ICharacter? addedCharacter))
-                            continue;
-                        var addFields = MaskSelfSuppression(GameEntityFields.All, addedObjectGuid, character.Guid);
-                        writer.Write(addedCharacter, addFields);
-                        break;
-                    case ObjectType.Creature:
-                        if (!_creatures.TryGetValue(addedObjectGuid, out ICreature? addedCreature))
-                            continue;
-                        writer.Write(addedCreature, GameEntityFields.All);
-                        break;
-                    case ObjectType.SpellProjectile:
-                        IWorldObject? addedAbility = _abilityCastSystem.GetAbility(addedObjectGuid);
-                        if (addedAbility is null)
-                            continue;
-                        writer.Write(addedAbility);
-                        break;
-                    case ObjectType.Portal:
-                        PortalInstance? addedPortal = _portals.FirstOrDefault(p => p.Guid == addedObjectGuid);
-                        if (addedPortal is null)
-                            continue;
-                        writer.Write(addedPortal);
-                        break;
-                    default:
-                        _logger.LogWarning("Unknown object type {ObjectType} on NewObjects serialization",
-                            addedObjectGuid.Type);
-                        continue;
-                }
-
-                int length = (int)writer.BaseStream.Position - startOffset;
-                // NOTE: Fields slice is valid only until ArrayPool.Shared.Return(buffer) in the finally block.
-                // PacketSerializationHelper.Serialize (called inside Create) is synchronous,
-                // so the slice is consumed before Return is reached.
-                state.AddedObjects.Add(new ObjectAdd
-                {
-                    Guid   = addedObjectGuid.RawValue,
-                    Fields = new ReadOnlyMemory<byte>(buffer, startOffset, length)
-                });
-                // No writer.Reset() — blobs accumulate contiguously in buffer.
-            }
-
-            foreach ((ObjectGuid Guid, GameEntityFields Fields) updatedObject
-                     in character.CharacterGameState.UpdatedObjects)
-            {
-                if (buffer.Length - (int)writer.BaseStream.Position < 2048)
-                {
-                    // Safety valve — see the matching guard in the NewObjects loop above.
-                    // Skipped delta updates are less severe: the entity state is stale for one tick
-                    // and will be corrected when the entity's dirty fields are set again.
-                    _logger.LogWarning(
-                        "BroadcastStateTo: buffer capacity exhausted — skipped update for object {Guid}",
-                        updatedObject.Guid.RawValue);
-                    continue;
-                }
-
-                int startOffset = (int)writer.BaseStream.Position;
-
-                switch (updatedObject.Guid.Type)
-                {
-                    case ObjectType.Character:
-                        if (!_characters.TryGetValue(updatedObject.Guid, out ICharacter? updatedCharacter))
-                            continue;
-                        var updFields = MaskSelfSuppression(GameEntityFields.CharacterUpdate, updatedObject.Guid, character.Guid);
-                        writer.Write(updatedCharacter, updFields);
-                        break;
-                    case ObjectType.Creature:
-                        if (!_creatures.TryGetValue(updatedObject.Guid, out ICreature? updatedCreature))
-                            continue;
-                        writer.Write(updatedCreature, GameEntityFields.CreatureUpdate);
-                        break;
-                    case ObjectType.SpellProjectile:
-                        IWorldObject? updatedAbility = _abilityCastSystem.GetAbility(updatedObject.Guid);
-                        if (updatedAbility is null)
-                            continue;
-                        writer.Write(updatedAbility, updatedObject.Fields);
-                        break;
-                    case ObjectType.Portal:
-                        continue; // portals are immutable in PoC — no delta updates
-                    default:
-                        _logger.LogWarning("Unknown object type {ObjectType} on UpdatedObjects serialization",
-                            updatedObject.Guid.Type);
-                        continue;
-                }
-
-                int length = (int)writer.BaseStream.Position - startOffset;
-                // NOTE: Fields slice is valid only until ArrayPool.Shared.Return(buffer) in the finally block.
-                state.UpdatedObjects.Add(new ObjectUpdate
-                {
-                    Guid   = updatedObject.Guid.RawValue,
-                    Fields = new ReadOnlyMemory<byte>(buffer, startOffset, length)
-                });
-                // No writer.Reset() — blobs accumulate contiguously in buffer.
-            }
-
-            // Create() calls PacketSerializationHelper.Serialize, which reads Fields slices
-            // synchronously. The buffer is returned in the finally block after this method returns.
-            if (state.AddedObjects.Count > 0)
-                connection.Send(SInstanceStateAddPacket.Create(state.AddedObjects, connection.CryptoSession.Encrypt));
-
-            // _frameDirtyFields is populated only on broadcast ticks (see Step 5a in Update),
-            // so UpdatedObjects.Count > 0 already implies a broadcast cadence hit.
-            if (state.UpdatedObjects.Count > 0)
-                connection.Send(SInstanceStateUpdatePacket.Create(state.UpdatedObjects, connection.CryptoSession.Encrypt));
-
-            if (character.CharacterGameState.RemovedObjects.Count > 0)
-            {
-                _logger.LogInformation("Found {Count} removed objects",
-                    character.CharacterGameState.RemovedObjects.Count);
-                connection.Send(SInstanceStateRemovePacket.Create(
-                    character.CharacterGameState.RemovedObjects, connection.CryptoSession.Encrypt));
+                state.AddedObjects.Add(added);
             }
         }
-        finally
+
+        foreach ((ObjectGuid Guid, GameEntityFields Fields) updatedObject
+                 in character.CharacterGameState.UpdatedObjects)
         {
-            ArrayPool<byte>.Shared.Return(buffer);
+            ObjectState? updated = DescribeUpdatedObject(updatedObject, character.Guid);
+
+            if (updated is not null)
+            {
+                state.UpdatedObjects.Add(updated);
+            }
+        }
+
+        if (state.AddedObjects.Count > 0)
+            connection.Send(SInstanceStateAddPacket.Create(state.AddedObjects, connection.CryptoSession.Encrypt));
+
+        // _frameDirtyFields is populated only on broadcast ticks (see Step 5a in Update),
+        // so UpdatedObjects.Count > 0 already implies a broadcast cadence hit.
+        if (state.UpdatedObjects.Count > 0)
+            connection.Send(SInstanceStateUpdatePacket.Create(state.UpdatedObjects, connection.CryptoSession.Encrypt));
+
+        if (character.CharacterGameState.RemovedObjects.Count > 0)
+        {
+            _logger.LogInformation("Found {Count} removed objects",
+                character.CharacterGameState.RemovedObjects.Count);
+            connection.Send(SInstanceStateRemovePacket.Create(
+                character.CharacterGameState.RemovedObjects, connection.CryptoSession.Encrypt));
+        }
+    }
+
+    /// <summary>
+    /// An entity the recipient has not seen before, described in full. Null when the entity
+    /// has left the instance between being noticed and being described.
+    /// </summary>
+    private ObjectState? DescribeNewObject(ObjectGuid guid, ObjectGuid recipientGuid)
+    {
+        switch (guid.Type)
+        {
+            case ObjectType.Character:
+                if (!_characters.TryGetValue(guid, out ICharacter? addedCharacter))
+                    return null;
+                return ObjectStateWriter.From(
+                    addedCharacter,
+                    MaskSelfSuppression(GameEntityFields.All, guid, recipientGuid));
+
+            case ObjectType.Creature:
+                if (!_creatures.TryGetValue(guid, out ICreature? addedCreature))
+                    return null;
+                return ObjectStateWriter.From(addedCreature, GameEntityFields.All);
+
+            case ObjectType.SpellProjectile:
+                IWorldObject? addedAbility = _abilityCastSystem.GetAbility(guid);
+                return addedAbility is null ? null : ObjectStateWriter.From(addedAbility);
+
+            case ObjectType.Portal:
+                PortalInstance? addedPortal = _portals.Find(p => p.Guid == guid);
+                return addedPortal is null ? null : ObjectStateWriter.From(addedPortal);
+
+            default:
+                _logger.LogWarning("Unknown object type {ObjectType} on NewObjects serialization", guid.Type);
+                return null;
+        }
+    }
+
+    /// <summary>
+    /// A change to an entity the recipient already has. Null when the entity has left the
+    /// instance, and for portals, which never change.
+    /// </summary>
+    private ObjectState? DescribeUpdatedObject(
+        (ObjectGuid Guid, GameEntityFields Fields) updatedObject,
+        ObjectGuid recipientGuid)
+    {
+        switch (updatedObject.Guid.Type)
+        {
+            case ObjectType.Character:
+                if (!_characters.TryGetValue(updatedObject.Guid, out ICharacter? updatedCharacter))
+                    return null;
+                return ObjectStateWriter.From(
+                    updatedCharacter,
+                    MaskSelfSuppression(GameEntityFields.CharacterUpdate, updatedObject.Guid, recipientGuid));
+
+            case ObjectType.Creature:
+                if (!_creatures.TryGetValue(updatedObject.Guid, out ICreature? updatedCreature))
+                    return null;
+                return ObjectStateWriter.From(updatedCreature, GameEntityFields.CreatureUpdate);
+
+            case ObjectType.SpellProjectile:
+                IWorldObject? updatedAbility = _abilityCastSystem.GetAbility(updatedObject.Guid);
+                return updatedAbility is null
+                    ? null
+                    : ObjectStateWriter.From(updatedAbility, updatedObject.Fields);
+
+            case ObjectType.Portal:
+                return null; // portals are immutable in PoC — no delta updates
+
+            default:
+                _logger.LogWarning("Unknown object type {ObjectType} on UpdatedObjects serialization",
+                    updatedObject.Guid.Type);
+                return null;
         }
     }
 
@@ -586,7 +543,7 @@ public class MapInstance : IMapInstance, IPortalSink
     {
         // Capacities sized for a typical instance (32 entities visible per player).
         // List<T> grows automatically if exceeded — this avoids early reallocation.
-        public List<ObjectAdd>    AddedObjects   { get; } = new(32);
-        public List<ObjectUpdate> UpdatedObjects { get; } = new(32);
+        public List<ObjectState> AddedObjects   { get; } = new(32);
+        public List<ObjectState> UpdatedObjects { get; } = new(32);
     }
 }
