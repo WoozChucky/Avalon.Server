@@ -51,6 +51,28 @@ See [Redis Cache Keys](redis-cache-keys.md) for the full key reference.
 - Invalid or expired world key → silent reject (prevents brute-force enumeration).
 - Multiple logins for same account → previously connected session force-disconnected via pub/sub event.
 
+## Open Defect — a `DateTime` loses its kind
+
+A `DateTime` sent over the protocol arrives without knowing which zone it is in, and this is a
+defect in the server rather than a property of the wire format a client has to live with.
+
+protobuf-net encodes a `DateTime` as `bcl.DateTime`, which has a `kind` field, and writes only
+the value and the scale. The field is never populated and never read. So a timestamp written as
+`DateTimeKind.Utc` comes back from the **server's own deserializer** as `DateTimeKind.Unspecified`,
+and any code that then treats it as local — `ToLocalTime`, a comparison against `DateTime.Now`,
+a format without an offset — shifts it silently by the host's offset. Nothing raises.
+
+Affected today: the two chat timestamps, `SChatMessagePacket.DateTime` and its client
+counterpart. A client cannot recover the zone either and has to be told out of band.
+
+Either end of a fix is viable and both are protocol changes: populate and read the `kind` field,
+or carry the timestamp as an explicit UTC tick count or a `google.protobuf.Timestamp` and drop
+`bcl.DateTime` for these members. Until one is taken, treat every received `DateTime` as UTC by
+convention and never call `ToLocalTime` on one.
+
+`WireLimitsShould.Not_Carry_The_Kind_Of_A_DateTime` holds the current behaviour with the bytes
+in it, so a fix will turn that test red rather than pass unnoticed.
+
 ## Security Considerations
 
 - Single-use world keys mitigate replay (removed after exchange).
