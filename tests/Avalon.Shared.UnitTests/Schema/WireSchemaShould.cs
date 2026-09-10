@@ -8,9 +8,10 @@ using Xunit;
 namespace Avalon.Shared.UnitTests.Schema;
 
 /// <summary>
-/// Holds the checked-in wire schema to the C# packet contracts it was exported from.
-/// A contract change that is not re-exported would otherwise be invisible until a client
-/// deserialized a field into the wrong property, which raises nothing.
+/// Holds the checked-in wire schema to the C# definitions it was exported from: the packet
+/// contracts, and the entity-field bitmask that travels inside them. A change that is not
+/// re-exported would otherwise be invisible until a client deserialized a field into the wrong
+/// property, or read a renumbered bit as a different one, neither of which raises anything.
 /// </summary>
 public class WireSchemaShould
 {
@@ -23,7 +24,7 @@ public class WireSchemaShould
     }
 
     [Fact]
-    public void Describe_Every_Opcode_The_Contracts_Declare()
+    public void Describe_Everything_The_Proto_Cannot_Carry()
     {
         AssertMatchesCheckedInFile(OpcodeTable.FileName, OpcodeTable.Generate());
     }
@@ -49,7 +50,7 @@ public class WireSchemaShould
 
     /// <summary>
     /// Says which line diverged, what precedes it, and what it should have been, so the
-    /// reader can tell a contract they meant to change from one they did not.
+    /// reader can tell a definition they meant to change from one they did not.
     /// </summary>
     /// <remarks>
     /// Only the first difference is reported. An inserted or removed line shifts every line
@@ -68,9 +69,9 @@ public class WireSchemaShould
 
         var report = new List<string>
         {
-            $"schema/{fileName} no longer matches the C# packet contracts.",
+            $"schema/{fileName} no longer matches the C# definitions it was exported from.",
             string.Empty,
-            "If you changed a contract on purpose, re-export the schema and commit it:",
+            "If you changed one of them on purpose, re-export the schema and commit it:",
             $"    {RegenerateCommand}",
             string.Empty,
             $"First difference at line {first + 1}"

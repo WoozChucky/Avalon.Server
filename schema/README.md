@@ -6,7 +6,7 @@ contracts so a non-.NET client can be built against it.
 | File | What it is |
 |---|---|
 | `avalon.proto` | Generated. Every `[ProtoContract]` type in `Avalon.Network.Packets` and `Avalon.Network.Packets.Abstractions`, as proto3. |
-| `opcodes.json` | Generated. The opcode-to-message mapping and per-packet encryption flags, which a `.proto` cannot express. |
+| `opcodes.json` | Generated. The opcode-to-message mapping, the per-packet encryption flags, and the entity-field bitmask — none of which a `.proto` can express. |
 | `protobuf-net/bcl.proto` | Vendored, not generated. See below. |
 
 Regenerate both after any change to a packet contract:
@@ -40,6 +40,18 @@ rather than a guess.
 Two header fields are deliberately absent from `opcodes.json`, because building on them would
 propagate a fiction: `NetworkProtocol` is read by nothing, and `Version` is hardcoded to zero
 at every construction site.
+
+**The entity-field bitmask.** `GameEntityFields` selects which fields an entity-state packet
+carries, but it travels inside an opaque `bytes` member, so the schema describes neither the
+blob nor the mask that heads it. It could not be an enum in the `.proto` either: proto3 requires
+the first member to be zero, and this one starts at `None = 1 << 0`. The `entityFields` section
+exports it instead, split into the single-bit members (`bits`, each with its bit index) and the
+combinations the server names (`masks`, each listing the bits it sets).
+
+Two things a reader must not assume. `hasZeroValue` is `false` — no member is zero, so a client
+that writes a zero-based flags enum is wrong about every bit, and the numbers have to be copied
+rather than regenerated. And two of the bits are decorative: `CreatureMetadataId` and `Name` are
+declared and set in `All`, but the writer emits both values unconditionally and tests neither.
 
 ## The vendored `bcl.proto`
 
