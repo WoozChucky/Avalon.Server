@@ -9,9 +9,10 @@ namespace Avalon.Shared.UnitTests.Schema;
 
 /// <summary>
 /// Holds the checked-in wire schema to the C# definitions it was exported from: the packet
-/// contracts, and the entity-field bitmask that travels inside them. A change that is not
-/// re-exported would otherwise be invisible until a client deserialized a field into the wrong
-/// property, or read a renumbered bit as a different one, neither of which raises anything.
+/// contracts as proto3, and the opcode and encryption-flag table that no .proto can express. A
+/// change that is not re-exported would otherwise be invisible until a client deserialized a
+/// field into the wrong property, or sent a packet under an opcode the server reads as
+/// something else, neither of which raises anything.
 /// </summary>
 public class WireSchemaShould
 {
