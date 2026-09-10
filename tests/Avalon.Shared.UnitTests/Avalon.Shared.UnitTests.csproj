@@ -37,6 +37,7 @@
     <ProjectReference Include="..\..\src\Shared\Avalon.Metrics\Avalon.Metrics.csproj" />
     <ProjectReference Include="..\..\src\Shared\Avalon.Network.Packets\Avalon.Network.Packets.csproj" />
     <ProjectReference Include="..\..\src\Shared\Avalon.Network.Packets.Abstractions\Avalon.Network.Packets.Abstractions.csproj" />
+    <ProjectReference Include="..\..\tools\Avalon.SchemaGen\Avalon.SchemaGen.csproj" />
   </ItemGroup>
 
 </Project>
