@@ -8,6 +8,7 @@ contracts so a non-.NET client can be built against it.
 | `avalon.proto` | Generated. Every `[ProtoContract]` type in `Avalon.Network.Packets` and `Avalon.Network.Packets.Abstractions`, as proto3. |
 | `opcodes.json` | Generated. The opcode-to-message mapping, the per-packet encryption flags, and the entity-field bitmask — none of which a `.proto` can express. |
 | `protobuf-net/bcl.proto` | Vendored, not generated. See below. |
+| `protobuf-net/NOTICE` | Where that copy came from, under what license, and which library version it matches. |
 
 Regenerate both after any change to a packet contract:
 
@@ -59,7 +60,15 @@ Five fields — two chat timestamps and three map-instance ids — serialize thr
 protobuf-net's own representations rather than the `google.protobuf` well-known types, so the
 schema imports `protobuf-net/bcl.proto`. That file ships in neither the NuGet package nor the
 protobuf distribution, so a copy is kept here, taken verbatim (line endings normalized to LF)
-from `src/Tools/bcl.proto` in the protobuf-net repository, which is Apache-2.0 licensed.
+from `src/Tools/bcl.proto` in the protobuf-net repository. It is Apache-2.0 while Avalon is MIT,
+so it carries its own `NOTICE` recording the source, the author, the license, and the library
+version and upstream commit the copy matches.
+
+Nothing can compare that copy to its original: there is no original to fetch, which is why it
+is vendored in the first place. So `VendoredBclSchemaShould` holds the version recorded in the
+`NOTICE` to the one `src/Directory.Packages.props` references, and a protobuf-net upgrade fails
+until someone has re-read the two files against each other. That is a prompt, not a comparison —
+it cannot tell you the file changed, only that it might have.
 
 `bcl.DateTime` is a scaled offset from the Unix epoch and `bcl.Guid` is two `fixed64`s in
 .NET's byte order rather than sixteen bytes in RFC order, so a consumer must convert. One that

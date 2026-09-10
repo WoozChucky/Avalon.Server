@@ -31,7 +31,7 @@ public class WireSchemaShould
 
     private static void AssertMatchesCheckedInFile(string fileName, string generated)
     {
-        string path = Path.Combine(RepositoryRoot(), "schema", fileName);
+        string path = Path.Combine(RepositoryLayout.Root(), "schema", fileName);
 
         Assert.True(
             File.Exists(path),
@@ -96,18 +96,4 @@ public class WireSchemaShould
     // Compares content rather than encoding: a working tree checked out with CRLF is not drift.
     private static string[] Lines(string text) =>
         text.Replace("\r\n", "\n", StringComparison.Ordinal).Split('\n');
-
-    private static string RepositoryRoot()
-    {
-        var directory = new DirectoryInfo(AppContext.BaseDirectory);
-
-        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "Avalon.sln")))
-        {
-            directory = directory.Parent;
-        }
-
-        return directory?.FullName
-            ?? throw new InvalidOperationException(
-                $"Could not find the repository root: no Avalon.sln above {AppContext.BaseDirectory}.");
-    }
 }
