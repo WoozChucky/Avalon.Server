@@ -106,7 +106,13 @@ internal static class FixtureText
         new string('é', 40) + new string('z', 49),
     ];
 
-    private static readonly string[] Minimal = ["\0", "", " "];
+    // The shortest strings that are not one another: a NUL, a control character, and a
+    // space. The control character is written as an escape because the byte itself is
+    // invisible in an editor, in a diff and in a terminal, so any pass that strips control
+    // characters - a lint autofix, a copy through a channel that sanitises them - would
+    // rewrite it into a second empty string and leave a diff that renders alike on both
+    // sides. The empty string itself is what the empty variant carries.
+    private static readonly string[] Minimal = ["\0", "\u0001", " "];
 
     internal static string? Value(FixtureVariant variant, string path, int ordinal) => variant switch
     {
