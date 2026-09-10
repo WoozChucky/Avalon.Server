@@ -10,6 +10,7 @@ dotnet run -c Release --project tools/Avalon.Benchmarking
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*TickLoop*"
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*EntityTracking*"
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*Serialization*"
+dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*SessionCipher*"
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*PacketSerializationGc*"
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*BroadcastStateGc*"
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*PacketReaderGc*"
@@ -153,16 +154,43 @@ The allocation difference is the eliminated `new object[2]` args array and boxed
 
 ### Serialization — `SerializationBenchmarks.cs`
 
-Measures Protobuf-net packet serialization and deserialization with and without AES-128 encryption.
+Measures Protobuf-net packet serialization and deserialization, with and without the AES-GCM
+session layer.
 
 | Scenario | What it models |
 |---|---|
 | `Serialize_NoEncryption` | Serialize `CClientInfoPacket` — no encryption |
-| `Serialize_Aes128` | Serialize `CCharacterListPacket` with AES-128 encryption |
-| `Deserialize_Aes128` | Deserialize + decrypt + inner-deserialize an AES-128 packet |
+| `Serialize_Encrypted` | Serialize `CCharacterListPacket` through `AvalonCryptoSession.Encrypt` |
+| `Deserialize_Encrypted` | Deserialize + decrypt + inner-deserialize an encrypted packet |
 | `Deserialize_NoEncryption` | Deserialize an unencrypted `NetworkPacket` |
 
-**Status:** Baseline not yet recorded. No active refactor in progress.
+Both sides of the key agreement use P-256, the curve `CryptoManager` and `AvalonCryptoSession`
+use in production, so the session key is a 256-bit AES key negotiated the way a live connection
+negotiates it.
+
+**Status:** Baseline recorded 2026-09-10. No active refactor in progress.
+
+---
+
+### Session Cipher — `SessionCipherBenchmarks.cs`
+
+Compares the session cipher as the packet pipeline calls it — BouncyCastle AES-GCM behind
+`AvalonCryptoSession.Encrypt` / `Decrypt` — against the platform's
+`System.Security.Cryptography.AesGcm` over the same key and the same nonce + ciphertext + tag
+layout.
+
+| Scenario | What it models |
+|---|---|
+| `BouncyCastle_Encrypt` | Production `AvalonCryptoSession.Encrypt` — lock, per-call cipher `Init`, freshly allocated result |
+| `BouncyCastle_Decrypt` | Production `AvalonCryptoSession.Decrypt` — lock, per-call cipher `Init`, caller-supplied output buffer |
+| `AesGcm_Encrypt` | Platform one-shot encrypt into an equivalently allocated result buffer |
+| `AesGcm_Decrypt` | Platform one-shot decrypt into the same caller-supplied output buffer |
+
+`PayloadSize` is parameterised at 64, 256 and 1024 bytes. The key is a real P-256 ECDH agreement
+shared by both arms, so the two differ in cipher implementation and call shape only — never in
+key material.
+
+**Status:** Baseline recorded 2026-09-10.
 
 ---
 
@@ -747,3 +775,98 @@ await ((IPacketHandlerNew)packetHandler).ExecuteAsync(context, _stoppingToken.To
 - **Gen0 rate halved** — `Gen0` drops from 0.0081 to 0.0041 per 1 000 operations. Fewer Gen0 collections means less STW pause time during packet processing.
 - **At dispatch scale** — at 50 players × 10 packets/s = 500 `CallListener` dispatches/s, the legacy path allocates ~64 KB/s of short-lived Gen0 objects from this site alone. The DIM path reduces that to ~32 KB/s, a saving of ~32 KB/s.
 - **Dead code removed** — `IPacketHandler`/`IPacketRegistry`/`PacketRegistry`/`AvalonTcpClient` (all unreferenced in production) deleted alongside the fix, reducing build surface and eliminating dead maintenance burden.
+
+---
+
+## Serialization — Benchmark Results
+
+**Date:** 2026-09-10
+
+```
+BenchmarkDotNet v0.15.8, Windows 11 (10.0.26200.9168/25H2/2025Update/HudsonValley2)
+12th Gen Intel Core i9-12900K 3.20GHz, 1 CPU, 24 logical and 16 physical cores
+.NET SDK 10.0.401
+  [Host]     : .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v3
+  DefaultJob : .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v3
+```
+
+### Results — first baseline (2026-09-10)
+
+| Method | Mean | Error | StdDev | Gen0 | Allocated |
+|---|---|---|---|---|---|
+| `Serialize_NoEncryption` | 205.5 ns | 1.28 ns | 1.07 ns | 0.0556 | 872 B |
+| `Serialize_Encrypted` | 951.8 ns | 17.08 ns | 15.98 ns | 0.1364 | 2,144 B |
+| `Deserialize_Encrypted` | 527.0 ns | 10.06 ns | 12.36 ns | 0.1106 | 1,744 B |
+| `Deserialize_NoEncryption` | 182.0 ns | 3.03 ns | 2.83 ns | 0.0131 | 208 B |
+
+### Key observations
+
+- **Encryption costs 4.6× on the send path** — 205.5 ns → 951.8 ns, and 872 B → 2,144 B. These
+  are end-to-end packet figures, not cipher figures: `CCharacterListPacket.Create` serializes the
+  inner packet to a `MemoryStream`, encrypts that, then the outer `NetworkPacket` is serialized
+  again. The cipher's own share is isolated in the Session Cipher suite below.
+- **Encrypt costs more than decrypt** — 951.8 ns versus 527.0 ns, even though the decrypt scenario
+  does strictly more work (outer deserialize, decrypt, inner deserialize). The asymmetry is
+  allocation: `AvalonCryptoSession.Decrypt` writes into a caller-supplied buffer, while `Encrypt`
+  still copies the input span, takes a fresh `DoFinal` output buffer, and then joins nonce and
+  ciphertext through `Concat().ToArray()`. The send path never received the treatment the receive
+  path got.
+- **The unencrypted rows are the protobuf floor** — 205.5 ns / 872 B to serialize and 182.0 ns /
+  208 B to deserialize a small packet. Anything above that on the encrypted rows is the session
+  layer, not Protobuf-net.
+
+---
+
+## Session Cipher — Benchmark Results
+
+**Date:** 2026-09-10
+
+```
+BenchmarkDotNet v0.15.8, Windows 11 (10.0.26200.9168/25H2/2025Update/HudsonValley2)
+12th Gen Intel Core i9-12900K 3.20GHz, 1 CPU, 24 logical and 16 physical cores
+.NET SDK 10.0.401
+  [Host]     : .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v3
+  DefaultJob : .NET 10.0.12 (10.0.12, 10.0.1226.42308), X64 RyuJIT x86-64-v3
+```
+
+### Results — first baseline (2026-09-10)
+
+| Method | PayloadSize | Mean | Error | StdDev | Gen0 | Gen1 | Allocated |
+|---|---|---|---|---|---|---|---|
+| `BouncyCastle_Encrypt` | 64 | 776.4 ns | 5.14 ns | 4.56 ns | 0.1125 | - | 1,768 B |
+| `BouncyCastle_Decrypt` | 64 | 376.2 ns | 7.14 ns | 8.22 ns | 0.0968 | - | 1,520 B |
+| `AesGcm_Encrypt` | 64 | 258.9 ns | 2.89 ns | 2.71 ns | 0.0076 | - | 120 B |
+| `AesGcm_Decrypt` | 64 | 195.8 ns | 1.63 ns | 1.27 ns | - | - | - |
+| `BouncyCastle_Encrypt` | 256 | 901.1 ns | 17.33 ns | 17.02 ns | 0.1488 | - | 2,344 B |
+| `BouncyCastle_Decrypt` | 256 | 456.9 ns | 2.59 ns | 2.03 ns | 0.1087 | - | 1,712 B |
+| `AesGcm_Encrypt` | 256 | 277.7 ns | 3.78 ns | 3.35 ns | 0.0196 | - | 312 B |
+| `AesGcm_Decrypt` | 256 | 220.9 ns | 2.83 ns | 2.65 ns | - | - | - |
+| `BouncyCastle_Encrypt` | 1024 | 1,397.5 ns | 24.96 ns | 24.52 ns | 0.2956 | - | 4,648 B |
+| `BouncyCastle_Decrypt` | 1024 | 819.2 ns | 16.30 ns | 20.01 ns | 0.1574 | 0.0010 | 2,480 B |
+| `AesGcm_Encrypt` | 1024 | 385.7 ns | 7.19 ns | 6.37 ns | 0.0687 | - | 1,080 B |
+| `AesGcm_Decrypt` | 1024 | 283.8 ns | 1.16 ns | 1.08 ns | - | - | - |
+
+### Key observations
+
+- **The platform primitive is 3.0–3.6× faster on encrypt and 1.9–2.9× on decrypt**, at every size
+  measured, on identical key material.
+- **Allocation is the wider gap.** BouncyCastle allocates 1.7–4.6 KB per encrypt and 1.5–2.5 KB per
+  decrypt. The platform arm allocates only the result buffer on encrypt (120–1,080 B) and nothing
+  at all on decrypt, because it writes straight into the caller's span.
+- **Two independent effects, separable across the three sizes.** A straight-line fit of the encrypt
+  means against payload size puts the fixed per-call cost at ~735 ns for BouncyCastle versus
+  ~250 ns for the platform, and the marginal cost at ~0.65 ns/byte versus ~0.13 ns/byte. Decrypt
+  shows the same shape (~347 ns versus ~190 ns fixed, ~0.46 versus ~0.09 ns/byte). So roughly
+  480 ns per call is call shape and the remaining ~5× is cipher throughput.
+- **The fixed component is the per-call re-key.** `AvalonCryptoSession` holds one shared
+  `IBufferedCipher` and calls `Init(...)` on it for every packet, in both directions, under a
+  single lock. Re-keying GCM regenerates the GHASH multiplication tables, which is also where most
+  of the per-call allocation goes.
+- **At broadcast scale** — 50 connections × 60 Hz state at 256 B is 3,000 encrypts/s. That
+  is ~2.7 ms/s of CPU and ~6.7 MB/s of Gen0 on the current path, against ~0.8 ms/s and ~0.9 MB/s
+  on the platform primitive: a saving of ~1.9 ms/s and ~5.8 MB/s from this site alone.
+- **This measures the current call shape, not BouncyCastle at its best.** A BouncyCastle arm that
+  keyed its cipher once and reused it would close the fixed-cost half of the gap. It would not
+  close the per-byte half, which is a property of the implementation rather than of how it is
+  called.
+
