@@ -1,0 +1,19 @@
+<Project>
+
+  <!--
+    The emitter decides what the exported schema looks like, so it has to be the same
+    protobuf-net the packet contracts serialize with. Importing the server's central package
+    versions makes that a single declaration instead of two that a comment asks to agree:
+    the divergence is no longer expressible, so nothing has to detect it.
+
+    This file sits in the project directory rather than in tools/, because the sibling tools
+    there declare their own versions and are not part of this arrangement.
+  -->
+  <Import Project="..\..\src\Directory.Packages.props"/>
+
+  <PropertyGroup>
+    <!-- VersionOverride on a PackageReference would reopen exactly what the import closes. -->
+    <CentralPackageVersionOverrideEnabled>false</CentralPackageVersionOverrideEnabled>
+  </PropertyGroup>
+
+</Project>

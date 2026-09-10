@@ -9,11 +9,12 @@
 
   <ItemGroup>
     <!--
-      The emitter version decides what the schema looks like, so this must track the version
-      the packet contracts serialize with (src/Directory.Packages.props). Bumping one alone
-      shows up as an unexplained schema diff.
+      No version here, deliberately. The emitter decides what the exported schema looks like,
+      so it has to be the protobuf-net the packet contracts serialize with, and the version
+      arrives from the server's central file through the Directory.Packages.props beside this
+      one. Writing a version here is a restore error, which is the point.
     -->
-    <PackageReference Include="protobuf-net" Version="3.4.21"/>
+    <PackageReference Include="protobuf-net"/>
   </ItemGroup>
 
   <ItemGroup>
