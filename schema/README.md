@@ -1,4 +1,4 @@
-# Wire schema
+﻿# Wire schema
 
 The language-neutral definition of the Avalon TCP protocol, exported from the C# packet
 contracts so a non-.NET client can be built against it.
@@ -6,7 +6,7 @@ contracts so a non-.NET client can be built against it.
 | File | What it is |
 |---|---|
 | `avalon.proto` | Generated. Every `[ProtoContract]` type in `Avalon.Network.Packets` and `Avalon.Network.Packets.Abstractions`, as proto3. |
-| `opcodes.json` | Generated. The opcode-to-message mapping, the per-packet encryption flags, and the entity-field bitmask — none of which a `.proto` can express. |
+| `opcodes.json` | Generated. The opcode-to-message mapping and the per-packet encryption flags — neither of which a `.proto` can express. |
 | `corpus/*.txt` | Generated. One file per message, holding the bytes the server writes for a set of deliberately awkward values. |
 | `protobuf-net/bcl.proto` | Vendored, not generated. See below. |
 | `protobuf-net/NOTICE` | Where that copy came from, under what license, and which library version it matches. |
@@ -44,17 +44,12 @@ Two header fields are deliberately absent from `opcodes.json`, because building 
 propagate a fiction: `NetworkProtocol` is read by nothing, and `Version` is hardcoded to zero
 at every construction site.
 
-**The entity-field bitmask.** `GameEntityFields` selects which fields an entity-state packet
-carries, but it travels inside an opaque `bytes` member, so the schema describes neither the
-blob nor the mask that heads it. It could not be an enum in the `.proto` either: proto3 requires
-the first member to be zero, and this one starts at `None = 1 << 0`. The `entityFields` section
-exports it instead, split into the single-bit members (`bits`, each with its bit index) and the
-combinations the server names (`masks`, each listing the bits it sets).
-
-Two things a reader must not assume. `hasZeroValue` is `false` — no member is zero, so a client
-that writes a zero-based flags enum is wrong about every bit, and the numbers have to be copied
-rather than regenerated. And two of the bits are decorative: `CreatureMetadataId` and `Name` are
-declared and set in `All`, but the writer emits both values unconditionally and tests neither.
+Nothing else is missing. Entity state used to be the third entry here, because it travelled as
+an opaque `bytes` member headed by a bitmask the schema could not describe and a client had to
+copy by hand. It is `ObjectState` in `avalon.proto` now, every field carrying its own presence,
+so a client reads which members arrived instead of decoding a mask to find out. The bitmask
+still exists on the server as its record of what has changed, and is no longer exported: a
+client that implemented it would be implementing something it must not use.
 
 ## The golden corpus
 
@@ -144,16 +139,16 @@ because in C# those are not null, and plain proto3 gives a singular `string` or 
 no way to say "present and empty" — a reader generated from such a schema decoded an empty one
 and an absent one alike and wrote back neither. This was not hypothetical:
 `SWorldSelectPacket.CreateError` sends `WorldKey = Array.Empty<byte>()` on every
-duplicate-session rejection, eleven string members initialize to `string.Empty`, and
-`ObjectAdd.Fields` and `ObjectUpdate.Fields` are `ReadOnlyMemory<byte>` — a value type that
-cannot be null, so the server writes an empty field for it even where nothing was assigned, on
-the entity-replication path.
+duplicate-session rejection, and eleven string members initialize to `string.Empty`.
 
 Every singular `string` and `bytes` field therefore carries `optional`, which gives proto3
 explicit presence and does not change how a present value encodes, so it costs no bytes. Note
-what the criterion is not: C# nullability does not predict any of this, since a
-`ReadOnlyMemory<byte>` is never null and is written every time. It is what protobuf-net puts on
-the wire that decides, not how the member is declared.
+what the criterion is not: C# nullability does not predict any of this. The sharpest case used
+to be on the entity-replication path, where two members were `ReadOnlyMemory<byte>` — a value
+type, never null, so the server wrote an empty field for one even where nothing had been
+assigned. Those two members are gone with the payload they carried, and no contract declares
+that type today, but the rule still recognises it, because it is what protobuf-net puts on the
+wire that decides and not how the member is declared.
 
 **A `DateTime` does not carry its kind.** protobuf-net writes `bcl.DateTime`'s value and scale
 and never its `kind` field, so a UTC timestamp is indistinguishable on the wire from an
