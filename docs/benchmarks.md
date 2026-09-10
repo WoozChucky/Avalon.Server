@@ -12,7 +12,6 @@ dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*EntityTr
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*Serialization*"
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*SessionCipher*"
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*PacketSerializationGc*"
-dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*BroadcastStateGc*"
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*PacketReaderGc*"
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*WorldPacketQueueGc*"
 dotnet run -c Release --project tools/Avalon.Benchmarking -- --filter "*PacketReaderDecryptGc*"
@@ -70,12 +69,12 @@ Both encrypt delegates are identity copies (`span => span.ToArray()`) to isolate
 
 ---
 
-### Broadcast State GC-002 — `BroadcastStateGcBenchmarks.cs`
+### Broadcast State GC-002 — removed
 
-GC-002: BroadcastStateTo per-entity alloc reduction.
-`Legacy_*` = current `new byte[]` per entity + `new List<ObjectAdd>` per call;
-`Pooled_*` = contiguous rented buffer + `ReadOnlyMemory<byte>` slices (added in Task 5).
-Parameterised at 5 and 20 entities.
+Both shapes it compared are gone. Entity replication no longer places bytes into a buffer by
+hand, so there is no rented buffer, no per-entity copy and no slice whose lifetime has to
+outlive it; the serializer owns the memory. The results below are kept as a record of what the
+old path cost, not as something that can be re-run.
 
 ---
 
@@ -475,11 +474,15 @@ BenchmarkDotNet v0.15.8, Windows 11 (10.0.26200.8039/25H2/2025Update/HudsonValle
   DefaultJob : .NET 10.0.6 (10.0.6, 10.0.626.17701), X64 RyuJIT x86-64-v3
 ```
 
+> These numbers were measured against an entity-replication path that no longer exists. Both
+> the benchmark and the buffer plumbing it modelled were removed when entity state became a
+> message instead of a hand-placed byte payload.
+
 ### Problem (before GC-002)
 
-`BroadcastStateTo` allocates `new byte[bytesWritten]` per visible entity and
+`BroadcastStateTo` allocated `new byte[bytesWritten]` per visible entity and
 `new List<ObjectAdd>()` per player per call. With 20 entities × 60 players at
-10 Hz this generates 1,200+ short-lived `byte[]` per broadcast tick.
+10 Hz that generated 1,200+ short-lived `byte[]` per broadcast tick.
 
 ### Baseline (before fix)
 

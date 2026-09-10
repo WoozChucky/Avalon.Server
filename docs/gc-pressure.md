@@ -1,4 +1,4 @@
-# GC Pressure & Heap Allocation Findings
+﻿# GC Pressure & Heap Allocation Findings
 
 Findings from a full-scope static analysis of the World server — network layer, packet
 pipeline, and simulation tick loop. Issues are ordered by severity / frequency.
@@ -37,15 +37,15 @@ this fires hundreds of times per second under any load.
 
 ## GC-002 — Per-tick entity state: `new byte[]` per visible entity per broadcast
 
-**Status:** Resolved — single contiguous `ArrayPool` buffer (65 536 bytes) per player per call; `ReadOnlyMemory<byte>` slices on `ObjectAdd`/`ObjectUpdate.Fields`; pre-allocated `List<ObjectAdd>`/`List<ObjectUpdate>` per player (`PerPlayerBroadcastState` on `MapInstance`). Eliminates per-entity `byte[]` copy; residual allocations are N `ObjectAdd`/`ObjectUpdate` class instances + 1 encrypted payload `byte[]` per call (~50% allocation reduction vs. legacy; Gen1 promotions eliminated).  
-**Severity:** Critical  
-**File:** `src/Server/Avalon.World/Instances/MapInstance.cs:252–295`
+**Status:** Gone with the shape it described. Entity state is a message the serializer owns, so nothing on this path places bytes by hand any more: no rented scratch buffer, no per-entity `byte[]`, and no slice whose lifetime has to outlive the buffer it points into. The per-player lists survive and are still reused (`PerPlayerBroadcastState` on `MapInstance`); what they hold is one object per entity, which together with the single encrypted payload per call is the residual allocation.
+**Severity:** Critical (historical)
+**File:** `src/Server/Avalon.World/Instances/MapInstance.cs`
 
-### Problem
+### Problem, as it was
 
-`BroadcastStateTo` correctly rents an `ArrayPool` scratch buffer, but then copies each
-entity's serialized bytes into a freshly allocated `byte[]` stored on `ObjectAdd.Fields`
-/ `ObjectUpdate.Fields`:
+`BroadcastStateTo` rented an `ArrayPool` scratch buffer, wrote each entity's fields into it
+as a hand-rolled byte payload, and handed out one slice per entity — at first a fresh
+`byte[]` each, later a `ReadOnlyMemory<byte>` into the shared buffer:
 
 ```csharp
 List<ObjectAdd> addedObjects = [];                                        // new list per call
@@ -53,16 +53,15 @@ ObjectAdd obj = new() { Fields = new byte[bytesWritten] };               // new 
 buffer.AsSpan(0, (int)bytesWritten).CopyTo(obj.Fields);
 ```
 
-With 20 visible entities and 60 players this is 1,200+ short-lived `byte[]` allocations
+With 20 visible entities and 60 players that was 1,200+ short-lived `byte[]` allocations
 per broadcast tick flowing through Gen0.
 
-### Fix Direction
+### Outcome
 
-- Pre-allocate per-player `ObjectAdd`/`ObjectUpdate` lists and reset them each frame
-  instead of creating new ones.
-- Consider building the full state packet into a single rented buffer per player (one
-  `MemoryStream` or `ArrayBufferWriter` per player, writing all entity blobs contiguously)
-  and passing a `ReadOnlyMemory<byte>` slice rather than per-entity copies.
+The slice version removed the per-entity copy and roughly halved the allocation. Replacing
+the payload with a message removed the buffer as well, and with it two hazards the slice
+version had documented rather than fixed: a capacity guard whose stated failure mode was a
+corrupt client, and a slice valid only until the buffer was returned.
 
 ---
 
