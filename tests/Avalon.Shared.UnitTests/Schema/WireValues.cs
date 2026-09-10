@@ -56,10 +56,17 @@ internal static class WireValues
     }
 
     /// <summary>
-    /// A nullable member is the case the schema's explicit presence exists for, so whether the
-    /// reference reader agrees the field is set is checked on its own rather than folded into
-    /// the value comparison, where null and zero would compare equal and prove nothing.
+    /// Whether the reference reader agrees the field is set, checked on its own rather than
+    /// folded into the value comparison - where null and zero, or absent and empty, compare
+    /// equal and prove nothing.
     /// </summary>
+    /// <remarks>
+    /// The members this applies to are the ones the schema's explicit presence exists for:
+    /// a nullable scalar, where the server writes zero and null as different bytes, and a
+    /// string or bytes member, where it writes empty and null as different bytes. Without the
+    /// keyword a reader collapses each pair, so this is the assertion that the schema hands
+    /// back the distinction the server drew.
+    /// </remarks>
     private static void ComparePresence(
         WireMember member,
         FieldDescriptor field,
@@ -68,25 +75,36 @@ internal static class WireValues
         string path,
         List<string> found)
     {
-        if (Nullable.GetUnderlyingType(member.DeclaredType) is null)
+        if (!DrawsAPresenceDistinction(member.DeclaredType))
         {
             return;
         }
 
         if (!field.HasPresence)
         {
-            found.Add($"{path} is nullable in C# but the schema gives field {member.Tag} no presence");
+            found.Add($"{path} distinguishes absent from its empty value in C# but the schema gives field "
+                + $"{member.Tag} no presence");
             return;
         }
 
         bool set = field.Accessor.HasValue(reference);
 
-        if (set != (value is not null))
+        // A ReadOnlyMemory<byte> is a struct and so is never null: the server always writes it,
+        // and the reference reader always has to find it.
+        bool ours = value is not null || member.DeclaredType == typeof(ReadOnlyMemory<byte>);
+
+        if (set != ours)
         {
-            found.Add($"{path} is {(value is null ? "null" : "set")} but the reference reader says it is "
+            found.Add($"{path} is {(ours ? "set" : "null")} but the reference reader says it is "
                 + (set ? "set" : "absent"));
         }
     }
+
+    private static bool DrawsAPresenceDistinction(Type declared) =>
+        Nullable.GetUnderlyingType(declared) is not null
+        || declared == typeof(string)
+        || declared == typeof(byte[])
+        || declared == typeof(ReadOnlyMemory<byte>);
 
     private static void CompareValue(Type declared, object? value, object? reference, string path, List<string> found)
     {
