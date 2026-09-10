@@ -23,6 +23,9 @@ public static class WireCorpus
 
     private const string Extension = ".txt";
 
+    /// <summary>The line that declares how long the vector under it is.</summary>
+    private const string CountPrefix = "  bytes ";
+
     /// <summary>The corpus files, keyed by file name, in the order they should be written.</summary>
     public static IReadOnlyDictionary<string, string> Generate()
     {
@@ -47,6 +50,7 @@ public static class WireCorpus
     {
         List<WireVector> vectors = [];
         string? variant = null;
+        int? declared = null;
         List<byte> bytes = [];
 
         foreach (string line in content.Replace("\r\n", "\n", StringComparison.Ordinal).Split('\n'))
@@ -55,32 +59,83 @@ public static class WireCorpus
 
             if (line.StartsWith("variant ", StringComparison.Ordinal))
             {
-                Flush(vectors, message, ref variant, bytes);
+                Flush(vectors, message, ref variant, ref declared, bytes);
                 variant = line["variant ".Length..].Trim();
+            }
+            else if (line.StartsWith(CountPrefix, StringComparison.Ordinal))
+            {
+                declared = int.Parse(
+                    line[CountPrefix.Length..].Trim(),
+                    NumberStyles.None,
+                    CultureInfo.InvariantCulture);
             }
             else if (line.StartsWith("    ", StringComparison.Ordinal) && IsHex(trimmed))
             {
                 foreach (string pair in trimmed.Split(' ', StringSplitOptions.RemoveEmptyEntries))
                 {
-                    bytes.Add(byte.Parse(pair, NumberStyles.HexNumber, CultureInfo.InvariantCulture));
+                    bytes.Add(OneByte(message, variant, pair));
                 }
             }
         }
 
-        Flush(vectors, message, ref variant, bytes);
+        Flush(vectors, message, ref variant, ref declared, bytes);
 
         return vectors;
     }
 
-    private static void Flush(List<WireVector> vectors, string message, ref string? variant, List<byte> bytes)
+    /// <summary>
+    /// Closes a vector, holding what was read to the count the file declared for it.
+    /// </summary>
+    /// <remarks>
+    /// Nothing else here would notice a mangled file. A hex block that lost its indentation,
+    /// or gained a line break somewhere else, is read as a shorter vector rather than
+    /// rejected, and a shorter vector is a conformance claim about bytes the server never
+    /// wrote. The declared count is the only thing in the file able to contradict it.
+    /// </remarks>
+    private static void Flush(
+        List<WireVector> vectors,
+        string message,
+        ref string? variant,
+        ref int? declared,
+        List<byte> bytes)
     {
         if (variant is not null)
         {
+            if (declared is null)
+            {
+                throw new InvalidDataException(
+                    $"{message}/{variant} carries no \"bytes\" line, so there is nothing to hold its "
+                    + "vector to and a truncated one would read as complete.");
+            }
+
+            if (declared != bytes.Count)
+            {
+                throw new InvalidDataException(
+                    $"{message}/{variant} declares {declared} bytes and {bytes.Count} were read. "
+                    + "The vector and the count disagree, so one of the two has been edited.");
+            }
+
             vectors.Add(new WireVector(message, variant, bytes.ToArray()));
         }
 
         variant = null;
+        declared = null;
         bytes.Clear();
+    }
+
+    /// <summary>
+    /// One byte of a vector. A token of any other length is refused rather than parsed: two
+    /// hex digits are a byte, and one or three are a different value read without complaint.
+    /// </summary>
+    private static byte OneByte(string message, string? variant, string token)
+    {
+        if (token.Length != 2)
+        {
+            throw new InvalidDataException(
+                $"{message}/{variant} carries the hex token \"{token}\", which is not two digits.");
+        }
+
+        return byte.Parse(token, NumberStyles.HexNumber, CultureInfo.InvariantCulture);
     }
 
     private static bool IsHex(string trimmed) =>
@@ -126,7 +181,7 @@ public static class WireCorpus
 
     private static void WriteBytes(StringBuilder text, byte[] bytes)
     {
-        text.Append("  bytes ").Append(bytes.Length.ToString(CultureInfo.InvariantCulture)).Append('\n');
+        text.Append(CountPrefix).Append(bytes.Length.ToString(CultureInfo.InvariantCulture)).Append('\n');
 
         for (int offset = 0; offset < bytes.Length; offset += 16)
         {
