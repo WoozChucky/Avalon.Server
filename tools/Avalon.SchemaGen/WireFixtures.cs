@@ -85,12 +85,43 @@ public static class WireFixtures
         const BindingFlags instanceMembers =
             BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
 
+        RefuseMembersThisWalkCannotReach(contract, instanceMembers);
+
         return contract.GetProperties(instanceMembers)
             .Select(property => (property, tag: property.GetCustomAttribute<ProtoMemberAttribute>()))
             .Where(candidate => candidate.tag is not null)
             .Select(candidate => new WireMember(candidate.property, candidate.tag!.Tag))
             .OrderBy(member => member.Tag)
             .ToList();
+    }
+
+    /// <summary>
+    /// Stops on a <c>[ProtoMember]</c> this walk does not see. protobuf-net accepts the
+    /// attribute on a field as well as on a property, and only properties are read here.
+    /// </summary>
+    /// <remarks>
+    /// Every member in the protocol today is an auto-property, so nothing is missing. One
+    /// declared on a field later would be absent from the fixtures, from the corpus, from the
+    /// presence marking and from the value comparison, and each of those would keep passing -
+    /// the member would simply not exist as far as any of them could tell. A shape this tool
+    /// cannot reach therefore stops it, which is a build someone has to fix rather than
+    /// coverage that quietly is not there.
+    /// </remarks>
+    private static void RefuseMembersThisWalkCannotReach(Type contract, BindingFlags instanceMembers)
+    {
+        string[] fields = contract.GetFields(instanceMembers)
+            .Where(field => field.GetCustomAttribute<ProtoMemberAttribute>() is not null)
+            .Select(field => field.Name)
+            .OrderBy(name => name, StringComparer.Ordinal)
+            .ToArray();
+
+        if (fields.Length > 0)
+        {
+            throw new NotSupportedException(
+                $"{contract.FullName} carries [ProtoMember] on a field: {string.Join(", ", fields)}. "
+                + "The fixtures read properties only, so these members would be missing from the corpus "
+                + "with nothing failing. Teach WireMember to read and write a field before declaring one.");
+        }
     }
 
     /// <summary>
