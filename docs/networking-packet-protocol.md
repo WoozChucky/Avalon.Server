@@ -57,18 +57,24 @@ A `DateTime` sent over the protocol arrives without knowing which zone it is in,
 defect in the server rather than a property of the wire format a client has to live with.
 
 protobuf-net encodes a `DateTime` as `bcl.DateTime`, which has a `kind` field, and writes only
-the value and the scale. The field is never populated and never read. So a timestamp written as
-`DateTimeKind.Utc` comes back from the **server's own deserializer** as `DateTimeKind.Unspecified`,
-and any code that then treats it as local — `ToLocalTime`, a comparison against `DateTime.Now`,
-a format without an offset — shifts it silently by the host's offset. Nothing raises.
+the value and the scale. The loss is on the writing side alone: nothing populates the field, but
+the reader honours it when it is there — hand protobuf-net a `bcl.DateTime` carrying `kind = 1`
+and it returns a `DateTimeKind.Utc` timestamp, `kind = 2` and it returns a local one. So a
+timestamp written as `DateTimeKind.Utc` comes back from the **server's own deserializer** as
+`DateTimeKind.Unspecified`, and any code that then treats it as local — `ToLocalTime`, a
+comparison against `DateTime.Now`, a format without an offset — shifts it silently by the host's
+offset. Nothing raises.
 
 Affected today: the two chat timestamps, `SChatMessagePacket.DateTime` and its client
 counterpart. A client cannot recover the zone either and has to be told out of band.
 
-Either end of a fix is viable and both are protocol changes: populate and read the `kind` field,
-or carry the timestamp as an explicit UTC tick count or a `google.protobuf.Timestamp` and drop
-`bcl.DateTime` for these members. Until one is taken, treat every received `DateTime` as UTC by
-convention and never call `ToLocalTime` on one.
+Either end of a fix is viable and both are protocol changes. Populating the field is the smaller
+one, and it needs no reader work at all: `RuntimeTypeModel.Default.IncludeDateTimeKind = true`,
+set before the model first serializes a `DateTime`, writes `kind` and the round trip then keeps
+it. That adds two bytes to every `DateTime` on the wire, so it is a wire change and the corpus
+moves with it. The other end is to carry the timestamp as an explicit UTC tick count or a
+`google.protobuf.Timestamp` and drop `bcl.DateTime` for these members. Until one is taken, treat
+every received `DateTime` as UTC by convention and never call `ToLocalTime` on one.
 
 `WireLimitsShould.Not_Carry_The_Kind_Of_A_DateTime` holds the current behaviour with the bytes
 in it, so a fix will turn that test red rather than pass unnoticed.
