@@ -124,6 +124,8 @@ internal static class EntityStateScenarios
         CharacterUpdateSeenByAnotherPlayer(),
         CharacterUpdateSeenByItsOwnPlayer(),
         CharacterUpdateWithoutAPowerType(),
+        CharacterUpdateWithoutThePowerTypeSelected(),
+        CharacterUpdateWithoutExperienceSelected(),
         DeadCharacterWithALongName(),
         CreatureAdd(),
         CreatureUpdate(),
@@ -271,6 +273,48 @@ internal static class EntityStateScenarios
             PowerType = PowerType.None,
             Power = null,
             CurrentPower = null,
+        },
+    };
+
+    /// <summary>
+    /// Both power amounts asked for and the power type not asked for. The amounts are written
+    /// inside the conditional the type opens, so the type selection gates all three and nothing
+    /// about the pool travels — which is not what three separate flags suggest.
+    /// <see cref="GameEntityFields.CharacterUpdate"/> carries both amount bits; only the type
+    /// bit is cleared here.
+    /// </summary>
+    private static EntityStateScenario CharacterUpdateWithoutThePowerTypeSelected() => new()
+    {
+        Name = "character-update-without-the-power-type-selected",
+        Guid = CharacterGuid,
+        IsAdd = false,
+        Entity = NewCharacter(),
+        Fields = GameEntityFields.CharacterUpdate & ~GameEntityFields.PowerType,
+        Expected = CharacterBase() with
+        {
+            PowerType = null,
+            Power = null,
+            CurrentPower = null,
+        },
+    };
+
+    /// <summary>
+    /// A character asked for without either experience member. Every selection the broadcast
+    /// path uses today asks for both, so nothing else here observes them being left out: a
+    /// writer that sent them unconditionally would satisfy every other scenario.
+    /// </summary>
+    private static EntityStateScenario CharacterUpdateWithoutExperienceSelected() => new()
+    {
+        Name = "character-update-without-experience-selected",
+        Guid = CharacterGuid,
+        IsAdd = false,
+        Entity = NewCharacter(),
+        Fields = GameEntityFields.CharacterUpdate
+                 & ~(GameEntityFields.Experience | GameEntityFields.RequiredExperience),
+        Expected = CharacterBase() with
+        {
+            Experience = null,
+            RequiredExperience = null,
         },
     };
 
