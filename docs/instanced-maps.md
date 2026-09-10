@@ -294,3 +294,28 @@ Portals come from `ChunkLayout.Portals` populated at instance build time. See [M
 | 15-min expiry | `ProcessExpiredInstances` frees the instance; next entry creates a fresh one |
 | Town overflow (`MaxPlayers = 2`, 3 connections) | Two instances created; instances have 2 and 1 player respectively |
 | Logout from normal map | `character.Map` saved as town map ID; character logs in at town on next session |
+
+### Not covered: the broadcast pairing
+
+`BroadcastStateTo` and the two methods it calls, `DescribeNewObject` and
+`DescribeUpdatedObject`, have no automated coverage at all. Entity replication is tested one
+layer down, in `ObjectStateWriterShould`: those scenarios pick the field selection themselves
+and call `MapInstance.MaskSelfSuppression` directly, so what they verify is the writer and the
+helper, never `MapInstance`'s choice of either.
+
+That leaves the pairing unverified in both directions, and both mistakes are silent:
+
+- Swap the selection a kind is described under — `GameEntityFields.CreatureUpdate` for
+  `GameEntityFields.CharacterUpdate`, say — and every test stays green.
+- Delete the `MaskSelfSuppression` call from either method and every test stays green. Dropped
+  from `DescribeUpdatedObject`, that ships a player their own position ten times a second on a
+  packet the client does not expect to carry it, fighting whatever the client predicts locally;
+  dropped from `DescribeNewObject`, once per entry into view.
+
+The second is the shape of the problem. The writer is well covered; the decision about what to
+hand the writer is not covered at all, and that decision is where the player-visible mistakes
+are. Closing it takes a test that drives `MapInstance` itself — a character, a second
+character, a creature and a portal in one instance — and asserts what each connection is sent,
+rather than asserting against a selection the test chose.
+
+The gap is older than the `ObjectState` message and did not arrive with it.
