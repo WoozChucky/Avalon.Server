@@ -1,0 +1,22 @@
+bcl.proto in this directory is not part of Avalon. It is a copy of src/Tools/bcl.proto from
+protobuf-net, taken verbatim apart from normalizing line endings to LF, and kept here because
+the file ships in neither the NuGet package nor the protobuf distribution while avalon.proto
+imports it.
+
+    Source     https://github.com/protobuf-net/protobuf-net
+    File       src/Tools/bcl.proto
+    Author     Marc Gravell
+    License    Apache License 2.0 - https://www.apache.org/licenses/LICENSE-2.0
+
+Avalon is MIT (see the LICENSE at the repository root). This one file is not, and the
+Apache-2.0 terms govern it.
+
+The copy is kept in step with the protobuf-net the server serializes with. Upgrading that
+library means re-reading this file against the upstream tree the new version was built from,
+taking the new copy if it changed, and updating the two lines below. Nothing can compare the
+copy to its original automatically, because there is no original to fetch from the package --
+so VendoredBclSchemaShould in tests/Avalon.Shared.UnitTests fails on the upgrade instead,
+which is the moment that reading is worth doing.
+
+Vendored-From: protobuf-net 3.4.21
+Upstream-Commit: 6269b3bcfa3454a32495a681b7ae58b157637df0
