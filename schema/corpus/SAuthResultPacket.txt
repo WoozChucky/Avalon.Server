@@ -1,0 +1,75 @@
+# SAuthResultPacket - golden wire vectors.
+#
+# GENERATED FILE. The bytes below are what the server's serializer writes for the
+# values shown above them, so a client is conformant when it produces the same ones,
+# and a change in what the server emits arrives here as a diff.
+#
+#   Emitted by  tools/Avalon.SchemaGen
+#   Regenerate  dotnet run --project tools/Avalon.SchemaGen
+#   Format      described in schema/README.md
+#   Schema      the message of this name in schema/avalon.proto
+#
+# A variant is one shape of the same message. "absent" sets nothing, "empty" sets
+# everything to a present-but-empty value, and the rest carry values chosen to make
+# a particular encoding decision observable.
+
+message SAuthResultPacket
+
+variant absent
+  field 1 AccountId : long = 0
+  field 2 Result : AuthResult = INVALID_CREDENTIALS (0)
+  field 3 MfaHash : string = null
+  bytes 0
+
+variant empty
+  field 1 AccountId : long = 0
+  field 2 Result : AuthResult = INVALID_CREDENTIALS (0)
+  field 3 MfaHash : string = "" (0 chars, 0 bytes utf-8)
+  bytes 2
+    1a 00
+
+variant populated
+  field 1 AccountId : long = 19
+  field 2 Result : AuthResult = ALREADY_CONNECTED (5)
+  field 3 MfaHash : string = "emoji 🜁🚀 astral" (17 chars, 21 bytes utf-8)
+  bytes 27
+    08 13 10 05 1a 15 65 6d 6f 6a 69 20 f0 9f 9c 81
+    f0 9f 9a 80 20 61 73 74 72 61 6c
+
+variant maxima
+  field 1 AccountId : long = 9223372036854775807
+  field 2 Result : AuthResult = MFA_FAILED (6)
+  field 3 MfaHash : string = "ΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩx…" (88 chars, 132 bytes utf-8)
+  bytes 147
+    08 ff ff ff ff ff ff ff ff 7f 10 06 1a 84 01 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78
+
+variant minima
+  field 1 AccountId : long = -9223372036854775808
+  field 2 Result : AuthResult = INVALID_CREDENTIALS (0)
+  field 3 MfaHash : string = "\u0001" (1 chars, 1 bytes utf-8)
+  bytes 14
+    08 80 80 80 80 80 80 80 80 80 01 1a 01 01
+
+variant varint-edges
+  field 1 AccountId : long = 34359738368
+  field 2 Result : AuthResult = <not a declared member> (7)
+  field 3 MfaHash : string = "yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy…" (128 chars, 128 bytes utf-8)
+  bytes 140
+    08 80 80 80 80 80 01 10 07 1a 80 01 79 79 79 79
+    79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
+    79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
+    79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
+    79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
+    79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
+    79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
+    79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
+    79 79 79 79 79 79 79 79 79 79 79 79

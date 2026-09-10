@@ -1,0 +1,90 @@
+# NetworkPacket - golden wire vectors.
+#
+# GENERATED FILE. The bytes below are what the server's serializer writes for the
+# values shown above them, so a client is conformant when it produces the same ones,
+# and a change in what the server emits arrives here as a diff.
+#
+#   Emitted by  tools/Avalon.SchemaGen
+#   Regenerate  dotnet run --project tools/Avalon.SchemaGen
+#   Format      described in schema/README.md
+#   Schema      the message of this name in schema/avalon.proto
+#
+# A variant is one shape of the same message. "absent" sets nothing, "empty" sets
+# everything to a present-but-empty value, and the rest carry values chosen to make
+# a particular encoding decision observable.
+
+message NetworkPacket
+
+variant absent
+  field 1 Header : NetworkPacketHeader = null
+  field 2 Payload : byte[] = null
+  bytes 0
+
+variant empty
+  field 1 Header : NetworkPacketHeader
+    field 1 Type : NetworkPacketType = UNKNOWN (0)
+    field 2 Flags : NetworkPacketFlags = None (0)
+    field 3 Protocol : NetworkProtocol = Invalid (0)
+    field 4 Version : int = 0
+  field 2 Payload : byte[] = 0 bytes
+  bytes 4
+    0a 00 12 00
+
+variant populated
+  field 1 Header : NetworkPacketHeader
+    field 1 Type : NetworkPacketType = CMSG_CLIENT_INFO (4097)
+    field 2 Flags : NetworkPacketFlags = ClearText (1)
+    field 3 Protocol : NetworkProtocol = Both (3)
+    field 4 Version : int = 1000
+  field 2 Payload : byte[] = 6 bytes 0a 0d 09 1b 22 5c
+  bytes 20
+    0a 0a 08 81 20 10 01 18 03 20 e8 07 12 06 0a 0d
+    09 1b 22 5c
+
+variant maxima
+  field 1 Header : NetworkPacketHeader
+    field 1 Type : NetworkPacketType = SMSG_THREAT_LIST (12553)
+    field 2 Flags : NetworkPacketFlags = Encrypted (4)
+    field 3 Protocol : NetworkProtocol = Both (3)
+    field 4 Version : int = 2147483647
+  field 2 Payload : byte[] = 140 bytes 5a 5d 54 4f 46 79 70 6b ...
+  bytes 158
+    0a 0d 08 89 62 10 04 18 03 20 ff ff ff ff 07 12
+    8c 01 5a 5d 54 4f 46 79 70 6b 62 65 1c 17 0e 01
+    38 33 2a 2d 24 df d6 c9 c0 fb f2 f5 ec e7 9e 91
+    88 83 ba bd b4 af a6 59 50 4b 42 45 7c 77 6e 61
+    18 13 0a 0d 04 3f 36 29 20 db d2 d5 cc c7 fe f1
+    e8 e3 9a 9d 94 8f 86 b9 b0 ab a2 a5 5c 57 4e 41
+    78 73 6a 6d 64 1f 16 09 00 3b 32 35 2c 27 de d1
+    c8 c3 fa fd f4 ef e6 99 90 8b 82 85 bc b7 ae a1
+    58 53 4a 4d 44 7f 76 69 60 1b 12 15 0c 07 3e 31
+    28 23 da dd d4 cf c6 f9 f0 eb e2 e5 9c 97
+
+variant minima
+  field 1 Header : NetworkPacketHeader
+    field 1 Type : NetworkPacketType = ERROR (-1)
+    field 2 Flags : NetworkPacketFlags = None (0)
+    field 3 Protocol : NetworkProtocol = Invalid (0)
+    field 4 Version : int = -2147483648
+  field 2 Payload : byte[] = 1 byte 00
+  bytes 27
+    0a 16 08 ff ff ff ff ff ff ff ff ff 01 20 80 80
+    80 80 f8 ff ff ff ff 01 12 01 00
+
+variant varint-edges
+  field 1 Header : NetworkPacketHeader
+    field 1 Type : NetworkPacketType = <not a declared member> (12554)
+    field 2 Flags : NetworkPacketFlags = ClearText, Encrypted (5)
+    field 3 Protocol : NetworkProtocol = <not a declared member> (4)
+    field 4 Version : int = 127
+  field 2 Payload : byte[] = 127 bytes 5a 5d 54 4f 46 79 70 6b ...
+  bytes 140
+    0a 09 08 8a 62 10 05 18 04 20 7f 12 7f 5a 5d 54
+    4f 46 79 70 6b 62 65 1c 17 0e 01 38 33 2a 2d 24
+    df d6 c9 c0 fb f2 f5 ec e7 9e 91 88 83 ba bd b4
+    af a6 59 50 4b 42 45 7c 77 6e 61 18 13 0a 0d 04
+    3f 36 29 20 db d2 d5 cc c7 fe f1 e8 e3 9a 9d 94
+    8f 86 b9 b0 ab a2 a5 5c 57 4e 41 78 73 6a 6d 64
+    1f 16 09 00 3b 32 35 2c 27 de d1 c8 c3 fa fd f4
+    ef e6 99 90 8b 82 85 bc b7 ae a1 58 53 4a 4d 44
+    7f 76 69 60 1b 12 15 0c 07 3e 31 28

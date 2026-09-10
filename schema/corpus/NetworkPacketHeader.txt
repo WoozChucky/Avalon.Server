@@ -1,0 +1,63 @@
+# NetworkPacketHeader - golden wire vectors.
+#
+# GENERATED FILE. The bytes below are what the server's serializer writes for the
+# values shown above them, so a client is conformant when it produces the same ones,
+# and a change in what the server emits arrives here as a diff.
+#
+#   Emitted by  tools/Avalon.SchemaGen
+#   Regenerate  dotnet run --project tools/Avalon.SchemaGen
+#   Format      described in schema/README.md
+#   Schema      the message of this name in schema/avalon.proto
+#
+# A variant is one shape of the same message. "absent" sets nothing, "empty" sets
+# everything to a present-but-empty value, and the rest carry values chosen to make
+# a particular encoding decision observable.
+
+message NetworkPacketHeader
+
+variant absent
+  field 1 Type : NetworkPacketType = UNKNOWN (0)
+  field 2 Flags : NetworkPacketFlags = None (0)
+  field 3 Protocol : NetworkProtocol = Invalid (0)
+  field 4 Version : int = 0
+  bytes 0
+
+variant empty
+  field 1 Type : NetworkPacketType = UNKNOWN (0)
+  field 2 Flags : NetworkPacketFlags = None (0)
+  field 3 Protocol : NetworkProtocol = Invalid (0)
+  field 4 Version : int = 0
+  bytes 0
+
+variant populated
+  field 1 Type : NetworkPacketType = CMSG_CLIENT_INFO (4097)
+  field 2 Flags : NetworkPacketFlags = ClearText (1)
+  field 3 Protocol : NetworkProtocol = Both (3)
+  field 4 Version : int = 1000
+  bytes 10
+    08 81 20 10 01 18 03 20 e8 07
+
+variant maxima
+  field 1 Type : NetworkPacketType = SMSG_THREAT_LIST (12553)
+  field 2 Flags : NetworkPacketFlags = Encrypted (4)
+  field 3 Protocol : NetworkProtocol = Both (3)
+  field 4 Version : int = 2147483647
+  bytes 13
+    08 89 62 10 04 18 03 20 ff ff ff ff 07
+
+variant minima
+  field 1 Type : NetworkPacketType = ERROR (-1)
+  field 2 Flags : NetworkPacketFlags = None (0)
+  field 3 Protocol : NetworkProtocol = Invalid (0)
+  field 4 Version : int = -2147483648
+  bytes 22
+    08 ff ff ff ff ff ff ff ff ff 01 20 80 80 80 80
+    f8 ff ff ff ff 01
+
+variant varint-edges
+  field 1 Type : NetworkPacketType = <not a declared member> (12554)
+  field 2 Flags : NetworkPacketFlags = ClearText, Encrypted (5)
+  field 3 Protocol : NetworkProtocol = <not a declared member> (4)
+  field 4 Version : int = 127
+  bytes 9
+    08 8a 62 10 05 18 04 20 7f

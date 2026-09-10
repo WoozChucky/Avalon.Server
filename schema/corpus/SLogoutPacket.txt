@@ -1,0 +1,43 @@
+# SLogoutPacket - golden wire vectors.
+#
+# GENERATED FILE. The bytes below are what the server's serializer writes for the
+# values shown above them, so a client is conformant when it produces the same ones,
+# and a change in what the server emits arrives here as a diff.
+#
+#   Emitted by  tools/Avalon.SchemaGen
+#   Regenerate  dotnet run --project tools/Avalon.SchemaGen
+#   Format      described in schema/README.md
+#   Schema      the message of this name in schema/avalon.proto
+#
+# A variant is one shape of the same message. "absent" sets nothing, "empty" sets
+# everything to a present-but-empty value, and the rest carry values chosen to make
+# a particular encoding decision observable.
+
+message SLogoutPacket
+
+variant absent
+  field 1 Result : LogoutResult = Success (0)
+  bytes 0
+
+variant empty
+  field 1 Result : LogoutResult = Success (0)
+  bytes 0
+
+variant populated
+  field 1 Result : LogoutResult = NotSameAccount (3)
+  bytes 2
+    08 03
+
+variant maxima
+  field 1 Result : LogoutResult = ConnectedElsewhere (5)
+  bytes 2
+    08 05
+
+variant minima
+  field 1 Result : LogoutResult = Success (0)
+  bytes 0
+
+variant varint-edges
+  field 1 Result : LogoutResult = <not a declared member> (6)
+  bytes 2
+    08 06

@@ -1,0 +1,150 @@
+# CharacterInfo - golden wire vectors.
+#
+# GENERATED FILE. The bytes below are what the server's serializer writes for the
+# values shown above them, so a client is conformant when it produces the same ones,
+# and a change in what the server emits arrives here as a diff.
+#
+#   Emitted by  tools/Avalon.SchemaGen
+#   Regenerate  dotnet run --project tools/Avalon.SchemaGen
+#   Format      described in schema/README.md
+#   Schema      the message of this name in schema/avalon.proto
+#
+# A variant is one shape of the same message. "absent" sets nothing, "empty" sets
+# everything to a present-but-empty value, and the rest carry values chosen to make
+# a particular encoding decision observable.
+
+message CharacterInfo
+
+variant absent
+  field 1 CharacterId : uint = 0
+  field 2 Name : string = null
+  field 3 Level : int = 0
+  field 4 Class : ushort = 0
+  field 5 X : float = 0 (0x00000000)
+  field 6 Y : float = 0 (0x00000000)
+  field 7 Z : float = 0 (0x00000000)
+  field 8 Orientation : float = 0 (0x00000000)
+  field 10 Experience : ulong = 0
+  field 11 RequiredExperience : ulong = 0
+  field 12 MovementSpeed : float = 0 (0x00000000)
+  bytes 0
+
+variant empty
+  field 1 CharacterId : uint = 0
+  field 2 Name : string = "" (0 chars, 0 bytes utf-8)
+  field 3 Level : int = 0
+  field 4 Class : ushort = 0
+  field 5 X : float = 0 (0x00000000)
+  field 6 Y : float = 0 (0x00000000)
+  field 7 Z : float = 0 (0x00000000)
+  field 8 Orientation : float = 0 (0x00000000)
+  field 10 Experience : ulong = 0
+  field 11 RequiredExperience : ulong = 0
+  field 12 MovementSpeed : float = 0 (0x00000000)
+  bytes 2
+    12 00
+
+variant populated
+  field 1 CharacterId : uint = 42
+  field 2 Name : string = "héllo wörld" (11 chars, 13 bytes utf-8)
+  field 3 Level : int = 19
+  field 4 Class : ushort = 65535
+  field 5 X : float = 3.14159274 (0x40490fdb)
+  field 6 Y : float = 0.100000001 (0x3dcccccd)
+  field 7 Z : float = 1.5 (0x3fc00000)
+  field 8 Orientation : float = 3.14159274 (0x40490fdb)
+  field 10 Experience : ulong = 1000000
+  field 11 RequiredExperience : ulong = 1000000
+  field 12 MovementSpeed : float = 3.14159274 (0x40490fdb)
+  bytes 56
+    08 2a 12 0d 68 c3 a9 6c 6c 6f 20 77 c3 b6 72 6c
+    64 18 13 20 ff ff 03 2d db 0f 49 40 35 cd cc cc
+    3d 3d 00 00 c0 3f 45 db 0f 49 40 50 c0 84 3d 58
+    c0 84 3d 65 db 0f 49 40
+
+variant maxima
+  field 1 CharacterId : uint = 4294967295
+  field 2 Name : string = "ΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩx…" (88 chars, 132 bytes utf-8)
+  field 3 Level : int = 2147483647
+  field 4 Class : ushort = 65535
+  field 5 X : float = 3.40282347E+38 (0x7f7fffff)
+  field 6 Y : float = 3.40282347E+38 (0x7f7fffff)
+  field 7 Z : float = 3.40282347E+38 (0x7f7fffff)
+  field 8 Orientation : float = 3.40282347E+38 (0x7f7fffff)
+  field 10 Experience : ulong = 18446744073709551615
+  field 11 RequiredExperience : ulong = 18446744073709551615
+  field 12 MovementSpeed : float = 3.40282347E+38 (0x7f7fffff)
+  bytes 198
+    08 ff ff ff ff 0f 12 84 01 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 18 ff ff
+    ff ff 07 20 ff ff 03 2d ff ff 7f 7f 35 ff ff 7f
+    7f 3d ff ff 7f 7f 45 ff ff 7f 7f 50 ff ff ff ff
+    ff ff ff ff ff 01 58 ff ff ff ff ff ff ff ff ff
+    01 65 ff ff 7f 7f
+
+variant minima
+  field 1 CharacterId : uint = 0
+  field 2 Name : string = "\0" (1 chars, 1 bytes utf-8)
+  field 3 Level : int = -2147483648
+  field 4 Class : ushort = 0
+  field 5 X : float = -3.40282347E+38 (0xff7fffff)
+  field 6 Y : float = -3.40282347E+38 (0xff7fffff)
+  field 7 Z : float = -3.40282347E+38 (0xff7fffff)
+  field 8 Orientation : float = -3.40282347E+38 (0xff7fffff)
+  field 10 Experience : ulong = 0
+  field 11 RequiredExperience : ulong = 0
+  field 12 MovementSpeed : float = -3.40282347E+38 (0xff7fffff)
+  bytes 39
+    12 01 00 18 80 80 80 80 f8 ff ff ff ff 01 2d ff
+    ff 7f ff 35 ff ff 7f ff 3d ff ff 7f ff 45 ff ff
+    7f ff 65 ff ff 7f ff
+
+variant varint-edges
+  field 1 CharacterId : uint = 2097151
+  field 2 Name : string = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…" (127 chars, 127 bytes utf-8)
+  field 3 Level : int = 268435456
+  field 4 Class : ushort = 16383
+  field 5 X : float = 1.17549435E-38 (0x00800000)
+  field 6 Y : float = 1.17549435E-38 (0x00800000)
+  field 7 Z : float = 1.17549435E-38 (0x00800000)
+  field 8 Orientation : float = 1.17549435E-38 (0x00800000)
+  field 10 Experience : ulong = 2097151
+  field 11 RequiredExperience : ulong = 16384
+  field 12 MovementSpeed : float = 1.17549435E-38 (0x00800000)
+  bytes 175
+    08 ff ff 7f 12 7f 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 18 80 80 80 80 01 20 ff 7f 2d 00
+    00 80 00 35 00 00 80 00 3d 00 00 80 00 45 00 00
+    80 00 50 ff ff 7f 58 80 80 01 65 00 00 80 00
+
+variant float-specials
+  field 1 CharacterId : uint = 42
+  field 2 Name : string = "héllo wörld" (11 chars, 13 bytes utf-8)
+  field 3 Level : int = 19
+  field 4 Class : ushort = 65535
+  field 5 X : float = 1.17549421E-38 (0x007fffff)
+  field 6 Y : float = 3.40282347E+38 (0x7f7fffff)
+  field 7 Z : float = NaN (0xffc00000)
+  field 8 Orientation : float = 1.40129846E-45 (0x00000001)
+  field 10 Experience : ulong = 1000000
+  field 11 RequiredExperience : ulong = 1000000
+  field 12 MovementSpeed : float = -0 (0x80000000)
+  bytes 51
+    08 2a 12 0d 68 c3 a9 6c 6c 6f 20 77 c3 b6 72 6c
+    64 18 13 20 ff ff 03 2d ff ff 7f 00 35 ff ff 7f
+    7f 3d 00 00 c0 ff 45 01 00 00 00 50 c0 84 3d 58
+    c0 84 3d
