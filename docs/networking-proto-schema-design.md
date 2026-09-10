@@ -151,6 +151,8 @@ protobuf-net's proto3 emitter flattens these to bare `uint64 TargetGuid = 1;`, a
 
 Proto2 emission would give every field presence for free, but it also decorates non-nullable scalars with `[default = 0]` and generates a C++ API with `has_x()` on everything. **proto3 plus explicit `optional` on the five named fields is the choice.**
 
+> **Superseded, and the criterion above is the part that did not survive.** C# nullability turns out not to predict which members lose a value to a reader without explicit presence. protobuf-net decides whether to write a `string` or `bytes` member by testing the reference against null, so an empty one goes out as a present field of length zero that plain proto3 reads as the default and writes back as nothing; and a `ReadOnlyMemory<byte>` member cannot be null at all, so the server writes one even where nothing was assigned. Neither is visible to a nullability rule, and both are reachable in production. `optional` is therefore applied wherever the server can write a value plain proto3 reads as absent — every singular `string` and `bytes` member, and every nullable scalar. 54 fields carry the keyword now, 49 more than the five named here. Repeated members cannot take it and do not need it; singular message members have presence already. `schema/README.md` holds the rule as it stands; this section is kept as the decision that was taken on the day, not as a description of the schema.
+
 ### 3.4 The five fields that serialise through non-standard extensions
 
 The only genuine protobuf-net extension usage in the entire contract set:

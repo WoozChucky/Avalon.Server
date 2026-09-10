@@ -1,0 +1,59 @@
+# CQuestListPacket - golden wire vectors.
+#
+# GENERATED FILE. The bytes below are what the server's serializer writes for the
+# values shown above them, so a client is conformant when it produces the same ones,
+# and a change in what the server emits arrives here as a diff.
+#
+#   Emitted by  tools/Avalon.SchemaGen
+#   Regenerate  dotnet run --project tools/Avalon.SchemaGen
+#   Format      described in schema/README.md
+#   Schema      the message of this name in schema/avalon.proto
+#
+# A variant is one shape of the same message. "absent" sets nothing, "empty" sets
+# everything to a present-but-empty value, and the rest carry values chosen to make
+# a particular encoding decision observable.
+
+message CQuestListPacket
+
+variant absent
+  field 1 AccountId : int = 0
+  field 2 CharacterId : int = 0
+  field 3 MapId : int = 0
+  bytes 0
+
+variant empty
+  field 1 AccountId : int = 0
+  field 2 CharacterId : int = 0
+  field 3 MapId : int = 0
+  bytes 0
+
+variant populated
+  field 1 AccountId : int = 11
+  field 2 CharacterId : int = -3
+  field 3 MapId : int = 1000
+  bytes 16
+    08 0b 10 fd ff ff ff ff ff ff ff ff 01 18 e8 07
+
+variant maxima
+  field 1 AccountId : int = 2147483647
+  field 2 CharacterId : int = 2147483647
+  field 3 MapId : int = 2147483647
+  bytes 18
+    08 ff ff ff ff 07 10 ff ff ff ff 07 18 ff ff ff
+    ff 07
+
+variant minima
+  field 1 AccountId : int = -2147483648
+  field 2 CharacterId : int = -2147483648
+  field 3 MapId : int = -2147483648
+  bytes 33
+    08 80 80 80 80 f8 ff ff ff ff 01 10 80 80 80 80
+    f8 ff ff ff ff 01 18 80 80 80 80 f8 ff ff ff ff
+    01
+
+variant varint-edges
+  field 1 AccountId : int = 2097152
+  field 2 CharacterId : int = 268435456
+  field 3 MapId : int = 16384
+  bytes 15
+    08 80 80 80 01 10 80 80 80 80 01 18 80 80 01

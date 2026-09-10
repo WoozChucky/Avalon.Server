@@ -12,6 +12,7 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
+    <PackageReference Include="Google.Protobuf" Version="3.31.1" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.10.0" />
     <PackageReference Include="NSubstitute" Version="6.2.0" />
     <PackageReference Include="NSubstitute.Analyzers.CSharp" Version="1.0.17">
@@ -38,6 +39,14 @@
     <ProjectReference Include="..\..\src\Shared\Avalon.Network.Packets\Avalon.Network.Packets.csproj" />
     <ProjectReference Include="..\..\src\Shared\Avalon.Network.Packets.Abstractions\Avalon.Network.Packets.Abstractions.csproj" />
     <ProjectReference Include="..\..\tools\Avalon.SchemaGen\Avalon.SchemaGen.csproj" />
+
+    <!--
+      Aliased. The schema declares "package avalon", so the generated reference types land in
+      a namespace that every Avalon namespace in this project is nested inside. Unaliased, an
+      unqualified NetworkPacket here would bind to the generated message rather than to the
+      packet contract, and compile.
+    -->
+    <ProjectReference Include="..\Avalon.Wire.Reference\Avalon.Wire.Reference.csproj" Aliases="wire" />
   </ItemGroup>
 
 </Project>

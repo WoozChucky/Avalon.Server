@@ -1,0 +1,102 @@
+# MapInfo - golden wire vectors.
+#
+# GENERATED FILE. The bytes below are what the server's serializer writes for the
+# values shown above them, so a client is conformant when it produces the same ones,
+# and a change in what the server emits arrives here as a diff.
+#
+#   Emitted by  tools/Avalon.SchemaGen
+#   Regenerate  dotnet run --project tools/Avalon.SchemaGen
+#   Format      described in schema/README.md
+#   Schema      the message of this name in schema/avalon.proto
+#
+# A variant is one shape of the same message. "absent" sets nothing, "empty" sets
+# everything to a present-but-empty value, and the rest carry values chosen to make
+# a particular encoding decision observable.
+
+message MapInfo
+
+variant absent
+  field 1 MapId : int = 0
+  field 2 InstanceId : Guid = 00000000-0000-0000-0000-000000000000
+  field 3 Name : string = null
+  field 4 Description : string = null
+  bytes 0
+
+variant empty
+  field 1 MapId : int = 0
+  field 2 InstanceId : Guid = 00000000-0000-0000-0000-000000000000
+  field 3 Name : string = "" (0 chars, 0 bytes utf-8)
+  field 4 Description : string = "" (0 chars, 0 bytes utf-8)
+  bytes 4
+    1a 00 22 00
+
+variant populated
+  field 1 MapId : int = 1000
+  field 2 InstanceId : Guid = 01020304-0506-0708-090a-0b0c0d0e0f10
+  field 3 Name : string = "alpha" (5 chars, 5 bytes utf-8)
+  field 4 Description : string = "emoji 🜁🚀 astral" (17 chars, 21 bytes utf-8)
+  bytes 53
+    08 e8 07 12 12 09 04 03 02 01 06 05 08 07 11 09
+    0a 0b 0c 0d 0e 0f 10 1a 05 61 6c 70 68 61 22 15
+    65 6d 6f 6a 69 20 f0 9f 9c 81 f0 9f 9a 80 20 61
+    73 74 72 61 6c
+
+variant maxima
+  field 1 MapId : int = 2147483647
+  field 2 InstanceId : Guid = ffffffff-ffff-ffff-ffff-ffffffffffff
+  field 3 Name : string = "ΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩx…" (88 chars, 132 bytes utf-8)
+  field 4 Description : string = "ΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩx…" (88 chars, 132 bytes utf-8)
+  bytes 296
+    08 ff ff ff ff 07 12 12 09 ff ff ff ff ff ff ff
+    ff 11 ff ff ff ff ff ff ff ff 1a 84 01 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 22 84 01 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78
+
+variant minima
+  field 1 MapId : int = -2147483648
+  field 2 InstanceId : Guid = 00000000-0000-0000-0000-000000000000
+  field 3 Name : string = "\u0001" (1 chars, 1 bytes utf-8)
+  field 4 Description : string = "\u0001" (1 chars, 1 bytes utf-8)
+  bytes 17
+    08 80 80 80 80 f8 ff ff ff ff 01 1a 01 01 22 01
+    01
+
+variant varint-edges
+  field 1 MapId : int = 16383
+  field 2 InstanceId : Guid = 01020304-0506-0708-090a-0b0c0d0e0f10
+  field 3 Name : string = "yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy…" (128 chars, 128 bytes utf-8)
+  field 4 Description : string = "yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy…" (128 chars, 128 bytes utf-8)
+  bytes 285
+    08 ff 7f 12 12 09 04 03 02 01 06 05 08 07 11 09
+    0a 0b 0c 0d 0e 0f 10 1a 80 01 79 79 79 79 79 79
+    79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
+    79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
+    79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
+    79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
+    79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
+    79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
+    79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
+    79 79 79 79 79 79 79 79 79 79 22 80 01 79 79 79
+    79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
+    79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
+    79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
+    79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
+    79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
+    79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
+    79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
+    79 79 79 79 79 79 79 79 79 79 79 79 79
