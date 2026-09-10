@@ -51,6 +51,6 @@ variant varint-edges
 
 variant float-specials
   field 1 Caster : ulong = 4000000000
-  field 2 CastTime : float = 1.40129846E-45 (0x00000001)
+  field 2 CastTime : float = 3.40282347E+38 (0x7f7fffff)
   bytes 11
-    08 80 d0 ac f3 0e 15 01 00 00 00
+    08 80 d0 ac f3 0e 15 ff ff 7f 7f

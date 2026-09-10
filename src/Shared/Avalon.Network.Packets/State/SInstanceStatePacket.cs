@@ -8,29 +8,15 @@ using Avalon.Network.Packets.Serialization;
 namespace Avalon.Network.Packets.State;
 
 [ProtoContract]
-public class ObjectAdd
-{
-    [ProtoMember(1)] public ulong Guid { get; set; }
-    [ProtoMember(2)] public ReadOnlyMemory<byte> Fields { get; set; }
-}
-
-[ProtoContract]
-public class ObjectUpdate
-{
-    [ProtoMember(1)] public ulong Guid { get; set; }
-    [ProtoMember(2)] public ReadOnlyMemory<byte> Fields { get; set; }
-}
-
-[ProtoContract]
 public class SInstanceStateAddPacket : Packet
 {
     public static NetworkPacketType PacketType = NetworkPacketType.SMSG_WORLD_STATE_ADD;
     public static NetworkProtocol Protocol = NetworkProtocol.Tcp;
     public static NetworkPacketFlags Flags = NetworkPacketFlags.Encrypted;
 
-    [ProtoMember(1)] public List<ObjectAdd> Adds { get; set; }
+    [ProtoMember(1)] public List<ObjectState> Adds { get; set; }
 
-    public static NetworkPacket Create(List<ObjectAdd> adds, EncryptFunc encryptFunc)
+    public static NetworkPacket Create(List<ObjectState> adds, EncryptFunc encryptFunc)
         => PacketSerializationHelper.Serialize(
             new SInstanceStateAddPacket { Adds = adds },
             PacketType, Flags, Protocol, encryptFunc);
@@ -43,9 +29,9 @@ public class SInstanceStateUpdatePacket : Packet
     public static NetworkProtocol Protocol = NetworkProtocol.Tcp;
     public static NetworkPacketFlags Flags = NetworkPacketFlags.Encrypted;
 
-    [ProtoMember(1)] public List<ObjectUpdate> Updates { get; set; }
+    [ProtoMember(1)] public List<ObjectState> Updates { get; set; }
 
-    public static NetworkPacket Create(List<ObjectUpdate> updates, EncryptFunc encryptFunc)
+    public static NetworkPacket Create(List<ObjectState> updates, EncryptFunc encryptFunc)
         => PacketSerializationHelper.Serialize(
             new SInstanceStateUpdatePacket { Updates = updates },
             PacketType, Flags, Protocol, encryptFunc);
@@ -72,4 +58,22 @@ public enum MoveState
     Walking,
     Running,
     Swimming
+}
+
+/// <summary>
+///     The resource a unit spends on abilities, or None for a unit that spends nothing.
+/// </summary>
+/// <remarks>
+///     Declared beside <see cref="MoveState" /> rather than with the rest of the gameplay
+///     enums because it is carried on an entity-state message, and the schema exported for
+///     non-.NET clients reaches only the types the packet contracts are built from. Left where
+///     it was, a client would have had to copy the four values by hand and would have had no
+///     way to notice a renumber.
+/// </remarks>
+public enum PowerType
+{
+    None,
+    Mana,
+    Fury,
+    Energy
 }

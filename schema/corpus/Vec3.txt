@@ -1,4 +1,4 @@
-# Vector3Dto - golden wire vectors.
+# Vec3 - golden wire vectors.
 #
 # GENERATED FILE. The bytes below are what the server's serializer writes for the
 # values shown above them, so a client is conformant when it produces the same ones,
@@ -13,7 +13,7 @@
 # everything to a present-but-empty value, and the rest carry values chosen to make
 # a particular encoding decision observable.
 
-message Vector3Dto
+message Vec3
 
 variant absent
   field 1 X : float = 0 (0x00000000)
@@ -28,11 +28,11 @@ variant empty
   bytes 0
 
 variant populated
-  field 1 X : float = -7.50000027E-08 (0xb3a10fb0)
-  field 2 Y : float = -2.25 (0xc0100000)
-  field 3 Z : float = -7.50000027E-08 (0xb3a10fb0)
+  field 1 X : float = 3.14159274 (0x40490fdb)
+  field 2 Y : float = 0.100000001 (0x3dcccccd)
+  field 3 Z : float = 3.14159274 (0x40490fdb)
   bytes 15
-    0d b0 0f a1 b3 15 00 00 10 c0 1d b0 0f a1 b3
+    0d db 0f 49 40 15 cd cc cc 3d 1d db 0f 49 40
 
 variant maxima
   field 1 X : float = 3.40282347E+38 (0x7f7fffff)
@@ -56,8 +56,8 @@ variant varint-edges
     0d 00 00 80 00 15 00 00 80 00 1d 00 00 80 00
 
 variant float-specials
-  field 1 X : float = -0 (0x80000000)
-  field 2 Y : float = 1.40129846E-45 (0x00000001)
-  field 3 Z : float = 1.17549421E-38 (0x007fffff)
-  bytes 10
-    15 01 00 00 00 1d ff ff 7f 00
+  field 1 X : float = NaN (0x7fc00001)
+  field 2 Y : float = Infinity (0x7f800000)
+  field 3 Z : float = -Infinity (0xff800000)
+  bytes 15
+    0d 01 00 c0 7f 15 00 00 80 7f 1d 00 00 80 ff

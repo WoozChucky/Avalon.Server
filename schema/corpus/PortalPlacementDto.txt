@@ -84,11 +84,11 @@ variant varint-edges
 variant float-specials
   field 1 Role : byte = 7
   field 2 WorldPos : Vector3Dto
-    field 1 X : float = 3.40282347E+38 (0x7f7fffff)
-    field 2 Y : float = NaN (0xffc00000)
-    field 3 Z : float = NaN (0x7fc00001)
-  field 3 Radius : float = NaN (0x7fc00001)
+    field 1 X : float = -0 (0x80000000)
+    field 2 Y : float = 1.40129846E-45 (0x00000001)
+    field 3 Z : float = 1.17549421E-38 (0x007fffff)
+  field 3 Radius : float = -Infinity (0xff800000)
   field 4 TargetMapId : ushort = 65535
-  bytes 28
-    08 07 12 0f 0d ff ff 7f 7f 15 00 00 c0 ff 1d 01
-    00 c0 7f 1d 01 00 c0 7f 20 ff ff 03
+  bytes 23
+    08 07 12 0a 15 01 00 00 00 1d ff ff 7f 00 1d 00
+    00 80 ff 20 ff ff 03

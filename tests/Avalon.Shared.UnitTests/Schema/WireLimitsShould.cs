@@ -67,19 +67,26 @@ public class WireLimitsShould
     }
 
     /// <summary>
-    /// A <c>ReadOnlyMemory&lt;byte&gt;</c> member cannot be null, so the server writes an empty
-    /// field for it even when nothing was ever assigned. This is the member a rule keyed on C#
-    /// nullability would not have reached, and both members that use it sit on the
-    /// entity-replication path.
+    /// An empty byte array is a present field of length zero, not an absent one, and the
+    /// server sends exactly this on every duplicate-session rejection.
     /// </summary>
+    /// <remarks>
+    /// No member of any contract is a <c>ReadOnlyMemory&lt;byte&gt;</c> any more, so the case
+    /// that a rule keyed on C# nullability would have missed - a value type, never null,
+    /// written even where nothing was assigned - is not reachable from the protocol as it
+    /// stands. <c>WireSchema</c> still recognises the type, so reintroducing one is covered;
+    /// what is pinned here is the byte-level property the keyword exists for, on a member the
+    /// server empties in production.
+    /// </remarks>
     [Fact]
-    public void Carry_An_Always_Written_ReadOnlyMemory_Member()
+    public void Carry_An_Empty_Byte_Array_As_A_Present_Field()
     {
-        byte[] bytes = WireCorpus.Serialize(new ObjectAdd { Guid = 5 });
+        byte[] bytes = WireCorpus.Serialize(
+            new SWorldSelectPacket { WorldKey = Array.Empty<byte>(), Result = WorldSelectResult.Success });
 
-        Assert.Equal(new byte[] { 0x08, 0x05, 0x12, 0x00 }, bytes);
+        Assert.Equal(new byte[] { 0x0a, 0x00 }, bytes);
 
-        MessageDescriptor descriptor = ReferenceSchema.For(nameof(ObjectAdd));
+        MessageDescriptor descriptor = ReferenceSchema.For(nameof(SWorldSelectPacket));
 
         Assert.Equal(bytes, descriptor.Parser.ParseFrom(bytes).ToByteArray());
     }

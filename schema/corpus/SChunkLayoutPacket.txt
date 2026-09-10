@@ -289,7 +289,7 @@ variant varint-edges
 variant float-specials
   field 1 Seed : int = -262144
   field 2 InstanceId : Guid = 01020304-0506-0708-090a-0b0c0d0e0f10
-  field 3 CellSize : float = Infinity (0x7f800000)
+  field 3 CellSize : float = -0 (0x80000000)
   field 4 Chunks : List<PlacedChunkDto> = 2 elements
     element 0
       field 1 ChunkTemplateId : int = 1000
@@ -304,38 +304,36 @@ variant float-specials
       field 4 Rotation : byte = 42
       field 5 ChunkName : string = "line\nbreak\ttab" (14 chars, 14 bytes utf-8)
   field 5 EntrySpawn : Vector3Dto
-    field 1 X : float = 3.40282347E+38 (0x7f7fffff)
-    field 2 Y : float = NaN (0xffc00000)
-    field 3 Z : float = NaN (0x7fc00001)
+    field 1 X : float = -0 (0x80000000)
+    field 2 Y : float = 1.40129846E-45 (0x00000001)
+    field 3 Z : float = 1.17549421E-38 (0x007fffff)
   field 6 Portals : List<PortalPlacementDto> = 2 elements
     element 0
       field 1 Role : byte = 7
       field 2 WorldPos : Vector3Dto
-        field 1 X : float = 3.40282347E+38 (0x7f7fffff)
-        field 2 Y : float = NaN (0xffc00000)
-        field 3 Z : float = NaN (0x7fc00001)
-      field 3 Radius : float = NaN (0x7fc00001)
+        field 1 X : float = -0 (0x80000000)
+        field 2 Y : float = 1.40129846E-45 (0x00000001)
+        field 3 Z : float = 1.17549421E-38 (0x007fffff)
+      field 3 Radius : float = -Infinity (0xff800000)
       field 4 TargetMapId : ushort = 65535
     element 1
       field 1 Role : byte = 19
       field 2 WorldPos : Vector3Dto
-        field 1 X : float = NaN (0xffc00000)
-        field 2 Y : float = NaN (0x7fc00001)
-        field 3 Z : float = Infinity (0x7f800000)
-      field 3 Radius : float = Infinity (0x7f800000)
+        field 1 X : float = 1.40129846E-45 (0x00000001)
+        field 2 Y : float = 1.17549421E-38 (0x007fffff)
+        field 3 Z : float = 3.40282347E+38 (0x7f7fffff)
+      field 3 Radius : float = -0 (0x80000000)
       field 4 TargetMapId : ushort = 19
   field 7 MapId : ushort = 7
-  bytes 196
+  bytes 176
     08 80 80 f0 ff ff ff ff ff ff 01 12 12 09 04 03
-    02 01 06 05 08 07 11 09 0a 0b 0c 0d 0e 0f 10 1d
-    00 00 80 7f 22 2d 08 e8 07 10 f7 ff ff ff ff ff
-    ff ff ff 01 18 e8 07 20 07 2a 18 22 71 75 6f 74
-    65 64 22 20 61 6e 64 20 5c 62 61 63 6b 73 6c 61
-    73 68 5c 22 22 08 0b 10 e8 07 18 fd ff ff ff ff
-    ff ff ff ff 01 20 2a 2a 0e 6c 69 6e 65 0a 62 72
-    65 61 6b 09 74 61 62 2a 0f 0d ff ff 7f 7f 15 00
-    00 c0 ff 1d 01 00 c0 7f 32 1c 08 07 12 0f 0d ff
-    ff 7f 7f 15 00 00 c0 ff 1d 01 00 c0 7f 1d 01 00
-    c0 7f 20 ff ff 03 32 1a 08 13 12 0f 0d 00 00 c0
-    ff 15 01 00 c0 7f 1d 00 00 80 7f 1d 00 00 80 7f
-    20 13 38 07
+    02 01 06 05 08 07 11 09 0a 0b 0c 0d 0e 0f 10 22
+    2d 08 e8 07 10 f7 ff ff ff ff ff ff ff ff 01 18
+    e8 07 20 07 2a 18 22 71 75 6f 74 65 64 22 20 61
+    6e 64 20 5c 62 61 63 6b 73 6c 61 73 68 5c 22 22
+    08 0b 10 e8 07 18 fd ff ff ff ff ff ff ff ff 01
+    20 2a 2a 0e 6c 69 6e 65 0a 62 72 65 61 6b 09 74
+    61 62 2a 0a 15 01 00 00 00 1d ff ff 7f 00 32 17
+    08 07 12 0a 15 01 00 00 00 1d ff ff 7f 00 1d 00
+    00 80 ff 20 ff ff 03 32 15 08 13 12 0f 0d 01 00
+    00 00 15 ff ff 7f 00 1d ff ff 7f 7f 20 13 38 07

@@ -80,9 +80,9 @@ variant float-specials
   field 1 AbilityId : uint = 7
   field 2 TargetGuid : ulong? = 300
   field 3 GroundPos : Vector3Dto
-    field 1 X : float = 3.40282347E+38 (0x7f7fffff)
-    field 2 Y : float = NaN (0xffc00000)
-    field 3 Z : float = NaN (0x7fc00001)
-  bytes 22
-    08 07 10 ac 02 1a 0f 0d ff ff 7f 7f 15 00 00 c0
-    ff 1d 01 00 c0 7f
+    field 1 X : float = -0 (0x80000000)
+    field 2 Y : float = 1.40129846E-45 (0x00000001)
+    field 3 Z : float = 1.17549421E-38 (0x007fffff)
+  bytes 17
+    08 07 10 ac 02 1a 0a 15 01 00 00 00 1d ff ff 7f
+    00

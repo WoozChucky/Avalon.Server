@@ -79,10 +79,10 @@ variant varint-edges
 variant float-specials
   field 1 UnitGuid : ulong = 4000000000
   field 2 Position : Vector3Dto
-    field 1 X : float = 3.40282347E+38 (0x7f7fffff)
-    field 2 Y : float = NaN (0xffc00000)
-    field 3 Z : float = NaN (0x7fc00001)
+    field 1 X : float = -0 (0x80000000)
+    field 2 Y : float = 1.40129846E-45 (0x00000001)
+    field 3 Z : float = 1.17549421E-38 (0x007fffff)
   field 3 Health : uint = 42
-  bytes 25
-    08 80 d0 ac f3 0e 12 0f 0d ff ff 7f 7f 15 00 00
-    c0 ff 1d 01 00 c0 7f 18 2a
+  bytes 20
+    08 80 d0 ac f3 0e 12 0a 15 01 00 00 00 1d ff ff
+    7f 00 18 2a

@@ -1,4 +1,4 @@
-using Avalon.World.Public;
+﻿using Avalon.World.Public;
 using System.Diagnostics;
 using Avalon.Common.Mathematics;
 using Avalon.Common.Telemetry;
@@ -21,6 +21,7 @@ using Avalon.World.Respawn;
 using Avalon.World.Abilities;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Avalon.Network.Packets.State;
 
 namespace Avalon.World.Handlers;
 
