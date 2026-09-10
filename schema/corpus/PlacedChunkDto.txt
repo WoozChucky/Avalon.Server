@@ -1,0 +1,90 @@
+# PlacedChunkDto - golden wire vectors.
+#
+# GENERATED FILE. The bytes below are what the server's serializer writes for the
+# values shown above them, so a client is conformant when it produces the same ones,
+# and a change in what the server emits arrives here as a diff.
+#
+#   Emitted by  tools/Avalon.SchemaGen
+#   Regenerate  dotnet run --project tools/Avalon.SchemaGen
+#   Format      described in schema/README.md
+#   Schema      the message of this name in schema/avalon.proto
+#
+# A variant is one shape of the same message. "absent" sets nothing, "empty" sets
+# everything to a present-but-empty value, and the rest carry values chosen to make
+# a particular encoding decision observable.
+
+message PlacedChunkDto
+
+variant absent
+  field 1 ChunkTemplateId : int = 0
+  field 2 GridX : short = 0
+  field 3 GridZ : short = 0
+  field 4 Rotation : byte = 0
+  field 5 ChunkName : string = null
+  bytes 0
+
+variant empty
+  field 1 ChunkTemplateId : int = 0
+  field 2 GridX : short = 0
+  field 3 GridZ : short = 0
+  field 4 Rotation : byte = 0
+  field 5 ChunkName : string = "" (0 chars, 0 bytes utf-8)
+  bytes 2
+    2a 00
+
+variant populated
+  field 1 ChunkTemplateId : int = 1000
+  field 2 GridX : short = -9
+  field 3 GridZ : short = 1000
+  field 4 Rotation : byte = 7
+  field 5 ChunkName : string = "\"quoted\" and \\backslash\\" (24 chars, 24 bytes utf-8)
+  bytes 45
+    08 e8 07 10 f7 ff ff ff ff ff ff ff ff 01 18 e8
+    07 20 07 2a 18 22 71 75 6f 74 65 64 22 20 61 6e
+    64 20 5c 62 61 63 6b 73 6c 61 73 68 5c
+
+variant maxima
+  field 1 ChunkTemplateId : int = 2147483647
+  field 2 GridX : short = 32767
+  field 3 GridZ : short = 32767
+  field 4 Rotation : byte = 255
+  field 5 ChunkName : string = "ΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩx…" (88 chars, 132 bytes utf-8)
+  bytes 152
+    08 ff ff ff ff 07 10 ff ff 01 18 ff ff 01 20 ff
+    01 2a 84 01 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78
+
+variant minima
+  field 1 ChunkTemplateId : int = -2147483648
+  field 2 GridX : short = -32768
+  field 3 GridZ : short = -32768
+  field 4 Rotation : byte = 0
+  field 5 ChunkName : string = "\0" (1 chars, 1 bytes utf-8)
+  bytes 36
+    08 80 80 80 80 f8 ff ff ff ff 01 10 80 80 fe ff
+    ff ff ff ff ff 01 18 80 80 fe ff ff ff ff ff ff
+    01 2a 01 00
+
+variant varint-edges
+  field 1 ChunkTemplateId : int = 128
+  field 2 GridX : short = 16384
+  field 3 GridZ : short = 16383
+  field 4 Rotation : byte = 127
+  field 5 ChunkName : string = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…" (127 chars, 127 bytes utf-8)
+  bytes 141
+    08 80 01 10 80 80 01 18 ff 7f 20 7f 2a 7f 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78

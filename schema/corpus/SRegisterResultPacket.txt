@@ -1,0 +1,43 @@
+# SRegisterResultPacket - golden wire vectors.
+#
+# GENERATED FILE. The bytes below are what the server's serializer writes for the
+# values shown above them, so a client is conformant when it produces the same ones,
+# and a change in what the server emits arrives here as a diff.
+#
+#   Emitted by  tools/Avalon.SchemaGen
+#   Regenerate  dotnet run --project tools/Avalon.SchemaGen
+#   Format      described in schema/README.md
+#   Schema      the message of this name in schema/avalon.proto
+#
+# A variant is one shape of the same message. "absent" sets nothing, "empty" sets
+# everything to a present-but-empty value, and the rest carry values chosen to make
+# a particular encoding decision observable.
+
+message SRegisterResultPacket
+
+variant absent
+  field 1 Result : RegisterResult = UnknownError (0)
+  bytes 0
+
+variant empty
+  field 1 Result : RegisterResult = UnknownError (0)
+  bytes 0
+
+variant populated
+  field 1 Result : RegisterResult = EmptyUsername (1)
+  bytes 2
+    08 01
+
+variant maxima
+  field 1 Result : RegisterResult = Ok (9)
+  bytes 2
+    08 09
+
+variant minima
+  field 1 Result : RegisterResult = UnknownError (0)
+  bytes 0
+
+variant varint-edges
+  field 1 Result : RegisterResult = <not a declared member> (10)
+  bytes 2
+    08 0a

@@ -1,0 +1,341 @@
+# SChunkLayoutPacket - golden wire vectors.
+#
+# GENERATED FILE. The bytes below are what the server's serializer writes for the
+# values shown above them, so a client is conformant when it produces the same ones,
+# and a change in what the server emits arrives here as a diff.
+#
+#   Emitted by  tools/Avalon.SchemaGen
+#   Regenerate  dotnet run --project tools/Avalon.SchemaGen
+#   Format      described in schema/README.md
+#   Schema      the message of this name in schema/avalon.proto
+#
+# A variant is one shape of the same message. "absent" sets nothing, "empty" sets
+# everything to a present-but-empty value, and the rest carry values chosen to make
+# a particular encoding decision observable.
+
+message SChunkLayoutPacket
+
+variant absent
+  field 1 Seed : int = 0
+  field 2 InstanceId : Guid = 00000000-0000-0000-0000-000000000000
+  field 3 CellSize : float = 0 (0x00000000)
+  field 4 Chunks : List<PlacedChunkDto> = null
+  field 5 EntrySpawn : Vector3Dto = null
+  field 6 Portals : List<PortalPlacementDto> = null
+  field 7 MapId : ushort = 0
+  bytes 0
+
+variant empty
+  field 1 Seed : int = 0
+  field 2 InstanceId : Guid = 00000000-0000-0000-0000-000000000000
+  field 3 CellSize : float = 0 (0x00000000)
+  field 4 Chunks : List<PlacedChunkDto> = 0 elements
+  field 5 EntrySpawn : Vector3Dto
+    field 1 X : float = 0 (0x00000000)
+    field 2 Y : float = 0 (0x00000000)
+    field 3 Z : float = 0 (0x00000000)
+  field 6 Portals : List<PortalPlacementDto> = 0 elements
+  field 7 MapId : ushort = 0
+  bytes 2
+    2a 00
+
+variant populated
+  field 1 Seed : int = -262144
+  field 2 InstanceId : Guid = 01020304-0506-0708-090a-0b0c0d0e0f10
+  field 3 CellSize : float = -7.50000027E-08 (0xb3a10fb0)
+  field 4 Chunks : List<PlacedChunkDto> = 2 elements
+    element 0
+      field 1 ChunkTemplateId : int = 1000
+      field 2 GridX : short = -9
+      field 3 GridZ : short = 1000
+      field 4 Rotation : byte = 7
+      field 5 ChunkName : string = "\"quoted\" and \\backslash\\" (24 chars, 24 bytes utf-8)
+    element 1
+      field 1 ChunkTemplateId : int = 11
+      field 2 GridX : short = 1000
+      field 3 GridZ : short = -3
+      field 4 Rotation : byte = 42
+      field 5 ChunkName : string = "line\nbreak\ttab" (14 chars, 14 bytes utf-8)
+  field 5 EntrySpawn : Vector3Dto
+    field 1 X : float = -7.50000027E-08 (0xb3a10fb0)
+    field 2 Y : float = -2.25 (0xc0100000)
+    field 3 Z : float = -7.50000027E-08 (0xb3a10fb0)
+  field 6 Portals : List<PortalPlacementDto> = 2 elements
+    element 0
+      field 1 Role : byte = 7
+      field 2 WorldPos : Vector3Dto
+        field 1 X : float = -7.50000027E-08 (0xb3a10fb0)
+        field 2 Y : float = -2.25 (0xc0100000)
+        field 3 Z : float = -7.50000027E-08 (0xb3a10fb0)
+      field 3 Radius : float = 0.100000001 (0x3dcccccd)
+      field 4 TargetMapId : ushort = 65535
+    element 1
+      field 1 Role : byte = 19
+      field 2 WorldPos : Vector3Dto
+        field 1 X : float = 1E+10 (0x501502f9)
+        field 2 Y : float = 3.14159274 (0x40490fdb)
+        field 3 Z : float = 1E+10 (0x501502f9)
+      field 3 Radius : float = 1.5 (0x3fc00000)
+      field 4 TargetMapId : ushort = 19
+  field 7 MapId : ushort = 7
+  bytes 196
+    08 80 80 f0 ff ff ff ff ff ff 01 12 12 09 04 03
+    02 01 06 05 08 07 11 09 0a 0b 0c 0d 0e 0f 10 1d
+    b0 0f a1 b3 22 2d 08 e8 07 10 f7 ff ff ff ff ff
+    ff ff ff 01 18 e8 07 20 07 2a 18 22 71 75 6f 74
+    65 64 22 20 61 6e 64 20 5c 62 61 63 6b 73 6c 61
+    73 68 5c 22 22 08 0b 10 e8 07 18 fd ff ff ff ff
+    ff ff ff ff 01 20 2a 2a 0e 6c 69 6e 65 0a 62 72
+    65 61 6b 09 74 61 62 2a 0f 0d b0 0f a1 b3 15 00
+    00 10 c0 1d b0 0f a1 b3 32 1c 08 07 12 0f 0d b0
+    0f a1 b3 15 00 00 10 c0 1d b0 0f a1 b3 1d cd cc
+    cc 3d 20 ff ff 03 32 1a 08 13 12 0f 0d f9 02 15
+    50 15 db 0f 49 40 1d f9 02 15 50 1d 00 00 c0 3f
+    20 13 38 07
+
+variant maxima
+  field 1 Seed : int = 2147483647
+  field 2 InstanceId : Guid = ffffffff-ffff-ffff-ffff-ffffffffffff
+  field 3 CellSize : float = 3.40282347E+38 (0x7f7fffff)
+  field 4 Chunks : List<PlacedChunkDto> = 3 elements
+    element 0
+      field 1 ChunkTemplateId : int = 2147483647
+      field 2 GridX : short = 32767
+      field 3 GridZ : short = 32767
+      field 4 Rotation : byte = 255
+      field 5 ChunkName : string = "ΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩx…" (88 chars, 132 bytes utf-8)
+    element 1
+      field 1 ChunkTemplateId : int = 2147483647
+      field 2 GridX : short = 32767
+      field 3 GridZ : short = 32767
+      field 4 Rotation : byte = 255
+      field 5 ChunkName : string = "ΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩx…" (88 chars, 132 bytes utf-8)
+    element 2
+      field 1 ChunkTemplateId : int = 2147483647
+      field 2 GridX : short = 32767
+      field 3 GridZ : short = 32767
+      field 4 Rotation : byte = 255
+      field 5 ChunkName : string = "ΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩx…" (88 chars, 132 bytes utf-8)
+  field 5 EntrySpawn : Vector3Dto
+    field 1 X : float = 3.40282347E+38 (0x7f7fffff)
+    field 2 Y : float = 3.40282347E+38 (0x7f7fffff)
+    field 3 Z : float = 3.40282347E+38 (0x7f7fffff)
+  field 6 Portals : List<PortalPlacementDto> = 3 elements
+    element 0
+      field 1 Role : byte = 255
+      field 2 WorldPos : Vector3Dto
+        field 1 X : float = 3.40282347E+38 (0x7f7fffff)
+        field 2 Y : float = 3.40282347E+38 (0x7f7fffff)
+        field 3 Z : float = 3.40282347E+38 (0x7f7fffff)
+      field 3 Radius : float = 3.40282347E+38 (0x7f7fffff)
+      field 4 TargetMapId : ushort = 65535
+    element 1
+      field 1 Role : byte = 255
+      field 2 WorldPos : Vector3Dto
+        field 1 X : float = 3.40282347E+38 (0x7f7fffff)
+        field 2 Y : float = 3.40282347E+38 (0x7f7fffff)
+        field 3 Z : float = 3.40282347E+38 (0x7f7fffff)
+      field 3 Radius : float = 3.40282347E+38 (0x7f7fffff)
+      field 4 TargetMapId : ushort = 65535
+    element 2
+      field 1 Role : byte = 255
+      field 2 WorldPos : Vector3Dto
+        field 1 X : float = 3.40282347E+38 (0x7f7fffff)
+        field 2 Y : float = 3.40282347E+38 (0x7f7fffff)
+        field 3 Z : float = 3.40282347E+38 (0x7f7fffff)
+      field 3 Radius : float = 3.40282347E+38 (0x7f7fffff)
+      field 4 TargetMapId : ushort = 65535
+  field 7 MapId : ushort = 65535
+  bytes 610
+    08 ff ff ff ff 07 12 12 09 ff ff ff ff ff ff ff
+    ff 11 ff ff ff ff ff ff ff ff 1d ff ff 7f 7f 22
+    98 01 08 ff ff ff ff 07 10 ff ff 01 18 ff ff 01
+    20 ff 01 2a 84 01 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 22 98 01 08 ff ff
+    ff ff 07 10 ff ff 01 18 ff ff 01 20 ff 01 2a 84
+    01 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 22 98 01 08 ff ff ff ff 07 10 ff
+    ff 01 18 ff ff 01 20 ff 01 2a 84 01 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    2a 0f 0d ff ff 7f 7f 15 ff ff 7f 7f 1d ff ff 7f
+    7f 32 1d 08 ff 01 12 0f 0d ff ff 7f 7f 15 ff ff
+    7f 7f 1d ff ff 7f 7f 1d ff ff 7f 7f 20 ff ff 03
+    32 1d 08 ff 01 12 0f 0d ff ff 7f 7f 15 ff ff 7f
+    7f 1d ff ff 7f 7f 1d ff ff 7f 7f 20 ff ff 03 32
+    1d 08 ff 01 12 0f 0d ff ff 7f 7f 15 ff ff 7f 7f
+    1d ff ff 7f 7f 1d ff ff 7f 7f 20 ff ff 03 38 ff
+    ff 03
+
+variant minima
+  field 1 Seed : int = -2147483648
+  field 2 InstanceId : Guid = 00000000-0000-0000-0000-000000000000
+  field 3 CellSize : float = -3.40282347E+38 (0xff7fffff)
+  field 4 Chunks : List<PlacedChunkDto> = 1 element
+    element 0
+      field 1 ChunkTemplateId : int = -2147483648
+      field 2 GridX : short = -32768
+      field 3 GridZ : short = -32768
+      field 4 Rotation : byte = 0
+      field 5 ChunkName : string = "\0" (1 chars, 1 bytes utf-8)
+  field 5 EntrySpawn : Vector3Dto
+    field 1 X : float = -3.40282347E+38 (0xff7fffff)
+    field 2 Y : float = -3.40282347E+38 (0xff7fffff)
+    field 3 Z : float = -3.40282347E+38 (0xff7fffff)
+  field 6 Portals : List<PortalPlacementDto> = 1 element
+    element 0
+      field 1 Role : byte = 0
+      field 2 WorldPos : Vector3Dto
+        field 1 X : float = -3.40282347E+38 (0xff7fffff)
+        field 2 Y : float = -3.40282347E+38 (0xff7fffff)
+        field 3 Z : float = -3.40282347E+38 (0xff7fffff)
+      field 3 Radius : float = -3.40282347E+38 (0xff7fffff)
+      field 4 TargetMapId : ushort = 0
+  field 7 MapId : ushort = 0
+  bytes 95
+    08 80 80 80 80 f8 ff ff ff ff 01 1d ff ff 7f ff
+    22 24 08 80 80 80 80 f8 ff ff ff ff 01 10 80 80
+    fe ff ff ff ff ff ff 01 18 80 80 fe ff ff ff ff
+    ff ff 01 2a 01 00 2a 0f 0d ff ff 7f ff 15 ff ff
+    7f ff 1d ff ff 7f ff 32 16 12 0f 0d ff ff 7f ff
+    15 ff ff 7f ff 1d ff ff 7f ff 1d ff ff 7f ff
+
+variant varint-edges
+  field 1 Seed : int = 268435455
+  field 2 InstanceId : Guid = 01020304-0506-0708-090a-0b0c0d0e0f10
+  field 3 CellSize : float = 1.17549435E-38 (0x00800000)
+  field 4 Chunks : List<PlacedChunkDto> = 2 elements
+    element 0
+      field 1 ChunkTemplateId : int = 128
+      field 2 GridX : short = 16384
+      field 3 GridZ : short = 16383
+      field 4 Rotation : byte = 127
+      field 5 ChunkName : string = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…" (127 chars, 127 bytes utf-8)
+    element 1
+      field 1 ChunkTemplateId : int = 127
+      field 2 GridX : short = 16383
+      field 3 GridZ : short = 128
+      field 4 Rotation : byte = 128
+      field 5 ChunkName : string = "éééééééééééééééééééééééééééééééééééééééézzzzzzzz…" (89 chars, 129 bytes utf-8)
+  field 5 EntrySpawn : Vector3Dto
+    field 1 X : float = 1.17549435E-38 (0x00800000)
+    field 2 Y : float = 1.17549435E-38 (0x00800000)
+    field 3 Z : float = 1.17549435E-38 (0x00800000)
+  field 6 Portals : List<PortalPlacementDto> = 2 elements
+    element 0
+      field 1 Role : byte = 128
+      field 2 WorldPos : Vector3Dto
+        field 1 X : float = 1.17549435E-38 (0x00800000)
+        field 2 Y : float = 1.17549435E-38 (0x00800000)
+        field 3 Z : float = 1.17549435E-38 (0x00800000)
+      field 3 Radius : float = 1.17549435E-38 (0x00800000)
+      field 4 TargetMapId : ushort = 16384
+    element 1
+      field 1 Role : byte = 127
+      field 2 WorldPos : Vector3Dto
+        field 1 X : float = 1.17549449E-38 (0x00800001)
+        field 2 Y : float = 1.17549449E-38 (0x00800001)
+        field 3 Z : float = 1.17549449E-38 (0x00800001)
+      field 3 Radius : float = 1.17549449E-38 (0x00800001)
+      field 4 TargetMapId : ushort = 127
+  field 7 MapId : ushort = 127
+  bytes 398
+    08 ff ff ff 7f 12 12 09 04 03 02 01 06 05 08 07
+    11 09 0a 0b 0c 0d 0e 0f 10 1d 00 00 80 00 22 8d
+    01 08 80 01 10 80 80 01 18 ff 7f 20 7f 2a 7f 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 22 8f
+    01 08 7f 10 ff 7f 18 80 01 20 80 01 2a 81 01 c3
+    a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3
+    a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3
+    a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3
+    a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3
+    a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 7a
+    7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a
+    7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a
+    7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a
+    2a 0f 0d 00 00 80 00 15 00 00 80 00 1d 00 00 80
+    00 32 1d 08 80 01 12 0f 0d 00 00 80 00 15 00 00
+    80 00 1d 00 00 80 00 1d 00 00 80 00 20 80 80 01
+    32 1a 08 7f 12 0f 0d 01 00 80 00 15 01 00 80 00
+    1d 01 00 80 00 1d 01 00 80 00 20 7f 38 7f
+
+variant float-specials
+  field 1 Seed : int = -262144
+  field 2 InstanceId : Guid = 01020304-0506-0708-090a-0b0c0d0e0f10
+  field 3 CellSize : float = Infinity (0x7f800000)
+  field 4 Chunks : List<PlacedChunkDto> = 2 elements
+    element 0
+      field 1 ChunkTemplateId : int = 1000
+      field 2 GridX : short = -9
+      field 3 GridZ : short = 1000
+      field 4 Rotation : byte = 7
+      field 5 ChunkName : string = "\"quoted\" and \\backslash\\" (24 chars, 24 bytes utf-8)
+    element 1
+      field 1 ChunkTemplateId : int = 11
+      field 2 GridX : short = 1000
+      field 3 GridZ : short = -3
+      field 4 Rotation : byte = 42
+      field 5 ChunkName : string = "line\nbreak\ttab" (14 chars, 14 bytes utf-8)
+  field 5 EntrySpawn : Vector3Dto
+    field 1 X : float = 3.40282347E+38 (0x7f7fffff)
+    field 2 Y : float = NaN (0xffc00000)
+    field 3 Z : float = NaN (0x7fc00001)
+  field 6 Portals : List<PortalPlacementDto> = 2 elements
+    element 0
+      field 1 Role : byte = 7
+      field 2 WorldPos : Vector3Dto
+        field 1 X : float = 3.40282347E+38 (0x7f7fffff)
+        field 2 Y : float = NaN (0xffc00000)
+        field 3 Z : float = NaN (0x7fc00001)
+      field 3 Radius : float = NaN (0x7fc00001)
+      field 4 TargetMapId : ushort = 65535
+    element 1
+      field 1 Role : byte = 19
+      field 2 WorldPos : Vector3Dto
+        field 1 X : float = NaN (0xffc00000)
+        field 2 Y : float = NaN (0x7fc00001)
+        field 3 Z : float = Infinity (0x7f800000)
+      field 3 Radius : float = Infinity (0x7f800000)
+      field 4 TargetMapId : ushort = 19
+  field 7 MapId : ushort = 7
+  bytes 196
+    08 80 80 f0 ff ff ff ff ff ff 01 12 12 09 04 03
+    02 01 06 05 08 07 11 09 0a 0b 0c 0d 0e 0f 10 1d
+    00 00 80 7f 22 2d 08 e8 07 10 f7 ff ff ff ff ff
+    ff ff ff 01 18 e8 07 20 07 2a 18 22 71 75 6f 74
+    65 64 22 20 61 6e 64 20 5c 62 61 63 6b 73 6c 61
+    73 68 5c 22 22 08 0b 10 e8 07 18 fd ff ff ff ff
+    ff ff ff ff 01 20 2a 2a 0e 6c 69 6e 65 0a 62 72
+    65 61 6b 09 74 61 62 2a 0f 0d ff ff 7f 7f 15 00
+    00 c0 ff 1d 01 00 c0 7f 32 1c 08 07 12 0f 0d ff
+    ff 7f 7f 15 00 00 c0 ff 1d 01 00 c0 7f 1d 01 00
+    c0 7f 20 ff ff 03 32 1a 08 13 12 0f 0d 00 00 c0
+    ff 15 01 00 c0 7f 1d 00 00 80 7f 1d 00 00 80 7f
+    20 13 38 07

@@ -1,0 +1,262 @@
+# SCharacterListPacket - golden wire vectors.
+#
+# GENERATED FILE. The bytes below are what the server's serializer writes for the
+# values shown above them, so a client is conformant when it produces the same ones,
+# and a change in what the server emits arrives here as a diff.
+#
+#   Emitted by  tools/Avalon.SchemaGen
+#   Regenerate  dotnet run --project tools/Avalon.SchemaGen
+#   Format      described in schema/README.md
+#   Schema      the message of this name in schema/avalon.proto
+#
+# A variant is one shape of the same message. "absent" sets nothing, "empty" sets
+# everything to a present-but-empty value, and the rest carry values chosen to make
+# a particular encoding decision observable.
+
+message SCharacterListPacket
+
+variant absent
+  field 1 CharacterCount : int = 0
+  field 2 MaxCharacterCount : int = 0
+  field 3 Characters : CharacterInfo[] = null
+  bytes 0
+
+variant empty
+  field 1 CharacterCount : int = 0
+  field 2 MaxCharacterCount : int = 0
+  field 3 Characters : CharacterInfo[] = 0 elements
+  bytes 0
+
+variant populated
+  field 1 CharacterCount : int = -9
+  field 2 MaxCharacterCount : int = -262144
+  field 3 Characters : CharacterInfo[] = 2 elements
+    element 0
+      field 1 CharacterId : uint = 42
+      field 2 Name : string = "héllo wörld" (11 chars, 13 bytes utf-8)
+      field 3 Level : int = 19
+      field 4 Class : ushort = 65535
+      field 5 X : float = 3.14159274 (0x40490fdb)
+      field 6 Y : float = 0.100000001 (0x3dcccccd)
+      field 7 Z : float = 1.5 (0x3fc00000)
+      field 8 Orientation : float = 3.14159274 (0x40490fdb)
+      field 10 Experience : ulong = 1000000
+      field 11 RequiredExperience : ulong = 1000000
+      field 12 MovementSpeed : float = 3.14159274 (0x40490fdb)
+    element 1
+      field 1 CharacterId : uint = 19
+      field 2 Name : string = "line\nbreak\ttab" (14 chars, 14 bytes utf-8)
+      field 3 Level : int = 70000
+      field 4 Class : ushort = 300
+      field 5 X : float = -2.25 (0xc0100000)
+      field 6 Y : float = 1.5 (0x3fc00000)
+      field 7 Z : float = 0.100000001 (0x3dcccccd)
+      field 8 Orientation : float = -2.25 (0xc0100000)
+      field 10 Experience : ulong = 4000000000
+      field 11 RequiredExperience : ulong = 7
+      field 12 MovementSpeed : float = -2.25 (0xc0100000)
+  bytes 140
+    08 f7 ff ff ff ff ff ff ff ff 01 10 80 80 f0 ff
+    ff ff ff ff ff 01 1a 38 08 2a 12 0d 68 c3 a9 6c
+    6c 6f 20 77 c3 b6 72 6c 64 18 13 20 ff ff 03 2d
+    db 0f 49 40 35 cd cc cc 3d 3d 00 00 c0 3f 45 db
+    0f 49 40 50 c0 84 3d 58 c0 84 3d 65 db 0f 49 40
+    1a 3a 08 13 12 0e 6c 69 6e 65 0a 62 72 65 61 6b
+    09 74 61 62 18 f0 a2 04 20 ac 02 2d 00 00 10 c0
+    35 00 00 c0 3f 3d cd cc cc 3d 45 00 00 10 c0 50
+    80 d0 ac f3 0e 58 07 65 00 00 10 c0
+
+variant maxima
+  field 1 CharacterCount : int = 2147483647
+  field 2 MaxCharacterCount : int = 2147483647
+  field 3 Characters : CharacterInfo[] = 3 elements
+    element 0
+      field 1 CharacterId : uint = 4294967295
+      field 2 Name : string = "ΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩx…" (88 chars, 132 bytes utf-8)
+      field 3 Level : int = 2147483647
+      field 4 Class : ushort = 65535
+      field 5 X : float = 3.40282347E+38 (0x7f7fffff)
+      field 6 Y : float = 3.40282347E+38 (0x7f7fffff)
+      field 7 Z : float = 3.40282347E+38 (0x7f7fffff)
+      field 8 Orientation : float = 3.40282347E+38 (0x7f7fffff)
+      field 10 Experience : ulong = 18446744073709551615
+      field 11 RequiredExperience : ulong = 18446744073709551615
+      field 12 MovementSpeed : float = 3.40282347E+38 (0x7f7fffff)
+    element 1
+      field 1 CharacterId : uint = 4294967295
+      field 2 Name : string = "ΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩx…" (88 chars, 132 bytes utf-8)
+      field 3 Level : int = 2147483647
+      field 4 Class : ushort = 65535
+      field 5 X : float = 3.40282347E+38 (0x7f7fffff)
+      field 6 Y : float = 3.40282347E+38 (0x7f7fffff)
+      field 7 Z : float = 3.40282347E+38 (0x7f7fffff)
+      field 8 Orientation : float = 3.40282347E+38 (0x7f7fffff)
+      field 10 Experience : ulong = 18446744073709551615
+      field 11 RequiredExperience : ulong = 18446744073709551615
+      field 12 MovementSpeed : float = 3.40282347E+38 (0x7f7fffff)
+    element 2
+      field 1 CharacterId : uint = 4294967295
+      field 2 Name : string = "ΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩx…" (88 chars, 132 bytes utf-8)
+      field 3 Level : int = 2147483647
+      field 4 Class : ushort = 65535
+      field 5 X : float = 3.40282347E+38 (0x7f7fffff)
+      field 6 Y : float = 3.40282347E+38 (0x7f7fffff)
+      field 7 Z : float = 3.40282347E+38 (0x7f7fffff)
+      field 8 Orientation : float = 3.40282347E+38 (0x7f7fffff)
+      field 10 Experience : ulong = 18446744073709551615
+      field 11 RequiredExperience : ulong = 18446744073709551615
+      field 12 MovementSpeed : float = 3.40282347E+38 (0x7f7fffff)
+  bytes 615
+    08 ff ff ff ff 07 10 ff ff ff ff 07 1a c6 01 08
+    ff ff ff ff 0f 12 84 01 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 18 ff ff ff
+    ff 07 20 ff ff 03 2d ff ff 7f 7f 35 ff ff 7f 7f
+    3d ff ff 7f 7f 45 ff ff 7f 7f 50 ff ff ff ff ff
+    ff ff ff ff 01 58 ff ff ff ff ff ff ff ff ff 01
+    65 ff ff 7f 7f 1a c6 01 08 ff ff ff ff 0f 12 84
+    01 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 18 ff ff ff ff 07 20 ff ff 03 2d
+    ff ff 7f 7f 35 ff ff 7f 7f 3d ff ff 7f 7f 45 ff
+    ff 7f 7f 50 ff ff ff ff ff ff ff ff ff 01 58 ff
+    ff ff ff ff ff ff ff ff 01 65 ff ff 7f 7f 1a c6
+    01 08 ff ff ff ff 0f 12 84 01 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 18 ff
+    ff ff ff 07 20 ff ff 03 2d ff ff 7f 7f 35 ff ff
+    7f 7f 3d ff ff 7f 7f 45 ff ff 7f 7f 50 ff ff ff
+    ff ff ff ff ff ff 01 58 ff ff ff ff ff ff ff ff
+    ff 01 65 ff ff 7f 7f
+
+variant minima
+  field 1 CharacterCount : int = -2147483648
+  field 2 MaxCharacterCount : int = -2147483648
+  field 3 Characters : CharacterInfo[] = 1 element
+    element 0
+      field 1 CharacterId : uint = 0
+      field 2 Name : string = "\0" (1 chars, 1 bytes utf-8)
+      field 3 Level : int = -2147483648
+      field 4 Class : ushort = 0
+      field 5 X : float = -3.40282347E+38 (0xff7fffff)
+      field 6 Y : float = -3.40282347E+38 (0xff7fffff)
+      field 7 Z : float = -3.40282347E+38 (0xff7fffff)
+      field 8 Orientation : float = -3.40282347E+38 (0xff7fffff)
+      field 10 Experience : ulong = 0
+      field 11 RequiredExperience : ulong = 0
+      field 12 MovementSpeed : float = -3.40282347E+38 (0xff7fffff)
+  bytes 63
+    08 80 80 80 80 f8 ff ff ff ff 01 10 80 80 80 80
+    f8 ff ff ff ff 01 1a 27 12 01 00 18 80 80 80 80
+    f8 ff ff ff ff 01 2d ff ff 7f ff 35 ff ff 7f ff
+    3d ff ff 7f ff 45 ff ff 7f ff 65 ff ff 7f ff
+
+variant varint-edges
+  field 1 CharacterCount : int = 268435456
+  field 2 MaxCharacterCount : int = 127
+  field 3 Characters : CharacterInfo[] = 2 elements
+    element 0
+      field 1 CharacterId : uint = 2097151
+      field 2 Name : string = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…" (127 chars, 127 bytes utf-8)
+      field 3 Level : int = 268435456
+      field 4 Class : ushort = 16383
+      field 5 X : float = 1.17549435E-38 (0x00800000)
+      field 6 Y : float = 1.17549435E-38 (0x00800000)
+      field 7 Z : float = 1.17549435E-38 (0x00800000)
+      field 8 Orientation : float = 1.17549435E-38 (0x00800000)
+      field 10 Experience : ulong = 2097151
+      field 11 RequiredExperience : ulong = 16384
+      field 12 MovementSpeed : float = 1.17549435E-38 (0x00800000)
+    element 1
+      field 1 CharacterId : uint = 268435456
+      field 2 Name : string = "yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy…" (128 chars, 128 bytes utf-8)
+      field 3 Level : int = 268435455
+      field 4 Class : ushort = 128
+      field 5 X : float = 1.17549449E-38 (0x00800001)
+      field 6 Y : float = 1.17549449E-38 (0x00800001)
+      field 7 Z : float = 1.17549449E-38 (0x00800001)
+      field 8 Orientation : float = 1.17549449E-38 (0x00800001)
+      field 10 Experience : ulong = 16384
+      field 11 RequiredExperience : ulong = 2097151
+      field 12 MovementSpeed : float = 1.17549449E-38 (0x00800001)
+  bytes 367
+    08 80 80 80 80 01 10 7f 1a af 01 08 ff ff 7f 12
+    7f 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    18 80 80 80 80 01 20 ff 7f 2d 00 00 80 00 35 00
+    00 80 00 3d 00 00 80 00 45 00 00 80 00 50 ff ff
+    7f 58 80 80 01 65 00 00 80 00 1a b2 01 08 80 80
+    80 80 01 12 80 01 79 79 79 79 79 79 79 79 79 79
+    79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
+    79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
+    79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
+    79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
+    79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
+    79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
+    79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
+    79 79 79 79 79 79 18 ff ff ff 7f 20 80 01 2d 01
+    00 80 00 35 01 00 80 00 3d 01 00 80 00 45 01 00
+    80 00 50 80 80 01 58 ff ff 7f 65 01 00 80 00
+
+variant float-specials
+  field 1 CharacterCount : int = -9
+  field 2 MaxCharacterCount : int = -262144
+  field 3 Characters : CharacterInfo[] = 2 elements
+    element 0
+      field 1 CharacterId : uint = 42
+      field 2 Name : string = "héllo wörld" (11 chars, 13 bytes utf-8)
+      field 3 Level : int = 19
+      field 4 Class : ushort = 65535
+      field 5 X : float = 1.17549421E-38 (0x007fffff)
+      field 6 Y : float = 3.40282347E+38 (0x7f7fffff)
+      field 7 Z : float = NaN (0xffc00000)
+      field 8 Orientation : float = 1.40129846E-45 (0x00000001)
+      field 10 Experience : ulong = 1000000
+      field 11 RequiredExperience : ulong = 1000000
+      field 12 MovementSpeed : float = -0 (0x80000000)
+    element 1
+      field 1 CharacterId : uint = 19
+      field 2 Name : string = "line\nbreak\ttab" (14 chars, 14 bytes utf-8)
+      field 3 Level : int = 70000
+      field 4 Class : ushort = 300
+      field 5 X : float = 3.40282347E+38 (0x7f7fffff)
+      field 6 Y : float = NaN (0xffc00000)
+      field 7 Z : float = NaN (0x7fc00001)
+      field 8 Orientation : float = 1.17549421E-38 (0x007fffff)
+      field 10 Experience : ulong = 4000000000
+      field 11 RequiredExperience : ulong = 7
+      field 12 MovementSpeed : float = 1.40129846E-45 (0x00000001)
+  bytes 135
+    08 f7 ff ff ff ff ff ff ff ff 01 10 80 80 f0 ff
+    ff ff ff ff ff 01 1a 33 08 2a 12 0d 68 c3 a9 6c
+    6c 6f 20 77 c3 b6 72 6c 64 18 13 20 ff ff 03 2d
+    ff ff 7f 00 35 ff ff 7f 7f 3d 00 00 c0 ff 45 01
+    00 00 00 50 c0 84 3d 58 c0 84 3d 1a 3a 08 13 12
+    0e 6c 69 6e 65 0a 62 72 65 61 6b 09 74 61 62 18
+    f0 a2 04 20 ac 02 2d ff ff 7f 7f 35 00 00 c0 ff
+    3d 01 00 c0 7f 45 ff ff 7f 00 50 80 d0 ac f3 0e
+    58 07 65 01 00 00 00

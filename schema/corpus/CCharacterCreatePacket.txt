@@ -1,0 +1,68 @@
+# CCharacterCreatePacket - golden wire vectors.
+#
+# GENERATED FILE. The bytes below are what the server's serializer writes for the
+# values shown above them, so a client is conformant when it produces the same ones,
+# and a change in what the server emits arrives here as a diff.
+#
+#   Emitted by  tools/Avalon.SchemaGen
+#   Regenerate  dotnet run --project tools/Avalon.SchemaGen
+#   Format      described in schema/README.md
+#   Schema      the message of this name in schema/avalon.proto
+#
+# A variant is one shape of the same message. "absent" sets nothing, "empty" sets
+# everything to a present-but-empty value, and the rest carry values chosen to make
+# a particular encoding decision observable.
+
+message CCharacterCreatePacket
+
+variant absent
+  field 1 Name : string = null
+  field 2 Class : int = 0
+  bytes 0
+
+variant empty
+  field 1 Name : string = "" (0 chars, 0 bytes utf-8)
+  field 2 Class : int = 0
+  bytes 2
+    0a 00
+
+variant populated
+  field 1 Name : string = "日本語のテキスト" (8 chars, 24 bytes utf-8)
+  field 2 Class : int = 70000
+  bytes 30
+    0a 18 e6 97 a5 e6 9c ac e8 aa 9e e3 81 ae e3 83
+    86 e3 82 ad e3 82 b9 e3 83 88 10 f0 a2 04
+
+variant maxima
+  field 1 Name : string = "ΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩx…" (88 chars, 132 bytes utf-8)
+  field 2 Class : int = 2147483647
+  bytes 141
+    0a 84 01 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 10 ff ff ff ff 07
+
+variant minima
+  field 1 Name : string = "\u0001" (1 chars, 1 bytes utf-8)
+  field 2 Class : int = -2147483648
+  bytes 14
+    0a 01 01 10 80 80 80 80 f8 ff ff ff ff 01
+
+variant varint-edges
+  field 1 Name : string = "yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy…" (128 chars, 128 bytes utf-8)
+  field 2 Class : int = 16383
+  bytes 134
+    0a 80 01 79 79 79 79 79 79 79 79 79 79 79 79 79
+    79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
+    79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
+    79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
+    79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
+    79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
+    79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
+    79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
+    79 79 79 10 ff 7f
