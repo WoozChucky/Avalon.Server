@@ -44,12 +44,107 @@ Two header fields are deliberately absent from `opcodes.json`, because building 
 propagate a fiction: `NetworkProtocol` is read by nothing, and `Version` is hardcoded to zero
 at every construction site.
 
-Nothing else is missing. Entity state used to be the third entry here, because it travelled as
-an opaque `bytes` member headed by a bitmask the schema could not describe and a client had to
-copy by hand. It is `ObjectState` in `avalon.proto` now, every field carrying its own presence,
-so a client reads which members arrived instead of decoding a mask to find out. The bitmask
-still exists on the server as its record of what has changed, and is no longer exported: a
-client that implemented it would be implementing something it must not use.
+**Entity kinds.** Which kind of entity an `ObjectState` describes is the top byte of its
+identifier rather than a member of any message, so no `.proto` can declare the values. They are
+written out in the next section, together with the rest of what reading entity state takes.
+
+Nothing else is missing. Entity state itself used to be a fourth entry here, because it
+travelled as an opaque `bytes` member headed by a bitmask the schema could not describe and a
+client had to copy by hand. It is `ObjectState` in `avalon.proto` now, every member carrying
+its own presence, so a client reads which members arrived instead of decoding a mask to find
+out. The bitmask still exists on the server as its record of what has changed, and is no longer
+exported: a client that implemented it would be implementing something it must not use.
+
+## Entity state
+
+Three packets replicate the world. `SMSG_WORLD_STATE_ADD` carries entities the client has not
+seen before, `SMSG_WORLD_STATE_UPDATE` carries changes to entities it already has, and both are
+a list of `ObjectState`. `SMSG_WORLD_STATE_REMOVE` carries bare identifiers. One message serves
+every kind of entity, so a reader parses the same message either way and then asks which
+members arrived.
+
+Every member but `Guid` is optional, and **absent is not zero**. A member is present when the
+server has something to say about it. `CurrentHealth = 0` is a unit at zero health; no
+`CurrentHealth` member means nothing was said about it and the client keeps the value it
+already holds. **Presence does not mean the value changed**, either — the server sends a fixed
+selection per kind rather than a per-field delta, so a member arrives on every update whether
+or not it moved.
+
+### Which members each kind sets
+
+| Member | Character | Creature | Projectile | Portal |
+|---|:-:|:-:|:-:|:-:|
+| `Guid` | ✓ | ✓ | ✓ | ✓ |
+| `Position` | ✓ ¹ | ✓ | ✓ | ✓ |
+| `Velocity` `Orientation` | ✓ ¹ | ✓ | ✓ | |
+| `MoveState` `Health` `CurrentHealth` `Level` | ✓ | ✓ ² | | |
+| `IsDead` | ✓ | ✓ ² ³ | | |
+| `PowerType` | ✓ | ✓ | | |
+| `Power` `CurrentPower` | ✓ ⁴ | ✓ ⁴ | | |
+| `Experience` `RequiredExperience` | ✓ | | | |
+| `CreatureMetadataId` | | ✓ | | |
+| `Name` | ✓ | ✓ | | |
+| `PortalRadius` `PortalTargetMapId` `PortalRole` | | | | ✓ |
+
+¹ **A character's own client does not receive its placement.** `Position`, `Velocity` and
+`Orientation` are withheld from the one client that owns the character, because they reach it
+on a different packet. Every other client receives them. Absent here means *not for you*, not
+*at the origin and stationary* — a client that read it the second way would teleport the player
+to the origin ten times a second.
+
+² On an add only. A creature update carries neither `Health` nor `Level` nor `IsDead`, though a
+creature add carries all three. Which members a selection contains is a server decision that
+can narrow without the schema changing, so treat every optional member as possibly absent in
+any message rather than deriving a kind's shape from one capture.
+
+³ A creature is always alive: it sends `IsDead = false` rather than nothing, because the member
+is filled from a selection shared with characters. Read it as *no information*, not as a
+creature that cannot die.
+
+⁴ Withheld together when `PowerType` is `PowerType_None`. A unit that spends nothing has no
+pool to report, so a client that reads `PowerType_None` should expect neither amount, whatever
+it received before.
+
+A portal never appears in an update: portals do not change while they exist. `PortalRadius` is
+how close a character must be for the portal to take them, and `PortalRole` is `0` back or `1`
+forward. `CreatureMetadataId` is the template a creature was spawned from. `Orientation` is a
+single angle, the yaw — nothing in this world leans, so pitch and roll are not replicated.
+
+### Reading the identifier
+
+`Guid` is not an opaque number. The kind of entity is packed into its top byte, and the kind
+decides which of the members above can arrive, so a client reads the kind before it reads the
+message:
+
+```
+kind = (guid >> 56) & 0xFF
+id   = guid & 0xFF_FFFF_FFFF     unique within a kind, not across kinds
+```
+
+The forty low bits hold the id, of which the server fills thirty-two today, and the sixteen
+bits between the id and the kind are unused and always zero. The kinds are `1` character, `2`
+creature, `4` projectile and `5` portal; `0` is the empty identifier and `3` is a spell, which
+is never replicated as an entity. **Neither the layout nor
+those numbers appear anywhere a non-.NET reader can find them** — not in `avalon.proto`, not in
+`opcodes.json` — so a client hardcodes them and has no way to notice a renumber. `MoveState`
+and `PowerType` are exported because they are members of a message; entity kinds are not,
+because they are not members of anything.
+
+The identifiers in `SMSG_WORLD_STATE_REMOVE` are the same values and decompose the same way.
+
+### A position is present or absent as a whole
+
+`Position` and `Velocity` are `Vec3` submessages rather than three floats on `ObjectState`, and
+that is deliberate: three members would have made *has not moved* and *is at the origin* the
+same bytes. The triple arrives together or not at all; there is no message carrying an X and a
+Y but no Z.
+
+Inside a `Vec3` the components are plain proto3 floats with no presence of their own, and
+proto3 omits a field that equals its default. `(0, 3.5, 0)` therefore encodes `Y` alone, and a
+position at the origin encodes to a present submessage of **zero bytes** — see the `absent` and
+`empty` variants in `corpus/Vec3.txt`, which are both empty. **A missing component means zero,
+never unknown.** A reader that treats a missing `X` the way it treats a missing `Position`
+rejects legitimate coordinates, and one coordinate at zero is ordinary rather than rare.
 
 ## The golden corpus
 
