@@ -1,4 +1,4 @@
-﻿using Avalon.World.Public;
+using Avalon.World.Public;
 using System.Diagnostics;
 using Avalon.Common.Mathematics;
 using Avalon.Common.Telemetry;

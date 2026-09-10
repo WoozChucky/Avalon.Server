@@ -1,4 +1,4 @@
-﻿using Avalon.Common;
+using Avalon.Common;
 using Avalon.World.Public;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Characters;
