@@ -1,4 +1,4 @@
-﻿using Avalon.Common;
+using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Network.Packets.Abilities;
 using Avalon.Network.Packets.Abstractions;

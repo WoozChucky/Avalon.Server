@@ -6,11 +6,14 @@ root = true
 # Default settings:
 # A newline ending every file
 # Use 4 spaces as indentation
+# UTF-8 with no byte-order mark: a BOM is invisible while editing and turns into a first-line
+# diff on every file that picks one up
 [*]
 insert_final_newline = true
 indent_style = space
 indent_size = 4
 trim_trailing_whitespace = true
+charset = utf-8
 
 # Generated code
 [*{_AssemblyInfo.cs,.notsupported.cs,AsmOffsets.cs}]
@@ -166,9 +169,6 @@ indent_brace_style = Allman
 # Xml project files
 [*.{csproj,vbproj,vcxproj,vcxproj.filters,proj,nativeproj,locproj}]
 indent_size = 2
-
-[*.{csproj,vbproj,proj,nativeproj,locproj}]
-charset = utf-8
 
 # Xml build files
 [*.builds]

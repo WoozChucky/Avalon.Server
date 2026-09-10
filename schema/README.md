@@ -1,4 +1,4 @@
-﻿# Wire schema
+# Wire schema
 
 The language-neutral definition of the Avalon TCP protocol, exported from the C# packet
 contracts so a non-.NET client can be built against it.

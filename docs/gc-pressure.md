@@ -1,4 +1,4 @@
-﻿# GC Pressure & Heap Allocation Findings
+# GC Pressure & Heap Allocation Findings
 
 Findings from a full-scope static analysis of the World server — network layer, packet
 pipeline, and simulation tick loop. Issues are ordered by severity / frequency.

@@ -1,4 +1,4 @@
-﻿using Avalon.Domain.Characters;
+using Avalon.Domain.Characters;
 using Avalon.World.Configuration;
 using Avalon.World.Entities;
 using Avalon.World.Public;
