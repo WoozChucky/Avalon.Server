@@ -95,6 +95,43 @@ member added to a packet is covered without anyone remembering to cover it. Thei
 picked from a ladder per type and indexed by a hash of the member's name, which makes them
 varied between members and identical between runs.
 
+## What the corpus does not cover
+
+Every gap below is known and none of them is accidental. They are written down so that extending
+the corpus starts from them instead of rediscovering them one at a time.
+
+**No vector mixes member states.** A variant sets every member of a message to the same state —
+all absent, or all empty, or all at their maximum. Nothing in the corpus is a message with some
+members present and others missing, which is what the whole family of reader-robustness cases
+needs: a present tag with earlier tags absent, tags out of order, a repeated tag, a field number
+the schema does not declare, a wire type that disagrees with the declared one, and input that
+stops mid-field. Every vector is well-formed output from one encoder, written in ascending tag
+order, so a reader that handles nothing else passes all of them.
+
+**A present submessage holding a present-but-empty string is never produced by a parent.** The
+`empty` variant fills a singular submessage member by building the submessage as `absent`, so the
+parent's vectors show that member present and carrying nothing at all. The shape explicit
+presence exists to protect — an empty-but-present string inside a present parent — appears only
+in the child message's own file, never nested inside anything.
+
+**The only three-element vectors hold three identical elements.** A repeated member gets three
+elements under `maxima` and one under `minima`, and those two variants are a single value per
+type that ignores an element's ordinal. Element ordering therefore cannot be tested where the
+count is highest. The two-element `populated` and `varint-edges` vectors do fold the ordinal in,
+and are where a reader that returns elements in the wrong order can show itself.
+
+**An undeclared enum value is always a positive one.** The value chosen for `varint-edges` is
+found by searching upward from the largest declared member and only turns downward when nothing
+above it fits, which has not happened for any enum in the protocol. So the ten-byte varint a
+negative enum value encodes to is in no vector.
+
+**Adding one float member rewrites float-specials vectors across the whole corpus, and that is
+the mechanism working.** Each float member is handed a special by its position in one globally
+sorted list of every float member in the protocol, which is what guarantees that all eight
+specials appear somewhere rather than probably appearing. A new float member shifts the position
+of every member sorting after it, and their specials rotate with it. Expect a large diff and read
+it as churn, not as drift.
+
 ## Where the bytes and the schema part company
 
 Two differences are real, neither corrupts a value, and neither raises anything. They are
