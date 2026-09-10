@@ -19,6 +19,9 @@ public static class WireSchema
 
     private const string PackageName = "avalon";
 
+    private static readonly Regex MessageStart =
+        new(@"^message (?<name>\S+) \{$", RegexOptions.CultureInvariant);
+
     /// <summary>
     /// Every <c>[ProtoContract]</c> type the wire protocol is built from, in a stable order
     /// so that regenerating an unchanged tree produces an unchanged file.
@@ -66,22 +69,29 @@ public static class WireSchema
     }
 
     /// <summary>
-    /// Marks members whose C# type is a nullable value type as <c>optional</c>.
+    /// Marks <c>optional</c> every member protobuf-net can put on the wire carrying a value
+    /// that a reader without explicit presence would decode as absent.
     /// </summary>
     /// <remarks>
-    /// protobuf-net writes such a member only when it has a value, so null and zero are
-    /// different bytes and the difference carries meaning: a null target guid means "clear
-    /// the target". Emitted without the keyword, a reader generated from this schema
-    /// re-encodes zero as absent and the distinction disappears with nothing raised.
-    /// Deriving the set by reflection rather than naming the members keeps a nullable
-    /// member added later from quietly missing out.
+    /// The criterion is what the two encoders disagree about, and C# nullability is not it.
+    /// Nullability answers a narrower question - a nullable scalar, where null and zero are
+    /// different bytes and the difference carries meaning, since a null target guid means
+    /// "clear the target" - and it is silent about the wider one. protobuf-net decides whether
+    /// to write a string or bytes member by testing the reference against null, so an empty one
+    /// goes out as a present field of length zero; plain proto3 reads that as the default,
+    /// writes nothing back, and the two bytes are gone with nothing raised on either side. A
+    /// <c>ReadOnlyMemory&lt;byte&gt;</c> member cannot be null at all, so the server writes one
+    /// even where nothing was ever assigned, and nothing about its type suggests it needs the
+    /// keyword. Marking the field restores the distinction and does not change how a present
+    /// value encodes, so it costs no bytes.
+    /// Deriving the set by reflection rather than naming the members keeps a member added
+    /// later from quietly missing out.
     /// </remarks>
     private static string ApplyExplicitPresence(string schema)
     {
-        HashSet<(string Message, int FieldNumber)> targets = NullableValueMembers();
+        HashSet<(string Message, int FieldNumber)> targets = MembersWithoutProto3Presence();
         HashSet<(string Message, int FieldNumber)> applied = [];
 
-        var messageStart = new Regex(@"^message (?<name>\S+) \{$", RegexOptions.CultureInvariant);
         var field = new Regex(@"^(?<indent>\s+)(?<declaration>\S.*) = (?<number>\d+)(?<tail>.*);$", RegexOptions.CultureInvariant);
 
         string[] lines = schema.Split('\n');
@@ -89,7 +99,7 @@ public static class WireSchema
 
         for (int i = 0; i < lines.Length; i++)
         {
-            Match start = messageStart.Match(lines[i]);
+            Match start = MessageStart.Match(lines[i]);
             if (start.Success)
             {
                 message = start.Groups["name"].Value;
@@ -139,11 +149,63 @@ public static class WireSchema
                 .OrderBy(name => name, StringComparer.Ordinal);
 
             throw new InvalidOperationException(
-                "Could not mark every nullable member optional. The emitted schema no longer has the shape this " +
-                "rewrite expects, so presence would be lost silently. Unmatched: " + string.Join(", ", missed) + ".");
+                "Could not mark every member that needs explicit presence optional. The emitted schema no longer " +
+                "has the shape this rewrite expects, so presence would be lost silently. Unmatched: " +
+                string.Join(", ", missed) + ".");
         }
 
+        VerifyEveryStringAndBytesFieldIsMarked(lines);
+
         return string.Join("\n", lines);
+    }
+
+    /// <summary>
+    /// Reads the finished lines back and refuses any singular string or bytes field that did
+    /// not get the keyword.
+    /// </summary>
+    /// <remarks>
+    /// The target set above is derived from the C# types this tool knows protobuf-net renders
+    /// as string and bytes. A member declared in some other type it also renders that way
+    /// would not be in the set and would lose its empty value in silence - which is the whole
+    /// failure the keyword is here to remove, reappearing through the door the fix came in by.
+    /// So the emitted text is held against itself: whatever protobuf-net decided to call a
+    /// singular string or bytes field carries presence, however it was declared in C#.
+    /// </remarks>
+    private static void VerifyEveryStringAndBytesFieldIsMarked(IReadOnlyList<string> lines)
+    {
+        var unmarked = new Regex(@"^\s+(?:string|bytes) (?<name>\S+) = \d+", RegexOptions.CultureInvariant);
+
+        List<string> missed = [];
+        string? message = null;
+
+        foreach (string line in lines)
+        {
+            Match start = MessageStart.Match(line);
+            if (start.Success)
+            {
+                message = start.Groups["name"].Value;
+                continue;
+            }
+
+            if (line.StartsWith('}'))
+            {
+                message = null;
+                continue;
+            }
+
+            Match field = unmarked.Match(line);
+            if (message is not null && field.Success)
+            {
+                missed.Add($"{message}.{field.Groups["name"].Value}");
+            }
+        }
+
+        if (missed.Count > 0)
+        {
+            throw new InvalidOperationException(
+                "These singular string or bytes fields were emitted without explicit presence, so an empty value "
+                + "would arrive as absent and re-encode as nothing: " + string.Join(", ", missed) + ".");
+        }
     }
 
     /// <summary>
@@ -158,10 +220,9 @@ public static class WireSchema
     }
 
     /// <summary>
-    /// The (message, field number) pairs whose C# member is a nullable value type. A
-    /// nullable message is excluded: a message field already has presence in proto3.
+    /// The (message, field number) pairs that proto3 would give no presence of their own.
     /// </summary>
-    private static HashSet<(string Message, int FieldNumber)> NullableValueMembers()
+    private static HashSet<(string Message, int FieldNumber)> MembersWithoutProto3Presence()
     {
         HashSet<(string Message, int FieldNumber)> members = [];
 
@@ -169,35 +230,48 @@ public static class WireSchema
         {
             string schemaName = SchemaNameOf(type);
 
-            const BindingFlags instanceMembers =
-                BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
-
-            foreach (MemberInfo member in type.GetMembers(instanceMembers))
+            foreach (WireMember member in WireFixtures.Members(type))
             {
-                ProtoMemberAttribute? tag = member.GetCustomAttribute<ProtoMemberAttribute>();
-                if (tag is null)
+                if (WritesAValueProto3ReadsAsAbsent(member.DeclaredType))
                 {
-                    continue;
+                    members.Add((schemaName, member.Tag));
                 }
-
-                Type? declared = member switch
-                {
-                    PropertyInfo property => property.PropertyType,
-                    FieldInfo backing => backing.FieldType,
-                    _ => null,
-                };
-
-                Type? underlying = declared is null ? null : Nullable.GetUnderlyingType(declared);
-                if (underlying is null || underlying.GetCustomAttribute<ProtoContractAttribute>() is not null)
-                {
-                    continue;
-                }
-
-                members.Add((schemaName, tag.Tag));
             }
         }
 
         return members;
+    }
+
+    /// <summary>
+    /// Whether protobuf-net can write this member carrying a value a reader without explicit
+    /// presence would decode as absent.
+    /// </summary>
+    private static bool WritesAValueProto3ReadsAsAbsent(Type declared)
+    {
+        // A repeated member has no presence to restore: an empty list and an absent one are
+        // the same bytes by design on both sides, and proto3 does not accept the keyword here.
+        if (WireFixtures.RepeatedElementType(declared) is not null)
+        {
+            return false;
+        }
+
+        // Empty against null. protobuf-net writes an empty string or byte array as a present
+        // field of length zero, because in C# neither is the same value as null; a
+        // ReadOnlyMemory<byte> is a struct, so one is written even where nothing was assigned.
+        if (declared == typeof(string) || declared == typeof(byte[]) || declared == typeof(ReadOnlyMemory<byte>))
+        {
+            return true;
+        }
+
+        // Null against zero. Anything else non-nullable is written only when it differs from
+        // its type default, which is what proto3 does as well, so the two already agree.
+        if (Nullable.GetUnderlyingType(declared) is not { } underlying)
+        {
+            return false;
+        }
+
+        // A message member has presence in proto3 already.
+        return !WireFixtures.IsContract(underlying);
     }
 
     /// <summary>
@@ -255,13 +329,18 @@ public static class WireSchema
         //   seven enums that each declare a "Success" member would collide and this file
         //   would not compile. Names only; the wire carries the number.
         //
-        //   Members whose C# type is a nullable value type are marked "optional", because
-        //   for those null and zero are different bytes and the difference is meaningful - a
-        //   null target guid means "clear the target". Without the keyword a generated
-        //   reader re-encodes zero as absent and the distinction is lost with nothing
-        //   raised. The same null-versus-empty split exists for string and bytes members,
-        //   which are not marked: absent and empty decode alike, so only a byte-for-byte
-        //   re-encode can tell them apart.
+        //   Members are marked "optional" wherever the server can write a value that plain
+        //   proto3 reads as absent. That is every singular string and bytes member, because
+        //   protobuf-net writes an empty one as a present field of length zero while proto3
+        //   treats it as the default and drops it; and every nullable scalar, because for
+        //   those null and zero are different bytes and the difference is meaningful - a null
+        //   target guid means "clear the target". Repeated members are not marked and cannot
+        //   be: an empty list and an absent one are one thing on the wire. Singular message
+        //   members are not marked because they have presence already. The keyword restores
+        //   the distinction without changing how a present value encodes, so it costs no
+        //   bytes. C# nullability is not the criterion and would be the wrong one: a
+        //   ReadOnlyMemory<byte> member cannot be null, and it is one of the members the
+        //   server always writes.
         //
         //   "[packed = false]" on repeated scalars matches what the server writes. Readers
         //   accept either encoding, so losing it would not fail loudly.

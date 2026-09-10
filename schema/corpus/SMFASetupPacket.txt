@@ -1,0 +1,68 @@
+# SMFASetupPacket - golden wire vectors.
+#
+# GENERATED FILE. The bytes below are what the server's serializer writes for the
+# values shown above them, so a client is conformant when it produces the same ones,
+# and a change in what the server emits arrives here as a diff.
+#
+#   Emitted by  tools/Avalon.SchemaGen
+#   Regenerate  dotnet run --project tools/Avalon.SchemaGen
+#   Format      described in schema/README.md
+#   Schema      the message of this name in schema/avalon.proto
+#
+# A variant is one shape of the same message. "absent" sets nothing, "empty" sets
+# everything to a present-but-empty value, and the rest carry values chosen to make
+# a particular encoding decision observable.
+
+message SMFASetupPacket
+
+variant absent
+  field 1 OtpUri : string = null
+  field 2 Result : MFAOperationResult = Success (0)
+  bytes 0
+
+variant empty
+  field 1 OtpUri : string = "" (0 chars, 0 bytes utf-8)
+  field 2 Result : MFAOperationResult = Success (0)
+  bytes 2
+    0a 00
+
+variant populated
+  field 1 OtpUri : string = "日本語のテキスト" (8 chars, 24 bytes utf-8)
+  field 2 Result : MFAOperationResult = AlreadyEnabled (1)
+  bytes 28
+    0a 18 e6 97 a5 e6 9c ac e8 aa 9e e3 81 ae e3 83
+    86 e3 82 ad e3 82 b9 e3 83 88 10 01
+
+variant maxima
+  field 1 OtpUri : string = "ΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩx…" (88 chars, 132 bytes utf-8)
+  field 2 Result : MFAOperationResult = Error (4)
+  bytes 137
+    0a 84 01 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 10 04
+
+variant minima
+  field 1 OtpUri : string = "\0" (1 chars, 1 bytes utf-8)
+  field 2 Result : MFAOperationResult = Success (0)
+  bytes 3
+    0a 01 00
+
+variant varint-edges
+  field 1 OtpUri : string = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…" (127 chars, 127 bytes utf-8)
+  field 2 Result : MFAOperationResult = <not a declared member> (5)
+  bytes 131
+    0a 7f 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 10 05

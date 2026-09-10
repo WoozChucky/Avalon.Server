@@ -1,0 +1,83 @@
+# SGroupInvitePacket - golden wire vectors.
+#
+# GENERATED FILE. The bytes below are what the server's serializer writes for the
+# values shown above them, so a client is conformant when it produces the same ones,
+# and a change in what the server emits arrives here as a diff.
+#
+#   Emitted by  tools/Avalon.SchemaGen
+#   Regenerate  dotnet run --project tools/Avalon.SchemaGen
+#   Format      described in schema/README.md
+#   Schema      the message of this name in schema/avalon.proto
+#
+# A variant is one shape of the same message. "absent" sets nothing, "empty" sets
+# everything to a present-but-empty value, and the rest carry values chosen to make
+# a particular encoding decision observable.
+
+message SGroupInvitePacket
+
+variant absent
+  field 1 AccountId : int = 0
+  field 2 InviterAccountId : int = 0
+  field 3 InviterCharacterId : int = 0
+  field 4 InviterName : string = null
+  bytes 0
+
+variant empty
+  field 1 AccountId : int = 0
+  field 2 InviterAccountId : int = 0
+  field 3 InviterCharacterId : int = 0
+  field 4 InviterName : string = "" (0 chars, 0 bytes utf-8)
+  bytes 2
+    22 00
+
+variant populated
+  field 1 AccountId : int = 19
+  field 2 InviterAccountId : int = 11
+  field 3 InviterCharacterId : int = -9
+  field 4 InviterName : string = "alpha" (5 chars, 5 bytes utf-8)
+  bytes 22
+    08 13 10 0b 18 f7 ff ff ff ff ff ff ff ff 01 22
+    05 61 6c 70 68 61
+
+variant maxima
+  field 1 AccountId : int = 2147483647
+  field 2 InviterAccountId : int = 2147483647
+  field 3 InviterCharacterId : int = 2147483647
+  field 4 InviterName : string = "ΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩx…" (88 chars, 132 bytes utf-8)
+  bytes 153
+    08 ff ff ff ff 07 10 ff ff ff ff 07 18 ff ff ff
+    ff 07 22 84 01 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78
+
+variant minima
+  field 1 AccountId : int = -2147483648
+  field 2 InviterAccountId : int = -2147483648
+  field 3 InviterCharacterId : int = -2147483648
+  field 4 InviterName : string = "\0" (1 chars, 1 bytes utf-8)
+  bytes 36
+    08 80 80 80 80 f8 ff ff ff ff 01 10 80 80 80 80
+    f8 ff ff ff ff 01 18 80 80 80 80 f8 ff ff ff ff
+    01 22 01 00
+
+variant varint-edges
+  field 1 AccountId : int = 268435455
+  field 2 InviterAccountId : int = 128
+  field 3 InviterCharacterId : int = 16383
+  field 4 InviterName : string = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…" (127 chars, 127 bytes utf-8)
+  bytes 140
+    08 ff ff ff 7f 10 80 01 18 ff 7f 22 7f 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78

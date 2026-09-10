@@ -1,0 +1,63 @@
+# SUnitDamagePacket - golden wire vectors.
+#
+# GENERATED FILE. The bytes below are what the server's serializer writes for the
+# values shown above them, so a client is conformant when it produces the same ones,
+# and a change in what the server emits arrives here as a diff.
+#
+#   Emitted by  tools/Avalon.SchemaGen
+#   Regenerate  dotnet run --project tools/Avalon.SchemaGen
+#   Format      described in schema/README.md
+#   Schema      the message of this name in schema/avalon.proto
+#
+# A variant is one shape of the same message. "absent" sets nothing, "empty" sets
+# everything to a present-but-empty value, and the rest carry values chosen to make
+# a particular encoding decision observable.
+
+message SUnitDamagePacket
+
+variant absent
+  field 1 Attacker : ulong = 0
+  field 2 Target : ulong = 0
+  field 3 CurrentHealth : uint = 0
+  field 4 Damage : uint = 0
+  bytes 0
+
+variant empty
+  field 1 Attacker : ulong = 0
+  field 2 Target : ulong = 0
+  field 3 CurrentHealth : uint = 0
+  field 4 Damage : uint = 0
+  bytes 0
+
+variant populated
+  field 1 Attacker : ulong = 1000000
+  field 2 Target : ulong = 65535
+  field 3 CurrentHealth : uint = 65535
+  field 4 Damage : uint = 1000000
+  bytes 16
+    08 c0 84 3d 10 ff ff 03 18 ff ff 03 20 c0 84 3d
+
+variant maxima
+  field 1 Attacker : ulong = 18446744073709551615
+  field 2 Target : ulong = 18446744073709551615
+  field 3 CurrentHealth : uint = 4294967295
+  field 4 Damage : uint = 4294967295
+  bytes 34
+    08 ff ff ff ff ff ff ff ff ff 01 10 ff ff ff ff
+    ff ff ff ff ff 01 18 ff ff ff ff 0f 20 ff ff ff
+    ff 0f
+
+variant minima
+  field 1 Attacker : ulong = 0
+  field 2 Target : ulong = 0
+  field 3 CurrentHealth : uint = 0
+  field 4 Damage : uint = 0
+  bytes 0
+
+variant varint-edges
+  field 1 Attacker : ulong = 34359738367
+  field 2 Target : ulong = 127
+  field 3 CurrentHealth : uint = 127
+  field 4 Damage : uint = 127
+  bytes 12
+    08 ff ff ff ff 7f 10 7f 18 7f 20 7f

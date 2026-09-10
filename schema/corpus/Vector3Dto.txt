@@ -1,0 +1,63 @@
+# Vector3Dto - golden wire vectors.
+#
+# GENERATED FILE. The bytes below are what the server's serializer writes for the
+# values shown above them, so a client is conformant when it produces the same ones,
+# and a change in what the server emits arrives here as a diff.
+#
+#   Emitted by  tools/Avalon.SchemaGen
+#   Regenerate  dotnet run --project tools/Avalon.SchemaGen
+#   Format      described in schema/README.md
+#   Schema      the message of this name in schema/avalon.proto
+#
+# A variant is one shape of the same message. "absent" sets nothing, "empty" sets
+# everything to a present-but-empty value, and the rest carry values chosen to make
+# a particular encoding decision observable.
+
+message Vector3Dto
+
+variant absent
+  field 1 X : float = 0 (0x00000000)
+  field 2 Y : float = 0 (0x00000000)
+  field 3 Z : float = 0 (0x00000000)
+  bytes 0
+
+variant empty
+  field 1 X : float = 0 (0x00000000)
+  field 2 Y : float = 0 (0x00000000)
+  field 3 Z : float = 0 (0x00000000)
+  bytes 0
+
+variant populated
+  field 1 X : float = -7.50000027E-08 (0xb3a10fb0)
+  field 2 Y : float = -2.25 (0xc0100000)
+  field 3 Z : float = -7.50000027E-08 (0xb3a10fb0)
+  bytes 15
+    0d b0 0f a1 b3 15 00 00 10 c0 1d b0 0f a1 b3
+
+variant maxima
+  field 1 X : float = 3.40282347E+38 (0x7f7fffff)
+  field 2 Y : float = 3.40282347E+38 (0x7f7fffff)
+  field 3 Z : float = 3.40282347E+38 (0x7f7fffff)
+  bytes 15
+    0d ff ff 7f 7f 15 ff ff 7f 7f 1d ff ff 7f 7f
+
+variant minima
+  field 1 X : float = -3.40282347E+38 (0xff7fffff)
+  field 2 Y : float = -3.40282347E+38 (0xff7fffff)
+  field 3 Z : float = -3.40282347E+38 (0xff7fffff)
+  bytes 15
+    0d ff ff 7f ff 15 ff ff 7f ff 1d ff ff 7f ff
+
+variant varint-edges
+  field 1 X : float = 1.17549435E-38 (0x00800000)
+  field 2 Y : float = 1.17549435E-38 (0x00800000)
+  field 3 Z : float = 1.17549435E-38 (0x00800000)
+  bytes 15
+    0d 00 00 80 00 15 00 00 80 00 1d 00 00 80 00
+
+variant float-specials
+  field 1 X : float = 3.40282347E+38 (0x7f7fffff)
+  field 2 Y : float = NaN (0xffc00000)
+  field 3 Z : float = NaN (0x7fc00001)
+  bytes 15
+    0d ff ff 7f 7f 15 00 00 c0 ff 1d 01 00 c0 7f
