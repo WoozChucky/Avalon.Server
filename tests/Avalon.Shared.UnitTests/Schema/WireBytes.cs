@@ -57,34 +57,6 @@ internal static class WireBytes
     }
 
     /// <summary>
-    /// The same message without the string and bytes fields that are present and empty.
-    /// </summary>
-    /// <remarks>
-    /// proto3 gives a singular string or bytes field no way to say "present and empty": a
-    /// reader generated from the schema decodes an empty one and an absent one to the same
-    /// value, and writes neither. protobuf-net writes the empty one, because in C# null and
-    /// "" are different things. So this is the one transformation that has to be applied
-    /// before the two encoders can be held to byte equality, and applying it explicitly is
-    /// what keeps the difference visible instead of tolerated.
-    /// </remarks>
-    internal static byte[] WithoutEmptyStringsAndBytes(byte[] bytes, MessageDescriptor descriptor)
-    {
-        var kept = new MemoryStream(bytes.Length);
-
-        foreach (WireField field in Fields(bytes))
-        {
-            if (IsEmptyStringOrBytes(field, descriptor))
-            {
-                continue;
-            }
-
-            kept.Write(bytes, field.Start, field.Length);
-        }
-
-        return kept.ToArray();
-    }
-
-    /// <summary>
     /// The same message without any length-delimited field that carries no bytes, whatever its
     /// declared type.
     /// </summary>
@@ -111,18 +83,6 @@ internal static class WireBytes
         }
 
         return kept.ToArray();
-    }
-
-    private static bool IsEmptyStringOrBytes(WireField field, MessageDescriptor descriptor)
-    {
-        if (field.Type != WireFormat.WireType.LengthDelimited || field.PayloadLength != 0)
-        {
-            return false;
-        }
-
-        FieldDescriptor? declared = descriptor.FindFieldByNumber(field.Number);
-
-        return declared?.FieldType is FieldType.String or FieldType.Bytes;
     }
 
     internal static string Hex(byte[] bytes) =>

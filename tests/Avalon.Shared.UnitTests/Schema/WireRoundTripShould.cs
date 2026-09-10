@@ -37,15 +37,12 @@ public class WireRoundTripShould
             IMessage parsed = Parse(descriptor, vector);
             byte[] reEncoded = parsed.ToByteArray();
 
-            // Not vector.Bytes: proto3 cannot express a present-but-empty string or bytes
-            // field, so a reader generated from this schema drops one. That is the single
-            // documented difference, and stating it as a transformation rather than as a
-            // tolerance means any other difference still fails.
-            byte[] expected = WireBytes.WithoutEmptyStringsAndBytes(vector.Bytes, descriptor);
-
+            // Byte for byte, with nothing set aside. Every field the schema declares carries
+            // its own presence, so a reader generated from it writes back exactly what the
+            // server wrote - including a string or bytes field that is present and empty.
             Assert.True(
-                expected.AsSpan().SequenceEqual(reEncoded),
-                Because(vector, "re-encoding by the reference reader changed the bytes", expected, reEncoded, descriptor));
+                vector.Bytes.AsSpan().SequenceEqual(reEncoded),
+                Because(vector, "re-encoding by the reference reader changed the bytes", vector.Bytes, reEncoded, descriptor));
         }
     }
 

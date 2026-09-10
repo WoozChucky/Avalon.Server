@@ -97,24 +97,26 @@ varied between members and identical between runs.
 
 ## Where the bytes and the schema part company
 
-Four differences are real, none of them corrupts a value, and none of them raises anything.
-They are pinned down with their bytes in `WireLimitsShould`.
+Two differences are real, neither corrupts a value, and neither raises anything. They are
+pinned down with their bytes in `WireLimitsShould`, alongside the case that used to be a third
+and no longer is.
 
-**An empty string or byte array is not distinguishable from a missing one.** protobuf-net
-writes a two-byte field for `""` and for `Array.Empty<byte>()`, because in C# those are not
-null. proto3 gives a singular `string` or `bytes` field no way to say "present and empty", so a
-reader generated from this schema decodes an empty one and an absent one alike and writes
-neither. This is not hypothetical: `SWorldSelectPacket.CreateError` sends
-`WorldKey = Array.Empty<byte>()` on every duplicate-session rejection, and eleven string
-members initialize to `string.Empty`, so a default-constructed instance of one of those
-contracts already has it. Marking those members `optional` would remove it, at the cost of a
-change to the wire contract — which is a decision, not a fix, and has not been taken.
+**An empty string or byte array used to be indistinguishable from a missing one, and is not
+any more.** protobuf-net writes a two-byte field for `""` and for `Array.Empty<byte>()`,
+because in C# those are not null, and plain proto3 gives a singular `string` or `bytes` field
+no way to say "present and empty" — a reader generated from such a schema decoded an empty one
+and an absent one alike and wrote back neither. This was not hypothetical:
+`SWorldSelectPacket.CreateError` sends `WorldKey = Array.Empty<byte>()` on every
+duplicate-session rejection, eleven string members initialize to `string.Empty`, and
+`ObjectAdd.Fields` and `ObjectUpdate.Fields` are `ReadOnlyMemory<byte>` — a value type that
+cannot be null, so the server writes an empty field for it even where nothing was assigned, on
+the entity-replication path.
 
-**A `ReadOnlyMemory<byte>` member is always on the wire.** It is a value type, so it cannot be
-null, and the server writes an empty field for it even when nothing was assigned. Both members
-that use it — `ObjectAdd.Fields` and `ObjectUpdate.Fields` — sit on the entity-replication
-path. Note that C# nullability does not predict any of this: it is the member's type that
-decides whether absent is reachable, not whether it is declared nullable.
+Every singular `string` and `bytes` field therefore carries `optional`, which gives proto3
+explicit presence and does not change how a present value encodes, so it costs no bytes. Note
+what the criterion is not: C# nullability does not predict any of this, since a
+`ReadOnlyMemory<byte>` is never null and is written every time. It is what protobuf-net puts on
+the wire that decides, not how the member is declared.
 
 **A `DateTime` does not carry its kind.** protobuf-net writes `bcl.DateTime`'s value and scale
 and never its `kind` field, so a UTC timestamp is indistinguishable on the wire from an

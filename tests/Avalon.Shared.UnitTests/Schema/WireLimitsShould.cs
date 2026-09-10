@@ -10,17 +10,20 @@ using Xunit;
 namespace Avalon.Shared.UnitTests.Schema;
 
 /// <summary>
-/// The places where the schema cannot describe everything the server's serializer expresses.
+/// The edges of what the schema can say about the bytes the server writes, each pinned with
+/// the bytes rather than described.
 /// </summary>
 /// <remarks>
-/// Each of these is a real difference between what protobuf-net writes and what a reader
-/// generated from <c>schema/avalon.proto</c> writes back. None of them corrupts a value and
-/// none of them raises anything, which is exactly why they are written down as tests with the
-/// bytes in them: a limit nobody can point at gets rediscovered instead of decided about.
+/// Nothing here corrupts a value and nothing here raises anything, which is exactly why these
+/// are written down with their bytes in them: an edge nobody can point at gets rediscovered
+/// instead of decided about.
 ///
-/// Whether the schema should change to remove the first two is open, and deliberately not
-/// decided here - it would mean marking string and bytes members optional, which is a change
-/// to the wire contract rather than to a test.
+/// The first three used to be losses. A singular string or bytes field carries explicit
+/// presence now, so an empty one survives a reader generated from the schema; these hold that
+/// open, from the production call site and the hot-path member that first showed it closed.
+/// The rest are still open, and none of them is a disagreement between the two encoders: two
+/// are the server's own behaviour with no schema involved, and the last is a value neither
+/// side can send.
 /// </remarks>
 public class WireLimitsShould
 {
@@ -29,7 +32,7 @@ public class WireLimitsShould
     /// it on every duplicate-session rejection, through the factory called here.
     /// </summary>
     [Fact]
-    public void Lose_The_Empty_Byte_Array_A_World_Select_Rejection_Sends()
+    public void Carry_The_Empty_Byte_Array_A_World_Select_Rejection_Sends()
     {
         Avalon.Network.Packets.Abstractions.NetworkPacket rejection =
             SWorldSelectPacket.CreateError(WorldSelectResult.DuplicateSession, plaintext => plaintext.ToArray());
@@ -38,21 +41,21 @@ public class WireLimitsShould
         Assert.Equal(new byte[] { 0x0a, 0x00, 0x10, 0x01 }, rejection.Payload);
 
         MessageDescriptor descriptor = ReferenceSchema.For(nameof(SWorldSelectPacket));
-        byte[] reEncoded = descriptor.Parser.ParseFrom(rejection.Payload).ToByteArray();
+        IMessage read = descriptor.Parser.ParseFrom(rejection.Payload);
 
-        // proto3 has no way to say "present and empty" for a singular bytes field, so the two
-        // leading bytes are gone and a client cannot tell this from a packet that never
-        // carried a world key at all.
-        Assert.Equal(new byte[] { 0x10, 0x01 }, reEncoded);
+        // The two leading bytes survive, so a client can still tell this from a packet that
+        // never carried a world key at all.
+        Assert.True(descriptor.FindFieldByNumber(1)!.Accessor.HasValue(read));
+        Assert.Equal(new byte[] { 0x0a, 0x00, 0x10, 0x01 }, read.ToByteArray());
     }
 
     /// <summary>
     /// The counterpart for strings, which behave the same way and are far more common: eleven
     /// members in the protocol initialize to <c>string.Empty</c>, so a default-constructed
-    /// instance of one of those contracts already has the problem.
+    /// instance of one of those contracts sends two of these.
     /// </summary>
     [Fact]
-    public void Lose_An_Empty_String_The_Same_Way()
+    public void Carry_An_Empty_String_The_Same_Way()
     {
         byte[] bytes = WireCorpus.Serialize(new CAuthPacket { Username = string.Empty, Password = string.Empty });
 
@@ -60,16 +63,17 @@ public class WireLimitsShould
 
         MessageDescriptor descriptor = ReferenceSchema.For(nameof(CAuthPacket));
 
-        Assert.Empty(descriptor.Parser.ParseFrom(bytes).ToByteArray());
+        Assert.Equal(bytes, descriptor.Parser.ParseFrom(bytes).ToByteArray());
     }
 
     /// <summary>
     /// A <c>ReadOnlyMemory&lt;byte&gt;</c> member cannot be null, so the server writes an empty
-    /// field for it even when nothing was ever assigned. A fix keyed on C# nullability would
-    /// not reach this, and both members that use it sit on the entity-replication path.
+    /// field for it even when nothing was ever assigned. This is the member a rule keyed on C#
+    /// nullability would not have reached, and both members that use it sit on the
+    /// entity-replication path.
     /// </summary>
     [Fact]
-    public void Always_Put_A_ReadOnlyMemory_Member_On_The_Wire()
+    public void Carry_An_Always_Written_ReadOnlyMemory_Member()
     {
         byte[] bytes = WireCorpus.Serialize(new ObjectAdd { Guid = 5 });
 
@@ -77,7 +81,7 @@ public class WireLimitsShould
 
         MessageDescriptor descriptor = ReferenceSchema.For(nameof(ObjectAdd));
 
-        Assert.Equal(new byte[] { 0x08, 0x05 }, descriptor.Parser.ParseFrom(bytes).ToByteArray());
+        Assert.Equal(bytes, descriptor.Parser.ParseFrom(bytes).ToByteArray());
     }
 
     /// <summary>

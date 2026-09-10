@@ -22,13 +22,18 @@
 //   seven enums that each declare a "Success" member would collide and this file
 //   would not compile. Names only; the wire carries the number.
 //
-//   Members whose C# type is a nullable value type are marked "optional", because
-//   for those null and zero are different bytes and the difference is meaningful - a
-//   null target guid means "clear the target". Without the keyword a generated
-//   reader re-encodes zero as absent and the distinction is lost with nothing
-//   raised. The same null-versus-empty split exists for string and bytes members,
-//   which are not marked: absent and empty decode alike, so only a byte-for-byte
-//   re-encode can tell them apart.
+//   Members are marked "optional" wherever the server can write a value that plain
+//   proto3 reads as absent. That is every singular string and bytes member, because
+//   protobuf-net writes an empty one as a present field of length zero while proto3
+//   treats it as the default and drops it; and every nullable scalar, because for
+//   those null and zero are different bytes and the difference is meaningful - a null
+//   target guid means "clear the target". Repeated members are not marked and cannot
+//   be: an empty list and an absent one are one thing on the wire. Singular message
+//   members are not marked because they have presence already. The keyword restores
+//   the distinction without changing how a present value encodes, so it costs no
+//   bytes. C# nullability is not the criterion and would be the wrong one: a
+//   ReadOnlyMemory<byte> member cannot be null, and it is one of the members the
+//   server always writes.
 //
 //   "[packed = false]" on repeated scalars matches what the server writes. Readers
 //   accept either encoding, so losing it would not fail loudly.
@@ -50,7 +55,7 @@ option optimize_for = LITE_RUNTIME;
 
 message AbilityInfo {
    uint32 AbilityId = 1;
-   string Name = 2;
+   optional string Name = 2;
    float Cooldown = 3;
    float CastTime = 4;
    uint32 Cost = 5;
@@ -66,15 +71,15 @@ enum AuthResult {
    AuthResult_MFA_FAILED = 6;
 }
 message CAudioRecordPacket {
-   bytes SoundBuffer = 1;
+   optional bytes SoundBuffer = 1;
 }
 message CAuthPacket {
-   string Username = 1;
-   string Password = 2;
+   optional string Username = 1;
+   optional string Password = 2;
 }
 message CAuthPatchPacket {
    int32 AccountId = 1;
-   bytes PublicKey = 2;
+   optional bytes PublicKey = 2;
 }
 message CCastAbilityPacket {
    uint32 AbilityId = 1;
@@ -82,7 +87,7 @@ message CCastAbilityPacket {
    Vector3Dto GroundPos = 3;
 }
 message CCharacterCreatePacket {
-   string Name = 1;
+   optional string Name = 1;
    int32 Class = 2;
 }
 message CCharacterDeletePacket {
@@ -96,11 +101,11 @@ message CCharacterSelectedPacket {
    uint32 CharacterId = 1;
 }
 message CChatMessagePacket {
-   string Message = 1;
+   optional string Message = 1;
    .bcl.DateTime DateTime = 2;
 }
 message CClientInfoPacket {
-   bytes PublicKey = 1;
+   optional bytes PublicKey = 1;
 }
 message CCloseChatPacket {
    uint64 AccountId = 1;
@@ -110,8 +115,8 @@ message CEnterMapPacket {
    uint32 TargetMapId = 1;
 }
 message CExchangeWorldKeyPacket {
-   bytes WorldKey = 1;
-   bytes PublicKey = 2;
+   optional bytes WorldKey = 1;
+   optional bytes PublicKey = 2;
 }
 message CGroupInviteResultPacket {
    uint64 AccountId = 1;
@@ -121,7 +126,7 @@ message CGroupInviteResultPacket {
    bool Accepted = 5;
 }
 message CHandshakePacket {
-   bytes HandshakeData = 1;
+   optional bytes HandshakeData = 1;
 }
 message CInteractPacket {
    uint64 AccountId = 1;
@@ -135,18 +140,18 @@ message CLogoutPacket {
    uint64 AccountId = 1;
 }
 message CMFAConfirmPacket {
-   string Code = 1;
+   optional string Code = 1;
 }
 message CMFAResetPacket {
-   string RecoveryCode1 = 1;
-   string RecoveryCode2 = 2;
-   string RecoveryCode3 = 3;
+   optional string RecoveryCode1 = 1;
+   optional string RecoveryCode2 = 2;
+   optional string RecoveryCode3 = 3;
 }
 message CMFASetupPacket {
 }
 message CMFAVerifyPacket {
-   string MfaHash = 1;
-   string Code = 2;
+   optional string MfaHash = 1;
+   optional string Code = 2;
 }
 message COpenChatPacket {
    uint64 AccountId = 1;
@@ -179,12 +184,12 @@ message CQuestStatusPacket {
    int32 QuestId = 3;
 }
 message CRegisterPacket {
-   string Username = 1;
-   string Email = 2;
-   string Password = 3;
+   optional string Username = 1;
+   optional string Email = 2;
+   optional string Password = 3;
 }
 message CRequestServerInfoPacket {
-   string ClientVersion = 1;
+   optional string ClientVersion = 1;
 }
 message CRespawnAtTownPacket {
 }
@@ -192,7 +197,7 @@ message CTargetUnitPacket {
    optional uint64 TargetGuid = 1;
 }
 message CWorldHandshakePacket {
-   string Version = 1;
+   optional string Version = 1;
 }
 message CWorldListPacket {
 }
@@ -201,7 +206,7 @@ message CWorldSelectPacket {
 }
 message CharacterInfo {
    uint32 CharacterId = 1;
-   string Name = 2;
+   optional string Name = 2;
    int32 Level = 3;
    uint32 Class = 4;
    float X = 5;
@@ -236,8 +241,8 @@ enum MFAOperationResult {
 message MapInfo {
    int32 MapId = 1;
    .bcl.Guid InstanceId = 2; // default value could not be applied: 00000000-0000-0000-0000-000000000000
-   string Name = 3;
-   string Description = 4;
+   optional string Name = 3;
+   optional string Description = 4;
 }
 enum MapTransitionResult {
    MapTransitionResult_Success = 0;
@@ -249,7 +254,7 @@ enum MapTransitionResult {
 }
 message NetworkPacket {
    NetworkPacketHeader Header = 1;
-   bytes Payload = 2;
+   optional bytes Payload = 2;
 }
 enum NetworkPacketFlags {
    // this is a composite/flags enumeration
@@ -358,18 +363,18 @@ enum NetworkProtocol {
 }
 message ObjectAdd {
    uint64 Guid = 1;
-   bytes Fields = 2;
+   optional bytes Fields = 2;
 }
 message ObjectUpdate {
    uint64 Guid = 1;
-   bytes Fields = 2;
+   optional bytes Fields = 2;
 }
 message PlacedChunkDto {
    int32 ChunkTemplateId = 1;
    int32 GridX = 2;
    int32 GridZ = 3;
    uint32 Rotation = 4;
-   string ChunkName = 5;
+   optional string ChunkName = 5;
 }
 message PortalPlacementDto {
    uint32 Role = 1;
@@ -394,12 +399,12 @@ message SAbilityNotReadyPacket {
    uint32 CooldownMs = 2;
 }
 message SAudioRecordPacket {
-   bytes SoundBuffer = 1;
+   optional bytes SoundBuffer = 1;
 }
 message SAuthResultPacket {
    int64 AccountId = 1;
    AuthResult Result = 2;
-   string MfaHash = 3;
+   optional string MfaHash = 3;
 }
 message SCharacterAbilitiesPacket {
    repeated AbilityInfo Abilities = 1;
@@ -450,8 +455,8 @@ message SCharacterSelectedPacket {
 message SChatMessagePacket {
    uint64 AccountId = 1;
    uint64 CharacterId = 2;
-   string CharacterName = 3;
-   string Message = 4;
+   optional string CharacterName = 3;
+   optional string Message = 4;
    .bcl.DateTime DateTime = 5;
 }
 message SChunkLayoutPacket {
@@ -464,20 +469,20 @@ message SChunkLayoutPacket {
    uint32 MapId = 7;
 }
 message SCloseChatPacket {
-   string ClientId = 1;
+   optional string ClientId = 1;
 }
 message SDisconnectPacket {
-   string Reason = 1;
+   optional string Reason = 1;
    DisconnectReason ReasonCode = 2;
 }
 message SExchangeWorldKeyPacket {
-   bytes PublicKey = 1;
+   optional bytes PublicKey = 1;
 }
 message SGroupInvitePacket {
    int32 AccountId = 1;
    int32 InviterAccountId = 2;
    int32 InviterCharacterId = 3;
-   string InviterName = 4;
+   optional string InviterName = 4;
 }
 message SGroupResultPacket {
    int32 AccountId = 1;
@@ -487,7 +492,7 @@ message SGroupResultPacket {
    bool Accepted = 5;
 }
 message SHandshakePacket {
-   bytes HandshakeData = 1;
+   optional bytes HandshakeData = 1;
 }
 message SHandshakeResultPacket {
    bool Verified = 1;
@@ -512,7 +517,7 @@ message SMFAResetPacket {
    MFAOperationResult Result = 1;
 }
 message SMFASetupPacket {
-   string OtpUri = 1;
+   optional string OtpUri = 1;
    MFAOperationResult Result = 2;
 }
 message SMapTeleportPacket {
@@ -527,11 +532,11 @@ message SMapTransitionPacket {
    float SpawnX = 4;
    float SpawnY = 5;
    float SpawnZ = 6;
-   string MapName = 7;
-   string MapDescription = 8;
+   optional string MapName = 7;
+   optional string MapDescription = 8;
 }
 message SOpenChatPacket {
-   string ClientId = 1;
+   optional string ClientId = 1;
 }
 message SPingPacket {
    int64 ServerTimestamp = 1;
@@ -542,7 +547,7 @@ message SPingPacket {
 message SPlayerConnectedPacket {
    uint64 AccountId = 1;
    uint64 CharacterId = 2;
-   string Name = 3;
+   optional string Name = 3;
 }
 message SPlayerDisconnectedPacket {
    uint64 AccountId = 1;
@@ -566,7 +571,7 @@ message SRegisterResultPacket {
 }
 message SServerInfoPacket {
    uint32 ServerVersion = 1;
-   bytes PublicKey = 2;
+   optional bytes PublicKey = 2;
    ServerInfoResult Result = 3;
 }
 message SThreatListPacket {
@@ -608,7 +613,7 @@ message SWorldListPacket {
    repeated WorldInfo Worlds = 1;
 }
 message SWorldSelectPacket {
-   bytes WorldKey = 1;
+   optional bytes WorldKey = 1;
    WorldSelectResult Result = 2;
 }
 enum ServerInfoResult {
@@ -626,13 +631,13 @@ message Vector3Dto {
 }
 message WorldInfo {
    uint32 Id = 1;
-   string Name = 2;
+   optional string Name = 2;
    int32 Type = 3;
    int32 AccessLevelRequired = 4;
-   string Host = 5;
+   optional string Host = 5;
    int32 Port = 6;
-   string MinVersion = 7;
-   string Version = 8;
+   optional string MinVersion = 7;
+   optional string Version = 8;
    int32 Status = 9;
 }
 enum WorldSelectResult {
