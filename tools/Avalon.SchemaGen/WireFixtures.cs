@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Reflection;
 using ProtoBuf;
 
@@ -242,6 +242,22 @@ public static class WireFixtures
     public static bool IsContract(Type type) => FixtureValues.IsContract(type);
 
     /// <summary>
+    /// The type a member's values actually are: the element type where it is repeated, and
+    /// the underlying type where that is nullable.
+    /// </summary>
+    /// <remarks>
+    /// A member declared <c>float?</c> carries floats, and anything matching on the declared
+    /// type alone would not say so - which for the float specials means a member silently
+    /// outside the index space they are handed out by.
+    /// </remarks>
+    public static Type ValueTypeOf(Type declared)
+    {
+        Type carried = FixtureValues.ElementTypeOf(declared) ?? declared;
+
+        return Nullable.GetUnderlyingType(carried) ?? carried;
+    }
+
+    /// <summary>
     /// The float values the fixtures carry that a comparison going through a decimal or a
     /// text form is liable to lose. Exposed so a test can hold the corpus to containing all
     /// of them rather than to containing whichever ones it happened to generate.
@@ -258,7 +274,7 @@ public static class WireFixtures
     private static readonly Lazy<IReadOnlyList<string>> _floatMemberPaths = new(() =>
         WireSchema.ContractTypes()
             .SelectMany(contract => Members(contract)
-                .Where(member => (FixtureValues.ElementTypeOf(member.DeclaredType) ?? member.DeclaredType) == typeof(float))
+                .Where(member => ValueTypeOf(member.DeclaredType) == typeof(float))
                 .Select(member => $"{WireSchema.SchemaNameOf(contract)}.{member.Name}"))
             .Distinct(StringComparer.Ordinal)
             .OrderBy(path => path, StringComparer.Ordinal)
@@ -273,7 +289,7 @@ public static class WireFixtures
 
         foreach (WireMember member in Members(contract))
         {
-            Type element = FixtureValues.ElementTypeOf(member.DeclaredType) ?? member.DeclaredType;
+            Type element = ValueTypeOf(member.DeclaredType);
 
             if (element == typeof(float))
             {
