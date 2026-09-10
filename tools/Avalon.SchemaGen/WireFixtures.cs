@@ -21,7 +21,13 @@ public enum FixtureVariant
     /// </summary>
     Empty,
 
-    /// <summary>Ordinary values, varied per member so no two members share one.</summary>
+    /// <summary>
+    /// Ordinary values, drawn from a ladder per type by a stable hash of the member's path so
+    /// that a message's members do not all carry one value. Not distinct: a ladder is shorter
+    /// than the number of members drawing from it, and the path names the member's own message
+    /// rather than the chain above it, so one submessage type reached through two different
+    /// parents is filled the same way in both.
+    /// </summary>
     Populated,
 
     /// <summary>The largest value each member's type can carry.</summary>
@@ -161,28 +167,69 @@ public static class WireFixtures
         _ => throw new ArgumentOutOfRangeException(nameof(variant)),
     };
 
-    public static object Build(Type contract, FixtureVariant variant) => Build(contract, variant, ordinal: 0);
+    public static object Build(Type contract, FixtureVariant variant) =>
+        Build(contract, variant, ordinal: 0, enclosing: []);
 
     /// <summary>
     /// The ordinal travels down into nested messages so that two elements of a repeated
     /// message field differ from each other. Identical elements would still catch a reader
     /// that dropped one, but not one that returned them in the wrong order.
     /// </summary>
-    internal static object Build(Type contract, FixtureVariant variant, int ordinal)
+    /// <remarks>
+    /// The chain of messages already open travels down with it, so that a contract reached
+    /// through itself is refused rather than recursed into.
+    /// </remarks>
+    internal static object Build(Type contract, FixtureVariant variant, int ordinal, List<Type> enclosing)
     {
+        RefuseAContractThatContainsItself(contract, enclosing);
+
         object instance = Activator.CreateInstance(contract)
             ?? throw new InvalidOperationException($"{contract.FullName} has no parameterless constructor.");
 
         string message = WireSchema.SchemaNameOf(contract);
+        enclosing.Add(contract);
 
-        foreach (WireMember member in Members(contract))
+        try
         {
-            member.Write(
-                instance,
-                FixtureValues.For(member.DeclaredType, variant, $"{message}.{member.Name}", ordinal));
+            foreach (WireMember member in Members(contract))
+            {
+                member.Write(
+                    instance,
+                    FixtureValues.For(member.DeclaredType, variant, $"{message}.{member.Name}", ordinal, enclosing));
+            }
+        }
+        finally
+        {
+            enclosing.RemoveAt(enclosing.Count - 1);
         }
 
         return instance;
+    }
+
+    /// <summary>
+    /// Stops on a contract reached through itself, directly or by way of another.
+    /// </summary>
+    /// <remarks>
+    /// Every member of a fixture is filled, so building one for such a shape would descend
+    /// until the process died of a stack overflow - which .NET does not allow anything to
+    /// catch, so there would be no message, no failing test and no exit code worth reading,
+    /// only a runner that disappeared. Nothing in the protocol is shaped this way today.
+    /// </remarks>
+    private static void RefuseAContractThatContainsItself(Type contract, List<Type> enclosing)
+    {
+        if (!enclosing.Contains(contract))
+        {
+            return;
+        }
+
+        IEnumerable<string> chain = enclosing
+            .SkipWhile(open => open != contract)
+            .Append(contract)
+            .Select(WireSchema.SchemaNameOf);
+
+        throw new NotSupportedException(
+            "A fixture cannot be built for a contract that contains itself, because every member is "
+            + "filled and the descent would not end: " + string.Join(" -> ", chain) + ".");
     }
 
     /// <summary>
@@ -276,18 +323,23 @@ internal static class FixtureValues
         return null;
     }
 
-    internal static object? For(Type declared, FixtureVariant variant, string path, int ordinal)
+    internal static object? For(
+        Type declared,
+        FixtureVariant variant,
+        string path,
+        int ordinal,
+        List<Type> enclosing)
     {
         if (Nullable.GetUnderlyingType(declared) is { } underlying)
         {
             // Zero rather than null under Empty: a nullable member set to its type default is
             // the case a reader without explicit presence re-encodes as absent.
-            return variant == FixtureVariant.Absent ? null : For(underlying, variant, path, ordinal);
+            return variant == FixtureVariant.Absent ? null : For(underlying, variant, path, ordinal, enclosing);
         }
 
         if (ElementTypeOf(declared) is { } element)
         {
-            return Repeated(declared, element, variant, path);
+            return Repeated(declared, element, variant, path, enclosing);
         }
 
         if (IsContract(declared))
@@ -298,16 +350,21 @@ internal static class FixtureValues
 
                 // A submessage present with nothing in it, which is two bytes on the wire and
                 // indistinguishable from absent to anything that only reads values back.
-                FixtureVariant.Empty => WireFixtures.Build(declared, FixtureVariant.Absent, ordinal),
+                FixtureVariant.Empty => WireFixtures.Build(declared, FixtureVariant.Absent, ordinal, enclosing),
 
-                _ => WireFixtures.Build(declared, variant, ordinal),
+                _ => WireFixtures.Build(declared, variant, ordinal, enclosing),
             };
         }
 
         return Scalar(declared, variant, path, ordinal);
     }
 
-    private static object? Repeated(Type declared, Type element, FixtureVariant variant, string path)
+    private static object? Repeated(
+        Type declared,
+        Type element,
+        FixtureVariant variant,
+        string path,
+        List<Type> enclosing)
     {
         if (variant == FixtureVariant.Absent)
         {
@@ -327,7 +384,7 @@ internal static class FixtureValues
         Array items = Array.CreateInstance(element, count);
         for (int i = 0; i < count; i++)
         {
-            items.SetValue(For(element, variant, path, i), i);
+            items.SetValue(For(element, variant, path, i, enclosing), i);
         }
 
         if (declared.IsArray)

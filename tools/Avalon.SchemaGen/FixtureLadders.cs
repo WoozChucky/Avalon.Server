@@ -196,7 +196,8 @@ internal static class FixtureFloats
     /// <summary>
     /// Assigns specials by the member's position in the sorted set of every float member in
     /// the protocol, so that all of them appear somewhere in the corpus rather than probably
-    /// appearing. A hash would leave whichever one it happened to miss untested, silently.
+    /// appearing. A hash would leave whichever one it happened to miss untested, silently, so
+    /// a path the index space does not list stops the export rather than falling back to one.
     /// </summary>
     private static float Special(string path, int ordinal)
     {
@@ -210,7 +211,10 @@ internal static class FixtureFloats
             }
         }
 
-        return Specials[FixtureValues.Pick(path, ordinal, Specials.Length)];
+        throw new InvalidOperationException(
+            $"{path} is a float member with no position in the index space the specials are handed out by, "
+            + "so there is no way to say which one it should carry. Picking by hash instead would leave "
+            + "whichever special it displaced absent from the corpus with every test still passing.");
     }
 }
 
