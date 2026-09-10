@@ -1,0 +1,134 @@
+using System.IO;
+using Avalon.Client.Network.Packets.State;
+using UnityEngine;
+
+namespace Avalon.Client.GameServices.Services
+{
+    /// <summary>
+    /// Decodes the opaque <c>Fields</c> blob carried by SInstanceStateAdd / SInstanceStateUpdate
+    /// into an <see cref="EntitySnapshot"/>. Format dictated by server's WorldObjectWriter:
+    ///
+    /// - Character ADD/UPDATE: int fieldsHeader, conditional unit fields, conditional
+    ///   Experience / RequiredExperience, unconditional string Name.
+    /// - Creature ADD/UPDATE: int fieldsHeader, conditional unit fields, unconditional uint
+    ///   MetadataId and string Name.
+    /// - SpellProjectile ADD: NO header, just three Vector3 floats (Pos, Vel, OriY).
+    /// - SpellProjectile UPDATE: int fieldsHeader, conditional Pos/Vel/Ori.
+    /// - Portal ADD: NO header. Pos(12) + radius(4) + targetMapId(4) + role(1).
+    /// - Portal UPDATE: server skips Portal updates entirely.
+    /// </summary>
+    public static class EntityFieldDecoder
+    {
+        public static void ApplyAdd(EntitySnapshot snap, byte[] bytes)
+        {
+            if (bytes == null || bytes.Length == 0) return;
+            using var ms = new MemoryStream(bytes);
+            using var br = new BinaryReader(ms);
+            switch (snap.Type)
+            {
+                case ObjectType.Character:
+                {
+                    var fields = DecodeUnit(snap, br);
+                    DecodeCharacterTail(snap, br, fields);
+                    break;
+                }
+                case ObjectType.Creature:
+                {
+                    DecodeUnit(snap, br);
+                    DecodeCreatureTail(snap, br);
+                    break;
+                }
+                case ObjectType.SpellProjectile:
+                    // ADD has NO header — Position + Velocity + OrientationY.
+                    snap.Position = ReadVec3(br);
+                    snap.Velocity = ReadVec3(br);
+                    snap.Orientation = br.ReadSingle();
+                    break;
+                case ObjectType.Portal:
+                    snap.Position = ReadVec3(br);
+                    snap.PortalRadius = br.ReadSingle();
+                    snap.PortalTargetMapId = br.ReadInt32();
+                    snap.PortalRole = br.ReadByte();
+                    break;
+            }
+        }
+
+        public static void ApplyUpdate(EntitySnapshot snap, byte[] bytes)
+        {
+            if (bytes == null || bytes.Length == 0) return;
+            using var ms = new MemoryStream(bytes);
+            using var br = new BinaryReader(ms);
+            switch (snap.Type)
+            {
+                case ObjectType.Character:
+                {
+                    var fields = DecodeUnit(snap, br);
+                    DecodeCharacterTail(snap, br, fields);
+                    break;
+                }
+                case ObjectType.Creature:
+                {
+                    DecodeUnit(snap, br);
+                    DecodeCreatureTail(snap, br);
+                    break;
+                }
+                case ObjectType.SpellProjectile:
+                    DecodeWorldObjectWithHeader(snap, br);
+                    break;
+            }
+        }
+
+        private static Vector3 ReadVec3(BinaryReader br)
+            => new Vector3(br.ReadSingle(), br.ReadSingle(), br.ReadSingle());
+
+        private static void DecodeWorldObjectWithHeader(EntitySnapshot snap, BinaryReader br)
+        {
+            var fields = (GameEntityFields)br.ReadInt32();
+            if ((fields & GameEntityFields.Position) != 0) snap.Position = ReadVec3(br);
+            if ((fields & GameEntityFields.Velocity) != 0) snap.Velocity = ReadVec3(br);
+            if ((fields & GameEntityFields.Orientation) != 0) snap.Orientation = br.ReadSingle();
+        }
+
+        private static GameEntityFields DecodeUnit(EntitySnapshot snap, BinaryReader br)
+        {
+            var fields = (GameEntityFields)br.ReadInt32();
+
+            if ((fields & GameEntityFields.Position) != 0) snap.Position = ReadVec3(br);
+            if ((fields & GameEntityFields.Velocity) != 0) snap.Velocity = ReadVec3(br);
+            if ((fields & GameEntityFields.Orientation) != 0) snap.Orientation = br.ReadSingle();
+            if ((fields & GameEntityFields.MoveState) != 0) snap.MoveState = (MoveState)br.ReadByte();
+
+            if ((fields & GameEntityFields.Health) != 0) snap.MaxHealth = br.ReadUInt32();
+            if ((fields & GameEntityFields.CurrentHealth) != 0) snap.CurrentHealth = br.ReadUInt32();
+
+            if ((fields & GameEntityFields.PowerType) != 0)
+            {
+                snap.PowerType = (PowerType)br.ReadByte();
+                if (snap.PowerType != PowerType.None)
+                {
+                    if ((fields & GameEntityFields.Power) != 0) snap.MaxPower = br.ReadUInt32();
+                    if ((fields & GameEntityFields.CurrentPower) != 0) snap.CurrentPower = br.ReadUInt32();
+                }
+            }
+
+            if ((fields & GameEntityFields.Level) != 0) snap.Level = br.ReadUInt16();
+            if ((fields & GameEntityFields.IsDead) != 0) snap.IsDead = br.ReadByte() != 0;
+            return fields;
+        }
+
+        private static void DecodeCharacterTail(EntitySnapshot snap, BinaryReader br, GameEntityFields fields)
+        {
+            if ((fields & GameEntityFields.Experience) != 0) snap.Experience = br.ReadUInt64();
+            if ((fields & GameEntityFields.RequiredExperience) != 0) snap.RequiredExperience = br.ReadUInt64();
+            // Server writes Name unconditionally for characters.
+            snap.Name = br.ReadString();
+        }
+
+        private static void DecodeCreatureTail(EntitySnapshot snap, BinaryReader br)
+        {
+            // Server writes Metadata.Id and Name unconditionally for creatures.
+            snap.CreatureMetadataId = br.ReadUInt32();
+            snap.Name = br.ReadString();
+        }
+    }
+}

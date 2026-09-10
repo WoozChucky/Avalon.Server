@@ -1,0 +1,93 @@
+# SThreatListPacket - golden wire vectors.
+#
+# GENERATED FILE. The bytes below are what the server's serializer writes for the
+# values shown above them, so a client is conformant when it produces the same ones,
+# and a change in what the server emits arrives here as a diff.
+#
+#   Emitted by  tools/Avalon.SchemaGen
+#   Regenerate  dotnet run --project tools/Avalon.SchemaGen
+#   Format      described in schema/README.md
+#   Schema      the message of this name in schema/avalon.proto
+#
+# A variant is one shape of the same message. "absent" sets nothing, "empty" sets
+# everything to a present-but-empty value, and the rest carry values chosen to make
+# a particular encoding decision observable.
+
+message SThreatListPacket
+
+variant absent
+  field 1 TargetGuid : ulong = 0
+  field 2 Entries : ThreatEntry[] = null
+  bytes 0
+
+variant empty
+  field 1 TargetGuid : ulong = 0
+  field 2 Entries : ThreatEntry[] = 0 elements
+  bytes 0
+
+variant populated
+  field 1 TargetGuid : ulong = 65535
+  field 2 Entries : ThreatEntry[] = 2 elements
+    element 0
+      field 1 AttackerGuid : ulong = 1000000
+      field 2 ThreatPercent : float = 1.5 (0x3fc00000)
+    element 1
+      field 1 AttackerGuid : ulong = 7
+      field 2 ThreatPercent : float = 0.100000001 (0x3dcccccd)
+  bytes 24
+    08 ff ff 03 12 09 08 c0 84 3d 15 00 00 c0 3f 12
+    07 08 07 15 cd cc cc 3d
+
+variant maxima
+  field 1 TargetGuid : ulong = 18446744073709551615
+  field 2 Entries : ThreatEntry[] = 3 elements
+    element 0
+      field 1 AttackerGuid : ulong = 18446744073709551615
+      field 2 ThreatPercent : float = 3.40282347E+38 (0x7f7fffff)
+    element 1
+      field 1 AttackerGuid : ulong = 18446744073709551615
+      field 2 ThreatPercent : float = 3.40282347E+38 (0x7f7fffff)
+    element 2
+      field 1 AttackerGuid : ulong = 18446744073709551615
+      field 2 ThreatPercent : float = 3.40282347E+38 (0x7f7fffff)
+  bytes 65
+    08 ff ff ff ff ff ff ff ff ff 01 12 10 08 ff ff
+    ff ff ff ff ff ff ff 01 15 ff ff 7f 7f 12 10 08
+    ff ff ff ff ff ff ff ff ff 01 15 ff ff 7f 7f 12
+    10 08 ff ff ff ff ff ff ff ff ff 01 15 ff ff 7f
+    7f
+
+variant minima
+  field 1 TargetGuid : ulong = 0
+  field 2 Entries : ThreatEntry[] = 1 element
+    element 0
+      field 1 AttackerGuid : ulong = 0
+      field 2 ThreatPercent : float = -3.40282347E+38 (0xff7fffff)
+  bytes 7
+    12 05 15 ff ff 7f ff
+
+variant varint-edges
+  field 1 TargetGuid : ulong = 268435455
+  field 2 Entries : ThreatEntry[] = 2 elements
+    element 0
+      field 1 AttackerGuid : ulong = 16384
+      field 2 ThreatPercent : float = 1.17549435E-38 (0x00800000)
+    element 1
+      field 1 AttackerGuid : ulong = 2097151
+      field 2 ThreatPercent : float = 1.17549449E-38 (0x00800001)
+  bytes 27
+    08 ff ff ff 7f 12 09 08 80 80 01 15 00 00 80 00
+    12 09 08 ff ff 7f 15 01 00 80 00
+
+variant float-specials
+  field 1 TargetGuid : ulong = 65535
+  field 2 Entries : ThreatEntry[] = 2 elements
+    element 0
+      field 1 AttackerGuid : ulong = 1000000
+      field 2 ThreatPercent : float = NaN (0xffc00000)
+    element 1
+      field 1 AttackerGuid : ulong = 7
+      field 2 ThreatPercent : float = NaN (0x7fc00001)
+  bytes 24
+    08 ff ff 03 12 09 08 c0 84 3d 15 00 00 c0 ff 12
+    07 08 07 15 01 00 c0 7f

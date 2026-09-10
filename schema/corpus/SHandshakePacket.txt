@@ -1,0 +1,61 @@
+# SHandshakePacket - golden wire vectors.
+#
+# GENERATED FILE. The bytes below are what the server's serializer writes for the
+# values shown above them, so a client is conformant when it produces the same ones,
+# and a change in what the server emits arrives here as a diff.
+#
+#   Emitted by  tools/Avalon.SchemaGen
+#   Regenerate  dotnet run --project tools/Avalon.SchemaGen
+#   Format      described in schema/README.md
+#   Schema      the message of this name in schema/avalon.proto
+#
+# A variant is one shape of the same message. "absent" sets nothing, "empty" sets
+# everything to a present-but-empty value, and the rest carry values chosen to make
+# a particular encoding decision observable.
+
+message SHandshakePacket
+
+variant absent
+  field 1 HandshakeData : byte[] = null
+  bytes 0
+
+variant empty
+  field 1 HandshakeData : byte[] = 0 bytes
+  bytes 2
+    0a 00
+
+variant populated
+  field 1 HandshakeData : byte[] = 6 bytes 0a 0d 09 1b 22 5c
+  bytes 8
+    0a 06 0a 0d 09 1b 22 5c
+
+variant maxima
+  field 1 HandshakeData : byte[] = 140 bytes 5a 5d 54 4f 46 79 70 6b ...
+  bytes 143
+    0a 8c 01 5a 5d 54 4f 46 79 70 6b 62 65 1c 17 0e
+    01 38 33 2a 2d 24 df d6 c9 c0 fb f2 f5 ec e7 9e
+    91 88 83 ba bd b4 af a6 59 50 4b 42 45 7c 77 6e
+    61 18 13 0a 0d 04 3f 36 29 20 db d2 d5 cc c7 fe
+    f1 e8 e3 9a 9d 94 8f 86 b9 b0 ab a2 a5 5c 57 4e
+    41 78 73 6a 6d 64 1f 16 09 00 3b 32 35 2c 27 de
+    d1 c8 c3 fa fd f4 ef e6 99 90 8b 82 85 bc b7 ae
+    a1 58 53 4a 4d 44 7f 76 69 60 1b 12 15 0c 07 3e
+    31 28 23 da dd d4 cf c6 f9 f0 eb e2 e5 9c 97
+
+variant minima
+  field 1 HandshakeData : byte[] = 1 byte 00
+  bytes 3
+    0a 01 00
+
+variant varint-edges
+  field 1 HandshakeData : byte[] = 128 bytes 5a 5d 54 4f 46 79 70 6b ...
+  bytes 131
+    0a 80 01 5a 5d 54 4f 46 79 70 6b 62 65 1c 17 0e
+    01 38 33 2a 2d 24 df d6 c9 c0 fb f2 f5 ec e7 9e
+    91 88 83 ba bd b4 af a6 59 50 4b 42 45 7c 77 6e
+    61 18 13 0a 0d 04 3f 36 29 20 db d2 d5 cc c7 fe
+    f1 e8 e3 9a 9d 94 8f 86 b9 b0 ab a2 a5 5c 57 4e
+    41 78 73 6a 6d 64 1f 16 09 00 3b 32 35 2c 27 de
+    d1 c8 c3 fa fd f4 ef e6 99 90 8b 82 85 bc b7 ae
+    a1 58 53 4a 4d 44 7f 76 69 60 1b 12 15 0c 07 3e
+    31 28 23

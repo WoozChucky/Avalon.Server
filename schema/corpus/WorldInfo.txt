@@ -1,0 +1,170 @@
+# WorldInfo - golden wire vectors.
+#
+# GENERATED FILE. The bytes below are what the server's serializer writes for the
+# values shown above them, so a client is conformant when it produces the same ones,
+# and a change in what the server emits arrives here as a diff.
+#
+#   Emitted by  tools/Avalon.SchemaGen
+#   Regenerate  dotnet run --project tools/Avalon.SchemaGen
+#   Format      described in schema/README.md
+#   Schema      the message of this name in schema/avalon.proto
+#
+# A variant is one shape of the same message. "absent" sets nothing, "empty" sets
+# everything to a present-but-empty value, and the rest carry values chosen to make
+# a particular encoding decision observable.
+
+message WorldInfo
+
+variant absent
+  field 1 Id : ushort = 0
+  field 2 Name : string = null
+  field 3 Type : short = 0
+  field 4 AccessLevelRequired : short = 0
+  field 5 Host : string = null
+  field 6 Port : int = 0
+  field 7 MinVersion : string = null
+  field 8 Version : string = null
+  field 9 Status : short = 0
+  bytes 0
+
+variant empty
+  field 1 Id : ushort = 0
+  field 2 Name : string = "" (0 chars, 0 bytes utf-8)
+  field 3 Type : short = 0
+  field 4 AccessLevelRequired : short = 0
+  field 5 Host : string = "" (0 chars, 0 bytes utf-8)
+  field 6 Port : int = 0
+  field 7 MinVersion : string = "" (0 chars, 0 bytes utf-8)
+  field 8 Version : string = "" (0 chars, 0 bytes utf-8)
+  field 9 Status : short = 0
+  bytes 8
+    12 00 2a 00 3a 00 42 00
+
+variant populated
+  field 1 Id : ushort = 7
+  field 2 Name : string = "日本語のテキスト" (8 chars, 24 bytes utf-8)
+  field 3 Type : short = -3
+  field 4 AccessLevelRequired : short = -9
+  field 5 Host : string = "\"quoted\" and \\backslash\\" (24 chars, 24 bytes utf-8)
+  field 6 Port : int = 11
+  field 7 MinVersion : string = "héllo wörld" (11 chars, 13 bytes utf-8)
+  field 8 Version : string = "line\nbreak\ttab" (14 chars, 14 bytes utf-8)
+  field 9 Status : short = 1000
+  bytes 112
+    08 07 12 18 e6 97 a5 e6 9c ac e8 aa 9e e3 81 ae
+    e3 83 86 e3 82 ad e3 82 b9 e3 83 88 18 fd ff ff
+    ff ff ff ff ff ff 01 20 f7 ff ff ff ff ff ff ff
+    ff 01 2a 18 22 71 75 6f 74 65 64 22 20 61 6e 64
+    20 5c 62 61 63 6b 73 6c 61 73 68 5c 30 0b 3a 0d
+    68 c3 a9 6c 6c 6f 20 77 c3 b6 72 6c 64 42 0e 6c
+    69 6e 65 0a 62 72 65 61 6b 09 74 61 62 48 e8 07
+
+variant maxima
+  field 1 Id : ushort = 65535
+  field 2 Name : string = "ΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩx…" (88 chars, 132 bytes utf-8)
+  field 3 Type : short = 32767
+  field 4 AccessLevelRequired : short = 32767
+  field 5 Host : string = "ΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩx…" (88 chars, 132 bytes utf-8)
+  field 6 Port : int = 2147483647
+  field 7 MinVersion : string = "ΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩx…" (88 chars, 132 bytes utf-8)
+  field 8 Version : string = "ΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩx…" (88 chars, 132 bytes utf-8)
+  field 9 Status : short = 32767
+  bytes 562
+    08 ff ff 03 12 84 01 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 18 ff ff 01 20
+    ff ff 01 2a 84 01 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 30 ff ff ff ff 07
+    3a 84 01 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 42 84 01 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 48 ff
+    ff 01
+
+variant minima
+  field 1 Id : ushort = 0
+  field 2 Name : string = "\0" (1 chars, 1 bytes utf-8)
+  field 3 Type : short = -32768
+  field 4 AccessLevelRequired : short = -32768
+  field 5 Host : string = "\u0001" (1 chars, 1 bytes utf-8)
+  field 6 Port : int = -2147483648
+  field 7 MinVersion : string = "\0" (1 chars, 1 bytes utf-8)
+  field 8 Version : string = "\u0001" (1 chars, 1 bytes utf-8)
+  field 9 Status : short = -32768
+  bytes 56
+    12 01 00 18 80 80 fe ff ff ff ff ff ff 01 20 80
+    80 fe ff ff ff ff ff ff 01 2a 01 01 30 80 80 80
+    80 f8 ff ff ff ff 01 3a 01 00 42 01 01 48 80 80
+    fe ff ff ff ff ff ff 01
+
+variant varint-edges
+  field 1 Id : ushort = 16383
+  field 2 Name : string = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…" (127 chars, 127 bytes utf-8)
+  field 3 Type : short = 128
+  field 4 AccessLevelRequired : short = 16384
+  field 5 Host : string = "yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy…" (128 chars, 128 bytes utf-8)
+  field 6 Port : int = -1
+  field 7 MinVersion : string = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…" (127 chars, 127 bytes utf-8)
+  field 8 Version : string = "yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy…" (128 chars, 128 bytes utf-8)
+  field 9 Status : short = 16383
+  bytes 544
+    08 ff 7f 12 7f 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 18 80 01 20 80 80 01 2a 80 01 79 79
+    79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
+    79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
+    79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
+    79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
+    79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
+    79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
+    79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
+    79 79 79 79 79 79 79 79 79 79 79 79 79 79 30 ff
+    ff ff ff ff ff ff ff ff 01 3a 7f 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
+    78 78 78 78 78 78 78 78 78 78 42 80 01 79 79 79
+    79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
+    79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
+    79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
+    79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
+    79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
+    79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
+    79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
+    79 79 79 79 79 79 79 79 79 79 79 79 79 48 ff 7f

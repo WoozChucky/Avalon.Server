@@ -1,0 +1,56 @@
+# ThreatEntry - golden wire vectors.
+#
+# GENERATED FILE. The bytes below are what the server's serializer writes for the
+# values shown above them, so a client is conformant when it produces the same ones,
+# and a change in what the server emits arrives here as a diff.
+#
+#   Emitted by  tools/Avalon.SchemaGen
+#   Regenerate  dotnet run --project tools/Avalon.SchemaGen
+#   Format      described in schema/README.md
+#   Schema      the message of this name in schema/avalon.proto
+#
+# A variant is one shape of the same message. "absent" sets nothing, "empty" sets
+# everything to a present-but-empty value, and the rest carry values chosen to make
+# a particular encoding decision observable.
+
+message ThreatEntry
+
+variant absent
+  field 1 AttackerGuid : ulong = 0
+  field 2 ThreatPercent : float = 0 (0x00000000)
+  bytes 0
+
+variant empty
+  field 1 AttackerGuid : ulong = 0
+  field 2 ThreatPercent : float = 0 (0x00000000)
+  bytes 0
+
+variant populated
+  field 1 AttackerGuid : ulong = 1000000
+  field 2 ThreatPercent : float = 1.5 (0x3fc00000)
+  bytes 9
+    08 c0 84 3d 15 00 00 c0 3f
+
+variant maxima
+  field 1 AttackerGuid : ulong = 18446744073709551615
+  field 2 ThreatPercent : float = 3.40282347E+38 (0x7f7fffff)
+  bytes 16
+    08 ff ff ff ff ff ff ff ff ff 01 15 ff ff 7f 7f
+
+variant minima
+  field 1 AttackerGuid : ulong = 0
+  field 2 ThreatPercent : float = -3.40282347E+38 (0xff7fffff)
+  bytes 5
+    15 ff ff 7f ff
+
+variant varint-edges
+  field 1 AttackerGuid : ulong = 16384
+  field 2 ThreatPercent : float = 1.17549435E-38 (0x00800000)
+  bytes 9
+    08 80 80 01 15 00 00 80 00
+
+variant float-specials
+  field 1 AttackerGuid : ulong = 1000000
+  field 2 ThreatPercent : float = NaN (0xffc00000)
+  bytes 9
+    08 c0 84 3d 15 00 00 c0 ff

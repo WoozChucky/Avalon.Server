@@ -1,0 +1,97 @@
+# SPlayerStateAckPacket - golden wire vectors.
+#
+# GENERATED FILE. The bytes below are what the server's serializer writes for the
+# values shown above them, so a client is conformant when it produces the same ones,
+# and a change in what the server emits arrives here as a diff.
+#
+#   Emitted by  tools/Avalon.SchemaGen
+#   Regenerate  dotnet run --project tools/Avalon.SchemaGen
+#   Format      described in schema/README.md
+#   Schema      the message of this name in schema/avalon.proto
+#
+# A variant is one shape of the same message. "absent" sets nothing, "empty" sets
+# everything to a present-but-empty value, and the rest carry values chosen to make
+# a particular encoding decision observable.
+
+message SPlayerStateAckPacket
+
+variant absent
+  field 1 Seq : uint = 0
+  field 2 X : float = 0 (0x00000000)
+  field 3 Y : float = 0 (0x00000000)
+  field 4 Z : float = 0 (0x00000000)
+  field 5 VelX : float = 0 (0x00000000)
+  field 6 VelZ : float = 0 (0x00000000)
+  field 7 YawDeg : ushort = 0
+  bytes 0
+
+variant empty
+  field 1 Seq : uint = 0
+  field 2 X : float = 0 (0x00000000)
+  field 3 Y : float = 0 (0x00000000)
+  field 4 Z : float = 0 (0x00000000)
+  field 5 VelX : float = 0 (0x00000000)
+  field 6 VelZ : float = 0 (0x00000000)
+  field 7 YawDeg : ushort = 0
+  bytes 0
+
+variant populated
+  field 1 Seq : uint = 300
+  field 2 X : float = -2.25 (0xc0100000)
+  field 3 Y : float = -7.50000027E-08 (0xb3a10fb0)
+  field 4 Z : float = 1E+10 (0x501502f9)
+  field 5 VelX : float = 3.14159274 (0x40490fdb)
+  field 6 VelZ : float = 3.14159274 (0x40490fdb)
+  field 7 YawDeg : ushort = 19
+  bytes 30
+    08 ac 02 15 00 00 10 c0 1d b0 0f a1 b3 25 f9 02
+    15 50 2d db 0f 49 40 35 db 0f 49 40 38 13
+
+variant maxima
+  field 1 Seq : uint = 4294967295
+  field 2 X : float = 3.40282347E+38 (0x7f7fffff)
+  field 3 Y : float = 3.40282347E+38 (0x7f7fffff)
+  field 4 Z : float = 3.40282347E+38 (0x7f7fffff)
+  field 5 VelX : float = 3.40282347E+38 (0x7f7fffff)
+  field 6 VelZ : float = 3.40282347E+38 (0x7f7fffff)
+  field 7 YawDeg : ushort = 65535
+  bytes 35
+    08 ff ff ff ff 0f 15 ff ff 7f 7f 1d ff ff 7f 7f
+    25 ff ff 7f 7f 2d ff ff 7f 7f 35 ff ff 7f 7f 38
+    ff ff 03
+
+variant minima
+  field 1 Seq : uint = 0
+  field 2 X : float = -3.40282347E+38 (0xff7fffff)
+  field 3 Y : float = -3.40282347E+38 (0xff7fffff)
+  field 4 Z : float = -3.40282347E+38 (0xff7fffff)
+  field 5 VelX : float = -3.40282347E+38 (0xff7fffff)
+  field 6 VelZ : float = -3.40282347E+38 (0xff7fffff)
+  field 7 YawDeg : ushort = 0
+  bytes 25
+    15 ff ff 7f ff 1d ff ff 7f ff 25 ff ff 7f ff 2d
+    ff ff 7f ff 35 ff ff 7f ff
+
+variant varint-edges
+  field 1 Seq : uint = 2097151
+  field 2 X : float = 1.17549435E-38 (0x00800000)
+  field 3 Y : float = 1.17549435E-38 (0x00800000)
+  field 4 Z : float = 1.17549435E-38 (0x00800000)
+  field 5 VelX : float = 1.17549435E-38 (0x00800000)
+  field 6 VelZ : float = 1.17549435E-38 (0x00800000)
+  field 7 YawDeg : ushort = 127
+  bytes 31
+    08 ff ff 7f 15 00 00 80 00 1d 00 00 80 00 25 00
+    00 80 00 2d 00 00 80 00 35 00 00 80 00 38 7f
+
+variant float-specials
+  field 1 Seq : uint = 300
+  field 2 X : float = -0 (0x80000000)
+  field 3 Y : float = 1.40129846E-45 (0x00000001)
+  field 4 Z : float = 1.17549421E-38 (0x007fffff)
+  field 5 VelX : float = Infinity (0x7f800000)
+  field 6 VelZ : float = -Infinity (0xff800000)
+  field 7 YawDeg : ushort = 19
+  bytes 25
+    08 ac 02 1d 01 00 00 00 25 ff ff 7f 00 2d 00 00
+    80 7f 35 00 00 80 ff 38 13

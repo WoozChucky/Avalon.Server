@@ -1,0 +1,69 @@
+# CChatMessagePacket - golden wire vectors.
+#
+# GENERATED FILE. The bytes below are what the server's serializer writes for the
+# values shown above them, so a client is conformant when it produces the same ones,
+# and a change in what the server emits arrives here as a diff.
+#
+#   Emitted by  tools/Avalon.SchemaGen
+#   Regenerate  dotnet run --project tools/Avalon.SchemaGen
+#   Format      described in schema/README.md
+#   Schema      the message of this name in schema/avalon.proto
+#
+# A variant is one shape of the same message. "absent" sets nothing, "empty" sets
+# everything to a present-but-empty value, and the rest carry values chosen to make
+# a particular encoding decision observable.
+
+message CChatMessagePacket
+
+variant absent
+  field 1 Message : string = null
+  field 2 DateTime : DateTime = 0001-01-01T00:00:00.0000000 (Unspecified)
+  bytes 6
+    12 04 08 01 10 0f
+
+variant empty
+  field 1 Message : string = "" (0 chars, 0 bytes utf-8)
+  field 2 DateTime : DateTime = 0001-01-01T00:00:00.0000000 (Unspecified)
+  bytes 8
+    0a 00 12 04 08 01 10 0f
+
+variant populated
+  field 1 Message : string = "héllo wörld" (11 chars, 13 bytes utf-8)
+  field 2 DateTime : DateTime = 2026-01-01T00:00:00.0000001Z (Utc)
+  bytes 28
+    0a 0d 68 c3 a9 6c 6c 6f 20 77 c3 b6 72 6c 64 12
+    0b 08 82 80 94 d4 d7 b4 e4 3e 10 05
+
+variant maxima
+  field 1 Message : string = "ΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩx…" (88 chars, 132 bytes utf-8)
+  field 2 DateTime : DateTime = 9999-12-31T23:59:59.9999999 (Unspecified)
+  bytes 141
+    0a 84 01 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 12 04 08 02 10 0f
+
+variant minima
+  field 1 Message : string = "\u0001" (1 chars, 1 bytes utf-8)
+  field 2 DateTime : DateTime = 1969-12-31T23:59:59.9999999Z (Utc)
+  bytes 9
+    0a 01 01 12 04 08 01 10 05
+
+variant varint-edges
+  field 1 Message : string = "yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy…" (128 chars, 128 bytes utf-8)
+  field 2 DateTime : DateTime = 1970-01-01T00:02:08.0000000Z (Utc)
+  bytes 138
+    0a 80 01 79 79 79 79 79 79 79 79 79 79 79 79 79
+    79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
+    79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
+    79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
+    79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
+    79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
+    79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
+    79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
+    79 79 79 12 05 08 80 02 10 03

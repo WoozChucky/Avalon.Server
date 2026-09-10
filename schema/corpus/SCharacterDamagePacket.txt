@@ -1,0 +1,73 @@
+# SCharacterDamagePacket - golden wire vectors.
+#
+# GENERATED FILE. The bytes below are what the server's serializer writes for the
+# values shown above them, so a client is conformant when it produces the same ones,
+# and a change in what the server emits arrives here as a diff.
+#
+#   Emitted by  tools/Avalon.SchemaGen
+#   Regenerate  dotnet run --project tools/Avalon.SchemaGen
+#   Format      described in schema/README.md
+#   Schema      the message of this name in schema/avalon.proto
+#
+# A variant is one shape of the same message. "absent" sets nothing, "empty" sets
+# everything to a present-but-empty value, and the rest carry values chosen to make
+# a particular encoding decision observable.
+
+message SCharacterDamagePacket
+
+variant absent
+  field 1 Attacker : ulong = 0
+  field 2 Target : ulong = 0
+  field 3 CurrentHealth : uint = 0
+  field 4 Damage : uint = 0
+  field 5 AbilityId : uint? = null
+  bytes 0
+
+variant empty
+  field 1 Attacker : ulong = 0
+  field 2 Target : ulong = 0
+  field 3 CurrentHealth : uint = 0
+  field 4 Damage : uint = 0
+  field 5 AbilityId : uint? = 0
+  bytes 2
+    28 00
+
+variant populated
+  field 1 Attacker : ulong = 300
+  field 2 Target : ulong = 65535
+  field 3 CurrentHealth : uint = 7
+  field 4 Damage : uint = 4000000000
+  field 5 AbilityId : uint? = 4000000000
+  bytes 21
+    08 ac 02 10 ff ff 03 18 07 20 80 d0 ac f3 0e 28
+    80 d0 ac f3 0e
+
+variant maxima
+  field 1 Attacker : ulong = 18446744073709551615
+  field 2 Target : ulong = 18446744073709551615
+  field 3 CurrentHealth : uint = 4294967295
+  field 4 Damage : uint = 4294967295
+  field 5 AbilityId : uint? = 4294967295
+  bytes 40
+    08 ff ff ff ff ff ff ff ff ff 01 10 ff ff ff ff
+    ff ff ff ff ff 01 18 ff ff ff ff 0f 20 ff ff ff
+    ff 0f 28 ff ff ff ff 0f
+
+variant minima
+  field 1 Attacker : ulong = 0
+  field 2 Target : ulong = 0
+  field 3 CurrentHealth : uint = 0
+  field 4 Damage : uint = 0
+  field 5 AbilityId : uint? = 0
+  bytes 2
+    28 00
+
+variant varint-edges
+  field 1 Attacker : ulong = 128
+  field 2 Target : ulong = 268435456
+  field 3 CurrentHealth : uint = 268435456
+  field 4 Damage : uint = 2097152
+  field 5 AbilityId : uint? = 268435456
+  bytes 26
+    08 80 01 10 80 80 80 80 01 18 80 80 80 80 01 20
+    80 80 80 01 28 80 80 80 80 01

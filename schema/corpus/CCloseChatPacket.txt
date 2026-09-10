@@ -1,0 +1,50 @@
+# CCloseChatPacket - golden wire vectors.
+#
+# GENERATED FILE. The bytes below are what the server's serializer writes for the
+# values shown above them, so a client is conformant when it produces the same ones,
+# and a change in what the server emits arrives here as a diff.
+#
+#   Emitted by  tools/Avalon.SchemaGen
+#   Regenerate  dotnet run --project tools/Avalon.SchemaGen
+#   Format      described in schema/README.md
+#   Schema      the message of this name in schema/avalon.proto
+#
+# A variant is one shape of the same message. "absent" sets nothing, "empty" sets
+# everything to a present-but-empty value, and the rest carry values chosen to make
+# a particular encoding decision observable.
+
+message CCloseChatPacket
+
+variant absent
+  field 1 AccountId : ulong = 0
+  field 2 CharacterId : ulong = 0
+  bytes 0
+
+variant empty
+  field 1 AccountId : ulong = 0
+  field 2 CharacterId : ulong = 0
+  bytes 0
+
+variant populated
+  field 1 AccountId : ulong = 1000000
+  field 2 CharacterId : ulong = 42
+  bytes 6
+    08 c0 84 3d 10 2a
+
+variant maxima
+  field 1 AccountId : ulong = 18446744073709551615
+  field 2 CharacterId : ulong = 18446744073709551615
+  bytes 22
+    08 ff ff ff ff ff ff ff ff ff 01 10 ff ff ff ff
+    ff ff ff ff ff 01
+
+variant minima
+  field 1 AccountId : ulong = 0
+  field 2 CharacterId : ulong = 0
+  bytes 0
+
+variant varint-edges
+  field 1 AccountId : ulong = 2097151
+  field 2 CharacterId : ulong = 127
+  bytes 6
+    08 ff ff 7f 10 7f
