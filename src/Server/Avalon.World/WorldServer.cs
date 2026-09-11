@@ -247,10 +247,15 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
             (int)_serverTimer.Elapsed.TotalMinutes);
     }
 
-    protected override Task OnStoppingAsync(CancellationToken stoppingToken)
+    protected override async Task OnStoppingAsync(CancellationToken stoppingToken)
     {
+        // Awaited, and all at once: the shutdown notice is delivered by the close, so returning
+        // before they finish lets the host exit with the packets still queued.
+        var closing = new List<Task>();
         foreach (IWorldConnection connection in Connections)
-            GracefulShutdownHelper.NotifyAndClose(connection, "Server is shutting down", DisconnectReason.ServerShutdown, _logger);
+            closing.Add(GracefulShutdownHelper.NotifyAndCloseAsync(connection, "Server is shutting down", DisconnectReason.ServerShutdown, _logger));
+
+        await Task.WhenAll(closing).ConfigureAwait(false);
 
         // Wait for tick loop to drain (should already be exiting via token registration)
         _tickRunning = false;
@@ -262,8 +267,6 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
             CloseHandle(_waitableTimer);
             _waitableTimer = IntPtr.Zero;
         }
-
-        return Task.CompletedTask;
     }
 
     private void TickLoop()
@@ -432,7 +435,9 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         IWorldConnection? connection = Connections.FirstOrDefault(c => c.AccountId == accountId);
         if (connection is null) return;
 
+#pragma warning disable MA0045 // a cache subscription callback, and the process stays up to finish the close
         GracefulShutdownHelper.NotifyAndClose(connection, "Your account has been logged in from another location.", DisconnectReason.DuplicateLogin, _logger);
+#pragma warning restore MA0045
     }
 
     #endregion

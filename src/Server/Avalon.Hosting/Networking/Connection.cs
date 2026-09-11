@@ -23,6 +23,14 @@ public interface IConnection
     public ICryptoManager ServerCrypto { get; }
 
     void Close(bool expected = true);
+
+    /// <summary>
+    /// Closes and returns when the teardown has finished, so a caller that is about to stop the
+    /// process can wait for the queued packets to go out. A close already under way is not
+    /// awaited — the returned task covers this call.
+    /// </summary>
+    Task CloseAsync(bool expected = true);
+
     void Send(NetworkPacket packet);
     Task StartAsync(CancellationToken token = default);
 }
@@ -64,10 +72,12 @@ public abstract class Connection : BackgroundService, IConnection
     public IAvalonCryptoSession CryptoSession { get; }
     public ICryptoManager ServerCrypto => Server.Crypto;
 
-    public void Close(bool expected = true)
+    public void Close(bool expected = true) => _ = CloseAsync(expected);
+
+    public Task CloseAsync(bool expected = true)
     {
-        if (Interlocked.Exchange(ref _closed, 1) != 0) return;
-        _ = CloseCoreAsync(expected);
+        if (Interlocked.Exchange(ref _closed, 1) != 0) return Task.CompletedTask;
+        return CloseCoreAsync(expected);
     }
 
     /// <summary>

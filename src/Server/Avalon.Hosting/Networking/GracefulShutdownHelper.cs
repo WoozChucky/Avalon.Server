@@ -20,6 +20,27 @@ public static class GracefulShutdownHelper
         DisconnectReason reasonCode,
         ILogger? logger = null)
     {
+        Notify(connection, reason, reasonCode, logger);
+        connection.Close();
+    }
+
+    /// <summary>
+    /// As <see cref="NotifyAndClose"/>, but returns only once the connection has finished closing.
+    /// For callers that are about to stop the process: the notification is delivered from the
+    /// close, so a host that exits without waiting for it sends nothing.
+    /// </summary>
+    public static Task NotifyAndCloseAsync(
+        IConnection connection,
+        string reason,
+        DisconnectReason reasonCode,
+        ILogger? logger = null)
+    {
+        Notify(connection, reason, reasonCode, logger);
+        return connection.CloseAsync();
+    }
+
+    private static void Notify(IConnection connection, string reason, DisconnectReason reasonCode, ILogger? logger)
+    {
         try
         {
             connection.Send(SDisconnectPacket.Create(reason, reasonCode));
@@ -28,7 +49,5 @@ public static class GracefulShutdownHelper
         {
             logger?.LogWarning(ex, "Failed to send disconnect packet to {EndPoint}", connection.RemoteEndPoint);
         }
-
-        connection.Close();
     }
 }

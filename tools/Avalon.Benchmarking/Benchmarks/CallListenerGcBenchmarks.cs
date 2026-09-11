@@ -58,6 +58,7 @@ public class CallListenerGcBenchmarks
         public AccountId? AccountId { get; set; }
         public AuthServer Server => null!;
         public void Close(bool expected = true) { }
+        public Task CloseAsync(bool expected = true) => Task.CompletedTask;
         public void Send(NetworkPacket packet) { }
         public Task StartAsync(CancellationToken token = default) => Task.CompletedTask;
         public byte[] GenerateHandshakeData() => [];

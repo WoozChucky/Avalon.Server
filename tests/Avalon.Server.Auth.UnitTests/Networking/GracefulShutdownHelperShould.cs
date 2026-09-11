@@ -38,6 +38,25 @@ public class GracefulShutdownHelperShould
         _connection.Received(1).Close();
     }
 
+    /// <summary>
+    /// The shutdown paths await this: the notice is delivered by the close itself, so a host that
+    /// returned before the close finished would exit with the packet still queued.
+    /// </summary>
+    [Fact]
+    public async Task SendDisconnectPacket_ThenAwaitTheClose()
+    {
+        var closed = new TaskCompletionSource();
+        _connection.CloseAsync().Returns(closed.Task);
+
+        Task notify = GracefulShutdownHelper.NotifyAndCloseAsync(_connection, "Server is shutting down", DisconnectReason.ServerShutdown);
+
+        _connection.Received(1).Send(Arg.Is<NetworkPacket>(p => p.Header.Type == NetworkPacketType.SMSG_DISCONNECT));
+        Assert.False(notify.IsCompleted, "Expected the caller to still be waiting on the close");
+
+        closed.SetResult();
+        await notify;
+    }
+
     [Fact]
     public void Close_EvenWhenSendThrows()
     {

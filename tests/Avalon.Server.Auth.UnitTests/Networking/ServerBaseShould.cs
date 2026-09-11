@@ -40,6 +40,7 @@ public class ServerBaseShould
         public IAvalonCryptoSession CryptoSession => null!;
         public ICryptoManager ServerCrypto => null!;
         public void Close(bool expected = true) { }
+        public Task CloseAsync(bool expected = true) => Task.CompletedTask;
         public void Send(NetworkPacket packet) { }
         public new Task StartAsync(CancellationToken token = default) => Task.CompletedTask;
         protected override Task ExecuteAsync(CancellationToken stoppingToken) => Task.CompletedTask;
