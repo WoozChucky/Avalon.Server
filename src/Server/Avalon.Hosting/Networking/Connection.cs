@@ -67,9 +67,30 @@ public abstract class Connection : BackgroundService, IConnection
     public void Close(bool expected = true)
     {
         if (Interlocked.Exchange(ref _closed, 1) != 0) return;
-        _ = _outbox?.DisposeAsync().AsTask();
-        _client?.Close();
-        OnClose(expected);
+        _ = CloseCoreAsync(expected);
+    }
+
+    /// <summary>
+    /// Tears the connection down in order: flush the outbox, drop the socket, then run the
+    /// close handler. A caller that sends a packet and closes on the next line expects the
+    /// peer to receive it, so the socket must outlive the flush. The flush is bounded by the
+    /// outbox itself, so a peer that has stopped reading cannot stall the teardown.
+    /// </summary>
+    private async Task CloseCoreAsync(bool expected)
+    {
+        try
+        {
+            if (_outbox is not null)
+                await _outbox.DisposeAsync().ConfigureAwait(false);
+
+            _client?.Close();
+
+            await OnClose(expected).ConfigureAwait(false);
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Failed to close connection {Id}", Id);
+        }
     }
 
     public virtual void Send(NetworkPacket packet)
