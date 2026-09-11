@@ -117,7 +117,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
     private readonly IScriptManager _scriptManager;
     private readonly Stopwatch _serverTimer = new();
     private readonly Stopwatch _stopwatch = Stopwatch.StartNew();
-    private readonly World _world;
+    private readonly IWorld _world;
     private readonly ConcurrentQueue<WorldConnection> _pendingDisconnects = new();
     private long _lastTpsCalculationMs;
     private long _tickCount;
@@ -158,7 +158,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         _cache = cache;
         _scriptHotReloader = scriptHotReloader;
         _logger = loggerFactory.CreateLogger<WorldServer>();
-        _world = world as World ?? throw new InvalidOperationException("Invalid world instance");
+        _world = world;
         
         _logger.LogInformation("R2R enabled: {R2R}",
             System.Runtime.CompilerServices.RuntimeFeature.IsSupported("IsDynamicCodeCompiled"));

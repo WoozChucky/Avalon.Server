@@ -5,22 +5,16 @@ using System.Net;
 using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
-using Avalon.Common.Cryptography;
 using Avalon.Configuration;
-using Avalon.Database.Auth.Repositories;
-using Avalon.Database.World.Repositories;
 using Avalon.Hosting.Networking;
 using Avalon.Infrastructure;
 using Avalon.Network.Packets;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.World;
-using Avalon.World.ChunkLayouts;
-using Avalon.World.Configuration;
 using Avalon.World.Entities;
-using Avalon.World.Maps;
+using Avalon.World.Public;
 using Avalon.World.Scripts;
 using Avalon.World.Scripts.Abstractions;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -54,33 +48,53 @@ public class WorldServerShutdownShould : IDisposable
     [Fact]
     public async Task DespawnAConnectionItClosed()
     {
-        Avalon.World.World world = SubstituteWorld();
+        IWorld world = Substitute.For<IWorld>();
         var server = new TestWorldServer(world);
-
-        var connection = new Avalon.World.WorldConnection(
-            server, _clientSide, NullLoggerFactory.Instance, Substitute.For<IPacketReader>());
-        server.Add(connection);
+        Avalon.World.WorldConnection connection = Connect(server);
 
         await server.Stop();
 
         await world.Received(1).DeSpawnPlayerAsync(connection);
     }
 
-    private static Avalon.World.World SubstituteWorld() =>
-        Substitute.For<Avalon.World.World>(
-            NullLoggerFactory.Instance,
-            Options.Create(new GameConfiguration()),
-            new AnyServiceProvider(),
-            Substitute.For<IWorldRepository>(),
-            Substitute.For<IAvalonMapManager>(),
-            Substitute.For<IServiceScopeFactory>(),
-            Substitute.For<ICharacterCreateInfoRepository>(),
-            Substitute.For<IClassLevelStatRepository>(),
-            Substitute.For<IItemTemplateRepository>(),
-            Substitute.For<IAbilityTemplateRepository>(),
-            Substitute.For<ICharacterLevelExperienceRepository>(),
-            Substitute.For<IScriptHotReloader>(),
-            Substitute.For<IChunkLibrary>());
+    /// <summary>
+    /// Starting the saves is not enough: the host stops as soon as this returns, so a despawn it
+    /// did not wait for is a character write racing process exit.
+    /// </summary>
+    [Fact]
+    public async Task NotFinishStopping_UntilThoseDespawnsHave()
+    {
+        var despawnStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var finishDespawn = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        IWorld world = Substitute.For<IWorld>();
+        world.DeSpawnPlayerAsync(Arg.Any<IWorldConnection>()).Returns(_ =>
+        {
+            despawnStarted.TrySetResult();
+            return finishDespawn.Task;
+        });
+
+        var server = new TestWorldServer(world);
+        Connect(server);
+
+        Task stopping = server.Stop();
+
+        await despawnStarted.Task;
+        await Task.Delay(50); // whatever shutdown had left to do, it has had time to do it
+
+        Assert.False(stopping.IsCompleted, "Shutdown returned while the despawn it started was still running");
+
+        finishDespawn.SetResult();
+        await stopping;
+    }
+
+    private Avalon.World.WorldConnection Connect(TestWorldServer server)
+    {
+        var connection = new Avalon.World.WorldConnection(
+            server, _clientSide, NullLoggerFactory.Instance, Substitute.For<IPacketReader>());
+        server.Add(connection);
+        return connection;
+    }
 
     private static (TcpClient clientSide, TcpClient serverSide) CreateLoopbackPair()
     {
@@ -92,6 +106,26 @@ public class WorldServerShutdownShould : IDisposable
         var serverSide = listener.AcceptTcpClient();
         listener.Stop();
         return (clientSide, serverSide);
+    }
+
+    /// <summary>Reaches the two members the shutdown path needs: the connection set, and the stop itself.</summary>
+    private sealed class TestWorldServer : WorldServer
+    {
+        public TestWorldServer(IWorld world) : base(
+            Substitute.For<IPacketManager>(),
+            NullLoggerFactory.Instance,
+            new AnyServiceProvider(),
+            Options.Create(new HostingConfiguration { Host = "127.0.0.1", Port = 0 }),
+            world,
+            Substitute.For<IScriptManager>(),
+            Substitute.For<ICreatureSpawner>(),
+            Substitute.For<IReplicatedCache>(),
+            Substitute.For<IScriptHotReloader>())
+        { }
+
+        public void Add(Avalon.World.WorldConnection connection) => AddConnection(connection);
+
+        public Task Stop() => OnStoppingAsync(CancellationToken.None);
     }
 
     /// <summary>
@@ -116,25 +150,5 @@ public class WorldServerShutdownShould : IDisposable
                 ? Activator.CreateInstance(serviceType)
                 : null;
         }
-    }
-
-    /// <summary>Reaches the two members the shutdown path needs: the connection set, and the stop itself.</summary>
-    private sealed class TestWorldServer : WorldServer
-    {
-        public TestWorldServer(Avalon.World.World world) : base(
-            Substitute.For<IPacketManager>(),
-            NullLoggerFactory.Instance,
-            new AnyServiceProvider(),
-            Options.Create(new HostingConfiguration { Host = "127.0.0.1", Port = 0 }),
-            world,
-            Substitute.For<IScriptManager>(),
-            Substitute.For<ICreatureSpawner>(),
-            Substitute.For<IReplicatedCache>(),
-            Substitute.For<IScriptHotReloader>())
-        { }
-
-        public void Add(Avalon.World.WorldConnection connection) => AddConnection(connection);
-
-        public Task Stop() => OnStoppingAsync(CancellationToken.None);
     }
 }
