@@ -117,7 +117,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
     private readonly IScriptManager _scriptManager;
     private readonly Stopwatch _serverTimer = new();
     private readonly Stopwatch _stopwatch = Stopwatch.StartNew();
-    private readonly World _world;
+    private readonly IWorld _world;
     private readonly ConcurrentQueue<WorldConnection> _pendingDisconnects = new();
     private long _lastTpsCalculationMs;
     private long _tickCount;
@@ -158,7 +158,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         _cache = cache;
         _scriptHotReloader = scriptHotReloader;
         _logger = loggerFactory.CreateLogger<WorldServer>();
-        _world = world as World ?? throw new InvalidOperationException("Invalid world instance");
+        _world = world;
         
         _logger.LogInformation("R2R enabled: {R2R}",
             System.Runtime.CompilerServices.RuntimeFeature.IsSupported("IsDynamicCodeCompiled"));
@@ -247,23 +247,41 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
             (int)_serverTimer.Elapsed.TotalMinutes);
     }
 
-    protected override Task OnStoppingAsync(CancellationToken stoppingToken)
+    protected override async Task OnStoppingAsync(CancellationToken stoppingToken)
     {
-        foreach (IWorldConnection connection in Connections)
-            GracefulShutdownHelper.NotifyAndClose(connection, "Server is shutting down", DisconnectReason.ServerShutdown, _logger);
-
-        // Wait for tick loop to drain (should already be exiting via token registration)
+        // The tick goes first. Closing an outbox does its own final flush, so the tick has nothing
+        // left to contribute, and letting it keep flushing outboxes that are mid-teardown would
+        // put a second writer on buffers the close is about to hand back to the pool.
         _tickRunning = false;
         if (_tickThread is not null && _tickThread.IsAlive)
             _tickThread.Join(TimeSpan.FromSeconds(5));
+
+        // Awaited, and all at once: the shutdown notice is delivered by the close, so returning
+        // before they finish lets the host exit with the packets still queued.
+        var closing = new List<Task>();
+        foreach (IWorldConnection connection in Connections)
+            closing.Add(GracefulShutdownHelper.NotifyAndCloseAsync(connection, "Server is shutting down", DisconnectReason.ServerShutdown, _logger));
+
+        await Task.WhenAll(closing).ConfigureAwait(false);
+
+        // Closing a connection enqueues its despawn, and the tick that would normally dequeue it
+        // has stopped. That despawn is what writes the character back — without this pass every
+        // logged-in character is left online in the database with a stale position. One pass, on
+        // this thread, with the tick joined: nothing else is touching the instances. It is awaited
+        // rather than dropped because the process is about to exit, and it is not given a timeout
+        // of its own for the same reason the close handler has none — the bound is the database's,
+        // and cutting it short would discard the save this exists to make.
+        var despawning = new List<Task>();
+        while (_pendingDisconnects.TryDequeue(out WorldConnection? disconnected))
+            despawning.Add(_world.DeSpawnPlayerAsync(disconnected));
+
+        await Task.WhenAll(despawning).ConfigureAwait(false);
 
         if (_waitableTimer != IntPtr.Zero)
         {
             CloseHandle(_waitableTimer);
             _waitableTimer = IntPtr.Zero;
         }
-
-        return Task.CompletedTask;
     }
 
     private void TickLoop()
@@ -432,7 +450,9 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         IWorldConnection? connection = Connections.FirstOrDefault(c => c.AccountId == accountId);
         if (connection is null) return;
 
+#pragma warning disable MA0045 // a cache subscription callback, and the process stays up to finish the close
         GracefulShutdownHelper.NotifyAndClose(connection, "Your account has been logged in from another location.", DisconnectReason.DuplicateLogin, _logger);
+#pragma warning restore MA0045
     }
 
     #endregion

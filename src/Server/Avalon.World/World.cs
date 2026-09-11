@@ -43,6 +43,9 @@ public interface IWorld
     void SpawnInInstance(IWorldConnection connection, IMapInstance instance);
     void TransferPlayer(IWorldConnection connection, IMapInstance targetInstance);
     Task DeSpawnPlayerAsync(IWorldConnection connection);
+
+    Task LoadAsync(CancellationToken token);
+    void Update(TimeSpan deltaTime);
 }
 
 public class World : IWorld
