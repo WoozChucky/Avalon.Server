@@ -25,7 +25,11 @@ public sealed class ChannelOutbox : IOutbox
     private PacketStream? _stream;
     private Task? _bgTask;
 
-    private static readonly TimeSpan FlushTimeout = TimeSpan.FromMilliseconds(500);
+    private static readonly TimeSpan s_flushTimeout = TimeSpan.FromMilliseconds(500);
+
+    // After the flush budget the write is cancelled; this is how long the loop is given to
+    // unwind and stop naming the pooled buffers.
+    private static readonly TimeSpan s_cancelGrace = TimeSpan.FromMilliseconds(100);
 
     public ChannelOutbox(Guid connectionId, ILogger logger, int capacity)
     {
@@ -78,17 +82,29 @@ public sealed class ChannelOutbox : IOutbox
         // connection rather than the reason it was closed.
         _queue.Writer.TryComplete();
 
+#pragma warning disable MA0040 // shutdown-timeout Delays — they bound the teardown, so a peer that stopped reading cannot hold the close open
         if (_bgTask is not null)
-#pragma warning disable MA0040 // shutdown-timeout Delay — bounds the flush, so a peer that stopped reading cannot hold the close open
-            await Task.WhenAny(_bgTask, Task.Delay(FlushTimeout)).ConfigureAwait(false);
-#pragma warning restore MA0040
+            await Task.WhenAny(_bgTask, Task.Delay(s_flushTimeout)).ConfigureAwait(false);
 
         // Past the budget the remaining writes are abandoned.
         await _cts.CancelAsync().ConfigureAwait(false);
 
-        _burstWriter.Dispose();
-        _tempWriter.Dispose();
-        _cts.Dispose();
+        // A cancelled write is still holding the burst buffer when the cancel lands, so give
+        // it a moment to unwind before that buffer is handed back.
+        if (_bgTask is not null)
+            await Task.WhenAny(_bgTask, Task.Delay(s_cancelGrace)).ConfigureAwait(false);
+#pragma warning restore MA0040
+
+        // The writers rent from ArrayPool and the loop still names the cancellation source, so
+        // release neither while a write that ignored the cancel could still be reading out of
+        // them: whichever connection rents that array next would put these bytes on its own
+        // socket. A rental that is dropped instead of returned is just collected.
+        if (_bgTask is null || _bgTask.IsCompleted)
+        {
+            _burstWriter.Dispose();
+            _tempWriter.Dispose();
+            _cts.Dispose();
+        }
     }
 
     private async Task DrainLoop()
@@ -123,6 +139,11 @@ public sealed class ChannelOutbox : IOutbox
                 }
                 catch (SocketException e) when (e.SocketErrorCode == SocketError.ConnectionReset)
                 {
+                    break;
+                }
+                catch (OperationCanceledException) when (_cts.IsCancellationRequested)
+                {
+                    // The flush budget expired. Deliberate, and not a send failure.
                     break;
                 }
                 catch (Exception e)

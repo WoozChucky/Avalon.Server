@@ -72,8 +72,9 @@ public class ChannelOutboxShould
         outbox.Enqueue(SPingPacket.Create(0L, 0L, 0L, 0L));
         await outbox.DisposeAsync();
 
-        // The fault continuation runs after the loop ends; give it a moment to land.
-        await Task.Delay(100);
+        // The fault continuation runs after the loop ends. Wait on the error itself rather than
+        // on a fixed delay: a regression completes this immediately, a pass waits out the ceiling.
+        await Task.WhenAny(logger.ErrorLogged, Task.Delay(TimeSpan.FromMilliseconds(500)));
 
         Assert.DoesNotContain(LogLevel.Error, logger.Levels);
     }
@@ -97,13 +98,38 @@ public class ChannelOutboxShould
             await outbox.DisposeAsync();
             sw.Stop();
 
-            Assert.True(sw.Elapsed < TimeSpan.FromSeconds(2),
+            // 500 ms flush budget plus a 100 ms grace for the cancel. Tight enough that either
+            // one growing is a failure rather than slack.
+            Assert.True(sw.Elapsed < TimeSpan.FromSeconds(1),
                 $"Expected disposal to give up on the stalled write, took {sw.ElapsedMilliseconds}ms");
         }
         finally
         {
             sink.Release();
         }
+    }
+
+    /// <summary>
+    /// The burst buffer is rented from a shared pool and a stalled write is still reading out of
+    /// it when the flush budget expires. Returning it there would hand one connection's bytes to
+    /// whichever connection rents that array next, so the write must be off it first.
+    /// </summary>
+    [Fact]
+    public async Task LetACancelledWriteUnwind_BeforeReturningTheBuffer()
+    {
+        var sink = new CancellableStream();
+        var stream = new PacketStream(sink);
+        var outbox = new ChannelOutbox(Guid.NewGuid(), NullLogger.Instance, capacity: 64);
+
+        outbox.Connect(stream);
+        outbox.Enqueue(SPingPacket.Create(0L, 0L, 0L, 0L));
+
+        // The write is in flight and holding the buffer before disposal starts.
+        await sink.WriteStarted;
+
+        await outbox.DisposeAsync();
+
+        Assert.True(sink.WriteUnwound, "Expected the cancelled write to have released the buffer before disposal returned");
     }
 
     /// <summary>Writes complete, but only after a delay — a socket write that is not instantaneous.</summary>
@@ -153,9 +179,48 @@ public class ChannelOutboxShould
         public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
     }
 
+    /// <summary>A write that never completes on its own but does honour cancellation.</summary>
+    private sealed class CancellableStream : Stream
+    {
+        private readonly TaskCompletionSource _started = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private bool _unwound;
+
+        public Task WriteStarted => _started.Task;
+
+        public bool WriteUnwound => Volatile.Read(ref _unwound);
+
+        public override async ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            _started.TrySetResult();
+            try
+            {
+                await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                Volatile.Write(ref _unwound, true);
+                throw;
+            }
+        }
+
+        public override void Flush() { }
+        public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+        public override bool CanRead => false;
+        public override bool CanSeek => false;
+        public override bool CanWrite => true;
+        public override long Length => throw new NotSupportedException();
+        public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+    }
+
     private sealed class CapturingLogger : ILogger
     {
+        private readonly TaskCompletionSource _errorLogged = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private readonly List<LogLevel> _levels = [];
+
+        public Task ErrorLogged => _errorLogged.Task;
 
         public IReadOnlyList<LogLevel> Levels
         {
@@ -170,6 +235,7 @@ public class ChannelOutboxShould
             Func<TState, Exception?, string> formatter)
         {
             lock (_levels) _levels.Add(logLevel);
+            if (logLevel >= LogLevel.Error) _errorLogged.TrySetResult();
         }
     }
 }
