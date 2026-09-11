@@ -119,7 +119,7 @@ public class World : IWorld
         targetInstance.AddCharacter(connection);
     }
 
-    public async Task DeSpawnPlayerAsync(IWorldConnection connection)
+    public virtual async Task DeSpawnPlayerAsync(IWorldConnection connection)
     {
         if (connection.Character is null)
             return;

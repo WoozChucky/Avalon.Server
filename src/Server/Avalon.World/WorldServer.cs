@@ -264,6 +264,19 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
 
         await Task.WhenAll(closing).ConfigureAwait(false);
 
+        // Closing a connection enqueues its despawn, and the tick that would normally dequeue it
+        // has stopped. That despawn is what writes the character back — without this pass every
+        // logged-in character is left online in the database with a stale position. One pass, on
+        // this thread, with the tick joined: nothing else is touching the instances. It is awaited
+        // rather than dropped because the process is about to exit, and it is not given a timeout
+        // of its own for the same reason the close handler has none — the bound is the database's,
+        // and cutting it short would discard the save this exists to make.
+        var despawning = new List<Task>();
+        while (_pendingDisconnects.TryDequeue(out WorldConnection? disconnected))
+            despawning.Add(_world.DeSpawnPlayerAsync(disconnected));
+
+        await Task.WhenAll(despawning).ConfigureAwait(false);
+
         if (_waitableTimer != IntPtr.Zero)
         {
             CloseHandle(_waitableTimer);
