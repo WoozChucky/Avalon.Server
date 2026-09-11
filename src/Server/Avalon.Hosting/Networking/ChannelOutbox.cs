@@ -25,16 +25,26 @@ public sealed class ChannelOutbox : IOutbox
     private PacketStream? _stream;
     private Task? _bgTask;
 
-    private static readonly TimeSpan s_flushTimeout = TimeSpan.FromMilliseconds(500);
+    public static readonly TimeSpan DefaultFlushTimeout = TimeSpan.FromMilliseconds(500);
 
     // After the flush budget the write is cancelled; this is how long the loop is given to
     // unwind and stop naming the pooled buffers.
-    private static readonly TimeSpan s_cancelGrace = TimeSpan.FromMilliseconds(100);
+    public static readonly TimeSpan DefaultCancelGrace = TimeSpan.FromMilliseconds(100);
 
-    public ChannelOutbox(Guid connectionId, ILogger logger, int capacity)
+    private readonly TimeSpan _flushTimeout;
+    private readonly TimeSpan _cancelGrace;
+
+    /// <remarks>
+    /// The two budgets are settable so a test can bound itself against the value it passed in
+    /// rather than against a wall clock it does not control. Production leaves them alone.
+    /// </remarks>
+    public ChannelOutbox(Guid connectionId, ILogger logger, int capacity,
+        TimeSpan? flushTimeout = null, TimeSpan? cancelGrace = null)
     {
         _connectionId = connectionId;
         _logger = logger;
+        _flushTimeout = flushTimeout ?? DefaultFlushTimeout;
+        _cancelGrace = cancelGrace ?? DefaultCancelGrace;
         _queue = Channel.CreateBounded<NetworkPacket>(new BoundedChannelOptions(capacity)
         {
             FullMode = BoundedChannelFullMode.DropOldest,
@@ -86,7 +96,7 @@ public sealed class ChannelOutbox : IOutbox
 
 #pragma warning disable MA0040 // shutdown-timeout Delays — they bound the teardown, so a peer that stopped reading cannot hold the close open
         if (_bgTask is not null)
-            await Task.WhenAny(_bgTask, Task.Delay(s_flushTimeout)).ConfigureAwait(false);
+            await Task.WhenAny(_bgTask, Task.Delay(_flushTimeout)).ConfigureAwait(false);
 
         // Past the budget the remaining writes are abandoned.
         await _cts.CancelAsync().ConfigureAwait(false);
@@ -94,7 +104,7 @@ public sealed class ChannelOutbox : IOutbox
         // A cancelled write is still holding the burst buffer when the cancel lands, so give
         // it a moment to unwind before that buffer is handed back.
         if (_bgTask is not null)
-            await Task.WhenAny(_bgTask, Task.Delay(s_cancelGrace)).ConfigureAwait(false);
+            await Task.WhenAny(_bgTask, Task.Delay(_cancelGrace)).ConfigureAwait(false);
 #pragma warning restore MA0040
 
         // The writers rent from ArrayPool and the loop still names the cancellation source, so
