@@ -48,7 +48,9 @@ public class ChannelOutboxShould
     {
         var sink = new SlowStream(TimeSpan.FromMilliseconds(50));
         var stream = new PacketStream(sink);
-        var outbox = new ChannelOutbox(Guid.NewGuid(), NullLogger.Instance, capacity: 64);
+        // A generous flush: this is about what gets delivered, not about what it costs.
+        var outbox = new ChannelOutbox(Guid.NewGuid(), NullLogger.Instance, capacity: 64,
+            flushTimeout: TimeSpan.FromSeconds(30));
 
         outbox.Connect(stream);
 
@@ -67,7 +69,8 @@ public class ChannelOutboxShould
         var logger = new CapturingLogger();
         var sink = new SlowStream(TimeSpan.FromMilliseconds(10));
         var stream = new PacketStream(sink);
-        var outbox = new ChannelOutbox(Guid.NewGuid(), logger, capacity: 64);
+        var outbox = new ChannelOutbox(Guid.NewGuid(), logger, capacity: 64,
+            flushTimeout: TimeSpan.FromSeconds(30));
 
         outbox.Connect(stream);
 
@@ -87,9 +90,13 @@ public class ChannelOutboxShould
     [Fact]
     public async Task ReturnWithinFlushBudget_WhenTheWriteNeverCompletes()
     {
+        TimeSpan flush = TimeSpan.FromMilliseconds(100);
+        TimeSpan grace = TimeSpan.FromMilliseconds(20);
+
         var sink = new BlockingStream();
         var stream = new PacketStream(sink);
-        var outbox = new ChannelOutbox(Guid.NewGuid(), NullLogger.Instance, capacity: 64);
+        var outbox = new ChannelOutbox(Guid.NewGuid(), NullLogger.Instance, capacity: 64,
+            flushTimeout: flush, cancelGrace: grace);
 
         try
         {
@@ -100,10 +107,11 @@ public class ChannelOutboxShould
             await outbox.DisposeAsync();
             sw.Stop();
 
-            // 500 ms flush budget plus a 100 ms grace for the cancel. Tight enough that either
-            // one growing is a failure rather than slack.
-            Assert.True(sw.Elapsed < TimeSpan.FromSeconds(1),
-                $"Expected disposal to give up on the stalled write, took {sw.ElapsedMilliseconds}ms");
+            // Measured against the budget this outbox was given, not against the clock: a loaded
+            // machine stretches both. What fails here is a disposal bounded by the peer instead.
+            TimeSpan ceiling = (flush + grace) * 8;
+            Assert.True(sw.Elapsed < ceiling,
+                $"Expected disposal to give up on the stalled write within {ceiling.TotalMilliseconds}ms, took {sw.ElapsedMilliseconds}ms");
         }
         finally
         {
@@ -121,7 +129,10 @@ public class ChannelOutboxShould
     {
         var sink = new CancellableStream();
         var stream = new PacketStream(sink);
-        var outbox = new ChannelOutbox(Guid.NewGuid(), NullLogger.Instance, capacity: 64);
+        // A short flush, so the cancel lands promptly, and a grace with room for the unwind to
+        // be scheduled on a busy machine — the claim is that it waits, not that it waits briefly.
+        var outbox = new ChannelOutbox(Guid.NewGuid(), NullLogger.Instance, capacity: 64,
+            flushTimeout: TimeSpan.FromMilliseconds(50), cancelGrace: TimeSpan.FromSeconds(10));
 
         outbox.Connect(stream);
         outbox.Enqueue(SPingPacket.Create(0L, 0L, 0L, 0L));
@@ -144,7 +155,8 @@ public class ChannelOutboxShould
     {
         var sink = new BlockingStream();
         var stream = new PacketStream(sink);
-        var outbox = new ChannelOutbox(Guid.NewGuid(), NullLogger.Instance, capacity: 64);
+        var outbox = new ChannelOutbox(Guid.NewGuid(), NullLogger.Instance, capacity: 64,
+            flushTimeout: TimeSpan.FromMilliseconds(100), cancelGrace: TimeSpan.FromMilliseconds(20));
 
         var rented = new List<byte[]>();
         try

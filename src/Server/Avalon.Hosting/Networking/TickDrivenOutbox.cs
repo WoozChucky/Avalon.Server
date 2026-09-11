@@ -38,17 +38,27 @@ public sealed class TickDrivenOutbox : IOutbox
 
     private static readonly Action<Task, object?> s_onWriteCompleted = OnWriteCompleted;
 
-    private static readonly TimeSpan s_flushTimeout = TimeSpan.FromMilliseconds(500);
+    public static readonly TimeSpan DefaultFlushTimeout = TimeSpan.FromMilliseconds(500);
 
     // After the flush budget the write is cancelled; this is how long it is given to unwind
     // and stop naming the pooled buffers.
-    private static readonly TimeSpan s_cancelGrace = TimeSpan.FromMilliseconds(100);
+    public static readonly TimeSpan DefaultCancelGrace = TimeSpan.FromMilliseconds(100);
 
-    public TickDrivenOutbox(Guid connectionId, ILogger logger, int capacity, Action onFault)
+    private readonly TimeSpan _flushTimeout;
+    private readonly TimeSpan _cancelGrace;
+
+    /// <remarks>
+    /// The two budgets are settable so a test can bound itself against the value it passed in
+    /// rather than against a wall clock it does not control. Production leaves them alone.
+    /// </remarks>
+    public TickDrivenOutbox(Guid connectionId, ILogger logger, int capacity, Action onFault,
+        TimeSpan? flushTimeout = null, TimeSpan? cancelGrace = null)
     {
         _connectionId = connectionId;
         _logger = logger;
         _onFault = onFault;
+        _flushTimeout = flushTimeout ?? DefaultFlushTimeout;
+        _cancelGrace = cancelGrace ?? DefaultCancelGrace;
         _queue = Channel.CreateBounded<NetworkPacket>(new BoundedChannelOptions(capacity)
         {
             FullMode = BoundedChannelFullMode.DropOldest,
@@ -150,7 +160,7 @@ public sealed class TickDrivenOutbox : IOutbox
         // A cancelled write is still holding the burst buffer when the cancel lands, so give it
         // a moment to unwind before that buffer is handed back.
         if (!idle)
-            idle = await WaitForWriteAsync(s_cancelGrace).ConfigureAwait(false);
+            idle = await WaitForWriteAsync(_cancelGrace).ConfigureAwait(false);
 
         // The writers rent from ArrayPool and the write still names the cancellation source, so
         // release neither while a write that ignored the cancel could still be reading out of
@@ -170,7 +180,7 @@ public sealed class TickDrivenOutbox : IOutbox
     /// </summary>
     private async Task<bool> DeliverRemainingAsync()
     {
-        long deadline = Environment.TickCount64 + (long)s_flushTimeout.TotalMilliseconds;
+        long deadline = Environment.TickCount64 + (long)_flushTimeout.TotalMilliseconds;
 
         // Two concurrent writes to one socket interleave into corruption, so the last flush
         // cannot start until the one already in flight has landed.
