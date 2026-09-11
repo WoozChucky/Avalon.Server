@@ -26,8 +26,8 @@ public interface IConnection
 
     /// <summary>
     /// Closes and returns when the teardown has finished, so a caller that is about to stop the
-    /// process can wait for the queued packets to go out. A close already under way is not
-    /// awaited — the returned task covers this call.
+    /// process can wait for the queued packets to go out. Every caller waits for the one teardown,
+    /// whoever started it.
     /// </summary>
     Task CloseAsync(bool expected = true);
 
@@ -44,6 +44,7 @@ public abstract class Connection : BackgroundService, IConnection
 
     private TcpClient? _client;
     private int _closed; // 0 = open, 1 = closed
+    private readonly TaskCompletionSource _closeCompleted = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private PacketStream? _stream;
 
     protected IOutbox? _outbox;
@@ -76,8 +77,12 @@ public abstract class Connection : BackgroundService, IConnection
 
     public Task CloseAsync(bool expected = true)
     {
-        if (Interlocked.Exchange(ref _closed, 1) != 0) return Task.CompletedTask;
-        return CloseCoreAsync(expected);
+        if (Interlocked.Exchange(ref _closed, 1) == 0)
+            _ = CloseCoreAsync(expected);
+
+        // Whoever asked second waits for the teardown the first one started, rather than being
+        // told it is already done while the packets are still going out.
+        return _closeCompleted.Task;
     }
 
     /// <summary>
@@ -100,6 +105,10 @@ public abstract class Connection : BackgroundService, IConnection
         catch (Exception e)
         {
             _logger.LogError(e, "Failed to close connection {Id}", Id);
+        }
+        finally
+        {
+            _closeCompleted.TrySetResult();
         }
     }
 

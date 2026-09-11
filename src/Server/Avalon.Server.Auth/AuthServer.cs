@@ -34,6 +34,8 @@ public class AuthServer(
 
     private readonly HostingSecurity _securityOptions = securityOptions.Value;
 
+    private readonly ILogger<AuthServer> _logger = loggerFactory.CreateLogger<AuthServer>();
+
     public new ImmutableArray<IAuthConnection> Connections =>
         TypedConnections.CastArray<IAuthConnection>();
 
@@ -62,7 +64,7 @@ public class AuthServer(
         // before they finish lets the host exit with the packets still queued.
         var closing = new List<Task>();
         foreach (IAuthConnection connection in Connections)
-            closing.Add(GracefulShutdownHelper.NotifyAndCloseAsync(connection, "Server is shutting down", DisconnectReason.ServerShutdown));
+            closing.Add(GracefulShutdownHelper.NotifyAndCloseAsync(connection, "Server is shutting down", DisconnectReason.ServerShutdown, _logger));
 
         await Task.WhenAll(closing).ConfigureAwait(false);
     }

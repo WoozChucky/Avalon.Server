@@ -249,6 +249,13 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
 
     protected override async Task OnStoppingAsync(CancellationToken stoppingToken)
     {
+        // The tick goes first. Closing an outbox does its own final flush, so the tick has nothing
+        // left to contribute, and letting it keep flushing outboxes that are mid-teardown would
+        // put a second writer on buffers the close is about to hand back to the pool.
+        _tickRunning = false;
+        if (_tickThread is not null && _tickThread.IsAlive)
+            _tickThread.Join(TimeSpan.FromSeconds(5));
+
         // Awaited, and all at once: the shutdown notice is delivered by the close, so returning
         // before they finish lets the host exit with the packets still queued.
         var closing = new List<Task>();
@@ -256,11 +263,6 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
             closing.Add(GracefulShutdownHelper.NotifyAndCloseAsync(connection, "Server is shutting down", DisconnectReason.ServerShutdown, _logger));
 
         await Task.WhenAll(closing).ConfigureAwait(false);
-
-        // Wait for tick loop to drain (should already be exiting via token registration)
-        _tickRunning = false;
-        if (_tickThread is not null && _tickThread.IsAlive)
-            _tickThread.Join(TimeSpan.FromSeconds(5));
 
         if (_waitableTimer != IntPtr.Zero)
         {
