@@ -1,9 +1,11 @@
 // Licensed to the Avalon ARPG Game under one or more agreements.
 // Avalon ARPG Game licenses this file to you under the MIT license.
 
+using System.Buffers;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalon.Hosting.Networking;
@@ -132,6 +134,46 @@ public class ChannelOutboxShould
         Assert.True(sink.WriteUnwound, "Expected the cancelled write to have released the buffer before disposal returned");
     }
 
+    /// <summary>
+    /// A write that ignores the cancel outright is still reading the rented array when the grace
+    /// runs out. Returning it then would hand it to another connection while these bytes are
+    /// still going out of it, so it must not go back to the pool at all.
+    /// </summary>
+    [Fact]
+    public async Task NotReturnTheBufferToThePool_WhenAWriteIgnoresTheCancel()
+    {
+        var sink = new BlockingStream();
+        var stream = new PacketStream(sink);
+        var outbox = new ChannelOutbox(Guid.NewGuid(), NullLogger.Instance, capacity: 64);
+
+        var rented = new List<byte[]>();
+        try
+        {
+            outbox.Connect(stream);
+            outbox.Enqueue(SPingPacket.Create(0L, 0L, 0L, 0L));
+
+            await sink.WriteStarted;
+            await outbox.DisposeAsync();
+
+            byte[]? held = sink.WrittenArray;
+            Assert.NotNull(held);
+
+            // An array that never went back cannot come out again, whoever asks.
+            for (int i = 0; i < 64; i++)
+            {
+                byte[] candidate = ArrayPool<byte>.Shared.Rent(held.Length);
+                rented.Add(candidate);
+                Assert.NotSame(held, candidate);
+            }
+        }
+        finally
+        {
+            foreach (byte[] array in rented)
+                ArrayPool<byte>.Shared.Return(array);
+            sink.Release();
+        }
+    }
+
     /// <summary>Writes complete, but only after a delay — a socket write that is not instantaneous.</summary>
     private sealed class SlowStream(TimeSpan delay) : Stream
     {
@@ -161,11 +203,22 @@ public class ChannelOutboxShould
     private sealed class BlockingStream : Stream
     {
         private readonly TaskCompletionSource _gate = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource _started = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public Task WriteStarted => _started.Task;
+
+        /// <summary>The array the stalled write is reading out of, for as long as it is stalled.</summary>
+        public byte[]? WrittenArray { get; private set; }
 
         public void Release() => _gate.TrySetResult();
 
         public override async ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
-            => await _gate.Task.ConfigureAwait(false);
+        {
+            if (MemoryMarshal.TryGetArray(buffer, out ArraySegment<byte> segment))
+                WrittenArray = segment.Array;
+            _started.TrySetResult();
+            await _gate.Task.ConfigureAwait(false);
+        }
 
         public override void Flush() { }
         public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
@@ -198,6 +251,8 @@ public class ChannelOutboxShould
             }
             catch (OperationCanceledException)
             {
+                // A real unwind is not instantaneous; one hop is still far inside the grace.
+                await Task.Yield();
                 Volatile.Write(ref _unwound, true);
                 throw;
             }
