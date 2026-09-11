@@ -25,10 +25,26 @@ public sealed class ChannelOutbox : IOutbox
     private PacketStream? _stream;
     private Task? _bgTask;
 
-    public ChannelOutbox(Guid connectionId, ILogger logger, int capacity)
+    public static readonly TimeSpan DefaultFlushTimeout = TimeSpan.FromMilliseconds(500);
+
+    // After the flush budget the write is cancelled; this is how long the loop is given to
+    // unwind and stop naming the pooled buffers.
+    public static readonly TimeSpan DefaultCancelGrace = TimeSpan.FromMilliseconds(100);
+
+    private readonly TimeSpan _flushTimeout;
+    private readonly TimeSpan _cancelGrace;
+
+    /// <remarks>
+    /// The two budgets are settable so a test can bound itself against the value it passed in
+    /// rather than against a wall clock it does not control. Production leaves them alone.
+    /// </remarks>
+    public ChannelOutbox(Guid connectionId, ILogger logger, int capacity,
+        TimeSpan? flushTimeout = null, TimeSpan? cancelGrace = null)
     {
         _connectionId = connectionId;
         _logger = logger;
+        _flushTimeout = flushTimeout ?? DefaultFlushTimeout;
+        _cancelGrace = cancelGrace ?? DefaultCancelGrace;
         _queue = Channel.CreateBounded<NetworkPacket>(new BoundedChannelOptions(capacity)
         {
             FullMode = BoundedChannelFullMode.DropOldest,
@@ -40,24 +56,29 @@ public sealed class ChannelOutbox : IOutbox
     public void Connect(PacketStream stream)
     {
         _stream = stream;
+        // The drain task itself is kept, not the fault continuation: disposal waits on this
+        // to know the queue has been written out.
         _bgTask = Task.Factory.StartNew(
                 DrainLoop,
                 CancellationToken.None,
                 TaskCreationOptions.LongRunning,
                 TaskScheduler.Default)
-            .Unwrap()
-            .ContinueWith(
-                t => _logger.LogError(t.Exception, "Send loop faulted for connection {Id}", _connectionId),
-                CancellationToken.None,
-                TaskContinuationOptions.OnlyOnFaulted,
-                TaskScheduler.Default);
+            .Unwrap();
+
+        _ = _bgTask.ContinueWith(
+            t => _logger.LogError(t.Exception, "Send loop faulted for connection {Id}", _connectionId),
+            CancellationToken.None,
+            TaskContinuationOptions.OnlyOnFaulted,
+            TaskScheduler.Default);
     }
 
     public bool Enqueue(NetworkPacket packet)
     {
         if (!_queue.Writer.TryWrite(packet))
         {
-            _logger.LogWarning("Send buffer full for connection {Id}; dropped {Type}", _connectionId, packet.Header.Type);
+            // A full queue drops its oldest entry and takes this one, so a refusal means the
+            // outbox is closing and this packet has missed it.
+            _logger.LogDebug("Outbox closed for connection {Id}; dropped {Type}", _connectionId, packet.Header.Type);
             return false;
         }
         return true;
@@ -67,15 +88,35 @@ public sealed class ChannelOutbox : IOutbox
 
     public async ValueTask DisposeAsync()
     {
+        // Closing means: stop accepting new packets, deliver what is already queued, then go.
+        // Completing the writer is what ends the drain loop — cancelling first would abort the
+        // write it is sitting on, and a packet the peer never receives looks like a dropped
+        // connection rather than the reason it was closed.
         _queue.Writer.TryComplete();
-        await _cts.CancelAsync().ConfigureAwait(false);
+
+#pragma warning disable MA0040 // shutdown-timeout Delays — they bound the teardown, so a peer that stopped reading cannot hold the close open
         if (_bgTask is not null)
-#pragma warning disable MA0040 // shutdown-timeout Delay — must complete even though _cts is already cancelled
-            await Task.WhenAny(_bgTask, Task.Delay(500)).ConfigureAwait(false);
+            await Task.WhenAny(_bgTask, Task.Delay(_flushTimeout)).ConfigureAwait(false);
+
+        // Past the budget the remaining writes are abandoned.
+        await _cts.CancelAsync().ConfigureAwait(false);
+
+        // A cancelled write is still holding the burst buffer when the cancel lands, so give
+        // it a moment to unwind before that buffer is handed back.
+        if (_bgTask is not null)
+            await Task.WhenAny(_bgTask, Task.Delay(_cancelGrace)).ConfigureAwait(false);
 #pragma warning restore MA0040
-        _burstWriter.Dispose();
-        _tempWriter.Dispose();
-        _cts.Dispose();
+
+        // The writers rent from ArrayPool and the loop still names the cancellation source, so
+        // release neither while a write that ignored the cancel could still be reading out of
+        // them: whichever connection rents that array next would put these bytes on its own
+        // socket. A rental that is dropped instead of returned is just collected.
+        if (_bgTask is null || _bgTask.IsCompleted)
+        {
+            _burstWriter.Dispose();
+            _tempWriter.Dispose();
+            _cts.Dispose();
+        }
     }
 
     private async Task DrainLoop()
@@ -112,10 +153,20 @@ public sealed class ChannelOutbox : IOutbox
                 {
                     break;
                 }
+                catch (OperationCanceledException) when (_cts.IsCancellationRequested)
+                {
+                    // The flush budget expired. Deliberate, and not a send failure.
+                    break;
+                }
                 catch (Exception e)
                 {
                     _logger.LogError(e, "Failed to send packet for connection {Id}", _connectionId);
                 }
+            }
+            catch (ChannelClosedException)
+            {
+                // Queue completed and drained: the normal end of the loop.
+                break;
             }
             catch (SocketException)
             {

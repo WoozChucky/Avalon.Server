@@ -34,6 +34,8 @@ public class AuthServer(
 
     private readonly HostingSecurity _securityOptions = securityOptions.Value;
 
+    private readonly ILogger<AuthServer> _logger = loggerFactory.CreateLogger<AuthServer>();
+
     public new ImmutableArray<IAuthConnection> Connections =>
         TypedConnections.CastArray<IAuthConnection>();
 
@@ -56,12 +58,15 @@ public class AuthServer(
         RegisterNewConnectionListener(NewConnection);
     }
 
-    protected override Task OnStoppingAsync(CancellationToken stoppingToken)
+    protected override async Task OnStoppingAsync(CancellationToken stoppingToken)
     {
+        // Awaited, and all at once: the shutdown notice is delivered by the close, so returning
+        // before they finish lets the host exit with the packets still queued.
+        var closing = new List<Task>();
         foreach (IAuthConnection connection in Connections)
-            GracefulShutdownHelper.NotifyAndClose(connection, "Server is shutting down", DisconnectReason.ServerShutdown);
+            closing.Add(GracefulShutdownHelper.NotifyAndCloseAsync(connection, "Server is shutting down", DisconnectReason.ServerShutdown, _logger));
 
-        return Task.CompletedTask;
+        await Task.WhenAll(closing).ConfigureAwait(false);
     }
 
     private bool NewConnection(IConnection connection) => true;

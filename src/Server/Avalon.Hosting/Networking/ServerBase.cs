@@ -81,6 +81,13 @@ public abstract class ServerBase<T> : BackgroundService, IServerBase where T : I
     protected abstract object GetContextPacket(IConnection connection, object? packet, Type packetType);
     protected abstract Task OnStoppingAsync(CancellationToken stoppingToken);
 
+    /// <summary>Counterpart to <see cref="RemoveConnection"/>: both collections move together.</summary>
+    protected void AddConnection(T connection)
+    {
+        if (Connections.TryAdd(connection.Id, connection))
+            ImmutableInterlocked.Update(ref _typedConnections, static (arr, conn) => arr.Add(conn), connection);
+    }
+
     public Task RemoveConnection(IConnection connection)
     {
         Connections.Remove(connection.Id, out _);
@@ -129,8 +136,7 @@ public abstract class ServerBase<T> : BackgroundService, IServerBase where T : I
 
         // cannot inject tcp client here
         var connection = ActivatorUtilities.CreateInstance<T>(scope.ServiceProvider, client, this);
-        if (Connections.TryAdd(connection.Id, connection))
-            ImmutableInterlocked.Update(ref _typedConnections, static (arr, conn) => arr.Add(conn), connection);
+        AddConnection(connection);
 
         // accept new connections on another thread
         Listener.BeginAcceptTcpClient(OnClientAccepted, Listener);

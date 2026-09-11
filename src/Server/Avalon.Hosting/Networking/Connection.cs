@@ -23,6 +23,14 @@ public interface IConnection
     public ICryptoManager ServerCrypto { get; }
 
     void Close(bool expected = true);
+
+    /// <summary>
+    /// Closes and returns when the teardown has finished, so a caller that is about to stop the
+    /// process can wait for the queued packets to go out. Every caller waits for the one teardown,
+    /// whoever started it.
+    /// </summary>
+    Task CloseAsync(bool expected = true);
+
     void Send(NetworkPacket packet);
     Task StartAsync(CancellationToken token = default);
 }
@@ -36,6 +44,7 @@ public abstract class Connection : BackgroundService, IConnection
 
     private TcpClient? _client;
     private int _closed; // 0 = open, 1 = closed
+    private readonly TaskCompletionSource _closeCompleted = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private PacketStream? _stream;
 
     protected IOutbox? _outbox;
@@ -64,12 +73,43 @@ public abstract class Connection : BackgroundService, IConnection
     public IAvalonCryptoSession CryptoSession { get; }
     public ICryptoManager ServerCrypto => Server.Crypto;
 
-    public void Close(bool expected = true)
+    public void Close(bool expected = true) => _ = CloseAsync(expected);
+
+    public Task CloseAsync(bool expected = true)
     {
-        if (Interlocked.Exchange(ref _closed, 1) != 0) return;
-        _ = _outbox?.DisposeAsync().AsTask();
-        _client?.Close();
-        OnClose(expected);
+        if (Interlocked.Exchange(ref _closed, 1) == 0)
+            _ = CloseCoreAsync(expected);
+
+        // Whoever asked second waits for the teardown the first one started, rather than being
+        // told it is already done while the packets are still going out.
+        return _closeCompleted.Task;
+    }
+
+    /// <summary>
+    /// Tears the connection down in order: flush the outbox, drop the socket, then run the
+    /// close handler. A caller that sends a packet and closes on the next line expects the
+    /// peer to receive it, so the socket must outlive the flush. The flush is bounded by the
+    /// outbox itself, so a peer that has stopped reading cannot stall the teardown.
+    /// </summary>
+    private async Task CloseCoreAsync(bool expected)
+    {
+        try
+        {
+            if (_outbox is not null)
+                await _outbox.DisposeAsync().ConfigureAwait(false);
+
+            _client?.Close();
+
+            await OnClose(expected).ConfigureAwait(false);
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Failed to close connection {Id}", Id);
+        }
+        finally
+        {
+            _closeCompleted.TrySetResult();
+        }
     }
 
     public virtual void Send(NetworkPacket packet)
