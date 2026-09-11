@@ -162,6 +162,53 @@ public class TickDrivenOutboxShould
         outbox.Flush();
     }
 
+    /// <summary>
+    /// Flush is tick-driven, so a packet queued after the last tick has nothing left to carry
+    /// it out. Closing has to be that last flush.
+    /// </summary>
+    [Fact]
+    public async Task DisposeAsync_WritesPacketsQueuedSinceTheLastFlush()
+    {
+        var (stream, ms) = MakeSyncStream();
+        var outbox = new TickDrivenOutbox(Guid.NewGuid(), NullLogger.Instance, capacity: 64,
+            onFault: () => { });
+        outbox.Connect(stream);
+
+        // No Flush: the tick that would have sent this never comes.
+        outbox.Enqueue(MakePacket());
+
+        await outbox.DisposeAsync();
+
+        Assert.True(ms.Length > 0, "Expected the queued packet to reach the stream before the outbox closed");
+    }
+
+    /// <summary>A peer that has stopped reading must not hold the close open.</summary>
+    [Fact]
+    public async Task DisposeAsync_ReturnsWithinBudget_WhenTheFinalWriteStalls()
+    {
+        var slow = new SlowStream();
+        var outbox = new TickDrivenOutbox(Guid.NewGuid(), NullLogger.Instance, capacity: 64,
+            onFault: () => { });
+        outbox.Connect(new PacketStream(slow));
+
+        try
+        {
+            outbox.Enqueue(MakePacket()); // never flushed; the close has to write it
+
+            var sw = Stopwatch.StartNew();
+            await outbox.DisposeAsync();
+            sw.Stop();
+
+            // 500 ms to deliver plus a 100 ms grace for the cancel.
+            Assert.True(sw.Elapsed < TimeSpan.FromSeconds(1),
+                $"Expected disposal to give up on the stalled write, took {sw.ElapsedMilliseconds}ms");
+        }
+        finally
+        {
+            slow.Complete();
+        }
+    }
+
     [Fact]
     public async Task DisposeAsync_CompletesPromptly_WhenNoWriteInFlight()
     {
