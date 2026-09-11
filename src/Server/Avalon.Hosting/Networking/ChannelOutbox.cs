@@ -66,7 +66,9 @@ public sealed class ChannelOutbox : IOutbox
     {
         if (!_queue.Writer.TryWrite(packet))
         {
-            _logger.LogWarning("Send buffer full for connection {Id}; dropped {Type}", _connectionId, packet.Header.Type);
+            // A full queue drops its oldest entry and takes this one, so a refusal means the
+            // outbox is closing and this packet has missed it.
+            _logger.LogDebug("Outbox closed for connection {Id}; dropped {Type}", _connectionId, packet.Header.Type);
             return false;
         }
         return true;

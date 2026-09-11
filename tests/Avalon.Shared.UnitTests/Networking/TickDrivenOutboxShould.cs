@@ -209,6 +209,32 @@ public class TickDrivenOutboxShould
         }
     }
 
+    /// <summary>
+    /// A faulted write leaves the write slot taken for good, but the write itself is over. The
+    /// close must not sit out its budget waiting for one that has already ended — and it must
+    /// still hand the pooled buffers back, because nothing is reading them.
+    /// </summary>
+    [Fact]
+    public async Task DisposeAsync_CompletesPromptly_AfterAWriteFaulted()
+    {
+        var faulted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var outbox = new TickDrivenOutbox(Guid.NewGuid(), NullLogger.Instance, capacity: 64,
+            onFault: () => faulted.TrySetResult());
+        outbox.Connect(new PacketStream(new FaultingStream()));
+
+        outbox.Enqueue(MakePacket());
+        outbox.Flush();
+
+        await faulted.Task; // the write has ended and the fault has been reported
+
+        var sw = Stopwatch.StartNew();
+        await outbox.DisposeAsync();
+        sw.Stop();
+
+        Assert.True(sw.ElapsedMilliseconds < 200,
+            $"DisposeAsync took {sw.ElapsedMilliseconds}ms — the write it waited for had already ended");
+    }
+
     [Fact]
     public async Task DisposeAsync_CompletesPromptly_WhenNoWriteInFlight()
     {
