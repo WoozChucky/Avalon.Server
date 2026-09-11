@@ -43,6 +43,9 @@ public interface IWorld
     void SpawnInInstance(IWorldConnection connection, IMapInstance instance);
     void TransferPlayer(IWorldConnection connection, IMapInstance targetInstance);
     Task DeSpawnPlayerAsync(IWorldConnection connection);
+
+    Task LoadAsync(CancellationToken token);
+    void Update(TimeSpan deltaTime);
 }
 
 public class World : IWorld
@@ -119,7 +122,7 @@ public class World : IWorld
         targetInstance.AddCharacter(connection);
     }
 
-    public virtual async Task DeSpawnPlayerAsync(IWorldConnection connection)
+    public async Task DeSpawnPlayerAsync(IWorldConnection connection)
     {
         if (connection.Character is null)
             return;
