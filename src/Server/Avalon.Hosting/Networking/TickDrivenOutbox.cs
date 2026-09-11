@@ -28,6 +28,10 @@ public sealed class TickDrivenOutbox : IOutbox
     // Stays at 1 after fault — connection is dead, no more writes.
     private int _writeInFlight;
 
+    // 1 once a write has ended without clearing the flag above — faulted or cancelled. The write
+    // task is over either way, so nothing is reading the buffers even though the slot stays taken.
+    private int _writeSettled;
+
     private volatile TaskCompletionSource? _inFlightCompletion;
 
     private PacketStream? _stream;
@@ -59,7 +63,9 @@ public sealed class TickDrivenOutbox : IOutbox
     {
         if (!_queue.Writer.TryWrite(packet))
         {
-            _logger.LogWarning("Outbox full for connection {Id}; dropped {Type}", _connectionId, packet.Header.Type);
+            // A full queue drops its oldest entry and takes this one, so a refusal means the
+            // outbox is closing and this packet has missed it.
+            _logger.LogDebug("Outbox closed for connection {Id}; dropped {Type}", _connectionId, packet.Header.Type);
             return false;
         }
         return true;
@@ -72,6 +78,8 @@ public sealed class TickDrivenOutbox : IOutbox
         // Skip-and-coalesce: leave packets in queue for next tick if a write is in flight.
         // Prevents concurrent socket writes (protocol corruption) without blocking the tick thread.
         if (Interlocked.CompareExchange(ref _writeInFlight, 1, 0) != 0) return;
+
+        Volatile.Write(ref _writeSettled, 0);
 
         _burstWriter.Reset();
         int count = 0;
@@ -104,25 +112,27 @@ public sealed class TickDrivenOutbox : IOutbox
     {
         var self = (TickDrivenOutbox)state!;
 
-        if (!t.IsCompletedSuccessfully)
-        {
-            Exception e = t.Exception?.GetBaseException() ?? new InvalidOperationException("Unknown write fault");
-            if (e is not OperationCanceledException)
-            {
-                if (e is IOException or SocketException)
-                    self._logger.LogDebug(e, "Outbox write failed for connection {Id}; closing", self._connectionId);
-                else
-                    self._logger.LogError(e, "Outbox write faulted for connection {Id}; closing", self._connectionId);
+        // Record that the write is over before anything downstream can look: a fault closes the
+        // connection from here, and the close has to be able to tell "finished badly" from
+        // "still writing" — the buffers it releases are pooled.
+        if (t.IsCompletedSuccessfully)
+            Volatile.Write(ref self._writeInFlight, 0);
+        else
+            Volatile.Write(ref self._writeSettled, 1); // flag stays at 1 — dead connection; no further writes
 
-                self._inFlightCompletion?.TrySetResult();
-                self._onFault();
-            }
-            // Flag stays at 1 — dead connection; no further writes.
-            return;
-        }
-
-        Volatile.Write(ref self._writeInFlight, 0);
         self._inFlightCompletion?.TrySetResult();
+
+        if (t.IsCompletedSuccessfully) return;
+
+        Exception e = t.Exception?.GetBaseException() ?? new InvalidOperationException("Unknown write fault");
+        if (e is OperationCanceledException) return;
+
+        if (e is IOException or SocketException)
+            self._logger.LogDebug(e, "Outbox write failed for connection {Id}; closing", self._connectionId);
+        else
+            self._logger.LogError(e, "Outbox write faulted for connection {Id}; closing", self._connectionId);
+
+        self._onFault();
     }
 
     public async ValueTask DisposeAsync()
@@ -175,19 +185,23 @@ public sealed class TickDrivenOutbox : IOutbox
     /// <summary>Returns true once no write is in flight, false if the budget ran out first.</summary>
     private async Task<bool> WaitForWriteAsync(TimeSpan budget)
     {
-        if (Volatile.Read(ref _writeInFlight) == 0) return true;
+        if (IsWriteIdle()) return true;
 
         var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         _inFlightCompletion = tcs;
 
         // Double-check after publishing: continuation may have already cleared the flag.
-        if (Volatile.Read(ref _writeInFlight) == 0) return true;
+        if (IsWriteIdle()) return true;
 
 #pragma warning disable MA0040 // shutdown-timeout Delay — bounds the teardown, so a peer that stopped reading cannot hold the close open
         await Task.WhenAny(tcs.Task, Task.Delay(budget)).ConfigureAwait(false);
 #pragma warning restore MA0040
-        return tcs.Task.IsCompleted;
+        return IsWriteIdle();
     }
+
+    /// <summary>True when no write is reading the pooled buffers: none started, or the last one ended.</summary>
+    private bool IsWriteIdle() =>
+        Volatile.Read(ref _writeInFlight) == 0 || Volatile.Read(ref _writeSettled) == 1;
 
     private static TimeSpan RemainingUntil(long deadline) =>
         TimeSpan.FromMilliseconds(Math.Max(0L, deadline - Environment.TickCount64));
