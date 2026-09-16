@@ -26,27 +26,27 @@ public static class LayoutConfigVersion
     {
         var sb = new StringBuilder();
 
-        sb.Append(config.MapTemplateId.Value).Append('|')
-          .Append(config.ChunkPoolId.Value).Append('|')
-          .Append(config.SpawnTableId.Value).Append('|')
-          .Append(config.MainPathMin).Append('|')
-          .Append(config.MainPathMax).Append('|')
+        sb.Append(config.MapTemplateId.Value.ToString(CultureInfo.InvariantCulture)).Append('|')
+          .Append(config.ChunkPoolId.Value.ToString(CultureInfo.InvariantCulture)).Append('|')
+          .Append(config.SpawnTableId.Value.ToString(CultureInfo.InvariantCulture)).Append('|')
+          .Append(config.MainPathMin.ToString(CultureInfo.InvariantCulture)).Append('|')
+          .Append(config.MainPathMax.ToString(CultureInfo.InvariantCulture)).Append('|')
           .Append(F(config.BranchChance)).Append('|')
-          .Append(config.BranchMaxDepth).Append('|')
+          .Append(config.BranchMaxDepth.ToString(CultureInfo.InvariantCulture)).Append('|')
           .Append(config.HasBoss ? '1' : '0').Append('|')
-          .Append(config.BackPortalTargetMapId).Append('|')
+          .Append(config.BackPortalTargetMapId.ToString(CultureInfo.InvariantCulture)).Append('|')
           .Append(config.ForwardPortalTargetMapId?.ToString(CultureInfo.InvariantCulture) ?? "-")
           .Append(';');
 
         foreach (ChunkPoolMember m in pool.OrderBy(p => p.Template.Id.Value))
         {
-            sb.Append(m.Template.Id.Value).Append('|')
+            sb.Append(m.Template.Id.Value.ToString(CultureInfo.InvariantCulture)).Append('|')
               .Append(F(m.Weight)).Append('|')
               .Append(m.Template.GeometryFile).Append('|')
-              .Append(m.Template.CellFootprintX).Append('|')
-              .Append(m.Template.CellFootprintZ).Append('|')
+              .Append(m.Template.CellFootprintX.ToString(CultureInfo.InvariantCulture)).Append('|')
+              .Append(m.Template.CellFootprintZ.ToString(CultureInfo.InvariantCulture)).Append('|')
               .Append(F(m.Template.CellSize)).Append('|')
-              .Append(m.Template.Exits).Append(';');
+              .Append(m.Template.Exits.ToString(CultureInfo.InvariantCulture)).Append(';');
         }
 
         return Fnv1a(sb.ToString()).ToString("x8", CultureInfo.InvariantCulture);
