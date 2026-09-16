@@ -1,5 +1,6 @@
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
+using Microsoft.EntityFrameworkCore;
 
 namespace Avalon.Database.World.Repositories;
 
@@ -8,10 +9,7 @@ public interface IItemTemplateRepository : IRepository<ItemTemplate, ItemTemplat
 
 }
 
-public class ItemTemplateRepository : EntityFrameworkRepository<ItemTemplate, ItemTemplateId>, IItemTemplateRepository
+public class ItemTemplateRepository(IDbContextFactory<WorldDbContext> contextFactory)
+    : EntityFrameworkRepository<ItemTemplate, ItemTemplateId, WorldDbContext>(contextFactory), IItemTemplateRepository
 {
-    public ItemTemplateRepository(WorldDbContext dbContext)
-        : base(dbContext)
-    {
-    }
 }

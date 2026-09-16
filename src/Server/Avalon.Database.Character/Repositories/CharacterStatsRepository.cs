@@ -11,32 +11,31 @@ public interface ICharacterStatsRepository
     Task<CharacterStats?> GetByCharacterIdAsync(CharacterId characterId, CancellationToken cancellationToken = default);
 }
 
-public class CharacterStatsRepository : ICharacterStatsRepository
+public class CharacterStatsRepository(IDbContextFactory<CharacterDbContext> contextFactory) : ICharacterStatsRepository
 {
-    private readonly CharacterDbContext _dbContext;
-
-    public CharacterStatsRepository(CharacterDbContext dbContext)
-    {
-        _dbContext = dbContext;
-    }
-
     public async Task<CharacterStats> CreateAsync(CharacterStats stats, CancellationToken cancellationToken = default)
     {
-        var entity = await _dbContext.CharacterStats.AddAsync(stats, cancellationToken);
-        await _dbContext.SaveChangesAsync(cancellationToken);
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+
+        var entity = await context.CharacterStats.AddAsync(stats, cancellationToken);
+        await context.SaveChangesAsync(cancellationToken);
         return entity.Entity;
     }
 
     public async Task<CharacterStats> UpdateAsync(CharacterStats stats, CancellationToken cancellationToken = default)
     {
-        var entity = _dbContext.CharacterStats.Update(stats);
-        await _dbContext.SaveChangesAsync(cancellationToken);
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+
+        var entity = context.CharacterStats.Update(stats);
+        await context.SaveChangesAsync(cancellationToken);
         return entity.Entity;
     }
 
     public async Task<CharacterStats?> GetByCharacterIdAsync(CharacterId characterId, CancellationToken cancellationToken = default)
     {
-        return await _dbContext.CharacterStats
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+
+        return await context.CharacterStats
             .AsNoTracking()
             .FirstOrDefaultAsync(entity => entity.CharacterId == characterId, cancellationToken);
     }

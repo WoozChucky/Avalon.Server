@@ -1,6 +1,7 @@
 using Avalon.Configuration;
 using Avalon.Database.Extensions;
 using Avalon.Database.World.Repositories;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -12,27 +13,31 @@ public static class ServiceExtensions
     public static IServiceCollection AddWorldDatabase(this IServiceCollection services, string databaseSection = "Database")
     {
         services.AddAvalonDatabases(databaseSection);
-        services.AddScoped<WorldDbContext>(provider =>
+
+        // The context itself is not registered: repositories create one per call and nothing else
+        // may hold one. IOptions, not IOptionsSnapshot — the factory is a singleton.
+        services.AddSingleton<IDbContextFactory<WorldDbContext>>(provider =>
         {
             var loggerFactory = provider.GetRequiredService<ILoggerFactory>();
-            var options = provider.GetRequiredService<IOptionsSnapshot<DatabaseConfiguration>>();
-            return new WorldDbContext(loggerFactory, options);
+            var options = provider.GetRequiredService<IOptions<DatabaseConfiguration>>();
+            return new DelegateDbContextFactory<WorldDbContext>(() => new WorldDbContext(loggerFactory, options));
         });
+        services.AddSingleton<IDbTransactionRunner<WorldDbContext>, DbTransactionRunner<WorldDbContext>>();
 
         services
-            .AddScoped<ICreatureTemplateRepository, CreatureTemplateRepository>()
-            .AddScoped<IMapTemplateRepository, MapTemplateRepository>()
-            .AddScoped<IItemTemplateRepository, ItemTemplateRepository>()
-            .AddScoped<IItemInstanceRepository, ItemInstanceRepository>()
-            .AddScoped<IClassLevelStatRepository, ClassLevelStatRepository>()
-            .AddScoped<ICharacterCreateInfoRepository, CharacterCreateInfoRepository>()
-            .AddScoped<ICharacterLevelExperienceRepository, CharacterLevelExperienceRepository>()
-            .AddScoped<IAbilityTemplateRepository, AbilityTemplateRepository>()
-            .AddScoped<IChunkTemplateRepository, ChunkTemplateRepository>()
-            .AddScoped<IChunkPoolRepository, ChunkPoolRepository>()
-            .AddScoped<ISpawnTableRepository, SpawnTableRepository>()
-            .AddScoped<IProceduralMapConfigRepository, ProceduralMapConfigRepository>()
-            .AddScoped<IMapChunkPlacementRepository, MapChunkPlacementRepository>();
+            .AddSingleton<ICreatureTemplateRepository, CreatureTemplateRepository>()
+            .AddSingleton<IMapTemplateRepository, MapTemplateRepository>()
+            .AddSingleton<IItemTemplateRepository, ItemTemplateRepository>()
+            .AddSingleton<IItemInstanceRepository, ItemInstanceRepository>()
+            .AddSingleton<IClassLevelStatRepository, ClassLevelStatRepository>()
+            .AddSingleton<ICharacterCreateInfoRepository, CharacterCreateInfoRepository>()
+            .AddSingleton<ICharacterLevelExperienceRepository, CharacterLevelExperienceRepository>()
+            .AddSingleton<IAbilityTemplateRepository, AbilityTemplateRepository>()
+            .AddSingleton<IChunkTemplateRepository, ChunkTemplateRepository>()
+            .AddSingleton<IChunkPoolRepository, ChunkPoolRepository>()
+            .AddSingleton<ISpawnTableRepository, SpawnTableRepository>()
+            .AddSingleton<IProceduralMapConfigRepository, ProceduralMapConfigRepository>()
+            .AddSingleton<IMapChunkPlacementRepository, MapChunkPlacementRepository>();
 
         return services;
     }

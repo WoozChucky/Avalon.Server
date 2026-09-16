@@ -10,23 +10,18 @@ public interface IAbilityTemplateRepository : IRepository<AbilityTemplate, Abili
         IEnumerable<AbilityId> ids, CancellationToken cancellationToken = default);
 }
 
-public class AbilityTemplateRepository : EntityFrameworkRepository<AbilityTemplate, AbilityId>, IAbilityTemplateRepository
+public class AbilityTemplateRepository(IDbContextFactory<WorldDbContext> contextFactory)
+    : EntityFrameworkRepository<AbilityTemplate, AbilityId, WorldDbContext>(contextFactory), IAbilityTemplateRepository
 {
-    private readonly WorldDbContext _dbContext;
-
-    public AbilityTemplateRepository(WorldDbContext dbContext)
-        : base(dbContext)
-    {
-        _dbContext = dbContext;
-    }
-
     public async Task<IReadOnlyList<AbilityTemplate>> GetByIdsAsync(
         IEnumerable<AbilityId> ids, CancellationToken cancellationToken = default)
     {
         var idSet = ids.Distinct().ToArray();
         if (idSet.Length == 0) return Array.Empty<AbilityTemplate>();
 
-        return await _dbContext.AbilityTemplates
+        await using var context = await CreateContextAsync(cancellationToken);
+
+        return await context.AbilityTemplates
             .AsNoTracking()
             .Where(t => idSet.Contains(t.Id))
             .ToListAsync(cancellationToken);

@@ -9,12 +9,13 @@ public interface IChunkPoolRepository : IRepository<ChunkPool, ChunkPoolId>
     Task<IReadOnlyList<ChunkPool>> FindAllWithMembershipsAsync(CancellationToken ct = default);
 }
 
-public class ChunkPoolRepository : EntityFrameworkRepository<ChunkPool, ChunkPoolId>, IChunkPoolRepository
+public class ChunkPoolRepository(IDbContextFactory<WorldDbContext> contextFactory)
+    : EntityFrameworkRepository<ChunkPool, ChunkPoolId, WorldDbContext>(contextFactory), IChunkPoolRepository
 {
-    public ChunkPoolRepository(WorldDbContext ctx) : base(ctx) { }
-
     public async Task<IReadOnlyList<ChunkPool>> FindAllWithMembershipsAsync(CancellationToken ct = default)
-        => await DbSet.AsNoTracking().Include(p => p.Memberships).ToListAsync(ct);
+    {
+        await using var context = await CreateContextAsync(ct);
 
-    private DbSet<ChunkPool> DbSet => Context.Set<ChunkPool>();
+        return await context.ChunkPools.AsNoTracking().Include(p => p.Memberships).ToListAsync(ct);
+    }
 }
