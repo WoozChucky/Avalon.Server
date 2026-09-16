@@ -135,7 +135,6 @@ public class CharacterCreateHandler(
     {
         var characterStats = new CharacterStats
         {
-            Character = character,
             CharacterId = character.Id,
             MaxHealth = CharacterStats.GetBaseHp(@class, classLevelStat.Stamina, classLevelStat.Level),
             MaxPower1 = CharacterStats.GetBasePower(@class, classLevelStat.Intellect, classLevelStat.Agility, classLevelStat.Level),
@@ -193,7 +192,6 @@ public class CharacterCreateHandler(
 
             var itemInstance = new ItemInstance
             {
-                Template = itemTemplate,
                 TemplateId = itemTemplate.Id,
                 CharacterId = character.Id,
                 Count = itemTemplate.Stackable ? itemTemplate.MaxStackSize : 1,

@@ -17,7 +17,7 @@ public class CharacterStatsRepository(IDbContextFactory<CharacterDbContext> cont
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
 
-        var entity = await context.CharacterStats.AddAsync(stats, cancellationToken);
+        var entity = context.TrackForInsert(stats);
         await context.SaveChangesAsync(cancellationToken);
         return entity.Entity;
     }
@@ -26,7 +26,7 @@ public class CharacterStatsRepository(IDbContextFactory<CharacterDbContext> cont
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
 
-        var entity = context.CharacterStats.Update(stats);
+        var entity = context.TrackForUpdate(stats);
         await context.SaveChangesAsync(cancellationToken);
         return entity.Entity;
     }

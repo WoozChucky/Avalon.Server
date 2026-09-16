@@ -90,7 +90,7 @@ public abstract class EntityFrameworkRepository<TEntity, TKey, TContext>(IDbCont
     {
         await using var context = await CreateContextAsync(cancellationToken);
 
-        var entry = await context.Set<TEntity>().AddAsync(entity, cancellationToken);
+        var entry = context.TrackForInsert(entity);
         await context.SaveChangesAsync(cancellationToken);
         return entry.Entity;
     }
@@ -103,7 +103,7 @@ public abstract class EntityFrameworkRepository<TEntity, TKey, TContext>(IDbCont
 
         foreach (var entity in entities)
         {
-            var entry = await context.Set<TEntity>().AddAsync(entity, cancellationToken);
+            var entry = context.TrackForInsert(entity);
             entityList.Add(entry.Entity);
         }
 
@@ -118,12 +118,7 @@ public abstract class EntityFrameworkRepository<TEntity, TKey, TContext>(IDbCont
 
         // The context is new, so nothing is tracked and the entity is always detached. The
         // load-then-detach step the shared context needed has no counterpart here.
-        var entry = context.Entry(entity);
-        if (entry.State == EntityState.Detached)
-        {
-            context.Set<TEntity>().Attach(entity);
-        }
-        entry.State = EntityState.Modified;
+        var entry = context.TrackForUpdate(entity);
 
         await context.SaveChangesAsync(cancellationToken);
         return entry.Entity;
