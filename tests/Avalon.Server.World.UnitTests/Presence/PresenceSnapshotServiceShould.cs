@@ -9,6 +9,7 @@ using Avalon.World.Configuration;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Instances;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NSubstitute;
@@ -61,6 +62,25 @@ public class PresenceSnapshotServiceShould
         // into a local first keeps those calls out of the Returns(...) expression.
         Dictionary<ObjectGuid, ICharacter> charactersByGuid = characters.ToDictionary(c => c.Guid);
         i.Characters.Returns(charactersByGuid);
+        return i;
+    }
+
+    /// <summary>
+    /// An instance whose roster throws when read, simulating the 60 Hz simulation tick
+    /// mutating <c>MapInstance.Characters</c> (a plain, non-concurrent dictionary) while
+    /// PresenceSnapshotService's timer walks it from a thread-pool thread.
+    /// </summary>
+    private static IMapInstance InstanceWithRacingRoster(Guid id)
+    {
+        var i = Substitute.For<IMapInstance>();
+        i.InstanceId.Returns(id);
+        i.TemplateId.Returns(new MapTemplateId(12));
+        i.MapType.Returns(MapType.Normal);
+        i.Seed.Returns(0);
+        i.ConfigVersion.Returns(string.Empty);
+        i.OwnerCharacterId.Returns((uint?)null);
+        i.Characters.Returns(_ => throw new InvalidOperationException(
+            "Collection was modified; enumeration operation may not execute."));
         return i;
     }
 
@@ -149,6 +169,56 @@ public class PresenceSnapshotServiceShould
     }
 
     [Fact]
+    public async Task Should_not_throw_when_the_cache_throws_a_cancellation_unrelated_to_our_token()
+    {
+        // TaskCanceledException derives from OperationCanceledException. A bare
+        // `catch (OperationCanceledException) { throw; }` would let this one escape and
+        // stop the world server via BackgroundService's default StopHost behavior, even
+        // though the CancellationToken this capture was given was never cancelled.
+        ICharacter nym = Character(4417, "Nym", Vector3.zero);
+        IMapInstance instance = Instance(Guid.NewGuid(), nym);
+        _registry.ActiveInstances.Returns([instance]);
+        _cache.SetAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<TimeSpan?>())
+              .Returns<Task<bool>>(_ => throw new TaskCanceledException("redis reconnect"));
+
+        await CreateSut().CaptureOnceAsync(CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task Should_write_other_instances_when_one_instance_throws_while_being_walked()
+    {
+        // The racing instance is listed first so this also proves the loop continues
+        // past it rather than aborting the whole capture.
+        IMapInstance racing = InstanceWithRacingRoster(Guid.NewGuid());
+        ICharacter nym = Character(4417, "Nym", Vector3.zero);
+        IMapInstance healthy = Instance(Guid.NewGuid(), nym);
+        _registry.ActiveInstances.Returns([racing, healthy]);
+
+        await CreateSut(worldId: 3).CaptureOnceAsync(CancellationToken.None);
+
+        await _cache.Received(1).SetAsync(
+            "world:3:presence",
+            Arg.Is<string>(json => json.Contains("\"name\":\"Nym\"")),
+            CacheKeys.PresenceTtl);
+    }
+
+    [Fact]
+    public async Task Should_write_nothing_and_log_no_warning_when_the_registry_is_not_ready_yet()
+    {
+        // Production's accessor (IWorld.InstanceRegistry) is null for several seconds at
+        // every boot, until World.LoadAsync finishes. That must read as "nothing to
+        // publish yet", not an error worth a warning-level log.
+        var logger = new CapturingLogger();
+        var sut = new PresenceSnapshotService(
+            () => (IInstanceRegistry?)null, _cache, Options.Create(new GameConfiguration { WorldId = "1" }), logger);
+
+        await sut.CaptureOnceAsync(CancellationToken.None);
+
+        await _cache.DidNotReceive().SetAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<TimeSpan?>());
+        Assert.DoesNotContain(LogLevel.Warning, logger.Levels);
+    }
+
+    [Fact]
     public async Task Should_defer_reading_the_registry_until_capture_runs()
     {
         // Production wiring resolves IWorld.InstanceRegistry via this accessor, and that
@@ -172,5 +242,25 @@ public class PresenceSnapshotServiceShould
         await sut.CaptureOnceAsync(CancellationToken.None);
 
         Assert.Equal(1, accessorCalls);
+    }
+
+    private sealed class CapturingLogger : ILogger<PresenceSnapshotService>
+    {
+        private readonly List<LogLevel> _levels = [];
+
+        public IReadOnlyList<LogLevel> Levels
+        {
+            get { lock (_levels) return [.. _levels]; }
+        }
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            lock (_levels) _levels.Add(logLevel);
+        }
     }
 }
