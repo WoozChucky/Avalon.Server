@@ -12,6 +12,7 @@ using Avalon.Database.Auth.Repositories;
 using Avalon.Domain.Auth;
 using Avalon.Infrastructure;
 using Avalon.Infrastructure.Services;
+using Microsoft.EntityFrameworkCore;
 using OperatingSystem = Avalon.Domain.Auth.OperatingSystem;
 
 namespace Avalon.Api.Services;
@@ -41,9 +42,8 @@ public class AccountService : IAccountService
     private readonly IDeviceRepository _deviceRepository;
     private readonly IReplicatedCache _cache;
     private readonly ISecureRandom _secureRandom;
-    private readonly IPersonalAccessTokenService _patService;
     private readonly IRefreshTokenService _refreshService;
-    private readonly AuthDbContext _authDbContext;
+    private readonly IDbTransactionRunner<AuthDbContext> _authTransaction;
     private readonly AuthenticationConfig _authConfig;
 
     public AccountService(ILoggerFactory loggerFactory,
@@ -54,9 +54,8 @@ public class AccountService : IAccountService
         IDeviceRepository deviceRepository,
         IReplicatedCache cache,
         ISecureRandom secureRandom,
-        IPersonalAccessTokenService patService,
         IRefreshTokenService refreshService,
-        AuthDbContext authDbContext,
+        IDbTransactionRunner<AuthDbContext> authTransaction,
         AuthenticationConfig authConfig)
     {
         _logger = loggerFactory.CreateLogger<AccountService>();
@@ -67,9 +66,8 @@ public class AccountService : IAccountService
         _deviceRepository = deviceRepository;
         _cache = cache;
         _secureRandom = secureRandom;
-        _patService = patService;
         _refreshService = refreshService;
-        _authDbContext = authDbContext;
+        _authTransaction = authTransaction;
         _authConfig = authConfig;
     }
 
@@ -157,7 +155,6 @@ public class AccountService : IAccountService
 
         await _deviceRepository.CreateAsync(new Device
         {
-            Account = account,
             AccountId = account.Id,
             Name = userAgent,
             LastUsage = DateTime.UtcNow,
@@ -243,29 +240,25 @@ public class AccountService : IAccountService
     public async Task UpdateStatusAsync(AccountId accountId, Avalon.Api.Contract.AccountStatus state, string? reason,
         AccountId actorId, CancellationToken cancellationToken = default)
     {
-        await using var transaction = await _authDbContext.Database.BeginTransactionAsync(cancellationToken);
-        try
+        // A repository call creates its own context, so a repository call cannot join a
+        // transaction opened elsewhere. The three writes run on the one context this opens:
+        // a ban that revoked no credentials would leave the banned account a live session.
+        await _authTransaction.ExecuteAsync(async (context, token) =>
         {
-            var account = await _accountRepository.FindByIdAsync(accountId, track: true, cancellationToken)
+            var account = await context.Accounts.FirstOrDefaultAsync(a => a.Id == accountId, token)
                 ?? throw new BusinessException("Account not found");
 
             account.Status = (Avalon.Domain.Auth.AccountStatus)state;
-            await _accountRepository.UpdateAsync(account, cancellationToken);
+            await context.SaveChangesAsync(token);
 
-            await _refreshService.RevokeAllForAccountAsync(accountId, cancellationToken);
+            await RefreshTokenRepository.RevokeAllForAccountAsync(context, accountId, token);
 
             if (state is Avalon.Api.Contract.AccountStatus.Banned or Avalon.Api.Contract.AccountStatus.Deactivated)
             {
-                await _patService.RevokeAllForAccountAsync(accountId, actorId, cancellationToken);
+                await PersonalAccessTokenRepository.RevokeAllForAccountAsync(context, accountId, actorId,
+                    DateTime.UtcNow, token);
             }
-
-            await transaction.CommitAsync(cancellationToken);
-        }
-        catch
-        {
-            await transaction.RollbackAsync(cancellationToken);
-            throw;
-        }
+        }, cancellationToken);
 
         if (state is Avalon.Api.Contract.AccountStatus.Banned or Avalon.Api.Contract.AccountStatus.Deactivated)
         {

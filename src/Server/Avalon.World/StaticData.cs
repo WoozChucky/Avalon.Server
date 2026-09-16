@@ -14,7 +14,7 @@ public class StaticData(
     {
         CharacterCreateInfos = await characterCreateInfoRepository.FindAllAsync(cancellationToken);
         ClassLevelStats = await classLevelStatRepository.FindAllAsync(cancellationToken);
-        ItemTemplates = (await itemTemplateRepository.FindAllAsync(true, cancellationToken)).AsReadOnly();
+        ItemTemplates = (await itemTemplateRepository.FindAllAsync(false, cancellationToken)).AsReadOnly();
         AbilityTemplates = (await abilityTemplateRepository.FindAllAsync(false, cancellationToken)).AsReadOnly();
         CharacterLevelExperiences = await characterLevelExperienceRepository.GetAllAsync(cancellationToken);
     }

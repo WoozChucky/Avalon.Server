@@ -9,16 +9,15 @@ public interface IMfaSetupRepository : IRepository<MFASetup, Guid>
     Task<MFASetup?> FindByAccountIdAsync(AccountId accountId, CancellationToken cancellationToken = default);
 }
 
-public class MfaSetupRepository : EntityFrameworkRepository<MFASetup, Guid>, IMfaSetupRepository
+public class MfaSetupRepository(IDbContextFactory<AuthDbContext> contextFactory)
+    : EntityFrameworkRepository<MFASetup, Guid, AuthDbContext>(contextFactory), IMfaSetupRepository
 {
-    public MfaSetupRepository(AuthDbContext db)
-        : base(db)
+    public async Task<MFASetup?> FindByAccountIdAsync(AccountId accountId, CancellationToken cancellationToken = default)
     {
-    }
+        await using var context = await CreateContextAsync(cancellationToken);
 
-
-    public async Task<MFASetup?> FindByAccountIdAsync(AccountId accountId, CancellationToken cancellationToken = default) =>
-        await Context.Set<MFASetup>()
+        return await context.MfaSetups
             .AsNoTracking()
             .FirstOrDefaultAsync(c => c.AccountId == accountId, cancellationToken);
+    }
 }

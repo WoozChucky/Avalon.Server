@@ -10,14 +10,20 @@ public interface IProceduralMapConfigRepository
     Task<IReadOnlyList<ProceduralMapConfig>> FindAllAsync(CancellationToken ct = default);
 }
 
-public class ProceduralMapConfigRepository : IProceduralMapConfigRepository
+public class ProceduralMapConfigRepository(IDbContextFactory<WorldDbContext> contextFactory)
+    : IProceduralMapConfigRepository
 {
-    private readonly WorldDbContext _ctx;
-    public ProceduralMapConfigRepository(WorldDbContext ctx) => _ctx = ctx;
+    public async Task<ProceduralMapConfig?> FindByTemplateIdAsync(MapTemplateId id, CancellationToken ct = default)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(ct);
 
-    public Task<ProceduralMapConfig?> FindByTemplateIdAsync(MapTemplateId id, CancellationToken ct = default)
-        => _ctx.ProceduralMapConfigs.AsNoTracking().FirstOrDefaultAsync(c => c.MapTemplateId == id, ct);
+        return await context.ProceduralMapConfigs.AsNoTracking().FirstOrDefaultAsync(c => c.MapTemplateId == id, ct);
+    }
 
     public async Task<IReadOnlyList<ProceduralMapConfig>> FindAllAsync(CancellationToken ct = default)
-        => await _ctx.ProceduralMapConfigs.AsNoTracking().ToListAsync(ct);
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(ct);
+
+        return await context.ProceduralMapConfigs.AsNoTracking().ToListAsync(ct);
+    }
 }

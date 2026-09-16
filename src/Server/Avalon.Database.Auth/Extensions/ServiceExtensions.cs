@@ -1,5 +1,6 @@
 using Avalon.Configuration;
 using Avalon.Database.Extensions;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -11,20 +12,24 @@ public static class ServiceExtensions
     public static IServiceCollection AddAuthDatabase(this IServiceCollection services, string databaseSection = "Database")
     {
         services.AddAvalonDatabases(databaseSection);
-        services.AddScoped<AuthDbContext>(provider =>
+
+        // The context itself is not registered: repositories create one per call and nothing else
+        // may hold one. IOptions, not IOptionsSnapshot — the factory is a singleton.
+        services.AddSingleton<IDbContextFactory<AuthDbContext>>(provider =>
         {
             var loggerFactory = provider.GetRequiredService<ILoggerFactory>();
-            var options = provider.GetRequiredService<IOptionsSnapshot<DatabaseConfiguration>>();
-            return new AuthDbContext(loggerFactory, options);
+            var options = provider.GetRequiredService<IOptions<DatabaseConfiguration>>();
+            return new DelegateDbContextFactory<AuthDbContext>(() => new AuthDbContext(loggerFactory, options));
         });
+        services.AddSingleton<IDbTransactionRunner<AuthDbContext>, DbTransactionRunner<AuthDbContext>>();
 
         services
-            .AddScoped<Repositories.IAccountRepository, Repositories.AccountRepository>()
-            .AddScoped<Repositories.IMfaSetupRepository, Repositories.MfaSetupRepository>()
-            .AddScoped<Repositories.IDeviceRepository, Repositories.DeviceRepository>()
-            .AddScoped<Repositories.IWorldRepository, Repositories.WorldRepository>()
-            .AddScoped<Repositories.IPersonalAccessTokenRepository, Repositories.PersonalAccessTokenRepository>()
-            .AddScoped<Repositories.IRefreshTokenRepository, Repositories.RefreshTokenRepository>();
+            .AddSingleton<Repositories.IAccountRepository, Repositories.AccountRepository>()
+            .AddSingleton<Repositories.IMfaSetupRepository, Repositories.MfaSetupRepository>()
+            .AddSingleton<Repositories.IDeviceRepository, Repositories.DeviceRepository>()
+            .AddSingleton<Repositories.IWorldRepository, Repositories.WorldRepository>()
+            .AddSingleton<Repositories.IPersonalAccessTokenRepository, Repositories.PersonalAccessTokenRepository>()
+            .AddSingleton<Repositories.IRefreshTokenRepository, Repositories.RefreshTokenRepository>();
 
         return services;
     }

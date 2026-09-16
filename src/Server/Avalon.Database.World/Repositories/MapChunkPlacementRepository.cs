@@ -12,15 +12,13 @@ public interface IMapChunkPlacementRepository
         CancellationToken ct = default);
 }
 
-public class MapChunkPlacementRepository : IMapChunkPlacementRepository
+public class MapChunkPlacementRepository(IDbContextFactory<WorldDbContext> contextFactory) : IMapChunkPlacementRepository
 {
-    private readonly WorldDbContext _ctx;
-
-    public MapChunkPlacementRepository(WorldDbContext ctx) => _ctx = ctx;
-
     public async Task<IReadOnlyList<MapChunkPlacement>> FindByMapAsync(MapTemplateId mapId, CancellationToken ct = default)
     {
-        return await _ctx.MapChunkPlacements
+        await using var context = await contextFactory.CreateDbContextAsync(ct);
+
+        return await context.MapChunkPlacements
             .AsNoTracking()
             .Where(p => p.MapTemplateId == mapId)
             .OrderBy(p => p.GridZ)
@@ -31,16 +29,21 @@ public class MapChunkPlacementRepository : IMapChunkPlacementRepository
     public async Task ReplaceForMapAsync(MapTemplateId mapId, IReadOnlyList<MapChunkPlacement> placements,
         CancellationToken ct = default)
     {
-        await using var tx = await _ctx.Database.BeginTransactionAsync(ct);
+        // Both saves are in this one method, so the context created here spans the transaction.
+        await using var context = await contextFactory.CreateDbContextAsync(ct);
+        await using var tx = await context.Database.BeginTransactionAsync(ct);
 
-        var existing = await _ctx.MapChunkPlacements
+        var existing = await context.MapChunkPlacements
             .Where(p => p.MapTemplateId == mapId)
             .ToListAsync(ct);
-        _ctx.MapChunkPlacements.RemoveRange(existing);
-        await _ctx.SaveChangesAsync(ct);
+        context.MapChunkPlacements.RemoveRange(existing);
+        await context.SaveChangesAsync(ct);
 
-        await _ctx.MapChunkPlacements.AddRangeAsync(placements, ct);
-        await _ctx.SaveChangesAsync(ct);
+        foreach (var placement in placements)
+        {
+            context.TrackForInsert(placement);
+        }
+        await context.SaveChangesAsync(ct);
 
         await tx.CommitAsync(ct);
     }

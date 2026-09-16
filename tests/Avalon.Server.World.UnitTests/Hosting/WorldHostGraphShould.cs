@@ -1,0 +1,41 @@
+using Avalon.Hosting;
+using Avalon.Network.Packets.Abstractions.Attributes;
+using Avalon.Server.World.Extensions;
+using Avalon.World;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Xunit;
+
+namespace Avalon.Server.World.UnitTests.Hosting;
+
+/// <summary>
+/// The world host composed exactly as its entry point composes it, built under the validation
+/// every Avalon host now enables. Before repositories took a context factory this threw: the
+/// singletons that inject a repository — the creature spawner, the placement service — were
+/// capturing a scoped <c>DbContext</c> for the life of the process.
+/// </summary>
+public class WorldHostGraphShould
+{
+    [Fact]
+    public async Task Build_with_no_captured_scoped_services()
+    {
+        string workingDirectory = Directory.GetCurrentDirectory();
+        try
+        {
+            HostApplicationBuilder builder = await AvalonHostBuilder.CreateHostAsync([], ComponentType.World);
+            builder.Services
+                .AddWorldServices()
+                .AddSingleton<WorldServer>()
+                .AddSingleton<IWorldServer>(provider => provider.GetRequiredService<WorldServer>())
+                .AddHostedService(provider => provider.GetRequiredService<WorldServer>());
+
+            using IHost host = builder.Build();
+
+            Assert.NotNull(host);
+        }
+        finally
+        {
+            Directory.SetCurrentDirectory(workingDirectory);
+        }
+    }
+}
