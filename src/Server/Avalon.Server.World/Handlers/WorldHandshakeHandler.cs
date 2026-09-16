@@ -56,9 +56,11 @@ public class WorldHandshakeHandler : IWorldPacketHandler<CWorldHandshakePacket>
 
         if (allowed)
         {
-            // Eager initial ping so RTT/latency are measured immediately;
-            // the tick loop drives steady-state cadence after this.
-            ctx.Connection.SendTimeSyncPing();
+            // Asked for rather than sent: this runs at the top of a tick and the outbox is flushed
+            // at the bottom, so a ping sent here would stamp its send time before the world update
+            // and leave after it -- measured at 16 to 27 ms of world update inside the first round
+            // trip a client ever sees.
+            ctx.Connection.RequestInitialTimeSyncPing();
         }
 
         return Task.CompletedTask;
