@@ -12,6 +12,16 @@ public interface IMapInstance : ISimulationContext
     MapTemplateId TemplateId { get; }
     MapType MapType { get; }
 
+    /// <summary>Procedural seed this instance was generated from. 0 for predefined (town) layouts.</summary>
+    int Seed { get; }
+
+    /// <summary>
+    /// Fingerprint of the config + chunk pool that produced this instance's layout.
+    /// Empty for predefined layouts. Compared against a freshly computed stamp so admin
+    /// tooling can warn that a rendered layout may no longer match the player's client.
+    /// </summary>
+    string ConfigVersion { get; }
+
     /// <summary>Character ID of the player who created this instance. Null for Town instances.
     /// Per-character keying ensures different characters on the same account get different
     /// procedural instances even within the 15-minute re-entry window.</summary>

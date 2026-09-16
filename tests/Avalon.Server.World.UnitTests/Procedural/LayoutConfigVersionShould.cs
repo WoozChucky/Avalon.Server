@@ -1,6 +1,7 @@
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.World.ChunkLayouts;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Avalon.Server.World.UnitTests.Procedural;
 
@@ -34,9 +35,33 @@ public class LayoutConfigVersionShould
 
     private static List<ChunkPoolMember> Pool() =>
     [
-        new(Template(1, "a.obj"), 1.0f),
-        new(Template(2, "b.obj"), 2.5f),
+        new(EntryTemplate(), 1.0f),
+        new(BossTemplate(), 2.5f),
     ];
+
+    // Pool() must also work as an input to ProceduralLayoutGenerator.Generate (see
+    // Should_be_carried_on_the_generated_layout below), not just LayoutConfigVersion.Compute
+    // (which ignores SpawnSlots/PortalSlots entirely). EntryTemplate is the only chunk with an
+    // "entry" spawn slot + Back portal, so it is always the unique entry candidate. BossTemplate
+    // is a straight N/S corridor piece that also carries the "boss" spawn slot + Forward portal,
+    // so it deterministically serves as every mid-path chunk and the terminal/boss chunk alike.
+    private static ChunkTemplate EntryTemplate()
+    {
+        ChunkTemplate t = Template(1, "a.obj");
+        t.Exits = 0b0000_0000_0000_0010; // N-Center only
+        t.SpawnSlots.Add(new ChunkSpawnSlot { Tag = "entry", LocalX = 5, LocalY = 0, LocalZ = 5 });
+        t.PortalSlots.Add(new ChunkPortalSlot { Role = PortalRole.Back, LocalX = 10, LocalY = 0, LocalZ = 10 });
+        return t;
+    }
+
+    private static ChunkTemplate BossTemplate()
+    {
+        ChunkTemplate t = Template(2, "b.obj");
+        t.Exits = 0b0000_0000_1000_0010; // N-Center + S-Center
+        t.SpawnSlots.Add(new ChunkSpawnSlot { Tag = "boss", LocalX = 5, LocalY = 0, LocalZ = 5 });
+        t.PortalSlots.Add(new ChunkPortalSlot { Role = PortalRole.Forward, LocalX = 10, LocalY = 0, LocalZ = 10 });
+        return t;
+    }
 
     [Fact]
     public void Should_return_eight_char_lowercase_hex()
@@ -100,5 +125,16 @@ public class LayoutConfigVersionShould
         Assert.NotEqual(
             LayoutConfigVersion.Compute(Config(branchChance: 0.25f), Pool()),
             LayoutConfigVersion.Compute(Config(branchChance: 0.75f), Pool()));
+    }
+
+    [Fact]
+    public void Should_be_carried_on_the_generated_layout()
+    {
+        var generator = new ProceduralLayoutGenerator(NullLoggerFactory.Instance);
+        ProceduralMapConfig cfg = Config();
+
+        ChunkLayout layout = generator.Generate(cfg, Pool(), seed: 12345);
+
+        Assert.Equal(LayoutConfigVersion.Compute(cfg, Pool()), layout.ConfigVersion);
     }
 }
