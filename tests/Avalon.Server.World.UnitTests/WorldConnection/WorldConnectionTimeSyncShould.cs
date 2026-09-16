@@ -23,9 +23,9 @@ public class WorldConnectionTimeSyncShould : IDisposable
 {
     private const long TicksPerMs = TimeSpan.TicksPerMillisecond;
 
-    // The offset is derived from a timestamp the method reads itself, so it cannot be exact. A
-    // symmetric path should still land within a millisecond or two of zero; ten is a wide net that
-    // still fails by three orders of magnitude if a ping interval leaks in.
+    // Every timestamp is now stated by the caller, so these are exact -- but a tolerance keeps the
+    // cases about the arithmetic rather than about tick precision. Ten milliseconds still fails by
+    // three orders of magnitude if a ping interval leaks in.
     private const long ToleranceTicks = 10 * TicksPerMs;
 
     private readonly Avalon.World.WorldConnection _connection;
@@ -70,7 +70,8 @@ public class WorldConnectionTimeSyncShould : IDisposable
     private void ExchangeAt(long serverSentTicks, long oneWayTicks)
     {
         long clientTouchedAt = serverSentTicks + oneWayTicks;   // received and answered in the same instant
-        _connection.OnPongReceived(serverSentTicks, clientTouchedAt, clientTouchedAt);
+        _connection.OnPongReceived(serverSentTicks, clientTouchedAt, clientTouchedAt,
+            clientTouchedAt + oneWayTicks);
     }
 
     [Fact]
@@ -105,9 +106,30 @@ public class WorldConnectionTimeSyncShould : IDisposable
         long skew = TimeSpan.TicksPerSecond;
         long serverSent = now - 20 * TicksPerMs;
         long clientTouchedAt = serverSent + 10 * TicksPerMs + skew;
-        _connection.OnPongReceived(serverSent, clientTouchedAt, clientTouchedAt);
+        _connection.OnPongReceived(serverSent, clientTouchedAt, clientTouchedAt,
+            serverSent + 20 * TicksPerMs);
 
         Assert.InRange(_connection.TimeSyncOffset, -skew - ToleranceTicks, -skew + ToleranceTicks);
+    }
+
+    [Fact]
+    public void ChargeNoneOfTheTickWait_WhenThePongWaitedForOne()
+    {
+        // The pong lands on the socket a millisecond after it was sent and is handled a full 60 Hz
+        // tick later. The round trip is the wire, not the wait, and the offset stays at zero because
+        // neither leg was inflated.
+        // Anchored a tick in the PAST, which is what makes this case discriminating: the exchange
+        // finished 16 ms ago and is only being handled now, so a t3 read from the clock here differs
+        // from the arrival by exactly the wait this is about.
+        long handledAt = DateTime.UtcNow.Ticks;
+        long serverSent = handledAt - 17 * TicksPerMs;
+        long clientTouchedAt = serverSent + 1 * TicksPerMs;
+        long arrived = clientTouchedAt + 1 * TicksPerMs;
+
+        _connection.OnPongReceived(serverSent, clientTouchedAt, clientTouchedAt, arrived);
+
+        Assert.InRange(_connection.RoundTripTime, 0, 4 * TicksPerMs);
+        Assert.InRange(_connection.TimeSyncOffset, -TicksPerMs, TicksPerMs);
     }
 
     [Fact]
