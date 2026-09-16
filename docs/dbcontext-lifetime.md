@@ -105,7 +105,17 @@ detached pools with `Memberships` populated and the class inherits `CreateAsync`
 caller away, not one refactor away.
 
 Owned entities are exempt: they are part of the root's row, have no foreign key a caller could
-name them by, and the rule has nothing to offer them. `ChunkTemplate.SpawnSlots` is the case.
+name them by, and the rule has nothing to offer them. `ChunkTemplate.SpawnSlots` is the case. They
+are reached on every write and handled, not bypassed.
+
+**Known limitation.** An owner that carries owned collections cannot currently be *updated* through
+a repository. The owned nodes take the root's `Modified` state, EF refuses to re-track them
+(*"another instance with the same key value for {'Id'} is already being tracked"*), and the update
+does not land even when nothing about the owned rows changed. That is preferred to what it
+replaced: under the key test this rule dropped, the same update succeeded and **duplicated** the
+owned rows — two slots became four, with no error. Nothing calls that path today; fixing it is its
+own change, and an early return on owned nodes is not the fix, because it drops them.
+`RepositoryWritePathShould.Fail_loudly_when_an_owner_with_owned_rows_is_updated` pins it as it is.
 
 A caller that genuinely wants to write several rows writes them itself, on one context, through
 `IDbTransactionRunner`.
@@ -167,6 +177,17 @@ test passes while writing nothing.
 Proving that a write *inside* the transaction body enlists would need two contexts on two
 connections; the fixture deliberately shares one, so `AccountStatusChangeShould` covers what the
 ban does rather than what a rollback would undo.
+
+`track: true` on the base reads is now dead weight: the context is disposed before the entity
+returns, so the flag shapes only the graph handed back and nothing that happens next.
+
+Counting the write surface is harder than it looks and no count here should be trusted as a risk
+measure. Roughly thirteen call sites are insert-shaped; the update-shaped surface is far larger —
+around twenty-five, of which `IAccountRepository.UpdateAsync` alone is about fourteen.
+
+Unrelated and pre-existing: `docs/map-generation.md:386` says the importer's `ReplaceForMapAsync`
+handles the upsert. It does not, and `ReplaceForMapAsync` has no caller in `src/`, `tools/` or
+`tests/` at all.
 
 The audit that preceded this found four write sequences that were already not atomic before the
 change and still are not — refresh-token rotation, password change, email change confirmation, and
