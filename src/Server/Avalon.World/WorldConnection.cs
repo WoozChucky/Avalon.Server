@@ -31,7 +31,6 @@ public class WorldConnection : Connection, IWorldConnection
     private long _lastServerTicks;
     private ObservableGauge<double> _packetReceivedRate;
     private ObservableGauge<double> _packetSentRate;
-    private long _timeSyncOffset;
 
     public WorldConnection(IWorldServer server, TcpClient client, ILoggerFactory loggerFactory,
         IPacketReader packetReader)
@@ -65,13 +64,16 @@ public class WorldConnection : Connection, IWorldConnection
 
     public long Latency { get; private set; }
     public long RoundTripTime { get; private set; }
+
+    /// <summary>Server time minus client time, in ticks, as of the last pong.</summary>
+    public long TimeSyncOffset { get; private set; }
     public bool InGame => Character != null;
     public bool InMap => InGame && _characterEntity?.Map > 0;
 
     public void SendTimeSyncPing()
     {
         _lastServerTicks = DateTime.UtcNow.Ticks;
-        Send(SPingPacket.Create(_lastServerTicks, _lastClientTicks, RoundTripTime, _timeSyncOffset));
+        Send(SPingPacket.Create(_lastServerTicks, _lastClientTicks, RoundTripTime, TimeSyncOffset));
     }
 
     public void OnPongReceived(long lastServerTimestamp, long clientReceivedTimestamp, long clientSentTimestamp)
@@ -79,7 +81,10 @@ public class WorldConnection : Connection, IWorldConnection
         long rtt = clientReceivedTimestamp - lastServerTimestamp + (DateTime.UtcNow.Ticks - clientSentTimestamp);
         long latency = rtt / TimeSpan.TicksPerMillisecond;
 
-        _timeSyncOffset = _lastServerTicks + rtt / 2 - _lastClientTicks;
+        // Every term from THIS exchange. _lastClientTicks still holds the previous pong's stamp here
+        // (it is assigned below), and _lastServerTicks can already have advanced if a ping went out
+        // before this pong landed -- either one turns the offset into the gap between pings.
+        TimeSyncOffset = lastServerTimestamp + rtt / 2 - clientReceivedTimestamp;
 
         if (Latency - latency > 20)
         {
