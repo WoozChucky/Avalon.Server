@@ -7,12 +7,16 @@ using Org.BouncyCastle.Crypto.Agreement;
 using Org.BouncyCastle.Crypto.EC;
 using Org.BouncyCastle.Crypto.Parameters;
 using Org.BouncyCastle.Security;
+using Org.BouncyCastle.Utilities;
 using Org.BouncyCastle.X509;
 
 namespace Avalon.Common.Cryptography;
 
 public class AsymmetricCipher
 {
+    /// <summary>The one curve this protocol agrees keys on.</summary>
+    private const string P256 = "secp256r1";
+
     public static AsymmetricCipherKeyPair GenerateECDHKeyPair(int bits = 256)
     {
         switch (bits)
@@ -58,20 +62,62 @@ public class AsymmetricCipher
         return publicKeyInfo.GetDerEncoded();
     }
 
+    /// <summary>
+    /// The peer's P-256 public key, parsed from DER-encoded SubjectPublicKeyInfo and validated.
+    /// </summary>
+    /// <remarks>
+    /// These bytes come from the network, and the encoding lets the peer choose the curve, so
+    /// the curve is checked rather than assumed. A point on a different curve, off the curve, or
+    /// at infinity agrees a secret that is not the one either end thinks it is, and the failure
+    /// would surface as a decrypt error a long way from its cause.
+    /// </remarks>
     public static ECPublicKeyParameters GetPublicKeyFromBytes(byte[] publicKeyBytes)
     {
-        // Parse the byte array to reconstruct the public key
-        var asn1Object = Asn1Object.FromByteArray(publicKeyBytes);
-        var publicKeyInfo = SubjectPublicKeyInfo.GetInstance(asn1Object);
-        var publicKeyParameter = PublicKeyFactory.CreateKey(publicKeyInfo);
+        if (publicKeyBytes == null || publicKeyBytes.Length == 0)
+            throw new CryptographicException("Invalid public key: no bytes");
 
-        // Cast the public key to ECPublicKeyParameters
-        if (publicKeyParameter is ECPublicKeyParameters publicKey)
+        AsymmetricKeyParameter publicKeyParameter;
+
+        try
         {
-            return publicKey;
+            var asn1Object = Asn1Object.FromByteArray(publicKeyBytes);
+            var publicKeyInfo = SubjectPublicKeyInfo.GetInstance(asn1Object);
+            publicKeyParameter = PublicKeyFactory.CreateKey(publicKeyInfo);
+        }
+        catch (Exception e) when (e is not CryptographicException)
+        {
+            throw new CryptographicException("Invalid public key: malformed SubjectPublicKeyInfo", e);
         }
 
-        throw new CryptographicException("Invalid public key");
+        if (publicKeyParameter is not ECPublicKeyParameters publicKey)
+            throw new CryptographicException("Invalid public key: not an EC key");
+
+        if (!IsExpectedCurve(publicKey.Parameters))
+            throw new CryptographicException("Invalid public key: not on P-256");
+
+        var point = publicKey.Q;
+
+        if (point == null || point.IsInfinity)
+            throw new CryptographicException("Invalid public key: point at infinity");
+
+        // On the curve, and in the prime-order subgroup. P-256 has cofactor 1, so every point on
+        // the curve other than infinity is already in the subgroup; the check is kept because the
+        // curve is asserted above rather than trusted, and a curve with a cofactor would need it.
+        if (!point.IsValid())
+            throw new CryptographicException("Invalid public key: point is not on the curve");
+
+        return publicKey;
+    }
+
+    private static bool IsExpectedCurve(ECDomainParameters parameters)
+    {
+        var expected = CustomNamedCurves.GetByName(P256);
+
+        return parameters != null
+               && parameters.Curve.Equals(expected.Curve)
+               && parameters.G.Equals(expected.G)
+               && parameters.N.Equals(expected.N)
+               && parameters.H.Equals(expected.H);
     }
 
     public static byte[] CalculateSharedSecret(AsymmetricCipherKeyPair ownKeyPair, ECPublicKeyParameters otherPublicKey)
@@ -85,9 +131,10 @@ public class AsymmetricCipher
         // Calculate the shared secret using the other end's public key
         var secret = agreement.CalculateAgreement(otherPublicKey);
 
-        // Convert the shared secret to a byte array
-        var sharedSecret = secret.ToByteArrayUnsigned();
-
-        return sharedSecret;
+        // FIXED WIDTH, leading zeros kept. A P-256 x-coordinate is a 256-bit number, so about one in
+        // 256 of them has a zero top byte -- and a minimal encoding drops it, yielding 31 bytes where
+        // AES-256 needs 32. The exchange that drew one completed its handshake and failed on the first
+        // packet it tried to seal.
+        return BigIntegers.AsUnsignedByteArray(32, secret);
     }
 }

@@ -11,6 +11,7 @@ Directory.CreateDirectory(outputDirectory);
 Write(Path.Combine(outputDirectory, WireSchema.FileName), WireSchema.Generate());
 Write(Path.Combine(outputDirectory, OpcodeTable.FileName), OpcodeTable.Generate());
 WriteCorpus(Path.Combine(outputDirectory, WireCorpus.DirectoryName));
+WriteSessionCryptoVectors(Path.Combine(outputDirectory, SessionCryptoVectors.DirectoryName));
 
 return 0;
 
@@ -36,6 +37,12 @@ static void WriteCorpus(string directory)
     }
 
     Console.WriteLine($"wrote {directory} ({files.Count} vectors files)");
+}
+
+static void WriteSessionCryptoVectors(string directory)
+{
+    Directory.CreateDirectory(directory);
+    Write(Path.Combine(directory, SessionCryptoVectors.FileName), SessionCryptoVectors.Generate());
 }
 
 // Written with explicit LF so the file is byte-identical whichever platform emits it.

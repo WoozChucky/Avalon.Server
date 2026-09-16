@@ -18,6 +18,8 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- The session-crypto vectors are exported by running the server's own crypto, not a copy of it. -->
+    <ProjectReference Include="..\..\src\Shared\Avalon.Common\Avalon.Common.csproj"/>
     <ProjectReference Include="..\..\src\Shared\Avalon.Network.Packets\Avalon.Network.Packets.csproj"/>
     <ProjectReference Include="..\..\src\Shared\Avalon.Network.Packets.Abstractions\Avalon.Network.Packets.Abstractions.csproj"/>
   </ItemGroup>
