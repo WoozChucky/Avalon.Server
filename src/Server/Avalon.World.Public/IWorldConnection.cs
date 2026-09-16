@@ -30,6 +30,12 @@ public interface IWorldConnection : IConnection
     public long RoundTripTime { get; }
 
     /// <summary>
+    ///     Gets the tick at which the packet now being handled was read off the socket. A handler runs
+    ///     on the world tick, so reading the clock inside one measures the wait for that tick as well.
+    /// </summary>
+    public long CurrentPacketArrivedTicks { get; }
+
+    /// <summary>
     ///     Gets a value indicating whether the connection is in-game.
     /// </summary>
     public bool InGame { get; }
@@ -67,8 +73,9 @@ public interface IWorldConnection : IConnection
     /// <param name="lastServerTimestamp">The last server timestamp.</param>
     /// <param name="clientReceivedTimestamp">The client received timestamp.</param>
     /// <param name="clientSentTimestamp">The client sent timestamp.</param>
+    /// <param name="serverReceivedTicks">When the pong was read off the socket, NOT when it was handled.</param>
     void OnPongReceived(long lastServerTimestamp, long clientReceivedTimestamp,
-        long clientSentTimestamp);
+        long clientSentTimestamp, long serverReceivedTicks);
 
     /// <summary>
     ///     Processes pre-character packets (pong, character list/select/create/delete)
