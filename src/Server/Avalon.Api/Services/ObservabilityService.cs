@@ -9,6 +9,7 @@ using Avalon.Database.World.Repositories;
 using Avalon.Domain.World;
 using Avalon.Infrastructure;
 using Avalon.Infrastructure.Presence;
+using Avalon.World.ChunkLayouts;
 using Microsoft.Extensions.Logging;
 using AvalonWorld = Avalon.Domain.Auth.World;
 
@@ -41,17 +42,26 @@ public class ObservabilityService : IObservabilityService
     private readonly IReplicatedCache _cache;
     private readonly IWorldRepository _worlds;
     private readonly IMapTemplateRepository _maps;
+    private readonly IProceduralMapConfigRepository _configs;
+    private readonly IChunkPoolRepository _pools;
+    private readonly IChunkTemplateRepository _chunks;
     private readonly ILogger<ObservabilityService> _logger;
 
     public ObservabilityService(
         IReplicatedCache cache,
         IWorldRepository worlds,
         IMapTemplateRepository maps,
+        IProceduralMapConfigRepository configs,
+        IChunkPoolRepository pools,
+        IChunkTemplateRepository chunks,
         ILogger<ObservabilityService> logger)
     {
         _cache = cache;
         _worlds = worlds;
         _maps = maps;
+        _configs = configs;
+        _pools = pools;
+        _chunks = chunks;
         _logger = logger;
     }
 
@@ -140,7 +150,7 @@ public class ObservabilityService : IObservabilityService
         {
             Target = ToDto(target),
             Instance = await ToDtoAsync(instance, index.WorldId, ct),
-            LayoutStale = false, // set by Task 7 once the stamp comparison lands
+            LayoutStale = await IsLayoutStaleAsync(instance, ct),
             CapturedAt = snapshot.CapturedAt,
         };
     }
@@ -213,4 +223,49 @@ public class ObservabilityService : IObservabilityService
         Enum.TryParse(mapType, ignoreCase: true, out MapType parsed)
             ? parsed
             : null;
+
+    /// <summary>
+    /// A seed only reproduces a layout while the config and chunk pool behind it are
+    /// unchanged. Recompute the stamp from current DB state and compare with what the
+    /// world server recorded at instance creation.
+    ///
+    /// An empty recorded stamp means a predefined (town) layout, which is not generated
+    /// from a seed at all — absence of a stamp is not evidence of drift. Any failure to
+    /// recompute is treated as "not stale": a false warning banner on every request would
+    /// train admins to ignore it.
+    /// </summary>
+    private async Task<bool> IsLayoutStaleAsync(InstancePresenceSnapshot instance, CancellationToken ct)
+    {
+        if (string.IsNullOrEmpty(instance.ConfigVersion)) return false;
+
+        try
+        {
+            ProceduralMapConfig? config =
+                await _configs.FindByTemplateIdAsync(new MapTemplateId(instance.TemplateId), ct);
+            if (config is null) return false;
+
+            IReadOnlyList<ChunkPool> pools = await _pools.FindAllWithMembershipsAsync(ct);
+            ChunkPool? pool = pools.FirstOrDefault(p => p.Id == config.ChunkPoolId);
+            if (pool is null) return false;
+
+            IReadOnlyList<ChunkTemplate> templates = await _chunks.FindAllWithSlotsAsync(ct);
+            Dictionary<ChunkTemplateId, ChunkTemplate> byId = templates.ToDictionary(t => t.Id);
+
+            List<ChunkPoolMember> members = pool.Memberships
+                .Where(m => byId.ContainsKey(m.ChunkTemplateId))
+                .Select(m => new ChunkPoolMember(byId[m.ChunkTemplateId], m.Weight))
+                .ToList();
+
+            return !string.Equals(
+                LayoutConfigVersion.Compute(config, members),
+                instance.ConfigVersion,
+                StringComparison.Ordinal);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex,
+                "Could not recompute layout config version for template {TemplateId}", instance.TemplateId);
+            return false;
+        }
+    }
 }
