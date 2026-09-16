@@ -108,8 +108,33 @@ public class World : IWorld
     public IReadOnlyList<MapTemplate> MapTemplates => _mapManager.Templates;
     public StaticData Data { get; }
 
-    public void SpawnInInstance(IWorldConnection connection, IMapInstance instance) =>
+    public void SpawnInInstance(IWorldConnection connection, IMapInstance instance)
+    {
         instance.AddCharacter(connection);
+
+        // Marked online here rather than at select. Between the two the character is built but not
+        // in the world, so a row written online there is a claim nothing can retract: the despawn
+        // writes it back from an instance membership that does not exist yet.
+        if (connection.Character is CharacterEntity { Data: { } row })
+        {
+            row.Online = true;
+            _ = PersistOnlineAsync(row);
+        }
+    }
+
+    private async Task PersistOnlineAsync(Character row)
+    {
+        try
+        {
+            await using AsyncServiceScope scope = _serviceScopeFactory.CreateAsyncScope();
+            await scope.ServiceProvider.GetRequiredService<ICharacterRepository>()
+                .UpdateAsync(row, CancellationToken.None);
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Failed to mark character {CharacterId} online", row.Id);
+        }
+    }
 
     public void TransferPlayer(IWorldConnection connection, IMapInstance targetInstance)
     {
@@ -124,6 +149,13 @@ public class World : IWorld
 
     public async Task DeSpawnPlayerAsync(IWorldConnection connection)
     {
+        // A connection that drops while its character is waiting on the readiness barrier never
+        // reached an instance, but the row was already written with Online = true by the select.
+        // Adopt the pending entity so the save below runs and clears it; RemoveCharacter and
+        // DropPlayerFromEncounter are both no-ops for a character that was never added.
+        if (connection.Character is null && connection.TakePendingSpawn() is { } pending)
+            connection.Character = pending.Character;
+
         if (connection.Character is null)
             return;
 

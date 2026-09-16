@@ -1,10 +1,12 @@
 using Avalon.Network.Packets.Abstractions;
+using Avalon.Network.Packets.Abstractions.Attributes;
 using ProtoBuf;
 using Avalon.Network.Packets.Serialization;
 
 namespace Avalon.Network.Packets.Character;
 
 [ProtoContract]
+[Packet(HandleOn = ComponentType.World, Type = NetworkPacketType.CMSG_CHARACTER_LOADED)]
 public class CCharacterLoadedPacket : Packet
 {
     public static NetworkPacketType PacketType = NetworkPacketType.CMSG_CHARACTER_LOADED;

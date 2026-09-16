@@ -34,7 +34,7 @@ Game Client              World Server                  Databases / Redis
     │                        │ [OnCharacterReceived]         │
     │                        │  Build CharacterEntity        │
     │                        │  Assign InstanceId            │
-    │                        │  world.SpawnInInstance(conn)  │
+    │                        │  Hold as a pending spawn      │
     │                        │                               │
     │  SCharacterSelectedPacket                              │
     │<───────────────────────│                               │
@@ -55,6 +55,11 @@ Game Client              World Server                  Databases / Redis
     │                        │ [OnSpellsReceived]            │
     │  SSpellListPacket      │  Resolve SpellMetadata        │
     │<───────────────────────│                               │
+    │                        │                               │
+    │  CCharacterLoadedPacket│                               │
+    │───────────────────────>│  world.SpawnInInstance(conn)  │
+    │                        │  (or the tick, once the       │
+    │                        │   readiness barrier expires)  │
     │                        │                               │
     │  [In game — tick loop] │                               │
 ```
@@ -80,6 +85,10 @@ Sent immediately after the character entity is built and spawned. Contains:
 | `InstanceId`       | See [Instance ID section](#instance-id) |
 
 Immediately after `SCharacterSelectedPacket`, the server emits `SChunkLayoutPacket` carrying the chunk layout (chunks, entry spawn, cell size, portal placements). The client's `AuthFlowOrchestrator` pre-subscribes to this packet BEFORE sending `CCharacterSelected` so the dispatcher's fire-and-forget delivery doesn't drop it during the scene-load gap; the captured packet stashes on `GameSession.InitialChunkLayout` for the in-scene `PlayerMovementPredictor` / `ClientMapNavigator` / `ChunkLayoutVisualizer` / `ChunkMarkerVisualizer` to consume on `Start`. See **[Map Generation](map-generation.md)** for the full layout pipeline.
+
+Selecting a character does not put it in the world. The entity is held out of its instance until
+the client sends `CMSG_CHARACTER_LOADED`, or until the wait expires. See
+**[Character Readiness Barrier](character-readiness-barrier.md)**.
 
 ---
 

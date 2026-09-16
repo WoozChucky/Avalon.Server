@@ -29,7 +29,9 @@ public static class ServiceExtensions
                 gameConfig.WorldId =
                     config.GetSection("Game:WorldId").Value ??
                     throw new InvalidOperationException("WorldId is not set in configuration.");
-            });
+            })
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
 
         services
             .AddOptions<RegenConfiguration>()
