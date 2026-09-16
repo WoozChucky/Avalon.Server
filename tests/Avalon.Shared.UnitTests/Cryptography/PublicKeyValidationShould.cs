@@ -108,9 +108,15 @@ public class PublicKeyValidationShould
     }
 
     /// <summary>
-    /// And the session refuses it too, rather than reporting the failure a step later. A rejected
-    /// key must not leave a session that looks initialized.
+    /// And the session refuses it, rather than reporting the failure a step later.
     /// </summary>
+    /// <remarks>
+    /// It refuses the key, not the session: Initialize marks itself initialized before it
+    /// validates, so a session whose Initialize threw will fail inside Encrypt on a null key
+    /// rather than report that it was never initialized. Unreachable — the read loop's catch-all
+    /// closes the connection on the throw — and left alone because reordering the flag changes
+    /// what a second Initialize does, which is a separate contract.
+    /// </remarks>
     [Fact]
     public void RefuseAForeignCurveAtTheSession()
     {
