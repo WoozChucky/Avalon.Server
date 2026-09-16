@@ -59,6 +59,7 @@ nav:
     - Decisions: architecture-decisions.md
     - Networking:
       - Packet Protocol: networking-packet-protocol.md
+      - Session Crypto: crypto-v1-derivation.md
       - Graceful Shutdown: networking-graceful-shutdown.md
     - Auth Flow: character-login-flow.md
     - Security & Sessions: security-session-management.md
