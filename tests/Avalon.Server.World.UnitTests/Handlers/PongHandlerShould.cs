@@ -21,10 +21,11 @@ public class PongHandlerShould
             ClientReceivedTimestamp = 2000L,
             ClientSentTimestamp = 3000L
         };
+        _connection.CurrentPacketArrivedTicks.Returns(4000L);
 
         _handler.Execute(_connection, packet);
 
-        _connection.Received(1).OnPongReceived(1000L, 2000L, 3000L);
+        _connection.Received(1).OnPongReceived(1000L, 2000L, 3000L, 4000L);
     }
 
     [Fact]
@@ -39,6 +40,6 @@ public class PongHandlerShould
 
         _handler.Execute(_connection, packet);
 
-        _connection.Received(1).OnPongReceived(0L, 0L, 0L);
+        _connection.Received(1).OnPongReceived(0L, 0L, 0L, 0L);
     }
 }
