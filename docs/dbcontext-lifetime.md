@@ -60,11 +60,41 @@ Rules that follow:
   parameter exists so a derived repository still gets its own typed `DbSet`s.
 - Nothing tracked survives a call. The repositories were already written detached — `UpdateAsync`
   attaches and sets `Modified` explicitly — so `track: true` now only affects the returned graph,
-  not what happens on the next call.
+  not what happens on the next call. It says nothing about the next one, which is why
+  `StaticData` no longer asks for it.
+- **Name a principal by its foreign key, never by a navigation.** See below.
 - Repositories are registered singleton. They hold a factory, not state.
 - **Two repository calls share neither a context nor a transaction.** Every write method already
   called `SaveChangesAsync` itself, so two calls were never one unit of work; what changed is that
   an explicit `BeginTransactionAsync` opened elsewhere can no longer reach them.
+
+## Entities handed back are detached, and `Add` cascades over detached
+
+`DbSet.Add` walks the reachable navigation graph and marks every node that is `Detached` as
+`Added` — key set or not. Nodes already tracked `Unchanged` are skipped, and on a shared context
+the principal usually was, so the walk passed over it. A repository that creates a context per
+call disposes it before returning, so everything it hands back is detached:
+
+```csharp
+Account account = await accounts.CreateAsync(account);   // the row exists; the object is detached
+await devices.CreateAsync(new Device { Account = account, AccountId = account.Id, … });
+```
+
+That second call inserts the account again. It is not a silent corruption — it is
+`UNIQUE constraint failed: Accounts.Id` — but it lands *after* the account row has committed,
+so registration leaves an account that can never complete registration, and character creation
+leaves a `Character` row with no stats, no items and no reply to the client, burning the name and
+a slot the player cannot reuse.
+
+Two things close it, and they are independent:
+
+- **The repositories do not cascade.** Every write goes through `DbContextWriteExtensions`
+  (`TrackForInsert` / `TrackForUpdate`), which tracks the root for the write and marks anything
+  reachable that already carries its key as `Unchanged`. A reachable node with no key is genuinely
+  new and is still inserted, so inserting a parent with new children keeps working. This is what
+  covers call sites nobody has audited.
+- **Call sites do not assign a redundant navigation.** All three that did also set the foreign
+  key, so the navigation bought nothing and its only effect was this.
 
 ## Writes that must commit together
 
@@ -100,7 +130,24 @@ back to `AddScoped` the world host fails to build. `WorldHostGraphShould`,
 them under the same options, so that failure arrives from `dotnet test` rather than from a
 deployment.
 
+## Testing a write path
+
+The write paths are covered against a real relational database — SQLite over one connection held
+open for the life of the fixture. The connection *is* the database (`:memory:` is dropped when the
+last connection to it closes) and the repositories open a context per call, so every context is
+handed that one connection. Each context takes a `DbContextOptions<TContext>`; `OnConfiguring`
+returns early when the caller has already configured one, and the Npgsql path is unchanged.
+
+`AccountRegistrationShould` and `CharacterCreationShould` drive the real service and the real
+handler — the handler's continuation chain pumped the way the tick loop pumps it — over real
+repositories. With the cascade restored and the navigations put back, both fail on the duplicate
+insert, which is what they exist to say.
+
 ## Known gaps
+
+Proving that a write *inside* the transaction body enlists would need two contexts on two
+connections; the fixture deliberately shares one, so `AccountStatusChangeShould` covers what the
+ban does rather than what a rollback would undo.
 
 The audit that preceded this found four write sequences that were already not atomic before the
 change and still are not — refresh-token rotation, password change, email change confirmation, and
