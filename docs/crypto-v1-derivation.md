@@ -43,16 +43,10 @@ reconnecting derive different keys, and a relay that substitutes a public key de
 own exchange cannot match — which is not by itself authentication (findings 1 and 2 remain), but
 it does mean a key cannot be carried across exchanges.
 
-Note what supplies that freshness. **Only the client's key pair is per-connection.** The server's
-is created once per `ServerBase` and reused for the life of the process (`CryptoManager`), so the
-salt varies between connections because the client's half of it does. Two consequences, neither
-in scope here and both worth writing down rather than discovering: the session has no forward
-secrecy against the server key — recovering that one private key retroactively opens every
-recorded session, since every client public key is on the wire — and a client cannot treat the
-server's key as an identity, because nothing signs it and it is not pinned. Making the server's
-half ephemeral per connection is a one-line change to where `CryptoManager` is constructed and
-costs a P-256 keygen per connection; it belongs with findings 1 and 2, which is where the
-authentication it would need also lives.
+**Both key pairs are per-connection**, and on the server that is a requirement of the counter
+nonce rather than a nicety — see below. A client must not treat the server's key as an identity:
+it is different on every connection, nothing signs it, and nothing pins it. Authenticating the
+server is findings 1 and 2, and is not addressed here.
 
 ### Why the secret is fixed-width
 
@@ -71,6 +65,37 @@ implementation that trims gets wrong.
 A 96-bit big-endian counter from zero, one per direction, incremented per sealed packet. The
 two counters cannot collide because the two directions are keyed differently — which is the
 whole reason a counter is affordable here.
+
+### What a counter costs, and what pays for it
+
+Random 96-bit nonces were collision-safe whatever the peer did. A counter is not: every session
+starts at zero, so **two sessions that agree the same key seal their first packets under the same
+key and the same nonce**, which recovers the GCM authentication subkey for anyone listening and is
+invisible at both ends.
+
+That is not hypothetical, and while the server's key pair was per-process it took nothing but a
+client reusing its own key pair across two connections. Both halves of the salt would be
+identical, so the secret, both derived keys and both counters would be too. It would have been a
+security property the server could neither verify nor enforce, resting on a sentence in this
+document.
+
+So the server now agrees every connection on a key pair of its own (`Connection`, not
+`ServerBase`), which closes it unilaterally: the salt and the secret differ per connection
+whatever the client does. Cost is one P-256 keygen per accepted connection — **0.23 ms**, measured
+in Release, against ~2 us per sealed 256-byte packet and against a TLS handshake on the same path.
+It is per connection, not per packet.
+
+`ServerBase.Crypto` is gone rather than left unused, because a process-wide key pair within reach
+is how this would come back.
+
+The side benefit, which was the original reason to want it: both halves of the exchange are now
+ephemeral, so recorded traffic is not retroactively readable from either end's stored keys. That
+holds only while **both** ends are ephemeral — a client that reuses its key pair is safe from the
+nonce problem but gives that property up, so a client should generate a fresh pair per connection
+too.
+
+BouncyCastle will not catch a lapse here. Its `cannot reuse nonce for GCM encryption` guard is per
+cipher instance and each session owns its own, so it is silent across two sessions.
 
 **The nonce stays on the wire.** The format is unchanged:
 
@@ -111,8 +136,9 @@ rejected peer input rather than as a programming error.
 
 ## What a client must implement
 
-1. A per-connection P-256 key pair, exported as named-curve `SubjectPublicKeyInfo` DER
-   (91 bytes). The server reuses one key pair process-wide; a client must not.
+1. A **fresh** P-256 key pair per connection, exported as named-curve `SubjectPublicKeyInfo` DER
+   (91 bytes). The server does the same. Reusing one is no longer a nonce hazard — the server's
+   own freshness closes that — but it forfeits forward secrecy.
 2. ECDH, **zero-padded to 32 bytes**.
 3. HKDF-SHA256 twice, over the salt and the two labels above. `mbedtls_hkdf` with
    `mbedtls_md_info_from_type(MBEDTLS_MD_SHA256)` is exactly this.
@@ -150,9 +176,10 @@ from the strings in it. A client needs only the bytes.
 
 The client vendors `schema/` and covers each file with a hash in its own `SCHEMA-MANIFEST`. This
 file is not yet in that manifest — adding it is part of the client-side pass, along with the
-`.gitattributes` `-text` marking the other vendored schema files carry, since the vectors are
-compared as bytes and autocrlf would otherwise fail them on a machine where nobody had touched
-anything.
+`-text` marking in the client's `.gitattributes` that the other vendored schema files carry, since
+the vectors are compared as bytes and autocrlf would otherwise fail them on a machine where nobody
+had touched anything. On this side `schema/crypto/*.txt text eol=lf` does the same job, so
+regenerating does not dirty the tree.
 
 ## Regenerating
 

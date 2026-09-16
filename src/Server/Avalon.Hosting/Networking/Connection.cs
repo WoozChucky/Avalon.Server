@@ -63,6 +63,13 @@ public abstract class Connection : BackgroundService, IConnection
         _logger = logger;
         _packetReader = packetReader;
         Server = server;
+
+        // Per connection, not per process. The session nonce is a counter from zero, so two
+        // connections that agreed the same key would seal their first packets under the same key
+        // and the same nonce -- which recovers the GCM authentication key for anyone listening.
+        // A shared server key pair made that reachable from the far end alone, by a client that
+        // reused its own key pair, and neither end could see it happen.
+        ServerCrypto = new CryptoManager();
         CryptoSession = new AvalonCryptoSession(CryptoRole.Server, ServerCrypto.GetKeyPair());
         Id = Guid.NewGuid();
     }
@@ -71,7 +78,7 @@ public abstract class Connection : BackgroundService, IConnection
     public Guid Id { get; }
     public string RemoteEndPoint { get; private set; } = "Unknown";
     public IAvalonCryptoSession CryptoSession { get; }
-    public ICryptoManager ServerCrypto => Server.Crypto;
+    public ICryptoManager ServerCrypto { get; }
 
     public void Close(bool expected = true) => _ = CloseAsync(expected);
 

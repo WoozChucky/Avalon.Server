@@ -1,6 +1,5 @@
 using System.Net;
 using System.Net.Sockets;
-using Avalon.Common.Cryptography;
 using Avalon.Hosting.Networking;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.World;
@@ -19,7 +18,6 @@ public sealed class ProcessContinuationsShould : IDisposable
         // Build a mock that satisfies both IWorldServer and IServerBase (WorldConnection
         // casts its first arg to IServerBase in the base constructor).
         var server = Substitute.For<IWorldServer, IServerBase>();
-        ((IServerBase)server).Crypto.Returns(new CryptoManager());
         ((IServerBase)server).SendBufferCapacity.Returns(256);
 
         var (clientSide, serverSide) = CreateLoopbackPair();
