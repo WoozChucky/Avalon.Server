@@ -8,6 +8,7 @@ using Avalon.Api.Services;
 using Avalon.Database.Auth;
 using Avalon.Database.Character;
 using Avalon.Database.World;
+using Avalon.Hosting;
 using Avalon.Hosting.Extensions;
 using Avalon.Infrastructure;
 using Microsoft.AspNetCore.HttpOverrides;
@@ -16,6 +17,7 @@ using Microsoft.OpenApi;
 using Scalar.AspNetCore;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
+builder.Host.UseDefaultServiceProvider((_, options) => AvalonServiceProvider.Configure(options));
 
 IConfigurationRoot configuration = builder
     .Configuration
