@@ -131,6 +131,19 @@ public class WorldConnectionTimeSyncShould : IDisposable
     }
 
     [Fact]
+    public void HandOutAnInitialPingRequestOnce()
+    {
+        // The tick asks every connection every tick, so a request that did not clear would ping on
+        // all of them -- once per 16 ms rather than once per ten seconds.
+        Assert.False(_connection.TakeInitialTimeSyncPingRequest());
+
+        _connection.RequestInitialTimeSyncPing();
+
+        Assert.True(_connection.TakeInitialTimeSyncPingRequest());
+        Assert.False(_connection.TakeInitialTimeSyncPingRequest());
+    }
+
+    [Fact]
     public void ReportTheRoundTrip_AsBothLegsTogether()
     {
         long now = DateTime.UtcNow.Ticks;
