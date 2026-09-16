@@ -18,5 +18,5 @@ copy to its original automatically, because there is no original to fetch from t
 so VendoredBclSchemaShould in tests/Avalon.Shared.UnitTests fails on the upgrade instead,
 which is the moment that reading is worth doing.
 
-Vendored-From: protobuf-net 3.4.21
-Upstream-Commit: 6269b3bcfa3454a32495a681b7ae58b157637df0
+Vendored-From: protobuf-net 3.4.30
+Upstream-Commit: f24c4c97bb146d763425a04b6b8dd7fd89219ef3
