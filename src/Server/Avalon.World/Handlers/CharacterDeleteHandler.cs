@@ -21,7 +21,11 @@ public class CharacterDeletetHandler(
             return;
         }
 
-        if (connection.Character != null)
+        // A select that has not finished counts as selected. SelectInProgress is the span
+        // where the entity is being built and both of the other two are still null; a delete
+        // landing there deletes the character being spawned.
+        if (connection.Character != null || connection.PendingSpawn != null ||
+            connection.SelectInProgress)
         {
             logger.LogWarning("Connection tried to delete a character while already having a character selected");
             connection.Close();

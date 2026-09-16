@@ -74,7 +74,7 @@ public abstract class Connection : BackgroundService, IConnection
         Id = Guid.NewGuid();
     }
 
-    protected bool IsConnected => _client?.Connected == true;
+    public bool IsConnected => _client?.Connected == true;
     public Guid Id { get; }
     public string RemoteEndPoint { get; private set; } = "Unknown";
     public IAvalonCryptoSession CryptoSession { get; }

@@ -1,6 +1,7 @@
 using Avalon.Common.ValueObjects;
 using Avalon.Hosting.Networking;
 using Avalon.World.Public.Characters;
+using Avalon.World.Public.Instances;
 
 namespace Avalon.World.Public;
 
@@ -18,6 +19,40 @@ public interface IWorldConnection : IConnection
     ///     Gets or sets the character associated with the connection.
     /// </summary>
     public ICharacter? Character { get; set; }
+
+    /// <summary>
+    ///     The character built by character-select, waiting to be spawned. Null once it has been
+    ///     spawned, and null for a connection that has not selected. While this is set
+    ///     <see cref="Character" /> is still null: the character exists but nothing on the tick
+    ///     can see it.
+    /// </summary>
+    public PendingSpawn? PendingSpawn { get; }
+
+    /// <summary>
+    ///     True from the moment a character select is accepted until the entity is handed over as
+    ///     a pending spawn, or until the chain gives up. <see cref="Character" /> and
+    ///     <see cref="PendingSpawn" /> are BOTH null across that span, which is several database
+    ///     round trips long, so this is the only thing that says a select is under way.
+    /// </summary>
+    public bool SelectInProgress { get; set; }
+
+    /// <summary>
+    ///     Whether the socket is still up. The tick reads it before acting on a connection's
+    ///     pending spawn; a dropped connection's pending spawn belongs to the despawn.
+    /// </summary>
+    public bool IsConnected { get; }
+
+    /// <summary>
+    ///     Holds a built character out of its instance. Clears <see cref="SelectInProgress" />:
+    ///     the pending spawn supersedes it. <paramref name="sinceTicks" /> is
+    ///     <c>DateTime.UtcNow.Ticks</c> and starts the readiness barrier.
+    /// </summary>
+    void SetPendingSpawn(ICharacter character, IMapInstance instance, long sinceTicks);
+
+    /// <summary>
+    ///     Takes the pending spawn, clearing it. Returns null when there is none.
+    /// </summary>
+    PendingSpawn? TakePendingSpawn();
 
     /// <summary>
     ///     Gets the latency of the connection.
