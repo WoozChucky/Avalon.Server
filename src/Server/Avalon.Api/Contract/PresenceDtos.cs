@@ -27,7 +27,10 @@ public class InstancePresenceDto
     public ushort TemplateId { get; set; }
     public string TemplateName { get; set; } = string.Empty;
     public int Seed { get; set; }
-    public PresenceMapType MapType { get; set; }
+
+    /// <summary>Map type. Null if the presence snapshot carried a map type this build does not recognise.</summary>
+    public MapType? MapType { get; set; }
+
     public ushort WorldId { get; set; }
     public uint? OwnerCharacterId { get; set; }
     public IList<CharacterPresenceDto> Characters { get; set; } = [];
