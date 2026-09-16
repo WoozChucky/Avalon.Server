@@ -18,7 +18,7 @@ public class CharacterInventoryRepository(IDbContextFactory<CharacterDbContext> 
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
 
-        var entity = await context.CharacterInventory.AddAsync(inventory, cancellationToken);
+        var entity = context.TrackForInsert(inventory);
         await context.SaveChangesAsync(cancellationToken);
         return entity.Entity;
     }
@@ -30,7 +30,7 @@ public class CharacterInventoryRepository(IDbContextFactory<CharacterDbContext> 
         var entityList = new List<CharacterInventory>();
         foreach (var inventory in inventories)
         {
-            var entity = await context.CharacterInventory.AddAsync(inventory, cancellationToken);
+            var entity = context.TrackForInsert(inventory);
             entityList.Add(entity.Entity);
         }
         await context.SaveChangesAsync(cancellationToken);
@@ -41,7 +41,7 @@ public class CharacterInventoryRepository(IDbContextFactory<CharacterDbContext> 
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
 
-        var entity = context.CharacterInventory.Update(inventory);
+        var entity = context.TrackForUpdate(inventory);
         await context.SaveChangesAsync(cancellationToken);
         return entity.Entity;
     }

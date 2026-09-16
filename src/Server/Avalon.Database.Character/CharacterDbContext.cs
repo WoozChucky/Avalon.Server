@@ -58,10 +58,21 @@ public sealed class CharacterDbContextFactory : IDesignTimeDbContextFactory<Char
     }
 }
 
-public class CharacterDbContext(ILoggerFactory loggerFactory, IOptions<DatabaseConfiguration> opts)
-    : DbContext
+public class CharacterDbContext : DbContext
 {
-    private readonly string _connectionString = opts.Value.Characters!.ConnectionString;
+    private readonly ILoggerFactory? _loggerFactory;
+    private readonly string? _connectionString;
+
+    public CharacterDbContext(ILoggerFactory loggerFactory, IOptions<DatabaseConfiguration> opts)
+    {
+        _loggerFactory = loggerFactory;
+        _connectionString = opts.Value.Characters!.ConnectionString;
+    }
+
+    /// <summary>Configured by the caller. Lets a test point the same model at another provider.</summary>
+    public CharacterDbContext(DbContextOptions<CharacterDbContext> options) : base(options)
+    {
+    }
 
     public DbSet<Domain.Characters.Character> Characters { get; set; } = null!;
     public DbSet<CharacterStats> CharacterStats { get; set; } = null!;
@@ -70,11 +81,16 @@ public class CharacterDbContext(ILoggerFactory loggerFactory, IOptions<DatabaseC
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
+        if (optionsBuilder.IsConfigured)
+        {
+            return;
+        }
+
         optionsBuilder
-            .UseLoggerFactory(loggerFactory)
+            .UseLoggerFactory(_loggerFactory)
             .EnableSensitiveDataLogging();
 
-        optionsBuilder.UseNpgsql(_connectionString);
+        optionsBuilder.UseNpgsql(_connectionString!);
     }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)

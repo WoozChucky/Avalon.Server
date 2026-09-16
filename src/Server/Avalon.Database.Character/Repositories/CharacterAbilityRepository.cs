@@ -17,7 +17,7 @@ public class CharacterAbilityRepository(IDbContextFactory<CharacterDbContext> co
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
 
-        var entity = await context.CharacterAbilities.AddAsync(ability, cancellationToken);
+        var entity = context.TrackForInsert(ability);
         await context.SaveChangesAsync(cancellationToken);
         return entity.Entity;
     }
@@ -29,7 +29,7 @@ public class CharacterAbilityRepository(IDbContextFactory<CharacterDbContext> co
         var entityList = new List<CharacterAbility>();
         foreach (var ability in abilities)
         {
-            var entity = await context.CharacterAbilities.AddAsync(ability, cancellationToken);
+            var entity = context.TrackForInsert(ability);
             entityList.Add(entity.Entity);
         }
         await context.SaveChangesAsync(cancellationToken);

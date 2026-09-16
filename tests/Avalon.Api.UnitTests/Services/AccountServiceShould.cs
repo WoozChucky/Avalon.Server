@@ -38,8 +38,7 @@ public class AccountServiceShould
     /// The substituted runner never invokes the body, so anything a collaborator still receives is
     /// a write that was hoisted out of the transaction — the shape this had before, when the
     /// repositories shared the service's context and a repository call did join the transaction.
-    /// It does not cover a write that stays inside the body but goes through a repository: proving
-    /// that one enlists takes a database, and there is none here.
+    /// AccountStatusChangeShould covers the body itself against a real database.
     /// </summary>
     [Fact]
     public async Task Write_no_part_of_a_status_change_outside_the_transaction_it_opens()

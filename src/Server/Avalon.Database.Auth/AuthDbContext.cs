@@ -60,10 +60,21 @@ public sealed class AuthDbContextFactory : IDesignTimeDbContextFactory<AuthDbCon
     }
 }
 
-public class AuthDbContext(ILoggerFactory loggerFactory, IOptions<DatabaseConfiguration> opts)
-    : DbContext
+public class AuthDbContext : DbContext
 {
-    private readonly string _connectionString = opts.Value.Auth!.ConnectionString;
+    private readonly ILoggerFactory? _loggerFactory;
+    private readonly string? _connectionString;
+
+    public AuthDbContext(ILoggerFactory loggerFactory, IOptions<DatabaseConfiguration> opts)
+    {
+        _loggerFactory = loggerFactory;
+        _connectionString = opts.Value.Auth!.ConnectionString;
+    }
+
+    /// <summary>Configured by the caller. Lets a test point the same model at another provider.</summary>
+    public AuthDbContext(DbContextOptions<AuthDbContext> options) : base(options)
+    {
+    }
 
     public DbSet<Account> Accounts { get; set; } = null!;
     public DbSet<Device> Devices { get; set; } = null!;
@@ -75,10 +86,16 @@ public class AuthDbContext(ILoggerFactory loggerFactory, IOptions<DatabaseConfig
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
-        optionsBuilder.UseLoggerFactory(loggerFactory)
+        if (optionsBuilder.IsConfigured)
+        {
+            return;
+        }
+
+        optionsBuilder
+            .UseLoggerFactory(_loggerFactory)
             .EnableSensitiveDataLogging();
 
-        optionsBuilder.UseNpgsql(_connectionString);
+        optionsBuilder.UseNpgsql(_connectionString!);
     }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)

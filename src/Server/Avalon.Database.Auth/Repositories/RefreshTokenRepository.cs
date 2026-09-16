@@ -19,7 +19,7 @@ public sealed class RefreshTokenRepository(IDbContextFactory<AuthDbContext> cont
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
 
-        var entry = await context.RefreshTokens.AddAsync(token, cancellationToken);
+        var entry = context.TrackForInsert(token);
         await context.SaveChangesAsync(cancellationToken);
         return entry.Entity;
     }
@@ -37,7 +37,7 @@ public sealed class RefreshTokenRepository(IDbContextFactory<AuthDbContext> cont
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
 
-        context.RefreshTokens.Update(token);
+        context.TrackForUpdate(token);
         await context.SaveChangesAsync(cancellationToken);
     }
 

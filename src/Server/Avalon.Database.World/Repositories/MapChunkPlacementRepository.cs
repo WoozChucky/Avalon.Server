@@ -39,7 +39,10 @@ public class MapChunkPlacementRepository(IDbContextFactory<WorldDbContext> conte
         context.MapChunkPlacements.RemoveRange(existing);
         await context.SaveChangesAsync(ct);
 
-        await context.MapChunkPlacements.AddRangeAsync(placements, ct);
+        foreach (var placement in placements)
+        {
+            context.TrackForInsert(placement);
+        }
         await context.SaveChangesAsync(ct);
 
         await tx.CommitAsync(ct);
