@@ -10,6 +10,7 @@ using Avalon.World.Entities;
 using Avalon.World.Filters;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
+using Avalon.World.Public.Instances;
 using Microsoft.Extensions.Logging;
 using Packet = Avalon.Network.Packets.Packet;
 
@@ -60,6 +61,30 @@ public class WorldConnection : Connection, IWorldConnection
     {
         get => _characterEntity;
         set => _characterEntity = value as CharacterEntity;
+    }
+
+    // Written by the character-select handler and its continuations, read by the tick, the
+    // readiness barrier and the despawn -- all of which run on the tick thread, as _characterEntity
+    // above does.
+    private PendingSpawn? _pendingSpawn;
+
+    public PendingSpawn? PendingSpawn => _pendingSpawn;
+
+    /// <inheritdoc />
+    public bool SelectInProgress { get; set; }
+
+    public void SetPendingSpawn(ICharacter character, IMapInstance instance, long sinceTicks)
+    {
+        _pendingSpawn = new PendingSpawn(character, instance, sinceTicks);
+        // Cleared here rather than at the call site so the two cannot disagree.
+        SelectInProgress = false;
+    }
+
+    public PendingSpawn? TakePendingSpawn()
+    {
+        PendingSpawn? pending = _pendingSpawn;
+        _pendingSpawn = null;
+        return pending;
     }
 
     public long Latency { get; private set; }

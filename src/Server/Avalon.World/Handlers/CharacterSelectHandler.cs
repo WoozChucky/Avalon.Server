@@ -55,13 +55,19 @@ public class CharacterSelectHandler(
             return;
         }
 
-        if (connection.Character != null)
+        // Three states, not one. Character covers a spawned player; PendingSpawn a built one
+        // waiting on its client; SelectInProgress the several database round trips between, where
+        // both of the others are still null. A second select inside that span orphans the entity
+        // the first one is building.
+        if (connection.Character != null || connection.PendingSpawn != null || connection.SelectInProgress)
         {
             logger.LogWarning("Connection tried to select a character list while already having a character selected");
             activity?.AddEvent(new ActivityEvent("DuplicateSelectionAttempt"));
             connection.Close();
             return;
         }
+
+        connection.SelectInProgress = true;
 
         connection.EnqueueContinuation(
             characterRepository.FindByIdAndAccountAsync(packet.CharacterId, connection.AccountId),
@@ -82,10 +88,13 @@ public class CharacterSelectHandler(
         {
             logger.LogWarning("Character not found for account {AccountId}", connection.AccountId);
             activity?.AddEvent(new ActivityEvent("CharacterNotFound"));
+            connection.SelectInProgress = false;
             return;
         }
 
-        character.Online = true;
+        // Online is NOT set here. The row would then say the player is in the world for as long as
+        // the client takes to load, and a disconnect inside that window has nothing in an instance
+        // to write it back. World.SpawnInInstance sets it.
         character.Latency = (int)connection.Latency;
 
         ulong requiredExperience = world.Data.CharacterLevelExperiences.FirstOrDefault(c => c.Level == character.Level)
@@ -122,8 +131,9 @@ public class CharacterSelectHandler(
             _ => PowerType.None
         };
 
-        // connection.Character is NOT assigned here. Assignment is deferred to OnSpellsReceived
-        // so the tick loop only sees a fully-initialized entity (inventory + spells loaded).
+        // connection.Character is NOT assigned here, and is not assigned by this handler at all.
+        // The entity is handed to the connection as a pending spawn once inventory and spells are
+        // loaded; CharacterReadinessBarrier assigns it.
 
         MapTemplate? loadedTemplate = world.MapTemplates.FirstOrDefault(t => t.Id == (MapTemplateId)character.Map);
         if (loadedTemplate == null)
@@ -131,6 +141,7 @@ public class CharacterSelectHandler(
             logger.LogError("MapTemplate {MapId} not found for character {CharacterId}", character.Map,
                 character.Id);
             activity?.AddEvent(new ActivityEvent("MapTemplateNotFound"));
+            connection.SelectInProgress = false;
             return;
         }
 
@@ -154,6 +165,7 @@ public class CharacterSelectHandler(
                     {
                         logger.LogError("Resolved town map {TownMapId} not found in MapTemplates",
                             townMapId.Value);
+                        connection.SelectInProgress = false;
                         return;
                     }
                     character.Map = townMapId.Value;
@@ -355,21 +367,14 @@ public class CharacterSelectHandler(
 
         connection.Send(SCharacterAbilitiesPacket.Create(abilityInfos, connection.CryptoSession.Encrypt));
 
-        // All data loaded: assign character and spawn atomically on the tick thread.
-        // After this point the entity is visible to MapInstance.Update.
-        connection.Character = entity;
-        try
-        {
-            world.SpawnInInstance(connection, instance);
-        }
-        catch (Exception e)
-        {
-            connection.Character = null;
-            logger.LogError(e, "Error while spawning player {CharacterId}", entity.Data?.Id);
-            return;
-        }
+        // All data loaded, but the client has not composed the map yet. The entity is held as a
+        // pending spawn instead of being assigned and spawned here, so nothing on the tick sees a
+        // character whose client is still loading. CharacterLoadedHandler releases it when the
+        // client reports in; WorldServer's tick releases it anyway once the barrier expires.
+        connection.SetPendingSpawn(entity, instance, DateTime.UtcNow.Ticks);
 
-        logger.LogInformation("Character {CharacterName} logged in for account {AccountId} at {Position}",
-            entity.Data?.Name, connection.AccountId, entity.Position);
+        logger.LogInformation(
+            "Character {CharacterName} selected for account {AccountId}; awaiting the client's load report",
+            entity.Data?.Name, connection.AccountId);
     }
 }
