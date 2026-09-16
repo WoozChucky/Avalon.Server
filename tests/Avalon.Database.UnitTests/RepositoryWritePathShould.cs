@@ -161,6 +161,81 @@ public class RepositoryWritePathShould
         Assert.Equal(2, await context.ItemInstances.CountAsync(i => i.TemplateId == templateId));
     }
 
+    /// <summary>
+    /// The update half of the rule, symmetric with the insert half. Marking the principal Modified
+    /// would write a row the caller never asked to write.
+    /// </summary>
+    [Fact]
+    public async Task Refuse_an_update_whose_entity_names_its_principal_by_navigation()
+    {
+        using SqliteDatabase<Auth.AuthDbContext> database = SqliteDatabase.Auth();
+        AccountRepository accounts = new(database);
+        DeviceRepository devices = new(database);
+
+        Account account = await accounts.CreateAsync(NewAccount());
+        Device device = await devices.CreateAsync(new Device
+        {
+            AccountId = account.Id,
+            Name = "test-agent",
+            LastUsage = DateTime.UtcNow,
+            Trusted = false,
+            TrustEnd = DateTime.UtcNow,
+        });
+
+        device.Account = account;
+        device.Trusted = true;
+
+        InvalidOperationException error =
+            await Assert.ThrowsAsync<InvalidOperationException>(() => devices.UpdateAsync(device));
+
+        Assert.Contains(nameof(Device), error.Message, StringComparison.Ordinal);
+        Assert.Contains(nameof(Account), error.Message, StringComparison.Ordinal);
+
+        await using Auth.AuthDbContext context = database.CreateDbContext();
+        Assert.False((await context.Devices.SingleAsync()).Trusted);
+    }
+
+    /// <summary>
+    /// KNOWN LIMITATION, pinned as it is rather than as it should be: an owner that carries owned
+    /// collections cannot currently be updated through a repository at all. The owned nodes are
+    /// exempt from the refusal and take the root's Modified state, EF rejects re-tracking them, and
+    /// the update does not land — even when nothing about the owned rows changed.
+    ///
+    /// This is preferred to what it replaced. Under the previous key test the same update succeeded
+    /// and duplicated the owned rows, two slots becoming four, with no error. A loud failure on a
+    /// path nothing calls beats silent corruption on it. Fixing it is its own change; an early
+    /// return on owned nodes is not the fix, because that drops them.
+    /// </summary>
+    [Fact]
+    public async Task Fail_loudly_when_an_owner_with_owned_rows_is_updated()
+    {
+        using SqliteDatabase<World.WorldDbContext> database = SqliteDatabase.World();
+        ChunkTemplateRepository templates = new(database);
+        ChunkTemplateId id = new(8888);
+
+        await templates.CreateAsync(new ChunkTemplate
+        {
+            Id = id,
+            Name = "before",
+            SpawnSlots = [new ChunkSpawnSlot { Tag = "entry" }, new ChunkSpawnSlot { Tag = "pack" }],
+        });
+
+        ChunkTemplate stored = (await templates.FindByIdAsync(id))!;
+        stored.Name = "after";
+
+        InvalidOperationException error =
+            await Assert.ThrowsAsync<InvalidOperationException>(() => templates.UpdateAsync(stored));
+
+        // EF's own refusal, not ours: the owned rows are exempt and reach the change tracker.
+        Assert.Contains(nameof(ChunkSpawnSlot), error.Message, StringComparison.Ordinal);
+        Assert.Contains("already being tracked", error.Message, StringComparison.Ordinal);
+
+        await using World.WorldDbContext context = database.CreateDbContext();
+        ChunkTemplate unchanged = await context.ChunkTemplates.AsNoTracking().SingleAsync(t => t.Id == id);
+        Assert.Equal("before", unchanged.Name);
+        Assert.Equal(2, unchanged.SpawnSlots.Count);
+    }
+
     private static ItemInstance NewItemInstance(ItemTemplateId templateId) => new()
     {
         TemplateId = templateId,
