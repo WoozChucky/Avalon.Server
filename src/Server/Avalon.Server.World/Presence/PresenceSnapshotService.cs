@@ -26,7 +26,7 @@ public sealed class PresenceSnapshotService : BackgroundService
 {
     private static readonly TimeSpan CaptureInterval = TimeSpan.FromSeconds(1);
 
-    private readonly Func<IInstanceRegistry> _registryAccessor;
+    private readonly Func<IInstanceRegistry?> _registryAccessor;
     private readonly IReplicatedCache _cache;
     private readonly ILogger<PresenceSnapshotService> _logger;
     private readonly ushort _worldId;
@@ -49,10 +49,13 @@ public sealed class PresenceSnapshotService : BackgroundService
     /// before calling <c>StartAsync</c> on any of them). Capturing
     /// <c>IWorld.InstanceRegistry</c> once at construction time would therefore permanently
     /// bind to <see langword="null"/>. Production wiring (<c>Program.cs</c>) uses this overload
-    /// with an accessor that reads <c>IWorld.InstanceRegistry</c> fresh on every tick instead.
+    /// with an accessor that reads <c>IWorld.InstanceRegistry</c> fresh on every tick instead —
+    /// which can itself still return <see langword="null"/> for the first several ticks while
+    /// <c>LoadAsync</c> is still running (DB and asset loading takes seconds); see
+    /// <see cref="CaptureOnceAsync"/>, which treats that as "nothing to publish yet", not a fault.
     /// </summary>
     public PresenceSnapshotService(
-        Func<IInstanceRegistry> registryAccessor,
+        Func<IInstanceRegistry?> registryAccessor,
         IReplicatedCache cache,
         IOptions<GameConfiguration> gameConfig,
         ILogger<PresenceSnapshotService> logger)
@@ -81,8 +84,20 @@ public sealed class PresenceSnapshotService : BackgroundService
     {
         try
         {
+            IInstanceRegistry? registry = _registryAccessor();
+            if (registry is null)
+            {
+                // IWorld.InstanceRegistry does not exist until World.LoadAsync completes --
+                // several seconds of DB/asset loading that this service's first few ticks
+                // race against on every boot. Expected, not a Redis/observability fault,
+                // so this stays at debug rather than the warning below.
+                _logger.LogDebug(
+                    "Presence capture skipped for world {WorldId}: instance registry not ready yet.", _worldId);
+                return;
+            }
+
             DateTime now = DateTime.UtcNow;
-            List<InstancePresenceSnapshot> instances = BuildInstanceSnapshots(_registryAccessor(), now);
+            List<InstancePresenceSnapshot> instances = BuildInstanceSnapshots(registry, now);
             if (instances.Count == 0) return;
 
             var snapshot = new WorldPresenceSnapshot(_worldId, now, instances);
@@ -93,8 +108,14 @@ public sealed class PresenceSnapshotService : BackgroundService
 
             await WriteCharacterIndexAsync(instances);
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
+            // Only our own caller's shutdown token should unwind out of this hosted
+            // service. Any other cancellation observed here (e.g. a Redis client
+            // surfacing a TaskCanceledException from a reconnect/dispose race, which
+            // derives from OperationCanceledException) falls through to the logging
+            // catch below instead of propagating into BackgroundService and stopping
+            // the world server.
             throw;
         }
         catch (Exception ex)
@@ -109,11 +130,35 @@ public sealed class PresenceSnapshotService : BackgroundService
     /// snapshot. Empty instances (town hubs sit empty for long stretches) are skipped —
     /// they carry no observability value and would only inflate the payload.
     /// </summary>
-    private static List<InstancePresenceSnapshot> BuildInstanceSnapshots(IInstanceRegistry registry, DateTime now)
+    private List<InstancePresenceSnapshot> BuildInstanceSnapshots(IInstanceRegistry registry, DateTime now)
     {
         List<InstancePresenceSnapshot> instances = [];
 
         foreach (IMapInstance instance in registry.ActiveInstances)
+        {
+            InstancePresenceSnapshot? snapshot = TryBuildInstanceSnapshot(instance, now);
+            if (snapshot is not null) instances.Add(snapshot);
+        }
+
+        return instances;
+    }
+
+    /// <summary>
+    /// Builds one instance's snapshot, or null if it currently holds no players or its
+    /// roster could not be safely read this tick.
+    ///
+    /// <c>ISimulationContext.Characters</c> is a plain dictionary mutated by the 60 Hz
+    /// simulation tick thread (<c>AddCharacter</c>/<c>RemoveCharacter</c>) while this timer
+    /// walks it from a thread-pool thread. A player entering or leaving mid-walk can surface
+    /// as <see cref="InvalidOperationException"/> ("Collection was modified"). That is
+    /// contained to this one instance for this one tick — it must not discard every other
+    /// instance's data — and is expected under normal player movement, not a fault worth a
+    /// warning. Fixing the underlying race belongs to the simulation's instance/character
+    /// collections, not this read-only observer.
+    /// </summary>
+    private InstancePresenceSnapshot? TryBuildInstanceSnapshot(IMapInstance instance, DateTime now)
+    {
+        try
         {
             List<CharacterPresenceSnapshot> characters = [];
             foreach (ICharacter c in instance.Characters.Values)
@@ -133,33 +178,46 @@ public sealed class PresenceSnapshotService : BackgroundService
                     LastSeen: now));
             }
 
-            if (characters.Count == 0) continue;
+            if (characters.Count == 0) return null;
 
-            instances.Add(new InstancePresenceSnapshot(
+            return new InstancePresenceSnapshot(
                 InstanceId: instance.InstanceId,
                 TemplateId: instance.TemplateId.Value,
                 Seed: instance.Seed,
                 MapType: instance.MapType.ToString(),
                 ConfigVersion: instance.ConfigVersion,
                 OwnerCharacterId: instance.OwnerCharacterId,
-                Characters: characters));
+                Characters: characters);
         }
-
-        return instances;
+        catch (InvalidOperationException ex)
+        {
+            _logger.LogDebug(ex,
+                "Presence capture skipped instance {InstanceId}: roster changed mid-walk.", instance.InstanceId);
+            return null;
+        }
     }
 
-    /// <summary>Writes the character -> (world, instance) reverse index used by the Api to find a player without scanning every world snapshot.</summary>
-    private async Task WriteCharacterIndexAsync(List<InstancePresenceSnapshot> instances)
+    /// <summary>
+    /// Writes the character -> (world, instance) reverse index used by the Api to find a
+    /// player without scanning every world snapshot. Fired off in parallel rather than
+    /// awaited one at a time — at hundreds of concurrent players, serial round trips could
+    /// eat a meaningful fraction of the 1-second capture budget and risk missing the
+    /// <see cref="CacheKeys.PresenceTtl"/> window on a latency spike.
+    /// </summary>
+    private Task WriteCharacterIndexAsync(List<InstancePresenceSnapshot> instances)
     {
+        List<Task> writes = [];
         foreach (InstancePresenceSnapshot instance in instances)
         {
             foreach (CharacterPresenceSnapshot c in instance.Characters)
             {
-                await _cache.SetAsync(
+                writes.Add(_cache.SetAsync(
                     CacheKeys.CharacterPresenceIndex(c.CharacterId),
                     PresenceJson.Serialize(new CharacterPresenceIndex(_worldId, instance.InstanceId)),
-                    CacheKeys.PresenceTtl);
+                    CacheKeys.PresenceTtl));
             }
         }
+
+        return Task.WhenAll(writes);
     }
 }
