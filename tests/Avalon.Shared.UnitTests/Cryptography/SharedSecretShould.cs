@@ -118,7 +118,7 @@ public class SharedSecretShould
         // completes and the failure lands on the first packet anyone tries to seal.
         (AsymmetricCipherKeyPair ours, ECPublicKeyParameters theirs, _) = FindShortSecret();
 
-        var session = new AvalonCryptoSession(ours);
+        var session = new AvalonCryptoSession(CryptoRole.Client, ours);
         session.Initialize(AsymmetricCipher.GetPublicKeyBytes(theirs));
 
         byte[] sealed_ = session.Encrypt("a packet"u8);

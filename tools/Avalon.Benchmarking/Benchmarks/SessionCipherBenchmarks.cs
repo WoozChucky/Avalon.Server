@@ -23,7 +23,8 @@ public class SessionCipherBenchmarks
     private const int NonceSize = 12;
     private const int TagSize = 16;
 
-    private IAvalonCryptoSession _session = null!;
+    private IAvalonCryptoSession _client = null!;
+    private IAvalonCryptoSession _server = null!;
     private AesGcm _aesGcm = null!;
 
     private byte[] _plaintext = null!;
@@ -41,22 +42,33 @@ public class SessionCipherBenchmarks
             AsymmetricCipher.GetPublicKeyFromKeyPair(serverKeyPair));
 
         var clientKeyPair = AsymmetricCipher.GenerateECDHKeyPair(256);
+        var clientPublicKeyBytes = AsymmetricCipher.GetPublicKeyBytes(
+            AsymmetricCipher.GetPublicKeyFromKeyPair(clientKeyPair));
 
-        _session = new AvalonCryptoSession(clientKeyPair);
-        _session.Initialize(serverPublicKeyBytes);
+        // Both ends of one exchange. A session seals with its own direction's key and opens with
+        // the other's, so a single session cannot read what it wrote.
+        _client = new AvalonCryptoSession(CryptoRole.Client, clientKeyPair);
+        _client.Initialize(serverPublicKeyBytes);
 
-        // The session derives its AES key from this same agreement, so the platform arm is keyed
-        // identically rather than merely equivalently.
-        byte[] sessionKey = AsymmetricCipher.CalculateSharedSecret(
+        _server = new AvalonCryptoSession(CryptoRole.Server, serverKeyPair);
+        _server.Initialize(clientPublicKeyBytes);
+
+        // The platform arm is keyed with the client-to-server key the session actually seals with,
+        // so both arms run on identical key material rather than merely equivalent material.
+        byte[] sharedSecret = AsymmetricCipher.CalculateSharedSecret(
             clientKeyPair,
             AsymmetricCipher.GetPublicKeyFromBytes(serverPublicKeyBytes));
+
+        byte[] sessionKey = SessionKeys
+            .Derive(sharedSecret, clientPublicKeyBytes, serverPublicKeyBytes)
+            .ClientToServer;
 
         _aesGcm = new AesGcm(sessionKey, TagSize);
 
         _plaintext = new byte[PayloadSize];
         RandomNumberGenerator.Fill(_plaintext);
 
-        _encrypted = _session.Encrypt(_plaintext);
+        _encrypted = _client.Encrypt(_plaintext);
         _output = new byte[PayloadSize + TagSize];
     }
 
@@ -64,10 +76,10 @@ public class SessionCipherBenchmarks
     public void Cleanup() => _aesGcm.Dispose();
 
     [Benchmark]
-    public byte[] BouncyCastle_Encrypt() => _session.Encrypt(_plaintext);
+    public byte[] BouncyCastle_Encrypt() => _client.Encrypt(_plaintext);
 
     [Benchmark]
-    public int BouncyCastle_Decrypt() => _session.Decrypt(_encrypted, _output);
+    public int BouncyCastle_Decrypt() => _server.Decrypt(_encrypted, _output);
 
     [Benchmark]
     public byte[] AesGcm_Encrypt()

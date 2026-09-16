@@ -63,7 +63,7 @@ public abstract class Connection : BackgroundService, IConnection
         _logger = logger;
         _packetReader = packetReader;
         Server = server;
-        CryptoSession = new AvalonCryptoSession(ServerCrypto.GetKeyPair());
+        CryptoSession = new AvalonCryptoSession(CryptoRole.Server, ServerCrypto.GetKeyPair());
         Id = Guid.NewGuid();
     }
 
