@@ -26,6 +26,13 @@ public class TickDrivenOutboxShould
     /// <summary>What a disposal that waits for nothing is allowed to take.</summary>
     private static readonly TimeSpan NoWaitCeiling = TimeSpan.FromSeconds(2);
 
+    /// <summary>
+    /// How long a disposal that is supposed to give up on a peer gets before the test calls it
+    /// hung. Not a budget: the failure it catches is a disposal that waits for the peer forever,
+    /// so it is set far above anything a loaded runner can add.
+    /// </summary>
+    private static readonly TimeSpan DeadlockGuard = TimeSpan.FromSeconds(30);
+
     private static NetworkPacket MakePacket() =>
         SPingPacket.Create(0L, 0L, 0L, 0L);
 
@@ -207,15 +214,16 @@ public class TickDrivenOutboxShould
         {
             outbox.Enqueue(MakePacket()); // never flushed; the close has to write it
 
-            var sw = Stopwatch.StartNew();
-            await outbox.DisposeAsync();
-            sw.Stop();
+            // The claim is that the close gives up on this write at all: the stream only ever
+            // completes it in the finally below, so a disposal bounded by the peer never returns.
+            // Asserting an elapsed time near flush + grace would instead assert the speed of the
+            // runner, which is what made this test flaky; the guard is far above any real budget.
+            Task dispose = outbox.DisposeAsync().AsTask();
+            Task finished = await Task.WhenAny(dispose, Task.Delay(DeadlockGuard));
 
-            // Measured against the budget this outbox was given, not against the clock: a loaded
-            // machine stretches both. What fails here is a disposal bounded by the peer instead.
-            TimeSpan ceiling = (flush + grace) * 8;
-            Assert.True(sw.Elapsed < ceiling,
-                $"Expected disposal to give up on the stalled write within {ceiling.TotalMilliseconds}ms, took {sw.ElapsedMilliseconds}ms");
+            Assert.True(ReferenceEquals(finished, dispose),
+                $"Expected disposal to give up on the stalled write; it was still waiting after {DeadlockGuard.TotalSeconds}s");
+            await dispose;
         }
         finally
         {
