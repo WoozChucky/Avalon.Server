@@ -389,20 +389,21 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         _worldUpdateHist.Record((long)worldUs);
         _worldUpdateDuration.Record(worldUs);
 
-        for (int i = 0; i < conns.Length; i++)
-            conns[i].FlushOutbox();
-
         // Time-sync ping: stagger across the 600-tick window using each connection's
         // list index, so 600 connections still produce only ~1 ping/tick worst case.
         // Phase MUST come from a monotonic counter — _tickCount above resets every ~1s.
-        // Pings enqueued here flush on the next tick (~16 ms later) — acceptable for
-        // a 10-second ping cadence.
+        // ENQUEUED BEFORE THE FLUSH BELOW, because SendTimeSyncPing stamps the send time it will
+        // later measure the round trip against. Flushed a tick later, that stamp is ~16 ms old
+        // before the packet leaves, and every reported round trip carries the difference.
         long phase = _pingTickCounter++ % TimeSyncTicksPeriod;
         for (int i = 0; i < conns.Length; i++)
         {
             if (i % TimeSyncTicksPeriod == phase)
                 conns[i].SendTimeSyncPing();
         }
+
+        for (int i = 0; i < conns.Length; i++)
+            conns[i].FlushOutbox();
 
         foreach (IWorldConnection worldConnection in conns)
             worldConnection.FlushContinuations();
