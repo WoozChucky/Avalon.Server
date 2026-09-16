@@ -35,16 +35,26 @@ public class LayoutConfigVersionShould
 
     private static List<ChunkPoolMember> Pool() =>
     [
+        new(Template(1, "a.obj"), 1.0f),
+        new(Template(2, "b.obj"), 2.5f),
+    ];
+
+    // Separate from Pool(): Should_be_carried_on_the_generated_layout needs a pool that
+    // ProceduralLayoutGenerator.Generate can actually walk, not just one LayoutConfigVersion.Compute
+    // can hash (Compute ignores SpawnSlots/PortalSlots entirely, so Pool() above never needed them).
+    // Kept separate so Pool()'s Exits values stay exactly as they were, preserving the single-dimension
+    // diff that Should_change_when_a_pool_weight_changes / Should_change_when_geometry_file_changes
+    // rely on between Pool() and their own Template()-only comparison lists.
+    private static List<ChunkPoolMember> GeneratablePool() =>
+    [
         new(EntryTemplate(), 1.0f),
         new(BossTemplate(), 2.5f),
     ];
 
-    // Pool() must also work as an input to ProceduralLayoutGenerator.Generate (see
-    // Should_be_carried_on_the_generated_layout below), not just LayoutConfigVersion.Compute
-    // (which ignores SpawnSlots/PortalSlots entirely). EntryTemplate is the only chunk with an
-    // "entry" spawn slot + Back portal, so it is always the unique entry candidate. BossTemplate
-    // is a straight N/S corridor piece that also carries the "boss" spawn slot + Forward portal,
-    // so it deterministically serves as every mid-path chunk and the terminal/boss chunk alike.
+    // EntryTemplate is the only chunk with an "entry" spawn slot + Back portal, so it is always
+    // the unique entry candidate. BossTemplate is a straight N/S corridor piece that also carries
+    // the "boss" spawn slot + Forward portal, so it deterministically serves as every mid-path
+    // chunk and the terminal/boss chunk alike.
     private static ChunkTemplate EntryTemplate()
     {
         ChunkTemplate t = Template(1, "a.obj");
@@ -133,8 +143,8 @@ public class LayoutConfigVersionShould
         var generator = new ProceduralLayoutGenerator(NullLoggerFactory.Instance);
         ProceduralMapConfig cfg = Config();
 
-        ChunkLayout layout = generator.Generate(cfg, Pool(), seed: 12345);
+        ChunkLayout layout = generator.Generate(cfg, GeneratablePool(), seed: 12345);
 
-        Assert.Equal(LayoutConfigVersion.Compute(cfg, Pool()), layout.ConfigVersion);
+        Assert.Equal(LayoutConfigVersion.Compute(cfg, GeneratablePool()), layout.ConfigVersion);
     }
 }
