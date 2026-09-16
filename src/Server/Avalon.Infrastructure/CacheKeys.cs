@@ -60,4 +60,26 @@ public static class CacheKeys
     /// Value: account ID string. Same 2-minute TTL as the forward hash entry.
     /// </summary>
     public static string MfaReverseHash(string hash) => $"auth:mfa:hash:{hash}";
+
+    // ── Presence (live player observability) ──────────────────────────────────
+
+    /// <summary>
+    /// Live presence snapshot for one world, written by that world server at ~1 Hz.
+    /// Value: JSON <c>WorldPresenceSnapshot</c>. Expires after <see cref="PresenceTtl"/>,
+    /// so a dead world server's players disappear rather than going stale.
+    /// </summary>
+    public static string WorldPresence(ushort worldId) => $"world:{worldId}:presence";
+
+    /// <summary>
+    /// Reverse index: which world (and instance) currently holds a character.
+    /// Value: JSON <c>CharacterPresenceIndex</c>. Lets the Api find a player without
+    /// scanning every world snapshot. Same TTL as the snapshot it points at.
+    /// </summary>
+    public static string CharacterPresenceIndex(uint characterId) => $"presence:character:{characterId}";
+
+    /// <summary>
+    /// Lifetime of every presence key. Must stay comfortably above the snapshot write
+    /// interval so a single slow tick does not blank the view.
+    /// </summary>
+    public static readonly TimeSpan PresenceTtl = TimeSpan.FromSeconds(5);
 }
