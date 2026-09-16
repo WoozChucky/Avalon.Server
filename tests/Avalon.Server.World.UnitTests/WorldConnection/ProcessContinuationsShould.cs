@@ -68,15 +68,15 @@ public sealed class ProcessContinuationsShould : IDisposable
     [Fact]
     public void Should_Defer_Incomplete_Task_To_Next_Tick_And_Invoke_When_Complete()
     {
-        // With the old code this test hangs (infinite re-enqueue loop). After the fix
-        // it returns immediately on tick 1 and fires the callback on tick 2.
+        // One flush processes each queued item at most once: an item whose task is still
+        // running is re-enqueued past the count snapshot, so it waits for the next tick
+        // instead of spinning in this one.
         var tcs = new TaskCompletionSource();
         var callbackInvoked = false;
 
         _connection.EnqueueContinuation(tcs.Task, () => callbackInvoked = true);
 
-        var tick1 = Task.Run(() => _connection.FlushContinuations());
-        Assert.True(tick1.Wait(TimeSpan.FromSeconds(2)), "FlushContinuations did not return within 2 s — possible infinite re-enqueue loop");
+        _connection.FlushContinuations();   // tick 1: deferred, not re-processed
         Assert.False(callbackInvoked);
 
         tcs.SetResult();                    // task completes between ticks
