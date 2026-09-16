@@ -5,7 +5,6 @@ using System.IO;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading.Tasks;
-using Avalon.Common.Cryptography;
 using Avalon.Hosting.Networking;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Generic;
@@ -24,7 +23,6 @@ public class WorldConnectionOutboxShould : IDisposable
     public WorldConnectionOutboxShould()
     {
         var server = Substitute.For<IWorldServer, IServerBase>();
-        ((IServerBase)server).Crypto.Returns(new CryptoManager());
         ((IServerBase)server).SendBufferCapacity.Returns(256);
 
         var (clientSide, serverSide) = CreateLoopbackPair();

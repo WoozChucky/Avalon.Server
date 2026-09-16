@@ -292,6 +292,89 @@ public class SessionKeyDerivationShould
         Assert.Equal("first"u8.ToArray(), Open(first, server));
     }
 
+    /// <summary>
+    /// Two sessions against one peer key pair seal differently, because the key differs even
+    /// though both counters start at zero.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This is the cost of counter nonces, and the reason the server's key pair is per connection
+    /// rather than per process. A counter from zero is only safe while no two sessions share a
+    /// key: two do, and their first packets are sealed under one key and one nonce, which recovers
+    /// the GCM authentication subkey for anyone who was listening. Random nonces were collision-safe
+    /// whatever the peer did; a counter is not.
+    /// </para>
+    /// <para>
+    /// The peer's key pair is the same in both sessions here, which is the far end's choice and not
+    /// ours. What must differ is our own, so the derived key differs and the repeated counter value
+    /// is not a repeated nonce. Note the limit of this case: it hands each session a fresh key pair
+    /// itself, so it says what the derivation does and not where the pairs come from.
+    /// ConnectionKeyPairShould in the World tests is what holds the wiring to giving each
+    /// connection its own.
+    /// </para>
+    /// <para>
+    /// Nothing else catches this. BouncyCastle refuses a repeated nonce per cipher instance, and
+    /// each session owns its own, so its guard is silent across two of them.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void NotSealUnderTheSameKeyAndNonceAsAnotherSession()
+    {
+        AsymmetricCipherKeyPair peer = AsymmetricCipher.GenerateECDHKeyPair(256);
+        byte[] peerDer = AsymmetricCipher.GetPublicKeyBytes(AsymmetricCipher.GetPublicKeyFromKeyPair(peer));
+
+        // Two connections from one peer that reuses its key pair.
+        var first = new AvalonCryptoSession(CryptoRole.Server, new CryptoManager().GetKeyPair());
+        first.Initialize(peerDer);
+
+        var second = new AvalonCryptoSession(CryptoRole.Server, new CryptoManager().GetKeyPair());
+        second.Initialize(peerDer);
+
+        byte[] a = first.Encrypt("connection one"u8);
+        byte[] b = second.Encrypt("connection two"u8);
+
+        // The counter is per session, so both nonces ARE zero. That is fine only because the keys
+        // differ, which is what this actually checks — through the one thing a test can observe.
+        Assert.Equal(SessionKeys.Nonce(0), a[..12]);
+        Assert.Equal(SessionKeys.Nonce(0), b[..12]);
+
+        // Each opens at its own peer session and not at the other's.
+        var peerOfFirst = new AvalonCryptoSession(CryptoRole.Client, peer);
+        peerOfFirst.Initialize(first.GetPublicKey());
+
+        var peerOfSecond = new AvalonCryptoSession(CryptoRole.Client, peer);
+        peerOfSecond.Initialize(second.GetPublicKey());
+
+        Assert.Equal("connection one"u8.ToArray(), Open(a, peerOfFirst));
+        Assert.ThrowsAny<Exception>(() => Open(b, peerOfFirst));
+    }
+
+    /// <summary>
+    /// And the keys themselves differ, stated directly rather than only through a packet that
+    /// fails to open — so a reader knows which property the case above rests on.
+    /// </summary>
+    [Fact]
+    public void DeriveADifferentKeyForEachConnectionFromOnePeerKey()
+    {
+        AsymmetricCipherKeyPair peer = AsymmetricCipher.GenerateECDHKeyPair(256);
+        byte[] peerDer = AsymmetricCipher.GetPublicKeyBytes(AsymmetricCipher.GetPublicKeyFromKeyPair(peer));
+
+        byte[][] keys = new byte[2][];
+
+        for (int i = 0; i < 2; i++)
+        {
+            AsymmetricCipherKeyPair ours = new CryptoManager().GetKeyPair();
+            byte[] ourDer = AsymmetricCipher.GetPublicKeyBytes(AsymmetricCipher.GetPublicKeyFromKeyPair(ours));
+
+            byte[] secret = AsymmetricCipher.CalculateSharedSecret(
+                ours, AsymmetricCipher.GetPublicKeyFromBytes(peerDer));
+
+            keys[i] = SessionKeys.Derive(secret, peerDer, ourDer).ServerToClient;
+        }
+
+        Assert.NotEqual(keys[0], keys[1]);
+    }
+
     /// <summary>96 bits, big-endian, from zero — the number a client has to reproduce.</summary>
     [Theory]
     [InlineData(0UL, "000000000000000000000000")]
