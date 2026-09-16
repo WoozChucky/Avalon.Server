@@ -63,6 +63,7 @@ nav:
       - Graceful Shutdown: networking-graceful-shutdown.md
     - Auth Flow: character-login-flow.md
     - Character Readiness Barrier: character-readiness-barrier.md
+    - DbContext Lifetime: dbcontext-lifetime.md
     - Security & Sessions: security-session-management.md
     - Redis Cache Keys: redis-cache-keys.md
     - Value Objects & OpenAPI: valueobject-openapi.md
