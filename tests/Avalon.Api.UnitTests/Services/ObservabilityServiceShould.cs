@@ -115,6 +115,119 @@ public class ObservabilityServiceShould
     }
 
     [Fact]
+    public async Task Should_maintain_stable_order_across_page_boundary()
+    {
+        // Inserted out of alphabetical order so the assertion only passes if the service
+        // actually sorts, rather than happening to preserve insertion order.
+        GivenWorldSnapshot(Snapshot(Char(1, "Zed"), Char(2, "Amy"), Char(3, "Mno")));
+
+        ObservabilityService sut = CreateSut();
+        PagedResult<OnlinePlayerDto> page1 =
+            await sut.GetOnlineAsync(new PresencePaginateFilters { Page = 1, PageSize = 2 }, CancellationToken.None);
+        PagedResult<OnlinePlayerDto> page2 =
+            await sut.GetOnlineAsync(new PresencePaginateFilters { Page = 2, PageSize = 2 }, CancellationToken.None);
+
+        Assert.Equal(["Amy", "Mno"], page1.Items.Select(r => r.Name).ToArray());
+        Assert.Equal(["Zed"], page2.Items.Select(r => r.Name).ToArray());
+
+        // Every row appears exactly once across the two pages combined.
+        List<uint> combinedIds = page1.Items.Concat(page2.Items).Select(r => r.CharacterId).ToList();
+        Assert.Equal([2u, 3u, 1u], combinedIds);
+    }
+
+    [Fact]
+    public async Task Should_clamp_page_size_above_fifty_to_fifty()
+    {
+        GivenWorldSnapshot(Snapshot(Char(1, "A")));
+
+        PagedResult<OnlinePlayerDto> page = await CreateSut()
+            .GetOnlineAsync(new PresencePaginateFilters { PageSize = 200 }, CancellationToken.None);
+
+        Assert.Equal(50, page.PageSize);
+    }
+
+    [Fact]
+    public async Task Should_clamp_page_size_below_one_to_fifty()
+    {
+        GivenWorldSnapshot(Snapshot(Char(1, "A")));
+
+        PagedResult<OnlinePlayerDto> page = await CreateSut()
+            .GetOnlineAsync(new PresencePaginateFilters { PageSize = 0 }, CancellationToken.None);
+
+        Assert.Equal(50, page.PageSize);
+    }
+
+    [Fact]
+    public async Task Should_not_clamp_page_size_at_the_fifty_boundary()
+    {
+        GivenWorldSnapshot(Snapshot(Char(1, "A")));
+
+        PagedResult<OnlinePlayerDto> page = await CreateSut()
+            .GetOnlineAsync(new PresencePaginateFilters { PageSize = 50 }, CancellationToken.None);
+
+        Assert.Equal(50, page.PageSize);
+    }
+
+    [Fact]
+    public async Task Should_return_empty_items_when_page_is_past_the_end()
+    {
+        GivenWorldSnapshot(Snapshot(Char(1, "A"), Char(2, "B")));
+
+        PagedResult<OnlinePlayerDto> page = await CreateSut()
+            .GetOnlineAsync(new PresencePaginateFilters { Page = 99 }, CancellationToken.None);
+
+        Assert.Empty(page.Items);
+        Assert.Equal(2, page.TotalCount);
+    }
+
+    [Fact]
+    public async Task Should_return_null_map_type_for_unrecognized_value()
+    {
+        WorldPresenceSnapshot snapshot = new(
+            WorldId: 1,
+            CapturedAt: DateTime.UtcNow,
+            Instances:
+            [
+                new InstancePresenceSnapshot(
+                    InstanceId, TemplateId: 12, Seed: 999, MapType: "Wasteland",
+                    ConfigVersion: "a91f3c7e", OwnerCharacterId: 4417,
+                    Characters: [Char(4417, "Nym")])
+            ]);
+        GivenWorldSnapshot(snapshot);
+
+        PagedResult<OnlinePlayerDto> page =
+            await CreateSut().GetOnlineAsync(new PresencePaginateFilters(), CancellationToken.None);
+
+        Assert.Single(page.Items);
+        Assert.Null(page.Items[0].MapType);
+    }
+
+    [Fact]
+    public async Task Should_memoize_template_name_lookups_across_instances_in_a_request()
+    {
+        WorldPresenceSnapshot snapshot = new(
+            WorldId: 1,
+            CapturedAt: DateTime.UtcNow,
+            Instances:
+            [
+                new InstancePresenceSnapshot(
+                    InstanceId, TemplateId: 12, Seed: 1, MapType: "Normal",
+                    ConfigVersion: "a", OwnerCharacterId: null, Characters: [Char(1, "A")]),
+                new InstancePresenceSnapshot(
+                    Guid.NewGuid(), TemplateId: 12, Seed: 2, MapType: "Normal",
+                    ConfigVersion: "b", OwnerCharacterId: null, Characters: [Char(2, "B")]),
+            ]);
+        GivenWorldSnapshot(snapshot);
+
+        await CreateSut().GetOnlineAsync(new PresencePaginateFilters(), CancellationToken.None);
+
+        // Both instances share TemplateId 12 — the repository should be consulted once
+        // per request, not once per instance.
+        await _maps.Received(1)
+            .FindByIdAsync(Arg.Any<MapTemplateId>(), Arg.Any<bool>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task Should_return_null_when_character_has_no_index_entry()
     {
         _cache.GetAsync(Arg.Any<string>()).Returns((string?)null);
