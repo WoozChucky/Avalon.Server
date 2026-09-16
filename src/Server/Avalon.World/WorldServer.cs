@@ -13,6 +13,7 @@ using Avalon.Infrastructure;
 using Avalon.Network.Packets;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Generic;
+using Avalon.World.Characters;
 using Avalon.World.Entities;
 using Avalon.World.Public;
 using Avalon.World.Scripts;
@@ -364,7 +365,8 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         }
     }
 
-    private void Update(TimeSpan elapsedTime, long tickStart)
+    // protected so a test can drive one tick without a socket loop behind it.
+    protected void Update(TimeSpan elapsedTime, long tickStart)
     {
         long t0 = Stopwatch.GetTimestamp();
         // Process disconnects on the tick thread to avoid racing with MapInstance.Update
@@ -382,6 +384,12 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         double sessionUs = TicksToUs(t1 - t0);
         _sessionUpdateHist.Record((long)sessionUs);
         _sessionUpdateDuration.Record(sessionUs);
+
+        // After the session pass, so a load report that arrived this tick releases its own barrier
+        // rather than being beaten to it, and before the world update, so a character released here
+        // is simulated on the tick that released it.
+        CharacterReadinessBarrier.ReleaseExpired(conns, _world, DateTime.UtcNow.Ticks,
+            TimeSpan.FromSeconds(_world.Configuration.CharacterLoadTimeoutSeconds), _logger);
 
         _world.Update(elapsedTime);
         long t2 = Stopwatch.GetTimestamp();
