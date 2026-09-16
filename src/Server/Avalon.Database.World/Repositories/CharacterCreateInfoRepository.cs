@@ -10,27 +10,23 @@ public interface ICharacterCreateInfoRepository
     Task<CharacterCreateInfo?> GetByClassAsync(CharacterClass @class, CancellationToken cancellationToken = default);
 }
 
-public class CharacterCreateInfoRepository : ICharacterCreateInfoRepository
+public class CharacterCreateInfoRepository(IDbContextFactory<WorldDbContext> contextFactory) : ICharacterCreateInfoRepository
 {
-    private readonly WorldDbContext _dbContext;
-
-    public CharacterCreateInfoRepository(WorldDbContext dbContext)
-    {
-        _dbContext = dbContext;
-    }
-
     public async Task<IReadOnlyCollection<CharacterCreateInfo>> FindAllAsync(CancellationToken cancellationToken = default)
     {
-        return await _dbContext.CharacterCreateInfos
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+
+        return await context.CharacterCreateInfos
             .AsNoTracking()
             .ToListAsync(cancellationToken);
     }
 
     public async Task<CharacterCreateInfo?> GetByClassAsync(CharacterClass @class, CancellationToken cancellationToken = default)
     {
-        return await _dbContext.CharacterCreateInfos
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+
+        return await context.CharacterCreateInfos
             .AsNoTracking()
             .FirstOrDefaultAsync(entity => entity.Class == @class, cancellationToken);
     }
-
 }

@@ -10,25 +10,22 @@ public interface IClassLevelStatRepository
     Task<ClassLevelStat?> GetByLevelAsync(CharacterClass @class, ushort level, CancellationToken cancellationToken = default);
 }
 
-public class ClassLevelStatRepository : IClassLevelStatRepository
+public class ClassLevelStatRepository(IDbContextFactory<WorldDbContext> contextFactory) : IClassLevelStatRepository
 {
-    private readonly WorldDbContext _dbContext;
-
-    public ClassLevelStatRepository(WorldDbContext dbContext)
-    {
-        _dbContext = dbContext;
-    }
-
     public async Task<IReadOnlyCollection<ClassLevelStat>> FindAllAsync(CancellationToken cancellationToken = default)
     {
-        return await _dbContext.ClassLevelStats
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+
+        return await context.ClassLevelStats
             .AsNoTracking()
             .ToListAsync(cancellationToken);
     }
 
     public async Task<ClassLevelStat?> GetByLevelAsync(CharacterClass @class, ushort level, CancellationToken cancellationToken = default)
     {
-        return await _dbContext.ClassLevelStats
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+
+        return await context.ClassLevelStats
             .AsNoTracking()
             .FirstOrDefaultAsync(entity => entity.Level == level && entity.Class == @class, cancellationToken);
     }

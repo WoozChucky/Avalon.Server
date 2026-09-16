@@ -6,11 +6,8 @@ public interface IQuestRewardRepository : IRepository<QuestReward, int>
 
 }
 
-public class QuestRewardRepository : EntityFrameworkRepository<QuestReward, int>, IQuestRewardRepository
+public class QuestRewardRepository(IDbContextFactory<WorldDbContext> contextFactory)
+    : EntityFrameworkRepository<QuestReward, int, WorldDbContext>(contextFactory), IQuestRewardRepository
 {
-    public QuestRewardRepository(WorldDbContext dbContext)
-        : base(dbContext)
-    {
-    }
 }
 */

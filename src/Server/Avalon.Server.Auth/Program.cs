@@ -1,4 +1,4 @@
-﻿using Avalon.Database.Auth;
+using Avalon.Database.Auth;
 using Avalon.Hosting;
 using Avalon.Infrastructure;
 using Avalon.Network.Packets.Abstractions.Attributes;
@@ -20,7 +20,8 @@ public class Program
 
         await using (AsyncServiceScope scope = host.Services.CreateAsyncScope())
         {
-            AuthDbContext db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
+            await using AuthDbContext db = await scope.ServiceProvider
+                .GetRequiredService<IDbContextFactory<AuthDbContext>>().CreateDbContextAsync(CancellationToken.None);
             ILogger<Program> logger = host.Services.GetRequiredService<ILogger<Program>>();
             logger.LogInformation("Migrating database if necessary...");
             // Startup migration — host lifetime not active yet, so CancellationToken.None is intentional.

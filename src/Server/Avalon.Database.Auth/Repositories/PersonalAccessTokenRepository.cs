@@ -12,22 +12,24 @@ public interface IPersonalAccessTokenRepository : IRepository<PersonalAccessToke
     Task<bool> UpdateLastUsedIfStaleAsync(PersonalAccessTokenId id, DateTime now, TimeSpan minStale, CancellationToken cancellationToken = default);
 }
 
-public class PersonalAccessTokenRepository : EntityFrameworkRepository<PersonalAccessToken, PersonalAccessTokenId>, IPersonalAccessTokenRepository
+public class PersonalAccessTokenRepository(IDbContextFactory<AuthDbContext> contextFactory)
+    : EntityFrameworkRepository<PersonalAccessToken, PersonalAccessTokenId, AuthDbContext>(contextFactory),
+        IPersonalAccessTokenRepository
 {
-    public PersonalAccessTokenRepository(AuthDbContext db)
-        : base(db)
-    { }
-
-    public Task<PersonalAccessToken?> FindByHashAsync(byte[] hash, CancellationToken cancellationToken = default)
+    public async Task<PersonalAccessToken?> FindByHashAsync(byte[] hash, CancellationToken cancellationToken = default)
     {
-        return Context.Set<PersonalAccessToken>()
+        await using var context = await CreateContextAsync(cancellationToken);
+
+        return await context.PersonalAccessTokens
             .AsNoTracking()
             .FirstOrDefaultAsync(p => p.TokenHash == hash, cancellationToken);
     }
 
-    public Task<List<PersonalAccessToken>> ListByAccountAsync(AccountId accountId, bool includeRevoked, CancellationToken cancellationToken = default)
+    public async Task<List<PersonalAccessToken>> ListByAccountAsync(AccountId accountId, bool includeRevoked, CancellationToken cancellationToken = default)
     {
-        var query = Context.Set<PersonalAccessToken>()
+        await using var context = await CreateContextAsync(cancellationToken);
+
+        var query = context.PersonalAccessTokens
             .AsNoTracking()
             .Where(p => p.AccountId == accountId);
 
@@ -36,13 +38,24 @@ public class PersonalAccessTokenRepository : EntityFrameworkRepository<PersonalA
             query = query.Where(p => p.RevokedAt == null);
         }
 
-        return query.ToListAsync(cancellationToken);
+        return await query.ToListAsync(cancellationToken);
     }
 
     public async Task<int> RevokeAllForAccountAsync(AccountId accountId, AccountId revokedBy, CancellationToken cancellationToken = default)
     {
-        var now = DateTime.UtcNow;
-        return await Context.Set<PersonalAccessToken>()
+        await using var context = await CreateContextAsync(cancellationToken);
+
+        return await RevokeAllForAccountAsync(context, accountId, revokedBy, DateTime.UtcNow, cancellationToken);
+    }
+
+    /// <summary>
+    /// Revokes on a context the caller owns, so the statement joins that context's transaction.
+    /// Same statement as the instance overload — one definition, two lifetimes.
+    /// </summary>
+    public static Task<int> RevokeAllForAccountAsync(AuthDbContext context, AccountId accountId, AccountId revokedBy,
+        DateTime now, CancellationToken cancellationToken = default)
+    {
+        return context.PersonalAccessTokens
             .Where(p => p.AccountId == accountId && p.RevokedAt == null)
             .ExecuteUpdateAsync(s => s
                     .SetProperty(p => p.RevokedAt, now)
@@ -52,8 +65,10 @@ public class PersonalAccessTokenRepository : EntityFrameworkRepository<PersonalA
 
     public async Task<bool> UpdateLastUsedIfStaleAsync(PersonalAccessTokenId id, DateTime now, TimeSpan minStale, CancellationToken cancellationToken = default)
     {
+        await using var context = await CreateContextAsync(cancellationToken);
+
         var threshold = now - minStale;
-        var rows = await Context.Set<PersonalAccessToken>()
+        var rows = await context.PersonalAccessTokens
             .Where(p => p.Id == id && (p.LastUsedAt == null || p.LastUsedAt < threshold))
             .ExecuteUpdateAsync(s => s.SetProperty(p => p.LastUsedAt, now), cancellationToken);
         return rows > 0;

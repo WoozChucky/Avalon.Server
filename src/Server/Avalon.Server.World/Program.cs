@@ -30,8 +30,10 @@ internal class Program
 
         await using (AsyncServiceScope scope = host.Services.CreateAsyncScope())
         {
-            CharacterDbContext characterDb = scope.ServiceProvider.GetRequiredService<CharacterDbContext>();
-            WorldDbContext worldDb = scope.ServiceProvider.GetRequiredService<WorldDbContext>();
+            await using CharacterDbContext characterDb = await scope.ServiceProvider
+                .GetRequiredService<IDbContextFactory<CharacterDbContext>>().CreateDbContextAsync(CancellationToken.None);
+            await using WorldDbContext worldDb = await scope.ServiceProvider
+                .GetRequiredService<IDbContextFactory<WorldDbContext>>().CreateDbContextAsync(CancellationToken.None);
             host.Services.GetRequiredService<ILogger<Program>>().LogInformation("Migrating database if necessary...");
             // Startup migration — host lifetime not active yet, so CancellationToken.None is intentional.
             await characterDb.Database.MigrateAsync(CancellationToken.None);

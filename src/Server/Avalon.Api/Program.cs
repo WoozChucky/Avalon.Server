@@ -126,9 +126,12 @@ ILogger<Program> logger = app.Services.GetRequiredService<ILogger<Program>>();
 
 await using (AsyncServiceScope scope = app.Services.CreateAsyncScope())
 {
-    AuthDbContext authDb = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
-    CharacterDbContext characterDb = scope.ServiceProvider.GetRequiredService<CharacterDbContext>();
-    WorldDbContext worldDb = scope.ServiceProvider.GetRequiredService<WorldDbContext>();
+    await using AuthDbContext authDb = await scope.ServiceProvider
+        .GetRequiredService<IDbContextFactory<AuthDbContext>>().CreateDbContextAsync(CancellationToken.None);
+    await using CharacterDbContext characterDb = await scope.ServiceProvider
+        .GetRequiredService<IDbContextFactory<CharacterDbContext>>().CreateDbContextAsync(CancellationToken.None);
+    await using WorldDbContext worldDb = await scope.ServiceProvider
+        .GetRequiredService<IDbContextFactory<WorldDbContext>>().CreateDbContextAsync(CancellationToken.None);
     logger.LogInformation("Migrating database if necessary...");
     // Startup migration — host lifetime not active yet, so CancellationToken.None is intentional.
     await authDb.Database.MigrateAsync(CancellationToken.None);
