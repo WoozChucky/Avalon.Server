@@ -18,7 +18,10 @@ public class OnlinePlayerDto
     public string WorldName { get; set; } = string.Empty;
     public ushort TemplateId { get; set; }
     public string TemplateName { get; set; } = string.Empty;
-    public PresenceMapType MapType { get; set; }
+
+    /// <summary>Map type. Null if the presence snapshot carried a map type this build does not recognise.</summary>
+    public MapType? MapType { get; set; }
+
     public Guid InstanceId { get; set; }
     public DateTime LastSeen { get; set; }
 }
