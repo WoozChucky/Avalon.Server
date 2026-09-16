@@ -38,6 +38,7 @@ public static class ServiceRegistration
         services.AddScoped<ICharacterService, CharacterService>();
         services.AddScoped<IWorldService, WorldService>();
         services.AddScoped<IMapService, MapService>();
+        services.AddScoped<IObservabilityService, ObservabilityService>();
         services.AddScoped<IPersonalAccessTokenService, PersonalAccessTokenService>();
         services.AddScoped<IRefreshTokenService, RefreshTokenService>();
         services.AddSingleton(TimeProvider.System);
