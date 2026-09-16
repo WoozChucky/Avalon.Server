@@ -8,6 +8,7 @@ contracts so a non-.NET client can be built against it.
 | `avalon.proto` | Generated. Every `[ProtoContract]` type in `Avalon.Network.Packets` and `Avalon.Network.Packets.Abstractions`, as proto3. |
 | `opcodes.json` | Generated. The opcode-to-message mapping and the per-packet encryption flags — neither of which a `.proto` can express. |
 | `corpus/*.txt` | Generated. One file per message, holding the bytes the server writes for a set of deliberately awkward values. |
+| `crypto/session-v1.txt` | Generated. Known-answer vectors for the session key derivation: two frozen ECDH exchanges, the keys derived from each, and sealed packets both ways. See below. |
 | `protobuf-net/bcl.proto` | Vendored, not generated. See below. |
 | `protobuf-net/NOTICE` | Where that copy came from, under what license, and which library version it matches. |
 
@@ -17,9 +18,9 @@ Regenerate all of them after any change to a packet contract:
 dotnet run --project tools/Avalon.SchemaGen
 ```
 
-`WireSchemaShould` and `WireCorpusShould` in `tests/Avalon.Shared.UnitTests` regenerate and
-compare, so forgetting to is a failing test rather than a client that decodes into the wrong
-field.
+`WireSchemaShould`, `WireCorpusShould` and `SessionCryptoVectorsShould` in
+`tests/Avalon.Shared.UnitTests` regenerate and compare, so forgetting to is a failing test rather
+than a client that decodes into the wrong field.
 
 ## Why this lives at the repository root
 
@@ -221,6 +222,25 @@ sorted list of every float member in the protocol, which is what guarantees that
 specials appear somewhere rather than probably appearing. A new float member shifts the position
 of every member sorting after it, and their specials rotate with it. Expect a large diff and read
 it as churn, not as drift.
+
+## The session crypto vectors
+
+`crypto/session-v1.txt` is the corpus's counterpart for the layer underneath the packets. The two
+ends of a connection derive the same two AES keys independently and never compare them, so a
+derivation that disagrees does not fail as a protocol error — it fails as a packet that will not
+open, on a live connection, with nothing on the wire saying which end is wrong. The vectors make
+that a check either end can run offline, with no server and no .NET.
+
+The file holds two frozen exchanges: an ordinary one, and one whose shared x-coordinate has a
+zero top byte. The second is not a duplicate. About one exchange in 256 draws one, and an
+implementation that encodes the secret minimally rather than at a fixed 32 bytes derives a
+different key for that exchange and for no other — which is a failure at roughly a 0.4% connection
+rate that reproduces on nobody's machine.
+
+Every value is exported by running the server's own `AvalonCryptoSession` and `SessionKeys`, not a
+second copy of the algorithm, so the file cannot agree with something the server does not do. The
+derivation itself, and what a client has to implement to interoperate, are in
+`docs/crypto-v1-derivation.md`.
 
 ## Where the bytes and the schema part company
 

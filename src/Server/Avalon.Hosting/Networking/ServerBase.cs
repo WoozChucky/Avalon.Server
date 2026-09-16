@@ -24,7 +24,6 @@ public interface IServerBase
     Task RemoveConnection(IConnection connection);
     Task CallListener(IConnection connection, NetworkPacketHeader header, Packet? payload);
     long ServerTime { get; }
-    public ICryptoManager Crypto { get; }
     int SendBufferCapacity { get; }
     void CallConnectionListener(IConnection connection);
 }
@@ -62,7 +61,6 @@ public abstract class ServerBase<T> : BackgroundService, IServerBase where T : I
         PacketManager = packetManager;
         Port = hostingOptions.Value.Port;
         SendBufferCapacity = hostingOptions.Value.SendBufferCapacity;
-        Crypto = new CryptoManager();
 
         // Start server timer
         _serverTimer.Start();
@@ -76,7 +74,6 @@ public abstract class ServerBase<T> : BackgroundService, IServerBase where T : I
 
     public long ServerTime => _serverTimer.ElapsedMilliseconds;
     public long ServerTicks => _serverTimer.ElapsedTicks;
-    public ICryptoManager Crypto { get; }
 
     protected abstract object GetContextPacket(IConnection connection, object? packet, Type packetType);
     protected abstract Task OnStoppingAsync(CancellationToken stoppingToken);
