@@ -106,7 +106,8 @@ public class ProceduralLayoutGenerator
 
         var portals = BuildPortals(entry, entryMember.Template, boss, bossRec?.Template, cfg, cellSize);
 
-        layout = new ChunkLayout(seed, placedChunks, entry, boss, portals, entrySpawnWorldPos, cellSize, Config: cfg);
+        layout = new ChunkLayout(seed, placedChunks, entry, boss, portals, entrySpawnWorldPos, cellSize,
+            Config: cfg, ConfigVersion: LayoutConfigVersion.Compute(cfg, pool));
         return true;
     }
 

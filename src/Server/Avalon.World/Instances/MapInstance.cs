@@ -104,6 +104,7 @@ public class MapInstance : IMapInstance, IPortalSink
     public int PlayerCount => _characters.Count;
     public DateTime? LastEmptyAt { get; private set; }
     public int Seed { get; }
+    public string ConfigVersion => Layout?.ConfigVersion ?? string.Empty;
     public ChunkLayout? Layout { get; }
     public Vector3? EntrySpawnWorldPos { get; }
     public IReadOnlyList<PortalInstance> Portals => _portals;
