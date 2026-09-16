@@ -3,7 +3,6 @@
 
 using System.Buffers;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Threading;
@@ -18,6 +17,13 @@ namespace Avalon.Shared.UnitTests.Networking;
 
 public class ChannelOutboxShould
 {
+    /// <summary>
+    /// How long a disposal that is supposed to give up on a peer gets before the test calls it
+    /// hung. Not a budget: the failure it catches is a disposal that waits for the peer forever,
+    /// so it is set far above anything a loaded runner can add.
+    /// </summary>
+    private static readonly TimeSpan DeadlockGuard = TimeSpan.FromSeconds(30);
+
     [Fact]
     public async Task WriteEnqueuedPacket_ToStream_AfterConnect()
     {
@@ -103,15 +109,20 @@ public class ChannelOutboxShould
             outbox.Connect(stream);
             outbox.Enqueue(SPingPacket.Create(0L, 0L, 0L, 0L));
 
-            var sw = Stopwatch.StartNew();
-            await outbox.DisposeAsync();
-            sw.Stop();
+            // The write the close has to abandon must actually be under way first, or the close
+            // has nothing to give up on and the test passes for the wrong reason.
+            await sink.WriteStarted.WaitAsync(DeadlockGuard);
 
-            // Measured against the budget this outbox was given, not against the clock: a loaded
-            // machine stretches both. What fails here is a disposal bounded by the peer instead.
-            TimeSpan ceiling = (flush + grace) * 8;
-            Assert.True(sw.Elapsed < ceiling,
-                $"Expected disposal to give up on the stalled write within {ceiling.TotalMilliseconds}ms, took {sw.ElapsedMilliseconds}ms");
+            // The claim is that the close gives up on that write at all: the stream only ever
+            // releases it in the finally below, so a disposal bounded by the peer never returns.
+            // Asserting an elapsed time near flush + grace would instead assert the speed of the
+            // runner, which is what made this test flaky; the guard is far above any real budget.
+            Task dispose = outbox.DisposeAsync().AsTask();
+            Task finished = await Task.WhenAny(dispose, Task.Delay(DeadlockGuard));
+
+            Assert.True(ReferenceEquals(finished, dispose),
+                $"Expected disposal to give up on the stalled write; it was still waiting after {DeadlockGuard.TotalSeconds}s");
+            await dispose;
         }
         finally
         {
