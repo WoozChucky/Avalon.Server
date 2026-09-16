@@ -10,15 +10,14 @@ public interface IAccountRepository : IRepository<Account, AccountId>
     Task<Account?> FindByEmailAsync(string email, CancellationToken cancellationToken = default);
 }
 
-public class AccountRepository : EntityFrameworkRepository<Account, AccountId>, IAccountRepository
+public class AccountRepository(IDbContextFactory<AuthDbContext> contextFactory)
+    : EntityFrameworkRepository<Account, AccountId, AuthDbContext>(contextFactory), IAccountRepository
 {
-    public AccountRepository(AuthDbContext db)
-        : base(db)
-    { }
-
     public async Task<Account?> FindByUserNameAsync(string userName, CancellationToken cancellationToken = default)
     {
-        return await Context.Set<Account>()
+        await using var context = await CreateContextAsync(cancellationToken);
+
+        return await context.Accounts
             .AsNoTracking()
             .Where(x => x.Username == userName)
             .FirstOrDefaultAsync(cancellationToken);
@@ -26,7 +25,9 @@ public class AccountRepository : EntityFrameworkRepository<Account, AccountId>, 
 
     public async Task<Account?> FindByEmailAsync(string email, CancellationToken cancellationToken = default)
     {
-        return await Context.Set<Account>()
+        await using var context = await CreateContextAsync(cancellationToken);
+
+        return await context.Accounts
             .AsNoTracking()
             .Where(x => x.Email == email)
             .FirstOrDefaultAsync(cancellationToken);

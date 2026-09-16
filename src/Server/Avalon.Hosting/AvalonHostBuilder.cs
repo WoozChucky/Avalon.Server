@@ -23,6 +23,7 @@ public static class AvalonHostBuilder
         }
 
         HostApplicationBuilder host = new(args);
+        host.ConfigureContainer(new DefaultServiceProviderFactory(AvalonServiceProvider.Options));
         host.Services.Configure<ConsoleLifetimeOptions>(opts => opts.SuppressStatusMessages = true);
         host.Services.AddCoreServices(host.Configuration, component);
 

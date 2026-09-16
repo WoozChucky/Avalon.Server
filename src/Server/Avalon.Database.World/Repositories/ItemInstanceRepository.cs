@@ -10,20 +10,15 @@ public interface IItemInstanceRepository : IRepository<ItemInstance, ItemInstanc
         CharacterId characterId, CancellationToken cancellationToken = default);
 }
 
-public class ItemInstanceRepository : EntityFrameworkRepository<ItemInstance, ItemInstanceId>, IItemInstanceRepository
+public class ItemInstanceRepository(IDbContextFactory<WorldDbContext> contextFactory)
+    : EntityFrameworkRepository<ItemInstance, ItemInstanceId, WorldDbContext>(contextFactory), IItemInstanceRepository
 {
-    private readonly WorldDbContext _dbContext;
-
-    public ItemInstanceRepository(WorldDbContext dbContext)
-        : base(dbContext)
-    {
-        _dbContext = dbContext;
-    }
-
     public async Task<IReadOnlyList<ItemInstance>> GetByCharacterIdWithTemplateAsync(
         CharacterId characterId, CancellationToken cancellationToken = default)
     {
-        return await _dbContext.ItemInstances
+        await using var context = await CreateContextAsync(cancellationToken);
+
+        return await context.ItemInstances
             .AsNoTracking()
             .Include(x => x.Template)
             .Where(x => x.CharacterId == characterId)

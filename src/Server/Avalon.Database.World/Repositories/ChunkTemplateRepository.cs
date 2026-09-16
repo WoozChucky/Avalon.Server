@@ -9,12 +9,13 @@ public interface IChunkTemplateRepository : IRepository<ChunkTemplate, ChunkTemp
     Task<IReadOnlyList<ChunkTemplate>> FindAllWithSlotsAsync(CancellationToken ct = default);
 }
 
-public class ChunkTemplateRepository : EntityFrameworkRepository<ChunkTemplate, ChunkTemplateId>, IChunkTemplateRepository
+public class ChunkTemplateRepository(IDbContextFactory<WorldDbContext> contextFactory)
+    : EntityFrameworkRepository<ChunkTemplate, ChunkTemplateId, WorldDbContext>(contextFactory), IChunkTemplateRepository
 {
-    public ChunkTemplateRepository(WorldDbContext ctx) : base(ctx) { }
-
     public async Task<IReadOnlyList<ChunkTemplate>> FindAllWithSlotsAsync(CancellationToken ct = default)
-        => await DbSet.AsNoTracking().ToListAsync(ct);
+    {
+        await using var context = await CreateContextAsync(ct);
 
-    private DbSet<ChunkTemplate> DbSet => Context.Set<ChunkTemplate>();
+        return await context.ChunkTemplates.AsNoTracking().ToListAsync(ct);
+    }
 }

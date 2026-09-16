@@ -1,5 +1,6 @@
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
+using Microsoft.EntityFrameworkCore;
 
 namespace Avalon.Database.World.Repositories;
 
@@ -8,10 +9,8 @@ public interface ICreatureTemplateRepository : IRepository<CreatureTemplate, Cre
 
 }
 
-public class CreatureTemplateRepository : EntityFrameworkRepository<CreatureTemplate, CreatureTemplateId>, ICreatureTemplateRepository
+public class CreatureTemplateRepository(IDbContextFactory<WorldDbContext> contextFactory)
+    : EntityFrameworkRepository<CreatureTemplate, CreatureTemplateId, WorldDbContext>(contextFactory),
+        ICreatureTemplateRepository
 {
-    public CreatureTemplateRepository(WorldDbContext dbContext)
-        : base(dbContext)
-    {
-    }
 }

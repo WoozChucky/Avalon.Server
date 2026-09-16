@@ -61,10 +61,21 @@ public sealed class CharacterDbContextFactory : IDesignTimeDbContextFactory<Worl
     }
 }
 
-public class WorldDbContext(ILoggerFactory loggerFactory, IOptions<DatabaseConfiguration> opts)
-    : DbContext
+public class WorldDbContext : DbContext
 {
-    private readonly string _connectionString = opts.Value.World!.ConnectionString;
+    private readonly ILoggerFactory? _loggerFactory;
+    private readonly string? _connectionString;
+
+    public WorldDbContext(ILoggerFactory loggerFactory, IOptions<DatabaseConfiguration> opts)
+    {
+        _loggerFactory = loggerFactory;
+        _connectionString = opts.Value.World!.ConnectionString;
+    }
+
+    /// <summary>Configured by the caller. Lets a test point the same model at another provider.</summary>
+    public WorldDbContext(DbContextOptions<WorldDbContext> options) : base(options)
+    {
+    }
 
     public DbSet<CreatureTemplate> CreatureTemplates { get; set; } = null!;
     public DbSet<ItemTemplate> ItemTemplates { get; set; } = null!;
@@ -85,11 +96,16 @@ public class WorldDbContext(ILoggerFactory loggerFactory, IOptions<DatabaseConfi
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
+        if (optionsBuilder.IsConfigured)
+        {
+            return;
+        }
+
         optionsBuilder
-            .UseLoggerFactory(loggerFactory)
+            .UseLoggerFactory(_loggerFactory)
             .EnableSensitiveDataLogging();
 
-        optionsBuilder.UseNpgsql(_connectionString);
+        optionsBuilder.UseNpgsql(_connectionString!);
     }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
