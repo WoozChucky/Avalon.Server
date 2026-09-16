@@ -19,7 +19,8 @@ public class SerializationBenchmarks
 {
     private MemoryStream _unencryptedPacket = null!;
     private MemoryStream _encryptedPacket = null!;
-    private IAvalonCryptoSession _cryptoSession = null!;
+    private IAvalonCryptoSession _client = null!;
+    private IAvalonCryptoSession _server = null!;
 
     [GlobalSetup]
     public void Setup()
@@ -32,11 +33,20 @@ public class SerializationBenchmarks
         var serverPublicKey = AsymmetricCipher.GetPublicKeyFromKeyPair(serverKeyPair);
         var serverPublicKeyBytes = AsymmetricCipher.GetPublicKeyBytes(serverPublicKey);
 
-        _cryptoSession = new AvalonCryptoSession();
-        _cryptoSession.Initialize(serverPublicKeyBytes);
+        var clientKeyPair = AsymmetricCipher.GenerateECDHKeyPair(256);
+        var clientPublicKey = AsymmetricCipher.GetPublicKeyFromKeyPair(clientKeyPair);
+        var clientPublicKeyBytes = AsymmetricCipher.GetPublicKeyBytes(clientPublicKey);
+
+        // Both ends of one exchange. A session seals with its own direction's key and opens with
+        // the other's, so a single session cannot read what it wrote.
+        _client = new AvalonCryptoSession(CryptoRole.Client, clientKeyPair);
+        _client.Initialize(serverPublicKeyBytes);
+
+        _server = new AvalonCryptoSession(CryptoRole.Server, serverKeyPair);
+        _server.Initialize(clientPublicKeyBytes);
 
         _encryptedPacket = new MemoryStream();
-        Serializer.SerializeWithLengthPrefix(_encryptedPacket, CCharacterListPacket.Create(_cryptoSession.Encrypt), PrefixStyle.Base128);
+        Serializer.SerializeWithLengthPrefix(_encryptedPacket, CCharacterListPacket.Create(_client.Encrypt), PrefixStyle.Base128);
         _encryptedPacket.Seek(0, SeekOrigin.Begin);
     }
 
@@ -53,7 +63,7 @@ public class SerializationBenchmarks
     [Benchmark]
     public void Serialize_Encrypted()
     {
-        var packet = CCharacterListPacket.Create(_cryptoSession.Encrypt);
+        var packet = CCharacterListPacket.Create(_client.Encrypt);
 
         using var memoryStream = new MemoryStream();
 
@@ -68,7 +78,7 @@ public class SerializationBenchmarks
         var packet = Serializer.DeserializeWithLengthPrefix<NetworkPacket>(_encryptedPacket, PrefixStyle.Base128);
 
         byte[] decryptedBytes = new byte[packet.Payload.Length];
-        int len = _cryptoSession.Decrypt(packet.Payload.AsSpan(), decryptedBytes);
+        int len = _server.Decrypt(packet.Payload.AsSpan(), decryptedBytes);
 
         using var memoryStream = new MemoryStream(decryptedBytes, 0, len);
 
