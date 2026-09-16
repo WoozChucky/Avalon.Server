@@ -59,7 +59,13 @@ public class ObservabilityService : IObservabilityService
         PresencePaginateFilters filters, CancellationToken ct = default)
     {
         int page = filters.Page < 1 ? 1 : filters.Page;
-        int pageSize = filters.PageSize is < 1 or > 50 ? 20 : filters.PageSize;
+        int pageSize = filters.PageSize is < 1 or > 50 ? 50 : filters.PageSize;
+
+        // Instances overwhelmingly repeat the same handful of template ids, and this loop
+        // runs over every instance in every world before Skip/Take ever applies. Memoize
+        // for the duration of the request so that cost is proportional to distinct
+        // templates seen, not to total instance count.
+        Dictionary<ushort, string> templateNames = [];
 
         List<OnlinePlayerDto> rows = [];
         foreach (AvalonWorld world in await _worlds.FindAllAsync(track: false, ct))
@@ -74,7 +80,7 @@ public class ObservabilityService : IObservabilityService
             {
                 if (filters.TemplateId is { } wantTemplate && instance.TemplateId != wantTemplate) continue;
 
-                string templateName = await TemplateNameAsync(instance.TemplateId, ct);
+                string templateName = await TemplateNameAsync(instance.TemplateId, ct, templateNames);
                 foreach (CharacterPresenceSnapshot c in instance.Characters)
                 {
                     rows.Add(new OnlinePlayerDto
@@ -157,10 +163,16 @@ public class ObservabilityService : IObservabilityService
         return raw is null ? null : PresenceJson.Deserialize<WorldPresenceSnapshot>(raw);
     }
 
-    private async Task<string> TemplateNameAsync(ushort templateId, CancellationToken ct)
+    private async Task<string> TemplateNameAsync(
+        ushort templateId, CancellationToken ct, Dictionary<ushort, string>? memo = null)
     {
+        if (memo is not null && memo.TryGetValue(templateId, out string? cached)) return cached;
+
         MapTemplate? template = await _maps.FindByIdAsync(new MapTemplateId(templateId), track: false, ct);
-        return template?.Name ?? $"#{templateId}";
+        string name = template?.Name ?? $"#{templateId}";
+
+        if (memo is not null) memo[templateId] = name;
+        return name;
     }
 
     private async Task<InstancePresenceDto> ToDtoAsync(
