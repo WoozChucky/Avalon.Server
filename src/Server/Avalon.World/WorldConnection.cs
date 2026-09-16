@@ -67,6 +67,9 @@ public class WorldConnection : Connection, IWorldConnection
 
     /// <summary>Server time minus client time, in ticks, as of the last pong.</summary>
     public long TimeSyncOffset { get; private set; }
+
+    /// <inheritdoc />
+    public long CurrentPacketArrivedTicks { get; private set; }
     public bool InGame => Character != null;
     public bool InMap => InGame && _characterEntity?.Map > 0;
 
@@ -76,9 +79,14 @@ public class WorldConnection : Connection, IWorldConnection
         Send(SPingPacket.Create(_lastServerTicks, _lastClientTicks, RoundTripTime, TimeSyncOffset));
     }
 
-    public void OnPongReceived(long lastServerTimestamp, long clientReceivedTimestamp, long clientSentTimestamp)
+    public void OnPongReceived(long lastServerTimestamp, long clientReceivedTimestamp, long clientSentTimestamp,
+        long serverReceivedTicks)
     {
-        long rtt = clientReceivedTimestamp - lastServerTimestamp + (DateTime.UtcNow.Ticks - clientSentTimestamp);
+        // serverReceivedTicks rather than the clock: this runs on the world tick, so a pong that landed
+        // while the server slept out the rest of a tick would otherwise be charged that whole wait --
+        // a round trip of one tick on a loopback connection, and half of it again as a clock offset,
+        // because splitting an asymmetric round trip down the middle misattributes the difference.
+        long rtt = clientReceivedTimestamp - lastServerTimestamp + (serverReceivedTicks - clientSentTimestamp);
         long latency = rtt / TimeSpan.TicksPerMillisecond;
 
         // Every term from THIS exchange. _lastClientTicks still holds the previous pong's stamp here
@@ -130,6 +138,7 @@ public class WorldConnection : Connection, IWorldConnection
             _receiveQueue.TryDequeue(out _);
             try
             {
+                CurrentPacketArrivedTicks = packet.ArrivedTicks;
                 if (_server.PacketHandlers.TryGetValue(packet.Type, out IWorldPacketHandler? handler))
                     handler.Execute(this, packet.Payload!);
                 else
@@ -187,7 +196,7 @@ public class WorldConnection : Connection, IWorldConnection
     {
         if (_worldSessionFilter.CanProcess(header.Type) || _worldMapFilter.CanProcess(header.Type))
         {
-            _receiveQueue.Enqueue(new WorldPacket(header.Type, payload));
+            _receiveQueue.Enqueue(new WorldPacket(header.Type, payload, DateTime.UtcNow.Ticks));
             return ValueTask.CompletedTask;
         }
         return new ValueTask(Server.CallListener(this, header, payload));
@@ -201,7 +210,7 @@ public class WorldConnection : Connection, IWorldConnection
 
     protected override long GetServerTime() => Server.ServerTime;
 
-    private readonly record struct WorldPacket(NetworkPacketType Type, Packet? Payload);
+    private readonly record struct WorldPacket(NetworkPacketType Type, Packet? Payload, long ArrivedTicks);
 
     #region Filters
 

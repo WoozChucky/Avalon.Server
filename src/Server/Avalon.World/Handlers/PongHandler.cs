@@ -9,7 +9,8 @@ public class PongHandler : WorldPacketHandler<CPongPacket>
 {
     public override void Execute(IWorldConnection connection, CPongPacket packet)
     {
-        connection.OnPongReceived(packet.LastServerTimestamp, packet.ClientReceivedTimestamp, packet.ClientSentTimestamp);
+        connection.OnPongReceived(packet.LastServerTimestamp, packet.ClientReceivedTimestamp, packet.ClientSentTimestamp,
+            connection.CurrentPacketArrivedTicks);
     }
 }
 
