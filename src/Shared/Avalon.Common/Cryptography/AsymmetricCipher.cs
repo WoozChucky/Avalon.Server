@@ -7,6 +7,7 @@ using Org.BouncyCastle.Crypto.Agreement;
 using Org.BouncyCastle.Crypto.EC;
 using Org.BouncyCastle.Crypto.Parameters;
 using Org.BouncyCastle.Security;
+using Org.BouncyCastle.Utilities;
 using Org.BouncyCastle.X509;
 
 namespace Avalon.Common.Cryptography;
@@ -85,9 +86,10 @@ public class AsymmetricCipher
         // Calculate the shared secret using the other end's public key
         var secret = agreement.CalculateAgreement(otherPublicKey);
 
-        // Convert the shared secret to a byte array
-        var sharedSecret = secret.ToByteArrayUnsigned();
-
-        return sharedSecret;
+        // FIXED WIDTH, leading zeros kept. A P-256 x-coordinate is a 256-bit number, so about one in
+        // 256 of them has a zero top byte -- and a minimal encoding drops it, yielding 31 bytes where
+        // AES-256 needs 32. The exchange that drew one completed its handshake and failed on the first
+        // packet it tried to seal.
+        return BigIntegers.AsUnsignedByteArray(32, secret);
     }
 }
