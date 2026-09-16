@@ -88,13 +88,27 @@ a slot the player cannot reuse.
 
 Two things close it, and they are independent:
 
-- **The repositories do not cascade.** Every write goes through `DbContextWriteExtensions`
-  (`TrackForInsert` / `TrackForUpdate`), which tracks the root for the write and marks anything
-  reachable that already carries its key as `Unchanged`. A reachable node with no key is genuinely
-  new and is still inserted, so inserting a parent with new children keeps working. This is what
-  covers call sites nobody has audited.
+- **A repository write covers one row. It never writes a graph.** Every write goes through
+  `DbContextWriteExtensions` (`TrackForInsert` / `TrackForUpdate`), which tracks the root and
+  **throws** on anything reachable through a navigation, naming both types. This is what covers
+  call sites nobody has audited.
 - **Call sites do not assign a redundant navigation.** All three that did also set the foreign
   key, so the navigation bought nothing and its only effect was this.
+
+It refuses rather than guesses because the obvious guess is wrong in a way that cannot be seen.
+"Already carries its key" reads like "a row that exists", but `EntityEntry.IsKeySet` is `true`
+**unconditionally** for a key with no store generation. Fifteen types here are client-keyed, and
+for those a key test can never answer "new" — so a parent handed a brand-new child would insert the
+parent, drop the child, and **return success**. That is worse than the cascade it replaced: the
+cascade at least threw. `ChunkPoolRepository.FindAllWithMembershipsAsync` already hands back
+detached pools with `Memberships` populated and the class inherits `CreateAsync`, so it was one
+caller away, not one refactor away.
+
+Owned entities are exempt: they are part of the root's row, have no foreign key a caller could
+name them by, and the rule has nothing to offer them. `ChunkTemplate.SpawnSlots` is the case.
+
+A caller that genuinely wants to write several rows writes them itself, on one context, through
+`IDbTransactionRunner`.
 
 ## Writes that must commit together
 
@@ -142,6 +156,11 @@ returns early when the caller has already configured one, and the Npgsql path is
 handler — the handler's continuation chain pumped the way the tick loop pumps it — over real
 repositories. With the cascade restored and the navigations put back, both fail on the duplicate
 insert, which is what they exist to say.
+
+`RepositoryWritePathShould` holds the rule itself: a dependent named by foreign key lands, a
+dependent naming its principal by navigation is refused, a parent carrying a new client-keyed child
+is refused, and an owned collection is written with its owner. The third of those is the one a key
+test passes while writing nothing.
 
 ## Known gaps
 
