@@ -73,6 +73,22 @@ public class WorldConnection : Connection, IWorldConnection
     public bool InGame => Character != null;
     public bool InMap => InGame && _characterEntity?.Map > 0;
 
+    // Set by a packet handler and taken by the tick. Both run on the tick thread -- handlers are
+    // dispatched from ProcessQueue -- so this needs no interlocking, and would need it the day they
+    // do not.
+    private bool _initialPingRequested;
+
+    /// <inheritdoc />
+    public void RequestInitialTimeSyncPing() => _initialPingRequested = true;
+
+    /// <inheritdoc />
+    public bool TakeInitialTimeSyncPingRequest()
+    {
+        if (!_initialPingRequested) return false;
+        _initialPingRequested = false;
+        return true;
+    }
+
     public void SendTimeSyncPing()
     {
         _lastServerTicks = DateTime.UtcNow.Ticks;

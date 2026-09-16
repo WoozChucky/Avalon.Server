@@ -68,6 +68,17 @@ public interface IWorldConnection : IConnection
     void SendTimeSyncPing();
 
     /// <summary>
+    ///     Asks for a time-sync ping on the next tick, whatever this connection's phase. A handler
+    ///     cannot send one itself: SendTimeSyncPing stamps the send time the round trip is measured
+    ///     against, and a handler runs at the top of a tick while the outbox is flushed at the bottom,
+    ///     so the stamp would carry the world update between them.
+    /// </summary>
+    void RequestInitialTimeSyncPing();
+
+    /// <summary>Takes that request if one is outstanding, clearing it. Called only from the tick.</summary>
+    bool TakeInitialTimeSyncPingRequest();
+
+    /// <summary>
     ///     Called when a pong response is received.
     /// </summary>
     /// <param name="lastServerTimestamp">The last server timestamp.</param>

@@ -398,7 +398,9 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         long phase = _pingTickCounter++ % TimeSyncTicksPeriod;
         for (int i = 0; i < conns.Length; i++)
         {
-            if (i % TimeSyncTicksPeriod == phase)
+            // A connection that has just handshaken pings on this tick whatever its phase, so the
+            // FIRST round trip a client is told is stamped beside the flush like every other one.
+            if (conns[i].TakeInitialTimeSyncPingRequest() || i % TimeSyncTicksPeriod == phase)
                 conns[i].SendTimeSyncPing();
         }
 

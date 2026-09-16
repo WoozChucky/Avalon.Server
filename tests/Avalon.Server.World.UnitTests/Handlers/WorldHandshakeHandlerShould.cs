@@ -42,8 +42,10 @@ public class WorldHandshakeHandlerShould
     }
 
     [Fact]
-    public async Task SendInitialTimeSyncPing_AfterSendingHandshake_ToWarmUpRtt()
+    public async Task AskForAnInitialTimeSyncPing_RatherThanSendingOne()
     {
+        // Sending one here stamps its send time at the top of a tick and flushes it at the bottom,
+        // so the world update between them lands inside the first round trip a client is told.
         var ctx = new WorldPacketContext<CWorldHandshakePacket>
         {
             Packet = new CWorldHandshakePacket { Version = "0.0.1" },
@@ -52,7 +54,8 @@ public class WorldHandshakeHandlerShould
 
         await _handler.ExecuteAsync(ctx);
 
-        _connection.Received(1).SendTimeSyncPing();
+        _connection.Received(1).RequestInitialTimeSyncPing();
+        _connection.DidNotReceive().SendTimeSyncPing();
     }
 
     [Fact]
