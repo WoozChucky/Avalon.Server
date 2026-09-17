@@ -12,6 +12,7 @@ using Avalon.Domain.World;
 using Avalon.Infrastructure;
 using Avalon.Infrastructure.Presence;
 using Avalon.World.ChunkLayouts;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Xunit;
@@ -25,8 +26,11 @@ public class ObservabilityServiceShould
     private readonly IWorldRepository _worlds = Substitute.For<IWorldRepository>();
     private readonly IMapTemplateRepository _maps = Substitute.For<IMapTemplateRepository>();
     private readonly IProceduralMapConfigRepository _configs = Substitute.For<IProceduralMapConfigRepository>();
-    private readonly IChunkPoolRepository _pools = Substitute.For<IChunkPoolRepository>();
-    private readonly IChunkTemplateRepository _chunks = Substitute.For<IChunkTemplateRepository>();
+    private readonly IProceduralLayoutInputsResolver _inputsResolver = Substitute.For<IProceduralLayoutInputsResolver>();
+
+    // Real (not substituted) so the caching test exercises genuine TTL/eviction behavior rather
+    // than a mock standing in for it.
+    private readonly IMemoryCache _poolMemberCache = new MemoryCache(new MemoryCacheOptions());
 
     private static readonly Guid InstanceId = Guid.Parse("8f3c1d2e-0000-0000-0000-000000000001");
 
@@ -54,7 +58,8 @@ public class ObservabilityServiceShould
         _maps.FindByIdAsync(Arg.Any<MapTemplateId>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
              .Returns(new MapTemplate { Id = new MapTemplateId(12), Name = "Crypt" });
         return new ObservabilityService(
-            _cache, _worlds, _maps, _configs, _pools, _chunks, NullLogger<ObservabilityService>.Instance);
+            _cache, _worlds, _maps, _configs, _inputsResolver, _poolMemberCache,
+            NullLogger<ObservabilityService>.Instance);
     }
 
     /// <summary>
@@ -96,14 +101,17 @@ public class ObservabilityServiceShould
             Memberships = [new ChunkPoolMembership { ChunkTemplateId = template.Id, Weight = 1.0f }],
         };
 
+        List<ChunkPoolMember> members = [new ChunkPoolMember(template, 1.0f)];
+        Dictionary<ChunkTemplateId, ChunkTemplate> byId = new() { [template.Id] = template };
+
         _configs.FindByTemplateIdAsync(Arg.Any<MapTemplateId>(), Arg.Any<CancellationToken>())
                 .Returns(config);
-        _pools.FindAllWithMembershipsAsync(Arg.Any<CancellationToken>())
-              .Returns<IReadOnlyList<ChunkPool>>([pool]);
-        _chunks.FindAllWithSlotsAsync(Arg.Any<CancellationToken>())
-               .Returns<IReadOnlyList<ChunkTemplate>>([template]);
+        _inputsResolver.FindPoolAsync(Arg.Any<ChunkPoolId>(), Arg.Any<CancellationToken>())
+                       .Returns(pool);
+        _inputsResolver.ResolveMembersAsync(Arg.Any<ChunkPool>(), Arg.Any<CancellationToken>())
+                       .Returns(new ProceduralPoolResolution(members, byId));
 
-        return LayoutConfigVersion.Compute(config, [new ChunkPoolMember(template, 1.0f)]);
+        return LayoutConfigVersion.Compute(config, members);
     }
 
     private void GivenWorldSnapshot(WorldPresenceSnapshot snapshot)
@@ -356,5 +364,23 @@ public class ObservabilityServiceShould
         PlayerPresenceDto? presence = await CreateSut().GetPlayerPresenceAsync(4417, CancellationToken.None);
 
         Assert.False(presence!.LayoutStale);
+    }
+
+    [Fact]
+    public async Task Should_cache_pool_member_resolution_across_polls()
+    {
+        // The admin dashboard polls GetPlayerPresenceAsync every 1.5s. Without caching, an
+        // open player-detail view would re-run both full-table reads behind
+        // IProceduralLayoutInputsResolver on every single poll.
+        string current = GivenGeneratorInputs();
+        GivenCharacterIndex(4417);
+        GivenWorldSnapshot(Snapshot(current, Char(4417, "Nym")));
+
+        ObservabilityService sut = CreateSut();
+        await sut.GetPlayerPresenceAsync(4417, CancellationToken.None);
+        await sut.GetPlayerPresenceAsync(4417, CancellationToken.None);
+
+        await _inputsResolver.Received(1).FindPoolAsync(Arg.Any<ChunkPoolId>(), Arg.Any<CancellationToken>());
+        await _inputsResolver.Received(1).ResolveMembersAsync(Arg.Any<ChunkPool>(), Arg.Any<CancellationToken>());
     }
 }

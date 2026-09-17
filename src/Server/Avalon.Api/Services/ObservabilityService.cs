@@ -10,6 +10,7 @@ using Avalon.Domain.World;
 using Avalon.Infrastructure;
 using Avalon.Infrastructure.Presence;
 using Avalon.World.ChunkLayouts;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using AvalonWorld = Avalon.Domain.Auth.World;
 
@@ -43,8 +44,8 @@ public class ObservabilityService : IObservabilityService
     private readonly IWorldRepository _worlds;
     private readonly IMapTemplateRepository _maps;
     private readonly IProceduralMapConfigRepository _configs;
-    private readonly IChunkPoolRepository _pools;
-    private readonly IChunkTemplateRepository _chunks;
+    private readonly IProceduralLayoutInputsResolver _inputsResolver;
+    private readonly IMemoryCache _poolMemberCache;
     private readonly ILogger<ObservabilityService> _logger;
 
     public ObservabilityService(
@@ -52,16 +53,16 @@ public class ObservabilityService : IObservabilityService
         IWorldRepository worlds,
         IMapTemplateRepository maps,
         IProceduralMapConfigRepository configs,
-        IChunkPoolRepository pools,
-        IChunkTemplateRepository chunks,
+        IProceduralLayoutInputsResolver inputsResolver,
+        IMemoryCache poolMemberCache,
         ILogger<ObservabilityService> logger)
     {
         _cache = cache;
         _worlds = worlds;
         _maps = maps;
         _configs = configs;
-        _pools = pools;
-        _chunks = chunks;
+        _inputsResolver = inputsResolver;
+        _poolMemberCache = poolMemberCache;
         _logger = logger;
     }
 
@@ -244,17 +245,8 @@ public class ObservabilityService : IObservabilityService
                 await _configs.FindByTemplateIdAsync(new MapTemplateId(instance.TemplateId), ct);
             if (config is null) return false;
 
-            IReadOnlyList<ChunkPool> pools = await _pools.FindAllWithMembershipsAsync(ct);
-            ChunkPool? pool = pools.FirstOrDefault(p => p.Id == config.ChunkPoolId);
-            if (pool is null) return false;
-
-            IReadOnlyList<ChunkTemplate> templates = await _chunks.FindAllWithSlotsAsync(ct);
-            Dictionary<ChunkTemplateId, ChunkTemplate> byId = templates.ToDictionary(t => t.Id);
-
-            List<ChunkPoolMember> members = pool.Memberships
-                .Where(m => byId.ContainsKey(m.ChunkTemplateId))
-                .Select(m => new ChunkPoolMember(byId[m.ChunkTemplateId], m.Weight))
-                .ToList();
+            IReadOnlyList<ChunkPoolMember>? members = await GetPoolMembersCachedAsync(config.ChunkPoolId, ct);
+            if (members is null) return false;
 
             return !string.Equals(
                 LayoutConfigVersion.Compute(config, members),
@@ -267,5 +259,34 @@ public class ObservabilityService : IObservabilityService
                 "Could not recompute layout config version for template {TemplateId}", instance.TemplateId);
             return false;
         }
+    }
+
+    /// <summary>
+    /// Pool-member resolution costs two unfiltered table reads — see
+    /// <see cref="IProceduralLayoutInputsResolver"/> — and <see cref="GetPlayerPresenceAsync"/>
+    /// is polled by the admin dashboard every PRESENCE_POLL_MS (1.5s), so an open player-detail
+    /// view would otherwise repeat both full-table reads on every poll. Caching the resolved
+    /// member list by <see cref="ChunkPoolId"/> for 30 seconds cuts that to one pair of reads
+    /// per pool per 30s window regardless of how many admins are watching.
+    ///
+    /// Tradeoff, written down deliberately: a pool-weight or geometry edit can take up to 30s to
+    /// surface as <see cref="PlayerPresenceDto.LayoutStale"/>. That is acceptable because the
+    /// flag is advisory — it warns that rendered geometry may not match the player's client — not
+    /// a correctness guarantee.
+    ///
+    /// Deliberately NOT shared with <see cref="MapService.PreviewLayoutAsync"/>: that path is
+    /// admin-triggered, not polled, and an admin previewing a layout right after editing a pool
+    /// must see the edit immediately, not up to 30s later.
+    /// </summary>
+    private async Task<IReadOnlyList<ChunkPoolMember>?> GetPoolMembersCachedAsync(ChunkPoolId poolId, CancellationToken ct)
+    {
+        if (_poolMemberCache.TryGetValue(poolId, out IReadOnlyList<ChunkPoolMember>? cached)) return cached;
+
+        ChunkPool? pool = await _inputsResolver.FindPoolAsync(poolId, ct);
+        if (pool is null) return null;
+
+        ProceduralPoolResolution resolution = await _inputsResolver.ResolveMembersAsync(pool, ct);
+        _poolMemberCache.Set(poolId, resolution.Members, TimeSpan.FromSeconds(30));
+        return resolution.Members;
     }
 }
