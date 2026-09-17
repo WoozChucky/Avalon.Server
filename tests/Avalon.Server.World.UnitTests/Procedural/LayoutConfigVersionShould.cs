@@ -1,3 +1,4 @@
+using System.Globalization;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.World.ChunkLayouts;
@@ -135,6 +136,72 @@ public class LayoutConfigVersionShould
         Assert.NotEqual(
             LayoutConfigVersion.Compute(Config(branchChance: 0.25f), Pool()),
             LayoutConfigVersion.Compute(Config(branchChance: 0.75f), Pool()));
+    }
+
+    /// <summary>
+    /// Pins the fix in 1517f98a. Every numeric append in LayoutConfigVersion.Compute must
+    /// use CultureInfo.InvariantCulture explicitly rather than the implicit ToString()
+    /// overload, which formats using CultureInfo.CurrentCulture. On a de-DE host that
+    /// culture uses a comma decimal separator, so BranchChance/Weight/CellSize would encode
+    /// differently there than on an invariant-like (e.g. en-US) host, producing a different
+    /// FNV hash for byte-for-byte identical inputs -- a permanent phantom "layout stale"
+    /// banner that only reproduces on non-invariant locales. Without ToString(CultureInfo)
+    /// on those floats, this test fails on any machine whose CurrentCulture is de-DE.
+    /// </summary>
+    [Fact]
+    public void Should_return_the_same_stamp_regardless_of_current_culture()
+    {
+        CultureInfo original = CultureInfo.CurrentCulture;
+        try
+        {
+            string invariantStamp = LayoutConfigVersion.Compute(Config(), Pool());
+
+            CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("de-DE");
+            string deStamp = LayoutConfigVersion.Compute(Config(), Pool());
+
+            Assert.Equal(invariantStamp, deStamp);
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = original;
+        }
+    }
+
+    /// <summary>
+    /// LayoutConfigVersion.Compute hashes ten ProceduralMapConfig fields and six per-member
+    /// fields, but before this test only BranchChance, Weight and GeometryFile were pinned.
+    /// A refactor silently dropping any of these from the encoding would pass every other
+    /// test in this file while quietly disabling drift detection for that input -- exactly
+    /// the failure this feature exists to catch. One field mutated at a time, everything
+    /// else held fixed, so each case can only pass if that specific field is still hashed.
+    /// </summary>
+    public static IEnumerable<object[]> UnpinnedDriftInputs()
+    {
+        yield return ["SpawnTableId", (Action<ProceduralMapConfig, ChunkTemplate>)((c, _) => c.SpawnTableId = new SpawnTableId(2))];
+        yield return ["BackPortalTargetMapId", (Action<ProceduralMapConfig, ChunkTemplate>)((c, _) => c.BackPortalTargetMapId = 7)];
+        yield return ["ForwardPortalTargetMapId", (Action<ProceduralMapConfig, ChunkTemplate>)((c, _) => c.ForwardPortalTargetMapId = 7)];
+        yield return ["Exits", (Action<ProceduralMapConfig, ChunkTemplate>)((_, t) => t.Exits = (ushort)~t.Exits)];
+        yield return ["CellFootprintX", (Action<ProceduralMapConfig, ChunkTemplate>)((_, t) => t.CellFootprintX = 9)];
+        yield return ["CellFootprintZ", (Action<ProceduralMapConfig, ChunkTemplate>)((_, t) => t.CellFootprintZ = 9)];
+    }
+
+    [Theory]
+    [MemberData(nameof(UnpinnedDriftInputs))]
+    public void Should_change_stamp_when_a_currently_unpinned_input_changes(
+        string fieldName, Action<ProceduralMapConfig, ChunkTemplate> mutate)
+    {
+        ProceduralMapConfig baselineConfig = Config();
+        List<ChunkPoolMember> baselinePool = Pool();
+
+        ProceduralMapConfig mutatedConfig = Config();
+        ChunkTemplate mutatedTemplate = Template(1, "a.obj");
+        List<ChunkPoolMember> mutatedPool = [new(mutatedTemplate, 1.0f), new(Template(2, "b.obj"), 2.5f)];
+        mutate(mutatedConfig, mutatedTemplate);
+
+        string baselineStamp = LayoutConfigVersion.Compute(baselineConfig, baselinePool);
+        string mutatedStamp = LayoutConfigVersion.Compute(mutatedConfig, mutatedPool);
+
+        Assert.True(baselineStamp != mutatedStamp, $"Expected the stamp to change when {fieldName} changes, but it did not.");
     }
 
     [Fact]
