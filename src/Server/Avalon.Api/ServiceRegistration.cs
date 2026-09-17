@@ -34,10 +34,14 @@ public static class ServiceRegistration
         services.AddOptions<MapAssetConfig>()
             .BindConfiguration("Application:MapAssets");
 
+        services.AddMemoryCache();
+
         services.AddScoped<IAccountService, AccountService>();
         services.AddScoped<ICharacterService, CharacterService>();
         services.AddScoped<IWorldService, WorldService>();
         services.AddScoped<IMapService, MapService>();
+        services.AddScoped<IProceduralLayoutInputsResolver, ProceduralLayoutInputsResolver>();
+        services.AddScoped<IObservabilityService, ObservabilityService>();
         services.AddScoped<IPersonalAccessTokenService, PersonalAccessTokenService>();
         services.AddScoped<IRefreshTokenService, RefreshTokenService>();
         services.AddSingleton(TimeProvider.System);
