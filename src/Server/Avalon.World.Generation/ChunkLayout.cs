@@ -25,4 +25,5 @@ public record ChunkLayout(
     IReadOnlyList<PortalPlacement> Portals,
     Vector3 EntrySpawnWorldPos,
     float CellSize,
-    ProceduralMapConfig? Config = null);
+    ProceduralMapConfig? Config = null,
+    string? ConfigVersion = null);

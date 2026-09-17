@@ -2,6 +2,7 @@
 using System.Security.Authentication;
 using Avalon.Api.Exceptions;
 using Microsoft.AspNetCore.Mvc;
+using StackExchange.Redis;
 
 namespace Avalon.Api.Middlewares;
 
@@ -51,6 +52,22 @@ public class ExceptionHandlerMiddleware
                     Status = (int)HttpStatusCode.BadRequest,
                     Type = exception.GetType().Name,
                     Title = "Client error",
+                    Detail = ex.Message,
+                    Instance = $"{context.Request.Method} {context.Request.Path}"
+                }, cancellationToken: context.RequestAborted);
+                return;
+            // Redis unreachable must read as "service unavailable", not "server error": an
+            // empty roster and a broken pipe must not look alike to a caller. This is a
+            // shared middleware, so the mapping applies everywhere IReplicatedCache is used
+            // (observability, account/refresh, MFA), not just the presence endpoints that
+            // motivated it -- a Redis outage genuinely is a 503 everywhere.
+            case RedisConnectionException ex:
+                context.Request.HttpContext.Response.StatusCode = (int)HttpStatusCode.ServiceUnavailable;
+                await context.Response.WriteAsJsonAsync(new ProblemDetails
+                {
+                    Status = (int)HttpStatusCode.ServiceUnavailable,
+                    Type = exception.GetType().Name,
+                    Title = "Service unavailable",
                     Detail = ex.Message,
                     Instance = $"{context.Request.Method} {context.Request.Path}"
                 }, cancellationToken: context.RequestAborted);
