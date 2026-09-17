@@ -87,12 +87,12 @@ public class ObservabilityService : IObservabilityService
             WorldPresenceSnapshot? snapshot = await ReadWorldAsync(worldId);
             if (snapshot is null) continue;
 
-            foreach (InstancePresenceSnapshot instance in snapshot.Instances)
+            foreach (InstancePresenceSnapshot instance in snapshot.Instances ?? [])
             {
                 if (filters.TemplateId is { } wantTemplate && instance.TemplateId != wantTemplate) continue;
 
                 string templateName = await TemplateNameAsync(instance.TemplateId, ct, templateNames);
-                foreach (CharacterPresenceSnapshot c in instance.Characters)
+                foreach (CharacterPresenceSnapshot c in instance.Characters ?? [])
                 {
                     rows.Add(new OnlinePlayerDto
                     {
@@ -142,9 +142,9 @@ public class ObservabilityService : IObservabilityService
         if (snapshot is null) return null;
 
         InstancePresenceSnapshot? instance =
-            snapshot.Instances.FirstOrDefault(i => i.InstanceId == index.InstanceId);
+            snapshot.Instances?.FirstOrDefault(i => i.InstanceId == index.InstanceId);
         CharacterPresenceSnapshot? target =
-            instance?.Characters.FirstOrDefault(c => c.CharacterId == characterId);
+            instance?.Characters?.FirstOrDefault(c => c.CharacterId == characterId);
         if (instance is null || target is null) return null;
 
         return new PlayerPresenceDto
@@ -162,16 +162,38 @@ public class ObservabilityService : IObservabilityService
         {
             WorldPresenceSnapshot? snapshot = await ReadWorldAsync(world.Id.Value);
             InstancePresenceSnapshot? instance =
-                snapshot?.Instances.FirstOrDefault(i => i.InstanceId == instanceId);
+                snapshot?.Instances?.FirstOrDefault(i => i.InstanceId == instanceId);
             if (instance is not null) return await ToDtoAsync(instance, world.Id.Value, ct);
         }
         return null;
     }
 
+    /// <summary>
+    /// Reads and deserialises one world's snapshot, treating anything unreadable as
+    /// absent rather than throwing — an expired key, a malformed blob (<see
+    /// cref="PresenceJson.Deserialize{T}"/> already returns null for those) and a
+    /// recognisable-but-wrong schema version must all fail closed the same way. A snapshot
+    /// stamped with a version this build does not recognise is exactly that last case: it
+    /// was written by a different build (a rolling deploy, most commonly), so trusting its
+    /// shape is unsafe even though it deserialised without throwing.
+    /// </summary>
     private async Task<WorldPresenceSnapshot?> ReadWorldAsync(ushort worldId)
     {
         string? raw = await _cache.GetAsync(CacheKeys.WorldPresence(worldId));
-        return raw is null ? null : PresenceJson.Deserialize<WorldPresenceSnapshot>(raw);
+        if (raw is null) return null;
+
+        WorldPresenceSnapshot? snapshot = PresenceJson.Deserialize<WorldPresenceSnapshot>(raw);
+        if (snapshot is null) return null;
+
+        if (snapshot.Version != WorldPresenceSnapshot.CurrentVersion)
+        {
+            _logger.LogDebug(
+                "Ignoring presence snapshot for world {WorldId}: unrecognized schema version {Version}",
+                worldId, snapshot.Version);
+            return null;
+        }
+
+        return snapshot;
     }
 
     private async Task<string> TemplateNameAsync(
@@ -196,7 +218,7 @@ public class ObservabilityService : IObservabilityService
         MapType = ParseMapType(instance.MapType),
         WorldId = worldId,
         OwnerCharacterId = instance.OwnerCharacterId,
-        Characters = instance.Characters.Select(ToDto).ToList(),
+        Characters = (instance.Characters ?? []).Select(ToDto).ToList(),
     };
 
     private static CharacterPresenceDto ToDto(CharacterPresenceSnapshot c) => new()
@@ -219,9 +241,14 @@ public class ObservabilityService : IObservabilityService
     /// Snapshots carry MapType as a string so a redeploy cannot renumber it underneath a
     /// live Redis value. Values this build does not recognise map to null rather than
     /// throwing (there is deliberately no "Unknown" enum member).
+    ///
+    /// <see cref="Enum.TryParse{TEnum}(string?, bool, out TEnum)"/> alone is not enough:
+    /// it happily accepts numeric-looking strings, so e.g. <c>"2"</c> parses to the
+    /// non-member value <c>(MapType)2</c> instead of failing. The added
+    /// <see cref="Enum.IsDefined{TEnum}(TEnum)"/> check rejects that case too.
     /// </summary>
     private static MapType? ParseMapType(string mapType) =>
-        Enum.TryParse(mapType, ignoreCase: true, out MapType parsed)
+        Enum.TryParse(mapType, ignoreCase: true, out MapType parsed) && Enum.IsDefined(parsed)
             ? parsed
             : null;
 
@@ -277,16 +304,22 @@ public class ObservabilityService : IObservabilityService
     /// Deliberately NOT shared with <see cref="MapService.PreviewLayoutAsync"/>: that path is
     /// admin-triggered, not polled, and an admin previewing a layout right after editing a pool
     /// must see the edit immediately, not up to 30s later.
+    ///
+    /// Keyed on a prefixed string, not the bare <see cref="ChunkPoolId"/>: <c>ValueObject&lt;TValue&gt;</c>
+    /// compares and hashes by <c>Value</c> alone, so a bare <c>ChunkPoolId(3)</c> would collide in this
+    /// shared <see cref="IMemoryCache"/> with a <c>MapTemplateId(3)</c>, a <c>SpawnTableId(3)</c>, or any
+    /// other <c>ValueObject&lt;ushort&gt;</c> another feature might one day cache here.
     /// </summary>
     private async Task<IReadOnlyList<ChunkPoolMember>?> GetPoolMembersCachedAsync(ChunkPoolId poolId, CancellationToken ct)
     {
-        if (_poolMemberCache.TryGetValue(poolId, out IReadOnlyList<ChunkPoolMember>? cached)) return cached;
+        string cacheKey = $"obs:poolMembers:{poolId.Value}";
+        if (_poolMemberCache.TryGetValue(cacheKey, out IReadOnlyList<ChunkPoolMember>? cached)) return cached;
 
         ChunkPool? pool = await _inputsResolver.FindPoolAsync(poolId, ct);
         if (pool is null) return null;
 
         ProceduralPoolResolution resolution = await _inputsResolver.ResolveMembersAsync(pool, ct);
-        _poolMemberCache.Set(poolId, resolution.Members, TimeSpan.FromSeconds(30));
+        _poolMemberCache.Set(cacheKey, resolution.Members, TimeSpan.FromSeconds(30));
         return resolution.Members;
     }
 }

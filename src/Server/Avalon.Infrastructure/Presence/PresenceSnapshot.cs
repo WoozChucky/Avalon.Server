@@ -11,11 +11,25 @@ namespace Avalon.Infrastructure.Presence;
 /// side needs custom converters and the payload stays cheap to (de)serialise at 1 Hz.
 /// Enums cross as strings because a snapshot outlives a deploy in Redis and numeric
 /// enum drift between versions would silently mislabel data.
+///
+/// <see cref="Version"/> exists for the same reason: System.Text.Json binds a positional
+/// record's parameters by name and silently fills in <see langword="default"/> for any
+/// that are absent, so a blob written by a different build (a rolling deploy, or a schema
+/// change) deserialises without throwing — it just produces a snapshot with the wrong
+/// shape. A reader that trusts such a snapshot can null-reference. Instead, a reader
+/// compares <see cref="Version"/> against <see cref="CurrentVersion"/> and treats a
+/// mismatch as "absent", the same fail-closed behavior as an expired key. This is
+/// deliberately not a migration framework — one int, one constant, one comparison.
 /// </summary>
 public sealed record WorldPresenceSnapshot(
     ushort WorldId,
     DateTime CapturedAt,
-    IReadOnlyList<InstancePresenceSnapshot> Instances);
+    IReadOnlyList<InstancePresenceSnapshot> Instances,
+    int Version = WorldPresenceSnapshot.CurrentVersion)
+{
+    /// <summary>Current schema version stamped by the producer on every write.</summary>
+    public const int CurrentVersion = 1;
+}
 
 public sealed record InstancePresenceSnapshot(
     Guid InstanceId,

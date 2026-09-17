@@ -367,6 +367,110 @@ public class ObservabilityServiceShould
     }
 
     [Fact]
+    public async Task Should_treat_a_snapshot_missing_instances_as_having_none()
+    {
+        // A blob written from a different build: System.Text.Json binds a positional
+        // record's parameters by name and fills `default` for anything absent, so this
+        // deserializes to a non-null WorldPresenceSnapshot whose Instances is null rather
+        // than throwing. That must read as "no data", not a NullReferenceException.
+        string raw = $$"""{"worldId":1,"capturedAt":"{{DateTime.UtcNow:O}}","version":{{WorldPresenceSnapshot.CurrentVersion}}}""";
+        _cache.GetAsync(CacheKeys.WorldPresence(1)).Returns(raw);
+
+        PagedResult<OnlinePlayerDto> page =
+            await CreateSut().GetOnlineAsync(new PresencePaginateFilters(), CancellationToken.None);
+
+        Assert.Empty(page.Items);
+        Assert.Equal(0, page.TotalCount);
+    }
+
+    [Fact]
+    public async Task Should_treat_an_instance_missing_characters_as_an_empty_roster()
+    {
+        string raw = $$"""
+            {"worldId":1,"capturedAt":"{{DateTime.UtcNow:O}}","version":{{WorldPresenceSnapshot.CurrentVersion}},"instances":[
+                {"instanceId":"{{InstanceId}}","templateId":12,"seed":999,"mapType":"Normal","configVersion":"a91f3c7e","ownerCharacterId":4417}
+            ]}
+            """;
+        _cache.GetAsync(CacheKeys.WorldPresence(1)).Returns(raw);
+
+        InstancePresenceDto? instance =
+            await CreateSut().GetInstancePresenceAsync(InstanceId, CancellationToken.None);
+
+        Assert.NotNull(instance);
+        Assert.Empty(instance!.Characters);
+    }
+
+    [Fact]
+    public async Task Should_treat_a_snapshot_with_an_unrecognized_version_as_absent()
+    {
+        // Otherwise-valid payload, but stamped with a schema version this build does not
+        // recognise. It must be discarded wholesale -- the instance inside it is real data
+        // and would return non-null if the version gate were missing.
+        string raw = $$"""
+            {"worldId":1,"capturedAt":"{{DateTime.UtcNow:O}}","version":99999,"instances":[
+                {"instanceId":"{{InstanceId}}","templateId":12,"seed":999,"mapType":"Normal","configVersion":"a91f3c7e","ownerCharacterId":4417,"characters":[]}
+            ]}
+            """;
+        _cache.GetAsync(CacheKeys.WorldPresence(1)).Returns(raw);
+
+        InstancePresenceDto? instance =
+            await CreateSut().GetInstancePresenceAsync(InstanceId, CancellationToken.None);
+
+        Assert.Null(instance);
+    }
+
+    [Fact]
+    public async Task Should_filter_roster_by_world_id()
+    {
+        ObservabilityService sut = CreateSut();
+        _worlds.FindAllAsync(Arg.Any<bool>(), Arg.Any<CancellationToken>()).Returns(
+        [
+            new AvalonWorld { Id = new WorldId(1), Name = "Aurora" },
+            new AvalonWorld { Id = new WorldId(2), Name = "Boreal" },
+        ]);
+        GivenWorldSnapshot(Snapshot("a91f3c7e", Char(1, "Nym"))); // world 1
+        _cache.GetAsync(CacheKeys.WorldPresence(2)).Returns(PresenceJson.Serialize(new WorldPresenceSnapshot(
+            WorldId: 2,
+            CapturedAt: DateTime.UtcNow,
+            Instances:
+            [
+                new InstancePresenceSnapshot(
+                    Guid.NewGuid(), TemplateId: 12, Seed: 2, MapType: "Normal",
+                    ConfigVersion: "b", OwnerCharacterId: null, Characters: [Char(2, "Zed")])
+            ])));
+
+        PagedResult<OnlinePlayerDto> page =
+            await sut.GetOnlineAsync(new PresencePaginateFilters { WorldId = 2 }, CancellationToken.None);
+
+        Assert.Single(page.Items);
+        Assert.Equal("Zed", page.Items[0].Name);
+    }
+
+    [Fact]
+    public async Task Should_filter_roster_by_template_id()
+    {
+        WorldPresenceSnapshot snapshot = new(
+            WorldId: 1,
+            CapturedAt: DateTime.UtcNow,
+            Instances:
+            [
+                new InstancePresenceSnapshot(
+                    InstanceId, TemplateId: 12, Seed: 1, MapType: "Normal",
+                    ConfigVersion: "a", OwnerCharacterId: null, Characters: [Char(1, "Nym")]),
+                new InstancePresenceSnapshot(
+                    Guid.NewGuid(), TemplateId: 99, Seed: 2, MapType: "Normal",
+                    ConfigVersion: "b", OwnerCharacterId: null, Characters: [Char(2, "Zed")]),
+            ]);
+        GivenWorldSnapshot(snapshot);
+
+        PagedResult<OnlinePlayerDto> page = await CreateSut()
+            .GetOnlineAsync(new PresencePaginateFilters { TemplateId = 99 }, CancellationToken.None);
+
+        Assert.Single(page.Items);
+        Assert.Equal("Zed", page.Items[0].Name);
+    }
+
+    [Fact]
     public async Task Should_cache_pool_member_resolution_across_polls()
     {
         // The admin dashboard polls GetPlayerPresenceAsync every 1.5s. Without caching, an

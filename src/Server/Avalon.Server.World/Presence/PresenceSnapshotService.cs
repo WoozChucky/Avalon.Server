@@ -100,7 +100,7 @@ public sealed class PresenceSnapshotService : BackgroundService
             List<InstancePresenceSnapshot> instances = BuildInstanceSnapshots(registry, now);
             if (instances.Count == 0) return;
 
-            var snapshot = new WorldPresenceSnapshot(_worldId, now, instances);
+            var snapshot = new WorldPresenceSnapshot(_worldId, now, instances, WorldPresenceSnapshot.CurrentVersion);
             await _cache.SetAsync(
                 CacheKeys.WorldPresence(_worldId),
                 PresenceJson.Serialize(snapshot),
