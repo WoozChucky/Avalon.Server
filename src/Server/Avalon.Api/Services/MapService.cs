@@ -26,7 +26,7 @@ public class MapService : IMapService
 {
     private readonly IMapTemplateRepository _mapRepo;
     private readonly IProceduralMapConfigRepository _configRepo;
-    private readonly IChunkPoolRepository _poolRepo;
+    private readonly IProceduralLayoutInputsResolver _inputsResolver;
     private readonly IChunkTemplateRepository _chunkRepo;
     private readonly ILoggerFactory _loggerFactory;
     private readonly IOptionsSnapshot<MapAssetConfig> _assetConfig;
@@ -34,14 +34,14 @@ public class MapService : IMapService
     public MapService(
         IMapTemplateRepository mapRepo,
         IProceduralMapConfigRepository configRepo,
-        IChunkPoolRepository poolRepo,
+        IProceduralLayoutInputsResolver inputsResolver,
         IChunkTemplateRepository chunkRepo,
         ILoggerFactory loggerFactory,
         IOptionsSnapshot<MapAssetConfig> assetConfig)
     {
         _mapRepo = mapRepo;
         _configRepo = configRepo;
-        _poolRepo = poolRepo;
+        _inputsResolver = inputsResolver;
         _chunkRepo = chunkRepo;
         _loggerFactory = loggerFactory;
         _assetConfig = assetConfig;
@@ -72,27 +72,20 @@ public class MapService : IMapService
         var config = await _configRepo.FindByTemplateIdAsync(template.Id, ct)
             ?? throw new BusinessException($"Map {id} has no ProceduralMapConfig — preview only works for procedural maps.");
 
-        var pools = await _poolRepo.FindAllWithMembershipsAsync(ct);
-        var pool = pools.FirstOrDefault(p => p.Id == config.ChunkPoolId)
+        var pool = await _inputsResolver.FindPoolAsync(config.ChunkPoolId, ct)
             ?? throw new BusinessException($"Pool {config.ChunkPoolId.Value} not found.");
         if (pool.Memberships.Count == 0)
             throw new BusinessException($"Pool {config.ChunkPoolId.Value} has no memberships.");
 
-        var allTemplates = await _chunkRepo.FindAllWithSlotsAsync(ct);
-        var byId = allTemplates.ToDictionary(t => t.Id);
-
-        var poolMembers = pool.Memberships
-            .Where(m => byId.ContainsKey(m.ChunkTemplateId))
-            .Select(m => new ChunkPoolMember(byId[m.ChunkTemplateId], m.Weight))
-            .ToList();
+        var resolution = await _inputsResolver.ResolveMembersAsync(pool, ct);
 
         var effectiveSeed = seed ?? Random.Shared.Next();
         var generator = new ProceduralLayoutGenerator(_loggerFactory);
 
         try
         {
-            var layout = generator.Generate(config, poolMembers, effectiveSeed);
-            return layout.ToDto(byId);
+            var layout = generator.Generate(config, resolution.Members, effectiveSeed);
+            return layout.ToDto(resolution.TemplatesById);
         }
         catch (ProceduralGenerationFailedException ex)
         {
