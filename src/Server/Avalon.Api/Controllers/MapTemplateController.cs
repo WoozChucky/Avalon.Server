@@ -43,7 +43,10 @@ public class MapTemplateController : BaseController
     /// for the admin SPA to render. Does not persist anything; safe to call repeatedly.
     /// </summary>
     [HttpGet("{id:int}/preview-layout", Name = "PreviewMapLayout")]
-    [Authorize(Policy = AvalonRoles.Admin)]
+    // GameMaster, not Admin: the observability tool is GM-gated, and a GM who can look up
+    // a player must be able to fetch the geometry to draw them. The exposure added is map
+    // geometry, which every player's client already downloads.
+    [Authorize(Policy = AvalonRoles.GameMaster)]
     [ProducesResponseType(typeof(LayoutPreviewDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -63,7 +66,10 @@ public class MapTemplateController : BaseController
     /// a layout preview to render the 3D scene with three.js + OBJLoader.
     /// </summary>
     [HttpGet("chunk-asset/{*filename}", Name = "GetChunkAsset")]
-    [Authorize(Policy = AvalonRoles.Admin)]
+    // GameMaster, not Admin: the observability tool is GM-gated, and a GM who can look up
+    // a player must be able to fetch the geometry to draw them. The exposure added is map
+    // geometry, which every player's client already downloads.
+    [Authorize(Policy = AvalonRoles.GameMaster)]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> ChunkAsset([FromRoute] string filename, CancellationToken ct)
