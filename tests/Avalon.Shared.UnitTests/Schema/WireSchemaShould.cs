@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using Avalon.SchemaGen;
+using Avalon.Exporter;
 using Xunit;
 
 namespace Avalon.Shared.UnitTests.Schema;
@@ -16,7 +16,7 @@ namespace Avalon.Shared.UnitTests.Schema;
 /// </summary>
 public class WireSchemaShould
 {
-    private const string RegenerateCommand = "dotnet run --project tools/Avalon.SchemaGen";
+    private const string RegenerateCommand = "dotnet run --project tools/Avalon.Exporter -- proto";
 
     [Fact]
     public void Match_The_Contracts_It_Was_Exported_From()

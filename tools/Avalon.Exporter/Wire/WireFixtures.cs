@@ -2,7 +2,7 @@ using System.Globalization;
 using System.Reflection;
 using ProtoBuf;
 
-namespace Avalon.SchemaGen;
+namespace Avalon.Exporter;
 
 /// <summary>
 /// The shapes a fixture is built in. Each one exists to make a different encoding decision

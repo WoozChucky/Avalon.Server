@@ -6,7 +6,7 @@ using Avalon.Network.Packets.Abstractions;
 using ProtoBuf;
 using ProtoBuf.Meta;
 
-namespace Avalon.SchemaGen;
+namespace Avalon.Exporter;
 
 /// <summary>
 /// Exports the protobuf-net packet contracts as a language-neutral <c>.proto</c> schema.
@@ -313,8 +313,8 @@ public static class WireSchema
         //   Defined by  the [ProtoContract] types in Avalon.Network.Packets and
         //               Avalon.Network.Packets.Abstractions. Those attributes are the
         //               protocol; this file reports them.
-        //   Emitted by  tools/Avalon.SchemaGen
-        //   Regenerate  dotnet run --project tools/Avalon.SchemaGen
+        //   Emitted by  tools/Avalon.Exporter
+        //   Regenerate  dotnet run --project tools/Avalon.Exporter -- proto
         //   Guarded by  WireSchemaShould in tests/Avalon.Shared.UnitTests, which regenerates
         //               and compares, so a contract change that is not re-exported is a red
         //               build rather than a wrong client.

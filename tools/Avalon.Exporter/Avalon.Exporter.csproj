@@ -18,8 +18,15 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- The session-crypto vectors are exported by running the server's own crypto, not a copy of it. -->
+    <!--
+      Every artifact is exported by running the server's own types, never a copy of them: the
+      crypto vectors run the real key derivation, the rotation vectors run the real layout
+      generator, and the guid vectors read the real masks. A transcription would agree with
+      whatever it transcribed, which is the failure these files exist to catch.
+    -->
+    <ProjectReference Include="..\..\src\Server\Avalon.World.Generation\Avalon.World.Generation.csproj"/>
     <ProjectReference Include="..\..\src\Shared\Avalon.Common\Avalon.Common.csproj"/>
+    <ProjectReference Include="..\..\src\Shared\Avalon.Domain\Avalon.Domain.csproj"/>
     <ProjectReference Include="..\..\src\Shared\Avalon.Network.Packets\Avalon.Network.Packets.csproj"/>
     <ProjectReference Include="..\..\src\Shared\Avalon.Network.Packets.Abstractions\Avalon.Network.Packets.Abstractions.csproj"/>
   </ItemGroup>

@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using Avalon.SchemaGen;
+using Avalon.Exporter;
 using Xunit;
 
 namespace Avalon.Shared.UnitTests.Schema;
@@ -13,7 +13,7 @@ namespace Avalon.Shared.UnitTests.Schema;
 /// </summary>
 internal static class Corpus
 {
-    internal const string RegenerateCommand = "dotnet run --project tools/Avalon.SchemaGen";
+    internal const string RegenerateCommand = "dotnet run --project tools/Avalon.Exporter -- corpus";
 
     internal static string Directory =>
         Path.Combine(RepositoryLayout.Root(), "schema", WireCorpus.DirectoryName);

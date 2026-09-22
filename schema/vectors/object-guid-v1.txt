@@ -1,0 +1,53 @@
+# ObjectGuid - known-answer vectors for the (type, id) <-> raw packing.
+#
+# GENERATED FILE. Every raw value below is what the server's own ObjectGuid packs the type and
+# the id on the same line into, so a client is conformant when it reproduces them, and a change
+# in how the server addresses objects arrives here as a diff.
+#
+#   Emitted by  tools/Avalon.Exporter  (Avalon.Server)
+#   Regenerate  dotnet run --project tools/Avalon.Exporter -- object-guid
+#   Source      src/Shared/Avalon.Common/ObjectGuid.cs
+#
+# The guid is the only name the world-state stream gives an object, so a client that unpacks one
+# wrongly does not fail -- it addresses a different object, consistently, and every test written
+# against its own packing agrees with it. Only these numbers disagree.
+#
+#   raw   = ((ulong)type << 56) | (id & 0x000000FFFFFFFFFF)
+#   type  = (raw & 0xFF00000000000000) >> 56
+#   id    = (uint)(raw & 0x000000FFFFFFFFFF)
+#
+# MIRROR THE TRUNCATION, DO NOT FIX IT: the id mask is 40 bits wide and the accessor returns a
+# 32-bit uint, so bits 32..39 of a raw value are masked in and then dropped on the way out. The
+# rows cannot show it, being built from a uint id that has no such bits -- a raw value that did
+# would be a server change, and it would arrive here as one.
+#
+# Types are None=0, Character=1, Creature=2, Spell=3, SpellProjectile=4, Portal=5. The ids are
+# chosen so a wrong shift or a wrong mask lands somewhere else: zero, one, a value with bits in
+# every byte of the low 32, and the top of the range.
+#
+# Format: raw <hex16> type <n> id <n>
+
+raw 0000000000000000 type 0 id 0
+raw 0000000000000001 type 0 id 1
+raw 0000000012345678 type 0 id 305419896
+raw 00000000ffffffff type 0 id 4294967295
+raw 0100000000000000 type 1 id 0
+raw 0100000000000001 type 1 id 1
+raw 0100000012345678 type 1 id 305419896
+raw 01000000ffffffff type 1 id 4294967295
+raw 0200000000000000 type 2 id 0
+raw 0200000000000001 type 2 id 1
+raw 0200000012345678 type 2 id 305419896
+raw 02000000ffffffff type 2 id 4294967295
+raw 0300000000000000 type 3 id 0
+raw 0300000000000001 type 3 id 1
+raw 0300000012345678 type 3 id 305419896
+raw 03000000ffffffff type 3 id 4294967295
+raw 0400000000000000 type 4 id 0
+raw 0400000000000001 type 4 id 1
+raw 0400000012345678 type 4 id 305419896
+raw 04000000ffffffff type 4 id 4294967295
+raw 0500000000000000 type 5 id 0
+raw 0500000000000001 type 5 id 1
+raw 0500000012345678 type 5 id 305419896
+raw 05000000ffffffff type 5 id 4294967295
