@@ -30,5 +30,5 @@ internal static class ReferenceSchema
         File.MessageTypes.SingleOrDefault(message => string.Equals(message.Name, name, StringComparison.Ordinal))
         ?? throw new InvalidOperationException(
             $"schema/avalon.proto declares no message named {name}. Re-export the schema: " +
-            "dotnet run --project tools/Avalon.SchemaGen");
+            "dotnet run --project tools/Avalon.Exporter -- proto");
 }

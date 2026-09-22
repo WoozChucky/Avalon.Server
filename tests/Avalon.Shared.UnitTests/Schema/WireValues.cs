@@ -3,7 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
-using Avalon.SchemaGen;
+using Avalon.Exporter;
 using Google.Protobuf;
 using Google.Protobuf.Reflection;
 
