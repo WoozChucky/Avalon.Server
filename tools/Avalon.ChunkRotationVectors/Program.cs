@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text;
+using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
@@ -8,9 +9,10 @@ using Avalon.World.ChunkLayouts;
 namespace Avalon.ChunkRotationVectors;
 
 /// <summary>
-/// Exports known-answer vectors for <see cref="ChunkRotation.LocalToWorld"/> so the client's
-/// mirror can be held to the server's own numbers. A client that rotates the wrong way agrees
-/// with itself perfectly; only the other implementation's output disagrees.
+/// Exports the known-answer vectors a client cannot derive for itself: the world positions
+/// <see cref="ChunkRotation.LocalToWorld"/> produces, and the raw values <see cref="ObjectGuid"/>
+/// packs a (type, id) pair into. Both are held to the server's own numbers because a client that
+/// gets either wrong agrees with itself perfectly; only the other implementation's output disagrees.
 ///
 /// The layout comes from the production <see cref="ProceduralLayoutGenerator"/> against the
 /// forest pool at a fixed seed, so the origins and rotations below are ones the generator
@@ -24,10 +26,20 @@ public static class Program
 
     public static int Main(string[] args)
     {
-        var outputPath = args.Length > 0
+        var rotationPath = args.Length > 0
             ? Path.GetFullPath(args[0])
             : Path.Combine(Environment.CurrentDirectory, "rotation-v1.txt");
+        var guidPath = args.Length > 1
+            ? Path.GetFullPath(args[1])
+            : Path.Combine(Path.GetDirectoryName(rotationPath) ?? Environment.CurrentDirectory, "object-guid-v1.txt");
 
+        WriteRotationVectors(rotationPath);
+        WriteObjectGuidVectors(guidPath);
+        return 0;
+    }
+
+    private static void WriteRotationVectors(string outputPath)
+    {
         var pool = BuildForestPool();
         var layout = new ProceduralLayoutGenerator().Generate(BuildForestConfig(), pool, Seed);
         var templatesById = pool.ToDictionary(m => m.Template.Id, m => m.Template);
@@ -70,14 +82,80 @@ public static class Program
         foreach (var row in rows)
             text.Append(row).Append('\n');
 
-        var directory = Path.GetDirectoryName(outputPath);
-        if (!string.IsNullOrEmpty(directory)) Directory.CreateDirectory(directory);
-        File.WriteAllText(outputPath, text.ToString().Replace("\r\n", "\n", StringComparison.Ordinal));
+        WriteLf(outputPath, text.ToString());
 
         Console.WriteLine($"wrote {outputPath} ({rows.Count} vectors; layout rotations " +
                           $"{string.Join(",", rotationsSeen.Order())}; synthesised {string.Join(",", synthesised)})");
-        return 0;
     }
+
+    /// <summary>
+    /// Exports every (type, id) pair below through the real <see cref="ObjectGuid"/>, so the constants
+    /// are read off the server's own type rather than re-typed here -- a transcription would agree with
+    /// whatever it transcribed, which is the failure this file exists to catch.
+    /// </summary>
+    private static void WriteObjectGuidVectors(string outputPath)
+    {
+        var w = new StringWriter { NewLine = "\n" };
+        w.Write(GuidHeader);
+
+        var types = new[] { ObjectType.None, ObjectType.Character, ObjectType.Creature,
+                            ObjectType.Spell, ObjectType.SpellProjectile, ObjectType.Portal };
+        // Zero, one, a value with bits in every byte of the low 32, and the top of the range.
+        var ids = new uint[] { 0u, 1u, 0x12345678u, uint.MaxValue };
+
+        var rows = 0;
+        foreach (ObjectType t in types)
+            foreach (uint id in ids)
+            {
+                var g = new ObjectGuid(t, id);
+                w.WriteLine($"raw {g.RawValue:x16} type {(int)g.Type} id {g.Id}");
+                ++rows;
+            }
+
+        WriteLf(outputPath, w.ToString());
+        Console.WriteLine($"wrote {outputPath} ({rows} vectors; {types.Length} types x {ids.Length} ids)");
+    }
+
+    /// <summary>LF endings, always: these files are hashed as bytes at the other end.</summary>
+    private static void WriteLf(string path, string text)
+    {
+        var directory = Path.GetDirectoryName(path);
+        if (!string.IsNullOrEmpty(directory)) Directory.CreateDirectory(directory);
+        File.WriteAllText(path, text.Replace("\r\n", "\n", StringComparison.Ordinal));
+    }
+
+    private const string GuidHeader = """
+        # ObjectGuid - known-answer vectors for the (type, id) <-> raw packing.
+        #
+        # GENERATED FILE. Every raw value below is what the server's own ObjectGuid packs the type and
+        # the id on the same line into, so a client is conformant when it reproduces them, and a change
+        # in how the server addresses objects arrives here as a diff.
+        #
+        #   Emitted by  tools/Avalon.ChunkRotationVectors  (Avalon.Server, branch tools/object-guid-vectors)
+        #   Regenerate  dotnet run --project tools/Avalon.ChunkRotationVectors -- <path>/rotation-v1.txt <path>/object-guid-v1.txt
+        #   Source      src/Shared/Avalon.Common/ObjectGuid.cs
+        #
+        # The guid is the only name the world-state stream gives an object, so a client that unpacks one
+        # wrongly does not fail -- it addresses a different object, consistently, and every test written
+        # against its own packing agrees with it. Only these numbers disagree.
+        #
+        #   raw   = ((ulong)type << 56) | (id & 0x000000FFFFFFFFFF)
+        #   type  = (raw & 0xFF00000000000000) >> 56
+        #   id    = (uint)(raw & 0x000000FFFFFFFFFF)
+        #
+        # MIRROR THE TRUNCATION, DO NOT FIX IT: the id mask is 40 bits wide and the accessor returns a
+        # 32-bit uint, so bits 32..39 of a raw value are masked in and then dropped on the way out. The
+        # rows cannot show it, being built from a uint id that has no such bits -- a raw value that did
+        # would be a server change, and it would arrive here as one.
+        #
+        # Types are None=0, Character=1, Creature=2, Spell=3, SpellProjectile=4, Portal=5. The ids are
+        # chosen so a wrong shift or a wrong mask lands somewhere else: zero, one, a value with bits in
+        # every byte of the low 32, and the top of the range.
+        #
+        # Format: raw <hex16> type <n> id <n>
+
+
+        """;
 
     private static void Emit(List<string> sink, string label, PlacedChunk chunk, float lx, float ly, float lz)
         => EmitDirect(sink, label, chunk.WorldPos, chunk.Rotation, lx, ly, lz);
