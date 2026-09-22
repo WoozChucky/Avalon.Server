@@ -7,20 +7,46 @@
 | --- | --- |
 | `Avalon.Benchmarking` | BenchmarkDotNet harnesses |
 | `Avalon.ChunkImporter` | imports chunk templates into the database |
-| `Avalon.SchemaGen` | emits the wire schema the client vendors |
-| `Avalon.ChunkRotationVectors` | emits `ChunkRotation.LocalToWorld` known-answer vectors for the client's mirror |
+| `Avalon.Exporter` | exports every artifact the client vendors, one subcommand per artifact |
 
-## Wanted: one prototypes exporter, not one project per artifact
+## The exporter
 
-Three of the four above exist because a client needed a specific artifact exported from the server's
-own types, and each arrived as its own `csproj`. That does not scale: the next vendored artifact —
-ability rows, item prototypes, spell data, loot tables — would add a fifth and a sixth by the same
-reasoning, each with its own duplicated database/config bootstrap and its own output convention.
+Three projects used to sit here because a client needed a specific artifact exported from the
+server's own types, and each arrived as its own `csproj` with its own bootstrap and its own output
+convention. That did not scale: the next vendored artifact would have added a fourth by the same
+reasoning. `Avalon.SchemaGen` and `Avalon.ChunkRotationVectors` are now one project, and adding an
+export is an entry in `Exports.All` rather than a new project.
 
-What is wanted instead is **one exporter with a subcommand per artifact**, sharing the host
-builder, the connection setup and the output format, so that adding an export is a command rather
-than a project. `SchemaGen` and `ChunkRotationVectors` are the two clearest candidates to fold in
-first — both read server types and write a file the client vendors and hashes.
+```bash
+dotnet run --project tools/Avalon.Exporter                    # lists the artifacts, writes nothing
+dotnet run --project tools/Avalon.Exporter -- all             # writes all six
+dotnet run --project tools/Avalon.Exporter -- proto corpus    # writes just those
+dotnet run --project tools/Avalon.Exporter -- all --out /tmp  # somewhere other than schema/
+```
 
-Not done here deliberately: this PR adds the vectors the client's rotation mirror is already held
-to, and merging the tools is a refactor that should not ride along with the thing that motivated it.
+| name | writes | from |
+| --- | --- | --- |
+| `proto` | `schema/avalon.proto` | the `[ProtoContract]` packet types |
+| `opcodes` | `schema/opcodes.json` | the opcode and encryption-flag reflection |
+| `corpus` | `schema/corpus/*.txt` | the server's serializer, one file per message |
+| `crypto` | `schema/crypto/session-v1.txt` | the production `AvalonCryptoSession` and `SessionKeys` |
+| `rotation` | `schema/vectors/rotation-v1.txt` | `ChunkRotation.LocalToWorld` via the real layout generator |
+| `object-guid` | `schema/vectors/object-guid-v1.txt` | `ObjectGuid`'s own shifts and masks |
+
+Two rules the tool keeps, because both failures are silent ones:
+
+- **Every name is resolved before anything is written.** A typo cannot export five of six artifacts
+  and report the failure afterwards, leaving a tree nobody asked for.
+- **Everything is written with explicit LF.** These files are hashed as bytes at the other end, so
+  a CRLF is not a formatting nit — it is a hash the client cannot reproduce. `.gitattributes` holds
+  the same line from the other side.
+
+Nothing is exported from a transcription. Each artifact runs the server's own type, because a
+re-typed constant agrees with whatever it was typed from — which is the failure these files exist
+to catch.
+
+## What is not in it
+
+`Avalon.ChunkImporter` reads JSON the editor exports and writes database rows; it is an import, and
+it shares nothing with the above but a directory. `Avalon.Benchmarking` is a harness that owns its
+own `Main`. Neither belongs behind an export subcommand.

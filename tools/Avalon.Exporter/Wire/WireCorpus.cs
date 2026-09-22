@@ -2,7 +2,7 @@ using System.Globalization;
 using System.Text;
 using ProtoBuf;
 
-namespace Avalon.SchemaGen;
+namespace Avalon.Exporter;
 
 /// <summary>One frozen vector: the bytes protobuf-net writes for one fixture.</summary>
 public sealed record WireVector(string Message, string Variant, byte[] Bytes);
@@ -209,8 +209,8 @@ public static class WireCorpus
          # values shown above them, so a client is conformant when it produces the same ones,
          # and a change in what the server emits arrives here as a diff.
          #
-         #   Emitted by  tools/Avalon.SchemaGen
-         #   Regenerate  dotnet run --project tools/Avalon.SchemaGen
+         #   Emitted by  tools/Avalon.Exporter
+         #   Regenerate  dotnet run --project tools/Avalon.Exporter -- corpus
          #   Format      described in schema/README.md
          #   Schema      the message of this name in schema/avalon.proto
          #
