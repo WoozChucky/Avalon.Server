@@ -184,7 +184,7 @@ regenerating does not dirty the tree.
 ## Regenerating
 
 ```
-dotnet run --project tools/Avalon.SchemaGen
+dotnet run --project tools/Avalon.Exporter -- crypto
 ```
 
 The vectors are exported by running the production `AvalonCryptoSession` and `SessionKeys`, not

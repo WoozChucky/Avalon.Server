@@ -8,7 +8,7 @@ using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
 using Avalon.Common.Cryptography;
-using Avalon.SchemaGen;
+using Avalon.Exporter;
 using Avalon.Shared.UnitTests.Schema;
 using Org.BouncyCastle.Asn1.Sec;
 using Org.BouncyCastle.Asn1.X9;
@@ -33,7 +33,7 @@ namespace Avalon.Shared.UnitTests.Cryptography;
 /// </remarks>
 public class SessionCryptoVectorsShould
 {
-    private const string RegenerateCommand = "dotnet run --project tools/Avalon.SchemaGen";
+    private const string RegenerateCommand = "dotnet run --project tools/Avalon.Exporter -- crypto";
 
     private static string Path_ =>
         Path.Combine(RepositoryLayout.Root(), "schema", SessionCryptoVectors.DirectoryName, SessionCryptoVectors.FileName);

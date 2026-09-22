@@ -122,7 +122,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Shared", "Shared", "{C8E429
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Avalon.World.Generation", "src\Server\Avalon.World.Generation\Avalon.World.Generation.csproj", "{7925EAEF-F110-4E29-B37D-EB3AF6440BBE}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Avalon.SchemaGen", "tools\Avalon.SchemaGen\Avalon.SchemaGen.csproj", "{F89773F4-6CC1-4585-AFD8-7AA715DB96DC}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Avalon.Exporter", "tools\Avalon.Exporter\Avalon.Exporter.csproj", "{F89773F4-6CC1-4585-AFD8-7AA715DB96DC}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Avalon.Wire.Reference", "tests\Avalon.Wire.Reference\Avalon.Wire.Reference.csproj", "{89265F5D-0267-400D-AF63-DC2B2308C381}"
 EndProject

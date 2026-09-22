@@ -10,7 +10,7 @@ using Org.BouncyCastle.Crypto.EC;
 using Org.BouncyCastle.Crypto.Parameters;
 using Org.BouncyCastle.Math;
 
-namespace Avalon.SchemaGen;
+namespace Avalon.Exporter;
 
 /// <summary>One sealed packet in one direction of one exchange.</summary>
 public sealed record CryptoPacket(string Direction, ulong Counter, byte[] Plaintext, byte[] Nonce, byte[] Ciphertext);
@@ -368,8 +368,8 @@ public static class SessionCryptoVectors
             # private scalars shown, so a client is conformant when it reproduces them, and a change
             # in what the server derives arrives here as a diff.
             #
-            #   Emitted by  tools/Avalon.SchemaGen
-            #   Regenerate  dotnet run --project tools/Avalon.SchemaGen
+            #   Emitted by  tools/Avalon.Exporter
+            #   Regenerate  dotnet run --project tools/Avalon.Exporter -- crypto
             #   Explained   docs/crypto-v1-derivation.md
             #
             # The two ends derive the same two keys independently and never compare them, so a

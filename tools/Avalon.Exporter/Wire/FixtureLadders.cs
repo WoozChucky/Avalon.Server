@@ -1,4 +1,4 @@
-namespace Avalon.SchemaGen;
+namespace Avalon.Exporter;
 
 /// <summary>
 /// Numeric ladders. The interesting values for an integer are not "zero and something else":

@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
-using Avalon.SchemaGen;
+using Avalon.Exporter;
 using Xunit;
 
 namespace Avalon.Shared.UnitTests.Schema;

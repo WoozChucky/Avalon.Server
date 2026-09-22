@@ -1,7 +1,7 @@
 using System.Globalization;
 using System.Text;
 
-namespace Avalon.SchemaGen;
+namespace Avalon.Exporter;
 
 /// <summary>
 /// Writes a fixture's values above its bytes, so that the corpus can be read rather than only

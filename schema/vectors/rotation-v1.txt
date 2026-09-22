@@ -1,0 +1,56 @@
+# Chunk rotation - known-answer vectors for ChunkRotation.LocalToWorld.
+#
+# GENERATED FILE. Every world position below is what the server's own ChunkRotation produces
+# for the origin, rotation and local point on the same line, so a client is conformant when it
+# reproduces them, and a change in how the server places chunks arrives here as a diff.
+#
+#   Emitted by  tools/Avalon.Exporter  (Avalon.Server)
+#   Regenerate  dotnet run --project tools/Avalon.Exporter -- rotation
+#   Source      src/Server/Avalon.World.Generation/ChunkRotation.cs
+#
+# THE PIVOT IS THE CHUNK CENTRE, NOT THE CHUNK ORIGIN. Authoring puts the chunk root at the SW
+# corner, so rotating about that corner shifts the footprint into the neighbouring cell and
+# chunks overlap. A client that gets this wrong draws a map that looks like a map, and every
+# self-consistent test it has still passes. Only these numbers disagree.
+#
+#   c      = cellSize / 2
+#   lx,lz  = local.x - c, local.z - c
+#   r=0    rx,rz =  lx,  lz        r=1    rx,rz =  lz, -lx
+#   r=2    rx,rz = -lx, -lz        r=3    rx,rz = -lz,  lx
+#   world  = (origin.x + c + rx,  origin.y + local.y,  origin.z + c + rz)
+#
+# Rows are the four corners, the entry spawn and every portal of each chunk of a layout the
+# production ProceduralLayoutGenerator emitted for the forest pool at seed 399888156:
+# 5 chunks, at rotations 0, 1, 3. Rotations that layout does not reach
+# (2) are appended as "synthetic" rows calling LocalToWorld directly, with a
+# non-zero origin.y and a non-zero local.y so the vertical term is held too.
+#
+# Format: v originX originY originZ rotation cellSize localX localY localZ -> worldX worldY worldZ # label
+# Floats are round-trip ("R") formatted; the client compares by value, not by byte.
+
+v 0 0 0 0 30 0 0 0 -> 0 0 0 # corner forest_entry_01
+v 0 0 0 0 30 30 0 0 -> 30 0 0 # corner forest_entry_01
+v 0 0 0 0 30 0 0 30 -> 0 0 30 # corner forest_entry_01
+v 0 0 0 0 30 30 0 30 -> 30 0 30 # corner forest_entry_01
+v 0 0 0 0 30 15 1 5 -> 15 1 5 # entryspawn forest_entry_01
+v 0 0 0 0 30 15 1 5 -> 15 1 5 # portal-Back forest_entry_01
+v 0 0 30 0 30 0 0 0 -> 0 0 30 # corner forest_junction_t
+v 0 0 30 0 30 30 0 0 -> 30 0 30 # corner forest_junction_t
+v 0 0 30 0 30 0 0 30 -> 0 0 60 # corner forest_junction_t
+v 0 0 30 0 30 30 0 30 -> 30 0 60 # corner forest_junction_t
+v 30 0 30 3 30 0 0 0 -> 60 0 30 # corner forest_path_03
+v 30 0 30 3 30 30 0 0 -> 60 0 60 # corner forest_path_03
+v 30 0 30 3 30 0 0 30 -> 30 0 30 # corner forest_path_03
+v 30 0 30 3 30 30 0 30 -> 30 0 60 # corner forest_path_03
+v 30 0 60 1 30 0 0 0 -> 30 0 90 # corner forest_path_03
+v 30 0 60 1 30 30 0 0 -> 30 0 60 # corner forest_path_03
+v 30 0 60 1 30 0 0 30 -> 60 0 90 # corner forest_path_03
+v 30 0 60 1 30 30 0 30 -> 60 0 60 # corner forest_path_03
+v 60 0 60 1 30 0 0 0 -> 60 0 90 # corner forest_boss_01
+v 60 0 60 1 30 30 0 0 -> 60 0 60 # corner forest_boss_01
+v 60 0 60 1 30 0 0 30 -> 90 0 90 # corner forest_boss_01
+v 60 0 60 1 30 30 0 30 -> 90 0 60 # corner forest_boss_01
+v 60 0 60 1 30 15 1 25 -> 85 1 75 # portal-Forward forest_boss_01
+v 210 2.5 330 2 30 4 1.75 26 -> 236 4.25 334 # synthetic
+v 210 2.5 330 2 30 0 0 0 -> 240 2.5 360 # synthetic
+v 210 2.5 330 2 30 30 0 30 -> 210 2.5 330 # synthetic
