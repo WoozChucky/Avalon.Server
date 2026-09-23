@@ -30,4 +30,5 @@ public enum DisconnectReason : ushort
     ServerShutdown = 1,
     DuplicateLogin = 2,
     Kicked = 3,
+    SelectTimeout = 4,
 }

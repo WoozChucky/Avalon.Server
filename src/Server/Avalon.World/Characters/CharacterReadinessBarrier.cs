@@ -1,3 +1,5 @@
+using Avalon.Hosting.Networking;
+using Avalon.Network.Packets.Generic;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using Microsoft.Extensions.Logging;
@@ -79,6 +81,53 @@ public static class CharacterReadinessBarrier
                 "Character {CharacterName} for account {AccountId} spawned without a load report; " +
                 "the readiness barrier expired after {WaitedMs}ms",
                 characterName, connection.AccountId, (long)waited.TotalMilliseconds);
+        }
+    }
+
+    /// <summary>
+    ///     Ends every select that has been under way longer than <paramref name="timeout" /> without
+    ///     producing a pending spawn.
+    /// </summary>
+    /// <remarks>
+    ///     <see cref="ReleaseExpired" /> cannot cover this. It inspects connections that already
+    ///     have a pending spawn, and a select whose chain died never produced one — it leaves
+    ///     <c>SelectInProgress</c> true with both <c>Character</c> and <c>PendingSpawn</c> null,
+    ///     which is the guard's "mid-select" state. Nothing cleared it, and every handler that gates
+    ///     on selection state — select, create, delete, list — refuses from then on, so the player
+    ///     could not touch their characters again without reconnecting.
+    ///     <para>
+    ///     A faulted continuation is the way in: <c>ProcessContinuations</c> logs and drops it, which
+    ///     is right for the queue and leaves the chain with no step that will ever run.
+    ///     </para>
+    ///     The connection is closed rather than handed back to the character list: by the time a
+    ///     late step can fault, the client already has SMSG_CHARACTER_SELECTED and its chunk layout
+    ///     and is loading the map, so there is no earlier state for it to return to.
+    /// </remarks>
+    /// <param name="nowTicks"><c>DateTime.UtcNow.Ticks</c>.</param>
+    public static void CancelExpiredSelects(IEnumerable<IWorldConnection> connections,
+        long nowTicks, TimeSpan timeout, ILogger logger)
+    {
+        foreach (IWorldConnection connection in connections)
+        {
+            if (!connection.IsConnected)
+                continue;
+
+            // A select that reached a pending spawn is the readiness barrier's business, not this.
+            if (!connection.SelectInProgress)
+                continue;
+
+            TimeSpan waited = TimeSpan.FromTicks(nowTicks - connection.SelectStartedTicks);
+            if (waited < timeout)
+                continue;
+
+            logger.LogWarning(
+                "Character select for account {AccountId} never finished; giving up after {WaitedMs}ms " +
+                "and disconnecting, because a select left in progress blocks every later one",
+                connection.AccountId, (long)waited.TotalMilliseconds);
+
+            connection.CancelSelect();
+            GracefulShutdownHelper.NotifyAndClose(
+                connection, "Character select timed out", DisconnectReason.SelectTimeout, logger);
         }
     }
 }
