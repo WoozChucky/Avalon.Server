@@ -60,6 +60,11 @@ internal static class Exports
             "known-answer vectors for the navmesh bake and its two movement queries",
             root => NavmeshVectors.Write(
                 Path.Combine(root, VectorsDirectory, NavmeshVectors.FileName))),
+
+        new("item-catalog", ItemCatalog.DirectoryName + "/" + ItemCatalog.FileName,
+            "the item template rows the client vendors (needs a World database)",
+            root => ItemCatalog.Write(Path.Combine(root, ItemCatalog.DirectoryName, ItemCatalog.FileName)),
+            ItemCatalog.Readiness),
     ];
 
     internal static Export? ByName(string name)
