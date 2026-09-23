@@ -2,6 +2,7 @@ using System.Text.Json;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.Exporter;
+using Avalon.World.Public.Enums;
 using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Entities;
@@ -123,6 +124,34 @@ public class ItemCatalogShould
 
         Assert.False(item.TryGetProperty("slot", out _));
         Assert.False(item.TryGetProperty("damageMin1", out _));
+    }
+
+    /// <summary>
+    /// item-schema-v1.json describes AllowedClasses as an array of the numeric CharacterClass
+    /// vocabulary, matching every other enum field the catalog emits (class, subClass, rarity,
+    /// flags, damageType1, statType1). CharacterClass itself carries
+    /// [JsonConverter(typeof(JsonStringEnumConverter))] for Avalon.Api's REST responses, which
+    /// ItemCatalog.Render's reflection-driven serializer would otherwise inherit -- a type-level
+    /// [JsonConverter] attribute beats anything in JsonSerializerOptions.Converters, so a client
+    /// following the schema would parse an int[] and throw on the first item.
+    /// </summary>
+    [Fact]
+    public void Render_AllowedClasses_As_Numbers_Not_Strings()
+    {
+        ItemTemplate template = Template(1, "x");
+        template.AllowedClasses = [CharacterClass.Warrior, CharacterClass.Healer];
+
+        using JsonDocument document = JsonDocument.Parse(ItemCatalog.Render([template]));
+        JsonElement item = document.RootElement.GetProperty("items").EnumerateArray().Single();
+        JsonElement allowedClasses = item.GetProperty("allowedClasses");
+
+        Assert.Equal(JsonValueKind.Array, allowedClasses.ValueKind);
+        foreach (JsonElement element in allowedClasses.EnumerateArray())
+            Assert.Equal(JsonValueKind.Number, element.ValueKind);
+
+        Assert.Equal(
+            [(int)CharacterClass.Warrior, (int)CharacterClass.Healer],
+            allowedClasses.EnumerateArray().Select(element => element.GetInt32()));
     }
 
     [Fact]

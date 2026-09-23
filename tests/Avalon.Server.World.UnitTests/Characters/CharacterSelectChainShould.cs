@@ -295,11 +295,14 @@ public class CharacterSelectChainShould : IDisposable
     }
 
     /// <summary>
-    /// Equipment and bag reach the client; the bank does not, because opening a bank is a separate
-    /// interaction and sending it on login would tell the client about items it cannot show.
+    /// All three containers -- equipment, bag and bank -- load from the rows InventoryAssembler
+    /// joins, and Load() replaces their contents. This is chain/Load coverage, not wire coverage:
+    /// it checks entity state reached through the pending spawn, never a packet. What actually
+    /// reaches the client (equipment and bag only, never the bank) is asserted at the wire in
+    /// CharacterSelectHandlerShould.Send_Equipment_And_Bag_Items_In_The_Snapshot_But_Not_The_Bank.
     /// </summary>
     [Fact]
-    public void Send_Equipment_And_Bag_But_Not_The_Bank()
+    public void Load_Equipment_Bag_And_Bank_Into_Their_Containers()
     {
         GiveTheCharacter(
             (InventoryType.Equipment, 0, 10), (InventoryType.Equipment, 1, 11),
