@@ -50,8 +50,6 @@ public interface IWorld
 
 public class World : IWorld
 {
-    private const ushort WorldTimersCount = 5;
-    private const ushort HotReloadTimer = 0;
     private readonly IOptions<GameConfiguration> _configuration;
 
     private readonly IChunkLibrary _chunkLibrary;
@@ -61,7 +59,11 @@ public class World : IWorld
     private readonly IScriptHotReloader _scriptHotReloader;
     private readonly IServiceProvider _serviceProvider;
     private readonly IServiceScopeFactory _serviceScopeFactory;
-    private readonly IntervalTimer[] _timers = new IntervalTimer[WorldTimersCount];
+    /// <summary>
+    ///     Paces the hot-reload poll. There used to be an array of five of these, of which four were
+    ///     created and ticked every frame and never read by anything.
+    /// </summary>
+    private readonly IntervalTimer _hotReloadTimer = new();
     private readonly IWorldRepository _worldRepository;
 
     private Domain.Auth.World? _world;
@@ -93,11 +95,8 @@ public class World : IWorld
         Data = new StaticData(characterCreateInfoRepository, classLevelStatRepository, itemTemplateRepository,
             abilityTemplateRepository, characterLevelExperienceRepository);
 
-        for (int i = 0; i < WorldTimersCount; ++i)
-        {
-            _timers[i] = new IntervalTimer();
-            _timers[i].SetInterval(5000);
-        }
+        _hotReloadTimer.SetInterval(
+            (long)TimeSpan.FromSeconds(configuration.Value.ScriptHotReloadIntervalSeconds).TotalMilliseconds);
     }
 
     public WorldId Id => Configuration.WorldId;
@@ -253,19 +252,11 @@ public class World : IWorld
             _logger.LogInformation("Hot reloaded {Count} AI scripts", pendingReload.Count);
         }
 
-        for (int i = 0; i < WorldTimersCount; ++i)
-        {
-            if (_timers[i].GetCurrent() >= 0)
-            {
-                _timers[i].Update((long)deltaTime.TotalMilliseconds);
-            }
-            else
-            {
-                _timers[i].SetCurrent(0);
-            }
-        }
+        // No clamp needed around Update: IntervalTimer.Update already floors its own counter at
+        // zero, and nothing here can drive it negative.
+        _hotReloadTimer.Update((long)deltaTime.TotalMilliseconds);
 
-        if (_timers[HotReloadTimer].Passed())
+        if (_hotReloadTimer.Passed())
         {
             _scriptHotReloader.Update(out List<Type> scriptTypes);
             if (scriptTypes.Count > 0)
@@ -273,7 +264,8 @@ public class World : IWorld
                 _pendingHotReload = scriptTypes;
             }
 
-            _timers[HotReloadTimer].Reset();
+            // Reset keeps the remainder, so a long frame does not push the next poll late.
+            _hotReloadTimer.Reset();
         }
 
         foreach (IMapInstance instance in InstanceRegistry.ActiveInstances)
