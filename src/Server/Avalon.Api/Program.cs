@@ -4,7 +4,6 @@ using Avalon.Api;
 using Avalon.Api.Config;
 using Avalon.Api.Converters;
 using Avalon.Api.Middlewares;
-using Avalon.Common.Converters;
 using Avalon.Api.Services;
 using Avalon.Database.Auth;
 using Avalon.Database.Character;
@@ -49,9 +48,12 @@ services.AddCustomLogging(configuration);
     services.AddControllers()
         .AddJsonOptions(options =>
         {
+            // No ValueObject converter: nothing on this surface is a value object. Every DTO takes
+            // the primitive and its mapper unwraps with .Value, which ApiContractShould holds them
+            // to. Reinstate Avalon.Common.Converters.ValueObjectJsonConverterFactory here if that
+            // ever changes -- that test failing is the signal.
             options.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
             options.JsonSerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
-            options.JsonSerializerOptions.Converters.Add(new ValueObjectJsonConverterFactory());
         });
 
     services.AddOpenApi(options =>
@@ -69,7 +71,6 @@ services.AddCustomLogging(configuration);
             };
             return Task.CompletedTask;
         });
-        options.AddSchemaTransformer<ValueObjectOpenapiSchemaTransformer>();
         options.AddDocumentTransformer<BearerSecuritySchemeTransformer>();
         options.CreateSchemaReferenceId = type => type.Type.FullName!;
     });

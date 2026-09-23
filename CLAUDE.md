@@ -124,9 +124,19 @@ Commands live in `Avalon.World/Chat/`. To add a new command:
 
 ## ValueObject Pattern
 
-`ValueObject<TPrimitive>` (in `Avalon.Common`) wraps primitives like `AccountId`, `WorldId`, `CharacterId`. They:
-- Serialize as their underlying primitive via `Avalon.Common.Converters.ValueObjectJsonConverterFactory` — **but only where that factory is registered**. It is not global: `Avalon.Api` adds it in `AddJsonOptions`, and the item-catalog export adds it to its own options. A `JsonSerializerOptions` without it serializes a value object as `{"value":42}`, because there is no attribute on the type making it automatic.
-- Appear as scalar types in OpenAPI via `ValueObjectOpenapiSchemaTransformer`.
+`ValueObject<TPrimitive>` (in `Avalon.Common`) wraps primitives like `AccountId`, `WorldId`, `CharacterId`. Fourteen of them, used across ~217 files.
+
+**They live inside the server and stop at every boundary.** Each edge unwraps them explicitly rather than relying on automatic serialization:
+
+| boundary | how |
+|---|---|
+| Database | EF `HasConversion`, ~42 registrations across the three DbContexts |
+| Protobuf wire | packet contracts declare primitives; handlers pass `.Value` |
+| REST JSON | DTOs declare primitives; mappers pass `.Value`. Enforced by `ApiContractShould` |
+
+There is nothing on a value object making it serialize as its primitive automatically — no attribute, no global converter. `Avalon.Common.Converters.ValueObjectJsonConverterFactory` does it, but only for a `JsonSerializerOptions` that registers it, and its only caller is the item-catalog export, which serializes `ItemTemplate` entities directly. Serializing a value object without it yields `{"value":42}`.
+
+The API deliberately registers neither that converter nor an OpenAPI schema transformer, because nothing on its surface is a value object. If a DTO ever needs to expose one, `ApiContractShould` fails and says so — that is the signal to register the converter and flatten the OpenAPI schema, not to delete the test.
 
 ## Testing Conventions
 
