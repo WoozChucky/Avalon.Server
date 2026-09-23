@@ -15,6 +15,11 @@ public class SInventorySnapshotPacket : Packet
     public static NetworkProtocol Protocol = NetworkProtocol.Tcp;
     public static NetworkPacketFlags Flags = NetworkPacketFlags.Encrypted;
 
+    /// <summary>
+    /// protobuf-net writes nothing for a zero-length repeated field, so a character carrying
+    /// nothing round-trips this as null, not an empty array, despite the property being declared
+    /// non-nullable. A reader must treat Items == null the same as "no items".
+    /// </summary>
     [ProtoMember(1)] public ItemSlotDto[] Items { get; set; }
 
     public static NetworkPacket Create(ItemSlotDto[] items, EncryptFunc encrypt)
