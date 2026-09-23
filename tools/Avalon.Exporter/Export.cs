@@ -32,6 +32,12 @@ internal static class Exports
                 Path.Combine(root, SessionCryptoVectors.DirectoryName, SessionCryptoVectors.FileName),
                 SessionCryptoVectors.Generate())),
 
+        new("item-schema", ItemSchema.DirectoryName + "/" + ItemSchema.FileName,
+            "what an ItemTemplate is, and what its enumerated values mean",
+            root => Lf.WriteReporting(
+                Path.Combine(root, ItemSchema.DirectoryName, ItemSchema.FileName),
+                ItemSchema.Generate())),
+
         new("rotation", VectorsDirectory + "/" + ChunkRotationVectors.FileName,
             "known-answer vectors for ChunkRotation.LocalToWorld",
             root => ChunkRotationVectors.Write(
