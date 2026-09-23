@@ -70,7 +70,7 @@ public class CharacterSelectHandler(
             return;
         }
 
-        connection.SelectInProgress = true;
+        connection.BeginSelect(DateTime.UtcNow.Ticks);
 
         connection.EnqueueContinuation(
             characterRepository.FindByIdAndAccountAsync(packet.CharacterId, connection.AccountId),
@@ -91,7 +91,7 @@ public class CharacterSelectHandler(
         {
             logger.LogWarning("Character not found for account {AccountId}", connection.AccountId);
             activity?.AddEvent(new ActivityEvent("CharacterNotFound"));
-            connection.SelectInProgress = false;
+            connection.CancelSelect();
             return;
         }
 
@@ -144,7 +144,7 @@ public class CharacterSelectHandler(
             logger.LogError("MapTemplate {MapId} not found for character {CharacterId}", character.Map,
                 character.Id);
             activity?.AddEvent(new ActivityEvent("MapTemplateNotFound"));
-            connection.SelectInProgress = false;
+            connection.CancelSelect();
             return;
         }
 
@@ -168,7 +168,7 @@ public class CharacterSelectHandler(
                     {
                         logger.LogError("Resolved town map {TownMapId} not found in MapTemplates",
                             townMapId.Value);
-                        connection.SelectInProgress = false;
+                        connection.CancelSelect();
                         return;
                     }
                     character.Map = townMapId.Value;
