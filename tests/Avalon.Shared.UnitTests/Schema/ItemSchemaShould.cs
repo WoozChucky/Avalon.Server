@@ -44,7 +44,7 @@ public class ItemSchemaShould
         foreach (string name in new[]
                  {
                      "ItemRarity", "ItemSlotType", "ItemClass", "ItemSubClass",
-                     "DamageType", "StatType", "ItemTemplateFlags",
+                     "DamageType", "StatType", "ItemTemplateFlags", "CharacterClass",
                  })
         {
             Assert.True(enums.TryGetProperty(name, out JsonElement values), $"{name} is missing");
@@ -54,6 +54,20 @@ public class ItemSchemaShould
         JsonElement rarity = enums.GetProperty("ItemRarity");
         Assert.Contains(rarity.EnumerateArray(),
             value => value.GetProperty("name").GetString() == "Epic" && value.GetProperty("value").GetInt64() == 4);
+    }
+
+    [Fact]
+    public void Name_The_Vocabulary_A_Collection_Field_Draws_Its_Elements_From()
+    {
+        using JsonDocument document = JsonDocument.Parse(ItemSchema.Generate());
+        JsonElement fields = document.RootElement.GetProperty("fields");
+
+        JsonElement allowedClasses = fields.EnumerateArray()
+            .Single(f => f.GetProperty("name").GetString() == "AllowedClasses");
+
+        Assert.Equal("array", allowedClasses.GetProperty("type").GetString());
+        Assert.Equal("enum", allowedClasses.GetProperty("element").GetString());
+        Assert.Equal("CharacterClass", allowedClasses.GetProperty("enum").GetString());
     }
 
     [Fact]
