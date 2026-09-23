@@ -2,6 +2,7 @@ using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Avalon.Domain.World;
+using Avalon.World.Public.Enums;
 
 namespace Avalon.Exporter;
 
@@ -49,6 +50,27 @@ public static class ItemSchema
             Type? nullable = Nullable.GetUnderlyingType(type);
             Type actual = nullable ?? type;
 
+            // A collection is handled here, not inside TypeNameOf: TypeNameOf collapses every enum
+            // to the bare string "enum" (so SchemaField.Type stays a small closed vocabulary of
+            // wire-level shapes), which is exactly right for a scalar field -- the element's actual
+            // vocabulary is reported separately via Enum. But TypeNameOf returns one string for the
+            // whole type, so if it also handled List<T> it would have to fold the element's "enum"
+            // collapse and the element's vocabulary name into that same string, losing the name.
+            // Building the array shape here instead keeps Element (the element's shape) and Enum
+            // (the element's vocabulary, when it has one) as separate fields on the same record, so
+            // no information is lost and no future collection field needs its own special case.
+            if (actual.IsGenericType && actual.GetGenericTypeDefinition() == typeof(List<>))
+            {
+                Type element = actual.GetGenericArguments()[0];
+                yield return new SchemaField(
+                    Name: property.Name,
+                    Type: "array",
+                    Nullable: nullable is not null,
+                    Element: TypeNameOf(element),
+                    Enum: element.IsEnum ? element.Name : null);
+                continue;
+            }
+
             // Nullable means the declaration says the value may be absent: `T?` on a value type.
             // Reference types are not inferred here -- a ValueObject wrapper like ItemTemplateId is
             // a class but is never absent, and saying otherwise would tell the client that a
@@ -58,10 +80,12 @@ public static class ItemSchema
                 Name: property.Name,
                 Type: TypeNameOf(actual),
                 Nullable: nullable is not null,
+                Element: null,
                 Enum: actual.IsEnum ? actual.Name : null);
         }
     }
 
+    // Scalar shapes only -- List<T> is handled in Fields(), not here. See the comment there.
     private static string TypeNameOf(Type type)
     {
         if (type.IsEnum) return "enum";
@@ -70,8 +94,6 @@ public static class ItemSchema
         if (type == typeof(uint)) return "uint32";
         if (type == typeof(ushort)) return "uint16";
         if (type == typeof(ulong)) return "uint64";
-        if (type.IsGenericType && type.GetGenericTypeDefinition() == typeof(List<>))
-            return "array<" + TypeNameOf(type.GetGenericArguments()[0]) + ">";
 
         // ValueObject<T> wrappers such as ItemTemplateId report their underlying primitive.
         Type? baseType = type.BaseType;
@@ -91,6 +113,7 @@ public static class ItemSchema
         [
             typeof(ItemRarity), typeof(ItemSlotType), typeof(ItemClass),
             typeof(ItemSubClass), typeof(DamageType), typeof(StatType), typeof(ItemTemplateFlags),
+            typeof(CharacterClass),
         ];
 
         return vocabularies.ToDictionary(
@@ -110,7 +133,7 @@ public static class ItemSchema
         List<SchemaField> Fields,
         Dictionary<string, List<EnumValue>> Enums);
 
-    private sealed record SchemaField(string Name, string Type, bool Nullable, string? Enum);
+    private sealed record SchemaField(string Name, string Type, bool Nullable, string? Element, string? Enum);
 
     private sealed record EnumValue(string Name, long Value);
 }

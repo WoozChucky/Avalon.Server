@@ -69,8 +69,10 @@
     },
     {
       "name": "AllowedClasses",
-      "type": "array\u003Cenum\u003E",
-      "nullable": false
+      "type": "array",
+      "nullable": false,
+      "element": "enum",
+      "enum": "CharacterClass"
     },
     {
       "name": "ItemPower",
@@ -510,6 +512,24 @@
       {
         "name": "NoTrade",
         "value": 1024
+      }
+    ],
+    "CharacterClass": [
+      {
+        "name": "Warrior",
+        "value": 1
+      },
+      {
+        "name": "Wizard",
+        "value": 2
+      },
+      {
+        "name": "Hunter",
+        "value": 3
+      },
+      {
+        "name": "Healer",
+        "value": 4
       }
     ]
   }
