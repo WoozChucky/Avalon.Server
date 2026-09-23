@@ -52,32 +52,64 @@ public class ValueObjectJsonConverterShould
         Assert.Equal(original, deserialized);
     }
 
+    /// <summary>
+    /// The whole point of the converter: a value object is its primitive on the wire. Every value
+    /// object in the codebase is a concrete subclass -- CharacterId, AccountId, ItemTemplateId --
+    /// so a factory that only matched the abstract base would never fire, and every id would
+    /// serialise as {"value":42}. Asserting the exact JSON rather than Contains("42"), because
+    /// {"value":42} contains "42" too.
+    /// </summary>
     [Fact]
-    public void SerializeConcreteSubtypeAsObjectByDefault()
+    public void Serialize_A_Concrete_Value_Object_As_A_Bare_Scalar()
     {
-        // The factory only intercepts ValueObject<T> directly, not concrete subclasses.
-        // Concrete types like CharacterId fall back to default object serialization.
         var options = BuildOptions();
-        var characterId = new CharacterId(42U);
 
-        var json = JsonSerializer.Serialize(characterId, options);
+        var json = JsonSerializer.Serialize(new CharacterId(42U), options);
 
-        Assert.Contains("42", json);
+        Assert.Equal("42", json);
     }
 
+    /// <summary>
+    /// The concrete subclasses are the whole population that matters — nothing declares a property
+    /// as the abstract <c>ValueObject&lt;T&gt;</c>. This previously asserted False for them, which
+    /// pinned the defect rather than the contract.
+    /// </summary>
     [Fact]
-    public void CanConvertReturnsTrueForValueObjectSubtype()
+    public void Convert_Value_Object_Subclasses_And_Nothing_Else()
     {
         var factory = new ValueObjectJsonConverterFactory();
 
-        Assert.False(factory.CanConvert(typeof(CharacterId)));
-        Assert.False(factory.CanConvert(typeof(AccountId)));
+        Assert.True(factory.CanConvert(typeof(CharacterId)));
+        Assert.True(factory.CanConvert(typeof(AccountId)));
+        Assert.True(factory.CanConvert(typeof(MapId)));
+        Assert.True(factory.CanConvert(typeof(ValueObject<uint>)));
+
         Assert.False(factory.CanConvert(typeof(int)));
         Assert.False(factory.CanConvert(typeof(string)));
-        // The factory handles open generic ValueObject<T> check; closed concrete types
-        // inherit from it but the factory's CanConvert checks for ValueObject<> directly.
-        Assert.True(factory.CanConvert(typeof(ValueObject<uint>)));
-        Assert.True(factory.CanConvert(typeof(ValueObject<long>)));
+        Assert.False(factory.CanConvert(typeof(object)));
+    }
+
+    /// <summary>
+    /// The read direction, proved by handing it a bare scalar. The round-trip tests alone cannot
+    /// prove it: object-shaped JSON round-trips through default serialization with no converter at
+    /// all, which is exactly how they passed while the factory matched nothing.
+    /// </summary>
+    [Fact]
+    public void Deserialize_A_Concrete_Value_Object_From_A_Bare_Scalar()
+    {
+        var options = BuildOptions();
+
+        var deserialized = JsonSerializer.Deserialize<CharacterId>("123", options);
+
+        Assert.Equal(new CharacterId(123U), deserialized);
+    }
+
+    [Fact]
+    public void Read_Null_As_Null()
+    {
+        var options = BuildOptions();
+
+        Assert.Null(JsonSerializer.Deserialize<CharacterId>("null", options));
     }
 
     [Fact]
