@@ -20,6 +20,19 @@
     -->
     <ProjectReference Include="..\..\src\Server\Avalon.World\Avalon.World.csproj"/>
     <ProjectReference Include="..\..\src\Server\Avalon.World.Generation\Avalon.World.Generation.csproj"/>
+
+    <!-- ItemCatalog.cs is the only export that reads a database: the catalog is read through the
+         EF model that defines the table, not hand-written SQL, so a second description of the same
+         columns could drift from it with nothing to notice. -->
+    <ProjectReference Include="..\..\src\Server\Avalon.Database.World\Avalon.Database.World.csproj"/>
+    <ProjectReference Include="..\..\src\Shared\Avalon.Configuration\Avalon.Configuration.csproj"/>
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Needed by ItemCatalog.ConnectionString(), which binds configuration the same way the
+         server's own design-time DbContext factories do. -->
+    <PackageReference Include="Microsoft.Extensions.Configuration.Json"/>
+    <PackageReference Include="Microsoft.Extensions.Configuration.EnvironmentVariables"/>
   </ItemGroup>
 
 </Project>
