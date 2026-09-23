@@ -4,6 +4,7 @@ using Avalon.Common.Mathematics;
 using Avalon.Common.Telemetry;
 using Avalon.Common.ValueObjects;
 using Avalon.Database.Character.Repositories;
+using Avalon.Database.World.Repositories;
 using Avalon.Domain.Characters;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abstractions;
@@ -13,6 +14,7 @@ using Avalon.World.ChunkLayouts;
 using Avalon.World.Configuration;
 using Avalon.World.Entities;
 using Avalon.World.Instances;
+using Avalon.World.Inventory;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Enums;
@@ -31,6 +33,7 @@ public class CharacterSelectHandler(
     ILoggerFactory loggerFactory,
     ICharacterRepository characterRepository,
     ICharacterInventoryRepository characterInventoryRepository,
+    IItemInstanceRepository itemInstanceRepository,
     ICharacterAbilityRepository characterAbilityRepository,
     IChunkLibrary chunkLibrary,
     IWorld world,
@@ -295,16 +298,58 @@ public class CharacterSelectHandler(
         activity?.SetTag(nameof(connection.AccountId), connection.AccountId);
         activity?.SetTag("CharacterId", character.Id);
 
-        entity[InventoryType.Equipment].Load(items.Where(i => i.Container == InventoryType.Equipment).ToList());
-        entity[InventoryType.Bag].Load(items.Where(i => i.Container == InventoryType.Bag).ToList());
-        entity[InventoryType.Bank].Load(items.Where(i => i.Container == InventoryType.Bank).ToList());
+        // The rows say where the items sit; the instances say what they are, and they live in a
+        // different database. Nothing can be loaded or sent until both are in hand.
+        connection.EnqueueContinuation(
+            itemInstanceRepository.GetByCharacterIdWithTemplateAsync(character.Id, CancellationToken.None),
+            instances => OnItemInstancesReceived(connection, entity, instance, character, items, instances));
 
-        //TODO: Send inventory to the client
+        _parentActivity = activity;
+    }
+
+    private void OnItemInstancesReceived(IWorldConnection connection, CharacterEntity entity,
+        IMapInstance instance, Character character,
+        IReadOnlyCollection<CharacterInventory> rows, IReadOnlyCollection<ItemInstance> instances)
+    {
+        using Activity? activity = DiagnosticsConfig.World.Source.StartActivity(nameof(OnItemInstancesReceived),
+            ActivityKind.Internal,
+            _parentActivity?.Context ?? default);
+        activity?.SetTag(nameof(connection.AccountId), connection.AccountId);
+        activity?.SetTag("CharacterId", character.Id);
+
+        IReadOnlyDictionary<InventoryType, List<InventoryItem>> assembled =
+            InventoryAssembler.Assemble(rows, instances, logger);
+
+        entity[InventoryType.Equipment].Load(assembled[InventoryType.Equipment]);
+        entity[InventoryType.Bag].Load(assembled[InventoryType.Bag]);
+        entity[InventoryType.Bank].Load(assembled[InventoryType.Bank]);
+
+        // The bank is loaded but not sent: opening it is a separate interaction, and a client
+        // told about items it has no way to show would have to decide what to do with them.
+        ItemSlotDto[] carried =
+        [
+            .. ToDtos(InventoryType.Equipment, entity[InventoryType.Equipment].Items),
+            .. ToDtos(InventoryType.Bag, entity[InventoryType.Bag].Items),
+        ];
+
+        connection.Send(SInventorySnapshotPacket.Create(carried, connection.CryptoSession.Encrypt));
 
         connection.EnqueueContinuation(characterAbilityRepository.GetCharacterAbilitiesAsync(character.Id, CancellationToken.None),
             spells => OnSpellsReceived(connection, entity, instance, spells));
         _parentActivity = activity;
     }
+
+    private static IEnumerable<ItemSlotDto> ToDtos(InventoryType container, IReadOnlyCollection<InventoryItem> items)
+        => items.Select(item => new ItemSlotDto
+        {
+            Container = (ushort)container,
+            Slot = item.Slot,
+            ItemTemplateId = item.TemplateId.Value,
+            ItemInstanceId = item.InstanceId.Value,
+            Count = item.Count,
+            Durability = item.Durability,
+            Flags = (uint)item.Flags,
+        });
 
     private void OnSpellsReceived(IWorldConnection connection, CharacterEntity entity, IMapInstance instance,
         IReadOnlyCollection<CharacterAbility> spells)

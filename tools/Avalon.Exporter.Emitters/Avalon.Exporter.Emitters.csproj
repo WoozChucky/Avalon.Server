@@ -1,0 +1,34 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    This library holds emitters derived from code alone (packet contracts, cryptography,
+    rotation, object IDs, and item schema). The navmesh emitter lives in Avalon.Exporter
+    (the CLI) instead, because it depends on Avalon.World; this library is referenced
+    by tests/Avalon.Shared.UnitTests, which must not gain that dependency.
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!--
+      No version here, deliberately. The emitter decides what the exported schema looks like,
+      so it has to be the protobuf-net the packet contracts serialize with, and the version
+      arrives from the server's central file through the Directory.Packages.props beside this
+      one. Writing a version here is a restore error, which is the point.
+    -->
+    <PackageReference Include="protobuf-net"/>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Server\Avalon.World.Generation\Avalon.World.Generation.csproj"/>
+    <ProjectReference Include="..\..\src\Shared\Avalon.Common\Avalon.Common.csproj"/>
+    <ProjectReference Include="..\..\src\Shared\Avalon.Domain\Avalon.Domain.csproj"/>
+    <ProjectReference Include="..\..\src\Shared\Avalon.Network.Packets\Avalon.Network.Packets.csproj"/>
+    <ProjectReference Include="..\..\src\Shared\Avalon.Network.Packets.Abstractions\Avalon.Network.Packets.Abstractions.csproj"/>
+  </ItemGroup>
+
+</Project>
