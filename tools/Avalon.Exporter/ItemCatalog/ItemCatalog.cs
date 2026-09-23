@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
 using Avalon.Common;
+using Avalon.Common.Converters;
 using Avalon.Configuration;
 using Avalon.Database.World;
 using Avalon.Domain.World;
@@ -39,7 +40,7 @@ public static class ItemCatalog
         WriteIndented = true,
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-        Converters = { new ValueObjectConverterFactory() },
+        Converters = { new ValueObjectJsonConverterFactory() },
         TypeInfoResolver = new DefaultJsonTypeInfoResolver()
             .WithAddedModifier(NeverOmitName)
             .WithAddedModifier(ForceNumericAllowedClasses),
@@ -150,59 +151,6 @@ public static class ItemCatalog
     private sealed record CatalogDocument(
         [property: JsonPropertyName("$comment")] string Comment,
         List<ItemTemplate> Items);
-
-    /// <summary>
-    /// Avalon.Common.Converters.ValueObjectJsonConverterFactory -- the converter the item schema
-    /// export (Task 9) and the wider codebase point to for this -- only intercepts the literal open
-    /// generic <c>ValueObject&lt;T&gt;</c>: <c>CanConvert</c> checks
-    /// <c>typeToConvert.GetGenericTypeDefinition() == typeof(ValueObject&lt;&gt;)</c>, which is false
-    /// for a concrete subclass like <see cref="Avalon.Common.ValueObjects.ItemTemplateId"/> (it is
-    /// not itself generic). Avalon.Shared.UnitTests documents this directly --
-    /// ValueObjectJsonConverterShould.SerializeConcreteSubtypeAsObjectByDefault -- and without a
-    /// converter that unwraps it, <c>Id</c> would serialize as <c>{"id":{"value":1}}</c> instead of
-    /// the scalar <c>uint64</c> item-schema-v1.json promises. Avalon.Api carries a second copy that
-    /// walks the inheritance chain and unwraps correctly, but it lives in an ASP.NET Core project
-    /// this exporter cannot reference. This is that same inheritance-walking logic, scoped to this
-    /// export rather than added to shared code no other export needs.
-    /// </summary>
-    private sealed class ValueObjectConverterFactory : JsonConverterFactory
-    {
-        public override bool CanConvert(Type typeToConvert) => UnderlyingValueType(typeToConvert) is not null;
-
-        public override JsonConverter CreateConverter(Type typeToConvert, JsonSerializerOptions options)
-        {
-            Type valueType = UnderlyingValueType(typeToConvert)
-                ?? throw new InvalidOperationException($"{typeToConvert} is not a ValueObject<T>.");
-
-            Type converterType = typeof(ValueObjectConverter<,>).MakeGenericType(typeToConvert, valueType);
-            return (JsonConverter)Activator.CreateInstance(converterType)!;
-        }
-
-        private static Type? UnderlyingValueType(Type type)
-        {
-            for (Type? cursor = type; cursor is not null && cursor != typeof(object); cursor = cursor.BaseType)
-            {
-                if (cursor.IsGenericType && cursor.GetGenericTypeDefinition() == typeof(ValueObject<>))
-                    return cursor.GetGenericArguments()[0];
-            }
-
-            return null;
-        }
-    }
-
-    private sealed class ValueObjectConverter<TObject, TValue> : JsonConverter<TObject>
-        where TObject : ValueObject<TValue>
-        where TValue : IEquatable<TValue>
-    {
-        public override TObject? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-        {
-            TValue? value = JsonSerializer.Deserialize<TValue>(ref reader, options);
-            return value is null ? null : (TObject)Activator.CreateInstance(typeToConvert, value)!;
-        }
-
-        public override void Write(Utf8JsonWriter writer, TObject value, JsonSerializerOptions options) =>
-            JsonSerializer.Serialize(writer, value.Value, options);
-    }
 
     /// <summary>
     /// Writes each element's underlying numeric value directly, bypassing whatever

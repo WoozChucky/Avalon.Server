@@ -1,8 +1,6 @@
 using System.IO;
 using System.Reflection;
-using System.Text.Json;
 using System.Threading.Tasks;
-using Avalon.Common.Converters;
 using Avalon.Hosting.Extensions;
 using Avalon.Network.Packets.Abstractions.Attributes;
 using Microsoft.Extensions.DependencyInjection;
@@ -26,13 +24,6 @@ public static class AvalonHostBuilder
         host.ConfigureContainer(new DefaultServiceProviderFactory(AvalonServiceProvider.Options));
         host.Services.Configure<ConsoleLifetimeOptions>(opts => opts.SuppressStatusMessages = true);
         host.Services.AddCoreServices(host.Configuration, component);
-
-        host.Services.AddSingleton<JsonSerializerOptions>(_ =>
-        {
-            JsonSerializerOptions jsonOptions = new();
-            jsonOptions.Converters.Add(new ValueObjectJsonConverterFactory());
-            return jsonOptions;
-        });
 
         return Task.FromResult(host);
     }
