@@ -7,32 +7,36 @@ using System.Text.Json.Serialization;
 
 namespace Avalon.Common.Converters;
 
-public class ValueObjectJsonConverter<TValue> : JsonConverter<ValueObject<TValue>>
+/// <summary>
+/// Reads and writes one value-object type as the primitive it wraps. Created by
+/// <see cref="ValueObjectJsonConverterFactory" />, which closes it over the concrete type.
+/// </summary>
+/// <typeparam name="TObject">The concrete value object, e.g. <c>CharacterId</c>.</typeparam>
+/// <typeparam name="TValue">The primitive it wraps, e.g. <c>uint</c>.</typeparam>
+public class ValueObjectJsonConverter<TObject, TValue> : JsonConverter<TObject>
+    where TObject : ValueObject<TValue>
     where TValue : IEquatable<TValue>
 {
-    public override ValueObject<TValue>? Read(ref Utf8JsonReader reader, Type typeToConvert,
-        JsonSerializerOptions options)
+    public override TObject? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
     {
-        // Deserialize the underlying value type
         TValue? value = JsonSerializer.Deserialize<TValue>(ref reader, options);
 
-        // Return an instance of the derived class
         if (value == null)
         {
             return null;
         }
 
-        // Since the base class is abstract, you need to handle the concrete type creation here.
+        // The value object owns its invariants in its constructor, so go through it rather than
+        // writing the backing field directly.
         ConstructorInfo? constructor = typeToConvert.GetConstructor(new[] {typeof(TValue)});
         if (constructor == null)
         {
             throw new JsonException($"No suitable constructor found for type {typeToConvert}.");
         }
 
-        return (ValueObject<TValue>)constructor.Invoke(new object[] {value});
+        return (TObject)constructor.Invoke(new object[] {value});
     }
 
-    public override void Write(Utf8JsonWriter writer, ValueObject<TValue> valueObject, JsonSerializerOptions options) =>
-        // Serialize the underlying value
-        JsonSerializer.Serialize(writer, valueObject.Value, options);
+    public override void Write(Utf8JsonWriter writer, TObject value, JsonSerializerOptions options) =>
+        JsonSerializer.Serialize(writer, value.Value, options);
 }
