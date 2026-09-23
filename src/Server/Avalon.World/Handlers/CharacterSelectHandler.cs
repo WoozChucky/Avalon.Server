@@ -295,10 +295,6 @@ public class CharacterSelectHandler(
         activity?.SetTag(nameof(connection.AccountId), connection.AccountId);
         activity?.SetTag("CharacterId", character.Id);
 
-        entity[InventoryType.Equipment].Load(items.Where(i => i.Container == InventoryType.Equipment).ToList());
-        entity[InventoryType.Bag].Load(items.Where(i => i.Container == InventoryType.Bag).ToList());
-        entity[InventoryType.Bank].Load(items.Where(i => i.Container == InventoryType.Bank).ToList());
-
         //TODO: Send inventory to the client
 
         connection.EnqueueContinuation(characterAbilityRepository.GetCharacterAbilitiesAsync(character.Id, CancellationToken.None),
