@@ -16,4 +16,12 @@ public class GameConfiguration
     /// </summary>
     [Range(1, 300)]
     public int CharacterLoadTimeoutSeconds { get; set; } = 15;
+
+    /// <summary>
+    ///     How often the world tick asks <c>IScriptHotReloader</c> whether any AI or spell script
+    ///     changed on disk. Polling, so this is the worst-case delay between saving a script and the
+    ///     world picking it up — and the cost of a shorter interval is paid every tick.
+    /// </summary>
+    [Range(1, 3600)]
+    public int ScriptHotReloadIntervalSeconds { get; set; } = 5;
 }
