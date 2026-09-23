@@ -104,7 +104,10 @@ public static class NavmeshVectors
                 // radius before a polygon reaches a wall, so these clamp short of the wall's face.
                 Ray(25f, 25f, 35f, 25f, "head-on into the x = 30 wall"),
                 Ray(20f, 25f, 40f, 25f, "the same wall from twice the distance"),
-                Ray(25f, 25f, 35f, 35f, "into the wall corner at 45 degrees"),
+                // 45 degrees at the corner where both walls meet -- and it stops at the TILE corner
+                // (28.55) rather than at either wall's eroded face (28.85, where the head-on row
+                // above stops). The barrier is a polygon edge on the tile seam, not the wall.
+                Ray(25f, 25f, 35f, 35f, "45 degrees, clamping on the tile corner short of the walls"),
                 Ray(25f, 5f, 25f, 35f, "north into the z = 30 wall"),
                 Ray(28.9f, 25f, 35f, 25f, "flush against the x = 30 wall, pointing into it"),
                 Ray(25f, 28.9f, 25f, 5f, "flush against the z = 30 wall, pointing away from it"),
@@ -473,15 +476,31 @@ public static class NavmeshVectors
         # each other -- the largest vertical variation a layout composed from real chunks can produce
         # -- and its ground rows all come back at one height, because 5 cm is a quarter of the bake's
         # 0.2 cell height and both floors quantise to the same voxel. So these vectors pin
-        # SampleGroundHeight at a single height, and a navmesh built with agent values in voxels
-        # rather than world units is pinned here by the tile-seam rays and not by height at all.
+        # SampleGroundHeight at a single height.
         #
-        # THERE IS DELIBERATELY NO 45-DEGREE RAY THROUGH A TILE CORNER. Tiles are 32 * 0.3 = 9.6
-        # wide from the geometry's own minimum, so on the town a ray along x = z from an integer
-        # start passes exactly through the point where four tiles meet, and Detour clamps there
-        # rather than stepping a raycast through a vertex. It is a real answer and a knife-edge one:
-        # two Recast implementations can legitimately fall on either side of it. The seam crossings
-        # here are all off-corner on purpose.
+        # THAT FLATNESS HAS A SECOND CONSEQUENCE, and it is the one easier to miss: the agent values
+        # written into each TILE HEADER are unpinned by anything here. Detour reads walkableHeight
+        # nowhere outside the endian swap, reads walkableRadius only under DT_FINDPATH_ANY_ANGLE,
+        # which neither of these queries takes, and reads walkableClimb only where two surfaces
+        # differ in height -- a portal-edge overlap test that links coplanar edges at any tolerance,
+        # and a tie-break that needs two walkable polygons stacked under one column. Passing those
+        # values in voxels rather than world units makes the climb LARGER, so it can only add a link,
+        # and adding one takes a step of roughly 0.9 to 4 metres falling on a tile seam. No layout
+        # composed from this chunk library has one. It is not a thinner query set that would catch
+        # it: it is uncatchable from a layout, until the library gains real relief.
+        #
+        # A RAY CAN CLAMP ON A TILE CORNER RATHER THAN ON THE GEOMETRY, and one row here does. Tiles
+        # are 32 * 0.3 = 9.6 wide from the geometry's own minimum, so the town's seams fall at 9.35,
+        # 18.95 and 28.55, and a ray along x = z from an integer start runs straight at the point
+        # where four of them meet. The town's "45 degrees" row stops at 28.55 and not at the wall's
+        # eroded face at 28.85, which the head-on row above it gives. That row is KEPT: the barrier
+        # is a polygon edge on the seam and it survives perturbing the ray's direction.
+        #
+        # What is excluded is the case that does NOT survive. A long 45-degree ray from (2, 2) to
+        # (27, 27) clamps on the first such corner at 9.35, while a shorter one along the same line
+        # from (3, 3) to (12, 12) passes it and reaches -- two rays, one line, one corner, opposite
+        # answers. That is a knife edge two Recast implementations can legitimately fall either side
+        # of, so it is not here. The straight seam crossings are all off-corner for the same reason.
         #
         # Floats are round-trip ("R") formatted; compare positions and heights by value with an
         # epsilon, and the outcome exactly.
