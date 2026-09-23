@@ -58,7 +58,8 @@ internal static class PendingSpawnConnection
             .Do(ci =>
             {
                 held = new PendingSpawn(ci.Arg<ICharacter>(), ci.Arg<IMapInstance>(), ci.Arg<long>());
-                connection.SelectInProgress = false;
+                // Mirrors the real connection: the pending spawn supersedes the in-flight select.
+                connection.SelectInProgress.Returns(false);
             });
 
         return connection;

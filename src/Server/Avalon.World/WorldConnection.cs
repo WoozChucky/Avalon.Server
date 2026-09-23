@@ -71,13 +71,23 @@ public class WorldConnection : Connection, IWorldConnection
     public PendingSpawn? PendingSpawn => _pendingSpawn;
 
     /// <inheritdoc />
-    public bool SelectInProgress { get; set; }
+    // One field behind both members, so the flag and the timestamp cannot disagree about whether a
+    // select is in flight.
+    private long _selectStartedTicks;
+
+    public bool SelectInProgress => _selectStartedTicks != 0;
+
+    public long SelectStartedTicks => _selectStartedTicks;
+
+    public void BeginSelect(long nowTicks) => _selectStartedTicks = nowTicks;
+
+    public void CancelSelect() => _selectStartedTicks = 0;
 
     public void SetPendingSpawn(ICharacter character, IMapInstance instance, long sinceTicks)
     {
         _pendingSpawn = new PendingSpawn(character, instance, sinceTicks);
         // Cleared here rather than at the call site so the two cannot disagree.
-        SelectInProgress = false;
+        CancelSelect();
     }
 
     public PendingSpawn? TakePendingSpawn()
