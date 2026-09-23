@@ -24,6 +24,7 @@
       generator, and the guid vectors read the real masks. A transcription would agree with
       whatever it transcribed, which is the failure these files exist to catch.
     -->
+    <ProjectReference Include="..\..\src\Server\Avalon.World\Avalon.World.csproj"/>
     <ProjectReference Include="..\..\src\Server\Avalon.World.Generation\Avalon.World.Generation.csproj"/>
     <ProjectReference Include="..\..\src\Shared\Avalon.Common\Avalon.Common.csproj"/>
     <ProjectReference Include="..\..\src\Shared\Avalon.Domain\Avalon.Domain.csproj"/>
