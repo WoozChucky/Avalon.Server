@@ -125,7 +125,7 @@ Commands live in `Avalon.World/Chat/`. To add a new command:
 ## ValueObject Pattern
 
 `ValueObject<TPrimitive>` (in `Avalon.Common`) wraps primitives like `AccountId`, `WorldId`, `CharacterId`. They:
-- Serialize as their underlying primitive via `ValueObjectJsonConverterFactory`.
+- Serialize as their underlying primitive via `Avalon.Common.Converters.ValueObjectJsonConverterFactory` — **but only where that factory is registered**. It is not global: `Avalon.Api` adds it in `AddJsonOptions`, and the item-catalog export adds it to its own options. A `JsonSerializerOptions` without it serializes a value object as `{"value":42}`, because there is no attribute on the type making it automatic.
 - Appear as scalar types in OpenAPI via `ValueObjectOpenapiSchemaTransformer`.
 
 ## Testing Conventions
