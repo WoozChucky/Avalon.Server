@@ -388,8 +388,15 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         // After the session pass, so a load report that arrived this tick releases its own barrier
         // rather than being beaten to it, and before the world update, so a character released here
         // is simulated on the tick that released it.
-        CharacterReadinessBarrier.ReleaseExpired(conns, _world, DateTime.UtcNow.Ticks,
-            TimeSpan.FromSeconds(_world.Configuration.CharacterLoadTimeoutSeconds), _logger);
+        long barrierNowTicks = DateTime.UtcNow.Ticks;
+        TimeSpan barrierTimeout = TimeSpan.FromSeconds(_world.Configuration.CharacterLoadTimeoutSeconds);
+
+        CharacterReadinessBarrier.ReleaseExpired(conns, _world, barrierNowTicks, barrierTimeout, _logger);
+
+        // The other half of the same failure: a select that never reached a pending spawn at all,
+        // so ReleaseExpired cannot see it. Sharing the timeout because both are "the select
+        // pipeline stopped making progress"; split them if they ever need different windows.
+        CharacterReadinessBarrier.CancelExpiredSelects(conns, barrierNowTicks, barrierTimeout, _logger);
 
         _world.Update(elapsedTime);
         long t2 = Stopwatch.GetTimestamp();

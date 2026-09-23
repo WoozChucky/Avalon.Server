@@ -28,14 +28,14 @@ variant empty
 
 variant populated
   field 1 Reason : string = "line\nbreak\ttab" (14 chars, 14 bytes utf-8)
-  field 2 ReasonCode : DisconnectReason = ServerShutdown (1)
+  field 2 ReasonCode : DisconnectReason = DuplicateLogin (2)
   bytes 18
     0a 0e 6c 69 6e 65 0a 62 72 65 61 6b 09 74 61 62
-    10 01
+    10 02
 
 variant maxima
   field 1 Reason : string = "ΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩx…" (88 chars, 132 bytes utf-8)
-  field 2 ReasonCode : DisconnectReason = Kicked (3)
+  field 2 ReasonCode : DisconnectReason = SelectTimeout (4)
   bytes 137
     0a 84 01 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
     a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
@@ -45,7 +45,7 @@ variant maxima
     78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
     ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
     a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
-    78 ce a9 78 ce a9 78 10 03
+    78 ce a9 78 ce a9 78 10 04
 
 variant minima
   field 1 Reason : string = " " (1 chars, 1 bytes utf-8)
@@ -55,7 +55,7 @@ variant minima
 
 variant varint-edges
   field 1 Reason : string = "éééééééééééééééééééééééééééééééééééééééézzzzzzzz…" (89 chars, 129 bytes utf-8)
-  field 2 ReasonCode : DisconnectReason = <not a declared member> (4)
+  field 2 ReasonCode : DisconnectReason = <not a declared member> (5)
   bytes 134
     0a 81 01 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3
     a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3
@@ -65,4 +65,4 @@ variant varint-edges
     a9 c3 a9 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a
     7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a
     7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a
-    7a 7a 7a 7a 10 04
+    7a 7a 7a 7a 10 05

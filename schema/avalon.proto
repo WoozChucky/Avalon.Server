@@ -222,6 +222,7 @@ enum DisconnectReason {
    DisconnectReason_ServerShutdown = 1;
    DisconnectReason_DuplicateLogin = 2;
    DisconnectReason_Kicked = 3;
+   DisconnectReason_SelectTimeout = 4;
 }
 message ItemSlotDto {
    uint32 Container = 1;

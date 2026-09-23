@@ -34,7 +34,27 @@ public interface IWorldConnection : IConnection
     ///     <see cref="PendingSpawn" /> are BOTH null across that span, which is several database
     ///     round trips long, so this is the only thing that says a select is under way.
     /// </summary>
-    public bool SelectInProgress { get; set; }
+    public bool SelectInProgress { get; }
+
+    /// <summary>
+    ///     When the in-flight select began, as <c>DateTime.UtcNow.Ticks</c>, or 0 when none is.
+    ///     Taken from the caller rather than read from a clock here, the same way
+    ///     <see cref="SetPendingSpawn" /> takes its <c>sinceTicks</c>, so the tick loop can decide a
+    ///     select has stalled and a test can decide it without waiting.
+    /// </summary>
+    long SelectStartedTicks { get; }
+
+    /// <summary>
+    ///     Marks a select as under way. <paramref name="nowTicks" /> is
+    ///     <c>DateTime.UtcNow.Ticks</c> and starts the window a stalled select is cancelled after.
+    /// </summary>
+    void BeginSelect(long nowTicks);
+
+    /// <summary>
+    ///     Ends an in-flight select without a character. For the chain's own give-up paths, and for
+    ///     the tick loop when a select has stalled past its window.
+    /// </summary>
+    void CancelSelect();
 
     /// <summary>
     ///     Whether the socket is still up. The tick reads it before acting on a connection's

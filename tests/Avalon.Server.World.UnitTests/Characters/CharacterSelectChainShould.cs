@@ -11,6 +11,7 @@ using Avalon.Hosting.Networking;
 using Avalon.Network.Packets.Character;
 using Avalon.World;
 using Avalon.World.ChunkLayouts;
+using Avalon.World.Characters;
 using Avalon.World.Configuration;
 using Avalon.World.Handlers;
 using Avalon.World.Public;
@@ -88,6 +89,58 @@ public class CharacterSelectChainShould : IDisposable
 
     private void StartSelect() =>
         _select.Execute(_connection, new CCharacterSelectedPacket { CharacterId = TheCharacter });
+
+    /// <summary>
+    /// A select that dies mid-chain leaves the connection in the guard's "mid-select" state
+    /// permanently: SelectInProgress true, Character and PendingSpawn both null. Every handler that
+    /// gates on selection state -- select, create, delete and list -- refuses from then on, so the
+    /// player cannot do anything with their characters until they reconnect. The readiness barrier
+    /// does not cover it: its sweep only inspects connections that already have a pending spawn,
+    /// and a chain that faulted never produced one.
+    /// </summary>
+    [Fact]
+    public void Cancel_A_Select_Whose_Chain_Faulted_Once_It_Has_Waited_Too_Long()
+    {
+        _inventory.GetByCharacterIdAsync(TheCharacter, Arg.Any<CancellationToken>())
+            .Returns(Task.FromException<IReadOnlyCollection<CharacterInventory>>(
+                new InvalidOperationException("the database went away mid-select")));
+
+        StartSelect();
+        Step(4); // far enough to run the inventory load, which faults
+
+        Assert.True(_connection.SelectInProgress, "the faulted chain should have left the select wedged");
+        Assert.Null(_connection.Character);
+        Assert.Null(_connection.PendingSpawn);
+
+        CharacterReadinessBarrier.CancelExpiredSelects(
+            [_connection],
+            _connection.SelectStartedTicks + TimeSpan.FromSeconds(30).Ticks,
+            TimeSpan.FromSeconds(15),
+            NullLogger.Instance);
+
+        Assert.False(_connection.SelectInProgress);
+        Assert.False(_connection.IsConnected);
+    }
+
+    /// <summary>
+    /// The converse, so the sweep cannot be made to pass by cancelling everything: a select still
+    /// inside its window is a select still working, and six database round trips take time.
+    /// </summary>
+    [Fact]
+    public void Leave_A_Select_Alone_While_It_Is_Still_Inside_Its_Window()
+    {
+        StartSelect();
+        Step(2);
+
+        CharacterReadinessBarrier.CancelExpiredSelects(
+            [_connection],
+            _connection.SelectStartedTicks + TimeSpan.FromSeconds(5).Ticks,
+            TimeSpan.FromSeconds(15),
+            NullLogger.Instance);
+
+        Assert.True(_connection.SelectInProgress);
+        Assert.True(_connection.IsConnected);
+    }
 
     [Fact]
     public void Say_a_select_is_under_way_for_every_step_before_the_pending_spawn_exists()
