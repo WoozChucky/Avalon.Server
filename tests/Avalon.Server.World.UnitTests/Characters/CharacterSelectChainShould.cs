@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Sockets;
+using Avalon.Common;
 using Avalon.Common.Cryptography;
 using Avalon.Common.ValueObjects;
 using Avalon.Database.Character.Repositories;
@@ -13,6 +14,7 @@ using Avalon.World.ChunkLayouts;
 using Avalon.World.Configuration;
 using Avalon.World.Handlers;
 using Avalon.World.Public;
+using Avalon.World.Public.Characters;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Instances;
 using Avalon.World.Respawn;
@@ -39,6 +41,8 @@ public class CharacterSelectChainShould : IDisposable
     private readonly TcpClient _serverSide;
     private readonly Avalon.World.WorldConnection _connection;
     private readonly ICharacterRepository _characters = Substitute.For<ICharacterRepository>();
+    private readonly ICharacterInventoryRepository _inventory = Substitute.For<ICharacterInventoryRepository>();
+    private readonly IItemInstanceRepository _itemInstances = Substitute.For<IItemInstanceRepository>();
     private readonly CharacterSelectHandler _select;
 
     public CharacterSelectChainShould()
@@ -90,8 +94,9 @@ public class CharacterSelectChainShould : IDisposable
     {
         StartSelect();
 
-        // Five steps: find character, resolve instance, persist row, load inventory, load abilities.
-        for (int step = 0; step < 4; step++)
+        // Six steps now: find character, resolve instance, persist row, load inventory rows,
+        // load item instances, load abilities.
+        for (int step = 0; step < 5; step++)
         {
             Assert.True(_connection.SelectInProgress, $"select not marked in progress at step {step}");
             Assert.Null(_connection.Character);
@@ -199,7 +204,7 @@ public class CharacterSelectChainShould : IDisposable
     public void Persist_the_row_offline_while_the_client_is_still_loading()
     {
         StartSelect();
-        Step(5);
+        Step(6);
 
         Assert.NotNull(_connection.PendingSpawn);
         _characters.Received(1).UpdateAsync(
@@ -223,9 +228,10 @@ public class CharacterSelectChainShould : IDisposable
             .Returns(row);
         _characters.UpdateAsync(Arg.Any<Character>(), Arg.Any<CancellationToken>()).Returns(row);
 
-        var inventory = Substitute.For<ICharacterInventoryRepository>();
-        inventory.GetByCharacterIdAsync(TheCharacter, Arg.Any<CancellationToken>())
+        _inventory.GetByCharacterIdAsync(TheCharacter, Arg.Any<CancellationToken>())
             .Returns(Array.Empty<CharacterInventory>());
+        _itemInstances.GetByCharacterIdWithTemplateAsync(TheCharacter, Arg.Any<CancellationToken>())
+            .Returns(Array.Empty<ItemInstance>());
 
         var abilities = Substitute.For<ICharacterAbilityRepository>();
         abilities.GetCharacterAbilitiesAsync(TheCharacter, Arg.Any<CancellationToken>())
@@ -255,12 +261,72 @@ public class CharacterSelectChainShould : IDisposable
             NullLogger<CharacterSelectHandler>.Instance,
             NullLoggerFactory.Instance,
             _characters,
-            inventory,
+            _inventory,
+            _itemInstances,
             abilities,
             Substitute.For<IChunkLibrary>(),
             world,
             Substitute.For<IRespawnTargetResolver>(),
             Options.Create(new RegenConfiguration()));
+    }
+
+    private void GiveTheCharacter(params (InventoryType Container, ushort Slot, ulong Template)[] items)
+    {
+        var rows = new List<CharacterInventory>();
+        var instances = new List<ItemInstance>();
+
+        foreach ((InventoryType container, ushort slot, ulong template) in items)
+        {
+            var id = new ItemInstanceId(Guid.NewGuid());
+            rows.Add(new CharacterInventory
+            {
+                CharacterId = TheCharacter, Container = container, Slot = slot, ItemId = id
+            });
+            instances.Add(new ItemInstance
+            {
+                Id = id, TemplateId = new ItemTemplateId(template), CharacterId = TheCharacter,
+                Count = 1, Durability = 100, Flags = ItemInstanceFlags.None
+            });
+        }
+
+        _inventory.GetByCharacterIdAsync(TheCharacter, Arg.Any<CancellationToken>()).Returns(rows);
+        _itemInstances.GetByCharacterIdWithTemplateAsync(TheCharacter, Arg.Any<CancellationToken>())
+            .Returns(instances);
+    }
+
+    /// <summary>
+    /// Equipment and bag reach the client; the bank does not, because opening a bank is a separate
+    /// interaction and sending it on login would tell the client about items it cannot show.
+    /// </summary>
+    [Fact]
+    public void Send_Equipment_And_Bag_But_Not_The_Bank()
+    {
+        GiveTheCharacter(
+            (InventoryType.Equipment, 0, 10), (InventoryType.Equipment, 1, 11),
+            (InventoryType.Bag, 0, 20), (InventoryType.Bag, 1, 21), (InventoryType.Bag, 2, 22),
+            (InventoryType.Bank, 0, 30));
+
+        StartSelect();
+        Step(6);
+
+        ICharacter character = _connection.PendingSpawn!.Character;
+        Assert.Equal(2, character[InventoryType.Equipment].Items.Count);
+        Assert.Equal(3, character[InventoryType.Bag].Items.Count);
+        Assert.Single(character[InventoryType.Bank].Items);
+    }
+
+    /// <summary>
+    /// An empty inventory is a fact the client needs, not an absence of one. Skipping the packet
+    /// would leave it unable to tell "nothing" from "not told yet".
+    /// </summary>
+    [Fact]
+    public void Reach_The_Pending_Spawn_With_An_Empty_Inventory()
+    {
+        StartSelect();
+        Step(6);
+
+        Assert.NotNull(_connection.PendingSpawn);
+        Assert.Empty(_connection.PendingSpawn!.Character[InventoryType.Bag].Items);
     }
 
     private static StaticData EmptyStaticData()

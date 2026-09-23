@@ -63,6 +63,10 @@ public class CharacterSelectHandlerShould
         inventoryRepository.GetByCharacterIdAsync(TheCharacter, Arg.Any<CancellationToken>())
             .Returns(Array.Empty<CharacterInventory>());
 
+        var itemInstanceRepository = Substitute.For<IItemInstanceRepository>();
+        itemInstanceRepository.GetByCharacterIdWithTemplateAsync(Arg.Any<CharacterId>(), Arg.Any<CancellationToken>())
+            .Returns(Array.Empty<ItemInstance>());
+
         var abilityRepository = Substitute.For<ICharacterAbilityRepository>();
         abilityRepository.GetCharacterAbilitiesAsync(TheCharacter, Arg.Any<CancellationToken>())
             .Returns(Array.Empty<CharacterAbility>());
@@ -99,6 +103,7 @@ public class CharacterSelectHandlerShould
         RunContinuationsInline<Character>(connection);
         RunContinuationsInline<IMapInstance>(connection);
         RunContinuationsInline<IReadOnlyCollection<CharacterInventory>>(connection);
+        RunContinuationsInline<IReadOnlyList<ItemInstance>>(connection);
         RunContinuationsInline<IReadOnlyCollection<CharacterAbility>>(connection);
 
         var handler = new CharacterSelectHandler(
@@ -106,6 +111,7 @@ public class CharacterSelectHandlerShould
             NullLoggerFactory.Instance,
             characterRepository,
             inventoryRepository,
+            itemInstanceRepository,
             abilityRepository,
             Substitute.For<IChunkLibrary>(),
             world,
