@@ -83,6 +83,31 @@ else
     }
 }
 
+// Names all resolved. Now the same question about the machine: an export that cannot run must
+// stop the whole call, because a half-written tree is worse than an unwritten one.
+List<string> notReady =
+[
+    .. selected
+        .Select(export => (export.Name, Reason: export.Readiness?.Invoke()))
+        .Where(check => check.Reason is not null)
+        .Select(check => $"{check.Name} {check.Reason}"),
+];
+
+if (notReady.Count > 0)
+{
+    foreach (string reason in notReady)
+    {
+        Console.Error.WriteLine(reason);
+    }
+
+    Console.Error.WriteLine("Nothing was written.");
+    Console.Error.WriteLine();
+    Console.Error.WriteLine("To export without it, name the artifacts you want:");
+    Console.Error.WriteLine("  " + string.Join(
+        ' ', Exports.All.Where(e => e.Readiness is null).Select(e => e.Name)));
+    return 1;
+}
+
 string root = outputRoot ?? Path.Combine(RepositoryRoot.Find(), "schema");
 Directory.CreateDirectory(root);
 
