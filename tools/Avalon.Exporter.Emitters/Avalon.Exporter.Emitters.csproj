@@ -1,5 +1,12 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+  <!--
+    This library holds emitters derived from code alone (packet contracts, cryptography,
+    rotation, object IDs, and item schema). The navmesh emitter lives in Avalon.Exporter
+    (the CLI) instead, because it depends on Avalon.World; this library is referenced
+    by tests/Avalon.Shared.UnitTests, which must not gain that dependency.
+  -->
+
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
