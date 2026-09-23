@@ -19,7 +19,7 @@ export is an entry in `Exports.All` rather than a new project.
 
 ```bash
 dotnet run --project tools/Avalon.Exporter                    # lists the artifacts, writes nothing
-dotnet run --project tools/Avalon.Exporter -- all             # writes all six
+dotnet run --project tools/Avalon.Exporter -- all             # writes all nine
 dotnet run --project tools/Avalon.Exporter -- proto corpus    # writes just those
 dotnet run --project tools/Avalon.Exporter -- all --out /tmp  # somewhere other than schema/
 ```
@@ -32,6 +32,9 @@ dotnet run --project tools/Avalon.Exporter -- all --out /tmp  # somewhere other 
 | `crypto` | `schema/crypto/session-v1.txt` | the production `AvalonCryptoSession` and `SessionKeys` |
 | `rotation` | `schema/vectors/rotation-v1.txt` | `ChunkRotation.LocalToWorld` via the real layout generator |
 | `object-guid` | `schema/vectors/object-guid-v1.txt` | `ObjectGuid`'s own shifts and masks |
+| `navmesh` | `schema/vectors/navmesh-v1.txt` | the DotRecast bake and movement queries from the real generator |
+| `item-schema` | `schema/items/item-schema-v1.json` | `ItemTemplate` and its seven enumerations |
+| `item-catalog` | `schema/items/item-catalog-v1.json` | the item template rows — **needs a World database** |
 
 Two rules the tool keeps, because both failures are silent ones:
 
@@ -40,6 +43,11 @@ Two rules the tool keeps, because both failures are silent ones:
 - **Everything is written with explicit LF.** These files are hashed as bytes at the other end, so
   a CRLF is not a formatting nit — it is a hash the client cannot reproduce. `.gitattributes` holds
   the same line from the other side.
+
+The exporter is two projects: `Avalon.Exporter.Emitters` holds everything derived from the code
+alone and is what the drift tests reference, and `Avalon.Exporter` adds the CLI and the one export
+that reads a database. The split keeps EF Core and Npgsql out of the shared unit tests, which
+reference the emitters only.
 
 Nothing is exported from a transcription. Each artifact runs the server's own type, because a
 re-typed constant agrees with whatever it was typed from — which is the failure these files exist
