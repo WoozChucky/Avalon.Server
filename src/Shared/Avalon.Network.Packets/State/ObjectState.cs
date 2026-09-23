@@ -49,7 +49,7 @@ public class ObjectState
     [ProtoMember(2)] public Vec3? Position { get; set; }
     [ProtoMember(3)] public Vec3? Velocity { get; set; }
 
-    /// <summary>Yaw. Only rotation about the vertical axis is replicated.</summary>
+    /// <summary>Yaw in DEGREES. Only rotation about the vertical axis is replicated.</summary>
     [ProtoMember(4)] public float? Orientation { get; set; }
 
     [ProtoMember(5)] public MoveState? MoveState { get; set; }
