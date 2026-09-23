@@ -1,0 +1,145 @@
+# Navmesh - known-answer vectors for the two queries the server steps movement with.
+#
+# GENERATED FILE. Every answer below is what the server's own DotRecast bake and its own
+# MapNavigator produced for the layout it sits under, so a client is conformant when it
+# reproduces them, and a change in how the server bakes or queries arrives here as a diff.
+#
+#   Emitted by  tools/Avalon.Exporter  (Avalon.Server)
+#   Regenerate  dotnet run --project tools/Avalon.Exporter -- navmesh
+#   Source      src/Server/Avalon.World/ChunkLayouts/IChunkLayoutNavmeshBuilder.cs
+#               src/Server/Avalon.World/Maps/Navigation/NavmeshBuildSettings.cs
+#               src/Server/Avalon.World/Maps/Navigation/MapNavigator.cs
+#               src/Server/Avalon.Server.World/Maps/Chunks/*.obj
+#
+# A CLIENT THAT BAKES A DIFFERENT NAVMESH DOES NOT FAIL. It walks through a wall the server
+# stops it at, and the player sees a correction rather than an error; nothing at run time
+# reports the disagreement. Only these numbers do.
+#
+# KEYED ON A LAYOUT, NOT ON GEOMETRY. The client composes the combined mesh itself from the
+# chunk names, grid cells and rotations below, so one row covers composition, bake and query
+# end to end. A vector keyed on a pre-composed .obj would skip the composition step, which is
+# its own mirrored arithmetic and its own way to be wrong.
+#
+# Format, one block per layout:
+#
+#   layout <name> cell <cellSize>
+#   chunk  <template> <gridX> <gridZ> <rotation>       (repeated; origin = grid * cellSize)
+#   mesh   tiles <n> polys <n> verts <n>
+#   ray    <fx> <fy> <fz> <tx> <ty> <tz> -> <outcome> <px> <py> <pz> <t>   # label
+#   ground <x> <y> <z> -> <height>                                         # label
+#
+# <outcome> IS THE BRANCH, NOT AN INFERENCE FROM THE POSITION. RaycastWalkable returns a bare
+# position and collapses three branches onto it -- no start polygon hands back `from`, a
+# failed raycast hands back `from`, and a clamp at t = 0 lands on `from` as well -- so a
+# reader cannot tell "you did not move" from "you are not on the mesh". The three are:
+#
+#   reached      the ray ended inside a polygon; position is the destination
+#   clamped      the ray left the mesh at fraction t; position is from + (to - from) * t
+#   nostartpoly  no polygon under `from`, or Detour refused the cast; position is `from`
+#
+# <t> IS DETOUR'S RAW VALUE, sentinel and all: a ray that reaches its destination reports
+# float.MaxValue (3.4028235E+38), because there is no fraction to report. Treat it as a
+# sentinel; do not epsilon-compare it.
+#
+# The mesh counts are the bake's structure, and they are here because a bake landing on
+# different counts has already diverged -- there is nothing further worth comparing. They are
+# tile, polygon and vertex totals over every loaded tile. A BV-tree node count is NOT here:
+# it differs between implementations even when the navmesh is identical.
+#
+# HEIGHT COVERAGE IS BOUNDED BY THE CHUNK LIBRARY, and that is a real gap rather than an
+# oversight. Every chunk .obj the server ships is a flat slab: a town floor's top face is at
+# local y = 0.05, a forest floor's at 0 or 0.05, and the walls are vertical, so nothing above
+# a floor is walkable at all. The 'forest-floors' layout puts the two floor heights beside
+# each other -- the largest vertical variation a layout composed from real chunks can produce
+# -- and its ground rows all come back at one height, because 5 cm is a quarter of the bake's
+# 0.2 cell height and both floors quantise to the same voxel. So these vectors pin
+# SampleGroundHeight at a single height, and a navmesh built with agent values in voxels
+# rather than world units is pinned here by the tile-seam rays and not by height at all.
+#
+# THERE IS DELIBERATELY NO 45-DEGREE RAY THROUGH A TILE CORNER. Tiles are 32 * 0.3 = 9.6
+# wide from the geometry's own minimum, so on the town a ray along x = z from an integer
+# start passes exactly through the point where four tiles meet, and Detour clamps there
+# rather than stepping a raycast through a vertex. It is a real answer and a knife-edge one:
+# two Recast implementations can legitimately fall on either side of it. The seam crossings
+# here are all off-corner on purpose.
+#
+# Floats are round-trip ("R") formatted; compare positions and heights by value with an
+# epsilon, and the outcome exactly.
+
+layout town cell 30
+chunk town_sw_01 0 0 0
+chunk town_se_01 1 0 0
+chunk town_nw_01 0 1 0
+chunk town_ne_01 1 1 0
+mesh tiles 49 polys 71 verts 262
+ray 15 0.15 15 16 0.15 15 -> reached 16 0.15 15 3.4028235E+38 # open floor, one metre
+ray 15 0.15 15 25 0.15 15 -> reached 25 0.15 15 3.4028235E+38 # open floor, the length of a tile and then some
+ray 45 0.15 45 35 0.15 35 -> reached 35 0.15 35 3.4028235E+38 # open floor, diagonal, north-east quadrant
+ray 5 0.15 5 15 0.15 5 -> reached 15 0.15 5 3.4028235E+38 # crosses the x = 9.35 tile seam
+ray 5 0.15 5 25 0.15 5 -> reached 25 0.15 5 3.4028235E+38 # crosses the x = 9.35 and 18.95 tile seams
+ray 5 0.15 14 25 0.15 14 -> reached 25 0.15 14 3.4028235E+38 # crosses two seams a metre below the z = 14.35 one
+ray 14 0.15 5 14 0.15 25 -> reached 14 0.15 25 3.4028235E+38 # the same, on z -- a transposed tile index lands elsewhere
+ray 2 0.15 3 27 0.15 28 -> reached 27 0.15 28 3.4028235E+38 # shallow diagonal across the seams on both axes
+ray 25 0.15 25 35 0.15 25 -> clamped 28.85 0.15 25 0.38500008 # head-on into the x = 30 wall
+ray 20 0.15 25 40 0.15 25 -> clamped 28.85 0.15 25 0.44250003 # the same wall from twice the distance
+ray 25 0.15 25 35 0.15 35 -> clamped 28.550001 0.15 28.550001 0.35500014 # into the wall corner at 45 degrees
+ray 25 0.15 5 25 0.15 35 -> clamped 25 0.15 28.85 0.795 # north into the z = 30 wall
+ray 28.9 0.15 25 35 0.15 25 -> clamped 28.9 0.15 25 0 # flush against the x = 30 wall, pointing into it
+ray 25 0.15 28.9 25 0.15 5 -> reached 25 0.15 5 3.4028235E+38 # flush against the z = 30 wall, pointing away from it
+ray 15 0.15 25 15 0.15 35 -> reached 15 0.15 35 3.4028235E+38 # through the z = 30 doorway at x = 15
+ray 25 0.15 45 35 0.15 45 -> reached 35 0.15 45 3.4028235E+38 # through the x = 30 doorway at z = 45
+ray 15 0.15 25 45 0.15 25 -> clamped 28.850002 0.15 25 0.4616667 # at the doorways' own centre line but across a wall
+ray 9000 0 9000 9001 0 9000 -> nostartpoly 9000 0 9000 0 # starts off the mesh entirely
+ray -5 0 15 15 0 15 -> nostartpoly -5 0 15 0 # starts outside the town's west edge
+ground 15 3 15 -> 0.15 # open floor, south-west quadrant
+ground 45 3 45 -> 0.15 # open floor, north-east quadrant
+ground 9.35 3 9.35 -> 0.15 # on the tile corner at 9.35
+ground 28 3 25 -> 0.15 # two metres from the x = 30 wall
+ground 15 3 30 -> 0.15 # in the z = 30 doorway
+ground 30 3 25 -> 3 # inside the x = 30 wall itself -- off the mesh
+ground 15 -5 15 -> 0.15 # open floor, sampled from five metres BELOW it
+ground 15 40 15 -> 40 # open floor, sampled from beyond the pick extent's reach
+ground 9000 3 9000 -> 3 # off the mesh entirely
+
+layout rotations cell 30
+chunk town_corner_01 0 0 0
+chunk town_corner_01 1 0 1
+chunk town_corner_01 0 1 2
+chunk town_corner_01 1 1 3
+mesh tiles 49 polys 60 verts 236
+ray 15 0.15 15 15 0.15 32 -> clamped 15 0.15 29.1 0.8294118 # r0 cell, north
+ray 15 0.15 15 -2 0.15 15 -> clamped 0.95000076 0.15 15 0.82647055 # r0 cell, west
+ray 15 0.15 15 32 0.15 15 -> reached 32 0.15 15 3.4028235E+38 # r0 cell, east
+ray 15 0.15 15 15 0.15 -2 -> clamped 15 0.15 0.8999996 0.8294118 # r0 cell, south
+ray 45 0.15 15 45 0.15 32 -> clamped 45 0.15 29.099998 0.82941175 # r1 cell, north
+ray 45 0.15 15 28 0.15 15 -> reached 28 0.15 15 3.4028235E+38 # r1 cell, west
+ray 45 0.15 15 62 0.15 15 -> clamped 58.850002 0.15 15 0.81470597 # r1 cell, east
+ray 45 0.15 15 45 0.15 -2 -> clamped 45 0.15 0.9000006 0.82941175 # r1 cell, south
+ray 15 0.15 45 15 0.15 62 -> clamped 15 0.15 59.100002 0.82941186 # r2 cell, north
+ray 15 0.15 45 -2 0.15 45 -> clamped 0.6499996 0.15 45 0.84411764 # r2 cell, west
+ray 15 0.15 45 32 0.15 45 -> clamped 28.849998 0.15 45 0.81470585 # r2 cell, east
+ray 15 0.15 45 15 0.15 28 -> clamped 15 0.15 30.900002 0.8294116 # r2 cell, south
+ray 45 0.15 45 45 0.15 62 -> clamped 45 0.15 59.100002 0.82941186 # r3 cell, north
+ray 45 0.15 45 28 0.15 45 -> clamped 30.95 0.15 45 0.8264705 # r3 cell, west
+ray 45 0.15 45 62 0.15 45 -> clamped 59.15 0.15 45 0.832353 # r3 cell, east
+ray 45 0.15 45 45 0.15 28 -> clamped 45 0.15 30.900002 0.8294117 # r3 cell, south
+ground 15 3 15 -> 0.15 # r0 cell centre
+ground 45 3 15 -> 0.15 # r1 cell centre
+ground 15 3 45 -> 0.15 # r2 cell centre
+ground 45 3 45 -> 0.15 # r3 cell centre
+
+layout forest-floors cell 30
+chunk forest_entry_01 0 0 0
+chunk forest_path_01 1 0 0
+chunk forest_clearing_01 0 1 0
+chunk forest_path_03 1 1 0
+mesh tiles 49 polys 49 verts 196
+ray 15 0.1 15 45 0.1 15 -> reached 45 0.1 15 3.4028235E+38 # across the seam between two chunks of equal floor height
+ray 15 0.1 15 15 0.1 45 -> reached 15 0.1 45 3.4028235E+38 # across the seam between the two floor heights
+ray 15 0.1 15 45 0.1 45 -> reached 45 0.1 45 3.4028235E+38 # diagonally across both seams
+ray 15 0.1 15 15 0.1 -5 -> clamped 15 0.1 0.8999977 0.7050001 # off the layout's south edge
+ground 15 3 15 -> 0.2 # forest_entry_01, floor top at local y = 0
+ground 45 3 15 -> 0.2 # forest_path_01, floor top at local y = 0
+ground 15 3 45 -> 0.2 # forest_clearing_01, floor top at local y = 0.05
+ground 45 3 45 -> 0.2 # forest_path_03, floor top at local y = 0.05
+ground 15 3 30 -> 0.2 # on the seam between the two heights

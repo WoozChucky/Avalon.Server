@@ -41,6 +41,11 @@ internal static class Exports
             "known-answer vectors for the ObjectGuid (type, id) packing",
             root => ObjectGuidVectors.Write(
                 Path.Combine(root, VectorsDirectory, ObjectGuidVectors.FileName))),
+
+        new("navmesh", VectorsDirectory + "/" + NavmeshVectors.FileName,
+            "known-answer vectors for the navmesh bake and its two movement queries",
+            root => NavmeshVectors.Write(
+                Path.Combine(root, VectorsDirectory, NavmeshVectors.FileName))),
     ];
 
     internal static Export? ByName(string name)

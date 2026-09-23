@@ -11,6 +11,7 @@ contracts so a non-.NET client can be built against it.
 | `crypto/session-v1.txt` | Generated. Known-answer vectors for the session key derivation: two frozen ECDH exchanges, the keys derived from each, and sealed packets both ways. See below. |
 | `vectors/rotation-v1.txt` | Generated. Known-answer vectors for `ChunkRotation.LocalToWorld`, which the client mirrors to place chunks. |
 | `vectors/object-guid-v1.txt` | Generated. Known-answer vectors for the `ObjectGuid` (type, id) packing the world-state stream carries. |
+| `vectors/navmesh-v1.txt` | Generated. Known-answer answers from the DotRecast bake and `MapNavigator`'s two movement queries, keyed on a chunk layout so one row covers composition, bake and query. |
 | `protobuf-net/bcl.proto` | Vendored, not generated. See below. |
 | `protobuf-net/NOTICE` | Where that copy came from, under what license, and which library version it matches. |
 
@@ -20,16 +21,17 @@ Regenerate all of them after any change to a packet contract:
 dotnet run --project tools/Avalon.Exporter -- all
 ```
 
-Or name what you want: `proto`, `opcodes`, `corpus`, `crypto`, `rotation`, `object-guid`. A bare
-run lists them and writes nothing.
+Or name what you want: `proto`, `opcodes`, `corpus`, `crypto`, `rotation`, `object-guid`,
+`navmesh`. A bare run lists them and writes nothing.
 
 `WireSchemaShould`, `WireCorpusShould` and `SessionCryptoVectorsShould` in
 `tests/Avalon.Shared.UnitTests` regenerate and compare, so forgetting to is a failing test rather
 than a client that decodes into the wrong field.
 
-The two files under `vectors/` have no such guard yet: nothing fails if the server's rotation or
-guid packing changes and they are not re-exported. Until one exists, re-export them by hand when
-`ChunkRotation` or `ObjectGuid` changes.
+The three files under `vectors/` have no such guard yet: nothing fails if the server's rotation,
+guid packing, navmesh bake settings or chunk `.obj`s change and they are not re-exported. Until one
+exists, re-export them by hand when `ChunkRotation`, `ObjectGuid`, `NavmeshBuildSettings`,
+`MapNavigator` or `Maps/Chunks/*.obj` changes.
 
 ## Why this lives at the repository root
 
