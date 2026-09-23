@@ -4,6 +4,7 @@ using Avalon.Api;
 using Avalon.Api.Config;
 using Avalon.Api.Converters;
 using Avalon.Api.Middlewares;
+using Avalon.Common.Converters;
 using Avalon.Api.Services;
 using Avalon.Database.Auth;
 using Avalon.Database.Character;
