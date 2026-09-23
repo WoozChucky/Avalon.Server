@@ -32,6 +32,7 @@ public class CharacterInfo
     [ProtoMember(5)] public float X { get; set; }
     [ProtoMember(6)] public float Y { get; set; }
     [ProtoMember(7)] public float Z { get; set; }
+    /// <summary>Yaw in DEGREES, matching <c>ObjectState.Orientation</c> and <c>CPlayerInputPacket.YawDeg</c>.</summary>
     [ProtoMember(8)] public float Orientation { get; set; }
     // 9 retired (was Running bool)
     [ProtoMember(10)] public ulong Experience { get; set; }

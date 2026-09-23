@@ -203,6 +203,19 @@ public abstract class Connection : BackgroundService, IConnection
                 _logger.LogError(e, "Failed to read from stream");
             }
         }
+        // ONE CONNECTION'S FAILURE MUST NOT STOP THE SERVER. Everything above the read loop — the TLS
+        // handshake most of all — runs unguarded otherwise, and this is a BackgroundService: the host
+        // does not configure BackgroundServiceExceptionBehavior, so the .NET default is StopHost and an
+        // escaping exception takes the whole process down. A peer that opens a socket and goes away
+        // mid-handshake is enough, which makes it reachable by a port scan or a dropped link.
+        catch (IOException e)
+        {
+            _logger.LogDebug(e, "Connection ended before it was established. Probably by the other party");
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Failed to establish connection");
+        }
         finally
         {
             Close(false);
