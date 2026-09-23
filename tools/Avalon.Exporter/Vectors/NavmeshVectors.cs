@@ -496,11 +496,13 @@ public static class NavmeshVectors
         # eroded face at 28.85, which the head-on row above it gives. That row is KEPT: the barrier
         # is a polygon edge on the seam and it survives perturbing the ray's direction.
         #
-        # What is excluded is the case that does NOT survive. A long 45-degree ray from (2, 2) to
-        # (27, 27) clamps on the first such corner at 9.35, while a shorter one along the same line
-        # from (3, 3) to (12, 12) passes it and reaches -- two rays, one line, one corner, opposite
-        # answers. That is a knife edge two Recast implementations can legitimately fall either side
-        # of, so it is not here. The straight seam crossings are all off-corner for the same reason.
+        # What is excluded is the case that does NOT survive, and it was measured rather than
+        # supposed. Four rays along x = z, all through the same corner at 9.35: (2, 2) to (27, 27)
+        # clamps there at t = 0.294, while (3, 3) to (12, 12), (3, 3) to (27, 27) and (2, 2) to
+        # (12, 12) all reach. One of four, and neither the start nor the length tells them apart --
+        # which is what a float knife edge looks like, and two Recast implementations can
+        # legitimately fall either side of one. So that ray is not here, and the straight seam
+        # crossings are all off-corner for the same reason.
         #
         # Floats are round-trip ("R") formatted; compare positions and heights by value with an
         # epsilon, and the outcome exactly.
