@@ -230,7 +230,7 @@ public class CharacterSelectChainShould : IDisposable
 
         _inventory.GetByCharacterIdAsync(TheCharacter, Arg.Any<CancellationToken>())
             .Returns(Array.Empty<CharacterInventory>());
-        _itemInstances.GetByCharacterIdWithTemplateAsync(TheCharacter, Arg.Any<CancellationToken>())
+        _itemInstances.GetByCharacterIdAsync(TheCharacter, Arg.Any<CancellationToken>())
             .Returns(Array.Empty<ItemInstance>());
 
         var abilities = Substitute.For<ICharacterAbilityRepository>();
@@ -290,7 +290,7 @@ public class CharacterSelectChainShould : IDisposable
         }
 
         _inventory.GetByCharacterIdAsync(TheCharacter, Arg.Any<CancellationToken>()).Returns(rows);
-        _itemInstances.GetByCharacterIdWithTemplateAsync(TheCharacter, Arg.Any<CancellationToken>())
+        _itemInstances.GetByCharacterIdAsync(TheCharacter, Arg.Any<CancellationToken>())
             .Returns(instances);
     }
 
