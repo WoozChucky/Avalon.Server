@@ -300,8 +300,12 @@ public class CharacterSelectHandler(
 
         // The rows say where the items sit; the instances say what they are, and they live in a
         // different database. Nothing can be loaded or sent until both are in hand.
+        //
+        // Without the templates: login reads only the instance's own columns, and the client
+        // resolves template ids against the vendored item catalog. Joining 41 columns per carried
+        // item would load rows nothing here reads.
         connection.EnqueueContinuation(
-            itemInstanceRepository.GetByCharacterIdWithTemplateAsync(character.Id, CancellationToken.None),
+            itemInstanceRepository.GetByCharacterIdAsync(character.Id, CancellationToken.None),
             instances => OnItemInstancesReceived(connection, entity, instance, character, items, instances));
 
         _parentActivity = activity;
