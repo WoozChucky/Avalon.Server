@@ -33,7 +33,7 @@ dotnet run --project tools/Avalon.Exporter -- all --out /tmp  # somewhere other 
 | `rotation` | `schema/vectors/rotation-v1.txt` | `ChunkRotation.LocalToWorld` via the real layout generator |
 | `object-guid` | `schema/vectors/object-guid-v1.txt` | `ObjectGuid`'s own shifts and masks |
 | `navmesh` | `schema/vectors/navmesh-v1.txt` | the DotRecast bake and movement queries from the real generator |
-| `item-schema` | `schema/items/item-schema-v1.json` | `ItemTemplate` and its seven enumerations |
+| `item-schema` | `schema/items/item-schema-v1.json` | `ItemTemplate` and its eight enumerations |
 | `item-catalog` | `schema/items/item-catalog-v1.json` | the item template rows — **needs a World database** |
 
 Two rules the tool keeps, because both failures are silent ones:

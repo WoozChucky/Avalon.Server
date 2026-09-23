@@ -1,7 +1,7 @@
 using Avalon.Exporter;
 
 // Selects artifacts by name and writes them. With no arguments it lists what it could write and
-// writes nothing -- exporting everything by default would make a bare run a six-artifact diff
+// writes nothing -- exporting everything by default would make a bare run a nine-artifact diff
 // nobody asked for.
 //
 //   dotnet run --project tools/Avalon.Exporter
@@ -51,7 +51,7 @@ if (names.Count == 0)
     return 0;
 }
 
-// Every name is resolved before anything is written. A typo that exported five of six artifacts
+// Every name is resolved before anything is written. A typo that exported eight of nine artifacts
 // and reported a failure afterwards would leave the tree in a state no one asked for.
 List<Export> selected;
 

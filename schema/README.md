@@ -11,7 +11,7 @@ contracts so a non-.NET client can be built against it.
 | `crypto/session-v1.txt` | Generated. Known-answer vectors for the session key derivation: two frozen ECDH exchanges, the keys derived from each, and sealed packets both ways. See below. |
 | `vectors/rotation-v1.txt` | Generated. Known-answer vectors for `ChunkRotation.LocalToWorld`, which the client mirrors to place chunks. |
 | `vectors/object-guid-v1.txt` | Generated. Known-answer vectors for the `ObjectGuid` (type, id) packing the world-state stream carries. |
-| `items/item-schema-v1.json` | Generated. What an `ItemTemplate` is, and what every value of its seven enumerations means. |
+| `items/item-schema-v1.json` | Generated. What an `ItemTemplate` is, and what every value of its eight enumerations means. |
 | `items/item-catalog-v1.json` | Generated **from the database**. The item template rows. See below. |
 | `vectors/navmesh-v1.txt` | Generated. Known-answer answers from the DotRecast bake and `MapNavigator`'s two movement queries, keyed on a chunk layout so one row covers composition, bake and query. |
 | `protobuf-net/bcl.proto` | Vendored, not generated. See below. |

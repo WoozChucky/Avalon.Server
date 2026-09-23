@@ -140,14 +140,19 @@ public class CharacterSelectHandlerShould
     /// <summary>
     /// A row for every slot, paired with the item instance it points at -- the two halves
     /// InventoryAssembler joins. Mirrors CharacterSelectChainShould.GiveTheCharacter.
+    ///
+    /// Count/Durability/Flags default to 1/100/None so most call sites don't need to spell them
+    /// out, but they are still per-item: a fixture that wants to catch a transposed Count/Durability
+    /// or a hardcoded Flags = 0 must pass distinct, non-default values for at least one entry, since
+    /// every value here landing on the same 1/100/None would make such a bug invisible.
     /// </summary>
     private static (List<CharacterInventory> Rows, List<ItemInstance> Instances) BuildInventory(
-        params (InventoryType Container, ushort Slot, ulong Template)[] items)
+        params (InventoryType Container, ushort Slot, ulong Template, uint Count, uint Durability, ItemInstanceFlags Flags)[] items)
     {
         var rows = new List<CharacterInventory>();
         var instances = new List<ItemInstance>();
 
-        foreach ((InventoryType container, ushort slot, ulong template) in items)
+        foreach ((InventoryType container, ushort slot, ulong template, uint count, uint durability, ItemInstanceFlags flags) in items)
         {
             var id = new ItemInstanceId(Guid.NewGuid());
             rows.Add(new CharacterInventory
@@ -157,7 +162,7 @@ public class CharacterSelectHandlerShould
             instances.Add(new ItemInstance
             {
                 Id = id, TemplateId = new ItemTemplateId(template), CharacterId = TheCharacter,
-                Count = 1, Durability = 100, Flags = ItemInstanceFlags.None
+                Count = count, Durability = durability, Flags = flags
             });
         }
 
@@ -234,14 +239,24 @@ public class CharacterSelectHandlerShould
     /// Asserts the wire contents, not just container counts: a bank item leaking into the DTO
     /// array would pass a container-level check (the bank container legitimately holds it) but
     /// must fail here, since the packet is what the client actually receives.
+    ///
+    /// The equipment slot carries distinct, non-default Count/Durability/Flags -- a stack of 3
+    /// with 77 durability remaining and the Broken flag set -- and every field of that slot is
+    /// asserted end to end. A fixture where every item shared the same 1/100/None values would let
+    /// CharacterSelectHandler.ToDtos transpose Count and Durability, or hardcode Flags = 0, without
+    /// any test noticing: both compile silently (Count and Durability are both uint) and both were
+    /// previously unasserted here.
     /// </summary>
     [Fact]
     public async Task Send_Equipment_And_Bag_Items_In_The_Snapshot_But_Not_The_Bank()
     {
         (List<CharacterInventory> rows, List<ItemInstance> instances) = BuildInventory(
-            (InventoryType.Equipment, 0, 10), (InventoryType.Equipment, 1, 11),
-            (InventoryType.Bag, 0, 20), (InventoryType.Bag, 1, 21), (InventoryType.Bag, 2, 22),
-            (InventoryType.Bank, 0, 30));
+            (InventoryType.Equipment, 0, 10, 3u, 77u, ItemInstanceFlags.Broken),
+            (InventoryType.Equipment, 1, 11, 1u, 100u, ItemInstanceFlags.None),
+            (InventoryType.Bag, 0, 20, 1u, 100u, ItemInstanceFlags.None),
+            (InventoryType.Bag, 1, 21, 1u, 100u, ItemInstanceFlags.None),
+            (InventoryType.Bag, 2, 22, 1u, 100u, ItemInstanceFlags.None),
+            (InventoryType.Bank, 0, 30, 1u, 100u, ItemInstanceFlags.None));
         Fixture f = await BuildAsync(rows, instances);
 
         f.Handler.Execute(f.Connection, new CCharacterSelectedPacket { CharacterId = TheCharacter });
@@ -249,6 +264,15 @@ public class CharacterSelectHandlerShould
         SInventorySnapshotPacket snapshot = DeserializeInventorySnapshot(f);
         Assert.Equal(5, snapshot.Items.Length);
         Assert.DoesNotContain(snapshot.Items, item => item.Container == (ushort)InventoryType.Bank);
+
+        ItemSlotDto slot = Assert.Single(
+            snapshot.Items, item => item.ItemInstanceId == instances[0].Id.Value);
+        Assert.Equal((ushort)InventoryType.Equipment, slot.Container);
+        Assert.Equal((ushort)0, slot.Slot);
+        Assert.Equal(10ul, slot.ItemTemplateId);
+        Assert.Equal(3u, slot.Count);
+        Assert.Equal(77u, slot.Durability);
+        Assert.Equal((uint)ItemInstanceFlags.Broken, slot.Flags);
     }
 
     /// <summary>

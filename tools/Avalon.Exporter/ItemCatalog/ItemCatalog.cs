@@ -5,6 +5,7 @@ using Avalon.Common;
 using Avalon.Configuration;
 using Avalon.Database.World;
 using Avalon.Domain.World;
+using Avalon.World.Public.Enums;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -39,7 +40,9 @@ public static class ItemCatalog
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
         Converters = { new ValueObjectConverterFactory() },
-        TypeInfoResolver = new DefaultJsonTypeInfoResolver().WithAddedModifier(NeverOmitName),
+        TypeInfoResolver = new DefaultJsonTypeInfoResolver()
+            .WithAddedModifier(NeverOmitName)
+            .WithAddedModifier(ForceNumericAllowedClasses),
     };
 
     public static string? Readiness() => ReadinessFor(ConnectionString());
@@ -98,6 +101,35 @@ public static class ItemCatalog
         if (name is null) return;
 
         name.Get = static obj => ((ItemTemplate)obj).Name ?? string.Empty;
+    }
+
+    /// <summary>
+    /// ItemTemplate.AllowedClasses is List&lt;CharacterClass&gt;, and CharacterClass carries
+    /// [JsonConverter(typeof(JsonStringEnumConverter))] -- deliberately, for Avalon.Api's REST
+    /// responses, and out of scope to change here. A type-level [JsonConverter] attribute beats
+    /// anything in JsonSerializerOptions.Converters, so without this modifier the reflection-driven
+    /// serialization below would emit ["Warrior", "Wizard", ...] while item-schema-v1.json and every
+    /// sibling enum field (class, subClass, rarity, flags, damageType1, statType1) emit the numeric
+    /// vocabulary the schema promises. Setting CustomConverter on the property itself outranks a
+    /// type-level attribute -- the same precedence a property-level [JsonConverter] would have --
+    /// which is why this works where adding to Converters would not.
+    ///
+    /// This artifact has no drift guard by design (see the class remarks): if some other domain enum
+    /// later grows its own [JsonConverter], nothing here will fail -- the catalog will just silently
+    /// start emitting that field as strings. Check every enum field against item-schema-v1.json's
+    /// numeric vocabularies before trusting a regenerated catalog.
+    /// </summary>
+    private static void ForceNumericAllowedClasses(JsonTypeInfo typeInfo)
+    {
+        if (typeInfo.Type != typeof(ItemTemplate)) return;
+
+        JsonPropertyInfo? allowedClasses = typeInfo.Properties.FirstOrDefault(
+            property => property.AttributeProvider is System.Reflection.MemberInfo member
+                        && member.Name == nameof(ItemTemplate.AllowedClasses));
+
+        if (allowedClasses is null) return;
+
+        allowedClasses.CustomConverter = new NumericEnumListConverter<CharacterClass>();
     }
 
     private static string? ConnectionString()
@@ -170,5 +202,25 @@ public static class ItemCatalog
 
         public override void Write(Utf8JsonWriter writer, TObject value, JsonSerializerOptions options) =>
             JsonSerializer.Serialize(writer, value.Value, options);
+    }
+
+    /// <summary>
+    /// Writes each element's underlying numeric value directly, bypassing whatever
+    /// [JsonConverter] the enum type itself carries. See <see cref="ForceNumericAllowedClasses"/>
+    /// for why this export needs to override that rather than follow it.
+    /// </summary>
+    private sealed class NumericEnumListConverter<TEnum> : JsonConverter<List<TEnum>>
+        where TEnum : struct, Enum
+    {
+        public override List<TEnum> Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+            => throw new NotSupportedException($"{nameof(ItemCatalog)} only writes this artifact, never reads it.");
+
+        public override void Write(Utf8JsonWriter writer, List<TEnum> value, JsonSerializerOptions options)
+        {
+            writer.WriteStartArray();
+            foreach (TEnum item in value)
+                writer.WriteNumberValue(Convert.ToInt64(item));
+            writer.WriteEndArray();
+        }
     }
 }
