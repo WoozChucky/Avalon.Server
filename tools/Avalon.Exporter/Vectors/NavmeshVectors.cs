@@ -505,13 +505,19 @@ public static class NavmeshVectors
         #   to (20, 20)   len 25.46   reached
         #   to (24, 24)   len 31.11   reached
         #   to (27, 27)   len 35.36   CLAMPED at 9.35
+        #   to (32, 32)   len 42.43   CLAMPED at 28.55
         #   to (40, 40)   len 53.74   CLAMPED at 9.35
         #
-        # ONE START, ONE LINE, ONE CORNER, AND THE ANSWER IS NOT MONOTONIC IN LENGTH: it reaches at
-        # 25.46 having stopped at 18.38, so no threshold on distance reproduces it, and (2, 2) both
-        # reaches and clamps so the start does not explain it either. That is a float knife edge,
-        # and two Recast implementations can legitimately fall either side of one. So no ray along
-        # x = z is here, and the straight seam crossings are all off-corner for the same reason.
+        # ONE START, ONE LINE, AND NEITHER THE OUTCOME NOR THE STOPPING POINT IS MONOTONIC IN
+        # LENGTH: it reaches at 25.46 having stopped at 18.38, and the 53.74 ray stops EARLIER than
+        # the 42.43 one. So no threshold on distance reproduces the column, and (2, 2) both reaches
+        # and clamps, so the start does not explain it either. That is a float knife edge, and two
+        # Recast implementations can legitimately fall either side of one.
+        #
+        # So none of the sweep's rays is vendored: no row in this file runs through that corner. The
+        # three rows that do lie on x = z all start past it -- at 25 and 45 on the town, and at 15
+        # on a layout whose own grid starts elsewhere -- and the straight seam crossings are all
+        # off-corner for the same reason.
         #
         # Clamps at 28.55 in that sweep are NOT this: that is the second corner, where the town's
         # two walls also meet, and it is the row this file keeps because it survives perturbation.
