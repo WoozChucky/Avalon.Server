@@ -496,13 +496,30 @@ public static class NavmeshVectors
         # eroded face at 28.85, which the head-on row above it gives. That row is KEPT: the barrier
         # is a polygon edge on the seam and it survives perturbing the ray's direction.
         #
-        # What is excluded is the case that does NOT survive, and it was measured rather than
-        # supposed. Four rays along x = z, all through the same corner at 9.35: (2, 2) to (27, 27)
-        # clamps there at t = 0.294, while (3, 3) to (12, 12), (3, 3) to (27, 27) and (2, 2) to
-        # (12, 12) all reach. One of four, and neither the start nor the length tells them apart --
-        # which is what a float knife edge looks like, and two Recast implementations can
-        # legitimately fall either side of one. So that ray is not here, and the straight seam
-        # crossings are all off-corner for the same reason.
+        # What is excluded is the case that does NOT survive. Thirty-five rays along x = z through
+        # that corner were run, over five start points and seven endpoints; from the start (2, 2),
+        # varying only how far the ray is asked to go:
+        #
+        #   to (12, 12)   len 14.14   reached
+        #   to (15, 15)   len 18.38   CLAMPED at 9.35
+        #   to (20, 20)   len 25.46   reached
+        #   to (24, 24)   len 31.11   reached
+        #   to (27, 27)   len 35.36   CLAMPED at 9.35
+        #   to (40, 40)   len 53.74   CLAMPED at 9.35
+        #
+        # ONE START, ONE LINE, ONE CORNER, AND THE ANSWER IS NOT MONOTONIC IN LENGTH: it reaches at
+        # 25.46 having stopped at 18.38, so no threshold on distance reproduces it, and (2, 2) both
+        # reaches and clamps so the start does not explain it either. That is a float knife edge,
+        # and two Recast implementations can legitimately fall either side of one. So no ray along
+        # x = z is here, and the straight seam crossings are all off-corner for the same reason.
+        #
+        # Clamps at 28.55 in that sweep are NOT this: that is the second corner, where the town's
+        # two walls also meet, and it is the row this file keeps because it survives perturbation.
+        #
+        # THE SWEEP IS NOT COMMITTED and was run out of band. To redo it, add rays along x = z to
+        # the town layout's list in NavmeshVectors.cs and export to a scratch --out; nothing else
+        # has to change. It is not kept as rows because rows here are a conformance fixture, and
+        # these are exactly the answers a conformant client may disagree with.
         #
         # Floats are round-trip ("R") formatted; compare positions and heights by value with an
         # epsilon, and the outcome exactly.
