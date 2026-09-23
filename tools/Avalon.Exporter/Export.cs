@@ -1,7 +1,15 @@
 namespace Avalon.Exporter;
 
-/// <summary>One exported artifact: the name it is selected by, and what writing it does.</summary>
-internal sealed record Export(string Name, string Destination, string Summary, Action<string> Write);
+/// <summary>
+/// One exported artifact: the name it is selected by, what writing it does, and -- for an export
+/// that needs something this machine may not have -- how to find out before anything is written.
+/// </summary>
+internal sealed record Export(
+    string Name,
+    string Destination,
+    string Summary,
+    Action<string> Write,
+    Func<string?>? Readiness = null);
 
 /// <summary>
 /// The registry. Adding an artifact the client vendors is an entry here -- not another csproj with
