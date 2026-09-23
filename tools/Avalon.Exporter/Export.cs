@@ -1,7 +1,15 @@
 namespace Avalon.Exporter;
 
-/// <summary>One exported artifact: the name it is selected by, and what writing it does.</summary>
-internal sealed record Export(string Name, string Destination, string Summary, Action<string> Write);
+/// <summary>
+/// One exported artifact: the name it is selected by, what writing it does, and -- for an export
+/// that needs something this machine may not have -- how to find out before anything is written.
+/// </summary>
+internal sealed record Export(
+    string Name,
+    string Destination,
+    string Summary,
+    Action<string> Write,
+    Func<string?>? Readiness = null);
 
 /// <summary>
 /// The registry. Adding an artifact the client vendors is an entry here -- not another csproj with
@@ -32,6 +40,12 @@ internal static class Exports
                 Path.Combine(root, SessionCryptoVectors.DirectoryName, SessionCryptoVectors.FileName),
                 SessionCryptoVectors.Generate())),
 
+        new("item-schema", ItemSchema.DirectoryName + "/" + ItemSchema.FileName,
+            "what an ItemTemplate is, and what its enumerated values mean",
+            root => Lf.WriteReporting(
+                Path.Combine(root, ItemSchema.DirectoryName, ItemSchema.FileName),
+                ItemSchema.Generate())),
+
         new("rotation", VectorsDirectory + "/" + ChunkRotationVectors.FileName,
             "known-answer vectors for ChunkRotation.LocalToWorld",
             root => ChunkRotationVectors.Write(
@@ -46,6 +60,11 @@ internal static class Exports
             "known-answer vectors for the navmesh bake and its two movement queries",
             root => NavmeshVectors.Write(
                 Path.Combine(root, VectorsDirectory, NavmeshVectors.FileName))),
+
+        new("item-catalog", ItemCatalog.DirectoryName + "/" + ItemCatalog.FileName,
+            "the item template rows the client vendors (needs a World database)",
+            root => ItemCatalog.Write(Path.Combine(root, ItemCatalog.DirectoryName, ItemCatalog.FileName)),
+            ItemCatalog.Readiness),
     ];
 
     internal static Export? ByName(string name)

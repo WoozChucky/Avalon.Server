@@ -8,28 +8,31 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <!--
-      No version here, deliberately. The emitter decides what the exported schema looks like,
-      so it has to be the protobuf-net the packet contracts serialize with, and the version
-      arrives from the server's central file through the Directory.Packages.props beside this
-      one. Writing a version here is a restore error, which is the point.
-    -->
-    <PackageReference Include="protobuf-net"/>
-  </ItemGroup>
+    <ProjectReference Include="..\Avalon.Exporter.Emitters\Avalon.Exporter.Emitters.csproj"/>
 
-  <ItemGroup>
     <!--
-      Every artifact is exported by running the server's own types, never a copy of them: the
-      crypto vectors run the real key derivation, the rotation vectors run the real layout
-      generator, and the guid vectors read the real masks. A transcription would agree with
-      whatever it transcribed, which is the failure these files exist to catch.
+      NavmeshVectors.cs stays in the CLI rather than moving to the emitters library: it runs the
+      real ChunkLayoutNavmeshBuilder and MapNavigator, which live in Avalon.World, and Avalon.World
+      drags in Avalon.Database.World/.Auth/.Character (EF Core + Npgsql) through its own project
+      references. The emitters library is exactly what the shared unit tests reference for their
+      drift guards, so that database stack has to stay out of it, and the CLI is the only place
+      allowed to carry it.
     -->
     <ProjectReference Include="..\..\src\Server\Avalon.World\Avalon.World.csproj"/>
     <ProjectReference Include="..\..\src\Server\Avalon.World.Generation\Avalon.World.Generation.csproj"/>
-    <ProjectReference Include="..\..\src\Shared\Avalon.Common\Avalon.Common.csproj"/>
-    <ProjectReference Include="..\..\src\Shared\Avalon.Domain\Avalon.Domain.csproj"/>
-    <ProjectReference Include="..\..\src\Shared\Avalon.Network.Packets\Avalon.Network.Packets.csproj"/>
-    <ProjectReference Include="..\..\src\Shared\Avalon.Network.Packets.Abstractions\Avalon.Network.Packets.Abstractions.csproj"/>
+
+    <!-- ItemCatalog.cs is the only export that reads a database: the catalog is read through the
+         EF model that defines the table, not hand-written SQL, so a second description of the same
+         columns could drift from it with nothing to notice. -->
+    <ProjectReference Include="..\..\src\Server\Avalon.Database.World\Avalon.Database.World.csproj"/>
+    <ProjectReference Include="..\..\src\Shared\Avalon.Configuration\Avalon.Configuration.csproj"/>
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Needed by ItemCatalog.ConnectionString(), which binds configuration the same way the
+         server's own design-time DbContext factories do. -->
+    <PackageReference Include="Microsoft.Extensions.Configuration.Json"/>
+    <PackageReference Include="Microsoft.Extensions.Configuration.EnvironmentVariables"/>
   </ItemGroup>
 
 </Project>

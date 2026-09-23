@@ -1,3 +1,5 @@
+using System.IO;
+using Avalon.Common;
 using Avalon.Common.ValueObjects;
 using Avalon.Database.Character.Repositories;
 using Avalon.Database.World.Repositories;
@@ -18,6 +20,7 @@ using Avalon.World.Respawn;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NSubstitute;
+using ProtoBuf;
 
 namespace Avalon.Server.World.UnitTests.Handlers;
 
@@ -39,9 +42,12 @@ public class CharacterSelectHandlerShould
         public required IWorld World { get; init; }
         public required IMapInstance Instance { get; init; }
         public required List<NetworkPacketType> Sent { get; init; }
+        public required List<NetworkPacket> SentPackets { get; init; }
     }
 
-    private static async Task<Fixture> BuildAsync()
+    private static async Task<Fixture> BuildAsync(
+        IReadOnlyCollection<CharacterInventory>? inventoryRows = null,
+        IReadOnlyCollection<ItemInstance>? itemInstances = null)
     {
         var row = new Character
         {
@@ -61,7 +67,11 @@ public class CharacterSelectHandlerShould
 
         var inventoryRepository = Substitute.For<ICharacterInventoryRepository>();
         inventoryRepository.GetByCharacterIdAsync(TheCharacter, Arg.Any<CancellationToken>())
-            .Returns(Array.Empty<CharacterInventory>());
+            .Returns(inventoryRows ?? Array.Empty<CharacterInventory>());
+
+        var itemInstanceRepository = Substitute.For<IItemInstanceRepository>();
+        itemInstanceRepository.GetByCharacterIdWithTemplateAsync(Arg.Any<CharacterId>(), Arg.Any<CancellationToken>())
+            .Returns((IReadOnlyList<ItemInstance>)(itemInstances?.ToList() ?? new List<ItemInstance>()));
 
         var abilityRepository = Substitute.For<ICharacterAbilityRepository>();
         abilityRepository.GetCharacterAbilitiesAsync(TheCharacter, Arg.Any<CancellationToken>())
@@ -91,14 +101,21 @@ public class CharacterSelectHandlerShould
         world.Data.Returns(staticData);
 
         var sent = new List<NetworkPacketType>();
+        var sentPackets = new List<NetworkPacket>();
         IWorldConnection connection = PendingSpawnConnection.Create();
         connection.AccountId.Returns(TheAccount);
         connection.CryptoSession.Returns(new FakeAvalonCryptoSession());
         connection.When(c => c.Send(Arg.Any<NetworkPacket>()))
-            .Do(ci => sent.Add(ci.Arg<NetworkPacket>().Header.Type));
+            .Do(ci =>
+            {
+                NetworkPacket packet = ci.Arg<NetworkPacket>();
+                sent.Add(packet.Header.Type);
+                sentPackets.Add(packet);
+            });
         RunContinuationsInline<Character>(connection);
         RunContinuationsInline<IMapInstance>(connection);
         RunContinuationsInline<IReadOnlyCollection<CharacterInventory>>(connection);
+        RunContinuationsInline<IReadOnlyList<ItemInstance>>(connection);
         RunContinuationsInline<IReadOnlyCollection<CharacterAbility>>(connection);
 
         var handler = new CharacterSelectHandler(
@@ -106,6 +123,7 @@ public class CharacterSelectHandlerShould
             NullLoggerFactory.Instance,
             characterRepository,
             inventoryRepository,
+            itemInstanceRepository,
             abilityRepository,
             Substitute.For<IChunkLibrary>(),
             world,
@@ -115,8 +133,52 @@ public class CharacterSelectHandlerShould
         return new Fixture
         {
             Handler = handler, Connection = connection, World = world,
-            Instance = instance, Sent = sent
+            Instance = instance, Sent = sent, SentPackets = sentPackets
         };
+    }
+
+    /// <summary>
+    /// A row for every slot, paired with the item instance it points at -- the two halves
+    /// InventoryAssembler joins. Mirrors CharacterSelectChainShould.GiveTheCharacter.
+    ///
+    /// Count/Durability/Flags default to 1/100/None so most call sites don't need to spell them
+    /// out, but they are still per-item: a fixture that wants to catch a transposed Count/Durability
+    /// or a hardcoded Flags = 0 must pass distinct, non-default values for at least one entry, since
+    /// every value here landing on the same 1/100/None would make such a bug invisible.
+    /// </summary>
+    private static (List<CharacterInventory> Rows, List<ItemInstance> Instances) BuildInventory(
+        params (InventoryType Container, ushort Slot, ulong Template, uint Count, uint Durability, ItemInstanceFlags Flags)[] items)
+    {
+        var rows = new List<CharacterInventory>();
+        var instances = new List<ItemInstance>();
+
+        foreach ((InventoryType container, ushort slot, ulong template, uint count, uint durability, ItemInstanceFlags flags) in items)
+        {
+            var id = new ItemInstanceId(Guid.NewGuid());
+            rows.Add(new CharacterInventory
+            {
+                CharacterId = TheCharacter, Container = container, Slot = slot, ItemId = id
+            });
+            instances.Add(new ItemInstance
+            {
+                Id = id, TemplateId = new ItemTemplateId(template), CharacterId = TheCharacter,
+                Count = count, Durability = durability, Flags = flags
+            });
+        }
+
+        return (rows, instances);
+    }
+
+    /// <summary>
+    /// Payload bytes are unencrypted: FakeAvalonCryptoSession.Encrypt is a pass-through, so what
+    /// SInventorySnapshotPacket.Create wrote is exactly what protobuf-net reads back here.
+    /// </summary>
+    private static SInventorySnapshotPacket DeserializeInventorySnapshot(Fixture f)
+    {
+        NetworkPacket packet = Assert.Single(
+            f.SentPackets, p => p.Header.Type == NetworkPacketType.SMSG_INVENTORY_SNAPSHOT);
+        using var stream = new MemoryStream(packet.Payload);
+        return Serializer.Deserialize<SInventorySnapshotPacket>(stream);
     }
 
     /// <summary>
@@ -171,6 +233,63 @@ public class CharacterSelectHandlerShould
 
         Assert.Contains(NetworkPacketType.SMSG_CHARACTER_SELECTED, f.Sent);
         Assert.Contains(NetworkPacketType.SMSG_CHARACTER_ABILITIES, f.Sent);
+    }
+
+    /// <summary>
+    /// Asserts the wire contents, not just container counts: a bank item leaking into the DTO
+    /// array would pass a container-level check (the bank container legitimately holds it) but
+    /// must fail here, since the packet is what the client actually receives.
+    ///
+    /// The equipment slot carries distinct, non-default Count/Durability/Flags -- a stack of 3
+    /// with 77 durability remaining and the Broken flag set -- and every field of that slot is
+    /// asserted end to end. A fixture where every item shared the same 1/100/None values would let
+    /// CharacterSelectHandler.ToDtos transpose Count and Durability, or hardcode Flags = 0, without
+    /// any test noticing: both compile silently (Count and Durability are both uint) and both were
+    /// previously unasserted here.
+    /// </summary>
+    [Fact]
+    public async Task Send_Equipment_And_Bag_Items_In_The_Snapshot_But_Not_The_Bank()
+    {
+        (List<CharacterInventory> rows, List<ItemInstance> instances) = BuildInventory(
+            (InventoryType.Equipment, 0, 10, 3u, 77u, ItemInstanceFlags.Broken),
+            (InventoryType.Equipment, 1, 11, 1u, 100u, ItemInstanceFlags.None),
+            (InventoryType.Bag, 0, 20, 1u, 100u, ItemInstanceFlags.None),
+            (InventoryType.Bag, 1, 21, 1u, 100u, ItemInstanceFlags.None),
+            (InventoryType.Bag, 2, 22, 1u, 100u, ItemInstanceFlags.None),
+            (InventoryType.Bank, 0, 30, 1u, 100u, ItemInstanceFlags.None));
+        Fixture f = await BuildAsync(rows, instances);
+
+        f.Handler.Execute(f.Connection, new CCharacterSelectedPacket { CharacterId = TheCharacter });
+
+        SInventorySnapshotPacket snapshot = DeserializeInventorySnapshot(f);
+        Assert.Equal(5, snapshot.Items.Length);
+        Assert.DoesNotContain(snapshot.Items, item => item.Container == (ushort)InventoryType.Bank);
+
+        ItemSlotDto slot = Assert.Single(
+            snapshot.Items, item => item.ItemInstanceId == instances[0].Id.Value);
+        Assert.Equal((ushort)InventoryType.Equipment, slot.Container);
+        Assert.Equal((ushort)0, slot.Slot);
+        Assert.Equal(10ul, slot.ItemTemplateId);
+        Assert.Equal(3u, slot.Count);
+        Assert.Equal(77u, slot.Durability);
+        Assert.Equal((uint)ItemInstanceFlags.Broken, slot.Flags);
+    }
+
+    /// <summary>
+    /// The packet must still be sent for an empty inventory: an absent packet and an empty one
+    /// mean different things to the client, and only the wire content distinguishes them.
+    /// </summary>
+    [Fact]
+    public async Task Send_An_Empty_Snapshot_When_The_Character_Has_No_Items()
+    {
+        Fixture f = await BuildAsync();
+
+        f.Handler.Execute(f.Connection, new CCharacterSelectedPacket { CharacterId = TheCharacter });
+
+        SInventorySnapshotPacket snapshot = DeserializeInventorySnapshot(f);
+        // protobuf-net writes nothing for a zero-length repeated field, so an empty array round
+        // trips as null rather than []; either is "no items" on the wire.
+        Assert.Empty(snapshot.Items ?? []);
     }
 
     [Fact]
