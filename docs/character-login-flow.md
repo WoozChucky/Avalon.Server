@@ -25,9 +25,9 @@ Game Client              World Server                  Databases / Redis
     │  SCharacterListPacket  │                               │
     │<───────────────────────│                               │
     │                        │                               │
-    │  CCharacterSelectPacket│                               │
+    │  CCharacterSelectedPacket                              │
     │───────────────────────>│                               │
-    │                        │ CharacterRepository.GetById   │
+    │                        │ CharacterRepository.FindByIdAndAccountAsync
     │                        │──────────────────────────────>│
     │                        │<──────────────────────────────│ Character
     │                        │                               │
@@ -38,22 +38,34 @@ Game Client              World Server                  Databases / Redis
     │                        │                               │
     │  SCharacterSelectedPacket                              │
     │<───────────────────────│                               │
+    │  SChunkLayoutPacket    │                               │
+    │<───────────────────────│                               │
     │                        │                               │
-    │                        │ CharacterRepository.UpdateAsync (online=true)
-    │                        │──────────────────────────────>│
+    │                        │ CharacterRepository.UpdateAsync (still offline;
+    │                        │──────────────────────────────>│  SpawnInInstance sets Online later)
     │                        │                               │
-    │                        │ InventoryRepository.GetByCharacterId
-    │                        │──────────────────────────────>│
+    │                        │ CharacterInventoryRepository.GetByCharacterIdAsync
+    │                        │──────────────────────────────>│  (CharacterDbContext)
     │                        │<──────────────────────────────│ List<CharacterInventory>
     │                        │ [OnInventoryReceived]         │
-    │                        │  Load into entity containers  │
-    │                        │  (inventory packet not yet sent to client)
     │                        │                               │
-    │                        │ SpellRepository.GetCharacterSpells
+    │                        │ ItemInstanceRepository.GetByCharacterIdWithTemplateAsync
+    │                        │──────────────────────────────>│  (WorldDbContext -- a second,
+    │                        │<──────────────────────────────│   separate database; no SQL join
+    │                        │                               │   is possible between the two)
+    │                        │ [OnItemInstancesReceived]     │
+    │                        │  InventoryAssembler joins rows to instances,
+    │                        │  skipping orphan rows and rows past MaxSlots
+    │                        │  Load() all three containers (Equipment/Bag/Bank)
+    │                        │                               │
+    │  SInventorySnapshotPacket (Equipment + Bag only; the   │
+    │<───────────────────────│  bank is loaded but not sent) │
+    │                        │                               │
+    │                        │ CharacterAbilityRepository.GetCharacterAbilitiesAsync
     │                        │──────────────────────────────>│
-    │                        │<──────────────────────────────│ List<CharacterSpell>
+    │                        │<──────────────────────────────│ List<CharacterAbility>
     │                        │ [OnSpellsReceived]            │
-    │  SSpellListPacket      │  Resolve SpellMetadata        │
+    │  SCharacterAbilitiesPacket  Resolve AbilityMetadata     │
     │<───────────────────────│                               │
     │                        │                               │
     │  CCharacterLoadedPacket│                               │
@@ -94,22 +106,67 @@ the client sends `CMSG_CHARACTER_LOADED`, or until the wait expires. See
 
 ## Inventory On Login
 
-`OnInventoryReceived` loads items into `entity[InventoryType.*]` containers. The inventory packet is not yet sent to the client — the client starts with an empty display until this is implemented.
+A character's inventory lives across **two separate Postgres databases**, and no SQL join between
+them is possible:
 
-### Planned `SInventoryPacket`
+- `CharacterInventory` rows (`CharacterId, Container, Slot, ItemId`) live in `CharacterDbContext`.
+  They say *where* an item sits.
+- `ItemInstance` rows (`Id, TemplateId, CharacterId, Count, Durability, Flags`) live in
+  `WorldDbContext`. They say *what* it is.
+
+`OnInventoryReceived` (in `CharacterSelectHandler`) fetches the rows via
+`ICharacterInventoryRepository.GetByCharacterIdAsync`, then chains one more continuation —
+`IItemInstanceRepository.GetByCharacterIdWithTemplateAsync` — before anything can be loaded or
+sent. `OnItemInstancesReceived` correlates the two results (`InventoryAssembler`, keyed on
+`ItemInstance.Id`), skipping a row whose instance is missing or whose slot is `>= MaxSlots`
+(logged as a warning either way — a bad row must not corrupt or oversize a container). The result
+loads all three containers: `entity[InventoryType.Equipment]`, `.Bag`, and `.Bank`.
+
+The bank is loaded into its container but **never sent** — opening it is a separate interaction
+the client does not yet have, so telling it about items it cannot show would leave it with nothing
+useful to do with that information.
+
+### `SInventorySnapshotPacket`
+
+Sent from `OnItemInstancesReceived`, right after the containers are loaded and before the ability
+continuation is queued. Carries equipment and bag only:
 
 ```csharp
-public class SInventoryPacketItem
+// src/Shared/Avalon.Network.Packets/Character/SInventorySnapshotPacket.cs
+[ProtoContract]
+public class SInventorySnapshotPacket : Packet
 {
-    public byte Container { get; set; }   // InventoryType enum value
-    public byte Slot { get; set; }        // Slot index within container
-    public uint ItemId { get; set; }      // Item template ID
-    public uint Quantity { get; set; }    // Stack size
-    public ushort Durability { get; set; }
+    public static NetworkPacketType PacketType = NetworkPacketType.SMSG_INVENTORY_SNAPSHOT; // 0x3028
+
+    [ProtoMember(1)] public ItemSlotDto[] Items { get; set; }
+}
+
+[ProtoContract]
+public class ItemSlotDto
+{
+    [ProtoMember(1)] public ushort Container      { get; set; } // InventoryType, numeric
+    [ProtoMember(2)] public ushort Slot           { get; set; }
+    [ProtoMember(3)] public ulong  ItemTemplateId { get; set; } // ItemTemplateId.Value
+    [ProtoMember(4)] public Guid   ItemInstanceId { get; set; } // ItemInstanceId.Value, .bcl.Guid
+    [ProtoMember(5)] public uint   Count          { get; set; }
+    [ProtoMember(6)] public uint   Durability     { get; set; }
+    [ProtoMember(7)] public uint   Flags          { get; set; } // ItemInstanceFlags, numeric
 }
 ```
 
-After all `.Load(...)` calls, equipment and bag items will be sent to the client. Bank items are deferred until the player interacts with a banker NPC.
+Notes for a client implementer:
+
+- **Always sent, even when empty.** An absent packet and an empty one mean different things — a
+  character with nothing carried still gets `SInventorySnapshotPacket` with zero items, not no
+  packet at all.
+- **`Items` can be `null` on an empty inventory.** protobuf-net writes nothing for a zero-length
+  repeated field, so it round-trips as `null` rather than `[]` even though the property is declared
+  non-nullable. Treat `Items == null` the same as "no items".
+- **`ItemInstanceId` crosses as `.bcl.Guid`**, the same encoding the other three `InstanceId`
+  fields on the wire already use — two fixed64s in .NET byte order, not sixteen bytes in RFC order.
+- `ItemTemplateId` resolves to a name, icon, rarity, etc. via the vendored catalog — see
+  `schema/items/item-catalog-v1.json` and `schema/items/item-schema-v1.json` (`docs/tooling.md`
+  documents the exporter that produces both).
 
 ---
 
@@ -167,12 +224,18 @@ Client sends CPlayerMovementPacket
 
 ## Test Coverage
 
-| Scenario                                               |
-|--------------------------------------------------------|
-| Two characters same world → same `InstanceId`         |
-| Character with 5 equipment items → `SInventoryPacket` with 5 items |
-| Empty inventory → packet sent with 0 items             |
-| Bank items not in login packet                         |
-| Valid navmesh movement → client position accepted      |
-| Movement through wall → correction packet sent         |
-| `N` consecutive rejections → connection flagged        |
+| Scenario                                               | Test |
+|--------------------------------------------------------|------|
+| Two characters same world → same `InstanceId`         | see [instanced-maps.md](instanced-maps.md) |
+| 2 equipment + 3 bag items → `SInventorySnapshotPacket` carries exactly 5, bank excluded, every field (`Container`, `Slot`, `ItemTemplateId`, `ItemInstanceId`, `Count`, `Durability`, `Flags`) asserted on at least one slot | `CharacterSelectHandlerShould.Send_Equipment_And_Bag_Items_In_The_Snapshot_But_Not_The_Bank` |
+| Empty inventory → packet still sent, `Items` empty (`null` on the wire, per protobuf-net's empty-repeated-field encoding) | `CharacterSelectHandlerShould.Send_An_Empty_Snapshot_When_The_Character_Has_No_Items` |
+| Equipment, bag and bank all load into their own containers via the real select chain (`Load()`, not the packet) | `CharacterSelectChainShould.Load_Equipment_Bag_And_Bank_Into_Their_Containers` |
+| Orphan row (no matching `ItemInstance`) → skipped, remaining items unaffected | `InventoryAssemblerShould.Skip_A_Row_Whose_Instance_Is_Missing` |
+| Slot `>= MaxSlots` → dropped on `Load`, container size unaffected | `CharacterInventoryContainerShould.Refuse_A_Slot_Beyond_Its_Capacity` |
+| Container round trip: `Load` then `Items`/`TryGet` returns what went in | `CharacterInventoryContainerShould.Return_What_It_Was_Loaded_With` |
+| Valid navmesh movement → client position accepted      |      |
+| Movement through wall → correction packet sent         |      |
+| `N` consecutive rejections → connection flagged        |      |
+
+The last three rows describe the **planned** authoritative movement validation above and are not
+yet implemented or tested; `CharacterMovementHandler` currently always accepts the client position.
