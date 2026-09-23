@@ -39,7 +39,7 @@
     <ProjectReference Include="..\..\src\Shared\Avalon.Metrics\Avalon.Metrics.csproj" />
     <ProjectReference Include="..\..\src\Shared\Avalon.Network.Packets\Avalon.Network.Packets.csproj" />
     <ProjectReference Include="..\..\src\Shared\Avalon.Network.Packets.Abstractions\Avalon.Network.Packets.Abstractions.csproj" />
-    <ProjectReference Include="..\..\tools\Avalon.Exporter\Avalon.Exporter.csproj" />
+    <ProjectReference Include="..\..\tools\Avalon.Exporter.Emitters\Avalon.Exporter.Emitters.csproj" />
 
     <!--
       Aliased. The schema declares "package avalon", so the generated reference types land in
