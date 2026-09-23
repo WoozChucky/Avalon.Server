@@ -43,6 +43,7 @@ public class CharacterSelectHandlerShould
         public required IMapInstance Instance { get; init; }
         public required List<NetworkPacketType> Sent { get; init; }
         public required List<NetworkPacket> SentPackets { get; init; }
+        public required IItemInstanceRepository ItemInstances { get; init; }
     }
 
     private static async Task<Fixture> BuildAsync(
@@ -70,7 +71,7 @@ public class CharacterSelectHandlerShould
             .Returns(inventoryRows ?? Array.Empty<CharacterInventory>());
 
         var itemInstanceRepository = Substitute.For<IItemInstanceRepository>();
-        itemInstanceRepository.GetByCharacterIdWithTemplateAsync(Arg.Any<CharacterId>(), Arg.Any<CancellationToken>())
+        itemInstanceRepository.GetByCharacterIdAsync(Arg.Any<CharacterId>(), Arg.Any<CancellationToken>())
             .Returns((IReadOnlyList<ItemInstance>)(itemInstances?.ToList() ?? new List<ItemInstance>()));
 
         var abilityRepository = Substitute.For<ICharacterAbilityRepository>();
@@ -133,7 +134,8 @@ public class CharacterSelectHandlerShould
         return new Fixture
         {
             Handler = handler, Connection = connection, World = world,
-            Instance = instance, Sent = sent, SentPackets = sentPackets
+            Instance = instance, Sent = sent, SentPackets = sentPackets,
+            ItemInstances = itemInstanceRepository
         };
     }
 
@@ -290,6 +292,29 @@ public class CharacterSelectHandlerShould
         // protobuf-net writes nothing for a zero-length repeated field, so an empty array round
         // trips as null rather than []; either is "no items" on the wire.
         Assert.Empty(snapshot.Items ?? []);
+    }
+
+    /// <summary>
+    /// Login reads only TemplateId, Count, Durability and Flags off each instance, and the client
+    /// resolves template ids against the vendored item catalog -- so joining the 41-column
+    /// ItemTemplate to every carried item loads a row nothing reads. The REST API's inventory
+    /// endpoint does project the template, which is why both methods exist.
+    ///
+    /// Asserted at the repository seam rather than on the SQL: this repository has no integration
+    /// test infrastructure, so which method login asks for is the only observable that
+    /// distinguishes the two queries.
+    /// </summary>
+    [Fact]
+    public async Task Ask_For_Item_Instances_Without_Joining_Their_Templates()
+    {
+        Fixture f = await BuildAsync();
+
+        f.Handler.Execute(f.Connection, new CCharacterSelectedPacket { CharacterId = TheCharacter });
+
+        await f.ItemInstances.Received(1)
+            .GetByCharacterIdAsync(TheCharacter, Arg.Any<CancellationToken>());
+        await f.ItemInstances.DidNotReceiveWithAnyArgs()
+            .GetByCharacterIdWithTemplateAsync(default!, default);
     }
 
     [Fact]
