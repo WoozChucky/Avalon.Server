@@ -38,7 +38,7 @@ dotnet run --project tools/Avalon.Exporter -- all --out /tmp  # somewhere other 
 
 Two rules the tool keeps, because both failures are silent ones:
 
-- **Every name is resolved before anything is written.** A typo cannot export five of six artifacts
+- **Every name is resolved before anything is written.** A typo cannot export eight of nine artifacts
   and report the failure afterwards, leaving a tree nobody asked for.
 - **Everything is written with explicit LF.** These files are hashed as bytes at the other end, so
   a CRLF is not a formatting nit — it is a hash the client cannot reproduce. `.gitattributes` holds

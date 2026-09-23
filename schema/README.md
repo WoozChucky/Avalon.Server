@@ -23,8 +23,8 @@ Regenerate all of them after any change to a packet contract:
 dotnet run --project tools/Avalon.Exporter -- all
 ```
 
-Or name what you want: `proto`, `opcodes`, `corpus`, `crypto`, `rotation`, `object-guid`,
-`navmesh`. A bare run lists them and writes nothing.
+Or name what you want: `proto`, `opcodes`, `corpus`, `crypto`, `item-schema`, `rotation`,
+`object-guid`, `navmesh`, `item-catalog`. A bare run lists them and writes nothing.
 
 `WireSchemaShould`, `WireCorpusShould` and `SessionCryptoVectorsShould` in
 `tests/Avalon.Shared.UnitTests` regenerate and compare, so forgetting to is a failing test rather
