@@ -569,6 +569,15 @@
       "flagNames": "Encrypted"
     },
     {
+      "name": "SMSG_INVENTORY_SNAPSHOT",
+      "opcode": 12328,
+      "hex": "0x3028",
+      "message": "SInventorySnapshotPacket",
+      "direction": "ServerToClient",
+      "flags": 4,
+      "flagNames": "Encrypted"
+    },
+    {
       "name": "SMSG_MAP_TELEPORT",
       "opcode": 12336,
       "hex": "0x3030",

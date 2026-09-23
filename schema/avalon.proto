@@ -223,6 +223,15 @@ enum DisconnectReason {
    DisconnectReason_DuplicateLogin = 2;
    DisconnectReason_Kicked = 3;
 }
+message ItemSlotDto {
+   uint32 Container = 1;
+   uint32 Slot = 2;
+   uint64 ItemTemplateId = 3;
+   .bcl.Guid ItemInstanceId = 4; // default value could not be applied: 00000000-0000-0000-0000-000000000000
+   uint32 Count = 5;
+   uint32 Durability = 6;
+   uint32 Flags = 7;
+}
 enum LogoutResult {
    LogoutResult_Success = 0;
    LogoutResult_RecentlyInCombat = 1;
@@ -341,6 +350,7 @@ enum NetworkPacketType {
    NetworkPacketType_SMSG_CHARACTER_DELETED = 12325;
    NetworkPacketType_SMSG_CHARACTER_SELECTED = 12326;
    NetworkPacketType_SMSG_CHARACTER_ABILITIES = 12327;
+   NetworkPacketType_SMSG_INVENTORY_SNAPSHOT = 12328;
    NetworkPacketType_SMSG_MAP_TELEPORT = 12336;
    NetworkPacketType_SMSG_MAP_TRANSITION = 12337;
    NetworkPacketType_SMSG_CHUNK_LAYOUT = 12338;
@@ -530,6 +540,9 @@ message SInstanceStateRemovePacket {
 }
 message SInstanceStateUpdatePacket {
    repeated ObjectState Updates = 1;
+}
+message SInventorySnapshotPacket {
+   repeated ItemSlotDto Items = 1;
 }
 message SLogoutPacket {
    LogoutResult Result = 1;
