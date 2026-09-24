@@ -24,32 +24,25 @@ public class CreatureCombatScript : AiScript
     // This is the position distance at which the creature will stop chasing the target if no hits were received in the meantime, and if the creature itself didn't hit the target
     private const float MaxChaseDistance = 40.0f;
     private const float AttackRange = 1.5f;
-    private const float PathRecalculationThreshold = 1.5f; // Threshold to recalculate the path
 
-    // MeleeSlotRadius defaults to the same value as AttackRange, so a creature standing in its
-    // claimed slot is already in range to attack. That puts it exactly on the AttackRange
-    // boundary by construction, and a locomotion's own arrival epsilon means it stops NEAR its
-    // slot, not on it, so raw distance-to-target-centre lands either side of the boundary
-    // depending on float noise. This tolerance only ever applies once a creature has both
-    // claimed a slot and locomotion reports arrival there (see the in-range check in Update): at
-    // that point distance-to-centre is provably within [AttackRange - locomotion's tolerance,
-    // AttackRange + locomotion's tolerance] by the triangle inequality, so any margin beyond that
-    // tolerance closes the gap. It never changes behaviour while still approaching, and it never
-    // touches AttackRange itself, so it is not a balance change.
-    //
-    // The tolerance itself has to come from Context.Locomotion rather than being a constant here:
-    // WaypointLocomotion stops within a fixed 0.1f of its waypoint regardless of the creature, but
-    // CrowdLocomotion's arrival tolerance is max(agentRadius, 0.3f) — with the default agent
-    // radius of 0.6f that is 0.6f, not 0.1f. A constant sized for WaypointLocomotion would silently
-    // undercount CrowdLocomotion's real slack: a creature could come to rest up to 0.6f short of
-    // its slot (2.1f from the target against a 1.65f threshold), be judged out of range, and never
-    // attack. Asking the locomotion keeps the two in agreement by construction instead of by
-    // coincidence between two independently-chosen numbers.
-    //
-    // AttackRangeArrivalMargin is extra slack on top of that, purely against float noise in the
-    // distance comparison itself (the triangle-inequality bound above is an equality at its
-    // tightest, so anything that lands sub-ULP over it would otherwise flip the test) — it does
-    // not need to grow with the locomotion's own tolerance.
+    // How far a settled surplus (no-slot) creature's target may wander before its destination
+    // (the target's own centre — see Update) counts as drifted enough to re-engage movement. A
+    // slotted creature uses Context.Locomotion.ArrivalTolerance instead: see Update.
+    private const float PathRecalculationThreshold = 1.5f;
+
+    // Attacking is unconditional on AttackRange alone — see the in-range check in Update — but
+    // that check still needs a small margin, for a reason that has nothing to do with the
+    // oscillation the gating in earlier rounds guarded against (attacking no longer calls Stop,
+    // so a boundary-straddling distance flipping tick to tick no longer has anything destructive
+    // to trigger). Once a creature settles at its claimed slot (locomotion reports arrival), it
+    // never retries to close the residual gap locomotion's own arrival epsilon may have left it
+    // with — see the movement half of Update, which only re-engages once that gap exceeds the
+    // SAME tolerance, not to shrink it further. In a fully default setup (MeleeSlotRadius ==
+    // AttackRange), a creature that happens to settle a hair past AttackRange would otherwise be
+    // stuck there, forever, attacking nothing. The margin below is that same locomotion-sourced
+    // tolerance (see the note on Context.Locomotion.ArrivalTolerance for why it has to come from
+    // there rather than a constant here) plus a small fixed buffer against float noise in the
+    // distance comparison itself.
     private const float AttackRangeArrivalMargin = 0.05f;
     private const float AttackCooldown = 2.25f; // Cooldown between attacks
     private readonly ILogger<CreatureCombatScript> _logger;
@@ -57,7 +50,6 @@ public class CreatureCombatScript : AiScript
 
     private bool _dead;
     private Vector3 _initialPosition;
-    private Vector3 _lastKnownTargetPosition;
 
     private IUnit? _target;
 
@@ -91,7 +83,6 @@ public class CreatureCombatScript : AiScript
         {
             _target = character;
             _initialPosition = Creature.Position;
-            _lastKnownTargetPosition = character.Position;
             State = CombatState.Combat;
         }
     }
@@ -127,7 +118,6 @@ public class CreatureCombatScript : AiScript
                 _initialPosition = Creature.Position;
             }
 
-            _lastKnownTargetPosition = attacker.Position;
             State = CombatState.Combat;
             Context.BroadcastUnitHit(attacker, Creature, Creature.CurrentHealth, damage);
         }
@@ -158,7 +148,6 @@ public class CreatureCombatScript : AiScript
                     Context.MeleeSlots.Release(_target.Guid, Creature.Guid);
 
                 _target = picked;
-                _lastKnownTargetPosition = picked.Position;
                 Context.Locomotion.Stop(Creature);
             }
         }
@@ -225,40 +214,50 @@ public class CreatureCombatScript : AiScript
             return;
         }
 
-        // Claimed once per tick here (idempotent — see MeleeSlots.TryClaim) so both the in-range
-        // check below and ChaseDestination agree on whether this creature currently holds a slot.
-        bool hasSlot = Context.MeleeSlots.TryClaim(_target.Guid, Creature.Guid, targetPosition, currentPosition, out _);
+        // Destination: the claimed slot's position when a slot is held, otherwise the target's
+        // centre. Computed once here so movement below only pays for one TryClaim per tick
+        // (idempotent — see MeleeSlots.TryClaim — but there is no reason to call it twice).
+        bool hasSlot = Context.MeleeSlots.TryClaim(_target.Guid, Creature.Guid, targetPosition, currentPosition, out int slot);
+        Vector3 destination = hasSlot ? Context.MeleeSlots.PositionFor(targetPosition, slot) : targetPosition;
 
-        // The in-range decision is slot-relative, not merely distance-relative. A world-fixed
-        // slot rarely sits on a chaser's approach bearing, so crossing the AttackRange circle on
-        // the way in is typically some OTHER chaser's slot position, not this creature's own —
-        // checking raw distance alone (ungated on arrival) stops every approaching creature at
-        // roughly the same ring-crossing point regardless of which slot it claimed, collapsing a
-        // crowd onto a couple of spots. So while a creature holds a slot, it only counts as in
-        // range once locomotion reports it has actually arrived there (see
-        // Context.Locomotion.ArrivalTolerance and AttackRangeArrivalMargin for why raw distance
-        // alone is boundary-sensitive right at that moment). A creature with no slot (surplus —
-        // the ring was full when it asked) has no "its own spot" to arrive at, so it keeps the
-        // plain, ungated distance test and piles onto the centre exactly as it always has.
-        bool inAttackRange = hasSlot
-            ? Context.Locomotion.HasArrived(Creature) &&
-              Vector3.Distance(currentPosition, targetPosition) <=
-              AttackRange + Context.Locomotion.ArrivalTolerance(Creature) + AttackRangeArrivalMargin
-            : Vector3.Distance(currentPosition, targetPosition) <= AttackRange;
-
-        if (inAttackRange)
+        // Attacking and keeping station are independent: a creature can swing at the target the
+        // instant it is within range, in the very same tick it is also stepping to keep pace with
+        // a target (and so a slot) that is on the move. This is unconditional on AttackRange —
+        // not gated on hasSlot or arrival — because attacking no longer calls Stop (see below), so
+        // a boundary-straddling distance flipping tick to tick has nothing destructive left to
+        // trigger. The margin is still needed though: see AttackRangeArrivalMargin's comment for
+        // why a plain "<= AttackRange" would strand an already-settled creature.
+        if (Vector3.Distance(currentPosition, targetPosition) <=
+            AttackRange + Context.Locomotion.ArrivalTolerance(Creature) + AttackRangeArrivalMargin)
         {
-            Context.Locomotion.Stop(Creature);
             Creature.LookAt(targetPosition);
             AttackTarget(deltaTime);
         }
-        else
+
+        // Keep adjusting footing while still walking (locomotion hasn't reported arrival), or —
+        // once settled — while the destination has since drifted away from where the creature is
+        // standing by more than its arrival tolerance. The second half is what makes a moving
+        // target's slot get chased rather than abandoned: locomotion has no idea the target moved
+        // once it has gone idle, so without it a creature that settled at its slot would simply
+        // stay there forever as the target (and so the slot) walks away. A slotted creature uses
+        // the locomotion's own arrival tolerance for "how far is too far to ignore" — the same
+        // idea as PathRecalculationThreshold, applied to the slot instead of the raw target
+        // position, and reusing ArrivalTolerance rather than a second invented constant since it
+        // already answers exactly "how close counts as close enough" for this locomotion. A
+        // surplus (no-slot) creature keeps PathRecalculationThreshold, unchanged, since its
+        // destination is the target's raw position and nothing about that case changed.
+        //
+        // Do NOT call Stop merely because the creature is in attack range above — Stop discards
+        // the destination and is reserved for actually disengaging (leash, target switch, target
+        // lost), not for "close enough to hit right now."
+        bool stillWalking = !Context.Locomotion.HasArrived(Creature);
+        float driftThreshold = hasSlot ? Context.Locomotion.ArrivalTolerance(Creature) : PathRecalculationThreshold;
+
+        if (stillWalking || Vector3.Distance(currentPosition, destination) > driftThreshold)
         {
-            if (Context.Locomotion.HasArrived(Creature) ||
-                Vector3.Distance(_lastKnownTargetPosition, targetPosition) > PathRecalculationThreshold)
+            if (!stillWalking)
             {
-                Context.Locomotion.MoveTo(Creature, ChaseDestination(_target));
-                _lastKnownTargetPosition = targetPosition;
+                Context.Locomotion.MoveTo(Creature, destination);
             }
 
             Creature.MoveState = MoveState.Running;
@@ -307,14 +306,6 @@ public class CreatureCombatScript : AiScript
         {
             _attackCooldownTimer -= (float)deltaTime.TotalSeconds;
         }
-    }
-
-    /// <summary>A full ring is not a reason to stop chasing: pile onto the centre as before.</summary>
-    private Vector3 ChaseDestination(IUnit target)
-    {
-        return Context.MeleeSlots.TryClaim(target.Guid, Creature.Guid, target.Position, Creature.Position, out int slot)
-            ? Context.MeleeSlots.PositionFor(target.Position, slot)
-            : target.Position;
     }
 
     private void ResetToIdleAtSpawn()
