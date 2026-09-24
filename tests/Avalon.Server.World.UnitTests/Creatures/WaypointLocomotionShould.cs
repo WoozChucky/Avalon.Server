@@ -44,7 +44,10 @@ public class WaypointLocomotionShould
 
         // 4 m/s for one second along +X.
         creature.Received().Position = Arg.Is<Vector3>(p => p.x > 3.9f && p.x < 4.1f);
-        creature.Received().MoveState = MoveState.Walking;
+
+        // Locomotion owns only the at-rest transition; the caller (a script) owns the moving
+        // MoveState (Walking vs Running) and must not have it overwritten every tick.
+        creature.DidNotReceiveWithAnyArgs().MoveState = default;
     }
 
     /// <summary>
@@ -95,6 +98,30 @@ public class WaypointLocomotionShould
 
         creature.Received().Position = new Vector3(50f, 0f, 50f);
         creature.Received().Velocity = Vector3.zero;
+        Assert.True(locomotion.HasArrived(creature));
+    }
+
+    /// <summary>
+    /// A leash-return teleport must discard whatever path was queued: otherwise the next Update
+    /// would walk the creature straight back along the stale route from before it was teleported.
+    /// </summary>
+    [Fact]
+    public void Discard_A_Queued_Path_When_Teleported()
+    {
+        var (locomotion, navigator) = Build();
+        ICreature creature = CreatureAt(Vector3.zero);
+        navigator.FindPath(Arg.Any<Vector3>(), Arg.Any<Vector3>())
+            .Returns([new Vector3(10f, 0f, 0f)]);
+
+        locomotion.Register(creature, radius: 0.5f, maxSpeed: 4f);
+        locomotion.MoveTo(creature, new Vector3(10f, 0f, 0f));
+        locomotion.Teleport(creature, new Vector3(50f, 0f, 50f));
+
+        creature.Position.Returns(new Vector3(50f, 0f, 50f));
+        locomotion.Update(TimeSpan.FromSeconds(1));
+
+        // The stale path towards (10, 0, 0) must not move the creature after the teleport.
+        creature.DidNotReceive().Position = Arg.Is<Vector3>(p => p != new Vector3(50f, 0f, 50f));
         Assert.True(locomotion.HasArrived(creature));
     }
 
