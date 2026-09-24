@@ -106,6 +106,7 @@ Section in `appsettings.json`: `"Game"` (World server only)
 | `MaxCharactersPerAccount`        | ushort | `5`        | Rejects character creation beyond this count |
 | `CharacterLoadTimeoutSeconds`    | int    | `15`       | How long a pending character select may wait before it is cancelled |
 | `ScriptHotReloadIntervalSeconds` | int    | `5`        | Poll interval for `IScriptHotReloader` |
+| `ExperienceBandDecay`            | float  | `0.75`     | Experience multiplier per level the player is outside the map's level band. Range `0.01`–`1.0` |
 | `CreatureLocomotion`             | enum   | `Waypoint` | `Waypoint` or `Crowd` — see below |
 | `CrowdIncludesPlayers`           | bool   | `false`    | Registers players as crowd obstacles so creatures steer around them. Ignored under `Waypoint` |
 | `CreatureAgentRadius`            | float  | `0.6`      | Separation radius in world units. Range `0.05`–`10.0` |
@@ -119,6 +120,7 @@ Section in `appsettings.json`: `"Game"` (World server only)
   "MaxCharactersPerAccount": 5,
   "CharacterLoadTimeoutSeconds": 15,
   "ScriptHotReloadIntervalSeconds": 5,
+  "ExperienceBandDecay": 0.75,
   "CreatureLocomotion": "Waypoint",
   "CrowdIncludesPlayers": false,
   "CreatureAgentRadius": 0.6,
@@ -137,6 +139,26 @@ Section in `appsettings.json`: `"Game"` (World server only)
 Under `Crowd`, player agents exist only as obstacles: `PlayerInputHandler` remains the sole authority on where a character is, and the crowd never writes a character's position.
 
 Before enabling `Crowd` on a busy map, note that DotRecast budgets roughly 25 agents per crowd at about 0.5 ms per frame, there is one crowd per `MapInstance`, and there is no agent cap.
+
+### Creature levels, stats and the experience band
+
+A creature's level is rolled from its template's `MinLevel`–`MaxLevel` at spawn. Health, damage and
+experience then come from the `CreatureBaseStats` row for that level, scaled by the template's own
+modifiers and by its `CreatureRarity` (`Normal`, `Elite`, `Rare`, `Boss`) through
+`CreatureRarityModifiers`. Both tables are seeded and tuned as data, so rebalancing is a migration
+rather than a code change.
+
+A template may set `Exp` to override the derived experience outright — `null` means derive, and any
+value including `0` is used verbatim, which is why the column is nullable.
+
+`MapTemplate.MinLevel`/`MaxLevel` **do not constrain spawning.** A level 6 creature in a 1–5 map is
+legal. The band's only job is scaling rewards: a player outside it earns
+`ExperienceBandDecay ^ levelsOut` of the experience, symmetrically and with no grace, so one level out
+pays 75% and nine levels out pays 7.5%. A map with either bound unset is unbanded and scales nothing.
+
+These numbers are provisional. They are calibrated against a player whose health does not change with
+level, which is a known gap — creature and character numbers are to be revisited together once gear and
+character stat scaling exist to compensate.
 
 ### Melee slots and attack range
 
