@@ -124,6 +124,13 @@ public interface IWorldConnection : IConnection
     ///     conversation is open. The node id is what lets the server reject a choice made against a
     ///     node it is no longer showing.
     /// </summary>
+    /// <remarks>
+    ///     Invariant: a non-null value here implies <c>Character</c> is also non-null — a
+    ///     conversation cannot be opened without a live character. <c>World.DeSpawnPlayerAsync</c>
+    ///     relies on this to clear it below its own early-return-on-null-character guards; if that
+    ///     invariant ever stops holding, those guards start leaking a stale conversation across a
+    ///     reconnect and no existing test would catch it.
+    /// </remarks>
     (ObjectGuid Npc, DialogueNodeId Node)? CurrentDialogue { get; set; }
 
     /// <summary>True between accepting a CMSG_RESPAWN_AT_TOWN and completing the transfer.
