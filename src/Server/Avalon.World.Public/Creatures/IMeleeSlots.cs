@@ -8,12 +8,9 @@ namespace Avalon.World.Public.Creatures;
 /// same thing surround it instead of stacking on its centre.
 /// </summary>
 /// <remarks>
-/// Declared here, rather than exposing <c>Avalon.World.Creatures.MeleeSlots</c> directly on
-/// <see cref="Instances.ISimulationContext"/>: <c>ISimulationContext</c> lives in
-/// Avalon.World.Public, which Avalon.World depends on (not the reverse), so the concrete
-/// implementation type in Avalon.World is not visible from this project. <c>MapInstance</c>
-/// exposes its concrete <c>MeleeSlots</c> through this interface via an adapter, so the concrete
-/// type itself never has to move or change.
+/// Declared here because <see cref="Instances.ISimulationContext"/> is a contract surface that
+/// lives in Avalon.World.Public, so what it exposes is declared here too — the same reason
+/// <see cref="ICreatureLocomotion"/> is declared here rather than alongside its implementation.
 /// </remarks>
 public interface IMeleeSlots
 {

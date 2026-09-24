@@ -92,6 +92,40 @@ public class MeleeSlotsShould
     }
 
     /// <summary>
+    /// Distance-from-centre alone can't catch a wrong angle step: |cos, sin| == 1 regardless of
+    /// the angle, so every slot collapsing onto a single point still passes that check, and
+    /// distinct slot indices alone don't guarantee distinct positions either. This pins the
+    /// actual user-visible requirement — creatures standing in their slots do not overlap — by
+    /// requiring every pair of the default 6 slots (at the default 1.5f radius) to be at least
+    /// one agent diameter apart: 1.2f, since NavmeshBuildSettings.AgentRadius defaults to 0.6f.
+    /// </summary>
+    [Fact]
+    public void Space_Every_Pair_Of_Slots_At_Least_One_Agent_Diameter_Apart()
+    {
+        const int slotCount = 6;
+        const float agentDiameter = 1.2f; // 2 * NavmeshBuildSettings.AgentRadius (0.6f)
+
+        var slots = new MeleeSlots(slotCount, radius: 1.5f);
+        var centre = new Vector3(10f, 5f, 10f);
+
+        var positions = new Vector3[slotCount];
+        for (int slot = 0; slot < slotCount; slot++)
+        {
+            positions[slot] = slots.PositionFor(centre, slot);
+        }
+
+        for (int i = 0; i < slotCount; i++)
+        {
+            for (int j = i + 1; j < slotCount; j++)
+            {
+                float distance = Vector3.Distance(positions[i], positions[j]);
+                Assert.True(distance >= agentDiameter,
+                    $"Slots {i} and {j} are only {distance} apart — closer than one agent diameter ({agentDiameter}).");
+            }
+        }
+    }
+
+    /// <summary>
     /// A creature removed on a path that never runs the combat script's own release (e.g. despawn)
     /// has only the target's guid it can no longer be trusted to still know. Releasing by claimant
     /// alone must free the same slot regardless.

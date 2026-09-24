@@ -40,7 +40,6 @@ public class MapInstance : IMapInstance, IPortalSink
     private readonly ICreatureLocomotion _locomotion;
     private readonly float _creatureAgentRadius;
     private readonly MeleeSlots _meleeSlots;
-    private readonly IMeleeSlots _meleeSlotsAdapter;
     private readonly IAbilityCastSystem _abilityCastSystem;
     private readonly EncounterRegistry _encounterRegistry;
     private readonly CombatService _combatService;
@@ -76,7 +75,6 @@ public class MapInstance : IMapInstance, IPortalSink
         _creatureAgentRadius = world.Configuration.CreatureAgentRadius;
         _locomotion = new WaypointLocomotion(GetNavigatorForPosition);
         _meleeSlots = new MeleeSlots(world.Configuration.MeleeSlotCount, world.Configuration.MeleeSlotRadius);
-        _meleeSlotsAdapter = new MeleeSlotsAdapter(_meleeSlots);
 
         _creatureRespawner = new NoOpCreatureRespawner();
 
@@ -123,7 +121,7 @@ public class MapInstance : IMapInstance, IPortalSink
     public IReadOnlyDictionary<ObjectGuid, ICreature> Creatures => _creatures;
     public ICombatService CombatService => _combatService;
     public ICreatureLocomotion Locomotion => _locomotion;
-    public IMeleeSlots MeleeSlots => _meleeSlotsAdapter;
+    public IMeleeSlots MeleeSlots => _meleeSlots;
 
     public bool IsExpired(TimeSpan expiry) =>
         LastEmptyAt.HasValue && (DateTime.UtcNow - LastEmptyAt.Value) >= expiry;
