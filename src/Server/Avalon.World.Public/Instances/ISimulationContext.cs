@@ -44,7 +44,6 @@ public interface ISimulationContext
     void RunInstantAbility(IUnit caster, IUnit? target, IAbility ability);
 
     void AddCreature(ICreature creature);
-    void RespawnCreature(ICreature creature);
     void RemoveCreature(ICreature creature);
     void BroadcastUnitHit(IUnit attacker, IUnit target, uint currentHealth, uint damage);
     void BroadcastUnitStartCast(IUnit caster, float castTime);

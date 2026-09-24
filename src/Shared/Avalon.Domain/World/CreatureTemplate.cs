@@ -72,11 +72,24 @@ public class CreatureTemplate : IDbEntity<CreatureTemplateId>, ICreatureMetadata
     [Column("Exp")]
     public uint Experience { get; set; }
 
-    /// <summary>Seconds before the creature re-spawns after death. Default 180 (3 minutes).</summary>
+    /// <summary>
+    /// Seconds before the creature re-spawns after death. Default 180 (3 minutes).
+    /// </summary>
+    /// <remarks>
+    /// Unread since creatures stopped respawning on a timer. Kept because a deliberate revival
+    /// mechanic is the intended replacement and will plausibly want a number here.
+    /// </remarks>
     public int RespawnTimerSecs { get; set; } = 180;
 
-    /// <summary>Seconds before the creature's corpse is removed. Default 120 (2 minutes).</summary>
-    public int BodyRemoveTimerSecs { get; set; } = 120;
+    /// <summary>
+    /// Seconds before the creature's corpse is removed from its instance. Default 10.
+    /// </summary>
+    /// <remarks>
+    /// Short by design: a corpse is an entity the instance still ticks and broadcasts, so on a busy
+    /// map long-lived corpses carpet the floor. Raise it per template for something that should
+    /// linger, such as a boss.
+    /// </remarks>
+    public int BodyRemoveTimerSecs { get; set; } = 10;
 
     [NotMapped]
     public TimeSpan RespawnTimer
