@@ -57,11 +57,17 @@ public class CreatureStatDeriver
         uint experience = template.Experience
                           ?? Scale(baseStat.Experience, template.ExperienceModifier, rarity.ExperienceMultiplier);
 
+        // Both floors exist for the same reason: a creature with 0 health is dead on arrival, and one
+        // with 0 damage can never kill anything, so a fight against it silently never ends. Neither is
+        // reachable from the seeded data — they come from a small-but-positive modifier rounding down —
+        // which is exactly why they would be hard to notice.
+        uint flooredMin = Math.Max(1u, damageMin);
+
         return new DerivedCreatureStats(
             level,
             Math.Max(1u, health),
-            damageMin,
-            Math.Max(damageMin, damageMax),
+            flooredMin,
+            Math.Max(flooredMin, damageMax),
             experience);
     }
 
