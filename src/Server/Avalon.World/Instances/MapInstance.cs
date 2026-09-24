@@ -687,7 +687,9 @@ public class MapInstance : IMapInstance, IPortalSink, IDisposable
             return;
         }
 
-        uint creatureExperience = creature.Metadata.Experience;
+        // Temporary: Task 6 replaces this whole block with the band-scaled award read off
+        // creature.Experience (the value derived at spawn) rather than the template override.
+        uint creatureExperience = creature.Metadata.Experience ?? 0;
         if (character.Experience + creatureExperience >= expRequirement.Experience)
         {
             ulong diff = character.Experience + creatureExperience - expRequirement.Experience;
