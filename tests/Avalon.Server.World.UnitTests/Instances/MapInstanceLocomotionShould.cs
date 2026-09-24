@@ -10,12 +10,15 @@ using Avalon.World.Creatures.Locomotion;
 using Avalon.World.Entities;
 using Avalon.World.Instances;
 using Avalon.World.Maps.Navigation;
+using Avalon.Network.Packets.State;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Combat;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Maps;
 using Avalon.World.Scripts;
+using Avalon.World.Scripts.Creatures;
+using Avalon.World.Public.Units;
 using Avalon.Server.World.UnitTests.Creatures;
 using DotRecast.Detour;
 using DotRecast.Detour.Crowd;
@@ -244,6 +247,272 @@ public class MapInstanceLocomotionShould
             entry.Message.Contains("attack", StringComparison.OrdinalIgnoreCase)); // consequence
     }
 
+    // --- Creature death, and the tick order the whole seam rests on -----------------------------
+    //
+    // Everything above this line drives the locomotion by hand or inspects which one was chosen.
+    // These drive MapInstance's own Update and its own death handler with a REAL Creature entity, a
+    // real locomotion and (for the ordering test) a real CreatureCombatScript, because the two
+    // defects below live in the wiring between those, not inside any one of them: death never
+    // reached the locomotion at all, and nothing anywhere drove the production script loop and the
+    // production locomotion together, so their order was free.
+
+    private static readonly TimeSpan TickInterval = TimeSpan.FromSeconds(0.25);
+
+    /// <summary>
+    /// F1, waypoint side. A creature killed mid-approach used to keep walking its remaining path:
+    /// <c>WaypointLocomotion.Update</c> advances every registered agent with a non-empty queue and
+    /// knows nothing about whether the creature is alive, and the script that used to own the walking
+    /// returned early on death. MapNavigator emits a waypoint every 0.5 units, so a creature killed
+    /// 10 units out had ~20 queued waypoints and walked the whole way to the player as a corpse, with
+    /// MoveState left at Running until the queue drained. The release path that would have prevented
+    /// it — <c>MapInstance.RemoveCreature</c> — is unreachable on death, because the only production
+    /// caller of it is <c>CreatureRespawner.Update</c> and MapInstance installs
+    /// <c>NoOpCreatureRespawner</c>.
+    /// Production change that breaks this: dropping <c>_locomotion.Stop</c> from
+    /// <c>MapInstance.OnCreatureKilled</c> (the corpse walks on, and MoveState stays Running).
+    /// </summary>
+    [Fact]
+    public void Stop_A_Creature_Where_It_Fell_When_It_Is_Killed()
+    {
+        (MapInstance instance, _) = BuildKillableInstance();
+        Creature creature = RealCreatureAt(Vector3.zero, id: 700_101);
+        instance.AddCreature(creature);
+
+        // What a chasing script would have left behind: a long queued path and a moving MoveState.
+        instance.Locomotion.MoveTo(creature, new Vector3(20f, 0f, 0f));
+        creature.MoveState = MoveState.Running;
+        instance.Update(TickInterval);
+
+        Assert.NotEqual(Vector3.zero, creature.Position); // fixture check: it really was walking
+
+        creature.Died(Substitute.For<IUnit>());
+        Vector3 whereItFell = creature.Position;
+
+        // 30 simulated seconds — far more than the ~5s the remaining 20-unit path would have taken.
+        for (int tick = 0; tick < 120; tick++)
+            instance.Update(TickInterval);
+
+        Assert.Equal(whereItFell, creature.Position);
+        Assert.Equal(MoveState.Idle, creature.MoveState);
+    }
+
+    /// <summary>
+    /// F1, crowd side, and the half <see cref="Stop_A_Creature_Where_It_Fell_When_It_Is_Killed" />
+    /// cannot see: Stop alone would freeze the corpse but leave its <c>DtCrowdAgent</c> in the crowd
+    /// forever — a permanent obstacle living creatures steer around, which
+    /// <c>DtCrowd.HandleCollisions</c> also shoves about regardless of whether it has a target, and
+    /// one leaked agent per kill for the life of a persistent town instance.
+    /// Production change that breaks this: dropping <c>_locomotion.Unregister</c> from
+    /// <c>MapInstance.OnCreatureKilled</c>.
+    /// </summary>
+    [Fact]
+    public void Remove_A_Killed_Creatures_Crowd_Agent()
+    {
+        (MapInstance instance, _) = BuildKillableInstance();
+        var crowd = new CrowdLocomotion(CrowdLocomotionShould.FlatNavMesh.Value,
+            NavmeshBuildSettings.AgentRadius, NullLoggerFactory.Instance.CreateLogger("test"));
+        SetLocomotion(instance, crowd);
+
+        Creature creature = RealCreatureAt(Vector3.zero, id: 700_102);
+        instance.AddCreature(creature);
+        Assert.Single(CrowdOf(crowd).GetActiveAgents());
+
+        creature.Died(Substitute.For<IUnit>());
+
+        Assert.Empty(CrowdOf(crowd).GetActiveAgents());
+    }
+
+    /// <summary>
+    /// F1, slot side, outward direction: the slot the dying creature held on whatever it was
+    /// attacking. <c>CreatureCombatScript</c>'s death branch releases it too, but only for a creature
+    /// that had that script to run; <c>OnCreatureKilled</c> is the chokepoint every death funnels
+    /// through, so it is where the invariant can actually be enforced. MeleeSlotCount is 1 here so
+    /// "the slot came back" is observable as a rival claim that could not succeed a moment earlier.
+    /// Production change that breaks this: dropping <c>_meleeSlots.ReleaseClaimant</c> from
+    /// <c>MapInstance.OnCreatureKilled</c>. (<c>ReleaseTarget</c> cannot substitute for it — the dead
+    /// creature is the claimant here, not the key.)
+    /// </summary>
+    [Fact]
+    public void Release_The_Melee_Slot_A_Killed_Creature_Held()
+    {
+        (MapInstance instance, _) = BuildKillableInstance(
+            new GameConfiguration { WorldId = new WorldId(1), MeleeSlotCount = 1 });
+
+        Creature creature = RealCreatureAt(new Vector3(3f, 0f, 0f), id: 700_103);
+        instance.AddCreature(creature);
+
+        var attackedGuid = new ObjectGuid(ObjectType.Character, 700_901);
+        var rival = new ObjectGuid(ObjectType.Creature, 700_104);
+        var rivalPosition = new Vector3(-3f, 0f, 0f);
+
+        Assert.True(instance.MeleeSlots.TryClaim(attackedGuid, creature.Guid, Vector3.zero, creature.Position, out _));
+        Assert.False(instance.MeleeSlots.TryClaim(attackedGuid, rival, Vector3.zero, rivalPosition, out _));
+
+        creature.Died(Substitute.For<IUnit>());
+
+        Assert.True(instance.MeleeSlots.TryClaim(attackedGuid, rival, Vector3.zero, rivalPosition, out _),
+            "the slot the dead creature held on its target was never given back");
+    }
+
+    /// <summary>
+    /// F1, slot side, inward direction, and the F5 gap it closes for free: a dying creature is also a
+    /// <em>target</em> others hold slots on. The script-side target-death release is gated on
+    /// <c>_target is ICharacter</c>, so a creature target dying leaves its ring claimed and its
+    /// claimants pointing at a corpse. Not reachable today (nothing puts a creature in another
+    /// creature's threat list), which is exactly why it needs pinning rather than arguing about.
+    /// Production change that breaks this: dropping <c>_meleeSlots.ReleaseTarget</c> from
+    /// <c>MapInstance.OnCreatureKilled</c>. (<c>ReleaseClaimant</c> cannot substitute for it — the
+    /// dead creature is the key here, not a claimant.)
+    /// </summary>
+    [Fact]
+    public void Release_Every_Melee_Slot_Held_On_A_Killed_Creature()
+    {
+        (MapInstance instance, _) = BuildKillableInstance(
+            new GameConfiguration { WorldId = new WorldId(1), MeleeSlotCount = 1 });
+
+        Creature victim = RealCreatureAt(Vector3.zero, id: 700_105);
+        instance.AddCreature(victim);
+
+        var chaser = new ObjectGuid(ObjectType.Creature, 700_106);
+        var secondChaser = new ObjectGuid(ObjectType.Creature, 700_107);
+        var secondChaserPosition = new Vector3(-3f, 0f, 0f);
+
+        Assert.True(instance.MeleeSlots.TryClaim(victim.Guid, chaser, victim.Position, new Vector3(3f, 0f, 0f), out _));
+        Assert.False(instance.MeleeSlots.TryClaim(victim.Guid, secondChaser, victim.Position, secondChaserPosition, out _));
+
+        victim.Died(Substitute.For<IUnit>());
+
+        Assert.True(instance.MeleeSlots.TryClaim(victim.Guid, secondChaser, victim.Position, secondChaserPosition, out _),
+            "the ring other creatures had claimed on the dead creature was never freed");
+    }
+
+    /// <summary>
+    /// The other end of F1's teardown. Death now unregisters the creature from the locomotion, so
+    /// respawn has to put it back or a creature that dies once can never move again. Nothing calls
+    /// <c>RespawnCreature</c> today (NoOpCreatureRespawner), which is precisely why the obligation
+    /// needs to be recorded in a test rather than in a comment: the day respawn is wired up, this is
+    /// what says the creature comes back in a clean state.
+    /// Production change that breaks this: removing <c>_locomotion.Register</c> from
+    /// <c>MapInstance.RespawnCreature</c> while <c>OnCreatureKilled</c> still unregisters — the
+    /// half-fix that leaves a respawned creature permanently immobile.
+    /// </summary>
+    [Fact]
+    public void Register_A_Respawned_Creature_With_The_Locomotion_Again()
+    {
+        (MapInstance instance, _) = BuildKillableInstance();
+        Creature creature = RealCreatureAt(Vector3.zero, id: 700_108);
+        instance.AddCreature(creature);
+        creature.Died(Substitute.For<IUnit>());
+
+        instance.RespawnCreature(creature);
+
+        instance.Locomotion.MoveTo(creature, new Vector3(20f, 0f, 0f));
+        instance.Update(TickInterval);
+
+        Assert.NotEqual(Vector3.zero, creature.Position);
+    }
+
+    /// <summary>
+    /// A real <see cref="Creature" /> rather than a substitute: these tests kill it through
+    /// <see cref="Creature.Died" />, which raises the static <c>Creature.OnCreatureKilled</c> that
+    /// MapInstance subscribes to — the chain F1 is about, and one no ICreature substitute can raise.
+    /// </summary>
+    private static Creature RealCreatureAt(Vector3 position, uint id, float speed = 4f)
+    {
+        var metadata = Substitute.For<ICreatureMetadata>();
+        metadata.SpeedWalk.Returns(speed / 2f);
+        metadata.SpeedRun.Returns(speed);
+
+        return new Creature
+        {
+            Guid = new ObjectGuid(ObjectType.Creature, id),
+            Metadata = metadata,
+            Name = "corpse-under-test",
+            Position = position,
+            Speed = speed,
+            Health = 100,
+            CurrentHealth = 100,
+        };
+    }
+
+    /// <summary>
+    /// Like <see cref="BuildInstanceWithCreature" />, but with MapInstance's <c>OnCreatureKilled</c>
+    /// subscription deliberately LEFT ATTACHED, since these tests go through the real
+    /// <c>Creature.Died</c> → static event → <c>MapInstance.OnCreatureKilled</c> chain. Every other
+    /// static subscription is detached exactly as elsewhere in this file, and the surviving one is
+    /// harmless to other tests: <c>OnCreatureKilled</c> returns immediately for any creature that is
+    /// not in <em>this</em> instance's <c>_creatures</c>, and the guids above are unique to this file.
+    /// The navigator returns a long 0.5-step path (the shape MapNavigator actually produces) so a
+    /// creature killed mid-walk has plenty of path left to keep walking if nothing stops it.
+    /// The seated character is returned because the ordering test needs something for the script to
+    /// chase; it stands 10 units out, well beyond AttackRange.
+    /// </summary>
+    private static (MapInstance Instance, ICharacter Target) BuildKillableInstance(GameConfiguration? config = null)
+    {
+        var serviceProvider = Substitute.For<IServiceProvider>();
+        serviceProvider.GetService(typeof(IScriptManager)).Returns(Substitute.For<IScriptManager>());
+        serviceProvider.GetService(typeof(CombatConfig)).Returns(new CombatConfig());
+
+        var world = Substitute.For<IWorld>();
+        world.Configuration.Returns(config ?? new GameConfiguration());
+
+        var navigator = Substitute.For<IMapNavigator>();
+        navigator.FindPath(Arg.Any<Vector3>(), Arg.Any<Vector3>())
+            .Returns(call => StepwisePath(call.ArgAt<Vector3>(0), call.ArgAt<Vector3>(1)));
+
+        var entryChunk = new PlacedChunk(new ChunkTemplateId(1), 0, 0, 0, Vector3.zero);
+        var layout = new ChunkLayout(
+            Seed: 0,
+            Chunks: new[] { entryChunk },
+            EntryChunk: entryChunk,
+            BossChunk: null,
+            Portals: Array.Empty<PortalPlacement>(),
+            EntrySpawnWorldPos: Vector3.zero,
+            CellSize: 30f,
+            Config: null);
+
+        var instance = new MapInstance(
+            NullLoggerFactory.Instance,
+            serviceProvider,
+            world,
+            new MapTemplateId(1),
+            ownerCharacterId: null,
+            layout,
+            navigator,
+            seed: 0);
+
+        DetachAll(typeof(Creature), instance, except: nameof(Creature.OnCreatureKilled));
+        DetachAll(typeof(CharacterEntity), instance);
+
+        var character = Substitute.For<ICharacter>();
+        character.Guid.Returns(new ObjectGuid(ObjectType.Character, 700_800));
+        character.Position.Returns(new Vector3(10f, 0f, 0f));
+        character.IsDead.Returns(false);
+        var connection = Substitute.For<IWorldConnection>();
+        connection.Character.Returns(character);
+        instance.AddCharacter(connection);
+
+        return (instance, character);
+    }
+
+    /// <summary>
+    /// A path in the shape <see cref="MapNavigator" /> returns: the start, a waypoint every 0.5
+    /// units (its <c>StepSize</c>), then the exact destination. A one-element path would let a
+    /// corpse "arrive" almost immediately and hide the walking-corpse defect entirely.
+    /// </summary>
+    private static List<Vector3> StepwisePath(Vector3 from, Vector3 to)
+    {
+        const float stepSize = 0.5f;
+        var path = new List<Vector3> { from };
+
+        float total = Vector3.Distance(from, to);
+        for (float walked = stepSize; walked < total; walked += stepSize)
+            path.Add(Vector3.MoveTowards(from, to, walked));
+
+        path.Add(to);
+        return path;
+    }
+
     /// <summary>
     /// Builds a bare MapInstance (no creature, no character seated) purely to inspect which
     /// <see cref="ICreatureLocomotion" /> its constructor chose. Reuses the same construction shape
@@ -457,10 +726,17 @@ public class MapInstanceLocomotionShould
         DetachAll(typeof(CharacterEntity), instance);
     }
 
-    private static void DetachAll(Type declaringType, object target)
+    /// <param name="except">
+    /// An event to leave subscribed. Only <see cref="BuildKillableInstance" /> uses it, to keep
+    /// <c>Creature.OnCreatureKilled</c> attached so a real <c>Creature.Died</c> reaches the instance.
+    /// </param>
+    private static void DetachAll(Type declaringType, object target, string? except = null)
     {
         foreach (EventInfo eventInfo in declaringType.GetEvents(BindingFlags.Public | BindingFlags.Static))
         {
+            if (eventInfo.Name == except)
+                continue;
+
             FieldInfo? backingField =
                 declaringType.GetField(eventInfo.Name, BindingFlags.NonPublic | BindingFlags.Static);
 
