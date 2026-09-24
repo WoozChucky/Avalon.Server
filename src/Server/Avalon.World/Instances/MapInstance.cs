@@ -615,6 +615,33 @@ public class MapInstance : IMapInstance, IPortalSink, IDisposable
     /// connections and players saw damage numbers from fights in other instances. The eight
     /// neighbouring handlers have always filtered this way; this one did not.
     /// </summary>
+    /// <summary>
+    /// How much of a kill's experience a player at <paramref name="playerLevel" /> earns on a map banded
+    /// <paramref name="bandMin" />-<paramref name="bandMax" />. 1.0 inside the band, decaying per level
+    /// outside it, symmetrically and with no grace.
+    /// </summary>
+    /// <remarks>
+    /// A map with either bound unset is unbanded and scales nothing. Both bounds are nullable on
+    /// <c>MapTemplate</c>, and treating a missing one as 0 would wipe out every award on that map.
+    /// </remarks>
+    /// <remarks>
+    /// Public rather than internal so the unit-test assembly can call it without an
+    /// InternalsVisibleTo handshake — the same reasoning as ChunkLayoutSourceResolver's test ctor.
+    /// </remarks>
+    public static double BandScale(ushort playerLevel, ushort? bandMin, ushort? bandMax, float decay)
+    {
+        if (bandMin is null || bandMax is null)
+        {
+            return 1.0;
+        }
+
+        int levelsOut = playerLevel < bandMin.Value ? bandMin.Value - playerLevel
+                      : playerLevel > bandMax.Value ? playerLevel - bandMax.Value
+                      : 0;
+
+        return levelsOut == 0 ? 1.0 : Math.Pow(decay, levelsOut);
+    }
+
     private void OnCharacterHit(IUnit unit, IUnit attacker, uint damage)
     {
         if (!_characters.ContainsKey(unit.Guid) && !_creatures.ContainsKey(unit.Guid))
@@ -687,9 +714,19 @@ public class MapInstance : IMapInstance, IPortalSink, IDisposable
             return;
         }
 
-        // Temporary: Task 6 replaces this whole block with the band-scaled award read off
-        // creature.Experience (the value derived at spawn) rather than the template override.
-        uint creatureExperience = creature.Metadata.Experience ?? 0;
+        // creature.Experience is the value derived at spawn — base stats by level, scaled by the
+        // template's modifiers and its rarity, or the template's authored override if it had one. Not
+        // Metadata.Experience, which is only that optional override.
+        MapTemplate? mapTemplate = _world.MapTemplates.FirstOrDefault(map => map.Id == TemplateId);
+
+        double bandScale = BandScale(
+            character.Level,
+            mapTemplate?.MinLevel,
+            mapTemplate?.MaxLevel,
+            _world.Configuration.ExperienceBandDecay);
+
+        uint creatureExperience =
+            (uint)Math.Round(creature.Experience * bandScale, MidpointRounding.AwayFromZero);
         if (character.Experience + creatureExperience >= expRequirement.Experience)
         {
             ulong diff = character.Experience + creatureExperience - expRequirement.Experience;
