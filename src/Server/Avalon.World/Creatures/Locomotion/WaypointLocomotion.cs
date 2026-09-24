@@ -95,7 +95,6 @@ public sealed class WaypointLocomotion : ICreatureLocomotion
 
         creature.LookAt(next);
         creature.Velocity = direction;
-        creature.MoveState = MoveState.Walking;
         creature.Position += direction * creature.Speed * (float)deltaTime.TotalSeconds;
     }
 
