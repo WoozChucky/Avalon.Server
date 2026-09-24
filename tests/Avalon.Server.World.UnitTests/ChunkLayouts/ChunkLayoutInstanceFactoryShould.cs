@@ -3,6 +3,7 @@ using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.World;
 using Avalon.World.ChunkLayouts;
+using Avalon.World.Configuration;
 using Avalon.World.Instances;
 using Avalon.World.Public;
 using Avalon.World.Public.Combat;
@@ -52,7 +53,9 @@ public class ChunkLayoutInstanceFactoryShould
     {
         var sp = Substitute.For<IServiceProvider>();
         sp.GetService(typeof(IScriptManager)).Returns(Substitute.For<IScriptManager>());
-        sp.GetService(typeof(IWorld)).Returns(Substitute.For<IWorld>());
+        var world = Substitute.For<IWorld>();
+        world.Configuration.Returns(new GameConfiguration());
+        sp.GetService(typeof(IWorld)).Returns(world);
         sp.GetService(typeof(CombatConfig)).Returns(new CombatConfig());
         return sp;
     }
