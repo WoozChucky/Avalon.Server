@@ -1,6 +1,5 @@
 using System;
 using Avalon.Common.Mathematics;
-using Avalon.Common.ValueObjects;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Scripts;
 using Avalon.World.Public.Units;
@@ -19,13 +18,6 @@ public delegate void UnitDamagedDelegate(IUnit unit, IUnit attacker, uint damage
 
 public interface ICreature : IUnit
 {
-    /// <summary>
-    /// The creature template this instance was spawned from. Already present on the concrete
-    /// <c>Creature</c> class; exposed here because <c>InteractHandler</c> is the first caller that
-    /// needs it through the interface, to look up the template's dialogue root.
-    /// </summary>
-    CreatureTemplateId TemplateId { get; set; }
-
     ICreatureMetadata Metadata { get; set; }
 
     /// <summary>Lower bound of this creature's melee damage, derived at spawn.</summary>

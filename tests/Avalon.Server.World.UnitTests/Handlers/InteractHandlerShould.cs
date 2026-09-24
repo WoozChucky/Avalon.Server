@@ -180,7 +180,9 @@ public class InteractHandlerShould
             fixture.Npc.Name.Returns("Innkeeper");
             fixture.Npc.CurrentHealth.Returns(100u);
             fixture.Npc.Position.Returns(new Vector3(0, 0, 2));
-            fixture.Npc.TemplateId.Returns(new CreatureTemplateId(3));
+            var npcMetadata = Substitute.For<ICreatureMetadata>();
+            npcMetadata.Id.Returns(new CreatureTemplateId(3));
+            fixture.Npc.Metadata.Returns(npcMetadata);
 
             var instance = Substitute.For<IMapInstance>();
             instance.Creatures.Returns(new Dictionary<ObjectGuid, ICreature> { [NpcGuid] = fixture.Npc });
