@@ -80,6 +80,7 @@ public class CreatureSpawner(
             Speed = template.SpeedWalk,
             Velocity = new Vector2(0, 0),
             ScriptName = template.ScriptName,
+            Invulnerable = template.Invulnerable,
             MoveState = MoveState.Idle,
             Level = stats.Level,
             Health = stats.Health,
