@@ -25,6 +25,18 @@ public class CreatureCombatScript : AiScript
     private const float MaxChaseDistance = 40.0f;
     private const float AttackRange = 1.5f;
     private const float PathRecalculationThreshold = 1.5f; // Threshold to recalculate the path
+
+    // MeleeSlotRadius defaults to the same value as AttackRange, so a creature standing in its
+    // claimed slot is already in range to attack. That puts it exactly on the AttackRange
+    // boundary by construction, and WaypointLocomotion's own 0.1f arrival epsilon means it stops
+    // NEAR its slot, not on it, so raw distance-to-target-centre lands either side of the
+    // boundary depending on float noise. This tolerance only ever applies once a creature has
+    // both claimed a slot and locomotion reports arrival there (see the in-range check in
+    // Update): at that point distance-to-centre is provably within [AttackRange - 0.1f,
+    // AttackRange + 0.1f] by the triangle inequality, so any tolerance > 0.1f closes the gap.
+    // It never changes behaviour while still approaching, and it never touches AttackRange
+    // itself, so it is not a balance change.
+    private const float AttackRangeArrivalTolerance = 0.15f;
     private const float AttackCooldown = 2.25f; // Cooldown between attacks
     private readonly ILogger<CreatureCombatScript> _logger;
     private float _attackCooldownTimer;
@@ -48,6 +60,8 @@ public class CreatureCombatScript : AiScript
     {
         if (_target == character && !_dead)
         {
+            // Release before nulling _target — Release needs the target's guid.
+            Context.MeleeSlots.Release(_target.Guid, Creature.Guid);
             _target = null;
             State = CombatState.Returning;
             Creature.CurrentHealth = Creature.Health;
@@ -78,9 +92,20 @@ public class CreatureCombatScript : AiScript
                 _logger.LogInformation("{Name} has died", Creature.Name);
                 Creature.CurrentHealth = 0;
                 _dead = true;
+
+                // _dead short-circuits Update from here on, so this is the script's only chance
+                // to give back whatever slot it held.
+                if (_target is not null)
+                    Context.MeleeSlots.Release(_target.Guid, Creature.Guid);
+
                 Creature.Died(attacker);
                 return;
             }
+
+            // A hit from a different unit switches target immediately, same as the top-threat
+            // reconciliation in Update — release whatever slot was held on the old one first.
+            if (_target is not null && !ReferenceEquals(_target, attacker))
+                Context.MeleeSlots.Release(_target.Guid, Creature.Guid);
 
             _target = attacker;
             if (_initialPosition == Vector3.zero)
@@ -115,6 +140,9 @@ public class CreatureCombatScript : AiScript
             IUnit? picked = PickTarget();
             if (picked is not null && !ReferenceEquals(picked, _target))
             {
+                if (_target is not null)
+                    Context.MeleeSlots.Release(_target.Guid, Creature.Guid);
+
                 _target = picked;
                 _lastKnownTargetPosition = picked.Position;
                 Context.Locomotion.Stop(Creature);
@@ -163,6 +191,7 @@ public class CreatureCombatScript : AiScript
         // the death overlay shows up. Drop target + return to spawn.
         if (_target is ICharacter targetChar && targetChar.IsDead)
         {
+            Context.MeleeSlots.Release(_target.Guid, Creature.Guid);
             _target = null;
             State = CombatState.Returning;
             Context.Locomotion.MoveTo(Creature, _initialPosition);
@@ -174,6 +203,7 @@ public class CreatureCombatScript : AiScript
 
         if (Vector3.Distance(currentPosition, _initialPosition) > MaxChaseDistance)
         {
+            Context.MeleeSlots.Release(_target.Guid, Creature.Guid);
             _target = null;
             State = CombatState.Returning;
             Context.Locomotion.MoveTo(Creature, _initialPosition);
@@ -181,7 +211,17 @@ public class CreatureCombatScript : AiScript
             return;
         }
 
-        if (_target != null && Vector3.Distance(currentPosition, targetPosition) <= AttackRange)
+        // Claimed once per tick here (idempotent — see MeleeSlots.TryClaim) so both the in-range
+        // check below and ChaseDestination agree on whether this creature currently holds a slot.
+        bool hasSlot = Context.MeleeSlots.TryClaim(_target.Guid, Creature.Guid, out _);
+
+        // Once locomotion reports arrival at a claimed slot, treat that as in range instead of
+        // re-deriving from distance-to-centre: see AttackRangeArrivalTolerance for why the raw
+        // distance is boundary-sensitive right at that moment.
+        bool arrivedAtSlot = hasSlot && Context.Locomotion.HasArrived(Creature);
+        float effectiveAttackRange = arrivedAtSlot ? AttackRange + AttackRangeArrivalTolerance : AttackRange;
+
+        if (Vector3.Distance(currentPosition, targetPosition) <= effectiveAttackRange)
         {
             Context.Locomotion.Stop(Creature);
             Creature.LookAt(targetPosition);
@@ -192,7 +232,7 @@ public class CreatureCombatScript : AiScript
             if (Context.Locomotion.HasArrived(Creature) ||
                 Vector3.Distance(_lastKnownTargetPosition, targetPosition) > PathRecalculationThreshold)
             {
-                Context.Locomotion.MoveTo(Creature, targetPosition);
+                Context.Locomotion.MoveTo(Creature, ChaseDestination(_target));
                 _lastKnownTargetPosition = targetPosition;
             }
 
@@ -244,9 +284,24 @@ public class CreatureCombatScript : AiScript
         }
     }
 
+    /// <summary>A full ring is not a reason to stop chasing: pile onto the centre as before.</summary>
+    private Vector3 ChaseDestination(IUnit target)
+    {
+        return Context.MeleeSlots.TryClaim(target.Guid, Creature.Guid, out int slot)
+            ? Context.MeleeSlots.PositionFor(target.Position, slot)
+            : target.Position;
+    }
+
     private void ResetToIdleAtSpawn()
     {
         State = CombatState.None;
+
+        // Defensive: every path that sets State = Returning already released and nulled _target
+        // itself, so this is normally a no-op by the time it runs here — kept in case that ever
+        // changes.
+        if (_target is not null)
+            Context.MeleeSlots.Release(_target.Guid, Creature.Guid);
+
         _target = null;
         _initialPosition = Vector3.zero;
         Context.Locomotion.Stop(Creature);
