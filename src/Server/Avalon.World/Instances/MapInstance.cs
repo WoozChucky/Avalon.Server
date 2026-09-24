@@ -350,9 +350,11 @@ public class MapInstance : IMapInstance, IPortalSink
                 crowd.SyncPlayer(guid, character.Position);
         }
 
-        // After the scripts, because they decide destinations and this executes them. Player
-        // positions are already current: input was processed in connection.UpdateMap() earlier in
-        // this same tick.
+        // After the scripts, because they decide destinations and this executes them — reversed, every
+        // creature acts on last tick's decision, and a destination chosen this tick is not walked until
+        // the next one. Pinned by MapInstanceLocomotionShould.Tick_The_Locomotion_After_The_Creature_Scripts,
+        // which is the only thing in the suite that fails if these two are swapped. Player positions are
+        // already current: input was processed in connection.UpdateMap() earlier in this same tick.
         _locomotion.Update(deltaTime);
 
         // Step 5a: Snapshot dirty fields — ONLY on broadcast ticks. Entity _dirtyFields use

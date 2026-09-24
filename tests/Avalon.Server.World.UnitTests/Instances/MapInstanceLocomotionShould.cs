@@ -413,6 +413,41 @@ public class MapInstanceLocomotionShould
     }
 
     /// <summary>
+    /// The tick order the whole seam rests on: the locomotion must be ticked <em>after</em> the
+    /// creature scripts, because the scripts choose destinations and the locomotion consumes them.
+    /// Reversed, every creature acts on last tick's decision. Nothing else in the suite notices:
+    /// every other test in this class drives <c>MoveTo</c> by hand, and the integration tests in
+    /// <c>CreatureCombatScriptShould</c> hand-roll <c>script.Update(); locomotion.Update();</c>
+    /// themselves rather than going through MapInstance — so moving <c>_locomotion.Update</c> above
+    /// the script loop leaves the rest of the suite entirely green.
+    ///
+    /// One tick is the whole test. In the right order the script's very first <c>MoveTo</c> is walked
+    /// inside the same Update, so Position changes; with the locomotion ticked first it runs against
+    /// an empty path and Position is untouched, because the MoveTo has not happened yet.
+    /// Production change that breaks this: moving <c>_locomotion.Update(deltaTime)</c> above
+    /// "Step 4: Update creature scripts" in <c>MapInstance.Update</c>.
+    /// </summary>
+    [Fact]
+    public void Tick_The_Locomotion_After_The_Creature_Scripts()
+    {
+        (MapInstance instance, ICharacter target) = BuildKillableInstance();
+        Creature creature = RealCreatureAt(Vector3.zero, id: 700_109);
+        instance.AddCreature(creature);
+
+        // A real CreatureCombatScript against the real MapInstance as its ISimulationContext: the
+        // claim is about the production script loop feeding the production locomotion, so neither
+        // end may be a stand-in. The seated character sits 10 units away, well outside AttackRange,
+        // so the script's first Update has no choice but to issue a MoveTo.
+        var script = new CreatureCombatScript(NullLoggerFactory.Instance, creature, instance);
+        script.OnEnteredRange(target);
+        creature.Script = script;
+
+        instance.Update(TickInterval);
+
+        Assert.NotEqual(Vector3.zero, creature.Position);
+    }
+
+    /// <summary>
     /// A real <see cref="Creature" /> rather than a substitute: these tests kill it through
     /// <see cref="Creature.Died" />, which raises the static <c>Creature.OnCreatureKilled</c> that
     /// MapInstance subscribes to — the chain F1 is about, and one no ICreature substitute can raise.
