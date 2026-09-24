@@ -1,4 +1,5 @@
 using System;
+using Avalon.Common.Mathematics;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Combat;
 using Avalon.World.Public.Creatures;
@@ -13,6 +14,36 @@ namespace Avalon.Server.World.UnitTests.Scripts;
 
 public class CreatureCombatScriptShould
 {
+    [Fact]
+    public void Chase_By_Setting_A_Destination_Rather_Than_Moving_Itself()
+    {
+        var locomotion = Substitute.For<ICreatureLocomotion>();
+        (CreatureCombatScript script, ICreature creature, ICharacter target) =
+            BuildChasingScript(locomotion, targetAt: new Vector3(20f, 0f, 0f));
+
+        script.Update(TimeSpan.FromSeconds(0.1));
+
+        locomotion.ReceivedWithAnyArgs().MoveTo(default!, default);
+        creature.DidNotReceive().Position = Arg.Any<Vector3>();
+    }
+
+    /// <summary>
+    /// A leash-return is a placement, not a journey. Under a crowd, writing Position directly would
+    /// leave the agent behind and the creature would be dragged back next tick.
+    /// </summary>
+    [Fact]
+    public void Teleport_Rather_Than_Walk_When_Snapping_Home()
+    {
+        var locomotion = Substitute.For<ICreatureLocomotion>();
+        (CreatureCombatScript script, ICreature creature, _) =
+            BuildScriptReturningHome(locomotion, home: new Vector3(1f, 0f, 1f));
+
+        script.Update(TimeSpan.FromSeconds(0.1));
+
+        locomotion.Received().Teleport(creature, new Vector3(1f, 0f, 1f));
+        creature.DidNotReceive().Position = Arg.Any<Vector3>();
+    }
+
     [Fact]
     public void Should_pick_top_threat_attacker_as_target()
     {
@@ -115,5 +146,78 @@ public class CreatureCombatScriptShould
 
         var script = new CreatureCombatScript(NullLoggerFactory.Instance, creature, context);
         return (script, encounter, combat);
+    }
+
+    private static (CreatureCombatScript script, ICreature creature, ICharacter target) BuildChasingScript(
+        ICreatureLocomotion locomotion, Vector3 targetAt)
+    {
+        ICreature creature = Substitute.For<ICreature>();
+        creature.Position.Returns(Vector3.zero);
+        creature.TauntedBy      = null;
+        creature.TauntExpiresAt = DateTime.MinValue;
+        creature.Metadata.Returns(Substitute.For<ICreatureMetadata>());
+
+        ICharacter target = Substitute.For<ICharacter>();
+        target.Position.Returns(targetAt);
+        target.IsDead.Returns(false);
+
+        // A creature that has never been given a destination has "arrived" trivially — the real
+        // WaypointLocomotion returns true here too (unregistered / empty path), which is what
+        // makes the very first engagement tick call MoveTo.
+        locomotion.HasArrived(creature).Returns(true);
+
+        var combat = Substitute.For<ICombatService>();
+        combat.GetEncounterFor(creature).Returns((IEncounter?)null);
+
+        var context = Substitute.For<ISimulationContext>();
+        context.CombatService.Returns(combat);
+        context.Locomotion.Returns(locomotion);
+
+        var script = new CreatureCombatScript(NullLoggerFactory.Instance, creature, context);
+        // OnEnteredRange seeds State = Combat, target = character, and _initialPosition = the
+        // creature's current position (Vector3.zero here) — the seam under test only cares that
+        // the script is actively engaging something far enough away to need to move.
+        script.OnEnteredRange(target);
+
+        return (script, creature, target);
+    }
+
+    private static (CreatureCombatScript script, ICreature creature, ICombatService combat) BuildScriptReturningHome(
+        ICreatureLocomotion locomotion, Vector3 home)
+    {
+        ICreature creature = Substitute.For<ICreature>();
+        creature.Position.Returns(home);
+        creature.TauntedBy      = null;
+        creature.TauntExpiresAt = DateTime.MinValue;
+        creature.Metadata.Returns(Substitute.For<ICreatureMetadata>());
+        creature.Health.Returns(100u);
+
+        // No route home (or the last waypoint already consumed) — this is what makes the
+        // Returning branch attempt a regen and then, finding nothing again, snap home.
+        locomotion.HasArrived(creature).Returns(true);
+
+        var combat = Substitute.For<ICombatService>();
+        combat.GetEncounterFor(creature).Returns((IEncounter?)null);
+
+        var context = Substitute.For<ISimulationContext>();
+        context.CombatService.Returns(combat);
+        context.Locomotion.Returns(locomotion);
+
+        var script = new CreatureCombatScript(NullLoggerFactory.Instance, creature, context);
+
+        // Seed _initialPosition = home via OnEnteredRange while the creature is standing on it,
+        // then move the creature away and have its target die — the live path that flips the
+        // script into CombatState.Returning without reaching into private state.
+        ICharacter target = Substitute.For<ICharacter>();
+        target.IsDead.Returns(true);
+        script.OnEnteredRange(target);
+
+        creature.Position.Returns(home + new Vector3(5f, 0f, 5f));
+        script.Update(TimeSpan.FromSeconds(0.1)); // target is dead -> State = Returning
+
+        creature.ClearReceivedCalls();
+        locomotion.ClearReceivedCalls();
+
+        return (script, creature, combat);
     }
 }
