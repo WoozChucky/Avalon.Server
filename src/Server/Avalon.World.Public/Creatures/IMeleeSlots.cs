@@ -14,8 +14,14 @@ namespace Avalon.World.Public.Creatures;
 /// </remarks>
 public interface IMeleeSlots
 {
-    /// <summary>Idempotent per tick for the same claimant; false once every slot is taken.</summary>
-    bool TryClaim(ObjectGuid target, ObjectGuid claimant, out int slot);
+    /// <summary>
+    /// Claims the free slot nearest <paramref name="claimantPosition"/>'s bearing from
+    /// <paramref name="targetPosition"/>, so a claimant takes a nearby slot rather than an
+    /// arbitrary one. Idempotent per tick for the same claimant (the already-picked slot does
+    /// not move even if the claimant's position has, since it's called every tick); false once
+    /// every slot is taken.
+    /// </summary>
+    bool TryClaim(ObjectGuid target, ObjectGuid claimant, Vector3 targetPosition, Vector3 claimantPosition, out int slot);
 
     void Release(ObjectGuid target, ObjectGuid claimant);
 

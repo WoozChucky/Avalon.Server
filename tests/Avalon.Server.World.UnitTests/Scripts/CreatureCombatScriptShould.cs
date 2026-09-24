@@ -273,7 +273,8 @@ public class CreatureCombatScriptShould
         KillTarget(target, script);
 
         // The slot it held is free for someone else.
-        Assert.True(SlotsOf(script).TryClaim(target.Guid, new ObjectGuid(ObjectType.Creature, 99), out _));
+        Assert.True(SlotsOf(script).TryClaim(target.Guid, new ObjectGuid(ObjectType.Creature, 99),
+            target.Position, target.Position, out _));
     }
 
     /// <summary>
@@ -348,13 +349,161 @@ public class CreatureCombatScriptShould
         creature.DidNotReceive().Position = Arg.Any<Vector3>();
     }
 
+    /// <summary>
+    /// Pins the "no slot" half of the in-range gating: a surplus creature (ring full) has no
+    /// slot of its own to have arrived at, so it must never get the arrival tolerance — only the
+    /// plain AttackRange test. A mutation that applies the +0.15f tolerance unconditionally
+    /// (ignoring whether this creature holds a slot at all) would stop and attack here instead.
+    /// </summary>
+    [Fact]
+    public void Not_Attack_A_Surplus_Creature_Merely_Because_It_Is_Within_The_Arrival_Tolerance()
+    {
+        var locomotion = Substitute.For<ICreatureLocomotion>();
+        var targetPosition = Vector3.zero;
+        (CreatureCombatScript script, ICreature creature, ICharacter target) =
+            BuildChasingScript(locomotion, targetAt: targetPosition, slotCount: 1);
+
+        // Another creature already holds the only slot — this one is a surplus attacker.
+        ClaimEverySlot(target);
+
+        // 1.6 is inside the tolerance band (AttackRange 1.5, +0.15f = 1.65) but past the plain
+        // AttackRange a slotless creature is held to.
+        creature.Position.Returns(new Vector3(1.6f, 0f, 0f));
+        locomotion.HasArrived(creature).Returns(true);
+
+        script.Update(TimeSpan.FromSeconds(0.1));
+
+        locomotion.DidNotReceive().Stop(creature);
+        creature.DidNotReceive().LookAt(Arg.Any<Vector3>());
+    }
+
+    /// <summary>
+    /// Pins the "not yet arrived" half of the in-range gating: a creature that holds a slot but
+    /// is still mid-walk to it must not get the arrival tolerance either. A mutation that applies
+    /// it whenever a slot is held, without also requiring <c>Locomotion.HasArrived</c>, would
+    /// stop and attack here — mid-transit, short of its own slot — instead of continuing.
+    /// </summary>
+    [Fact]
+    public void Not_Attack_A_Slotted_Creature_Within_The_Tolerance_Band_Before_It_Arrives()
+    {
+        var locomotion = Substitute.For<ICreatureLocomotion>();
+        var targetPosition = Vector3.zero;
+        (CreatureCombatScript script, ICreature creature, _) =
+            BuildChasingScript(locomotion, targetAt: targetPosition);
+
+        // Default slotCount (6) — the ring is not full, so this creature holds a slot — but it
+        // has not arrived: still mid-transit toward it.
+        creature.Position.Returns(new Vector3(1.6f, 0f, 0f));
+        locomotion.HasArrived(creature).Returns(false);
+
+        script.Update(TimeSpan.FromSeconds(0.1));
+
+        locomotion.DidNotReceive().Stop(creature);
+        creature.DidNotReceive().LookAt(Arg.Any<Vector3>());
+    }
+
+    /// <summary>
+    /// The bug this whole feature exists to fix, reproduced end to end: several creatures
+    /// converging on one target from roughly the same direction must end up standing apart, not
+    /// stacked. Every test above uses a mocked <see cref="ICreatureLocomotion"/>, which can
+    /// assert what <c>MoveTo</c> was called with but never actually advances a position — so
+    /// none of them would have caught the defect this scenario is built from: the in-range check
+    /// used to fire the instant a creature crossed the AttackRange circle on its approach,
+    /// regardless of whether that crossing point was anywhere near its own claimed slot. Four
+    /// creatures approaching from nearly the same bearing used to collapse onto about two
+    /// positions. This drives four creatures — sharing one <see cref="MeleeSlots"/> and one real
+    /// <see cref="WaypointLocomotion"/>, exactly as <c>MapInstance</c> does — through enough
+    /// ticks to actually arrive, then checks the one thing that matters: their rest positions
+    /// don't overlap.
+    /// </summary>
+    [Fact]
+    public void Keep_Several_Chasers_Of_One_Target_At_Least_One_Agent_Diameter_Apart()
+    {
+        var navigator = Substitute.For<IMapNavigator>();
+        navigator.FindPath(Arg.Any<Vector3>(), Arg.Any<Vector3>())
+            .Returns(call => new List<Vector3> { call.ArgAt<Vector3>(1) });
+
+        var locomotion = new WaypointLocomotion(_ => navigator);
+        var meleeSlots = new MeleeSlots(slotCount: 6, radius: 1.5f);
+
+        var combat = Substitute.For<ICombatService>();
+        combat.GetEncounterFor(Arg.Any<IUnit>()).Returns((IEncounter?)null);
+
+        ICharacter target = Substitute.For<ICharacter>();
+        target.Guid.Returns(new ObjectGuid(ObjectType.Character, 100));
+        target.Position.Returns(Vector3.zero);
+        target.IsDead.Returns(false);
+
+        var context = Substitute.For<ISimulationContext>();
+        context.CombatService.Returns(combat);
+        context.Locomotion.Returns(locomotion);
+        context.MeleeSlots.Returns(meleeSlots);
+
+        // Four creatures approaching from roughly the same direction (+X, slightly fanned in Z)
+        // — the exact shape the review described: four creatures arriving from one direction
+        // collapsing to about two positions.
+        Vector3[] starts =
+        {
+            new(10f, 0f, 0f),
+            new(10f, 0f, 0.3f),
+            new(10f, 0f, -0.3f),
+            new(10f, 0f, 0.6f),
+        };
+
+        var creatures = new List<ICreature>();
+        var scripts = new List<CreatureCombatScript>();
+
+        for (int i = 0; i < starts.Length; i++)
+        {
+            ICreature creature = Substitute.For<ICreature>();
+            creature.Guid.Returns(new ObjectGuid(ObjectType.Creature, (uint)(i + 1)));
+            creature.Position.Returns(starts[i]);
+            creature.TauntedBy      = null;
+            creature.TauntExpiresAt = DateTime.MinValue;
+
+            var metadata = Substitute.For<ICreatureMetadata>();
+            metadata.SpeedRun.Returns(4f);
+            creature.Metadata.Returns(metadata);
+
+            locomotion.Register(creature, radius: 0.5f, maxSpeed: 4f);
+
+            var script = new CreatureCombatScript(NullLoggerFactory.Instance, creature, context);
+            script.OnEnteredRange(target);
+
+            creatures.Add(creature);
+            scripts.Add(script);
+        }
+
+        // Enough ticks to cross ~8.5 units at 4 units/sec (~21 ticks), with generous headroom.
+        for (int tick = 0; tick < 100; tick++)
+        {
+            foreach (CreatureCombatScript script in scripts)
+            {
+                script.Update(TimeSpan.FromSeconds(0.1));
+            }
+
+            locomotion.Update(TimeSpan.FromSeconds(0.1));
+        }
+
+        const float agentDiameter = 1.2f;
+        for (int i = 0; i < creatures.Count; i++)
+        {
+            for (int j = i + 1; j < creatures.Count; j++)
+            {
+                float distance = Vector3.Distance(creatures[i].Position, creatures[j].Position);
+                Assert.True(distance >= agentDiameter,
+                    $"Creatures {i} and {j} ended up only {distance} apart — closer than one agent diameter ({agentDiameter}).");
+            }
+        }
+    }
+
     /// <summary>Claims every slot on <paramref name="target"/> on behalf of other creatures.</summary>
     private void ClaimEverySlot(ICharacter target)
     {
         MeleeSlots slots = _meleeSlots ?? throw new InvalidOperationException("Call BuildChasingScript first.");
 
         uint claimantId = 900;
-        while (slots.TryClaim(target.Guid, new ObjectGuid(ObjectType.Creature, claimantId), out _))
+        while (slots.TryClaim(target.Guid, new ObjectGuid(ObjectType.Creature, claimantId), target.Position, target.Position, out _))
         {
             claimantId++;
         }

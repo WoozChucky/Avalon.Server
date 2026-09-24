@@ -18,7 +18,13 @@ public sealed class MeleeSlots(int slotCount, float radius) : IMeleeSlots
 {
     private readonly Dictionary<ObjectGuid, Dictionary<ObjectGuid, int>> _claims = [];
 
-    public bool TryClaim(ObjectGuid target, ObjectGuid claimant, out int slot)
+    /// <summary>
+    /// Claims the free slot nearest <paramref name="claimantPosition"/>'s bearing from
+    /// <paramref name="targetPosition"/> — not simply the lowest free index, which is unrelated
+    /// to where the claimant is actually standing and would send it on a long tangential walk
+    /// around the ring to reach a far slot when a near one was free.
+    /// </summary>
+    public bool TryClaim(ObjectGuid target, ObjectGuid claimant, Vector3 targetPosition, Vector3 claimantPosition, out int slot)
     {
         if (!_claims.TryGetValue(target, out Dictionary<ObjectGuid, int>? taken))
         {
@@ -26,22 +32,39 @@ public sealed class MeleeSlots(int slotCount, float radius) : IMeleeSlots
             _claims[target] = taken;
         }
 
-        // Re-claiming is idempotent: a chaser calls this every tick it is chasing.
+        // Re-claiming is idempotent: a chaser calls this every tick it is chasing. The slot
+        // already picked stays fixed even if the claimant's position (and so its bearing) has
+        // moved since — re-evaluating bearing every tick would let a creature's slot drift as it
+        // walks, which is exactly the kind of movement decision this type exists to avoid.
         if (taken.TryGetValue(claimant, out slot))
             return true;
 
+        float bearing = MathF.Atan2(claimantPosition.z - targetPosition.z, claimantPosition.x - targetPosition.x);
+
+        int best = -1;
+        float bestDelta = float.MaxValue;
         for (int candidate = 0; candidate < slotCount; candidate++)
         {
             if (taken.ContainsValue(candidate))
                 continue;
 
-            taken[claimant] = candidate;
-            slot = candidate;
-            return true;
+            float delta = AngleDelta(bearing, AngleFor(candidate));
+            if (delta < bestDelta)
+            {
+                bestDelta = delta;
+                best = candidate;
+            }
         }
 
-        slot = -1;
-        return false;
+        if (best == -1)
+        {
+            slot = -1;
+            return false;
+        }
+
+        taken[claimant] = best;
+        slot = best;
+        return true;
     }
 
     public void Release(ObjectGuid target, ObjectGuid claimant)
@@ -80,10 +103,22 @@ public sealed class MeleeSlots(int slotCount, float radius) : IMeleeSlots
     /// <summary>Where a slot sits, given where the target currently is.</summary>
     public Vector3 PositionFor(Vector3 targetPosition, int slot)
     {
-        float angle = slot * 2f * MathF.PI / slotCount;
+        float angle = AngleFor(slot);
         return new Vector3(
             targetPosition.x + MathF.Cos(angle) * radius,
             targetPosition.y,
             targetPosition.z + MathF.Sin(angle) * radius);
+    }
+
+    private float AngleFor(int slot) => slot * 2f * MathF.PI / slotCount;
+
+    /// <summary>Absolute circular difference between two angles in radians, in [0, PI].</summary>
+    private static float AngleDelta(float a, float b)
+    {
+        float diff = (a - b) % (2f * MathF.PI);
+        if (diff < 0f)
+            diff += 2f * MathF.PI;
+
+        return MathF.Min(diff, 2f * MathF.PI - diff);
     }
 }
