@@ -1,3 +1,4 @@
+using System.Reflection;
 using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.World.Creatures;
@@ -88,5 +89,46 @@ public class MeleeSlotsShould
             Assert.InRange(Vector3.Distance(centre, position), 1.99f, 2.01f);
             Assert.Equal(centre.y, position.y); // ring is horizontal
         }
+    }
+
+    /// <summary>
+    /// A creature removed on a path that never runs the combat script's own release (e.g. despawn)
+    /// has only the target's guid it can no longer be trusted to still know. Releasing by claimant
+    /// alone must free the same slot regardless.
+    /// </summary>
+    [Fact]
+    public void Release_A_Claimants_Slot_Without_Naming_The_Target()
+    {
+        var slots = new MeleeSlots(slotCount: 1, radius: 1.5f);
+        Assert.True(slots.TryClaim(Target, Creature(1), out int first));
+
+        slots.ReleaseClaimant(Creature(1));
+
+        Assert.True(slots.TryClaim(Target, Creature(2), out int second));
+        Assert.Equal(first, second);
+    }
+
+    /// <summary>
+    /// <see cref="MeleeSlots.Release"/> must drop the now-empty per-target dictionary, not just empty
+    /// it out — otherwise every target ever attacked leaves a permanent entry behind for the life of
+    /// the instance. There is no public way to observe this (every public method behaves identically
+    /// whether the entry is pruned or merely empty), so this reaches into the private `_claims` field
+    /// via reflection rather than asserting through behaviour.
+    /// </summary>
+    [Fact]
+    public void Prune_The_Targets_Entry_Once_Its_Last_Claimant_Is_Released()
+    {
+        var slots = new MeleeSlots(slotCount: 2, radius: 1.5f);
+        slots.TryClaim(Target, Creature(1), out _);
+
+        slots.Release(Target, Creature(1));
+
+        Assert.False(ClaimsOf(slots).ContainsKey(Target));
+    }
+
+    private static Dictionary<ObjectGuid, Dictionary<ObjectGuid, int>> ClaimsOf(MeleeSlots slots)
+    {
+        FieldInfo field = typeof(MeleeSlots).GetField("_claims", BindingFlags.NonPublic | BindingFlags.Instance)!;
+        return (Dictionary<ObjectGuid, Dictionary<ObjectGuid, int>>)field.GetValue(slots)!;
     }
 }
