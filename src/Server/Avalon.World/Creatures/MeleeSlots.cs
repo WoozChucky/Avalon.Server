@@ -45,12 +45,36 @@ public sealed class MeleeSlots(int slotCount, float radius)
 
     public void Release(ObjectGuid target, ObjectGuid claimant)
     {
-        if (_claims.TryGetValue(target, out Dictionary<ObjectGuid, int>? taken))
-            taken.Remove(claimant);
+        if (!_claims.TryGetValue(target, out Dictionary<ObjectGuid, int>? taken))
+            return;
+
+        taken.Remove(claimant);
+
+        // Prune the now-empty inner dictionary — otherwise every target ever attacked leaves a
+        // permanent (if empty) entry behind for the life of the instance.
+        if (taken.Count == 0)
+            _claims.Remove(target);
     }
 
     /// <summary>Frees every slot on a target — for when the target itself dies or leaves.</summary>
     public void ReleaseTarget(ObjectGuid target) => _claims.Remove(target);
+
+    /// <summary>
+    /// Frees whatever slot this claimant holds, on whichever target, without the caller needing to
+    /// know which target that was. Removal paths that don't run through the script that made the
+    /// claim — a creature despawned mid-combat, say — have no other way to give the slot back, and
+    /// an unreleased slot is lost for the life of the instance.
+    /// </summary>
+    public void ReleaseClaimant(ObjectGuid claimant)
+    {
+        foreach (ObjectGuid target in _claims
+                     .Where(entry => entry.Value.ContainsKey(claimant))
+                     .Select(entry => entry.Key)
+                     .ToList())
+        {
+            Release(target, claimant);
+        }
+    }
 
     /// <summary>Where a slot sits, given where the target currently is.</summary>
     public Vector3 PositionFor(Vector3 targetPosition, int slot)
