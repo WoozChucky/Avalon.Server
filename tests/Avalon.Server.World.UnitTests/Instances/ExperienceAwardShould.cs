@@ -171,8 +171,14 @@ public class ExperienceAwardShould
         localizedText.GetAllClassNamesAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyCollection<CharacterClassName>>([]));
 
+        var dialogue = Substitute.For<IDialogueRepository>();
+        dialogue.GetAllNodesAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<IReadOnlyCollection<DialogueNode>>([]));
+        dialogue.GetAllOptionsAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<IReadOnlyCollection<DialogueOption>>([]));
+
         var data = new StaticData(createInfos, stats, items, abilities, levels, baseStats, rarities,
-            localizedText, NullLoggerFactory.Instance);
+            localizedText, NullLoggerFactory.Instance, dialogue);
         data.LoadAsync(CancellationToken.None).GetAwaiter().GetResult();
         return data;
     }

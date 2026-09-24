@@ -213,10 +213,16 @@ public class CharacterSelectHandlerShould
         localizedText.GetAllClassNamesAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyCollection<CharacterClassName>>([]));
 
+        var dialogue = Substitute.For<IDialogueRepository>();
+        dialogue.GetAllNodesAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<IReadOnlyCollection<DialogueNode>>([]));
+        dialogue.GetAllOptionsAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<IReadOnlyCollection<DialogueOption>>([]));
+
         var data = new StaticData(createInfos, stats, items, abilities, levels,
             Substitute.For<ICreatureBaseStatRepository>(),
             Substitute.For<ICreatureRarityModifierRepository>(),
-            localizedText, NullLoggerFactory.Instance);
+            localizedText, NullLoggerFactory.Instance, dialogue);
         await data.LoadAsync(CancellationToken.None);
         return data;
     }

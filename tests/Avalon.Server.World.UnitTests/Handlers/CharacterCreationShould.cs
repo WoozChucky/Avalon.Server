@@ -143,7 +143,8 @@ public class CharacterCreationShould : IDisposable
             new CreatureBaseStatRepository(_world),
             new CreatureRarityModifierRepository(_world),
             new LocalizedTextRepository(_world),
-            NullLoggerFactory.Instance);
+            NullLoggerFactory.Instance,
+            new DialogueRepository(_world));
 
         await data.LoadAsync();
         return data;
