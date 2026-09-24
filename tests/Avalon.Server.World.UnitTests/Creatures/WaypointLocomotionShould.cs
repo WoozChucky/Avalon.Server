@@ -98,6 +98,41 @@ public class WaypointLocomotionShould
             $"{locomotion.ArrivalTolerance(creature)}m tolerance");
     }
 
+    /// <summary>
+    /// Round 4: the per-tick step must not overshoot the waypoint. Above SpeedRun 6 at the real
+    /// server tick rate (1/60s), an unclamped step (Speed * deltaTime) exceeds
+    /// WaypointReachedDistance (0.1f) every tick, so the creature can cross the arrival window
+    /// without ever landing inside it. Under the combat script's arrival-gated design that means
+    /// it never reports arrived and so never attacks.
+    ///
+    /// Chosen so an unclamped step provably never converges rather than merely risking it: at
+    /// SpeedRun 60 the step is exactly 1f, double the 0.5f starting distance, so an unclamped
+    /// `+=` overshoots straight through the waypoint to the far side by exactly as much as it
+    /// started short — then does the same in reverse, forever (a stable 2-cycle: 0 -> 1 -> 0 ->
+    /// ...), never once landing inside WaypointReachedDistance. The review found the clamp
+    /// landed with no test at all, silently revertible with all other tests green.
+    /// </summary>
+    [Fact]
+    public void Report_Arrival_Even_Above_SpeedRun_Six()
+    {
+        var (locomotion, navigator) = Build();
+        ICreature creature = CreatureAt(Vector3.zero);
+        creature.Speed.Returns(60f); // step = 60 * (1/60) = 1f at the real tick rate
+        var destination = new Vector3(0.5f, 0f, 0f);
+        navigator.FindPath(Arg.Any<Vector3>(), Arg.Any<Vector3>()).Returns([destination]);
+
+        locomotion.Register(creature, radius: 0.5f, maxSpeed: 60f);
+        locomotion.MoveTo(creature, destination);
+
+        TimeSpan tickInterval = TimeSpan.FromSeconds(1.0 / 60.0);
+        for (int tick = 0; tick < 20; tick++)
+        {
+            locomotion.Update(tickInterval);
+        }
+
+        Assert.True(locomotion.HasArrived(creature));
+    }
+
     [Fact]
     public void Report_Arrival_Once_The_Last_Waypoint_Is_Consumed()
     {
