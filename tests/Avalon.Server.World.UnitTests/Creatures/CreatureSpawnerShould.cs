@@ -68,6 +68,52 @@ public class CreatureSpawnerShould
         }
     }
 
+    [Fact]
+    public void Carry_The_Templates_Invulnerable_Flag_Onto_The_Spawned_Creature()
+    {
+        // The flag is what makes a town NPC unkillable, and CombatService reads it off the creature
+        // rather than the template. If the spawner drops it, every NPC is killable and the guard in
+        // ApplyDamageCore never fires.
+        var template = new CreatureTemplate
+        {
+            Id = new CreatureTemplateId(44),
+            Name = "Innkeeper",
+            MinLevel = 2,
+            MaxLevel = 2,
+            Rarity = CreatureRarity.Normal,
+            Invulnerable = true,
+            HealthModifier = 1f,
+            DamageModifier = 1f,
+            ExperienceModifier = 1f
+        };
+
+        ICreature creature = SpawnerOver(template).Spawn(template.Id);
+
+        Assert.True(creature.Invulnerable);
+    }
+
+    [Fact]
+    public void Leave_A_Creature_Vulnerable_When_Its_Template_Says_Nothing()
+    {
+        // The default has to stay false, or adding the column would silently make every monster
+        // in the game unkillable.
+        var template = new CreatureTemplate
+        {
+            Id = new CreatureTemplateId(45),
+            Name = "Thornback Boar",
+            MinLevel = 2,
+            MaxLevel = 2,
+            Rarity = CreatureRarity.Normal,
+            HealthModifier = 1f,
+            DamageModifier = 1f,
+            ExperienceModifier = 1f
+        };
+
+        ICreature creature = SpawnerOver(template).Spawn(template.Id);
+
+        Assert.False(creature.Invulnerable);
+    }
+
     /// <summary>
     /// <c>CreatureSpawner.LoadAsync</c> pulls templates from the repository into its own field, so the
     /// substitute returns the one template under test and the spawner is loaded before use. The base
