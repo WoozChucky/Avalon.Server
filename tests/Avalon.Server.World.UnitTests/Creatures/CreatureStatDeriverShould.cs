@@ -130,6 +130,19 @@ public class CreatureStatDeriverShould
     }
 
     /// <summary>
+    /// A creature that deals 0 damage can never kill anything, so a fight against it silently never
+    /// ends. Same reasoning as the health floor.
+    /// </summary>
+    [Fact]
+    public void Never_Produce_Zero_Damage()
+    {
+        DerivedCreatureStats stats = NewDeriver().Derive(Template(damage: 0.001f), level: 1);
+
+        Assert.True(stats.DamageMin >= 1u, "a creature that deals no damage can never kill anything");
+        Assert.True(stats.DamageMax >= stats.DamageMin);
+    }
+
+    /// <summary>
     /// An empty base-stats table means every creature in the game would spawn with no stats at all, so
     /// it fails loudly at construction rather than silently producing zeroes forever.
     /// </summary>

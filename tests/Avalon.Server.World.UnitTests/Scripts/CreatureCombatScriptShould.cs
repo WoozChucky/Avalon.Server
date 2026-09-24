@@ -112,7 +112,7 @@ public class CreatureCombatScriptShould
 
         script.Update(TimeSpan.FromSeconds(0.1));      // AI scripts tick first...
 
-        combat.Received(1).ApplyDamage(creature, target, 10u);
+        combat.Received(1).ApplyDamage(creature, target, Arg.Any<uint>());
 
         locomotion.Update(TimeSpan.FromSeconds(0.1));  // ...then locomotion, same as MapInstance.Update.
 
@@ -365,7 +365,7 @@ public class CreatureCombatScriptShould
 
         script.Update(TimeSpan.FromSeconds(0.1));
 
-        combat.Received(1).ApplyDamage(creature, target, 10u);
+        combat.Received(1).ApplyDamage(creature, target, Arg.Any<uint>());
         creature.Received(1).LookAt(targetPosition);
 
         // Next tick: still resting at the same spot, still 0.09 past AttackRange by raw
@@ -535,7 +535,7 @@ public class CreatureCombatScriptShould
         for (int i = 0; i < creatures.Count; i++)
         {
             Assert.True(locomotion.HasArrived(creatures[i]), $"Creature {i} never arrived at its slot.");
-            combat.Received().ApplyDamage(creatures[i], target, 10u);
+            combat.Received().ApplyDamage(creatures[i], target, Arg.Any<uint>());
         }
 
         const float agentDiameter = 1.2f;
@@ -645,7 +645,7 @@ public class CreatureCombatScriptShould
             // Every creature — slotted or surplus — must still be dealing damage. A surplus
             // creature stranded at its stand-off point (the exact regression this test exists to
             // catch) would fail this half even while still passing a distance-only check.
-            combat.Received().ApplyDamage(creatures[i], target, 10u);
+            combat.Received().ApplyDamage(creatures[i], target, Arg.Any<uint>());
 
             if (hasSlot)
             {
@@ -780,7 +780,7 @@ public class CreatureCombatScriptShould
         // window, not the theoretical maximum, so this has headroom without being toothless.
         for (int i = 0; i < creatures.Count; i++)
         {
-            combat.Received(Quantity.Within(3, int.MaxValue)).ApplyDamage(creatures[i], target, 10u);
+            combat.Received(Quantity.Within(3, int.MaxValue)).ApplyDamage(creatures[i], target, Arg.Any<uint>());
         }
     }
 
@@ -874,6 +874,64 @@ public class CreatureCombatScriptShould
     /// then the exact destination. The one-element stub every other integration test here uses is the
     /// single shape that hides a missing mid-walk re-path.
     /// </summary>
+    /// <summary>
+    /// Damage used to be the constant 10 regardless of the creature. Every blow must now fall inside the
+    /// creature's derived range.
+    /// </summary>
+    [Fact]
+    public void Strike_For_A_Value_Inside_Its_Derived_Damage_Range()
+    {
+        (CreatureCombatScript script, IEncounter _, ICombatService combat) = BuildScript(out ICreature creature);
+        // Deliberately excludes 10: a range containing the old hardcoded value would let the
+        // unfixed implementation satisfy this test vacuously.
+        creature.DamageMin.Returns(20u);
+        creature.DamageMax.Returns(24u);
+        creature.Position.Returns(Vector3.zero);
+
+        ICharacter target = Substitute.For<ICharacter>();
+        target.Guid.Returns(new ObjectGuid(ObjectType.Character, 90_001));
+        target.Position.Returns(Vector3.zero);
+        target.IsDead.Returns(false);
+        script.OnEnteredRange(target);
+
+        // AttackCooldown is 2.25s and the first blow lands on the tick the cooldown reaches zero, so a
+        // handful of long ticks lands several.
+        for (int i = 0; i < 12; i++)
+            script.Update(TimeSpan.FromSeconds(2.5));
+
+        combat.ReceivedWithAnyArgs().ApplyDamage(default!, default!, default);
+        combat.DidNotReceive().ApplyDamage(
+            Arg.Any<IUnit>(), Arg.Any<IUnit>(), Arg.Is<uint>(damage => damage < 20u || damage > 24u));
+    }
+
+    /// <summary>
+    /// A degenerate range must deal exactly that value. An exclusive upper bound would silently never
+    /// roll the maximum on a real range; pinning the single-value case is what catches that class of
+    /// off-by-one.
+    /// </summary>
+    [Fact]
+    public void Strike_For_Exactly_The_Value_When_Its_Range_Is_A_Single_Number()
+    {
+        (CreatureCombatScript script, IEncounter _, ICombatService combat) = BuildScript(out ICreature creature);
+        creature.DamageMin.Returns(9u);
+        creature.DamageMax.Returns(9u);
+        creature.Position.Returns(Vector3.zero);
+
+        ICharacter target = Substitute.For<ICharacter>();
+        target.Guid.Returns(new ObjectGuid(ObjectType.Character, 90_002));
+        target.Position.Returns(Vector3.zero);
+        target.IsDead.Returns(false);
+        script.OnEnteredRange(target);
+
+        for (int i = 0; i < 6; i++)
+            script.Update(TimeSpan.FromSeconds(2.5));
+
+        // The target is whatever the encounter's top threat resolves to — BuildScript auto-substitutes
+        // one, and PickTarget prefers it over the local target. The damage value is what is under test.
+        combat.Received().ApplyDamage(creature, Arg.Any<IUnit>(), 9u);
+        combat.DidNotReceive().ApplyDamage(creature, Arg.Any<IUnit>(), 10u);
+    }
+
     private static List<Vector3> SmoothedPath(Vector3 from, Vector3 to)
     {
         const float stepSize = 0.5f;
