@@ -1,9 +1,11 @@
 using System;
 using Avalon.Common.Mathematics;
+using Avalon.World.Creatures.Locomotion;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Combat;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Instances;
+using Avalon.World.Public.Maps;
 using Avalon.World.Public.Units;
 using Avalon.World.Scripts.Creatures;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -42,6 +44,103 @@ public class CreatureCombatScriptShould
 
         locomotion.Received().Teleport(creature, new Vector3(1f, 0f, 1f));
         creature.DidNotReceive().Position = Arg.Any<Vector3>();
+    }
+
+    /// <summary>
+    /// Regression: a mocked <see cref="ICreatureLocomotion"/> can't catch this — the bug is in
+    /// the interaction between the script and a REAL locomotion's Advance, which
+    /// <c>MapInstance.Update</c> ticks after every AI script every frame regardless of what the
+    /// script decided. If the attack-range branch stops setting Velocity/MoveState directly
+    /// (as a no-op against a path that's still loaded) instead of calling
+    /// <see cref="ICreatureLocomotion.Stop"/>, WaypointLocomotion.Advance walks the creature
+    /// along the stale path on this exact tick, straight through the target's centre.
+    /// </summary>
+    [Fact]
+    public void Stop_The_Real_Locomotion_When_Entering_Attack_Range()
+    {
+        var navigator = Substitute.For<IMapNavigator>();
+        var locomotion = new WaypointLocomotion(_ => navigator);
+
+        ICreature creature = Substitute.For<ICreature>();
+        creature.Guid.Returns(new Avalon.Common.ObjectGuid(Avalon.Common.ObjectType.Creature, 1));
+        creature.TauntedBy      = null;
+        creature.TauntExpiresAt = DateTime.MinValue;
+        creature.Metadata.Returns(Substitute.For<ICreatureMetadata>());
+        creature.Speed.Returns(4f);
+        creature.Position.Returns(Vector3.zero);
+
+        var targetPosition = new Vector3(2f, 0f, 0f);
+        ICharacter target = Substitute.For<ICharacter>();
+        target.Position.Returns(targetPosition);
+        target.IsDead.Returns(false);
+
+        var combat = Substitute.For<ICombatService>();
+        combat.GetEncounterFor(creature).Returns((IEncounter?)null);
+
+        var context = Substitute.For<ISimulationContext>();
+        context.CombatService.Returns(combat);
+        context.Locomotion.Returns(locomotion);
+
+        var script = new CreatureCombatScript(NullLoggerFactory.Instance, creature, context);
+        script.OnEnteredRange(target); // _initialPosition = Vector3.zero, State = Combat
+
+        // A prior chase tick already loaded a real path whose final (only) waypoint is the
+        // target's exact centre — the scenario the bug report describes.
+        navigator.FindPath(Arg.Any<Vector3>(), Arg.Any<Vector3>()).Returns([targetPosition]);
+        locomotion.Register(creature, radius: 0.5f, maxSpeed: 4f);
+        locomotion.MoveTo(creature, targetPosition);
+
+        // Now within AttackRange (1.5f) of the target but not yet standing on the waypoint
+        // (WaypointLocomotion's 0.1f arrival threshold) — if the script fails to stop the
+        // locomotion, Advance below still has a waypoint to walk towards.
+        creature.Position.Returns(new Vector3(1f, 0f, 0f));
+
+        script.Update(TimeSpan.FromSeconds(0.1));      // AI scripts tick first...
+        locomotion.Update(TimeSpan.FromSeconds(0.1));  // ...then locomotion, same as MapInstance.Update.
+
+        creature.DidNotReceive().Position = Arg.Any<Vector3>();
+    }
+
+    /// <summary>
+    /// Regression: a creature leashed while already standing within 0.1f of spawn never gets a
+    /// chance to naturally come to rest (no waypoint is consumed that tick, since none was ever
+    /// walked) — ResetToIdleAtSpawn is the only thing left that can stop it. Without this, the
+    /// creature keeps whatever destination/MoveState it had and the client extrapolates a
+    /// creature whose position never changes — the exact drift the original code's comment
+    /// warned about.
+    /// </summary>
+    [Fact]
+    public void Stop_Locomotion_When_Resetting_To_Idle_At_Spawn()
+    {
+        var locomotion = Substitute.For<ICreatureLocomotion>();
+
+        ICreature creature = Substitute.For<ICreature>();
+        creature.Position.Returns(new Vector3(5f, 0f, 5f));
+        creature.TauntedBy      = null;
+        creature.TauntExpiresAt = DateTime.MinValue;
+        creature.Metadata.Returns(Substitute.For<ICreatureMetadata>());
+
+        var combat = Substitute.For<ICombatService>();
+        combat.GetEncounterFor(creature).Returns((IEncounter?)null);
+
+        var context = Substitute.For<ISimulationContext>();
+        context.CombatService.Returns(combat);
+        context.Locomotion.Returns(locomotion);
+
+        var script = new CreatureCombatScript(NullLoggerFactory.Instance, creature, context);
+
+        ICharacter target = Substitute.For<ICharacter>();
+        target.IsDead.Returns(true);
+        script.OnEnteredRange(target); // _initialPosition = (5, 0, 5)
+
+        script.Update(TimeSpan.FromSeconds(0.1)); // target is dead -> State = Returning
+        locomotion.ClearReceivedCalls();
+
+        // Still standing on spawn (distance to _initialPosition < 0.1f) on the very next tick —
+        // hits the early ResetToIdleAtSpawn() branch without ever calling MoveTo/Teleport again.
+        script.Update(TimeSpan.FromSeconds(0.1));
+
+        locomotion.Received().Stop(creature);
     }
 
     [Fact]
