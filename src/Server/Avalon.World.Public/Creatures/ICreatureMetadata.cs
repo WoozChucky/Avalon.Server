@@ -37,4 +37,10 @@ public interface ICreatureMetadata
 
     /// <summary>Aggro radius. Creatures with 0 fall back to a script-defined default.</summary>
     float DetectionRange { get; set; }
+
+    /// <summary>
+    /// True for creatures that can never be damaged — town NPCs. See ICreature.Invulnerable for
+    /// where the guard is applied.
+    /// </summary>
+    bool Invulnerable { get; set; }
 }
