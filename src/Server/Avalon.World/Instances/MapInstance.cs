@@ -39,6 +39,7 @@ public class MapInstance : IMapInstance, IPortalSink
     private readonly IMapNavigator _navigator;
     private readonly ICreatureLocomotion _locomotion;
     private readonly float _creatureAgentRadius;
+    private readonly bool _crowdIncludesPlayers;
     private readonly MeleeSlots _meleeSlots;
     private readonly IAbilityCastSystem _abilityCastSystem;
     private readonly EncounterRegistry _encounterRegistry;
@@ -73,6 +74,7 @@ public class MapInstance : IMapInstance, IPortalSink
         Seed = seed;
         _navigator = navigator;
         _creatureAgentRadius = world.Configuration.CreatureAgentRadius;
+        _crowdIncludesPlayers = world.Configuration.CrowdIncludesPlayers;
         _locomotion = new WaypointLocomotion(GetNavigatorForPosition);
         _meleeSlots = new MeleeSlots(world.Configuration.MeleeSlotCount, world.Configuration.MeleeSlotRadius);
 
@@ -156,6 +158,11 @@ public class MapInstance : IMapInstance, IPortalSink
         _connections.Remove(connection.Character.Guid);
         _broadcastStates.Remove(connection.Character.Guid);
         _threatBroadcast.Forget(connection);
+
+        // Idempotent and safe to call unconditionally: a no-op under WaypointLocomotion, and a
+        // no-op if this character was never synced as a player agent in the first place (flag off,
+        // or the disconnect races the per-tick sync in Update below).
+        _locomotion.RemovePlayer(connection.Character.Guid);
 
         if (_characters.Count == 0)
         {
@@ -267,6 +274,17 @@ public class MapInstance : IMapInstance, IPortalSink
         foreach (ICreature creature in _creatures.Values)
         {
             creature.Script?.Update(deltaTime);
+        }
+
+        // Players are told to the crowd, never asked: PlayerInputHandler already decided where they
+        // are earlier in this tick. Off unless configured, because it makes body-blocking real. The
+        // `is CrowdLocomotion` check (rather than dispatching through the interface for every
+        // character) means this costs nothing beyond the flag check and one type test when the flag
+        // is off or the instance is running WaypointLocomotion — no allocation, no iteration.
+        if (_crowdIncludesPlayers && _locomotion is CrowdLocomotion crowd)
+        {
+            foreach ((ObjectGuid guid, ICharacter character) in _characters)
+                crowd.SyncPlayer(guid, character.Position);
         }
 
         // After the scripts, because they decide destinations and this executes them. Player

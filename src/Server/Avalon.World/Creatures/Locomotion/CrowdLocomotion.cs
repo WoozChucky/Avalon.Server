@@ -39,9 +39,17 @@ public sealed class CrowdLocomotion : ICreatureLocomotion
 
     private readonly ILogger _logger;
     private readonly DtCrowd _crowd;
+    private readonly float _agentRadius;
     private readonly Dictionary<ObjectGuid, DtCrowdAgent> _creatureAgents = [];
 
-    /// <summary>Declared for the player-avoidance agents Task 9 adds; empty until then.</summary>
+    /// <summary>
+    /// Player-avoidance agents (Task 9), registered by <see cref="SyncPlayer" />. Deliberately a
+    /// separate dictionary from <see cref="_creatureAgents" /> rather than a shared one distinguished
+    /// by some flag: <see cref="Update" />'s position/velocity copy-back only ever enumerates
+    /// <see cref="_creatureAgents" />, so a player agent is structurally unreachable from that loop —
+    /// there is no branch to get wrong. A player's position is decided by
+    /// <c>PlayerInputHandler</c>; this class must never write it.
+    /// </summary>
     private readonly Dictionary<ObjectGuid, DtCrowdAgent> _playerAgents = [];
 
     private readonly Dictionary<ObjectGuid, ICreature> _creatures = [];
@@ -49,6 +57,7 @@ public sealed class CrowdLocomotion : ICreatureLocomotion
     public CrowdLocomotion(DtNavMesh navMesh, float agentRadius, ILogger logger)
     {
         _logger = logger;
+        _agentRadius = agentRadius;
         _crowd = new DtCrowd(new DtCrowdConfig(agentRadius), navMesh);
     }
 
@@ -176,6 +185,44 @@ public sealed class CrowdLocomotion : ICreatureLocomotion
             if (agent.vel.Length() > 0.01f)
                 creature.LookAt(FromRc(RcVec3f.Add(agent.npos, agent.vel)));
         }
+    }
+
+    /// <summary>
+    /// Tells the crowd where a player is. Write-only: PlayerInputHandler already decided, so
+    /// whatever Integrate and HandleCollisions compute for this agent is discarded next tick.
+    /// </summary>
+    /// <remarks>
+    /// Zero speed and no move target are deliberate. The crowd registers every agent to its
+    /// proximity grid regardless of whether it has a target, and that registration is what makes an
+    /// agent visible to others — so a zero-speed agent is seen and avoided by creatures while
+    /// owning no path corridor for the repositioning below to invalidate.
+    /// </remarks>
+    public void SyncPlayer(ObjectGuid guid, Vector3 position)
+    {
+        if (_playerAgents.TryGetValue(guid, out DtCrowdAgent? existing))
+        {
+            existing.npos = ToRc(position);
+            return;
+        }
+
+        _playerAgents[guid] = _crowd.AddAgent(ToRc(position), new DtCrowdAgentParams
+        {
+            radius = _agentRadius,
+            height = NavmeshBuildSettings.AgentHeight,
+            maxSpeed = 0f,
+            maxAcceleration = 0f,
+            collisionQueryRange = _agentRadius * 12f,
+            pathOptimizationRange = _agentRadius * 30f,
+            separationWeight = 2f,
+            updateFlags = 0,
+        });
+    }
+
+    /// <summary>Idempotent: a disconnect can race the instance's per-tick sync.</summary>
+    public void RemovePlayer(ObjectGuid guid)
+    {
+        if (_playerAgents.Remove(guid, out DtCrowdAgent? agent))
+            _crowd.RemoveAgent(agent);
     }
 
     /// <summary>
