@@ -12,6 +12,7 @@ using Avalon.World.Public.Units;
 using Avalon.World.Scripts.Creatures;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
+using NSubstitute.ReceivedExtensions;
 using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Scripts;
@@ -258,9 +259,18 @@ public class CreatureCombatScriptShould
         locomotion.Received().MoveTo(creature, Arg.Is<Vector3>(d => Vector3.Distance(d, targetPosition) > 1.4f));
     }
 
-    /// <summary>Review Focus 1, at the script level: the surplus still chases.</summary>
+    /// <summary>
+    /// Review Focus 1, at the script level: the surplus still chases — but round 4 sends it to a
+    /// stand-off point just inside AttackRange from the target along its own approach bearing,
+    /// not the target's exact centre. Removing Stop from the in-range branch (round 3, so a
+    /// creature can keep adjusting footing while also attacking) took away the only thing that
+    /// used to hold a no-slot creature off its target; the destination has to do that job instead
+    /// now, or a surplus creature ends up standing inside the player it's fighting. Just inside
+    /// AttackRange rather than exactly on it, so the destination itself isn't balanced on the
+    /// same comparison boundary the in-range check tests against.
+    /// </summary>
     [Fact]
-    public void Fall_Back_To_The_Targets_Centre_When_No_Slot_Is_Free()
+    public void Chase_A_Stand_Off_Point_When_No_Slot_Is_Free()
     {
         var locomotion = Substitute.For<ICreatureLocomotion>();
         var targetPosition = new Vector3(20f, 0f, 0f);
@@ -272,7 +282,11 @@ public class CreatureCombatScriptShould
 
         script.Update(TimeSpan.FromSeconds(0.1));
 
-        locomotion.Received().MoveTo(creature, targetPosition);
+        // Creature starts at Vector3.zero (see BuildChasingScript), approaching along -X, so its
+        // stand-off point is (AttackRange 1.5f - SurplusStandOffInset 0.1f) = 1.4f short of the
+        // target along that same bearing.
+        var standOffPoint = new Vector3(20f - 1.4f, 0f, 0f);
+        locomotion.Received().MoveTo(creature, standOffPoint);
     }
 
     [Fact]
@@ -365,16 +379,17 @@ public class CreatureCombatScriptShould
     }
 
     /// <summary>
-    /// Round 3: the AttackRangeArrivalMargin tolerance is unconditional now — no longer gated on
-    /// hasSlot or on Locomotion.HasArrived (earlier rounds gated it on both, to avoid an
-    /// oscillation that no longer exists now that attacking doesn't call Stop). A surplus
-    /// creature (ring full, no slot of its own) still gets the same tolerance a slotted creature
-    /// would, because the reason for it — locomotion's own arrival imprecision — applies just as
-    /// much to a creature settling near the target's exact centre as to one settling near a ring
-    /// slot. A mutation that re-adds gating on hasSlot would stop attacking here.
+    /// Round 4 (second pass): the AttackRangeArrivalMargin allowance is gated on arrival ALONE,
+    /// not on hasSlot too — round 4's first pass restored round 2's exact "hasSlot AND arrived"
+    /// condition, which stranded surplus creatures the same way ungated round 3 stranded slotted
+    /// ones: their stand-off point sits at (just inside) AttackRange by construction, so a
+    /// surplus creature that settles there is exposed to the identical boundary hazard, and with
+    /// no allowance at all it would stick there forever, attacking nothing. A surplus creature
+    /// (ring full, no slot of its own) that HAS arrived gets the same allowance a slotted one
+    /// would. A mutation that re-adds a hasSlot check to this gate would stop attacking here.
     /// </summary>
     [Fact]
-    public void Attack_A_Surplus_Creature_Within_The_Tolerance_Band_Too()
+    public void Attack_A_Surplus_Creature_Once_It_Has_Arrived_At_Its_Stand_Off_Point()
     {
         var locomotion = Substitute.For<ICreatureLocomotion>();
         var targetPosition = Vector3.zero;
@@ -386,13 +401,39 @@ public class CreatureCombatScriptShould
         ClaimEverySlot(target);
 
         // 1.6 is past the plain AttackRange (1.5) but within 1.5 + 0.2 ArrivalTolerance + 0.05
-        // margin = 1.75.
+        // margin = 1.75 — attacked because it has arrived, regardless of holding no slot.
         creature.Position.Returns(new Vector3(1.6f, 0f, 0f));
+        locomotion.HasArrived(creature).Returns(true);
         locomotion.ArrivalTolerance(creature).Returns(0.2f);
 
         script.Update(TimeSpan.FromSeconds(0.1));
 
         creature.Received(1).LookAt(targetPosition);
+    }
+
+    /// <summary>
+    /// The other half of the gate: a creature that has not yet arrived gets no allowance,
+    /// whether or not it holds a slot. A mutation that drops the HasArrived check entirely (or
+    /// reads it against the wrong flag) would attack here — mid-transit, short of its
+    /// destination.
+    /// </summary>
+    [Fact]
+    public void Not_Attack_A_Slotted_Creature_Within_The_Tolerance_Band_Before_It_Arrives()
+    {
+        var locomotion = Substitute.For<ICreatureLocomotion>();
+        var targetPosition = Vector3.zero;
+        (CreatureCombatScript script, ICreature creature, _) =
+            BuildChasingScript(locomotion, targetAt: targetPosition);
+
+        // Default slotCount (6): the ring is not full, so this creature holds a slot — but it
+        // has not arrived, still mid-transit toward it.
+        creature.Position.Returns(new Vector3(1.6f, 0f, 0f));
+        locomotion.HasArrived(creature).Returns(false);
+        locomotion.ArrivalTolerance(creature).Returns(0.2f);
+
+        script.Update(TimeSpan.FromSeconds(0.1));
+
+        creature.DidNotReceive().LookAt(Arg.Any<Vector3>());
     }
 
     /// <summary>
@@ -510,6 +551,124 @@ public class CreatureCombatScriptShould
     }
 
     /// <summary>
+    /// Round 4: more creatures than <c>MeleeSlotCount</c> converge on one target, so the surplus
+    /// (ring full) ones fall back to a stand-off point instead of a claimed slot. This is the
+    /// property that broke twice in one round — first when removing Stop from the in-range
+    /// branch let a surplus creature walk all the way into the target's centre (0.0073 apart,
+    /// measured), then again when restoring the arrival-margin gate on "hasSlot AND arrived"
+    /// stranded a surplus creature that settled a hair past AttackRange with no allowance at all
+    /// to rescue it — so it's pinned here as a real regression test, not just reasoned about.
+    /// MeleeSlotRadius (1.0) is deliberately different from AttackRange (1.5) so a slotted
+    /// creature's final distance from the target and a surplus creature's are never
+    /// coincidentally the same number.
+    /// </summary>
+    [Fact]
+    public void Stand_A_Surplus_Creature_Off_The_Target_Rather_Than_On_It()
+    {
+        var navigator = Substitute.For<IMapNavigator>();
+        navigator.FindPath(Arg.Any<Vector3>(), Arg.Any<Vector3>())
+            .Returns(call => new List<Vector3> { call.ArgAt<Vector3>(1) });
+
+        var locomotion = new WaypointLocomotion(_ => navigator);
+        var meleeSlots = new MeleeSlots(slotCount: 2, radius: 1.0f);
+
+        var combat = Substitute.For<ICombatService>();
+        combat.GetEncounterFor(Arg.Any<IUnit>()).Returns((IEncounter?)null);
+
+        ICharacter target = Substitute.For<ICharacter>();
+        target.Guid.Returns(new ObjectGuid(ObjectType.Character, 100));
+        target.Position.Returns(Vector3.zero);
+        target.IsDead.Returns(false);
+
+        var context = Substitute.For<ISimulationContext>();
+        context.CombatService.Returns(combat);
+        context.Locomotion.Returns(locomotion);
+        context.MeleeSlots.Returns(meleeSlots);
+
+        // Four creatures, two more than MeleeSlotCount (2), fanned so bearing-aware claiming
+        // resolves deterministically: the two nearest the target's forward axis claim the two
+        // slots; the other two are surplus.
+        Vector3[] starts =
+        {
+            new(10f, 0f, 0f),
+            new(10f, 0f, 0.3f),
+            new(10f, 0f, -0.3f),
+            new(10f, 0f, 0.6f),
+        };
+
+        var creatures = new List<ICreature>();
+        var scripts = new List<CreatureCombatScript>();
+
+        for (int i = 0; i < starts.Length; i++)
+        {
+            ICreature creature = Substitute.For<ICreature>();
+            creature.Guid.Returns(new ObjectGuid(ObjectType.Creature, (uint)(i + 1)));
+            creature.Position.Returns(starts[i]);
+            creature.TauntedBy      = null;
+            creature.TauntExpiresAt = DateTime.MinValue;
+
+            var metadata = Substitute.For<ICreatureMetadata>();
+            metadata.SpeedRun.Returns(4f);
+            creature.Metadata.Returns(metadata);
+
+            locomotion.Register(creature, radius: 0.5f, maxSpeed: 4f);
+
+            var script = new CreatureCombatScript(NullLoggerFactory.Instance, creature, context);
+            script.OnEnteredRange(target);
+
+            creatures.Add(creature);
+            scripts.Add(script);
+        }
+
+        TimeSpan tickInterval = TimeSpan.FromSeconds(1.0 / 60.0);
+        for (int tick = 0; tick < 400; tick++)
+        {
+            foreach (CreatureCombatScript script in scripts)
+            {
+                script.Update(tickInterval);
+            }
+
+            locomotion.Update(tickInterval);
+        }
+
+        int slotted = 0;
+        int surplus = 0;
+
+        for (int i = 0; i < creatures.Count; i++)
+        {
+            // TryClaim is idempotent (see MeleeSlots.TryClaim): calling it again after the loop
+            // just reports whichever outcome this creature already settled on, with no side
+            // effect on a claim already resolved either way.
+            bool hasSlot = meleeSlots.TryClaim(target.Guid, creatures[i].Guid, target.Position, creatures[i].Position, out _);
+            float distance = Vector3.Distance(creatures[i].Position, target.Position);
+
+            // Every creature — slotted or surplus — must still be dealing damage. A surplus
+            // creature stranded at its stand-off point (the exact regression this test exists to
+            // catch) would fail this half even while still passing a distance-only check.
+            combat.Received().ApplyDamage(creatures[i], target, 10u);
+
+            if (hasSlot)
+            {
+                slotted++;
+                Assert.True(distance is > 0.8f and < 1.2f,
+                    $"Slotted creature {i} ended up {distance} from the target — expected close to MeleeSlotRadius (1.0f).");
+            }
+            else
+            {
+                surplus++;
+                // "Roughly AttackRange (1.5f) from the centre, rather than on it": comfortably
+                // clear of the target (not the 0.0073 the pre-fix regression measured) and
+                // strictly inside AttackRange, never balanced exactly on it.
+                Assert.True(distance is > 1.0f and < 1.5f,
+                    $"Surplus creature {i} ended up {distance} from the target — expected roughly AttackRange (1.5f), strictly inside it.");
+            }
+        }
+
+        Assert.Equal(2, slotted);
+        Assert.Equal(2, surplus);
+    }
+
+    /// <summary>
     /// The case that actually matters: players move essentially all the time. Before this round,
     /// in-range was measured to the target's centre and reaching it called Stop, which discarded
     /// the destination and froze the creature wherever it happened to be — there was no re-path
@@ -614,9 +773,14 @@ public class CreatureCombatScriptShould
             }
         }
 
+        // A bare Received() (>= 1 call in 600 ticks) can't tell "kept attacking while keeping
+        // station" apart from "landed a single swing during the approach and then went quiet".
+        // The gap closes in ~2.8s (8.5 units at a 3 u/s closing speed), leaving ~7s — three full
+        // AttackCooldown (2.25s) cycles — of sustained melee; 3 is a plausible minimum over that
+        // window, not the theoretical maximum, so this has headroom without being toothless.
         for (int i = 0; i < creatures.Count; i++)
         {
-            combat.Received().ApplyDamage(creatures[i], target, 10u);
+            combat.Received(Quantity.Within(3, int.MaxValue)).ApplyDamage(creatures[i], target, 10u);
         }
     }
 

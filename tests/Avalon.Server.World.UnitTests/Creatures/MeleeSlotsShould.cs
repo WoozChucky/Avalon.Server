@@ -188,6 +188,23 @@ public class MeleeSlotsShould
         Assert.False(ClaimsOf(slots).ContainsKey(Target));
     }
 
+    /// <summary>
+    /// Round 4: the review found the entry-on-success fix landed with no test, silently
+    /// revertible with all other tests green. A slotCount of 0 can never produce a successful
+    /// claim (the candidate loop never runs), so it must leave no entry behind at all — not an
+    /// entry created up front and left empty, which is the exact leak the pruning in Release
+    /// exists to prevent on the way out.
+    /// </summary>
+    [Fact]
+    public void Leave_No_Entry_Behind_When_A_Claim_Can_Never_Succeed()
+    {
+        var slots = new MeleeSlots(slotCount: 0, radius: 1.5f);
+
+        Assert.False(slots.TryClaim(Target, Creature(1), TargetPosition, TargetPosition, out _));
+
+        Assert.False(ClaimsOf(slots).ContainsKey(Target));
+    }
+
     private static Dictionary<ObjectGuid, Dictionary<ObjectGuid, int>> ClaimsOf(MeleeSlots slots)
     {
         FieldInfo field = typeof(MeleeSlots).GetField("_claims", BindingFlags.NonPublic | BindingFlags.Instance)!;
