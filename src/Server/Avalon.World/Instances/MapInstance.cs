@@ -6,6 +6,7 @@ using Avalon.Network.Packets.Combat;
 using Avalon.Network.Packets.State;
 using Avalon.World.Entities;
 using Avalon.World.ChunkLayouts;
+using Avalon.World.Creatures.Locomotion;
 using Avalon.World.Public;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Characters;
@@ -35,6 +36,8 @@ public class MapInstance : IMapInstance, IPortalSink
     private readonly Dictionary<ObjectGuid, ICreature> _creatures = [];
     private readonly ILogger<MapInstance> _logger;
     private readonly IMapNavigator _navigator;
+    private readonly ICreatureLocomotion _locomotion;
+    private readonly float _creatureAgentRadius;
     private readonly IAbilityCastSystem _abilityCastSystem;
     private readonly EncounterRegistry _encounterRegistry;
     private readonly CombatService _combatService;
@@ -67,6 +70,8 @@ public class MapInstance : IMapInstance, IPortalSink
         EntrySpawnWorldPos = layout.EntrySpawnWorldPos;
         Seed = seed;
         _navigator = navigator;
+        _creatureAgentRadius = world.Configuration.CreatureAgentRadius;
+        _locomotion = new WaypointLocomotion(GetNavigatorForPosition);
 
         _creatureRespawner = new NoOpCreatureRespawner();
 
@@ -112,6 +117,7 @@ public class MapInstance : IMapInstance, IPortalSink
     public IReadOnlyDictionary<ObjectGuid, ICharacter> Characters => _characters;
     public IReadOnlyDictionary<ObjectGuid, ICreature> Creatures => _creatures;
     public ICombatService CombatService => _combatService;
+    public ICreatureLocomotion Locomotion => _locomotion;
 
     public bool IsExpired(TimeSpan expiry) =>
         LastEmptyAt.HasValue && (DateTime.UtcNow - LastEmptyAt.Value) >= expiry;
@@ -154,9 +160,17 @@ public class MapInstance : IMapInstance, IPortalSink
         }
     }
 
-    public void AddCreature(ICreature creature) => _creatures[creature.Guid] = creature;
+    public void AddCreature(ICreature creature)
+    {
+        _creatures[creature.Guid] = creature;
+        _locomotion.Register(creature, _creatureAgentRadius, creature.Metadata.SpeedRun);
+    }
 
-    public void RemoveCreature(ICreature creature) => _creatures.Remove(creature.Guid);
+    public void RemoveCreature(ICreature creature)
+    {
+        _creatures.Remove(creature.Guid);
+        _locomotion.Unregister(creature);
+    }
 
     public bool QueueAbility(ICharacter caster, IUnit? target, IAbility ability) =>
         _abilityCastSystem.QueueAbility(caster, target, ability);
@@ -245,6 +259,11 @@ public class MapInstance : IMapInstance, IPortalSink
         {
             creature.Script?.Update(deltaTime);
         }
+
+        // After the scripts, because they decide destinations and this executes them. Player
+        // positions are already current: input was processed in connection.UpdateMap() earlier in
+        // this same tick.
+        _locomotion.Update(deltaTime);
 
         // Step 5a: Snapshot dirty fields — ONLY on broadcast ticks. Entity _dirtyFields use
         // |= to accumulate, so OR-ing all changes between broadcasts is captured by a single
