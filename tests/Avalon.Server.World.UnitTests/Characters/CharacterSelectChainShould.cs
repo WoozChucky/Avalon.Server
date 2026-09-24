@@ -3,6 +3,7 @@ using System.Net.Sockets;
 using Avalon.Common;
 using Avalon.Common.Cryptography;
 using Avalon.Common.ValueObjects;
+using Avalon.Database.Auth.Repositories;
 using Avalon.Database.Character.Repositories;
 using Avalon.Database.World.Repositories;
 using Avalon.Domain.Characters;
@@ -320,7 +321,8 @@ public class CharacterSelectChainShould : IDisposable
             Substitute.For<IChunkLibrary>(),
             world,
             Substitute.For<IRespawnTargetResolver>(),
-            Options.Create(new RegenConfiguration()));
+            Options.Create(new RegenConfiguration()),
+            Substitute.For<IAccountRepository>());
     }
 
     private void GiveTheCharacter(params (InventoryType Container, ushort Slot, ulong Template)[] items)
