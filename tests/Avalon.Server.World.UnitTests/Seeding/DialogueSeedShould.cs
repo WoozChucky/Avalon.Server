@@ -171,4 +171,95 @@ public class DialogueSeedShould
         Assert.True(untranslated.Count == 0,
             "these strings have no ptPT translation: " + string.Join(", ", untranslated));
     }
+
+    private static readonly string[] KnownTokens = ["name", "class", "level"];
+
+    [Fact]
+    public void Use_Only_Known_Tokens_In_Every_String()
+    {
+        // A typo like {nmae} otherwise ships and is discovered by a player, in one language.
+        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+
+        var offenders = new List<string>();
+
+        foreach (LocalizedText text in context.LocalizedTexts.AsNoTracking().ToList())
+        {
+            foreach (string token in ValueTokens(text.Text))
+            {
+                if (!KnownTokens.Contains(token)) offenders.Add($"text {text.Id.Value}: {{{token}}}");
+            }
+        }
+
+        foreach (LocalizedTextLocale locale in context.LocalizedTextLocales.AsNoTracking().ToList())
+        {
+            foreach (string token in ValueTokens(locale.Text))
+            {
+                if (!KnownTokens.Contains(token))
+                {
+                    offenders.Add($"text {locale.TextId.Value} ({locale.Locale}): {{{token}}}");
+                }
+            }
+        }
+
+        Assert.True(offenders.Count == 0,
+            "these strings use tokens the interpolator does not know: " + string.Join(", ", offenders));
+    }
+
+    [Fact]
+    public void Keep_The_Same_Value_Tokens_In_Every_Translation()
+    {
+        // A translator dropping {name} is a silent content bug visible only in that language.
+        // Gender selects are deliberately NOT compared: they are per-language grammar, and
+        // Portuguese needs {g:vindo|vinda} in a greeting where English needs nothing at all.
+        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+
+        Dictionary<int, string> baseTexts = context.LocalizedTexts.AsNoTracking().ToList()
+            .ToDictionary(t => t.Id.Value, t => t.Text);
+
+        var mismatches = new List<string>();
+
+        foreach (LocalizedTextLocale locale in context.LocalizedTextLocales.AsNoTracking().ToList())
+        {
+            if (!baseTexts.TryGetValue(locale.TextId.Value, out string? baseText)) continue;
+
+            HashSet<string> expected = ValueTokens(baseText).ToHashSet();
+            HashSet<string> actual = ValueTokens(locale.Text).ToHashSet();
+
+            if (!expected.SetEquals(actual))
+            {
+                mismatches.Add(
+                    $"text {locale.TextId.Value} ({locale.Locale}): base has "
+                    + $"[{string.Join(",", expected.Order())}], translation has "
+                    + $"[{string.Join(",", actual.Order())}]");
+            }
+        }
+
+        Assert.True(mismatches.Count == 0,
+            "these translations do not reference the same tokens as their base string: "
+            + string.Join("; ", mismatches));
+    }
+
+    /// <summary>
+    /// Value-token names in a template, ignoring gender selects and escaped braces. Mirrors
+    /// TextInterpolator's scanning rules; kept local so the test does not depend on internals.
+    /// </summary>
+    private static IEnumerable<string> ValueTokens(string template)
+    {
+        for (int i = 0; i < template.Length; i++)
+        {
+            if (template[i] != '{') continue;
+            if (i + 1 < template.Length && template[i + 1] == '{') { i++; continue; }
+
+            int close = template.IndexOf('}', i + 1);
+            if (close < 0) break;
+
+            string body = template[(i + 1)..close];
+            i = close;
+
+            if (body.StartsWith("g:", StringComparison.Ordinal)) continue;
+            yield return body;
+        }
+    }
 }

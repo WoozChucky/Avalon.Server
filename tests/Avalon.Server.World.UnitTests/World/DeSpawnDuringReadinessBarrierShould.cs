@@ -121,6 +121,13 @@ public class DeSpawnDuringReadinessBarrierShould
         var abilityTemplates = Substitute.For<IAbilityTemplateRepository>();
         abilityTemplates.FindAllAsync(Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(new List<Avalon.Domain.World.AbilityTemplate>());
+        var localizedText = Substitute.For<ILocalizedTextRepository>();
+        localizedText.GetAllAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<IReadOnlyCollection<Avalon.Domain.World.LocalizedText>>([]));
+        localizedText.GetAllLocalesAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<IReadOnlyCollection<Avalon.Domain.World.LocalizedTextLocale>>([]));
+        localizedText.GetAllClassNamesAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<IReadOnlyCollection<Avalon.Domain.World.CharacterClassName>>([]));
 
         var serviceProvider = Substitute.For<IServiceProvider>();
         serviceProvider.GetService(typeof(IChunkLayoutInstanceFactory))
@@ -140,6 +147,7 @@ public class DeSpawnDuringReadinessBarrierShould
             levels,
             Substitute.For<ICreatureBaseStatRepository>(),
             Substitute.For<ICreatureRarityModifierRepository>(),
+            localizedText,
             Substitute.For<IScriptHotReloader>(),
             Substitute.For<IChunkLibrary>());
 

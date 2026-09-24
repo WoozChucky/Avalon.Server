@@ -205,9 +205,18 @@ public class CharacterSelectHandlerShould
         var abilities = Substitute.For<IAbilityTemplateRepository>();
         abilities.FindAllAsync(Arg.Any<bool>(), Arg.Any<CancellationToken>()).Returns(new List<AbilityTemplate>());
 
+        var localizedText = Substitute.For<ILocalizedTextRepository>();
+        localizedText.GetAllAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<IReadOnlyCollection<LocalizedText>>([]));
+        localizedText.GetAllLocalesAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<IReadOnlyCollection<LocalizedTextLocale>>([]));
+        localizedText.GetAllClassNamesAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<IReadOnlyCollection<CharacterClassName>>([]));
+
         var data = new StaticData(createInfos, stats, items, abilities, levels,
             Substitute.For<ICreatureBaseStatRepository>(),
-            Substitute.For<ICreatureRarityModifierRepository>());
+            Substitute.For<ICreatureRarityModifierRepository>(),
+            localizedText, NullLoggerFactory.Instance);
         await data.LoadAsync(CancellationToken.None);
         return data;
     }
