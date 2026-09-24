@@ -293,7 +293,7 @@ public class CreatureCombatScriptShould
     {
         var navigator = Substitute.For<IMapNavigator>();
         var locomotion = new WaypointLocomotion(_ => navigator);
-        var meleeSlots = new MeleeSlotsAdapter(new MeleeSlots(slotCount: 6, radius: 1.5f));
+        var meleeSlots = new MeleeSlots(slotCount: 6, radius: 1.5f);
 
         ICreature creature = Substitute.For<ICreature>();
         creature.Guid.Returns(new ObjectGuid(ObjectType.Creature, 1));
@@ -422,7 +422,7 @@ public class CreatureCombatScriptShould
         var context = Substitute.For<ISimulationContext>();
         context.CombatService.Returns(combat);
         context.Locomotion.Returns(locomotion);
-        context.MeleeSlots.Returns(new MeleeSlotsAdapter(_meleeSlots));
+        context.MeleeSlots.Returns(_meleeSlots);
 
         var script = new CreatureCombatScript(NullLoggerFactory.Instance, creature, context);
         // OnEnteredRange seeds State = Combat, target = character, and _initialPosition = the
