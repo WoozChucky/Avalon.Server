@@ -174,7 +174,7 @@ Use to regress-check simulation hot paths.
 | [Character Login Flow](docs/character-login-flow.md) | World-select → spawn sequence, inventory on login, instance ID design |
 | [Architecture Decisions](docs/architecture-decisions.md) | ADRs: World/Auth DB decoupling, chat command handler pattern, specializations |
 
-For the full list of pending work items see [TODO.md](TODO.md).
+Pending work is tracked in [GitHub Issues](../../issues).
 
 ## Roadmap
 
