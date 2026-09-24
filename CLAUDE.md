@@ -80,6 +80,8 @@ All client↔server communication is custom TCP with Protobuf-net. Every packet 
 
 Auth handlers are registered in DI and resolved manually; World handlers use `ActivatorUtilities.CreateInstance` in `WorldServer`.
 
+**Reflection-bound registration — a reference grep proves nothing.** Packet handlers are discovered by attribute scan, and AI/ability scripts by type name: `ScriptManager` keys every `AiScript` subclass by `t.Name`, and `ICreaturePlacementService.AttachScript` resolves `creature.ScriptName` from the DB and builds it with `ActivatorUtilities.CreateInstance(_sp, scriptType, creature, instance)`. So "nothing references this type" says nothing about whether it is used — and note that call site passes exactly two runtime arguments, so a script constructor needing anything beyond `(ILoggerFactory, ICreature, ISimulationContext)` will throw and be swallowed into a warning. Check constructibility against that call site, not against grep.
+
 ## Auth Flow
 
 ```
@@ -107,11 +109,17 @@ CClientInfoPacket → SHandshakePacket → CHandshakePacket → SHandshakeResult
 - **MapInstance** (`Avalon.World/Instances/MapInstance.cs`) is the core simulation unit: manages entities in a flat tick context, runs `ChunkSpellSystem`, creature AI scripts, broadcasts state to clients. Implements `ISimulationContext`. Holds a single `MapNavigator` (combined navmesh) and the `ChunkLayout` that produced it.
 - **InstanceRegistry** (`Avalon.World/Instances/InstanceRegistry.cs`) owns all live instances. `GetOrCreateTownInstanceAsync` returns a shared persistent instance; `GetOrCreateNormalInstanceAsync` returns per-player instances with 15-min re-entry windows. `ProcessExpiredInstances` cleans up expired normal instances. Both creators dispatch to `ChunkLayoutInstanceFactory.BuildAsync` for actual instance construction.
 - **ChunkLayoutInstanceFactory** (`Avalon.World/ChunkLayouts/IChunkLayoutInstanceFactory.cs`) — single entry point that builds both town and procedural instances. `IChunkLayoutSourceResolver` picks `PredefinedChunkLayoutSource` (DB-backed `MapChunkPlacement` rows for towns) or `ProceduralChunkLayoutSource` (RNG + `ProceduralMapConfig`) per `MapType`. `ChunkLayoutNavmeshBuilder` stitches chunk objs → DotRecast bake → `MapNavigator`. Server emits `SChunkLayoutPacket` to clients on instance enter; client `ClientMapNavigator` bakes the same navmesh from the same chunk objs (deterministic mirror) for prediction parity. See `docs/map-generation.md` for the full pipeline.
-- **ISimulationContext** — minimal contract used by AI scripts, spell system, and respawner instead of the old `IChunk`.
+- **ISimulationContext** — minimal contract used by AI scripts, spell system, and respawner instead of the old `IChunk`. Exposes `Locomotion` and `MeleeSlots` to scripts.
+- **ICreatureLocomotion** (`Avalon.World.Public/Creatures/`) — the only thing that writes a creature's position. Scripts call `MoveTo` / `Stop` / `Teleport` / `HasArrived` and never touch `Position` themselves. `MapInstance` owns one, registers each creature in `AddCreature`, unregisters in `RemoveCreature`, and ticks it **after** the AI scripts — the scripts choose destinations, the locomotion consumes them, so the order matters and is pinned by a test. Two implementations in `Avalon.World/Creatures/Locomotion/`, selected by `GameConfiguration.CreatureLocomotion`: `WaypointLocomotion` (default; walks a navmesh path with no awareness of other agents) and `CrowdLocomotion` (DotRecast `DtCrowd`; agents steer around one another, and around players when `CrowdIncludesPlayers` is set). `Crowd` falls back to `Waypoint` with a warning on a map with no baked navmesh.
+- **MeleeSlots** (`Avalon.World/Creatures/MeleeSlots.cs`) — hands each attacker a distinct standing position on a ring around its target so chasers surround rather than stack. Claims are keyed by target, world-fixed in angle (not facing-relative, which would churn every time the player turns), and handed out nearest the claimant's bearing. Attackers beyond `MeleeSlotCount` get no slot and stand off at attack range along their own bearing.
 - **ChunkSpellSystem** manages the spell queue; deducts power cost on `QueueSpell`, ticks active `SpellScript` instances.
 - **SpellScript** / **CreatureAiScript** — scriptable gameplay logic; hot-reloadable via `IScriptHotReloader`. `SpellScript.Clone()` has a virtual base implementation using `MemberwiseClone` (subclasses override for extra mutable state).
 - **CreatureRespawner** — manages respawn and corpse-removal timers from `ICreatureMetadata`.
 - **EntityTrackingSystem** — tracks which entities are visible to which connections.
+
+**Two contracts worth knowing before touching creature movement or AI scripts:**
+- The calling script owns the *moving* `MoveState` and `Speed`; a locomotion writes `MoveState` only when a creature comes to rest, setting `Idle` and zeroing `Velocity`. A locomotion that writes a moving value stomps the script every tick.
+- `HasArrived` means "no further destination", which includes *no destination was reachable*. Treating it as "arrived successfully" turns a pathing failure into a silent success.
 
 ## Chat Commands
 
@@ -147,7 +155,7 @@ The API deliberately registers neither that converter nor an OpenAPI schema tran
 
 ## Key Open TODOs
 
-See `TODO.md` for full details. High-priority open items:
+Tracked as GitHub issues; the `TODO-0NN` numbering below predates that and survives only in this file and in a few code comments (there is no `TODO.md` in the repo). High-priority open items:
 - **TODO-007** — `AvalonAuthenticationHandler` bearer token validation is a hardcoded stub
 - **TODO-017/018** — `AnimationId` missing from `SpellTemplate`/`SpellMetadata` (needs EF migration)
 - **TODO-029** — World server depends on `AuthDbContext` via `AddAuthDatabase()` — should use Redis-backed `IAccountSessionService` instead
