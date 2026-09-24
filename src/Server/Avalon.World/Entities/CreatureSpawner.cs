@@ -6,6 +6,7 @@ using Avalon.Domain.World;
 using Avalon.Network.Packets.State;
 using Avalon.World.Public;
 using Avalon.World.Public.Creatures;
+using Avalon.World.Creatures;
 using Avalon.World.Public.Maps;
 using Microsoft.Extensions.Logging;
 
@@ -18,7 +19,10 @@ public interface ICreatureSpawner
     ICreature Spawn(CreatureInfo virtualCreature);
 }
 
-public class CreatureSpawner(ILoggerFactory loggerFactory, ICreatureTemplateRepository creatureTemplateRepository)
+public class CreatureSpawner(
+    ILoggerFactory loggerFactory,
+    ICreatureTemplateRepository creatureTemplateRepository,
+    Lazy<CreatureStatDeriver> statDeriver)
     : ICreatureSpawner
 {
     private readonly ILogger<CreatureSpawner> _logger = loggerFactory.CreateLogger<CreatureSpawner>();
@@ -42,6 +46,18 @@ public class CreatureSpawner(ILoggerFactory loggerFactory, ICreatureTemplateRepo
         return creature;
     }
 
+    /// <summary>
+    /// A level from the template's own range. Clamped at 1 below, and to at least the minimum above, so
+    /// seed data with the two the wrong way round cannot produce an empty range.
+    /// </summary>
+    private static ushort RollLevel(CreatureTemplate template)
+    {
+        short min = Math.Max((short)1, template.MinLevel);
+        short max = Math.Max(min, template.MaxLevel);
+
+        return (ushort)Random.Shared.Next(min, max + 1);
+    }
+
     public ICreature Spawn(CreatureTemplateId templateId)
     {
         CreatureTemplate? template = _templates.FirstOrDefault(t => t.Id == templateId);
@@ -50,6 +66,9 @@ public class CreatureSpawner(ILoggerFactory loggerFactory, ICreatureTemplateRepo
             _logger.LogWarning("Could not find creature template {CreatureId}", templateId);
             throw new Exception($"Could not find creature template {templateId}");
         }
+
+        ushort level = RollLevel(template);
+        DerivedCreatureStats stats = statDeriver.Value.Derive(template, level);
 
         Creature creature = new Creature
         {
@@ -62,9 +81,14 @@ public class CreatureSpawner(ILoggerFactory loggerFactory, ICreatureTemplateRepo
             Velocity = new Vector2(0, 0),
             ScriptName = template.ScriptName,
             MoveState = MoveState.Idle,
-            Level = 1,
-            Health = 100,
-            CurrentHealth = 100,
+            Level = stats.Level,
+            Health = stats.Health,
+            CurrentHealth = stats.Health,
+            DamageMin = stats.DamageMin,
+            DamageMax = stats.DamageMax,
+            Experience = stats.Experience,
+
+            // Creatures cannot cast, so mana stays out of the derivation entirely.
             Power = 0,
             CurrentPower = 0
         };

@@ -19,6 +19,18 @@ public delegate void UnitDamagedDelegate(IUnit unit, IUnit attacker, uint damage
 public interface ICreature : IUnit
 {
     ICreatureMetadata Metadata { get; set; }
+
+    /// <summary>Lower bound of this creature's melee damage, derived at spawn.</summary>
+    uint DamageMin { get; set; }
+
+    /// <summary>Upper bound of this creature's melee damage, derived at spawn.</summary>
+    uint DamageMax { get; set; }
+
+    /// <summary>
+    /// Experience this kill awards, derived at spawn and before any map-band scaling. Distinct from
+    /// <see cref="ICreatureMetadata.Experience" />, which is the template's optional override.
+    /// </summary>
+    uint Experience { get; set; }
     string Name { get; set; }
     float Speed { get; set; }
     string ScriptName { get; set; }
