@@ -36,7 +36,7 @@ public class MapInstance : IMapInstance, IPortalSink, IDisposable
 
     private readonly Dictionary<ObjectGuid, ICharacter> _characters = [];
     private readonly Dictionary<ObjectGuid, IWorldConnection> _connections = [];
-    private readonly ICreatureRespawner _creatureRespawner;
+    private readonly ICorpseRemover _corpseRemover;
     private readonly Dictionary<ObjectGuid, ICreature> _creatures = [];
     private readonly ILogger<MapInstance> _logger;
     private readonly IMapNavigator _navigator;
@@ -82,7 +82,7 @@ public class MapInstance : IMapInstance, IPortalSink, IDisposable
         _meleeSlots = new MeleeSlots(world.Configuration.MeleeSlotCount, world.Configuration.MeleeSlotRadius);
         WarnIfMeleeSlotRadiusUnreachable(world.Configuration.MeleeSlotRadius);
 
-        _creatureRespawner = new NoOpCreatureRespawner();
+        _corpseRemover = new CreatureCorpseRemover(this);
 
         // Per-instance combat state. CombatConfig is a process-wide singleton (V1: defaults);
         // EncounterRegistry + CombatService are instance-scoped so encounters cannot bleed
@@ -290,25 +290,7 @@ public class MapInstance : IMapInstance, IPortalSink, IDisposable
     public void RunInstantAbility(IUnit caster, IUnit? target, IAbility ability) =>
         _abilityCastSystem.RunInstant(caster, target, ability);
 
-    public void RespawnCreature(ICreature creature)
-    {
-        // Chunk-layout instances install NoOpCreatureRespawner, so nothing reaches this today — but
-        // CreatureRespawner.ScheduleRespawn starts the body-remove timer (default 120s) before the
-        // respawn timer (default 180s), so by the time this runs, RemoveCreature has already dropped
-        // the creature from _creatures. Calling AddCreature (not a bare _locomotion.Register) puts it
-        // back in _creatures alongside the registration; a registration without the dictionary entry
-        // is a creature the script loop never ticks, MapInstance never broadcasts, and a future death
-        // can never reach again (OnCreatureKilled guards on _creatures.ContainsKey) — the exact
-        // permanent-leak shape the death-path teardown above exists to prevent, relocated here.
-        // AddCreature is idempotent in both halves, so this is correct whether or not RemoveCreature
-        // ran first. Reposition the creature (and its health) before calling this if it is to come
-        // back at its spawn point: CrowdLocomotion.Register snapshots creature.Position into the new
-        // agent. This does not otherwise return the creature to a clean state — Script is still null
-        // and CurrentHealth still 0 from OnCreatureKilled — that is left to the caller.
-        AddCreature(creature);
-    }
-
-    public void BroadcastUnitHit(IUnit attacker, IUnit target, uint currentHealth, uint damage)
+     public void BroadcastUnitHit(IUnit attacker, IUnit target, uint currentHealth, uint damage)
     {
         foreach ((ObjectGuid guid, IWorldConnection connection) in _connections)
         {
@@ -354,7 +336,7 @@ public class MapInstance : IMapInstance, IPortalSink, IDisposable
         _lastBroadcastTime += (float)deltaTime.TotalSeconds;
 
         // Step 1: Update creature respawns
-        _creatureRespawner.Update(deltaTime);
+        _corpseRemover.Update(deltaTime);
 
         // Step 2: Process character packets
         foreach ((ObjectGuid guid, ICharacter character) in _characters)
@@ -663,13 +645,14 @@ public class MapInstance : IMapInstance, IPortalSink, IDisposable
 
         creature.Script = null;
 
-        // Death is the one exit a creature takes that never runs through RemoveCreature: the only
-        // production caller of that is CreatureRespawner.Update, and chunk-layout instances install
-        // NoOpCreatureRespawner (see the assignment in the constructor), so the teardown RemoveCreature
-        // does has to be repeated here or it never happens at all. Doing it at this chokepoint rather
-        // than in the script's death branch covers every death route — Creature.Died is raised from
-        // exactly one place and always lands here — including a creature with no script, or one whose
-        // script is not CreatureCombatScript.
+        // The same teardown RemoveCreature does, repeated here because death has to take effect
+        // immediately. RemoveCreature does eventually run for a corpse — ICorpseRemover schedules it
+        // BodyRemoveTimer from now — but a creature that keeps walking, holds a melee slot and shoves
+        // the crowd about for those seconds is exactly the bug. Doing it at this chokepoint rather than
+        // in the script's death branch covers every death route: Creature.Died is raised from exactly
+        // one place and always lands here, including for a creature with no script, or one whose script
+        // is not CreatureCombatScript. Everything below is idempotent, so the later RemoveCreature
+        // repeating it is harmless.
         //
         // Stop BEFORE Unregister, not after: Stop is what brings the corpse to rest (MoveState.Idle,
         // zero Velocity) and both implementations no-op on an unregistered creature, so the reverse
@@ -689,7 +672,7 @@ public class MapInstance : IMapInstance, IPortalSink, IDisposable
         _meleeSlots.ReleaseClaimant(creature.Guid);
         _meleeSlots.ReleaseTarget(creature.Guid);
 
-        _creatureRespawner.ScheduleRespawn(creature);
+        _corpseRemover.ScheduleRemoval(creature);
 
         if (killer is not ICharacter character)
         {
@@ -728,12 +711,6 @@ public class MapInstance : IMapInstance, IPortalSink, IDisposable
     {
         if (subjectGuid != recipientGuid) return fields;
         return fields & ~(GameEntityFields.Position | GameEntityFields.Velocity | GameEntityFields.Orientation);
-    }
-
-    private sealed class NoOpCreatureRespawner : ICreatureRespawner
-    {
-        public void Update(TimeSpan deltaTime) { }
-        public void ScheduleRespawn(ICreature creature) { }
     }
 
     private sealed class PerPlayerBroadcastState
