@@ -29,8 +29,6 @@ public class CreatureCombatScript : AiScript
     private readonly ILogger<CreatureCombatScript> _logger;
     private float _attackCooldownTimer;
 
-    private Queue<Vector3> _currentPath;
-
     private bool _dead;
     private Vector3 _initialPosition;
     private Vector3 _lastKnownTargetPosition;
@@ -40,7 +38,6 @@ public class CreatureCombatScript : AiScript
     public CreatureCombatScript(ILoggerFactory loggerFactory, ICreature creature, ISimulationContext context) : base(creature, context)
     {
         _logger = loggerFactory.CreateLogger<CreatureCombatScript>();
-        _currentPath = new Queue<Vector3>();
         _initialPosition = Vector3.zero;
         CharacterEntity.CharacterDisconnected += OnCharacterDisconnected;
     }
@@ -54,7 +51,7 @@ public class CreatureCombatScript : AiScript
             _target = null;
             State = CombatState.Returning;
             Creature.CurrentHealth = Creature.Health;
-            _currentPath = GeneratePath(Creature.Position, _initialPosition);
+            Context.Locomotion.MoveTo(Creature, _initialPosition);
         }
     }
 
@@ -120,7 +117,7 @@ public class CreatureCombatScript : AiScript
             {
                 _target = picked;
                 _lastKnownTargetPosition = picked.Position;
-                _currentPath.Clear();
+                Context.Locomotion.Stop(Creature);
             }
         }
 
@@ -132,19 +129,19 @@ public class CreatureCombatScript : AiScript
                 return;
             }
 
-            // Path may be empty either because GeneratePath at transition-time failed (DotRecast
+            // The journey may be over either because MoveTo at transition-time failed (DotRecast
             // returned no route — happens when start/end land on disconnected nav polygons) or
-            // because FollowPath consumed the last waypoint without us hitting the < 0.1f gate
+            // because locomotion consumed the last waypoint without us hitting the < 0.1f gate
             // above (e.g. smoothed last point ≠ exact spawn). Without a regen the creature
             // drifts: server keeps Position static but MoveState=Running + Velocity is stale,
             // so the client extrapolates indefinitely.
-            if (_currentPath.Count == 0)
+            if (Context.Locomotion.HasArrived(Creature))
             {
-                _currentPath = GeneratePath(currentPosition, _initialPosition);
-                if (_currentPath.Count == 0)
+                Context.Locomotion.MoveTo(Creature, _initialPosition);
+                if (Context.Locomotion.HasArrived(Creature))
                 {
                     // Planner can't reach spawn — snap home rather than drift forever.
-                    Creature.Position = _initialPosition;
+                    Context.Locomotion.Teleport(Creature, _initialPosition);
                     ResetToIdleAtSpawn();
                     return;
                 }
@@ -152,7 +149,6 @@ public class CreatureCombatScript : AiScript
 
             Creature.MoveState = MoveState.Running;
             Creature.Speed = Creature.Metadata.SpeedRun;
-            FollowPath(deltaTime);
             return;
         }
 
@@ -169,7 +165,7 @@ public class CreatureCombatScript : AiScript
         {
             _target = null;
             State = CombatState.Returning;
-            _currentPath = GeneratePath(currentPosition, _initialPosition);
+            Context.Locomotion.MoveTo(Creature, _initialPosition);
             Creature.CurrentHealth = Creature.Health;
             return;
         }
@@ -180,7 +176,7 @@ public class CreatureCombatScript : AiScript
         {
             _target = null;
             State = CombatState.Returning;
-            _currentPath = GeneratePath(currentPosition, _initialPosition);
+            Context.Locomotion.MoveTo(Creature, _initialPosition);
             Creature.CurrentHealth = Creature.Health;
             return;
         }
@@ -194,17 +190,15 @@ public class CreatureCombatScript : AiScript
         }
         else
         {
-            if (_currentPath.Count == 0 ||
+            if (Context.Locomotion.HasArrived(Creature) ||
                 Vector3.Distance(_lastKnownTargetPosition, targetPosition) > PathRecalculationThreshold)
             {
-                _currentPath = GeneratePath(currentPosition, targetPosition);
+                Context.Locomotion.MoveTo(Creature, targetPosition);
                 _lastKnownTargetPosition = targetPosition;
             }
 
             Creature.MoveState = MoveState.Running;
             Creature.Speed = Creature.Metadata.SpeedRun;
-
-            FollowPath(deltaTime);
         }
     }
 
@@ -251,61 +245,10 @@ public class CreatureCombatScript : AiScript
         }
     }
 
-    private Queue<Vector3> GeneratePath(Vector3 start, Vector3 end)
-    {
-        List<Vector3> path = Context.GetNavigatorForPosition(start).FindPath(start, end);
-        return new Queue<Vector3>(path);
-    }
-
     private void ResetToIdleAtSpawn()
     {
         State = CombatState.None;
         _target = null;
         _initialPosition = Vector3.zero;
-        _currentPath.Clear();
-        Creature.Velocity = Vector3.zero;
-        Creature.MoveState = MoveState.Idle;
-    }
-
-    private void FollowPath(TimeSpan deltaTime)
-    {
-        if (_currentPath.Count == 0)
-        {
-            // Defensive: never leave Velocity / MoveState set to a moving value when there's
-            // nothing to walk towards. Caller (Update) is expected to refill the path.
-            Creature.Velocity = Vector3.zero;
-            Creature.MoveState = MoveState.Idle;
-            return;
-        }
-
-        Vector3 currentPosition = Creature.Position;
-        Vector3 nextPosition = _currentPath.Peek();
-
-        if (Vector3.Distance(currentPosition, nextPosition) < 0.1f)
-        {
-            _currentPath.Dequeue();
-            if (_currentPath.Count == 0)
-            {
-                if (State is CombatState.Chase)
-                {
-                    State = CombatState.Combat; // Switch back to combat state if path is completed
-                }
-                else if (State is CombatState.Returning)
-                {
-                    State = CombatState.None; // Switch back to idle state if return path is completed
-                }
-
-                return;
-            }
-
-            nextPosition = _currentPath.Peek();
-        }
-
-        Vector3 direction = Vector3.Normalize(nextPosition - currentPosition);
-        Vector3 movementDelta = direction * Creature.Speed * (float)deltaTime.TotalSeconds;
-
-        Creature.LookAt(nextPosition);
-        Creature.Velocity = direction;
-        Creature.Position += movementDelta;
     }
 }
