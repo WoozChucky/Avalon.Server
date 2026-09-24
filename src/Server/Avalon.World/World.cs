@@ -33,6 +33,9 @@ public interface IWorld
     string CurrentVersion { get; }
     GameConfiguration Configuration { get; }
 
+    /// <summary>This world's clock: start time, last tick, and the length of that tick.</summary>
+    GameTime Time { get; }
+
     IInstanceRegistry InstanceRegistry { get; }
 
     /// <summary>All map templates loaded by the map manager. Convenience accessor for handlers.</summary>
@@ -103,6 +106,8 @@ public class World : IWorld
     public string MinVersion => _world?.MinVersion ?? throw new InvalidOperationException("World not loaded.");
     public string CurrentVersion => _world?.Version ?? throw new InvalidOperationException("World not loaded.");
     public GameConfiguration Configuration => _configuration.Value;
+
+    public GameTime Time { get; } = new();
     public IInstanceRegistry InstanceRegistry { get; private set; } = null!;
     public IReadOnlyList<MapTemplate> MapTemplates => _mapManager.Templates;
     public StaticData Data { get; }
@@ -242,7 +247,7 @@ public class World : IWorld
 
     public void Update(TimeSpan deltaTime)
     {
-        GameTime.UpdateGameTimers(deltaTime);
+        Time.Update(deltaTime);
 
         // Apply any pending hot-reload on the tick thread to avoid racing with instance.Update()
         List<Type>? pendingReload = Interlocked.Exchange(ref _pendingHotReload, null);
