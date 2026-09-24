@@ -6,8 +6,10 @@ using Avalon.Network.Packets.Combat;
 using Avalon.Network.Packets.State;
 using Avalon.World.Entities;
 using Avalon.World.ChunkLayouts;
+using Avalon.World.Configuration;
 using Avalon.World.Creatures;
 using Avalon.World.Creatures.Locomotion;
+using Avalon.World.Maps.Navigation;
 using Avalon.World.Public;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Characters;
@@ -75,7 +77,7 @@ public class MapInstance : IMapInstance, IPortalSink
         _navigator = navigator;
         _creatureAgentRadius = world.Configuration.CreatureAgentRadius;
         _crowdIncludesPlayers = world.Configuration.CrowdIncludesPlayers;
-        _locomotion = new WaypointLocomotion(GetNavigatorForPosition);
+        _locomotion = CreateLocomotion(world.Configuration);
         _meleeSlots = new MeleeSlots(world.Configuration.MeleeSlotCount, world.Configuration.MeleeSlotRadius);
 
         _creatureRespawner = new NoOpCreatureRespawner();
@@ -133,6 +135,30 @@ public class MapInstance : IMapInstance, IPortalSink
     public void AddPortal(PortalInstance portal) => _portals.Add(portal);
 
     public IMapNavigator GetNavigatorForPosition(Vector3 position) => _navigator;
+
+    /// <summary>
+    /// Chooses the locomotion implementation per <see cref="GameConfiguration.CreatureLocomotion" />.
+    /// <see cref="CrowdLocomotion" /> needs a non-null baked <see cref="DtNavMesh" />, but the
+    /// navigator handed to this instance is only an <see cref="IMapNavigator" /> — tests substitute
+    /// it, and even a real <see cref="MapNavigator" /> can have nothing baked into it yet — so a
+    /// configured crowd degrades to <see cref="WaypointLocomotion" /> instead of throwing out of the
+    /// constructor. Creatures that cannot move at all are worse than creatures that move badly.
+    /// </summary>
+    private ICreatureLocomotion CreateLocomotion(GameConfiguration config)
+    {
+        if (config.CreatureLocomotion != CreatureLocomotionMode.Crowd)
+            return new WaypointLocomotion(GetNavigatorForPosition);
+
+        if (_navigator is MapNavigator { NavMesh: { } navMesh })
+            return new CrowdLocomotion(navMesh, config.CreatureAgentRadius, _logger);
+
+        // Creatures that cannot move at all are worse than creatures that move badly.
+        _logger.LogWarning(
+            "Crowd locomotion was configured but map {MapId} has no baked navmesh; " +
+            "falling back to waypoint locomotion for this instance",
+            TemplateId);
+        return new WaypointLocomotion(GetNavigatorForPosition);
+    }
 
     public void AddCharacter(IWorldConnection connection)
     {
