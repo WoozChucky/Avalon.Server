@@ -15,6 +15,15 @@ public interface ICreatureMetadata
     /// <summary>How dangerous this creature is, scaling its derived stats.</summary>
     CreatureRarity Rarity { get; set; }
 
+    /// <summary>Scales the level-derived base health. 1.0 leaves it alone.</summary>
+    float HealthModifier { get; set; }
+
+    /// <summary>Scales the level-derived base damage range. 1.0 leaves it alone.</summary>
+    float DamageModifier { get; set; }
+
+    /// <summary>Scales the level-derived base experience. 1.0 leaves it alone.</summary>
+    float ExperienceModifier { get; set; }
+
     /// <summary>
     /// Experience awarded to the killer. <c>null</c> means derive from base stats by level.
     /// </summary>
