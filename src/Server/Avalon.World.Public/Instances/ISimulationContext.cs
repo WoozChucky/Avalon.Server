@@ -24,6 +24,12 @@ public interface ISimulationContext
     /// <summary>Returns the navigator whose bounds contain <paramref name="position"/>.</summary>
     IMapNavigator GetNavigatorForPosition(Vector3 position);
 
+    /// <summary>
+    ///     Moves creatures. Scripts set a destination through this rather than writing
+    ///     <c>Position</c>, so the same script works under either locomotion implementation.
+    /// </summary>
+    ICreatureLocomotion Locomotion { get; }
+
     bool QueueAbility(ICharacter caster, IUnit? target, IAbility ability);
 
     /// <summary>
