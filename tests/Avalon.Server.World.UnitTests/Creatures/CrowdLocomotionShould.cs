@@ -104,7 +104,7 @@ public class CrowdLocomotionShould
         (CrowdLocomotion locomotion, DtCrowd crowd) = BuildOverAFlatNavMesh();
         ICreature creature = CreatureAt(Vector3.zero);
 
-        locomotion.Register(creature, radius: 0.5f, maxSpeed: 4f);
+        locomotion.Register(creature, radius: 0.5f);
 
         Assert.Single(crowd.GetActiveAgents());
     }
@@ -116,8 +116,8 @@ public class CrowdLocomotionShould
         (CrowdLocomotion locomotion, DtCrowd crowd) = BuildOverAFlatNavMesh();
         ICreature creature = CreatureAt(Vector3.zero);
 
-        locomotion.Register(creature, radius: 0.5f, maxSpeed: 4f);
-        locomotion.Register(creature, radius: 0.5f, maxSpeed: 4f);
+        locomotion.Register(creature, radius: 0.5f);
+        locomotion.Register(creature, radius: 0.5f);
 
         Assert.Single(crowd.GetActiveAgents());
     }
@@ -136,12 +136,12 @@ public class CrowdLocomotionShould
         (CrowdLocomotion locomotion, DtCrowd crowd) = BuildOverAFlatNavMesh();
         ICreature creature = CreatureAt(Vector3.zero);
 
-        locomotion.Register(creature, radius: 0.5f, maxSpeed: 4f);
+        locomotion.Register(creature, radius: 0.5f);
         locomotion.MoveTo(creature, new Vector3(15f, 0f, 15f));
         Assert.False(locomotion.HasArrived(creature));
 
         // Re-entrant Register while the move request above is still pending.
-        locomotion.Register(creature, radius: 0.5f, maxSpeed: 4f);
+        locomotion.Register(creature, radius: 0.5f);
 
         Assert.Single(crowd.GetActiveAgents());
         Assert.False(locomotion.HasArrived(creature));
@@ -153,7 +153,7 @@ public class CrowdLocomotionShould
         (CrowdLocomotion locomotion, DtCrowd crowd) = BuildOverAFlatNavMesh();
         ICreature creature = CreatureAt(Vector3.zero);
 
-        locomotion.Register(creature, radius: 0.5f, maxSpeed: 4f);
+        locomotion.Register(creature, radius: 0.5f);
         locomotion.Unregister(creature);
 
         Assert.Empty(crowd.GetActiveAgents());
@@ -166,7 +166,7 @@ public class CrowdLocomotionShould
         (CrowdLocomotion locomotion, DtCrowd crowd) = BuildOverAFlatNavMesh();
         ICreature creature = CreatureAt(Vector3.zero);
 
-        locomotion.Register(creature, radius: 0.5f, maxSpeed: 4f);
+        locomotion.Register(creature, radius: 0.5f);
         locomotion.Unregister(creature);
         locomotion.Unregister(creature);
 
@@ -193,7 +193,7 @@ public class CrowdLocomotionShould
         (CrowdLocomotion locomotion, _) = BuildOverAFlatNavMesh();
         ICreature creature = CreatureAt(Vector3.zero);
 
-        locomotion.Register(creature, radius: 0.5f, maxSpeed: 4f);
+        locomotion.Register(creature, radius: 0.5f);
         locomotion.Update(TimeSpan.FromSeconds(0.1));
 
         creature.Received().Position = Arg.Any<Vector3>();
@@ -205,7 +205,7 @@ public class CrowdLocomotionShould
         (CrowdLocomotion locomotion, _) = BuildOverAFlatNavMesh();
         ICreature creature = CreatureAt(Vector3.zero);
 
-        locomotion.Register(creature, radius: 0.5f, maxSpeed: 4f);
+        locomotion.Register(creature, radius: 0.5f);
         locomotion.MoveTo(creature, new Vector3(15f, 0f, 15f));
 
         Assert.False(locomotion.HasArrived(creature));
@@ -221,7 +221,7 @@ public class CrowdLocomotionShould
         (CrowdLocomotion locomotion, _) = BuildOverAFlatNavMesh();
         ICreature creature = CreatureAt(Vector3.zero);
 
-        locomotion.Register(creature, radius: 0.5f, maxSpeed: 4f);
+        locomotion.Register(creature, radius: 0.5f);
         locomotion.MoveTo(creature, new Vector3(15f, 0f, 15f));
         for (int i = 0; i < 5; i++)
             locomotion.Update(TimeSpan.FromSeconds(1d / 60d));
@@ -245,7 +245,7 @@ public class CrowdLocomotionShould
         ICreature creature = CreatureAt(Vector3.zero);
         var destination = new Vector3(3f, 0f, 0f);
 
-        locomotion.Register(creature, radius: NavmeshBuildSettings.AgentRadius, maxSpeed: 4f);
+        locomotion.Register(creature, radius: NavmeshBuildSettings.AgentRadius);
         locomotion.MoveTo(creature, destination);
 
         // The exact point Arrived() measures against is the nearest navmesh point to
@@ -279,7 +279,7 @@ public class CrowdLocomotionShould
         ICreature creature = CreatureAt(Vector3.zero);
         var destination = new Vector3(3f, 0f, 0f);
 
-        locomotion.Register(creature, radius: 0.5f, maxSpeed: 4f);
+        locomotion.Register(creature, radius: 0.5f);
         locomotion.MoveTo(creature, destination);
 
         // 3m at up to 4 m/s: well under ten simulated seconds even allowing for acceleration.
@@ -307,7 +307,7 @@ public class CrowdLocomotionShould
         (CrowdLocomotion locomotion, _) = BuildOverAFlatNavMesh();
         ICreature creature = CreatureAt(Vector3.zero);
 
-        locomotion.Register(creature, radius: 0.5f, maxSpeed: 4f);
+        locomotion.Register(creature, radius: 0.5f);
         locomotion.MoveTo(creature, new Vector3(5000f, 0f, 5000f));
 
         creature.Received().MoveState = MoveState.Idle;
@@ -321,7 +321,7 @@ public class CrowdLocomotionShould
         (CrowdLocomotion locomotion, _) = BuildOverAFlatNavMesh();
         ICreature creature = CreatureAt(Vector3.zero);
 
-        locomotion.Register(creature, radius: 0.5f, maxSpeed: 4f);
+        locomotion.Register(creature, radius: 0.5f);
         locomotion.MoveTo(creature, new Vector3(15f, 0f, 15f));
         locomotion.Stop(creature);
 
@@ -341,7 +341,7 @@ public class CrowdLocomotionShould
         ICreature creature = CreatureAt(Vector3.zero);
         var destination = new Vector3(12f, 0f, -8f);
 
-        locomotion.Register(creature, radius: 0.5f, maxSpeed: 4f);
+        locomotion.Register(creature, radius: 0.5f);
         locomotion.Teleport(creature, destination);
 
         creature.Received().Position = destination;
@@ -364,7 +364,7 @@ public class CrowdLocomotionShould
         ICreature creature = CreatureAt(Vector3.zero);
         var destination = new Vector3(12f, 0f, -8f);
 
-        locomotion.Register(creature, radius: 0.5f, maxSpeed: 4f);
+        locomotion.Register(creature, radius: 0.5f);
         locomotion.MoveTo(creature, new Vector3(-15f, 0f, 15f));
         locomotion.Teleport(creature, destination);
         locomotion.Update(TimeSpan.FromSeconds(1));
@@ -460,7 +460,7 @@ public class CrowdLocomotionShould
     {
         (CrowdLocomotion locomotion, _) = BuildOverAFlatNavMesh();
         ICreature creature = CreatureAt(Vector3.zero);
-        locomotion.Register(creature, radius: 0.5f, maxSpeed: 4f);
+        locomotion.Register(creature, radius: 0.5f);
 
         locomotion.SyncPlayer(PlayerGuid, new Vector3(1f, 0f, 1f));
         locomotion.Update(TimeSpan.FromSeconds(0.1));
@@ -474,6 +474,46 @@ public class CrowdLocomotionShould
         // player guid inside the copy-back loop, i.e. Update tolerates an agent dictionary Update
         // itself never reads from.
         creature.DidNotReceive().Position = new Vector3(1f, 0f, 1f);
+    }
+
+    /// <summary>
+    /// F3. Speed is <see cref="ICreature.Speed" />, read fresh every tick — not a value frozen when
+    /// the agent was created. This is the one place the two implementations used to genuinely
+    /// disagree: <see cref="WaypointLocomotion" /> reads <c>creature.Speed</c> every tick in
+    /// <c>Advance</c>, while this class used to bake the speed handed to <c>Register</c> into
+    /// <c>DtCrowdAgentParams</c> and never look again. That mattered because the calling scripts set
+    /// the speed <em>after</em> registration and change it during the creature's life —
+    /// <c>CreatureCombatScript</c> sets <c>SpeedRun</c>, <c>CreaturePatrolScript</c> sets
+    /// <c>SpeedWalk</c> — so a creature switching between walking and running behaved differently
+    /// depending on which implementation the configuration flag selected. Registering slow and then
+    /// speeding up is the direction that is unambiguous to observe: ground covered.
+    /// Production change that breaks this: dropping the <c>agent.option.maxSpeed = moving.Speed</c>
+    /// refresh loop at the top of <see cref="CrowdLocomotion.Update" />, which pins the agent to the
+    /// 0.5 it was registered with (~0.5 units of travel in the second below, not ~2.5).
+    /// </summary>
+    [Fact]
+    public void Follow_A_Speed_Change_Made_After_Registration()
+    {
+        (CrowdLocomotion locomotion, _) = BuildOverAFlatNavMesh();
+        ICreature creature = CreatureAt(Vector3.zero);
+        creature.Speed.Returns(0.5f);
+
+        locomotion.Register(creature, radius: 0.5f);
+        locomotion.MoveTo(creature, new Vector3(15f, 0f, 0f));
+
+        // The script's decision, made after Register — exactly as CreatureCombatScript's
+        // `Creature.Speed = Creature.Metadata.SpeedRun` is made after MapInstance.AddCreature.
+        creature.Speed.Returns(3.5f);
+
+        for (int tick = 0; tick < 60; tick++)
+            locomotion.Update(TimeSpan.FromSeconds(1d / 60d));
+
+        // One simulated second. At the registered 0.5 m/s the agent cannot have passed 0.5 units;
+        // at the creature's actual 3.5 m/s it covers most of 3.5, minus the acceleration ramp. 1.5
+        // sits clear of both, so this cannot pass on ramp-up noise alone.
+        Assert.True(creature.Position.x > 1.5f,
+            $"creature only reached x={creature.Position.x} in one second — it is still moving at the " +
+            "speed it was registered with, not the speed it actually has.");
     }
 
     /// <summary>
@@ -491,7 +531,7 @@ public class CrowdLocomotionShould
         var destination = new Vector3(10f, 0f, 0f);
         var playerPosition = new Vector3(0f, 0f, 0f);
 
-        locomotion.Register(creature, radius: 0.5f, maxSpeed: 4f);
+        locomotion.Register(creature, radius: 0.5f);
         locomotion.SyncPlayer(PlayerGuid, playerPosition);
         locomotion.MoveTo(creature, destination);
 

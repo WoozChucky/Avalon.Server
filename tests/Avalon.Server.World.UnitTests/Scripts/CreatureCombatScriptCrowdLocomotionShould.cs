@@ -128,7 +128,7 @@ public class CreatureCombatScriptCrowdLocomotionShould
             creature.Position.Returns(start);
 
             // MapInstance.AddCreature's job, done manually since there is no MapInstance here.
-            locomotion.Register(creature, radius: agentRadius, maxSpeed: 4f);
+            locomotion.Register(creature, radius: agentRadius);
 
             var script = new CreatureCombatScript(NullLoggerFactory.Instance, creature, context);
             script.OnEnteredRange(target); // _initialPosition = start, State = Combat

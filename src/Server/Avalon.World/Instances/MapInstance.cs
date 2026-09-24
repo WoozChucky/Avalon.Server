@@ -231,7 +231,7 @@ public class MapInstance : IMapInstance, IPortalSink
     public void AddCreature(ICreature creature)
     {
         _creatures[creature.Guid] = creature;
-        _locomotion.Register(creature, _creatureAgentRadius, creature.Metadata.SpeedRun);
+        _locomotion.Register(creature, _creatureAgentRadius);
     }
 
     public void RemoveCreature(ICreature creature)
