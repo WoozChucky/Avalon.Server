@@ -1,6 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using Avalon.Common.ValueObjects;
+using Avalon.World.Public.Enums;
 
 namespace Avalon.Domain.Auth;
 
@@ -68,29 +69,6 @@ public enum AccountAccessLevel : ushort
     Console = 8,
     Tournament = 16,
     PTR = 32,
-}
-
-public enum AccountLocale : ushort
-{
-    enUS,
-    enGB,
-    deDE,
-    esES,
-    esMX,
-    frFR,
-    itIT,
-    plPL,
-    ptBR,
-    ptPT,
-    ruRU,
-    koKR,
-    zhCN,
-    zhTW,
-    jaJP,
-    thTH,
-    viVN,
-    idID,
-    msMY
 }
 
 public enum OperatingSystem : ushort

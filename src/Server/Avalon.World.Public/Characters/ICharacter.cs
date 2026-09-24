@@ -22,6 +22,10 @@ public interface ICharacter : IUnit
     /// (see <c>ClassThreatModifier</c>).</summary>
     CharacterClass Class { get; }
 
+    /// <summary>Used by text interpolation's gender-select construct. Read-only: gender is set at
+    /// character creation and never changes at runtime.</summary>
+    CharacterGender Gender { get; }
+
     MapId Map { get; set; }
     ulong Experience { get; set; }
     ulong RequiredExperience { get; set; }
