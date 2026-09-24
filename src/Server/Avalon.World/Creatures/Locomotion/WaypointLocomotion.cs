@@ -85,6 +85,22 @@ public sealed class WaypointLocomotion : ICreatureLocomotion
             Advance(agent, deltaTime);
     }
 
+    /// <summary>
+    /// No-op: this implementation has no notion of other agents to steer around in the first place —
+    /// each creature walks its own waypoint queue independently, blind to every other creature and
+    /// every player. There is nothing here for a player's position to be recorded into, so recording
+    /// it would be dead state with no reader. Not a missing feature; the crowd is what
+    /// player-awareness needs, and that is exactly what <see cref="CrowdLocomotion" /> is for.
+    /// </summary>
+    public void SyncPlayer(ObjectGuid guid, Vector3 position)
+    {
+    }
+
+    /// <summary>See <see cref="SyncPlayer" />: nothing was ever recorded, so there is nothing to remove.</summary>
+    public void RemovePlayer(ObjectGuid guid)
+    {
+    }
+
     private void Advance(Agent agent, TimeSpan deltaTime)
     {
         if (agent.Path.Count == 0)

@@ -5,14 +5,21 @@ using Avalon.Common.ValueObjects;
 using Avalon.World;
 using Avalon.World.ChunkLayouts;
 using Avalon.World.Configuration;
+using Avalon.World.Creatures.Locomotion;
 using Avalon.World.Entities;
 using Avalon.World.Instances;
+using Avalon.World.Maps.Navigation;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Combat;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Maps;
 using Avalon.World.Scripts;
+using Avalon.Server.World.UnitTests.Creatures;
+using DotRecast.Detour;
+using DotRecast.Detour.Crowd;
+using DotRecast.Recast.Geom;
+using DotRecast.Recast.Toolset.Builder;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Xunit;
@@ -54,6 +61,60 @@ public class MapInstanceLocomotionShould
         creature.DidNotReceive().Position = Arg.Any<Vector3>();
     }
 
+    // --- Task 9: the CrowdIncludesPlayers flag -------------------------------------------------
+    //
+    // Task 10 is what makes MapInstance ever construct a CrowdLocomotion on its own (config-driven
+    // selection); until then _locomotion is always WaypointLocomotion, so a flag test run against an
+    // untouched instance would pass for the wrong reason — the `is CrowdLocomotion` type test in
+    // MapInstance.Update would already be false regardless of what CrowdIncludesPlayers says. These
+    // two tests instead swap in a real CrowdLocomotion by reflection (see SetLocomotion) so the flag
+    // is the only thing distinguishing them, over the same production Update() call path.
+
+    /// <summary>Production change that breaks this: dropping the `_crowdIncludesPlayers` check, or the sync loop itself, from MapInstance.Update.</summary>
+    [Fact]
+    public void Sync_Every_Characters_Position_Into_The_Crowd_Each_Tick_When_The_Flag_Is_On()
+    {
+        (MapInstance instance, _) = BuildInstanceWithCreature(crowdIncludesPlayers: true);
+        var crowd = new CrowdLocomotion(CrowdLocomotionShould.FlatNavMesh.Value,
+            NavmeshBuildSettings.AgentRadius, NullLoggerFactory.Instance.CreateLogger("test"));
+        SetLocomotion(instance, crowd);
+
+        instance.Update(TimeSpan.FromSeconds(1d / 60d));
+
+        Assert.Single(CrowdOf(crowd).GetActiveAgents());
+    }
+
+    /// <summary>Production change that breaks this: calling SyncPlayer regardless of the flag, i.e. losing the gate entirely.</summary>
+    [Fact]
+    public void Sync_No_Players_Into_The_Crowd_When_The_Flag_Is_Off()
+    {
+        (MapInstance instance, _) = BuildInstanceWithCreature(crowdIncludesPlayers: false);
+        var crowd = new CrowdLocomotion(CrowdLocomotionShould.FlatNavMesh.Value,
+            NavmeshBuildSettings.AgentRadius, NullLoggerFactory.Instance.CreateLogger("test"));
+        SetLocomotion(instance, crowd);
+
+        instance.Update(TimeSpan.FromSeconds(1d / 60d));
+
+        Assert.Empty(CrowdOf(crowd).GetActiveAgents());
+    }
+
+    /// <summary>
+    /// Same reflection technique <see cref="CrowdLocomotionShould.CrowdOf" /> uses to reach
+    /// into <see cref="CrowdLocomotion" />'s own private state, aimed at MapInstance's private
+    /// <c>_locomotion</c> field instead. Needed only because Task 10 (config-driven selection) has
+    /// not landed yet; once it has, these two tests can build the instance with
+    /// <c>CreatureLocomotion = CreatureLocomotionMode.Crowd</c> and drop this entirely.
+    /// </summary>
+    private static void SetLocomotion(MapInstance instance, ICreatureLocomotion locomotion) =>
+        typeof(MapInstance)
+            .GetField("_locomotion", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .SetValue(instance, locomotion);
+
+    private static DtCrowd CrowdOf(CrowdLocomotion locomotion) =>
+        (DtCrowd)typeof(CrowdLocomotion)
+            .GetField("_crowd", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .GetValue(locomotion)!;
+
     /// <summary>
     /// Builds a MapInstance directly (constructor is the one at
     /// ChunkLayouts/IChunkLayoutInstanceFactory.cs:59) plus one creature substitute, not yet
@@ -61,14 +122,20 @@ public class MapInstanceLocomotionShould
     /// when there are no characters, before either the script loop or the locomotion tick run, so
     /// without one the assertions below would fail for a reason unrelated to locomotion wiring.
     /// </summary>
-    private static (MapInstance Instance, ICreature Creature) BuildInstanceWithCreature()
+    /// <param name="crowdIncludesPlayers">
+    /// <see cref="GameConfiguration.CrowdIncludesPlayers" />. Selecting <see cref="CrowdLocomotion" />
+    /// itself is Task 10's job, not this constructor's (see <see cref="SetLocomotion" />) — this
+    /// only controls what MapInstance.Update's own flag check reads.
+    /// </param>
+    private static (MapInstance Instance, ICreature Creature) BuildInstanceWithCreature(
+        bool crowdIncludesPlayers = false)
     {
         var serviceProvider = Substitute.For<IServiceProvider>();
         serviceProvider.GetService(typeof(IScriptManager)).Returns(Substitute.For<IScriptManager>());
         serviceProvider.GetService(typeof(CombatConfig)).Returns(new CombatConfig());
 
         var world = Substitute.For<IWorld>();
-        world.Configuration.Returns(new GameConfiguration());
+        world.Configuration.Returns(new GameConfiguration { CrowdIncludesPlayers = crowdIncludesPlayers });
 
         // A NSubstitute IMapNavigator returns an empty path from FindPath by default, which
         // WaypointLocomotion reads as "nowhere to go" and resolves via its come-to-rest path

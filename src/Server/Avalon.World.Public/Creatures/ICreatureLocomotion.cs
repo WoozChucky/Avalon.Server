@@ -1,3 +1,4 @@
+using Avalon.Common;
 using Avalon.Common.Mathematics;
 
 namespace Avalon.World.Public.Creatures;
@@ -44,4 +45,16 @@ public interface ICreatureLocomotion
 
     /// <summary>Advances every registered creature. Called once per MapInstance tick.</summary>
     void Update(TimeSpan deltaTime);
+
+    /// <summary>
+    /// Tells the locomotion where a player is, so creatures that steer around other agents also
+    /// steer around players. Write-only, and deliberately so: a player's position is decided
+    /// elsewhere (server-authoritative input handling), never here — this call only ever feeds that
+    /// position in, and nothing in this interface's implementations may feed one back out. An
+    /// implementation with no notion of other agents has nothing to record this into.
+    /// </summary>
+    void SyncPlayer(ObjectGuid guid, Vector3 position);
+
+    /// <summary>Idempotent: a disconnect can race the instance's per-tick sync.</summary>
+    void RemovePlayer(ObjectGuid guid);
 }
