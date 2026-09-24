@@ -138,6 +138,8 @@ public class DeSpawnDuringReadinessBarrierShould
             items,
             abilityTemplates,
             levels,
+            Substitute.For<ICreatureBaseStatRepository>(),
+            Substitute.For<ICreatureRarityModifierRepository>(),
             Substitute.For<IScriptHotReloader>(),
             Substitute.For<IChunkLibrary>());
 
