@@ -95,6 +95,7 @@ public class WorldDbContext : DbContext
     public DbSet<SpawnTable> SpawnTables { get; set; } = null!;
     public DbSet<ProceduralMapConfig> ProceduralMapConfigs { get; set; } = null!;
     public DbSet<MapChunkPlacement> MapChunkPlacements { get; set; } = null!;
+    public DbSet<MapCreatureSpawn> MapCreatureSpawns { get; set; } = null!;
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
@@ -130,6 +131,7 @@ public class WorldDbContext : DbContext
         Configure(modelBuilder.Entity<SpawnTable>());
         Configure(modelBuilder.Entity<ProceduralMapConfig>());
         Configure(modelBuilder.Entity<MapChunkPlacement>());
+        Configure(modelBuilder.Entity<MapCreatureSpawn>());
 
         modelBuilder.Entity<ChunkPoolMembership>(e =>
         {
@@ -533,12 +535,12 @@ public class WorldDbContext : DbContext
             )
             .IsRequired();
 
-        // Templates 1-3 are town NPCs and are NOT SPAWNED ANYWHERE today. Creature placement runs
-        // only for procedural layouts (ChunkLayoutInstanceFactory.BuildAsync gates PlaceAsync on
-        // ChunkLayoutSourceKind.Procedural), and town is a predefined layout — so nothing places them.
-        // Until this branch they appeared in the forest as placeholder monsters via SpawnTable 1;
-        // removing them from that table left them with no spawn path at all. CreatureIdleScript is
-        // what they would run once something does place them. Town NPC placement is issue #431.
+        // Templates 1-3 are the town NPCs, placed on map 1 by the MapCreatureSpawns rows above.
+        // They are Invulnerable — a town NPC is never killable — and run TownNpcScript, which
+        // stands still and never aggros. Experience is 0 because a creature that cannot die cannot
+        // pay out; the 20 they used to carry was left over from their stint as placeholder monsters
+        // in the forest spawn table. They are visible but not yet interactive: talking to an NPC
+        // is issue #431.
         builder.HasData(new CreatureTemplate
         {
             Id = 1,
@@ -553,7 +555,7 @@ public class WorldDbContext : DbContext
             Rarity = CreatureRarity.Normal,
             Family = CreatureFamily.None,
             Type = CreatureType.Humanoid,
-            Experience = 20,
+            Experience = 0,
             LootId = 0,
             MinGold = 0,
             MaxGold = 0,
@@ -561,7 +563,8 @@ public class WorldDbContext : DbContext
             MovementType = 0,
             DetectionRange = 20,
             MovementId = 0,
-            ScriptName = "CreatureIdleScript", // see the note above this seed block
+            ScriptName = "TownNpcScript",
+            Invulnerable = true,
             HealthModifier = 1,
             ManaModifier = 1,
             ArmorModifier = 1,
@@ -585,7 +588,7 @@ public class WorldDbContext : DbContext
             Rarity = CreatureRarity.Normal,
             Family = CreatureFamily.None,
             Type = CreatureType.Humanoid,
-            Experience = 20,
+            Experience = 0,
             LootId = 0,
             MinGold = 0,
             MaxGold = 0,
@@ -593,7 +596,8 @@ public class WorldDbContext : DbContext
             MovementType = 0,
             DetectionRange = 20,
             MovementId = 0,
-            ScriptName = "CreatureIdleScript", // see the note above this seed block
+            ScriptName = "TownNpcScript",
+            Invulnerable = true,
             HealthModifier = 1,
             ManaModifier = 1,
             ArmorModifier = 1,
@@ -617,7 +621,7 @@ public class WorldDbContext : DbContext
             Rarity = CreatureRarity.Normal,
             Family = CreatureFamily.None,
             Type = CreatureType.Humanoid,
-            Experience = 20,
+            Experience = 0,
             LootId = 0,
             MinGold = 0,
             MaxGold = 0,
@@ -625,7 +629,8 @@ public class WorldDbContext : DbContext
             MovementType = 0,
             DetectionRange = 20,
             MovementId = 0,
-            ScriptName = "CreatureIdleScript", // see the note above this seed block
+            ScriptName = "TownNpcScript",
+            Invulnerable = true,
             HealthModifier = 1,
             ManaModifier = 1,
             ArmorModifier = 1,
@@ -1148,6 +1153,51 @@ public class WorldDbContext : DbContext
 
         builder.Property(p => p.BackPortalTargetMapId).IsRequired(false);
         builder.Property(p => p.ForwardPortalTargetMapId).IsRequired(false);
+    }
+
+    private static void Configure(EntityTypeBuilder<MapCreatureSpawn> builder)
+    {
+        builder.ToTable("MapCreatureSpawns");
+        builder.HasKey(b => b.Id);
+        builder.Property(b => b.Id)
+            .HasConversion(v => v.Value, v => new MapCreatureSpawnId(v))
+            .IsRequired()
+            .ValueGeneratedOnAdd();
+
+        builder.Property(b => b.MapTemplateId)
+            .HasConversion(v => v.Value, v => new MapTemplateId(v))
+            .IsRequired();
+        builder.Property(b => b.CreatureTemplateId)
+            .HasConversion(v => v.Value, v => new CreatureTemplateId(v))
+            .IsRequired();
+
+        // Placement reads every row for one map at instance-build time.
+        builder.HasIndex(b => b.MapTemplateId);
+
+        // Town (map 1). Offsets are metres from the map's entry spawn point and the facings are
+        // yaw in degrees, chosen so each NPC looks back toward an arriving player: forward is
+        // (sin yaw, 0, cos yaw), so atan2(-offsetX, -offsetZ) points at the entry.
+        //
+        // These positions are deliberately provisional. The town's geometry lives in the chunk
+        // .obj assets rather than in this repository, so they were picked to put the three NPCs
+        // in a visible arc a few metres in front of the player instead of against any particular
+        // doorway. Retuning them is a data change, not a code change.
+        builder.HasData(
+            new MapCreatureSpawn
+            {
+                Id = 1, MapTemplateId = 1, CreatureTemplateId = 1,     // Uriel
+                OffsetX = -3f, OffsetY = 0f, OffsetZ = 4f, Facing = 143f
+            },
+            new MapCreatureSpawn
+            {
+                Id = 2, MapTemplateId = 1, CreatureTemplateId = 2,     // Borin Stoutbeard
+                OffsetX = 3f, OffsetY = 0f, OffsetZ = 4f, Facing = 217f
+            },
+            new MapCreatureSpawn
+            {
+                Id = 3, MapTemplateId = 1, CreatureTemplateId = 3,     // Innkeeper
+                OffsetX = 0f, OffsetY = 0f, OffsetZ = 7f, Facing = 180f
+            });
     }
 
     private static void Configure(EntityTypeBuilder<AbilityTemplate> builder)
