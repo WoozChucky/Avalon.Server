@@ -4,6 +4,7 @@ using Avalon.World.Localization;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Localization;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Xunit;
@@ -117,6 +118,28 @@ public class LocalizedTextCatalogShould
             catalog.Get(new LocalizedTextId(1),
                 Context(AccountLocale.ptPT, name: "Mira", className: "Curandeira",
                     gender: CharacterGender.Female)));
+    }
+
+    [Fact]
+    public void Warn_Only_Once_For_A_Repeated_Unknown_Id()
+    {
+        // Get runs on the tick thread for every dialogue read. A bad id on a live NPC must not
+        // flood the log for as long as players keep talking to it.
+        ILogger innerLogger = Substitute.For<ILogger>();
+        ILoggerFactory loggerFactory = Substitute.For<ILoggerFactory>();
+        loggerFactory.CreateLogger(Arg.Any<string>()).Returns(innerLogger);
+
+        var catalog = new LocalizedTextCatalog([], [], [], loggerFactory);
+
+        catalog.Get(new LocalizedTextId(99), Context(AccountLocale.enUS));
+        catalog.Get(new LocalizedTextId(99), Context(AccountLocale.enUS));
+        catalog.Get(new LocalizedTextId(99), Context(AccountLocale.enUS));
+
+        int warnings = innerLogger.ReceivedCalls()
+            .Count(call => call.GetMethodInfo().Name == nameof(ILogger.Log)
+                && (LogLevel)call.GetArguments()[0]! == LogLevel.Warning);
+
+        Assert.Equal(1, warnings);
     }
 
     private static LocalizedText Text(int id, string text)
