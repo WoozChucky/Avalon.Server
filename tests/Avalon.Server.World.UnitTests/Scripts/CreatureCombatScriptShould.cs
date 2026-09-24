@@ -784,6 +784,109 @@ public class CreatureCombatScriptShould
         }
     }
 
+    /// <summary>
+    /// The mid-walk re-path. Every other integration test in this file stubs <c>FindPath</c> to return
+    /// a single-element list containing the destination, which is the one path shape under which this
+    /// defect cannot appear: a one-waypoint path makes <c>HasArrived</c> true the moment the creature
+    /// reaches it, so "does it re-aim while still walking" is never asked. This one uses
+    /// <see cref="SmoothedPath" /> — waypoints every 0.5 units, matching <c>MapNavigator.StepSize</c> —
+    /// so the creature is genuinely mid-journey with ~20 queued waypoints when the target turns.
+    ///
+    /// The behaviour: a player pulls from ~10 units away and then turns 90 degrees while the creature
+    /// is still closing. The creature must re-plan toward where the player now is, not finish walking
+    /// to where the player was (~2.5s of running at the wrong thing at SpeedRun 4).
+    ///
+    /// Production change that breaks this: gating the movement block's <c>MoveTo</c> on
+    /// <c>!stillWalking</c> again (i.e. dropping <c>destinationDrifted</c>), or dropping the
+    /// <c>_lastRequestedDestination</c> assignment in <c>RequestMoveTo</c> so drift is measured
+    /// against a destination that never updates.
+    /// </summary>
+    [Fact]
+    public void Re_Path_Mid_Walk_When_The_Target_Turns_Away_From_The_Route_Already_Planned()
+    {
+        var navigator = Substitute.For<IMapNavigator>();
+        navigator.FindPath(Arg.Any<Vector3>(), Arg.Any<Vector3>())
+            .Returns(call => SmoothedPath(call.ArgAt<Vector3>(0), call.ArgAt<Vector3>(1)));
+
+        var locomotion = new WaypointLocomotion(_ => navigator);
+        var meleeSlots = new MeleeSlots(slotCount: 6, radius: 1.5f);
+
+        var combat = Substitute.For<ICombatService>();
+        combat.GetEncounterFor(Arg.Any<IUnit>()).Returns((IEncounter?)null);
+
+        ICharacter target = Substitute.For<ICharacter>();
+        target.Guid.Returns(new ObjectGuid(ObjectType.Character, 100));
+        target.Position.Returns(Vector3.zero);
+        target.IsDead.Returns(false);
+
+        ICreature creature = Substitute.For<ICreature>();
+        creature.Guid.Returns(new ObjectGuid(ObjectType.Creature, 1));
+        creature.Position.Returns(new Vector3(12f, 0f, 0f));
+        creature.TauntedBy      = null;
+        creature.TauntExpiresAt = DateTime.MinValue;
+
+        var metadata = Substitute.For<ICreatureMetadata>();
+        metadata.SpeedRun.Returns(4f);
+        creature.Metadata.Returns(metadata);
+
+        var context = Substitute.For<ISimulationContext>();
+        context.CombatService.Returns(combat);
+        context.Locomotion.Returns(locomotion);
+        context.MeleeSlots.Returns(meleeSlots);
+
+        locomotion.Register(creature, radius: 0.5f);
+        var script = new CreatureCombatScript(NullLoggerFactory.Instance, creature, context);
+        script.OnEnteredRange(target);
+
+        TimeSpan tickInterval = TimeSpan.FromSeconds(1.0 / 60.0);
+
+        // 20 ticks = ~1.3 units of a ~10.5-unit approach: unambiguously mid-walk, with plenty of
+        // queued waypoints left, so the creature cannot be rescued by a convenient arrival.
+        for (int tick = 0; tick < 20; tick++)
+        {
+            script.Update(tickInterval);
+            locomotion.Update(tickInterval);
+        }
+
+        Assert.False(locomotion.HasArrived(creature),
+            "fixture broken: the creature was meant to still be walking when the target turns");
+
+        // The 90-degree turn. 12 units of target movement, far past PathRecalculationThreshold (1.5).
+        target.Position.Returns(new Vector3(0f, 0f, 12f));
+
+        // One simulated second — four units of travel. A creature that re-planned heads noticeably
+        // along +Z; one that committed to the stale path keeps walking down +X with z exactly 0, and
+        // still has ~2s of that path left to walk, so it cannot reach the end and re-aim by accident.
+        for (int tick = 0; tick < 60; tick++)
+        {
+            script.Update(tickInterval);
+            locomotion.Update(tickInterval);
+        }
+
+        Assert.True(creature.Position.z > 1f,
+            $"creature only reached z={creature.Position.z} a second after the target turned 90 " +
+            "degrees — it is still walking the route planned before the turn.");
+    }
+
+    /// <summary>
+    /// A path in the shape <see cref="Avalon.World.Maps.Navigation.MapNavigator" /> actually returns:
+    /// the start position, then a waypoint every <c>StepSize</c> (0.5) units along the straight line,
+    /// then the exact destination. The one-element stub every other integration test here uses is the
+    /// single shape that hides a missing mid-walk re-path.
+    /// </summary>
+    private static List<Vector3> SmoothedPath(Vector3 from, Vector3 to)
+    {
+        const float stepSize = 0.5f;
+        var path = new List<Vector3> { from };
+
+        float total = Vector3.Distance(from, to);
+        for (float walked = stepSize; walked < total; walked += stepSize)
+            path.Add(Vector3.MoveTowards(from, to, walked));
+
+        path.Add(to);
+        return path;
+    }
+
     /// <summary>Claims every slot on <paramref name="target"/> on behalf of other creatures.</summary>
     private void ClaimEverySlot(ICharacter target)
     {
