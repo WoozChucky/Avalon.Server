@@ -80,6 +80,8 @@ All client↔server communication is custom TCP with Protobuf-net. Every packet 
 
 Auth handlers are registered in DI and resolved manually; World handlers use `ActivatorUtilities.CreateInstance` in `WorldServer`.
 
+**A new client→server opcode also needs a session filter entry, or it wedges the connection.** `MapSessionFilter` (in-map packets) or `WorldSessionFilter` (pre-character packets) must accept the opcode as well as a handler existing for it. An opcode neither filter accepts is not merely ignored — `LockedQueue`'s peek-first semantics leave it at the head of the connection's queue, blocking every packet behind it, so the client's movement, casting and chat all stop permanently.
+
 **Reflection-bound registration — a reference grep proves nothing.** Packet handlers are discovered by attribute scan, and AI/ability scripts by type name: `ScriptManager` keys every `AiScript` subclass by `t.Name`, and `ICreaturePlacementService.AttachScript` resolves `creature.ScriptName` from the DB and builds it with `ActivatorUtilities.CreateInstance(_sp, scriptType, creature, instance)`. So "nothing references this type" says nothing about whether it is used — and note that call site passes exactly two runtime arguments, so a script constructor needing anything beyond `(ILoggerFactory, ICreature, ISimulationContext)` will throw and be swallowed into a warning. Check constructibility against that call site, not against grep.
 
 ## Auth Flow
