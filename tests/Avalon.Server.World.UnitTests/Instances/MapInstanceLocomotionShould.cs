@@ -2,6 +2,7 @@ using System.Reflection;
 using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
+using Avalon.Domain.Auth;
 using Avalon.World;
 using Avalon.World.ChunkLayouts;
 using Avalon.World.Configuration;
@@ -20,6 +21,7 @@ using DotRecast.Detour;
 using DotRecast.Detour.Crowd;
 using DotRecast.Recast.Geom;
 using DotRecast.Recast.Toolset.Builder;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Xunit;
@@ -96,6 +98,205 @@ public class MapInstanceLocomotionShould
         instance.Update(TimeSpan.FromSeconds(1d / 60d));
 
         Assert.Empty(CrowdOf(crowd).GetActiveAgents());
+    }
+
+    // --- Task 10: configuration-driven selection ------------------------------------------------
+    //
+    // CreateLocomotion (MapInstance.cs) is the only place that ever constructs a CrowdLocomotion in
+    // production; everything above this point had to reach a crowd via SetLocomotion by reflection
+    // because nothing chose one on its own yet.
+
+    /// <summary>Production change that breaks this: CreateLocomotion returning CrowdLocomotion for the default config, or the default config's own CreatureLocomotion value changing.</summary>
+    [Fact]
+    public void Use_Waypoint_Locomotion_By_Default()
+    {
+        MapInstance instance = BuildInstance(new GameConfiguration { WorldId = new WorldId(1) });
+
+        Assert.IsType<WaypointLocomotion>(instance.Locomotion);
+    }
+
+    /// <summary>Production change that breaks this: CreateLocomotion not branching on CreatureLocomotionMode.Crowd, or the `MapNavigator { NavMesh: { } }` pattern rejecting a real baked navmesh.</summary>
+    [Fact]
+    public void Use_Crowd_Locomotion_When_Configured()
+    {
+        MapInstance instance = BuildInstance(new GameConfiguration
+        {
+            WorldId = new WorldId(1),
+            CreatureLocomotion = CreatureLocomotionMode.Crowd,
+        }, withBakedNavMesh: true);
+
+        Assert.IsType<CrowdLocomotion>(instance.Locomotion);
+    }
+
+    /// <summary>
+    /// Review Focus 5. A crowd cannot be built without a mesh, and creatures that cannot move are worse
+    /// than creatures that move badly.
+    /// Production change that breaks this: CreateLocomotion dereferencing a null NavMesh instead of
+    /// falling back (would throw a NullReferenceException out of the constructor instead of returning
+    /// WaypointLocomotion).
+    /// </summary>
+    [Fact]
+    public void Fall_Back_To_Waypoint_When_The_Navmesh_Is_Missing()
+    {
+        MapInstance instance = BuildInstance(new GameConfiguration
+        {
+            WorldId = new WorldId(1),
+            CreatureLocomotion = CreatureLocomotionMode.Crowd,
+        }, withBakedNavMesh: false);
+
+        Assert.IsType<WaypointLocomotion>(instance.Locomotion);
+    }
+
+    /// <summary>
+    /// The other half of the fallback: MapInstance is handed an <see cref="IMapNavigator" />, not a
+    /// <see cref="MapNavigator" /> — every test substitute, and possibly a future non-DotRecast
+    /// implementation, is not a MapNavigator at all. The `is MapNavigator { NavMesh: { } }` pattern
+    /// in CreateLocomotion has to fail closed on this shape too, not just on a MapNavigator with a
+    /// null NavMesh.
+    /// Production change that breaks this: CreateLocomotion casting `_navigator` to MapNavigator
+    /// unconditionally (e.g. `((MapNavigator)_navigator).NavMesh`) instead of pattern-matching, which
+    /// would throw an InvalidCastException here instead of falling back.
+    /// </summary>
+    [Fact]
+    public void Fall_Back_To_Waypoint_When_The_Navigator_Is_Not_A_MapNavigator()
+    {
+        MapInstance instance = BuildInstance(new GameConfiguration
+        {
+            WorldId = new WorldId(1),
+            CreatureLocomotion = CreatureLocomotionMode.Crowd,
+        }, navigator: Substitute.For<IMapNavigator>());
+
+        Assert.IsType<WaypointLocomotion>(instance.Locomotion);
+    }
+
+    /// <summary>
+    /// A silent downgrade to Waypoint would look exactly like "the flag does nothing" from the
+    /// operator's side — this pins that the fallback actually says which map it affected and why.
+    /// Uses a hand-written <see cref="ILogger" /> rather than an NSubstitute one: the interesting
+    /// assertion is the formatted message text, and NSubstitute cannot intercept the generic
+    /// `Log&lt;TState&gt;` call in a way that recovers it without reimplementing the same formatter.
+    /// Production change that breaks this: dropping the LogWarning call, lowering it below Warning,
+    /// or a message that no longer names the map or the reason.
+    /// </summary>
+    [Fact]
+    public void Log_A_Warning_When_Crowd_Locomotion_Falls_Back()
+    {
+        var loggerFactory = new RecordingLoggerFactory();
+
+        BuildInstance(new GameConfiguration
+        {
+            WorldId = new WorldId(1),
+            CreatureLocomotion = CreatureLocomotionMode.Crowd,
+        }, withBakedNavMesh: false, loggerFactory: loggerFactory);
+
+        Assert.Contains(loggerFactory.Logger.Entries, entry =>
+            entry.Level == LogLevel.Warning &&
+            entry.Message.Contains("navmesh", StringComparison.OrdinalIgnoreCase) &&
+            entry.Message.Contains("1", StringComparison.Ordinal)); // TemplateId = new MapTemplateId(1)
+    }
+
+    /// <summary>
+    /// Builds a bare MapInstance (no creature, no character seated) purely to inspect which
+    /// <see cref="ICreatureLocomotion" /> its constructor chose. Reuses the same construction shape
+    /// as <see cref="BuildInstanceWithCreature" /> but parameterizes the two things Task 10's
+    /// selection actually reads: the configuration, and the navigator.
+    /// </summary>
+    /// <param name="withBakedNavMesh">
+    /// True loads <see cref="CrowdLocomotionShould.FlatNavMesh" /> into a real
+    /// <see cref="MapNavigator" /> before construction (the success path for Crowd). False, the
+    /// default, builds a real <see cref="MapNavigator" /> that is never loaded, so its
+    /// <see cref="MapNavigator.NavMesh" /> stays null — one of the two fallback conditions. Ignored
+    /// when <paramref name="navigator" /> is supplied directly.
+    /// </param>
+    /// <param name="navigator">
+    /// Overrides the navigator entirely, for the other fallback condition: a navigator that is not a
+    /// <see cref="MapNavigator" /> at all (every test substitute, including the one
+    /// <see cref="BuildInstanceWithCreature" /> uses).
+    /// </param>
+    /// <param name="loggerFactory">
+    /// Overrides the logger factory so <see cref="Log_A_Warning_When_Crowd_Locomotion_Falls_Back" />
+    /// can inspect what MapInstance logged.
+    /// </param>
+    private static MapInstance BuildInstance(
+        GameConfiguration config,
+        bool withBakedNavMesh = false,
+        IMapNavigator? navigator = null,
+        ILoggerFactory? loggerFactory = null)
+    {
+        var serviceProvider = Substitute.For<IServiceProvider>();
+        serviceProvider.GetService(typeof(IScriptManager)).Returns(Substitute.For<IScriptManager>());
+        serviceProvider.GetService(typeof(CombatConfig)).Returns(new CombatConfig());
+
+        var world = Substitute.For<IWorld>();
+        world.Configuration.Returns(config);
+
+        if (navigator is null)
+        {
+            var mapNavigator = new MapNavigator(NullLoggerFactory.Instance);
+            if (withBakedNavMesh)
+                mapNavigator.LoadFromNavMesh(CrowdLocomotionShould.FlatNavMesh.Value);
+            navigator = mapNavigator;
+        }
+
+        var entryChunk = new PlacedChunk(new ChunkTemplateId(1), 0, 0, 0, Vector3.zero);
+        var layout = new ChunkLayout(
+            Seed: 0,
+            Chunks: new[] { entryChunk },
+            EntryChunk: entryChunk,
+            BossChunk: null,
+            Portals: Array.Empty<PortalPlacement>(),
+            EntrySpawnWorldPos: Vector3.zero,
+            CellSize: 30f,
+            Config: null);
+
+        var instance = new MapInstance(
+            loggerFactory ?? NullLoggerFactory.Instance,
+            serviceProvider,
+            world,
+            new MapTemplateId(1),
+            ownerCharacterId: null,
+            layout,
+            navigator,
+            seed: 0);
+
+        // See DetachStaticEventHandlers' remarks on BuildInstanceWithCreature: same leak, same fix,
+        // needed here even though this instance never gets a populated _connections/_creatures.
+        DetachStaticEventHandlers(instance);
+
+        return instance;
+    }
+
+    /// <summary>
+    /// Hand-written rather than NSubstitute: captures the formatted message text from
+    /// <see cref="ILogger.Log{TState}" /> so a test can assert on what an operator would actually
+    /// read, not just that some call happened.
+    /// </summary>
+    private sealed class RecordingLogger : ILogger
+    {
+        public List<(LogLevel Level, string Message)> Entries { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
+            Func<TState, Exception?, string> formatter) =>
+            Entries.Add((logLevel, formatter(state, exception)));
+    }
+
+    private sealed class RecordingLoggerFactory : ILoggerFactory
+    {
+        public RecordingLogger Logger { get; } = new();
+
+        public ILogger CreateLogger(string categoryName) => Logger;
+
+        public void AddProvider(ILoggerProvider provider)
+        {
+        }
+
+        public void Dispose()
+        {
+        }
     }
 
     /// <summary>
