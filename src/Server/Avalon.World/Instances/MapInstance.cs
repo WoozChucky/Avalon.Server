@@ -253,8 +253,14 @@ public class MapInstance : IMapInstance, IPortalSink
 
     public void RespawnCreature(ICreature creature)
     {
-        // No-op: chunk-layout instances install NoOpCreatureRespawner so this
-        // path is never invoked. Kept to satisfy ISimulationContext contract.
+        // Chunk-layout instances install NoOpCreatureRespawner, so nothing reaches this today — but
+        // OnCreatureKilled now unregisters a dead creature from the locomotion, and a creature that
+        // came back without being registered again would be permanently unable to move. Register is
+        // idempotent, so this is correct whether or not the creature was ever unregistered, and it
+        // means the death-side teardown above has a matching re-entry the moment respawn is wired up.
+        // Reposition the creature (and its health) before calling this if it is to come back at its
+        // spawn point: CrowdLocomotion.Register snapshots creature.Position into the new agent.
+        _locomotion.Register(creature, _creatureAgentRadius);
     }
 
     public void BroadcastUnitHit(IUnit attacker, IUnit target, uint currentHealth, uint damage)
@@ -596,6 +602,33 @@ public class MapInstance : IMapInstance, IPortalSink
         }
 
         creature.Script = null;
+
+        // Death is the one exit a creature takes that never runs through RemoveCreature: the only
+        // production caller of that is CreatureRespawner.Update, and chunk-layout instances install
+        // NoOpCreatureRespawner (see the assignment in the constructor), so the teardown RemoveCreature
+        // does has to be repeated here or it never happens at all. Doing it at this chokepoint rather
+        // than in the script's death branch covers every death route — Creature.Died is raised from
+        // exactly one place and always lands here — including a creature with no script, or one whose
+        // script is not CreatureCombatScript.
+        //
+        // Stop BEFORE Unregister, not after: Stop is what brings the corpse to rest (MoveState.Idle,
+        // zero Velocity) and both implementations no-op on an unregistered creature, so the reverse
+        // order would leave a corpse broadcasting MoveState.Running forever. Unregister then drops the
+        // waypoint queue / crowd agent, so the corpse neither keeps walking its remaining path nor
+        // lingers as an invisible obstacle that living creatures steer around and the crowd's own
+        // collision resolution shoves about.
+        _locomotion.Stop(creature);
+        _locomotion.Unregister(creature);
+
+        // Both directions of the slot ledger, and both are needed. ReleaseClaimant gives back the
+        // slot this creature held on whatever it was attacking (the script's death branch does that
+        // too, but only for a creature that had a CreatureCombatScript to run it). ReleaseTarget frees
+        // the ring other creatures claimed ON this one: the script-side target-death release is gated
+        // on `_target is ICharacter`, so a creature target dying is not covered there. Both are
+        // idempotent, so the overlap with the script is harmless.
+        _meleeSlots.ReleaseClaimant(creature.Guid);
+        _meleeSlots.ReleaseTarget(creature.Guid);
+
         _creatureRespawner.ScheduleRespawn(creature);
 
         if (killer is not ICharacter character)
