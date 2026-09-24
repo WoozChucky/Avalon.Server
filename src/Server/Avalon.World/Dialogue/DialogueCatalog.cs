@@ -45,18 +45,22 @@ public class DialogueCatalog : IDialogueCatalog
                 node.CreatureTemplateId,
                 node.TextId,
                 optionsByNode.TryGetValue(node.Id.Value, out List<DialogueOption>? found)
-                    ? found.OrderBy(o => o.SortOrder)
+                    ? found.OrderBy(o => o.SortOrder).ThenBy(o => o.Id.Value)
                         .Select(o => new DialogueOptionView(o.Id, o.TextId, o.NextNodeId))
                         .ToList()
                     : []));
 
+        // The repository's read is unordered (matches CreatureBaseStatRepository and its siblings),
+        // so neither the database nor EF guarantees an enumeration order. Ordering roots by id here
+        // makes "which root wins when a creature has two" deterministic — the lowest-id root wins —
+        // rather than depending on whatever order the database happened to hand rows back in.
         _rootByCreature = [];
-        foreach (DialogueNode node in nodes.Where(n => n.IsRoot))
+        foreach (DialogueNode node in nodes.Where(n => n.IsRoot).OrderBy(n => n.Id.Value))
         {
             if (!_rootByCreature.TryAdd(node.CreatureTemplateId.Value, _byNode[node.Id.Value]))
             {
                 logger.LogWarning(
-                    "Creature template {CreatureId} has more than one root dialogue node; keeping the first",
+                    "Creature template {CreatureId} has more than one root dialogue node; keeping the lowest-id one",
                     node.CreatureTemplateId.Value);
             }
         }

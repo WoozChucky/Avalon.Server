@@ -14,17 +14,21 @@ public class DialogueCatalogShould
     [Fact]
     public void Find_The_Root_Node_For_A_Creature_That_Talks()
     {
-        // The non-root node is listed first deliberately: a catalog that picks whichever node it
-        // sees first for a creature (instead of filtering on IsRoot) would return node 2 here, not
-        // node 1, so this only proves root selection when the root is not simply "first in input".
+        // The non-root node deliberately carries the LOWER id and is listed first. Root selection
+        // now orders candidates by id to make ties deterministic (see
+        // Prefer_The_Lowest_Id_Root_When_A_Creature_Has_Two), so a fixture where the root also had
+        // the lowest id would pass even if the IsRoot filter were dropped entirely — the id
+        // tie-break alone would pick the right node by coincidence. Giving the non-root node the
+        // lower id proves IsRoot filtering happens, independently of the id tie-break among
+        // whatever survives it.
         IDialogueCatalog catalog = Catalog(
-            nodes: [Node(2, creature: 3, root: false, text: 7), Node(1, creature: 3, root: true, text: 6)],
+            nodes: [Node(1, creature: 3, root: false, text: 7), Node(2, creature: 3, root: true, text: 6)],
             options: []);
 
         DialogueNodeView? root = catalog.GetRoot(new CreatureTemplateId(3));
 
         Assert.NotNull(root);
-        Assert.Equal(1, root!.Id.Value);
+        Assert.Equal(2, root!.Id.Value);
     }
 
     [Fact]
@@ -58,6 +62,41 @@ public class DialogueCatalogShould
         DialogueNodeView root = catalog.GetRoot(new CreatureTemplateId(3))!;
 
         Assert.Equal([1, 2], root.Options.Select(o => o.Id.Value).ToArray());
+    }
+
+    [Fact]
+    public void Break_A_SortOrder_Tie_On_The_Option_Id()
+    {
+        // Both options share SortOrder 0 and are listed highest-id-first in the fixture. OrderBy is
+        // a stable sort, so without a tie-break on id, ties would come back in whatever order the
+        // (unordered) database read happened to hand them in — here, [2, 1].
+        IDialogueCatalog catalog = Catalog(
+            nodes: [Node(1, creature: 3, root: true, text: 6)],
+            options:
+            [
+                Option(2, node: 1, text: 10, next: null, sort: 0),
+                Option(1, node: 1, text: 7, next: null, sort: 0)
+            ]);
+
+        DialogueNodeView root = catalog.GetRoot(new CreatureTemplateId(3))!;
+
+        Assert.Equal([1, 2], root.Options.Select(o => o.Id.Value).ToArray());
+    }
+
+    [Fact]
+    public void Prefer_The_Lowest_Id_Root_When_A_Creature_Has_Two()
+    {
+        // Both nodes are roots for creature 3, listed highest-id-first in the fixture. TryAdd is
+        // first-write-wins, so without ordering roots by id first, "wins" would mean "whatever order
+        // the (unordered) database read happened to hand them in", not "lowest id".
+        IDialogueCatalog catalog = Catalog(
+            nodes: [Node(2, creature: 3, root: true, text: 7), Node(1, creature: 3, root: true, text: 6)],
+            options: []);
+
+        DialogueNodeView? root = catalog.GetRoot(new CreatureTemplateId(3));
+
+        Assert.NotNull(root);
+        Assert.Equal(1, root!.Id.Value);
     }
 
     [Fact]
