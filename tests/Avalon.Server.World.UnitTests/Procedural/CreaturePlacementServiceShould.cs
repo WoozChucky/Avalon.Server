@@ -52,6 +52,7 @@ public class CreaturePlacementServiceShould
         var cfg = new ProceduralMapConfig { SpawnTableId = new SpawnTableId(1) };
 
         var svc = new CreaturePlacementService(spawner, library, spawnTableRepo,
+            Substitute.For<Avalon.Database.World.Repositories.IMapCreatureSpawnRepository>(),
             Substitute.For<Avalon.World.Scripts.IScriptManager>(),
             Substitute.For<IServiceProvider>(),
             Microsoft.Extensions.Logging.Abstractions.NullLoggerFactory.Instance);
@@ -93,6 +94,7 @@ public class CreaturePlacementServiceShould
         var cfg = new ProceduralMapConfig { SpawnTableId = new SpawnTableId(1) };
 
         var svc = new CreaturePlacementService(spawner, library, spawnTableRepo,
+            Substitute.For<Avalon.Database.World.Repositories.IMapCreatureSpawnRepository>(),
             Substitute.For<Avalon.World.Scripts.IScriptManager>(),
             Substitute.For<IServiceProvider>(),
             Microsoft.Extensions.Logging.Abstractions.NullLoggerFactory.Instance);

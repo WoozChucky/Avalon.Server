@@ -123,6 +123,59 @@ public class SeedIntegrityShould
     }
 
     /// <summary>
+    /// The town's authored spawns must point at real creature templates, and those templates must be
+    /// the unkillable kind. A dangling <c>CreatureTemplateId</c> costs one NPC — placement catches and
+    /// skips it — but a town NPC that is not <c>Invulnerable</c> is a bug no log line reports: it is
+    /// simply a killable innkeeper.
+    /// </summary>
+    [Fact]
+    public void Point_Every_Town_Spawn_At_A_Real_Template_That_Cannot_Be_Killed()
+    {
+        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+
+        List<MapCreatureSpawn> spawns = context.MapCreatureSpawns.AsNoTracking().ToList();
+        Assert.NotEmpty(spawns);
+
+        List<CreatureTemplate> templates = context.CreatureTemplates.AsNoTracking().ToList();
+
+        foreach (MapCreatureSpawn spawn in spawns)
+        {
+            CreatureTemplate? template = templates
+                .SingleOrDefault(t => t.Id.Value == spawn.CreatureTemplateId.Value);
+
+            Assert.True(template is not null,
+                $"map spawn {spawn.Id.Value} points at creature template "
+                + $"{spawn.CreatureTemplateId.Value}, which is not seeded");
+
+            Assert.True(template!.Invulnerable,
+                $"{template.Name} is placed as a town NPC but is not Invulnerable - players could kill it");
+
+            Assert.Equal("TownNpcScript", template.ScriptName);
+        }
+    }
+
+    /// <summary>
+    /// The three town NPCs are the whole of map 1's population today. Pinning the count and the map
+    /// catches a seed edit that drops one, or that quietly hangs NPCs off the wrong map.
+    /// </summary>
+    [Fact]
+    public void Place_The_Three_Town_Npcs_On_Map_One()
+    {
+        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+
+        List<MapCreatureSpawn> spawns = context.MapCreatureSpawns.AsNoTracking().ToList();
+
+        Assert.Equal(3, spawns.Count);
+        Assert.All(spawns, spawn => Assert.Equal(1u, spawn.MapTemplateId.Value));
+
+        Assert.Equal(
+            [1ul, 2ul, 3ul],
+            spawns.Select(spawn => spawn.CreatureTemplateId.Value).OrderBy(id => id).ToArray());
+    }
+
+    /// <summary>
     /// Every forest creature derives its experience rather than authoring it, so a stray value would
     /// quietly opt one creature out of level scaling and the band falloff would then apply to a constant.
     /// </summary>
