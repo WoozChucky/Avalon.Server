@@ -16,4 +16,4 @@
 - [ ] Solution builds in Release (`dotnet build -c Release`)
 - [ ] No credentials, keys, or connection strings added to source
 - [ ] New public types/interfaces placed in the appropriate `*.Public` or `*.Abstractions` project
-- [ ] `TODO.md` updated if a tracked item was completed or introduced
+- [ ] Related issue linked, and any follow-up worth tracking filed as an issue
