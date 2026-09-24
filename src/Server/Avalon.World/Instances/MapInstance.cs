@@ -6,6 +6,7 @@ using Avalon.Network.Packets.Combat;
 using Avalon.Network.Packets.State;
 using Avalon.World.Entities;
 using Avalon.World.ChunkLayouts;
+using Avalon.World.Creatures;
 using Avalon.World.Creatures.Locomotion;
 using Avalon.World.Public;
 using Avalon.World.Public.Abilities;
@@ -38,6 +39,8 @@ public class MapInstance : IMapInstance, IPortalSink
     private readonly IMapNavigator _navigator;
     private readonly ICreatureLocomotion _locomotion;
     private readonly float _creatureAgentRadius;
+    private readonly MeleeSlots _meleeSlots;
+    private readonly IMeleeSlots _meleeSlotsAdapter;
     private readonly IAbilityCastSystem _abilityCastSystem;
     private readonly EncounterRegistry _encounterRegistry;
     private readonly CombatService _combatService;
@@ -72,6 +75,8 @@ public class MapInstance : IMapInstance, IPortalSink
         _navigator = navigator;
         _creatureAgentRadius = world.Configuration.CreatureAgentRadius;
         _locomotion = new WaypointLocomotion(GetNavigatorForPosition);
+        _meleeSlots = new MeleeSlots(world.Configuration.MeleeSlotCount, world.Configuration.MeleeSlotRadius);
+        _meleeSlotsAdapter = new MeleeSlotsAdapter(_meleeSlots);
 
         _creatureRespawner = new NoOpCreatureRespawner();
 
@@ -118,6 +123,7 @@ public class MapInstance : IMapInstance, IPortalSink
     public IReadOnlyDictionary<ObjectGuid, ICreature> Creatures => _creatures;
     public ICombatService CombatService => _combatService;
     public ICreatureLocomotion Locomotion => _locomotion;
+    public IMeleeSlots MeleeSlots => _meleeSlotsAdapter;
 
     public bool IsExpired(TimeSpan expiry) =>
         LastEmptyAt.HasValue && (DateTime.UtcNow - LastEmptyAt.Value) >= expiry;
@@ -170,6 +176,11 @@ public class MapInstance : IMapInstance, IPortalSink
     {
         _creatures.Remove(creature.Guid);
         _locomotion.Unregister(creature);
+
+        // Despawn runs through here without ever consulting the creature's script, so this is
+        // the only place a slot held by a despawning creature can be released. Safe unconditionally
+        // — a no-op when the creature never claimed one.
+        _meleeSlots.ReleaseClaimant(creature.Guid);
     }
 
     public bool QueueAbility(ICharacter caster, IUnit? target, IAbility ability) =>

@@ -30,6 +30,9 @@ public interface ISimulationContext
     /// </summary>
     ICreatureLocomotion Locomotion { get; }
 
+    /// <summary>Standing positions around a target, so attackers surround it rather than stack.</summary>
+    IMeleeSlots MeleeSlots { get; }
+
     bool QueueAbility(ICharacter caster, IUnit? target, IAbility ability);
 
     /// <summary>
