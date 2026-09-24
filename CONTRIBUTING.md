@@ -201,7 +201,7 @@ dotnet test tests/Avalon.Server.Auth.UnitTests --filter "FullyQualifiedName~CAut
 
 - Use [GitHub Issues](../../issues) to report bugs or request features.
 - For bugs, include the component (API / Auth Server / World Server), steps to reproduce, expected vs. actual behaviour, and relevant log output.
-- Check `TODO.md` before opening a feature request — it may already be tracked there.
+- Search the existing issues before opening a feature request — it may already be tracked.
 
 ---
 
