@@ -22,6 +22,12 @@ public class MapNavigator : IMapNavigator
 
     public object? Mesh => _navMesh;
 
+    /// <summary>
+    ///     The baked mesh, typed. <see cref="IMapNavigator" /> exposes it as <c>object?</c> because
+    ///     Avalon.World.Public cannot reference DotRecast; callers inside Avalon.World can.
+    /// </summary>
+    public DtNavMesh? NavMesh => _navMesh;
+
     public MapNavigator(ILoggerFactory loggerFactory)
     {
         _logger = loggerFactory.CreateLogger<MapNavigator>();
