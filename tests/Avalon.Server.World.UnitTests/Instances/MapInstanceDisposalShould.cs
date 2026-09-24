@@ -137,6 +137,41 @@ public class MapInstanceDisposalShould
         return connection;
     }
 
+    /// <summary>
+    /// Disposing one instance must not silence the others. These events are static and shared, so
+    /// <c>-=</c> is doing the load-bearing work here: it removes only the delegate whose target is the
+    /// disposed instance, leaving every other subscriber's entry in the invocation list. Written
+    /// because the obvious "simplification" of <see cref="MapInstance.Dispose" /> — assigning the
+    /// event to <c>null</c>, or clearing it — would compile, would pass every other test in this file,
+    /// and would stop every surviving instance in the process from ever reacting to an entity again.
+    /// </summary>
+    [Fact]
+    public void Leave_Other_Instances_Subscribed_When_One_Is_Disposed()
+    {
+        MapInstance disposed = BuildInstance();
+        MapInstance survivor = BuildInstance();
+
+        try
+        {
+            var creature = new Creature { Guid = new ObjectGuid(ObjectType.Creature, 991_201) };
+            survivor.AddCreature(creature);
+            creature.Script = new CreatureCombatScript(NullLoggerFactory.Instance, creature, survivor);
+
+            disposed.Dispose();
+
+            // The survivor owns this creature, so its OnCreatureKilled must still run and clear the
+            // script. If Dispose cleared the shared event rather than removing one delegate, nothing
+            // would run and the script would still be set.
+            creature.Died(creature);
+
+            Assert.Null(creature.Script);
+        }
+        finally
+        {
+            survivor.Dispose();
+        }
+    }
+
     private static MapInstance BuildInstance()
     {
         var serviceProvider = Substitute.For<IServiceProvider>();
