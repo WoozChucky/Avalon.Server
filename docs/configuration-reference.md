@@ -95,6 +95,57 @@ Section in `appsettings.json`: `"Cache"`
 
 ---
 
+## World Configuration (`GameConfiguration`)
+
+Section in `appsettings.json`: `"Game"` (World server only)
+
+| Key                              | Type   | Default    | Description |
+|----------------------------------|--------|------------|-------------|
+| `WorldId`                        | ushort | —          | Identifies this world to the Auth server |
+| `PlayerRadius`                   | float  | `2000`     | Currently unused by the simulation |
+| `MaxCharactersPerAccount`        | ushort | `5`        | Rejects character creation beyond this count |
+| `CharacterLoadTimeoutSeconds`    | int    | `15`       | How long a pending character select may wait before it is cancelled |
+| `ScriptHotReloadIntervalSeconds` | int    | `5`        | Poll interval for `IScriptHotReloader` |
+| `CreatureLocomotion`             | enum   | `Waypoint` | `Waypoint` or `Crowd` — see below |
+| `CrowdIncludesPlayers`           | bool   | `false`    | Registers players as crowd obstacles so creatures steer around them. Ignored under `Waypoint` |
+| `CreatureAgentRadius`            | float  | `0.6`      | Separation radius in world units. Range `0.05`–`10.0` |
+| `MeleeSlotCount`                 | int    | `6`        | Standing positions on the ring around a target. Range `1`–`16` |
+| `MeleeSlotRadius`                | float  | `1.5`      | Ring radius. Range `0.5`–`20.0` |
+
+```json
+"Game": {
+  "WorldId": 1,
+  "PlayerRadius": 2000,
+  "MaxCharactersPerAccount": 5,
+  "CharacterLoadTimeoutSeconds": 15,
+  "ScriptHotReloadIntervalSeconds": 5,
+  "CreatureLocomotion": "Waypoint",
+  "CrowdIncludesPlayers": false,
+  "CreatureAgentRadius": 0.6,
+  "MeleeSlotCount": 6,
+  "MeleeSlotRadius": 1.5
+}
+```
+
+### Creature locomotion
+
+`CreatureLocomotion` selects which `ICreatureLocomotion` each `MapInstance` builds:
+
+- **`Waypoint`** (default) — walks a navmesh path with no awareness of other agents. Two creatures sent to the same point occupy it.
+- **`Crowd`** — DotRecast `DtCrowd`. Agents actively steer around one another, and around players when `CrowdIncludesPlayers` is set. A map with no baked navmesh falls back to `Waypoint` and logs a warning naming the map.
+
+Under `Crowd`, player agents exist only as obstacles: `PlayerInputHandler` remains the sole authority on where a character is, and the crowd never writes a character's position.
+
+Before enabling `Crowd` on a busy map, note that DotRecast budgets roughly 25 agents per crowd at about 0.5 ms per frame, there is one crowd per `MapInstance`, and there is no agent cap.
+
+### Melee slots and attack range
+
+`MeleeSlotRadius` **must not exceed the creature attack range** (`CreatureCombatScript.AttackRange`, currently `1.5`). Set it higher and creatures walk to their slot, arrive, and stand outside attack range dealing no damage. The range attribute permits it, so the World server logs a warning at instance construction naming both values.
+
+The slot count is bounded by the ring's circumference. At radius `1.5` there are about `9.42` units of ring; with a `1.2` agent diameter (twice the default `CreatureAgentRadius`), six slots leave `1.57` between adjacent centres, while eight leave `1.18` — narrower than one creature.
+
+---
+
 ## Avalon Internal Authentication
 
 Section: environment variable or secrets manager (**never committed to source control**)

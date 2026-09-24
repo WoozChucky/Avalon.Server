@@ -12,7 +12,7 @@ The server has three independently deployable components:
 - **Avalon.Server.Auth** — TCP login flow, MFA, world-key issuance
 - **Avalon.Server.World** — game simulation, packet dispatch
 
-Known security gaps (from TODO.md):
+Known security gaps (legacy `TODO-0NN` numbering; tracked as GitHub issues):
 - **TODO-007** — `AvalonAuthenticationHandler` bearer token validation is a hardcoded stub
 - **TODO-013** — MFA second-factor flow is commented out in `CAuthHandler`
 
