@@ -37,10 +37,26 @@ public class CreatureCombatScript : AiScript
     // isn't applied around the check.
     private const float SurplusStandOffInset = 0.1f;
 
-    // How far a settled surplus (no-slot) creature's target may wander before its destination
-    // (a stand-off point at AttackRange from the target, on this creature's own bearing — see
-    // Update) counts as drifted enough to re-engage movement. A slotted creature uses
-    // Context.Locomotion.ArrivalTolerance instead: see Update.
+    // Two uses, both pre-existing, both measured in "how far may the target wander before the
+    // creature's current plan is stale enough to redo":
+    //
+    // 1. How far a settled surplus (no-slot) creature's target may wander before its destination
+    //    (a stand-off point at AttackRange from the target, on this creature's own bearing — see
+    //    Update) counts as drifted enough to re-engage movement. A settled *slotted* creature uses
+    //    Context.Locomotion.ArrivalTolerance instead: see Update.
+    // 2. How far the target may move away from where it was standing when the path currently being
+    //    walked was planned (_lastRequestedDestination) before that path is re-planned mid-walk. This
+    //    is the value that shipped before the locomotion seam existed, applied to exactly the same
+    //    quantity it was applied to then, so the FindPath rate this bounds is the pre-branch one:
+    //    at most one query per 1.5 units of target movement, never per tick.
+    //
+    // Deliberately NOT a smaller number, and deliberately not reused as a dead-band on the settled
+    // drift check: fix round 3 tried a 0.4 dead-band added to the *settled* slotted threshold and it
+    // stranded creatures — a settled creature's slack above AttackRange is only
+    // ArrivalTolerance + AttackRangeArrivalMargin (~0.15 under Waypoint), so any dead-band large
+    // enough to matter drops the creature out of attack range before it re-paths. That hazard is
+    // specific to the settled check; a creature that is still walking is not attacking anything
+    // yet, so there is no attack window for a mid-walk threshold to fall outside of.
     private const float PathRecalculationThreshold = 1.5f;
 
     // Gated on locomotion reporting arrival (see hasArrived in Update) — not unconditional, and
@@ -74,6 +90,14 @@ public class CreatureCombatScript : AiScript
     private bool _dead;
     private Vector3 _initialPosition;
 
+    // The destination the journey now in progress was planned for. This is what the mid-walk
+    // staleness check in Update measures against, and it answers a different question from the
+    // settled check next to it: "is where I am headed still where I should be headed" versus "have
+    // I stopped somewhere that is no longer good enough". Written only by RequestMoveTo, which is
+    // the single route this script has to the locomotion's MoveTo — so there is no way to start a
+    // journey without recording what it was planned for.
+    private Vector3 _lastRequestedDestination;
+
     private IUnit? _target;
 
     public CreatureCombatScript(ILoggerFactory loggerFactory, ICreature creature, ISimulationContext context) : base(creature, context)
@@ -94,7 +118,7 @@ public class CreatureCombatScript : AiScript
             _target = null;
             State = CombatState.Returning;
             Creature.CurrentHealth = Creature.Health;
-            Context.Locomotion.MoveTo(Creature, _initialPosition);
+            RequestMoveTo(_initialPosition);
         }
     }
 
@@ -191,7 +215,7 @@ public class CreatureCombatScript : AiScript
             // so the client extrapolates indefinitely.
             if (Context.Locomotion.HasArrived(Creature))
             {
-                Context.Locomotion.MoveTo(Creature, _initialPosition);
+                RequestMoveTo(_initialPosition);
                 if (Context.Locomotion.HasArrived(Creature))
                 {
                     // Planner can't reach spawn — snap home rather than drift forever.
@@ -220,7 +244,7 @@ public class CreatureCombatScript : AiScript
             Context.MeleeSlots.Release(_target.Guid, Creature.Guid);
             _target = null;
             State = CombatState.Returning;
-            Context.Locomotion.MoveTo(Creature, _initialPosition);
+            RequestMoveTo(_initialPosition);
             Creature.CurrentHealth = Creature.Health;
             return;
         }
@@ -232,7 +256,7 @@ public class CreatureCombatScript : AiScript
             Context.MeleeSlots.Release(_target.Guid, Creature.Guid);
             _target = null;
             State = CombatState.Returning;
-            Context.Locomotion.MoveTo(Creature, _initialPosition);
+            RequestMoveTo(_initialPosition);
             Creature.CurrentHealth = Creature.Health;
             return;
         }
@@ -273,35 +297,71 @@ public class CreatureCombatScript : AiScript
             AttackTarget(deltaTime);
         }
 
-        // Keep adjusting footing while still walking (locomotion hasn't reported arrival), or —
-        // once settled — while the destination has since drifted away from where the creature is
-        // standing by more than its arrival tolerance. The second half is what makes a moving
-        // target's slot get chased rather than abandoned: locomotion has no idea the target moved
-        // once it has gone idle, so without it a creature that settled at its slot would simply
-        // stay there forever as the target (and so the slot) walks away. A slotted creature uses
-        // the locomotion's own arrival tolerance for "how far is too far to ignore" — the same
-        // idea as PathRecalculationThreshold, applied to the slot instead of the raw target
-        // position, and reusing ArrivalTolerance rather than a second invented constant since it
-        // already answers exactly "how close counts as close enough" for this locomotion. A
-        // surplus (no-slot) creature keeps PathRecalculationThreshold, unchanged, since nothing
-        // about how sensitively it should re-path changed this round.
+        // Two independent reasons to hand the locomotion a fresh destination, because a creature
+        // that is walking and a creature that has settled go stale in different ways:
+        //
+        // 1. settledOffDestination — it has arrived (locomotion has nothing left to walk towards)
+        //    but the destination has since moved away from where it is standing by more than its
+        //    tolerance. This is what makes a moving target's slot get chased rather than abandoned:
+        //    locomotion has no idea the target moved once it has gone idle, so without it a creature
+        //    that settled at its slot would stay there forever as the target (and so the slot) walks
+        //    away. A slotted creature uses the locomotion's own arrival tolerance for "how far is
+        //    too far to ignore" — the same idea as PathRecalculationThreshold, applied to the slot
+        //    instead of the raw target position, and reusing ArrivalTolerance rather than a second
+        //    invented constant since it already answers exactly "how close counts as close enough"
+        //    for this locomotion. A surplus (no-slot) creature uses PathRecalculationThreshold.
+        //
+        // 2. destinationDrifted — it is still walking, but where it should be headed has moved more
+        //    than PathRecalculationThreshold from the destination the journey in progress was
+        //    planned for, so the path leads somewhere stale. For a slotted chaser that is the target
+        //    having moved, one-for-one: a slot's position is a fixed offset from the target, so the
+        //    destination drifts exactly as far as the target does — this is the pre-seam re-path
+        //    condition, expressed against the destination so that a journey planned for something
+        //    else entirely (a leash-return home interrupted by a fresh hit) also counts as stale
+        //    without a separate flag to keep in sync. Without this a creature commits to
+        //    its destination for the whole journey: MapNavigator emits a waypoint every 0.5 units,
+        //    so a 10-unit approach is ~2.5s at SpeedRun 4 of running at where the target used to be
+        //    — a player who changes direction mid-pull is simply not followed until the creature
+        //    finishes walking to the old spot. This is what the pre-seam script did (it re-pathed on
+        //    exactly this quantity, at exactly this threshold, whether or not it had arrived) and
+        //    gating it behind arrival lost it. It is bounded at one FindPath per 1.5 units of target
+        //    movement, so it is not the per-tick FindPath that gating on arrival was meant to avoid.
+        //
+        // MoveState/Speed are refreshed whenever the creature should be moving at all, which is
+        // either of the above OR simply still walking with a destination that is still good.
         //
         // Do NOT call Stop merely because the creature is in attack range above — Stop discards
         // the destination and is reserved for actually disengaging (leash, target switch, target
         // lost), not for "close enough to hit right now."
         bool stillWalking = !hasArrived;
         float driftThreshold = hasSlot ? Context.Locomotion.ArrivalTolerance(Creature) : PathRecalculationThreshold;
+        bool settledOffDestination = !stillWalking && Vector3.Distance(currentPosition, destination) > driftThreshold;
+        bool destinationDrifted = stillWalking &&
+            Vector3.Distance(_lastRequestedDestination, destination) > PathRecalculationThreshold;
 
-        if (stillWalking || Vector3.Distance(currentPosition, destination) > driftThreshold)
+        if (stillWalking || settledOffDestination)
         {
-            if (!stillWalking)
+            if (settledOffDestination || destinationDrifted)
             {
-                Context.Locomotion.MoveTo(Creature, destination);
+                RequestMoveTo(destination);
             }
 
             Creature.MoveState = MoveState.Running;
             Creature.Speed = Creature.Metadata.SpeedRun;
         }
+    }
+
+    /// <summary>
+    /// The only route this script has to the locomotion's <c>MoveTo</c>. Exists so
+    /// <see cref="_lastRequestedDestination" /> cannot fall out of step with the journey actually in
+    /// progress: the mid-walk staleness check in <see cref="Update" /> is only as trustworthy as that
+    /// record, and a record kept by hand at five call sites is one forgotten assignment away from a
+    /// creature that either never re-paths or re-paths every tick.
+    /// </summary>
+    private void RequestMoveTo(Vector3 destination)
+    {
+        Context.Locomotion.MoveTo(Creature, destination);
+        _lastRequestedDestination = destination;
     }
 
     /// <summary>
