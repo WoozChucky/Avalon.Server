@@ -129,6 +129,12 @@ public class DeSpawnDuringReadinessBarrierShould
         localizedText.GetAllClassNamesAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyCollection<Avalon.Domain.World.CharacterClassName>>([]));
 
+        var dialogue = Substitute.For<IDialogueRepository>();
+        dialogue.GetAllNodesAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<IReadOnlyCollection<Avalon.Domain.World.DialogueNode>>([]));
+        dialogue.GetAllOptionsAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<IReadOnlyCollection<Avalon.Domain.World.DialogueOption>>([]));
+
         var serviceProvider = Substitute.For<IServiceProvider>();
         serviceProvider.GetService(typeof(IChunkLayoutInstanceFactory))
             .Returns(Substitute.For<IChunkLayoutInstanceFactory>());
@@ -149,7 +155,8 @@ public class DeSpawnDuringReadinessBarrierShould
             Substitute.For<ICreatureRarityModifierRepository>(),
             localizedText,
             Substitute.For<IScriptHotReloader>(),
-            Substitute.For<IChunkLibrary>());
+            Substitute.For<IChunkLibrary>(),
+            dialogue);
 
         await world.LoadAsync(CancellationToken.None);
         return (world, characterRepository);

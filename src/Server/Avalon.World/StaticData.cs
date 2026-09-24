@@ -1,6 +1,8 @@
 using Avalon.Database.World.Repositories;
 using Avalon.Domain.World;
+using Avalon.World.Dialogue;
 using Avalon.World.Localization;
+using Avalon.World.Public.Dialogue;
 using Avalon.World.Public.Localization;
 using Microsoft.Extensions.Logging;
 
@@ -15,7 +17,8 @@ public class StaticData(
     ICreatureBaseStatRepository creatureBaseStatRepository,
     ICreatureRarityModifierRepository creatureRarityModifierRepository,
     ILocalizedTextRepository localizedTextRepository,
-    ILoggerFactory loggerFactory)
+    ILoggerFactory loggerFactory,
+    IDialogueRepository dialogueRepository)
 {
     public async Task LoadAsync(CancellationToken cancellationToken = default)
     {
@@ -32,6 +35,11 @@ public class StaticData(
             await localizedTextRepository.GetAllLocalesAsync(cancellationToken),
             await localizedTextRepository.GetAllClassNamesAsync(cancellationToken),
             loggerFactory);
+
+        Dialogue = new DialogueCatalog(
+            await dialogueRepository.GetAllNodesAsync(cancellationToken),
+            await dialogueRepository.GetAllOptionsAsync(cancellationToken),
+            loggerFactory);
     }
 
     public IReadOnlyCollection<CharacterCreateInfo> CharacterCreateInfos { get; private set; }
@@ -42,4 +50,5 @@ public class StaticData(
     public IReadOnlyCollection<CreatureBaseStat> CreatureBaseStats { get; private set; }
     public IReadOnlyCollection<CreatureRarityModifier> CreatureRarityModifiers { get; private set; }
     public ILocalizedTextCatalog LocalizedTexts { get; private set; } = null!;
+    public IDialogueCatalog Dialogue { get; private set; } = null!;
 }
