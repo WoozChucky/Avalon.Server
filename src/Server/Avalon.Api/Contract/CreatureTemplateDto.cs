@@ -1,3 +1,4 @@
+using Avalon.World.Public.Enums;
 namespace Avalon.Api.Contract;
 
 public sealed class CreatureTemplateDto
@@ -11,7 +12,7 @@ public sealed class CreatureTemplateDto
     public float SpeedWalk { get; set; }
     public float SpeedRun { get; set; }
     public float SpeedSwim { get; set; }
-    public short Rank { get; set; }
+    public CreatureRarity Rarity { get; set; }
     public CreatureFamily Family { get; set; }
     public CreatureType Type { get; set; }
     public int LootId { get; set; }
@@ -31,7 +32,8 @@ public sealed class CreatureTemplateDto
     public float DamageModifier { get; set; }
     public int BaseAttackTime { get; set; }
     public int RangeAttackTime { get; set; }
-    public uint Experience { get; set; }
+    /// <summary>Null means the server derives it from the creature's level.</summary>
+    public uint? Experience { get; set; }
 
     /// <summary>Seconds before the creature re-spawns after death.</summary>
     public int RespawnTimerSecs { get; set; }
