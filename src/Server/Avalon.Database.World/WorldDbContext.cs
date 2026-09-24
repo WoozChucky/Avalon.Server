@@ -533,6 +533,12 @@ public class WorldDbContext : DbContext
             )
             .IsRequired();
 
+        // Templates 1-3 are town NPCs and are NOT SPAWNED ANYWHERE today. Creature placement runs
+        // only for procedural layouts (ChunkLayoutInstanceFactory.BuildAsync gates PlaceAsync on
+        // ChunkLayoutSourceKind.Procedural), and town is a predefined layout — so nothing places them.
+        // Until this branch they appeared in the forest as placeholder monsters via SpawnTable 1;
+        // removing them from that table left them with no spawn path at all. CreatureIdleScript is
+        // what they would run once something does place them. Town NPC placement is issue #431.
         builder.HasData(new CreatureTemplate
         {
             Id = 1,
@@ -555,7 +561,7 @@ public class WorldDbContext : DbContext
             MovementType = 0,
             DetectionRange = 20,
             MovementId = 0,
-            ScriptName = "CreatureIdleScript", // town NPC: stands about, does not aggro
+            ScriptName = "CreatureIdleScript", // see the note above this seed block
             HealthModifier = 1,
             ManaModifier = 1,
             ArmorModifier = 1,
@@ -587,7 +593,7 @@ public class WorldDbContext : DbContext
             MovementType = 0,
             DetectionRange = 20,
             MovementId = 0,
-            ScriptName = "CreatureIdleScript", // town NPC: stands about, does not aggro
+            ScriptName = "CreatureIdleScript", // see the note above this seed block
             HealthModifier = 1,
             ManaModifier = 1,
             ArmorModifier = 1,
@@ -619,7 +625,7 @@ public class WorldDbContext : DbContext
             MovementType = 0,
             DetectionRange = 20,
             MovementId = 0,
-            ScriptName = "CreatureIdleScript", // town NPC: stands about, does not aggro
+            ScriptName = "CreatureIdleScript", // see the note above this seed block
             HealthModifier = 1,
             ManaModifier = 1,
             ArmorModifier = 1,
