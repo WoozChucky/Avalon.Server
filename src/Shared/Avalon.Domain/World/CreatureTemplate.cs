@@ -29,7 +29,11 @@ public class CreatureTemplate : IDbEntity<CreatureTemplateId>, ICreatureMetadata
 
     public float SpeedSwim { get; set; }
 
-    public short Rank { get; set; }
+    /// <summary>
+    /// Scales this creature's derived stats. Replaces the former <c>Rank</c> column, which was always
+    /// 0 and read nowhere — it was this concept, left unfinished.
+    /// </summary>
+    public CreatureRarity Rarity { get; set; }
 
     public CreatureFamily Family { get; set; }
 
@@ -69,8 +73,13 @@ public class CreatureTemplate : IDbEntity<CreatureTemplateId>, ICreatureMetadata
 
     public int RangeAttackTime { get; set; }
 
+    /// <summary>
+    /// Experience awarded for this kill. <c>null</c> means derive it from <c>CreatureBaseStats</c> by
+    /// level; any value, including 0, is used verbatim. Nullable rather than a 0 sentinel so a creature
+    /// deliberately worth nothing stays expressible.
+    /// </summary>
     [Column("Exp")]
-    public uint Experience { get; set; }
+    public uint? Experience { get; set; }
 
     /// <summary>
     /// Seconds before the creature re-spawns after death. Default 180 (3 minutes).

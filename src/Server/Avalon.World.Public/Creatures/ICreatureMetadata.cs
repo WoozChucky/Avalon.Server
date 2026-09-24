@@ -1,5 +1,6 @@
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
+using Avalon.World.Public.Enums;
 
 namespace Avalon.World.Public.Creatures;
 
@@ -11,8 +12,13 @@ public interface ICreatureMetadata
     public float SpeedSwim { get; set; }
     Vector3 StartPosition { get; set; }
 
-    /// <summary>Experience awarded to the killer when this creature dies.</summary>
-    uint Experience { get; set; }
+    /// <summary>How dangerous this creature is, scaling its derived stats.</summary>
+    CreatureRarity Rarity { get; set; }
+
+    /// <summary>
+    /// Experience awarded to the killer. <c>null</c> means derive from base stats by level.
+    /// </summary>
+    uint? Experience { get; set; }
 
     /// <summary>How long before this creature re-spawns after death.</summary>
     TimeSpan RespawnTimer { get; set; }
