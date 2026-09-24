@@ -63,11 +63,11 @@ public class InteractHandler(ILogger<InteractHandler> logger, IWorld world)
             return;
         }
 
-        DialogueNodeView? root = Dialogue.GetRoot(npc.TemplateId);
+        DialogueNodeView? root = Dialogue.GetRoot(npc.Metadata.Id);
         if (root is null)
         {
             // Every monster in the game lands here, so this is not worth a warning.
-            logger.LogTrace("Interact on creature {TemplateId} which has no dialogue", npc.TemplateId);
+            logger.LogTrace("Interact on creature {TemplateId} which has no dialogue", npc.Metadata.Id);
             return;
         }
 
