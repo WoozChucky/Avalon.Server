@@ -254,13 +254,19 @@ public class MapInstance : IMapInstance, IPortalSink
     public void RespawnCreature(ICreature creature)
     {
         // Chunk-layout instances install NoOpCreatureRespawner, so nothing reaches this today — but
-        // OnCreatureKilled now unregisters a dead creature from the locomotion, and a creature that
-        // came back without being registered again would be permanently unable to move. Register is
-        // idempotent, so this is correct whether or not the creature was ever unregistered, and it
-        // means the death-side teardown above has a matching re-entry the moment respawn is wired up.
-        // Reposition the creature (and its health) before calling this if it is to come back at its
-        // spawn point: CrowdLocomotion.Register snapshots creature.Position into the new agent.
-        _locomotion.Register(creature, _creatureAgentRadius);
+        // CreatureRespawner.ScheduleRespawn starts the body-remove timer (default 120s) before the
+        // respawn timer (default 180s), so by the time this runs, RemoveCreature has already dropped
+        // the creature from _creatures. Calling AddCreature (not a bare _locomotion.Register) puts it
+        // back in _creatures alongside the registration; a registration without the dictionary entry
+        // is a creature the script loop never ticks, MapInstance never broadcasts, and a future death
+        // can never reach again (OnCreatureKilled guards on _creatures.ContainsKey) — the exact
+        // permanent-leak shape the death-path teardown above exists to prevent, relocated here.
+        // AddCreature is idempotent in both halves, so this is correct whether or not RemoveCreature
+        // ran first. Reposition the creature (and its health) before calling this if it is to come
+        // back at its spawn point: CrowdLocomotion.Register snapshots creature.Position into the new
+        // agent. This does not otherwise return the creature to a clean state — Script is still null
+        // and CurrentHealth still 0 from OnCreatureKilled — that is left to the caller.
+        AddCreature(creature);
     }
 
     public void BroadcastUnitHit(IUnit attacker, IUnit target, uint currentHealth, uint damage)
