@@ -202,4 +202,39 @@ public class WaypointLocomotionShould
         creature.Received().Position = Arg.Is<Vector3>(p => p.x > 3.9f && p.x < 4.1f);
         creature.DidNotReceive().MoveState = MoveState.Idle;
     }
+
+    /// <summary>
+    /// This implementation has no notion of other agents, so a synced player is simply nothing to
+    /// record — but it must still satisfy the interface without throwing, and it must not perturb a
+    /// creature that happens to share the same Update tick.
+    /// </summary>
+    [Fact]
+    public void Ignore_A_Synced_Player_Entirely()
+    {
+        var (locomotion, navigator) = Build();
+        ICreature creature = CreatureAt(Vector3.zero);
+        navigator.FindPath(Arg.Any<Vector3>(), Arg.Any<Vector3>())
+            .Returns([new Vector3(10f, 0f, 0f)]);
+
+        var playerGuid = new ObjectGuid(ObjectType.Character, 500);
+        locomotion.Register(creature, radius: 0.5f, maxSpeed: 4f);
+        locomotion.MoveTo(creature, new Vector3(10f, 0f, 0f));
+
+        locomotion.SyncPlayer(playerGuid, new Vector3(5f, 0f, 0f));
+        locomotion.Update(TimeSpan.FromSeconds(1));
+
+        // Identical to Advance_A_Creature_Toward_Its_Destination: the synced player changed nothing.
+        creature.Received().Position = Arg.Is<Vector3>(p => p.x > 3.9f && p.x < 4.1f);
+    }
+
+    /// <summary>Idempotent and inert: removing a player that was never (and can never be) tracked.</summary>
+    [Fact]
+    public void Ignore_Removing_A_Player_That_Was_Never_Synced()
+    {
+        var (locomotion, _) = Build();
+        var playerGuid = new ObjectGuid(ObjectType.Character, 500);
+
+        locomotion.RemovePlayer(playerGuid);
+        locomotion.RemovePlayer(playerGuid);
+    }
 }

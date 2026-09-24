@@ -27,9 +27,11 @@ public class CrowdLocomotionShould
     /// <summary>
     /// A flat 40x40 ground quad baked with the production settings, entirely in memory: nothing is
     /// read from disk and no external service is touched. Baked once because the bake is the
-    /// expensive part and a <see cref="DtCrowd" /> is built per test anyway.
+    /// expensive part and a <see cref="DtCrowd" /> is built per test anyway. Internal (not private)
+    /// so <c>MapInstanceLocomotionShould</c> can bake a <see cref="CrowdLocomotion" /> over the same
+    /// mesh without duplicating this bake.
     /// </summary>
-    private static readonly Lazy<DtNavMesh> FlatNavMesh = new(BakeFlatGround, isThreadSafe: true);
+    internal static readonly Lazy<DtNavMesh> FlatNavMesh = new(BakeFlatGround, isThreadSafe: true);
 
     private static DtNavMesh BakeFlatGround()
     {
@@ -67,6 +69,23 @@ public class CrowdLocomotionShould
             .GetField("_crowd", BindingFlags.Instance | BindingFlags.NonPublic)!
             .GetValue(locomotion)!;
 
+    /// <summary>
+    /// The dictionary <see cref="CrowdLocomotion.Update" />'s position/velocity copy-back actually
+    /// enumerates. Read by reflection for the same reason as <see cref="CrowdOf" />: asserting
+    /// against this dictionary, rather than against behaviour that happens to look the same, is what
+    /// makes <see cref="Keep_A_Synced_Player_Out_Of_The_Creature_Copy_Back_Dictionary" /> fail if a
+    /// future edit ever merges the two agent dictionaries.
+    /// </summary>
+    private static Dictionary<ObjectGuid, DtCrowdAgent> CreatureAgentsOf(CrowdLocomotion locomotion) =>
+        (Dictionary<ObjectGuid, DtCrowdAgent>)typeof(CrowdLocomotion)
+            .GetField("_creatureAgents", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .GetValue(locomotion)!;
+
+    private static Dictionary<ObjectGuid, DtCrowdAgent> PlayerAgentsOf(CrowdLocomotion locomotion) =>
+        (Dictionary<ObjectGuid, DtCrowdAgent>)typeof(CrowdLocomotion)
+            .GetField("_playerAgents", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .GetValue(locomotion)!;
+
     private static ICreature CreatureAt(Vector3 position)
     {
         var creature = Substitute.For<ICreature>();
@@ -75,6 +94,9 @@ public class CrowdLocomotionShould
         creature.Speed.Returns(NavmeshBuildSettings.AgentMaxSpeed);
         return creature;
     }
+
+    /// <summary>A player's ObjectGuid is a Character guid, distinct from every CreatureAt guid above.</summary>
+    private static readonly ObjectGuid PlayerGuid = new(ObjectType.Character, 500);
 
     [Fact]
     public void Add_An_Agent_When_A_Creature_Registers()
@@ -351,5 +373,143 @@ public class CrowdLocomotionShould
         Assert.Equal(DtMoveRequestState.DT_CROWDAGENT_TARGET_NONE, agent.targetState);
         Assert.True(MathF.Abs(agent.npos.X - destination.x) < 1f, $"agent X was {agent.npos.X}");
         Assert.True(locomotion.HasArrived(creature));
+    }
+
+    // --- Task 9: player agents ------------------------------------------------------------------
+    //
+    // Players are told to the crowd, never asked — PlayerInputHandler is the only authority on
+    // where a player is. A player agent exists purely so creatures can see and avoid it; it must
+    // never be steered, and it must never feed a position back to anything.
+
+    [Fact]
+    public void Register_A_Player_Agent_That_Cannot_Move_Itself()
+    {
+        (CrowdLocomotion locomotion, DtCrowd crowd) = BuildOverAFlatNavMesh();
+
+        locomotion.SyncPlayer(PlayerGuid, new Vector3(1f, 0f, 1f));
+
+        DtCrowdAgent agent = Assert.Single(crowd.GetActiveAgents());
+        Assert.Equal(0f, agent.option.maxSpeed);
+        Assert.Equal(0f, agent.option.maxAcceleration);
+    }
+
+    /// <summary>
+    /// The server already decided where the player is. The crowd is told, never asked — so whatever
+    /// Integrate and HandleCollisions compute for that agent is discarded.
+    /// </summary>
+    [Fact]
+    public void Overwrite_A_Player_Agents_Position_Rather_Than_Reading_It_Back()
+    {
+        (CrowdLocomotion locomotion, DtCrowd crowd) = BuildOverAFlatNavMesh();
+        locomotion.SyncPlayer(PlayerGuid, new Vector3(1f, 0f, 1f));
+
+        locomotion.Update(TimeSpan.FromSeconds(0.1));
+        locomotion.SyncPlayer(PlayerGuid, new Vector3(5f, 0f, 5f));
+
+        DtCrowdAgent agent = Assert.Single(crowd.GetActiveAgents());
+        Assert.InRange(agent.npos.X, 4.9f, 5.1f);
+    }
+
+    [Fact]
+    public void Drop_A_Player_Agent_When_The_Player_Leaves()
+    {
+        (CrowdLocomotion locomotion, DtCrowd crowd) = BuildOverAFlatNavMesh();
+        locomotion.SyncPlayer(PlayerGuid, new Vector3(1f, 0f, 1f));
+
+        locomotion.RemovePlayer(PlayerGuid);
+
+        Assert.Empty(crowd.GetActiveAgents());
+    }
+
+    /// <summary>Review Focus, player side: disconnects race the per-tick sync, so a second removal must not throw.</summary>
+    [Fact]
+    public void Tolerate_Removing_A_Player_Twice()
+    {
+        (CrowdLocomotion locomotion, DtCrowd crowd) = BuildOverAFlatNavMesh();
+        locomotion.SyncPlayer(PlayerGuid, new Vector3(1f, 0f, 1f));
+
+        locomotion.RemovePlayer(PlayerGuid);
+        locomotion.RemovePlayer(PlayerGuid);
+
+        Assert.Empty(crowd.GetActiveAgents());
+    }
+
+    /// <summary>Removing a player that was never synced (flag off, or never connected) is inert, not an exception.</summary>
+    [Fact]
+    public void Tolerate_Removing_A_Player_That_Was_Never_Synced()
+    {
+        (CrowdLocomotion locomotion, DtCrowd crowd) = BuildOverAFlatNavMesh();
+
+        locomotion.RemovePlayer(PlayerGuid);
+
+        Assert.Empty(crowd.GetActiveAgents());
+    }
+
+    /// <summary>
+    /// The test that matters most for Task 9. <see cref="CrowdLocomotion.Update" />'s position and
+    /// velocity copy-back enumerates <c>_creatureAgents</c> only — never <c>_playerAgents</c> — which
+    /// is the entire mechanism keeping this class from fighting PlayerInputHandler for control of a
+    /// player and causing rubber-banding. Asserted directly against the two dictionaries rather than
+    /// indirectly through behaviour, because there is no ICreature for a player to observe a write on
+    /// in the first place — SyncPlayer takes a bare Vector3, so the absence of an observable write is
+    /// not, by itself, proof that the copy-back excludes players. This fails if a future edit ever
+    /// merges the two dictionaries, or if SyncPlayer is changed to add into <c>_creatureAgents</c>.
+    /// </summary>
+    [Fact]
+    public void Keep_A_Synced_Player_Out_Of_The_Creature_Copy_Back_Dictionary()
+    {
+        (CrowdLocomotion locomotion, _) = BuildOverAFlatNavMesh();
+        ICreature creature = CreatureAt(Vector3.zero);
+        locomotion.Register(creature, radius: 0.5f, maxSpeed: 4f);
+
+        locomotion.SyncPlayer(PlayerGuid, new Vector3(1f, 0f, 1f));
+        locomotion.Update(TimeSpan.FromSeconds(0.1));
+
+        Assert.Contains(PlayerGuid, PlayerAgentsOf(locomotion).Keys);
+        Assert.DoesNotContain(PlayerGuid, CreatureAgentsOf(locomotion).Keys);
+
+        // Belt and braces: the only ICreature this class knows about at all is the registered
+        // creature above, so nothing about the player could have been written even if the
+        // dictionaries above had been merged. This pins that no exception was thrown reaching the
+        // player guid inside the copy-back loop, i.e. Update tolerates an agent dictionary Update
+        // itself never reads from.
+        creature.DidNotReceive().Position = new Vector3(1f, 0f, 1f);
+    }
+
+    /// <summary>
+    /// A creature routed straight through a stationary player must steer around it rather than
+    /// walking through it — the whole point of registering players as obstacles. Runs the real
+    /// DotRecast obstacle-avoidance/separation simulation on a flat, open mesh: nothing else on this
+    /// 20m corridor could account for a lateral deviation from a path that starts and ends on the
+    /// same straight line.
+    /// </summary>
+    [Fact]
+    public void Steer_A_Creature_Around_A_Stationary_Player_Rather_Than_Straight_Through_It()
+    {
+        (CrowdLocomotion locomotion, _) = BuildOverAFlatNavMesh();
+        ICreature creature = CreatureAt(new Vector3(-10f, 0f, 0f));
+        var destination = new Vector3(10f, 0f, 0f);
+        var playerPosition = new Vector3(0f, 0f, 0f);
+
+        locomotion.Register(creature, radius: 0.5f, maxSpeed: 4f);
+        locomotion.SyncPlayer(PlayerGuid, playerPosition);
+        locomotion.MoveTo(creature, destination);
+
+        DtCrowdAgent creatureAgent = CreatureAgentsOf(locomotion)[creature.Guid];
+
+        // Re-sync the player every tick, exactly as MapInstance.Update does — a stationary player
+        // whose position is never re-pushed would still be "stationary" for this test, but the real
+        // per-tick contract is what production code actually runs.
+        float maxLateralDeviation = 0f;
+        for (int i = 0; i < 300 && creatureAgent.npos.X < 0f; i++)
+        {
+            locomotion.SyncPlayer(PlayerGuid, playerPosition);
+            locomotion.Update(TimeSpan.FromSeconds(1d / 60d));
+            maxLateralDeviation = MathF.Max(maxLateralDeviation, MathF.Abs(creatureAgent.npos.Z));
+        }
+
+        Assert.True(maxLateralDeviation > 0.2f,
+            $"creature passed the player's X position with only {maxLateralDeviation}m of lateral " +
+            "deviation from the straight line it started on");
     }
 }
