@@ -195,6 +195,55 @@ public class MapInstanceLocomotionShould
             entry.Message.Contains("1", StringComparison.Ordinal)); // TemplateId = new MapTemplateId(1)
     }
 
+    // --- MeleeSlotRadius reachability -----------------------------------------------------------
+    //
+    // MeleeSlotCount/MeleeSlotRadius are read from configuration right next to where the fallback
+    // warning above is emitted (MapInstance's constructor). CreatureCombatScript.AttackRange is
+    // 1.5f and GameConfiguration.MeleeSlotRadius defaults to 1.5f too — the two are deliberately
+    // configured independently, so nothing stops an operator setting MeleeSlotRadius past
+    // AttackRange, at which point every creature walks to its slot, arrives, and can never reach
+    // its target: total, silent failure with no symptom besides mobs standing still in a ring.
+
+    /// <summary>
+    /// Production change that breaks this: WarnIfMeleeSlotRadiusUnreachable comparing with
+    /// <c>&gt;=</c> instead of <c>&gt;</c> (or any other change that makes the default
+    /// MeleeSlotRadius, which equals AttackRange exactly, trip the warning).
+    /// </summary>
+    [Fact]
+    public void Not_Warn_When_MeleeSlotRadius_Is_The_Default()
+    {
+        var loggerFactory = new RecordingLoggerFactory();
+
+        BuildInstance(new GameConfiguration { WorldId = new WorldId(1) }, loggerFactory: loggerFactory);
+
+        Assert.DoesNotContain(loggerFactory.Logger.Entries, entry =>
+            entry.Level == LogLevel.Warning &&
+            entry.Message.Contains("MeleeSlotRadius", StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>
+    /// Production change that breaks this: dropping the MeleeSlotRadius/AttackRange comparison (or
+    /// the LogWarning call) from MapInstance's constructor, or a message that stops naming the
+    /// configured radius, the attack range it was checked against, or the map.
+    /// </summary>
+    [Fact]
+    public void Warn_When_MeleeSlotRadius_Exceeds_The_Attack_Range()
+    {
+        var loggerFactory = new RecordingLoggerFactory();
+
+        BuildInstance(new GameConfiguration
+        {
+            WorldId = new WorldId(1),
+            MeleeSlotRadius = 4.2f,
+        }, loggerFactory: loggerFactory);
+
+        Assert.Contains(loggerFactory.Logger.Entries, entry =>
+            entry.Level == LogLevel.Warning &&
+            entry.Message.Contains("4.2", StringComparison.Ordinal) && // configured MeleeSlotRadius
+            entry.Message.Contains("1.5", StringComparison.Ordinal) && // AttackRange it exceeds
+            entry.Message.Contains("attack", StringComparison.OrdinalIgnoreCase)); // consequence
+    }
+
     /// <summary>
     /// Builds a bare MapInstance (no creature, no character seated) purely to inspect which
     /// <see cref="ICreatureLocomotion" /> its constructor chose. Reuses the same construction shape
