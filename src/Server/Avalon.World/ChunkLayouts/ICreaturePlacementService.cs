@@ -87,9 +87,22 @@ public class CreaturePlacementService : ICreaturePlacementService
                         Position = spawnPos,
                         PrototypeIndex = entry.CreatureId.Value,
                     };
-                    var creature = _spawner.Spawn(creatureInfo);
-                    AttachScript(creature, instance);
-                    instance.AddCreature(creature);
+                    // One bad row costs one creature, not the map. SpawnTableEntry rows are migration
+                    // SQL rather than model seed data, so a mistyped CreatureId cannot be caught by a
+                    // seed test — and this runs inside MapInstance construction, where a throw makes
+                    // the map unenterable for everyone. Same shape as AttachScript's own catch below.
+                    try
+                    {
+                        var creature = _spawner.Spawn(creatureInfo);
+                        AttachScript(creature, instance);
+                        instance.AddCreature(creature);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex,
+                            "Could not place creature {CreatureId} for slot tag '{Tag}' on map {MapId}; skipping it",
+                            entry.CreatureId, slot.Tag, cfg.MapTemplateId);
+                    }
                 }
             }
         }

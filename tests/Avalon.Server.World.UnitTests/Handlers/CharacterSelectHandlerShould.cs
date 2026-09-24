@@ -205,7 +205,9 @@ public class CharacterSelectHandlerShould
         var abilities = Substitute.For<IAbilityTemplateRepository>();
         abilities.FindAllAsync(Arg.Any<bool>(), Arg.Any<CancellationToken>()).Returns(new List<AbilityTemplate>());
 
-        var data = new StaticData(createInfos, stats, items, abilities, levels);
+        var data = new StaticData(createInfos, stats, items, abilities, levels,
+            Substitute.For<ICreatureBaseStatRepository>(),
+            Substitute.For<ICreatureRarityModifierRepository>());
         await data.LoadAsync(CancellationToken.None);
         return data;
     }

@@ -139,7 +139,9 @@ public class CharacterCreationShould : IDisposable
             new ClassLevelStatRepository(_world),
             new ItemTemplateRepository(_world),
             new AbilityTemplateRepository(_world),
-            new CharacterLevelExperienceRepository(_world));
+            new CharacterLevelExperienceRepository(_world),
+            new CreatureBaseStatRepository(_world),
+            new CreatureRarityModifierRepository(_world));
 
         await data.LoadAsync();
         return data;

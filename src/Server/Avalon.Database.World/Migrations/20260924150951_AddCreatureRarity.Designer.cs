@@ -3,6 +3,7 @@ using System;
 using Avalon.Database.World;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Avalon.Database.World.Migrations
 {
     [DbContext(typeof(WorldDbContext))]
-    partial class WorldDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260924150951_AddCreatureRarity")]
+    partial class AddCreatureRarity
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -682,162 +685,6 @@ namespace Avalon.Database.World.Migrations
                         });
                 });
 
-            modelBuilder.Entity("Avalon.Domain.World.CreatureBaseStat", b =>
-                {
-                    b.Property<int>("Level")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Level"));
-
-                    b.Property<long>("DamageMax")
-                        .HasColumnType("bigint");
-
-                    b.Property<long>("DamageMin")
-                        .HasColumnType("bigint");
-
-                    b.Property<long>("Experience")
-                        .HasColumnType("bigint");
-
-                    b.Property<long>("Health")
-                        .HasColumnType("bigint");
-
-                    b.HasKey("Level");
-
-                    b.ToTable("CreatureBaseStats");
-
-                    b.HasData(
-                        new
-                        {
-                            Level = 1,
-                            DamageMax = 5L,
-                            DamageMin = 3L,
-                            Experience = 15L,
-                            Health = 40L
-                        },
-                        new
-                        {
-                            Level = 2,
-                            DamageMax = 7L,
-                            DamageMin = 4L,
-                            Experience = 25L,
-                            Health = 52L
-                        },
-                        new
-                        {
-                            Level = 3,
-                            DamageMax = 9L,
-                            DamageMin = 5L,
-                            Experience = 40L,
-                            Health = 66L
-                        },
-                        new
-                        {
-                            Level = 4,
-                            DamageMax = 11L,
-                            DamageMin = 7L,
-                            Experience = 60L,
-                            Health = 84L
-                        },
-                        new
-                        {
-                            Level = 5,
-                            DamageMax = 14L,
-                            DamageMin = 9L,
-                            Experience = 85L,
-                            Health = 106L
-                        },
-                        new
-                        {
-                            Level = 6,
-                            DamageMax = 17L,
-                            DamageMin = 11L,
-                            Experience = 115L,
-                            Health = 133L
-                        },
-                        new
-                        {
-                            Level = 7,
-                            DamageMax = 21L,
-                            DamageMin = 14L,
-                            Experience = 150L,
-                            Health = 166L
-                        },
-                        new
-                        {
-                            Level = 8,
-                            DamageMax = 26L,
-                            DamageMin = 17L,
-                            Experience = 195L,
-                            Health = 206L
-                        },
-                        new
-                        {
-                            Level = 9,
-                            DamageMax = 32L,
-                            DamageMin = 21L,
-                            Experience = 250L,
-                            Health = 254L
-                        },
-                        new
-                        {
-                            Level = 10,
-                            DamageMax = 39L,
-                            DamageMin = 26L,
-                            Experience = 320L,
-                            Health = 312L
-                        });
-                });
-
-            modelBuilder.Entity("Avalon.Domain.World.CreatureRarityModifier", b =>
-                {
-                    b.Property<int>("Rarity")
-                        .HasColumnType("integer");
-
-                    b.Property<float>("DamageMultiplier")
-                        .HasColumnType("real");
-
-                    b.Property<float>("ExperienceMultiplier")
-                        .HasColumnType("real");
-
-                    b.Property<float>("HealthMultiplier")
-                        .HasColumnType("real");
-
-                    b.HasKey("Rarity");
-
-                    b.ToTable("CreatureRarityModifiers");
-
-                    b.HasData(
-                        new
-                        {
-                            Rarity = 0,
-                            DamageMultiplier = 1f,
-                            ExperienceMultiplier = 1f,
-                            HealthMultiplier = 1f
-                        },
-                        new
-                        {
-                            Rarity = 1,
-                            DamageMultiplier = 1.4f,
-                            ExperienceMultiplier = 3f,
-                            HealthMultiplier = 2.5f
-                        },
-                        new
-                        {
-                            Rarity = 2,
-                            DamageMultiplier = 1.7f,
-                            ExperienceMultiplier = 6f,
-                            HealthMultiplier = 4f
-                        },
-                        new
-                        {
-                            Rarity = 3,
-                            DamageMultiplier = 2.2f,
-                            ExperienceMultiplier = 15f,
-                            HealthMultiplier = 8f
-                        });
-                });
-
             modelBuilder.Entity("Avalon.Domain.World.CreatureTemplate", b =>
                 {
                     b.Property<decimal>("Id")
@@ -975,7 +822,7 @@ namespace Avalon.Database.World.Migrations
                             Rarity = 0,
                             RegenHealth = (short)1,
                             RespawnTimerSecs = 180,
-                            ScriptName = "CreatureIdleScript",
+                            ScriptName = "UrielTownPatrolScript",
                             SpeedRun = 5f,
                             SpeedSwim = 1.6f,
                             SpeedWalk = 2f,
@@ -1010,7 +857,7 @@ namespace Avalon.Database.World.Migrations
                             Rarity = 0,
                             RegenHealth = (short)1,
                             RespawnTimerSecs = 180,
-                            ScriptName = "CreatureIdleScript",
+                            ScriptName = "UrielPathfinderScript",
                             SpeedRun = 5f,
                             SpeedSwim = 1.6f,
                             SpeedWalk = 2f,
@@ -1045,250 +892,12 @@ namespace Avalon.Database.World.Migrations
                             Rarity = 0,
                             RegenHealth = (short)1,
                             RespawnTimerSecs = 180,
-                            ScriptName = "CreatureIdleScript",
+                            ScriptName = "",
                             SpeedRun = 5f,
                             SpeedSwim = 1.6f,
                             SpeedWalk = 2f,
                             SubName = "",
                             Type = 7
-                        },
-                        new
-                        {
-                            Id = 4m,
-                            AIName = "",
-                            ArmorModifier = 1f,
-                            BaseAttackTime = 1,
-                            BodyRemoveTimerSecs = 10,
-                            DamageModifier = 1f,
-                            DetectionRange = 12f,
-                            DmgSchool = (short)0,
-                            ExperienceModifier = 1f,
-                            Family = 5,
-                            HealthModifier = 1.1f,
-                            IconName = "",
-                            LootId = 0,
-                            ManaModifier = 1f,
-                            MaxGold = 0,
-                            MaxLevel = (short)3,
-                            MinGold = 0,
-                            MinLevel = (short)1,
-                            MovementId = 0,
-                            MovementType = (short)0,
-                            Name = "Thornback Boar",
-                            RangeAttackTime = 0,
-                            Rarity = 0,
-                            RegenHealth = (short)1,
-                            RespawnTimerSecs = 180,
-                            ScriptName = "AggroDefendScript",
-                            SpeedRun = 4f,
-                            SpeedSwim = 1.6f,
-                            SpeedWalk = 2f,
-                            SubName = "gore-scarred",
-                            Type = 1
-                        },
-                        new
-                        {
-                            Id = 5m,
-                            AIName = "",
-                            ArmorModifier = 1f,
-                            BaseAttackTime = 1,
-                            BodyRemoveTimerSecs = 10,
-                            DamageModifier = 1.1f,
-                            DetectionRange = 18f,
-                            DmgSchool = (short)0,
-                            ExperienceModifier = 1f,
-                            Family = 1,
-                            HealthModifier = 1f,
-                            IconName = "",
-                            LootId = 0,
-                            ManaModifier = 1f,
-                            MaxGold = 0,
-                            MaxLevel = (short)4,
-                            MinGold = 0,
-                            MinLevel = (short)2,
-                            MovementId = 0,
-                            MovementType = (short)0,
-                            Name = "Grey Fen Wolf",
-                            RangeAttackTime = 0,
-                            Rarity = 0,
-                            RegenHealth = (short)1,
-                            RespawnTimerSecs = 180,
-                            ScriptName = "AggroDefendScript",
-                            SpeedRun = 4f,
-                            SpeedSwim = 1.6f,
-                            SpeedWalk = 2f,
-                            SubName = "lean and patient",
-                            Type = 1
-                        },
-                        new
-                        {
-                            Id = 6m,
-                            AIName = "",
-                            ArmorModifier = 1f,
-                            BaseAttackTime = 1,
-                            BodyRemoveTimerSecs = 10,
-                            DamageModifier = 0.7f,
-                            DetectionRange = 8f,
-                            DmgSchool = (short)0,
-                            ExperienceModifier = 1f,
-                            Family = 0,
-                            HealthModifier = 0.6f,
-                            IconName = "",
-                            LootId = 0,
-                            ManaModifier = 1f,
-                            MaxGold = 0,
-                            MaxLevel = (short)2,
-                            MinGold = 0,
-                            MinLevel = (short)1,
-                            MovementId = 0,
-                            MovementType = (short)0,
-                            Name = "Blightfly Swarmling",
-                            RangeAttackTime = 0,
-                            Rarity = 0,
-                            RegenHealth = (short)1,
-                            RespawnTimerSecs = 180,
-                            ScriptName = "AggroDefendScript",
-                            SpeedRun = 4f,
-                            SpeedSwim = 1.6f,
-                            SpeedWalk = 2f,
-                            SubName = "a drone of the bloom",
-                            Type = 8
-                        },
-                        new
-                        {
-                            Id = 7m,
-                            AIName = "",
-                            ArmorModifier = 1f,
-                            BaseAttackTime = 1,
-                            BodyRemoveTimerSecs = 10,
-                            DamageModifier = 1f,
-                            DetectionRange = 14f,
-                            DmgSchool = (short)0,
-                            ExperienceModifier = 1f,
-                            Family = 0,
-                            HealthModifier = 1.3f,
-                            IconName = "",
-                            LootId = 0,
-                            ManaModifier = 1f,
-                            MaxGold = 0,
-                            MaxLevel = (short)4,
-                            MinGold = 0,
-                            MinLevel = (short)3,
-                            MovementId = 0,
-                            MovementType = (short)0,
-                            Name = "Husk of the Wold",
-                            RangeAttackTime = 0,
-                            Rarity = 0,
-                            RegenHealth = (short)1,
-                            RespawnTimerSecs = 180,
-                            ScriptName = "AggroDefendScript",
-                            SpeedRun = 4f,
-                            SpeedSwim = 1.6f,
-                            SpeedWalk = 2f,
-                            SubName = "what the wold leaves behind",
-                            Type = 6
-                        },
-                        new
-                        {
-                            Id = 8m,
-                            AIName = "",
-                            ArmorModifier = 1f,
-                            BaseAttackTime = 1,
-                            BodyRemoveTimerSecs = 10,
-                            DamageModifier = 1.1f,
-                            DetectionRange = 22f,
-                            DmgSchool = (short)0,
-                            ExperienceModifier = 1f,
-                            Family = 1,
-                            HealthModifier = 1f,
-                            IconName = "",
-                            LootId = 0,
-                            ManaModifier = 1f,
-                            MaxGold = 0,
-                            MaxLevel = (short)5,
-                            MinGold = 0,
-                            MinLevel = (short)3,
-                            MovementId = 0,
-                            MovementType = (short)0,
-                            Name = "Bramblemaw Alpha",
-                            RangeAttackTime = 0,
-                            Rarity = 1,
-                            RegenHealth = (short)1,
-                            RespawnTimerSecs = 180,
-                            ScriptName = "AggroDefendScript",
-                            SpeedRun = 4f,
-                            SpeedSwim = 1.6f,
-                            SpeedWalk = 2f,
-                            SubName = "the pack's black heart",
-                            Type = 1
-                        },
-                        new
-                        {
-                            Id = 9m,
-                            AIName = "",
-                            ArmorModifier = 1f,
-                            BaseAttackTime = 1,
-                            BodyRemoveTimerSecs = 10,
-                            DamageModifier = 1.1f,
-                            DetectionRange = 20f,
-                            DmgSchool = (short)0,
-                            ExperienceModifier = 1f,
-                            Family = 5,
-                            HealthModifier = 1.2f,
-                            IconName = "",
-                            LootId = 0,
-                            ManaModifier = 1f,
-                            MaxGold = 0,
-                            MaxLevel = (short)5,
-                            MinGold = 0,
-                            MinLevel = (short)4,
-                            MovementId = 0,
-                            MovementType = (short)0,
-                            Name = "Old Tuskroot",
-                            RangeAttackTime = 0,
-                            Rarity = 2,
-                            RegenHealth = (short)1,
-                            RespawnTimerSecs = 180,
-                            ScriptName = "AggroDefendScript",
-                            SpeedRun = 4f,
-                            SpeedSwim = 1.6f,
-                            SpeedWalk = 2f,
-                            SubName = "older than the rot",
-                            Type = 1
-                        },
-                        new
-                        {
-                            Id = 10m,
-                            AIName = "",
-                            ArmorModifier = 1f,
-                            BaseAttackTime = 1,
-                            BodyRemoveTimerSecs = 10,
-                            DamageModifier = 1f,
-                            DetectionRange = 26f,
-                            DmgSchool = (short)0,
-                            ExperienceModifier = 1f,
-                            Family = 0,
-                            HealthModifier = 1f,
-                            IconName = "",
-                            LootId = 0,
-                            ManaModifier = 1f,
-                            MaxGold = 0,
-                            MaxLevel = (short)5,
-                            MinGold = 0,
-                            MinLevel = (short)5,
-                            MovementId = 0,
-                            MovementType = (short)0,
-                            Name = "Mother Bramble",
-                            RangeAttackTime = 0,
-                            Rarity = 3,
-                            RegenHealth = (short)1,
-                            RespawnTimerSecs = 180,
-                            ScriptName = "AggroDefendScript",
-                            SpeedRun = 4f,
-                            SpeedSwim = 1.6f,
-                            SpeedWalk = 2f,
-                            SubName = "rooted at the heart of the wold",
-                            Type = 4
                         });
                 });
 
@@ -1661,7 +1270,7 @@ namespace Avalon.Database.World.Migrations
                             LoadingScreenId = 0,
                             LogoutMapId = 1,
                             MapType = 1,
-                            MaxLevel = 5,
+                            MaxLevel = 10,
                             MaxPlayers = 1,
                             MinLevel = 1,
                             Name = "ForestDungeon",

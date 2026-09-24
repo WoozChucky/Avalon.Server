@@ -399,7 +399,9 @@ public class CharacterSelectChainShould : IDisposable
         abilityTemplates.FindAllAsync(Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(new List<AbilityTemplate>());
 
-        var data = new StaticData(createInfos, stats, items, abilityTemplates, levels);
+        var data = new StaticData(createInfos, stats, items, abilityTemplates, levels,
+            Substitute.For<ICreatureBaseStatRepository>(),
+            Substitute.For<ICreatureRarityModifierRepository>());
         data.LoadAsync(CancellationToken.None).GetAwaiter().GetResult();
         return data;
     }

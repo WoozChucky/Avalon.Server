@@ -8,7 +8,9 @@ public class StaticData(
     IClassLevelStatRepository classLevelStatRepository,
     IItemTemplateRepository itemTemplateRepository,
     IAbilityTemplateRepository abilityTemplateRepository,
-    ICharacterLevelExperienceRepository characterLevelExperienceRepository)
+    ICharacterLevelExperienceRepository characterLevelExperienceRepository,
+    ICreatureBaseStatRepository creatureBaseStatRepository,
+    ICreatureRarityModifierRepository creatureRarityModifierRepository)
 {
     public async Task LoadAsync(CancellationToken cancellationToken = default)
     {
@@ -17,6 +19,8 @@ public class StaticData(
         ItemTemplates = (await itemTemplateRepository.FindAllAsync(false, cancellationToken)).AsReadOnly();
         AbilityTemplates = (await abilityTemplateRepository.FindAllAsync(false, cancellationToken)).AsReadOnly();
         CharacterLevelExperiences = await characterLevelExperienceRepository.GetAllAsync(cancellationToken);
+        CreatureBaseStats = await creatureBaseStatRepository.GetAllAsync(cancellationToken);
+        CreatureRarityModifiers = await creatureRarityModifierRepository.GetAllAsync(cancellationToken);
     }
 
     public IReadOnlyCollection<CharacterCreateInfo> CharacterCreateInfos { get; private set; }
@@ -24,4 +28,6 @@ public class StaticData(
     public IReadOnlyCollection<ItemTemplate> ItemTemplates { get; private set; }
     public IReadOnlyCollection<AbilityTemplate> AbilityTemplates { get; private set; }
     public IReadOnlyCollection<CharacterLevelExperience> CharacterLevelExperiences { get; private set; }
+    public IReadOnlyCollection<CreatureBaseStat> CreatureBaseStats { get; private set; }
+    public IReadOnlyCollection<CreatureRarityModifier> CreatureRarityModifiers { get; private set; }
 }
