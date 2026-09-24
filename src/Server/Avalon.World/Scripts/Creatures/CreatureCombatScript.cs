@@ -213,15 +213,25 @@ public class CreatureCombatScript : AiScript
 
         // Claimed once per tick here (idempotent — see MeleeSlots.TryClaim) so both the in-range
         // check below and ChaseDestination agree on whether this creature currently holds a slot.
-        bool hasSlot = Context.MeleeSlots.TryClaim(_target.Guid, Creature.Guid, out _);
+        bool hasSlot = Context.MeleeSlots.TryClaim(_target.Guid, Creature.Guid, targetPosition, currentPosition, out _);
 
-        // Once locomotion reports arrival at a claimed slot, treat that as in range instead of
-        // re-deriving from distance-to-centre: see AttackRangeArrivalTolerance for why the raw
-        // distance is boundary-sensitive right at that moment.
-        bool arrivedAtSlot = hasSlot && Context.Locomotion.HasArrived(Creature);
-        float effectiveAttackRange = arrivedAtSlot ? AttackRange + AttackRangeArrivalTolerance : AttackRange;
+        // The in-range decision is slot-relative, not merely distance-relative. A world-fixed
+        // slot rarely sits on a chaser's approach bearing, so crossing the AttackRange circle on
+        // the way in is typically some OTHER chaser's slot position, not this creature's own —
+        // checking raw distance alone (ungated on arrival) stops every approaching creature at
+        // roughly the same ring-crossing point regardless of which slot it claimed, collapsing a
+        // crowd onto a couple of spots. So while a creature holds a slot, it only counts as in
+        // range once locomotion reports it has actually arrived there (see
+        // AttackRangeArrivalTolerance for why raw distance alone is boundary-sensitive right at
+        // that moment). A creature with no slot (surplus — the ring was full when it asked) has
+        // no "its own spot" to arrive at, so it keeps the plain, ungated distance test and piles
+        // onto the centre exactly as it always has.
+        bool inAttackRange = hasSlot
+            ? Context.Locomotion.HasArrived(Creature) &&
+              Vector3.Distance(currentPosition, targetPosition) <= AttackRange + AttackRangeArrivalTolerance
+            : Vector3.Distance(currentPosition, targetPosition) <= AttackRange;
 
-        if (Vector3.Distance(currentPosition, targetPosition) <= effectiveAttackRange)
+        if (inAttackRange)
         {
             Context.Locomotion.Stop(Creature);
             Creature.LookAt(targetPosition);
@@ -287,7 +297,7 @@ public class CreatureCombatScript : AiScript
     /// <summary>A full ring is not a reason to stop chasing: pile onto the centre as before.</summary>
     private Vector3 ChaseDestination(IUnit target)
     {
-        return Context.MeleeSlots.TryClaim(target.Guid, Creature.Guid, out int slot)
+        return Context.MeleeSlots.TryClaim(target.Guid, Creature.Guid, target.Position, Creature.Position, out int slot)
             ? Context.MeleeSlots.PositionFor(target.Position, slot)
             : target.Position;
     }

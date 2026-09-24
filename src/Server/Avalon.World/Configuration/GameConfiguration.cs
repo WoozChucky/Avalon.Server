@@ -67,7 +67,11 @@ public class GameConfiguration
 
     /// <summary>
     ///     Radius of the ring creatures surround a target on. Must not exceed
-    ///     <c>CreatureCombatScript.AttackRange</c>, or creatures stand where they cannot reach.
+    ///     <c>CreatureCombatScript.AttackRange</c> (plus its small arrival tolerance) — if it
+    ///     does, a creature that arrives at its claimed slot is standing outside attack range and
+    ///     never attacks, parking there indefinitely instead. Not enforced with
+    ///     <see cref="RangeAttribute" /> because <c>AttackRange</c> is a const inside the combat
+    ///     script, not a value this type can see.
     /// </summary>
     [Range(0.5, 20.0)]
     public float MeleeSlotRadius { get; set; } = 1.5f;
