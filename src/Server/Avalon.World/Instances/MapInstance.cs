@@ -6,6 +6,10 @@ using Avalon.Network.Packets.Combat;
 using Avalon.Network.Packets.State;
 using Avalon.World.Entities;
 using Avalon.World.ChunkLayouts;
+using Avalon.World.Configuration;
+using Avalon.World.Creatures;
+using Avalon.World.Creatures.Locomotion;
+using Avalon.World.Maps.Navigation;
 using Avalon.World.Public;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Characters;
@@ -19,6 +23,7 @@ using Avalon.World.Abilities;
 using Avalon.World.Combat;
 using Avalon.World.Public.Combat;
 using Avalon.World.Scripts;
+using Avalon.World.Scripts.Creatures;
 using Avalon.World.Serialization;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -35,6 +40,10 @@ public class MapInstance : IMapInstance, IPortalSink
     private readonly Dictionary<ObjectGuid, ICreature> _creatures = [];
     private readonly ILogger<MapInstance> _logger;
     private readonly IMapNavigator _navigator;
+    private readonly ICreatureLocomotion _locomotion;
+    private readonly float _creatureAgentRadius;
+    private readonly bool _crowdIncludesPlayers;
+    private readonly MeleeSlots _meleeSlots;
     private readonly IAbilityCastSystem _abilityCastSystem;
     private readonly EncounterRegistry _encounterRegistry;
     private readonly CombatService _combatService;
@@ -67,6 +76,11 @@ public class MapInstance : IMapInstance, IPortalSink
         EntrySpawnWorldPos = layout.EntrySpawnWorldPos;
         Seed = seed;
         _navigator = navigator;
+        _creatureAgentRadius = world.Configuration.CreatureAgentRadius;
+        _crowdIncludesPlayers = world.Configuration.CrowdIncludesPlayers;
+        _locomotion = CreateLocomotion(world.Configuration);
+        _meleeSlots = new MeleeSlots(world.Configuration.MeleeSlotCount, world.Configuration.MeleeSlotRadius);
+        WarnIfMeleeSlotRadiusUnreachable(world.Configuration.MeleeSlotRadius);
 
         _creatureRespawner = new NoOpCreatureRespawner();
 
@@ -112,6 +126,8 @@ public class MapInstance : IMapInstance, IPortalSink
     public IReadOnlyDictionary<ObjectGuid, ICharacter> Characters => _characters;
     public IReadOnlyDictionary<ObjectGuid, ICreature> Creatures => _creatures;
     public ICombatService CombatService => _combatService;
+    public ICreatureLocomotion Locomotion => _locomotion;
+    public IMeleeSlots MeleeSlots => _meleeSlots;
 
     public bool IsExpired(TimeSpan expiry) =>
         LastEmptyAt.HasValue && (DateTime.UtcNow - LastEmptyAt.Value) >= expiry;
@@ -121,6 +137,59 @@ public class MapInstance : IMapInstance, IPortalSink
     public void AddPortal(PortalInstance portal) => _portals.Add(portal);
 
     public IMapNavigator GetNavigatorForPosition(Vector3 position) => _navigator;
+
+    /// <summary>
+    /// Chooses the locomotion implementation per <see cref="GameConfiguration.CreatureLocomotion" />.
+    /// <see cref="CrowdLocomotion" /> needs a non-null baked <see cref="DtNavMesh" />, but the
+    /// navigator handed to this instance is only an <see cref="IMapNavigator" /> — tests substitute
+    /// it, and even a real <see cref="MapNavigator" /> can have nothing baked into it yet — so a
+    /// configured crowd degrades to <see cref="WaypointLocomotion" /> instead of throwing out of the
+    /// constructor. Creatures that cannot move at all are worse than creatures that move badly.
+    /// </summary>
+    private ICreatureLocomotion CreateLocomotion(GameConfiguration config)
+    {
+        if (config.CreatureLocomotion != CreatureLocomotionMode.Crowd)
+            return new WaypointLocomotion(GetNavigatorForPosition);
+
+        if (_navigator is MapNavigator { NavMesh: { } navMesh })
+            return new CrowdLocomotion(navMesh, config.CreatureAgentRadius, _logger);
+
+        // Creatures that cannot move at all are worse than creatures that move badly.
+        _logger.LogWarning(
+            "Crowd locomotion was configured but map {MapId} has no baked navmesh; " +
+            "falling back to waypoint locomotion for this instance",
+            TemplateId);
+        return new WaypointLocomotion(GetNavigatorForPosition);
+    }
+
+    /// <summary>
+    /// Warns when the configured <see cref="GameConfiguration.MeleeSlotRadius" /> places attackers'
+    /// standing positions beyond <see cref="CreatureCombatScript.AttackRange" />: a creature that
+    /// walks to its claimed slot and arrives there is then standing outside attack range and never
+    /// attacks from it, so the ring fills up and every attacker in it deals zero damage forever, with
+    /// no other symptom than mobs standing still around their target. Compared against bare
+    /// <see cref="CreatureCombatScript.AttackRange" /> rather than the full effective reach
+    /// (AttackRange + the selected locomotion's arrival tolerance + its float-noise margin, see
+    /// CreatureCombatScript.AttackRangeArrivalMargin): the full reach would make the same
+    /// MeleeSlotRadius warn or not depending on which locomotion this instance ended up with
+    /// (including CreateLocomotion's own navmesh-missing fallback above), which is an unrelated
+    /// operational detail an operator reading this warning should not have to account for. Comparing
+    /// against AttackRange alone warns slightly earlier than strictly necessary but never misses a
+    /// real failure, and — importantly — leaves the shipped default (MeleeSlotRadius == AttackRange
+    /// == 1.5) silent, since it is a strict "greater than", not "greater than or equal to".
+    /// </summary>
+    private void WarnIfMeleeSlotRadiusUnreachable(float meleeSlotRadius)
+    {
+        if (meleeSlotRadius <= CreatureCombatScript.AttackRange)
+            return;
+
+        _logger.LogWarning(
+            "MeleeSlotRadius {MeleeSlotRadius} on map {MapId} exceeds the creature attack range of " +
+            "{AttackRange}; creatures will walk to their claimed melee slot, arrive there, and then " +
+            "stand outside attack range forever, dealing zero damage. Lower MeleeSlotRadius to at " +
+            "most the attack range above to fix it.",
+            meleeSlotRadius, TemplateId, CreatureCombatScript.AttackRange);
+    }
 
     public void AddCharacter(IWorldConnection connection)
     {
@@ -147,6 +216,11 @@ public class MapInstance : IMapInstance, IPortalSink
         _broadcastStates.Remove(connection.Character.Guid);
         _threatBroadcast.Forget(connection);
 
+        // Idempotent and safe to call unconditionally: a no-op under WaypointLocomotion, and a
+        // no-op if this character was never synced as a player agent in the first place (flag off,
+        // or the disconnect races the per-tick sync in Update below).
+        _locomotion.RemovePlayer(connection.Character.Guid);
+
         if (_characters.Count == 0)
         {
             LastEmptyAt = DateTime.UtcNow;
@@ -154,9 +228,30 @@ public class MapInstance : IMapInstance, IPortalSink
         }
     }
 
-    public void AddCreature(ICreature creature) => _creatures[creature.Guid] = creature;
+    public void AddCreature(ICreature creature)
+    {
+        _creatures[creature.Guid] = creature;
+        _locomotion.Register(creature, _creatureAgentRadius);
+    }
 
-    public void RemoveCreature(ICreature creature) => _creatures.Remove(creature.Guid);
+    public void RemoveCreature(ICreature creature)
+    {
+        _creatures.Remove(creature.Guid);
+
+        // Stop BEFORE Unregister, exactly as OnCreatureKilled does and for the same reason: Stop is
+        // what brings the creature to rest (MoveState.Idle, zero Velocity), and both locomotion
+        // implementations no-op on an unregistered creature. Reversed, a creature removed mid-walk
+        // (script hot reload runs through here — World.ApplyScriptsHotReload calls
+        // RemoveCreature/AddCreature around every reload) would keep whatever MoveState and Velocity
+        // it last had, and the client would extrapolate a creature that never stops moving.
+        _locomotion.Stop(creature);
+        _locomotion.Unregister(creature);
+
+        // Despawn runs through here without ever consulting the creature's script, so this is
+        // the only place a slot held by a despawning creature can be released. Safe unconditionally
+        // — a no-op when the creature never claimed one.
+        _meleeSlots.ReleaseClaimant(creature.Guid);
+    }
 
     public bool QueueAbility(ICharacter caster, IUnit? target, IAbility ability) =>
         _abilityCastSystem.QueueAbility(caster, target, ability);
@@ -166,8 +261,20 @@ public class MapInstance : IMapInstance, IPortalSink
 
     public void RespawnCreature(ICreature creature)
     {
-        // No-op: chunk-layout instances install NoOpCreatureRespawner so this
-        // path is never invoked. Kept to satisfy ISimulationContext contract.
+        // Chunk-layout instances install NoOpCreatureRespawner, so nothing reaches this today — but
+        // CreatureRespawner.ScheduleRespawn starts the body-remove timer (default 120s) before the
+        // respawn timer (default 180s), so by the time this runs, RemoveCreature has already dropped
+        // the creature from _creatures. Calling AddCreature (not a bare _locomotion.Register) puts it
+        // back in _creatures alongside the registration; a registration without the dictionary entry
+        // is a creature the script loop never ticks, MapInstance never broadcasts, and a future death
+        // can never reach again (OnCreatureKilled guards on _creatures.ContainsKey) — the exact
+        // permanent-leak shape the death-path teardown above exists to prevent, relocated here.
+        // AddCreature is idempotent in both halves, so this is correct whether or not RemoveCreature
+        // ran first. Reposition the creature (and its health) before calling this if it is to come
+        // back at its spawn point: CrowdLocomotion.Register snapshots creature.Position into the new
+        // agent. This does not otherwise return the creature to a clean state — Script is still null
+        // and CurrentHealth still 0 from OnCreatureKilled — that is left to the caller.
+        AddCreature(creature);
     }
 
     public void BroadcastUnitHit(IUnit attacker, IUnit target, uint currentHealth, uint damage)
@@ -245,6 +352,24 @@ public class MapInstance : IMapInstance, IPortalSink
         {
             creature.Script?.Update(deltaTime);
         }
+
+        // Players are told to the crowd, never asked: PlayerInputHandler already decided where they
+        // are earlier in this tick. Off unless configured, because it makes body-blocking real. The
+        // `is CrowdLocomotion` check (rather than dispatching through the interface for every
+        // character) means this costs nothing beyond the flag check and one type test when the flag
+        // is off or the instance is running WaypointLocomotion — no allocation, no iteration.
+        if (_crowdIncludesPlayers && _locomotion is CrowdLocomotion crowd)
+        {
+            foreach ((ObjectGuid guid, ICharacter character) in _characters)
+                crowd.SyncPlayer(guid, character.Position);
+        }
+
+        // After the scripts, because they decide destinations and this executes them — reversed, every
+        // creature acts on last tick's decision, and a destination chosen this tick is not walked until
+        // the next one. Pinned by MapInstanceLocomotionShould.Tick_The_Locomotion_After_The_Creature_Scripts,
+        // which is the only thing in the suite that fails if these two are swapped. Player positions are
+        // already current: input was processed in connection.UpdateMap() earlier in this same tick.
+        _locomotion.Update(deltaTime);
 
         // Step 5a: Snapshot dirty fields — ONLY on broadcast ticks. Entity _dirtyFields use
         // |= to accumulate, so OR-ing all changes between broadcasts is captured by a single
@@ -493,6 +618,33 @@ public class MapInstance : IMapInstance, IPortalSink
         }
 
         creature.Script = null;
+
+        // Death is the one exit a creature takes that never runs through RemoveCreature: the only
+        // production caller of that is CreatureRespawner.Update, and chunk-layout instances install
+        // NoOpCreatureRespawner (see the assignment in the constructor), so the teardown RemoveCreature
+        // does has to be repeated here or it never happens at all. Doing it at this chokepoint rather
+        // than in the script's death branch covers every death route — Creature.Died is raised from
+        // exactly one place and always lands here — including a creature with no script, or one whose
+        // script is not CreatureCombatScript.
+        //
+        // Stop BEFORE Unregister, not after: Stop is what brings the corpse to rest (MoveState.Idle,
+        // zero Velocity) and both implementations no-op on an unregistered creature, so the reverse
+        // order would leave a corpse broadcasting MoveState.Running forever. Unregister then drops the
+        // waypoint queue / crowd agent, so the corpse neither keeps walking its remaining path nor
+        // lingers as an invisible obstacle that living creatures steer around and the crowd's own
+        // collision resolution shoves about.
+        _locomotion.Stop(creature);
+        _locomotion.Unregister(creature);
+
+        // Both directions of the slot ledger, and both are needed. ReleaseClaimant gives back the
+        // slot this creature held on whatever it was attacking (the script's death branch does that
+        // too, but only for a creature that had a CreatureCombatScript to run it). ReleaseTarget frees
+        // the ring other creatures claimed ON this one: the script-side target-death release is gated
+        // on `_target is ICharacter`, so a creature target dying is not covered there. Both are
+        // idempotent, so the overlap with the script is harmless.
+        _meleeSlots.ReleaseClaimant(creature.Guid);
+        _meleeSlots.ReleaseTarget(creature.Guid);
+
         _creatureRespawner.ScheduleRespawn(creature);
 
         if (killer is not ICharacter character)
