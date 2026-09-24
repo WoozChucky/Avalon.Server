@@ -265,9 +265,8 @@ public class MapInstanceLocomotionShould
     /// returned early on death. MapNavigator emits a waypoint every 0.5 units, so a creature killed
     /// 10 units out had ~20 queued waypoints and walked the whole way to the player as a corpse, with
     /// MoveState left at Running until the queue drained. The release path that would have prevented
-    /// it — <c>MapInstance.RemoveCreature</c> — is unreachable on death, because the only production
-    /// caller of it is <c>CreatureRespawner.Update</c> and MapInstance installs
-    /// <c>NoOpCreatureRespawner</c>.
+    /// it — <c>MapInstance.RemoveCreature</c> — does run for a corpse, but only once
+    /// <c>ICorpseRemover</c>'s timer elapses, which is whole seconds of walking too late.
     /// Production change that breaks this: dropping <c>_locomotion.Stop</c> from
     /// <c>MapInstance.OnCreatureKilled</c> (the corpse walks on, and MoveState stays Running).
     /// </summary>
@@ -429,76 +428,34 @@ public class MapInstanceLocomotionShould
     }
 
     /// <summary>
-    /// The other end of F1's teardown. Death now unregisters the creature from the locomotion, so
-    /// respawn has to put it back or a creature that dies once can never move again. Nothing calls
-    /// <c>RespawnCreature</c> today (NoOpCreatureRespawner), which is precisely why the obligation
-    /// needs to be recorded in a test rather than in a comment: the day respawn is wired up, this is
-    /// what says the creature comes back in a clean state.
-    /// Production change that breaks this: removing <c>_locomotion.Register</c> from
-    /// <c>MapInstance.RespawnCreature</c> while <c>OnCreatureKilled</c> still unregisters — the
-    /// half-fix that leaves a respawned creature permanently immobile.
+    /// A corpse has to leave the instance by itself. Until this was wired up, <c>MapInstance</c>
+    /// installed a no-op respawner, so <c>OnCreatureKilled</c> asked for a removal that never came and
+    /// dead creatures stayed in <c>_creatures</c> for the life of the instance — ticked by the script
+    /// loop and broadcast to clients as entities. On a busy map the corpses carpet the floor.
+    /// Production change that breaks this: dropping the <c>_corpseRemover.ScheduleRemoval</c> call
+    /// from <c>OnCreatureKilled</c>, or <c>_corpseRemover.Update</c> from <c>MapInstance.Update</c>.
     /// </summary>
     [Fact]
-    public void Register_A_Respawned_Creature_With_The_Locomotion_Again()
+    public void Remove_A_Corpse_From_The_Instance_Once_Its_Body_Timer_Elapses()
     {
         (MapInstance instance, _) = BuildKillableInstance();
-        Creature creature = RealCreatureAt(Vector3.zero, id: 700_108);
+        Creature creature = RealCreatureAt(Vector3.zero, id: 700_112);
+        creature.Metadata.BodyRemoveTimer.Returns(TimeSpan.FromSeconds(10));
         instance.AddCreature(creature);
+
         creature.Died(Substitute.For<IUnit>());
-
-        instance.RespawnCreature(creature);
-
-        instance.Locomotion.MoveTo(creature, new Vector3(20f, 0f, 0f));
-        instance.Update(TickInterval);
-
-        Assert.NotEqual(Vector3.zero, creature.Position);
-    }
-
-    /// <summary>
-    /// The production ordering the test above does not model: <c>CreatureRespawner.ScheduleRespawn</c>
-    /// starts both the body-remove timer (default 120s) and the respawn timer (default 180s), so
-    /// <c>RemoveCreature</c> always fires before <c>RespawnCreature</c> for a creature that respawns.
-    /// <c>RemoveCreature</c> drops the creature from <c>_creatures</c>; a <c>RespawnCreature</c> that
-    /// only re-registers with the locomotion (rather than calling <c>AddCreature</c>) then creates a
-    /// live locomotion registration — under <c>CrowdLocomotion</c>, a live <c>DtCrowdAgent</c> — for a
-    /// creature that is not in <c>_creatures</c>: never ticked by the Step 4 script loop, never
-    /// broadcast, and never reachable by a future <c>OnCreatureKilled</c> (its first line guards on
-    /// <c>_creatures.ContainsKey</c>). That is the exact "permanent invisible obstacle" leak F1 exists
-    /// to close, relocated from the death path to the respawn path. The full round-trip through a real
-    /// script proves the creature is not just present in the dictionary but actually alive again —
-    /// driven by Step 4 the same way <c>Tick_The_Locomotion_After_The_Creature_Scripts</c> proves it
-    /// for a fresh creature.
-    /// Production change that breaks this: <c>RespawnCreature</c> calling
-    /// <c>_locomotion.Register(creature, _creatureAgentRadius)</c> directly instead of
-    /// <c>AddCreature(creature)</c>.
-    /// </summary>
-    [Fact]
-    public void Return_A_Respawned_Creature_To_The_Creature_Dictionary_After_Removal()
-    {
-        (MapInstance instance, ICharacter target) = BuildKillableInstance();
-        Creature creature = RealCreatureAt(Vector3.zero, id: 700_110);
-        instance.AddCreature(creature);
-        creature.Died(Substitute.For<IUnit>());
-
-        // Mirrors CreatureRespawner.Update: the body-remove timer fires before the respawn timer,
-        // so production always removes the creature from _creatures before respawning it.
-        instance.RemoveCreature(creature);
-        instance.RespawnCreature(creature);
 
         Assert.True(instance.Creatures.ContainsKey(creature.Guid),
-            "a respawned creature must return to _creatures, or it is never ticked, broadcast, or reachable by a future death again");
+            "the corpse should still be there right after death, not vanish on the killing blow");
 
-        // And it is actually alive again, not just present: the script loop (Step 4) only reaches
-        // creatures in _creatures, so a real script issuing MoveTo through Update proves the wiring,
-        // not just the dictionary entry.
-        var script = new CreatureCombatScript(NullLoggerFactory.Instance, creature, instance);
-        script.OnEnteredRange(target);
-        creature.Script = script;
+        // One tick past the template's timer, driven through MapInstance.Update rather than by calling
+        // RemoveCreature directly, so this exercises the production path.
+        instance.Update(TimeSpan.FromSeconds(11));
 
-        instance.Update(TickInterval);
-
-        Assert.NotEqual(Vector3.zero, creature.Position);
+        Assert.False(instance.Creatures.ContainsKey(creature.Guid),
+            "the corpse was never removed, so it stays a ticked and broadcast entity forever");
     }
+
 
     /// <summary>
     /// The tick order the whole seam rests on: the locomotion must be ticked <em>after</em> the
