@@ -26,17 +26,13 @@ public sealed class MeleeSlots(int slotCount, float radius) : IMeleeSlots
     /// </summary>
     public bool TryClaim(ObjectGuid target, ObjectGuid claimant, Vector3 targetPosition, Vector3 claimantPosition, out int slot)
     {
-        if (!_claims.TryGetValue(target, out Dictionary<ObjectGuid, int>? taken))
-        {
-            taken = [];
-            _claims[target] = taken;
-        }
+        _claims.TryGetValue(target, out Dictionary<ObjectGuid, int>? taken);
 
         // Re-claiming is idempotent: a chaser calls this every tick it is chasing. The slot
         // already picked stays fixed even if the claimant's position (and so its bearing) has
         // moved since — re-evaluating bearing every tick would let a creature's slot drift as it
         // walks, which is exactly the kind of movement decision this type exists to avoid.
-        if (taken.TryGetValue(claimant, out slot))
+        if (taken is not null && taken.TryGetValue(claimant, out slot))
             return true;
 
         float bearing = MathF.Atan2(claimantPosition.z - targetPosition.z, claimantPosition.x - targetPosition.x);
@@ -45,7 +41,7 @@ public sealed class MeleeSlots(int slotCount, float radius) : IMeleeSlots
         float bestDelta = float.MaxValue;
         for (int candidate = 0; candidate < slotCount; candidate++)
         {
-            if (taken.ContainsValue(candidate))
+            if (taken is not null && taken.ContainsValue(candidate))
                 continue;
 
             float delta = AngleDelta(bearing, AngleFor(candidate));
@@ -60,6 +56,16 @@ public sealed class MeleeSlots(int slotCount, float radius) : IMeleeSlots
         {
             slot = -1;
             return false;
+        }
+
+        // Only create the per-target entry once a claim actually succeeds — inserting it
+        // unconditionally up front (e.g. before this loop ever ran) would leave an empty entry
+        // behind for a target nobody ever successfully claimed a slot on (slotCount == 0, most
+        // simply), the exact leak Release's pruning below exists to prevent on the way out.
+        if (taken is null)
+        {
+            taken = [];
+            _claims[target] = taken;
         }
 
         taken[claimant] = best;

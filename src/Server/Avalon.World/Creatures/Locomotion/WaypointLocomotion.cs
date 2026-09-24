@@ -109,7 +109,11 @@ public sealed class WaypointLocomotion : ICreatureLocomotion
 
         creature.LookAt(next);
         creature.Velocity = direction;
-        creature.Position += direction * creature.Speed * (float)deltaTime.TotalSeconds;
+
+        // Clamped to the remaining distance: an unclamped step overshoots next every tick once
+        // Speed * deltaTime exceeds it (SpeedRun above ~6 at a 60Hz tick), so the creature never
+        // lands within WaypointReachedDistance and HasArrived never reports true.
+        creature.Position = Vector3.MoveTowards(creature.Position, next, creature.Speed * (float)deltaTime.TotalSeconds);
     }
 
     /// <summary>

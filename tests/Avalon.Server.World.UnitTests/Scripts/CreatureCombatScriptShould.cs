@@ -53,36 +53,46 @@ public class CreatureCombatScriptShould
     }
 
     /// <summary>
-    /// Regression: a mocked <see cref="ICreatureLocomotion"/> can't catch this — the bug is in
-    /// the interaction between the script and a REAL locomotion's Advance, which
-    /// <c>MapInstance.Update</c> ticks after every AI script every frame regardless of what the
-    /// script decided. If the attack-range branch stops setting Velocity/MoveState directly
-    /// (as a no-op against a path that's still loaded) instead of calling
-    /// <see cref="ICreatureLocomotion.Stop"/>, WaypointLocomotion.Advance walks the creature
-    /// along the stale path on this exact tick, straight through the target's centre.
+    /// Round 3: attacking no longer calls Stop merely because the creature is in range — Stop is
+    /// reserved for actually disengaging (leash, target switch, target lost). This is the
+    /// deliberate reversal of what an earlier round's
+    /// <c>Stop_The_Real_Locomotion_When_Entering_Attack_Range</c> test pinned: a creature that is
+    /// within AttackRange of the target but still short of its own destination now keeps
+    /// stepping toward it AND swings in the same tick, rather than freezing the instant it
+    /// crosses the AttackRange boundary — freezing there is what caused four chasers to collapse
+    /// onto a couple of ring-crossing points once the target itself was moving. A mocked
+    /// <see cref="ICreatureLocomotion"/> can't prove the path was actually left running, so this
+    /// uses a real one, same fixture shape as the test it replaces.
     /// </summary>
     [Fact]
-    public void Stop_The_Real_Locomotion_When_Entering_Attack_Range()
+    public void Keep_Stepping_Toward_Its_Destination_While_Also_Attacking_In_Range()
     {
         var navigator = Substitute.For<IMapNavigator>();
         var locomotion = new WaypointLocomotion(_ => navigator);
 
         ICreature creature = Substitute.For<ICreature>();
-        creature.Guid.Returns(new Avalon.Common.ObjectGuid(Avalon.Common.ObjectType.Creature, 1));
+        creature.Guid.Returns(new ObjectGuid(ObjectType.Creature, 1));
         creature.TauntedBy      = null;
         creature.TauntExpiresAt = DateTime.MinValue;
-        creature.Metadata.Returns(Substitute.For<ICreatureMetadata>());
+
+        var metadata = Substitute.For<ICreatureMetadata>();
+        metadata.SpeedRun.Returns(4f);
+        creature.Metadata.Returns(metadata);
         creature.Speed.Returns(4f);
         creature.Position.Returns(Vector3.zero);
 
         var targetPosition = new Vector3(2f, 0f, 0f);
         ICharacter target = Substitute.For<ICharacter>();
+        target.Guid.Returns(new ObjectGuid(ObjectType.Character, 2));
         target.Position.Returns(targetPosition);
         target.IsDead.Returns(false);
 
         var combat = Substitute.For<ICombatService>();
         combat.GetEncounterFor(creature).Returns((IEncounter?)null);
 
+        // MeleeSlots left unconfigured (auto-recursive substitute -> TryClaim returns false) so
+        // this is unambiguously the plain "is it in range of the target" case: the destination
+        // the creature is still walking toward below is the target's own centre, not a ring slot.
         var context = Substitute.For<ISimulationContext>();
         context.CombatService.Returns(combat);
         context.Locomotion.Returns(locomotion);
@@ -90,21 +100,24 @@ public class CreatureCombatScriptShould
         var script = new CreatureCombatScript(NullLoggerFactory.Instance, creature, context);
         script.OnEnteredRange(target); // _initialPosition = Vector3.zero, State = Combat
 
-        // A prior chase tick already loaded a real path whose final (only) waypoint is the
-        // target's exact centre — the scenario the bug report describes.
+        // A path toward the target's centre is already loaded and not yet consumed.
         navigator.FindPath(Arg.Any<Vector3>(), Arg.Any<Vector3>()).Returns([targetPosition]);
         locomotion.Register(creature, radius: 0.5f, maxSpeed: 4f);
         locomotion.MoveTo(creature, targetPosition);
 
-        // Now within AttackRange (1.5f) of the target but not yet standing on the waypoint
-        // (WaypointLocomotion's 0.1f arrival threshold) — if the script fails to stop the
-        // locomotion, Advance below still has a waypoint to walk towards.
+        // Within AttackRange (1.5f) of the target, but not yet standing on the waypoint
+        // (WaypointLocomotion's 0.1f arrival threshold).
         creature.Position.Returns(new Vector3(1f, 0f, 0f));
 
         script.Update(TimeSpan.FromSeconds(0.1));      // AI scripts tick first...
+
+        combat.Received(1).ApplyDamage(creature, target, 10u);
+
         locomotion.Update(TimeSpan.FromSeconds(0.1));  // ...then locomotion, same as MapInstance.Update.
 
-        creature.DidNotReceive().Position = Arg.Any<Vector3>();
+        // Position DID change — the creature kept stepping toward the target this tick. Attacking
+        // did not freeze its footing.
+        creature.Received().Position = Arg.Is<Vector3>(p => Vector3.Distance(p, new Vector3(1f, 0f, 0f)) > 0.3f);
     }
 
     /// <summary>
@@ -283,11 +296,13 @@ public class CreatureCombatScriptShould
     /// and WaypointLocomotion's own 0.1f arrival epsilon means it stops NEAR the slot, not on
     /// it, so raw distance-to-target-centre can land on either side. This reproduces the
     /// "stuck past the boundary" shape of that bug deterministically (distance fixed at 1.59,
-    /// not relying on Cos/Sin rounding luck): unfixed, the script never attacks at all here —
-    /// it re-issues MoveTo back toward the target's centre every tick, forever, undoing Stop.
-    /// A mocked ICreatureLocomotion can't catch this either — HasArrived would just return
-    /// whatever it's told, regardless of whether the fix's tolerance is wired up correctly — so
-    /// this uses a real WaypointLocomotion, matching Stop_The_Real_Locomotion_When_Entering_Attack_Range.
+    /// not relying on Cos/Sin rounding luck): without AttackRangeArrivalMargin (and
+    /// Context.Locomotion.ArrivalTolerance), the script would never attack here at all — it
+    /// would settle at its slot (locomotion reports arrival, and the drift check finds nothing
+    /// to correct, so it never re-paths to close the residual gap) yet sit a hair outside plain
+    /// AttackRange, forever. A mocked ICreatureLocomotion can't catch this — ArrivalTolerance
+    /// would just return whatever it's told, regardless of whether the real WaypointLocomotion
+    /// actually settles a creature within its own advertised tolerance — so this uses a real one.
     /// </summary>
     [Fact]
     public void Keep_Attacking_Once_Arrived_At_Its_Claimed_Slot_Rather_Than_Alternating()
@@ -350,66 +365,34 @@ public class CreatureCombatScriptShould
     }
 
     /// <summary>
-    /// Pins the "no slot" half of the in-range gating: a surplus creature (ring full) has no
-    /// slot of its own to have arrived at, so it must never get the arrival tolerance — only the
-    /// plain AttackRange test. A mutation that applies Context.Locomotion.ArrivalTolerance
-    /// unconditionally (ignoring whether this creature holds a slot at all) would stop and attack
-    /// here instead — the mocked locomotion is stubbed with a non-zero ArrivalTolerance so that
-    /// mutation is actually observable, rather than accidentally masked by the mock's default
-    /// (unstubbed members return 0f, which alone would not have covered 1.6).
+    /// Round 3: the AttackRangeArrivalMargin tolerance is unconditional now — no longer gated on
+    /// hasSlot or on Locomotion.HasArrived (earlier rounds gated it on both, to avoid an
+    /// oscillation that no longer exists now that attacking doesn't call Stop). A surplus
+    /// creature (ring full, no slot of its own) still gets the same tolerance a slotted creature
+    /// would, because the reason for it — locomotion's own arrival imprecision — applies just as
+    /// much to a creature settling near the target's exact centre as to one settling near a ring
+    /// slot. A mutation that re-adds gating on hasSlot would stop attacking here.
     /// </summary>
     [Fact]
-    public void Not_Attack_A_Surplus_Creature_Merely_Because_It_Is_Within_The_Arrival_Tolerance()
+    public void Attack_A_Surplus_Creature_Within_The_Tolerance_Band_Too()
     {
         var locomotion = Substitute.For<ICreatureLocomotion>();
         var targetPosition = Vector3.zero;
         (CreatureCombatScript script, ICreature creature, ICharacter target) =
             BuildChasingScript(locomotion, targetAt: targetPosition, slotCount: 1);
 
-        // Another creature already holds the only slot — this one is a surplus attacker.
+        // Another creature already holds the only slot — this one is a surplus attacker with no
+        // slot of its own.
         ClaimEverySlot(target);
 
-        // 1.6 is past the plain AttackRange (1.5) a slotless creature is held to, but would be
-        // within a slotted creature's tolerance band (1.5 + 0.2 ArrivalTolerance + 0.05 margin =
-        // 1.75) if the gating on hasSlot were ever bypassed — stubbing a non-zero
-        // ArrivalTolerance here (rather than leaving the mock's default 0f) is what makes that
-        // mutation actually observable.
+        // 1.6 is past the plain AttackRange (1.5) but within 1.5 + 0.2 ArrivalTolerance + 0.05
+        // margin = 1.75.
         creature.Position.Returns(new Vector3(1.6f, 0f, 0f));
-        locomotion.HasArrived(creature).Returns(true);
         locomotion.ArrivalTolerance(creature).Returns(0.2f);
 
         script.Update(TimeSpan.FromSeconds(0.1));
 
-        locomotion.DidNotReceive().Stop(creature);
-        creature.DidNotReceive().LookAt(Arg.Any<Vector3>());
-    }
-
-    /// <summary>
-    /// Pins the "not yet arrived" half of the in-range gating: a creature that holds a slot but
-    /// is still mid-walk to it must not get the arrival tolerance either. A mutation that applies
-    /// it whenever a slot is held, without also requiring <c>Locomotion.HasArrived</c>, would
-    /// stop and attack here — mid-transit, short of its own slot — instead of continuing.
-    /// </summary>
-    [Fact]
-    public void Not_Attack_A_Slotted_Creature_Within_The_Tolerance_Band_Before_It_Arrives()
-    {
-        var locomotion = Substitute.For<ICreatureLocomotion>();
-        var targetPosition = Vector3.zero;
-        (CreatureCombatScript script, ICreature creature, _) =
-            BuildChasingScript(locomotion, targetAt: targetPosition);
-
-        // Default slotCount (6) — the ring is not full, so this creature holds a slot — but it
-        // has not arrived: still mid-transit toward it. Stubbing a non-zero ArrivalTolerance
-        // (rather than the mock's default 0f) is what would make a mutation dropping the
-        // HasArrived guard actually observable: 1.6 falls inside 1.5 + 0.2 + 0.05 = 1.75.
-        creature.Position.Returns(new Vector3(1.6f, 0f, 0f));
-        locomotion.HasArrived(creature).Returns(false);
-        locomotion.ArrivalTolerance(creature).Returns(0.2f);
-
-        script.Update(TimeSpan.FromSeconds(0.1));
-
-        locomotion.DidNotReceive().Stop(creature);
-        creature.DidNotReceive().LookAt(Arg.Any<Vector3>());
+        creature.Received(1).LookAt(targetPosition);
     }
 
     /// <summary>
@@ -484,15 +467,34 @@ public class CreatureCombatScriptShould
             scripts.Add(script);
         }
 
-        // Enough ticks to cross ~8.5 units at 4 units/sec (~21 ticks), with generous headroom.
-        for (int tick = 0; tick < 100; tick++)
+        // The server's real tick rate (~16.67ms), not a coarser one: at 0.1s the per-tick step
+        // (~0.4 units at SpeedRun 4) jumps clean over WaypointLocomotion's 0.1f arrival window, so
+        // creatures never register as arrived and this test's separation would pass on oscillation
+        // phase alone rather than on creatures actually standing in their slots.
+        TimeSpan tickInterval = TimeSpan.FromSeconds(1.0 / 60.0);
+
+        // Enough ticks to cross ~8.5 units at 4 units/sec (~129 ticks at 1/60s) plus headroom for
+        // at least one full AttackCooldown (2.25s) after arrival, so "dealt damage" is a
+        // meaningful assertion and not just "happened to get one swing in right as it arrived".
+        for (int tick = 0; tick < 400; tick++)
         {
             foreach (CreatureCombatScript script in scripts)
             {
-                script.Update(TimeSpan.FromSeconds(0.1));
+                script.Update(tickInterval);
             }
 
-            locomotion.Update(TimeSpan.FromSeconds(0.1));
+            locomotion.Update(tickInterval);
+        }
+
+        // Separation alone doesn't prove the claim — a creature that never arrives (and so never
+        // settles into a fixed, non-overlapping position) can still happen to be far enough from
+        // the others at the moment the test samples it. Assert arrival and damage-dealt for each
+        // of the four explicitly: the claim is that four creatures surround a target and fight
+        // it, not merely that a snapshot of their positions happens to be spread out.
+        for (int i = 0; i < creatures.Count; i++)
+        {
+            Assert.True(locomotion.HasArrived(creatures[i]), $"Creature {i} never arrived at its slot.");
+            combat.Received().ApplyDamage(creatures[i], target, 10u);
         }
 
         const float agentDiameter = 1.2f;
@@ -504,6 +506,117 @@ public class CreatureCombatScriptShould
                 Assert.True(distance >= agentDiameter,
                     $"Creatures {i} and {j} ended up only {distance} apart — closer than one agent diameter ({agentDiameter}).");
             }
+        }
+    }
+
+    /// <summary>
+    /// The case that actually matters: players move essentially all the time. Before this round,
+    /// in-range was measured to the target's centre and reaching it called Stop, which discarded
+    /// the destination and froze the creature wherever it happened to be — there was no re-path
+    /// as the slot moved, so a slotted chaser's footing was only ever correct for the instant it
+    /// first arrived. A steadily translating target (1 u/s — slower than every chaser's 4 u/s
+    /// SpeedRun, so catching up is possible at all) drags its slots along with it; this asserts
+    /// the four chasers keep pace, stay pairwise separated, and keep attacking throughout, not
+    /// just at one sampled instant.
+    /// </summary>
+    [Fact]
+    public void Keep_Several_Chasers_Of_A_Moving_Target_Separated_And_Attacking()
+    {
+        var navigator = Substitute.For<IMapNavigator>();
+        navigator.FindPath(Arg.Any<Vector3>(), Arg.Any<Vector3>())
+            .Returns(call => new List<Vector3> { call.ArgAt<Vector3>(1) });
+
+        var locomotion = new WaypointLocomotion(_ => navigator);
+        var meleeSlots = new MeleeSlots(slotCount: 6, radius: 1.5f);
+
+        var combat = Substitute.For<ICombatService>();
+        combat.GetEncounterFor(Arg.Any<IUnit>()).Returns((IEncounter?)null);
+
+        var targetVelocity = new Vector3(1f, 0f, 0f); // 1 u/s — slower than every chaser.
+        ICharacter target = Substitute.For<ICharacter>();
+        target.Guid.Returns(new ObjectGuid(ObjectType.Character, 100));
+        target.Position.Returns(Vector3.zero);
+        target.IsDead.Returns(false);
+
+        var context = Substitute.For<ISimulationContext>();
+        context.CombatService.Returns(combat);
+        context.Locomotion.Returns(locomotion);
+        context.MeleeSlots.Returns(meleeSlots);
+
+        Vector3[] starts =
+        {
+            new(10f, 0f, 0f),
+            new(10f, 0f, 0.3f),
+            new(10f, 0f, -0.3f),
+            new(10f, 0f, 0.6f),
+        };
+
+        var creatures = new List<ICreature>();
+        var scripts = new List<CreatureCombatScript>();
+
+        for (int i = 0; i < starts.Length; i++)
+        {
+            ICreature creature = Substitute.For<ICreature>();
+            creature.Guid.Returns(new ObjectGuid(ObjectType.Creature, (uint)(i + 1)));
+            creature.Position.Returns(starts[i]);
+            creature.TauntedBy      = null;
+            creature.TauntExpiresAt = DateTime.MinValue;
+
+            var metadata = Substitute.For<ICreatureMetadata>();
+            metadata.SpeedRun.Returns(4f);
+            creature.Metadata.Returns(metadata);
+
+            locomotion.Register(creature, radius: 0.5f, maxSpeed: 4f);
+
+            var script = new CreatureCombatScript(NullLoggerFactory.Instance, creature, context);
+            script.OnEnteredRange(target);
+
+            creatures.Add(creature);
+            scripts.Add(script);
+        }
+
+        TimeSpan tickInterval = TimeSpan.FromSeconds(1.0 / 60.0);
+        const float agentDiameter = 1.2f;
+
+        // 10 simulated seconds: long enough to close the initial ~8.5-unit gap against a target
+        // that keeps receding at 1 u/s, then sustain formation for several AttackCooldown (2.25s)
+        // cycles afterward — this is checking the whole journey, not just where it ends up.
+        float elapsed = 0f;
+        int ticks = (int)(10.0 / tickInterval.TotalSeconds);
+        for (int tick = 0; tick < ticks; tick++)
+        {
+            elapsed += (float)tickInterval.TotalSeconds;
+            target.Position.Returns(targetVelocity * elapsed);
+
+            foreach (CreatureCombatScript script in scripts)
+            {
+                script.Update(tickInterval);
+            }
+
+            locomotion.Update(tickInterval);
+
+            // Sampled throughout, not just at the end: a moving target's slots are never
+            // permanently "arrived at", so the only assertion that means anything here is that
+            // separation holds continuously once it's first established, not at one instant.
+            if (tick < ticks / 2)
+            {
+                continue;
+            }
+
+            for (int i = 0; i < creatures.Count; i++)
+            {
+                for (int j = i + 1; j < creatures.Count; j++)
+                {
+                    float distance = Vector3.Distance(creatures[i].Position, creatures[j].Position);
+                    Assert.True(distance >= agentDiameter,
+                        $"Tick {tick}: creatures {i} and {j} were only {distance} apart — closer than one agent diameter ({agentDiameter}).");
+                }
+            }
+        }
+
+        for (int i = 0; i < creatures.Count; i++)
+        {
+            combat.Received().ApplyDamage(creatures[i], target, 10u);
         }
     }
 
