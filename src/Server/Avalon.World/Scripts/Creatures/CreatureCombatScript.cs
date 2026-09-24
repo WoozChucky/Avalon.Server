@@ -397,7 +397,7 @@ public class CreatureCombatScript : AiScript
             // No ability — uses the raw-damage overload with default ThreatMultiplier=1.0.
             if (_target is not null)
             {
-                Context.CombatService.ApplyDamage(Creature, _target, 10);
+                Context.CombatService.ApplyDamage(Creature, _target, RollDamage());
             }
             _attackCooldownTimer = AttackCooldown;
         }
@@ -405,6 +405,19 @@ public class CreatureCombatScript : AiScript
         {
             _attackCooldownTimer -= (float)deltaTime.TotalSeconds;
         }
+    }
+
+    /// <summary>
+    /// Damage comes from the creature's derived range rather than a constant. Inclusive of both bounds,
+    /// and safe when the range is a single value — a degenerate range must deal exactly that, not zero
+    /// and not one more.
+    /// </summary>
+    private uint RollDamage()
+    {
+        uint min = Creature.DamageMin;
+        uint max = Math.Max(min, Creature.DamageMax);
+
+        return min == max ? min : (uint)Random.Shared.NextInt64(min, max + 1L);
     }
 
     private void ResetToIdleAtSpawn()

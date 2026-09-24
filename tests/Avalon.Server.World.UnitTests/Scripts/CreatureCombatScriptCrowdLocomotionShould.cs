@@ -161,6 +161,6 @@ public class CreatureCombatScriptCrowdLocomotionShould
         }
 
         foreach (ICreature creature in creatures)
-            combat.Received().ApplyDamage(creature, target, 10u);
+            combat.Received().ApplyDamage(creature, target, Arg.Any<uint>());
     }
 }
