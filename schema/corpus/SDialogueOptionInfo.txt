@@ -1,0 +1,68 @@
+# SDialogueOptionInfo - golden wire vectors.
+#
+# GENERATED FILE. The bytes below are what the server's serializer writes for the
+# values shown above them, so a client is conformant when it produces the same ones,
+# and a change in what the server emits arrives here as a diff.
+#
+#   Emitted by  tools/Avalon.Exporter
+#   Regenerate  dotnet run --project tools/Avalon.Exporter -- corpus
+#   Format      described in schema/README.md
+#   Schema      the message of this name in schema/avalon.proto
+#
+# A variant is one shape of the same message. "absent" sets nothing, "empty" sets
+# everything to a present-but-empty value, and the rest carry values chosen to make
+# a particular encoding decision observable.
+
+message SDialogueOptionInfo
+
+variant absent
+  field 1 OptionId : int = 0
+  field 2 Text : string = null
+  bytes 0
+
+variant empty
+  field 1 OptionId : int = 0
+  field 2 Text : string = "" (0 chars, 0 bytes utf-8)
+  bytes 2
+    12 00
+
+variant populated
+  field 1 OptionId : int = 11
+  field 2 Text : string = "日本語のテキスト" (8 chars, 24 bytes utf-8)
+  bytes 28
+    08 0b 12 18 e6 97 a5 e6 9c ac e8 aa 9e e3 81 ae
+    e3 83 86 e3 82 ad e3 82 b9 e3 83 88
+
+variant maxima
+  field 1 OptionId : int = 2147483647
+  field 2 Text : string = "ΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩx…" (88 chars, 132 bytes utf-8)
+  bytes 141
+    08 ff ff ff ff 07 12 84 01 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+
+variant minima
+  field 1 OptionId : int = -2147483648
+  field 2 Text : string = "\u0001" (1 chars, 1 bytes utf-8)
+  bytes 14
+    08 80 80 80 80 f8 ff ff ff ff 01 12 01 01
+
+variant varint-edges
+  field 1 OptionId : int = 128
+  field 2 Text : string = "yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy…" (128 chars, 128 bytes utf-8)
+  bytes 134
+    08 80 01 12 80 01 79 79 79 79 79 79 79 79 79 79
+    79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
+    79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
+    79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
+    79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
+    79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
+    79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
+    79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
+    79 79 79 79 79 79

@@ -49,6 +49,7 @@ public enum NetworkPacketType : short
 
     // World
     CMSG_INTERACT = 0x2030,
+    CMSG_DIALOGUE_CHOOSE = 0x2031,
 
     CMSG_PING = 0x2005,
     CMSG_PONG = 0x2006,
@@ -141,4 +142,8 @@ public enum NetworkPacketType : short
     SMSG_MFA_SETUP = 0x300F,
     SMSG_MFA_CONFIRM = 0x3013,
     SMSG_MFA_RESET = 0x3014,
+
+    // Dialogue
+    SMSG_DIALOGUE_NODE = 0x3070,
+    SMSG_DIALOGUE_END  = 0x3071,
 }
