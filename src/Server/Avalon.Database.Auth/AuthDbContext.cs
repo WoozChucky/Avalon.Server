@@ -1,6 +1,7 @@
 using Avalon.Common.ValueObjects;
 using Avalon.Configuration;
 using Avalon.Domain.Auth;
+using Avalon.World.Public.Enums;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
