@@ -104,8 +104,12 @@ public class InstanceRegistry : IInstanceRegistry
 
     public void RemoveInstance(Guid instanceId)
     {
-        if (_instances.TryRemove(instanceId, out _))
+        // Dispose, not just drop: MapInstance subscribes to static entity events, so an instance that
+        // is only removed from this dictionary stays reachable through those delegates and is never
+        // collected.
+        if (_instances.TryRemove(instanceId, out MapInstance? instance))
         {
+            instance.Dispose();
             _logger.LogInformation("Instance {InstanceId} removed from registry", instanceId);
         }
     }
@@ -120,10 +124,14 @@ public class InstanceRegistry : IInstanceRegistry
                 continue;
             }
 
-            if (!_instances.TryRemove(id, out _))
+            if (!_instances.TryRemove(id, out MapInstance? removed))
             {
                 continue;
             }
+
+            // Without this the log line below is untrue: the instance stays rooted by the static
+            // entity events it subscribed to in its constructor.
+            removed.Dispose();
 
             _logger.LogInformation(
                 "Normal map instance {InstanceId} for map {TemplateId} freed after expiry",
