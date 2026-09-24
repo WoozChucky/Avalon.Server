@@ -183,8 +183,7 @@ public class CreatureCombatScript : AiScript
 
         if (_target != null && Vector3.Distance(currentPosition, targetPosition) <= AttackRange)
         {
-            Creature.Velocity = Vector3.zero;
-            Creature.MoveState = MoveState.Idle;
+            Context.Locomotion.Stop(Creature);
             Creature.LookAt(targetPosition);
             AttackTarget(deltaTime);
         }
@@ -250,5 +249,6 @@ public class CreatureCombatScript : AiScript
         State = CombatState.None;
         _target = null;
         _initialPosition = Vector3.zero;
+        Context.Locomotion.Stop(Creature);
     }
 }
