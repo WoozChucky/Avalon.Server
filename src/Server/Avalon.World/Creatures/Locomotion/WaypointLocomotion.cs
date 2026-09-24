@@ -26,8 +26,19 @@ public sealed class WaypointLocomotion : ICreatureLocomotion
         public Queue<Vector3> Path { get; } = new();
     }
 
-    public void Register(ICreature creature, float radius, float maxSpeed) =>
+    /// <summary>
+    /// No-ops if the creature is already registered, matching CrowdLocomotion. Replacing an
+    /// in-progress Agent with a fresh empty one would freeze the creature in place without coming
+    /// to rest — Velocity and MoveState stay at whatever moving value the caller last set, and the
+    /// client extrapolates a creature whose position never changes again.
+    /// </summary>
+    public void Register(ICreature creature, float radius, float maxSpeed)
+    {
+        if (_agents.ContainsKey(creature.Guid))
+            return;
+
         _agents[creature.Guid] = new Agent { Creature = creature };
+    }
 
     public void Unregister(ICreature creature) => _agents.Remove(creature.Guid);
 
@@ -64,6 +75,9 @@ public sealed class WaypointLocomotion : ICreatureLocomotion
 
     public bool HasArrived(ICreature creature) =>
         !_agents.TryGetValue(creature.Guid, out Agent? agent) || agent.Path.Count == 0;
+
+    /// <summary>Same constant Advance uses to decide a waypoint has been reached, read from one place.</summary>
+    public float ArrivalTolerance(ICreature creature) => WaypointReachedDistance;
 
     public void Update(TimeSpan deltaTime)
     {
