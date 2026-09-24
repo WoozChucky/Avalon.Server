@@ -23,6 +23,7 @@ using Avalon.World.Abilities;
 using Avalon.World.Combat;
 using Avalon.World.Public.Combat;
 using Avalon.World.Scripts;
+using Avalon.World.Scripts.Creatures;
 using Avalon.World.Serialization;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -79,6 +80,7 @@ public class MapInstance : IMapInstance, IPortalSink
         _crowdIncludesPlayers = world.Configuration.CrowdIncludesPlayers;
         _locomotion = CreateLocomotion(world.Configuration);
         _meleeSlots = new MeleeSlots(world.Configuration.MeleeSlotCount, world.Configuration.MeleeSlotRadius);
+        WarnIfMeleeSlotRadiusUnreachable(world.Configuration.MeleeSlotRadius);
 
         _creatureRespawner = new NoOpCreatureRespawner();
 
@@ -158,6 +160,35 @@ public class MapInstance : IMapInstance, IPortalSink
             "falling back to waypoint locomotion for this instance",
             TemplateId);
         return new WaypointLocomotion(GetNavigatorForPosition);
+    }
+
+    /// <summary>
+    /// Warns when the configured <see cref="GameConfiguration.MeleeSlotRadius" /> places attackers'
+    /// standing positions beyond <see cref="CreatureCombatScript.AttackRange" />: a creature that
+    /// walks to its claimed slot and arrives there is then standing outside attack range and never
+    /// attacks from it, so the ring fills up and every attacker in it deals zero damage forever, with
+    /// no other symptom than mobs standing still around their target. Compared against bare
+    /// <see cref="CreatureCombatScript.AttackRange" /> rather than the full effective reach
+    /// (AttackRange + the selected locomotion's arrival tolerance + its float-noise margin, see
+    /// CreatureCombatScript.AttackRangeArrivalMargin): the full reach would make the same
+    /// MeleeSlotRadius warn or not depending on which locomotion this instance ended up with
+    /// (including CreateLocomotion's own navmesh-missing fallback above), which is an unrelated
+    /// operational detail an operator reading this warning should not have to account for. Comparing
+    /// against AttackRange alone warns slightly earlier than strictly necessary but never misses a
+    /// real failure, and — importantly — leaves the shipped default (MeleeSlotRadius == AttackRange
+    /// == 1.5) silent, since it is a strict "greater than", not "greater than or equal to".
+    /// </summary>
+    private void WarnIfMeleeSlotRadiusUnreachable(float meleeSlotRadius)
+    {
+        if (meleeSlotRadius <= CreatureCombatScript.AttackRange)
+            return;
+
+        _logger.LogWarning(
+            "MeleeSlotRadius {MeleeSlotRadius} on map {MapId} exceeds the creature attack range of " +
+            "{AttackRange}; creatures will walk to their claimed melee slot, arrive there, and then " +
+            "stand outside attack range forever, dealing zero damage. Lower MeleeSlotRadius to at " +
+            "most the attack range above to fix it.",
+            meleeSlotRadius, TemplateId, CreatureCombatScript.AttackRange);
     }
 
     public void AddCharacter(IWorldConnection connection)

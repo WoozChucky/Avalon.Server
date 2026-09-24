@@ -23,7 +23,11 @@ public class CreatureCombatScript : AiScript
 
     // This is the position distance at which the creature will stop chasing the target if no hits were received in the meantime, and if the creature itself didn't hit the target
     private const float MaxChaseDistance = 40.0f;
-    private const float AttackRange = 1.5f;
+
+    // Internal rather than private so MapInstance's constructor can warn when a configured
+    // MeleeSlotRadius exceeds what this script can actually reach (see MapInstance.cs, near where
+    // it reads world.Configuration.MeleeSlotRadius) without duplicating this balance constant.
+    internal const float AttackRange = 1.5f;
 
     // Slightly inside AttackRange rather than exactly on it, matching how these creatures behaved
     // before this feature existed: walking straight at the target and stopping the instant they
