@@ -32,6 +32,16 @@ public interface ICreatureLocomotion
     /// <summary>True when the creature has no further destination, including when none was reachable.</summary>
     bool HasArrived(ICreature creature);
 
+    /// <summary>
+    /// The distance a creature reported as arrived (<see cref="HasArrived" /> true) may actually be
+    /// standing from the destination it was given — the slack a caller needs to allow when deciding
+    /// whether "arrived" also means "close enough" for its own purposes (e.g. within melee range of
+    /// a slot). Takes the creature rather than being a bare constant because a crowd implementation's
+    /// tolerance depends on the per-creature radius supplied to <see cref="Register" />: it cannot be
+    /// answered without knowing which creature is asking.
+    /// </summary>
+    float ArrivalTolerance(ICreature creature);
+
     /// <summary>Advances every registered creature. Called once per MapInstance tick.</summary>
     void Update(TimeSpan deltaTime);
 }

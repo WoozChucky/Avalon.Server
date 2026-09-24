@@ -136,6 +136,16 @@ public sealed class CrowdLocomotion : ICreatureLocomotion
         !_creatureAgents.TryGetValue(creature.Guid, out DtCrowdAgent? agent)
         || agent.targetState == DtMoveRequestState.DT_CROWDAGENT_TARGET_NONE;
 
+    /// <summary>
+    /// Same floor-of-agent-radius value <see cref="Arrived" /> uses to decide arrival, read from one
+    /// place. An unregistered creature has no agent to read a radius from, so it gets the floor —
+    /// the smallest tolerance any registered agent could report.
+    /// </summary>
+    public float ArrivalTolerance(ICreature creature) =>
+        ArrivalToleranceFor(_creatureAgents.TryGetValue(creature.Guid, out DtCrowdAgent? agent)
+            ? agent.option.radius
+            : 0f);
+
     public void Update(TimeSpan deltaTime)
     {
         _crowd.Update((float)deltaTime.TotalSeconds, null);
@@ -183,9 +193,11 @@ public sealed class CrowdLocomotion : ICreatureLocomotion
         if (agent.targetState != DtMoveRequestState.DT_CROWDAGENT_TARGET_VALID)
             return false;
 
-        float tolerance = MathF.Max(agent.option.radius, MinArrivalDistance);
-        return RcVec3f.Subtract(agent.targetPos, agent.npos).Length() <= tolerance;
+        return RcVec3f.Subtract(agent.targetPos, agent.npos).Length() <= ArrivalToleranceFor(agent.option.radius);
     }
+
+    /// <summary>The one place this class computes an arrival tolerance from an agent radius.</summary>
+    private static float ArrivalToleranceFor(float radius) => MathF.Max(radius, MinArrivalDistance);
 
     /// <summary>
     /// The only MoveState this class ever writes. Scripts own the moving states (Walking vs
