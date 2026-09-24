@@ -180,6 +180,10 @@ public class World : IWorld
             // hold a stale dead-player participant after Revive() runs.
             instance?.CombatService.DropPlayerFromEncounter(connection.Character);
 
+            // A stale (npc, node) pair surviving a disconnect would let a reconnecting player
+            // resume a conversation with an NPC that may no longer be in their (new) instance.
+            connection.CurrentDialogue = null;
+
             instance?.RemoveCharacter(connection);
 
             await using AsyncServiceScope scope = _serviceScopeFactory.CreateAsyncScope();

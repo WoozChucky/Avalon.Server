@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Diagnostics.Metrics;
 using System.Net.Sockets;
+using Avalon.Common;
 using Avalon.Common.Telemetry;
 using Avalon.Common.ValueObjects;
 using Avalon.Hosting.Networking;
@@ -10,6 +11,7 @@ using Avalon.World.Entities;
 using Avalon.World.Filters;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
+using Avalon.World.Public.Enums;
 using Avalon.World.Public.Instances;
 using Microsoft.Extensions.Logging;
 using Packet = Avalon.Network.Packets.Packet;
@@ -208,6 +210,8 @@ public class WorldConnection : Connection, IWorldConnection
     public uint LastInputSeq { get; set; }
     public bool RespawnInFlight { get; set; }
     public ulong? CurrentTargetGuid { get; set; }
+    public AccountLocale Locale { get; set; } = AccountLocale.enUS;
+    public (ObjectGuid Npc, DialogueNodeId Node)? CurrentDialogue { get; set; }
 
     public override void Send(NetworkPacket packet)
     {

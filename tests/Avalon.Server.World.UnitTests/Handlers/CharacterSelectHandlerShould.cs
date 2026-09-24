@@ -1,6 +1,7 @@
 using System.IO;
 using Avalon.Common;
 using Avalon.Common.ValueObjects;
+using Avalon.Database.Auth.Repositories;
 using Avalon.Database.Character.Repositories;
 using Avalon.Database.World.Repositories;
 using Avalon.Domain.Characters;
@@ -129,7 +130,8 @@ public class CharacterSelectHandlerShould
             Substitute.For<IChunkLibrary>(),
             world,
             Substitute.For<IRespawnTargetResolver>(),
-            Options.Create(new RegenConfiguration()));
+            Options.Create(new RegenConfiguration()),
+            Substitute.For<IAccountRepository>());
 
         return new Fixture
         {
