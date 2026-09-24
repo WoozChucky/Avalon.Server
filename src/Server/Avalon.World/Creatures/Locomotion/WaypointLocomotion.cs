@@ -32,7 +32,7 @@ public sealed class WaypointLocomotion : ICreatureLocomotion
     /// to rest — Velocity and MoveState stay at whatever moving value the caller last set, and the
     /// client extrapolates a creature whose position never changes again.
     /// </summary>
-    public void Register(ICreature creature, float radius, float maxSpeed)
+    public void Register(ICreature creature, float radius)
     {
         if (_agents.ContainsKey(creature.Guid))
             return;

@@ -38,7 +38,7 @@ public class WaypointLocomotionShould
         navigator.FindPath(Arg.Any<Vector3>(), Arg.Any<Vector3>())
             .Returns([new Vector3(10f, 0f, 0f)]);
 
-        locomotion.Register(creature, radius: 0.5f, maxSpeed: 4f);
+        locomotion.Register(creature, radius: 0.5f);
         locomotion.MoveTo(creature, new Vector3(10f, 0f, 0f));
         locomotion.Update(TimeSpan.FromSeconds(1));
 
@@ -62,7 +62,7 @@ public class WaypointLocomotionShould
         ICreature creature = CreatureAt(Vector3.zero);
         navigator.FindPath(Arg.Any<Vector3>(), Arg.Any<Vector3>()).Returns([]);
 
-        locomotion.Register(creature, radius: 0.5f, maxSpeed: 4f);
+        locomotion.Register(creature, radius: 0.5f);
         locomotion.MoveTo(creature, new Vector3(10f, 0f, 0f));
         locomotion.Update(TimeSpan.FromSeconds(1));
 
@@ -87,7 +87,7 @@ public class WaypointLocomotionShould
         navigator.FindPath(Arg.Any<Vector3>(), Arg.Any<Vector3>()).Returns([destination]);
         creature.Position.Returns(new Vector3(0.95f, 0f, 0f));
 
-        locomotion.Register(creature, radius: 0.5f, maxSpeed: 4f);
+        locomotion.Register(creature, radius: 0.5f);
         locomotion.MoveTo(creature, destination);
         locomotion.Update(TimeSpan.FromSeconds(0.1)); // consumes the waypoint -> HasArrived == true
 
@@ -121,7 +121,7 @@ public class WaypointLocomotionShould
         var destination = new Vector3(0.5f, 0f, 0f);
         navigator.FindPath(Arg.Any<Vector3>(), Arg.Any<Vector3>()).Returns([destination]);
 
-        locomotion.Register(creature, radius: 0.5f, maxSpeed: 60f);
+        locomotion.Register(creature, radius: 0.5f);
         locomotion.MoveTo(creature, destination);
 
         TimeSpan tickInterval = TimeSpan.FromSeconds(1.0 / 60.0);
@@ -142,7 +142,7 @@ public class WaypointLocomotionShould
             .Returns([new Vector3(1f, 0f, 0f)]);
         creature.Position.Returns(new Vector3(1f, 0f, 0f)); // already standing on it
 
-        locomotion.Register(creature, radius: 0.5f, maxSpeed: 4f);
+        locomotion.Register(creature, radius: 0.5f);
         locomotion.MoveTo(creature, new Vector3(1f, 0f, 0f));
         locomotion.Update(TimeSpan.FromSeconds(0.1));
 
@@ -155,7 +155,7 @@ public class WaypointLocomotionShould
         var (locomotion, _) = Build();
         ICreature creature = CreatureAt(Vector3.zero);
 
-        locomotion.Register(creature, radius: 0.5f, maxSpeed: 4f);
+        locomotion.Register(creature, radius: 0.5f);
         locomotion.Teleport(creature, new Vector3(50f, 0f, 50f));
 
         creature.Received().Position = new Vector3(50f, 0f, 50f);
@@ -175,7 +175,7 @@ public class WaypointLocomotionShould
         navigator.FindPath(Arg.Any<Vector3>(), Arg.Any<Vector3>())
             .Returns([new Vector3(10f, 0f, 0f)]);
 
-        locomotion.Register(creature, radius: 0.5f, maxSpeed: 4f);
+        locomotion.Register(creature, radius: 0.5f);
         locomotion.MoveTo(creature, new Vector3(10f, 0f, 0f));
         locomotion.Teleport(creature, new Vector3(50f, 0f, 50f));
 
@@ -194,8 +194,8 @@ public class WaypointLocomotionShould
         var (locomotion, _) = Build();
         ICreature creature = CreatureAt(Vector3.zero);
 
-        locomotion.Register(creature, radius: 0.5f, maxSpeed: 4f);
-        locomotion.Register(creature, radius: 0.5f, maxSpeed: 4f);
+        locomotion.Register(creature, radius: 0.5f);
+        locomotion.Register(creature, radius: 0.5f);
         locomotion.Unregister(creature);
         locomotion.Unregister(creature);
 
@@ -222,12 +222,12 @@ public class WaypointLocomotionShould
         navigator.FindPath(Arg.Any<Vector3>(), Arg.Any<Vector3>())
             .Returns([new Vector3(10f, 0f, 0f)]);
 
-        locomotion.Register(creature, radius: 0.5f, maxSpeed: 4f);
+        locomotion.Register(creature, radius: 0.5f);
         locomotion.MoveTo(creature, new Vector3(10f, 0f, 0f));
         Assert.False(locomotion.HasArrived(creature));
 
         // Re-entrant Register while the path above is still loaded — must be a no-op.
-        locomotion.Register(creature, radius: 0.5f, maxSpeed: 4f);
+        locomotion.Register(creature, radius: 0.5f);
         Assert.False(locomotion.HasArrived(creature));
 
         locomotion.Update(TimeSpan.FromSeconds(1));
@@ -252,7 +252,7 @@ public class WaypointLocomotionShould
             .Returns([new Vector3(10f, 0f, 0f)]);
 
         var playerGuid = new ObjectGuid(ObjectType.Character, 500);
-        locomotion.Register(creature, radius: 0.5f, maxSpeed: 4f);
+        locomotion.Register(creature, radius: 0.5f);
         locomotion.MoveTo(creature, new Vector3(10f, 0f, 0f));
 
         locomotion.SyncPlayer(playerGuid, new Vector3(5f, 0f, 0f));
