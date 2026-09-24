@@ -700,9 +700,9 @@ public class MapInstanceLocomotionShould
             navigator,
             seed: 0);
 
-        // See DetachStaticEventHandlers' remarks on BuildInstanceWithCreature: same leak, same fix,
-        // needed here even though this instance never gets a populated _connections/_creatures.
-        DetachStaticEventHandlers(instance);
+        // Same leak, same fix as BuildInstanceWithCreature, needed here even though this instance
+        // never gets a populated _connections/_creatures.
+        instance.Dispose();
 
         return instance;
     }
@@ -817,7 +817,7 @@ public class MapInstanceLocomotionShould
         // suite's assertions exercise damage/kill/animation events, so detaching immediately, before
         // this instance ever gets a populated _connections/_creatures to broadcast from, is safe and
         // removes the leak at its source rather than merely narrowing the window it is live in.
-        DetachStaticEventHandlers(instance);
+        instance.Dispose();
 
         var character = Substitute.For<ICharacter>();
         character.Guid.Returns(new ObjectGuid(ObjectType.Character, 424_242));
@@ -838,21 +838,19 @@ public class MapInstanceLocomotionShould
     }
 
     /// <summary>
-    /// Removes every handler <paramref name="instance"/> registered on Creature's and
-    /// CharacterEntity's static events, by scanning each event's backing delegate for handlers
-    /// whose <see cref="Delegate.Target"/> is this instance. Generic over which events exist so it
-    /// keeps working if MapInstance's constructor subscribes to more of them later.
+    /// Detaches every static-event handler <paramref name="target"/> registered on
+    /// <paramref name="declaringType"/> except one, by scanning each event's backing delegate for
+    /// handlers whose <see cref="Delegate.Target"/> is this instance.
     /// </summary>
-    private static void DetachStaticEventHandlers(MapInstance instance)
-    {
-        DetachAll(typeof(Creature), instance);
-        DetachAll(typeof(CharacterEntity), instance);
-    }
-
-    /// <param name="except">
-    /// An event to leave subscribed. Only <see cref="BuildKillableInstance" /> uses it, to keep
-    /// <c>Creature.OnCreatureKilled</c> attached so a real <c>Creature.Died</c> reaches the instance.
-    /// </param>
+    /// <remarks>
+    /// Everything that wants a FULL detach now calls <c>MapInstance.Dispose()</c> instead. This
+    /// reflection survives for the single selective case: <see cref="BuildKillableInstance" /> needs
+    /// <c>Creature.OnCreatureKilled</c> left attached so a real <c>Creature.Died</c> reaches the
+    /// instance, while still detaching the CharacterEntity events — whose handlers would otherwise
+    /// broadcast on damage raised by unrelated tests, against substitutes with no Guid configured.
+    /// There is no way to express "all but this one" through the public surface.
+    /// </remarks>
+    /// <param name="except">The event to leave subscribed.</param>
     private static void DetachAll(Type declaringType, object target, string? except = null)
     {
         foreach (EventInfo eventInfo in declaringType.GetEvents(BindingFlags.Public | BindingFlags.Static))

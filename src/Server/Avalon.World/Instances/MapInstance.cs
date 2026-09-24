@@ -30,7 +30,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Instances;
 
-public class MapInstance : IMapInstance, IPortalSink
+public class MapInstance : IMapInstance, IPortalSink, IDisposable
 {
     private const float BroadcastInterval = 0.1f;
 
@@ -99,6 +99,17 @@ public class MapInstance : IMapInstance, IPortalSink
         _abilityCastSystem = new InstanceAbilityCastSystem(loggerFactory, serviceProvider,
             serviceProvider.GetRequiredService<IScriptManager>(), this);
 
+        SubscribeToEntityEvents();
+    }
+
+    /// <summary>
+    /// These events are <em>static</em>, so a subscription is a strong reference from the entity type
+    /// to this instance — which is why <see cref="Dispose" /> exists and why every subscription here
+    /// must have a detach there. Each handler already ignores units that are not this instance's, so
+    /// while subscribed an instance sees every entity event in the process and filters.
+    /// </summary>
+    private void SubscribeToEntityEvents()
+    {
         Creature.OnCreatureKilled += OnCreatureKilled;
         Creature.OnUnitAttackAnimation += BroadcastUnitAttackAnimation;
         Creature.OnUnitFinishedCastAnimation += BroadcastFinishCastAnimation;
@@ -108,6 +119,26 @@ public class MapInstance : IMapInstance, IPortalSink
         CharacterEntity.OnUnitInterruptedCastAnimation += BroadcastInterruptedCastAnimation;
         CharacterEntity.OnUnitDamaged += OnCharacterHit;
         CharacterEntity.OnSelfDamaged += OnCharacterSelfDamaged;
+    }
+
+    /// <summary>
+    /// Releases this instance from the static entity events so it can be collected once the registry
+    /// drops it. Without this the instance is a GC root for as long as the process lives, holding its
+    /// navigator and baked navmesh, its chunk layout, its combat services and every entity dictionary
+    /// — and a normal instance is created per player per map, so the growth is unbounded. Idempotent:
+    /// detaching a handler that is not attached is a no-op, and expiry can race a manual removal.
+    /// </summary>
+    public void Dispose()
+    {
+        Creature.OnCreatureKilled -= OnCreatureKilled;
+        Creature.OnUnitAttackAnimation -= BroadcastUnitAttackAnimation;
+        Creature.OnUnitFinishedCastAnimation -= BroadcastFinishCastAnimation;
+        Creature.OnUnitInterruptedCastAnimation -= BroadcastInterruptedCastAnimation;
+        CharacterEntity.OnUnitAttackAnimation -= BroadcastUnitAttackAnimation;
+        CharacterEntity.OnUnitFinishedCastAnimation -= BroadcastFinishCastAnimation;
+        CharacterEntity.OnUnitInterruptedCastAnimation -= BroadcastInterruptedCastAnimation;
+        CharacterEntity.OnUnitDamaged -= OnCharacterHit;
+        CharacterEntity.OnSelfDamaged -= OnCharacterSelfDamaged;
     }
 
     public Guid InstanceId { get; }
@@ -596,8 +627,21 @@ public class MapInstance : IMapInstance, IPortalSink
         }
     }
 
-    private void OnCharacterHit(IUnit unit, IUnit attacker, uint damage) =>
+    /// <summary>
+    /// Only the instance the wounded unit is actually in broadcasts the hit. <c>OnUnitDamaged</c> is a
+    /// static event, so without this guard every live instance forwarded every hit to its own
+    /// connections and players saw damage numbers from fights in other instances. The eight
+    /// neighbouring handlers have always filtered this way; this one did not.
+    /// </summary>
+    private void OnCharacterHit(IUnit unit, IUnit attacker, uint damage)
+    {
+        if (!_characters.ContainsKey(unit.Guid) && !_creatures.ContainsKey(unit.Guid))
+        {
+            return;
+        }
+
         BroadcastUnitHit(attacker, unit, unit.CurrentHealth, damage);
+    }
 
     private void OnCharacterSelfDamaged(IUnit unit, IUnit attacker, uint damage)
     {
