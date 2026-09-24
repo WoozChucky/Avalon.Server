@@ -163,7 +163,16 @@ public class ExperienceAwardShould
         rarities.GetAllAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyCollection<CreatureRarityModifier>>([]));
 
-        var data = new StaticData(createInfos, stats, items, abilities, levels, baseStats, rarities);
+        var localizedText = Substitute.For<ILocalizedTextRepository>();
+        localizedText.GetAllAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<IReadOnlyCollection<LocalizedText>>([]));
+        localizedText.GetAllLocalesAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<IReadOnlyCollection<LocalizedTextLocale>>([]));
+        localizedText.GetAllClassNamesAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<IReadOnlyCollection<CharacterClassName>>([]));
+
+        var data = new StaticData(createInfos, stats, items, abilities, levels, baseStats, rarities,
+            localizedText, NullLoggerFactory.Instance);
         data.LoadAsync(CancellationToken.None).GetAwaiter().GetResult();
         return data;
     }

@@ -85,6 +85,7 @@ public class World : IWorld
         ICharacterLevelExperienceRepository characterLevelExperienceRepository,
         ICreatureBaseStatRepository creatureBaseStatRepository,
         ICreatureRarityModifierRepository creatureRarityModifierRepository,
+        ILocalizedTextRepository localizedTextRepository,
         IScriptHotReloader scriptHotReloader,
         IChunkLibrary chunkLibrary)
     {
@@ -99,7 +100,7 @@ public class World : IWorld
         _chunkLibrary = chunkLibrary;
         Data = new StaticData(characterCreateInfoRepository, classLevelStatRepository, itemTemplateRepository,
             abilityTemplateRepository, characterLevelExperienceRepository, creatureBaseStatRepository,
-            creatureRarityModifierRepository);
+            creatureRarityModifierRepository, localizedTextRepository, loggerFactory);
 
         _hotReloadTimer.SetInterval(
             (long)TimeSpan.FromSeconds(configuration.Value.ScriptHotReloadIntervalSeconds).TotalMilliseconds);
