@@ -155,8 +155,9 @@ public sealed class CombatService : ICombatService
 
     public void RevivePlayer(IUnit player, Vector3 position)
     {
-        // Revive is a character-only operation. Creatures use the respawner pipeline
-        // (CreatureRespawner/ICreatureMetadata), not RevivePlayer.
+        // Revive is a character-only operation. A dead creature is not revived at all today — its
+        // corpse is removed by ICorpseRemover after ICreatureMetadata.BodyRemoveTimer and that is the
+        // end of it.
         if (player is not ICharacter character) return;
 
         // Note: ICharacter has a Revive() helper but it forces CurrentHealth to Health
