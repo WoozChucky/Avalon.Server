@@ -352,8 +352,11 @@ public class CreatureCombatScriptShould
     /// <summary>
     /// Pins the "no slot" half of the in-range gating: a surplus creature (ring full) has no
     /// slot of its own to have arrived at, so it must never get the arrival tolerance — only the
-    /// plain AttackRange test. A mutation that applies the +0.15f tolerance unconditionally
-    /// (ignoring whether this creature holds a slot at all) would stop and attack here instead.
+    /// plain AttackRange test. A mutation that applies Context.Locomotion.ArrivalTolerance
+    /// unconditionally (ignoring whether this creature holds a slot at all) would stop and attack
+    /// here instead — the mocked locomotion is stubbed with a non-zero ArrivalTolerance so that
+    /// mutation is actually observable, rather than accidentally masked by the mock's default
+    /// (unstubbed members return 0f, which alone would not have covered 1.6).
     /// </summary>
     [Fact]
     public void Not_Attack_A_Surplus_Creature_Merely_Because_It_Is_Within_The_Arrival_Tolerance()
@@ -366,10 +369,14 @@ public class CreatureCombatScriptShould
         // Another creature already holds the only slot — this one is a surplus attacker.
         ClaimEverySlot(target);
 
-        // 1.6 is inside the tolerance band (AttackRange 1.5, +0.15f = 1.65) but past the plain
-        // AttackRange a slotless creature is held to.
+        // 1.6 is past the plain AttackRange (1.5) a slotless creature is held to, but would be
+        // within a slotted creature's tolerance band (1.5 + 0.2 ArrivalTolerance + 0.05 margin =
+        // 1.75) if the gating on hasSlot were ever bypassed — stubbing a non-zero
+        // ArrivalTolerance here (rather than leaving the mock's default 0f) is what makes that
+        // mutation actually observable.
         creature.Position.Returns(new Vector3(1.6f, 0f, 0f));
         locomotion.HasArrived(creature).Returns(true);
+        locomotion.ArrivalTolerance(creature).Returns(0.2f);
 
         script.Update(TimeSpan.FromSeconds(0.1));
 
@@ -392,9 +399,12 @@ public class CreatureCombatScriptShould
             BuildChasingScript(locomotion, targetAt: targetPosition);
 
         // Default slotCount (6) — the ring is not full, so this creature holds a slot — but it
-        // has not arrived: still mid-transit toward it.
+        // has not arrived: still mid-transit toward it. Stubbing a non-zero ArrivalTolerance
+        // (rather than the mock's default 0f) is what would make a mutation dropping the
+        // HasArrived guard actually observable: 1.6 falls inside 1.5 + 0.2 + 0.05 = 1.75.
         creature.Position.Returns(new Vector3(1.6f, 0f, 0f));
         locomotion.HasArrived(creature).Returns(false);
+        locomotion.ArrivalTolerance(creature).Returns(0.2f);
 
         script.Update(TimeSpan.FromSeconds(0.1));
 

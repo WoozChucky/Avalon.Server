@@ -28,15 +28,29 @@ public class CreatureCombatScript : AiScript
 
     // MeleeSlotRadius defaults to the same value as AttackRange, so a creature standing in its
     // claimed slot is already in range to attack. That puts it exactly on the AttackRange
-    // boundary by construction, and WaypointLocomotion's own 0.1f arrival epsilon means it stops
-    // NEAR its slot, not on it, so raw distance-to-target-centre lands either side of the
-    // boundary depending on float noise. This tolerance only ever applies once a creature has
-    // both claimed a slot and locomotion reports arrival there (see the in-range check in
-    // Update): at that point distance-to-centre is provably within [AttackRange - 0.1f,
-    // AttackRange + 0.1f] by the triangle inequality, so any tolerance > 0.1f closes the gap.
-    // It never changes behaviour while still approaching, and it never touches AttackRange
-    // itself, so it is not a balance change.
-    private const float AttackRangeArrivalTolerance = 0.15f;
+    // boundary by construction, and a locomotion's own arrival epsilon means it stops NEAR its
+    // slot, not on it, so raw distance-to-target-centre lands either side of the boundary
+    // depending on float noise. This tolerance only ever applies once a creature has both
+    // claimed a slot and locomotion reports arrival there (see the in-range check in Update): at
+    // that point distance-to-centre is provably within [AttackRange - locomotion's tolerance,
+    // AttackRange + locomotion's tolerance] by the triangle inequality, so any margin beyond that
+    // tolerance closes the gap. It never changes behaviour while still approaching, and it never
+    // touches AttackRange itself, so it is not a balance change.
+    //
+    // The tolerance itself has to come from Context.Locomotion rather than being a constant here:
+    // WaypointLocomotion stops within a fixed 0.1f of its waypoint regardless of the creature, but
+    // CrowdLocomotion's arrival tolerance is max(agentRadius, 0.3f) — with the default agent
+    // radius of 0.6f that is 0.6f, not 0.1f. A constant sized for WaypointLocomotion would silently
+    // undercount CrowdLocomotion's real slack: a creature could come to rest up to 0.6f short of
+    // its slot (2.1f from the target against a 1.65f threshold), be judged out of range, and never
+    // attack. Asking the locomotion keeps the two in agreement by construction instead of by
+    // coincidence between two independently-chosen numbers.
+    //
+    // AttackRangeArrivalMargin is extra slack on top of that, purely against float noise in the
+    // distance comparison itself (the triangle-inequality bound above is an equality at its
+    // tightest, so anything that lands sub-ULP over it would otherwise flip the test) — it does
+    // not need to grow with the locomotion's own tolerance.
+    private const float AttackRangeArrivalMargin = 0.05f;
     private const float AttackCooldown = 2.25f; // Cooldown between attacks
     private readonly ILogger<CreatureCombatScript> _logger;
     private float _attackCooldownTimer;
@@ -222,13 +236,14 @@ public class CreatureCombatScript : AiScript
         // roughly the same ring-crossing point regardless of which slot it claimed, collapsing a
         // crowd onto a couple of spots. So while a creature holds a slot, it only counts as in
         // range once locomotion reports it has actually arrived there (see
-        // AttackRangeArrivalTolerance for why raw distance alone is boundary-sensitive right at
-        // that moment). A creature with no slot (surplus — the ring was full when it asked) has
-        // no "its own spot" to arrive at, so it keeps the plain, ungated distance test and piles
-        // onto the centre exactly as it always has.
+        // Context.Locomotion.ArrivalTolerance and AttackRangeArrivalMargin for why raw distance
+        // alone is boundary-sensitive right at that moment). A creature with no slot (surplus —
+        // the ring was full when it asked) has no "its own spot" to arrive at, so it keeps the
+        // plain, ungated distance test and piles onto the centre exactly as it always has.
         bool inAttackRange = hasSlot
             ? Context.Locomotion.HasArrived(Creature) &&
-              Vector3.Distance(currentPosition, targetPosition) <= AttackRange + AttackRangeArrivalTolerance
+              Vector3.Distance(currentPosition, targetPosition) <=
+              AttackRange + Context.Locomotion.ArrivalTolerance(Creature) + AttackRangeArrivalMargin
             : Vector3.Distance(currentPosition, targetPosition) <= AttackRange;
 
         if (inAttackRange)

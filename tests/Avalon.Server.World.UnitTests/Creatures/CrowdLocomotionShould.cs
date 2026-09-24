@@ -100,6 +100,31 @@ public class CrowdLocomotionShould
         Assert.Single(crowd.GetActiveAgents());
     }
 
+    /// <summary>
+    /// The counterpart to WaypointLocomotionShould's equivalent test: unlike WaypointLocomotion
+    /// (before its own fix), CrowdLocomotion's Register already no-ops on an already-registered
+    /// creature, leaving whatever move request is in progress untouched rather than removing and
+    /// re-adding the agent (which would also discard the pending move request — see Teleport's
+    /// remarks on why remove/re-add clears it). Re-entrant registration must not turn a chasing
+    /// creature into a stuck one.
+    /// </summary>
+    [Fact]
+    public void Keep_An_In_Progress_Move_Request_When_Registered_Again()
+    {
+        (CrowdLocomotion locomotion, DtCrowd crowd) = BuildOverAFlatNavMesh();
+        ICreature creature = CreatureAt(Vector3.zero);
+
+        locomotion.Register(creature, radius: 0.5f, maxSpeed: 4f);
+        locomotion.MoveTo(creature, new Vector3(15f, 0f, 15f));
+        Assert.False(locomotion.HasArrived(creature));
+
+        // Re-entrant Register while the move request above is still pending.
+        locomotion.Register(creature, radius: 0.5f, maxSpeed: 4f);
+
+        Assert.Single(crowd.GetActiveAgents());
+        Assert.False(locomotion.HasArrived(creature));
+    }
+
     [Fact]
     public void Remove_The_Agent_When_A_Creature_Unregisters()
     {
@@ -181,6 +206,44 @@ public class CrowdLocomotionShould
 
         Assert.False(locomotion.HasArrived(creature));
         creature.DidNotReceiveWithAnyArgs().MoveState = default;
+    }
+
+    /// <summary>
+    /// The tolerance this class advertises has to actually describe its own arrival decision — the
+    /// same value <see cref="Arrived" /> in the production class uses internally, not a
+    /// coincidentally similar one — or a caller relying on it (CreatureCombatScript's in-range
+    /// check) would under-trust how close "arrived" really means and never consider itself close
+    /// enough. Registers with the default production agent radius (0.6f, larger than the 0.3f
+    /// floor) so the tolerance actually being checked is radius-driven, not the floor.
+    /// </summary>
+    [Fact]
+    public void Report_A_Tolerance_Consistent_With_Its_Own_Arrival_Decision()
+    {
+        (CrowdLocomotion locomotion, DtCrowd crowd) = BuildOverAFlatNavMesh();
+        ICreature creature = CreatureAt(Vector3.zero);
+        var destination = new Vector3(3f, 0f, 0f);
+
+        locomotion.Register(creature, radius: NavmeshBuildSettings.AgentRadius, maxSpeed: 4f);
+        locomotion.MoveTo(creature, destination);
+
+        // The exact point Arrived() measures against is the nearest navmesh point to
+        // `destination`, not `destination` itself — FindNearestPoly can snap it by a few
+        // centimetres. Capture that snapped target now, before an arrival Update resets it, so the
+        // comparison below is against the same point the production arrival check itself uses
+        // rather than reintroducing that snap as test noise.
+        DtCrowdAgent agent = Assert.Single(crowd.GetActiveAgents());
+        var actualTarget = new Vector3(agent.targetPos.X, agent.targetPos.Y, agent.targetPos.Z);
+
+        for (int i = 0; i < 600 && !locomotion.HasArrived(creature); i++)
+            locomotion.Update(TimeSpan.FromSeconds(1d / 60d));
+
+        Assert.True(locomotion.HasArrived(creature));
+        float distanceFromActualTarget = Vector3.Distance(creature.Position, actualTarget);
+        float tolerance = locomotion.ArrivalTolerance(creature);
+        Assert.Equal(NavmeshBuildSettings.AgentRadius, tolerance); // radius (0.6) exceeds the 0.3 floor
+        Assert.True(distanceFromActualTarget <= tolerance,
+            $"reported arrived {distanceFromActualTarget}m from its actual target but advertises " +
+            $"only {tolerance}m tolerance");
     }
 
     /// <summary>
