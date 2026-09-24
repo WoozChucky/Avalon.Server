@@ -69,7 +69,13 @@ public class MapInstanceDisposalShould
     {
         MapInstance instance = BuildInstance();
 
-        var creature = new Creature { Guid = new ObjectGuid(ObjectType.Creature, 991_001) };
+        var creature = new Creature
+        {
+            Guid = new ObjectGuid(ObjectType.Creature, 991_001),
+            // Non-nullable on ICreature, and the death path reads BodyRemoveTimer off it to schedule
+            // corpse removal, so a creature without metadata is not a valid one to kill.
+            Metadata = Substitute.For<ICreatureMetadata>(),
+        };
         instance.AddCreature(creature);
         creature.Script = new CreatureCombatScript(NullLoggerFactory.Instance, creature, instance);
 
@@ -153,7 +159,13 @@ public class MapInstanceDisposalShould
 
         try
         {
-            var creature = new Creature { Guid = new ObjectGuid(ObjectType.Creature, 991_201) };
+            var creature = new Creature
+            {
+                Guid = new ObjectGuid(ObjectType.Creature, 991_201),
+                // Non-nullable on ICreature, and the death path reads BodyRemoveTimer off it to schedule
+                // corpse removal, so a creature without metadata is not a valid one to kill.
+                Metadata = Substitute.For<ICreatureMetadata>(),
+            };
             survivor.AddCreature(creature);
             creature.Script = new CreatureCombatScript(NullLoggerFactory.Instance, creature, survivor);
 
