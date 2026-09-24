@@ -2,7 +2,9 @@ using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.World.Dialogue;
 using Avalon.World.Public.Dialogue;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using NSubstitute;
 using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Dialogue;
@@ -12,8 +14,11 @@ public class DialogueCatalogShould
     [Fact]
     public void Find_The_Root_Node_For_A_Creature_That_Talks()
     {
+        // The non-root node is listed first deliberately: a catalog that picks whichever node it
+        // sees first for a creature (instead of filtering on IsRoot) would return node 2 here, not
+        // node 1, so this only proves root selection when the root is not simply "first in input".
         IDialogueCatalog catalog = Catalog(
-            nodes: [Node(1, creature: 3, root: true, text: 6), Node(2, creature: 3, root: false, text: 7)],
+            nodes: [Node(2, creature: 3, root: false, text: 7), Node(1, creature: 3, root: true, text: 6)],
             options: []);
 
         DialogueNodeView? root = catalog.GetRoot(new CreatureTemplateId(3));
@@ -82,14 +87,27 @@ public class DialogueCatalogShould
     }
 
     [Fact]
-    public void Ignore_An_Option_Whose_Node_Does_Not_Exist()
+    public void Warn_About_An_Option_Whose_Node_Does_Not_Exist()
     {
-        // Content error; must not throw at load, because load happens at startup.
-        IDialogueCatalog catalog = Catalog(
-            nodes: [Node(1, creature: 3, root: true, text: 6)],
-            options: [Option(1, node: 99, text: 10, next: null, sort: 0)]);
+        // Content error; must not throw at load, because load happens at startup — but a content
+        // author who mistyped a NodeId needs to hear about it, once, at load rather than per lookup.
+        ILogger innerLogger = Substitute.For<ILogger>();
+        ILoggerFactory loggerFactory = Substitute.For<ILoggerFactory>();
+        loggerFactory.CreateLogger(Arg.Any<string>()).Returns(innerLogger);
 
+        var catalog = new DialogueCatalog(
+            nodes: [Node(1, creature: 3, root: true, text: 6)],
+            options: [Option(1, node: 99, text: 10, next: null, sort: 0)],
+            loggerFactory);
+
+        // The orphaned option must not silently attach itself to some other node.
         Assert.Empty(catalog.GetRoot(new CreatureTemplateId(3))!.Options);
+
+        int warnings = innerLogger.ReceivedCalls()
+            .Count(call => call.GetMethodInfo().Name == nameof(ILogger.Log)
+                && (LogLevel)call.GetArguments()[0]! == LogLevel.Warning);
+
+        Assert.Equal(1, warnings);
     }
 
     private static DialogueNode Node(int id, ulong creature, bool root, int text) => new()
