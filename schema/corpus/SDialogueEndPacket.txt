@@ -1,4 +1,4 @@
-# CInteractPacket - golden wire vectors.
+# SDialogueEndPacket - golden wire vectors.
 #
 # GENERATED FILE. The bytes below are what the server's serializer writes for the
 # values shown above them, so a client is conformant when it produces the same ones,
@@ -13,31 +13,31 @@
 # everything to a present-but-empty value, and the rest carry values chosen to make
 # a particular encoding decision observable.
 
-message CInteractPacket
+message SDialogueEndPacket
 
 variant absent
-  field 1 TargetGuid : ulong = 0
+  field 1 SpeakerGuid : ulong = 0
   bytes 0
 
 variant empty
-  field 1 TargetGuid : ulong = 0
+  field 1 SpeakerGuid : ulong = 0
   bytes 0
 
 variant populated
-  field 1 TargetGuid : ulong = 1000000
+  field 1 SpeakerGuid : ulong = 65535
   bytes 4
-    08 c0 84 3d
+    08 ff ff 03
 
 variant maxima
-  field 1 TargetGuid : ulong = 18446744073709551615
+  field 1 SpeakerGuid : ulong = 18446744073709551615
   bytes 11
     08 ff ff ff ff ff ff ff ff ff 01
 
 variant minima
-  field 1 TargetGuid : ulong = 0
+  field 1 SpeakerGuid : ulong = 0
   bytes 0
 
 variant varint-edges
-  field 1 TargetGuid : ulong = 127
-  bytes 2
-    08 7f
+  field 1 SpeakerGuid : ulong = 16384
+  bytes 4
+    08 80 80 01
