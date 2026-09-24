@@ -413,6 +413,52 @@ public class MapInstanceLocomotionShould
     }
 
     /// <summary>
+    /// The production ordering the test above does not model: <c>CreatureRespawner.ScheduleRespawn</c>
+    /// starts both the body-remove timer (default 120s) and the respawn timer (default 180s), so
+    /// <c>RemoveCreature</c> always fires before <c>RespawnCreature</c> for a creature that respawns.
+    /// <c>RemoveCreature</c> drops the creature from <c>_creatures</c>; a <c>RespawnCreature</c> that
+    /// only re-registers with the locomotion (rather than calling <c>AddCreature</c>) then creates a
+    /// live locomotion registration — under <c>CrowdLocomotion</c>, a live <c>DtCrowdAgent</c> — for a
+    /// creature that is not in <c>_creatures</c>: never ticked by the Step 4 script loop, never
+    /// broadcast, and never reachable by a future <c>OnCreatureKilled</c> (its first line guards on
+    /// <c>_creatures.ContainsKey</c>). That is the exact "permanent invisible obstacle" leak F1 exists
+    /// to close, relocated from the death path to the respawn path. The full round-trip through a real
+    /// script proves the creature is not just present in the dictionary but actually alive again —
+    /// driven by Step 4 the same way <c>Tick_The_Locomotion_After_The_Creature_Scripts</c> proves it
+    /// for a fresh creature.
+    /// Production change that breaks this: <c>RespawnCreature</c> calling
+    /// <c>_locomotion.Register(creature, _creatureAgentRadius)</c> directly instead of
+    /// <c>AddCreature(creature)</c>.
+    /// </summary>
+    [Fact]
+    public void Return_A_Respawned_Creature_To_The_Creature_Dictionary_After_Removal()
+    {
+        (MapInstance instance, ICharacter target) = BuildKillableInstance();
+        Creature creature = RealCreatureAt(Vector3.zero, id: 700_110);
+        instance.AddCreature(creature);
+        creature.Died(Substitute.For<IUnit>());
+
+        // Mirrors CreatureRespawner.Update: the body-remove timer fires before the respawn timer,
+        // so production always removes the creature from _creatures before respawning it.
+        instance.RemoveCreature(creature);
+        instance.RespawnCreature(creature);
+
+        Assert.True(instance.Creatures.ContainsKey(creature.Guid),
+            "a respawned creature must return to _creatures, or it is never ticked, broadcast, or reachable by a future death again");
+
+        // And it is actually alive again, not just present: the script loop (Step 4) only reaches
+        // creatures in _creatures, so a real script issuing MoveTo through Update proves the wiring,
+        // not just the dictionary entry.
+        var script = new CreatureCombatScript(NullLoggerFactory.Instance, creature, instance);
+        script.OnEnteredRange(target);
+        creature.Script = script;
+
+        instance.Update(TickInterval);
+
+        Assert.NotEqual(Vector3.zero, creature.Position);
+    }
+
+    /// <summary>
     /// The tick order the whole seam rests on: the locomotion must be ticked <em>after</em> the
     /// creature scripts, because the scripts choose destinations and the locomotion consumes them.
     /// Reversed, every creature acts on last tick's decision. Nothing else in the suite notices:
