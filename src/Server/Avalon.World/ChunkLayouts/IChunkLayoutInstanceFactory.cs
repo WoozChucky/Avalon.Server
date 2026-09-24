@@ -58,11 +58,17 @@ public class ChunkLayoutInstanceFactory : IChunkLayoutInstanceFactory
         var world = _sp.GetRequiredService<IWorld>();
         var instance = new MapInstance(_lf, _sp, world, template.Id, ownerCharacterId, layout, navigator, layout.Seed, template.MapType);
 
-        // Creatures only spawn on procedural maps; predefined town layouts leave Config null.
+        // Spawn-table placement needs a config and chunk spawn slots, so it is procedural-only;
+        // predefined town layouts leave Config null.
         if (kind == ChunkLayoutSourceKind.Procedural && layout.Config is { } cfg)
         {
             await _creaturePlace.PlaceAsync(instance, layout, cfg, layout.Seed, ct);
         }
+
+        // Authored placement runs for every layout kind. It is the only path that puts creatures in
+        // a town, and procedural maps are free to use it too — a map with no MapCreatureSpawn rows
+        // places nothing.
+        await _creaturePlace.PlaceAuthoredAsync(instance, layout, template.Id, ct);
 
         // PortalPlacementService tolerates a null config (towns) — portals are read off ChunkLayout.Portals.
         _portalPlace.Place(instance, layout, layout.Config);

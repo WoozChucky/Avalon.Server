@@ -32,6 +32,7 @@ public static class ServiceExtensions
             .AddSingleton<IClassLevelStatRepository, ClassLevelStatRepository>()
             .AddSingleton<ICharacterCreateInfoRepository, CharacterCreateInfoRepository>()
             .AddSingleton<ICharacterLevelExperienceRepository, CharacterLevelExperienceRepository>()
+            .AddSingleton<IMapCreatureSpawnRepository, MapCreatureSpawnRepository>()
             .AddSingleton<ICreatureBaseStatRepository, CreatureBaseStatRepository>()
             .AddSingleton<ICreatureRarityModifierRepository, CreatureRarityModifierRepository>()
             .AddSingleton<IAbilityTemplateRepository, AbilityTemplateRepository>()
