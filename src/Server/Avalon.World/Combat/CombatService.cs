@@ -32,6 +32,12 @@ public sealed class CombatService : ICombatService
 
     private void ApplyDamageCore(IUnit attacker, IUnit target, uint damage, float threatMultiplier)
     {
+        // Invulnerable creatures (town NPCs) absorb nothing and provoke nothing. This sits ahead of
+        // ResolveOrSpawn deliberately: attacking one must not create an encounter, add threat, or
+        // put the attacker in combat, or a player could tag themselves in combat on the innkeeper.
+        // Every damage source in the game funnels through here, so this one guard covers them all.
+        if (target is ICreature { Invulnerable: true }) return;
+
         Encounter enc = ResolveOrSpawn(attacker, target);
 
         // Threat is only meaningful when the target is a hostile creature with a threat list.
