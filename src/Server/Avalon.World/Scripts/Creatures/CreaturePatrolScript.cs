@@ -22,8 +22,8 @@ public sealed class CreaturePatrolScript(
     }
 
     private readonly ILogger<CreaturePatrolScript> _logger = loggerFactory.CreateLogger<CreaturePatrolScript>();
-    private Queue<Vector3> _currentPath = new();
     private uint _currentWaypointIndex;
+    private bool _hasRequestedCurrentWaypoint;
 
     public override object State { get; set; } = PatrolState.Patrolling;
 
@@ -36,58 +36,34 @@ public sealed class CreaturePatrolScript(
             return;
         }
 
-        if (_currentPath.Count == 0)
+        if (Context.Locomotion.HasArrived(Creature))
         {
-            Vector3 currentPosition = Creature.Position;
-            Vector3 targetPosition = waypoints[_currentWaypointIndex];
-            _currentPath = GeneratePath(currentPosition, targetPosition);
+            if (_hasRequestedCurrentWaypoint)
+            {
+                // Locomotion has nothing left to walk towards, and we already asked it to head
+                // here — either it genuinely finished the leg, or the waypoint was unreachable
+                // and it came to rest immediately. Either way, sitting here forever is worse than
+                // moving on, so advance. What we must not do is treat THIS same "no destination"
+                // signal as "arrived" before we have ever asked locomotion to go anywhere, which
+                // is why the very first request below doesn't fall into this branch.
+                AdvanceToNextWaypoint();
+                return;
+            }
+
+            Context.Locomotion.MoveTo(Creature, waypoints[_currentWaypointIndex]);
+            _hasRequestedCurrentWaypoint = true;
         }
 
-        FollowPath(deltaTime);
+        Creature.MoveState = MoveState.Walking;
+        Creature.Speed = Creature.Metadata.SpeedWalk;
     }
 
     public override void OnHit(IUnit attacker, uint damage) => State = PatrolState.Idle;
 
-    private Queue<Vector3> GeneratePath(Vector3 currentPosition, Vector3 targetPosition)
+    private void AdvanceToNextWaypoint()
     {
-        List<Vector3> path = Context.GetNavigatorForPosition(currentPosition).FindPath(currentPosition, targetPosition);
-        return new Queue<Vector3>(path);
-    }
-
-    private void FollowPath(TimeSpan deltaTime)
-    {
-        if (_currentPath.Count == 0)
-        {
-            _currentWaypointIndex = (_currentWaypointIndex + 1) % (uint)waypoints.Length;
-            State = PatrolState.Idle;
-            return;
-        }
-
-        Vector3 currentPosition = Creature.Position;
-        Vector3 targetPosition = _currentPath.Peek();
-
-        if (Vector3.Distance(currentPosition, targetPosition) < 0.1f)
-        {
-            _currentPath.Dequeue();
-            if (_currentPath.Count == 0)
-            {
-                _currentWaypointIndex = (_currentWaypointIndex + 1) % (uint)waypoints.Length;
-                State = PatrolState.Idle;
-                Creature.MoveState = MoveState.Idle;
-                return;
-            }
-
-            targetPosition = _currentPath.Peek();
-        }
-
-        Creature.Speed = Creature.Metadata.SpeedWalk;
-
-        Vector3 direction = Vector3.Normalize(targetPosition - currentPosition);
-        Vector3 movementDelta = direction * Creature.Speed * (float)deltaTime.TotalSeconds;
-
-        Creature.MoveState = MoveState.Walking;
-        Creature.Velocity = direction;
-        Creature.Position += movementDelta;
-        Creature.LookAt(targetPosition);
+        _currentWaypointIndex = (_currentWaypointIndex + 1) % (uint)waypoints.Length;
+        _hasRequestedCurrentWaypoint = false;
+        State = PatrolState.Idle;
     }
 }
