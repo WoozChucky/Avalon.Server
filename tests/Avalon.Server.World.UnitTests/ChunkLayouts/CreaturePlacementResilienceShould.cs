@@ -78,6 +78,7 @@ public class CreaturePlacementResilienceShould
             spawner,
             library,
             repo,
+            Substitute.For<IMapCreatureSpawnRepository>(),
             Substitute.For<IScriptManager>(),
             Substitute.For<IServiceProvider>(),
             NullLoggerFactory.Instance);

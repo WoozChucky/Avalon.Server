@@ -100,6 +100,13 @@ public class ChunkLayoutInstanceFactoryShould
         await creaturePlace.DidNotReceive().PlaceAsync(
             Arg.Any<MapInstance>(), Arg.Any<ChunkLayout>(), Arg.Any<ProceduralMapConfig>(),
             Arg.Any<int>(), Arg.Any<CancellationToken>());
+
+        // The wiring that puts NPCs in town. Nothing else calls PlaceAuthoredAsync, so without this
+        // assertion the whole authored-spawn path could be deleted from BuildAsync and every test
+        // covering the placement logic itself would stay green.
+        await creaturePlace.Received(1).PlaceAuthoredAsync(
+            instance, layout, template.Id, Arg.Any<CancellationToken>());
+
         portalPlace.Received(1).Place(instance, layout, null);
     }
 
@@ -150,6 +157,12 @@ public class ChunkLayoutInstanceFactoryShould
         Assert.Equal(1234, instance.Seed);
         await creaturePlace.Received(1).PlaceAsync(
             instance, layout, cfg, 1234, Arg.Any<CancellationToken>());
+
+        // Authored placement is not town-only — it runs for every layout kind, alongside the
+        // spawn-table roll. Procedural maps simply have no authored rows today.
+        await creaturePlace.Received(1).PlaceAuthoredAsync(
+            instance, layout, template.Id, Arg.Any<CancellationToken>());
+
         portalPlace.Received(1).Place(instance, layout, cfg);
     }
 }
