@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using Avalon.Domain.Auth;
+using Avalon.World.Maps.Navigation;
 
 namespace Avalon.World.Configuration;
 
@@ -46,14 +47,20 @@ public class GameConfiguration
     ///     Agent radius in world units, used for separation. One value for every creature until
     ///     per-creature radii exist on the template.
     /// </summary>
+    /// <remarks>
+    ///     Defaults to the radius the navmesh was baked with. The bake erodes the walkable surface
+    ///     by <see cref="NavmeshBuildSettings.AgentRadius" />, so a smaller value here would let
+    ///     creatures pack closer to one another than the surface they stand on assumes they can,
+    ///     and separation would disagree with the path corridor that produced it.
+    /// </remarks>
     [Range(0.05, 10.0)]
-    public float CreatureAgentRadius { get; set; } = 0.5f;
+    public float CreatureAgentRadius { get; set; } = NavmeshBuildSettings.AgentRadius;
 
     /// <summary>
     ///     How many creatures can surround one target before the surplus falls back to piling on
     ///     its centre. Bounded by the ring's circumference: at the default radius there are ~9.42
-    ///     units to share, so six slots leave 1.57 between centres against a 1.0 agent diameter,
-    ///     and eight leave only 0.18 of margin.
+    ///     units to share, so six slots leave 1.57 between centres against a 1.2 agent diameter,
+    ///     and eight leave 1.18 — less than one diameter, so they overlap.
     /// </summary>
     [Range(1, 16)]
     public int MeleeSlotCount { get; set; } = 6;
