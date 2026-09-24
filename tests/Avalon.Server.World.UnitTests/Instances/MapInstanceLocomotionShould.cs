@@ -297,6 +297,48 @@ public class MapInstanceLocomotionShould
     }
 
     /// <summary>
+    /// The same defect as <see cref="Stop_A_Creature_Where_It_Fell_When_It_Is_Killed" />, but on
+    /// <c>RemoveCreature</c> rather than <c>OnCreatureKilled</c> — reachable today, unlike the F1
+    /// respawn gap, because <c>World.ApplyScriptsHotReload</c> (World.cs:320) calls
+    /// <c>RemoveCreature(entity); … entity.Script = script; AddCreature(entity);</c> every time a
+    /// developer edits a creature script while that creature is mid-chase. <c>RemoveCreature</c>
+    /// unregisters and releases the melee slot but did not <c>Stop</c>, so the creature kept its
+    /// last <c>MoveState</c> and <c>Velocity</c> (both locomotions no-op on an unregistered
+    /// creature) — a hot-reloaded creature left at <c>MoveState.Running</c> that the client
+    /// extrapolates forever, since the reloaded script's fresh state never re-triggers a MoveTo on
+    /// its own.
+    /// Production change that breaks this: dropping <c>_locomotion.Stop</c> from
+    /// <c>MapInstance.RemoveCreature</c>, or reordering it after <c>Unregister</c> (a no-op on an
+    /// already-unregistered creature in both implementations, per the comment in
+    /// <c>OnCreatureKilled</c>).
+    /// </summary>
+    [Fact]
+    public void Stop_A_Creature_Where_It_Stood_When_It_Is_Removed()
+    {
+        (MapInstance instance, _) = BuildInstanceWithCreature();
+        Creature creature = RealCreatureAt(Vector3.zero, id: 700_120);
+        instance.AddCreature(creature);
+
+        instance.Locomotion.MoveTo(creature, new Vector3(20f, 0f, 0f));
+        creature.MoveState = MoveState.Running;
+        instance.Update(TickInterval);
+
+        Assert.NotEqual(Vector3.zero, creature.Position); // fixture check: it really was walking
+        Vector3 whereItStood = creature.Position;
+
+        instance.RemoveCreature(creature);
+
+        Assert.Equal(MoveState.Idle, creature.MoveState);
+        Assert.Equal(Vector3.zero, creature.Velocity);
+
+        // And it actually stays put: with the agent gone, nothing should advance it further either.
+        for (int tick = 0; tick < 60; tick++)
+            instance.Update(TickInterval);
+
+        Assert.Equal(whereItStood, creature.Position);
+    }
+
+    /// <summary>
     /// F1, crowd side, and the half <see cref="Stop_A_Creature_Where_It_Fell_When_It_Is_Killed" />
     /// cannot see: Stop alone would freeze the corpse but leave its <c>DtCrowdAgent</c> in the crowd
     /// forever — a permanent obstacle living creatures steer around, which
