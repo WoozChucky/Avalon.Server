@@ -103,7 +103,7 @@ public class CreatureCombatScriptShould
 
         // A path toward the target's centre is already loaded and not yet consumed.
         navigator.FindPath(Arg.Any<Vector3>(), Arg.Any<Vector3>()).Returns([targetPosition]);
-        locomotion.Register(creature, radius: 0.5f, maxSpeed: 4f);
+        locomotion.Register(creature, radius: 0.5f);
         locomotion.MoveTo(creature, targetPosition);
 
         // Within AttackRange (1.5f) of the target, but not yet standing on the waypoint
@@ -358,7 +358,7 @@ public class CreatureCombatScriptShould
         // while its raw distance to the target's centre (1.59) sits just past AttackRange.
         var slotPosition = new Vector3(1.5f, 0f, 0f);
         navigator.FindPath(Arg.Any<Vector3>(), Arg.Any<Vector3>()).Returns([slotPosition]);
-        locomotion.Register(creature, radius: 0.5f, maxSpeed: 4f);
+        locomotion.Register(creature, radius: 0.5f);
         creature.Position.Returns(new Vector3(1.59f, 0f, 0f));
         locomotion.MoveTo(creature, slotPosition);
         locomotion.Update(TimeSpan.FromSeconds(0.1)); // consumes the waypoint -> HasArrived == true
@@ -499,7 +499,7 @@ public class CreatureCombatScriptShould
             metadata.SpeedRun.Returns(4f);
             creature.Metadata.Returns(metadata);
 
-            locomotion.Register(creature, radius: 0.5f, maxSpeed: 4f);
+            locomotion.Register(creature, radius: 0.5f);
 
             var script = new CreatureCombatScript(NullLoggerFactory.Instance, creature, context);
             script.OnEnteredRange(target);
@@ -611,7 +611,7 @@ public class CreatureCombatScriptShould
             metadata.SpeedRun.Returns(4f);
             creature.Metadata.Returns(metadata);
 
-            locomotion.Register(creature, radius: 0.5f, maxSpeed: 4f);
+            locomotion.Register(creature, radius: 0.5f);
 
             var script = new CreatureCombatScript(NullLoggerFactory.Instance, creature, context);
             script.OnEnteredRange(target);
@@ -725,7 +725,7 @@ public class CreatureCombatScriptShould
             metadata.SpeedRun.Returns(4f);
             creature.Metadata.Returns(metadata);
 
-            locomotion.Register(creature, radius: 0.5f, maxSpeed: 4f);
+            locomotion.Register(creature, radius: 0.5f);
 
             var script = new CreatureCombatScript(NullLoggerFactory.Instance, creature, context);
             script.OnEnteredRange(target);

@@ -61,12 +61,16 @@ public sealed class CrowdLocomotion : ICreatureLocomotion
         _crowd = new DtCrowd(new DtCrowdConfig(agentRadius), navMesh);
     }
 
-    public void Register(ICreature creature, float radius, float maxSpeed)
+    public void Register(ICreature creature, float radius)
     {
         if (_creatureAgents.ContainsKey(creature.Guid))
             return;
 
-        _creatureAgents[creature.Guid] = _crowd.AddAgent(ToRc(creature.Position), CreatureParams(radius, maxSpeed));
+        // Seeded from creature.Speed, the same single source Update re-reads every tick — a
+        // DtCrowdAgentParams has to carry some maxSpeed from the moment the agent exists, and taking
+        // it from anywhere else would make registration-time speed and steady-state speed two
+        // different facts.
+        _creatureAgents[creature.Guid] = _crowd.AddAgent(ToRc(creature.Position), CreatureParams(radius, creature.Speed));
         _creatures[creature.Guid] = creature;
     }
 
@@ -157,6 +161,19 @@ public sealed class CrowdLocomotion : ICreatureLocomotion
 
     public void Update(TimeSpan deltaTime)
     {
+        // Before the crowd steps, not after: creature.Speed is the single authority on how fast a
+        // creature moves and the calling script may have changed it earlier in this very tick
+        // (CreatureCombatScript sets SpeedRun, CreaturePatrolScript sets SpeedWalk — both after
+        // Register has long since run). Reading it here rather than freezing it at registration is
+        // what makes this implementation agree with WaypointLocomotion, which reads the same field
+        // every tick in Advance. DtCrowdAgentParams is a mutable class and DtCrowd holds the very
+        // instance handed to AddAgent, so assigning through agent.option reaches the live agent.
+        foreach ((ObjectGuid guid, DtCrowdAgent agent) in _creatureAgents)
+        {
+            if (_creatures.TryGetValue(guid, out ICreature? moving))
+                agent.option.maxSpeed = moving.Speed;
+        }
+
         _crowd.Update((float)deltaTime.TotalSeconds, null);
 
         foreach ((ObjectGuid guid, DtCrowdAgent agent) in _creatureAgents)

@@ -13,7 +13,19 @@ namespace Avalon.World.Public.Creatures;
 /// </remarks>
 public interface ICreatureLocomotion
 {
-    void Register(ICreature creature, float radius, float maxSpeed);
+    /// <summary>
+    /// Starts moving this creature. Idempotent: registering an already-registered creature leaves
+    /// whatever journey is in progress alone rather than restarting it.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately takes no speed. Speed is <see cref="ICreature.Speed" />, read fresh on every
+    /// <see cref="Update" />, and that is the whole contract — the calling script owns it (it is the
+    /// same field that decides whether the creature broadcasts Walking or Running) and changes it
+    /// mid-journey, after this call has already happened. A speed baked in here would have to be
+    /// refreshed through some second member the caller is expected to remember, which is the same
+    /// bug one step removed; there is nothing to remember when there is nothing to pass.
+    /// </remarks>
+    void Register(ICreature creature, float radius);
 
     /// <summary>Idempotent: despawn can race a script update.</summary>
     void Unregister(ICreature creature);
