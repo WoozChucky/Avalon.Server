@@ -237,6 +237,14 @@ public class MapInstance : IMapInstance, IPortalSink
     public void RemoveCreature(ICreature creature)
     {
         _creatures.Remove(creature.Guid);
+
+        // Stop BEFORE Unregister, exactly as OnCreatureKilled does and for the same reason: Stop is
+        // what brings the creature to rest (MoveState.Idle, zero Velocity), and both locomotion
+        // implementations no-op on an unregistered creature. Reversed, a creature removed mid-walk
+        // (script hot reload runs through here — World.ApplyScriptsHotReload calls
+        // RemoveCreature/AddCreature around every reload) would keep whatever MoveState and Velocity
+        // it last had, and the client would extrapolate a creature that never stops moving.
+        _locomotion.Stop(creature);
         _locomotion.Unregister(creature);
 
         // Despawn runs through here without ever consulting the creature's script, so this is
