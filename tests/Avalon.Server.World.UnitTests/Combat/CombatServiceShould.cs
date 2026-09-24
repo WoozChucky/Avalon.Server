@@ -521,6 +521,42 @@ public class CombatServiceShould
         Assert.Equal(20.0f, enc.GetThreatList(target)[attacker], 3);
     }
 
+    [Fact]
+    public void Should_not_damage_a_creature_that_is_invulnerable()
+    {
+        // Town NPCs are never killable. The guard sits at the very top of ApplyDamageCore — the
+        // single chokepoint every damage source funnels through — so an invulnerable target costs
+        // no encounter, no threat, no combat tag, and never reaches OnHit.
+        var (svc, reg) = BuildService();
+        var attacker = StubCharacter(CharacterClass.Warrior);
+        var target   = StubCreature();
+        target.Invulnerable.Returns(true);
+        var ability  = StubAbility(1.0f);
+
+        svc.ApplyDamage(attacker, target, 25, ability);
+
+        target.DidNotReceive().OnHit(Arg.Any<IUnit>(), Arg.Any<uint>());
+        Assert.Empty(reg.Active);
+        attacker.DidNotReceive().MarkCombat();
+    }
+
+    [Fact]
+    public void Should_not_damage_an_invulnerable_creature_through_the_abilityless_overload()
+    {
+        // Creature melee (CreatureCombatScript) uses the 3-arg overload. Both overloads share
+        // ApplyDamageCore, and this pins that they do — a guard added to only one would leave
+        // creature-on-NPC damage live.
+        var (svc, reg) = BuildService();
+        var attacker = StubCreature();
+        var target   = StubCreature();
+        target.Invulnerable.Returns(true);
+
+        svc.ApplyDamage(attacker, target, 25);
+
+        target.DidNotReceive().OnHit(Arg.Any<IUnit>(), Arg.Any<uint>());
+        Assert.Empty(reg.Active);
+    }
+
     private static (CombatService, EncounterRegistry) BuildService(float initialThreatSeed = 1.0f)
     {
         var (svc, reg, _) = BuildServiceWithContext(initialThreatSeed);

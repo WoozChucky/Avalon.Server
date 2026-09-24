@@ -33,6 +33,7 @@ public class Creature : ICreature
     public string Name { get; set; } = string.Empty;
     public float Speed { get; set; }
     public string ScriptName { get; set; } = string.Empty;
+    public bool Invulnerable { get; set; }
 
     // No dirty-field tracking on these three, unlike Health and Level: none is broadcast in entity
     // state. The client learns damage from combat packets and never sees a creature's experience value.

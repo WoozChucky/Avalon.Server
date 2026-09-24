@@ -31,6 +31,13 @@ public interface ICreature : IUnit
     /// <see cref="ICreatureMetadata.Experience" />, which is the template's optional override.
     /// </summary>
     uint Experience { get; set; }
+    /// <summary>
+    /// When true this creature can never be damaged. ICombatService drops the hit before it reaches
+    /// OnHit, so no health is lost, no threat accrues and no encounter is created. Town NPCs set it;
+    /// monsters do not. Copied from the template at spawn, never changed at runtime.
+    /// </summary>
+    bool Invulnerable { get; set; }
+
     string Name { get; set; }
     float Speed { get; set; }
     string ScriptName { get; set; }

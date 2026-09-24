@@ -51,6 +51,12 @@ public class CreatureTemplate : IDbEntity<CreatureTemplateId>, ICreatureMetadata
 
     public float DetectionRange { get; set; }
 
+    /// <summary>
+    /// True for creatures that can never be damaged. Town NPCs (templates 1-3) set it; every
+    /// monster leaves it false. Enforced in CombatService.ApplyDamageCore.
+    /// </summary>
+    public bool Invulnerable { get; set; }
+
     public int MovementId { get; set; }
 
     public string ScriptName { get; set; } = string.Empty;
