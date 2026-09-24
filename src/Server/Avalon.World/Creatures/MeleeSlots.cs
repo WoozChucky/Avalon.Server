@@ -1,5 +1,6 @@
 using Avalon.Common;
 using Avalon.Common.Mathematics;
+using Avalon.World.Public.Creatures;
 
 namespace Avalon.World.Creatures;
 
@@ -13,7 +14,7 @@ namespace Avalon.World.Creatures;
 /// target's facing, because facing-relative slots move every time the player turns and would
 /// re-path every chaser for no visual gain.
 /// </remarks>
-public sealed class MeleeSlots(int slotCount, float radius)
+public sealed class MeleeSlots(int slotCount, float radius) : IMeleeSlots
 {
     private readonly Dictionary<ObjectGuid, Dictionary<ObjectGuid, int>> _claims = [];
 
