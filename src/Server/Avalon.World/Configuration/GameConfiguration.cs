@@ -53,6 +53,17 @@ public class GameConfiguration
     ///     creatures pack closer to one another than the surface they stand on assumes they can,
     ///     and separation would disagree with the path corridor that produced it.
     /// </remarks>
+    /// <summary>
+    ///     Per-level multiplier applied to experience for each level the player sits outside the map's
+    ///     level band. Symmetric, with no grace: one level out already costs 25% at the default.
+    /// </summary>
+    /// <remarks>
+    ///     The band itself (<c>MapTemplate.MinLevel</c>/<c>MaxLevel</c>) constrains nothing about
+    ///     spawning — a level 6 creature in a 1-5 map is legal. Its only job is scaling rewards.
+    /// </remarks>
+    [Range(0.01, 1.0)]
+    public float ExperienceBandDecay { get; set; } = 0.75f;
+
     [Range(0.05, 10.0)]
     public float CreatureAgentRadius { get; set; } = NavmeshBuildSettings.AgentRadius;
 

@@ -86,6 +86,8 @@ public class WorldDbContext : DbContext
     public DbSet<QuestTemplate> QuestTemplates { get; set; } = null!;
     public DbSet<ClassLevelStat> ClassLevelStats { get; set; } = null!;
     public DbSet<CharacterLevelExperience> CharacterLevelExperiences { get; set; } = null!;
+    public DbSet<CreatureBaseStat> CreatureBaseStats { get; set; } = null!;
+    public DbSet<CreatureRarityModifier> CreatureRarityModifiers { get; set; } = null!;
     public DbSet<CharacterCreateInfo> CharacterCreateInfos { get; set; } = null!;
     public DbSet<AbilityTemplate> AbilityTemplates { get; set; } = null!;
     public DbSet<ChunkTemplate> ChunkTemplates { get; set; } = null!;
@@ -119,6 +121,8 @@ public class WorldDbContext : DbContext
         Configure(modelBuilder.Entity<QuestTemplate>());
         Configure(modelBuilder.Entity<ClassLevelStat>());
         Configure(modelBuilder.Entity<CharacterLevelExperience>());
+        Configure(modelBuilder.Entity<CreatureBaseStat>());
+        Configure(modelBuilder.Entity<CreatureRarityModifier>());
         Configure(modelBuilder.Entity<CharacterCreateInfo>());
         Configure(modelBuilder.Entity<AbilityTemplate>());
         Configure(modelBuilder.Entity<ChunkTemplate>());
@@ -139,6 +143,49 @@ public class WorldDbContext : DbContext
                 .HasForeignKey(m => m.ChunkTemplateId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
+    }
+
+    /// <summary>
+    /// Per-level creature base stats. The experience column is calibrated against
+    /// <see cref="CharacterLevelExperience" />'s thresholds to hold a roughly constant pace of about 30
+    /// Normal kills per level across 1-10, rather than being chosen arbitrarily.
+    /// </summary>
+    /// <remarks>
+    /// Seeded to level 10 while the only banded map reaches 5, so the next zone needs no migration.
+    /// These numbers are provisional: they are calibrated against a player who has 100 health and never
+    /// grows, which is issue #434. Creature and character numbers get revisited together in a balance
+    /// pass once gear and character scaling exist to compensate.
+    /// </remarks>
+    private static void Configure(EntityTypeBuilder<CreatureBaseStat> builder)
+    {
+        builder.HasKey(b => b.Level);
+
+        builder.HasData(
+            new CreatureBaseStat { Level = 1,  Health = 40,  DamageMin = 3,  DamageMax = 5,  Experience = 15 },
+            new CreatureBaseStat { Level = 2,  Health = 52,  DamageMin = 4,  DamageMax = 7,  Experience = 25 },
+            new CreatureBaseStat { Level = 3,  Health = 66,  DamageMin = 5,  DamageMax = 9,  Experience = 40 },
+            new CreatureBaseStat { Level = 4,  Health = 84,  DamageMin = 7,  DamageMax = 11, Experience = 60 },
+            new CreatureBaseStat { Level = 5,  Health = 106, DamageMin = 9,  DamageMax = 14, Experience = 85 },
+            new CreatureBaseStat { Level = 6,  Health = 133, DamageMin = 11, DamageMax = 17, Experience = 115 },
+            new CreatureBaseStat { Level = 7,  Health = 166, DamageMin = 14, DamageMax = 21, Experience = 150 },
+            new CreatureBaseStat { Level = 8,  Health = 206, DamageMin = 17, DamageMax = 26, Experience = 195 },
+            new CreatureBaseStat { Level = 9,  Health = 254, DamageMin = 21, DamageMax = 32, Experience = 250 },
+            new CreatureBaseStat { Level = 10, Health = 312, DamageMin = 26, DamageMax = 39, Experience = 320 });
+    }
+
+    /// <summary>
+    /// What each rarity tier multiplies a creature's base stats by. A table rather than a switch so a
+    /// tier is retuned as data alongside the base stats themselves.
+    /// </summary>
+    private static void Configure(EntityTypeBuilder<CreatureRarityModifier> builder)
+    {
+        builder.HasKey(b => b.Rarity);
+
+        builder.HasData(
+            new CreatureRarityModifier { Rarity = CreatureRarity.Normal, HealthMultiplier = 1.0f, DamageMultiplier = 1.0f, ExperienceMultiplier = 1.0f },
+            new CreatureRarityModifier { Rarity = CreatureRarity.Elite,  HealthMultiplier = 2.5f, DamageMultiplier = 1.4f, ExperienceMultiplier = 3.0f },
+            new CreatureRarityModifier { Rarity = CreatureRarity.Rare,   HealthMultiplier = 4.0f, DamageMultiplier = 1.7f, ExperienceMultiplier = 6.0f },
+            new CreatureRarityModifier { Rarity = CreatureRarity.Boss,   HealthMultiplier = 8.0f, DamageMultiplier = 2.2f, ExperienceMultiplier = 15.0f });
     }
 
     private static void Configure(EntityTypeBuilder<CharacterLevelExperience> builder)
@@ -486,6 +533,12 @@ public class WorldDbContext : DbContext
             )
             .IsRequired();
 
+        // Templates 1-3 are town NPCs and are NOT SPAWNED ANYWHERE today. Creature placement runs
+        // only for procedural layouts (ChunkLayoutInstanceFactory.BuildAsync gates PlaceAsync on
+        // ChunkLayoutSourceKind.Procedural), and town is a predefined layout — so nothing places them.
+        // Until this branch they appeared in the forest as placeholder monsters via SpawnTable 1;
+        // removing them from that table left them with no spawn path at all. CreatureIdleScript is
+        // what they would run once something does place them. Town NPC placement is issue #431.
         builder.HasData(new CreatureTemplate
         {
             Id = 1,
@@ -497,7 +550,7 @@ public class WorldDbContext : DbContext
             SpeedWalk = 2.0f,
             SpeedRun = 5.0f,
             SpeedSwim = 1.6f,
-            Rank = 0,
+            Rarity = CreatureRarity.Normal,
             Family = CreatureFamily.None,
             Type = CreatureType.Humanoid,
             Experience = 20,
@@ -508,7 +561,7 @@ public class WorldDbContext : DbContext
             MovementType = 0,
             DetectionRange = 20,
             MovementId = 0,
-            ScriptName = "UrielTownPatrolScript",
+            ScriptName = "CreatureIdleScript", // see the note above this seed block
             HealthModifier = 1,
             ManaModifier = 1,
             ArmorModifier = 1,
@@ -529,7 +582,7 @@ public class WorldDbContext : DbContext
             SpeedWalk = 2.0f,
             SpeedRun = 5.0f,
             SpeedSwim = 1.6f,
-            Rank = 0,
+            Rarity = CreatureRarity.Normal,
             Family = CreatureFamily.None,
             Type = CreatureType.Humanoid,
             Experience = 20,
@@ -540,7 +593,7 @@ public class WorldDbContext : DbContext
             MovementType = 0,
             DetectionRange = 20,
             MovementId = 0,
-            ScriptName = "UrielPathfinderScript",
+            ScriptName = "CreatureIdleScript", // see the note above this seed block
             HealthModifier = 1,
             ManaModifier = 1,
             ArmorModifier = 1,
@@ -561,7 +614,7 @@ public class WorldDbContext : DbContext
             SpeedWalk = 2.0f,
             SpeedRun = 5.0f,
             SpeedSwim = 1.6f,
-            Rank = 0,
+            Rarity = CreatureRarity.Normal,
             Family = CreatureFamily.None,
             Type = CreatureType.Humanoid,
             Experience = 20,
@@ -572,7 +625,7 @@ public class WorldDbContext : DbContext
             MovementType = 0,
             DetectionRange = 20,
             MovementId = 0,
-            ScriptName = string.Empty,
+            ScriptName = "CreatureIdleScript", // see the note above this seed block
             HealthModifier = 1,
             ManaModifier = 1,
             ArmorModifier = 1,
@@ -580,6 +633,244 @@ public class WorldDbContext : DbContext
             RegenHealth = 1,
             DmgSchool = 0,
             DamageModifier = 1,
+            BaseAttackTime = 1,
+            RangeAttackTime = 0
+        }, new CreatureTemplate
+        {
+            Id = 4,
+            Name = "Thornback Boar",
+            SubName = "gore-scarred",
+            IconName = string.Empty,
+            MinLevel = 1,
+            MaxLevel = 3,
+            SpeedWalk = 2.0f,
+            SpeedRun = 4.0f,
+            SpeedSwim = 1.6f,
+            Rarity = CreatureRarity.Normal,
+            Family = CreatureFamily.Boar,
+            Type = CreatureType.Beast,
+
+            // Null so the experience is derived from the creature's level rather than authored here.
+            Experience = null,
+            LootId = 0,
+            MinGold = 0,
+            MaxGold = 0,
+            AIName = string.Empty,
+            MovementType = 0,
+            DetectionRange = 12,
+            MovementId = 0,
+            ScriptName = "AggroDefendScript",
+            HealthModifier = 1.1f,
+            ManaModifier = 1,
+            ArmorModifier = 1,
+            ExperienceModifier = 1,
+            RegenHealth = 1,
+            DmgSchool = 0,
+            DamageModifier = 1.0f,
+            BaseAttackTime = 1,
+            RangeAttackTime = 0
+        }, new CreatureTemplate
+        {
+            Id = 5,
+            Name = "Grey Fen Wolf",
+            SubName = "lean and patient",
+            IconName = string.Empty,
+            MinLevel = 2,
+            MaxLevel = 4,
+            SpeedWalk = 2.0f,
+            SpeedRun = 4.0f,
+            SpeedSwim = 1.6f,
+            Rarity = CreatureRarity.Normal,
+            Family = CreatureFamily.Wolf,
+            Type = CreatureType.Beast,
+
+            // Null so the experience is derived from the creature's level rather than authored here.
+            Experience = null,
+            LootId = 0,
+            MinGold = 0,
+            MaxGold = 0,
+            AIName = string.Empty,
+            MovementType = 0,
+            DetectionRange = 18,
+            MovementId = 0,
+            ScriptName = "AggroDefendScript",
+            HealthModifier = 1.0f,
+            ManaModifier = 1,
+            ArmorModifier = 1,
+            ExperienceModifier = 1,
+            RegenHealth = 1,
+            DmgSchool = 0,
+            DamageModifier = 1.1f,
+            BaseAttackTime = 1,
+            RangeAttackTime = 0
+        }, new CreatureTemplate
+        {
+            Id = 6,
+            Name = "Blightfly Swarmling",
+            SubName = "a drone of the bloom",
+            IconName = string.Empty,
+            MinLevel = 1,
+            MaxLevel = 2,
+            SpeedWalk = 2.0f,
+            SpeedRun = 4.0f,
+            SpeedSwim = 1.6f,
+            Rarity = CreatureRarity.Normal,
+            Family = CreatureFamily.None,
+            Type = CreatureType.Critter,
+
+            // Null so the experience is derived from the creature's level rather than authored here.
+            Experience = null,
+            LootId = 0,
+            MinGold = 0,
+            MaxGold = 0,
+            AIName = string.Empty,
+            MovementType = 0,
+            DetectionRange = 8,
+            MovementId = 0,
+            ScriptName = "AggroDefendScript",
+            HealthModifier = 0.6f,
+            ManaModifier = 1,
+            ArmorModifier = 1,
+            ExperienceModifier = 1,
+            RegenHealth = 1,
+            DmgSchool = 0,
+            DamageModifier = 0.7f,
+            BaseAttackTime = 1,
+            RangeAttackTime = 0
+        }, new CreatureTemplate
+        {
+            Id = 7,
+            Name = "Husk of the Wold",
+            SubName = "what the wold leaves behind",
+            IconName = string.Empty,
+            MinLevel = 3,
+            MaxLevel = 4,
+            SpeedWalk = 2.0f,
+            SpeedRun = 4.0f,
+            SpeedSwim = 1.6f,
+            Rarity = CreatureRarity.Normal,
+            Family = CreatureFamily.None,
+            Type = CreatureType.Undead,
+
+            // Null so the experience is derived from the creature's level rather than authored here.
+            Experience = null,
+            LootId = 0,
+            MinGold = 0,
+            MaxGold = 0,
+            AIName = string.Empty,
+            MovementType = 0,
+            DetectionRange = 14,
+            MovementId = 0,
+            ScriptName = "AggroDefendScript",
+            HealthModifier = 1.3f,
+            ManaModifier = 1,
+            ArmorModifier = 1,
+            ExperienceModifier = 1,
+            RegenHealth = 1,
+            DmgSchool = 0,
+            DamageModifier = 1.0f,
+            BaseAttackTime = 1,
+            RangeAttackTime = 0
+        }, new CreatureTemplate
+        {
+            Id = 8,
+            Name = "Bramblemaw Alpha",
+            SubName = "the pack's black heart",
+            IconName = string.Empty,
+            MinLevel = 3,
+            MaxLevel = 5,
+            SpeedWalk = 2.0f,
+            SpeedRun = 4.0f,
+            SpeedSwim = 1.6f,
+            Rarity = CreatureRarity.Elite,
+            Family = CreatureFamily.Wolf,
+            Type = CreatureType.Beast,
+
+            // Null so the experience is derived from the creature's level rather than authored here.
+            Experience = null,
+            LootId = 0,
+            MinGold = 0,
+            MaxGold = 0,
+            AIName = string.Empty,
+            MovementType = 0,
+            DetectionRange = 22,
+            MovementId = 0,
+            ScriptName = "AggroDefendScript",
+            HealthModifier = 1.0f,
+            ManaModifier = 1,
+            ArmorModifier = 1,
+            ExperienceModifier = 1,
+            RegenHealth = 1,
+            DmgSchool = 0,
+            DamageModifier = 1.1f,
+            BaseAttackTime = 1,
+            RangeAttackTime = 0
+        }, new CreatureTemplate
+        {
+            Id = 9,
+            Name = "Old Tuskroot",
+            SubName = "older than the rot",
+            IconName = string.Empty,
+            MinLevel = 4,
+            MaxLevel = 5,
+            SpeedWalk = 2.0f,
+            SpeedRun = 4.0f,
+            SpeedSwim = 1.6f,
+            Rarity = CreatureRarity.Rare,
+            Family = CreatureFamily.Boar,
+            Type = CreatureType.Beast,
+
+            // Null so the experience is derived from the creature's level rather than authored here.
+            Experience = null,
+            LootId = 0,
+            MinGold = 0,
+            MaxGold = 0,
+            AIName = string.Empty,
+            MovementType = 0,
+            DetectionRange = 20,
+            MovementId = 0,
+            ScriptName = "AggroDefendScript",
+            HealthModifier = 1.2f,
+            ManaModifier = 1,
+            ArmorModifier = 1,
+            ExperienceModifier = 1,
+            RegenHealth = 1,
+            DmgSchool = 0,
+            DamageModifier = 1.1f,
+            BaseAttackTime = 1,
+            RangeAttackTime = 0
+        }, new CreatureTemplate
+        {
+            Id = 10,
+            Name = "Mother Bramble",
+            SubName = "rooted at the heart of the wold",
+            IconName = string.Empty,
+            MinLevel = 5,
+            MaxLevel = 5,
+            SpeedWalk = 2.0f,
+            SpeedRun = 4.0f,
+            SpeedSwim = 1.6f,
+            Rarity = CreatureRarity.Boss,
+            Family = CreatureFamily.None,
+            Type = CreatureType.Elemental,
+
+            // Null so the experience is derived from the creature's level rather than authored here.
+            Experience = null,
+            LootId = 0,
+            MinGold = 0,
+            MaxGold = 0,
+            AIName = string.Empty,
+            MovementType = 0,
+            DetectionRange = 26,
+            MovementId = 0,
+            ScriptName = "AggroDefendScript",
+            HealthModifier = 1.0f,
+            ManaModifier = 1,
+            ArmorModifier = 1,
+            ExperienceModifier = 1,
+            RegenHealth = 1,
+            DmgSchool = 0,
+            DamageModifier = 1.0f,
             BaseAttackTime = 1,
             RangeAttackTime = 0
         });
@@ -745,7 +1036,8 @@ public class WorldDbContext : DbContext
                 MapType = MapType.Normal,
                 PvP = false,
                 MinLevel = 1,
-                MaxLevel = 10,
+                // Re-banded from 10 to 5. The band scales rewards only — a level 6 creature here is legal.
+                MaxLevel = 5,
                 AreaTableId = 0,
                 LoadingScreenId = 0,
                 MaxPlayers = 1,

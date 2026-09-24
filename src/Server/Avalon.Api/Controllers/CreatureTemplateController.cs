@@ -59,7 +59,7 @@ public class CreatureTemplateController : BaseController
         SpeedWalk = t.SpeedWalk,
         SpeedRun = t.SpeedRun,
         SpeedSwim = t.SpeedSwim,
-        Rank = t.Rank,
+        Rarity = t.Rarity,
         Family = (Avalon.Api.Contract.CreatureFamily)t.Family,
         Type = (Avalon.Api.Contract.CreatureType)t.Type,
         LootId = t.LootId,
