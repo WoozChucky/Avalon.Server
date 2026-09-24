@@ -120,6 +120,8 @@ public class ScriptHotReloadPollingShould
             items,
             abilityTemplates,
             levels,
+            Substitute.For<ICreatureBaseStatRepository>(),
+            Substitute.For<ICreatureRarityModifierRepository>(),
             reloader,
             Substitute.For<IChunkLibrary>());
 
