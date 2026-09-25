@@ -22,9 +22,12 @@ internal static class TestCharacters
         { Id = new ItemTemplateId(300), Name = "Relic", Class = ItemClass.Quest, MaxStackSize = 1, Flags = ItemTemplateFlags.Unique };
     public static readonly ItemTemplate Pebble = new()
         { Id = new ItemTemplateId(400), Name = "Pebble", Class = ItemClass.Junk, MaxStackSize = 0 };
+    /// <summary>The widest stack a template can declare: room in a bag of these is past what a uint holds.</summary>
+    public static readonly ItemTemplate Hoard = new()
+        { Id = new ItemTemplateId(500), Name = "Hoard", Class = ItemClass.Junk, MaxStackSize = uint.MaxValue };
 
     private static readonly Dictionary<ItemTemplateId, ItemTemplate> Templates =
-        new[] { Potion, Sword, Relic, Pebble }.ToDictionary(t => t.Id);
+        new[] { Potion, Sword, Relic, Pebble, Hoard }.ToDictionary(t => t.Id);
 
     public static ItemTemplate? Find(ItemTemplateId id) => Templates.GetValueOrDefault(id);
 

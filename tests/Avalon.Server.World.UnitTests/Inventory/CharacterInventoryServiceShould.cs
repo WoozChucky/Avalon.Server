@@ -137,6 +137,44 @@ public class CharacterInventoryServiceShould
         Assert.Empty(character.Container(InventoryType.Bag).Items);
     }
 
+    /// <summary>
+    /// Review Focus 3, with room that only a wider integer can count: two part-filled stacks of a
+    /// template whose stacks hold <see cref="uint.MaxValue" /> have room for almost twice that, which
+    /// summed as a uint wraps below the count and would refuse an add that fits.
+    /// </summary>
+    [Fact]
+    public void Count_room_past_the_largest_uint_without_wrapping()
+    {
+        CharacterEntity character = New();
+        List<InventoryItem> bag = [Item(0, Hoard, count: 1), Item(1, Hoard, count: 1)];
+        bag.AddRange(Enumerable.Range(2, 28).Select(s => Item((ushort)s, Sword)));
+        character.Container(InventoryType.Bag).Load(bag);
+
+        Assert.Equal(InventoryAddResult.Ok, InventoryFor(character).TryAdd(Hoard.Id, uint.MaxValue));
+
+        Assert.Equal(uint.MaxValue, At(character, InventoryType.Bag, 0).Count);
+        Assert.Equal(2u, At(character, InventoryType.Bag, 1).Count);
+        Assert.Equal(30, character.Container(InventoryType.Bag).Items.Count);
+    }
+
+    /// <summary>Review Focus 3: one short of fitting is refused whole, and nothing moves.</summary>
+    [Fact]
+    public void Refuse_a_widest_stack_count_one_short_of_fitting_and_change_nothing()
+    {
+        CharacterEntity character = New();
+        List<InventoryItem> bag = [Item(0, Hoard, count: 1)];
+        bag.AddRange(Enumerable.Range(1, 29).Select(s => Item((ushort)s, Sword)));
+        character.Container(InventoryType.Bag).Load(bag);
+
+        Assert.Equal(InventoryAddResult.InventoryFull, InventoryFor(character).CanAdd(Hoard.Id, uint.MaxValue));
+        Assert.Equal(InventoryAddResult.InventoryFull, InventoryFor(character).TryAdd(Hoard.Id, uint.MaxValue));
+
+        Assert.Equal(1u, At(character, InventoryType.Bag, 0).Count);
+        Assert.Equal(30, character.Container(InventoryType.Bag).Items.Count);
+        Assert.False(character.SaveState.HasChanges);
+        Assert.False(character.ClientChanges.HasChanges);
+    }
+
     [Fact]
     public void Change_nothing_for_a_count_of_zero()
     {
