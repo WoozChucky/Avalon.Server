@@ -11,10 +11,17 @@ using Xunit;
 namespace Avalon.Server.World.UnitTests.Reload;
 
 /// <summary>
-/// The guarantee the whole design rests on: nothing a packet reads may change except at the very
-/// top of World.Update, because packets are processed on that same thread. Prepare (database reads
-/// and catalog construction) runs on the thread pool and touches nothing live; apply (property
-/// assignment) runs only from ApplyPending, called at the top of World.Update.
+/// The guarantee the whole design rests on: nothing a map-pass packet reads may change except at
+/// the very top of World.Update, because map-pass packets (movement, attack, chat) are processed
+/// on that same thread, inside the instance loop that runs after ApplyPending. (Session-pass
+/// packets — character create/select, CMSG_PONG — run earlier, in WorldServer.Update, before
+/// World.Update is even called, so for them the same guarantee holds a tick later — it is not true
+/// that no packet at all is processed before ApplyPending, only that none can see a torn area.)
+/// Prepare (database reads and catalog construction) runs on the thread pool and touches nothing
+/// live or shared; apply swaps one volatile reference per area and runs only from ApplyPending,
+/// called at the top of World.Update. A reader off the tick thread — creature spawning during
+/// instance construction, which awaits before it spawns — gets the same one-generation guarantee
+/// from the area's single published reference (see StaticData.Creatures), not from tick ordering.
 /// </summary>
 public class StaticDataReloadShould
 {
@@ -24,6 +31,13 @@ public class StaticDataReloadShould
         public List<CreatureBaseStat> BaseStats =
             [new() { Level = 1, Health = 40, DamageMin = 3, DamageMax = 5, Experience = 15 }];
         public bool FailBaseStats;
+
+        public List<ItemTemplate> Items = [];
+        public List<AbilityTemplate> Abilities = [];
+        public List<LocalizedText> Texts = [];
+        public List<CharacterLevelExperience> Levels = [];
+        public List<ClassLevelStat> ClassStats = [];
+        public List<CharacterCreateInfo> CreateInfos = [];
     }
 
     private static CreatureTemplate Template(ulong id, float healthModifier = 1f) => new()
@@ -41,8 +55,9 @@ public class StaticDataReloadShould
     [Fact]
     public async Task Keep_Serving_The_Old_Data_Until_The_Tick_Applies_It()
     {
-        // The guarantee the whole design rests on: nothing a packet reads changes until the top
-        // of the next tick, because packets are processed on that same thread.
+        // The guarantee the whole design rests on: nothing a map-pass packet reads changes until
+        // the top of the next tick, because map-pass packets are processed on that same thread,
+        // after ApplyPending runs (see the class doc comment for the session-pass caveat).
         (StaticData data, Repos repos) = await LoadedData(creatureCount: 1);
         repos.Templates = [Template(1), Template(2)];
 
@@ -111,6 +126,86 @@ public class StaticDataReloadShould
         public override string Describe() => "unknown";
     }
 
+    // One test per area: preparing and applying changed data must be visible through that area's
+    // public properties. Each area now replaces exactly one volatile reference (see StaticData.cs),
+    // so these also stand in for the per-area "keeps the stale reference forever" trap — a mutation
+    // such as "_progression ??= p;" would leave every property below reporting the original,
+    // pre-reload (empty) data instead of what was just prepared.
+
+    [Fact]
+    public async Task Make_Reloaded_Dialogue_Visible_Through_Its_Properties()
+    {
+        (StaticData data, _) = await LoadedData(creatureCount: 1);
+        var textsBefore = data.LocalizedTexts;
+        var dialogueBefore = data.Dialogue;
+
+        data.Apply(await data.PrepareAsync(ReloadArea.Dialogue));
+
+        // PrepareAsync always builds fresh catalog instances, so a correct apply produces new
+        // references even with unchanged underlying rows — a stale ("??=") apply would not.
+        Assert.NotSame(textsBefore, data.LocalizedTexts);
+        Assert.NotSame(dialogueBefore, data.Dialogue);
+    }
+
+    [Fact]
+    public async Task Make_Reloaded_Creatures_Visible_Through_Its_Properties()
+    {
+        (StaticData data, Repos repos) = await LoadedData(creatureCount: 1);
+        repos.Templates = [Template(1), Template(2)];
+
+        data.Apply(await data.PrepareAsync(ReloadArea.Creatures));
+
+        Assert.Equal(2, data.CreatureTemplates.Count);
+    }
+
+    [Fact]
+    public async Task Make_Reloaded_Abilities_Visible_Through_Its_Properties()
+    {
+        (StaticData data, Repos repos) = await LoadedData(creatureCount: 1);
+        Assert.Empty(data.AbilityTemplates);
+        repos.Abilities = [new AbilityTemplate { Id = new AbilityId(1), Name = "ability-1", SpellScript = "" }];
+
+        data.Apply(await data.PrepareAsync(ReloadArea.Abilities));
+
+        Assert.Single(data.AbilityTemplates);
+    }
+
+    [Fact]
+    public async Task Make_Reloaded_Items_Visible_Through_Its_Properties()
+    {
+        (StaticData data, Repos repos) = await LoadedData(creatureCount: 1);
+        Assert.Empty(data.ItemTemplates);
+        repos.Items = [new ItemTemplate { Id = new ItemTemplateId(1), Name = "item-1" }];
+
+        data.Apply(await data.PrepareAsync(ReloadArea.Items));
+
+        Assert.Single(data.ItemTemplates);
+    }
+
+    [Fact]
+    public async Task Make_Reloaded_Progression_Visible_Through_Its_Properties()
+    {
+        (StaticData data, Repos repos) = await LoadedData(creatureCount: 1);
+        Assert.Empty(data.CharacterLevelExperiences);
+        Assert.Empty(data.ClassLevelStats);
+        Assert.Empty(data.CharacterCreateInfos);
+
+        repos.Levels = [new CharacterLevelExperience { Level = 2, Experience = 500 }];
+        repos.ClassStats = [new ClassLevelStat { Class = CharacterClass.Warrior, Level = 1, BaseHp = 10 }];
+        repos.CreateInfos = [new CharacterCreateInfo { Class = CharacterClass.Warrior, Map = 1 }];
+
+        data.Apply(await data.PrepareAsync(ReloadArea.Progression));
+
+        // Asserting all three together is what would have caught U4/U5 (dropping ClassLevelStats or
+        // CreateInfos from the progression area) under the old per-member Apply. Under the new
+        // single-reference-per-area Apply there is no longer a line to drop independently — the
+        // whole ProgressionPatch is swapped as one — so the mutation this now stands in for is a
+        // stale whole-area apply ("_progression ??= p;"), which would leave all three still empty.
+        Assert.Single(data.CharacterLevelExperiences);
+        Assert.Single(data.ClassLevelStats);
+        Assert.Single(data.CharacterCreateInfos);
+    }
+
     private static async Task<(StaticData Data, Repos Repos)> LoadedData(int creatureCount)
     {
         var repos = new Repos
@@ -141,27 +236,27 @@ public class StaticDataReloadShould
 
         var createInfos = Substitute.For<ICharacterCreateInfoRepository>();
         createInfos.FindAllAsync(Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<IReadOnlyCollection<CharacterCreateInfo>>([]));
+            .Returns(_ => Task.FromResult<IReadOnlyCollection<CharacterCreateInfo>>(repos.CreateInfos.ToList()));
 
         var classLevelStats = Substitute.For<IClassLevelStatRepository>();
         classLevelStats.FindAllAsync(Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<IReadOnlyCollection<ClassLevelStat>>([]));
+            .Returns(_ => Task.FromResult<IReadOnlyCollection<ClassLevelStat>>(repos.ClassStats.ToList()));
 
         var itemTemplates = Substitute.For<IItemTemplateRepository>();
         itemTemplates.FindAllAsync(Arg.Any<bool>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult(new List<ItemTemplate>()));
+            .Returns(_ => Task.FromResult(repos.Items.ToList()));
 
         var abilityTemplates = Substitute.For<IAbilityTemplateRepository>();
         abilityTemplates.FindAllAsync(Arg.Any<bool>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult(new List<AbilityTemplate>()));
+            .Returns(_ => Task.FromResult(repos.Abilities.ToList()));
 
         var characterLevelExperiences = Substitute.For<ICharacterLevelExperienceRepository>();
         characterLevelExperiences.GetAllAsync(Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<IReadOnlyCollection<CharacterLevelExperience>>([]));
+            .Returns(_ => Task.FromResult<IReadOnlyCollection<CharacterLevelExperience>>(repos.Levels.ToList()));
 
         var localizedText = Substitute.For<ILocalizedTextRepository>();
         localizedText.GetAllAsync(Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<IReadOnlyCollection<LocalizedText>>([]));
+            .Returns(_ => Task.FromResult<IReadOnlyCollection<LocalizedText>>(repos.Texts.ToList()));
         localizedText.GetAllLocalesAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyCollection<LocalizedTextLocale>>([]));
         localizedText.GetAllClassNamesAsync(Arg.Any<CancellationToken>())

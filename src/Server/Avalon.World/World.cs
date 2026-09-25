@@ -260,8 +260,12 @@ public class World : IWorld
     {
         Time.Update(deltaTime);
 
-        // Apply any queued content reloads before anything reads StaticData this tick. Packets are
-        // processed on this thread too, so no packet can see a half-reloaded area.
+        // Apply any queued content reloads before the map pass and before any instance ticks.
+        // Map-pass packets (movement, attack, chat) are processed on this thread too, inside the
+        // instance loop below, so none of them can see a half-reloaded area. Session-pass packets
+        // (character create/select, CMSG_PONG) run earlier — in WorldServer.Update, before this
+        // method is even called — so for them atomicity holds a tick later, at the top of the next
+        // World.Update, not "before any packet is processed" for this one.
         Data.ApplyPending();
 
         // Apply any pending hot-reload on the tick thread to avoid racing with instance.Update()
