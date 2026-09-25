@@ -88,7 +88,8 @@ Auth handlers are registered in DI and resolved manually; World handlers use `Ac
 
 ```
 CClientInfoPacket → SHandshakePacket → CHandshakePacket → SHandshakeResultPacket
-→ CAuthPacket → SAuthResultPacket (BCrypt verify, lockout, then non-Active Status refused as BANNED/DEACTIVATED, then MFA check)
+→ CAuthPacket → SAuthResultPacket (per-source limit, BCrypt verify, lockout, then non-Active Status refused as BANNED/DEACTIVATED, then MFA check)
+→ [MFA only] CMFAVerifyPacket → SAuthResultPacket (TOTP ±1 step, each step once; Status and lock re-checked)
 → CWorldListPacket → SWorldListPacket
 → CWorldSelectPacket → SWorldSelectPacket (non-Active Status closes the connection; CSPRNG world key written to Redis, SETNX inWorld mutex)
 → [new TCP to World] CExchangeWorldKeyPacket → SExchangeWorldKeyPacket (key consumed from Redis, access re-checked, inWorld mutex cleared)
@@ -96,12 +97,17 @@ CClientInfoPacket → SHandshakePacket → CHandshakePacket → SHandshakeResult
 
 **Spending the world key** (`ExchangeWorldKeyHandler`): the `DEL` spends the key, not the `GET`. Two connections presenting the same key can both read it, so the handler goes on only when `RemoveAsync` reports it deleted the key — Redis tells exactly one caller that (#450). The key is spent before any other check, so a refused exchange cannot retry it. The handler then re-checks the account against a freshly read `World` row — `Status == Active` and the same `AccessLevels.ForWorld(...).Allows(...)` rule — because the key lives five minutes and the account may have been banned or demoted since it was issued. The `inWorld` mutex is cleared only once every check has passed; a refused exchange leaves it to expire on its TTL.
 
+**Login throttling** (`CAuthHandler`, #471). A source address with `MaxFailedLoginsPerSource` failures inside `FailedLoginSourceWindowMinutes` is answered `LOCKED` before any account is looked up; its counter is a fixed window that a success never resets. An unknown username still costs one BCrypt verify, against `BCryptPasswordVerifier.UnknownAccountHash`, so response time does not reveal which usernames exist. `MaxFailedLoginAttempts` failures lock the account until `LockedUntil` (`LockoutDurationMinutes` later); an expired lock is lifted at the next login. A lock with `LockedUntil = null` never expires. The lock check stays before the password check on purpose: after it, a locked account would still tell right from wrong passwords. All four settings are under `Application` in the Auth server's config.
+
+**TOTP codes are single-use** (`MFAService`, #471). `MfaSetups.LastAcceptedTotpStep` stores the step of the last accepted code, set at confirm and advanced by `TryAcceptTotpStepAsync`, which writes only when the new step is later. A code at or before that step is refused, and the window is ±1 step for both confirm and verify.
+
 **World access** is decided by `AccessLevels.ForWorld(world.AccessLevelRequired).Allows(account.AccessLevel)`, the same test in `CWorldListHandler` (what is listed) and `CWorldSelectHandler` (what can be entered). A Player world admits every player, Tournament and PTR included; a Tournament or PTR world admits holders of that flag plus staff; a staff-gated world admits its staff mask. Never compare a world's level with `<=`: `AccountAccessLevel` is `[Flags]`, and PTR (32) and Tournament (16) are numerically above Admin (4), which is how PTR accounts used to reach the Admin-only world.
 
 **Key Redis patterns** (all string literals in `CacheKeys`):
 - `world:{worldId}:keys:{base64}` — one-time world entry token (5 min TTL)
 - `account:{accountId}:inWorld` — duplicate session mutex via `SETNX` (5 min TTL)
 - `auth:account:{accountId}:mfa` — Redis Hash with MFA state (2 min TTL)
+- `auth:source:{remoteAddress}:failedLogins` — failed-login counter per source address, `INCR` with the expiry set on the first failure (fixed window, default 15 min)
 - `world:accounts:disconnect` — pub/sub: Auth→World, force-disconnect by accountId
 - `auth:accounts:online` — pub/sub: login event (reserved, no subscriber yet)
 - `world:{worldId}:select` — pub/sub: world-select event (reserved, for future sharding)

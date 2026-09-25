@@ -11,6 +11,7 @@ using Avalon.Infrastructure.Services;
 using Avalon.Network.Packets.Auth;
 using Avalon.Server.Auth.Configuration;
 using Avalon.Server.Auth.Handlers;
+using Avalon.Server.Auth.Services;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -155,7 +156,7 @@ public sealed class MfaSetupRowShould : IDisposable
         connection.RemoteEndPoint.Returns("127.0.0.1:12345");
 
         var handler = new CAuthHandler(NullLoggerFactory.Instance, _accounts, Substitute.For<IReplicatedCache>(),
-            _hashService, _mfa, Options.Create(new AuthConfiguration { MaxFailedLoginAttempts = 5 }));
+            _hashService, _mfa, Options.Create(new AuthConfiguration { MaxFailedLoginAttempts = 5 }), new BCryptPasswordVerifier());
 
         await handler.ExecuteAsync(new AuthPacketContext<CAuthPacket>
         {
@@ -256,9 +257,12 @@ public sealed class MfaSetupRowShould : IDisposable
             inner.UpsertPendingAsync(pending, cancellationToken);
 
         public Task<bool> TryConfirmAsync(Guid id, byte[] verifiedSecret, byte[] recoveryCode1, byte[] recoveryCode2,
-            byte[] recoveryCode3, DateTime confirmedAt, CancellationToken cancellationToken = default) =>
+            byte[] recoveryCode3, DateTime confirmedAt, long acceptedTotpStep, CancellationToken cancellationToken = default) =>
             inner.TryConfirmAsync(id, verifiedSecret, recoveryCode1, recoveryCode2, recoveryCode3, confirmedAt,
-                cancellationToken);
+                acceptedTotpStep, cancellationToken);
+
+        public Task<bool> TryAcceptTotpStepAsync(Guid id, long step, CancellationToken cancellationToken = default) =>
+            inner.TryAcceptTotpStepAsync(id, step, cancellationToken);
 
         public Task DeletePendingAsync(Guid id, byte[] secret, CancellationToken cancellationToken = default) =>
             inner.DeletePendingAsync(id, secret, cancellationToken);

@@ -14,6 +14,12 @@ public interface IReplicatedCache
     /// <summary>Sets the key only if it does not already exist (atomic SETNX). Returns true if the key was set.</summary>
     Task<bool> SetNxAsync(string key, string value, TimeSpan expiry);
     Task<string?> GetAsync(string key);
+    /// <summary>
+    /// Atomically increments the counter at <paramref name="key"/> and returns the new value. The
+    /// expiry is set only by the increment that creates the key, so the window is fixed from the
+    /// first increment and later ones do not extend it.
+    /// </summary>
+    Task<long> IncrementAsync(string key, TimeSpan window);
     Task<bool> RemoveAsync(string key);
     Task<bool> KeyExistsAsync(string key);
     Task<bool> KeyExpireAsync(string key, TimeSpan expiry);
@@ -72,6 +78,20 @@ public class ReplicatedCache : IReplicatedCache
     public async Task<string?> GetAsync(string key)
     {
         return await _redis.GetDatabase().StringGetAsync(key);
+    }
+
+    // INCR and the first PEXPIRE in one script: a client lost between the two would otherwise
+    // leave a counter that never expires.
+    private const string IncrementWithWindowScript =
+        "local v = redis.call('INCR', KEYS[1]) " +
+        "if v == 1 then redis.call('PEXPIRE', KEYS[1], ARGV[1]) end " +
+        "return v";
+
+    public async Task<long> IncrementAsync(string key, TimeSpan window)
+    {
+        RedisResult result = await _redis.GetDatabase().ScriptEvaluateAsync(IncrementWithWindowScript,
+            [new RedisKey(key)], [(long)window.TotalMilliseconds]);
+        return (long)result;
     }
 
     public async Task<bool> RemoveAsync(string key)

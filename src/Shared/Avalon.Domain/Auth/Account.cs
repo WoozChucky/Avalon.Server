@@ -37,6 +37,15 @@ public class Account : IDbEntity<AccountId>
 
     public bool Locked { get; set; } = false;
 
+    /// <summary>
+    /// When a lock set by failed logins ends (#471). <c>null</c> on a locked account means the
+    /// lock has no end and stays until cleared.
+    /// </summary>
+    public DateTime? LockedUntil { get; set; }
+
+    /// <summary>Locked at <paramref name="utcNow"/>: a lock with no end, or one that has not ended yet.</summary>
+    public bool IsLockedAt(DateTime utcNow) => Locked && (LockedUntil is null || LockedUntil > utcNow);
+
     public DateTime LastLogin { get; set; }
 
     public bool Online { get; set; } = false;

@@ -38,7 +38,7 @@ public class MFAServiceShould
                 return true;
             });
         _repository.TryConfirmAsync(Arg.Any<Guid>(), Arg.Any<byte[]>(), Arg.Any<byte[]>(), Arg.Any<byte[]>(),
-                Arg.Any<byte[]>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>())
+                Arg.Any<byte[]>(), Arg.Any<DateTime>(), Arg.Any<long>(), Arg.Any<CancellationToken>())
             .Returns(ci =>
             {
                 if (_row == null || _row.Id != ci.ArgAt<Guid>(0) || _row.Status != MfaSetupStatus.Setup
@@ -55,6 +55,7 @@ public class MFAServiceShould
                     Status = MfaSetupStatus.Confirmed,
                     CreatedAt = _row.CreatedAt,
                     ConfirmedAt = ci.ArgAt<DateTime>(5),
+                    LastAcceptedTotpStep = ci.ArgAt<long>(6),
                 };
                 return true;
             });

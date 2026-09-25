@@ -10,6 +10,7 @@ using Avalon.Network.Packets.Auth;
 using Avalon.Server.Auth;
 using Avalon.Server.Auth.Configuration;
 using Avalon.Server.Auth.Handlers;
+using Avalon.Server.Auth.Services;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -26,13 +27,14 @@ public class CAuthHandlerShould
     private readonly IMfaSetupRepository _noMfaRepo = Substitute.For<IMfaSetupRepository>();
     private readonly IAuthConnection _connection = Substitute.For<IAuthConnection>();
     private readonly IAvalonCryptoSession _cryptoSession = new FakeAvalonCryptoSession();
+    private readonly IPasswordVerifier _passwordVerifier = new BCryptPasswordVerifier();
     private readonly CAuthHandler _handler;
 
     private static IOptions<AuthConfiguration> AuthOptions(int maxFailedLogins = 5) =>
         Options.Create(new AuthConfiguration { MaxFailedLoginAttempts = maxFailedLogins });
 
     private CAuthHandler CreateHandler(int maxFailedLogins = 5) =>
-        new(NullLoggerFactory.Instance, _accountRepository, _cache, _mfaHashService, _noMfaRepo, AuthOptions(maxFailedLogins));
+        new(NullLoggerFactory.Instance, _accountRepository, _cache, _mfaHashService, _noMfaRepo, AuthOptions(maxFailedLogins), _passwordVerifier);
 
     public CAuthHandlerShould()
     {
@@ -336,7 +338,7 @@ public class CAuthHandlerShould
         _mfaHashService.GenerateHashAsync(Arg.Any<Account>()).Returns("test-hash");
         _accountRepository.FindByUserNameAsync(Arg.Any<string>()).Returns(account);
 
-        var handler = new CAuthHandler(NullLoggerFactory.Instance, _accountRepository, _cache, _mfaHashService, mfaSetupRepo, AuthOptions());
+        var handler = new CAuthHandler(NullLoggerFactory.Instance, _accountRepository, _cache, _mfaHashService, mfaSetupRepo, AuthOptions(), _passwordVerifier);
         var ctx = new AuthPacketContext<CAuthPacket>
         {
             Packet = new CAuthPacket { Username = "testuser", Password = "correct_password" },
@@ -358,7 +360,7 @@ public class CAuthHandlerShould
         mfaSetupRepo.FindByAccountIdAsync(Arg.Any<AccountId>()).Returns((MFASetup?)null);
         _accountRepository.FindByUserNameAsync(Arg.Any<string>()).Returns(account);
 
-        var handler = new CAuthHandler(NullLoggerFactory.Instance, _accountRepository, _cache, _mfaHashService, mfaSetupRepo, AuthOptions());
+        var handler = new CAuthHandler(NullLoggerFactory.Instance, _accountRepository, _cache, _mfaHashService, mfaSetupRepo, AuthOptions(), _passwordVerifier);
         var ctx = new AuthPacketContext<CAuthPacket>
         {
             Packet = new CAuthPacket { Username = "testuser", Password = "correct_password" },
@@ -449,5 +451,210 @@ public class CAuthHandlerShould
 
         Assert.Equal(AuthResult.INVALID_CREDENTIALS, SentResult());
         Assert.Equal(1, account.FailedLogins);
+    }
+
+    // ── #471: login hardening ─────────────────────────────────────────────────
+
+    private const string SourceKey = "auth:source:127.0.0.1:failedLogins";
+
+    private static IOptions<AuthConfiguration> HardeningOptions(int lockoutMinutes = 15, int perSource = 10,
+        int sourceWindowMinutes = 15) =>
+        Options.Create(new AuthConfiguration
+        {
+            MaxFailedLoginAttempts = 5,
+            LockoutDurationMinutes = lockoutMinutes,
+            MaxFailedLoginsPerSource = perSource,
+            FailedLoginSourceWindowMinutes = sourceWindowMinutes,
+        });
+
+    private CAuthHandler CreateHandler(IOptions<AuthConfiguration> options, IPasswordVerifier? verifier = null) =>
+        new(NullLoggerFactory.Instance, _accountRepository, _cache, _mfaHashService, _noMfaRepo, options,
+            verifier ?? _passwordVerifier);
+
+    private Task LogInAsync(CAuthHandler handler, string username = "testuser", string password = "correct_password") =>
+        handler.ExecuteAsync(new AuthPacketContext<CAuthPacket>
+        {
+            Packet = new CAuthPacket { Username = username, Password = password },
+            Connection = _connection
+        });
+
+    /// <summary>
+    /// An unknown username answered before any BCrypt work, so it came back measurably faster than
+    /// a wrong password on a real account. It must pay for one verify, against the fixed hash.
+    /// </summary>
+    [Fact]
+    public async Task Run_a_bcrypt_verify_against_a_fixed_hash_when_the_username_is_unknown()
+    {
+        _accountRepository.FindByUserNameAsync(Arg.Any<string>()).Returns((Account?)null);
+        var verifier = Substitute.For<IPasswordVerifier>();
+
+        await LogInAsync(CreateHandler(HardeningOptions(), verifier), "nobody", " some_password ");
+
+        verifier.Received(1).Verify("some_password", BCryptPasswordVerifier.UnknownAccountHash);
+        Assert.Equal(AuthResult.INVALID_CREDENTIALS, SentResult());
+    }
+
+    [Fact]
+    public void Make_the_unknown_account_hash_a_real_bcrypt_hash_at_the_registration_work_factor()
+    {
+        string hash = BCryptPasswordVerifier.UnknownAccountHash;
+
+        // Same algorithm and cost as a registered account's hash, so the verify costs the same.
+        Assert.Equal(BCrypt.Net.BCrypt.HashPassword("x", BCrypt.Net.BCrypt.GenerateSalt())[..7], hash[..7]);
+        Assert.False(new BCryptPasswordVerifier().Verify("correct_password", hash));
+    }
+
+    [Fact]
+    public async Task Refuse_a_locked_account_until_its_lock_expires()
+    {
+        var account = MakeAccount(locked: true, failedLogins: 5);
+        account.LockedUntil = DateTime.UtcNow.AddMinutes(5);
+        _accountRepository.FindByUserNameAsync(Arg.Any<string>()).Returns(account);
+
+        await LogInAsync(CreateHandler(HardeningOptions()));
+
+        Assert.Equal(AuthResult.LOCKED, SentResult());
+        Assert.True(account.Locked);
+        Assert.False(account.Online);
+    }
+
+    [Fact]
+    public async Task Unlock_an_account_whose_lock_has_expired()
+    {
+        var account = MakeAccount(locked: true, failedLogins: 5);
+        account.LockedUntil = DateTime.UtcNow.AddSeconds(-1);
+        _accountRepository.FindByUserNameAsync(Arg.Any<string>()).Returns(account);
+
+        await LogInAsync(CreateHandler(HardeningOptions()));
+
+        Assert.Equal(AuthResult.SUCCESS, SentResult());
+        Assert.False(account.Locked);
+        Assert.Null(account.LockedUntil);
+        Assert.Equal(0, account.FailedLogins);
+        Assert.True(account.Online);
+    }
+
+    /// <summary>
+    /// The count starts again once a lock expires: one wrong password after it is one failure, not
+    /// the failure that re-locks the account straight away.
+    /// </summary>
+    [Fact]
+    public async Task Count_failed_logins_from_zero_after_a_lock_expires()
+    {
+        var account = MakeAccount(locked: true, failedLogins: 5);
+        account.LockedUntil = DateTime.UtcNow.AddSeconds(-1);
+        _accountRepository.FindByUserNameAsync(Arg.Any<string>()).Returns(account);
+
+        await LogInAsync(CreateHandler(HardeningOptions()), password: "wrong_password");
+
+        Assert.Equal(AuthResult.INVALID_CREDENTIALS, SentResult());
+        Assert.Equal(1, account.FailedLogins);
+        Assert.False(account.Locked);
+    }
+
+    [Fact]
+    public async Task Lock_an_account_for_the_configured_duration_when_it_reaches_the_threshold()
+    {
+        var account = MakeAccount(failedLogins: 4);
+        _accountRepository.FindByUserNameAsync(Arg.Any<string>()).Returns(account);
+
+        DateTime before = DateTime.UtcNow;
+        await LogInAsync(CreateHandler(HardeningOptions(lockoutMinutes: 30)), password: "wrong_password");
+        DateTime after = DateTime.UtcNow;
+
+        Assert.Equal(AuthResult.LOCKED, SentResult());
+        Assert.True(account.Locked);
+        Assert.NotNull(account.LockedUntil);
+        Assert.InRange(account.LockedUntil!.Value, before.AddMinutes(30), after.AddMinutes(30));
+        await _accountRepository.Received(1).UpdateAsync(account);
+    }
+
+    /// <summary>A lock with no end (one set before locks expired, or by hand) is not lifted.</summary>
+    [Fact]
+    public async Task Keep_refusing_a_locked_account_whose_lock_has_no_end()
+    {
+        var account = MakeAccount(locked: true);
+        account.LockedUntil = null;
+        _accountRepository.FindByUserNameAsync(Arg.Any<string>()).Returns(account);
+
+        await LogInAsync(CreateHandler(HardeningOptions()));
+
+        Assert.Equal(AuthResult.LOCKED, SentResult());
+        Assert.True(account.Locked);
+    }
+
+    /// <summary>
+    /// Anyone could lock any account by failing its password. A source past its limit is refused
+    /// before the account is looked up, so it can neither guess nor push an account into a lock.
+    /// </summary>
+    [Fact]
+    public async Task Refuse_a_source_past_its_failed_login_limit_before_touching_any_account()
+    {
+        _cache.GetAsync(SourceKey).Returns("10");
+        var account = MakeAccount();
+        _accountRepository.FindByUserNameAsync(Arg.Any<string>()).Returns(account);
+        var verifier = Substitute.For<IPasswordVerifier>();
+
+        await LogInAsync(CreateHandler(HardeningOptions(perSource: 10), verifier), password: "wrong_password");
+
+        Assert.Equal(AuthResult.LOCKED, SentResult());
+        await _accountRepository.DidNotReceiveWithAnyArgs().FindByUserNameAsync(default!, default);
+        verifier.DidNotReceiveWithAnyArgs().Verify(default!, default!);
+        await _accountRepository.DidNotReceiveWithAnyArgs().UpdateAsync(default!, default);
+        Assert.Equal(0, account.FailedLogins);
+    }
+
+    [Fact]
+    public async Task Allow_a_source_below_its_failed_login_limit()
+    {
+        _cache.GetAsync(SourceKey).Returns("9");
+        var account = MakeAccount();
+        _accountRepository.FindByUserNameAsync(Arg.Any<string>()).Returns(account);
+
+        await LogInAsync(CreateHandler(HardeningOptions(perSource: 10)));
+
+        Assert.Equal(AuthResult.SUCCESS, SentResult());
+    }
+
+    /// <summary>The counter expires with its window; once it has, the source is allowed again.</summary>
+    [Fact]
+    public async Task Allow_a_source_again_once_its_window_has_passed()
+    {
+        _cache.GetAsync(SourceKey).Returns("10", (string?)null);
+        var account = MakeAccount();
+        _accountRepository.FindByUserNameAsync(Arg.Any<string>()).Returns(account);
+        CAuthHandler handler = CreateHandler(HardeningOptions(perSource: 10));
+
+        await LogInAsync(handler);
+        Assert.Equal(AuthResult.LOCKED, SentResult());
+        Assert.False(account.Online);
+
+        await LogInAsync(handler);
+        Assert.Equal(AuthResult.SUCCESS, SentResult());
+        Assert.True(account.Online);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Count_a_failed_login_against_its_source_for_the_configured_window(bool knownUsername)
+    {
+        _accountRepository.FindByUserNameAsync(Arg.Any<string>()).Returns(knownUsername ? MakeAccount() : null);
+
+        await LogInAsync(CreateHandler(HardeningOptions(sourceWindowMinutes: 20)), password: "wrong_password");
+
+        Assert.Equal(AuthResult.INVALID_CREDENTIALS, SentResult());
+        await _cache.Received(1).IncrementAsync(SourceKey, TimeSpan.FromMinutes(20));
+    }
+
+    [Fact]
+    public async Task Not_count_a_successful_login_against_its_source()
+    {
+        _accountRepository.FindByUserNameAsync(Arg.Any<string>()).Returns(MakeAccount());
+
+        await LogInAsync(CreateHandler(HardeningOptions()));
+
+        Assert.Equal(AuthResult.SUCCESS, SentResult());
+        await _cache.DidNotReceiveWithAnyArgs().IncrementAsync(default!, default);
     }
 }

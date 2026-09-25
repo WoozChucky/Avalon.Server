@@ -46,6 +46,13 @@ public static class CacheKeys
     /// </summary>
     public static string AccountInWorld(long accountId) => $"account:{accountId}:inWorld";
 
+    /// <summary>
+    /// Failed game-client logins from one remote address, across every account it tried (#471).
+    /// Value: counter written with INCR. Expires at the end of a fixed window from the first failure
+    /// (<c>Application:FailedLoginSourceWindowMinutes</c>, default 15 minutes).
+    /// </summary>
+    public static string AuthSourceFailedLogins(string remoteAddress) => $"auth:source:{remoteAddress}:failedLogins";
+
     // ── Hash Keys ─────────────────────────────────────────────────────────────
 
     /// <summary>

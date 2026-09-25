@@ -51,6 +51,15 @@ public class CMFAVerifyHandler : IAuthPacketHandler<CMFAVerifyPacket>
             return;
         }
 
+        // The same for a lock (#471): failed logins inside that window can lock the account after
+        // its password step passed.
+        if (account.IsLockedAt(DateTime.UtcNow))
+        {
+            _logger.LogWarning("Account {AccountId} refused at MFA verify while locked", account.Id);
+            ctx.Connection.Send(SAuthResultPacket.Create(null, null, AuthResult.LOCKED, ctx.Connection.CryptoSession.Encrypt));
+            return;
+        }
+
         if (account.Online)
         {
             ctx.Connection.Send(SAuthResultPacket.Create(null, null, AuthResult.ALREADY_CONNECTED, ctx.Connection.CryptoSession.Encrypt));
@@ -77,6 +86,9 @@ public class CMFAVerifyHandler : IAuthPacketHandler<CMFAVerifyPacket>
         account.LastIp = ctx.Connection.RemoteEndPoint.Split(':')[0];
         account.LastLogin = DateTime.UtcNow;
         account.FailedLogins = 0;
+        // Only an expired lock reaches here; lift it with the count it was set by.
+        account.Locked = false;
+        account.LockedUntil = null;
 
         await _accountRepository.UpdateAsync(account, token);
         await _cache.PublishAsync(CacheKeys.AuthAccountsOnlineChannel, account.Id.ToString()!);

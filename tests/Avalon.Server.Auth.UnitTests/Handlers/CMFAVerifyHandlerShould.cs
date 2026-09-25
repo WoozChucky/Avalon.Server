@@ -197,4 +197,64 @@ public class CMFAVerifyHandlerShould
         await _accountRepository.DidNotReceiveWithAnyArgs().UpdateAsync(default!, default);
         await _cache.DidNotReceiveWithAnyArgs().PublishAsync(default!, default!);
     }
+
+    private SAuthResultPacket SentPacket()
+    {
+        NetworkPacket sent = (NetworkPacket)_connection.ReceivedCalls()
+            .Single(c => c.GetMethodInfo().Name == nameof(IAuthConnection.Send))
+            .GetArguments()[0]!;
+        using var stream = new MemoryStream(sent.Payload);
+        return Serializer.Deserialize<SAuthResultPacket>(stream);
+    }
+
+    /// <summary>
+    /// #471: an account locked between the password step and the code (by failed logins inside the
+    /// MFA hash's two minutes) must not finish logging in with a valid code.
+    /// </summary>
+    [Fact]
+    public async Task Refuse_a_valid_code_for_an_account_locked_after_the_password_step()
+    {
+        var account = MakeAccount();
+        var accountId = new AccountId(1L);
+        _mfaService.VerifyMFAAsync("valid-hash", "123456").Returns(new MFAVerifyResult(true, accountId));
+        _accountRepository.FindByIdAsync(accountId).Returns(account);
+        account.Locked = true;
+        account.LockedUntil = DateTime.UtcNow.AddMinutes(15);
+
+        await CreateHandler().ExecuteAsync(new AuthPacketContext<CMFAVerifyPacket>
+        {
+            Packet = new CMFAVerifyPacket { MfaHash = "valid-hash", Code = "123456" },
+            Connection = _connection
+        });
+
+        SAuthResultPacket packet = SentPacket();
+        Assert.Equal(AuthResult.LOCKED, packet.Result);
+        Assert.Equal(0, packet.AccountId);
+        Assert.False(account.Online);
+        _connection.DidNotReceiveWithAnyArgs().AccountId = default;
+        await _accountRepository.DidNotReceiveWithAnyArgs().UpdateAsync(default!, default);
+        await _cache.DidNotReceiveWithAnyArgs().PublishAsync(default!, default!);
+    }
+
+    [Fact]
+    public async Task Accept_a_valid_code_for_an_account_whose_lock_has_expired()
+    {
+        var account = MakeAccount();
+        var accountId = new AccountId(1L);
+        _mfaService.VerifyMFAAsync("valid-hash", "123456").Returns(new MFAVerifyResult(true, accountId));
+        _accountRepository.FindByIdAsync(accountId).Returns(account);
+        account.Locked = true;
+        account.LockedUntil = DateTime.UtcNow.AddSeconds(-1);
+
+        await CreateHandler().ExecuteAsync(new AuthPacketContext<CMFAVerifyPacket>
+        {
+            Packet = new CMFAVerifyPacket { MfaHash = "valid-hash", Code = "123456" },
+            Connection = _connection
+        });
+
+        Assert.Equal(AuthResult.SUCCESS, SentPacket().Result);
+        Assert.True(account.Online);
+        Assert.False(account.Locked);
+        Assert.Null(account.LockedUntil);
+    }
 }
