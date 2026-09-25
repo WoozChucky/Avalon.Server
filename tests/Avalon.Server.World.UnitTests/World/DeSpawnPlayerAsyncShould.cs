@@ -39,7 +39,8 @@ public class DeSpawnPlayerAsyncShould
 
         Avalon.World.World.ReviveForDeathLogout(charEntity, dbCharacter);
         await Avalon.World.World.MoveToRespawnTownAsync(
-            new MapTemplateId(2), dbCharacter, resolver, [town], CancellationToken.None);
+            new MapTemplateId(2), dbCharacter, resolver, [town],
+            Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance, CancellationToken.None);
 
         // Live entity is revived (Revive() invoked once).
         charEntity.Received(1).Revive();

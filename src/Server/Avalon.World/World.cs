@@ -209,12 +209,18 @@ public class World : IWorld
             {
                 ReviveForDeathLogout(connection.Character, dbCharacter);
 
+                // Where it died, which is where it stays if no town can be found at all.
+                dbCharacter.X = entity.Position.x;
+                dbCharacter.Y = entity.Position.y;
+                dbCharacter.Z = entity.Position.z;
+
                 // Finding the respawn town needs the database, so it happens inside the chained
                 // write, on the copy of the row the snapshot took.
                 var diedOn = new MapTemplateId(connection.Character.Map.Value);
                 IRespawnTargetResolver resolver = scope.ServiceProvider.GetRequiredService<IRespawnTargetResolver>();
                 IReadOnlyList<MapTemplate> templates = _mapManager.Templates;
-                prepareRow = (row, token) => MoveToRespawnTownAsync(diedOn, row, resolver, templates, token);
+                ILogger logger = _logger;
+                prepareRow = (row, token) => MoveToRespawnTownAsync(diedOn, row, resolver, templates, logger, token);
             }
             // If logging out from a Normal map, redirect the character to the associated town
             else if (instance?.MapType == MapType.Normal)
@@ -325,24 +331,67 @@ public class World : IWorld
         dbCharacter.Health = (int)character.Health;
     }
 
+    /// <summary>The town a dead logout goes to when the respawn town cannot be looked up at all.</summary>
+    private static readonly MapTemplateId FallbackTownId = new(1);
+
     /// <summary>
     /// The database half of "logout while dead": resolves the respawn town for the map the character
     /// died on, and moves <paramref name="row" /> to it, at the town's default spawn. Runs inside the
     /// chained despawn save, on the thread pool, against the snapshot's copy of the row only.
     /// </summary>
+    /// <remarks>
+    /// Never throws for a failed lookup. The lookup reads the World database and the save writes the
+    /// Character database; a throw here would fail the whole save and lose the character's items,
+    /// money and offline flag with it. On failure the row goes to town 1's default spawn, or, when
+    /// town 1 is not a known template either, stays at the map and position it died at. A cancelled
+    /// save still cancels.
+    /// </remarks>
     public static async Task MoveToRespawnTownAsync(
         MapTemplateId diedOn,
         Character row,
         IRespawnTargetResolver resolver,
         IReadOnlyList<MapTemplate> templates,
+        ILogger logger,
         CancellationToken ct)
     {
-        MapTemplateId townId = await resolver.ResolveTownAsync(diedOn, ct).ConfigureAwait(false);
+        MapTemplateId townId;
+        try
+        {
+            townId = await resolver.ResolveTownAsync(diedOn, ct).ConfigureAwait(false);
+        }
+        catch (Exception e) when (e is not OperationCanceledException || !ct.IsCancellationRequested)
+        {
+            MapTemplate? fallback = templates.FirstOrDefault(t => t.Id == FallbackTownId);
+            if (fallback is null)
+            {
+                logger.LogError(e,
+                    "Finding the respawn town for character {CharacterId}, who logged out dead on map {MapId}, failed, " +
+                    "and town {FallbackTownId} is not loaded; saving it where it died",
+                    row.Id.Value, diedOn.Value, FallbackTownId.Value);
+                return;
+            }
+
+            logger.LogError(e,
+                "Finding the respawn town for character {CharacterId}, who logged out dead on map {MapId}, failed; " +
+                "saving it at town {FallbackTownId}",
+                row.Id.Value, diedOn.Value, FallbackTownId.Value);
+            MoveTo(row, fallback);
+            return;
+        }
+
         MapTemplate? town = templates.FirstOrDefault(t => t.Id == townId);
         row.Map = townId.Value;
         row.X = town?.DefaultSpawnX ?? 0f;
         row.Y = town?.DefaultSpawnY ?? 0f;
         row.Z = town?.DefaultSpawnZ ?? 0f;
+    }
+
+    private static void MoveTo(Character row, MapTemplate town)
+    {
+        row.Map = town.Id.Value;
+        row.X = town.DefaultSpawnX;
+        row.Y = town.DefaultSpawnY;
+        row.Z = town.DefaultSpawnZ;
     }
 
     private void ApplyScriptsHotReload(List<Type> aiScriptTypes)

@@ -126,6 +126,87 @@ public class DeSpawnDuringReadinessBarrierShould
     }
 
     /// <summary>
+    /// Finding the respawn town reads the World database, and the save writes the Character
+    /// database. A World database failure must cost the town move, not the save: the character's
+    /// items, money and offline flag still commit, at town 1's default spawn.
+    /// </summary>
+    [Fact]
+    public async Task Still_save_a_dead_logout_when_the_respawn_town_cannot_be_found()
+    {
+        var town = new MapTemplate
+        {
+            Id = new MapTemplateId(1), Name = "town", Description = "town", MapType = MapType.Town,
+            DefaultSpawnX = 10, DefaultSpawnY = 20, DefaultSpawnZ = 30
+        };
+
+        CharacterSaveBatch batch = await DeadLogoutWithBrokenTownLookupAsync([town]);
+
+        Assert.Equal(Avalon.Server.World.UnitTests.Inventory.TestCharacters.Potion.Id,
+            Assert.Single(batch.UpsertItems).TemplateId);
+        Assert.Single(batch.UpsertSlots);
+        Assert.Equal(500UL, batch.Row.Money);
+        Assert.False(batch.Row.Online);
+        Assert.Equal(100, batch.Row.Health);
+        Assert.Equal((ushort)1, batch.Row.Map);
+        Assert.Equal((10f, 20f, 30f), (batch.Row.X, batch.Row.Y, batch.Row.Z));
+    }
+
+    /// <summary>With no town 1 to fall back to either, the character stays where it died, and the save still commits.</summary>
+    [Fact]
+    public async Task Keep_the_death_position_when_neither_the_town_nor_the_fallback_is_known()
+    {
+        CharacterSaveBatch batch = await DeadLogoutWithBrokenTownLookupAsync([]);
+
+        Assert.Single(batch.UpsertItems);
+        Assert.Equal(500UL, batch.Row.Money);
+        Assert.False(batch.Row.Online);
+        Assert.Equal((ushort)2, batch.Row.Map);
+        Assert.Equal((5f, 6f, 7f), (batch.Row.X, batch.Row.Y, batch.Row.Z));
+    }
+
+    private static async Task<CharacterSaveBatch> DeadLogoutWithBrokenTownLookupAsync(IReadOnlyList<MapTemplate> templates)
+    {
+        TimeSpan limit = TimeSpan.FromSeconds(5);
+        var written = new TaskCompletionSource<CharacterSaveBatch>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var repository = Substitute.For<ICharacterSaveRepository>();
+        repository.WriteAsync(Arg.Any<IReadOnlyList<CharacterSaveBatch>>(), Arg.Any<CancellationToken>())
+            .Returns(call =>
+            {
+                written.TrySetResult(call.Arg<IReadOnlyList<CharacterSaveBatch>>().Single());
+                return Task.CompletedTask;
+            });
+        var saver = new CharacterSaver(repository, NullLogger<CharacterSaver>.Instance);
+
+        var resolver = Substitute.For<IRespawnTargetResolver>();
+        resolver.ResolveTownAsync(Arg.Any<MapTemplateId>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromException<MapTemplateId>(new InvalidOperationException("the World database went away")));
+
+        (Avalon.World.World world, _, _) = await LoadedWorldAsync(saver, resolver, templates);
+
+        var row = new Character
+        {
+            Id = new CharacterId(7), Name = "Tester", Map = 2, Health = 100, Online = true, Money = 500,
+        };
+        var entity = new CharacterEntity(NullLoggerFactory.Instance, row, new RegenConfiguration())
+        {
+            Data = row,
+            EnteredWorld = DateTime.UtcNow,
+            Position = new Avalon.Common.Mathematics.Vector3(5, 6, 7),
+        };
+        entity.IsDead = true;
+        Avalon.Server.World.UnitTests.Inventory.TestCharacters.InventoryFor(entity)
+            .TryAdd(Avalon.Server.World.UnitTests.Inventory.TestCharacters.Potion.Id, 1);
+        IWorldConnection connection = PendingSpawnConnection.Create();
+        connection.Character = entity;
+
+        await world.DeSpawnPlayerAsync(connection).WaitAsync(limit);
+
+        await saver.WhenIdle(new CharacterId(7)).WaitAsync(limit);
+        Assert.True(written.Task.IsCompleted, "the despawn save was dropped when the town lookup failed");
+        return await written.Task.WaitAsync(limit);
+    }
+
+    /// <summary>
     /// The row is marked online by the spawn, not by the select: before the spawn the character is
     /// built but not in the world, and there is nothing in an instance to write the flag back.
     /// </summary>
