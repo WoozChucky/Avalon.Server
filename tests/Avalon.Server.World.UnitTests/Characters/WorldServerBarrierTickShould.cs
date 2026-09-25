@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Sockets;
+using Avalon.Common.Cryptography;
 using Avalon.Configuration;
 using Avalon.Hosting.Networking;
 using Avalon.Infrastructure;
@@ -16,12 +17,15 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NSubstitute;
+using static Avalon.Server.World.UnitTests.Inventory.TestCharacters;
 
 namespace Avalon.Server.World.UnitTests.Characters;
 
 /// <summary>
 /// The barrier only bounds anything because the tick sweeps it. A policy nothing calls releases
-/// nobody, and every login is on that path until a client sends CMSG_CHARACTER_LOADED.
+/// nobody, and every login is on that path until a client sends CMSG_CHARACTER_LOADED. The same
+/// holds for the per-tick inventory update: the flusher only reaches a client because the tick
+/// calls it.
 /// </summary>
 public class WorldServerBarrierTickShould : IDisposable
 {
@@ -67,6 +71,21 @@ public class WorldServerBarrierTickShould : IDisposable
         server.Tick();
 
         world.DidNotReceiveWithAnyArgs().SpawnInInstance(default!, default!);
+    }
+
+    [Fact]
+    public void Send_a_characters_inventory_changes_on_the_tick_they_were_made()
+    {
+        (TestWorldServer server, _, Avalon.World.WorldConnection connection) = Build();
+        connection.CryptoSession.Initialize(new CryptoManager().GetPublicKey());
+
+        CharacterEntity character = New();
+        connection.Character = character;
+        InventoryFor(character).TryAdd(Potion.Id, 1);
+
+        server.Tick();
+
+        Assert.False(character.ClientChanges.HasChanges);
     }
 
     private (TestWorldServer server, IWorld world, Avalon.World.WorldConnection connection) Build()

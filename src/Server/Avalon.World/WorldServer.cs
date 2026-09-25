@@ -14,6 +14,7 @@ using Avalon.Network.Packets;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Generic;
 using Avalon.World.Characters;
+using Avalon.World.Inventory;
 using Avalon.World.Public;
 using Avalon.World.Scripts;
 using Avalon.World.Scripts.Abstractions;
@@ -396,6 +397,12 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         double worldUs = TicksToUs(t2 - t1);
         _worldUpdateHist.Record((long)worldUs);
         _worldUpdateDuration.Record(worldUs);
+
+        // Inventory and money changed anywhere in this tick, in either pass, leave as one packet per
+        // connection with each slot at its final value (spec #459 section 3). Before the ping below,
+        // which has to be the last thing enqueued ahead of the flush.
+        for (int i = 0; i < conns.Length; i++)
+            InventoryUpdateFlusher.Flush(conns[i]);
 
         // Time-sync ping: stagger across the 600-tick window using each connection's
         // list index, so 600 connections still produce only ~1 ping/tick worst case.

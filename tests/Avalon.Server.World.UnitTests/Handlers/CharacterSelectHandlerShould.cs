@@ -52,7 +52,8 @@ public class CharacterSelectHandlerShould
 
     private static async Task<Fixture> BuildAsync(
         IReadOnlyCollection<CharacterInventory>? inventoryRows = null,
-        IReadOnlyCollection<ItemInstance>? itemInstances = null)
+        IReadOnlyCollection<ItemInstance>? itemInstances = null,
+        ulong money = 0)
     {
         var row = new Character
         {
@@ -62,7 +63,8 @@ public class CharacterSelectHandlerShould
             Class = CharacterClass.Warrior,
             Level = 1,
             Map = TownMapId,
-            X = 1, Y = 2, Z = 3
+            X = 1, Y = 2, Z = 3,
+            Money = money,
         };
 
         var characterRepository = Substitute.For<ICharacterRepository>();
@@ -325,6 +327,16 @@ public class CharacterSelectHandlerShould
         // protobuf-net writes nothing for a zero-length repeated field, so an empty array round
         // trips as null rather than []; either is "no items" on the wire.
         Assert.Empty(snapshot.Items ?? []);
+    }
+
+    [Fact]
+    public async Task Send_The_Characters_Money_In_The_Snapshot()
+    {
+        Fixture f = await BuildAsync(money: 123_456_789_012UL);
+
+        f.Handler.Execute(f.Connection, new CCharacterSelectedPacket { CharacterId = TheCharacter });
+
+        Assert.Equal(123_456_789_012UL, DeserializeInventorySnapshot(f).Money);
     }
 
     /// <summary>

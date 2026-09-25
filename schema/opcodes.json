@@ -587,6 +587,15 @@
       "flagNames": "Encrypted"
     },
     {
+      "name": "SMSG_INVENTORY_UPDATE",
+      "opcode": 12329,
+      "hex": "0x3029",
+      "message": "SInventoryUpdatePacket",
+      "direction": "ServerToClient",
+      "flags": 4,
+      "flagNames": "Encrypted"
+    },
+    {
       "name": "SMSG_MAP_TELEPORT",
       "opcode": 12336,
       "hex": "0x3030",

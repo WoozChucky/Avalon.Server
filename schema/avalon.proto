@@ -225,6 +225,11 @@ enum DisconnectReason {
    DisconnectReason_Kicked = 3;
    DisconnectReason_SelectTimeout = 4;
 }
+message InventorySlotUpdateDto {
+   uint32 Container = 1;
+   uint32 Slot = 2;
+   ItemSlotDto Item = 3;
+}
 message ItemSlotDto {
    uint32 Container = 1;
    uint32 Slot = 2;
@@ -354,6 +359,7 @@ enum NetworkPacketType {
    NetworkPacketType_SMSG_CHARACTER_SELECTED = 12326;
    NetworkPacketType_SMSG_CHARACTER_ABILITIES = 12327;
    NetworkPacketType_SMSG_INVENTORY_SNAPSHOT = 12328;
+   NetworkPacketType_SMSG_INVENTORY_UPDATE = 12329;
    NetworkPacketType_SMSG_MAP_TELEPORT = 12336;
    NetworkPacketType_SMSG_MAP_TRANSITION = 12337;
    NetworkPacketType_SMSG_CHUNK_LAYOUT = 12338;
@@ -562,6 +568,11 @@ message SInstanceStateUpdatePacket {
 }
 message SInventorySnapshotPacket {
    repeated ItemSlotDto Items = 1;
+   uint64 Money = 2;
+}
+message SInventoryUpdatePacket {
+   repeated InventorySlotUpdateDto Slots = 1;
+   optional uint64 Money = 2;
 }
 message SLogoutPacket {
    LogoutResult Result = 1;

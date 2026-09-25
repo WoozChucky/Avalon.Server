@@ -399,7 +399,7 @@ public class CharacterSelectHandler(
             .. ToDtos(InventoryType.Bag, entity[InventoryType.Bag].Items),
         ];
 
-        connection.Send(SInventorySnapshotPacket.Create(carried, connection.CryptoSession.Encrypt));
+        connection.Send(SInventorySnapshotPacket.Create(carried, character.Money, connection.CryptoSession.Encrypt));
 
         connection.EnqueueContinuation(characterAbilityRepository.GetCharacterAbilitiesAsync(character.Id, CancellationToken.None),
             spells => OnSpellsReceived(connection, entity, instance, spells));
@@ -407,16 +407,7 @@ public class CharacterSelectHandler(
     }
 
     private static IEnumerable<ItemSlotDto> ToDtos(InventoryType container, IReadOnlyCollection<InventoryItem> items)
-        => items.Select(item => new ItemSlotDto
-        {
-            Container = (ushort)container,
-            Slot = item.Slot,
-            ItemTemplateId = item.TemplateId.Value,
-            ItemInstanceId = item.InstanceId.Value,
-            Count = item.Count,
-            Durability = item.Durability,
-            Flags = (uint)item.Flags,
-        });
+        => items.Select(item => ItemSlotDtoMapper.ToDto(container, item));
 
     private void OnSpellsReceived(IWorldConnection connection, CharacterEntity entity, IMapInstance instance,
         IReadOnlyCollection<CharacterAbility> spells)
