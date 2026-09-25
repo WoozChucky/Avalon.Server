@@ -1,3 +1,4 @@
+using Avalon.Server.World.UnitTests.Loot;
 using System.IO;
 using Avalon.Common;
 using Avalon.Common.Accounts;
@@ -368,7 +369,7 @@ public class DialogueChooseHandlerShould
 
             return new StaticData(createInfos, stats, items, abilities, levels,
                 creatureTemplates, baseStats, rarities,
-                textRepo, dialogueRepo, NullLoggerFactory.Instance);
+                textRepo, dialogueRepo, LootRepositories.Empty(), NullLoggerFactory.Instance);
         }
     }
 }

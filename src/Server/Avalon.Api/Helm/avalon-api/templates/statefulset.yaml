@@ -13,10 +13,14 @@ spec:
       {{- include "avalon-api.selectorLabels" . | nindent 6 }}
   template:
     metadata:
-      {{- with .Values.podAnnotations }}
       annotations:
+        {{- if not .Values.existingSecret }}
+        # Rolls the pods when a chart-managed secret changes, so a rotated signing key takes effect.
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        {{- end }}
+        {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
-      {{- end }}
+        {{- end }}
       labels:
         {{- include "avalon-api.selectorLabels" . | nindent 8 }}
     spec:
@@ -33,23 +37,47 @@ spec:
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           env:
-            # Database configuration
+            # Secrets come from the Secret (templates/secret.yaml or existingSecret), never as
+            # plain values in the pod spec (#482).
             - name: Database__Auth__ConnectionString
-              value: {{ .Values.database.auth.connectionString | quote }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "avalon-api.secretName" . }}
+                  key: database-auth-connection-string
             - name: Database__Characters__ConnectionString
-              value: {{ .Values.database.characters.connectionString | quote }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "avalon-api.secretName" . }}
+                  key: database-characters-connection-string
             - name: Database__World__ConnectionString
-              value: {{ .Values.database.world.connectionString | quote }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "avalon-api.secretName" . }}
+                  key: database-world-connection-string
+            - name: Application__Cache__Password
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "avalon-api.secretName" . }}
+                  key: cache-password
+                  optional: true
+            - name: Application__Notification__PrivateKey
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "avalon-api.secretName" . }}
+                  key: notification-private-key
+                  optional: true
+            - name: Application__Authentication__IssuerSigningKey
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "avalon-api.secretName" . }}
+                  key: jwt-signing-key
+            # Not secret.
             - name: Application__Cache__Host
               value: {{ .Values.cache.host | quote }}
-            - name: Application__Cache__Password
-              value: {{ .Values.cache.password | quote }}
             - name: Application__Notification__Subject
               value: {{ .Values.notification.subject | quote }}
             - name: Application__Notification__PublicKey
               value: {{ .Values.notification.publicKey | quote }}
-            - name: Application__Notification__PrivateKey
-              value: {{ .Values.notification.privateKey | quote }}
             - name: DOTNET_HOSTBUILDER__RELOADCONFIGONCHANGE
               value: "false"
           ports:

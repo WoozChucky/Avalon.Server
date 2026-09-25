@@ -1,3 +1,4 @@
+using Avalon.Server.World.UnitTests.Loot;
 using System.Net;
 using System.Net.Sockets;
 using Avalon.Common.ValueObjects;
@@ -591,7 +592,7 @@ public class DuplicateCharacterSelectShould : IDisposable
             localizedText,
             Substitute.For<IScriptHotReloader>(),
             Substitute.For<IChunkLibrary>(),
-            dialogue);
+            dialogue, LootRepositories.Empty());
 
         await world.LoadAsync(CancellationToken.None);
         if (town is not null)

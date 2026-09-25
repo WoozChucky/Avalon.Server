@@ -7,6 +7,10 @@ appsettings.Production.json
 appsettings.Staging.json
 appsettings.Local.json
 appsettings.*.local.json
+# docker --env-file / Helm --set-file inputs holding the API signing key (#482)
+api.env
+*.env
+jwt.key
 /packages/
 riderModule.iml
 /_ReSharper.Caches/

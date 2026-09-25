@@ -3,6 +3,7 @@ using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Database.World.Repositories;
 using Avalon.Domain.World;
+using Avalon.Server.World.UnitTests.Loot;
 using Avalon.World;
 using Avalon.World.ChunkLayouts;
 using Avalon.World.Configuration;
@@ -184,7 +185,7 @@ public class ExperienceAwardShould
 
         var data = new StaticData(createInfos, stats, items, abilities, levels,
             creatureTemplates, baseStats, rarities,
-            localizedText, dialogue, NullLoggerFactory.Instance);
+            localizedText, dialogue, LootRepositories.Empty(), NullLoggerFactory.Instance);
         data.LoadAsync(CancellationToken.None).GetAwaiter().GetResult();
         return data;
     }

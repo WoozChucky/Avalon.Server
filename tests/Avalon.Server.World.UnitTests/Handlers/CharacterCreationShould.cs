@@ -271,6 +271,7 @@ public class CharacterCreationShould : IDisposable
             new CreatureRarityModifierRepository(_world),
             new LocalizedTextRepository(_world),
             new DialogueRepository(_world),
+            new LootTableRepository(_world),
             NullLoggerFactory.Instance);
 
         await data.LoadAsync();

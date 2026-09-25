@@ -7,6 +7,7 @@ using Avalon.World.Chat;
 using Avalon.World.Configuration;
 using Avalon.World.Entities;
 using Avalon.World.Inventory;
+using Avalon.World.Loot;
 using Avalon.World.Maps;
 using Avalon.World.Persistence;
 using Avalon.World.ChunkLayouts;
@@ -17,6 +18,7 @@ using Avalon.World.Scripts;
 using Avalon.World.Scripts.Abstractions;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Avalon.Server.World.Extensions;
 
@@ -55,6 +57,12 @@ public static class ServiceExtensions
         services.AddSingleton<IChunkLibrary, ChunkLibrary>();
         services.AddSingleton<IItemIdAllocator, ItemIdAllocator>();
         services.AddSingleton<ICharacterEconomy, CharacterEconomy>();
+
+        // Loot (issue #460). One clock for the allocator's free-for-all time and the pickup check.
+        services.TryAddSingleton(TimeProvider.System);
+        services.AddSingleton<ILootRandom>(new LootRandom(Random.Shared));
+        services.AddSingleton<ILootRoller, LootRoller>();
+        services.AddSingleton<ILootAllocator, InstanceOwnerLootAllocator>();
         services.AddSingleton<ICharacterSaver, CharacterSaver>();
         services.AddSingleton<ICharacterSaveScheduler, CharacterSaveScheduler>();
         services.AddSingleton<PredefinedChunkLayoutSource>();

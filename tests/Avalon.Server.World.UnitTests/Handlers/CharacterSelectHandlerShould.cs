@@ -1,3 +1,4 @@
+using Avalon.Server.World.UnitTests.Loot;
 using System.IO;
 using Avalon.Common;
 using Avalon.Common.Accounts;
@@ -242,7 +243,7 @@ public class CharacterSelectHandlerShould
 
         var data = new StaticData(createInfos, stats, items, abilities, levels,
             creatureTemplates, baseStats, rarities,
-            localizedText, dialogue, NullLoggerFactory.Instance);
+            localizedText, dialogue, LootRepositories.Empty(), NullLoggerFactory.Instance);
         await data.LoadAsync(CancellationToken.None);
         return data;
     }

@@ -4,6 +4,8 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
+    <!-- Holds Application:Authentication:IssuerSigningKey in development; never committed (#482). -->
+    <UserSecretsId>5c959363-ba65-4b68-9e09-73549b17023b</UserSecretsId>
   </PropertyGroup>
 
   <ItemGroup>

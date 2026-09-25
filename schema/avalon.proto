@@ -142,6 +142,9 @@ message CInteractPacket {
 message CLogoutPacket {
    uint64 AccountId = 1;
 }
+message CLootPickupPacket {
+   uint64 LootGuid = 1;
+}
 message CMFAConfirmPacket {
    optional string Code = 1;
 }
@@ -249,6 +252,24 @@ enum LogoutResult {
    LogoutResult_InternalError = 4;
    LogoutResult_ConnectedElsewhere = 5;
 }
+message LootDropDto {
+   uint64 LootGuid = 1;
+   Vector3Dto Position = 2;
+   optional uint64 ItemTemplateId = 3;
+   uint32 Count = 4;
+   optional uint64 Gold = 5;
+   optional uint32 OwnerCharacterId = 6;
+   int64 FreeForAllAt = 7;
+}
+enum LootPickupResult {
+   LootPickupResult_Ok = 0;
+   LootPickupResult_NotFound = 1;
+   LootPickupResult_TooFar = 2;
+   LootPickupResult_NotYours = 3;
+   LootPickupResult_InventoryFull = 4;
+   LootPickupResult_UniqueAlreadyOwned = 5;
+   LootPickupResult_MoneyCapReached = 6;
+}
 enum MFAOperationResult {
    MFAOperationResult_Success = 0;
    MFAOperationResult_AlreadyEnabled = 1;
@@ -330,6 +351,7 @@ enum NetworkPacketType {
    NetworkPacketType_CMSG_QUEST_QUERY_AVAILABLE = 8258;
    NetworkPacketType_CMSG_AUDIO_RECORD = 8272;
    NetworkPacketType_CMSG_PLAYER_INPUT = 8288;
+   NetworkPacketType_CMSG_LOOT_PICKUP = 8304;
    NetworkPacketType_CMSG_CAST_ABILITY = 8449;
    NetworkPacketType_CMSG_TARGET_UNIT = 8450;
    NetworkPacketType_SMSG_SERVER_INFO = 12288;
@@ -372,6 +394,9 @@ enum NetworkPacketType {
    NetworkPacketType_SMSG_PLAYER_STATE_ACK = 12384;
    NetworkPacketType_SMSG_DIALOGUE_NODE = 12400;
    NetworkPacketType_SMSG_DIALOGUE_END = 12401;
+   NetworkPacketType_SMSG_LOOT_SPAWNED = 12416;
+   NetworkPacketType_SMSG_LOOT_DESPAWNED = 12417;
+   NetworkPacketType_SMSG_LOOT_PICKUP_RESULT = 12418;
    NetworkPacketType_SMSG_CHARACTER_DAMAGED = 12544;
    NetworkPacketType_SMSG_CREATURE_ATTACK_ANIMATION = 12545;
    NetworkPacketType_SMSG_CREATURE_DAMAGED = 12546;
@@ -578,6 +603,16 @@ message SInventoryUpdatePacket {
 }
 message SLogoutPacket {
    LogoutResult Result = 1;
+}
+message SLootDespawnedPacket {
+   repeated uint64 LootGuids = 1 [packed = false];
+}
+message SLootPickupResultPacket {
+   uint64 LootGuid = 1;
+   LootPickupResult Result = 2;
+}
+message SLootSpawnedPacket {
+   repeated LootDropDto Drops = 1;
 }
 message SMFAConfirmPacket {
    repeated string RecoveryCodes = 1;

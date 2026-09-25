@@ -26,7 +26,7 @@ public class AccessLevelsMatchPoliciesShould
     {
         var services = new ServiceCollection();
         services.AddLogging();
-        services.AddAuth(new ApplicationConfig());
+        services.AddAuth(new ApplicationConfig { Authentication = ApiAuthHost.AuthConfig });
 
         AuthorizationOptions options = services.BuildServiceProvider()
             .GetRequiredService<IOptions<AuthorizationOptions>>().Value;

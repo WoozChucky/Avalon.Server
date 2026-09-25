@@ -21,7 +21,7 @@
 # rows cannot show it, being built from a uint id that has no such bits -- a raw value that did
 # would be a server change, and it would arrive here as one.
 #
-# Types are None=0, Character=1, Creature=2, Spell=3, SpellProjectile=4, Portal=5. The ids are
+# Types are None=0, Character=1, Creature=2, Spell=3, SpellProjectile=4, Portal=5, Loot=6. The ids are
 # chosen so a wrong shift or a wrong mask lands somewhere else: zero, one, a value with bits in
 # every byte of the low 32, and the top of the range.
 #
@@ -51,3 +51,7 @@ raw 0500000000000000 type 5 id 0
 raw 0500000000000001 type 5 id 1
 raw 0500000012345678 type 5 id 305419896
 raw 05000000ffffffff type 5 id 4294967295
+raw 0600000000000000 type 6 id 0
+raw 0600000000000001 type 6 id 1
+raw 0600000012345678 type 6 id 305419896
+raw 06000000ffffffff type 6 id 4294967295

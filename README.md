@@ -113,19 +113,34 @@ Prerequisites: .NET 10 SDK, Docker (for infra services).
    ```bash
    docker compose -f docker-compose.yml -f docker-compose.tools.yml up -d
    ```
-2. Run the API — migrations are applied automatically on startup:
+2. Give the API a JWT signing key, once per machine. None is committed, and the API refuses to start
+   without one of at least 32 bytes. From the repository root, each of these generates a key and stores it
+   in your user-secrets:
+   ```bash
+   # bash (needs openssl)
+   dotnet user-secrets set "Application:Authentication:IssuerSigningKey" "$(openssl rand -base64 48)" --project src/Server/Avalon.Api
+   ```
+   ```powershell
+   # Windows PowerShell 5.1 or PowerShell 7 (no openssl needed)
+   $b = New-Object byte[] 48; [Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($b); dotnet user-secrets set "Application:Authentication:IssuerSigningKey" ([Convert]::ToBase64String($b)) --project src/Server/Avalon.Api
+   ```
+   Outside Development, set the environment variable `Application__Authentication__IssuerSigningKey`
+   instead. The Helm chart reads it from a Kubernetes Secret: name one you manage with
+   `--set existingSecret=<name>`, or pass the key from a file with
+   `--set-file authentication.issuerSigningKey=<file>` (see the chart's `values.yaml`).
+3. Run the API — migrations are applied automatically on startup:
    ```bash
    dotnet run --project src/Server/Avalon.Api
    ```
-3. Run Auth Server:
+4. Run Auth Server:
    ```bash
    dotnet run --project src/Server/Avalon.Server.Auth
    ```
-4. Run World Server:
+5. Run World Server:
    ```bash
    dotnet run --project src/Server/Avalon.Server.World
    ```
-5. Open API docs: `https://localhost:<port>/scalar` (Scalar UI) or `/openapi/v1.json`
+6. Open API docs: `https://localhost:<port>/scalar` (Scalar UI) or `/openapi/v1.json`
 
 ## Migrations Workflow
 

@@ -11,7 +11,7 @@ namespace Avalon.World.Chat;
 /// </summary>
 public sealed class ReloadCommand(IReferenceDataReloader reloader, ILogger<ReloadCommand> logger) : ICommand
 {
-    private const string Usage = "Usage: /reload <dialogue|creatures|abilities|items|progression|all>";
+    private const string Usage = "Usage: /reload <dialogue|creatures|abilities|items|progression|loot|all>";
 
     private const string MapsRefusal =
         "Maps and chunk layouts cannot be reloaded: live instances have already baked a navmesh " +
@@ -69,9 +69,14 @@ public sealed class ReloadCommand(IReferenceDataReloader reloader, ILogger<Reloa
         int ms = (int)Math.Round(outcome.Elapsed.TotalMilliseconds);
         string line = $"Reloaded {area}: {outcome.Summary} ({ms} ms).";
 
-        // Forward-only: without this a game master reloads stats, watches an existing creature,
-        // and concludes the reload failed.
-        return outcome.Area == ReloadArea.Creatures ? line + " Affects new spawns only." : line;
+        // Forward-only: without these a game master reloads, looks at something already in the
+        // world, and concludes the reload failed.
+        return outcome.Area switch
+        {
+            ReloadArea.Creatures => line + " Affects new spawns only.",
+            ReloadArea.Loot => line + " Affects the next kill; drops already on the ground keep what they rolled.",
+            _ => line
+        };
     }
 
     private static void Reply(WorldPacketContext<CChatMessagePacket> ctx, string message)

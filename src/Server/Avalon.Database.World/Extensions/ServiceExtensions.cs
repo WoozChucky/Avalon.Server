@@ -41,7 +41,8 @@ public static class ServiceExtensions
             .AddSingleton<IChunkPoolRepository, ChunkPoolRepository>()
             .AddSingleton<ISpawnTableRepository, SpawnTableRepository>()
             .AddSingleton<IProceduralMapConfigRepository, ProceduralMapConfigRepository>()
-            .AddSingleton<IMapChunkPlacementRepository, MapChunkPlacementRepository>();
+            .AddSingleton<IMapChunkPlacementRepository, MapChunkPlacementRepository>()
+            .AddSingleton<ILootTableRepository, LootTableRepository>();
 
         return services;
     }

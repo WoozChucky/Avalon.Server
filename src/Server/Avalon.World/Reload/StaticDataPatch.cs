@@ -1,5 +1,6 @@
 using Avalon.Domain.World;
 using Avalon.World.Creatures;
+using Avalon.World.Loot;
 using Avalon.World.Public.Dialogue;
 using Avalon.World.Public.Localization;
 
@@ -53,4 +54,13 @@ public sealed record ProgressionPatch(
 {
     public override string Describe()
         => $"{Levels.Count} levels, {ClassStats.Count} class stats, {CreateInfos.Count} create infos";
+}
+
+/// <summary>
+/// Loot tables. Rolled when a creature dies, so a reload changes the next kill; drops already on
+/// the ground keep what they rolled.
+/// </summary>
+public sealed record LootPatch(LootCatalog Catalog) : StaticDataPatch(ReloadArea.Loot)
+{
+    public override string Describe() => Catalog.Describe();
 }

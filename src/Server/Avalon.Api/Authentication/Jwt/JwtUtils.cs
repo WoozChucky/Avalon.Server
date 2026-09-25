@@ -1,6 +1,5 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
-using System.Text;
 using Avalon.Api.Config;
 using Avalon.Common.Accounts;
 using Avalon.Domain.Auth;
@@ -20,11 +19,17 @@ public class JwtUtils : IJwtUtils
     private readonly AuthenticationConfig _authenticationConfig;
     private readonly SymmetricSecurityKey _key;
 
-    public JwtUtils(AuthenticationConfig authenticationConfig)
+    /// <param name="authenticationConfig">Issuer, audience and lifetime of the tokens.</param>
+    /// <param name="signingKey">
+    /// The singleton <see cref="ServiceRegistration.AddAuth"/> registers from
+    /// <see cref="JwtSigningKey.Create(AuthenticationConfig?)"/>: the same instance the bearer handler
+    /// validates with.
+    /// </param>
+    public JwtUtils(AuthenticationConfig authenticationConfig, SymmetricSecurityKey signingKey)
     {
         _authenticationConfig = authenticationConfig;
         _tokenHandler = new JwtSecurityTokenHandler();
-        _key = new SymmetricSecurityKey(Encoding.ASCII.GetBytes(_authenticationConfig.IssuerSigningKey));
+        _key = signingKey;
     }
 
     public string GenerateJwtToken(Account account)
