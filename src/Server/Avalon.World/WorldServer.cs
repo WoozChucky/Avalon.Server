@@ -48,6 +48,16 @@ public class PacketHandlerAttribute : Attribute
 public interface IWorldServer
 {
     ImmutableArray<IWorldConnection> Connections { get; }
+
+    /// <summary>
+    /// Tick thread. Every connection of <paramref name="accountId" /> other than
+    /// <paramref name="except" />: the connected ones, and the ones that have closed but whose
+    /// despawn the tick has not started yet. A closed connection leaves <see cref="Connections" />
+    /// before its despawn runs, so a lookup of <see cref="Connections" /> alone misses a character
+    /// that is still live and has not queued its logout save.
+    /// </summary>
+    IReadOnlyList<IWorldConnection> SessionsOf(AccountId accountId, IWorldConnection except);
+
     IWorld World { get; }
     Dictionary<NetworkPacketType, IWorldPacketHandler> PacketHandlers { get; }
 }
@@ -202,6 +212,27 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         TypedConnections.CastArray<IWorldConnection>();
 
     public IWorld World => _world;
+
+    public IReadOnlyList<IWorldConnection> SessionsOf(AccountId accountId, IWorldConnection except)
+    {
+        // Connections first, then the queue: a close enqueues its despawn before it leaves the
+        // list, so a connection missing from the first snapshot is already in the second.
+        List<IWorldConnection> sessions = [];
+        foreach (IWorldConnection connection in Connections)
+        {
+            if (!ReferenceEquals(connection, except) && connection.AccountId == accountId)
+                sessions.Add(connection);
+        }
+
+        foreach (WorldConnection closed in _pendingDisconnects)
+        {
+            if (!ReferenceEquals(closed, except) && closed.AccountId == accountId && !sessions.Contains(closed))
+                sessions.Add(closed);
+        }
+
+        return sessions;
+    }
+
     public Dictionary<NetworkPacketType, IWorldPacketHandler> PacketHandlers { get; }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)

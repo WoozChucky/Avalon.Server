@@ -138,7 +138,8 @@ public class CharacterSelectHandlerShould
             Substitute.For<IRespawnTargetResolver>(),
             Options.Create(new RegenConfiguration()),
             Substitute.For<IAccountRepository>(),
-            Substitute.For<ICharacterSaver>());
+            Substitute.For<ICharacterSaver>(),
+            Substitute.For<IWorldServer>());
 
         return new Fixture
         {
@@ -441,7 +442,8 @@ public class CharacterSelectHandlerShould
             Substitute.For<IRespawnTargetResolver>(),
             Options.Create(new RegenConfiguration()),
             accountRepository,
-            Substitute.For<ICharacterSaver>());
+            Substitute.For<ICharacterSaver>(),
+            Substitute.For<IWorldServer>());
 
         handler.Execute(connection, new CCharacterSelectedPacket { CharacterId = TheCharacter });
 

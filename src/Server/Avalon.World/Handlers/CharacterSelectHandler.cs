@@ -27,6 +27,8 @@ using Avalon.World.Abilities;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Avalon.Network.Packets.State;
+using Avalon.Hosting.Networking;
+using Avalon.Network.Packets.Generic;
 
 namespace Avalon.World.Handlers;
 
@@ -43,7 +45,8 @@ public class CharacterSelectHandler(
     IRespawnTargetResolver respawnTargetResolver,
     IOptions<RegenConfiguration> regenConfig,
     IAccountRepository accountRepository,
-    ICharacterSaver characterSaver) : WorldPacketHandler<CCharacterSelectedPacket>
+    ICharacterSaver characterSaver,
+    IWorldServer worldServer) : WorldPacketHandler<CCharacterSelectedPacket>
 {
     private Activity? _parentActivity;
 
@@ -80,6 +83,12 @@ public class CharacterSelectHandler(
             logger.LogWarning("Connection tried to select a character list while already having a character selected");
             activity?.AddEvent(new ActivityEvent("DuplicateSelectionAttempt"));
             connection.Close();
+            return;
+        }
+
+        if (!TakeOverFromOtherSessions(connection, connection.AccountId, packet.CharacterId))
+        {
+            activity?.AddEvent(new ActivityEvent("OtherSessionStillSelecting"));
             return;
         }
 
@@ -123,6 +132,74 @@ public class CharacterSelectHandler(
             });
 
         _parentActivity = activity;
+    }
+
+    /// <summary>
+    /// One character, one live copy. Two copies each hold their own inventory and money, and
+    /// whichever saves last writes its copy over the other's, losing or duplicating items and gold.
+    /// So a select of a character another connection still holds kicks that connection: its
+    /// character is despawned here, and the new select reads only once that logout save commits.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The despawn runs here, on the tick, rather than being left to the kicked connection's close.
+    /// A close is only despawned when a later tick dequeues it, so a select waiting on
+    /// <see cref="ICharacterSaver.WhenIdle" /> right after the kick would find no save queued yet
+    /// and read the character as it was before its logout. <c>World.DeSpawnPlayerAsync</c> queues
+    /// its save before its first await and clears the connection's character, so by the time this
+    /// returns the save is in the chain <see cref="FindAfterSavesAsync" /> waits on, and the despawn
+    /// the close queues later finds nothing left to save.
+    /// </para>
+    /// <para>
+    /// Only connections of the same account are looked at: a character is read by account, so no
+    /// other account can hold it. The world server's list includes connections that have already
+    /// closed and whose despawn has not started, which is the same gap reached without a kick: a
+    /// session that dropped a moment before this select. The auth server's online flag plays no
+    /// part, since a dropped auth connection clears it while the world session is still up.
+    /// </para>
+    /// <para>
+    /// A connection of the account that is part way through its own select holds no entity yet,
+    /// and nothing records which character it is reading. Kicking it would not stop its reads, so
+    /// this select is refused instead: nothing is read, and the client can select again once the
+    /// other select has settled. That window is bounded by the load timeout.
+    /// </para>
+    /// </remarks>
+    /// <returns>False when the select must not go ahead.</returns>
+    private bool TakeOverFromOtherSessions(IWorldConnection connection, AccountId accountId, CharacterId id)
+    {
+        IReadOnlyList<IWorldConnection> sessions = worldServer.SessionsOf(accountId, connection);
+
+        foreach (IWorldConnection other in sessions)
+        {
+            if (other.SelectInProgress)
+            {
+                logger.LogWarning(
+                    "Refusing a select of character {CharacterId} for account {AccountId}: another session of the account is still selecting",
+                    id.Value, accountId);
+                return false;
+            }
+        }
+
+        foreach (IWorldConnection other in sessions)
+        {
+            ICharacter? held = other.Character ?? other.PendingSpawn?.Character;
+            if (held is not CharacterEntity { Data: { } row } || row.Id != id)
+                continue;
+
+            logger.LogInformation(
+                "Character {CharacterId} selected on a second connection; disconnecting the session that held it",
+                id.Value);
+
+            // Queues the logout save and releases the character before it returns.
+            _ = world.DeSpawnPlayerAsync(other);
+
+#pragma warning disable MA0045 // a tick-thread handler; the close finishes on its own
+            GracefulShutdownHelper.NotifyAndClose(other,
+                "Your character has been logged in from another location.", DisconnectReason.DuplicateLogin, logger);
+#pragma warning restore MA0045
+        }
+
+        return true;
     }
 
     /// <summary>

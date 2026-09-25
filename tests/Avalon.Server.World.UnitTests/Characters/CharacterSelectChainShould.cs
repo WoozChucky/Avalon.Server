@@ -406,7 +406,8 @@ public class CharacterSelectChainShould : IDisposable
             Substitute.For<IRespawnTargetResolver>(),
             Options.Create(new RegenConfiguration()),
             Substitute.For<IAccountRepository>(),
-            saver ?? Substitute.For<ICharacterSaver>())
+            saver ?? Substitute.For<ICharacterSaver>(),
+            Substitute.For<IWorldServer>())
         {
             SaveWaitLimit = saveWaitLimit ?? TimeSpan.FromSeconds(5)
         };
