@@ -11,6 +11,12 @@ public interface IMFAHashService
     Task<string> GenerateHashAsync(Account account);
     Task<AccountId?> GetAccountIdAsync(string hash);
     Task CleanupHash(string hash);
+
+    /// <summary>
+    /// Counts one code attempt against the account's live MFA hash and returns the count so far,
+    /// or -1 when the account has no live hash.
+    /// </summary>
+    Task<long> RecordAttemptAsync(AccountId accountId);
 }
 
 public class MFAHashService : IMFAHashService
@@ -78,6 +84,9 @@ public class MFAHashService : IMFAHashService
         if (accountIdStr == null) return null;
         return new AccountId(long.Parse(accountIdStr));
     }
+
+    public Task<long> RecordAttemptAsync(AccountId accountId) =>
+        _cache.HashIncrementIfExistsAsync(CacheKeys.AccountMfa(accountId.Value), "attempts");
 
     public async Task CleanupHash(string hash)
     {

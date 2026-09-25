@@ -9,6 +9,9 @@ namespace Avalon.Infrastructure.Services;
 
 public class MFAService : IMFAService
 {
+    // One step either side of now, about ±30 s of clock drift (#471).
+    private static readonly VerificationWindow TotpWindow = new(1, 1);
+
     private readonly ILogger<MFAService> _logger;
     private readonly IMfaSetupRepository _mfaSetupRepository;
     private readonly IMFAHashService _mfaHashService;
@@ -67,7 +70,7 @@ public class MFAService : IMFAService
         }
 
         var totp = new Totp(mfaSetup.Secret);
-        if (!totp.VerifyTotp(code, out _, new VerificationWindow(2, 2)))
+        if (!totp.VerifyTotp(code, out var step, TotpWindow))
             return new MFAConfirmResult(false, null, MFAOperationResult.InvalidCode);
 
         // Generate the codes here and return them once; only their hashes are stored.
@@ -80,7 +83,7 @@ public class MFAService : IMFAService
         // meanwhile, loses here instead of overwriting codes another response already showed.
         var confirmed = await _mfaSetupRepository.TryConfirmAsync(mfaSetup.Id, mfaSetup.Secret,
             MFARecoveryCodes.Hash(codes[0])!, MFARecoveryCodes.Hash(codes[1])!, MFARecoveryCodes.Hash(codes[2])!,
-            DateTime.UtcNow, cancellationToken);
+            DateTime.UtcNow, step, cancellationToken);
         if (!confirmed)
             return new MFAConfirmResult(false, null, MFAOperationResult.Error);
 
@@ -98,8 +101,17 @@ public class MFAService : IMFAService
             return new MFAVerifyResult(false, null);
 
         var totp = new Totp(mfaSetup.Secret);
-        if (!totp.VerifyTotp(code, out _, new VerificationWindow(2, 2)))
+        if (!totp.VerifyTotp(code, out var step, TotpWindow))
             return new MFAVerifyResult(false, null);
+
+        // Each code once (#471): refuse a step no later than the last one accepted. The write is
+        // conditional on the same, so two requests racing with one code cannot both pass.
+        if (step <= mfaSetup.LastAcceptedTotpStep
+            || !await _mfaSetupRepository.TryAcceptTotpStepAsync(mfaSetup.Id, step, cancellationToken))
+        {
+            _logger.LogWarning("Refused a reused TOTP code for account {AccountId}", accountId);
+            return new MFAVerifyResult(false, null);
+        }
 
         await _mfaHashService.CleanupHash(hash);
         return new MFAVerifyResult(true, accountId);

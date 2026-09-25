@@ -46,6 +46,15 @@ public static class CacheKeys
     /// </summary>
     public static string AccountInWorld(long accountId) => $"account:{accountId}:inWorld";
 
+    /// <summary>
+    /// Game-client login and MFA-code attempts from one source, across every account it tried (#471).
+    /// The source is an IPv4 address, or an IPv6 /64 prefix written <c>prefix::/64</c>.
+    /// Value: counter written with INCR before each attempt; a correct password or code gives its own
+    /// slot back with a floored DECR. Expires at the end of a fixed window from the first attempt
+    /// (<c>Application:FailedLoginSourceWindowMinutes</c>, default 15 minutes).
+    /// </summary>
+    public static string AuthSourceFailedLogins(string source) => $"auth:source:{source}:failedLogins";
+
     // ── Hash Keys ─────────────────────────────────────────────────────────────
 
     /// <summary>
