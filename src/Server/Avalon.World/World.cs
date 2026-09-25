@@ -1,3 +1,4 @@
+using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Common.Utils;
 using Avalon.Common.ValueObjects;
@@ -176,6 +177,8 @@ public class World : IWorld
         if (connection.Character is null)
             return;
 
+        ObjectGuid guid = connection.Character.Guid;
+
         try
         {
             IMapInstance? instance =
@@ -251,15 +254,22 @@ public class World : IWorld
             // go in one transaction, queued behind any save of this character still in flight. The
             // snapshot is taken and the save joins the chain synchronously, here on the tick, so a
             // relog's WhenIdle already sees it.
-            await characterSaver.SaveOnDespawnAsync(entity, prepareRow, CancellationToken.None);
+            Task<bool> saved = characterSaver.SaveOnDespawnAsync(entity, prepareRow, CancellationToken.None);
+
+            // Despawned once. A character select that kicks this session despawns it on the tick,
+            // ahead of the despawn its close later queues, and that second pass must find nothing
+            // to save: it would snapshot the discarded entity again and write it behind the new
+            // session's own saves.
+            connection.Character = null;
+
+            await saved;
         }
         catch (InvalidOperationException)
         {
         } // Ignore if character is not found
         catch (Exception e)
         {
-            _logger.LogError(e, "Failed to save character {CharacterId} on world de-spawn",
-                connection.Character!.Guid);
+            _logger.LogError(e, "Failed to save character {CharacterId} on world de-spawn", guid);
         }
     }
 
