@@ -14,9 +14,14 @@ public static class ClaimsPrincipalExtensions
 
     // Role claims are emitted per set flag in AccountAccessLevel. An Admin principal
     // does NOT automatically satisfy IsInRole("GameMaster") unless that flag is set too.
-    // This helper walks the hierarchy explicitly.
+    // This helper walks the hierarchy explicitly. Tournament and PTR sit on the Player rung, below
+    // GameMaster: they are players with exactly the Player permission set (#447), so they satisfy
+    // "at least Player" and nothing higher. Keep them after Player and before GameMaster.
     private static readonly string[] Ladder =
-        { AvalonRoles.Player, AvalonRoles.GameMaster, AvalonRoles.Admin, AvalonRoles.Console };
+    {
+        AvalonRoles.Player, AvalonRoles.Tournament, AvalonRoles.PTR,
+        AvalonRoles.GameMaster, AvalonRoles.Admin, AvalonRoles.Console
+    };
 
     public static bool HasRoleAtLeast(this ClaimsPrincipal user, string minRole)
     {
