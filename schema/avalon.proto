@@ -89,6 +89,7 @@ message CCastAbilityPacket {
 message CCharacterCreatePacket {
    optional string Name = 1;
    int32 Class = 2;
+   int32 Gender = 3;
 }
 message CCharacterDeletePacket {
    uint32 CharacterId = 1;

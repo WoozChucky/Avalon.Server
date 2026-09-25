@@ -16,14 +16,21 @@ public class CCharacterCreatePacket : Packet
     [ProtoMember(1)] public string Name { get; set; }
     [ProtoMember(2)] public int Class { get; set; }
 
-    public static NetworkPacket Create(string name, int @class, EncryptFunc encrypt)
+    /// <summary>
+    /// A <c>CharacterGender</c> value. Optional on the wire: a client that omits it sends 0,
+    /// which is <c>CharacterGender.Male</c>. The server rejects any value the enum does not define.
+    /// </summary>
+    [ProtoMember(3)] public int Gender { get; set; }
+
+    public static NetworkPacket Create(string name, int @class, int gender, EncryptFunc encrypt)
     {
         using var memoryStream = new MemoryStream();
 
         var p = new CCharacterCreatePacket()
         {
             Name = name,
-            Class = @class
+            Class = @class,
+            Gender = gender
         };
 
         Serializer.Serialize(memoryStream, p);

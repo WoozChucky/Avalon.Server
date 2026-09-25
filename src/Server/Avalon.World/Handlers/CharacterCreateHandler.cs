@@ -43,11 +43,27 @@ public class CharacterCreateHandler(
             return;
         }
 
+        // The gender arrives from the client, so it is checked before anything is read or written.
+        // A client that omits it sends 0, which is Male.
+        if (!IsDefinedGender(packet.Gender))
+        {
+            logger.LogDebug("Character gender {Gender} is not a defined value", packet.Gender);
+            connection.Send(SCharacterCreatedPacket.Create(SCharacterCreateResult.InvalidClass, connection.CryptoSession.Encrypt));
+            return;
+        }
+
         connection.EnqueueContinuation(characterRepository.FindByAccountAsync(connection.AccountId), characters =>
         {
             OnCharactersReceived(connection, characters, packet);
         });
     }
+
+    /// <summary>
+    /// Range-checks before casting: <see cref="CharacterGender"/> is a byte, and casting an
+    /// out-of-range int to it would wrap (256 reads as Male) instead of failing.
+    /// </summary>
+    private static bool IsDefinedGender(int raw) =>
+        raw is >= byte.MinValue and <= byte.MaxValue && Enum.IsDefined((CharacterGender)(byte)raw);
 
     private void OnCharactersReceived(IWorldConnection connection, IList<Character> characters, CCharacterCreatePacket packet)
     {
@@ -106,6 +122,7 @@ public class CharacterCreateHandler(
         }
 
         var @class = (CharacterClass)packet.Class;
+        var gender = (CharacterGender)(byte)packet.Gender; // range-checked in Execute
 
         var character = new Character
         {
@@ -113,6 +130,7 @@ public class CharacterCreateHandler(
             Name = packet.Name,
             Level = classLevelStats.Level,
             Class = createInfo.Class,
+            Gender = gender,
             X = createInfo.X,
             Y = createInfo.Y,
             Z = createInfo.Z,
