@@ -81,6 +81,17 @@ public class CharacterSelectHandler(
             return;
         }
 
+        // A kicked connection is closing but stays connected until its outbox flushes, so a select
+        // it had queued can still be dispatched, even in the same tick as the kick. Going ahead
+        // would kick back the session that kicked it, and neither would end up in the world.
+        if (connection.IsClosing)
+        {
+            logger.LogInformation("Ignoring a character select from a closing connection of account {AccountId}",
+                connection.AccountId);
+            activity?.AddEvent(new ActivityEvent("SelectOnClosingConnection"));
+            return;
+        }
+
         // Three states, not one. Character covers a spawned player; PendingSpawn a built one
         // waiting on its client; SelectInProgress the several database round trips between, where
         // both of the others are still null. A second select inside that span orphans the entity
@@ -221,7 +232,7 @@ public class CharacterSelectHandler(
     /// </summary>
     private bool OwnsSelect(IWorldConnection connection, long select)
     {
-        if (connection.IsConnected && connection.SelectStartedTicks == select)
+        if (connection.IsConnected && !connection.IsClosing && connection.SelectStartedTicks == select)
             return true;
 
         logger.LogInformation(

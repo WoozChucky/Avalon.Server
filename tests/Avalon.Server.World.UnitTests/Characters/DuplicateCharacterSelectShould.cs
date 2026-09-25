@@ -307,6 +307,30 @@ public class DuplicateCharacterSelectShould : IDisposable
         await _read.Task.WaitAsync(Limit);
     }
 
+    /// <summary>
+    /// Two sessions of the account each have a select queued for the same tick. The first to run
+    /// kicks the second, but a close only drops the socket once the outbox has flushed, so the
+    /// second's queued select is still dispatched after the kick. It must be refused rather than
+    /// kick back; kicking back would leave both closing and neither in the world.
+    /// </summary>
+    [Fact]
+    public async Task Refuse_a_select_from_a_session_already_kicked_in_the_same_tick_rather_than_kick_back()
+    {
+        (TestWorldServer server, CharacterSelectHandler select) = await BuildAsync();
+        Avalon.World.WorldConnection winner = Connect(server);
+        Avalon.World.WorldConnection kicked = Connect(server);
+
+        select.Execute(winner, new CCharacterSelectedPacket { CharacterId = TheCharacter });
+        select.Execute(kicked, new CCharacterSelectedPacket { CharacterId = AnotherCharacter });
+
+        Assert.True(winner.SelectInProgress, "the kicked session kicked back and cancelled the winner's select");
+        Assert.False(kicked.SelectInProgress);
+        await DisconnectedAsync(kicked);
+        Assert.True(winner.IsConnected, "the kicked session kicked back and disconnected the winner");
+        await _read.Task.WaitAsync(Limit);
+        await _characters.DidNotReceive().FindByIdAndAccountAsync(AnotherCharacter, TheAccount, Arg.Any<CancellationToken>());
+    }
+
     /// <summary>Every other session of the account ends, including one still at the character list.</summary>
     [Fact]
     public async Task Kick_a_session_of_the_account_that_has_not_selected_anything()

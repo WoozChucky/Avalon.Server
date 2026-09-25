@@ -75,6 +75,13 @@ public abstract class Connection : BackgroundService, IConnection
     }
 
     public bool IsConnected => _client?.Connected == true;
+
+    /// <summary>
+    /// True from the moment <see cref="Close" /> or <see cref="CloseAsync" /> is first called. The
+    /// socket, and so <see cref="IsConnected" />, stays up until the outbox has flushed, which can
+    /// be several ticks later.
+    /// </summary>
+    public bool IsClosing => Volatile.Read(ref _closed) == 1;
     public Guid Id { get; }
     public string RemoteEndPoint { get; private set; } = "Unknown";
     public IAvalonCryptoSession CryptoSession { get; }
