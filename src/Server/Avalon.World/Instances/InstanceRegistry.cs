@@ -73,7 +73,9 @@ public class InstanceRegistry : IInstanceRegistry
 
             _logger.LogInformation("All Town instances for map {TemplateId} are at capacity; creating a new one",
                 templateId);
-            return await CreateAndInitializeInstanceAsync(templateId, MapType.Town, null);
+            // CancellationToken.None: several callers share this build, so no one caller's token may
+            // cancel it for the others.
+            return await CreateAndInitializeInstanceAsync(templateId, MapType.Town, null, CancellationToken.None);
         }
         finally
         {
@@ -138,7 +140,9 @@ public class InstanceRegistry : IInstanceRegistry
                 return finished;
             }
 
-            MapInstance instance = await CreateAndInitializeInstanceAsync(templateId, MapType.Normal, characterId);
+            // Shared by every request for this character and map; see BuildTownAsync on the token.
+            MapInstance instance = await CreateAndInitializeInstanceAsync(templateId, MapType.Normal, characterId,
+                CancellationToken.None);
 
             _characterInstanceMap.AddOrUpdate(
                 characterId,
