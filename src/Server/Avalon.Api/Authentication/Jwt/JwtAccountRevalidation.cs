@@ -36,6 +36,8 @@ public static class JwtAccountRevalidation
             return;
         }
 
+        AccountAccessCheck.Remember(context.HttpContext, account);
+
         var source = principal.Identity as ClaimsIdentity;
         var claims = principal.Claims.Where(c => !string.Equals(c.Type, ClaimTypes.GroupSid, StringComparison.Ordinal))
             .Concat(AccountAccessCheck.RoleClaims(roles));

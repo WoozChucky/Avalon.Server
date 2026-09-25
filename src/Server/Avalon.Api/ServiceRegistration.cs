@@ -102,7 +102,9 @@ public static class ServiceRegistration
                     // configured skew; a client past it gets a 401 and refreshes (#480).
                     ValidateLifetime = true,
                     ClockSkew = TimeSpan.FromMinutes(config.Authentication.ClockSkewInMinutes),
-                    RoleClaimType = ClaimTypes.GroupSid
+                    RoleClaimType = ClaimTypes.GroupSid,
+                    // JwtUtils signs with HMAC-SHA256 only; nothing else is accepted.
+                    ValidAlgorithms = [SecurityAlgorithms.HmacSha256],
                 };
 
                 x.Validate(JwtBearerDefaults.AuthenticationScheme);

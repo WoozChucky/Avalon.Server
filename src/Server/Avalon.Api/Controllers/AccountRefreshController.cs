@@ -1,3 +1,4 @@
+using Avalon.Api.Authentication;
 using Avalon.Api.Authentication.Jwt;
 using Avalon.Api.Config;
 using Avalon.Api.Contract;
@@ -47,8 +48,12 @@ public sealed class AccountRefreshController : BaseController
         {
             var rotated = await _refresh.RotateAsync(raw, ct);
             var account = await _accounts.FindByIdAsync(rotated.AccountId, track: false, ct);
-            if (account is null)
+            if (!AccountAccessCheck.MayHoldSession(account))
             {
+                // The rotation above already minted a successor. A missing or non-Active account
+                // gets no access token, and none of its refresh tokens survives, so a ban cannot
+                // be outlived by refreshing (#480).
+                await _refresh.RevokeAllForAccountAsync(rotated.AccountId, ct);
                 ClearRefreshCookie();
                 return Unauthorized();
             }

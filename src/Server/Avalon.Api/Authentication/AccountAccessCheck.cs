@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 using System.Security.Claims;
 using Avalon.Common.Accounts;
 using Avalon.Domain.Auth;
@@ -46,6 +47,28 @@ public static class AccountAccessCheck
         roles = credentialRoles & account.AccessLevel;
         return true;
     }
+
+    /// <summary>
+    /// Whether <paramref name="account"/> may be handed or keep a session at all: it exists and is
+    /// Active. Every place that issues a credential (login, MFA verify, refresh) asks this before
+    /// issuing, and every request asks it through <see cref="TryAdmit"/>.
+    /// </summary>
+    public static bool MayHoldSession([NotNullWhen(true)] Account? account) =>
+        account is { Status: AccountStatus.Active };
+
+    /// <summary>
+    /// Keeps the account authentication loaded for this request, so
+    /// <see cref="AvalonAuthHandler"/> reuses it instead of loading it a second time.
+    /// </summary>
+    public static void Remember(HttpContext http, Account account) =>
+        http.Items[nameof(Account)] = account;
+
+    /// <summary>The account <see cref="Remember"/> kept, if it is the one <paramref name="accountId"/> names.</summary>
+    public static Account? Recall(HttpContext http, string accountId) =>
+        http.Items.TryGetValue(nameof(Account), out object? item) && item is Account account
+        && string.Equals(account.Id.Value.ToString(CultureInfo.InvariantCulture), accountId, StringComparison.Ordinal)
+            ? account
+            : null;
 
     /// <summary>One <see cref="ClaimTypes.GroupSid"/> claim per flag set in <paramref name="roles"/>.</summary>
     public static IEnumerable<Claim> RoleClaims(AccountAccessLevel roles) =>

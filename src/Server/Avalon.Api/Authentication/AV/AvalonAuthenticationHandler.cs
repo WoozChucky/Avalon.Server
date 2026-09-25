@@ -61,6 +61,7 @@ public class AvalonAuthenticationHandler : AuthenticationHandler<AvalonAuthentic
             new("pat_id", pat.Id.Value.ToString()),
         };
         claims.AddRange(AccountAccessCheck.RoleClaims(effectiveRoles));
+        AccountAccessCheck.Remember(Context, account);
 
         // Fire-and-forget write-coalesced last-used update — don't block the request.
         await _pats.TouchLastUsedAsync(pat.Id, CancellationToken.None);

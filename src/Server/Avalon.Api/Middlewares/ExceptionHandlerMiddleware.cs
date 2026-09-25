@@ -1,7 +1,9 @@
-﻿using System.Net;
+﻿using System.Data.Common;
+using System.Net;
 using System.Security.Authentication;
 using Avalon.Api.Exceptions;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore.Storage;
 using StackExchange.Redis;
 
 namespace Avalon.Api.Middlewares;
@@ -61,6 +63,20 @@ public class ExceptionHandlerMiddleware
             // shared middleware, so the mapping applies everywhere IReplicatedCache is used
             // (observability, account/refresh, MFA), not just the presence endpoints that
             // motivated it -- a Redis outage genuinely is a 503 everywhere.
+            // The same holds for the database. Every authenticated request reloads its account
+            // (#480), so a database outage would otherwise surface as a 500 on every call.
+            // Authentication fails closed either way: the request never reaches the endpoint.
+            case DbException or RetryLimitExceededException:
+                context.Request.HttpContext.Response.StatusCode = (int)HttpStatusCode.ServiceUnavailable;
+                _logger.LogError(exception, "Database unavailable");
+                await context.Response.WriteAsJsonAsync(new ProblemDetails
+                {
+                    Status = (int)HttpStatusCode.ServiceUnavailable,
+                    Type = exception.GetType().Name,
+                    Title = "Service unavailable",
+                    Instance = $"{context.Request.Method} {context.Request.Path}"
+                }, cancellationToken: context.RequestAborted);
+                return;
             case RedisConnectionException ex:
                 context.Request.HttpContext.Response.StatusCode = (int)HttpStatusCode.ServiceUnavailable;
                 await context.Response.WriteAsJsonAsync(new ProblemDetails

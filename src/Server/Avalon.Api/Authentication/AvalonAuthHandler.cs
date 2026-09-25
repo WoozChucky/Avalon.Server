@@ -3,8 +3,6 @@ using System.Security.Claims;
 using Avalon.Api.Services;
 using Avalon.Domain.Auth;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.Extensions.Primitives;
-using Microsoft.Net.Http.Headers;
 
 namespace Avalon.Api.Authentication;
 
@@ -47,12 +45,9 @@ public class AvalonAuthHandler : IAuthorizationHandler
     private async Task HandleRequirementAsync(AuthorizationHandlerContext context,
         IAuthorizationRequirement requirement)
     {
-        if (!_httpContextAccessor.HttpContext!.Request.Headers.TryGetValue(HeaderNames.Authorization,
-                out StringValues token))
-        {
-            context.Fail();
-            throw new AuthenticationException("User is not authenticated");
-        }
+        // No Authorization-header check: authentication has already run, and a JWT may arrive in
+        // the session cookie instead (#480). What matters is the authenticated account below.
+        HttpContext http = _httpContextAccessor.HttpContext!;
 
         string? accountId = context.User.FindFirstValue(ClaimTypes.NameIdentifier);
 
@@ -62,12 +57,16 @@ public class AvalonAuthHandler : IAuthorizationHandler
             throw new AuthenticationException("User is not authenticated");
         }
 
-        IAuthContext authContext = _httpContextAccessor.HttpContext.RequestServices.GetRequiredService<IAuthContext>();
+        IAuthContext authContext = http.RequestServices.GetRequiredService<IAuthContext>();
 
-        _logger.LogInformation("Loading account {AccountId}", accountId);
-
-        Account? account = await _accountService.FindByIdAsync(accountId,
-            _httpContextAccessor.HttpContext.RequestAborted);
+        // Authentication already loaded and checked this account (AccountAccessCheck); reuse it.
+        // The fallback load is for a principal some other scheme produced.
+        Account? account = AccountAccessCheck.Recall(http, accountId);
+        if (account is null)
+        {
+            _logger.LogInformation("Loading account {AccountId}", accountId);
+            account = await _accountService.FindByIdAsync(accountId, http.RequestAborted);
+        }
 
         if (account == null)
         {
@@ -77,8 +76,8 @@ public class AvalonAuthHandler : IAuthorizationHandler
 
         authContext.Load(account);
 
-        _httpContextAccessor.HttpContext.Items[nameof(IAuthContext)] = authContext;
-        _httpContextAccessor.HttpContext.Items[nameof(Account)] = account;
+        http.Items[nameof(IAuthContext)] = authContext;
+        http.Items[nameof(Account)] = account;
 
         context.Succeed(requirement);
     }

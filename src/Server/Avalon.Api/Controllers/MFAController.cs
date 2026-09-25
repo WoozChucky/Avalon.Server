@@ -77,8 +77,10 @@ public class MFAController : BaseController
             return Problem("Invalid MFA code or expired hash", statusCode: 401);
 
         var account = await _accountRepository.FindByIdAsync(result.AccountId!, false, CancellationToken);
-        if (account == null)
-            return Problem("Account not found", statusCode: 401);
+        // Same answer as a bad code: a banned or deactivated account gets no session, and the
+        // endpoint does not say which accounts are banned (#480).
+        if (!AccountAccessCheck.MayHoldSession(account))
+            return Problem("Invalid MFA code or expired hash", statusCode: 401);
 
         account.LastIp = IpAddress.ToString();
         account.LastLogin = DateTime.UtcNow;
