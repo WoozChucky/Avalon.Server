@@ -415,10 +415,20 @@ public class CharacterSelectChainShould : IDisposable
         dialogue.GetAllOptionsAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyCollection<DialogueOption>>([]));
 
+        var creatureTemplates = Substitute.For<ICreatureTemplateRepository>();
+        creatureTemplates.FindAllAsync(Arg.Any<bool>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new List<CreatureTemplate>()));
+        var baseStats = Substitute.For<ICreatureBaseStatRepository>();
+        baseStats.GetAllAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<IReadOnlyCollection<CreatureBaseStat>>(
+                [new CreatureBaseStat { Level = 1, Health = 1, DamageMin = 1, DamageMax = 1, Experience = 1 }]));
+        var rarities = Substitute.For<ICreatureRarityModifierRepository>();
+        rarities.GetAllAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<IReadOnlyCollection<CreatureRarityModifier>>([]));
+
         var data = new StaticData(createInfos, stats, items, abilityTemplates, levels,
-            Substitute.For<ICreatureBaseStatRepository>(),
-            Substitute.For<ICreatureRarityModifierRepository>(),
-            localizedText, NullLoggerFactory.Instance, dialogue);
+            creatureTemplates, baseStats, rarities,
+            localizedText, dialogue, NullLoggerFactory.Instance);
         data.LoadAsync(CancellationToken.None).GetAwaiter().GetResult();
         return data;
     }
