@@ -111,7 +111,8 @@ public class WorldServerBarrierTickShould : IDisposable
             world,
             Substitute.For<IScriptManager>(),
             Substitute.For<IReplicatedCache>(),
-            Substitute.For<IScriptHotReloader>())
+            Substitute.For<IScriptHotReloader>(),
+            Substitute.For<Avalon.World.Persistence.ICharacterSaver>())
         { }
 
         public void Add(Avalon.World.WorldConnection connection) => AddConnection(connection);

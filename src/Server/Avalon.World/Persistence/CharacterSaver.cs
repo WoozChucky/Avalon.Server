@@ -47,6 +47,13 @@ public interface ICharacterSaver
     /// it, so a relog reads the database only after the previous session's saves are done.
     /// </summary>
     Task WhenIdle(CharacterId id);
+
+    /// <summary>
+    /// Completes once every save queued so far, for any character, has finished, committed or
+    /// failed. Never faults. Shutdown waits on it: a despawn is started fire-and-forget by the tick,
+    /// so one begun on an earlier tick may still be writing when the host stops.
+    /// </summary>
+    Task WhenAllIdle();
 }
 
 /// <summary>
@@ -98,6 +105,17 @@ public sealed class CharacterSaver(ICharacterSaveRepository repository, ILogger<
     {
         lock (_gate)
             return _latest.TryGetValue(id, out Task<bool>? latest) ? latest : Task.CompletedTask;
+    }
+
+    public Task WhenAllIdle()
+    {
+        Task<bool>[] pending;
+        lock (_gate)
+            pending = [.. _latest.Values];
+
+        // Only the tail of each chain: every earlier save of that character finishes before it. A
+        // multi-character save is the tail of several chains, so it may be listed more than once.
+        return pending.Length == 0 ? Task.CompletedTask : Task.WhenAll(pending);
     }
 
     /// <summary>
