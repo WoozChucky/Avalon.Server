@@ -12,11 +12,10 @@ namespace Avalon.World.Scripts.Creatures;
 /// <para>
 /// <b>Two constructor arguments, and no more.</b> <c>CreaturePlacementService.AttachScript</c> builds
 /// every AI script with <c>ActivatorUtilities.CreateInstance(sp, scriptType, creature, instance)</c>,
-/// which supplies exactly the creature and the instance — anything else has to come from DI. The two
-/// existing passive scripts both break that contract: <c>CreatureIdleScript</c> wants a
-/// <c>float idleTime</c> and <c>CreaturePatrolScript</c> wants a <c>Vector3[] waypoints</c>, so
-/// neither can be constructed from a <c>ScriptName</c> string in seed data. The resulting throw is
-/// swallowed by AttachScript's catch, which means the creature silently ends up with no script.
+/// which supplies exactly the creature and the instance — anything else has to come from DI. A
+/// script needing a third plain argument throws there, and AttachScript's catch swallows it, so the
+/// creature silently ends up with no script. <c>AiScriptConstructibilityShould</c> guards this for
+/// every script resolvable by name.
 /// </para>
 /// <para>
 /// This script is not what makes a town NPC unkillable — <see cref="ICreature.Invulnerable"/> is,

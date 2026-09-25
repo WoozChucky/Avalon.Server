@@ -42,6 +42,8 @@ public class Creature : ICreature
     public uint Experience { get; set; }
     public AiScript? Script { get; set; }
 
+    public IReadOnlyList<PatrolPoint> PatrolPath { get; set; } = [];
+
     public IUnit?   TauntedBy      { get; set; }
     public DateTime TauntExpiresAt { get; set; } = DateTime.MinValue;
 

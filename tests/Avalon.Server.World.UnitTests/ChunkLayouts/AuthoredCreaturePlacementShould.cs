@@ -121,6 +121,52 @@ public class AuthoredCreaturePlacementShould
         instance.DidNotReceiveWithAnyArgs().AddCreature(default!);
     }
 
+    /// <summary>
+    /// #421: a spawn's path reaches the creature as world positions, in Sequence order, each snapped
+    /// to the navmesh like the spawn itself, with its wait. CreaturePatrolScript walks exactly this.
+    /// </summary>
+    [Fact]
+    public async Task Give_The_Creature_Its_Spawns_Path_In_World_Coordinates()
+    {
+        ICreature guard = StubCreature(1);
+        var spawner = Substitute.For<ICreatureSpawner>();
+        spawner.Spawn(Arg.Any<CreatureInfo>()).Returns(guard);
+
+        MapCreatureSpawn row = Row(1, creature: 1, offset: Vector3.zero, facing: 0f);
+        row.Path = new CreaturePath
+        {
+            Id = new CreaturePathId(7),
+            // Deliberately out of order: Sequence decides the walk order, not row order.
+            Points =
+            [
+                new CreaturePathPoint { PathId = 7, Sequence = 20, OffsetX = 0f, OffsetY = 0f, OffsetZ = 5f, WaitMs = 0 },
+                new CreaturePathPoint { PathId = 7, Sequence = 10, OffsetX = 1f, OffsetY = 0f, OffsetZ = 0f, WaitMs = 1500 },
+            ]
+        };
+
+        await BuildService(spawner, row)
+            .PlaceAuthoredAsync(StubInstance(groundHeight: 12f), LayoutEnteringAt(new Vector3(100f, 5f, 200f)),
+                TownMap, CancellationToken.None);
+
+        guard.Received(1).PatrolPath = Arg.Is<IReadOnlyList<PatrolPoint>>(path =>
+            path.Count == 2
+            && path[0] == new PatrolPoint(new Vector3(101f, 12f, 200f), TimeSpan.FromMilliseconds(1500))
+            && path[1] == new PatrolPoint(new Vector3(100f, 12f, 205f), TimeSpan.Zero));
+    }
+
+    [Fact]
+    public async Task Give_No_Path_To_A_Spawn_That_Names_None()
+    {
+        ICreature npc = StubCreature(1);
+        var spawner = Substitute.For<ICreatureSpawner>();
+        spawner.Spawn(Arg.Any<CreatureInfo>()).Returns(npc);
+
+        await BuildService(spawner, Row(1, creature: 1, offset: Vector3.zero, facing: 0f))
+            .PlaceAuthoredAsync(StubInstance(groundHeight: 0f), LayoutEnteringAt(Vector3.zero), TownMap, CancellationToken.None);
+
+        npc.DidNotReceiveWithAnyArgs().PatrolPath = default!;
+    }
+
     private static MapCreatureSpawn Row(int id, ulong creature, Vector3 offset, float facing) => new()
     {
         Id = new MapCreatureSpawnId(id),

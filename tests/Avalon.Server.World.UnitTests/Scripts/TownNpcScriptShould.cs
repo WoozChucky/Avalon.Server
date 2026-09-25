@@ -23,9 +23,9 @@ public class TownNpcScriptShould
     /// argument throws there, the throw is swallowed by AttachScript's catch, and the creature ends
     /// up in the world with no script at all.
     ///
-    /// Both existing passive scripts have that shape: <c>CreatureIdleScript</c> takes a
-    /// <c>float idleTime</c> and <c>CreaturePatrolScript</c> takes a <c>Vector3[] waypoints</c>.
-    /// Neither can be built from a <c>ScriptName</c> string in seed data. Because seed data names
+    /// Both earlier passive scripts had that shape: <c>CreatureIdleScript</c> took a
+    /// <c>float idleTime</c> (it is gone, #437) and <c>CreaturePatrolScript</c> took a
+    /// <c>Vector3[] waypoints</c> (it now reads <c>ICreature.PatrolPath</c>, #421). Because seed data names
     /// scripts by string, the compiler cannot catch it, and the failure is a log line rather than a
     /// crash — so it goes unnoticed. This test walks the real resolution and construction path.
     /// </summary>
