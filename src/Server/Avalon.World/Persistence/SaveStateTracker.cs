@@ -3,7 +3,10 @@ using Avalon.World.Public.Enums;
 
 namespace Avalon.World.Persistence;
 
-/// <summary>TrinityCore's ITEM_NEW / ITEM_CHANGED / ITEM_REMOVED, plus the state they leave behind.</summary>
+/// <summary>
+/// What the next save must do with a tracked row: insert it (<see cref="New" />), update it
+/// (<see cref="Changed" />), delete it (<see cref="Removed" />), or nothing (<see cref="Unchanged" />).
+/// </summary>
 public enum SaveState : byte
 {
     Unchanged,

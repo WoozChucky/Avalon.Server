@@ -89,7 +89,8 @@ public class GameConfiguration
 
     /// <summary>
     ///     The most copper a character can hold. An addition that would pass it is refused whole,
-    ///     as TrinityCore refuses past <c>MAX_MONEY_AMOUNT</c>, whose 3.3.5 value is the default.
+    ///     rather than clamped. The default is large enough that normal play never reaches it and
+    ///     well within what the database column holds.
     /// </summary>
     public ulong MaxMoney { get; set; } = 9_999_999_999;
 }

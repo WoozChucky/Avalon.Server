@@ -3,8 +3,8 @@ using Avalon.Common.ValueObjects;
 namespace Avalon.World.Inventory;
 
 /// <summary>
-/// Changes one character's items. Tick thread only. All or nothing, like TrinityCore's
-/// CanStoreNewItem: if the whole count cannot be applied, nothing changes. Lives in Avalon.World,
+/// Changes one character's items. Tick thread only. All or nothing: if the whole
+/// count cannot be applied, nothing changes. Lives in Avalon.World,
 /// not the modding API; ICharacterInventory there stays read-only.
 /// </summary>
 public interface IInventoryService

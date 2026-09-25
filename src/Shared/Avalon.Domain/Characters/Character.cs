@@ -29,7 +29,7 @@ public class Character : IDbEntity<CharacterId>
     [Required]
     public ulong Experience { get; set; } = 0;
 
-    /// <summary>Gold, in copper, like TrinityCore's <c>characters.money</c>. Changed only through IWallet.</summary>
+    /// <summary>The character's gold, stored in copper. Changed only through IWallet.</summary>
     public ulong Money { get; set; }
 
     public float X { get; set; }

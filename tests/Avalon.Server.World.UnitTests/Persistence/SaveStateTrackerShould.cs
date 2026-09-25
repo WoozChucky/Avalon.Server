@@ -6,8 +6,8 @@ using Avalon.World.Public.Enums;
 namespace Avalon.Server.World.UnitTests.Persistence;
 
 /// <summary>
-/// TrinityCore's ITEM_NEW / ITEM_CHANGED / ITEM_REMOVED, for items and for the slots that place
-/// them, plus money's dirty flag. What a save writes is decided here, and what it clears.
+/// New, changed and removed state, for items and for the slots that place them, plus money's
+/// dirty flag. What a save writes is decided here, and what it clears.
 /// </summary>
 public class SaveStateTrackerShould
 {

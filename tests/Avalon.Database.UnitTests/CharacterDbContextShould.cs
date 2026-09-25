@@ -14,7 +14,7 @@ using CharacterRow = Avalon.Domain.Characters.Character;
 namespace Avalon.Database.UnitTests;
 
 /// <summary>
-/// Everything a player owns lives in the Character database (TrinityCore's split): the gold on
+/// Everything a player owns lives in the Character database: the gold on
 /// the character row, the item instances, and the slots that place them, now joined by a real
 /// foreign key. The World database keeps templates only.
 /// </summary>

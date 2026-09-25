@@ -3,7 +3,7 @@ using Avalon.Common.ValueObjects;
 namespace Avalon.World.Inventory;
 
 /// <summary>
-/// Hands out item instance ids on the server, as TrinityCore's GUID generator does, so an item has
+/// Hands out item instance ids on the server, so an item has
 /// its id the moment it exists in memory and a save never waits on the database to name it.
 /// </summary>
 public interface IItemIdAllocator
