@@ -95,6 +95,21 @@ public class GameConfiguration
     public ulong MaxMoney { get; set; } = 9_999_999_999;
 
     /// <summary>
+    ///     How long a drop stays reserved for the character it was allocated to before anyone in the
+    ///     instance may take it (issue #460). No visible effect yet: every drop goes to its instance's
+    ///     owner, who is the only character there until groups exist.
+    /// </summary>
+    [Range(typeof(TimeSpan), "00:00:00", "01:00:00")]
+    public TimeSpan LootGracePeriod { get; set; } = TimeSpan.FromSeconds(30);
+
+    /// <summary>
+    ///     Metres. How close a character must stand to a drop to pick it up. The same as the range for
+    ///     talking to an NPC.
+    /// </summary>
+    [Range(0.5, 50.0)]
+    public float LootPickupRange { get; set; } = 5f;
+
+    /// <summary>
     ///     How often every in-world character is saved (spec #459, D4). Each character's first save is
     ///     staggered inside one interval by its id, so characters that entered together do not all
     ///     save on the same tick.
