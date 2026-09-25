@@ -140,6 +140,46 @@ public class DialogueChooseHandlerShould
         Assert.Null(fixture.Connection.CurrentDialogue);
     }
 
+    [Fact]
+    public void Drop_The_Packet_When_There_Is_No_Character()
+    {
+        Fixture fixture = Fixture.Build();
+        fixture.Connection.CurrentDialogue = (NpcGuid, new DialogueNodeId(1));
+        fixture.Connection.Character.Returns((ICharacter?)null);
+
+        fixture.Handler.Execute(fixture.Connection, Choose(node: 1, option: 1));
+
+        fixture.Connection.DidNotReceive().Send(Arg.Any<NetworkPacket>());
+        Assert.Equal((NpcGuid, new DialogueNodeId(1)), fixture.Connection.CurrentDialogue);
+    }
+
+    [Fact]
+    public void Drop_The_Packet_When_The_Character_Is_Dead()
+    {
+        Fixture fixture = Fixture.Build();
+        fixture.Connection.CurrentDialogue = (NpcGuid, new DialogueNodeId(1));
+        fixture.Character.IsDead.Returns(true);
+
+        fixture.Handler.Execute(fixture.Connection, Choose(node: 1, option: 1));
+
+        fixture.Connection.DidNotReceive().Send(Arg.Any<NetworkPacket>());
+        Assert.Equal((NpcGuid, new DialogueNodeId(1)), fixture.Connection.CurrentDialogue);
+    }
+
+    [Fact]
+    public void End_The_Conversation_When_The_Open_Node_Belongs_To_A_Different_Creature()
+    {
+        // Guards against an ObjectGuid reused across a despawn/respawn: node 3 is real but was
+        // authored for a different creature template than the one now answering to NpcGuid, so
+        // advancing on it would hand out dialogue that was never meant for this NPC.
+        Fixture fixture = Fixture.Build();
+        fixture.Connection.CurrentDialogue = (NpcGuid, new DialogueNodeId(3));
+
+        fixture.Handler.Execute(fixture.Connection, Choose(node: 3, option: 1));
+
+        Assert.Null(fixture.Connection.CurrentDialogue);
+    }
+
     private static CDialogueChoosePacket Choose(int node, int option)
         => new() { TargetGuid = NpcGuid.RawValue, NodeId = node, OptionId = option };
 
@@ -204,6 +244,15 @@ public class DialogueChooseHandlerShould
                             CreatureTemplateId = new CreatureTemplateId(3),
                             IsRoot = false,
                             TextId = new LocalizedTextId(7)
+                        },
+                        new DialogueNode
+                        {
+                            // Real node, but authored for a different creature template than
+                            // NpcGuid resolves to (3) — the cross-linked-content case.
+                            Id = new DialogueNodeId(3),
+                            CreatureTemplateId = new CreatureTemplateId(99),
+                            IsRoot = false,
+                            TextId = new LocalizedTextId(8)
                         }
                     ]));
             dialogueRepo.GetAllOptionsAsync(Arg.Any<CancellationToken>()).Returns(
