@@ -246,21 +246,34 @@ public class MapInstance : IMapInstance, IPortalSink, IDisposable
 
     public void RemoveCharacter(IWorldConnection connection)
     {
-        connection.Character!.OnDisconnected();
-        _characters.Remove(connection.Character.Guid);
-        _connections.Remove(connection.Character.Guid);
-        _broadcastStates.Remove(connection.Character.Guid);
-        _threatBroadcast.Forget(connection);
+        ICharacter character = connection.Character!;
+        ObjectGuid guid = character.Guid;
 
-        // Idempotent and safe to call unconditionally: a no-op under WaypointLocomotion, and a
-        // no-op if this character was never synced as a player agent in the first place (flag off,
-        // or the disconnect races the per-tick sync in Update below).
-        _locomotion.RemovePlayer(connection.Character.Guid);
+        // Membership first. These cannot throw, and once they are gone the tick no longer updates,
+        // broadcasts or periodically saves the character, whatever the hooks below do. A disconnect
+        // hook that threw ahead of them used to leave a despawned character live in the instance.
+        _characters.Remove(guid);
+        _connections.Remove(guid);
+        _broadcastStates.Remove(guid);
 
         if (_characters.Count == 0)
         {
             LastEmptyAt = DateTime.UtcNow;
             _logger.LogInformation("Instance {InstanceId} (map {TemplateId}) is now empty", InstanceId, TemplateId);
+        }
+
+        try
+        {
+            character.OnDisconnected();
+        }
+        finally
+        {
+            _threatBroadcast.Forget(connection);
+
+            // Idempotent and safe to call unconditionally: a no-op under WaypointLocomotion, and a
+            // no-op if this character was never synced as a player agent in the first place (flag off,
+            // or the disconnect races the per-tick sync in Update below).
+            _locomotion.RemovePlayer(guid);
         }
     }
 

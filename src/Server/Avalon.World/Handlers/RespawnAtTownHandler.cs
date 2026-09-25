@@ -59,6 +59,16 @@ public class RespawnAtTownHandler(
 
     private void OnInstanceReady(IWorldConnection connection, ICharacter ch, MapTemplateId townMapId, IMapInstance townInstance)
     {
+        // The character can leave the connection while the town loads: a select of it on another
+        // connection despawns it here and kicks this one. Transferring then would dereference a
+        // character the connection no longer holds, and reviving would touch a discarded entity.
+        if (!ReferenceEquals(connection.Character, ch))
+        {
+            logger.LogDebug("Dropped respawn of {Name}: the character left the connection before the town was ready",
+                ch.Name);
+            return;
+        }
+
         // Transfer first so MapInstance.AddCharacter is the boundary that enables broadcast.
         world.TransferPlayer(connection, townInstance);
 
