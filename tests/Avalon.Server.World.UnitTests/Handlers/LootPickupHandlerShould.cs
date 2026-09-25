@@ -1,6 +1,7 @@
 using System.IO;
 using Avalon.Common;
 using Avalon.Common.Mathematics;
+using Avalon.Common.ValueObjects;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Character;
 using Avalon.Network.Packets.Loot;
@@ -40,8 +41,12 @@ public class LootPickupHandlerShould
     {
         ((IGroundLootHost)_instance).Drops.Returns(_store);
 
+        // Only the character's own instance is stubbed: any other id comes back null, so a handler
+        // that looked the drop up elsewhere would answer NotFound.
+        _character.InstanceId = new Guid("46000000-0000-0000-0000-000000000460");
         var registry = Substitute.For<IInstanceRegistry>();
-        registry.GetInstanceById(Arg.Any<Guid>()).Returns(_instance);
+        registry.GetInstanceById(Arg.Any<Guid>()).Returns((IMapInstance?)null);
+        registry.GetInstanceById(_character.InstanceId).Returns(_instance);
 
         var world = Substitute.For<IWorld>();
         world.InstanceRegistry.Returns(registry);
@@ -97,6 +102,24 @@ public class LootPickupHandlerShould
 
         Assert.Equal(LootPickupResult.TooFar, Result().Result);
         ((IGroundLootHost)_instance).DidNotReceiveWithAnyArgs().BroadcastLootDespawned(default!);
+    }
+
+    [Fact]
+    public void Answer_Not_Found_And_Tell_Everyone_When_A_Drops_Item_Template_Is_Gone()
+    {
+        // 999 is in no template list: an Items reload removed it after the kill rolled it.
+        _store.Add(new GroundLoot
+        {
+            Guid = DropGuid, Position = Vector3.zero, ItemTemplateId = new ItemTemplateId(999), Count = 1,
+            OwnerCharacterId = 7, FreeForAllAt = Now.UtcDateTime.AddSeconds(30)
+        });
+
+        PickUp();
+
+        Assert.Equal(LootPickupResult.NotFound, Result().Result);
+        Assert.Equal(0, _store.Count);
+        ((IGroundLootHost)_instance).Received(1).BroadcastLootDespawned(
+            Arg.Is<IReadOnlyCollection<ObjectGuid>>(g => g.Single() == DropGuid));
     }
 
     [Fact]

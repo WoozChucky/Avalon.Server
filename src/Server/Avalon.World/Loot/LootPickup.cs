@@ -1,9 +1,9 @@
-using System.Diagnostics;
 using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Network.Packets.Loot;
 using Avalon.World.Entities;
 using Avalon.World.Inventory;
+using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Loot;
 
@@ -20,20 +20,23 @@ public static class LootPickup
     /// </summary>
     /// <param name="store">The drops in the character's own instance; null when it has none.</param>
     /// <param name="now">UTC, from the same clock the allocator stamped FreeForAllAt with.</param>
+    /// <param name="logger">Hears about an add result this code does not know.</param>
     public static LootPickupOutcome TryPickUp(
         CharacterEntity character,
         GroundLootStore? store,
         ObjectGuid lootGuid,
         float pickupRange,
         DateTime now,
-        ICharacterEconomy economy)
+        ICharacterEconomy economy,
+        ILogger logger)
     {
         // 2. In the character's own instance.
         if (store is null || !store.TryGet(lootGuid, out GroundLoot? drop))
             return new LootPickupOutcome(LootPickupResult.NotFound, false);
 
-        // 3. Close enough. The same 3D distance the NPC interact check uses.
-        if (Vector3.Distance(character.Position, drop.Position) > pickupRange)
+        // 3. Close enough. The same 3D distance the NPC interact check uses. Written as "not within"
+        // so a NaN distance, for which every comparison is false, is refused rather than let through.
+        if (!(Vector3.Distance(character.Position, drop.Position) <= pickupRange))
             return new LootPickupOutcome(LootPickupResult.TooFar, false);
 
         // 4. Theirs, or anyone's by now.
@@ -43,7 +46,8 @@ public static class LootPickup
         if (drop.ItemTemplateId is { } itemId)
         {
             // 5. All or nothing: a refused add changes nothing.
-            switch (economy.InventoryOf(character).TryAdd(itemId, drop.Count))
+            InventoryAddResult result = economy.InventoryOf(character).TryAdd(itemId, drop.Count);
+            switch (result)
             {
                 case InventoryAddResult.Ok:
                     break;
@@ -57,7 +61,10 @@ public static class LootPickup
                     store.Remove(lootGuid);
                     return new LootPickupOutcome(LootPickupResult.NotFound, true);
                 default:
-                    throw new UnreachableException("Unhandled InventoryAddResult");
+                    // A result added to the enum without a case here. Throwing would fault the tick
+                    // for everyone in the map, so this pickup is refused and the drop stays.
+                    logger.LogError("Unhandled InventoryAddResult {Result} picking up {LootGuid}", result, lootGuid);
+                    return new LootPickupOutcome(LootPickupResult.NotFound, false);
             }
         }
         else if (economy.WalletOf(character).TryAddMoney(drop.Gold) != WalletResult.Ok)

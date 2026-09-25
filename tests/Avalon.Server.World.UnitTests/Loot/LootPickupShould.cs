@@ -6,6 +6,8 @@ using Avalon.World.Entities;
 using Avalon.World.Inventory;
 using Avalon.World.Loot;
 using Avalon.World.Public.Enums;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Xunit;
 using static Avalon.Server.World.UnitTests.Inventory.TestCharacters;
@@ -48,7 +50,7 @@ public class LootPickupShould
     });
 
     private LootPickupOutcome PickUp(CharacterEntity? picker = null, GroundLootStore? store = null) =>
-        LootPickup.TryPickUp(picker ?? _picker, store ?? _store, DropGuid, Range, Now, Economy());
+        LootPickup.TryPickUp(picker ?? _picker, store ?? _store, DropGuid, Range, Now, Economy(), NullLogger.Instance);
 
     private void FillBag() => _picker.Container(InventoryType.Bag)
         .Load(Enumerable.Range(0, 30).Select(s => Item((ushort)s, Sword)).ToList());
@@ -100,7 +102,7 @@ public class LootPickupShould
         Drop(gold: 25);
 
         Assert.Equal(LootPickupResult.NotFound,
-            LootPickup.TryPickUp(_picker, null, DropGuid, Range, Now, Economy()).Result);
+            LootPickup.TryPickUp(_picker, null, DropGuid, Range, Now, Economy(), NullLogger.Instance).Result);
     }
 
     [Fact]
@@ -198,6 +200,37 @@ public class LootPickupShould
     }
 
     [Fact]
+    public void Answer_Too_Far_When_The_Distance_Is_Not_A_Number()
+    {
+        // A NaN position makes every comparison false, so "farther than the range" alone would let
+        // it through from anywhere.
+        _picker.Position = new Vector3(float.NaN, 0f, 0f);
+        Drop(gold: 25);
+
+        Assert.Equal(new LootPickupOutcome(LootPickupResult.TooFar, Removed: false), PickUp());
+        Assert.Equal(1, _store.Count);
+        Assert.Equal(0UL, _picker.Data!.Money);
+    }
+
+    [Fact]
+    public void Answer_Not_Found_And_Keep_The_Drop_For_An_Add_Result_It_Does_Not_Know()
+    {
+        Drop(item: Potion.Id);
+        var inventory = Substitute.For<IInventoryService>();
+        inventory.TryAdd(Arg.Any<ItemTemplateId>(), Arg.Any<uint>()).Returns((InventoryAddResult)99);
+        var economy = Substitute.For<ICharacterEconomy>();
+        economy.InventoryOf(Arg.Any<CharacterEntity>()).Returns(inventory);
+
+        var logger = new ErrorCountingLogger();
+
+        LootPickupOutcome outcome = LootPickup.TryPickUp(_picker, _store, DropGuid, Range, Now, economy, logger);
+
+        Assert.Equal(new LootPickupOutcome(LootPickupResult.NotFound, Removed: false), outcome);
+        Assert.Equal(1, _store.Count);
+        Assert.Equal(1, logger.Errors);
+    }
+
+    [Fact]
     public void Check_Range_Before_Ownership()
     {
         Drop(gold: 25, owner: 99, at: new Vector3(0f, 0f, 50f));
@@ -212,5 +245,20 @@ public class LootPickupShould
         Drop(item: Potion.Id, owner: 99);
 
         Assert.Equal(LootPickupResult.NotYours, PickUp().Result);
+    }
+
+    private sealed class ErrorCountingLogger : ILogger
+    {
+        public int Errors { get; private set; }
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            if (logLevel >= LogLevel.Error)
+                Errors++;
+        }
     }
 }

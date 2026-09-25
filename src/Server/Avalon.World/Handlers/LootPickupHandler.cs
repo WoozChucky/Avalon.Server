@@ -36,7 +36,7 @@ public class LootPickupHandler(
 
         LootPickupOutcome outcome = LootPickup.TryPickUp(
             character, host?.Drops, lootGuid, world.Configuration.LootPickupRange,
-            time.GetUtcNow().UtcDateTime, economy);
+            time.GetUtcNow().UtcDateTime, economy, logger);
 
         connection.Send(SLootPickupResultPacket.Create(packet.LootGuid, outcome.Result, connection.CryptoSession.Encrypt));
 
