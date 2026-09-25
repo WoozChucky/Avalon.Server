@@ -144,7 +144,7 @@ public class AccountService : IAccountService
             LastIp = ipAddress.ToString(),
             LastLogin = DateTime.UtcNow,
             JoinDate = DateTime.UtcNow,
-            Locale = Avalon.World.Public.Enums.AccountLocale.enUS,
+            Locale = Avalon.Common.Accounts.AccountLocale.enUS,
             Os = OperatingSystem.Windows,
         };
 
@@ -270,7 +270,7 @@ public class AccountService : IAccountService
     {
         var account = await _accountRepository.FindByIdAsync(accountId, track: true, cancellationToken)
             ?? throw new BusinessException("Account not found");
-        account.AccessLevel = (Avalon.Domain.Auth.AccountAccessLevel)roles;
+        account.AccessLevel = (Avalon.Common.Accounts.AccountAccessLevel)roles;
         await _accountRepository.UpdateAsync(account, cancellationToken);
     }
 }

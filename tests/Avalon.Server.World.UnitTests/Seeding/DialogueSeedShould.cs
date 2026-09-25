@@ -1,5 +1,5 @@
+using Avalon.Common.Accounts;
 using Avalon.Database.World;
-using Avalon.Domain.Auth;
 using Avalon.Domain.World;
 using Avalon.Server.World.UnitTests.Handlers;
 using Avalon.World.Public.Enums;

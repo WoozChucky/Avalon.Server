@@ -1,7 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using Avalon.Common.Accounts;
 using Avalon.Common.ValueObjects;
-using Avalon.World.Public.Enums;
 
 namespace Avalon.Domain.Auth;
 
@@ -56,19 +56,6 @@ public class Account : IDbEntity<AccountId>
     public AccountAccessLevel AccessLevel { get; set; } = AccountAccessLevel.Player;
 
     public AccountStatus Status { get; set; } = AccountStatus.Active;
-}
-
-
-
-[Flags]
-public enum AccountAccessLevel : ushort
-{
-    Player = 1,
-    GameMaster = 2,
-    Admin = 4,
-    Console = 8,
-    Tournament = 16,
-    PTR = 32,
 }
 
 public enum OperatingSystem : ushort
