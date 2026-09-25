@@ -122,6 +122,16 @@ public class LootCatalogShould
     }
 
     [Fact]
+    public void Accept_A_Max_Count_Of_Exactly_The_Bound()
+    {
+        LootCatalog catalog = Build(Table(1, "boar", Item(1, min: 1, max: LootCatalog.MaxEntryCount)));
+
+        Assert.Equal(1000, LootCatalog.MaxEntryCount);
+        Assert.Empty(catalog.Refused);
+        Assert.True(catalog.TryGet(new LootTableId(1), out _));
+    }
+
+    [Fact]
     public void Refuse_A_Table_That_References_A_Refused_Table()
     {
         LootCatalog catalog = Build(
@@ -129,6 +139,21 @@ public class LootCatalogShould
             Table(2, "shared", Item(1, min: 0)));
 
         Assert.Equal("entry 1 references refused table 2", RefusalOf(catalog, 1).Reason);
+        Assert.Equal(0, catalog.TableCount);
+    }
+
+    [Fact]
+    public void Refuse_A_Referrer_Whose_Refused_Target_Is_Only_Found_On_A_Later_Pass()
+    {
+        // The referrer has the lowest id, so the first pass in id order sees table 2 still accepted;
+        // only the pass after table 2 is refused catches table 1.
+        LootCatalog catalog = Build(
+            Table(1, "boar", Reference(1, 2)),
+            Table(2, "shared", Reference(1, 3)),
+            Table(3, "bad", Item(1, min: 0)));
+
+        Assert.Equal("entry 1 references refused table 2", RefusalOf(catalog, 1).Reason);
+        Assert.Equal("entry 1 references refused table 3", RefusalOf(catalog, 2).Reason);
         Assert.Equal(0, catalog.TableCount);
     }
 

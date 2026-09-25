@@ -4,7 +4,11 @@ using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Loot;
 
-/// <summary>Rolls what a dying creature drops. Tick thread; allocates only the result list.</summary>
+/// <summary>
+/// Rolls what a dying creature drops. Tick thread. It allocates the result list, and every entry
+/// that hits allocates again, because its item template is looked up with a LINQ scan (a closure
+/// and an enumerator) over the templates.
+/// </summary>
 public interface ILootRoller
 {
     /// <summary>

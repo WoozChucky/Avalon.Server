@@ -149,6 +149,8 @@ public class EnterMapHandler(
         sourceInstance?.CombatService.DropPlayerFromEncounter(character);
 
         // 9. Transfer the player (removes from current, updates position & InstanceIdGuid, adds to target)
+        // The map transition and chunk layout must go out in this same callback: MapInstance sends
+        // the loot snapshot on its next tick, and the client has to know the map before its drops.
         world.TransferPlayer(connection, targetInstance);
 
         // 10. Resolve spawn coords: every chunk-layout-built instance (town + normal) carries

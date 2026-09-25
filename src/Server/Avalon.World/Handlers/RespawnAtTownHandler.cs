@@ -70,6 +70,8 @@ public class RespawnAtTownHandler(
         }
 
         // Transfer first so MapInstance.AddCharacter is the boundary that enables broadcast.
+        // The map transition and chunk layout must go out in this same callback: MapInstance sends
+        // the loot snapshot on its next tick, and the client has to know the map before its drops.
         world.TransferPlayer(connection, townInstance);
 
         // Resolve spawn coords from the town's chunk layout. Fall back to template defaults defensively.

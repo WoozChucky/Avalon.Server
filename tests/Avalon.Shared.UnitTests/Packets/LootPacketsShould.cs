@@ -78,4 +78,46 @@ public class LootPacketsShould
         Assert.Equal(0x0600000000000009UL, read.LootGuid);
         Assert.Equal(result, read.Result);
     }
+
+    private static string Hex(LootDropDto dto)
+    {
+        using var stream = new MemoryStream();
+        Serializer.Serialize(stream, dto);
+        return Convert.ToHexString(stream.ToArray()).ToLowerInvariant();
+    }
+
+    [Fact]
+    public void Keep_The_Loot_Drop_Field_Numbers_The_Client_Reads()
+    {
+        // The client decodes these by number, so a renumbered member breaks it silently. Each field
+        // alone: (number << 3 | wire type), then the value. Position is left out so it adds no bytes.
+        LootDropDto Only(Action<LootDropDto> set)
+        {
+            var dto = new LootDropDto { Position = null! };
+            set(dto);
+            return dto;
+        }
+
+        Assert.Equal("0801", Hex(Only(d => d.LootGuid = 1)));
+        Assert.Equal("1205" + "0d0000803f", Hex(Only(d => d.Position = new Vector3Dto { X = 1 })));
+        Assert.Equal("1804", Hex(Only(d => d.ItemTemplateId = 4)));
+        Assert.Equal("2003", Hex(Only(d => d.Count = 3)));
+        Assert.Equal("2819", Hex(Only(d => d.Gold = 25)));
+        Assert.Equal("3007", Hex(Only(d => d.OwnerCharacterId = 7)));
+        Assert.Equal("3809", Hex(Only(d => d.FreeForAllAt = 9)));
+    }
+
+    [Fact]
+    public void Carry_The_Picked_Up_Guid_From_Client_To_Server()
+    {
+        var sent = new CLootPickupPacket { LootGuid = 0x0600000000000009 };
+
+        using var stream = new MemoryStream();
+        Serializer.Serialize(stream, sent);
+        stream.Position = 0;
+        CLootPickupPacket read = Serializer.Deserialize<CLootPickupPacket>(stream);
+
+        Assert.Equal(0x0600000000000009UL, read.LootGuid);
+        Assert.Equal(NetworkPacketType.CMSG_LOOT_PICKUP, CLootPickupPacket.PacketType);
+    }
 }

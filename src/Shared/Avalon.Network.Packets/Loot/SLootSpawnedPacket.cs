@@ -9,6 +9,16 @@ namespace Avalon.Network.Packets.Loot;
 /// every drop already there, sent to a character entering it. Every player sees every drop,
 /// whoever owns it.
 /// </summary>
+/// <remarks>
+/// Two things the client has to handle itself:
+/// <list type="bullet">
+/// <item>Clear every drop it knows of on SMapTransitionPacket and on SCharacterSelectedPacket.
+/// Leaving an instance sends no SLootDespawnedPacket for the drops left behind in it.</item>
+/// <item>For a kill, this packet arrives before that creature's SUnitDeathPacket, in the same
+/// flush: the drops are rolled the moment the creature dies, and the combat code broadcasts the
+/// death after that.</item>
+/// </list>
+/// </remarks>
 [ProtoContract]
 public class SLootSpawnedPacket : Packet
 {

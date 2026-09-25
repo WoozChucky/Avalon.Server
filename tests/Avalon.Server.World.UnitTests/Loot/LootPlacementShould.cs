@@ -49,6 +49,12 @@ public class LootPlacementShould
             float dx = d.Position.x - Corpse.x, dz = d.Position.z - Corpse.z;
             Assert.Equal(LootPlacement.RingRadius, MathF.Sqrt(dx * dx + dz * dz), precision: 3);
         });
+
+        // Drop i of n sits at angle 2*pi*i/n, starting along +x and turning towards +z.
+        Assert.Equal(Corpse.x + 1f, drops[0].Position.x, precision: 3);
+        Assert.Equal(Corpse.z, drops[0].Position.z, precision: 3);
+        Assert.Equal(Corpse.x, drops[1].Position.x, precision: 3);
+        Assert.Equal(Corpse.z + 1f, drops[1].Position.z, precision: 3);
     }
 
     [Fact]
@@ -75,6 +81,8 @@ public class LootPlacementShould
             Corpse, FourDrops(), new LootAllocation(7, FreeAt), navigator, Ids());
 
         Assert.All(drops, d => Assert.Equal(Corpse, d.Position));
+        // The ground is sampled where the drop was pulled back to, not at the ring point in the wall.
+        navigator.Received(4).SampleGroundHeight(Corpse.x, Corpse.y, Corpse.z);
     }
 
     [Fact]

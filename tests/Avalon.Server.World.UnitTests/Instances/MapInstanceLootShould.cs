@@ -40,6 +40,7 @@ public class MapInstanceLootShould
     private static readonly TimeSpan Tick = TimeSpan.FromSeconds(1d / 60d);
 
     private List<LootTable> _tables = [Table(1, Item(1, Sword))];
+    private StaticData? _data;
 
     private sealed record Client(IWorldConnection Connection, CharacterEntity Character, List<NetworkPacket> Sent)
     {
@@ -72,9 +73,10 @@ public class MapInstanceLootShould
         return new Client(connection, character, sent);
     }
 
-    private async Task<(MapInstance Instance, StaticData Data)> Build(uint? owner = 7, ILootRoller? roller = null)
+    private async Task<MapInstance> Build(uint? owner = 7, ILootRoller? roller = null)
     {
         StaticData data = await LootStaticData.LoadAsync(() => Items, () => _tables);
+        _data = data;
 
         var world = Substitute.For<IWorld>();
         world.Configuration.Returns(new GameConfiguration());
@@ -99,17 +101,16 @@ public class MapInstanceLootShould
         var layout = new ChunkLayout(Seed: 0, Chunks: [entryChunk], EntryChunk: entryChunk, BossChunk: null,
             Portals: [], EntrySpawnWorldPos: Vector3.zero, CellSize: 30f, Config: null);
 
-        var instance = new MapInstance(NullLoggerFactory.Instance, serviceProvider, world, new MapTemplateId(2),
+        return new MapInstance(NullLoggerFactory.Instance, serviceProvider, world, new MapTemplateId(2),
             owner, layout, navigator, seed: 0);
-        return (instance, data);
     }
 
-    private static Creature Kill(MapInstance instance, uint id, IUnit? killer = null)
+    private static Creature Kill(MapInstance instance, uint id, IUnit? killer = null, CreatureTemplate? template = null)
     {
         var creature = new Creature
         {
             Guid = new ObjectGuid(ObjectType.Creature, id),
-            Metadata = BoarTemplate(1, minGold: 5, maxGold: 5),
+            Metadata = template ?? BoarTemplate(1, minGold: 5, maxGold: 5),
             Position = new Vector3(10f, 2f, 10f),
             Experience = 50,
         };
@@ -121,9 +122,9 @@ public class MapInstanceLootShould
     [Fact]
     public async Task Drop_A_Kills_Loot_And_Tell_Everyone_In_One_Packet()
     {
-        (MapInstance instance, _) = await Build();
-        Client first = Join(instance, 7);
-        Client second = Join(instance, 8);
+        using MapInstance instance = await Build();
+        Client first = Join(instance, 460_101);
+        Client second = Join(instance, 460_102);
 
         Kill(instance, 460_001);
 
@@ -136,34 +137,47 @@ public class MapInstanceLootShould
             Assert.Equal(Sword.Id.Value, spawned.Drops[0].ItemTemplateId);
             Assert.Equal(5UL, spawned.Drops[1].Gold);
         }
-
-        instance.Dispose();
     }
 
     [Fact]
     public async Task Reserve_The_Drops_For_The_Instance_Owner()
     {
-        (MapInstance instance, _) = await Build(owner: 7);
+        using MapInstance instance = await Build(owner: 7);
 
         Kill(instance, 460_001);
 
+        Assert.Equal(2, instance.Drops.Count);   // the sword and the pile: Assert.All passes on nothing
         Assert.All(instance.Drops.All, drop =>
         {
             Assert.Equal(7u, drop.OwnerCharacterId);
             Assert.Equal(Now.UtcDateTime + TimeSpan.FromSeconds(30), drop.FreeForAllAt);
         });
-        instance.Dispose();
+    }
+
+    [Fact]
+    public async Task Drop_Nothing_And_Send_Nothing_For_A_Kill_That_Rolls_Nothing()
+    {
+        using MapInstance instance = await Build();
+        Client client = Join(instance, 460_101);
+        instance.Update(Tick);
+
+        // No table and no gold: the roll is empty.
+        Kill(instance, 460_003, template: BoarTemplate(null, minGold: 0, maxGold: 0));
+        instance.Update(Tick);
+
+        Assert.Equal(0, instance.Drops.Count);
+        Assert.Empty(client.Spawned());
     }
 
     [Fact]
     public async Task Tell_A_Character_Who_Enters_About_The_Drops_Already_There_On_The_Next_Tick()
     {
-        (MapInstance instance, _) = await Build();
-        Client first = Join(instance, 7);
+        using MapInstance instance = await Build();
+        Client first = Join(instance, 460_101);
         instance.Update(Tick);            // first's own snapshot: nothing on the ground yet, so nothing sent
         Kill(instance, 460_001);
 
-        Client second = Join(instance, 8);
+        Client second = Join(instance, 460_102);
         Assert.Empty(second.Spawned());   // not from AddCharacter: the map transition packets go first
 
         instance.Update(Tick);
@@ -171,29 +185,27 @@ public class MapInstanceLootShould
         SLootSpawnedPacket snapshot = Assert.Single(second.Spawned());
         Assert.Equal(2, snapshot.Drops.Count);
         Assert.Single(first.Spawned());   // the kill broadcast only; first is owed no snapshot
-        instance.Dispose();
     }
 
     [Fact]
     public async Task Send_No_Snapshot_To_A_Character_Entering_An_Instance_With_Nothing_On_The_Ground()
     {
-        (MapInstance instance, _) = await Build();
-        Client client = Join(instance, 7);
+        using MapInstance instance = await Build();
+        Client client = Join(instance, 460_101);
 
         instance.Update(Tick);
 
         Assert.Empty(client.Spawned());
-        instance.Dispose();
     }
 
     [Fact]
     public async Task Send_No_Snapshot_To_A_Character_Who_Left_Before_The_Tick()
     {
-        (MapInstance instance, _) = await Build();
-        Client stays = Join(instance, 7);
+        using MapInstance instance = await Build();
+        Client stays = Join(instance, 460_101);
         instance.Update(Tick);
         Kill(instance, 460_001);
-        Client leaves = Join(instance, 8);
+        Client leaves = Join(instance, 460_102);
 
         instance.RemoveCharacter(leaves.Connection);
         instance.Update(Tick);
@@ -201,15 +213,14 @@ public class MapInstanceLootShould
         // It joined after the kill, so no broadcast reached it, and it left before its snapshot.
         Assert.Empty(leaves.Spawned());
         Assert.Single(stays.Spawned());
-        instance.Dispose();
     }
 
     [Fact]
     public async Task Tell_Everyone_When_Drops_Leave_The_Ground()
     {
-        (MapInstance instance, _) = await Build();
-        Client first = Join(instance, 7);
-        Client second = Join(instance, 8);
+        using MapInstance instance = await Build();
+        Client first = Join(instance, 460_101);
+        Client second = Join(instance, 460_102);
         Kill(instance, 460_001);
         ObjectGuid[] guids = instance.Drops.All.Select(d => d.Guid).ToArray();
 
@@ -217,13 +228,12 @@ public class MapInstanceLootShould
 
         foreach (Client client in new[] { first, second })
             Assert.Equal(guids.Select(g => g.RawValue), Assert.Single(client.Despawned()).LootGuids);
-        instance.Dispose();
     }
 
     [Fact]
     public async Task Remove_Every_Drop_When_The_Instance_Is_Disposed()
     {
-        (MapInstance instance, _) = await Build();
+        MapInstance instance = await Build();   // disposed below: that is what this test does
         Kill(instance, 460_001);
         Assert.NotEqual(0, instance.Drops.Count);
 
@@ -238,7 +248,7 @@ public class MapInstanceLootShould
         var roller = Substitute.For<ILootRoller>();
         roller.Roll(Arg.Any<CreatureTemplate>(), Arg.Any<LootCatalog>(), Arg.Any<IReadOnlyCollection<ItemTemplate>>())
             .Returns(_ => throw new InvalidOperationException("bad table"));
-        (MapInstance instance, _) = await Build(roller: roller);
+        using MapInstance instance = await Build(roller: roller);
 
         ICharacter killer = Substitute.For<ICharacter>();
         killer.Guid.Returns(new ObjectGuid(ObjectType.Character, 7));
@@ -249,13 +259,13 @@ public class MapInstanceLootShould
 
         Assert.Equal(0, instance.Drops.Count);
         killer.Received().Experience = 50;
-        instance.Dispose();
     }
 
     [Fact]
     public async Task Use_Reloaded_Tables_For_The_Next_Kill_And_Leave_Drops_On_The_Ground_Alone()
     {
-        (MapInstance instance, StaticData data) = await Build();
+        using MapInstance instance = await Build();
+        StaticData data = _data!;
         Kill(instance, 460_001);
         GroundLoot[] before = instance.Drops.All.ToArray();
 
@@ -268,6 +278,5 @@ public class MapInstanceLootShould
         GroundLoot[] after = instance.Drops.All.Except(before).ToArray();
         Assert.Contains(after, d => d.ItemTemplateId == Staff.Id);
         Assert.DoesNotContain(after, d => d.ItemTemplateId == Sword.Id);
-        instance.Dispose();
     }
 }
