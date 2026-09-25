@@ -1,5 +1,10 @@
 using Avalon.Database.World.Repositories;
 using Avalon.Domain.World;
+using Avalon.World.Dialogue;
+using Avalon.World.Localization;
+using Avalon.World.Public.Dialogue;
+using Avalon.World.Public.Localization;
+using Microsoft.Extensions.Logging;
 
 namespace Avalon.World;
 
@@ -10,7 +15,10 @@ public class StaticData(
     IAbilityTemplateRepository abilityTemplateRepository,
     ICharacterLevelExperienceRepository characterLevelExperienceRepository,
     ICreatureBaseStatRepository creatureBaseStatRepository,
-    ICreatureRarityModifierRepository creatureRarityModifierRepository)
+    ICreatureRarityModifierRepository creatureRarityModifierRepository,
+    ILocalizedTextRepository localizedTextRepository,
+    ILoggerFactory loggerFactory,
+    IDialogueRepository dialogueRepository)
 {
     public async Task LoadAsync(CancellationToken cancellationToken = default)
     {
@@ -21,6 +29,17 @@ public class StaticData(
         CharacterLevelExperiences = await characterLevelExperienceRepository.GetAllAsync(cancellationToken);
         CreatureBaseStats = await creatureBaseStatRepository.GetAllAsync(cancellationToken);
         CreatureRarityModifiers = await creatureRarityModifierRepository.GetAllAsync(cancellationToken);
+
+        LocalizedTexts = new LocalizedTextCatalog(
+            await localizedTextRepository.GetAllAsync(cancellationToken),
+            await localizedTextRepository.GetAllLocalesAsync(cancellationToken),
+            await localizedTextRepository.GetAllClassNamesAsync(cancellationToken),
+            loggerFactory);
+
+        Dialogue = new DialogueCatalog(
+            await dialogueRepository.GetAllNodesAsync(cancellationToken),
+            await dialogueRepository.GetAllOptionsAsync(cancellationToken),
+            loggerFactory);
     }
 
     public IReadOnlyCollection<CharacterCreateInfo> CharacterCreateInfos { get; private set; }
@@ -30,4 +49,6 @@ public class StaticData(
     public IReadOnlyCollection<CharacterLevelExperience> CharacterLevelExperiences { get; private set; }
     public IReadOnlyCollection<CreatureBaseStat> CreatureBaseStats { get; private set; }
     public IReadOnlyCollection<CreatureRarityModifier> CreatureRarityModifiers { get; private set; }
+    public ILocalizedTextCatalog LocalizedTexts { get; private set; } = null!;
+    public IDialogueCatalog Dialogue { get; private set; } = null!;
 }

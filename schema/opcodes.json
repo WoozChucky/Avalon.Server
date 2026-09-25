@@ -263,6 +263,15 @@
       "flagNames": "Encrypted"
     },
     {
+      "name": "CMSG_DIALOGUE_CHOOSE",
+      "opcode": 8241,
+      "hex": "0x2031",
+      "message": "CDialogueChoosePacket",
+      "direction": "ClientToServer",
+      "flags": 4,
+      "flagNames": "Encrypted"
+    },
+    {
       "name": "CMSG_QUEST_STATUS",
       "opcode": 8256,
       "hex": "0x2040",
@@ -645,6 +654,24 @@
       "opcode": 12384,
       "hex": "0x3060",
       "message": "SPlayerStateAckPacket",
+      "direction": "ServerToClient",
+      "flags": 4,
+      "flagNames": "Encrypted"
+    },
+    {
+      "name": "SMSG_DIALOGUE_NODE",
+      "opcode": 12400,
+      "hex": "0x3070",
+      "message": "SDialogueNodePacket",
+      "direction": "ServerToClient",
+      "flags": 4,
+      "flagNames": "Encrypted"
+    },
+    {
+      "name": "SMSG_DIALOGUE_END",
+      "opcode": 12401,
+      "hex": "0x3071",
+      "message": "SDialogueEndPacket",
       "direction": "ServerToClient",
       "flags": 4,
       "flagNames": "Encrypted"

@@ -94,6 +94,19 @@ public class ScriptHotReloadPollingShould
         var abilityTemplates = Substitute.For<IAbilityTemplateRepository>();
         abilityTemplates.FindAllAsync(Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(new List<Avalon.Domain.World.AbilityTemplate>());
+        var localizedText = Substitute.For<ILocalizedTextRepository>();
+        localizedText.GetAllAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<IReadOnlyCollection<Avalon.Domain.World.LocalizedText>>([]));
+        localizedText.GetAllLocalesAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<IReadOnlyCollection<Avalon.Domain.World.LocalizedTextLocale>>([]));
+        localizedText.GetAllClassNamesAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<IReadOnlyCollection<Avalon.Domain.World.CharacterClassName>>([]));
+
+        var dialogue = Substitute.For<IDialogueRepository>();
+        dialogue.GetAllNodesAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<IReadOnlyCollection<Avalon.Domain.World.DialogueNode>>([]));
+        dialogue.GetAllOptionsAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<IReadOnlyCollection<Avalon.Domain.World.DialogueOption>>([]));
 
         var serviceProvider = Substitute.For<IServiceProvider>();
         serviceProvider.GetService(typeof(IChunkLayoutInstanceFactory))
@@ -122,8 +135,10 @@ public class ScriptHotReloadPollingShould
             levels,
             Substitute.For<ICreatureBaseStatRepository>(),
             Substitute.For<ICreatureRarityModifierRepository>(),
+            localizedText,
             reloader,
-            Substitute.For<IChunkLibrary>());
+            Substitute.For<IChunkLibrary>(),
+            dialogue);
 
         await world.LoadAsync(CancellationToken.None);
         return world;

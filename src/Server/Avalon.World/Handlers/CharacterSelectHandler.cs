@@ -3,8 +3,10 @@ using System.Diagnostics;
 using Avalon.Common.Mathematics;
 using Avalon.Common.Telemetry;
 using Avalon.Common.ValueObjects;
+using Avalon.Database.Auth.Repositories;
 using Avalon.Database.Character.Repositories;
 using Avalon.Database.World.Repositories;
+using Avalon.Domain.Auth;
 using Avalon.Domain.Characters;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abstractions;
@@ -38,7 +40,8 @@ public class CharacterSelectHandler(
     IChunkLibrary chunkLibrary,
     IWorld world,
     IRespawnTargetResolver respawnTargetResolver,
-    IOptions<RegenConfiguration> regenConfig) : WorldPacketHandler<CCharacterSelectedPacket>
+    IOptions<RegenConfiguration> regenConfig,
+    IAccountRepository accountRepository) : WorldPacketHandler<CCharacterSelectedPacket>
 {
     private Activity? _parentActivity;
 
@@ -75,6 +78,24 @@ public class CharacterSelectHandler(
         connection.EnqueueContinuation(
             characterRepository.FindByIdAndAccountAsync(packet.CharacterId, connection.AccountId),
             character => { OnCharacterReceived(connection, character); });
+
+        // Locale for dialogue text. Independent of the select chain: the default is enUS, so a slow
+        // or failed read costs English text rather than correctness. TODO-029 wants the world's
+        // dependency on the Auth database removed, but that is a 2.0 milestone and reading it here
+        // is the sanctioned approach until then.
+        connection.EnqueueContinuation(
+            accountRepository.FindByIdAsync(connection.AccountId!, false, CancellationToken.None),
+            (Account? account) =>
+            {
+                if (account is null)
+                {
+                    logger.LogWarning("No account {AccountId} for locale lookup; leaving {Locale}",
+                        connection.AccountId, connection.Locale);
+                    return;
+                }
+
+                connection.Locale = account.Locale;
+            });
 
         _parentActivity = activity;
     }

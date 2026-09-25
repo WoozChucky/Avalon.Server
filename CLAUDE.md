@@ -80,6 +80,8 @@ All client↔server communication is custom TCP with Protobuf-net. Every packet 
 
 Auth handlers are registered in DI and resolved manually; World handlers use `ActivatorUtilities.CreateInstance` in `WorldServer`.
 
+**A new client→server opcode also needs a session filter entry, or the handler never runs.** `MapSessionFilter` (in-map packets) or `WorldSessionFilter` (pre-character packets) must accept the opcode, not just a registered handler for it. `WorldConnection.OnReceive` only queues a packet if a filter accepts it at arrival; one no filter ever accepts skips the queue entirely and is dropped with a "could not find a handler" warning — a missing filter entry fails safe, so debug it by grepping the logs, not by hunting a frozen connection. The queue *can* wedge, but only for the narrower race where a packet's acceptance changes between arrival and dispatch (e.g. `CMSG_CHARACTER_LIST`/`CMSG_CHARACTER_LOADED` around a character spawn) — see `ProcessQueueWedgeShould.cs`.
+
 **Reflection-bound registration — a reference grep proves nothing.** Packet handlers are discovered by attribute scan, and AI/ability scripts by type name: `ScriptManager` keys every `AiScript` subclass by `t.Name`, and `ICreaturePlacementService.AttachScript` resolves `creature.ScriptName` from the DB and builds it with `ActivatorUtilities.CreateInstance(_sp, scriptType, creature, instance)`. So "nothing references this type" says nothing about whether it is used — and note that call site passes exactly two runtime arguments, so a script constructor needing anything beyond `(ILoggerFactory, ICreature, ISimulationContext)` will throw and be swallowed into a warning. Check constructibility against that call site, not against grep.
 
 ## Auth Flow

@@ -111,6 +111,11 @@ message CCloseChatPacket {
    uint64 AccountId = 1;
    uint64 CharacterId = 2;
 }
+message CDialogueChoosePacket {
+   uint64 TargetGuid = 1;
+   int32 NodeId = 2;
+   int32 OptionId = 3;
+}
 message CEnterMapPacket {
    uint32 TargetMapId = 1;
 }
@@ -129,12 +134,7 @@ message CHandshakePacket {
    optional bytes HandshakeData = 1;
 }
 message CInteractPacket {
-   uint64 AccountId = 1;
-   uint64 PlayerId = 2;
-   int32 X = 3;
-   int32 Y = 4;
-   int32 Width = 5;
-   int32 Height = 6;
+   uint64 TargetGuid = 1;
 }
 message CLogoutPacket {
    uint64 AccountId = 1;
@@ -316,6 +316,7 @@ enum NetworkPacketType {
    NetworkPacketType_CMSG_ENTER_MAP = 8225;
    NetworkPacketType_CMSG_RESPAWN_AT_TOWN = 8226;
    NetworkPacketType_CMSG_INTERACT = 8240;
+   NetworkPacketType_CMSG_DIALOGUE_CHOOSE = 8241;
    NetworkPacketType_CMSG_QUEST_STATUS = 8256;
    NetworkPacketType_CMSG_QUEST_LIST = 8257;
    NetworkPacketType_CMSG_QUEST_QUERY_AVAILABLE = 8258;
@@ -360,6 +361,8 @@ enum NetworkPacketType {
    NetworkPacketType_SMSG_WORLD_STATE_REMOVE = 12354;
    NetworkPacketType_SMSG_AUDIO_RECORD = 12368;
    NetworkPacketType_SMSG_PLAYER_STATE_ACK = 12384;
+   NetworkPacketType_SMSG_DIALOGUE_NODE = 12400;
+   NetworkPacketType_SMSG_DIALOGUE_END = 12401;
    NetworkPacketType_SMSG_CHARACTER_DAMAGED = 12544;
    NetworkPacketType_SMSG_CREATURE_ATTACK_ANIMATION = 12545;
    NetworkPacketType_SMSG_CREATURE_DAMAGED = 12546;
@@ -506,6 +509,20 @@ message SChunkLayoutPacket {
 }
 message SCloseChatPacket {
    optional string ClientId = 1;
+}
+message SDialogueEndPacket {
+   uint64 SpeakerGuid = 1;
+}
+message SDialogueNodePacket {
+   uint64 SpeakerGuid = 1;
+   optional string SpeakerName = 2;
+   int32 NodeId = 3;
+   optional string Text = 4;
+   repeated SDialogueOptionInfo Options = 5;
+}
+message SDialogueOptionInfo {
+   int32 OptionId = 1;
+   optional string Text = 2;
 }
 message SDisconnectPacket {
    optional string Reason = 1;
