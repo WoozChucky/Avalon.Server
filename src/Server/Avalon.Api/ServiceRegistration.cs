@@ -55,7 +55,9 @@ public static class ServiceRegistration
     {
         // Checked here, eagerly, so a missing or weak key stops startup instead of surfacing on the
         // first request (#482).
+        // One instance, registered for JwtUtils, so signing and validation share it.
         SymmetricSecurityKey signingKey = JwtSigningKey.Create(config.Authentication);
+        services.AddSingleton(signingKey);
 
         services.AddAuthentication(options =>
             {
@@ -97,7 +99,8 @@ public static class ServiceRegistration
                     ValidIssuer = config.Authentication!.Issuer,
                     ValidateIssuer = config.Authentication.ValidateIssuer,
                     IssuerSigningKey = signingKey,
-                    ValidateIssuerSigningKey = config.Authentication.ValidateIssuerKey,
+                    // Not configurable: a token is only as good as the key that signed it.
+                    ValidateIssuerSigningKey = true,
                     ValidAudience = config.Authentication.Audience,
                     ValidateAudience = config.Authentication.ValidateAudience,
                     // The access token's lifetime (AccessTokenLifetimeMinutes) is enforced, with the

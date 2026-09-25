@@ -17,7 +17,6 @@ public class JwtUtilsShould
         Issuer = "test",
         Audience = "test",
         ValidateIssuer = true,
-        ValidateIssuerKey = true,
         ValidateAudience = true,
         ClockSkewInMinutes = 1,
     };
@@ -47,7 +46,7 @@ public class JwtUtilsShould
     [Fact]
     public void EmitPlayerGroupSidClaim_WhenAccountHasPlayerFlagOnly()
     {
-        var sut = new JwtUtils(Config);
+        var sut = new JwtUtils(Config, JwtSigningKey.Create(Config));
         var token = sut.GenerateJwtToken(MakeAccount(AccountAccessLevel.Player));
 
         var groupSids = ReadGroupSids(token);
@@ -58,7 +57,7 @@ public class JwtUtilsShould
     [Fact]
     public void EmitAllMatchingGroupSidClaims_WhenAccountHasMultipleFlags()
     {
-        var sut = new JwtUtils(Config);
+        var sut = new JwtUtils(Config, JwtSigningKey.Create(Config));
         var token = sut.GenerateJwtToken(MakeAccount(
             AccountAccessLevel.Player | AccountAccessLevel.GameMaster | AccountAccessLevel.Admin));
 

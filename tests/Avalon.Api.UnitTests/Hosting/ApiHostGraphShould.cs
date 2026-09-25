@@ -1,4 +1,5 @@
 using Avalon.Api;
+using Avalon.Api.Authentication.Jwt;
 using Avalon.Api.Config;
 using Avalon.Configuration;
 using Avalon.Hosting;
@@ -24,7 +25,7 @@ public class ApiHostGraphShould
         ApplicationConfig config = new()
         {
             Environment = new EnvironmentConfig(),
-            Authentication = new AuthenticationConfig(),
+            Authentication = new AuthenticationConfig { IssuerSigningKey = new string('k', 64) },
             Notification = new NotificationConfig(),
             Cache = new CacheConfiguration(),
         };
@@ -38,6 +39,8 @@ public class ApiHostGraphShould
         services.AddSingleton(config.Authentication);
         services.AddSingleton(config.Notification);
         services.AddSingleton(config.Cache);
+        // AddAuth, which Program.cs calls first, registers the signing key JwtUtils takes (#482).
+        services.AddSingleton(JwtSigningKey.Create(config.Authentication));
         services.AddInfrastructure(config);
 
         ServiceProvider provider = services.BuildServiceProvider(AvalonServiceProvider.Options);

@@ -21,7 +21,7 @@ public static class JwtSigningKey
 
     // SHA-256 of keys that have been public and must never sign again: the one committed to
     // appsettings.json until #482. Only the hash is kept, so the key itself stays out of the code.
-    private static readonly string[] PublicKeyHashes =
+    public static readonly IReadOnlyList<string> BlockedKeyHashes =
     [
         "99e2138407b7f8aa4be292593a9432ad73a5b869d19a22d34cc3b63e1552c645",
     ];
@@ -33,15 +33,33 @@ public static class JwtSigningKey
 
     /// <summary>
     /// The signing key for <paramref name="config"/>, or an <see cref="InvalidOperationException"/>
-    /// naming the setting when the key is missing, shorter than <see cref="MinimumBytes"/> bytes in
-    /// UTF-8, or one known to be public.
+    /// naming the setting when the key is missing, has leading or trailing whitespace, is shorter
+    /// than <see cref="MinimumBytes"/> bytes in UTF-8, or is one of <see cref="BlockedKeyHashes"/>.
     /// </summary>
-    public static SymmetricSecurityKey Create(AuthenticationConfig? config)
+    public static SymmetricSecurityKey Create(AuthenticationConfig? config) => Create(config, BlockedKeyHashes);
+
+    /// <summary>
+    /// <see cref="Create(AuthenticationConfig?)"/> against <paramref name="blockedHashes"/> (lower-case
+    /// hex SHA-256 of the UTF-8 key) instead of <see cref="BlockedKeyHashes"/>, so tests can block a
+    /// made-up key. Public rather than internal: Avalon.Api is strong-named and the test assembly is
+    /// not, so InternalsVisibleTo is not available (the repository's convention for such seams), and
+    /// a caller passing its own list blocks nothing it could not already choose not to configure.
+    /// </summary>
+    public static SymmetricSecurityKey Create(AuthenticationConfig? config, IReadOnlyCollection<string> blockedHashes)
     {
         string? key = config?.IssuerSigningKey;
         if (string.IsNullOrWhiteSpace(key))
         {
             throw new InvalidOperationException($"The JWT signing key is not set. {HowToSet}");
+        }
+
+        // Refused rather than trimmed: a newline from a key file would otherwise sign with bytes
+        // nobody meant, and would slip a blocked key past the hash check below.
+        if (!string.Equals(key, key.Trim(), StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                "The JWT signing key has leading or trailing whitespace, often a newline from the file it " +
+                $"was read from. Remove it. {HowToSet}");
         }
 
         byte[] bytes = Encoding.UTF8.GetBytes(key);
@@ -52,7 +70,7 @@ public static class JwtSigningKey
         }
 
         string hash = Convert.ToHexStringLower(SHA256.HashData(bytes));
-        if (PublicKeyHashes.Contains(hash, StringComparer.Ordinal))
+        if (blockedHashes.Contains(hash, StringComparer.Ordinal))
         {
             throw new InvalidOperationException(
                 "The JWT signing key is one that was committed to the repository and is public; " +
