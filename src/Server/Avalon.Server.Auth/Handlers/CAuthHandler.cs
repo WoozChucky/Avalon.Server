@@ -1,4 +1,5 @@
 using System.Text;
+using Avalon.Common.ValueObjects;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Domain.Auth;
 using Avalon.Infrastructure;
@@ -54,20 +55,35 @@ public class CAuthHandler : IAuthPacketHandler<CAuthPacket>
             return;
         }
 
+        // Per username, from every source (#484), and before the lookup, so a username no account
+        // has is counted exactly like one that exists. The count this increment returns is this
+        // attempt's place in the window, and it alone decides the lock: parallel guesses that all
+        // read the row before the lock landed can no longer all be verified.
+        var username = UsernameBudget.Normalise(ctx.Packet.Username);
+        var usernameKey = UsernameBudget.KeyFor(username);
+        long taken = await UsernameBudget.TakeAsync(_cache, _authConfig, usernameKey);
+        if (UsernameBudget.Refuses(_authConfig, taken))
+        {
+            _logger.LogWarning("Login refused for a username past its failed-login limit");
+            ctx.Connection.Send(SAuthResultPacket.Create(null, null, AuthResult.LOCKED, ctx.Connection.CryptoSession.Encrypt));
+            return;
+        }
+
         var password = ctx.Packet.Password.Trim();
-        var account = await _accountRepository.FindByUserNameAsync(ctx.Packet.Username.ToUpperInvariant().Trim(), token);
+        var account = await _accountRepository.FindByUserNameAsync(username, token);
 
         if (account == null)
         {
             // Pay for one BCrypt verify, as a wrong password on a real account does, so the time
-            // taken does not tell an unknown username from a known one (#471).
+            // taken does not tell an unknown username from a known one (#471); and answer, and
+            // lock, from the same budget, so the replies do not either (#484).
             _passwordVerifier.Verify(password, BCryptPasswordVerifier.UnknownAccountHash);
-            ctx.Connection.Send(SAuthResultPacket.Create(null, null, AuthResult.INVALID_CREDENTIALS, ctx.Connection.CryptoSession.Encrypt));
+            await FailAsync(ctx, null, usernameKey, taken, token);
             return;
         }
 
         // Before the password check, so a locked account cannot be used to test passwords. The
-        // source slot taken above is kept, so probing for locked accounts is not free.
+        // slots taken above are kept, so probing for locked accounts is not free.
         var now = DateTime.UtcNow;
         if (account.IsLockedAt(now))
         {
@@ -79,22 +95,12 @@ public class CAuthHandler : IAuthPacketHandler<CAuthPacket>
 
         if (!_passwordVerifier.Verify(password, verifier))
         {
-            // Reply first, then write: an unknown username writes nothing, so a write ahead of the
-            // reply would make a known one measurably slower. The answer is the one this failure
-            // leads to from the row as read (an expired lock counts from zero); the write itself
-            // is atomic, so a concurrent failure the read missed is still counted, and at worst
-            // its lock is reported on the next attempt instead of this one.
-            var expiredLock = account.Locked;
-            var failures = (expiredLock ? 0 : account.FailedLogins) + 1;
-            var result = failures >= _authConfig.MaxFailedLoginAttempts ? AuthResult.LOCKED : AuthResult.INVALID_CREDENTIALS;
-            ctx.Connection.Send(SAuthResultPacket.Create(null, null, result, ctx.Connection.CryptoSession.Encrypt));
-
-            await _accountRepository.RecordFailedLoginAsync(account.Id, RemoteAddress.Of(ctx.Connection.RemoteEndPoint),
-                now, _authConfig.MaxFailedLoginAttempts, now.AddMinutes(_authConfig.LockoutDurationMinutes), token);
+            await FailAsync(ctx, account.Id, usernameKey, taken, token);
             return;
         }
 
         await SourceBudget.GiveBackAsync(_cache, sourceKey);
+        await UsernameBudget.GiveBackAsync(_cache, usernameKey);
 
         // After the password check, so a wrong password cannot be used to probe for a ban (#462);
         // before MFA and before any success, so an inactive account never gets past this point.
@@ -127,20 +133,24 @@ public class CAuthHandler : IAuthPacketHandler<CAuthPacket>
             }
             else
             {
+                // Only the flag (#484): writing back the row as read would undo a lock or a ban
+                // written since.
                 _logger.LogWarning("Account {AccountId} is online but no connection was found", account.Id);
                 account.Online = false;
-                await _accountRepository.UpdateAsync(account, token);
+                await _accountRepository.MarkOfflineAsync(account.Id, cancellationToken: token);
             }
             return;
         }
 
         // Written only while the account is not locked, in SQL: a lock set by failures after the
-        // row was read is never written away by this success.
+        // row was read is never written away by this success. The refusal is the answer a wrong
+        // password in this attempt's place got (#484), so a parallel batch that crosses the lock
+        // does not single out the right password by answering it differently.
         var lastIp = RemoteAddress.Of(ctx.Connection.RemoteEndPoint);
         if (!await _accountRepository.TryRecordLoginAsync(account.Id, lastIp, DateTime.UtcNow, token))
         {
             _logger.LogWarning("Account {AccountId} was locked during its login", account.Id);
-            ctx.Connection.Send(SAuthResultPacket.Create(null, null, AuthResult.LOCKED, ctx.Connection.CryptoSession.Encrypt));
+            ctx.Connection.Send(SAuthResultPacket.Create(null, null, FailureResult(taken), ctx.Connection.CryptoSession.Encrypt));
             return;
         }
 
@@ -158,4 +168,32 @@ public class CAuthHandler : IAuthPacketHandler<CAuthPacket>
         ctx.Connection.Send(SAuthResultPacket.Create(account.Id, null, AuthResult.SUCCESS, ctx.Connection.CryptoSession.Encrypt));
     }
 
+    /// <summary>The answer to a wrong password in budget slot <paramref name="taken"/>.</summary>
+    private AuthResult FailureResult(long taken) =>
+        UsernameBudget.Locks(_authConfig, taken) ? AuthResult.LOCKED : AuthResult.INVALID_CREDENTIALS;
+
+    /// <summary>
+    /// A wrong password, or a username no account has. Reply first, then write: an unknown username
+    /// writes nothing to the database, so a write ahead of the reply would make a known one
+    /// measurably slower. The failure in the last slot locks the account and holds the budget for
+    /// the lockout duration, for an unknown username as for a known one.
+    /// </summary>
+    private async Task FailAsync(AuthPacketContext<CAuthPacket> ctx, AccountId? accountId, string usernameKey, long taken,
+        CancellationToken token)
+    {
+        bool locks = UsernameBudget.Locks(_authConfig, taken);
+        ctx.Connection.Send(SAuthResultPacket.Create(null, null, FailureResult(taken), ctx.Connection.CryptoSession.Encrypt));
+
+        var now = DateTime.UtcNow;
+        if (locks)
+        {
+            await UsernameBudget.HoldLockAsync(_cache, _authConfig, usernameKey);
+        }
+
+        if (accountId != null)
+        {
+            await _accountRepository.RecordFailedLoginAsync(accountId, RemoteAddress.Of(ctx.Connection.RemoteEndPoint),
+                now, locks ? now.AddMinutes(_authConfig.LockoutDurationMinutes) : null, token);
+        }
+    }
 }

@@ -9,6 +9,7 @@ using Avalon.Network.Packets.Auth;
 using Avalon.Server.Auth;
 using Avalon.Server.Auth.Configuration;
 using Avalon.Server.Auth.Handlers;
+using Avalon.Server.Auth.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NSubstitute;
@@ -52,6 +53,9 @@ public class CMFAVerifyHandlerShould
         // A live MFA hash for account 1 with its first attempt, unless a test says otherwise.
         _mfaHashService.GetAccountIdAsync(Arg.Any<string>()).Returns(new AccountId(1L));
         _mfaHashService.RecordAttemptAsync(Arg.Any<AccountId>()).Returns(1L);
+        // The hash's account exists, unless a test says otherwise.
+        _accountRepository.FindByIdAsync(Arg.Any<AccountId>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
+            .Returns(ci => MakeAccount(ci.ArgAt<AccountId>(0).Value));
     }
 
     [Fact]
@@ -140,6 +144,7 @@ public class CMFAVerifyHandlerShould
         var account = MakeAccount(id: 42L);
         account.Online = true;
 
+        _mfaHashService.GetAccountIdAsync(Arg.Any<string>()).Returns(accountId);
         _mfaService.VerifyMFAAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(new MFAVerifyResult(true, accountId));
         _accountRepository.FindByIdAsync(accountId).Returns(account);
 
@@ -168,7 +173,9 @@ public class CMFAVerifyHandlerShould
         _connection.Received(1).Send(Arg.Any<NetworkPacket>());
         await _cache.Received(1).PublishAsync("world:accounts:disconnect", Arg.Any<string>());
         Assert.False(account.Online);
-        await _accountRepository.Received(1).UpdateAsync(account);
+        // Only the Online flag, never the whole row (#484).
+        await _accountRepository.Received(1).MarkOfflineAsync(accountId, 0, Arg.Any<CancellationToken>());
+        await _accountRepository.DidNotReceiveWithAnyArgs().UpdateAsync(default!, default);
     }
 
     /// <summary>
@@ -349,14 +356,38 @@ public class CMFAVerifyHandlerShould
         DateTime after = DateTime.UtcNow;
 
         Assert.Equal(AuthResult.MFA_FAILED, SentPacket().Result);
-        await _accountRepository.Received(1).RecordFailedLoginAsync(accountId, "127.0.0.1", Arg.Any<DateTime>(), 5,
-            Arg.Is<DateTime>(d => d >= before.AddMinutes(15) && d <= after.AddMinutes(15)), Arg.Any<CancellationToken>());
+        await _accountRepository.Received(1).RecordFailedLoginAsync(accountId, "127.0.0.1", Arg.Any<DateTime>(),
+            (DateTime?)null, Arg.Any<CancellationToken>());
         Received.InOrder(() =>
         {
             _connection.Send(Arg.Any<NetworkPacket>());
-            _accountRepository.RecordFailedLoginAsync(accountId, Arg.Any<string>(), Arg.Any<DateTime>(), Arg.Any<int>(),
-                Arg.Any<DateTime>(), Arg.Any<CancellationToken>());
+            _accountRepository.RecordFailedLoginAsync(accountId, Arg.Any<string>(), Arg.Any<DateTime>(),
+                Arg.Any<DateTime?>(), Arg.Any<CancellationToken>());
         });
+    }
+
+    /// <summary>
+    /// #484: codes spend the username's budget, and the wrong code in its last slot locks the
+    /// account for the lockout duration and is answered LOCKED, as a wrong password there is.
+    /// </summary>
+    [Fact]
+    public async Task Lock_the_account_on_the_wrong_code_in_the_username_budgets_last_slot()
+    {
+        var accountId = new AccountId(7L);
+        _mfaHashService.GetAccountIdAsync("valid-hash").Returns(accountId);
+        _mfaService.VerifyMFAAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(new MFAVerifyResult(false, null));
+        string usernameKey = UsernameBudget.KeyFor("TESTUSER");
+        _cache.IncrementAsync(usernameKey, Arg.Any<TimeSpan>()).Returns(5L);
+
+        DateTime before = DateTime.UtcNow;
+        await VerifyAsync();
+        DateTime after = DateTime.UtcNow;
+
+        Assert.Equal(AuthResult.LOCKED, SentPacket().Result);
+        await _accountRepository.Received(1).RecordFailedLoginAsync(accountId, "127.0.0.1", Arg.Any<DateTime>(),
+            Arg.Is<DateTime?>(d => d >= before.AddMinutes(15) && d <= after.AddMinutes(15)), Arg.Any<CancellationToken>());
+        await _cache.Received(1).KeyExpireAsync(usernameKey, TimeSpan.FromMinutes(15));
     }
 
     [Fact]
@@ -369,8 +400,7 @@ public class CMFAVerifyHandlerShould
 
         await VerifyAsync("123456");
 
-        await _accountRepository.DidNotReceiveWithAnyArgs().RecordFailedLoginAsync(default!, default!, default,
-            default, default, default);
+        await _accountRepository.DidNotReceiveWithAnyArgs().RecordFailedLoginAsync(default!, default!, default, default, default);
     }
 
     /// <summary>

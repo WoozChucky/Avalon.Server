@@ -115,7 +115,7 @@ public class CWorldSelectHandlerShould
 
         await _cache.DidNotReceive().SetAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<TimeSpan?>());
         await _cache.DidNotReceive().PublishAsync(Arg.Any<string>(), Arg.Any<string>());
-        await _accountRepository.DidNotReceive().UpdateAsync(Arg.Any<Account>());
+        await _accountRepository.DidNotReceiveWithAnyArgs().SetSessionKeyAsync(default!, default!, default);
     }
 
     /// <summary>
@@ -181,7 +181,9 @@ public class CWorldSelectHandlerShould
 
         Assert.NotNull(account.SessionKey);
         Assert.Equal(32, account.SessionKey.Length);
-        await _accountRepository.Received(1).UpdateAsync(account);
+        // Only the key, never the whole row (#484).
+        await _accountRepository.Received(1).SetSessionKeyAsync(account.Id, account.SessionKey, Arg.Any<CancellationToken>());
+        await _accountRepository.DidNotReceiveWithAnyArgs().UpdateAsync(default!, default);
         await _cache.Received(1).SetNxAsync(
             Arg.Is<string>(k => k == $"account:{account.Id}:inWorld"),
             "1",
@@ -240,7 +242,7 @@ public class CWorldSelectHandlerShould
         await _handler.ExecuteAsync(ctx);
 
         _connection.Received(1).Send(Arg.Any<NetworkPacket>());
-        await _accountRepository.DidNotReceive().UpdateAsync(Arg.Any<Account>());
+        await _accountRepository.DidNotReceiveWithAnyArgs().SetSessionKeyAsync(default!, default!, default);
         await _cache.DidNotReceive().SetAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<TimeSpan?>());
         await _cache.DidNotReceive().PublishAsync(Arg.Any<string>(), Arg.Any<string>());
     }
@@ -273,7 +275,7 @@ public class CWorldSelectHandlerShould
         await _cache.DidNotReceiveWithAnyArgs().SetNxAsync(default!, default!, default);
         await _cache.DidNotReceiveWithAnyArgs().SetAsync(default!, default!, default);
         await _cache.DidNotReceiveWithAnyArgs().PublishAsync(default!, default!);
-        await _accountRepository.DidNotReceiveWithAnyArgs().UpdateAsync(default!, default);
+        await _accountRepository.DidNotReceiveWithAnyArgs().SetSessionKeyAsync(default!, default!, default);
         _connection.Received(1).Close();
     }
 }

@@ -47,13 +47,9 @@ public class AuthServer(
 
         Certificate = X509CertificateLoader.LoadPkcs12(serverCertBytes, _securityOptions.CertificatePassword);
 
-        // Reset account online status
-        IList<Account> accounts = await accountRepository.FindAllAsync(cancellationToken: stoppingToken);
-        foreach (Account account in accounts)
-        {
-            account.Online = false;
-            await accountRepository.UpdateAsync(account, stoppingToken);
-        }
+        // Reset account online status: one statement that writes only the flag (#484). Reading every
+        // row and writing each back whole would undo any ban or lock written in between.
+        await accountRepository.MarkAllOfflineAsync(stoppingToken);
 
         RegisterNewConnectionListener(NewConnection);
     }

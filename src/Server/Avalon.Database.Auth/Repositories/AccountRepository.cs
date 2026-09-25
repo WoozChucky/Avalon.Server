@@ -12,11 +12,12 @@ public interface IAccountRepository : IRepository<Account, AccountId>
     /// <summary>
     /// Records one failed login in SQL, so concurrent failures cannot overwrite one another's count.
     /// A lock that has expired at <paramref name="now"/> is lifted first and its count restarted.
-    /// The increment then locks the account until <paramref name="lockedUntil"/> when the stored
-    /// count reaches <paramref name="maxFailedLogins"/>; an account already locked keeps its lock.
+    /// When <paramref name="lockUntil"/> is given, the account is locked until then: the caller
+    /// decides that from the username's failure budget (#484), not from the stored count. An account
+    /// already locked keeps its lock and its end.
     /// </summary>
-    Task<FailedLoginResult> RecordFailedLoginAsync(AccountId id, string attemptIp, DateTime now, int maxFailedLogins,
-        DateTime lockedUntil, CancellationToken cancellationToken = default);
+    Task<FailedLoginResult> RecordFailedLoginAsync(AccountId id, string attemptIp, DateTime now, DateTime? lockUntil,
+        CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Marks a login on the account (online, <paramref name="lastIp"/>, last login time, failed count
@@ -25,6 +26,19 @@ public interface IAccountRepository : IRepository<Account, AccountId>
     /// account was read is never erased.
     /// </summary>
     Task<bool> TryRecordLoginAsync(AccountId id, string lastIp, DateTime now, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Sets <c>Online = false</c>, adds <paramref name="sessionSeconds"/> to <c>TotalTime</c>, and
+    /// writes nothing else (#484): a lock, a ban or a failed-login count written since the account
+    /// was read is kept.
+    /// </summary>
+    Task MarkOfflineAsync(AccountId id, long sessionSeconds = 0, CancellationToken cancellationToken = default);
+
+    /// <summary>Sets <c>Online = false</c> on every account, in one statement, and writes nothing else.</summary>
+    Task MarkAllOfflineAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>Stores the account's world session key, and writes nothing else.</summary>
+    Task SetSessionKeyAsync(AccountId id, byte[] sessionKey, CancellationToken cancellationToken = default);
 }
 
 /// <summary>The account's failed-login count and lock state after a failure was recorded.</summary>
@@ -44,10 +58,10 @@ public class AccountRepository(IDbContextFactory<AuthDbContext> contextFactory)
     }
 
     public async Task<FailedLoginResult> RecordFailedLoginAsync(AccountId id, string attemptIp, DateTime now,
-        int maxFailedLogins, DateTime lockedUntil, CancellationToken cancellationToken = default)
+        DateTime? lockUntil, CancellationToken cancellationToken = default)
     {
         await using var context = await CreateContextAsync(cancellationToken);
-        DateTime? until = lockedUntil;
+        bool lockNow = lockUntil != null;
 
         // An expired lock no longer counts: lift it and start again, so the failure below is the first.
         await context.Accounts
@@ -57,16 +71,15 @@ public class AccountRepository(IDbContextFactory<AuthDbContext> contextFactory)
                 .SetProperty(a => a.LockedUntil, (DateTime?)null)
                 .SetProperty(a => a.FailedLogins, 0), cancellationToken);
 
-        // One statement: every right-hand side reads the row as it was before this update, so the
-        // increment and the lock decision agree, and a concurrent failure is never lost.
+        // One statement: every right-hand side reads the row as it was before this update, so a
+        // concurrent failure is never lost and a lock already in place keeps its end.
         await context.Accounts
             .Where(a => a.Id == id)
             .ExecuteUpdateAsync(s => s
                 .SetProperty(a => a.LastAttemptIp, attemptIp)
                 .SetProperty(a => a.FailedLogins, a => a.FailedLogins + 1)
-                .SetProperty(a => a.LockedUntil,
-                    a => !a.Locked && a.FailedLogins + 1 >= maxFailedLogins ? until : a.LockedUntil)
-                .SetProperty(a => a.Locked, a => a.Locked || a.FailedLogins + 1 >= maxFailedLogins),
+                .SetProperty(a => a.LockedUntil, a => !a.Locked && lockNow ? lockUntil : a.LockedUntil)
+                .SetProperty(a => a.Locked, a => a.Locked || lockNow),
                 cancellationToken);
 
         var state = await context.Accounts
@@ -93,6 +106,35 @@ public class AccountRepository(IDbContextFactory<AuthDbContext> contextFactory)
                 .SetProperty(a => a.LockedUntil, (DateTime?)null), cancellationToken);
 
         return updated == 1;
+    }
+
+    public async Task MarkOfflineAsync(AccountId id, long sessionSeconds = 0, CancellationToken cancellationToken = default)
+    {
+        await using var context = await CreateContextAsync(cancellationToken);
+
+        await context.Accounts
+            .Where(a => a.Id == id)
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(a => a.Online, false)
+                .SetProperty(a => a.TotalTime, a => a.TotalTime + sessionSeconds), cancellationToken);
+    }
+
+    public async Task MarkAllOfflineAsync(CancellationToken cancellationToken = default)
+    {
+        await using var context = await CreateContextAsync(cancellationToken);
+
+        await context.Accounts
+            .Where(a => a.Online)
+            .ExecuteUpdateAsync(s => s.SetProperty(a => a.Online, false), cancellationToken);
+    }
+
+    public async Task SetSessionKeyAsync(AccountId id, byte[] sessionKey, CancellationToken cancellationToken = default)
+    {
+        await using var context = await CreateContextAsync(cancellationToken);
+
+        await context.Accounts
+            .Where(a => a.Id == id)
+            .ExecuteUpdateAsync(s => s.SetProperty(a => a.SessionKey, sessionKey), cancellationToken);
     }
 
     public async Task<Account?> FindByEmailAsync(string email, CancellationToken cancellationToken = default)

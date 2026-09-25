@@ -174,16 +174,17 @@ public class CAuthHandlerShould
 
         Assert.Equal(AuthResult.INVALID_CREDENTIALS, SentResult());
         _connection.Received(1).Send(Arg.Any<NetworkPacket>());
-        await _accountRepository.Received(1).RecordFailedLoginAsync(account.Id, "127.0.0.1", Arg.Any<DateTime>(), 5,
-            Arg.Any<DateTime>(), Arg.Any<CancellationToken>());
+        await _accountRepository.Received(1).RecordFailedLoginAsync(account.Id, "127.0.0.1", Arg.Any<DateTime>(),
+            (DateTime?)null, Arg.Any<CancellationToken>());
         await _accountRepository.DidNotReceiveWithAnyArgs().UpdateAsync(default!, default);
     }
 
     [Fact]
     public async Task SendLocked_WhenFailedLoginAttemptsReachDefaultThreshold()
     {
-        var account = MakeAccount(failedLogins: 4); // one more will hit the default threshold of 5
+        var account = MakeAccount();
         _accountRepository.FindByUserNameAsync(Arg.Any<string>()).Returns(account);
+        _cache.IncrementAsync(UsernameKey, Arg.Any<TimeSpan>()).Returns(5L); // the default threshold of 5
 
         var ctx = new AuthPacketContext<CAuthPacket>
         {
@@ -194,15 +195,16 @@ public class CAuthHandlerShould
         await _handler.ExecuteAsync(ctx);
 
         Assert.Equal(AuthResult.LOCKED, SentResult());
-        await _accountRepository.Received(1).RecordFailedLoginAsync(account.Id, Arg.Any<string>(), Arg.Any<DateTime>(), 5,
-            Arg.Any<DateTime>(), Arg.Any<CancellationToken>());
+        await _accountRepository.Received(1).RecordFailedLoginAsync(account.Id, Arg.Any<string>(), Arg.Any<DateTime>(),
+            Arg.Is<DateTime?>(d => d != null), Arg.Any<CancellationToken>());
     }
 
     [Fact]
     public async Task LockAccount_WhenFailedLoginsReachConfiguredThreshold()
     {
-        var account = MakeAccount(failedLogins: 2); // one more will hit threshold of 3
+        var account = MakeAccount();
         _accountRepository.FindByUserNameAsync(Arg.Any<string>()).Returns(account);
+        _cache.IncrementAsync(UsernameKey, Arg.Any<TimeSpan>()).Returns(3L); // the threshold of 3
         var handler = CreateHandler(maxFailedLogins: 3);
 
         var ctx = new AuthPacketContext<CAuthPacket>
@@ -214,15 +216,17 @@ public class CAuthHandlerShould
         await handler.ExecuteAsync(ctx);
 
         Assert.Equal(AuthResult.LOCKED, SentResult());
-        await _accountRepository.Received(1).RecordFailedLoginAsync(account.Id, Arg.Any<string>(), Arg.Any<DateTime>(), 3,
-            Arg.Any<DateTime>(), Arg.Any<CancellationToken>());
+        await _accountRepository.Received(1).RecordFailedLoginAsync(account.Id, Arg.Any<string>(), Arg.Any<DateTime>(),
+            Arg.Is<DateTime?>(d => d != null), Arg.Any<CancellationToken>());
     }
 
     [Fact]
     public async Task NotLockAccount_WhenFailedLoginsBelowConfiguredThreshold()
     {
-        var account = MakeAccount(failedLogins: 4); // 5 failures total, but threshold is 10
+        // The row's own count does not decide the lock (#484): only the username budget does.
+        var account = MakeAccount(failedLogins: 40);
         _accountRepository.FindByUserNameAsync(Arg.Any<string>()).Returns(account);
+        _cache.IncrementAsync(UsernameKey, Arg.Any<TimeSpan>()).Returns(5L); // 5 failures, but threshold is 10
         var handler = CreateHandler(maxFailedLogins: 10);
 
         var ctx = new AuthPacketContext<CAuthPacket>
@@ -234,8 +238,8 @@ public class CAuthHandlerShould
         await handler.ExecuteAsync(ctx);
 
         Assert.Equal(AuthResult.INVALID_CREDENTIALS, SentResult());
-        await _accountRepository.Received(1).RecordFailedLoginAsync(account.Id, Arg.Any<string>(), Arg.Any<DateTime>(), 10,
-            Arg.Any<DateTime>(), Arg.Any<CancellationToken>());
+        await _accountRepository.Received(1).RecordFailedLoginAsync(account.Id, Arg.Any<string>(), Arg.Any<DateTime>(),
+            (DateTime?)null, Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -288,9 +292,10 @@ public class CAuthHandlerShould
 
         _connection.Received(1).Send(Arg.Any<NetworkPacket>());
         await _cache.Received(1).PublishAsync("world:accounts:disconnect", Arg.Any<string>());
-        // No session found => account.Online = false, UpdateAsync called
+        // No session found => only the Online flag is cleared, never the whole row (#484)
         Assert.False(account.Online);
-        await _accountRepository.Received(1).UpdateAsync(account);
+        await _accountRepository.Received(1).MarkOfflineAsync(account.Id, 0, Arg.Any<CancellationToken>());
+        await _accountRepository.DidNotReceiveWithAnyArgs().UpdateAsync(default!, default);
     }
 
     [Fact]
@@ -457,12 +462,14 @@ public class CAuthHandlerShould
 
         Assert.Equal(AuthResult.INVALID_CREDENTIALS, SentResult());
         await _accountRepository.Received(1).RecordFailedLoginAsync(account.Id, Arg.Any<string>(), Arg.Any<DateTime>(),
-            Arg.Any<int>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>());
+            Arg.Any<DateTime?>(), Arg.Any<CancellationToken>());
     }
 
     // ── #471: login hardening ─────────────────────────────────────────────────
 
     private const string SourceKey = "auth:source:127.0.0.1:failedLogins";
+
+    private static readonly string UsernameKey = UsernameBudget.KeyFor("testuser");
 
     private static IOptions<AuthConfiguration> HardeningOptions(int lockoutMinutes = 15, int perSource = 10,
         int sourceWindowMinutes = 15) =>
@@ -557,22 +564,24 @@ public class CAuthHandlerShould
         // Five failures on the expired lock would re-lock at once if they still counted.
         Assert.Equal(AuthResult.INVALID_CREDENTIALS, SentResult());
         await _accountRepository.Received(1).RecordFailedLoginAsync(account.Id, Arg.Any<string>(), Arg.Any<DateTime>(),
-            5, Arg.Any<DateTime>(), Arg.Any<CancellationToken>());
+            (DateTime?)null, Arg.Any<CancellationToken>());
     }
 
     [Fact]
     public async Task Lock_an_account_for_the_configured_duration_when_it_reaches_the_threshold()
     {
-        var account = MakeAccount(failedLogins: 4);
+        var account = MakeAccount();
         _accountRepository.FindByUserNameAsync(Arg.Any<string>()).Returns(account);
+        _cache.IncrementAsync(UsernameKey, Arg.Any<TimeSpan>()).Returns(5L);
 
         DateTime before = DateTime.UtcNow;
         await LogInAsync(CreateHandler(HardeningOptions(lockoutMinutes: 30)), password: "wrong_password");
         DateTime after = DateTime.UtcNow;
 
         Assert.Equal(AuthResult.LOCKED, SentResult());
-        await _accountRepository.Received(1).RecordFailedLoginAsync(account.Id, Arg.Any<string>(), Arg.Any<DateTime>(), 5,
-            Arg.Is<DateTime>(d => d >= before.AddMinutes(30) && d <= after.AddMinutes(30)), Arg.Any<CancellationToken>());
+        await _accountRepository.Received(1).RecordFailedLoginAsync(account.Id, Arg.Any<string>(), Arg.Any<DateTime>(),
+            Arg.Is<DateTime?>(d => d >= before.AddMinutes(30) && d <= after.AddMinutes(30)), Arg.Any<CancellationToken>());
+        await _cache.Received(1).KeyExpireAsync(UsernameKey, TimeSpan.FromMinutes(30));
     }
 
     /// <summary>A lock with no end (one set before locks expired, or by hand) is not lifted.</summary>
@@ -606,8 +615,7 @@ public class CAuthHandlerShould
         Assert.Equal(AuthResult.LOCKED, SentResult());
         await _accountRepository.DidNotReceiveWithAnyArgs().FindByUserNameAsync(default!, default);
         verifier.DidNotReceiveWithAnyArgs().Verify(default!, default!);
-        await _accountRepository.DidNotReceiveWithAnyArgs().RecordFailedLoginAsync(default!, default!, default,
-            default, default, default);
+        await _accountRepository.DidNotReceiveWithAnyArgs().RecordFailedLoginAsync(default!, default!, default, default, default);
     }
 
     [Fact]
@@ -758,24 +766,28 @@ public class CAuthHandlerShould
         {
             _connection.Send(Arg.Any<NetworkPacket>());
             _accountRepository.RecordFailedLoginAsync(account.Id, Arg.Any<string>(), Arg.Any<DateTime>(),
-                Arg.Any<int>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>());
+                Arg.Any<DateTime?>(), Arg.Any<CancellationToken>());
         });
         await _accountRepository.DidNotReceiveWithAnyArgs().UpdateAsync(default!, default);
     }
 
+    /// <summary>
+    /// #484: the answer and the lock came from the row as read, which parallel requests all read
+    /// before any of them wrote. They now come from the username budget's count alone.
+    /// </summary>
     [Fact]
-    public async Task Answer_the_failure_that_reaches_the_threshold_as_locked()
+    public async Task Answer_and_lock_from_the_username_budget_not_from_the_row_as_read()
     {
         var account = MakeAccount(failedLogins: 4);
         _accountRepository.FindByUserNameAsync(Arg.Any<string>()).Returns(account);
+        _cache.IncrementAsync(UsernameKey, Arg.Any<TimeSpan>()).Returns(1L);
 
-        DateTime before = DateTime.UtcNow;
-        await LogInAsync(CreateHandler(HardeningOptions(lockoutMinutes: 30)), password: "wrong_password");
-        DateTime after = DateTime.UtcNow;
+        await LogInAsync(CreateHandler(HardeningOptions()), password: "wrong_password");
 
-        Assert.Equal(AuthResult.LOCKED, SentResult());
-        await _accountRepository.Received(1).RecordFailedLoginAsync(account.Id, "127.0.0.1", Arg.Any<DateTime>(), 5,
-            Arg.Is<DateTime>(d => d >= before.AddMinutes(30) && d <= after.AddMinutes(30)), Arg.Any<CancellationToken>());
+        Assert.Equal(AuthResult.INVALID_CREDENTIALS, SentResult());
+        await _accountRepository.Received(1).RecordFailedLoginAsync(account.Id, "127.0.0.1", Arg.Any<DateTime>(),
+            (DateTime?)null, Arg.Any<CancellationToken>());
+        await _cache.DidNotReceiveWithAnyArgs().KeyExpireAsync(default!, default(TimeSpan));
     }
 
     [Theory]
@@ -792,7 +804,7 @@ public class CAuthHandlerShould
 
         await _cache.Received(1).IncrementAsync(sourceKey, Arg.Any<TimeSpan>());
         await _accountRepository.Received(1).RecordFailedLoginAsync(account.Id, address, Arg.Any<DateTime>(),
-            Arg.Any<int>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>());
+            Arg.Any<DateTime?>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
