@@ -1,3 +1,4 @@
+using Avalon.Common.Accounts;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Hosting.Networking;
 using Avalon.Infrastructure;
@@ -41,7 +42,8 @@ public class CWorldSelectHandler : IAuthPacketHandler<CWorldSelectPacket>
             return;
         }
 
-        if (world.AccessLevelRequired > account.AccessLevel)
+        // The same rule as the world list, so a world never listed can never be selected either.
+        if (!AccessLevels.ForWorld(world.AccessLevelRequired).Allows(account.AccessLevel))
         {
             _logger.LogWarning("Account {AccountId} tried to access world {WorldId} without the required access level", account.Id, world.Id);
             return;
