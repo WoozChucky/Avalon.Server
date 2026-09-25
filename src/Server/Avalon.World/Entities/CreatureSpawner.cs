@@ -1,7 +1,6 @@
 using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
-using Avalon.Database.World.Repositories;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.State;
 using Avalon.World.Public;
@@ -14,27 +13,12 @@ namespace Avalon.World.Entities;
 
 public interface ICreatureSpawner
 {
-    Task LoadAsync();
-
     ICreature Spawn(CreatureInfo virtualCreature);
 }
 
-public class CreatureSpawner(
-    ILoggerFactory loggerFactory,
-    ICreatureTemplateRepository creatureTemplateRepository,
-    Lazy<CreatureStatDeriver> statDeriver)
-    : ICreatureSpawner
+public class CreatureSpawner(ILoggerFactory loggerFactory, IWorld world) : ICreatureSpawner
 {
     private readonly ILogger<CreatureSpawner> _logger = loggerFactory.CreateLogger<CreatureSpawner>();
-    private IEnumerable<CreatureTemplate> _templates = new List<CreatureTemplate>();
-
-    public async Task LoadAsync()
-    {
-        _templates = await creatureTemplateRepository.FindAllAsync();
-
-        _logger.LogInformation("Loaded {CreatureCount} creatures template from database", _templates.Count());
-    }
-
 
     public ICreature Spawn(CreatureInfo virtualCreature)
     {
@@ -60,7 +44,7 @@ public class CreatureSpawner(
 
     public ICreature Spawn(CreatureTemplateId templateId)
     {
-        CreatureTemplate? template = _templates.FirstOrDefault(t => t.Id == templateId);
+        CreatureTemplate? template = world.Data.CreatureTemplates.FirstOrDefault(t => t.Id == templateId);
         if (template == null)
         {
             _logger.LogWarning("Could not find creature template {CreatureId}", templateId);
@@ -68,7 +52,7 @@ public class CreatureSpawner(
         }
 
         ushort level = RollLevel(template);
-        DerivedCreatureStats stats = statDeriver.Value.Derive(template, level);
+        DerivedCreatureStats stats = world.Data.CreatureStats.Derive(template, level);
 
         Creature creature = new Creature
         {
