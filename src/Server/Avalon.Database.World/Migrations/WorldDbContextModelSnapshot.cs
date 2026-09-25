@@ -1742,46 +1742,550 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Id = 5m,
-                            AllowedClasses = "Wizard,Healer",
-                            BuyPrice = 100L,
+                            AllowedClasses = "Wizard",
+                            BuyPrice = 200L,
                             Class = 1,
-                            DamageMax1 = 3L,
-                            DamageMin1 = 1L,
+                            DamageMax1 = 5L,
+                            DamageMin1 = 2L,
                             DamageType1 = 0,
                             DisplayId = 5L,
                             Flags = 256,
-                            ItemPower = 2,
+                            ItemPower = 3,
                             MaxStackSize = 1L,
-                            Name = "Splintered Staff",
-                            Rarity = 1,
+                            Name = "Thornwood Staff",
+                            Rarity = 2,
                             RequiredLevel = 1,
                             SellPrice = 50L,
                             Slot = 9,
                             StatType1 = 12,
+                            StatType2 = 3,
                             StatValue1 = 18L,
+                            StatValue2 = 1L,
                             SubClass = 101
                         },
                         new
                         {
                             Id = 6m,
                             AllowedClasses = "Hunter",
-                            BuyPrice = 100L,
+                            BuyPrice = 200L,
                             Class = 1,
-                            DamageMax1 = 3L,
-                            DamageMin1 = 1L,
+                            DamageMax1 = 4L,
+                            DamageMin1 = 2L,
                             DamageType1 = 0,
                             DisplayId = 6L,
                             Flags = 256,
-                            ItemPower = 2,
+                            ItemPower = 3,
                             MaxStackSize = 1L,
-                            Name = "Warped Shortbow",
-                            Rarity = 1,
+                            Name = "Briarstring Bow",
+                            Rarity = 2,
                             RequiredLevel = 1,
                             SellPrice = 50L,
                             Slot = 9,
                             StatType1 = 12,
+                            StatType2 = 2,
                             StatValue1 = 15L,
+                            StatValue2 = 1L,
                             SubClass = 102
+                        },
+                        new
+                        {
+                            Id = 7m,
+                            AllowedClasses = "Warrior",
+                            BuyPrice = 200L,
+                            Class = 1,
+                            DamageMax1 = 4L,
+                            DamageMin1 = 2L,
+                            DamageType1 = 0,
+                            DisplayId = 7L,
+                            Flags = 256,
+                            ItemPower = 3,
+                            MaxStackSize = 1L,
+                            Name = "Bramblesteel Sword",
+                            Rarity = 2,
+                            RequiredLevel = 1,
+                            SellPrice = 50L,
+                            Slot = 9,
+                            StatType1 = 12,
+                            StatType2 = 1,
+                            StatValue1 = 13L,
+                            StatValue2 = 1L,
+                            SubClass = 100
+                        },
+                        new
+                        {
+                            Id = 8m,
+                            AllowedClasses = "Healer",
+                            BuyPrice = 200L,
+                            Class = 1,
+                            DamageMax1 = 4L,
+                            DamageMin1 = 2L,
+                            DamageType1 = 0,
+                            DisplayId = 8L,
+                            Flags = 256,
+                            ItemPower = 3,
+                            MaxStackSize = 1L,
+                            Name = "Rootknot Mace",
+                            Rarity = 2,
+                            RequiredLevel = 1,
+                            SellPrice = 50L,
+                            Slot = 9,
+                            StatType1 = 12,
+                            StatType2 = 3,
+                            StatValue1 = 15L,
+                            StatValue2 = 1L,
+                            SubClass = 100
+                        },
+                        new
+                        {
+                            Id = 9m,
+                            AllowedClasses = "Warrior,Wizard,Hunter,Healer",
+                            BuyPrice = 20L,
+                            Class = 0,
+                            DisplayId = 9L,
+                            Flags = 256,
+                            MaxStackSize = 20L,
+                            Name = "Scroll of Falling Leaves",
+                            Rarity = 1,
+                            SellPrice = 5L,
+                            SubClass = 2
+                        },
+                        new
+                        {
+                            Id = 10m,
+                            AllowedClasses = "Warrior,Wizard,Hunter,Healer",
+                            BuyPrice = 20L,
+                            Class = 0,
+                            DisplayId = 10L,
+                            Flags = 256,
+                            MaxStackSize = 20L,
+                            Name = "Scroll of the Mossy Hollow",
+                            Rarity = 1,
+                            SellPrice = 5L,
+                            SubClass = 2
+                        },
+                        new
+                        {
+                            Id = 11m,
+                            AllowedClasses = "Warrior,Wizard,Hunter,Healer",
+                            BuyPrice = 20L,
+                            Class = 0,
+                            DisplayId = 11L,
+                            Flags = 256,
+                            MaxStackSize = 20L,
+                            Name = "Scroll of Whispering Pines",
+                            Rarity = 1,
+                            SellPrice = 5L,
+                            SubClass = 2
+                        },
+                        new
+                        {
+                            Id = 12m,
+                            AllowedClasses = "Warrior",
+                            BuyPrice = 200L,
+                            Class = 2,
+                            DisplayId = 12L,
+                            Flags = 256,
+                            ItemPower = 3,
+                            MaxStackSize = 1L,
+                            Name = "Barkplate Helm",
+                            Rarity = 2,
+                            RequiredLevel = 1,
+                            SellPrice = 50L,
+                            Slot = 0,
+                            StatType1 = 1,
+                            StatType2 = 4,
+                            StatType3 = 0,
+                            StatValue1 = 1L,
+                            StatValue2 = 4L,
+                            StatValue3 = 1L,
+                            SubClass = 201
+                        },
+                        new
+                        {
+                            Id = 13m,
+                            AllowedClasses = "Warrior",
+                            BuyPrice = 200L,
+                            Class = 2,
+                            DisplayId = 13L,
+                            Flags = 256,
+                            ItemPower = 3,
+                            MaxStackSize = 1L,
+                            Name = "Barkplate Chestguard",
+                            Rarity = 2,
+                            RequiredLevel = 1,
+                            SellPrice = 50L,
+                            Slot = 3,
+                            StatType1 = 1,
+                            StatType2 = 4,
+                            StatType3 = 0,
+                            StatValue1 = 2L,
+                            StatValue2 = 8L,
+                            StatValue3 = 2L,
+                            SubClass = 202
+                        },
+                        new
+                        {
+                            Id = 14m,
+                            AllowedClasses = "Warrior",
+                            BuyPrice = 200L,
+                            Class = 2,
+                            DisplayId = 14L,
+                            Flags = 256,
+                            ItemPower = 3,
+                            MaxStackSize = 1L,
+                            Name = "Barkplate Legguards",
+                            Rarity = 2,
+                            RequiredLevel = 1,
+                            SellPrice = 50L,
+                            Slot = 5,
+                            StatType1 = 1,
+                            StatType2 = 4,
+                            StatType3 = 0,
+                            StatValue1 = 2L,
+                            StatValue2 = 6L,
+                            StatValue3 = 1L,
+                            SubClass = 203
+                        },
+                        new
+                        {
+                            Id = 15m,
+                            AllowedClasses = "Warrior",
+                            BuyPrice = 200L,
+                            Class = 2,
+                            DisplayId = 15L,
+                            Flags = 256,
+                            ItemPower = 3,
+                            MaxStackSize = 1L,
+                            Name = "Barkplate Gauntlets",
+                            Rarity = 2,
+                            RequiredLevel = 1,
+                            SellPrice = 50L,
+                            Slot = 4,
+                            StatType1 = 1,
+                            StatType2 = 4,
+                            StatType3 = 0,
+                            StatValue1 = 1L,
+                            StatValue2 = 3L,
+                            StatValue3 = 1L,
+                            SubClass = 205
+                        },
+                        new
+                        {
+                            Id = 16m,
+                            AllowedClasses = "Warrior",
+                            BuyPrice = 200L,
+                            Class = 2,
+                            DisplayId = 16L,
+                            Flags = 256,
+                            ItemPower = 3,
+                            MaxStackSize = 1L,
+                            Name = "Barkplate Boots",
+                            Rarity = 2,
+                            RequiredLevel = 1,
+                            SellPrice = 50L,
+                            Slot = 6,
+                            StatType1 = 1,
+                            StatType2 = 4,
+                            StatType3 = 0,
+                            StatValue1 = 1L,
+                            StatValue2 = 3L,
+                            StatValue3 = 1L,
+                            SubClass = 204
+                        },
+                        new
+                        {
+                            Id = 17m,
+                            AllowedClasses = "Wizard",
+                            BuyPrice = 200L,
+                            Class = 2,
+                            DisplayId = 17L,
+                            Flags = 256,
+                            ItemPower = 3,
+                            MaxStackSize = 1L,
+                            Name = "Mossweave Hood",
+                            Rarity = 2,
+                            RequiredLevel = 1,
+                            SellPrice = 50L,
+                            Slot = 0,
+                            StatType1 = 3,
+                            StatValue1 = 2L,
+                            SubClass = 201
+                        },
+                        new
+                        {
+                            Id = 18m,
+                            AllowedClasses = "Wizard",
+                            BuyPrice = 200L,
+                            Class = 2,
+                            DisplayId = 18L,
+                            Flags = 256,
+                            ItemPower = 3,
+                            MaxStackSize = 1L,
+                            Name = "Mossweave Robe",
+                            Rarity = 2,
+                            RequiredLevel = 1,
+                            SellPrice = 50L,
+                            Slot = 3,
+                            StatType1 = 3,
+                            StatValue1 = 3L,
+                            SubClass = 202
+                        },
+                        new
+                        {
+                            Id = 19m,
+                            AllowedClasses = "Wizard",
+                            BuyPrice = 200L,
+                            Class = 2,
+                            DisplayId = 19L,
+                            Flags = 256,
+                            ItemPower = 3,
+                            MaxStackSize = 1L,
+                            Name = "Mossweave Leggings",
+                            Rarity = 2,
+                            RequiredLevel = 1,
+                            SellPrice = 50L,
+                            Slot = 5,
+                            StatType1 = 3,
+                            StatValue1 = 3L,
+                            SubClass = 203
+                        },
+                        new
+                        {
+                            Id = 20m,
+                            AllowedClasses = "Wizard",
+                            BuyPrice = 200L,
+                            Class = 2,
+                            DisplayId = 20L,
+                            Flags = 256,
+                            ItemPower = 3,
+                            MaxStackSize = 1L,
+                            Name = "Mossweave Gloves",
+                            Rarity = 2,
+                            RequiredLevel = 1,
+                            SellPrice = 50L,
+                            Slot = 4,
+                            StatType1 = 3,
+                            StatValue1 = 1L,
+                            SubClass = 205
+                        },
+                        new
+                        {
+                            Id = 21m,
+                            AllowedClasses = "Wizard",
+                            BuyPrice = 200L,
+                            Class = 2,
+                            DisplayId = 21L,
+                            Flags = 256,
+                            ItemPower = 3,
+                            MaxStackSize = 1L,
+                            Name = "Mossweave Slippers",
+                            Rarity = 2,
+                            RequiredLevel = 1,
+                            SellPrice = 50L,
+                            Slot = 6,
+                            StatType1 = 3,
+                            StatValue1 = 1L,
+                            SubClass = 204
+                        },
+                        new
+                        {
+                            Id = 22m,
+                            AllowedClasses = "Hunter",
+                            BuyPrice = 200L,
+                            Class = 2,
+                            DisplayId = 22L,
+                            Flags = 256,
+                            ItemPower = 3,
+                            MaxStackSize = 1L,
+                            Name = "Fernstalker Cap",
+                            Rarity = 2,
+                            RequiredLevel = 1,
+                            SellPrice = 50L,
+                            Slot = 0,
+                            StatType1 = 2,
+                            StatValue1 = 2L,
+                            SubClass = 201
+                        },
+                        new
+                        {
+                            Id = 23m,
+                            AllowedClasses = "Hunter",
+                            BuyPrice = 200L,
+                            Class = 2,
+                            DisplayId = 23L,
+                            Flags = 256,
+                            ItemPower = 3,
+                            MaxStackSize = 1L,
+                            Name = "Fernstalker Jerkin",
+                            Rarity = 2,
+                            RequiredLevel = 1,
+                            SellPrice = 50L,
+                            Slot = 3,
+                            StatType1 = 2,
+                            StatValue1 = 3L,
+                            SubClass = 202
+                        },
+                        new
+                        {
+                            Id = 24m,
+                            AllowedClasses = "Hunter",
+                            BuyPrice = 200L,
+                            Class = 2,
+                            DisplayId = 24L,
+                            Flags = 256,
+                            ItemPower = 3,
+                            MaxStackSize = 1L,
+                            Name = "Fernstalker Breeches",
+                            Rarity = 2,
+                            RequiredLevel = 1,
+                            SellPrice = 50L,
+                            Slot = 5,
+                            StatType1 = 2,
+                            StatValue1 = 3L,
+                            SubClass = 203
+                        },
+                        new
+                        {
+                            Id = 25m,
+                            AllowedClasses = "Hunter",
+                            BuyPrice = 200L,
+                            Class = 2,
+                            DisplayId = 25L,
+                            Flags = 256,
+                            ItemPower = 3,
+                            MaxStackSize = 1L,
+                            Name = "Fernstalker Grips",
+                            Rarity = 2,
+                            RequiredLevel = 1,
+                            SellPrice = 50L,
+                            Slot = 4,
+                            StatType1 = 2,
+                            StatValue1 = 1L,
+                            SubClass = 205
+                        },
+                        new
+                        {
+                            Id = 26m,
+                            AllowedClasses = "Hunter",
+                            BuyPrice = 200L,
+                            Class = 2,
+                            DisplayId = 26L,
+                            Flags = 256,
+                            ItemPower = 3,
+                            MaxStackSize = 1L,
+                            Name = "Fernstalker Boots",
+                            Rarity = 2,
+                            RequiredLevel = 1,
+                            SellPrice = 50L,
+                            Slot = 6,
+                            StatType1 = 2,
+                            StatValue1 = 1L,
+                            SubClass = 204
+                        },
+                        new
+                        {
+                            Id = 27m,
+                            AllowedClasses = "Healer",
+                            BuyPrice = 200L,
+                            Class = 2,
+                            DisplayId = 27L,
+                            Flags = 256,
+                            ItemPower = 3,
+                            MaxStackSize = 1L,
+                            Name = "Dewleaf Circlet",
+                            Rarity = 2,
+                            RequiredLevel = 1,
+                            SellPrice = 50L,
+                            Slot = 0,
+                            StatType1 = 3,
+                            StatType2 = 0,
+                            StatValue1 = 1L,
+                            StatValue2 = 1L,
+                            SubClass = 201
+                        },
+                        new
+                        {
+                            Id = 28m,
+                            AllowedClasses = "Healer",
+                            BuyPrice = 200L,
+                            Class = 2,
+                            DisplayId = 28L,
+                            Flags = 256,
+                            ItemPower = 3,
+                            MaxStackSize = 1L,
+                            Name = "Dewleaf Vestments",
+                            Rarity = 2,
+                            RequiredLevel = 1,
+                            SellPrice = 50L,
+                            Slot = 3,
+                            StatType1 = 3,
+                            StatType2 = 0,
+                            StatValue1 = 2L,
+                            StatValue2 = 2L,
+                            SubClass = 202
+                        },
+                        new
+                        {
+                            Id = 29m,
+                            AllowedClasses = "Healer",
+                            BuyPrice = 200L,
+                            Class = 2,
+                            DisplayId = 29L,
+                            Flags = 256,
+                            ItemPower = 3,
+                            MaxStackSize = 1L,
+                            Name = "Dewleaf Leggings",
+                            Rarity = 2,
+                            RequiredLevel = 1,
+                            SellPrice = 50L,
+                            Slot = 5,
+                            StatType1 = 3,
+                            StatType2 = 0,
+                            StatValue1 = 2L,
+                            StatValue2 = 1L,
+                            SubClass = 203
+                        },
+                        new
+                        {
+                            Id = 30m,
+                            AllowedClasses = "Healer",
+                            BuyPrice = 200L,
+                            Class = 2,
+                            DisplayId = 30L,
+                            Flags = 256,
+                            ItemPower = 3,
+                            MaxStackSize = 1L,
+                            Name = "Dewleaf Handwraps",
+                            Rarity = 2,
+                            RequiredLevel = 1,
+                            SellPrice = 50L,
+                            Slot = 4,
+                            StatType1 = 3,
+                            StatType2 = 0,
+                            StatValue1 = 1L,
+                            StatValue2 = 1L,
+                            SubClass = 205
+                        },
+                        new
+                        {
+                            Id = 31m,
+                            AllowedClasses = "Healer",
+                            BuyPrice = 200L,
+                            Class = 2,
+                            DisplayId = 31L,
+                            Flags = 256,
+                            ItemPower = 3,
+                            MaxStackSize = 1L,
+                            Name = "Dewleaf Sandals",
+                            Rarity = 2,
+                            RequiredLevel = 1,
+                            SellPrice = 50L,
+                            Slot = 6,
+                            StatType1 = 3,
+                            StatType2 = 0,
+                            StatValue1 = 1L,
+                            StatValue2 = 1L,
+                            SubClass = 204
                         });
                 });
 
@@ -2036,6 +2540,16 @@ namespace Avalon.Database.World.Migrations
                         {
                             Id = 9,
                             Name = "Forest weapons"
+                        },
+                        new
+                        {
+                            Id = 10,
+                            Name = "Forest scrolls"
+                        },
+                        new
+                        {
+                            Id = 11,
+                            Name = "Forest armour"
                         });
                 });
 
@@ -2126,10 +2640,28 @@ namespace Avalon.Database.World.Migrations
                         {
                             LootTableId = 2,
                             Sequence = 4,
-                            Chance = 10f,
+                            Chance = 2f,
                             MaxCount = 1,
                             MinCount = 1,
                             ReferenceTableId = 9
+                        },
+                        new
+                        {
+                            LootTableId = 2,
+                            Sequence = 5,
+                            Chance = 10f,
+                            MaxCount = 1,
+                            MinCount = 1,
+                            ReferenceTableId = 10
+                        },
+                        new
+                        {
+                            LootTableId = 2,
+                            Sequence = 6,
+                            Chance = 100f,
+                            MaxCount = 1,
+                            MinCount = 1,
+                            ReferenceTableId = 11
                         },
                         new
                         {
@@ -2162,10 +2694,28 @@ namespace Avalon.Database.World.Migrations
                         {
                             LootTableId = 3,
                             Sequence = 4,
-                            Chance = 10f,
+                            Chance = 2f,
                             MaxCount = 1,
                             MinCount = 1,
                             ReferenceTableId = 9
+                        },
+                        new
+                        {
+                            LootTableId = 3,
+                            Sequence = 5,
+                            Chance = 10f,
+                            MaxCount = 1,
+                            MinCount = 1,
+                            ReferenceTableId = 10
+                        },
+                        new
+                        {
+                            LootTableId = 3,
+                            Sequence = 6,
+                            Chance = 100f,
+                            MaxCount = 1,
+                            MinCount = 1,
+                            ReferenceTableId = 11
                         },
                         new
                         {
@@ -2198,10 +2748,28 @@ namespace Avalon.Database.World.Migrations
                         {
                             LootTableId = 4,
                             Sequence = 4,
-                            Chance = 10f,
+                            Chance = 2f,
                             MaxCount = 1,
                             MinCount = 1,
                             ReferenceTableId = 9
+                        },
+                        new
+                        {
+                            LootTableId = 4,
+                            Sequence = 5,
+                            Chance = 10f,
+                            MaxCount = 1,
+                            MinCount = 1,
+                            ReferenceTableId = 10
+                        },
+                        new
+                        {
+                            LootTableId = 4,
+                            Sequence = 6,
+                            Chance = 100f,
+                            MaxCount = 1,
+                            MinCount = 1,
+                            ReferenceTableId = 11
                         },
                         new
                         {
@@ -2234,10 +2802,28 @@ namespace Avalon.Database.World.Migrations
                         {
                             LootTableId = 5,
                             Sequence = 4,
-                            Chance = 10f,
+                            Chance = 2f,
                             MaxCount = 1,
                             MinCount = 1,
                             ReferenceTableId = 9
+                        },
+                        new
+                        {
+                            LootTableId = 5,
+                            Sequence = 5,
+                            Chance = 10f,
+                            MaxCount = 1,
+                            MinCount = 1,
+                            ReferenceTableId = 10
+                        },
+                        new
+                        {
+                            LootTableId = 5,
+                            Sequence = 6,
+                            Chance = 100f,
+                            MaxCount = 1,
+                            MinCount = 1,
+                            ReferenceTableId = 11
                         },
                         new
                         {
@@ -2270,10 +2856,28 @@ namespace Avalon.Database.World.Migrations
                         {
                             LootTableId = 6,
                             Sequence = 4,
-                            Chance = 10f,
+                            Chance = 2f,
                             MaxCount = 1,
                             MinCount = 1,
                             ReferenceTableId = 9
+                        },
+                        new
+                        {
+                            LootTableId = 6,
+                            Sequence = 5,
+                            Chance = 10f,
+                            MaxCount = 1,
+                            MinCount = 1,
+                            ReferenceTableId = 10
+                        },
+                        new
+                        {
+                            LootTableId = 6,
+                            Sequence = 6,
+                            Chance = 100f,
+                            MaxCount = 1,
+                            MinCount = 1,
+                            ReferenceTableId = 11
                         },
                         new
                         {
@@ -2306,10 +2910,28 @@ namespace Avalon.Database.World.Migrations
                         {
                             LootTableId = 7,
                             Sequence = 4,
-                            Chance = 10f,
+                            Chance = 2f,
                             MaxCount = 1,
                             MinCount = 1,
                             ReferenceTableId = 9
+                        },
+                        new
+                        {
+                            LootTableId = 7,
+                            Sequence = 5,
+                            Chance = 10f,
+                            MaxCount = 1,
+                            MinCount = 1,
+                            ReferenceTableId = 10
+                        },
+                        new
+                        {
+                            LootTableId = 7,
+                            Sequence = 6,
+                            Chance = 100f,
+                            MaxCount = 1,
+                            MinCount = 1,
+                            ReferenceTableId = 11
                         },
                         new
                         {
@@ -2342,18 +2964,36 @@ namespace Avalon.Database.World.Migrations
                         {
                             LootTableId = 8,
                             Sequence = 4,
-                            Chance = 10f,
+                            Chance = 2f,
                             MaxCount = 1,
                             MinCount = 1,
                             ReferenceTableId = 9
                         },
                         new
                         {
+                            LootTableId = 8,
+                            Sequence = 5,
+                            Chance = 10f,
+                            MaxCount = 1,
+                            MinCount = 1,
+                            ReferenceTableId = 10
+                        },
+                        new
+                        {
+                            LootTableId = 8,
+                            Sequence = 6,
+                            Chance = 100f,
+                            MaxCount = 1,
+                            MinCount = 1,
+                            ReferenceTableId = 11
+                        },
+                        new
+                        {
                             LootTableId = 9,
                             Sequence = 1,
-                            Chance = 34f,
+                            Chance = 25f,
                             GroupId = 1,
-                            ItemTemplateId = 4m,
+                            ItemTemplateId = 7m,
                             MaxCount = 1,
                             MinCount = 1
                         },
@@ -2361,7 +3001,7 @@ namespace Avalon.Database.World.Migrations
                         {
                             LootTableId = 9,
                             Sequence = 2,
-                            Chance = 33f,
+                            Chance = 25f,
                             GroupId = 1,
                             ItemTemplateId = 5m,
                             MaxCount = 1,
@@ -2371,9 +3011,229 @@ namespace Avalon.Database.World.Migrations
                         {
                             LootTableId = 9,
                             Sequence = 3,
-                            Chance = 33f,
+                            Chance = 25f,
                             GroupId = 1,
                             ItemTemplateId = 6m,
+                            MaxCount = 1,
+                            MinCount = 1
+                        },
+                        new
+                        {
+                            LootTableId = 9,
+                            Sequence = 4,
+                            Chance = 25f,
+                            GroupId = 1,
+                            ItemTemplateId = 8m,
+                            MaxCount = 1,
+                            MinCount = 1
+                        },
+                        new
+                        {
+                            LootTableId = 10,
+                            Sequence = 1,
+                            Chance = 33f,
+                            GroupId = 1,
+                            ItemTemplateId = 9m,
+                            MaxCount = 1,
+                            MinCount = 1
+                        },
+                        new
+                        {
+                            LootTableId = 10,
+                            Sequence = 2,
+                            Chance = 33f,
+                            GroupId = 1,
+                            ItemTemplateId = 10m,
+                            MaxCount = 1,
+                            MinCount = 1
+                        },
+                        new
+                        {
+                            LootTableId = 10,
+                            Sequence = 3,
+                            Chance = 33f,
+                            GroupId = 1,
+                            ItemTemplateId = 11m,
+                            MaxCount = 1,
+                            MinCount = 1
+                        },
+                        new
+                        {
+                            LootTableId = 11,
+                            Sequence = 1,
+                            Chance = 2f,
+                            ItemTemplateId = 12m,
+                            MaxCount = 1,
+                            MinCount = 1
+                        },
+                        new
+                        {
+                            LootTableId = 11,
+                            Sequence = 2,
+                            Chance = 2f,
+                            ItemTemplateId = 13m,
+                            MaxCount = 1,
+                            MinCount = 1
+                        },
+                        new
+                        {
+                            LootTableId = 11,
+                            Sequence = 3,
+                            Chance = 2f,
+                            ItemTemplateId = 14m,
+                            MaxCount = 1,
+                            MinCount = 1
+                        },
+                        new
+                        {
+                            LootTableId = 11,
+                            Sequence = 4,
+                            Chance = 2f,
+                            ItemTemplateId = 15m,
+                            MaxCount = 1,
+                            MinCount = 1
+                        },
+                        new
+                        {
+                            LootTableId = 11,
+                            Sequence = 5,
+                            Chance = 2f,
+                            ItemTemplateId = 16m,
+                            MaxCount = 1,
+                            MinCount = 1
+                        },
+                        new
+                        {
+                            LootTableId = 11,
+                            Sequence = 6,
+                            Chance = 2f,
+                            ItemTemplateId = 17m,
+                            MaxCount = 1,
+                            MinCount = 1
+                        },
+                        new
+                        {
+                            LootTableId = 11,
+                            Sequence = 7,
+                            Chance = 2f,
+                            ItemTemplateId = 18m,
+                            MaxCount = 1,
+                            MinCount = 1
+                        },
+                        new
+                        {
+                            LootTableId = 11,
+                            Sequence = 8,
+                            Chance = 2f,
+                            ItemTemplateId = 19m,
+                            MaxCount = 1,
+                            MinCount = 1
+                        },
+                        new
+                        {
+                            LootTableId = 11,
+                            Sequence = 9,
+                            Chance = 2f,
+                            ItemTemplateId = 20m,
+                            MaxCount = 1,
+                            MinCount = 1
+                        },
+                        new
+                        {
+                            LootTableId = 11,
+                            Sequence = 10,
+                            Chance = 2f,
+                            ItemTemplateId = 21m,
+                            MaxCount = 1,
+                            MinCount = 1
+                        },
+                        new
+                        {
+                            LootTableId = 11,
+                            Sequence = 11,
+                            Chance = 2f,
+                            ItemTemplateId = 22m,
+                            MaxCount = 1,
+                            MinCount = 1
+                        },
+                        new
+                        {
+                            LootTableId = 11,
+                            Sequence = 12,
+                            Chance = 2f,
+                            ItemTemplateId = 23m,
+                            MaxCount = 1,
+                            MinCount = 1
+                        },
+                        new
+                        {
+                            LootTableId = 11,
+                            Sequence = 13,
+                            Chance = 2f,
+                            ItemTemplateId = 24m,
+                            MaxCount = 1,
+                            MinCount = 1
+                        },
+                        new
+                        {
+                            LootTableId = 11,
+                            Sequence = 14,
+                            Chance = 2f,
+                            ItemTemplateId = 25m,
+                            MaxCount = 1,
+                            MinCount = 1
+                        },
+                        new
+                        {
+                            LootTableId = 11,
+                            Sequence = 15,
+                            Chance = 2f,
+                            ItemTemplateId = 26m,
+                            MaxCount = 1,
+                            MinCount = 1
+                        },
+                        new
+                        {
+                            LootTableId = 11,
+                            Sequence = 16,
+                            Chance = 2f,
+                            ItemTemplateId = 27m,
+                            MaxCount = 1,
+                            MinCount = 1
+                        },
+                        new
+                        {
+                            LootTableId = 11,
+                            Sequence = 17,
+                            Chance = 2f,
+                            ItemTemplateId = 28m,
+                            MaxCount = 1,
+                            MinCount = 1
+                        },
+                        new
+                        {
+                            LootTableId = 11,
+                            Sequence = 18,
+                            Chance = 2f,
+                            ItemTemplateId = 29m,
+                            MaxCount = 1,
+                            MinCount = 1
+                        },
+                        new
+                        {
+                            LootTableId = 11,
+                            Sequence = 19,
+                            Chance = 2f,
+                            ItemTemplateId = 30m,
+                            MaxCount = 1,
+                            MinCount = 1
+                        },
+                        new
+                        {
+                            LootTableId = 11,
+                            Sequence = 20,
+                            Chance = 2f,
+                            ItemTemplateId = 31m,
                             MaxCount = 1,
                             MinCount = 1
                         });

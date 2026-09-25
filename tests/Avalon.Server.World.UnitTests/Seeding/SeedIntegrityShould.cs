@@ -201,11 +201,16 @@ public class SeedIntegrityShould
             + string.Join(", ", authored));
     }
 
-    private static readonly ulong[] Weapons = [4, 5, 6];
-
     private static readonly LootTableId ForestCommon = new(1);
 
     private static readonly LootTableId ForestWeapons = new(9);
+
+    private static readonly LootTableId ForestScrolls = new(10);
+
+    private static readonly LootTableId ForestArmour = new(11);
+
+    private static readonly ItemSubClass[] ArmourSubClasses =
+        [ItemSubClass.Helmet, ItemSubClass.Chest, ItemSubClass.Legs, ItemSubClass.Gloves, ItemSubClass.Boots];
 
     /// <summary>
     /// Issue #460: every creature a player can kill drops something, and nothing drops from a town
@@ -242,58 +247,134 @@ public class SeedIntegrityShould
         var catalog = new LootCatalog(tables, NullLoggerFactory.Instance);
 
         Assert.Empty(catalog.Refused);
-        Assert.Equal(9, catalog.TableCount);
-        Assert.Equal(33, catalog.EntryCount);
+        Assert.Equal(11, catalog.TableCount);
+        // Table 1: 2. Tables 2-8: 6 each. Table 9: 4 weapons. Table 10: 3 scrolls. Table 11: 20 armour pieces.
+        Assert.Equal(2 + (7 * 6) + 4 + 3 + 20, catalog.EntryCount);
         Assert.All(context.CreatureTemplates.AsNoTracking().ToList().Where(t => t.LootTableId is not null),
             t => Assert.True(catalog.TryGet(t.LootTableId!, out _), $"{t.Name} names a table the catalog does not hold"));
     }
 
     /// <summary>
-    /// The spec asks the seed to exercise every kind of entry from the first day. The weapon group
-    /// lives in its own table, which each creature table references at 10 %: a group always drops one
-    /// of its entries, so a group inside every creature table would make every kill drop a weapon.
+    /// Every creature table rolls its own potions, then the shared pools: the common table, the
+    /// weapon and scroll groups (each drops exactly one entry when it rolls, so it is referenced at
+    /// the chance it should drop with), and the armour table, rolled every kill.
     /// </summary>
     [Fact]
-    public void Exercise_Independent_Entries_Groups_And_References_In_The_Seeded_Tables()
+    public void Reference_The_Shared_Pools_From_Every_Creature_Table()
     {
         using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
 
         HashSet<int> creatureTables = context.CreatureTemplates.AsNoTracking().ToList()
             .Where(t => t.LootTableId is not null).Select(t => t.LootTableId!.Value).ToHashSet();
-        List<LootTable> all = context.LootTables.AsNoTracking().Include(t => t.Entries).ToList();
-        List<LootTable> tables = all.Where(t => creatureTables.Contains(t.Id.Value)).ToList();
+        List<LootTable> tables = context.LootTables.AsNoTracking().Include(t => t.Entries).ToList()
+            .Where(t => creatureTables.Contains(t.Id.Value)).ToList();
 
         Assert.Equal(7, tables.Count);
         Assert.All(tables, table =>
         {
             Assert.Contains(table.Entries, e => e.GroupId is null && e.ItemTemplateId is not null);
-            Assert.Contains(table.Entries, e => e.ReferenceTableId == ForestCommon);
-            Assert.Contains(table.Entries, e => e.ReferenceTableId == ForestWeapons && e.Chance == 10f);
             Assert.DoesNotContain(table.Entries, e => e.GroupId is not null);
+            Assert.Contains(table.Entries, e => e.ReferenceTableId == ForestCommon);
+            Assert.Single(table.Entries, e => e.ReferenceTableId == ForestWeapons && e.Chance == 2f);
+            Assert.Single(table.Entries, e => e.ReferenceTableId == ForestScrolls && e.Chance == 10f);
+            Assert.Single(table.Entries, e => e.ReferenceTableId == ForestArmour && e.Chance == 100f);
+        });
+    }
+
+    [Fact]
+    public void Seed_The_Forest_Weapons_As_One_Group_Of_One_Weapon_Per_Class()
+    {
+        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+
+        Dictionary<ItemTemplateId, ItemTemplate> items = context.ItemTemplates.AsNoTracking().ToList().ToDictionary(i => i.Id);
+        LootTable table = LoadTable(context, ForestWeapons);
+
+        Assert.Equal(4, table.Entries.Count);
+        Assert.All(table.Entries, e =>
+        {
+            Assert.Equal(1, e.GroupId);
+            Assert.Equal(25f, e.Chance);
+            Assert.Equal(ItemClass.Weapon, items[e.ItemTemplateId!].Class);
+            Assert.Single(items[e.ItemTemplateId!].AllowedClasses);
+        });
+        Assert.Equal(
+            Enum.GetValues<CharacterClass>().Order(),
+            table.Entries.Select(e => items[e.ItemTemplateId!].AllowedClasses[0]).Order());
+    }
+
+    [Fact]
+    public void Seed_The_Forest_Scrolls_As_One_Group_Of_Three()
+    {
+        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+
+        Dictionary<ItemTemplateId, ItemTemplate> items = context.ItemTemplates.AsNoTracking().ToList().ToDictionary(i => i.Id);
+        LootTable table = LoadTable(context, ForestScrolls);
+
+        Assert.Equal(3, table.Entries.Count);
+        Assert.Single(table.Entries.Select(e => e.Chance).Distinct());
+        Assert.All(table.Entries, e =>
+        {
+            Assert.Equal(1, e.GroupId);
+            ItemTemplate scroll = items[e.ItemTemplateId!];
+            Assert.Equal(ItemClass.Consumable, scroll.Class);
+            Assert.Equal(ItemSubClass.Scroll, scroll.SubClass);
+        });
+    }
+
+    /// <summary>Every piece rolls on its own at 2 %, and the set covers each class in each of five slots exactly once.</summary>
+    [Fact]
+    public void Seed_The_Forest_Armour_As_Twenty_Independent_Pieces_One_Per_Class_And_Slot()
+    {
+        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+
+        Dictionary<ItemTemplateId, ItemTemplate> items = context.ItemTemplates.AsNoTracking().ToList().ToDictionary(i => i.Id);
+        LootTable table = LoadTable(context, ForestArmour);
+
+        Assert.Equal(20, table.Entries.Count);
+        Assert.All(table.Entries, e =>
+        {
+            Assert.Null(e.GroupId);
+            Assert.Equal(2f, e.Chance);
+            ItemTemplate piece = items[e.ItemTemplateId!];
+            Assert.Equal(ItemClass.Armor, piece.Class);
+            Assert.Contains(piece.SubClass, ArmourSubClasses);
+            Assert.Equal(ItemRarity.Uncommon, piece.Rarity);
+            Assert.Equal(SlotFor(piece.SubClass), piece.Slot);
+            Assert.Single(piece.AllowedClasses);
         });
 
-        LootTable weapons = Assert.Single(all, t => t.Id == ForestWeapons);
-        Assert.All(weapons.Entries, e => Assert.Equal(1, e.GroupId));
-        Assert.Equal(
-            [(4ul, 34f), (5ul, 33f), (6ul, 33f)],
-            weapons.Entries.OrderBy(e => e.Sequence).Select(e => (e.ItemTemplateId!.Value, e.Chance)).ToArray());
+        var covered = table.Entries
+            .Select(e => items[e.ItemTemplateId!])
+            .Select(i => (i.AllowedClasses[0], i.SubClass))
+            .ToHashSet();
+        var expected = Enum.GetValues<CharacterClass>()
+            .SelectMany(c => ArmourSubClasses.Select(s => (c, s)))
+            .ToHashSet();
+        Assert.True(expected.SetEquals(covered), "the armour table should hold one piece per class per slot");
     }
 
     /// <summary>
-    /// A seeded kill, rolled the way the tick rolls it: one gold pile, at most one weapon (the weapon
-    /// table is referenced at 10 % and its group drops exactly one), and nothing names an item the
-    /// seed does not have. Across 200 seeded kills of each creature at least one weapon drops.
+    /// Seeded kills, rolled the way the tick rolls them: one gold pile, at most one weapon and at most
+    /// one scroll (each is a group, referenced once), and nothing names an item the seed does not
+    /// have. Over 1000 kills of each creature, the 2 % weapon, the 10 % scroll and the 2 % armour
+    /// pieces all turn up.
     /// </summary>
     [Fact]
-    public void Roll_Every_Seeded_Creature_Into_One_Gold_Pile_And_At_Most_One_Weapon()
+    public void Roll_Every_Seeded_Creature_Into_One_Gold_Pile_At_Most_One_Weapon_And_At_Most_One_Scroll()
     {
         using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
 
         List<ItemTemplate> items = context.ItemTemplates.AsNoTracking().ToList();
-        var catalog = new LootCatalog(context.LootTables.AsNoTracking().Include(t => t.Entries).ToList(),
-            NullLoggerFactory.Instance);
+        List<LootTable> tables = context.LootTables.AsNoTracking().Include(t => t.Entries).ToList();
+        HashSet<ulong> weapons = ItemsIn(tables, ForestWeapons);
+        HashSet<ulong> scrolls = ItemsIn(tables, ForestScrolls);
+        HashSet<ulong> armour = ItemsIn(tables, ForestArmour);
+        var catalog = new LootCatalog(tables, NullLoggerFactory.Instance);
         var roller = new LootRoller(new LootRandom(new Random(460)), NullLogger<LootRoller>.Instance);
 
         List<CreatureTemplate> killable = context.CreatureTemplates.AsNoTracking().ToList()
@@ -302,21 +383,45 @@ public class SeedIntegrityShould
 
         foreach (CreatureTemplate template in killable)
         {
-            int weaponsDropped = 0;
+            int weaponsDropped = 0, scrollsDropped = 0, armourDropped = 0;
 
-            for (int i = 0; i < 200; i++)
+            for (int i = 0; i < 1000; i++)
             {
                 IReadOnlyList<RolledDrop> drops = roller.Roll(template, catalog, items);
+                List<ulong> dropped = drops.Where(d => !d.IsGold).Select(d => d.ItemTemplateId!.Value).ToList();
 
-                int weapons = drops.Count(d => d.ItemTemplateId is { } id && Weapons.Contains(id.Value));
-                Assert.InRange(weapons, 0, 1);
-                weaponsDropped += weapons;
+                int weaponCount = dropped.Count(weapons.Contains);
+                int scrollCount = dropped.Count(scrolls.Contains);
+                Assert.InRange(weaponCount, 0, 1);
+                Assert.InRange(scrollCount, 0, 1);
+                weaponsDropped += weaponCount;
+                scrollsDropped += scrollCount;
+                armourDropped += dropped.Count(armour.Contains);
 
                 Assert.Single(drops, d => d.IsGold);
-                Assert.All(drops.Where(d => !d.IsGold), d => Assert.Contains(items, t => t.Id == d.ItemTemplateId));
+                Assert.All(dropped, id => Assert.Contains(items, t => t.Id.Value == id));
             }
 
-            Assert.True(weaponsDropped > 0, $"{template.Name} dropped no weapon in 200 kills");
+            Assert.True(weaponsDropped > 0, $"{template.Name} dropped no weapon in 1000 kills");
+            Assert.True(scrollsDropped > 0, $"{template.Name} dropped no scroll in 1000 kills");
+            Assert.True(armourDropped > 0, $"{template.Name} dropped no armour in 1000 kills");
         }
     }
+
+    private static LootTable LoadTable(WorldDbContext context, LootTableId id) =>
+        Assert.Single(context.LootTables.AsNoTracking().Include(t => t.Entries).ToList(), t => t.Id == id);
+
+    private static HashSet<ulong> ItemsIn(IEnumerable<LootTable> tables, LootTableId id) =>
+        tables.Single(t => t.Id == id).Entries.Where(e => e.ItemTemplateId is not null)
+            .Select(e => e.ItemTemplateId!.Value).ToHashSet();
+
+    private static ItemSlotType SlotFor(ItemSubClass subClass) => subClass switch
+    {
+        ItemSubClass.Helmet => ItemSlotType.Head,
+        ItemSubClass.Chest => ItemSlotType.Chest,
+        ItemSubClass.Legs => ItemSlotType.Legs,
+        ItemSubClass.Gloves => ItemSlotType.Hands,
+        ItemSubClass.Boots => ItemSlotType.Feet,
+        _ => throw new ArgumentOutOfRangeException(nameof(subClass), subClass, "not an armour slot"),
+    };
 }
