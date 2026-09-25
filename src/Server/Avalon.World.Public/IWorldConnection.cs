@@ -1,6 +1,8 @@
+using Avalon.Common;
 using Avalon.Common.ValueObjects;
 using Avalon.Hosting.Networking;
 using Avalon.World.Public.Characters;
+using Avalon.World.Public.Enums;
 using Avalon.World.Public.Instances;
 
 namespace Avalon.World.Public;
@@ -110,6 +112,26 @@ public interface IWorldConnection : IConnection
     ///     to this client via <c>SThreatListPacket</c>.
     /// </summary>
     public ulong? CurrentTargetGuid { get; set; }
+
+    /// <summary>
+    ///     The account's locale, read once during character-select and cached. Defaults to enUS, so
+    ///     dialogue works in English even if the read has not landed or failed.
+    /// </summary>
+    AccountLocale Locale { get; set; }
+
+    /// <summary>
+    ///     The NPC and the node this connection is currently being shown, or null when no
+    ///     conversation is open. The node id is what lets the server reject a choice made against a
+    ///     node it is no longer showing.
+    /// </summary>
+    /// <remarks>
+    ///     Invariant: a non-null value here implies <c>Character</c> is also non-null — a
+    ///     conversation cannot be opened without a live character. <c>World.DeSpawnPlayerAsync</c>
+    ///     relies on this to clear it below its own early-return-on-null-character guards; if that
+    ///     invariant ever stops holding, those guards start leaking a stale conversation across a
+    ///     reconnect and no existing test would catch it.
+    /// </remarks>
+    (ObjectGuid Npc, DialogueNodeId Node)? CurrentDialogue { get; set; }
 
     /// <summary>True between accepting a CMSG_RESPAWN_AT_TOWN and completing the transfer.
     /// Used by the respawn handler to drop concurrent respawn requests during the async
