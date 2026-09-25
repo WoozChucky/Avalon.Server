@@ -47,8 +47,11 @@ public class AvalonAuthenticationHandler : AuthenticationHandler<AvalonAuthentic
         if (pat.ExpiresAt is { } exp && exp < DateTime.UtcNow) return AuthenticateResult.Fail("token expired");
 
         var account = await _accounts.FindByIdAsync(pat.AccountId, Context.RequestAborted);
-        if (account is null) return AuthenticateResult.Fail("account not found");
-        if (account.Status != AccountStatus.Active) return AuthenticateResult.Fail("account inactive");
+        // A token never carries more than the account holds now: the mint-time cap in
+        // PersonalAccessTokenService is not enough on its own, because the account can be
+        // demoted afterwards (#451). The token keeps its narrower scope otherwise.
+        if (!AccountAccessCheck.TryAdmit(account, pat.Roles, out AccountAccessLevel effectiveRoles, out string? refusal))
+            return AuthenticateResult.Fail(refusal);
 
         var claims = new List<Claim>
         {
@@ -57,13 +60,7 @@ public class AvalonAuthenticationHandler : AuthenticationHandler<AvalonAuthentic
             new(ClaimTypes.Email, account.Email),
             new("pat_id", pat.Id.Value.ToString()),
         };
-        // A token never carries more than the account holds now: the mint-time cap in
-        // PersonalAccessTokenService is not enough on its own, because the account can be
-        // demoted afterwards (#451). The token keeps its narrower scope otherwise.
-        var effectiveRoles = pat.Roles & account.AccessLevel;
-        foreach (AccountAccessLevel flag in Enum.GetValues<AccountAccessLevel>())
-            if (flag != 0 && (effectiveRoles & flag) == flag)
-                claims.Add(new Claim(ClaimTypes.GroupSid, flag.ToString()));
+        claims.AddRange(AccountAccessCheck.RoleClaims(effectiveRoles));
 
         // Fire-and-forget write-coalesced last-used update — don't block the request.
         await _pats.TouchLastUsedAsync(pat.Id, CancellationToken.None);

@@ -83,7 +83,10 @@ public static class ServiceRegistration
                         }
 
                         return Task.CompletedTask;
-                    }
+                    },
+                    // A valid signature is not enough: the account behind the token is reloaded
+                    // and re-checked on every request, as a PAT's is (#480).
+                    OnTokenValidated = JwtAccountRevalidation.OnTokenValidated,
                 };
 
                 x.TokenValidationParameters = new TokenValidationParameters
@@ -95,7 +98,9 @@ public static class ServiceRegistration
                     ValidateIssuerSigningKey = config.Authentication.ValidateIssuerKey,
                     ValidAudience = config.Authentication.Audience,
                     ValidateAudience = config.Authentication.ValidateAudience,
-                    ValidateLifetime = false,
+                    // The access token's lifetime (AccessTokenLifetimeMinutes) is enforced, with the
+                    // configured skew; a client past it gets a 401 and refreshes (#480).
+                    ValidateLifetime = true,
                     ClockSkew = TimeSpan.FromMinutes(config.Authentication.ClockSkewInMinutes),
                     RoleClaimType = ClaimTypes.GroupSid
                 };

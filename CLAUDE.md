@@ -106,6 +106,12 @@ CClientInfoPacket → SHandshakePacket → CHandshakePacket → SHandshakeResult
 - `auth:accounts:online` — pub/sub: login event (reserved, no subscriber yet)
 - `world:{worldId}:select` — pub/sub: world-select event (reserved, for future sharding)
 
+## REST API Auth
+
+`Avalon.Api` takes two credentials: an access JWT (`Authorization: Bearer`, or the `AVToken` cookie), minted by `JwtUtils` at login, MFA confirm and refresh, and a personal access token (`Authorization: Avalon avp_...`), read by `AvalonAuthenticationHandler`. **Neither is believed on its own (#451, #480).** On every request both go through `AccountAccessCheck` (`Avalon.Api/Authentication`): the account is reloaded, a missing or non-Active one (Banned, Deactivated) is refused with 401, and the request carries only `credential roles & account.AccessLevel` as `GroupSid` claims — a mask, never `>=`. For a JWT this runs in `JwtBearerEvents.OnTokenValidated` (`JwtAccountRevalidation`), after the bearer handler has checked the signature, issuer, audience and lifetime. So a demotion or a ban takes effect on the next request, and a promotion does not reach an existing token: the caller gets it on their next sign-in or refresh.
+
+The JWT's lifetime is enforced (`ValidateLifetime = true`, `AccessTokenLifetimeMinutes`, default 15, plus `ClockSkewInMinutes`). An expired JWT is a 401, and the client renews it with `POST /account/refresh`, which is `[AllowAnonymous]` and reads only the HttpOnly refresh cookie, so an expired access token does not stand in its way.
+
 ## World Simulation
 
 `WorldServer` is an `IHostedService` that runs the tick loop at ~60 Hz (16.67ms intervals). On each tick it calls `World.Update(deltaTime)`, which ticks all active `MapInstance` objects via `IInstanceRegistry`.
