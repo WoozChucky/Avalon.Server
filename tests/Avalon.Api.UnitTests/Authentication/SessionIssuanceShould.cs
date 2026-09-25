@@ -1,13 +1,17 @@
 using System.Net;
 using System.Net.Http.Json;
+using AuthenticateRequest = Avalon.Api.Contract.AuthenticateRequest;
+using RefreshResponse = Avalon.Api.Contract.RefreshResponse;
+using Avalon.Api.Exceptions;
 using Avalon.Api.Services;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.Auth;
 using Avalon.Infrastructure.Services;
+using Microsoft.AspNetCore.Mvc;
 using NSubstitute;
+using NSubstitute.ExceptionExtensions;
 using Xunit;
 using static Avalon.Api.UnitTests.Authentication.ApiAuthHost;
-using RefreshResponse = Avalon.Api.Contract.RefreshResponse;
 
 namespace Avalon.Api.UnitTests.Authentication;
 
@@ -114,17 +118,61 @@ public sealed class SessionIssuanceShould : IAsyncLifetime
     }
 
     [Theory]
-    [InlineData(AccountStatus.Banned)]
-    [InlineData(AccountStatus.Deactivated)]
-    public async Task Refuse_mfa_verify_for_an_account_that_is_not_active(AccountStatus status)
+    [InlineData(AccountStatus.Banned, "BANNED")]
+    [InlineData(AccountStatus.Deactivated, "DEACTIVATED")]
+    public async Task Tell_mfa_verify_for_an_account_that_is_not_active_its_status(AccountStatus status, string expected)
     {
         MfaCodeIsValid(MakeAccount(status: status));
 
         using HttpResponseMessage response = await PostVerifyAsync();
 
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        await AssertInactive(response, expected);
         Assert.False(SetsRefreshCookie(response, "refresh-new"));
         await _host.Refresh.DidNotReceiveWithAnyArgs().IssueAsync(default!, default);
         await _host.AccountRepository.DidNotReceiveWithAnyArgs().UpdateAsync(default!, default);
     }
+
+    // A bad code says nothing about the account, whatever its status.
+    [Fact]
+    public async Task Give_a_bad_mfa_code_the_generic_answer()
+    {
+        _host.Mfa.VerifyMFAAsync("hash", "123456", Arg.Any<CancellationToken>())
+            .Returns(new MFAVerifyResult(false, null));
+
+        using HttpResponseMessage response = await PostVerifyAsync();
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        string body = await response.Content.ReadAsStringAsync();
+        Assert.DoesNotContain("BANNED", body, StringComparison.Ordinal);
+        Assert.DoesNotContain("DEACTIVATED", body, StringComparison.Ordinal);
+    }
+
+    // The login endpoint turns the service's refusal into the same 403, and issues no refresh token.
+    [Theory]
+    [InlineData(AccountStatus.Banned, "BANNED")]
+    [InlineData(AccountStatus.Deactivated, "DEACTIVATED")]
+    public async Task Answer_login_for_an_account_that_is_not_active_with_403_and_its_status(
+        AccountStatus status, string expected)
+    {
+        _host.Accounts.Authenticate(Arg.Any<AuthenticateRequest>(), Arg.Any<System.Net.IPAddress>(), Arg.Any<CancellationToken>())
+            .ThrowsAsync(new AccountInactiveException(status));
+
+        using HttpResponseMessage response = await _host.Client.PostAsJsonAsync("/account/authenticate",
+            new { username = "caller", password = "right" });
+
+        await AssertInactive(response, expected);
+        await _host.Refresh.DidNotReceiveWithAnyArgs().IssueAsync(default!, default);
+    }
+
+    private static async Task AssertInactive(HttpResponseMessage response, string expected)
+    {
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        ProblemDetails? problem = await response.Content.ReadFromJsonAsync<ProblemDetails>();
+        Assert.Equal(403, problem?.Status);
+        Assert.Equal(expected, problem?.Detail);
+        Assert.False(SetsAnyCookie(response));
+    }
+
+    private static bool SetsAnyCookie(HttpResponseMessage response) =>
+        response.Headers.TryGetValues("Set-Cookie", out var cookies) && cookies.Any();
 }

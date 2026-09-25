@@ -4,6 +4,7 @@ using System.Text;
 using Avalon.Api.Authentication.Jwt;
 using Avalon.Api.Config;
 using Avalon.Api.Contract;
+using Avalon.Api.Exceptions;
 using Avalon.Api.Services;
 using Avalon.Common.ValueObjects;
 using Avalon.Database;
@@ -23,9 +24,9 @@ namespace Avalon.Api.UnitTests.Services;
 
 /// <summary>
 /// #480: password login must hand nothing to an account that is not Active — no access token, no
-/// MFA hash to finish the login with — and must answer exactly as it does for a wrong password,
-/// so the endpoint does not reveal which accounts are banned. The check runs after the password
-/// verify, so without the password nothing about the account's status can be learned at all.
+/// MFA hash to finish the login with. Once the password is right the caller is told the account's
+/// status, as the game client is; with a wrong password the answer is the generic one whatever
+/// the status, so without the password nothing about the account can be learned.
 /// </summary>
 public class AccountLoginStatusShould
 {
@@ -81,20 +82,36 @@ public class AccountLoginStatusShould
     }
 
     [Theory]
-    [InlineData(DomainStatus.Banned, false)]
-    [InlineData(DomainStatus.Deactivated, false)]
-    [InlineData(DomainStatus.Banned, true)]
-    [InlineData(DomainStatus.Deactivated, true)]
-    public async Task Refuse_an_account_that_is_not_active_as_if_the_password_were_wrong(DomainStatus status, bool mfa)
+    [InlineData(DomainStatus.Banned, false, "BANNED")]
+    [InlineData(DomainStatus.Deactivated, false, "DEACTIVATED")]
+    [InlineData(DomainStatus.Banned, true, "BANNED")]
+    [InlineData(DomainStatus.Deactivated, true, "DEACTIVATED")]
+    public async Task Tell_an_account_that_is_not_active_its_status_once_the_password_is_right(
+        DomainStatus status, bool mfa, string expected)
     {
         AccountIs(status, mfa);
-        var wrongPassword = await Assert.ThrowsAsync<AuthenticationException>(() => LoginAsync("wrong"));
 
-        var refused = await Assert.ThrowsAsync<AuthenticationException>(() => LoginAsync(Password));
+        var refused = await Assert.ThrowsAsync<AccountInactiveException>(() => LoginAsync(Password));
 
-        Assert.Equal(wrongPassword.Message, refused.Message);
+        Assert.Equal(status, refused.Status);
+        Assert.Equal(expected, refused.Message);
         _jwt.DidNotReceiveWithAnyArgs().GenerateJwtToken(default!);
         await _mfaHash.DidNotReceiveWithAnyArgs().GenerateHashAsync(default!);
         await _accounts.DidNotReceiveWithAnyArgs().UpdateAsync(default!, default);
+    }
+
+    // Without the password nothing about the account's status is given away.
+    [Theory]
+    [InlineData(DomainStatus.Active)]
+    [InlineData(DomainStatus.Banned)]
+    [InlineData(DomainStatus.Deactivated)]
+    public async Task Give_a_wrong_password_the_generic_answer_whatever_the_status(DomainStatus status)
+    {
+        AccountIs(status);
+
+        var refused = await Assert.ThrowsAsync<AuthenticationException>(() => LoginAsync("wrong"));
+
+        Assert.Equal("Invalid username or password", refused.Message);
+        _jwt.DidNotReceiveWithAnyArgs().GenerateJwtToken(default!);
     }
 }
