@@ -408,6 +408,106 @@ public class SeedIntegrityShould
         }
     }
 
+    /// <summary>Owner decision: forest drops can be sold. Every item in the weapon, scroll and armour pools.</summary>
+    [Fact]
+    public void Let_Every_Forest_Pool_Item_Be_Sold()
+    {
+        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+
+        List<ItemTemplate> items = context.ItemTemplates.AsNoTracking().ToList();
+        List<LootTable> tables = context.LootTables.AsNoTracking().Include(t => t.Entries).ToList();
+        var pool = ItemsIn(tables, ForestWeapons)
+            .Concat(ItemsIn(tables, ForestScrolls))
+            .Concat(ItemsIn(tables, ForestArmour))
+            .ToHashSet();
+
+        Assert.Equal(27, pool.Count);   // items 5-31
+        Assert.All(items.Where(i => pool.Contains(i.Id.Value)), item =>
+        {
+            Assert.False(item.Flags.HasFlag(ItemTemplateFlags.NoSell), $"{item.Name} is marked NoSell");
+            Assert.True(item.SellPrice > 0, $"{item.Name} sells for nothing");
+        });
+    }
+
+    /// <summary>
+    /// Every class's armour carries Armor, so no class is unarmoured once mitigation reads it, and in
+    /// each slot cloth (Wizard, Healer) is below leather (Hunter), which is below plate (Warrior).
+    /// </summary>
+    [Fact]
+    public void Armour_Every_Class_With_Cloth_Below_Leather_Below_Plate_In_Each_Slot()
+    {
+        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+
+        Dictionary<ItemTemplateId, ItemTemplate> items = context.ItemTemplates.AsNoTracking().ToList().ToDictionary(i => i.Id);
+        List<ItemTemplate> pieces = LoadTable(context, ForestArmour).Entries.Select(e => items[e.ItemTemplateId!]).ToList();
+
+        foreach (ItemSubClass slot in ArmourSubClasses)
+        {
+            uint ArmorFor(CharacterClass c) =>
+                ArmorOf(Assert.Single(pieces, p => p.SubClass == slot && p.AllowedClasses[0] == c));
+
+            uint wizard = ArmorFor(CharacterClass.Wizard), healer = ArmorFor(CharacterClass.Healer);
+            uint hunter = ArmorFor(CharacterClass.Hunter), warrior = ArmorFor(CharacterClass.Warrior);
+
+            Assert.True(wizard > 0 && healer > 0, $"{slot}: cloth has no Armor");
+            Assert.True(Math.Max(wizard, healer) < hunter, $"{slot}: cloth {wizard}/{healer} is not below leather {hunter}");
+            Assert.True(hunter < warrior, $"{slot}: leather {hunter} is not below plate {warrior}");
+        }
+    }
+
+    /// <summary>Every creature table rolls both potions itself, outside any group.</summary>
+    [Fact]
+    public void Roll_Both_Potions_Ungrouped_On_Every_Creature_Table()
+    {
+        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+
+        List<LootTable> tables = context.LootTables.AsNoTracking().Include(t => t.Entries).ToList();
+
+        for (int id = 2; id <= 8; id++)
+        {
+            LootTable table = Assert.Single(tables, t => t.Id == new LootTableId(id));
+            foreach (ulong potion in new ulong[] { 1, 2 })
+            {
+                Assert.True(
+                    table.Entries.Any(e => e.ItemTemplateId == new ItemTemplateId(potion) && e.GroupId is null),
+                    $"loot table {id} does not roll item {potion} on its own");
+            }
+        }
+    }
+
+    /// <summary>Every pool weapon goes in the main hand, and the bow is the ranged one.</summary>
+    [Fact]
+    public void Seed_Every_Pool_Weapon_For_The_Main_Hand_With_A_Weapon_Sub_Class()
+    {
+        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+
+        Dictionary<ItemTemplateId, ItemTemplate> items = context.ItemTemplates.AsNoTracking().ToList().ToDictionary(i => i.Id);
+        List<ItemTemplate> weapons = LoadTable(context, ForestWeapons).Entries.Select(e => items[e.ItemTemplateId!]).ToList();
+
+        Assert.All(weapons, w =>
+        {
+            Assert.Equal(ItemSlotType.MainHand, w.Slot);
+            Assert.Contains(w.SubClass, new[] { ItemSubClass.OneHanded, ItemSubClass.TwoHanded, ItemSubClass.Ranged });
+        });
+        ItemTemplate bow = Assert.Single(weapons, w => w.AllowedClasses[0] == CharacterClass.Hunter);
+        Assert.Equal(ItemSubClass.Ranged, bow.SubClass);
+    }
+
+    private static uint ArmorOf(ItemTemplate item) =>
+        (uint)new (StatType? Type, uint? Value)[]
+            {
+                (item.StatType1, item.StatValue1), (item.StatType2, item.StatValue2), (item.StatType3, item.StatValue3),
+                (item.StatType4, item.StatValue4), (item.StatType5, item.StatValue5), (item.StatType6, item.StatValue6),
+                (item.StatType7, item.StatValue7), (item.StatType8, item.StatValue8), (item.StatType9, item.StatValue9),
+                (item.StatType10, item.StatValue10),
+            }
+            .Where(s => s.Type == StatType.Armor)
+            .Sum(s => (long)(s.Value ?? 0));
+
     private static LootTable LoadTable(WorldDbContext context, LootTableId id) =>
         Assert.Single(context.LootTables.AsNoTracking().Include(t => t.Entries).ToList(), t => t.Id == id);
 

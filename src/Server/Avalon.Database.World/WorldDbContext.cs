@@ -997,7 +997,8 @@ public class WorldDbContext : DbContext
                 StatType1 = StatType.AttackSpeed,
                 StatValue1 = 13 // 1.3 seconds
             },
-            // The forest pools (issue #460). Items 5-8: one weapon per class, the group in loot table 9.
+            // The forest pools (issue #460). Items 5-31 can be sold (owner decision), so they carry no
+            // NoSell. Items 5-8: one weapon per class, the group in loot table 9.
             // Item 4 is left as it is, since it may become a starting item; item 7 is the forest's own sword.
             new ItemTemplate
             {
@@ -1005,7 +1006,7 @@ public class WorldDbContext : DbContext
                 Name = "Thornwood Staff",
                 Class = ItemClass.Weapon,
                 SubClass = ItemSubClass.TwoHanded,
-                Flags = ItemTemplateFlags.NoSell,
+                Flags = ItemTemplateFlags.None,
                 MaxStackSize = 1,
                 DisplayId = 5,
                 Rarity = ItemRarity.Uncommon,
@@ -1028,7 +1029,7 @@ public class WorldDbContext : DbContext
                 Name = "Briarstring Bow",
                 Class = ItemClass.Weapon,
                 SubClass = ItemSubClass.Ranged,
-                Flags = ItemTemplateFlags.NoSell,
+                Flags = ItemTemplateFlags.None,
                 MaxStackSize = 1,
                 DisplayId = 6,
                 Rarity = ItemRarity.Uncommon,
@@ -1051,7 +1052,7 @@ public class WorldDbContext : DbContext
                 Name = "Bramblesteel Sword",
                 Class = ItemClass.Weapon,
                 SubClass = ItemSubClass.OneHanded,
-                Flags = ItemTemplateFlags.NoSell,
+                Flags = ItemTemplateFlags.None,
                 MaxStackSize = 1,
                 DisplayId = 7,
                 Rarity = ItemRarity.Uncommon,
@@ -1074,7 +1075,7 @@ public class WorldDbContext : DbContext
                 Name = "Rootknot Mace",
                 Class = ItemClass.Weapon,
                 SubClass = ItemSubClass.OneHanded,
-                Flags = ItemTemplateFlags.NoSell,
+                Flags = ItemTemplateFlags.None,
                 MaxStackSize = 1,
                 DisplayId = 8,
                 Rarity = ItemRarity.Uncommon,
@@ -1099,7 +1100,7 @@ public class WorldDbContext : DbContext
                 Name = "Scroll of Falling Leaves",
                 Class = ItemClass.Consumable,
                 SubClass = ItemSubClass.Scroll,
-                Flags = ItemTemplateFlags.NoSell,
+                Flags = ItemTemplateFlags.None,
                 MaxStackSize = 20,
                 DisplayId = 9,
                 Rarity = ItemRarity.Common,
@@ -1112,7 +1113,7 @@ public class WorldDbContext : DbContext
                 Name = "Scroll of the Mossy Hollow",
                 Class = ItemClass.Consumable,
                 SubClass = ItemSubClass.Scroll,
-                Flags = ItemTemplateFlags.NoSell,
+                Flags = ItemTemplateFlags.None,
                 MaxStackSize = 20,
                 DisplayId = 10,
                 Rarity = ItemRarity.Common,
@@ -1125,7 +1126,7 @@ public class WorldDbContext : DbContext
                 Name = "Scroll of Whispering Pines",
                 Class = ItemClass.Consumable,
                 SubClass = ItemSubClass.Scroll,
-                Flags = ItemTemplateFlags.NoSell,
+                Flags = ItemTemplateFlags.None,
                 MaxStackSize = 20,
                 DisplayId = 11,
                 Rarity = ItemRarity.Common,
@@ -1135,28 +1136,30 @@ public class WorldDbContext : DbContext
             });
 
         // Items 12-31: the forest armour, one set per class in five slots, each piece its own 2 %
-        // entry in loot table 11.
+        // entry in loot table 11. Every piece carries Armor, so no class is unarmoured when
+        // mitigation lands: in each slot cloth (Wizard, Healer) is below leather (Hunter), which is
+        // below plate (Warrior).
         builder.HasData(
             ForestArmourPiece(12, "Barkplate Helm", CharacterClass.Warrior, ItemSubClass.Helmet, ItemSlotType.Head, (StatType.Strength, 1), (StatType.Armor, 4), (StatType.Stamina, 1)),
             ForestArmourPiece(13, "Barkplate Chestguard", CharacterClass.Warrior, ItemSubClass.Chest, ItemSlotType.Chest, (StatType.Strength, 2), (StatType.Armor, 8), (StatType.Stamina, 2)),
             ForestArmourPiece(14, "Barkplate Legguards", CharacterClass.Warrior, ItemSubClass.Legs, ItemSlotType.Legs, (StatType.Strength, 2), (StatType.Armor, 6), (StatType.Stamina, 1)),
             ForestArmourPiece(15, "Barkplate Gauntlets", CharacterClass.Warrior, ItemSubClass.Gloves, ItemSlotType.Hands, (StatType.Strength, 1), (StatType.Armor, 3), (StatType.Stamina, 1)),
             ForestArmourPiece(16, "Barkplate Boots", CharacterClass.Warrior, ItemSubClass.Boots, ItemSlotType.Feet, (StatType.Strength, 1), (StatType.Armor, 3), (StatType.Stamina, 1)),
-            ForestArmourPiece(17, "Mossweave Hood", CharacterClass.Wizard, ItemSubClass.Helmet, ItemSlotType.Head, (StatType.Intellect, 2)),
-            ForestArmourPiece(18, "Mossweave Robe", CharacterClass.Wizard, ItemSubClass.Chest, ItemSlotType.Chest, (StatType.Intellect, 3)),
-            ForestArmourPiece(19, "Mossweave Leggings", CharacterClass.Wizard, ItemSubClass.Legs, ItemSlotType.Legs, (StatType.Intellect, 3)),
-            ForestArmourPiece(20, "Mossweave Gloves", CharacterClass.Wizard, ItemSubClass.Gloves, ItemSlotType.Hands, (StatType.Intellect, 1)),
-            ForestArmourPiece(21, "Mossweave Slippers", CharacterClass.Wizard, ItemSubClass.Boots, ItemSlotType.Feet, (StatType.Intellect, 1)),
-            ForestArmourPiece(22, "Fernstalker Cap", CharacterClass.Hunter, ItemSubClass.Helmet, ItemSlotType.Head, (StatType.Agility, 2)),
-            ForestArmourPiece(23, "Fernstalker Jerkin", CharacterClass.Hunter, ItemSubClass.Chest, ItemSlotType.Chest, (StatType.Agility, 3)),
-            ForestArmourPiece(24, "Fernstalker Breeches", CharacterClass.Hunter, ItemSubClass.Legs, ItemSlotType.Legs, (StatType.Agility, 3)),
-            ForestArmourPiece(25, "Fernstalker Grips", CharacterClass.Hunter, ItemSubClass.Gloves, ItemSlotType.Hands, (StatType.Agility, 1)),
-            ForestArmourPiece(26, "Fernstalker Boots", CharacterClass.Hunter, ItemSubClass.Boots, ItemSlotType.Feet, (StatType.Agility, 1)),
-            ForestArmourPiece(27, "Dewleaf Circlet", CharacterClass.Healer, ItemSubClass.Helmet, ItemSlotType.Head, (StatType.Intellect, 1), (StatType.Stamina, 1)),
-            ForestArmourPiece(28, "Dewleaf Vestments", CharacterClass.Healer, ItemSubClass.Chest, ItemSlotType.Chest, (StatType.Intellect, 2), (StatType.Stamina, 2)),
-            ForestArmourPiece(29, "Dewleaf Leggings", CharacterClass.Healer, ItemSubClass.Legs, ItemSlotType.Legs, (StatType.Intellect, 2), (StatType.Stamina, 1)),
-            ForestArmourPiece(30, "Dewleaf Handwraps", CharacterClass.Healer, ItemSubClass.Gloves, ItemSlotType.Hands, (StatType.Intellect, 1), (StatType.Stamina, 1)),
-            ForestArmourPiece(31, "Dewleaf Sandals", CharacterClass.Healer, ItemSubClass.Boots, ItemSlotType.Feet, (StatType.Intellect, 1), (StatType.Stamina, 1)));
+            ForestArmourPiece(17, "Mossweave Hood", CharacterClass.Wizard, ItemSubClass.Helmet, ItemSlotType.Head, (StatType.Intellect, 2), (StatType.Armor, 1)),
+            ForestArmourPiece(18, "Mossweave Robe", CharacterClass.Wizard, ItemSubClass.Chest, ItemSlotType.Chest, (StatType.Intellect, 3), (StatType.Armor, 3)),
+            ForestArmourPiece(19, "Mossweave Leggings", CharacterClass.Wizard, ItemSubClass.Legs, ItemSlotType.Legs, (StatType.Intellect, 3), (StatType.Armor, 2)),
+            ForestArmourPiece(20, "Mossweave Gloves", CharacterClass.Wizard, ItemSubClass.Gloves, ItemSlotType.Hands, (StatType.Intellect, 1), (StatType.Armor, 1)),
+            ForestArmourPiece(21, "Mossweave Slippers", CharacterClass.Wizard, ItemSubClass.Boots, ItemSlotType.Feet, (StatType.Intellect, 1), (StatType.Armor, 1)),
+            ForestArmourPiece(22, "Fernstalker Cap", CharacterClass.Hunter, ItemSubClass.Helmet, ItemSlotType.Head, (StatType.Agility, 2), (StatType.Armor, 2)),
+            ForestArmourPiece(23, "Fernstalker Jerkin", CharacterClass.Hunter, ItemSubClass.Chest, ItemSlotType.Chest, (StatType.Agility, 3), (StatType.Armor, 5)),
+            ForestArmourPiece(24, "Fernstalker Breeches", CharacterClass.Hunter, ItemSubClass.Legs, ItemSlotType.Legs, (StatType.Agility, 3), (StatType.Armor, 4)),
+            ForestArmourPiece(25, "Fernstalker Grips", CharacterClass.Hunter, ItemSubClass.Gloves, ItemSlotType.Hands, (StatType.Agility, 1), (StatType.Armor, 2)),
+            ForestArmourPiece(26, "Fernstalker Boots", CharacterClass.Hunter, ItemSubClass.Boots, ItemSlotType.Feet, (StatType.Agility, 1), (StatType.Armor, 2)),
+            ForestArmourPiece(27, "Dewleaf Circlet", CharacterClass.Healer, ItemSubClass.Helmet, ItemSlotType.Head, (StatType.Intellect, 1), (StatType.Stamina, 1), (StatType.Armor, 1)),
+            ForestArmourPiece(28, "Dewleaf Vestments", CharacterClass.Healer, ItemSubClass.Chest, ItemSlotType.Chest, (StatType.Intellect, 2), (StatType.Stamina, 2), (StatType.Armor, 3)),
+            ForestArmourPiece(29, "Dewleaf Leggings", CharacterClass.Healer, ItemSubClass.Legs, ItemSlotType.Legs, (StatType.Intellect, 2), (StatType.Stamina, 1), (StatType.Armor, 2)),
+            ForestArmourPiece(30, "Dewleaf Handwraps", CharacterClass.Healer, ItemSubClass.Gloves, ItemSlotType.Hands, (StatType.Intellect, 1), (StatType.Stamina, 1), (StatType.Armor, 1)),
+            ForestArmourPiece(31, "Dewleaf Sandals", CharacterClass.Healer, ItemSubClass.Boots, ItemSlotType.Feet, (StatType.Intellect, 1), (StatType.Stamina, 1), (StatType.Armor, 1)));
     }
 
     /// <summary>
@@ -1171,7 +1174,7 @@ public class WorldDbContext : DbContext
         Name = name,
         Class = ItemClass.Armor,
         SubClass = subClass,
-        Flags = ItemTemplateFlags.NoSell,
+        Flags = ItemTemplateFlags.None,
         MaxStackSize = 1,
         DisplayId = (uint)id,
         Rarity = ItemRarity.Uncommon,
@@ -1640,7 +1643,8 @@ public class WorldDbContext : DbContext
         // own, then the shared pools: table 1, the weapon group (table 9) at 2 %, the scroll group
         // (table 10) at 10 %, and the armour table (table 11) on every kill, whose pieces each roll
         // at 2 %. A group always drops exactly one of its entries when its table rolls, so the chance
-        // a group drops at all is the chance its table is referenced with. Chances rise with rarity.
+        // a group drops at all is the chance its table is referenced with. Potion and common-table
+        // chances rise with the creature's rarity; the pool references are the same for every creature.
         builder.HasData(
             new LootTableEntry { LootTableId = 1, Sequence = 1, ItemTemplateId = 3, Chance = 5f, MinCount = 1, MaxCount = 1 },
             new LootTableEntry { LootTableId = 1, Sequence = 2, ItemTemplateId = 1, Chance = 10f, MinCount = 1, MaxCount = 2 });

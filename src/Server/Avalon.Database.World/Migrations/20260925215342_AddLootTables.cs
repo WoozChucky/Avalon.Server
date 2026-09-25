@@ -85,9 +85,10 @@ namespace Avalon.Database.World.Migrations
                 oldClrType: typeof(int),
                 oldType: "integer");
 
-            // 4. 0 meant "no loot". It has to become NULL before the foreign key exists, or the key
-            //    refuses every existing row: there is no loot table 0.
-            migrationBuilder.Sql("UPDATE \"CreatureTemplates\" SET \"LootTableId\" = NULL WHERE \"LootTableId\" = 0;");
+            // 4. Every value becomes NULL before the foreign key exists. 0 meant "no loot", and there
+            //    is no loot table 0; any other value was never read, and no loot table existed before
+            //    this migration, so a hand-edited non-zero value would make the key refuse its row.
+            migrationBuilder.Sql("UPDATE \"CreatureTemplates\" SET \"LootTableId\" = NULL;");
 
             // The seed rows, as scaffolded. They write NULL, which step 4 already did; they sit after
             // the rename because before it the column they name does not exist.
