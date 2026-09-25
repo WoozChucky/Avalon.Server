@@ -120,6 +120,14 @@ public interface IWorldConnection : IConnection
     AccountLocale Locale { get; set; }
 
     /// <summary>
+    ///     The account's access level, read once during character-select. Read-only here because
+    ///     this interface is part of the future modding API: a setter would let any mod make any
+    ///     player a GM. The server assigns it through <c>IAccessLevelAssignable</c> in Avalon.World.
+    ///     Defaults to Player, so an unread level fails closed.
+    /// </summary>
+    AccountAccessLevel AccessLevel { get; }
+
+    /// <summary>
     ///     The NPC and the node this connection is currently being shown, or null when no
     ///     conversation is open. The node id is what lets the server reject a choice made against a
     ///     node it is no longer showing.
