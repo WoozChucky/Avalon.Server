@@ -48,9 +48,10 @@ public class CharacterSelectHandler(
     private Activity? _parentActivity;
 
     /// <summary>
-    /// How long a select waits for the character's previous saves before reading it anyway. Well
-    /// inside <see cref="GameConfiguration.CharacterLoadTimeoutSeconds" />, which cancels the whole
-    /// select, so a slow save leaves the rest of the load time to the reads.
+    /// How long a select waits for the character's previous saves before giving up. Past it the
+    /// select fails without reading, and the client can select again. Well inside
+    /// <see cref="GameConfiguration.CharacterLoadTimeoutSeconds" />, which cancels the whole select,
+    /// so a slow save leaves the rest of the load time to the reads.
     /// </summary>
     public TimeSpan SaveWaitLimit { get; init; } = TimeSpan.FromSeconds(5);
 
@@ -86,7 +87,17 @@ public class CharacterSelectHandler(
 
         connection.EnqueueContinuation(
             FindAfterSavesAsync(packet.CharacterId, connection.AccountId),
-            character => { OnCharacterReceived(connection, character); });
+            found =>
+            {
+                if (found.SaveStillRunning)
+                {
+                    // Nothing was read and nothing was built: the select simply did not happen.
+                    connection.CancelSelect();
+                    return;
+                }
+
+                OnCharacterReceived(connection, found.Character);
+            });
 
         // Locale for dialogue text. Independent of the select chain: the default is enUS, so a slow
         // or failed read costs English text rather than correctness. TODO-029 wants the world's
@@ -120,7 +131,12 @@ public class CharacterSelectHandler(
     /// before that save, and the next save would then write the stale state back over it. Every read
     /// of the select chain follows this one, so waiting here covers all of them.
     /// </summary>
-    private async Task<Character?> FindAfterSavesAsync(CharacterId id, AccountId accountId)
+    /// <remarks>
+    /// A wait that runs out reads nothing. Reading anyway would load the row and slots from before
+    /// the save still running; that save would then commit, and the new session's first save (the
+    /// one marking it online at spawn) would write the stale money and slots back over it.
+    /// </remarks>
+    private async Task<(Character? Character, bool SaveStillRunning)> FindAfterSavesAsync(CharacterId id, AccountId accountId)
     {
         Task idle = characterSaver.WhenIdle(id);
         if (!idle.IsCompleted)
@@ -132,13 +148,15 @@ public class CharacterSelectHandler(
             catch (TimeoutException)
             {
                 logger.LogWarning(
-                    "Character {CharacterId} still had a save in flight after {Limit}; reading it anyway",
+                    "Character {CharacterId} still had a save in flight after {Limit}; failing the select without reading it, so the client can retry",
                     id.Value, SaveWaitLimit);
+                return (null, true);
             }
         }
 
-        return await characterRepository.FindByIdAndAccountAsync(id, accountId, CancellationToken.None)
+        Character? character = await characterRepository.FindByIdAndAccountAsync(id, accountId, CancellationToken.None)
             .ConfigureAwait(false);
+        return (character, false);
     }
 
     private void OnCharacterReceived(IWorldConnection connection, Character? character)

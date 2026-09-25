@@ -306,25 +306,29 @@ public class CharacterSelectChainShould : IDisposable
     }
 
     /// <summary>
-    /// A save that never finishes must not strand the select: past the limit it is logged and the
-    /// select reads what the database has.
+    /// A save that never finishes must not strand the select, and must not be read around either:
+    /// the row and slots it reads would be the ones from before that save, the save would then
+    /// commit, and the new session's first save would write the stale money and slots back over it.
+    /// Past the limit the select fails without reading anything, and the client can try again.
     /// </summary>
     [Fact]
-    public async Task Read_the_character_anyway_once_the_wait_for_its_save_runs_out()
+    public async Task Fail_the_select_without_reading_once_the_wait_for_its_save_runs_out()
     {
         var saver = Substitute.For<ICharacterSaver>();
         saver.WhenIdle(TheCharacter).Returns(new TaskCompletionSource().Task);
         CharacterSelectHandler select = BuildSelectHandler(saver, TimeSpan.FromMilliseconds(50));
 
-        var read = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        _characters.When(c => c.FindByIdAndAccountAsync(TheCharacter, TheAccount, Arg.Any<CancellationToken>()))
-            .Do(_ => read.TrySetResult());
-
         select.Execute(_connection, new CCharacterSelectedPacket { CharacterId = TheCharacter });
+        Assert.True(_connection.SelectInProgress);
 
-        await read.Task.WaitAsync(TimeSpan.FromSeconds(5));
-        await WaitUntilAsync(() => _connection.PendingSpawn != null || StepOnce());
-        Assert.NotNull(_connection.PendingSpawn);
+        await WaitUntilAsync(() => !_connection.SelectInProgress || StepOnce());
+        Step(3); // anything the failed select might still have queued
+
+        await _characters.DidNotReceiveWithAnyArgs().FindByIdAndAccountAsync(default!, default!, default);
+        await _inventory.DidNotReceiveWithAnyArgs().GetByCharacterIdAsync(default!, default);
+        await _itemInstances.DidNotReceiveWithAnyArgs().GetByCharacterIdAsync(default!, default);
+        Assert.Null(_connection.PendingSpawn);
+        Assert.Null(_connection.Character);
     }
 
     private bool StepOnce()

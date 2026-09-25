@@ -120,6 +120,7 @@ public class CharacterSelectHandlerShould
                 sentPackets.Add(packet);
             });
         RunContinuationsInline<Character>(connection);
+        RunContinuationsInline<(Character? Character, bool SaveStillRunning)>(connection);
         RunContinuationsInline<IMapInstance>(connection);
         RunContinuationsInline<IReadOnlyCollection<CharacterInventory>>(connection);
         RunContinuationsInline<IReadOnlyList<ItemInstance>>(connection);
