@@ -174,103 +174,176 @@ public class World : IWorld
         if (connection.Character is null && connection.TakePendingSpawn() is { } pending)
             connection.Character = pending.Character;
 
-        if (connection.Character is null)
+        if (connection.Character is not { } character)
             return;
 
-        ObjectGuid guid = connection.Character.Guid;
+        AsyncServiceScope? scope = null;
+        Task<bool>? saved = null;
+
+        // Everything up to the save runs on the tick, with no await before it: until the connection
+        // leaves the server, the tick can still run this character's queued save acknowledgements,
+        // so the snapshot must be taken here and not on the thread pool.
+        try
+        {
+            IMapInstance? instance = LeaveInstance(connection, character);
+
+            // Queued whatever leaving the instance did: a step there that throws must not also cost
+            // the logout save, which is what clears Online and keeps everything since the last
+            // periodic save.
+            scope = _serviceScopeFactory.CreateAsyncScope();
+            saved = QueueDespawnSave(scope.Value.ServiceProvider, character, instance);
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Failed to queue the de-spawn save of character {CharacterId}", character.Guid);
+        }
+        finally
+        {
+            // Despawned once, on every path. A character select that kicks this session despawns it
+            // on the tick, ahead of the despawn its close later queues, and that second pass must
+            // find nothing: it would snapshot the discarded entity again and write it behind the
+            // new session's own saves. A connection left holding the entity would also keep it
+            // live beside the new session's copy.
+            connection.Character = null;
+        }
 
         try
         {
-            IMapInstance? instance =
-                InstanceRegistry.GetInstanceById(connection.Character.InstanceId);
-
-            // Exit-path (Phase H): drop the character from any in-progress encounter before
-            // unregistering them from the instance. Single hook covers logout, alt-F4, and TCP
-            // timeout — all disconnect paths flow through DeSpawnPlayerAsync. Done before
-            // RemoveCharacter (and before ReviveForDeathLogout below) so the encounter doesn't
-            // hold a stale dead-player participant after Revive() runs.
-            instance?.CombatService.DropPlayerFromEncounter(connection.Character);
-
-            // A stale (npc, node) pair surviving a disconnect would let a reconnecting player
-            // resume a conversation with an NPC that may no longer be in their (new) instance.
-            connection.CurrentDialogue = null;
-
-            instance?.RemoveCharacter(connection);
-
-            await using AsyncServiceScope scope = _serviceScopeFactory.CreateAsyncScope();
-            ICharacterSaver characterSaver = scope.ServiceProvider.GetRequiredService<ICharacterSaver>();
-
-            CharacterEntity? entity = connection.Character! as CharacterEntity;
-            Character dbCharacter = entity!.Data!;
-
-            // Everything from here to the save runs on the tick, with no await before it: until the
-            // connection leaves the server, the tick can still run this character's queued save
-            // acknowledgements, so the snapshot must be taken here and not on the thread pool.
-            Func<Character, CancellationToken, Task>? prepareRow = null;
-
-            if (connection.Character.IsDead)
-            {
-                ReviveForDeathLogout(connection.Character, dbCharacter);
-
-                // Where it died, which is where it stays if no town can be found at all.
-                dbCharacter.X = entity.Position.x;
-                dbCharacter.Y = entity.Position.y;
-                dbCharacter.Z = entity.Position.z;
-
-                // Finding the respawn town needs the database, so it happens inside the chained
-                // write, on the copy of the row the snapshot took.
-                var diedOn = new MapTemplateId(connection.Character.Map.Value);
-                IRespawnTargetResolver resolver = scope.ServiceProvider.GetRequiredService<IRespawnTargetResolver>();
-                IReadOnlyList<MapTemplate> templates = _mapManager.Templates;
-                ILogger logger = _logger;
-                prepareRow = (row, token) => MoveToRespawnTownAsync(diedOn, row, resolver, templates, logger, token);
-            }
-            // If logging out from a Normal map, redirect the character to the associated town
-            else if (instance?.MapType == MapType.Normal)
-            {
-                MapTemplate? normalTemplate =
-                    _mapManager.Templates.FirstOrDefault(t => t.Id == instance.TemplateId);
-                if (normalTemplate?.LogoutMapId is { } logoutMapId)
-                {
-                    MapTemplate? town = _mapManager.Templates.FirstOrDefault(t =>
-                        t.Id == (MapTemplateId)logoutMapId);
-                    dbCharacter.Map = logoutMapId;
-                    dbCharacter.X = town?.DefaultSpawnX ?? 0f;
-                    dbCharacter.Y = town?.DefaultSpawnY ?? 0f;
-                    dbCharacter.Z = town?.DefaultSpawnZ ?? 0f;
-                }
-            }
-            else
-            {
-                dbCharacter.X = entity.Position.x;
-                dbCharacter.Y = entity.Position.y;
-                dbCharacter.Z = entity.Position.z;
-            }
-
-            dbCharacter.Online = false;
-            dbCharacter.LevelTime += (ulong)(DateTime.UtcNow - entity.EnteredWorld).TotalSeconds;
-            dbCharacter.TotalTime += (ulong)(DateTime.UtcNow - entity.EnteredWorld).TotalSeconds;
-            // Memory is authoritative (spec #459 D3): the row, the money and every dirty item and slot
-            // go in one transaction, queued behind any save of this character still in flight. The
-            // snapshot is taken and the save joins the chain synchronously, here on the tick, so a
-            // relog's WhenIdle already sees it.
-            Task<bool> saved = characterSaver.SaveOnDespawnAsync(entity, prepareRow, CancellationToken.None);
-
-            // Despawned once. A character select that kicks this session despawns it on the tick,
-            // ahead of the despawn its close later queues, and that second pass must find nothing
-            // to save: it would snapshot the discarded entity again and write it behind the new
-            // session's own saves.
-            connection.Character = null;
-
-            await saved;
+            if (saved is not null)
+                await saved;
         }
-        catch (InvalidOperationException)
-        {
-        } // Ignore if character is not found
         catch (Exception e)
         {
-            _logger.LogError(e, "Failed to save character {CharacterId} on world de-spawn", guid);
+            _logger.LogError(e, "Failed to save character {CharacterId} on world de-spawn", character.Guid);
         }
+        finally
+        {
+            if (scope is { } s)
+                await s.DisposeAsync();
+        }
+    }
+
+    /// <summary>
+    /// Takes the character out of its instance. Each step is contained on its own, so one that
+    /// throws cannot leave the character registered, and so still ticked and saved periodically,
+    /// because a step before it failed.
+    /// </summary>
+    private IMapInstance? LeaveInstance(IWorldConnection connection, ICharacter character)
+    {
+        // A stale (npc, node) pair surviving a disconnect would let a reconnecting player
+        // resume a conversation with an NPC that may no longer be in their (new) instance.
+        connection.CurrentDialogue = null;
+
+        IMapInstance? instance;
+        try
+        {
+            instance = InstanceRegistry.GetInstanceById(character.InstanceId);
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Failed to find the instance of character {CharacterId} on world de-spawn", character.Guid);
+            return null;
+        }
+
+        if (instance is null)
+            return null;
+
+        // Exit-path (Phase H): drop the character from any in-progress encounter before
+        // unregistering them from the instance. Single hook covers logout, alt-F4, and TCP
+        // timeout — all disconnect paths flow through DeSpawnPlayerAsync. Done before
+        // RemoveCharacter (and before ReviveForDeathLogout) so the encounter doesn't
+        // hold a stale dead-player participant after Revive() runs.
+        try
+        {
+            instance.CombatService.DropPlayerFromEncounter(character);
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Failed to drop character {CharacterId} from its encounter on world de-spawn", character.Guid);
+        }
+
+        // Reads connection.Character, so this has to run before the despawn releases it.
+        try
+        {
+            instance.RemoveCharacter(connection);
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Failed to remove character {CharacterId} from instance {InstanceId} on world de-spawn",
+                character.Guid, instance.InstanceId);
+        }
+
+        return instance;
+    }
+
+    /// <summary>
+    /// Snapshots the character and queues its logout save, synchronously, on the tick, so a relog's
+    /// WhenIdle already sees it. Null when there is nothing to save.
+    /// </summary>
+    private Task<bool>? QueueDespawnSave(IServiceProvider services, ICharacter character, IMapInstance? instance)
+    {
+        if (character is not CharacterEntity { Data: { } dbCharacter } entity)
+        {
+            _logger.LogWarning("Character {CharacterId} has no row to save on world de-spawn", character.Guid);
+            return null;
+        }
+
+        ICharacterSaver characterSaver = services.GetRequiredService<ICharacterSaver>();
+        Func<Character, CancellationToken, Task>? prepareRow = null;
+
+        if (entity.IsDead)
+        {
+            try
+            {
+                ReviveForDeathLogout(entity, dbCharacter);
+            }
+            catch (Exception e)
+            {
+                // The row still moves to the respawn town below; the entity itself is being discarded.
+                _logger.LogError(e, "Failed to revive character {CharacterId} for a logout while dead", character.Guid);
+            }
+
+            // Where it died, which is where it stays if no town can be found at all.
+            dbCharacter.X = entity.Position.x;
+            dbCharacter.Y = entity.Position.y;
+            dbCharacter.Z = entity.Position.z;
+
+            // Finding the respawn town needs the database, so it happens inside the chained
+            // write, on the copy of the row the snapshot took.
+            var diedOn = new MapTemplateId(entity.Map.Value);
+            IRespawnTargetResolver resolver = services.GetRequiredService<IRespawnTargetResolver>();
+            IReadOnlyList<MapTemplate> templates = _mapManager.Templates;
+            ILogger logger = _logger;
+            prepareRow = (row, token) => MoveToRespawnTownAsync(diedOn, row, resolver, templates, logger, token);
+        }
+        // If logging out from a Normal map, redirect the character to the associated town
+        else if (instance?.MapType == MapType.Normal)
+        {
+            MapTemplate? normalTemplate =
+                _mapManager.Templates.FirstOrDefault(t => t.Id == instance.TemplateId);
+            if (normalTemplate?.LogoutMapId is { } logoutMapId)
+            {
+                MapTemplate? town = _mapManager.Templates.FirstOrDefault(t =>
+                    t.Id == (MapTemplateId)logoutMapId);
+                dbCharacter.Map = logoutMapId;
+                dbCharacter.X = town?.DefaultSpawnX ?? 0f;
+                dbCharacter.Y = town?.DefaultSpawnY ?? 0f;
+                dbCharacter.Z = town?.DefaultSpawnZ ?? 0f;
+            }
+        }
+        else
+        {
+            dbCharacter.X = entity.Position.x;
+            dbCharacter.Y = entity.Position.y;
+            dbCharacter.Z = entity.Position.z;
+        }
+
+        dbCharacter.Online = false;
+        dbCharacter.LevelTime += (ulong)(DateTime.UtcNow - entity.EnteredWorld).TotalSeconds;
+        dbCharacter.TotalTime += (ulong)(DateTime.UtcNow - entity.EnteredWorld).TotalSeconds;
+        // Memory is authoritative (spec #459 D3): the row, the money and every dirty item and slot
+        // go in one transaction, queued behind any save of this character still in flight.
+        return characterSaver.SaveOnDespawnAsync(entity, prepareRow, CancellationToken.None);
     }
 
     public async Task LoadAsync(CancellationToken token)

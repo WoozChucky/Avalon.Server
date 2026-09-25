@@ -95,4 +95,23 @@ public sealed class ProcessContinuationsShould : IDisposable
 
         Assert.Equal(42, receivedValue);
     }
+
+    /// <summary>
+    /// A callback that throws is one request failing, not the tick. Escaping here, it would end the
+    /// flush for every connection after this one, and leave the rest of this connection's queue
+    /// waiting a tick.
+    /// </summary>
+    [Fact]
+    public void Contain_a_callback_that_throws_and_still_run_the_callbacks_queued_after_it()
+    {
+        var laterInvoked = false;
+
+        _connection.EnqueueContinuation(Task.CompletedTask, () => throw new NullReferenceException("simulated"));
+        _connection.EnqueueContinuation(Task.FromResult(1), _ => laterInvoked = true);
+
+        Exception? escaped = Record.Exception(() => _connection.FlushContinuations());
+
+        Assert.Null(escaped);
+        Assert.True(laterInvoked);
+    }
 }

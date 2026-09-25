@@ -89,6 +89,34 @@ public class RespawnAtTownHandlerShould
         resolver.DidNotReceiveWithAnyArgs().ResolveTownAsync(default!, default);
     }
 
+    /// <summary>
+    /// A connection kicked by a select of its character on another connection has released it
+    /// before the town loads. The transfer would dereference a character that is no longer there,
+    /// or revive and move an entity that has already left.
+    /// </summary>
+    [Fact]
+    public void Do_nothing_when_the_character_has_left_the_connection_before_the_town_is_ready()
+    {
+        var (handler, conn, ch, world, _, _, townInstance) = Build(isDead: true);
+        Action<MapTemplateId>? onTown = null;
+        Action<IMapInstance>? onInstance = null;
+        conn.When(c => c.EnqueueContinuation(Arg.Any<Task<MapTemplateId>>(), Arg.Any<Action<MapTemplateId>>()))
+            .Do(call => onTown = call.Arg<Action<MapTemplateId>>());
+        conn.When(c => c.EnqueueContinuation(Arg.Any<Task<IMapInstance>>(), Arg.Any<Action<IMapInstance>>()))
+            .Do(call => onInstance = call.Arg<Action<IMapInstance>>());
+        conn.CryptoSession.Returns(new FakeAvalonCryptoSession());
+
+        handler.Execute(conn, new CRespawnAtTownPacket());
+        onTown!(new MapTemplateId(1));
+        conn.Character.Returns((ICharacter?)null);
+
+        Exception? escaped = Record.Exception(() => onInstance!(townInstance));
+
+        Assert.Null(escaped);
+        world.DidNotReceiveWithAnyArgs().TransferPlayer(default!, default!);
+        ch.DidNotReceive().Revive();
+    }
+
     [Fact]
     public void Mark_RespawnInFlight_true_when_accepting_a_request()
     {

@@ -7,6 +7,8 @@ using Avalon.Database.Character.Repositories;
 using Avalon.Database.World.Repositories;
 using Avalon.Domain.Characters;
 using Avalon.Hosting.Networking;
+using Avalon.Common.Mathematics;
+using Avalon.Domain.World;
 using Avalon.Infrastructure;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Character;
@@ -15,9 +17,15 @@ using Avalon.World.ChunkLayouts;
 using Avalon.World.Configuration;
 using Avalon.World.Entities;
 using Avalon.World.Handlers;
+using Avalon.World.Instances;
 using Avalon.World.Maps;
 using Avalon.World.Persistence;
+using Avalon.World.Public.Abilities;
+using Avalon.World.Public.Characters;
+using Avalon.World.Public.Combat;
+using Avalon.World.Public.Enums;
 using Avalon.World.Public.Instances;
+using Avalon.World.Public.Maps;
 using Avalon.World.Respawn;
 using Avalon.World.Scripts;
 using Avalon.World.Scripts.Abstractions;
@@ -221,6 +229,89 @@ public class DuplicateCharacterSelectShould : IDisposable
         Assert.Empty(_written);
     }
 
+    /// <summary>
+    /// A despawn step that throws must still release the character. Before, the connection kept it
+    /// whenever an instance step threw: no save was queued, the new select read at once, and the old
+    /// entity stayed in its instance, still ticked and still saved periodically, next to the new
+    /// session's copy. The kicked connection's close then despawned it a second time and wrote
+    /// Online = false behind the new session.
+    /// </summary>
+    [Fact]
+    public async Task Release_the_kicked_character_and_still_queue_its_logout_save_when_leaving_its_instance_throws()
+    {
+        var scheduler = Substitute.For<ICharacterSaveScheduler>();
+        MapInstance town = Town(scheduler);
+        (TestWorldServer server, CharacterSelectHandler select) = await BuildAsync(town: town);
+        Avalon.World.WorldConnection first = Connect(server);
+        Avalon.World.WorldConnection second = Connect(server);
+
+        CharacterEntity live = New(TheCharacter.Value);
+        live.Spells.Load(Array.Empty<IAbility>());   // the instance tick updates abilities
+        live.InstanceId = town.InstanceId;
+        first.Character = live;
+        town.AddCharacter(first);
+
+        // A disconnect hook that throws for this character, the way a creature script's could.
+        void Throw(ICharacter character)
+        {
+            if (ReferenceEquals(character, live))
+                throw new InvalidOperationException("simulated disconnect hook failure");
+        }
+
+        CharacterEntity.CharacterDisconnected += Throw;
+        try
+        {
+            select.Execute(second, new CCharacterSelectedPacket { CharacterId = TheCharacter });
+        }
+        finally
+        {
+            CharacterEntity.CharacterDisconnected -= Throw;
+        }
+
+        Assert.Null(first.Character);
+        Assert.DoesNotContain(live.Guid, town.Characters.Keys);
+        town.Update(TimeSpan.FromSeconds(1d / 60d));
+        scheduler.DidNotReceiveWithAnyArgs().Tick(default!, default!, default);
+
+        // The logout save was still queued, so the new session waits for it.
+        Assert.False(_read.Task.IsCompleted, "the second session read the character while the first still held it");
+        _commit.SetResult();
+        Assert.True(await _read.Task.WaitAsync(Limit), "the second session read before the first one's logout save committed");
+        CharacterSaveBatch logout = Assert.Single(_written);
+        Assert.False(logout.Row.Online);
+
+        await first.CloseAsync().WaitAsync(Limit);
+        server.Tick();
+        await _saver.WhenIdle(TheCharacter).WaitAsync(Limit);
+        Assert.Single(_written);
+    }
+
+    /// <summary>
+    /// The same, for the save step itself. Nothing can be written when taking the snapshot throws,
+    /// but the connection must still end holding nothing, or its close despawns the discarded entity
+    /// again behind the new session.
+    /// </summary>
+    [Fact]
+    public async Task Release_the_kicked_character_when_queuing_its_logout_save_throws()
+    {
+        var despawnSaver = Substitute.For<ICharacterSaver>();
+        despawnSaver.SaveOnDespawnAsync(Arg.Any<CharacterEntity>(), Arg.Any<Func<Character, CancellationToken, Task>?>(),
+                Arg.Any<CancellationToken>())
+            .Returns<Task<bool>>(_ => throw new InvalidOperationException("simulated snapshot failure"));
+        (TestWorldServer server, CharacterSelectHandler select) = await BuildAsync(despawnSaver);
+        Avalon.World.WorldConnection first = Connect(server);
+        Avalon.World.WorldConnection second = Connect(server);
+        first.Character = New(TheCharacter.Value);
+
+        select.Execute(second, new CCharacterSelectedPacket { CharacterId = TheCharacter });
+
+        Assert.Null(first.Character);
+
+        await first.CloseAsync().WaitAsync(Limit);
+        server.Tick();
+        despawnSaver.ReceivedWithAnyArgs(1).SaveOnDespawnAsync(default!, default, default);
+    }
+
     private Avalon.World.WorldConnection Connect(TestWorldServer server)
     {
         var listener = new TcpListener(IPAddress.Loopback, 0);
@@ -241,9 +332,10 @@ public class DuplicateCharacterSelectShould : IDisposable
         return connection;
     }
 
-    private async Task<(TestWorldServer Server, CharacterSelectHandler Select)> BuildAsync()
+    private async Task<(TestWorldServer Server, CharacterSelectHandler Select)> BuildAsync(
+        ICharacterSaver? despawnSaver = null, MapInstance? town = null)
     {
-        Avalon.World.World world = await LoadedWorldAsync(_saver);
+        Avalon.World.World world = await LoadedWorldAsync(despawnSaver ?? _saver, town);
         var server = new TestWorldServer(world, _saver);
 
         var select = new CharacterSelectHandler(
@@ -265,7 +357,7 @@ public class DuplicateCharacterSelectShould : IDisposable
     }
 
     /// <summary>The real world, for its real despawn. It reads the instance registry, which only exists after LoadAsync.</summary>
-    private static async Task<Avalon.World.World> LoadedWorldAsync(ICharacterSaver saver)
+    private static async Task<Avalon.World.World> LoadedWorldAsync(ICharacterSaver saver, MapInstance? town)
     {
         var scopedProvider = Substitute.For<IServiceProvider>();
         scopedProvider.GetService(typeof(ICharacterSaver)).Returns(saver);
@@ -318,16 +410,27 @@ public class DuplicateCharacterSelectShould : IDisposable
         rarities.GetAllAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyCollection<Avalon.Domain.World.CreatureRarityModifier>>([]));
 
+        // The town, when a test has one, is what the registry builds for map template 1.
+        var mapManager = Substitute.For<IAvalonMapManager>();
+        var layouts = Substitute.For<IChunkLayoutInstanceFactory>();
+        if (town is not null)
+        {
+            mapManager.Templates.Returns(new List<MapTemplate>
+            {
+                new() { Id = new MapTemplateId(1), MapType = MapType.Town, Name = "town", Description = "" }
+            });
+            layouts.BuildAsync(Arg.Any<MapTemplate>(), Arg.Any<uint?>(), Arg.Any<CancellationToken>()).Returns(town);
+        }
+
         var serviceProvider = Substitute.For<IServiceProvider>();
-        serviceProvider.GetService(typeof(IChunkLayoutInstanceFactory))
-            .Returns(Substitute.For<IChunkLayoutInstanceFactory>());
+        serviceProvider.GetService(typeof(IChunkLayoutInstanceFactory)).Returns(layouts);
 
         var world = new Avalon.World.World(
             NullLoggerFactory.Instance,
             Options.Create(new GameConfiguration { WorldId = new Avalon.Domain.Auth.WorldId(1), CharacterLoadTimeoutSeconds = 15 }),
             serviceProvider,
             worldRepository,
-            Substitute.For<IAvalonMapManager>(),
+            mapManager,
             scopeFactory,
             createInfos,
             stats,
@@ -343,7 +446,30 @@ public class DuplicateCharacterSelectShould : IDisposable
             dialogue);
 
         await world.LoadAsync(CancellationToken.None);
+        if (town is not null)
+            await world.InstanceRegistry.GetOrCreateTownInstanceAsync(new MapTemplateId(1), 30).WaitAsync(Limit);
         return world;
+    }
+
+    /// <summary>A real instance, so what leaving it removes, and what its tick still reaches, is observed.</summary>
+    private static MapInstance Town(ICharacterSaveScheduler scheduler)
+    {
+        var serviceProvider = Substitute.For<IServiceProvider>();
+        serviceProvider.GetService(typeof(IScriptManager)).Returns(Substitute.For<IScriptManager>());
+        serviceProvider.GetService(typeof(CombatConfig)).Returns(new CombatConfig());
+        serviceProvider.GetService(typeof(ICharacterSaveScheduler)).Returns(scheduler);
+
+        var world = Substitute.For<IWorld>();
+        world.Configuration.Returns(new GameConfiguration());
+
+        var entryChunk = new PlacedChunk(new ChunkTemplateId(1), 0, 0, 0, Vector3.zero);
+        var layout = new ChunkLayout(Seed: 0, Chunks: [entryChunk], EntryChunk: entryChunk, BossChunk: null,
+            Portals: [], EntrySpawnWorldPos: Vector3.zero, CellSize: 30f, Config: null);
+
+        var town = new MapInstance(NullLoggerFactory.Instance, serviceProvider, world, new MapTemplateId(1),
+            ownerCharacterId: null, layout, Substitute.For<IMapNavigator>(), seed: 0);
+        town.Dispose();   // detach the static entity events; the test raises only its own
+        return town;
     }
 
     /// <summary>Reaches one tick, and the connection list, without the socket loop that normally drives them.</summary>

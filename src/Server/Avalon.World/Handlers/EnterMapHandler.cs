@@ -118,25 +118,35 @@ public class EnterMapHandler(
             connection.EnqueueContinuation(
                 world.InstanceRegistry.GetOrCreateTownInstanceAsync(targetTemplate.Id,
                     targetTemplate.MaxPlayers ?? 30),
-                targetInstance => OnInstanceReceived(connection, targetInstance, targetTemplate, packet.TargetMapId));
+                targetInstance => OnInstanceReceived(connection, character, targetInstance, targetTemplate, packet.TargetMapId));
         }
         else
         {
             connection.EnqueueContinuation(
                 world.InstanceRegistry.GetOrCreateNormalInstanceAsync(characterId, targetTemplate.Id),
-                targetInstance => OnInstanceReceived(connection, targetInstance, targetTemplate, packet.TargetMapId));
+                targetInstance => OnInstanceReceived(connection, character, targetInstance, targetTemplate, packet.TargetMapId));
         }
     }
 
-    private void OnInstanceReceived(IWorldConnection connection, IMapInstance targetInstance, MapTemplate targetTemplate,
-        MapId targetMapId)
+    private void OnInstanceReceived(IWorldConnection connection, ICharacter character, IMapInstance targetInstance,
+        MapTemplate targetTemplate, MapId targetMapId)
     {
+        // The character can leave the connection while the instance loads: a select of it on
+        // another connection despawns it here and kicks this one. Transferring then would put a
+        // discarded entity back into an instance, beside the new session's copy.
+        if (!ReferenceEquals(connection.Character, character))
+        {
+            logger.LogDebug("EnterMap: character {Name} left the connection before its target instance was ready",
+                character.Name);
+            return;
+        }
+
         // 8b. Exit-path (Phase H): drop the character from any in-progress encounter on the
         // SOURCE instance before transferring. Combat-state gating allows in-combat map
         // transitions per spec section 7; the encounter would be left dangling otherwise
         // because TransferPlayer only manages instance membership, not combat membership.
-        IMapInstance? sourceInstance = world.InstanceRegistry.GetInstanceById(connection.Character!.InstanceId);
-        sourceInstance?.CombatService.DropPlayerFromEncounter(connection.Character);
+        IMapInstance? sourceInstance = world.InstanceRegistry.GetInstanceById(character.InstanceId);
+        sourceInstance?.CombatService.DropPlayerFromEncounter(character);
 
         // 9. Transfer the player (removes from current, updates position & InstanceIdGuid, adds to target)
         world.TransferPlayer(connection, targetInstance);

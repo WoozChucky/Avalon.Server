@@ -343,7 +343,19 @@ public class WorldConnection : Connection, IWorldConnection, IAccessLevelAssigna
         while (processed++ < count && _continuationQueue.TryDequeue(out IContinuation? item))
         {
             if (item.IsSuccess)
-                item.Execute();
+            {
+                // Contained per callback, as ProcessQueue contains each packet handler: one that
+                // throws is one request failing. Escaping, it would end this tick's flush for every
+                // connection after this one and hold back the rest of this connection's queue.
+                try
+                {
+                    item.Execute();
+                }
+                catch (Exception e)
+                {
+                    _logger.LogError(e, "Continuation callback threw");
+                }
+            }
             else if (!item.IsReady)
                 _continuationQueue.Enqueue(item); // counts against budget — deferred to next tick
             else
