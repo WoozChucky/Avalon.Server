@@ -51,6 +51,9 @@ public enum NetworkPacketType : short
     CMSG_INTERACT = 0x2030,
     CMSG_DIALOGUE_CHOOSE = 0x2031,
 
+    // Loot
+    CMSG_LOOT_PICKUP = 0x2070,
+
     CMSG_PING = 0x2005,
     CMSG_PONG = 0x2006,
     CMSG_CHAT_MESSAGE = 0x2007,
@@ -147,4 +150,9 @@ public enum NetworkPacketType : short
     // Dialogue
     SMSG_DIALOGUE_NODE = 0x3070,
     SMSG_DIALOGUE_END  = 0x3071,
+
+    // Loot
+    SMSG_LOOT_SPAWNED = 0x3080,
+    SMSG_LOOT_DESPAWNED = 0x3081,
+    SMSG_LOOT_PICKUP_RESULT = 0x3082,
 }
