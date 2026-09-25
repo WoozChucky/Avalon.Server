@@ -53,7 +53,7 @@ public class StaticDataReloadShould
         Assert.False(applied.IsCompleted);
 
         data.ApplyPending();
-        await applied;
+        await applied.WaitAsync(TimeSpan.FromSeconds(5));
 
         Assert.Equal(2, data.CreatureTemplates.Count);
     }
@@ -99,8 +99,10 @@ public class StaticDataReloadShould
 
         data.ApplyPending();
 
-        await Assert.ThrowsAsync<NotSupportedException>(() => bad);
-        await good;
+        // Bounded, so a dropped or never-applied reload fails as a clear timeout rather than
+        // hanging the run — the same reasoning as Apply_Every_Reload_Queued_Before_The_Same_Tick.
+        await Assert.ThrowsAsync<NotSupportedException>(() => bad.WaitAsync(TimeSpan.FromSeconds(5)));
+        await good.WaitAsync(TimeSpan.FromSeconds(5));
         Assert.Equal(2, data.CreatureTemplates.Count);
     }
 
