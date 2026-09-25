@@ -8,6 +8,7 @@ using Avalon.World.ChunkLayouts;
 using Avalon.World.Configuration;
 using Avalon.World.Entities;
 using Avalon.World.Maps;
+using Avalon.World.Persistence;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Instances;
@@ -29,7 +30,7 @@ public class DeSpawnDuringReadinessBarrierShould
     [Fact]
     public async Task Save_a_character_that_was_selected_but_never_spawned()
     {
-        (Avalon.World.World world, ICharacterRepository characterRepository) = await LoadedWorldAsync();
+        (Avalon.World.World world, _, ICharacterSaver saver) = await LoadedWorldAsync();
 
         var row = new Character { Id = new CharacterId(7), Name = "Tester", Map = 1, Online = true };
         var entity = new CharacterEntity(NullLoggerFactory.Instance, row, new RegenConfiguration())
@@ -38,27 +39,21 @@ public class DeSpawnDuringReadinessBarrierShould
             EnteredWorld = DateTime.UtcNow
         };
 
+        // The despawn save snapshots the row where it is called, so Online must already be false then.
+        bool? onlineWhenSaved = null;
+        saver.SaveOnDespawnAsync(entity, Arg.Any<CancellationToken>()).Returns(call =>
+        {
+            onlineWhenSaved = call.Arg<CharacterEntity>().Data!.Online;
+            return Task.FromResult(true);
+        });
+
         IWorldConnection connection = PendingSpawnConnection.Create(
             new PendingSpawn(entity, Substitute.For<IMapInstance>(), DateTime.UtcNow.Ticks));
 
         await world.DeSpawnPlayerAsync(connection);
 
-        Assert.False(row.Online);
-        await characterRepository.Received(1).UpdateAsync(row, Arg.Any<CancellationToken>());
+        Assert.False(onlineWhenSaved);
         Assert.Null(connection.PendingSpawn);
-    }
-
-    /// <summary>
-    /// The despawn runs for every disconnect, most of which never selected anything.
-    /// </summary>
-    [Fact]
-    public async Task Save_nothing_for_a_connection_that_never_selected()
-    {
-        (Avalon.World.World world, ICharacterRepository characterRepository) = await LoadedWorldAsync();
-
-        await world.DeSpawnPlayerAsync(PendingSpawnConnection.Create());
-
-        await characterRepository.DidNotReceiveWithAnyArgs().UpdateAsync(default!, default);
     }
 
     /// <summary>
@@ -68,7 +63,8 @@ public class DeSpawnDuringReadinessBarrierShould
     [Fact]
     public async Task Mark_the_row_online_when_the_character_reaches_its_instance()
     {
-        (Avalon.World.World world, ICharacterRepository characterRepository) = await LoadedWorldAsync();
+        (Avalon.World.World world, ICharacterRepository characterRepository, ICharacterSaver saver) =
+            await LoadedWorldAsync();
 
         var row = new Character { Id = new CharacterId(7), Name = "Tester", Map = 1, Online = false };
         var entity = new CharacterEntity(NullLoggerFactory.Instance, row, new RegenConfiguration())
@@ -79,23 +75,33 @@ public class DeSpawnDuringReadinessBarrierShould
         IWorldConnection connection = PendingSpawnConnection.Create();
         connection.Character = entity;
 
+        // The save snapshots the row where it is called, so Online must already be true then.
+        bool? onlineWhenSaved = null;
+        saver.Save(connection, entity).Returns(call =>
+        {
+            onlineWhenSaved = call.Arg<CharacterEntity>().Data!.Online;
+            return Task.FromResult(true);
+        });
+
         world.SpawnInInstance(connection, Substitute.For<IMapInstance>());
 
         Assert.True(row.Online);
-        // The persist is fire-and-forget, but it reaches UpdateAsync before its first suspension --
-        // the scope and the resolve are synchronous -- so the call is recorded by the time this runs.
-        await characterRepository.Received(1).UpdateAsync(row, Arg.Any<CancellationToken>());
+        Assert.True(onlineWhenSaved);
+        // Through the character's save chain, never as a separate write that could land out of order.
+        await characterRepository.DidNotReceiveWithAnyArgs().UpdateAsync(default!, default);
     }
 
     /// <summary>
     /// DeSpawnPlayerAsync reads the instance registry, which only exists after LoadAsync.
     /// </summary>
-    private static async Task<(Avalon.World.World world, ICharacterRepository characters)> LoadedWorldAsync()
+    private static async Task<(Avalon.World.World world, ICharacterRepository characters, ICharacterSaver saver)> LoadedWorldAsync()
     {
         var characterRepository = Substitute.For<ICharacterRepository>();
+        var saver = Substitute.For<ICharacterSaver>();
 
         var scopedProvider = Substitute.For<IServiceProvider>();
         scopedProvider.GetService(typeof(ICharacterRepository)).Returns(characterRepository);
+        scopedProvider.GetService(typeof(ICharacterSaver)).Returns(saver);
         var scope = Substitute.For<IServiceScope>();
         scope.ServiceProvider.Returns(scopedProvider);
         var scopeFactory = Substitute.For<IServiceScopeFactory>();
@@ -171,6 +177,6 @@ public class DeSpawnDuringReadinessBarrierShould
             dialogue);
 
         await world.LoadAsync(CancellationToken.None);
-        return (world, characterRepository);
+        return (world, characterRepository, saver);
     }
 }

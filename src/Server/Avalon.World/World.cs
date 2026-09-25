@@ -2,7 +2,6 @@ using Avalon.Common.Mathematics;
 using Avalon.Common.Utils;
 using Avalon.Common.ValueObjects;
 using Avalon.Database.Auth.Repositories;
-using Avalon.Database.Character.Repositories;
 using Avalon.Database.World.Repositories;
 using Avalon.Domain.Auth;
 using Avalon.Domain.Characters;
@@ -11,6 +10,7 @@ using Avalon.World.Configuration;
 using Avalon.World.Entities;
 using Avalon.World.Instances;
 using Avalon.World.Maps;
+using Avalon.World.Persistence;
 using Avalon.World.ChunkLayouts;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
@@ -126,24 +126,30 @@ public class World : IWorld
         // Marked online here rather than at select. Between the two the character is built but not
         // in the world, so a row written online there is a claim nothing can retract: the despawn
         // writes it back from an instance membership that does not exist yet.
-        if (connection.Character is CharacterEntity { Data: { } row })
+        if (connection.Character is CharacterEntity { Data: { } row } entity)
         {
             row.Online = true;
-            _ = PersistOnlineAsync(row);
+            PersistOnline(connection, entity);
         }
     }
 
-    private async Task PersistOnlineAsync(Character row)
+    /// <summary>
+    /// Through the character's save chain, like every other write of the row. A separate write of the
+    /// live row could land after a later save and put back an older balance, or after the despawn
+    /// save and mark a character online who has already left.
+    /// </summary>
+    private void PersistOnline(IWorldConnection connection, CharacterEntity entity)
     {
         try
         {
-            await using AsyncServiceScope scope = _serviceScopeFactory.CreateAsyncScope();
-            await scope.ServiceProvider.GetRequiredService<ICharacterRepository>()
-                .UpdateAsync(row, CancellationToken.None);
+            using IServiceScope scope = _serviceScopeFactory.CreateScope();
+            // Fire and forget: the saver logs a failed write, and the flag goes out again with the
+            // next save, which writes the whole row.
+            _ = scope.ServiceProvider.GetRequiredService<ICharacterSaver>().Save(connection, entity);
         }
         catch (Exception e)
         {
-            _logger.LogError(e, "Failed to mark character {CharacterId} online", row.Id);
+            _logger.LogError(e, "Failed to mark character {CharacterId} online", entity.Data?.Id);
         }
     }
 
@@ -189,8 +195,7 @@ public class World : IWorld
             instance?.RemoveCharacter(connection);
 
             await using AsyncServiceScope scope = _serviceScopeFactory.CreateAsyncScope();
-            ICharacterRepository characterRepository =
-                scope.ServiceProvider.GetRequiredService<ICharacterRepository>();
+            ICharacterSaver characterSaver = scope.ServiceProvider.GetRequiredService<ICharacterSaver>();
 
             CharacterEntity? entity = connection.Character! as CharacterEntity;
             Character dbCharacter = entity!.Data!;
@@ -231,7 +236,11 @@ public class World : IWorld
             dbCharacter.Online = false;
             dbCharacter.LevelTime += (ulong)(DateTime.UtcNow - entity.EnteredWorld).TotalSeconds;
             dbCharacter.TotalTime += (ulong)(DateTime.UtcNow - entity.EnteredWorld).TotalSeconds;
-            await characterRepository.UpdateAsync(dbCharacter);
+            // Memory is authoritative (spec #459 D3): the row, the money and every dirty item and slot
+            // go in one transaction, queued behind any save of this character still in flight. The
+            // snapshot is taken here, after RemoveCharacter, when nothing on the tick reaches this
+            // entity any more.
+            await characterSaver.SaveOnDespawnAsync(entity, CancellationToken.None);
         }
         catch (InvalidOperationException)
         {

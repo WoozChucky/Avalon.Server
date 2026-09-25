@@ -125,6 +125,7 @@ public class CharacterLocaleAndGenderShould
 
         var scopedProvider = Substitute.For<IServiceProvider>();
         scopedProvider.GetService(typeof(ICharacterRepository)).Returns(characterRepository);
+        scopedProvider.GetService(typeof(Avalon.World.Persistence.ICharacterSaver)).Returns(Substitute.For<Avalon.World.Persistence.ICharacterSaver>());
         var scope = Substitute.For<IServiceScope>();
         scope.ServiceProvider.Returns(scopedProvider);
         var scopeFactory = Substitute.For<IServiceScopeFactory>();

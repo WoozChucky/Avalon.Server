@@ -16,6 +16,7 @@ using Avalon.World.Characters;
 using Avalon.World.Configuration;
 using Avalon.World.Handlers;
 using Avalon.World.Inventory;
+using Avalon.World.Persistence;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Enums;
@@ -267,7 +268,83 @@ public class CharacterSelectChainShould : IDisposable
             Arg.Is<Character>(c => c.Id == TheCharacter && !c.Online), Arg.Any<CancellationToken>());
     }
 
-    private CharacterSelectHandler BuildSelectHandler()
+    /// <summary>
+    /// A relog must not read the character before the previous session's despawn save commits, or
+    /// the new session loads the inventory and money as they were before that save.
+    /// </summary>
+    [Fact]
+    public async Task Read_the_character_only_once_its_despawn_save_has_committed()
+    {
+        var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        int committed = 0;
+        var repository = Substitute.For<ICharacterSaveRepository>();
+        repository.WriteAsync(Arg.Any<IReadOnlyList<CharacterSaveBatch>>(), Arg.Any<CancellationToken>())
+            .Returns(async _ =>
+            {
+                await gate.Task.WaitAsync(TimeSpan.FromSeconds(5));
+                Volatile.Write(ref committed, 1);
+            });
+        var saver = new CharacterSaver(repository, NullLogger<CharacterSaver>.Instance);
+        CharacterSelectHandler select = BuildSelectHandler(saver);
+
+        var read = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        _characters.When(c => c.FindByIdAndAccountAsync(TheCharacter, TheAccount, Arg.Any<CancellationToken>()))
+            .Do(_ => read.TrySetResult(Volatile.Read(ref committed) == 1));
+
+        Task<bool> despawn = saver.SaveOnDespawnAsync(
+            Avalon.Server.World.UnitTests.Inventory.TestCharacters.New(TheCharacter.Value), CancellationToken.None);
+        select.Execute(_connection, new CCharacterSelectedPacket { CharacterId = TheCharacter });
+
+        Assert.False(read.Task.IsCompleted, "the select read the character while its save was still in flight");
+
+        gate.SetResult();
+        Assert.True(await despawn.WaitAsync(TimeSpan.FromSeconds(5)));
+        Assert.True(await read.Task.WaitAsync(TimeSpan.FromSeconds(5)), "the read ran before the commit");
+
+        await WaitUntilAsync(() => _connection.PendingSpawn != null || StepOnce());
+        Assert.NotNull(_connection.PendingSpawn);
+    }
+
+    /// <summary>
+    /// A save that never finishes must not strand the select: past the limit it is logged and the
+    /// select reads what the database has.
+    /// </summary>
+    [Fact]
+    public async Task Read_the_character_anyway_once_the_wait_for_its_save_runs_out()
+    {
+        var saver = Substitute.For<ICharacterSaver>();
+        saver.WhenIdle(TheCharacter).Returns(new TaskCompletionSource().Task);
+        CharacterSelectHandler select = BuildSelectHandler(saver, TimeSpan.FromMilliseconds(50));
+
+        var read = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _characters.When(c => c.FindByIdAndAccountAsync(TheCharacter, TheAccount, Arg.Any<CancellationToken>()))
+            .Do(_ => read.TrySetResult());
+
+        select.Execute(_connection, new CCharacterSelectedPacket { CharacterId = TheCharacter });
+
+        await read.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await WaitUntilAsync(() => _connection.PendingSpawn != null || StepOnce());
+        Assert.NotNull(_connection.PendingSpawn);
+    }
+
+    private bool StepOnce()
+    {
+        Step();
+        return false;
+    }
+
+    /// <summary>Polls, bounded, for work that finishes on the thread pool.</summary>
+    private static async Task WaitUntilAsync(Func<bool> condition)
+    {
+        DateTime deadline = DateTime.UtcNow.AddSeconds(5);
+        while (!condition())
+        {
+            Assert.True(DateTime.UtcNow < deadline, "timed out waiting for the select chain");
+            await Task.Delay(10);
+        }
+    }
+
+    private CharacterSelectHandler BuildSelectHandler(ICharacterSaver? saver = null, TimeSpan? saveWaitLimit = null)
     {
         var row = new Character
         {
@@ -324,7 +401,11 @@ public class CharacterSelectChainShould : IDisposable
             world,
             Substitute.For<IRespawnTargetResolver>(),
             Options.Create(new RegenConfiguration()),
-            Substitute.For<IAccountRepository>());
+            Substitute.For<IAccountRepository>(),
+            saver ?? Substitute.For<ICharacterSaver>())
+        {
+            SaveWaitLimit = saveWaitLimit ?? TimeSpan.FromSeconds(5)
+        };
     }
 
     private void GiveTheCharacter(params (InventoryType Container, ushort Slot, ulong Template)[] items)

@@ -15,6 +15,7 @@ using Avalon.World;
 using Avalon.World.ChunkLayouts;
 using Avalon.World.Configuration;
 using Avalon.World.Handlers;
+using Avalon.World.Persistence;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Enums;
@@ -133,7 +134,8 @@ public class CharacterSelectHandlerShould
             world,
             Substitute.For<IRespawnTargetResolver>(),
             Options.Create(new RegenConfiguration()),
-            Substitute.For<IAccountRepository>());
+            Substitute.For<IAccountRepository>(),
+            Substitute.For<ICharacterSaver>());
 
         return new Fixture
         {
@@ -425,7 +427,8 @@ public class CharacterSelectHandlerShould
             Substitute.For<IWorld>(),
             Substitute.For<IRespawnTargetResolver>(),
             Options.Create(new RegenConfiguration()),
-            accountRepository);
+            accountRepository,
+            Substitute.For<ICharacterSaver>());
 
         handler.Execute(connection, new CCharacterSelectedPacket { CharacterId = TheCharacter });
 

@@ -17,6 +17,7 @@ using Avalon.World.Configuration;
 using Avalon.World.Entities;
 using Avalon.World.Instances;
 using Avalon.World.Inventory;
+using Avalon.World.Persistence;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Enums;
@@ -41,9 +42,17 @@ public class CharacterSelectHandler(
     IWorld world,
     IRespawnTargetResolver respawnTargetResolver,
     IOptions<RegenConfiguration> regenConfig,
-    IAccountRepository accountRepository) : WorldPacketHandler<CCharacterSelectedPacket>
+    IAccountRepository accountRepository,
+    ICharacterSaver characterSaver) : WorldPacketHandler<CCharacterSelectedPacket>
 {
     private Activity? _parentActivity;
+
+    /// <summary>
+    /// How long a select waits for the character's previous saves before reading it anyway. Well
+    /// inside <see cref="GameConfiguration.CharacterLoadTimeoutSeconds" />, which cancels the whole
+    /// select, so a slow save leaves the rest of the load time to the reads.
+    /// </summary>
+    public TimeSpan SaveWaitLimit { get; init; } = TimeSpan.FromSeconds(5);
 
     public override void Execute(IWorldConnection connection, CCharacterSelectedPacket packet)
     {
@@ -76,7 +85,7 @@ public class CharacterSelectHandler(
         connection.BeginSelect(DateTime.UtcNow.Ticks);
 
         connection.EnqueueContinuation(
-            characterRepository.FindByIdAndAccountAsync(packet.CharacterId, connection.AccountId),
+            FindAfterSavesAsync(packet.CharacterId, connection.AccountId),
             character => { OnCharacterReceived(connection, character); });
 
         // Locale for dialogue text. Independent of the select chain: the default is enUS, so a slow
@@ -103,6 +112,33 @@ public class CharacterSelectHandler(
             });
 
         _parentActivity = activity;
+    }
+
+    /// <summary>
+    /// A relog builds a new entity from the database, while the previous session's despawn save may
+    /// still be writing. Reading before it commits would load the inventory and money as they were
+    /// before that save, and the next save would then write the stale state back over it. Every read
+    /// of the select chain follows this one, so waiting here covers all of them.
+    /// </summary>
+    private async Task<Character?> FindAfterSavesAsync(CharacterId id, AccountId accountId)
+    {
+        Task idle = characterSaver.WhenIdle(id);
+        if (!idle.IsCompleted)
+        {
+            try
+            {
+                await idle.WaitAsync(SaveWaitLimit, CancellationToken.None).ConfigureAwait(false);
+            }
+            catch (TimeoutException)
+            {
+                logger.LogWarning(
+                    "Character {CharacterId} still had a save in flight after {Limit}; reading it anyway",
+                    id.Value, SaveWaitLimit);
+            }
+        }
+
+        return await characterRepository.FindByIdAndAccountAsync(id, accountId, CancellationToken.None)
+            .ConfigureAwait(false);
     }
 
     private void OnCharacterReceived(IWorldConnection connection, Character? character)
