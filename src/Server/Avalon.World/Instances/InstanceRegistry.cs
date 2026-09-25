@@ -17,6 +17,17 @@ public class InstanceRegistry : IInstanceRegistry
     private readonly ConcurrentDictionary<uint, Dictionary<MapTemplateId, Guid>> _characterInstanceMap = new();
     private readonly ConcurrentDictionary<Guid, MapInstance> _instances = new();
 
+    // Town builds still running, one per map. A build bakes a navmesh and reads the database, and
+    // the instance is registered in _instances only once it finishes — so without this, a second
+    // arrival during that window finds no town with room and starts a second copy (#442). Lazy so
+    // that two callers racing GetOrAdd cannot both start a build.
+    private readonly ConcurrentDictionary<MapTemplateId, Lazy<Task<MapInstance>>> _pendingTownBuilds = new();
+
+    // The same, per character, for Normal maps: a portal request sent twice before the first build
+    // finishes would otherwise bake two navmeshes and orphan the first instance until it expires.
+    private readonly ConcurrentDictionary<(uint CharacterId, MapTemplateId TemplateId), Lazy<Task<MapInstance>>>
+        _pendingNormalBuilds = new();
+
     private readonly ILogger<InstanceRegistry> _logger;
     private readonly IAvalonMapManager _mapManager;
     private readonly IChunkLayoutInstanceFactory _chunkLayoutFactory;
@@ -35,7 +46,46 @@ public class InstanceRegistry : IInstanceRegistry
 
     public async Task<IMapInstance> GetOrCreateTownInstanceAsync(MapTemplateId templateId, ushort maxPlayers)
     {
-        // Find the least-populated instance that still has room
+        MapInstance? candidate = FindTownWithRoom(templateId, maxPlayers);
+        if (candidate is not null)
+        {
+            return candidate;
+        }
+
+        Lazy<Task<MapInstance>> build = _pendingTownBuilds.GetOrAdd(templateId,
+            id => new Lazy<Task<MapInstance>>(() => BuildTownAsync(id, maxPlayers)));
+
+        return await build.Value;
+    }
+
+    private async Task<MapInstance> BuildTownAsync(MapTemplateId templateId, ushort maxPlayers)
+    {
+        try
+        {
+            // A build that finished between the caller's scan and its GetOrAdd has already
+            // registered its town and removed its pending entry — registration comes first — so
+            // looking again here is what stops that caller starting a second copy.
+            MapInstance? finished = FindTownWithRoom(templateId, maxPlayers);
+            if (finished is not null)
+            {
+                return finished;
+            }
+
+            _logger.LogInformation("All Town instances for map {TemplateId} are at capacity; creating a new one",
+                templateId);
+            return await CreateAndInitializeInstanceAsync(templateId, MapType.Town, null);
+        }
+        finally
+        {
+            // Success or failure, the next arrival must see either the registered town or nothing:
+            // a failed build left here would hand its exception to every later caller.
+            _pendingTownBuilds.TryRemove(templateId, out _);
+        }
+    }
+
+    /// <summary>The least-populated town instance of this map that still has room, if any.</summary>
+    private MapInstance? FindTownWithRoom(MapTemplateId templateId, ushort maxPlayers)
+    {
         MapInstance? candidate = null;
         int lowestCount = int.MaxValue;
 
@@ -58,45 +108,70 @@ public class InstanceRegistry : IInstanceRegistry
             }
         }
 
-        if (candidate is not null)
-        {
-            return candidate;
-        }
-
-        // All full or none exist — create a new town instance
-        _logger.LogInformation("All Town instances for map {TemplateId} are at capacity; creating a new one",
-            templateId);
-        MapInstance newInstance = await CreateAndInitializeInstanceAsync(templateId, MapType.Town, null);
-        return newInstance;
+        return candidate;
     }
 
     public async Task<IMapInstance> GetOrCreateNormalInstanceAsync(uint characterId, MapTemplateId templateId)
     {
-        if (_characterInstanceMap.TryGetValue(characterId, out Dictionary<MapTemplateId, Guid>? characterMap))
+        MapInstance? existing = FindReentryInstance(characterId, templateId);
+        if (existing is not null)
         {
-            if (characterMap.TryGetValue(templateId, out Guid existingId) &&
-                _instances.TryGetValue(existingId, out MapInstance? existing) &&
-                !existing.IsExpired(TimeSpan.FromMinutes(15)))
-            {
-                _logger.LogInformation(
-                    "Returning existing Normal instance {InstanceId} for character {CharacterId}, map {TemplateId}",
-                    existingId, characterId, templateId);
-                return existing;
-            }
+            return existing;
         }
 
-        MapInstance instance = await CreateAndInitializeInstanceAsync(templateId, MapType.Normal, characterId);
+        Lazy<Task<MapInstance>> build = _pendingNormalBuilds.GetOrAdd((characterId, templateId),
+            key => new Lazy<Task<MapInstance>>(() => BuildNormalAsync(key.CharacterId, key.TemplateId)));
 
-        _characterInstanceMap.AddOrUpdate(
-            characterId,
-            _ => new Dictionary<MapTemplateId, Guid> {{templateId, instance.InstanceId}},
-            (_, existing) =>
+        return await build.Value;
+    }
+
+    private async Task<MapInstance> BuildNormalAsync(uint characterId, MapTemplateId templateId)
+    {
+        try
+        {
+            // As for towns: a build that finished between the caller's check and its GetOrAdd has
+            // already recorded its instance for this character, because that happens before the
+            // pending entry is removed.
+            MapInstance? finished = FindReentryInstance(characterId, templateId);
+            if (finished is not null)
             {
-                existing[templateId] = instance.InstanceId;
-                return existing;
-            });
+                return finished;
+            }
 
-        return instance;
+            MapInstance instance = await CreateAndInitializeInstanceAsync(templateId, MapType.Normal, characterId);
+
+            _characterInstanceMap.AddOrUpdate(
+                characterId,
+                _ => new Dictionary<MapTemplateId, Guid> {{templateId, instance.InstanceId}},
+                (_, map) =>
+                {
+                    map[templateId] = instance.InstanceId;
+                    return map;
+                });
+
+            return instance;
+        }
+        finally
+        {
+            _pendingNormalBuilds.TryRemove((characterId, templateId), out _);
+        }
+    }
+
+    /// <summary>The character's unexpired instance of this map, if it still has one.</summary>
+    private MapInstance? FindReentryInstance(uint characterId, MapTemplateId templateId)
+    {
+        if (_characterInstanceMap.TryGetValue(characterId, out Dictionary<MapTemplateId, Guid>? characterMap) &&
+            characterMap.TryGetValue(templateId, out Guid existingId) &&
+            _instances.TryGetValue(existingId, out MapInstance? existing) &&
+            !existing.IsExpired(TimeSpan.FromMinutes(15)))
+        {
+            _logger.LogInformation(
+                "Returning existing Normal instance {InstanceId} for character {CharacterId}, map {TemplateId}",
+                existingId, characterId, templateId);
+            return existing;
+        }
+
+        return null;
     }
 
     public IMapInstance? GetInstanceById(Guid instanceId) =>
