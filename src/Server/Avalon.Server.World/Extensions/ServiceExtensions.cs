@@ -9,6 +9,7 @@ using Avalon.World.Entities;
 using Avalon.World.Maps;
 using Avalon.World.ChunkLayouts;
 using Avalon.World.Public.Combat;
+using Avalon.World.Reload;
 using Avalon.World.Respawn;
 using Avalon.World.Scripts;
 using Avalon.World.Scripts.Abstractions;
@@ -73,6 +74,8 @@ public static class ServiceExtensions
         // Chat commands
         services.AddSingleton<ICommand, GroupInviteCommand>();
         services.AddSingleton<ICommandDispatcher, CommandDispatcher>();
+
+        services.AddSingleton<IReferenceDataReloader, ReferenceDataReloader>();
 
         return services;
     }
