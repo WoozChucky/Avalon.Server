@@ -73,6 +73,7 @@ public static class ServiceExtensions
 
         // Chat commands
         services.AddSingleton<ICommand, GroupInviteCommand>();
+        services.AddSingleton<ICommand, ReloadCommand>();
         services.AddSingleton<ICommandDispatcher, CommandDispatcher>();
 
         services.AddSingleton<IReferenceDataReloader, ReferenceDataReloader>();
