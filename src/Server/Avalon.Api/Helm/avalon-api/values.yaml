@@ -1,3 +1,19 @@
+# Secrets: the connection strings, cache.password, notification.privateKey and
+# authentication.issuerSigningKey reach the pod through a Kubernetes Secret (secretKeyRef), never as
+# plain values in the pod spec. Either:
+#  - name a Secret you manage in existingSecret (preferred: the values never pass through Helm). It
+#    needs the keys database-auth-connection-string, database-characters-connection-string,
+#    database-world-connection-string and jwt-signing-key, plus cache-password and
+#    notification-private-key if used. Leave every secret value below empty: the chart refuses to
+#    render with existingSecret set and a value given, rather than ignore it. The chart cannot see
+#    a change to your Secret, so after rotating a key in it restart the pods yourself:
+#    kubectl rollout restart statefulset/<release>-avalon-api (the chart's fullname); or
+#  - leave existingSecret empty and supply the values below; the chart then creates the Secret, and
+#    a checksum annotation restarts the pods whenever it changes.
+#    Pass them from files, not the command line, so they stay out of shell history:
+#    --set-file authentication.issuerSigningKey=./jwt.key (a trailing newline is trimmed).
+existingSecret: ""
+
 database:
   auth:
     connectionString:
@@ -9,6 +25,11 @@ database:
 cache:
   host:
   password:
+
+# The JWT signing key, a random value of at least 32 bytes. Never commit it here. Unless existingSecret
+# is set, the chart refuses to render without it.
+authentication:
+  issuerSigningKey:
 
 notification:
   subject:

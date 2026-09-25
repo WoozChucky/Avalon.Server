@@ -40,7 +40,6 @@ public sealed class ApiAuthHost : IAsyncDisposable
     public static readonly AuthenticationConfig AuthConfig = new()
     {
         IssuerSigningKey = SigningKey,
-        ValidateIssuerKey = true,
         Issuer = "Avalon Authentication System",
         ValidateIssuer = true,
         Audience = "https://api.avalon.monster",
@@ -81,7 +80,7 @@ public sealed class ApiAuthHost : IAsyncDisposable
         services.AddSingleton(AccountRepository);
         services.AddSingleton(Mfa);
         services.AddSingleton(Substitute.For<IReplicatedCache>());
-        services.AddSingleton<IJwtUtils>(new JwtUtils(AuthConfig));
+        services.AddSingleton<IJwtUtils>(new JwtUtils(AuthConfig, JwtSigningKey.Create(AuthConfig)));
 
         _app = builder.Build();
         _app.UseMiddleware<ExceptionHandlerMiddleware>();
@@ -119,7 +118,7 @@ public sealed class ApiAuthHost : IAsyncDisposable
         Accounts.FindByIdAsync(Arg.Is<AccountId>(id => id.Value == AccountIdValue), Arg.Any<CancellationToken>())
             .Returns(account);
 
-    public static string Mint(Account account) => new JwtUtils(AuthConfig).GenerateJwtToken(account);
+    public static string Mint(Account account) => new JwtUtils(AuthConfig, JwtSigningKey.Create(AuthConfig)).GenerateJwtToken(account);
 
     /// <summary>
     /// The claims JwtUtils writes for a Player, with the lifetime, subject and algorithm the test
@@ -137,7 +136,7 @@ public sealed class ApiAuthHost : IAsyncDisposable
         if (subject is not null) claims.Add(new Claim(ClaimTypes.NameIdentifier, subject));
 
         var handler = new JwtSecurityTokenHandler();
-        var key = new SymmetricSecurityKey(Encoding.ASCII.GetBytes(SigningKey));
+        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(SigningKey));
         return handler.WriteToken(handler.CreateToken(new SecurityTokenDescriptor
         {
             Subject = new ClaimsIdentity(claims),

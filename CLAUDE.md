@@ -49,6 +49,35 @@ dotnet ef migrations add <Name> \
 
 Target framework: **.NET 10**. Docker compose credentials default to password `123`.
 
+### REST API signing key
+
+`Avalon.Api` will not start without a JWT signing key, and none is committed (#482). The setting is `Application:Authentication:IssuerSigningKey` (environment variable `Application__Authentication__IssuerSigningKey`). `JwtSigningKey.Create` refuses a key that is missing, has leading or trailing whitespace, is under 32 bytes in UTF-8, or is on `JwtSigningKey.BlockedKeyHashes` (the SHA-256 of the one that used to sit in `appsettings.json`, public now), and the error names the setting. `AddAuth` registers the resulting `SymmetricSecurityKey` as a singleton, which `JwtUtils` signs with and the bearer handler validates with. Set it once per machine:
+
+```bash
+# Local runs (dotnet run, or the Aspire AppHost in src/Server/Avalon): Development loads user-secrets.
+# Each line generates a key and stores it; run one from the repo root.
+dotnet user-secrets set "Application:Authentication:IssuerSigningKey" "$(openssl rand -base64 48)" --project src/Server/Avalon.Api   # bash
+$b = New-Object byte[] 48; [Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($b); dotnet user-secrets set "Application:Authentication:IssuerSigningKey" ([Convert]::ToBase64String($b)) --project src/Server/Avalon.Api   # PowerShell 5.1 or 7
+
+# Containers and every non-Development host: the environment. Keep the key out of shell history:
+# put it in a file (api.env is gitignored) holding the line Application__Authentication__IssuerSigningKey=<key> ...
+docker run --env-file ./api.env ...
+# ... or name the variable without a value, so docker passes it through from the current environment.
+docker run -e Application__Authentication__IssuerSigningKey ...
+
+# Helm: the chart reads every secret through a Kubernetes Secret (secretKeyRef), never a plain env value.
+# Either name a Secret you manage (preferred; keys listed in values.yaml; leave the chart's own secret
+# values empty, or it refuses to render) ...
+helm install ... --set existingSecret=avalon-api-secrets
+# ... or let the chart create it, passing the key from a file (a trailing newline is trimmed).
+# Without one of the two, the chart refuses to render.
+helm install ... --set-file authentication.issuerSigningKey=./jwt.key
+```
+
+Rotating the key: with a chart-managed Secret, `helm upgrade` with the new file restarts the pods (a checksum annotation). With `existingSecret`, the chart cannot see the change, so after updating the Secret run `kubectl rollout restart statefulset/<release>-avalon-api` (the chart's fullname).
+
+`docker-compose.yml` runs only Redis and Postgres, so it needs no key. EF design-time commands (`dotnet ef migrations ...` with `--startup-project src/Server/Avalon.Api`) need no key either: they build each context through its `IDesignTimeDbContextFactory` and never run `AddAuth`. Tests never read one: `ApiAuthHost` and the other API tests make their own key in code. Changing the key invalidates every access token already issued; clients get a 401 and refresh.
+
 ## Architecture
 
 Avalon is split into three independently deployable real-time servers plus a REST API:

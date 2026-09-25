@@ -16,7 +16,7 @@ Avalon uses strongly-typed configuration classes bound from `appsettings.json` (
 |---------------------------|------------------------------|------------------------------|
 | `DatabaseConfiguration`   | `Avalon.Configuration`       | `ConnectionStrings:*`        |
 | `CacheConfiguration`      | `Avalon.Configuration`       | `Cache:*`                    |
-| `AuthenticationConfig`    | `Avalon.Configuration`       | `Authentication:*`           |
+| `AuthenticationConfig`    | `Avalon.Api.Config`          | `Application:Authentication:*` (REST API) |
 | `HostingConfiguration`    | `Avalon.Configuration`       | `Hosting:*`                  |
 | `AuthConfiguration`       | `Avalon.Server.Auth.Configuration` | `Application:*`        |
 | `GameConfiguration`       | `Avalon.World.Configuration` | `Game:*`                     |
@@ -172,20 +172,38 @@ The slot count is bounded by the ring's circumference. At radius `1.5` there are
 
 ---
 
-## Avalon Internal Authentication
+## REST API JWT Signing Key
 
-Section: environment variable or secrets manager (**never committed to source control**)
+Section: `Application:Authentication` in `Avalon.Api` (**never committed to source control**, #482)
 
-| Key                   | Type   | Default       | Description                                               |
-|-----------------------|--------|---------------|-----------------------------------------------------------|
-| `Avalon:SharedSecret` | string | _(required)_  | Shared secret for `Authorization: Avalon <token>` scheme  |
+| Key                | Type   | Default      | Description                                                    |
+|--------------------|--------|--------------|----------------------------------------------------------------|
+| `IssuerSigningKey` | string | _(required)_ | HMAC-SHA256 key that signs and validates the API's access JWTs |
 
-> **Warning:** This key must **never** appear in `appsettings.json`. Use environment variables or a secrets manager (Azure Key Vault, AWS Secrets Manager, dotnet user-secrets) in all environments.
+`JwtSigningKey.Create` runs when `AddAuth` registers authentication, so the API refuses to start, naming the
+setting, when the key is missing, has leading or trailing whitespace, is shorter than 32 bytes in UTF-8, or is
+the value once committed to `appsettings.json` (public now). The key is deliberately absent from `appsettings.json`.
 
 ```bash
-# Environment variable:
-Avalon__SharedSecret=<minimum-32-char-random-value>
+# Development: user-secrets (the Avalon.Api project has a UserSecretsId)
+dotnet user-secrets set "Application:Authentication:IssuerSigningKey" "$(openssl rand -base64 48)" --project src/Server/Avalon.Api
+
+# Everywhere else: environment variable
+Application__Authentication__IssuerSigningKey=<random value, at least 32 bytes>
 ```
+
+The Helm chart passes it, with the other secrets, through a Kubernetes Secret (`secretKeyRef`): either one
+you manage, named by `existingSecret`, or one the chart creates from `--set-file
+authentication.issuerSigningKey=<file>`. It refuses to render with neither. The `ValidateIssuerKey` setting
+is gone: the signing key is always validated.
+
+---
+
+## REST API Personal Access Tokens
+
+The `Authorization: Avalon avp_...` scheme takes no configuration and there is no shared secret. Each
+token belongs to one account; only its SHA-256 hash is stored, and `AvalonAuthenticationHandler` looks
+it up per request. See [Security — Session Management](security-session-management.md#rest-api-authentication).
 
 ---
 
@@ -221,13 +239,13 @@ public class CAuthHandler(IOptions<AuthConfiguration> authConfig, ...)
 
 ## Environment-Specific Overrides
 
-Use `appsettings.{Environment}.json` (e.g. `appsettings.Production.json`) to override defaults per environment without changing the base file. Sensitive values (database passwords, `SharedSecret`) must come from environment variables or a secrets manager, not files.
+Use `appsettings.{Environment}.json` (e.g. `appsettings.Production.json`) to override defaults per environment without changing the base file. Sensitive values (database passwords, the REST API's JWT signing key) must come from environment variables, user-secrets or a secrets manager, not committed files.
 
 ```bash
 # Environment variable override syntax (.NET):
 Application__MinClientVersion=1.5.0
 Application__MaxFailedLoginAttempts=10
-Avalon__SharedSecret=<from-vault>
+Application__Authentication__IssuerSigningKey=<from-vault>
 ```
 
 ---
@@ -242,3 +260,7 @@ All config classes opt into startup validation to fail fast on misconfiguration:
 ```
 
 This causes the application to throw an `OptionsValidationException` at startup rather than at runtime when the missing/invalid value is first accessed.
+
+The REST API's `AuthenticationConfig` is bound directly rather than through `IOptions<T>`, so its signing
+key is checked by `JwtSigningKey.Create` instead: startup throws `InvalidOperationException` naming the
+setting (see [REST API JWT Signing Key](#rest-api-jwt-signing-key)).

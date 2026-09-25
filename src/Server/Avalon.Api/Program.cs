@@ -19,10 +19,7 @@ using Scalar.AspNetCore;
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 builder.Host.UseDefaultServiceProvider((_, options) => AvalonServiceProvider.Configure(options));
 
-IConfigurationRoot configuration = builder
-    .Configuration
-    .AddJsonFile("appsettings.json", true, false)
-    .AddEnvironmentVariables().Build();
+IConfiguration configuration = ApiConfiguration.Sources(builder);
 
 builder.AddServiceDefaults();
 
@@ -32,8 +29,7 @@ services.AddCustomLogging(configuration);
 
 // Add services to the container.
 {
-    ApplicationConfig applicationConfig = new();
-    configuration.Bind("Application", applicationConfig);
+    ApplicationConfig applicationConfig = ApiConfiguration.Bind(configuration);
     services.AddSingleton(applicationConfig);
     services.AddSingleton(applicationConfig.Environment!);
     services.AddSingleton(applicationConfig.Authentication!);
