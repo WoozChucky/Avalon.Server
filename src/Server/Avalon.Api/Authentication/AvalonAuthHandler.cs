@@ -68,7 +68,8 @@ public class AvalonAuthHandler : IAuthorizationHandler
             account = await _accountService.FindByIdAsync(accountId, http.RequestAborted);
         }
 
-        if (account == null)
+        // A recalled account already passed this check; a freshly loaded one must pass it too.
+        if (!AccountAccessCheck.MayHoldSession(account))
         {
             context.Fail();
             throw new AuthenticationException("User is not authenticated");

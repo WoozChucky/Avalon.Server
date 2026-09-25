@@ -30,6 +30,18 @@ public class ExceptionHandlerMiddleware
             await HandleExceptionAsync(httpContext, ex);
         }
     }
+    // Fixed wording only: the exception's type names the driver and its message can carry hosts
+    // and ports. Both stay in the log (#480).
+    private static Task WriteServiceUnavailableAsync(HttpContext context) =>
+        context.Response.WriteAsJsonAsync(new ProblemDetails
+        {
+            Status = (int)HttpStatusCode.ServiceUnavailable,
+            Type = "ServiceUnavailable",
+            Title = "Service unavailable",
+            Detail = "The service is temporarily unavailable. Try again shortly.",
+            Instance = $"{context.Request.Method} {context.Request.Path}"
+        }, cancellationToken: context.RequestAborted);
+
     private async Task HandleExceptionAsync(HttpContext context, Exception exception)
     {
         context.Response.ContentType = "application/json";
@@ -81,24 +93,12 @@ public class ExceptionHandlerMiddleware
             case DbException or RetryLimitExceededException:
                 context.Request.HttpContext.Response.StatusCode = (int)HttpStatusCode.ServiceUnavailable;
                 _logger.LogError(exception, "Database unavailable");
-                await context.Response.WriteAsJsonAsync(new ProblemDetails
-                {
-                    Status = (int)HttpStatusCode.ServiceUnavailable,
-                    Type = exception.GetType().Name,
-                    Title = "Service unavailable",
-                    Instance = $"{context.Request.Method} {context.Request.Path}"
-                }, cancellationToken: context.RequestAborted);
+                await WriteServiceUnavailableAsync(context);
                 return;
-            case RedisConnectionException ex:
+            case RedisConnectionException:
                 context.Request.HttpContext.Response.StatusCode = (int)HttpStatusCode.ServiceUnavailable;
-                await context.Response.WriteAsJsonAsync(new ProblemDetails
-                {
-                    Status = (int)HttpStatusCode.ServiceUnavailable,
-                    Type = exception.GetType().Name,
-                    Title = "Service unavailable",
-                    Detail = ex.Message,
-                    Instance = $"{context.Request.Method} {context.Request.Path}"
-                }, cancellationToken: context.RequestAborted);
+                _logger.LogError(exception, "Cache unavailable");
+                await WriteServiceUnavailableAsync(context);
                 return;
         }
 
