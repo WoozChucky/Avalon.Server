@@ -33,7 +33,9 @@ public interface IAccountService
 
     /// <summary>
     /// Removes MFA from <paramref name="accountId"/> on behalf of admin <paramref name="actorId"/>.
-    /// Returns <c>false</c> when the account does not exist.
+    /// Returns <c>false</c> when the account does not exist. Once the database change commits it
+    /// returns <c>true</c> even if the Redis cleanup or the world-disconnect publish fails; those
+    /// are best-effort and only logged. Refusing an admin's own account is the caller's job.
     /// </summary>
     Task<bool> RemoveMfaAsync(AccountId accountId, AccountId actorId, CancellationToken cancellationToken = default);
 }
@@ -302,17 +304,43 @@ public class AccountService : IAccountService
         if (!removed.Found)
             return false;
 
-        // A login already past its password step holds MFA state in Redis; clear it and its
-        // reverse lookup so that login cannot finish against an enrolment that no longer exists.
-        var mfaKey = CacheKeys.AccountMfa(accountId.Value);
-        var pendingHash = await _cache.Database.HashGetAsync(mfaKey, "hash");
-        if (pendingHash.HasValue)
-            await _cache.RemoveAsync(CacheKeys.MfaReverseHash(pendingHash!));
-        await _cache.RemoveAsync(mfaKey);
-
+        // The audit line goes first, straight after the commit: the reset has happened, and a
+        // Redis failure below must not be able to lose the record of who did it.
         _logger.LogInformation(
             "Admin {ActorId} removed MFA from account {AccountId} ({Rows} row(s) deleted); its refresh and personal access tokens were revoked",
             actorId.Value, accountId.Value, removed.Rows);
+
+        // Everything from here is best-effort. The database change is committed, so a Redis
+        // failure is logged and the call still succeeds; each step is attempted on its own.
+        try
+        {
+            // A login already past its password step holds MFA state in Redis; clear it and its
+            // reverse lookup so that login cannot finish against an enrolment that no longer exists.
+            // The state also expires on its own short TTL.
+            var mfaKey = CacheKeys.AccountMfa(accountId.Value);
+            var pendingHash = await _cache.Database.HashGetAsync(mfaKey, "hash");
+            if (pendingHash.HasValue)
+                await _cache.RemoveAsync(CacheKeys.MfaReverseHash(pendingHash!));
+            await _cache.RemoveAsync(mfaKey);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex,
+                "Could not clear pending MFA state in Redis for account {AccountId} after its MFA was removed",
+                accountId.Value);
+        }
+
+        try
+        {
+            // Kick any live world session, the same way a ban or a password change does.
+            await _cache.PublishAsync(CacheKeys.WorldAccountsDisconnectChannel, accountId.Value.ToString());
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex,
+                "Could not publish a world disconnect for account {AccountId} after its MFA was removed",
+                accountId.Value);
+        }
 
         return true;
     }

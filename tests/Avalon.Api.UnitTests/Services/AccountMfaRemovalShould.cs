@@ -12,6 +12,7 @@ using Avalon.Domain.Auth;
 using Avalon.Infrastructure;
 using Avalon.Infrastructure.Services;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using StackExchange.Redis;
@@ -153,8 +154,64 @@ public class AccountMfaRemovalShould : IDisposable
         await _cache.Received(1).RemoveAsync(CacheKeys.MfaReverseHash(PendingHash));
     }
 
-    private AccountService MakeService() => new(
-        NullLoggerFactory.Instance,
+    [Fact]
+    public async Task Publish_a_world_disconnect_for_the_account()
+    {
+        Account account = await CreateAccountAsync("KICKME");
+        await CreateConfirmedMfaAsync(account.Id);
+
+        await MakeService().RemoveMfaAsync(account.Id, _admin);
+
+        await _cache.Received(1).PublishAsync(CacheKeys.WorldAccountsDisconnectChannel, account.Id.Value.ToString());
+    }
+
+    [Fact]
+    public async Task Not_publish_a_disconnect_for_an_unknown_account()
+    {
+        await MakeService().RemoveMfaAsync(new AccountId(4242), _admin);
+
+        await _cache.DidNotReceiveWithAnyArgs().PublishAsync(default!, default!);
+    }
+
+    [Fact]
+    public async Task Succeed_and_write_the_audit_line_when_redis_is_down()
+    {
+        Account account = await CreateAccountAsync("REDISDOWN");
+        await CreateConfirmedMfaAsync(account.Id);
+        _redis.HashGetAsync(Arg.Any<RedisKey>(), Arg.Any<RedisValue>(), Arg.Any<CommandFlags>())
+            .Returns<Task<RedisValue>>(_ => throw new RedisConnectionException(ConnectionFailureType.UnableToConnect, "down"));
+        _cache.RemoveAsync(Arg.Any<string>())
+            .Returns<Task<bool>>(_ => throw new RedisConnectionException(ConnectionFailureType.UnableToConnect, "down"));
+        _cache.PublishAsync(Arg.Any<string>(), Arg.Any<string>())
+            .Returns<Task>(_ => throw new RedisConnectionException(ConnectionFailureType.UnableToConnect, "down"));
+        var logs = new CapturingLoggerFactory();
+
+        Assert.True(await MakeService(logs).RemoveMfaAsync(account.Id, _admin));
+
+        CapturedLog audit = Assert.Single(logs.Entries, e => e.Level == LogLevel.Information
+            && e.Message.Contains($"Admin {_admin.Value} removed MFA from account {account.Id.Value}"));
+        int auditIndex = logs.Entries.IndexOf(audit);
+        Assert.Contains(logs.Entries.Skip(auditIndex + 1), e => e.Level == LogLevel.Warning);
+
+        await using AuthDbContext context = _database.CreateDbContext();
+        Assert.False(await context.MfaSetups.AnyAsync(m => m.AccountId == account.Id));
+    }
+
+    [Fact]
+    public async Task Still_publish_the_disconnect_when_the_mfa_state_cleanup_fails()
+    {
+        Account account = await CreateAccountAsync("HALFDOWN");
+        await CreateConfirmedMfaAsync(account.Id);
+        _redis.HashGetAsync(Arg.Any<RedisKey>(), Arg.Any<RedisValue>(), Arg.Any<CommandFlags>())
+            .Returns<Task<RedisValue>>(_ => throw new RedisConnectionException(ConnectionFailureType.UnableToConnect, "down"));
+
+        Assert.True(await MakeService().RemoveMfaAsync(account.Id, _admin));
+
+        await _cache.Received(1).PublishAsync(CacheKeys.WorldAccountsDisconnectChannel, account.Id.Value.ToString());
+    }
+
+    private AccountService MakeService(ILoggerFactory? loggerFactory = null) => new(
+        loggerFactory ?? NullLoggerFactory.Instance,
         new AccountRepository(_database),
         _jwt,
         Substitute.For<IMFAHashService>(),
@@ -216,4 +273,22 @@ public class AccountMfaRemovalShould : IDisposable
     };
 
     public void Dispose() => _database.Dispose();
+
+    private sealed record CapturedLog(LogLevel Level, string Message);
+
+    private sealed class CapturingLoggerFactory : ILoggerFactory, ILogger
+    {
+        public List<CapturedLog> Entries { get; } = [];
+
+        public ILogger CreateLogger(string categoryName) => this;
+        public void AddProvider(ILoggerProvider provider) { }
+        public void Dispose() { }
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
+            Func<TState, Exception?, string> formatter) =>
+            Entries.Add(new CapturedLog(logLevel, formatter(state, exception)));
+    }
 }
