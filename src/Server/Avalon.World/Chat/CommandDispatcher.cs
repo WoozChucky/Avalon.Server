@@ -1,3 +1,4 @@
+using Avalon.Common.Accounts;
 using Avalon.Network.Packets.Social;
 
 namespace Avalon.World.Chat;
@@ -32,6 +33,13 @@ public sealed class CommandDispatcher : ICommandDispatcher
         }
 
         if (!_commands.TryGetValue(parts[0], out var command))
+        {
+            return false;
+        }
+
+        // Deliberately indistinguishable from an unknown command: the caller learns nothing about
+        // which commands exist. A mask test, never ">=" — AccountAccessLevel is [Flags].
+        if (!command.RequiredAccess.Allows(ctx.Connection.AccessLevel))
         {
             return false;
         }

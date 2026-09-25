@@ -1,9 +1,11 @@
 using System.IO;
 using Avalon.Common;
+using Avalon.Common.Accounts;
 using Avalon.Common.ValueObjects;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Database.Character.Repositories;
 using Avalon.Database.World.Repositories;
+using Avalon.Domain.Auth;
 using Avalon.Domain.Characters;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abstractions;
@@ -369,5 +371,61 @@ public class CharacterSelectHandlerShould
 
         f.Connection.Received().Close(Arg.Any<bool>());
         f.Connection.DidNotReceiveWithAnyArgs().SetPendingSpawn(default!, default!, default);
+    }
+
+    /// <summary>
+    /// The account continuation now does two things: cache Locale and assign the access level.
+    /// BuildAsync's shared fixture passes a bare Substitute.For&lt;IAccountRepository&gt;() and never
+    /// pumps this continuation, so none of the other tests in this file exercise the account-found
+    /// path at all -- this test builds its own minimal handler instead of going through BuildAsync,
+    /// stubs the account read, and pumps that one continuation the same way BuildAsync pumps the
+    /// others (RunContinuationsInline).
+    ///
+    /// Character and PendingSpawn are stubbed to null explicitly: an unconfigured interface-typed
+    /// property on a bare substitute auto-recurses into a non-null substitute rather than null
+    /// (the same gotcha PendingSpawnConnection's own doc comment calls out), which would otherwise
+    /// trip Execute's "already selected" guard and short-circuit into Close() before the account
+    /// continuation is ever reached.
+    /// </summary>
+    [Fact]
+    public void Assign_The_Accounts_Access_Level_On_Select()
+    {
+        var account = new Account
+        {
+            Username = "gm",
+            Salt = [],
+            Verifier = [],
+            Email = "gm@test.local",
+            JoinDate = DateTime.UtcNow,
+            AccessLevel = AccountAccessLevel.GameMaster
+        };
+
+        var accountRepository = Substitute.For<IAccountRepository>();
+        accountRepository.FindByIdAsync(TheAccount, false, Arg.Any<CancellationToken>())
+            .Returns(account);
+
+        IWorldConnection connection = Substitute.For<IWorldConnection, IAccessLevelAssignable>();
+        connection.AccountId.Returns(TheAccount);
+        connection.Character.Returns((ICharacter?)null);
+        connection.PendingSpawn.Returns((PendingSpawn?)null);
+        connection.SelectInProgress.Returns(false);
+        RunContinuationsInline<Account?>(connection);
+
+        var handler = new CharacterSelectHandler(
+            NullLogger<CharacterSelectHandler>.Instance,
+            NullLoggerFactory.Instance,
+            Substitute.For<ICharacterRepository>(),
+            Substitute.For<ICharacterInventoryRepository>(),
+            Substitute.For<IItemInstanceRepository>(),
+            Substitute.For<ICharacterAbilityRepository>(),
+            Substitute.For<IChunkLibrary>(),
+            Substitute.For<IWorld>(),
+            Substitute.For<IRespawnTargetResolver>(),
+            Options.Create(new RegenConfiguration()),
+            accountRepository);
+
+        handler.Execute(connection, new CCharacterSelectedPacket { CharacterId = TheCharacter });
+
+        ((IAccessLevelAssignable)connection).Received(1).AssignAccessLevel(AccountAccessLevel.GameMaster);
     }
 }
