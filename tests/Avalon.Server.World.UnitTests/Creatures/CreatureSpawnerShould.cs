@@ -40,7 +40,16 @@ public class CreatureSpawnerShould
         ICreature before = spawner.Spawn(template.Id);
         uint originalHealth = before.Health;
 
-        repos.BaseStats[0].Health = originalHealth + 500;
+        // A NEW row, not a mutation of the existing one: CreatureStatDeriver's dictionary holds the
+        // very CreatureBaseStat object references it was built from, so mutating the shared row in
+        // place would make even a stale, never-rebuilt deriver report the new health — vacuously
+        // passing this test regardless of whether the reload path actually rebuilds anything. A
+        // fresh object is also what production does: every prepare reads fresh rows from the
+        // database, never the same in-memory instance twice.
+        repos.BaseStats[0] = new CreatureBaseStat
+        {
+            Level = 1, Health = originalHealth + 500, DamageMin = 4, DamageMax = 7, Experience = 25
+        };
         data.Apply(await data.PrepareAsync(ReloadArea.Creatures));
 
         ICreature after = spawner.Spawn(template.Id);
