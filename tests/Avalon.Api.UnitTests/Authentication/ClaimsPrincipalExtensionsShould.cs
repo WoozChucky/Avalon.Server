@@ -35,6 +35,12 @@ public class ClaimsPrincipalExtensionsShould
     [InlineData("Player",     "GameMaster", false)]
     [InlineData("GameMaster", "Admin",      false)]
     [InlineData("Admin",      "Console",    false)]
+    // #447: Tournament and PTR are players with the Player permission set, and nothing more.
+    [InlineData("Tournament", "Player",     true)]
+    [InlineData("PTR",        "Player",     true)]
+    [InlineData("Tournament", "GameMaster", false)]
+    [InlineData("PTR",        "GameMaster", false)]
+    [InlineData("PTR",        "Admin",      false)]
     public void HasRoleAtLeast_FollowsHierarchy(string callerRole, string minRole, bool expected)
     {
         var user = Principal((ClaimTypes.Role, callerRole));

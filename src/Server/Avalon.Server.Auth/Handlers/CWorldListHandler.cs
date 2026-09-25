@@ -1,3 +1,4 @@
+using Avalon.Common.Accounts;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Network.Packets.Auth;
 
@@ -28,7 +29,8 @@ public class CWorldListHandler : IAuthPacketHandler<CWorldListPacket>
             return;
         }
 
-        worlds = worlds.Where(w => w.AccessLevelRequired <= account.AccessLevel).ToList();
+        // A mask test, never "<=": AccountAccessLevel is [Flags] (#447).
+        worlds = worlds.Where(w => AccessLevels.ForWorld(w.AccessLevelRequired).Allows(account.AccessLevel)).ToList();
 
         var worldsInfo = worlds.Select(w => new WorldInfo
         {
