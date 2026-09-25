@@ -1,8 +1,8 @@
 using Avalon.Common;
+using Avalon.Common.Accounts;
 using Avalon.Common.ValueObjects;
 using Avalon.Hosting.Networking;
 using Avalon.World.Public.Characters;
-using Avalon.World.Public.Enums;
 using Avalon.World.Public.Instances;
 
 namespace Avalon.World.Public;
@@ -118,6 +118,14 @@ public interface IWorldConnection : IConnection
     ///     dialogue works in English even if the read has not landed or failed.
     /// </summary>
     AccountLocale Locale { get; set; }
+
+    /// <summary>
+    ///     The account's access level, read once during character-select. Read-only here because
+    ///     this interface is part of the future modding API: a setter would let any mod make any
+    ///     player a GM. The server assigns it through <c>IAccessLevelAssignable</c> in Avalon.World.
+    ///     Defaults to Player, so an unread level fails closed.
+    /// </summary>
+    AccountAccessLevel AccessLevel { get; }
 
     /// <summary>
     ///     The NPC and the node this connection is currently being shown, or null when no

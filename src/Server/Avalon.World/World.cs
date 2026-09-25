@@ -83,6 +83,7 @@ public class World : IWorld
         IItemTemplateRepository itemTemplateRepository,
         IAbilityTemplateRepository abilityTemplateRepository,
         ICharacterLevelExperienceRepository characterLevelExperienceRepository,
+        ICreatureTemplateRepository creatureTemplateRepository,
         ICreatureBaseStatRepository creatureBaseStatRepository,
         ICreatureRarityModifierRepository creatureRarityModifierRepository,
         ILocalizedTextRepository localizedTextRepository,
@@ -100,8 +101,9 @@ public class World : IWorld
         _scriptHotReloader = scriptHotReloader;
         _chunkLibrary = chunkLibrary;
         Data = new StaticData(characterCreateInfoRepository, classLevelStatRepository, itemTemplateRepository,
-            abilityTemplateRepository, characterLevelExperienceRepository, creatureBaseStatRepository,
-            creatureRarityModifierRepository, localizedTextRepository, loggerFactory, dialogueRepository);
+            abilityTemplateRepository, characterLevelExperienceRepository, creatureTemplateRepository,
+            creatureBaseStatRepository, creatureRarityModifierRepository, localizedTextRepository,
+            dialogueRepository, loggerFactory);
 
         _hotReloadTimer.SetInterval(
             (long)TimeSpan.FromSeconds(configuration.Value.ScriptHotReloadIntervalSeconds).TotalMilliseconds);
@@ -257,6 +259,14 @@ public class World : IWorld
     public void Update(TimeSpan deltaTime)
     {
         Time.Update(deltaTime);
+
+        // Apply any queued content reloads before the map pass and before any instance ticks.
+        // Map-pass packets (movement, attack, chat) are processed on this thread too, inside the
+        // instance loop below, so none of them can see a half-reloaded area. Session-pass packets
+        // (character create/select, CMSG_PONG) run earlier — in WorldServer.Update, before this
+        // method is even called — so for them atomicity holds a tick later, at the top of the next
+        // World.Update, not "before any packet is processed" for this one.
+        Data.ApplyPending();
 
         // Apply any pending hot-reload on the tick thread to avoid racing with instance.Update()
         List<Type>? pendingReload = Interlocked.Exchange(ref _pendingHotReload, null);

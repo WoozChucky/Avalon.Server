@@ -1,5 +1,5 @@
+using Avalon.Common.Accounts;
 using Avalon.Common.ValueObjects;
-using Avalon.World.Public.Enums;
 
 namespace Avalon.Domain.World;
 

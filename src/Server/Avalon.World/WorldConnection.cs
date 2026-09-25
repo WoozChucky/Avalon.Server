@@ -7,18 +7,18 @@ using Avalon.Common.ValueObjects;
 using Avalon.Hosting.Networking;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Generic;
+using Avalon.Common.Accounts;
 using Avalon.World.Entities;
 using Avalon.World.Filters;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
-using Avalon.World.Public.Enums;
 using Avalon.World.Public.Instances;
 using Microsoft.Extensions.Logging;
 using Packet = Avalon.Network.Packets.Packet;
 
 namespace Avalon.World;
 
-public class WorldConnection : Connection, IWorldConnection
+public class WorldConnection : Connection, IWorldConnection, IAccessLevelAssignable
 {
     private readonly ConcurrentQueue<IContinuation> _continuationQueue = new();
 
@@ -211,7 +211,10 @@ public class WorldConnection : Connection, IWorldConnection
     public bool RespawnInFlight { get; set; }
     public ulong? CurrentTargetGuid { get; set; }
     public AccountLocale Locale { get; set; } = AccountLocale.enUS;
+    public AccountAccessLevel AccessLevel { get; private set; } = AccountAccessLevel.Player;
     public (ObjectGuid Npc, DialogueNodeId Node)? CurrentDialogue { get; set; }
+
+    public void AssignAccessLevel(AccountAccessLevel level) => AccessLevel = level;
 
     public override void Send(NetworkPacket packet)
     {

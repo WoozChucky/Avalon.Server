@@ -1,6 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using Avalon.Common;
+using Avalon.Common.Accounts;
 
 namespace Avalon.Domain.Auth;
 
