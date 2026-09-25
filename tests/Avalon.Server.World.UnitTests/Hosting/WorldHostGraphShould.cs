@@ -3,6 +3,7 @@ using Avalon.Network.Packets.Abstractions.Attributes;
 using Avalon.Server.World.Extensions;
 using Avalon.World;
 using Avalon.World.Entities;
+using Avalon.World.Loot;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Xunit;
@@ -37,6 +38,12 @@ public class WorldHostGraphShould
             // CreatureSpawner now depends on IWorld directly. World's own constructor does not
             // depend back on ICreatureSpawner, so resolving this must not throw for a cycle.
             Assert.NotNull(host.Services.GetRequiredService<ICreatureSpawner>());
+
+            // Loot (#460). MapInstance reads these with GetService, so a missing registration would
+            // not fail anything else: it would silently make every creature drop nothing.
+            Assert.NotNull(host.Services.GetRequiredService<ILootRoller>());
+            Assert.NotNull(host.Services.GetRequiredService<ILootAllocator>());
+            Assert.NotNull(host.Services.GetRequiredService<TimeProvider>());
         }
         finally
         {
