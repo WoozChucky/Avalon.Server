@@ -30,6 +30,12 @@ public interface IAccountService
     Task ConfirmEmailChangeAsync(string token, CancellationToken cancellationToken = default);
     Task UpdateStatusAsync(AccountId accountId, Avalon.Api.Contract.AccountStatus state, string? reason, AccountId actorId, CancellationToken cancellationToken = default);
     Task UpdateRolesAsync(AccountId accountId, Avalon.Api.Contract.AccountAccessLevel roles, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Removes MFA from <paramref name="accountId"/> on behalf of admin <paramref name="actorId"/>.
+    /// Returns <c>false</c> when the account does not exist.
+    /// </summary>
+    Task<bool> RemoveMfaAsync(AccountId accountId, AccountId actorId, CancellationToken cancellationToken = default);
 }
 
 public class AccountService : IAccountService
@@ -272,5 +278,42 @@ public class AccountService : IAccountService
             ?? throw new BusinessException("Account not found");
         account.AccessLevel = (Avalon.Common.Accounts.AccountAccessLevel)roles;
         await _accountRepository.UpdateAsync(account, cancellationToken);
+    }
+
+    public async Task<bool> RemoveMfaAsync(AccountId accountId, AccountId actorId,
+        CancellationToken cancellationToken = default)
+    {
+        // The only way back into an account whose authenticator is lost. The MFA row goes, and
+        // every refresh token and personal access token goes with it in the same transaction, so
+        // no session opened before the reset outlives it.
+        var removed = await _authTransaction.ExecuteAsync(async (context, token) =>
+        {
+            if (!await context.Accounts.AnyAsync(a => a.Id == accountId, token))
+                return (Found: false, Rows: 0);
+
+            var rows = await MfaSetupRepository.DeleteAllForAccountAsync(context, accountId, token);
+            await RefreshTokenRepository.RevokeAllForAccountAsync(context, accountId, token);
+            await PersonalAccessTokenRepository.RevokeAllForAccountAsync(context, accountId, actorId,
+                DateTime.UtcNow, token);
+
+            return (Found: true, Rows: rows);
+        }, cancellationToken);
+
+        if (!removed.Found)
+            return false;
+
+        // A login already past its password step holds MFA state in Redis; clear it and its
+        // reverse lookup so that login cannot finish against an enrolment that no longer exists.
+        var mfaKey = CacheKeys.AccountMfa(accountId.Value);
+        var pendingHash = await _cache.Database.HashGetAsync(mfaKey, "hash");
+        if (pendingHash.HasValue)
+            await _cache.RemoveAsync(CacheKeys.MfaReverseHash(pendingHash!));
+        await _cache.RemoveAsync(mfaKey);
+
+        _logger.LogInformation(
+            "Admin {ActorId} removed MFA from account {AccountId} ({Rows} row(s) deleted); its refresh and personal access tokens were revoked",
+            actorId.Value, accountId.Value, removed.Rows);
+
+        return true;
     }
 }

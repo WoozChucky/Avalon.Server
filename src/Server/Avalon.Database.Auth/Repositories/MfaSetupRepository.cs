@@ -107,4 +107,14 @@ public class MfaSetupRepository(IDbContextFactory<AuthDbContext> contextFactory)
             .Where(m => m.Id == id && m.Status == MfaSetupStatus.Setup && m.Secret == secret)
             .ExecuteDeleteAsync(cancellationToken);
     }
+
+    /// <summary>
+    /// Deletes every MFA row the account has, in any status, on a context the caller owns, so the
+    /// statement joins that context's transaction. Returns the number of rows deleted.
+    /// </summary>
+    public static Task<int> DeleteAllForAccountAsync(AuthDbContext context, AccountId accountId,
+        CancellationToken cancellationToken = default) =>
+        context.MfaSetups
+            .Where(m => m.AccountId == accountId)
+            .ExecuteDeleteAsync(cancellationToken);
 }

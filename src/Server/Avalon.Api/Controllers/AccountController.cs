@@ -155,4 +155,18 @@ public class AccountController : BaseController
         await _accountService.UpdateRolesAsync(new AccountId(id), req.Roles, ct);
         return NoContent();
     }
+
+    /// <summary>
+    /// Removes MFA from an account whose owner lost the authenticator, and revokes the account's
+    /// refresh tokens and personal access tokens. Idempotent: an account without MFA is also 204.
+    /// </summary>
+    [HttpDelete("{id:long}/mfa")]
+    [Authorize(Policy = AvalonRoles.Admin)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> RemoveMfa([FromRoute] long id, CancellationToken ct)
+    {
+        var found = await _accountService.RemoveMfaAsync(new AccountId(id), User.AccountId(), ct);
+        return found ? NoContent() : NotFound();
+    }
 }
