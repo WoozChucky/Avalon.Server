@@ -144,7 +144,7 @@ public class AccountService : IAccountService
             LastIp = ipAddress.ToString(),
             LastLogin = DateTime.UtcNow,
             JoinDate = DateTime.UtcNow,
-            Locale = Avalon.Domain.Auth.AccountLocale.enUS,
+            Locale = Avalon.World.Public.Enums.AccountLocale.enUS,
             Os = OperatingSystem.Windows,
         };
 

@@ -85,8 +85,10 @@ public class World : IWorld
         ICharacterLevelExperienceRepository characterLevelExperienceRepository,
         ICreatureBaseStatRepository creatureBaseStatRepository,
         ICreatureRarityModifierRepository creatureRarityModifierRepository,
+        ILocalizedTextRepository localizedTextRepository,
         IScriptHotReloader scriptHotReloader,
-        IChunkLibrary chunkLibrary)
+        IChunkLibrary chunkLibrary,
+        IDialogueRepository dialogueRepository)
     {
         _logger = loggerFactory.CreateLogger<World>();
         _loggerFactory = loggerFactory;
@@ -99,7 +101,7 @@ public class World : IWorld
         _chunkLibrary = chunkLibrary;
         Data = new StaticData(characterCreateInfoRepository, classLevelStatRepository, itemTemplateRepository,
             abilityTemplateRepository, characterLevelExperienceRepository, creatureBaseStatRepository,
-            creatureRarityModifierRepository);
+            creatureRarityModifierRepository, localizedTextRepository, loggerFactory, dialogueRepository);
 
         _hotReloadTimer.SetInterval(
             (long)TimeSpan.FromSeconds(configuration.Value.ScriptHotReloadIntervalSeconds).TotalMilliseconds);
@@ -177,6 +179,10 @@ public class World : IWorld
             // RemoveCharacter (and before ApplyDeathLogoutAsync below) so the encounter doesn't
             // hold a stale dead-player participant after Revive() runs.
             instance?.CombatService.DropPlayerFromEncounter(connection.Character);
+
+            // A stale (npc, node) pair surviving a disconnect would let a reconnecting player
+            // resume a conversation with an NPC that may no longer be in their (new) instance.
+            connection.CurrentDialogue = null;
 
             instance?.RemoveCharacter(connection);
 

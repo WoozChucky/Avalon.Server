@@ -187,6 +187,41 @@ namespace Avalon.Database.World.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Avalon.Domain.World.CharacterClassName", b =>
+                {
+                    b.Property<string>("Class")
+                        .HasColumnType("text");
+
+                    b.Property<int>("TextId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Class");
+
+                    b.ToTable("CharacterClassNames", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Class = "Warrior",
+                            TextId = 11
+                        },
+                        new
+                        {
+                            Class = "Wizard",
+                            TextId = 12
+                        },
+                        new
+                        {
+                            Class = "Hunter",
+                            TextId = 13
+                        },
+                        new
+                        {
+                            Class = "Healer",
+                            TextId = 14
+                        });
+                });
+
             modelBuilder.Entity("Avalon.Domain.World.CharacterCreateInfo", b =>
                 {
                     b.Property<int>("Class")
@@ -1305,6 +1340,169 @@ namespace Avalon.Database.World.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Avalon.Domain.World.DialogueNode", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal>("CreatureTemplateId")
+                        .HasColumnType("numeric(20,0)");
+
+                    b.Property<bool>("IsRoot")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("TextId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatureTemplateId");
+
+                    b.ToTable("DialogueNodes", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            CreatureTemplateId = 1m,
+                            IsRoot = true,
+                            TextId = 1
+                        },
+                        new
+                        {
+                            Id = 2,
+                            CreatureTemplateId = 1m,
+                            IsRoot = false,
+                            TextId = 2
+                        },
+                        new
+                        {
+                            Id = 3,
+                            CreatureTemplateId = 1m,
+                            IsRoot = false,
+                            TextId = 3
+                        },
+                        new
+                        {
+                            Id = 4,
+                            CreatureTemplateId = 2m,
+                            IsRoot = true,
+                            TextId = 4
+                        },
+                        new
+                        {
+                            Id = 5,
+                            CreatureTemplateId = 2m,
+                            IsRoot = false,
+                            TextId = 5
+                        },
+                        new
+                        {
+                            Id = 6,
+                            CreatureTemplateId = 3m,
+                            IsRoot = true,
+                            TextId = 6
+                        });
+                });
+
+            modelBuilder.Entity("Avalon.Domain.World.DialogueOption", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int?>("NextNodeId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("NodeId")
+                        .HasColumnType("integer");
+
+                    b.Property<short>("SortOrder")
+                        .HasColumnType("smallint");
+
+                    b.Property<int>("TextId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("NodeId");
+
+                    b.ToTable("DialogueOptions", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            NextNodeId = 2,
+                            NodeId = 1,
+                            SortOrder = (short)0,
+                            TextId = 7
+                        },
+                        new
+                        {
+                            Id = 2,
+                            NodeId = 1,
+                            SortOrder = (short)1,
+                            TextId = 10
+                        },
+                        new
+                        {
+                            Id = 3,
+                            NextNodeId = 3,
+                            NodeId = 2,
+                            SortOrder = (short)0,
+                            TextId = 8
+                        },
+                        new
+                        {
+                            Id = 4,
+                            NodeId = 2,
+                            SortOrder = (short)1,
+                            TextId = 10
+                        },
+                        new
+                        {
+                            Id = 5,
+                            NodeId = 3,
+                            SortOrder = (short)0,
+                            TextId = 10
+                        },
+                        new
+                        {
+                            Id = 6,
+                            NextNodeId = 5,
+                            NodeId = 4,
+                            SortOrder = (short)0,
+                            TextId = 9
+                        },
+                        new
+                        {
+                            Id = 7,
+                            NodeId = 4,
+                            SortOrder = (short)1,
+                            TextId = 10
+                        },
+                        new
+                        {
+                            Id = 8,
+                            NodeId = 5,
+                            SortOrder = (short)0,
+                            TextId = 10
+                        },
+                        new
+                        {
+                            Id = 9,
+                            NodeId = 6,
+                            SortOrder = (short)0,
+                            TextId = 10
+                        });
+                });
+
             modelBuilder.Entity("Avalon.Domain.World.ItemInstance", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1531,6 +1729,198 @@ namespace Avalon.Database.World.Migrations
                             StatType1 = 12,
                             StatValue1 = 13L,
                             SubClass = 100
+                        });
+                });
+
+            modelBuilder.Entity("Avalon.Domain.World.LocalizedText", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Text")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("LocalizedTexts", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            Text = "The wold grows darker each season, {name}. There are seasons now where it does not lighten at all."
+                        },
+                        new
+                        {
+                            Id = 2,
+                            Text = "Something took root at its heart. The beasts feel it before we do — they change, and then they do not change back."
+                        },
+                        new
+                        {
+                            Id = 3,
+                            Text = "Some return. Not all of what returns is who left."
+                        },
+                        new
+                        {
+                            Id = 4,
+                            Text = "Steel holds. Wood rots. Remember which one you are carrying when you walk under those trees."
+                        },
+                        new
+                        {
+                            Id = 5,
+                            Text = "Once, and I came back for the anvil rather than the view. A {class} might fare better than a smith did."
+                        },
+                        new
+                        {
+                            Id = 6,
+                            Text = "Room's upstairs, {name}, stew's on, and I ask no questions about the state of your boots."
+                        },
+                        new
+                        {
+                            Id = 7,
+                            Text = "What changed?"
+                        },
+                        new
+                        {
+                            Id = 8,
+                            Text = "And the ones who go in?"
+                        },
+                        new
+                        {
+                            Id = 9,
+                            Text = "Have you been in?"
+                        },
+                        new
+                        {
+                            Id = 10,
+                            Text = "Farewell."
+                        },
+                        new
+                        {
+                            Id = 11,
+                            Text = "Warrior"
+                        },
+                        new
+                        {
+                            Id = 12,
+                            Text = "Wizard"
+                        },
+                        new
+                        {
+                            Id = 13,
+                            Text = "Hunter"
+                        },
+                        new
+                        {
+                            Id = 14,
+                            Text = "Healer"
+                        });
+                });
+
+            modelBuilder.Entity("Avalon.Domain.World.LocalizedTextLocale", b =>
+                {
+                    b.Property<int>("TextId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Locale")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Text")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("TextId", "Locale");
+
+                    b.ToTable("LocalizedTextLocales", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            TextId = 1,
+                            Locale = "ptPT",
+                            Text = "A mata escurece a cada estação, {name}. Já há estações em que nunca chega a clarear."
+                        },
+                        new
+                        {
+                            TextId = 2,
+                            Locale = "ptPT",
+                            Text = "Algo se enraizou no coração dela. Os bichos sentem-no antes de nós — mudam, e depois não voltam a ser o que eram."
+                        },
+                        new
+                        {
+                            TextId = 3,
+                            Locale = "ptPT",
+                            Text = "Alguns regressam. Mas nem tudo o que regressa é quem partiu."
+                        },
+                        new
+                        {
+                            TextId = 4,
+                            Locale = "ptPT",
+                            Text = "O aço aguenta. A madeira apodrece. Lembra-te de qual dos dois levas contigo quando caminhares debaixo daquelas árvores."
+                        },
+                        new
+                        {
+                            TextId = 5,
+                            Locale = "ptPT",
+                            Text = "Uma vez, e voltei pela bigorna e não pela paisagem. {g:Um|Uma} {class} talvez se saia melhor do que um ferreiro se saiu."
+                        },
+                        new
+                        {
+                            TextId = 6,
+                            Locale = "ptPT",
+                            Text = "Sê bem-{g:vindo|vinda}, {name}. O quarto é lá em cima, o guisado está ao lume, e não faço perguntas sobre o estado das tuas botas."
+                        },
+                        new
+                        {
+                            TextId = 7,
+                            Locale = "ptPT",
+                            Text = "O que mudou?"
+                        },
+                        new
+                        {
+                            TextId = 8,
+                            Locale = "ptPT",
+                            Text = "E os que entram?"
+                        },
+                        new
+                        {
+                            TextId = 9,
+                            Locale = "ptPT",
+                            Text = "Já lá entraste?"
+                        },
+                        new
+                        {
+                            TextId = 10,
+                            Locale = "ptPT",
+                            Text = "Adeus."
+                        },
+                        new
+                        {
+                            TextId = 11,
+                            Locale = "ptPT",
+                            Text = "Guerreir{g:o|a}"
+                        },
+                        new
+                        {
+                            TextId = 12,
+                            Locale = "ptPT",
+                            Text = "Mag{g:o|a}"
+                        },
+                        new
+                        {
+                            TextId = 13,
+                            Locale = "ptPT",
+                            Text = "Caçador{g:|a}"
+                        },
+                        new
+                        {
+                            TextId = 14,
+                            Locale = "ptPT",
+                            Text = "Curandeir{g:o|a}"
                         });
                 });
 

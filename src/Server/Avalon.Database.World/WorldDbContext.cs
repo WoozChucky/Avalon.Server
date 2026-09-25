@@ -96,6 +96,11 @@ public class WorldDbContext : DbContext
     public DbSet<ProceduralMapConfig> ProceduralMapConfigs { get; set; } = null!;
     public DbSet<MapChunkPlacement> MapChunkPlacements { get; set; } = null!;
     public DbSet<MapCreatureSpawn> MapCreatureSpawns { get; set; } = null!;
+    public DbSet<LocalizedText> LocalizedTexts { get; set; } = null!;
+    public DbSet<LocalizedTextLocale> LocalizedTextLocales { get; set; } = null!;
+    public DbSet<DialogueNode> DialogueNodes { get; set; } = null!;
+    public DbSet<DialogueOption> DialogueOptions { get; set; } = null!;
+    public DbSet<CharacterClassName> CharacterClassNames { get; set; } = null!;
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
@@ -132,6 +137,11 @@ public class WorldDbContext : DbContext
         Configure(modelBuilder.Entity<ProceduralMapConfig>());
         Configure(modelBuilder.Entity<MapChunkPlacement>());
         Configure(modelBuilder.Entity<MapCreatureSpawn>());
+        Configure(modelBuilder.Entity<LocalizedText>());
+        Configure(modelBuilder.Entity<LocalizedTextLocale>());
+        Configure(modelBuilder.Entity<DialogueNode>());
+        Configure(modelBuilder.Entity<DialogueOption>());
+        Configure(modelBuilder.Entity<CharacterClassName>());
 
         modelBuilder.Entity<ChunkPoolMembership>(e =>
         {
@@ -539,8 +549,8 @@ public class WorldDbContext : DbContext
         // They are Invulnerable — a town NPC is never killable — and run TownNpcScript, which
         // stands still and never aggros. Experience is 0 because a creature that cannot die cannot
         // pay out; the 20 they used to carry was left over from their stint as placeholder monsters
-        // in the forest spawn table. They are visible but not yet interactive: talking to an NPC
-        // is issue #431.
+        // in the forest spawn table. They are interactive: talking to an NPC opens a dialogue,
+        // added for issue #431.
         builder.HasData(new CreatureTemplate
         {
             Id = 1,
@@ -1198,6 +1208,151 @@ public class WorldDbContext : DbContext
                 Id = 3, MapTemplateId = 1, CreatureTemplateId = 3,     // Innkeeper
                 OffsetX = 0f, OffsetY = 0f, OffsetZ = 7f, Facing = 180f
             });
+    }
+
+    private static void Configure(EntityTypeBuilder<LocalizedText> builder)
+    {
+        builder.ToTable("LocalizedTexts");
+        builder.HasKey(b => b.Id);
+        builder.Property(b => b.Id)
+            .HasConversion(v => v.Value, v => new LocalizedTextId(v))
+            .IsRequired()
+            .ValueGeneratedOnAdd();
+
+        // Base (enUS) wording. Translations are in LocalizedTextLocales; a locale with no row
+        // falls back to these, which is what makes partial translation shippable.
+        builder.HasData(
+            // Node lines.
+            new LocalizedText { Id = 1, Text = "The wold grows darker each season, {name}. There are seasons now where it does not lighten at all." },
+            new LocalizedText { Id = 2, Text = "Something took root at its heart. The beasts feel it before we do — they change, and then they do not change back." },
+            new LocalizedText { Id = 3, Text = "Some return. Not all of what returns is who left." },
+            new LocalizedText { Id = 4, Text = "Steel holds. Wood rots. Remember which one you are carrying when you walk under those trees." },
+            new LocalizedText { Id = 5, Text = "Once, and I came back for the anvil rather than the view. A {class} might fare better than a smith did." },
+            new LocalizedText { Id = 6, Text = "Room's upstairs, {name}, stew's on, and I ask no questions about the state of your boots." },
+            // Option lines. "Farewell." is written once and referenced six times.
+            new LocalizedText { Id = 7, Text = "What changed?" },
+            new LocalizedText { Id = 8, Text = "And the ones who go in?" },
+            new LocalizedText { Id = 9, Text = "Have you been in?" },
+            new LocalizedText { Id = 10, Text = "Farewell." },
+            // Class names.
+            new LocalizedText { Id = 11, Text = "Warrior" },
+            new LocalizedText { Id = 12, Text = "Wizard" },
+            new LocalizedText { Id = 13, Text = "Hunter" },
+            new LocalizedText { Id = 14, Text = "Healer" });
+    }
+
+    private static void Configure(EntityTypeBuilder<LocalizedTextLocale> builder)
+    {
+        builder.ToTable("LocalizedTextLocales");
+        builder.HasKey(b => new { b.TextId, b.Locale });
+        builder.Property(b => b.TextId)
+            .HasConversion(v => v.Value, v => new LocalizedTextId(v))
+            .IsRequired();
+        builder.Property(b => b.Locale)
+            .HasConversion(new EnumToStringConverter<AccountLocale>())
+            .IsRequired();
+
+        // ptPT. The gender selects and the class-name inflections are the parts that matter:
+        // Portuguese agrees adjectives with gender where English does not, which is why the
+        // {g:male|female} construct exists at all. Needs native-speaker review before merge.
+        builder.HasData(
+            new LocalizedTextLocale { TextId = 1, Locale = AccountLocale.ptPT, Text = "A mata escurece a cada estação, {name}. Já há estações em que nunca chega a clarear." },
+            new LocalizedTextLocale { TextId = 2, Locale = AccountLocale.ptPT, Text = "Algo se enraizou no coração dela. Os bichos sentem-no antes de nós — mudam, e depois não voltam a ser o que eram." },
+            new LocalizedTextLocale { TextId = 3, Locale = AccountLocale.ptPT, Text = "Alguns regressam. Mas nem tudo o que regressa é quem partiu." },
+            new LocalizedTextLocale { TextId = 4, Locale = AccountLocale.ptPT, Text = "O aço aguenta. A madeira apodrece. Lembra-te de qual dos dois levas contigo quando caminhares debaixo daquelas árvores." },
+            // {g:Um|Uma} agrees the article with the class name, which inflects on the same gender.
+            new LocalizedTextLocale { TextId = 5, Locale = AccountLocale.ptPT, Text = "Uma vez, e voltei pela bigorna e não pela paisagem. {g:Um|Uma} {class} talvez se saia melhor do que um ferreiro se saiu." },
+            new LocalizedTextLocale { TextId = 6, Locale = AccountLocale.ptPT, Text = "Sê bem-{g:vindo|vinda}, {name}. O quarto é lá em cima, o guisado está ao lume, e não faço perguntas sobre o estado das tuas botas." },
+            new LocalizedTextLocale { TextId = 7, Locale = AccountLocale.ptPT, Text = "O que mudou?" },
+            new LocalizedTextLocale { TextId = 8, Locale = AccountLocale.ptPT, Text = "E os que entram?" },
+            new LocalizedTextLocale { TextId = 9, Locale = AccountLocale.ptPT, Text = "Já lá entraste?" },
+            new LocalizedTextLocale { TextId = 10, Locale = AccountLocale.ptPT, Text = "Adeus." },
+            // Caçador{g:|a} has an EMPTY male branch — the masculine takes no suffix.
+            new LocalizedTextLocale { TextId = 11, Locale = AccountLocale.ptPT, Text = "Guerreir{g:o|a}" },
+            new LocalizedTextLocale { TextId = 12, Locale = AccountLocale.ptPT, Text = "Mag{g:o|a}" },
+            new LocalizedTextLocale { TextId = 13, Locale = AccountLocale.ptPT, Text = "Caçador{g:|a}" },
+            new LocalizedTextLocale { TextId = 14, Locale = AccountLocale.ptPT, Text = "Curandeir{g:o|a}" });
+    }
+
+    private static void Configure(EntityTypeBuilder<DialogueNode> builder)
+    {
+        builder.ToTable("DialogueNodes");
+        builder.HasKey(b => b.Id);
+        builder.Property(b => b.Id)
+            .HasConversion(v => v.Value, v => new DialogueNodeId(v))
+            .IsRequired()
+            .ValueGeneratedOnAdd();
+        builder.Property(b => b.CreatureTemplateId)
+            .HasConversion(v => v.Value, v => new CreatureTemplateId(v))
+            .IsRequired();
+        builder.Property(b => b.TextId)
+            .HasConversion(v => v.Value, v => new LocalizedTextId(v))
+            .IsRequired();
+
+        builder.HasIndex(b => b.CreatureTemplateId);
+
+        builder.HasData(
+            // Uriel (template 1).
+            new DialogueNode { Id = 1, CreatureTemplateId = 1, IsRoot = true,  TextId = 1 },
+            new DialogueNode { Id = 2, CreatureTemplateId = 1, IsRoot = false, TextId = 2 },
+            new DialogueNode { Id = 3, CreatureTemplateId = 1, IsRoot = false, TextId = 3 },
+            // Borin Stoutbeard (template 2).
+            new DialogueNode { Id = 4, CreatureTemplateId = 2, IsRoot = true,  TextId = 4 },
+            new DialogueNode { Id = 5, CreatureTemplateId = 2, IsRoot = false, TextId = 5 },
+            // Innkeeper (template 3).
+            new DialogueNode { Id = 6, CreatureTemplateId = 3, IsRoot = true,  TextId = 6 });
+    }
+
+    private static void Configure(EntityTypeBuilder<DialogueOption> builder)
+    {
+        builder.ToTable("DialogueOptions");
+        builder.HasKey(b => b.Id);
+        builder.Property(b => b.Id)
+            .HasConversion(v => v.Value, v => new DialogueOptionId(v))
+            .IsRequired()
+            .ValueGeneratedOnAdd();
+        builder.Property(b => b.NodeId)
+            .HasConversion(v => v.Value, v => new DialogueNodeId(v))
+            .IsRequired();
+        builder.Property(b => b.TextId)
+            .HasConversion(v => v.Value, v => new LocalizedTextId(v))
+            .IsRequired();
+        builder.Property(b => b.NextNodeId)
+            .HasConversion(v => v!.Value, v => new DialogueNodeId(v))
+            .IsRequired(false);
+
+        builder.HasIndex(b => b.NodeId);
+
+        // Every node ends with a "Farewell." (text 10) so a player always has a way out. A node
+        // with no options would leave the client showing text it cannot dismiss.
+        builder.HasData(
+            new DialogueOption { Id = 1,  NodeId = 1, TextId = 7,  NextNodeId = 2,    SortOrder = 0 },
+            new DialogueOption { Id = 2,  NodeId = 1, TextId = 10, NextNodeId = null, SortOrder = 1 },
+            new DialogueOption { Id = 3,  NodeId = 2, TextId = 8,  NextNodeId = 3,    SortOrder = 0 },
+            new DialogueOption { Id = 4,  NodeId = 2, TextId = 10, NextNodeId = null, SortOrder = 1 },
+            new DialogueOption { Id = 5,  NodeId = 3, TextId = 10, NextNodeId = null, SortOrder = 0 },
+            new DialogueOption { Id = 6,  NodeId = 4, TextId = 9,  NextNodeId = 5,    SortOrder = 0 },
+            new DialogueOption { Id = 7,  NodeId = 4, TextId = 10, NextNodeId = null, SortOrder = 1 },
+            new DialogueOption { Id = 8,  NodeId = 5, TextId = 10, NextNodeId = null, SortOrder = 0 },
+            new DialogueOption { Id = 9,  NodeId = 6, TextId = 10, NextNodeId = null, SortOrder = 0 });
+    }
+
+    private static void Configure(EntityTypeBuilder<CharacterClassName> builder)
+    {
+        builder.ToTable("CharacterClassNames");
+        builder.HasKey(b => b.Class);
+        builder.Property(b => b.Class)
+            .HasConversion(new EnumToStringConverter<CharacterClass>())
+            .IsRequired();
+        builder.Property(b => b.TextId)
+            .HasConversion(v => v.Value, v => new LocalizedTextId(v))
+            .IsRequired();
+
+        builder.HasData(
+            new CharacterClassName { Class = CharacterClass.Warrior, TextId = 11 },
+            new CharacterClassName { Class = CharacterClass.Wizard,  TextId = 12 },
+            new CharacterClassName { Class = CharacterClass.Hunter,  TextId = 13 },
+            new CharacterClassName { Class = CharacterClass.Healer,  TextId = 14 });
     }
 
     private static void Configure(EntityTypeBuilder<AbilityTemplate> builder)

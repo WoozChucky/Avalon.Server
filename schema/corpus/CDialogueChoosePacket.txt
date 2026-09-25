@@ -1,0 +1,59 @@
+# CDialogueChoosePacket - golden wire vectors.
+#
+# GENERATED FILE. The bytes below are what the server's serializer writes for the
+# values shown above them, so a client is conformant when it produces the same ones,
+# and a change in what the server emits arrives here as a diff.
+#
+#   Emitted by  tools/Avalon.Exporter
+#   Regenerate  dotnet run --project tools/Avalon.Exporter -- corpus
+#   Format      described in schema/README.md
+#   Schema      the message of this name in schema/avalon.proto
+#
+# A variant is one shape of the same message. "absent" sets nothing, "empty" sets
+# everything to a present-but-empty value, and the rest carry values chosen to make
+# a particular encoding decision observable.
+
+message CDialogueChoosePacket
+
+variant absent
+  field 1 TargetGuid : ulong = 0
+  field 2 NodeId : int = 0
+  field 3 OptionId : int = 0
+  bytes 0
+
+variant empty
+  field 1 TargetGuid : ulong = 0
+  field 2 NodeId : int = 0
+  field 3 OptionId : int = 0
+  bytes 0
+
+variant populated
+  field 1 TargetGuid : ulong = 65535
+  field 2 NodeId : int = -262144
+  field 3 OptionId : int = 11
+  bytes 17
+    08 ff ff 03 10 80 80 f0 ff ff ff ff ff ff 01 18
+    0b
+
+variant maxima
+  field 1 TargetGuid : ulong = 18446744073709551615
+  field 2 NodeId : int = 2147483647
+  field 3 OptionId : int = 2147483647
+  bytes 23
+    08 ff ff ff ff ff ff ff ff ff 01 10 ff ff ff ff
+    07 18 ff ff ff ff 07
+
+variant minima
+  field 1 TargetGuid : ulong = 0
+  field 2 NodeId : int = -2147483648
+  field 3 OptionId : int = -2147483648
+  bytes 22
+    10 80 80 80 80 f8 ff ff ff ff 01 18 80 80 80 80
+    f8 ff ff ff ff 01
+
+variant varint-edges
+  field 1 TargetGuid : ulong = 128
+  field 2 NodeId : int = 268435456
+  field 3 OptionId : int = 127
+  bytes 11
+    08 80 01 10 80 80 80 80 01 18 7f

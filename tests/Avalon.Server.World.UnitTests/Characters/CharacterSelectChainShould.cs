@@ -3,6 +3,7 @@ using System.Net.Sockets;
 using Avalon.Common;
 using Avalon.Common.Cryptography;
 using Avalon.Common.ValueObjects;
+using Avalon.Database.Auth.Repositories;
 using Avalon.Database.Character.Repositories;
 using Avalon.Database.World.Repositories;
 using Avalon.Domain.Characters;
@@ -320,7 +321,8 @@ public class CharacterSelectChainShould : IDisposable
             Substitute.For<IChunkLibrary>(),
             world,
             Substitute.For<IRespawnTargetResolver>(),
-            Options.Create(new RegenConfiguration()));
+            Options.Create(new RegenConfiguration()),
+            Substitute.For<IAccountRepository>());
     }
 
     private void GiveTheCharacter(params (InventoryType Container, ushort Slot, ulong Template)[] items)
@@ -399,9 +401,24 @@ public class CharacterSelectChainShould : IDisposable
         abilityTemplates.FindAllAsync(Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(new List<AbilityTemplate>());
 
+        var localizedText = Substitute.For<ILocalizedTextRepository>();
+        localizedText.GetAllAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<IReadOnlyCollection<LocalizedText>>([]));
+        localizedText.GetAllLocalesAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<IReadOnlyCollection<LocalizedTextLocale>>([]));
+        localizedText.GetAllClassNamesAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<IReadOnlyCollection<CharacterClassName>>([]));
+
+        var dialogue = Substitute.For<IDialogueRepository>();
+        dialogue.GetAllNodesAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<IReadOnlyCollection<DialogueNode>>([]));
+        dialogue.GetAllOptionsAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<IReadOnlyCollection<DialogueOption>>([]));
+
         var data = new StaticData(createInfos, stats, items, abilityTemplates, levels,
             Substitute.For<ICreatureBaseStatRepository>(),
-            Substitute.For<ICreatureRarityModifierRepository>());
+            Substitute.For<ICreatureRarityModifierRepository>(),
+            localizedText, NullLoggerFactory.Instance, dialogue);
         data.LoadAsync(CancellationToken.None).GetAwaiter().GetResult();
         return data;
     }

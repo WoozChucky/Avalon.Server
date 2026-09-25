@@ -163,7 +163,22 @@ public class ExperienceAwardShould
         rarities.GetAllAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyCollection<CreatureRarityModifier>>([]));
 
-        var data = new StaticData(createInfos, stats, items, abilities, levels, baseStats, rarities);
+        var localizedText = Substitute.For<ILocalizedTextRepository>();
+        localizedText.GetAllAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<IReadOnlyCollection<LocalizedText>>([]));
+        localizedText.GetAllLocalesAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<IReadOnlyCollection<LocalizedTextLocale>>([]));
+        localizedText.GetAllClassNamesAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<IReadOnlyCollection<CharacterClassName>>([]));
+
+        var dialogue = Substitute.For<IDialogueRepository>();
+        dialogue.GetAllNodesAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<IReadOnlyCollection<DialogueNode>>([]));
+        dialogue.GetAllOptionsAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<IReadOnlyCollection<DialogueOption>>([]));
+
+        var data = new StaticData(createInfos, stats, items, abilities, levels, baseStats, rarities,
+            localizedText, NullLoggerFactory.Instance, dialogue);
         data.LoadAsync(CancellationToken.None).GetAwaiter().GetResult();
         return data;
     }
