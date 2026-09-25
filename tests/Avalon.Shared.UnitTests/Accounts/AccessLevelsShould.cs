@@ -86,6 +86,25 @@ public class AccessLevelsShould
     public void Admit_Nobody_To_A_World_That_Requires_No_Level()
         => Assert.False(AccessLevels.ForWorld(0).Allows(AccountAccessLevel.Console));
 
+    /// <summary>
+    /// WorldsEnterableBy is the query-side form of ForWorld (#452); the REST world list filters on
+    /// it. It must agree with ForWorld for every combination of required and actual flags.
+    /// </summary>
+    [Fact]
+    public void Agree_With_ForWorld_For_Every_Required_And_Actual_Combination()
+    {
+        const int all = 0b11_1111;
+        for (var required = 0; required <= all; required++)
+        for (var actual = 0; actual <= all; actual++)
+        {
+            var r = (AccountAccessLevel)required;
+            var a = (AccountAccessLevel)actual;
+            Assert.True(
+                AccessLevels.ForWorld(r).Allows(a) == ((r & AccessLevels.WorldsEnterableBy(a)) != 0),
+                $"required={r}, actual={a}");
+        }
+    }
+
     [Fact]
     public void Limit_The_Admin_Mask_To_Admin_And_Console()
     {

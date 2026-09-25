@@ -45,6 +45,26 @@ public static class AccessLevels
         return admitted;
     }
 
+    /// <summary>
+    /// The inverse of <see cref="ForWorld"/>: the mask of <c>AccessLevelRequired</c> flags that
+    /// admit <paramref name="actual"/>. A world is enterable exactly when
+    /// <c>(world.AccessLevelRequired &amp; WorldsEnterableBy(actual)) != 0</c>, which, unlike
+    /// <see cref="ForWorld"/>, a database query can evaluate, so it can filter and count a page (#452).
+    /// </summary>
+    /// <remarks>
+    /// Exact because <see cref="ForWorld"/> is a union over the required flags: a world admits an
+    /// account when any one of its required flags does.
+    /// </remarks>
+    public static AccountAccessLevel WorldsEnterableBy(AccountAccessLevel actual)
+    {
+        AccountAccessLevel enterable = 0;
+
+        foreach (AccountAccessLevel flag in Enum.GetValues(typeof(AccountAccessLevel)))
+            if (ForWorld(flag).Allows(actual)) enterable |= flag;
+
+        return enterable;
+    }
+
     /// <summary>True when <paramref name="actual"/> holds any level the mask allows.</summary>
     public static bool Allows(this AccountAccessLevel required, AccountAccessLevel actual)
         => (required & actual) != 0;

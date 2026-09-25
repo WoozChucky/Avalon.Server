@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using Avalon.Common.Accounts;
 using Avalon.Common.ValueObjects;
 
 namespace Avalon.Api.Authentication;
@@ -10,6 +11,23 @@ public static class ClaimsPrincipalExtensions
         var raw = user.FindFirstValue(ClaimTypes.NameIdentifier)
             ?? throw new InvalidOperationException("missing sub claim");
         return new AccountId(long.Parse(raw));
+    }
+
+    /// <summary>
+    /// The caller's <see cref="AccountAccessLevel"/>, folded back from the one GroupSid claim per set
+    /// flag that JwtUtils and AvalonAuthenticationHandler emit. Only a claim whose value is exactly a
+    /// flag's name counts, as with the authorization policies' RequireClaim; anything else, numeric
+    /// strings included, is ignored. A principal with no such claim has level 0, which enters no world.
+    /// </summary>
+    public static AccountAccessLevel AccessLevel(this ClaimsPrincipal user)
+    {
+        AccountAccessLevel level = 0;
+
+        foreach (var flag in Enum.GetValues<AccountAccessLevel>())
+            if (user.HasClaim(ClaimTypes.GroupSid, flag.ToString()))
+                level |= flag;
+
+        return level;
     }
 
     // Role claims are emitted per set flag in AccountAccessLevel. An Admin principal
