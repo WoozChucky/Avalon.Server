@@ -33,6 +33,20 @@ public class ReloadCommandShould
     }
 
     [Fact]
+    public async Task Reply_With_A_Next_Kill_Caveat_When_Loot_Reloads_Successfully()
+    {
+        Fixture fixture = Fixture.Build();
+        fixture.Returns(new ReloadOutcome(
+            ReloadArea.Loot, true, "8 tables, 40 entries", TimeSpan.FromMilliseconds(12), null));
+
+        await fixture.Execute("loot");
+
+        Assert.Equal(
+            ["Reloaded loot: 8 tables, 40 entries (12 ms). Affects the next kill; drops already on the ground keep what they rolled."],
+            fixture.CaptureSentMessages());
+    }
+
+    [Fact]
     public async Task Reply_With_A_Spawn_Caveat_When_Creatures_Reload_Successfully()
     {
         Fixture fixture = Fixture.Build();
@@ -135,7 +149,7 @@ public class ReloadCommandShould
         await fixture.Execute(area);
 
         Assert.Equal(
-            ["Usage: /reload <dialogue|creatures|abilities|items|progression|all>"],
+            ["Usage: /reload <dialogue|creatures|abilities|items|progression|loot|all>"],
             fixture.CaptureSentMessages());
         await fixture.Reloader.DidNotReceiveWithAnyArgs().ReloadAsync(default!, default);
     }

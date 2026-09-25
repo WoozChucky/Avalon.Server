@@ -15,7 +15,8 @@ public sealed class CreatureTemplateDto
     public CreatureRarity Rarity { get; set; }
     public CreatureFamily Family { get; set; }
     public CreatureType Type { get; set; }
-    public int LootId { get; set; }
+    /// <summary>The loot table this creature rolls when it dies; null when it drops no items.</summary>
+    public int? LootTableId { get; set; }
     public int MinGold { get; set; }
     public int MaxGold { get; set; }
     public string AIName { get; set; } = "";

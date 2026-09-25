@@ -11,6 +11,9 @@ public enum ObjectType
     Spell,
     SpellProjectile,
     Portal,
+
+    /// <summary>A drop lying on the ground after a kill (issue #460). Never persisted.</summary>
+    Loot,
 }
 
 /// <summary>

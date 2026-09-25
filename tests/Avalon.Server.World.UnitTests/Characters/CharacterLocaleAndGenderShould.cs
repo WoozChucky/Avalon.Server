@@ -1,3 +1,4 @@
+using Avalon.Server.World.UnitTests.Loot;
 using System.Net;
 using System.Net.Sockets;
 using Avalon.Common;
@@ -198,7 +199,7 @@ public class CharacterLocaleAndGenderShould
             localizedText,
             Substitute.For<IScriptHotReloader>(),
             Substitute.For<IChunkLibrary>(),
-            dialogue);
+            dialogue, LootRepositories.Empty());
 
         await world.LoadAsync(CancellationToken.None);
         return (world, characterRepository);

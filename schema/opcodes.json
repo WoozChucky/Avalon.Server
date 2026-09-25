@@ -308,6 +308,15 @@
       "flagNames": "Encrypted"
     },
     {
+      "name": "CMSG_LOOT_PICKUP",
+      "opcode": 8304,
+      "hex": "0x2070",
+      "message": "CLootPickupPacket",
+      "direction": "ClientToServer",
+      "flags": 4,
+      "flagNames": "Encrypted"
+    },
+    {
       "name": "CMSG_CAST_ABILITY",
       "opcode": 8449,
       "hex": "0x2101",
@@ -681,6 +690,33 @@
       "opcode": 12401,
       "hex": "0x3071",
       "message": "SDialogueEndPacket",
+      "direction": "ServerToClient",
+      "flags": 4,
+      "flagNames": "Encrypted"
+    },
+    {
+      "name": "SMSG_LOOT_SPAWNED",
+      "opcode": 12416,
+      "hex": "0x3080",
+      "message": "SLootSpawnedPacket",
+      "direction": "ServerToClient",
+      "flags": 4,
+      "flagNames": "Encrypted"
+    },
+    {
+      "name": "SMSG_LOOT_DESPAWNED",
+      "opcode": 12417,
+      "hex": "0x3081",
+      "message": "SLootDespawnedPacket",
+      "direction": "ServerToClient",
+      "flags": 4,
+      "flagNames": "Encrypted"
+    },
+    {
+      "name": "SMSG_LOOT_PICKUP_RESULT",
+      "opcode": 12418,
+      "hex": "0x3082",
+      "message": "SLootPickupResultPacket",
       "direction": "ServerToClient",
       "flags": 4,
       "flagNames": "Encrypted"

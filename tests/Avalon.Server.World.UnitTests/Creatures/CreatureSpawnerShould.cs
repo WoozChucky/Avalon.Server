@@ -1,6 +1,7 @@
 using Avalon.Common.ValueObjects;
 using Avalon.Database.World.Repositories;
 using Avalon.Domain.World;
+using Avalon.Server.World.UnitTests.Loot;
 using Avalon.World;
 using Avalon.World.Creatures;
 using Avalon.World.Entities;
@@ -263,7 +264,7 @@ public class CreatureSpawnerShould
 
         var data = new StaticData(createInfos, classLevelStats, itemTemplates, abilityTemplates,
             characterLevelExperiences, templateRepository, baseStatRepository, rarityRepository,
-            localizedText, dialogue, NullLoggerFactory.Instance);
+            localizedText, dialogue, LootRepositories.Empty(), NullLoggerFactory.Instance);
         data.LoadAsync().GetAwaiter().GetResult();
 
         var world = Substitute.For<IWorld>();
@@ -344,7 +345,7 @@ public class CreatureSpawnerShould
 
         var data = new StaticData(createInfos, classLevelStats, itemTemplates, abilityTemplates,
             characterLevelExperiences, templateRepository, baseStatRepository, rarityRepository,
-            localizedText, dialogue, NullLoggerFactory.Instance);
+            localizedText, dialogue, LootRepositories.Empty(), NullLoggerFactory.Instance);
         data.LoadAsync().GetAwaiter().GetResult();
 
         var world = Substitute.For<IWorld>();

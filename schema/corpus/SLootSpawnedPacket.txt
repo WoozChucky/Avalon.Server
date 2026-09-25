@@ -1,0 +1,187 @@
+# SLootSpawnedPacket - golden wire vectors.
+#
+# GENERATED FILE. The bytes below are what the server's serializer writes for the
+# values shown above them, so a client is conformant when it produces the same ones,
+# and a change in what the server emits arrives here as a diff.
+#
+#   Emitted by  tools/Avalon.Exporter
+#   Regenerate  dotnet run --project tools/Avalon.Exporter -- corpus
+#   Format      described in schema/README.md
+#   Schema      the message of this name in schema/avalon.proto
+#
+# A variant is one shape of the same message. "absent" sets nothing, "empty" sets
+# everything to a present-but-empty value, and the rest carry values chosen to make
+# a particular encoding decision observable.
+
+message SLootSpawnedPacket
+
+variant absent
+  field 1 Drops : List<LootDropDto> = null
+  bytes 0
+
+variant empty
+  field 1 Drops : List<LootDropDto> = 0 elements
+  bytes 0
+
+variant populated
+  field 1 Drops : List<LootDropDto> = 2 elements
+    element 0
+      field 1 LootGuid : ulong = 7
+      field 2 Position : Vector3Dto
+        field 1 X : float = -7.50000027E-08 (0xb3a10fb0)
+        field 2 Y : float = -2.25 (0xc0100000)
+        field 3 Z : float = -7.50000027E-08 (0xb3a10fb0)
+      field 3 ItemTemplateId : ulong? = 4000000000
+      field 4 Count : uint = 42
+      field 5 Gold : ulong? = 19
+      field 6 OwnerCharacterId : uint? = 42
+      field 7 FreeForAllAt : long = 1000
+    element 1
+      field 1 LootGuid : ulong = 1000000
+      field 2 Position : Vector3Dto
+        field 1 X : float = 1E+10 (0x501502f9)
+        field 2 Y : float = 3.14159274 (0x40490fdb)
+        field 3 Z : float = 1E+10 (0x501502f9)
+      field 3 ItemTemplateId : ulong? = 1000000
+      field 4 Count : uint = 19
+      field 5 Gold : ulong? = 42
+      field 6 OwnerCharacterId : uint? = 19
+      field 7 FreeForAllAt : long = -262144
+  bytes 80
+    0a 22 08 07 12 0f 0d b0 0f a1 b3 15 00 00 10 c0
+    1d b0 0f a1 b3 18 80 d0 ac f3 0e 20 2a 28 13 30
+    2a 38 e8 07 0a 2a 08 c0 84 3d 12 0f 0d f9 02 15
+    50 15 db 0f 49 40 1d f9 02 15 50 18 c0 84 3d 20
+    13 28 2a 30 13 38 80 80 f0 ff ff ff ff ff ff 01
+
+variant maxima
+  field 1 Drops : List<LootDropDto> = 3 elements
+    element 0
+      field 1 LootGuid : ulong = 18446744073709551615
+      field 2 Position : Vector3Dto
+        field 1 X : float = 3.40282347E+38 (0x7f7fffff)
+        field 2 Y : float = 3.40282347E+38 (0x7f7fffff)
+        field 3 Z : float = 3.40282347E+38 (0x7f7fffff)
+      field 3 ItemTemplateId : ulong? = 18446744073709551615
+      field 4 Count : uint = 4294967295
+      field 5 Gold : ulong? = 18446744073709551615
+      field 6 OwnerCharacterId : uint? = 4294967295
+      field 7 FreeForAllAt : long = 9223372036854775807
+    element 1
+      field 1 LootGuid : ulong = 18446744073709551615
+      field 2 Position : Vector3Dto
+        field 1 X : float = 3.40282347E+38 (0x7f7fffff)
+        field 2 Y : float = 3.40282347E+38 (0x7f7fffff)
+        field 3 Z : float = 3.40282347E+38 (0x7f7fffff)
+      field 3 ItemTemplateId : ulong? = 18446744073709551615
+      field 4 Count : uint = 4294967295
+      field 5 Gold : ulong? = 18446744073709551615
+      field 6 OwnerCharacterId : uint? = 4294967295
+      field 7 FreeForAllAt : long = 9223372036854775807
+    element 2
+      field 1 LootGuid : ulong = 18446744073709551615
+      field 2 Position : Vector3Dto
+        field 1 X : float = 3.40282347E+38 (0x7f7fffff)
+        field 2 Y : float = 3.40282347E+38 (0x7f7fffff)
+        field 3 Z : float = 3.40282347E+38 (0x7f7fffff)
+      field 3 ItemTemplateId : ulong? = 18446744073709551615
+      field 4 Count : uint = 4294967295
+      field 5 Gold : ulong? = 18446744073709551615
+      field 6 OwnerCharacterId : uint? = 4294967295
+      field 7 FreeForAllAt : long = 9223372036854775807
+  bytes 222
+    0a 48 08 ff ff ff ff ff ff ff ff ff 01 12 0f 0d
+    ff ff 7f 7f 15 ff ff 7f 7f 1d ff ff 7f 7f 18 ff
+    ff ff ff ff ff ff ff ff 01 20 ff ff ff ff 0f 28
+    ff ff ff ff ff ff ff ff ff 01 30 ff ff ff ff 0f
+    38 ff ff ff ff ff ff ff ff 7f 0a 48 08 ff ff ff
+    ff ff ff ff ff ff 01 12 0f 0d ff ff 7f 7f 15 ff
+    ff 7f 7f 1d ff ff 7f 7f 18 ff ff ff ff ff ff ff
+    ff ff 01 20 ff ff ff ff 0f 28 ff ff ff ff ff ff
+    ff ff ff 01 30 ff ff ff ff 0f 38 ff ff ff ff ff
+    ff ff ff 7f 0a 48 08 ff ff ff ff ff ff ff ff ff
+    01 12 0f 0d ff ff 7f 7f 15 ff ff 7f 7f 1d ff ff
+    7f 7f 18 ff ff ff ff ff ff ff ff ff 01 20 ff ff
+    ff ff 0f 28 ff ff ff ff ff ff ff ff ff 01 30 ff
+    ff ff ff 0f 38 ff ff ff ff ff ff ff ff 7f
+
+variant minima
+  field 1 Drops : List<LootDropDto> = 1 element
+    element 0
+      field 1 LootGuid : ulong = 0
+      field 2 Position : Vector3Dto
+        field 1 X : float = -3.40282347E+38 (0xff7fffff)
+        field 2 Y : float = -3.40282347E+38 (0xff7fffff)
+        field 3 Z : float = -3.40282347E+38 (0xff7fffff)
+      field 3 ItemTemplateId : ulong? = 0
+      field 4 Count : uint = 0
+      field 5 Gold : ulong? = 0
+      field 6 OwnerCharacterId : uint? = 0
+      field 7 FreeForAllAt : long = -9223372036854775808
+  bytes 36
+    0a 22 12 0f 0d ff ff 7f ff 15 ff ff 7f ff 1d ff
+    ff 7f ff 18 00 28 00 30 00 38 80 80 80 80 80 80
+    80 80 80 01
+
+variant varint-edges
+  field 1 Drops : List<LootDropDto> = 2 elements
+    element 0
+      field 1 LootGuid : ulong = 268435455
+      field 2 Position : Vector3Dto
+        field 1 X : float = 1.17549435E-38 (0x00800000)
+        field 2 Y : float = 1.17549435E-38 (0x00800000)
+        field 3 Z : float = 1.17549435E-38 (0x00800000)
+      field 3 ItemTemplateId : ulong? = 128
+      field 4 Count : uint = 16383
+      field 5 Gold : ulong? = 16384
+      field 6 OwnerCharacterId : uint? = 127
+      field 7 FreeForAllAt : long = 127
+    element 1
+      field 1 LootGuid : ulong = 2097152
+      field 2 Position : Vector3Dto
+        field 1 X : float = 1.17549449E-38 (0x00800001)
+        field 2 Y : float = 1.17549449E-38 (0x00800001)
+        field 3 Z : float = 1.17549449E-38 (0x00800001)
+      field 3 ItemTemplateId : ulong? = 16383
+      field 4 Count : uint = 2097152
+      field 5 Gold : ulong? = 2097151
+      field 6 OwnerCharacterId : uint? = 16384
+      field 7 FreeForAllAt : long = 128
+  bytes 81
+    0a 24 08 ff ff ff 7f 12 0f 0d 00 00 80 00 15 00
+    00 80 00 1d 00 00 80 00 18 80 01 20 ff 7f 28 80
+    80 01 30 7f 38 7f 0a 29 08 80 80 80 01 12 0f 0d
+    01 00 80 00 15 01 00 80 00 1d 01 00 80 00 18 ff
+    7f 20 80 80 80 01 28 ff ff 7f 30 80 80 01 38 80
+    01
+
+variant float-specials
+  field 1 Drops : List<LootDropDto> = 2 elements
+    element 0
+      field 1 LootGuid : ulong = 7
+      field 2 Position : Vector3Dto
+        field 1 X : float = -0 (0x80000000)
+        field 2 Y : float = 1.40129846E-45 (0x00000001)
+        field 3 Z : float = 1.17549421E-38 (0x007fffff)
+      field 3 ItemTemplateId : ulong? = 4000000000
+      field 4 Count : uint = 42
+      field 5 Gold : ulong? = 19
+      field 6 OwnerCharacterId : uint? = 42
+      field 7 FreeForAllAt : long = 1000
+    element 1
+      field 1 LootGuid : ulong = 1000000
+      field 2 Position : Vector3Dto
+        field 1 X : float = 1.40129846E-45 (0x00000001)
+        field 2 Y : float = 1.17549421E-38 (0x007fffff)
+        field 3 Z : float = 3.40282347E+38 (0x7f7fffff)
+      field 3 ItemTemplateId : ulong? = 1000000
+      field 4 Count : uint = 19
+      field 5 Gold : ulong? = 42
+      field 6 OwnerCharacterId : uint? = 19
+      field 7 FreeForAllAt : long = -262144
+  bytes 75
+    0a 1d 08 07 12 0a 15 01 00 00 00 1d ff ff 7f 00
+    18 80 d0 ac f3 0e 20 2a 28 13 30 2a 38 e8 07 0a
+    2a 08 c0 84 3d 12 0f 0d 01 00 00 00 15 ff ff 7f
+    00 1d ff ff 7f 7f 18 c0 84 3d 20 13 28 2a 30 13
+    38 80 80 f0 ff ff ff ff ff ff 01

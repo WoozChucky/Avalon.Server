@@ -39,10 +39,19 @@ public class CreatureTemplate : IDbEntity<CreatureTemplateId>, ICreatureMetadata
 
     public CreatureType Type { get; set; }
 
-    public int LootId { get; set; }
+    /// <summary>
+    /// What this creature drops when it dies. Null drops no items; gold still comes from
+    /// <see cref="MinGold"/> and <see cref="MaxGold"/>.
+    /// </summary>
+    public LootTableId? LootTableId { get; set; }
 
+    /// <summary>
+    /// Copper, not gold coins, whatever the name: the smallest pile this creature drops. The wallet
+    /// counts copper.
+    /// </summary>
     public int MinGold { get; set; }
 
+    /// <summary>Copper. With <see cref="MinGold"/> also 0, the creature drops no pile.</summary>
     public int MaxGold { get; set; }
 
     public string AIName { get; set; } = string.Empty;

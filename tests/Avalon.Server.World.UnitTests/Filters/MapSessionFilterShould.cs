@@ -74,4 +74,17 @@ public class MapSessionFilterShould
     {
         Assert.False(For(CharacterOffMap()).CanProcess(NetworkPacketType.CMSG_DIALOGUE_CHOOSE));
     }
+
+    [Fact]
+    public void Accept_Loot_Pickup_For_A_Character_On_A_Map()
+    {
+        // Without this entry the handler never runs: the request is dropped with a warning.
+        Assert.True(For(CharacterOnMap()).CanProcess(NetworkPacketType.CMSG_LOOT_PICKUP));
+    }
+
+    [Fact]
+    public void Reject_Loot_Pickup_Without_A_Character()
+    {
+        Assert.False(For(null).CanProcess(NetworkPacketType.CMSG_LOOT_PICKUP));
+    }
 }

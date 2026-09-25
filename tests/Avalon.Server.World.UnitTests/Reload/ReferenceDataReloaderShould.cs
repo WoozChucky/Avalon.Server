@@ -1,6 +1,7 @@
 using Avalon.Common.ValueObjects;
 using Avalon.Database.World.Repositories;
 using Avalon.Domain.World;
+using Avalon.Server.World.UnitTests.Loot;
 using Avalon.World;
 using Avalon.World.Reload;
 using Microsoft.Extensions.Logging;
@@ -209,7 +210,7 @@ public class ReferenceDataReloaderShould
 
         StaticData data = new(createInfos, classLevelStats, itemTemplates, abilityTemplates,
             characterLevelExperiences, templates, baseStats, rarities,
-            localizedText, dialogue, NullLoggerFactory.Instance);
+            localizedText, dialogue, LootRepositories.Empty(), NullLoggerFactory.Instance);
 
         await data.LoadAsync();
         return (data, repos);

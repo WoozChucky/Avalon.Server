@@ -1,3 +1,4 @@
+using Avalon.Server.World.UnitTests.Loot;
 using System.Net;
 using System.Net.Sockets;
 using Avalon.Common;
@@ -587,7 +588,7 @@ public class CharacterSelectChainShould : IDisposable
 
         var data = new StaticData(createInfos, stats, items, abilityTemplates, levels,
             creatureTemplates, baseStats, rarities,
-            localizedText, dialogue, NullLoggerFactory.Instance);
+            localizedText, dialogue, LootRepositories.Empty(), NullLoggerFactory.Instance);
         data.LoadAsync(CancellationToken.None).GetAwaiter().GetResult();
         return data;
     }

@@ -3,12 +3,14 @@ using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Combat;
+using Avalon.Network.Packets.Loot;
 using Avalon.Network.Packets.State;
 using Avalon.World.Entities;
 using Avalon.World.ChunkLayouts;
 using Avalon.World.Configuration;
 using Avalon.World.Creatures;
 using Avalon.World.Creatures.Locomotion;
+using Avalon.World.Loot;
 using Avalon.World.Maps.Navigation;
 using Avalon.World.Persistence;
 using Avalon.World.Public;
@@ -31,7 +33,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Instances;
 
-public class MapInstance : IMapInstance, IPortalSink, IDisposable
+public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IDisposable
 {
     private const float BroadcastInterval = 0.1f;
 
@@ -55,6 +57,17 @@ public class MapInstance : IMapInstance, IPortalSink, IDisposable
     private readonly Dictionary<ObjectGuid, PerPlayerBroadcastState> _broadcastStates = [];
     private readonly List<PortalInstance> _portals = new();
     private readonly ICharacterSaveScheduler? _saveScheduler;
+    private readonly GroundLootStore _groundLoot = new();
+    private readonly ILootRoller? _lootRoller;
+    private readonly ILootAllocator? _lootAllocator;
+
+    /// <summary>
+    /// Characters added since the last tick, owed a snapshot of the drops already on the ground. Sent
+    /// at the start of the next Update rather than from AddCharacter: the handlers that move a
+    /// character call TransferPlayer before they send the map transition, and the client must learn
+    /// the new map before it learns what lies on it.
+    /// </summary>
+    private readonly HashSet<ObjectGuid> _lootSnapshotOwed = [];
 
     public MapInstance(
         ILoggerFactory loggerFactory,
@@ -104,6 +117,11 @@ public class MapInstance : IMapInstance, IPortalSink, IDisposable
         // Optional so an instance built without one (tests) simply has no periodic save.
         _saveScheduler = serviceProvider.GetService<ICharacterSaveScheduler>();
 
+        // Optional for the same reason: an instance built without them (tests) drops nothing.
+        // Production registers both; WorldHostGraphShould proves it.
+        _lootRoller = serviceProvider.GetService<ILootRoller>();
+        _lootAllocator = serviceProvider.GetService<ILootAllocator>();
+
         SubscribeToEntityEvents();
     }
 
@@ -144,6 +162,11 @@ public class MapInstance : IMapInstance, IPortalSink, IDisposable
         CharacterEntity.OnUnitInterruptedCastAnimation -= BroadcastInterruptedCastAnimation;
         CharacterEntity.OnUnitDamaged -= OnCharacterHit;
         CharacterEntity.OnSelfDamaged -= OnCharacterSelfDamaged;
+
+        // Drops are never persisted, and never despawn on a timer: an instance's disposal is the end
+        // of every drop still on its ground.
+        _groundLoot.Clear();
+        _lootSnapshotOwed.Clear();
     }
 
     public Guid InstanceId { get; }
@@ -241,6 +264,7 @@ public class MapInstance : IMapInstance, IPortalSink, IDisposable
         _characters[connection.Character!.Guid] = connection.Character;
         _connections[connection.Character.Guid] = connection;
         _broadcastStates[connection.Character.Guid] = new PerPlayerBroadcastState();
+        _lootSnapshotOwed.Add(connection.Character.Guid);
         LastEmptyAt = null;
     }
 
@@ -255,6 +279,7 @@ public class MapInstance : IMapInstance, IPortalSink, IDisposable
         _characters.Remove(guid);
         _connections.Remove(guid);
         _broadcastStates.Remove(guid);
+        _lootSnapshotOwed.Remove(guid);
 
         if (_characters.Count == 0)
         {
@@ -344,6 +369,88 @@ public class MapInstance : IMapInstance, IPortalSink, IDisposable
         }
     }
 
+    public GroundLootStore Drops => _groundLoot;
+
+    public void BroadcastLootDespawned(IReadOnlyCollection<ObjectGuid> lootGuids)
+    {
+        foreach ((ObjectGuid _, IWorldConnection connection) in _connections)
+        {
+            connection.Send(SLootDespawnedPacket.Create(lootGuids, connection.CryptoSession.Encrypt));
+        }
+    }
+
+    /// <summary>
+    /// Rolls, allocates and places a dying creature's drops and tells everyone here. Tick thread:
+    /// OnCreatureKilled is raised from Creature.Died inside combat and ability processing. Reads
+    /// the Loot and Items areas as they are now, so a reload applies to the next kill.
+    /// </summary>
+    private void DropLoot(ICreature creature)
+    {
+        if (_lootRoller is null || _lootAllocator is null || creature.Metadata is not CreatureTemplate template)
+        {
+            return;
+        }
+
+        // A throw here would skip the experience award after it and escape into the combat code
+        // that killed the creature. One bad table costs one kill's loot, nothing more.
+        try
+        {
+            IReadOnlyList<RolledDrop> rolled = _lootRoller.Roll(template, _world.Data.Loot, _world.Data.ItemTemplates);
+            if (rolled.Count == 0)
+            {
+                return;
+            }
+
+            LootAllocation allocation = _lootAllocator.Allocate(creature, this);
+            IReadOnlyList<GroundLoot> drops = LootPlacement.Place(
+                creature.Position, rolled, allocation, GetNavigatorForPosition(creature.Position), IObject.GenerateId);
+
+            foreach (GroundLoot drop in drops)
+            {
+                _groundLoot.Add(drop);
+            }
+
+            SendLootSpawned(_connections.Values, drops);
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Could not drop loot for creature {CreatureGuid} (template {TemplateId}); the kill still counts",
+                creature.Guid, template.Id.Value);
+        }
+    }
+
+    private void SendOwedLootSnapshots()
+    {
+        if (_lootSnapshotOwed.Count == 0)
+        {
+            return;
+        }
+
+        if (_groundLoot.Count > 0)
+        {
+            foreach (ObjectGuid guid in _lootSnapshotOwed)
+            {
+                if (_connections.TryGetValue(guid, out IWorldConnection? connection))
+                {
+                    SendLootSpawned([connection], _groundLoot.All);
+                }
+            }
+        }
+
+        _lootSnapshotOwed.Clear();
+    }
+
+    private static void SendLootSpawned(IEnumerable<IWorldConnection> recipients, IReadOnlyCollection<GroundLoot> drops)
+    {
+        // Built once; each connection serializes it under its own session key.
+        List<LootDropDto> dtos = drops.Select(LootDropMapper.ToDto).ToList();
+
+        foreach (IWorldConnection connection in recipients)
+        {
+            connection.Send(SLootSpawnedPacket.Create(dtos, connection.CryptoSession.Encrypt));
+        }
+    }
+
     public void Update(TimeSpan deltaTime)
     {
         if (_characters.Count == 0)
@@ -352,6 +459,11 @@ public class MapInstance : IMapInstance, IPortalSink, IDisposable
         }
 
         _lastBroadcastTime += (float)deltaTime.TotalSeconds;
+
+        // Step 0: drops already on the ground, for characters that entered since the last tick. First,
+        // before any packet is processed, so a kill later in this tick reaches them once, through the
+        // kill broadcast, rather than twice.
+        SendOwedLootSnapshots();
 
         // Step 1: Update creature respawns
         _corpseRemover.Update(deltaTime);
@@ -722,6 +834,9 @@ public class MapInstance : IMapInstance, IPortalSink, IDisposable
         _meleeSlots.ReleaseTarget(creature.Guid);
 
         _corpseRemover.ScheduleRemoval(creature);
+
+        // Whatever killed it: loot does not depend on the killer being a character.
+        DropLoot(creature);
 
         if (killer is not ICharacter character)
         {

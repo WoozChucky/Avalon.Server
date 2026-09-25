@@ -30,12 +30,12 @@ variant empty
   bytes 0
 
 variant populated
-  field 1 Type : NetworkPacketType = CMSG_AUDIO_RECORD (8272)
+  field 1 Type : NetworkPacketType = CMSG_CHARACTER_LIST (8208)
   field 2 Flags : NetworkPacketFlags = ClearText (1)
   field 3 Protocol : NetworkProtocol = Both (3)
   field 4 Version : int = 1000
   bytes 10
-    08 d0 40 10 01 18 03 20 e8 07
+    08 90 40 10 01 18 03 20 e8 07
 
 variant maxima
   field 1 Type : NetworkPacketType = SMSG_THREAT_LIST (12553)
