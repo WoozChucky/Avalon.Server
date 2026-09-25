@@ -21,6 +21,14 @@ public sealed class ReferenceDataReloader(IWorld world, ILogger<ReferenceDataRel
 
                 outcomes.Add(new ReloadOutcome(area, true, patch.Describe(), stopwatch.Elapsed, null));
             }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                // Only the caller's own token should unwind ReloadAsync as a cancellation. Any
+                // other OperationCanceledException (e.g. a database timeout surfacing as a task
+                // cancellation) falls through to the catch below and is recorded as an ordinary
+                // area failure instead. Precedent: PresenceSnapshotService.
+                throw;
+            }
             catch (Exception ex)
             {
                 logger.LogError(ex, "Reload of {Area} failed; the previous data is still live", area);
