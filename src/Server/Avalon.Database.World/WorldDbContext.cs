@@ -684,9 +684,9 @@ public class WorldDbContext : DbContext
 
             // Null so the experience is derived from the creature's level rather than authored here.
             Experience = null,
-            LootTableId = null,
-            MinGold = 0,
-            MaxGold = 0,
+            LootTableId = 2,
+            MinGold = 3,
+            MaxGold = 8,
             AIName = string.Empty,
             MovementType = 0,
             DetectionRange = 12,
@@ -718,9 +718,9 @@ public class WorldDbContext : DbContext
 
             // Null so the experience is derived from the creature's level rather than authored here.
             Experience = null,
-            LootTableId = null,
-            MinGold = 0,
-            MaxGold = 0,
+            LootTableId = 3,
+            MinGold = 4,
+            MaxGold = 10,
             AIName = string.Empty,
             MovementType = 0,
             DetectionRange = 18,
@@ -752,9 +752,9 @@ public class WorldDbContext : DbContext
 
             // Null so the experience is derived from the creature's level rather than authored here.
             Experience = null,
-            LootTableId = null,
-            MinGold = 0,
-            MaxGold = 0,
+            LootTableId = 4,
+            MinGold = 1,
+            MaxGold = 4,
             AIName = string.Empty,
             MovementType = 0,
             DetectionRange = 8,
@@ -786,9 +786,9 @@ public class WorldDbContext : DbContext
 
             // Null so the experience is derived from the creature's level rather than authored here.
             Experience = null,
-            LootTableId = null,
-            MinGold = 0,
-            MaxGold = 0,
+            LootTableId = 5,
+            MinGold = 6,
+            MaxGold = 14,
             AIName = string.Empty,
             MovementType = 0,
             DetectionRange = 14,
@@ -820,9 +820,9 @@ public class WorldDbContext : DbContext
 
             // Null so the experience is derived from the creature's level rather than authored here.
             Experience = null,
-            LootTableId = null,
-            MinGold = 0,
-            MaxGold = 0,
+            LootTableId = 6,
+            MinGold = 20,
+            MaxGold = 45,
             AIName = string.Empty,
             MovementType = 0,
             DetectionRange = 22,
@@ -854,9 +854,9 @@ public class WorldDbContext : DbContext
 
             // Null so the experience is derived from the creature's level rather than authored here.
             Experience = null,
-            LootTableId = null,
-            MinGold = 0,
-            MaxGold = 0,
+            LootTableId = 7,
+            MinGold = 40,
+            MaxGold = 90,
             AIName = string.Empty,
             MovementType = 0,
             DetectionRange = 20,
@@ -888,9 +888,9 @@ public class WorldDbContext : DbContext
 
             // Null so the experience is derived from the creature's level rather than authored here.
             Experience = null,
-            LootTableId = null,
-            MinGold = 0,
-            MaxGold = 0,
+            LootTableId = 8,
+            MinGold = 150,
+            MaxGold = 300,
             AIName = string.Empty,
             MovementType = 0,
             DetectionRange = 26,
@@ -996,6 +996,48 @@ public class WorldDbContext : DbContext
                 DamageType1 = DamageType.Physical,
                 StatType1 = StatType.AttackSpeed,
                 StatValue1 = 13 // 1.3 seconds
+            }, new ItemTemplate
+            {
+                Id = 5,
+                Name = "Splintered Staff",
+                Class = ItemClass.Weapon,
+                SubClass = ItemSubClass.TwoHanded,
+                Flags = ItemTemplateFlags.NoSell,
+                MaxStackSize = 1,
+                DisplayId = 5,
+                Rarity = ItemRarity.Common,
+                BuyPrice = 100,
+                SellPrice = 50,
+                Slot = ItemSlotType.MainHand,
+                AllowedClasses = [CharacterClass.Wizard, CharacterClass.Healer],
+                ItemPower = 2,
+                RequiredLevel = 1,
+                DamageMin1 = 1,
+                DamageMax1 = 3,
+                DamageType1 = DamageType.Physical,
+                StatType1 = StatType.AttackSpeed,
+                StatValue1 = 18 // 1.8 seconds
+            }, new ItemTemplate
+            {
+                Id = 6,
+                Name = "Warped Shortbow",
+                Class = ItemClass.Weapon,
+                SubClass = ItemSubClass.Ranged,
+                Flags = ItemTemplateFlags.NoSell,
+                MaxStackSize = 1,
+                DisplayId = 6,
+                Rarity = ItemRarity.Common,
+                BuyPrice = 100,
+                SellPrice = 50,
+                Slot = ItemSlotType.MainHand,
+                AllowedClasses = [CharacterClass.Hunter],
+                ItemPower = 2,
+                RequiredLevel = 1,
+                DamageMin1 = 1,
+                DamageMax1 = 3,
+                DamageType1 = DamageType.Physical,
+                StatType1 = StatType.AttackSpeed,
+                StatValue1 = 15 // 1.5 seconds
             });
     }
 
@@ -1397,6 +1439,20 @@ public class WorldDbContext : DbContext
             .WithOne()
             .HasForeignKey(e => e.LootTableId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        // The forest roster (issue #460). Table 1 is shared, tables 2-8 are one per hostile creature
+        // template (the creature rows name them in Configure(EntityTypeBuilder<CreatureTemplate>)), and
+        // table 9 holds the weapon group the creature tables reference.
+        builder.HasData(
+            new LootTable { Id = 1, Name = "Forest common" },
+            new LootTable { Id = 2, Name = "Thornback Boar" },
+            new LootTable { Id = 3, Name = "Grey Fen Wolf" },
+            new LootTable { Id = 4, Name = "Blightfly Swarmling" },
+            new LootTable { Id = 5, Name = "Husk of the Wold" },
+            new LootTable { Id = 6, Name = "Bramblemaw Alpha" },
+            new LootTable { Id = 7, Name = "Old Tuskroot" },
+            new LootTable { Id = 8, Name = "Mother Bramble" },
+            new LootTable { Id = 9, Name = "Forest weapons" });
     }
 
     private static void Configure(EntityTypeBuilder<LootTableEntry> builder)
@@ -1428,7 +1484,40 @@ public class WorldDbContext : DbContext
             .WithMany()
             .HasForeignKey(b => b.ReferenceTableId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        // Item 1 Health Potion, 2 Mana Potion, 3 Town Portal Scroll, 4 Rusted Sword, 5 Splintered
+        // Staff, 6 Warped Shortbow. Every creature table rolls both potions on their own, may roll the
+        // shared table 1, and rolls the weapon table 9 at 10 %. Table 9 is one group, which always
+        // drops exactly one of its weapons, so a kill drops at most one weapon and most kills drop
+        // none. Keeping the group out of the creature tables is what makes that so: a group inside
+        // them would drop a weapon on every kill. Chances rise with rarity.
+        builder.HasData(
+            new LootTableEntry { LootTableId = 1, Sequence = 1, ItemTemplateId = 3, Chance = 5f, MinCount = 1, MaxCount = 1 },
+            new LootTableEntry { LootTableId = 1, Sequence = 2, ItemTemplateId = 1, Chance = 10f, MinCount = 1, MaxCount = 2 });
+
+        builder.HasData(ForestCreatureTable(2, potion: 20f, potionMax: 1, mana: 10f, manaMax: 1, common: 25f));
+        builder.HasData(ForestCreatureTable(3, potion: 20f, potionMax: 1, mana: 10f, manaMax: 1, common: 25f));
+        builder.HasData(ForestCreatureTable(4, potion: 20f, potionMax: 1, mana: 10f, manaMax: 1, common: 25f));
+        builder.HasData(ForestCreatureTable(5, potion: 20f, potionMax: 1, mana: 10f, manaMax: 1, common: 25f));
+        builder.HasData(ForestCreatureTable(6, potion: 40f, potionMax: 2, mana: 25f, manaMax: 1, common: 50f));
+        builder.HasData(ForestCreatureTable(7, potion: 60f, potionMax: 3, mana: 40f, manaMax: 2, common: 75f));
+        builder.HasData(ForestCreatureTable(8, potion: 100f, potionMax: 4, mana: 100f, manaMax: 3, common: 100f, potionMin: 2));
+
+        builder.HasData(
+            new LootTableEntry { LootTableId = 9, Sequence = 1, ItemTemplateId = 4, Chance = 34f, GroupId = 1, MinCount = 1, MaxCount = 1 },
+            new LootTableEntry { LootTableId = 9, Sequence = 2, ItemTemplateId = 5, Chance = 33f, GroupId = 1, MinCount = 1, MaxCount = 1 },
+            new LootTableEntry { LootTableId = 9, Sequence = 3, ItemTemplateId = 6, Chance = 33f, GroupId = 1, MinCount = 1, MaxCount = 1 });
     }
+
+    /// <summary>The shape every forest creature's table shares; only the chances and counts differ.</summary>
+    private static LootTableEntry[] ForestCreatureTable(
+        int table, float potion, int potionMax, float mana, int manaMax, float common, int potionMin = 1) =>
+    [
+        new() { LootTableId = table, Sequence = 1, ItemTemplateId = 1, Chance = potion, MinCount = potionMin, MaxCount = potionMax },
+        new() { LootTableId = table, Sequence = 2, ItemTemplateId = 2, Chance = mana, MinCount = 1, MaxCount = manaMax },
+        new() { LootTableId = table, Sequence = 3, ReferenceTableId = 1, Chance = common, MinCount = 1, MaxCount = 1 },
+        new() { LootTableId = table, Sequence = 4, ReferenceTableId = 9, Chance = 10f, MinCount = 1, MaxCount = 1 },
+    ];
 
     private static void Configure(EntityTypeBuilder<AbilityTemplate> builder)
     {

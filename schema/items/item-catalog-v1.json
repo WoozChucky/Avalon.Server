@@ -81,6 +81,55 @@
       "damageType1": 0,
       "statType1": 12,
       "statValue1": 13
+    },
+    {
+      "id": 5,
+      "name": "Splintered Staff",
+      "class": 1,
+      "subClass": 101,
+      "flags": 256,
+      "stackable": false,
+      "maxStackSize": 1,
+      "displayId": 5,
+      "rarity": 1,
+      "buyPrice": 100,
+      "sellPrice": 50,
+      "slot": 9,
+      "allowedClasses": [
+        2,
+        4
+      ],
+      "itemPower": 2,
+      "requiredLevel": 1,
+      "damageMin1": 1,
+      "damageMax1": 3,
+      "damageType1": 0,
+      "statType1": 12,
+      "statValue1": 18
+    },
+    {
+      "id": 6,
+      "name": "Warped Shortbow",
+      "class": 1,
+      "subClass": 102,
+      "flags": 256,
+      "stackable": false,
+      "maxStackSize": 1,
+      "displayId": 6,
+      "rarity": 1,
+      "buyPrice": 100,
+      "sellPrice": 50,
+      "slot": 9,
+      "allowedClasses": [
+        3
+      ],
+      "itemPower": 2,
+      "requiredLevel": 1,
+      "damageMin1": 1,
+      "damageMax1": 3,
+      "damageType1": 0,
+      "statType1": 12,
+      "statValue1": 15
     }
   ]
 }

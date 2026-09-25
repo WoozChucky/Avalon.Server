@@ -83,14 +83,4 @@ public class LootTableRepositoryShould
 
         await Assert.ThrowsAsync<DbUpdateException>(() => write.SaveChangesAsync());
     }
-
-    [Fact]
-    public void Leave_Every_Seeded_Creature_Without_A_Loot_Table_Until_Loot_Is_Seeded()
-    {
-        // The migration turns every former LootId of 0 into NULL; the model's seed rows must agree.
-        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
-        using WorldDbContext read = database.CreateDbContext();
-
-        Assert.All(read.CreatureTemplates.AsNoTracking().ToList(), t => Assert.Null(t.LootTableId));
-    }
 }
