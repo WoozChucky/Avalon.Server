@@ -19,20 +19,22 @@ public class WorldController : BaseController
         _service = service;
     }
 
+    /// <summary>The worlds the caller may enter, by the same rule as the TCP world list (#452).</summary>
     [HttpGet(Name = "ListWorlds")]
     [ProducesResponseType(typeof(PagedResult<WorldDto>), StatusCodes.Status200OK)]
     public Task<PagedResult<WorldDto>> List(
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 50,
         CancellationToken ct = default) =>
-        _service.ListAsync(page, pageSize, ct);
+        _service.ListAsync(User.AccessLevel(), page, pageSize, ct);
 
+    /// <summary>404 both for a missing world and for one the caller may not enter (#452).</summary>
     [HttpGet("{id}", Name = "GetWorldById")]
     [ProducesResponseType(typeof(WorldDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Get([FromRoute] ushort id, CancellationToken ct)
     {
-        var world = await _service.GetAsync(id, ct);
+        var world = await _service.GetAsync(id, User.AccessLevel(), ct);
         return world is null ? NotFound() : Ok(world);
     }
 

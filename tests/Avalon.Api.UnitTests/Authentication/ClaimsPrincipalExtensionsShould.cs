@@ -48,6 +48,37 @@ public class ClaimsPrincipalExtensionsShould
     }
 
     [Fact]
+    public void AccessLevel_FoldsEveryGroupSidFlag()
+    {
+        var user = Principal(
+            (ClaimTypes.GroupSid, "Player"),
+            (ClaimTypes.GroupSid, "PTR"),
+            (ClaimTypes.GroupSid, "Admin"));
+
+        Assert.Equal(
+            Avalon.Common.Accounts.AccountAccessLevel.Player
+            | Avalon.Common.Accounts.AccountAccessLevel.PTR
+            | Avalon.Common.Accounts.AccountAccessLevel.Admin,
+            user.AccessLevel());
+    }
+
+    [Fact]
+    public void AccessLevel_IgnoresOtherClaimsAndUnknownValues()
+    {
+        var user = Principal(
+            (ClaimTypes.Role, "Admin"),
+            (ClaimTypes.GroupSid, "Banana"),
+            (ClaimTypes.GroupSid, "4"),
+            (ClaimTypes.GroupSid, "Player"));
+
+        Assert.Equal(Avalon.Common.Accounts.AccountAccessLevel.Player, user.AccessLevel());
+    }
+
+    [Fact]
+    public void AccessLevel_IsNoneWithoutGroupSidClaims()
+        => Assert.Equal((Avalon.Common.Accounts.AccountAccessLevel)0, Principal().AccessLevel());
+
+    [Fact]
     public void HasRoleAtLeast_FalseForUnknownMinRole()
     {
         var user = Principal((ClaimTypes.Role, "Admin"));

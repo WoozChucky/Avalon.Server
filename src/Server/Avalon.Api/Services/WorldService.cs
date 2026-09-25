@@ -3,15 +3,28 @@ using Avalon.Api.Exceptions;
 using Avalon.Database;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Database.Extensions;
+using Avalon.Common.Accounts;
 using Avalon.Domain.Auth;
+using AccountAccessLevel = Avalon.Common.Accounts.AccountAccessLevel;
 using WorldEntity = Avalon.Domain.Auth.World;
 
 namespace Avalon.Api.Services;
 
 public interface IWorldService
 {
-    Task<PagedResult<WorldDto>> ListAsync(int page, int pageSize, CancellationToken cancellationToken = default);
-    Task<WorldDto?> GetAsync(ushort id, CancellationToken cancellationToken = default);
+    /// <summary>
+    /// A page of the worlds <paramref name="caller"/> may enter; paging and the total count cover
+    /// only those (#452).
+    /// </summary>
+    Task<PagedResult<WorldDto>> ListAsync(AccountAccessLevel caller, int page, int pageSize,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// The world, or null when it does not exist or <paramref name="caller"/> may not enter it. The
+    /// two are indistinguishable on purpose, so a lookup does not reveal a hidden world (#452).
+    /// </summary>
+    Task<WorldDto?> GetAsync(ushort id, AccountAccessLevel caller, CancellationToken cancellationToken = default);
+
     Task<WorldDto> CreateAsync(CreateWorldRequest request, CancellationToken cancellationToken = default);
     Task<WorldDto?> UpdateAsync(ushort id, UpdateWorldRequest request, CancellationToken cancellationToken = default);
 }
@@ -25,22 +38,30 @@ public class WorldService : IWorldService
         _repository = repository;
     }
 
-    public async Task<PagedResult<WorldDto>> ListAsync(int page, int pageSize, CancellationToken cancellationToken = default)
+    public async Task<PagedResult<WorldDto>> ListAsync(AccountAccessLevel caller, int page, int pageSize,
+        CancellationToken cancellationToken = default)
     {
         var filters = new WorldPaginateFilters
         {
             Page = page < 1 ? 1 : page,
             PageSize = pageSize is < 1 or > 50 ? 50 : pageSize,
+            CallerAccessLevel = caller,
         };
 
         var result = await _repository.PaginateAsync(filters, track: false, cancellationToken);
         return result.MapTo(ToDto);
     }
 
-    public async Task<WorldDto?> GetAsync(ushort id, CancellationToken cancellationToken = default)
+    public async Task<WorldDto?> GetAsync(ushort id, AccountAccessLevel caller,
+        CancellationToken cancellationToken = default)
     {
         var world = await _repository.FindByIdAsync(new WorldId(id), track: false, cancellationToken);
-        return world is null ? null : ToDto(world);
+
+        // Same rule as the TCP world list. A world the caller may not enter reads as missing.
+        if (world is null || !AccessLevels.ForWorld(world.AccessLevelRequired).Allows(caller))
+            return null;
+
+        return ToDto(world);
     }
 
     public async Task<WorldDto> CreateAsync(CreateWorldRequest request, CancellationToken cancellationToken = default)

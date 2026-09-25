@@ -34,7 +34,7 @@ public class WorldControllerShould
     [Fact]
     public async Task List_ReturnsPage()
     {
-        _service.ListAsync(1, 50, Arg.Any<CancellationToken>())
+        _service.ListAsync(Arg.Any<Avalon.Common.Accounts.AccountAccessLevel>(), 1, 50, Arg.Any<CancellationToken>())
             .Returns(new PagedResult<WorldDto>(1, 50, 0, new List<WorldDto>()));
 
         var sut = MakeSut(User(7, AvalonRoles.Player));
@@ -46,7 +46,7 @@ public class WorldControllerShould
     [Fact]
     public async Task Get_Returns404_WhenMissing()
     {
-        _service.GetAsync((ushort)1, Arg.Any<CancellationToken>()).Returns((WorldDto?)null);
+        _service.GetAsync((ushort)1, Arg.Any<Avalon.Common.Accounts.AccountAccessLevel>(), Arg.Any<CancellationToken>()).Returns((WorldDto?)null);
 
         var sut = MakeSut(User(7, AvalonRoles.Player));
         var result = await sut.Get(1, CancellationToken.None);
@@ -57,7 +57,7 @@ public class WorldControllerShould
     [Fact]
     public async Task Get_Returns200_WhenFound()
     {
-        _service.GetAsync((ushort)1, Arg.Any<CancellationToken>())
+        _service.GetAsync((ushort)1, Arg.Any<Avalon.Common.Accounts.AccountAccessLevel>(), Arg.Any<CancellationToken>())
             .Returns(new WorldDto { Id = 1, Name = "n" });
 
         var sut = MakeSut(User(7, AvalonRoles.Player));
