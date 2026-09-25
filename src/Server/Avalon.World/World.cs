@@ -260,6 +260,10 @@ public class World : IWorld
     {
         Time.Update(deltaTime);
 
+        // Apply any queued content reloads before anything reads StaticData this tick. Packets are
+        // processed on this thread too, so no packet can see a half-reloaded area.
+        Data.ApplyPending();
+
         // Apply any pending hot-reload on the tick thread to avoid racing with instance.Update()
         List<Type>? pendingReload = Interlocked.Exchange(ref _pendingHotReload, null);
         if (pendingReload != null)
