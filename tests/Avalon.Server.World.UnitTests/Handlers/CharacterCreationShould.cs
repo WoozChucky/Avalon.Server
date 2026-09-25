@@ -5,15 +5,20 @@ using Avalon.Database.Character.Repositories;
 using Avalon.Database.World;
 using Avalon.Database.World.Repositories;
 using Avalon.Domain.World;
+using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Character;
 using Avalon.World;
 using Avalon.World.Configuration;
+using Avalon.World.Entities;
 using Avalon.World.Handlers;
 using Avalon.World.Public;
+using Avalon.World.Public.Characters;
+using Avalon.World.Public.Enums;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using NSubstitute.Core;
+using ProtoBuf;
 using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Handlers;
@@ -130,6 +135,122 @@ public class CharacterCreationShould : IDisposable
             Assert.Null(instance.Template);
             Assert.NotEqual(default, instance.TemplateId);
         });
+    }
+
+    /// <summary>
+    /// The gender the client picks is the one the character is stored with, and the one
+    /// <see cref="ICharacter.Gender"/> reports once that row is loaded into the world. The
+    /// dialogue text's <c>{g:masculine|feminine}</c> construct resolves against that property.
+    /// </summary>
+    [Fact]
+    public async Task Persist_the_gender_the_client_picked()
+    {
+        StaticData data = await LoadStaticDataAsync();
+        CharacterCreateInfo createInfo = data.CharacterCreateInfos.First();
+
+        IWorldConnection connection = NewConnection();
+        NewHandler(data).Execute(connection, new CCharacterCreatePacket
+        {
+            Name = "Guerreira",
+            Class = (int)createInfo.Class,
+            Gender = (int)CharacterGender.Female,
+        });
+
+        await PumpAsync(connection);
+
+        Assert.Equal(SCharacterCreateResult.Success, SentResult(connection));
+
+        await using CharacterDbContext characterDb = _characters.CreateDbContext();
+        Avalon.Domain.Characters.Character character =
+            await characterDb.Characters.AsNoTracking().SingleAsync(c => c.Name == "Guerreira");
+        Assert.Equal(CharacterGender.Female, character.Gender);
+
+        ICharacter entity = new CharacterEntity(NullLoggerFactory.Instance, character, new RegenConfiguration());
+        Assert.Equal(CharacterGender.Female, entity.Gender);
+    }
+
+    /// <summary>
+    /// The current client does not send the field at all. Protobuf reads an absent int as 0,
+    /// which is <see cref="CharacterGender.Male"/>, so that client keeps creating characters.
+    /// </summary>
+    [Fact]
+    public async Task Create_a_male_character_when_the_client_omits_the_gender()
+    {
+        StaticData data = await LoadStaticDataAsync();
+        CharacterCreateInfo createInfo = data.CharacterCreateInfos.First();
+
+        // Round-trip the legacy shape through the serializer, so the default comes from the
+        // wire and not from a C# initializer.
+        CCharacterCreatePacket legacy = Serializer.Deserialize<CCharacterCreatePacket>(
+            Serialize(new LegacyCharacterCreatePacket { Name = "Guerreiro", Class = (int)createInfo.Class }));
+
+        IWorldConnection connection = NewConnection();
+        NewHandler(data).Execute(connection, legacy);
+
+        await PumpAsync(connection);
+
+        Assert.Equal(SCharacterCreateResult.Success, SentResult(connection));
+
+        await using CharacterDbContext characterDb = _characters.CreateDbContext();
+        Avalon.Domain.Characters.Character character =
+            await characterDb.Characters.AsNoTracking().SingleAsync(c => c.Name == "Guerreiro");
+        Assert.Equal(CharacterGender.Male, character.Gender);
+    }
+
+    /// <summary>
+    /// The value comes from the client, so anything the enum does not define is refused rather
+    /// than stored. 256 is there because the enum is a byte: a cast alone would wrap it to Male.
+    /// </summary>
+    [Theory]
+    [InlineData(2)]
+    [InlineData(-1)]
+    [InlineData(256)]
+    [InlineData(int.MaxValue)]
+    public async Task Reject_a_gender_the_enum_does_not_define(int gender)
+    {
+        StaticData data = await LoadStaticDataAsync();
+        CharacterCreateInfo createInfo = data.CharacterCreateInfos.First();
+
+        IWorldConnection connection = NewConnection();
+        NewHandler(data).Execute(connection, new CCharacterCreatePacket
+        {
+            Name = "Nobody",
+            Class = (int)createInfo.Class,
+            Gender = gender,
+        });
+
+        await PumpAsync(connection);
+
+        Assert.Equal(SCharacterCreateResult.InvalidClass, SentResult(connection));
+
+        await using CharacterDbContext characterDb = _characters.CreateDbContext();
+        Assert.False(await characterDb.Characters.AnyAsync());
+    }
+
+    private static SCharacterCreateResult SentResult(IWorldConnection connection)
+    {
+        NetworkPacket sent = (NetworkPacket)connection.ReceivedCalls()
+            .Single(call => call.GetMethodInfo().Name == nameof(IWorldConnection.Send))
+            .GetArguments()[0]!;
+
+        // EchoCryptoSession leaves the payload as serialized.
+        return Serializer.Deserialize<SCharacterCreatedPacket>(new MemoryStream(sent.Payload)).Result;
+    }
+
+    private static MemoryStream Serialize<T>(T value)
+    {
+        MemoryStream stream = new();
+        Serializer.Serialize(stream, value);
+        stream.Position = 0;
+        return stream;
+    }
+
+    /// <summary>The packet as a client that predates the gender field serializes it.</summary>
+    [ProtoContract]
+    private sealed class LegacyCharacterCreatePacket
+    {
+        [ProtoMember(1)] public string Name { get; set; } = string.Empty;
+        [ProtoMember(2)] public int Class { get; set; }
     }
 
     private async Task<StaticData> LoadStaticDataAsync()
