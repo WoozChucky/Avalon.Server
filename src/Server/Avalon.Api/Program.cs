@@ -19,10 +19,10 @@ using Scalar.AspNetCore;
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 builder.Host.UseDefaultServiceProvider((_, options) => AvalonServiceProvider.Configure(options));
 
-IConfigurationRoot configuration = builder
-    .Configuration
-    .AddJsonFile("appsettings.json", true, false)
-    .AddEnvironmentVariables().Build();
+// The builder already layers appsettings.json, appsettings.{Environment}.json, user-secrets (in
+// Development), environment variables and the command line, in that order. Adding appsettings.json
+// again on top would override user-secrets, where the JWT signing key lives locally (#482).
+IConfiguration configuration = builder.Configuration;
 
 builder.AddServiceDefaults();
 

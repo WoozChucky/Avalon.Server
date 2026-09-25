@@ -1,6 +1,5 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
-using System.Text;
 using Avalon.Api.Config;
 using Avalon.Common.Accounts;
 using Avalon.Domain.Auth;
@@ -24,7 +23,7 @@ public class JwtUtils : IJwtUtils
     {
         _authenticationConfig = authenticationConfig;
         _tokenHandler = new JwtSecurityTokenHandler();
-        _key = new SymmetricSecurityKey(Encoding.ASCII.GetBytes(_authenticationConfig.IssuerSigningKey));
+        _key = JwtSigningKey.Create(_authenticationConfig);
     }
 
     public string GenerateJwtToken(Account account)

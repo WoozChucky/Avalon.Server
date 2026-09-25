@@ -137,7 +137,7 @@ public sealed class ApiAuthHost : IAsyncDisposable
         if (subject is not null) claims.Add(new Claim(ClaimTypes.NameIdentifier, subject));
 
         var handler = new JwtSecurityTokenHandler();
-        var key = new SymmetricSecurityKey(Encoding.ASCII.GetBytes(SigningKey));
+        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(SigningKey));
         return handler.WriteToken(handler.CreateToken(new SecurityTokenDescriptor
         {
             Subject = new ClaimsIdentity(claims),

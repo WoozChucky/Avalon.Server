@@ -50,6 +50,9 @@ spec:
               value: {{ .Values.notification.publicKey | quote }}
             - name: Application__Notification__PrivateKey
               value: {{ .Values.notification.privateKey | quote }}
+            # JWT signing key (#482): never in the chart; pass it at install time.
+            - name: Application__Authentication__IssuerSigningKey
+              value: {{ required "authentication.issuerSigningKey is required: a random value of at least 32 bytes" .Values.authentication.issuerSigningKey | quote }}
             - name: DOTNET_HOSTBUILDER__RELOADCONFIGONCHANGE
               value: "false"
           ports:

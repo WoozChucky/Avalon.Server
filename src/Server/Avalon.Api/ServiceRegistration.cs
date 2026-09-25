@@ -1,5 +1,4 @@
 ﻿using System.Security.Claims;
-using System.Text;
 using Avalon.Api.Authentication;
 using Avalon.Api.Authentication.AV;
 using Avalon.Api.Authentication.Jwt;
@@ -54,6 +53,10 @@ public static class ServiceRegistration
 
     public static void AddAuth(this IServiceCollection services, ApplicationConfig config)
     {
+        // Checked here, eagerly, so a missing or weak key stops startup instead of surfacing on the
+        // first request (#482).
+        SymmetricSecurityKey signingKey = JwtSigningKey.Create(config.Authentication);
+
         services.AddAuthentication(options =>
             {
                 options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
@@ -93,8 +96,7 @@ public static class ServiceRegistration
                 {
                     ValidIssuer = config.Authentication!.Issuer,
                     ValidateIssuer = config.Authentication.ValidateIssuer,
-                    IssuerSigningKey =
-                        new SymmetricSecurityKey(Encoding.ASCII.GetBytes(config.Authentication.IssuerSigningKey)),
+                    IssuerSigningKey = signingKey,
                     ValidateIssuerSigningKey = config.Authentication.ValidateIssuerKey,
                     ValidAudience = config.Authentication.Audience,
                     ValidateAudience = config.Authentication.ValidateAudience,

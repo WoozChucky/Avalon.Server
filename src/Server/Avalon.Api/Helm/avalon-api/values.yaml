@@ -10,6 +10,11 @@ cache:
   host:
   password:
 
+# The JWT signing key. Leave empty here and pass it at install time, e.g.
+# --set authentication.issuerSigningKey="$AVALON_JWT_SIGNING_KEY"; the chart refuses to render without it.
+authentication:
+  issuerSigningKey:
+
 notification:
   subject:
   publicKey:
