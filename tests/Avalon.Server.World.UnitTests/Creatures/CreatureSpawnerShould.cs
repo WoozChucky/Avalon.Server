@@ -6,6 +6,7 @@ using Avalon.World.Creatures;
 using Avalon.World.Entities;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
+using Avalon.World.Reload;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Xunit;
@@ -14,6 +15,83 @@ namespace Avalon.Server.World.UnitTests.Creatures;
 
 public class CreatureSpawnerShould
 {
+    /// <summary>
+    /// The trap this task exists to remove: CreatureStatDeriver used to be captured once by
+    /// StaticData.LoadAsync and never rebuilt, so a reload of the base-stat table would leave every
+    /// already-derived template silently stuck on the old numbers.
+    /// </summary>
+    [Fact]
+    public async Task Use_Reloaded_Base_Stats_For_The_Next_Spawn_Only()
+    {
+        var template = new CreatureTemplate
+        {
+            Id = new CreatureTemplateId(60),
+            Name = "Stat Reload Target",
+            MinLevel = 1,
+            MaxLevel = 1,
+            Rarity = CreatureRarity.Normal,
+            HealthModifier = 1f,
+            DamageModifier = 1f,
+            ExperienceModifier = 1f
+        };
+
+        (CreatureSpawner spawner, StaticData data, MutableRepos repos) = ReloadableSpawnerOver(template);
+
+        ICreature before = spawner.Spawn(template.Id);
+        uint originalHealth = before.Health;
+
+        repos.BaseStats[0].Health = originalHealth + 500;
+        data.Apply(await data.PrepareAsync(ReloadArea.Creatures));
+
+        ICreature after = spawner.Spawn(template.Id);
+
+        Assert.Equal(originalHealth, before.Health);
+        Assert.Equal(originalHealth + 500, after.Health);
+    }
+
+    /// <summary>
+    /// The other half of the same trap: a reloaded template's own modifier has to reach the next
+    /// spawn too, not just the base-stat table.
+    /// </summary>
+    [Fact]
+    public async Task Use_A_Reloaded_Templates_Modifier_For_The_Next_Spawn()
+    {
+        var template = new CreatureTemplate
+        {
+            Id = new CreatureTemplateId(61),
+            Name = "Template Reload Target",
+            MinLevel = 1,
+            MaxLevel = 1,
+            Rarity = CreatureRarity.Normal,
+            HealthModifier = 1f,
+            DamageModifier = 1f,
+            ExperienceModifier = 1f
+        };
+
+        (CreatureSpawner spawner, StaticData data, MutableRepos repos) = ReloadableSpawnerOver(template);
+
+        ICreature before = spawner.Spawn(template.Id);
+        uint originalHealth = before.Health;
+
+        repos.Templates[0] = new CreatureTemplate
+        {
+            Id = template.Id,
+            Name = template.Name,
+            MinLevel = template.MinLevel,
+            MaxLevel = template.MaxLevel,
+            Rarity = template.Rarity,
+            HealthModifier = 2f,
+            DamageModifier = 1f,
+            ExperienceModifier = 1f
+        };
+        data.Apply(await data.PrepareAsync(ReloadArea.Creatures));
+
+        ICreature after = spawner.Spawn(template.Id);
+
+        Assert.Equal(originalHealth, before.Health);
+        Assert.Equal(originalHealth * 2, after.Health);
+    }
+
     /// <summary>
     /// The single assertion that would have caught the bug this whole change exists to fix: every
     /// creature used to spawn as level 1 with 100 health whatever its template said.
@@ -183,5 +261,86 @@ public class CreatureSpawnerShould
         world.Data.Returns(data);
 
         return new CreatureSpawner(NullLoggerFactory.Instance, world);
+    }
+
+    /// <summary>
+    /// Repository stand-ins the reload trap tests mutate between a spawn and a reload. The
+    /// substituted repositories read through these lists via lambdas, so reassigning or mutating a
+    /// field here changes what the next <c>PrepareAsync</c> reads.
+    /// </summary>
+    private sealed class MutableRepos
+    {
+        public List<CreatureTemplate> Templates = [];
+        public List<CreatureBaseStat> BaseStats = [];
+    }
+
+    /// <summary>
+    /// Like <see cref="SpawnerOver"/>, but the template and base-stat repositories read through
+    /// <see cref="MutableRepos"/> so a trap-regression test can change what the next
+    /// <c>StaticData.PrepareAsync</c> reads and reload it into the same <c>StaticData</c> the
+    /// spawner already holds.
+    /// </summary>
+    private static (CreatureSpawner Spawner, StaticData Data, MutableRepos Repos) ReloadableSpawnerOver(
+        CreatureTemplate template)
+    {
+        var repos = new MutableRepos
+        {
+            Templates = [template],
+            BaseStats = [new() { Level = 1, Health = 50, DamageMin = 4, DamageMax = 7, Experience = 25 }]
+        };
+
+        var templateRepository = Substitute.For<ICreatureTemplateRepository>();
+        templateRepository.FindAllAsync(Arg.Any<bool>(), Arg.Any<CancellationToken>())
+            .Returns(_ => Task.FromResult(repos.Templates.ToList()));
+
+        var baseStatRepository = Substitute.For<ICreatureBaseStatRepository>();
+        baseStatRepository.GetAllAsync(Arg.Any<CancellationToken>())
+            .Returns(_ => Task.FromResult<IReadOnlyCollection<CreatureBaseStat>>(repos.BaseStats.ToList()));
+
+        CreatureRarityModifier[] rarities =
+        [
+            new() { Rarity = CreatureRarity.Normal, HealthMultiplier = 1.0f, DamageMultiplier = 1.0f, ExperienceMultiplier = 1.0f },
+        ];
+        var rarityRepository = Substitute.For<ICreatureRarityModifierRepository>();
+        rarityRepository.GetAllAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<IReadOnlyCollection<CreatureRarityModifier>>(rarities));
+
+        var createInfos = Substitute.For<ICharacterCreateInfoRepository>();
+        createInfos.FindAllAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<IReadOnlyCollection<CharacterCreateInfo>>([]));
+        var classLevelStats = Substitute.For<IClassLevelStatRepository>();
+        classLevelStats.FindAllAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<IReadOnlyCollection<ClassLevelStat>>([]));
+        var itemTemplates = Substitute.For<IItemTemplateRepository>();
+        itemTemplates.FindAllAsync(Arg.Any<bool>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new List<ItemTemplate>()));
+        var abilityTemplates = Substitute.For<IAbilityTemplateRepository>();
+        abilityTemplates.FindAllAsync(Arg.Any<bool>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new List<AbilityTemplate>()));
+        var characterLevelExperiences = Substitute.For<ICharacterLevelExperienceRepository>();
+        characterLevelExperiences.GetAllAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<IReadOnlyCollection<CharacterLevelExperience>>([]));
+        var localizedText = Substitute.For<ILocalizedTextRepository>();
+        localizedText.GetAllAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<IReadOnlyCollection<LocalizedText>>([]));
+        localizedText.GetAllLocalesAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<IReadOnlyCollection<LocalizedTextLocale>>([]));
+        localizedText.GetAllClassNamesAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<IReadOnlyCollection<CharacterClassName>>([]));
+        var dialogue = Substitute.For<IDialogueRepository>();
+        dialogue.GetAllNodesAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<IReadOnlyCollection<DialogueNode>>([]));
+        dialogue.GetAllOptionsAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<IReadOnlyCollection<DialogueOption>>([]));
+
+        var data = new StaticData(createInfos, classLevelStats, itemTemplates, abilityTemplates,
+            characterLevelExperiences, templateRepository, baseStatRepository, rarityRepository,
+            localizedText, dialogue, NullLoggerFactory.Instance);
+        data.LoadAsync().GetAwaiter().GetResult();
+
+        var world = Substitute.For<IWorld>();
+        world.Data.Returns(data);
+
+        return (new CreatureSpawner(NullLoggerFactory.Instance, world), data, repos);
     }
 }
