@@ -42,4 +42,13 @@ public class MapCreatureSpawn : IDbEntity<MapCreatureSpawnId>
 
     /// <summary>Yaw in degrees the creature faces once placed, matching <c>IUnit.Orientation.y</c>.</summary>
     public float Facing { get; set; }
+
+    /// <summary>
+    /// The route this creature walks, or <c>null</c> to stand where it was placed. The template's
+    /// <c>ScriptName</c> still decides the AI: only a script that reads <c>ICreature.PatrolPath</c>,
+    /// such as <c>CreaturePatrolScript</c>, walks it.
+    /// </summary>
+    public CreaturePathId? PathId { get; set; }
+
+    public CreaturePath? Path { get; set; }
 }

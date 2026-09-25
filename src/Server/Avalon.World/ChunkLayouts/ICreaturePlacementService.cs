@@ -155,6 +155,12 @@ public class CreaturePlacementService : ICreaturePlacementService
                 // CreatureInfo carries no orientation, so facing is applied after the spawn.
                 creature.Orientation = new Vector3(0f, spawn.Facing, 0f);
 
+                // Before the script, so a patrol script finds its route from the first tick.
+                if (spawn.Path is { Points.Count: > 0 } path)
+                {
+                    creature.PatrolPath = ToWorldPath(path, layout.EntrySpawnWorldPos, instance);
+                }
+
                 AttachScript(creature, instance);
                 instance.AddCreature(creature);
             }
@@ -165,6 +171,26 @@ public class CreaturePlacementService : ICreaturePlacementService
                     spawn.CreatureTemplateId, spawn.Id, mapTemplateId);
             }
         }
+    }
+
+    /// <summary>
+    /// A path's points in walk order, as world positions snapped to the navmesh the same way the
+    /// spawn itself is: offsets from the entry point, with OffsetY only centring the height search.
+    /// </summary>
+    private static List<PatrolPoint> ToWorldPath(CreaturePath path, Vector3 entry, IMapInstance instance)
+    {
+        var points = new List<PatrolPoint>(path.Points.Count);
+
+        foreach (CreaturePathPoint point in path.Points.OrderBy(p => p.Sequence))
+        {
+            Vector3 position = entry + new Vector3(point.OffsetX, point.OffsetY, point.OffsetZ);
+            position.y = instance.GetNavigatorForPosition(position)
+                .SampleGroundHeight(position.x, position.y, position.z);
+
+            points.Add(new PatrolPoint(position, TimeSpan.FromMilliseconds(point.WaitMs)));
+        }
+
+        return points;
     }
 
     private void AttachScript(ICreature creature, IMapInstance instance)

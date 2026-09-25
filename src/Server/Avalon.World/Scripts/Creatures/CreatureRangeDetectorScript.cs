@@ -10,6 +10,11 @@ namespace Avalon.World.Scripts.Creatures;
 
 public delegate void CharacterDetectedEventHandler(ICharacter character);
 
+/// <summary>
+/// Watches for characters entering the creature's aggro range. A component: AggroDefendScript builds
+/// it with its own range and chains it, so it cannot be named in a template's ScriptName.
+/// </summary>
+[ChainedScript]
 public class CreatureRangeDetectorScript : AiScript
 {
     public enum RangeDetectionState

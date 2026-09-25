@@ -43,6 +43,13 @@ public interface ICreature : IUnit
     string ScriptName { get; set; }
     AiScript? Script { get; set; }
 
+    /// <summary>
+    /// The points this creature walks, in order, looping, in world coordinates. Empty for a creature
+    /// with no path, which is every creature today unless its authored spawn names one. Per creature,
+    /// not on <see cref="Metadata"/>: two spawns of the same template can walk different routes.
+    /// </summary>
+    IReadOnlyList<PatrolPoint> PatrolPath { get; set; }
+
     IUnit?   TauntedBy      { get; set; }
     DateTime TauntExpiresAt { get; set; }
 

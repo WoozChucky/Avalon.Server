@@ -97,6 +97,8 @@ public class WorldDbContext : DbContext
     public DbSet<ProceduralMapConfig> ProceduralMapConfigs { get; set; } = null!;
     public DbSet<MapChunkPlacement> MapChunkPlacements { get; set; } = null!;
     public DbSet<MapCreatureSpawn> MapCreatureSpawns { get; set; } = null!;
+    public DbSet<CreaturePath> CreaturePaths { get; set; } = null!;
+    public DbSet<CreaturePathPoint> CreaturePathPoints { get; set; } = null!;
     public DbSet<LocalizedText> LocalizedTexts { get; set; } = null!;
     public DbSet<LocalizedTextLocale> LocalizedTextLocales { get; set; } = null!;
     public DbSet<DialogueNode> DialogueNodes { get; set; } = null!;
@@ -138,6 +140,8 @@ public class WorldDbContext : DbContext
         Configure(modelBuilder.Entity<ProceduralMapConfig>());
         Configure(modelBuilder.Entity<MapChunkPlacement>());
         Configure(modelBuilder.Entity<MapCreatureSpawn>());
+        Configure(modelBuilder.Entity<CreaturePath>());
+        Configure(modelBuilder.Entity<CreaturePathPoint>());
         Configure(modelBuilder.Entity<LocalizedText>());
         Configure(modelBuilder.Entity<LocalizedTextLocale>());
         Configure(modelBuilder.Entity<DialogueNode>());
@@ -1185,6 +1189,15 @@ public class WorldDbContext : DbContext
         // Placement reads every row for one map at instance-build time.
         builder.HasIndex(b => b.MapTemplateId);
 
+        // Optional route (#421). Deleting a path leaves its spawns standing rather than deleting them.
+        builder.Property(b => b.PathId)
+            .HasConversion(v => v!.Value, v => new CreaturePathId(v))
+            .IsRequired(false);
+        builder.HasOne(b => b.Path)
+            .WithMany()
+            .HasForeignKey(b => b.PathId)
+            .OnDelete(DeleteBehavior.SetNull);
+
         // Town (map 1). Offsets are metres from the map's entry spawn point and the facings are
         // yaw in degrees, chosen so each NPC looks back toward an arriving player: forward is
         // (sin yaw, 0, cos yaw), so atan2(-offsetX, -offsetZ) points at the entry.
@@ -1209,6 +1222,36 @@ public class WorldDbContext : DbContext
                 Id = 3, MapTemplateId = 1, CreatureTemplateId = 3,     // Innkeeper
                 OffsetX = 0f, OffsetY = 0f, OffsetZ = 7f, Facing = 180f
             });
+    }
+
+    private static void Configure(EntityTypeBuilder<CreaturePath> builder)
+    {
+        builder.ToTable("CreaturePaths");
+        builder.HasKey(b => b.Id);
+        builder.Property(b => b.Id)
+            .HasConversion(v => v.Value, v => new CreaturePathId(v))
+            .IsRequired()
+            .ValueGeneratedOnAdd();
+        builder.Property(b => b.Name).IsRequired().HasMaxLength(100);
+
+        builder.HasMany(b => b.Points)
+            .WithOne()
+            .HasForeignKey(p => p.PathId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        // No seed rows: nothing patrols yet. Author a path, point a MapCreatureSpawn's PathId at it,
+        // and give that creature's template a patrol script.
+    }
+
+    private static void Configure(EntityTypeBuilder<CreaturePathPoint> builder)
+    {
+        builder.ToTable("CreaturePathPoints");
+        // A path's points are identified by their walk order, so the order is unique per path.
+        builder.HasKey(b => new { b.PathId, b.Sequence });
+        builder.Property(b => b.PathId)
+            .HasConversion(v => v.Value, v => new CreaturePathId(v))
+            .IsRequired();
+        builder.Property(b => b.WaitMs).HasDefaultValue(0);
     }
 
     private static void Configure(EntityTypeBuilder<LocalizedText> builder)

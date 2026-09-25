@@ -25,7 +25,11 @@ public class ScriptManager : IScriptManager
 
     public void Load()
     {
-        var aiScripts = FindScriptTypes<AiScript>();
+        // A [ChainedScript] is a component another script builds and chains; it cannot be named in
+        // a template's ScriptName, so it is not registered under a name at all.
+        var aiScripts = FindScriptTypes<AiScript>()
+            .Where(t => !t.IsDefined(typeof(ChainedScriptAttribute), inherit: false))
+            .ToList();
 
         _logger.LogInformation("Loaded {Count} AI scripts", aiScripts.Count);
 
