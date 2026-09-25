@@ -49,6 +49,15 @@ public class CMFAVerifyHandler : IAuthPacketHandler<CMFAVerifyPacket>
         var hash = ctx.Packet.MfaHash;
         var hashAccountId = await _mfaHashService.GetAccountIdAsync(hash);
         var attempts = hashAccountId == null ? -1 : await _mfaHashService.RecordAttemptAsync(hashAccountId);
+
+        // Fail closed on a hash that is gone: no reverse key, or a reverse key that outlived the
+        // :mfa hash for a moment (an expiry, or an admin removing MFA deletes them one at a time).
+        if (hashAccountId == null || attempts < 0)
+        {
+            ctx.Connection.Send(SAuthResultPacket.Create(null, null, AuthResult.MFA_FAILED, ctx.Connection.CryptoSession.Encrypt));
+            return;
+        }
+
         if (attempts > _authConfig.MaxFailedMfaAttempts)
         {
             await _mfaHashService.CleanupHash(hash);
@@ -67,6 +76,13 @@ public class CMFAVerifyHandler : IAuthPacketHandler<CMFAVerifyPacket>
             }
 
             ctx.Connection.Send(SAuthResultPacket.Create(null, null, AuthResult.MFA_FAILED, ctx.Connection.CryptoSession.Encrypt));
+
+            // A wrong code counts towards the account lock like a wrong password: a fresh password
+            // login makes a fresh hash with no attempts, so the per-hash cap alone resets on every
+            // login. Written after the reply, as a wrong password is.
+            var now = DateTime.UtcNow;
+            await _accountRepository.RecordFailedLoginAsync(hashAccountId, RemoteAddress.Of(ctx.Connection.RemoteEndPoint),
+                now, _authConfig.MaxFailedLoginAttempts, now.AddMinutes(_authConfig.LockoutDurationMinutes), token);
             return;
         }
 

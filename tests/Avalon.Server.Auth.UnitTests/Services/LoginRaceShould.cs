@@ -155,7 +155,7 @@ public sealed class LoginRaceShould : IDisposable
 
         var connection = Connection();
         var handler = new CMFAVerifyHandler(NullLoggerFactory.Instance, mfa, stale, Substitute.For<IReplicatedCache>(),
-            Substitute.For<IMFAHashService>(), Options(5));
+            LiveHash(account.Id), Options(5));
 
         await handler.ExecuteAsync(new AuthPacketContext<CMFAVerifyPacket>
         {
@@ -167,6 +167,45 @@ public sealed class LoginRaceShould : IDisposable
         Assert.True(stored.Locked);
         Assert.False(stored.Online);
         Assert.Equal(AuthResult.LOCKED, SentResult(connection));
+    }
+
+    /// <summary>A live MFA hash for the account, each code the first attempt on a fresh hash.</summary>
+    private static IMFAHashService LiveHash(AccountId id)
+    {
+        IMFAHashService hashes = Substitute.For<IMFAHashService>();
+        hashes.GetAccountIdAsync(Arg.Any<string>()).Returns(id);
+        hashes.RecordAttemptAsync(id).Returns(1L);
+        return hashes;
+    }
+
+    /// <summary>
+    /// Re-review: logging in again with the right password makes a fresh hash with no attempts, so
+    /// the per-hash cap alone never ends a guessing run. Wrong codes, one per fresh hash, must still
+    /// lock the account at the per-account threshold.
+    /// </summary>
+    [Fact]
+    public async Task Lock_the_account_after_enough_wrong_codes_across_fresh_mfa_hashes()
+    {
+        Account account = await _accounts.CreateAsync(NewAccount());
+        IMFAService mfa = Substitute.For<IMFAService>();
+        mfa.VerifyMFAAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(new MFAVerifyResult(false, null));
+        var handler = new CMFAVerifyHandler(NullLoggerFactory.Instance, mfa, _accounts, Substitute.For<IReplicatedCache>(),
+            LiveHash(account.Id), Options(5));
+
+        for (var i = 0; i < 5; i++)
+        {
+            await handler.ExecuteAsync(new AuthPacketContext<CMFAVerifyPacket>
+            {
+                Packet = new CMFAVerifyPacket { MfaHash = $"hash-{i}", Code = "000000" },
+                Connection = Connection(),
+            });
+        }
+
+        Account stored = await StoredAsync(account.Id);
+        Assert.Equal(5, stored.FailedLogins);
+        Assert.True(stored.Locked);
+        Assert.NotNull(stored.LockedUntil);
     }
 
     [Fact]
