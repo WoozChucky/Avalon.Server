@@ -26,7 +26,6 @@ public class CreatureSpawner(ILoggerFactory loggerFactory, IWorld world) : ICrea
         ICreature creature = Spawn(virtualCreature.PrototypeIndex);
 
         creature.Position = virtualCreature.Position;
-        creature.Metadata.StartPosition = virtualCreature.Position;
 
         return creature;
     }
