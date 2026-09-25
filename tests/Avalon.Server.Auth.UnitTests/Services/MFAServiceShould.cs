@@ -28,10 +28,36 @@ public class MFAServiceShould
     {
         _repository.FindByAccountIdAsync(Arg.Any<AccountId>(), Arg.Any<CancellationToken>())
             .Returns(_ => _row);
-        _repository.CreateAsync(Arg.Any<MFASetup>(), Arg.Any<CancellationToken>())
-            .Returns(ci => { _row = ci.Arg<MFASetup>(); _row.Id = Guid.NewGuid(); return _row; });
-        _repository.UpdateAsync(Arg.Any<MFASetup>(), Arg.Any<CancellationToken>())
-            .Returns(ci => { _row = ci.Arg<MFASetup>(); return _row; });
+        _repository.UpsertPendingAsync(Arg.Any<MFASetup>(), Arg.Any<CancellationToken>())
+            .Returns(ci =>
+            {
+                if (_row is { Status: MfaSetupStatus.Confirmed }) return false;
+                var pending = ci.Arg<MFASetup>();
+                pending.Id = _row?.Id ?? Guid.NewGuid();
+                _row = pending;
+                return true;
+            });
+        _repository.TryConfirmAsync(Arg.Any<Guid>(), Arg.Any<byte[]>(), Arg.Any<byte[]>(), Arg.Any<byte[]>(),
+                Arg.Any<byte[]>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>())
+            .Returns(ci =>
+            {
+                if (_row == null || _row.Id != ci.ArgAt<Guid>(0) || _row.Status != MfaSetupStatus.Setup
+                    || !_row.Secret.AsSpan().SequenceEqual(ci.ArgAt<byte[]>(1)))
+                    return false;
+                _row = new MFASetup
+                {
+                    Id = _row.Id,
+                    AccountId = _row.AccountId,
+                    Secret = _row.Secret,
+                    RecoveryCode1 = ci.ArgAt<byte[]>(2),
+                    RecoveryCode2 = ci.ArgAt<byte[]>(3),
+                    RecoveryCode3 = ci.ArgAt<byte[]>(4),
+                    Status = MfaSetupStatus.Confirmed,
+                    CreatedAt = _row.CreatedAt,
+                    ConfirmedAt = ci.ArgAt<DateTime>(5),
+                };
+                return true;
+            });
         _repository.When(r => r.DeleteAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()))
             .Do(ci => { if (_row?.Id == ci.Arg<Guid>()) _row = null; });
 

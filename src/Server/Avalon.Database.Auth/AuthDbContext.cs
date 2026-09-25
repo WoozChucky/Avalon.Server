@@ -180,6 +180,10 @@ public class AuthDbContext : DbContext
     {
         builder.HasKey(b => b.Id);
 
+        // One MFA row per account (#470). With two, login read whichever came back first, and a
+        // row still in Setup let a password-only login through an enrolled account.
+        builder.HasIndex(b => b.AccountId).IsUnique();
+
         builder.Property(b => b.AccountId)
             .HasConversion(
                 v => v.Value,
