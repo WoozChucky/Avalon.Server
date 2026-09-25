@@ -29,6 +29,13 @@ namespace Avalon.Database.Auth.Migrations
                 keyValue: 1L,
                 column: "LockedUntil",
                 value: null);
+
+            // Every lock set before this migration came from failed logins and had no end. Give each
+            // one the default lockout from now, so no account stays locked forever. A NULL
+            // LockedUntil still means "no end" in the code, for a lock set by hand from here on.
+            migrationBuilder.Sql(
+                "UPDATE \"Accounts\" SET \"LockedUntil\" = now() + interval '15 minutes' " +
+                "WHERE \"Locked\" AND \"LockedUntil\" IS NULL;");
         }
 
         /// <inheritdoc />
