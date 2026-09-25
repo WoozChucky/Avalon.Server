@@ -59,7 +59,7 @@ public class WorldService : IWorldService
             MinVersion = request.MinVersion,
             Version = request.Version,
             Type = (Avalon.Domain.Auth.WorldType)request.Type,
-            AccessLevelRequired = (Avalon.Domain.Auth.AccountAccessLevel)request.AccessLevelRequired,
+            AccessLevelRequired = (Avalon.Common.Accounts.AccountAccessLevel)request.AccessLevelRequired,
             Status = (Avalon.Domain.Auth.WorldStatus)request.Status,
             CreatedAt = now,
             UpdatedAt = now,
@@ -80,7 +80,7 @@ public class WorldService : IWorldService
         if (request.MinVersion is not null) world.MinVersion = request.MinVersion;
         if (request.Version is not null) world.Version = request.Version;
         if (request.Type.HasValue) world.Type = (Avalon.Domain.Auth.WorldType)request.Type.Value;
-        if (request.AccessLevelRequired.HasValue) world.AccessLevelRequired = (Avalon.Domain.Auth.AccountAccessLevel)request.AccessLevelRequired.Value;
+        if (request.AccessLevelRequired.HasValue) world.AccessLevelRequired = (Avalon.Common.Accounts.AccountAccessLevel)request.AccessLevelRequired.Value;
         if (request.Status.HasValue) world.Status = (Avalon.Domain.Auth.WorldStatus)request.Status.Value;
 
         world.UpdatedAt = DateTime.UtcNow;

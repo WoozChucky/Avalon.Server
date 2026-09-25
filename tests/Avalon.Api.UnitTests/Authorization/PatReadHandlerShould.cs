@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Avalon.Api.Authentication;
 using Avalon.Api.Authorization;
+using Avalon.Common.Accounts;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.Auth;
 using Microsoft.AspNetCore.Authorization;

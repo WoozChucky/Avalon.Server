@@ -1,8 +1,8 @@
 using Avalon.Common;
+using Avalon.Common.Accounts;
 using Avalon.Common.ValueObjects;
 using Avalon.Hosting.Networking;
 using Avalon.World.Public.Characters;
-using Avalon.World.Public.Enums;
 using Avalon.World.Public.Instances;
 
 namespace Avalon.World.Public;
