@@ -45,6 +45,15 @@ internal static class PendingSpawnConnection
             .Do(ci => character = ci.Arg<ICharacter>());
 #pragma warning restore NS3002
 
+        // The select chain checks, at every step, that the connection still owns the select it
+        // began, by its start time. An un-taught substitute reports 0 whatever BeginSelect was
+        // given, which reads as "cancelled", and the chain would stop at its first step.
+        long selectStarted = 0;
+        connection.SelectStartedTicks.Returns(_ => selectStarted);
+        connection.SelectInProgress.Returns(_ => selectStarted != 0);
+        connection.When(c => c.BeginSelect(Arg.Any<long>())).Do(ci => selectStarted = ci.Arg<long>());
+        connection.When(c => c.CancelSelect()).Do(_ => selectStarted = 0);
+
         PendingSpawn? held = pending;
         connection.PendingSpawn.Returns(_ => held);
         connection.TakePendingSpawn().Returns(_ =>
@@ -59,7 +68,7 @@ internal static class PendingSpawnConnection
             {
                 held = new PendingSpawn(ci.Arg<ICharacter>(), ci.Arg<IMapInstance>(), ci.Arg<long>());
                 // Mirrors the real connection: the pending spawn supersedes the in-flight select.
-                connection.SelectInProgress.Returns(false);
+                selectStarted = 0;
             });
 
         return connection;

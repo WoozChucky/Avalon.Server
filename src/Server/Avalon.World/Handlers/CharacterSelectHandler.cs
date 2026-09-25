@@ -1,5 +1,6 @@
 using Avalon.World.Public;
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using Avalon.Common.Mathematics;
 using Avalon.Common.Telemetry;
 using Avalon.Common.ValueObjects;
@@ -51,6 +52,12 @@ public class CharacterSelectHandler(
     private Activity? _parentActivity;
 
     /// <summary>
+    /// The select step each connection has in flight, for a select that kicks it to wait on. Tick
+    /// thread only, like the rest of the handler; weak, so it holds on to no closed connection.
+    /// </summary>
+    private readonly ConditionalWeakTable<IWorldConnection, Task> _selectStepInFlight = new();
+
+    /// <summary>
     /// How long a select waits for the character's previous saves before giving up. Past it the
     /// select fails without reading, and the client can select again. Well inside
     /// <see cref="GameConfiguration.CharacterLoadTimeoutSeconds" />, which cancels the whole select,
@@ -86,16 +93,17 @@ public class CharacterSelectHandler(
             return;
         }
 
-        if (!TakeOverFromOtherSessions(connection, connection.AccountId, packet.CharacterId))
-        {
-            activity?.AddEvent(new ActivityEvent("OtherSessionStillSelecting"));
-            return;
-        }
+        IReadOnlyList<Task> kickedWork = TakeOverFromOtherSessions(connection, connection.AccountId, packet.CharacterId);
+        if (kickedWork.Count > 0)
+            activity?.AddEvent(new ActivityEvent("WaitingOnKickedSessions"));
 
-        connection.BeginSelect(DateTime.UtcNow.Ticks);
+        // The select's identity. Every step of the chain checks it before doing anything, so a
+        // select that is cancelled or kicked stops at its next step (see OwnsSelect).
+        long select = DateTime.UtcNow.Ticks;
+        connection.BeginSelect(select);
 
-        connection.EnqueueContinuation(
-            FindAfterSavesAsync(packet.CharacterId, connection.AccountId),
+        Step(connection, select,
+            FindAfterSavesAsync(packet.CharacterId, connection.AccountId, kickedWork),
             found =>
             {
                 if (found.SaveStillRunning)
@@ -105,7 +113,7 @@ public class CharacterSelectHandler(
                     return;
                 }
 
-                OnCharacterReceived(connection, found.Character);
+                OnCharacterReceived(connection, select, found.Character);
             });
 
         // Locale for dialogue text. Independent of the select chain: the default is enUS, so a slow
@@ -135,97 +143,140 @@ public class CharacterSelectHandler(
     }
 
     /// <summary>
-    /// One character, one live copy. Two copies each hold their own inventory and money, and
-    /// whichever saves last writes its copy over the other's, losing or duplicating items and gold.
-    /// So a select of a character another connection still holds kicks that connection: its
-    /// character is despawned here, and the new select reads only once that logout save commits.
+    /// One world session per account (#474). Selecting a character ends every other world session
+    /// of the same account, whatever it holds: another character, this one, a select still under
+    /// way, or nothing yet. Two live copies of one character would each hold their own inventory and
+    /// money, and whichever saved last would write its copy over the other's; two characters of one
+    /// account live at once is what the owner ruled out on top of that.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// The despawn runs here, on the tick, rather than being left to the kicked connection's close.
-    /// A close is only despawned when a later tick dequeues it, so a select waiting on
-    /// <see cref="ICharacterSaver.WhenIdle" /> right after the kick would find no save queued yet
-    /// and read the character as it was before its logout. <c>World.DeSpawnPlayerAsync</c> queues
-    /// its save before its first await and clears the connection's character, so by the time this
-    /// returns the save is in the chain <see cref="FindAfterSavesAsync" /> waits on, and the despawn
-    /// the close queues later finds nothing left to save.
+    /// Each kicked character is despawned here, on the tick, rather than being left to the kicked
+    /// connection's close. A close is only despawned when a later tick dequeues it, so a select
+    /// waiting on <see cref="ICharacterSaver.WhenIdle" /> right after the kick would find no save
+    /// queued yet and read as it was before the logout. <c>World.DeSpawnPlayerAsync</c> queues its
+    /// save before its first await and clears the connection's character, so by the time it returns
+    /// the save is in the chain waited on, and the despawn the close queues later finds nothing left
+    /// to save. The wait for a kicked <em>different</em> character is taken here, after its despawn:
+    /// the new select waits for every kicked character's logout save, not only its own.
     /// </para>
     /// <para>
-    /// Only connections of the same account are looked at: a character is read by account, so no
-    /// other account can hold it. The world server's list includes connections that have already
-    /// closed and whose despawn has not started, which is the same gap reached without a kick: a
-    /// session that dropped a moment before this select. The auth server's online flag plays no
-    /// part, since a dropped auth connection clears it while the world session is still up.
+    /// A connection part way through its own select holds no entity yet. Its select is cancelled,
+    /// which is what stops the rest of its chain: every step checks <see cref="OwnsSelect" /> first
+    /// and does nothing once the select it belongs to is gone. The one step it may already have
+    /// running, a read or the select-time row write, cannot be called back, so it is handed to the
+    /// new select to wait for as well. Past that step the kicked chain does nothing more, so nothing
+    /// it started is still touching the database when the new select reads.
     /// </para>
     /// <para>
-    /// A connection of the account that is part way through its own select holds no entity yet,
-    /// and nothing records which character it is reading. Kicking it would not stop its reads, so
-    /// this select is refused instead: nothing is read, and the client can select again once the
-    /// other select has settled. That window is bounded by the load timeout.
+    /// Only connections of the same account are looked at. The world server's list includes
+    /// connections that have already closed and whose despawn has not started, which is the same gap
+    /// reached without a kick: a session that dropped a moment before this select. The auth server's
+    /// online flag plays no part, since a dropped auth connection clears it while the world session
+    /// is still up.
     /// </para>
     /// </remarks>
-    /// <returns>False when the select must not go ahead.</returns>
-    private bool TakeOverFromOtherSessions(IWorldConnection connection, AccountId accountId, CharacterId id)
+    /// <returns>What the new select must wait for, besides its own character's saves, before it reads.</returns>
+    private List<Task> TakeOverFromOtherSessions(IWorldConnection connection, AccountId accountId, CharacterId id)
     {
-        IReadOnlyList<IWorldConnection> sessions = worldServer.SessionsOf(accountId, connection);
+        List<Task> waits = [];
 
-        foreach (IWorldConnection other in sessions)
-        {
-            if (other.SelectInProgress)
-            {
-                logger.LogWarning(
-                    "Refusing a select of character {CharacterId} for account {AccountId}: another session of the account is still selecting",
-                    id.Value, accountId);
-                return false;
-            }
-        }
-
-        foreach (IWorldConnection other in sessions)
+        foreach (IWorldConnection other in worldServer.SessionsOf(accountId, connection))
         {
             ICharacter? held = other.Character ?? other.PendingSpawn?.Character;
-            if (held is not CharacterEntity { Data: { } row } || row.Id != id)
-                continue;
+            CharacterId? heldId = held is CharacterEntity { Data: { } row } ? row.Id : null;
 
             logger.LogInformation(
-                "Character {CharacterId} selected on a second connection; disconnecting the session that held it",
-                id.Value);
+                "Character {CharacterId} selected for account {AccountId}; disconnecting another session of the account (holding {HeldCharacterId}, selecting {Selecting})",
+                id.Value, accountId, heldId?.Value, other.SelectInProgress);
+
+            // Before anything else: from here on none of its remaining select steps does anything.
+            if (other.SelectInProgress)
+                other.CancelSelect();
+
+            if (_selectStepInFlight.TryGetValue(other, out Task? step) && !step.IsCompleted)
+                waits.Add(step);
 
             // Queues the logout save and releases the character before it returns.
             _ = world.DeSpawnPlayerAsync(other);
 
+            // Its own character's saves are waited on by FindAfterSavesAsync already.
+            if (heldId is { } kicked && kicked != id)
+                waits.Add(characterSaver.WhenIdle(kicked));
+
 #pragma warning disable MA0045 // a tick-thread handler; the close finishes on its own
             GracefulShutdownHelper.NotifyAndClose(other,
-                "Your character has been logged in from another location.", DisconnectReason.DuplicateLogin, logger);
+                "Your account has been logged in from another location.", DisconnectReason.DuplicateLogin, logger);
 #pragma warning restore MA0045
         }
 
-        return true;
+        return waits;
+    }
+
+    /// <summary>
+    /// Whether <paramref name="select" /> is still this connection's select. It stops being so when
+    /// the select is cancelled (by its own give-up paths, by the stalled-select sweep, or by another
+    /// session of the account kicking this one) and when the connection goes down. A step that finds
+    /// it no longer owns its select does nothing: no write, no further read, no pending spawn.
+    /// </summary>
+    private bool OwnsSelect(IWorldConnection connection, long select)
+    {
+        if (connection.IsConnected && connection.SelectStartedTicks == select)
+            return true;
+
+        logger.LogInformation(
+            "Abandoning a character select for account {AccountId}: it was cancelled, or its connection was kicked or closed",
+            connection.AccountId);
+        return false;
+    }
+
+    /// <summary>
+    /// One step of the select chain: remembers <paramref name="task" /> as the step this connection
+    /// has in flight, so a select that kicks it can wait for it, and runs <paramref name="next" />
+    /// on the tick once it finishes, only if the connection still owns <paramref name="select" />.
+    /// </summary>
+    private void Step<T>(IWorldConnection connection, long select, Task<T> task, Action<T> next)
+    {
+        _selectStepInFlight.AddOrUpdate(connection, task);
+        connection.EnqueueContinuation(task, result =>
+        {
+            if (OwnsSelect(connection, select))
+                next(result);
+        });
     }
 
     /// <summary>
     /// A relog builds a new entity from the database, while the previous session's despawn save may
     /// still be writing. Reading before it commits would load the inventory and money as they were
     /// before that save, and the next save would then write the stale state back over it. Every read
-    /// of the select chain follows this one, so waiting here covers all of them.
+    /// of the select chain follows this one, so waiting here covers all of them. The same wait covers
+    /// <paramref name="kickedWork" />: the logout saves of the other characters this select kicked,
+    /// and any step a kicked select still had running.
     /// </summary>
     /// <remarks>
+    /// Everything is waited on together, so each is bounded by the same <see cref="SaveWaitLimit" />.
     /// A wait that runs out reads nothing. Reading anyway would load the row and slots from before
     /// the save still running; that save would then commit, and the new session's first save (the
-    /// one marking it online at spawn) would write the stale money and slots back over it.
+    /// one marking it online at spawn) would write the stale money and slots back over it. A kicked
+    /// step that faulted has still finished, which is all that is waited for, so faults are ignored.
     /// </remarks>
-    private async Task<(Character? Character, bool SaveStillRunning)> FindAfterSavesAsync(CharacterId id, AccountId accountId)
+    private async Task<(Character? Character, bool SaveStillRunning)> FindAfterSavesAsync(CharacterId id,
+        AccountId accountId, IReadOnlyList<Task> kickedWork)
     {
-        Task idle = characterSaver.WhenIdle(id);
+        // Taken before the first await, on the tick, like the kicked characters' waits.
+        Task idle = kickedWork.Count == 0
+            ? characterSaver.WhenIdle(id)
+            : Task.WhenAll([.. kickedWork, characterSaver.WhenIdle(id)]);
+
         if (!idle.IsCompleted)
         {
-            try
-            {
-                await idle.WaitAsync(SaveWaitLimit, CancellationToken.None).ConfigureAwait(false);
-            }
-            catch (TimeoutException)
+            await idle.WaitAsync(SaveWaitLimit, CancellationToken.None)
+                .ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+
+            if (!idle.IsCompleted)
             {
                 logger.LogWarning(
-                    "Character {CharacterId} still had a save in flight after {Limit}; failing the select without reading it, so the client can retry",
+                    "Character {CharacterId}, or a session of its account this select kicked, still had a save or read in flight after {Limit}; failing the select without reading it, so the client can retry",
                     id.Value, SaveWaitLimit);
                 return (null, true);
             }
@@ -236,7 +287,7 @@ public class CharacterSelectHandler(
         return (character, false);
     }
 
-    private void OnCharacterReceived(IWorldConnection connection, Character? character)
+    private void OnCharacterReceived(IWorldConnection connection, long select, Character? character)
     {
         using Activity? activity = DiagnosticsConfig.World.Source.StartActivity(nameof(OnCharacterReceived),
             ActivityKind.Internal,
@@ -316,7 +367,7 @@ public class CharacterSelectHandler(
             logger.LogWarning(
                 "Character {CharacterId} ({Name}) persisted in non-town map {MapId}; redirecting to nearest town",
                 character.Id, character.Name, character.Map);
-            connection.EnqueueContinuation(
+            Step(connection, select,
                 respawnTargetResolver.ResolveTownAsync(loadedTemplate.Id, CancellationToken.None),
                 townMapId =>
                 {
@@ -333,25 +384,26 @@ public class CharacterSelectHandler(
                     character.Y = townTpl.DefaultSpawnY;
                     character.Z = townTpl.DefaultSpawnZ;
                     entity.Position = new Vector3(character.X, character.Y, character.Z);
-                    EnterTownInstance(connection, entity, townTpl);
+                    EnterTownInstance(connection, select, entity, townTpl);
                 });
             _parentActivity = activity;
             return;
         }
 
-        EnterTownInstance(connection, entity, loadedTemplate);
+        EnterTownInstance(connection, select, entity, loadedTemplate);
         _parentActivity = activity;
     }
 
-    private void EnterTownInstance(IWorldConnection connection, CharacterEntity entity, MapTemplate townTemplate)
+    private void EnterTownInstance(IWorldConnection connection, long select, CharacterEntity entity,
+        MapTemplate townTemplate)
     {
-        connection.EnqueueContinuation(
+        Step(connection, select,
             world.InstanceRegistry.GetOrCreateTownInstanceAsync(townTemplate.Id, townTemplate.MaxPlayers ?? 30),
-            mapInstance => OnInstanceObtained(connection, entity, townTemplate, mapInstance));
+            mapInstance => OnInstanceObtained(connection, select, entity, townTemplate, mapInstance));
     }
 
-    private void OnInstanceObtained(IWorldConnection connection, CharacterEntity entity, MapTemplate townTemplate,
-        IMapInstance instance)
+    private void OnInstanceObtained(IWorldConnection connection, long select, CharacterEntity entity,
+        MapTemplate townTemplate, IMapInstance instance)
     {
         using Activity? activity = DiagnosticsConfig.World.Source.StartActivity(nameof(OnInstanceObtained),
             ActivityKind.Internal,
@@ -437,17 +489,17 @@ public class CharacterSelectHandler(
                 connection.CryptoSession.Encrypt));
         }
 
-        connection.EnqueueContinuation(characterRepository.UpdateAsync(character, CancellationToken.None), _ =>
+        Step(connection, select, characterRepository.UpdateAsync(character, CancellationToken.None), _ =>
         {
-            connection.EnqueueContinuation(characterInventoryRepository.GetByCharacterIdAsync(character.Id, CancellationToken.None),
-                items => OnInventoryReceived(connection, entity, instance, character, items));
+            Step(connection, select, characterInventoryRepository.GetByCharacterIdAsync(character.Id, CancellationToken.None),
+                items => OnInventoryReceived(connection, select, entity, instance, character, items));
         });
 
         _parentActivity = activity;
     }
 
-    private void OnInventoryReceived(IWorldConnection connection, CharacterEntity entity, IMapInstance instance,
-        Character character, IReadOnlyCollection<CharacterInventory> items)
+    private void OnInventoryReceived(IWorldConnection connection, long select, CharacterEntity entity,
+        IMapInstance instance, Character character, IReadOnlyCollection<CharacterInventory> items)
     {
         using Activity? activity = DiagnosticsConfig.World.Source.StartActivity(nameof(OnInventoryReceived),
             ActivityKind.Internal,
@@ -462,14 +514,14 @@ public class CharacterSelectHandler(
         // Without the templates: login reads only the instance's own columns, and the client
         // resolves template ids against the vendored item catalog. Joining 41 columns per carried
         // item would load rows nothing here reads.
-        connection.EnqueueContinuation(
+        Step(connection, select,
             itemInstanceRepository.GetByCharacterIdAsync(character.Id, CancellationToken.None),
-            instances => OnItemInstancesReceived(connection, entity, instance, character, items, instances));
+            instances => OnItemInstancesReceived(connection, select, entity, instance, character, items, instances));
 
         _parentActivity = activity;
     }
 
-    private void OnItemInstancesReceived(IWorldConnection connection, CharacterEntity entity,
+    private void OnItemInstancesReceived(IWorldConnection connection, long select, CharacterEntity entity,
         IMapInstance instance, Character character,
         IReadOnlyCollection<CharacterInventory> rows, IReadOnlyCollection<ItemInstance> instances)
     {
@@ -496,7 +548,7 @@ public class CharacterSelectHandler(
 
         connection.Send(SInventorySnapshotPacket.Create(carried, character.Money, connection.CryptoSession.Encrypt));
 
-        connection.EnqueueContinuation(characterAbilityRepository.GetCharacterAbilitiesAsync(character.Id, CancellationToken.None),
+        Step(connection, select, characterAbilityRepository.GetCharacterAbilitiesAsync(character.Id, CancellationToken.None),
             spells => OnSpellsReceived(connection, entity, instance, spells));
         _parentActivity = activity;
     }

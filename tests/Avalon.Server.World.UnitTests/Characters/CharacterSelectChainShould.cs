@@ -331,6 +331,76 @@ public class CharacterSelectChainShould : IDisposable
         Assert.Null(_connection.Character);
     }
 
+    /// <summary>
+    /// One session per account (#474): a select on another connection of the account kicks this
+    /// one while its own select is still part way through. Kicking it is not enough on its own:
+    /// its chain has steps still queued, and left to run they would write the row it read, load its
+    /// inventory and build a pending spawn on a connection that is going away. Each step checks that
+    /// its connection still owns the select it belongs to, and does nothing once it does not.
+    /// </summary>
+    [Fact]
+    public void Stop_a_select_kicked_by_another_session_of_the_account_before_it_writes_or_builds_anything()
+    {
+        var server = Substitute.For<IWorldServer>();
+        CharacterSelectHandler select = BuildSelectHandler(worldServer: server);
+        IWorldConnection kicker = PendingSpawnConnection.Create();
+        server.SessionsOf(TheAccount, kicker).Returns(new List<IWorldConnection> { _connection });
+
+        select.Execute(_connection, new CCharacterSelectedPacket { CharacterId = TheCharacter });
+        Step(); // the character is read; the next step would send it and write its row
+
+        select.Execute(kicker, new CCharacterSelectedPacket { CharacterId = AnotherCharacter });
+        Step(6);
+
+        Assert.False(_connection.SelectInProgress);
+        Assert.Null(_connection.PendingSpawn);
+        Assert.Null(_connection.Character);
+        _characters.DidNotReceiveWithAnyArgs().UpdateAsync(default(Character)!, default);
+        _inventory.DidNotReceiveWithAnyArgs().GetByCharacterIdAsync(default!, default);
+    }
+
+    /// <summary>
+    /// A kicked select may have a read in flight when it is kicked, and a step that is already
+    /// running cannot be called back. The new select waits for it, bounded like the save wait, so
+    /// nothing the kicked select started is still touching the database when the new one reads.
+    /// </summary>
+    [Fact]
+    public async Task Wait_for_the_step_a_kicked_select_has_in_flight_before_reading()
+    {
+        var server = Substitute.For<IWorldServer>();
+        CharacterSelectHandler select = BuildSelectHandler(worldServer: server);
+        IWorldConnection kicker = PendingSpawnConnection.Create();
+        server.SessionsOf(TheAccount, kicker).Returns(new List<IWorldConnection> { _connection });
+
+        var held = new TaskCompletionSource<Character?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        _characters.FindByIdAndAccountAsync(TheCharacter, TheAccount, Arg.Any<CancellationToken>())
+            .Returns(held.Task);
+        var readByKicker = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _characters.FindByIdAndAccountAsync(AnotherCharacter, TheAccount, Arg.Any<CancellationToken>())
+            .Returns(_ =>
+            {
+                readByKicker.TrySetResult();
+                return Task.FromResult<Character?>(null);
+            });
+
+        select.Execute(_connection, new CCharacterSelectedPacket { CharacterId = TheCharacter });
+        select.Execute(kicker, new CCharacterSelectedPacket { CharacterId = AnotherCharacter });
+
+        await Task.Delay(100);
+        Assert.False(readByKicker.Task.IsCompleted, "the new select read while the kicked one still had a read in flight");
+
+        held.SetResult(new Character
+        {
+            Id = TheCharacter, AccountId = TheAccount, Name = "Tester", Class = CharacterClass.Warrior,
+            Level = 1, Map = TownMapId
+        });
+
+        await readByKicker.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Step(6);
+        Assert.Null(_connection.PendingSpawn);
+        await _characters.DidNotReceiveWithAnyArgs().UpdateAsync(default(Character)!, default);
+    }
+
     private bool StepOnce()
     {
         Step();
@@ -348,7 +418,8 @@ public class CharacterSelectChainShould : IDisposable
         }
     }
 
-    private CharacterSelectHandler BuildSelectHandler(ICharacterSaver? saver = null, TimeSpan? saveWaitLimit = null)
+    private CharacterSelectHandler BuildSelectHandler(ICharacterSaver? saver = null, TimeSpan? saveWaitLimit = null,
+        IWorldServer? worldServer = null)
     {
         var row = new Character
         {
@@ -407,7 +478,7 @@ public class CharacterSelectChainShould : IDisposable
             Options.Create(new RegenConfiguration()),
             Substitute.For<IAccountRepository>(),
             saver ?? Substitute.For<ICharacterSaver>(),
-            Substitute.For<IWorldServer>())
+            worldServer ?? Substitute.For<IWorldServer>())
         {
             SaveWaitLimit = saveWaitLimit ?? TimeSpan.FromSeconds(5)
         };
