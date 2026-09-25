@@ -25,6 +25,13 @@ public class ReferenceDataReloaderShould
             [new() { Level = 1, Health = 40, DamageMin = 3, DamageMax = 5, Experience = 15 }];
         public bool FailBaseStats;
 
+        /// <summary>
+        /// Makes the base-stat read throw OperationCanceledException instead of the ordinary
+        /// InvalidOperationException FailBaseStats throws — stands in for a caller's own token
+        /// already being cancelled by the time PrepareAsync observes it.
+        /// </summary>
+        public bool CancelBaseStats;
+
         public List<ItemTemplate> Items = [];
         public List<AbilityTemplate> Abilities = [];
         public List<LocalizedText> Texts = [];
@@ -100,6 +107,23 @@ public class ReferenceDataReloaderShould
         Assert.Same(before, data.CreatureTemplates);
     }
 
+    [Fact]
+    public async Task Rethrow_The_Callers_Own_Cancellation_Instead_Of_Recording_It_As_A_Failure()
+    {
+        // A cancelled ct that reaches PrepareAsync surfaces as an OperationCanceledException from
+        // the repository read. That must unwind ReloadAsync as a cancellation, not get swallowed
+        // into a "failed" outcome — see the precedent in PresenceSnapshotService.
+        (StaticData data, Repos repos) = await LoadedData(creatureCount: 1);
+        repos.CancelBaseStats = true;
+        IReferenceDataReloader reloader = Reloader(data);
+
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => reloader.ReloadAsync([ReloadArea.Creatures], cts.Token).WaitAsync(TimeSpan.FromSeconds(5)));
+    }
+
     private static IReferenceDataReloader Reloader(StaticData data)
     {
         var world = Substitute.For<IWorld>();
@@ -132,9 +156,11 @@ public class ReferenceDataReloaderShould
 
         var baseStats = Substitute.For<ICreatureBaseStatRepository>();
         baseStats.GetAllAsync(Arg.Any<CancellationToken>())
-            .Returns(_ => repos.FailBaseStats
-                ? Task.FromException<IReadOnlyCollection<CreatureBaseStat>>(new InvalidOperationException("db down"))
-                : Task.FromResult<IReadOnlyCollection<CreatureBaseStat>>(repos.BaseStats.ToList()));
+            .Returns(_ => repos.CancelBaseStats
+                ? Task.FromException<IReadOnlyCollection<CreatureBaseStat>>(new OperationCanceledException())
+                : repos.FailBaseStats
+                    ? Task.FromException<IReadOnlyCollection<CreatureBaseStat>>(new InvalidOperationException("db down"))
+                    : Task.FromResult<IReadOnlyCollection<CreatureBaseStat>>(repos.BaseStats.ToList()));
 
         var rarities = Substitute.For<ICreatureRarityModifierRepository>();
         rarities.GetAllAsync(Arg.Any<CancellationToken>())
