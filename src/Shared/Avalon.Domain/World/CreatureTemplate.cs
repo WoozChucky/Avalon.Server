@@ -119,7 +119,4 @@ public class CreatureTemplate : IDbEntity<CreatureTemplateId>, ICreatureMetadata
         get => TimeSpan.FromSeconds(BodyRemoveTimerSecs);
         set => BodyRemoveTimerSecs = (int)value.TotalSeconds;
     }
-
-    [NotMapped]
-    public Vector3 StartPosition { get; set; }
 }
