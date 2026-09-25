@@ -46,6 +46,25 @@ dotnet ef migrations add <Name> \
 
 Target framework: **.NET 10**. Docker compose credentials default to password `123`.
 
+### REST API signing key
+
+`Avalon.Api` will not start without a JWT signing key, and none is committed (#482). The setting is `Application:Authentication:IssuerSigningKey` (environment variable `Application__Authentication__IssuerSigningKey`). `JwtSigningKey.Create` refuses a key that is missing, under 32 bytes in UTF-8, or the one that used to sit in `appsettings.json` (public now), and the error names the setting. Set it once per machine:
+
+```bash
+# Generate a key (either one)
+openssl rand -base64 48
+pwsh -c "[Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(48))"
+
+# Local runs (dotnet run, or the Aspire AppHost in src/Server/Avalon): Development loads user-secrets
+dotnet user-secrets set "Application:Authentication:IssuerSigningKey" "<key>" --project src/Server/Avalon.Api
+
+# Containers and every non-Development host: the environment
+docker run -e Application__Authentication__IssuerSigningKey="<key>" ...
+helm install ... --set authentication.issuerSigningKey="<key>"   # the chart refuses to render without it
+```
+
+`docker-compose.yml` runs only Redis and Postgres, so it needs no key. Tests never read one: `ApiAuthHost` and the other API tests make their own key in code. Changing the key invalidates every access token already issued; clients get a 401 and refresh.
+
 ## Architecture
 
 Avalon is split into three independently deployable real-time servers plus a REST API:

@@ -172,6 +172,30 @@ The slot count is bounded by the ring's circumference. At radius `1.5` there are
 
 ---
 
+## REST API JWT Signing Key
+
+Section: `Application:Authentication` in `Avalon.Api` (**never committed to source control**, #482)
+
+| Key                | Type   | Default      | Description                                                    |
+|--------------------|--------|--------------|----------------------------------------------------------------|
+| `IssuerSigningKey` | string | _(required)_ | HMAC-SHA256 key that signs and validates the API's access JWTs |
+
+`JwtSigningKey.Create` runs when `AddAuth` registers authentication, so the API refuses to start, naming the
+setting, when the key is missing, shorter than 32 bytes in UTF-8, or the value once committed to
+`appsettings.json` (public now). The key is deliberately absent from `appsettings.json`.
+
+```bash
+# Development: user-secrets (the Avalon.Api project has a UserSecretsId)
+dotnet user-secrets set "Application:Authentication:IssuerSigningKey" "$(openssl rand -base64 48)" --project src/Server/Avalon.Api
+
+# Everywhere else: environment variable
+Application__Authentication__IssuerSigningKey=<random value, at least 32 bytes>
+```
+
+The Helm chart takes it as `authentication.issuerSigningKey` and refuses to render without it.
+
+---
+
 ## Avalon Internal Authentication
 
 Section: environment variable or secrets manager (**never committed to source control**)

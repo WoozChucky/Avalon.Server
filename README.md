@@ -113,19 +113,28 @@ Prerequisites: .NET 10 SDK, Docker (for infra services).
    ```bash
    docker compose -f docker-compose.yml -f docker-compose.tools.yml up -d
    ```
-2. Run the API — migrations are applied automatically on startup:
+2. Give the API a JWT signing key, once per machine. None is committed, and the API refuses to start
+   without one of at least 32 bytes:
+   ```bash
+   dotnet user-secrets set "Application:Authentication:IssuerSigningKey" "$(openssl rand -base64 48)" --project src/Server/Avalon.Api
+   ```
+   In PowerShell, generate the key with
+   `[Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(48))`.
+   Outside Development (containers, Helm), set the environment variable
+   `Application__Authentication__IssuerSigningKey` instead.
+3. Run the API — migrations are applied automatically on startup:
    ```bash
    dotnet run --project src/Server/Avalon.Api
    ```
-3. Run Auth Server:
+4. Run Auth Server:
    ```bash
    dotnet run --project src/Server/Avalon.Server.Auth
    ```
-4. Run World Server:
+5. Run World Server:
    ```bash
    dotnet run --project src/Server/Avalon.Server.World
    ```
-5. Open API docs: `https://localhost:<port>/scalar` (Scalar UI) or `/openapi/v1.json`
+6. Open API docs: `https://localhost:<port>/scalar` (Scalar UI) or `/openapi/v1.json`
 
 ## Migrations Workflow
 

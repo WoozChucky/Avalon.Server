@@ -29,8 +29,11 @@ The repository is intentionally set up so that cloning and running is enough to 
 configuration required. Specifically:
 
 - **`appsettings.json` files** contain hardcoded local-dev credentials (Postgres password `123`, Redis password
-  `123`, JWT signing key, etc.). These are development-only defaults, safe to use locally, and deliberately
+  `123`, etc.). These are development-only defaults, safe to use locally, and deliberately
   committed so contributors can run the project immediately.
+- **The REST API's JWT signing key is the one exception.** A committed key lets anyone forge a token for any
+  account, so none is committed and `Avalon.Api` refuses to start without one (#482). Set it once with
+  `dotnet user-secrets` as the README's "Running Locally" section shows.
 - **`certs/cert-tcp.pfx`** is a pre-generated self-signed TLS certificate (password `avalon`) used by the Auth
   TCP server. It is committed for the same reason — so no manual cert generation is needed.
 - **`docker-compose.yml`** uses matching credentials so the infra spins up in sync with the app config.
