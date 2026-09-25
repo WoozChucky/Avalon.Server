@@ -1,4 +1,5 @@
 using Avalon.Database.Auth.Repositories;
+using Avalon.Domain.Auth;
 using Avalon.Infrastructure;
 using Avalon.Infrastructure.Services;
 using Avalon.Network.Packets.Auth;
@@ -37,6 +38,16 @@ public class CMFAVerifyHandler : IAuthPacketHandler<CMFAVerifyPacket>
         {
             _logger.LogWarning("Account {AccountId} not found after successful MFA verify", result.AccountId);
             ctx.Connection.Send(SAuthResultPacket.Create(null, null, AuthResult.MFA_FAILED, ctx.Connection.CryptoSession.Encrypt));
+            return;
+        }
+
+        // The same refusal as CAuthHandler (#462): the MFA hash outlives the password step by two
+        // minutes, so an account banned or deactivated inside that window is caught here.
+        if (account.Status != AccountStatus.Active)
+        {
+            _logger.LogWarning("Account {AccountId} refused at MFA verify while {Status}", account.Id, account.Status);
+            AuthResult refusal = account.Status == AccountStatus.Deactivated ? AuthResult.DEACTIVATED : AuthResult.BANNED;
+            ctx.Connection.Send(SAuthResultPacket.Create(null, null, refusal, ctx.Connection.CryptoSession.Encrypt));
             return;
         }
 
