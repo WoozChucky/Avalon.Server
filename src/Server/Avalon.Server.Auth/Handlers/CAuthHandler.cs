@@ -68,6 +68,16 @@ public class CAuthHandler : IAuthPacketHandler<CAuthPacket>
             return;
         }
 
+        // After the password check, so a wrong password cannot be used to probe for a ban (#462);
+        // before MFA and before any success, so an inactive account never gets past this point.
+        if (account.Status != AccountStatus.Active)
+        {
+            _logger.LogWarning("Account {AccountId} refused at login while {Status}", account.Id, account.Status);
+            AuthResult refusal = account.Status == AccountStatus.Deactivated ? AuthResult.DEACTIVATED : AuthResult.BANNED;
+            ctx.Connection.Send(SAuthResultPacket.Create(null, null, refusal, ctx.Connection.CryptoSession.Encrypt));
+            return;
+        }
+
         var mfa = await _mfaSetupRepository.FindByAccountIdAsync(account.Id, token);
         if (mfa is { Status: MfaSetupStatus.Confirmed })
         {

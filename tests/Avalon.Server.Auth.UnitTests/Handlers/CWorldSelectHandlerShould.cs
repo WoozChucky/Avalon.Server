@@ -244,4 +244,36 @@ public class CWorldSelectHandlerShould
         await _cache.DidNotReceive().SetAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<TimeSpan?>());
         await _cache.DidNotReceive().PublishAsync(Arg.Any<string>(), Arg.Any<string>());
     }
+
+    /// <summary>
+    /// #462: defence in depth behind the login check. An account banned or deactivated after it
+    /// logged in must not take the inWorld slot or be issued a world key.
+    /// </summary>
+    [Theory]
+    [InlineData(AccountStatus.Banned)]
+    [InlineData(AccountStatus.Deactivated)]
+    public async Task Refuse_A_World_Key_To_An_Account_That_Is_Not_Active(AccountStatus status)
+    {
+        var account = MakeAccount(level: AccountAccessLevel.Player);
+        account.Status = status;
+        _connection.AccountId.Returns(account.Id);
+        _accountRepository.FindByIdAsync(account.Id).Returns(account);
+        var world = MakeWorld(1, AccountAccessLevel.Player);
+        _worldRepository.FindByIdAsync(Arg.Any<WorldId>()).Returns(world);
+
+        await _handler.ExecuteAsync(new AuthPacketContext<CWorldSelectPacket>
+        {
+            Packet = new CWorldSelectPacket { WorldId = world.Id },
+            Connection = _connection
+        });
+
+        _secureRandom.DidNotReceiveWithAnyArgs().GetBytes(default);
+        Assert.Empty(account.SessionKey);
+        _connection.DidNotReceiveWithAnyArgs().Send(default!);
+        await _cache.DidNotReceiveWithAnyArgs().SetNxAsync(default!, default!, default);
+        await _cache.DidNotReceiveWithAnyArgs().SetAsync(default!, default!, default);
+        await _cache.DidNotReceiveWithAnyArgs().PublishAsync(default!, default!);
+        await _accountRepository.DidNotReceiveWithAnyArgs().UpdateAsync(default!, default);
+        _connection.Received(1).Close();
+    }
 }

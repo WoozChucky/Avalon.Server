@@ -30,18 +30,18 @@ variant empty
 
 variant populated
   field 1 AccountId : long = 19
-  field 2 Result : AuthResult = ALREADY_CONNECTED (5)
+  field 2 Result : AuthResult = WRONG_KEY (1)
   field 3 MfaHash : string = "emoji 🜁🚀 astral" (17 chars, 21 bytes utf-8)
   bytes 27
-    08 13 10 05 1a 15 65 6d 6f 6a 69 20 f0 9f 9c 81
+    08 13 10 01 1a 15 65 6d 6f 6a 69 20 f0 9f 9c 81
     f0 9f 9a 80 20 61 73 74 72 61 6c
 
 variant maxima
   field 1 AccountId : long = 9223372036854775807
-  field 2 Result : AuthResult = MFA_FAILED (6)
+  field 2 Result : AuthResult = DEACTIVATED (8)
   field 3 MfaHash : string = "ΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩx…" (88 chars, 132 bytes utf-8)
   bytes 147
-    08 ff ff ff ff ff ff ff ff 7f 10 06 1a 84 01 ce
+    08 ff ff ff ff ff ff ff ff 7f 10 08 1a 84 01 ce
     a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
     78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
     ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
@@ -61,10 +61,10 @@ variant minima
 
 variant varint-edges
   field 1 AccountId : long = 34359738368
-  field 2 Result : AuthResult = <not a declared member> (7)
+  field 2 Result : AuthResult = <not a declared member> (9)
   field 3 MfaHash : string = "yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy…" (128 chars, 128 bytes utf-8)
   bytes 140
-    08 80 80 80 80 80 01 10 07 1a 80 01 79 79 79 79
+    08 80 80 80 80 80 01 10 09 1a 80 01 79 79 79 79
     79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
     79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
     79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79

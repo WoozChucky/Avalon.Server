@@ -30,5 +30,8 @@ public enum AuthResult : ushort
     LOCKED,
     SUCCESS,
     ALREADY_CONNECTED,
-    MFA_FAILED
+    MFA_FAILED,
+    // Appended, never inserted: these are wire ordinals.
+    BANNED,
+    DEACTIVATED
 }

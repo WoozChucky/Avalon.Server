@@ -69,6 +69,8 @@ enum AuthResult {
    AuthResult_SUCCESS = 4;
    AuthResult_ALREADY_CONNECTED = 5;
    AuthResult_MFA_FAILED = 6;
+   AuthResult_BANNED = 7;
+   AuthResult_DEACTIVATED = 8;
 }
 message CAudioRecordPacket {
    optional bytes SoundBuffer = 1;
