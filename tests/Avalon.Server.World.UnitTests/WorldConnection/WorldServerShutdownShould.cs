@@ -6,12 +6,14 @@ using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalon.Configuration;
+using Avalon.Database.Character.Repositories;
 using Avalon.Hosting.Networking;
 using Avalon.Infrastructure;
 using Avalon.Network.Packets;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.World;
 using Avalon.World.Entities;
+using Avalon.World.Persistence;
 using Avalon.World.Public;
 using Avalon.World.Scripts;
 using Avalon.World.Scripts.Abstractions;
@@ -88,6 +90,57 @@ public class WorldServerShutdownShould : IDisposable
         await stopping;
     }
 
+    /// <summary>
+    /// A despawn is started fire-and-forget by the tick that dequeues it. One started on an earlier
+    /// tick, still queued behind another save or mid-transaction when the host stops, is not in the
+    /// pass above, and returning before it commits disposes the database under it.
+    /// </summary>
+    [Fact]
+    public async Task Wait_for_a_despawn_save_started_before_shutdown()
+    {
+        TimeSpan limit = TimeSpan.FromSeconds(5);
+        var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        int committed = 0;
+        var repository = Substitute.For<ICharacterSaveRepository>();
+        repository.WriteAsync(Arg.Any<IReadOnlyList<CharacterSaveBatch>>(), Arg.Any<CancellationToken>())
+            .Returns(async _ =>
+            {
+                await gate.Task.WaitAsync(limit);
+                Volatile.Write(ref committed, 1);
+            });
+        var saver = new CharacterSaver(repository, NullLogger<CharacterSaver>.Instance);
+        var server = new TestWorldServer(Substitute.For<IWorld>(), saver);
+
+        // What an earlier tick's DeSpawnPlayerAsync leaves behind: a save in the chain, not awaited.
+        Task<bool> despawnSave = saver.SaveOnDespawnAsync(
+            Avalon.Server.World.UnitTests.Inventory.TestCharacters.New(), prepareRow: null, CancellationToken.None);
+
+        Task stopping = server.Stop();
+        await Task.Delay(50); // whatever shutdown had left to do, it has had time to do it
+
+        Assert.False(stopping.IsCompleted, "Shutdown returned while an earlier despawn save was still writing");
+
+        gate.SetResult();
+        await stopping.WaitAsync(limit);
+
+        Assert.Equal(1, Volatile.Read(ref committed));
+        Assert.True(await despawnSave.WaitAsync(limit));
+    }
+
+    /// <summary>The wait is bounded by the host: a save that never finishes must not hold the process up forever.</summary>
+    [Fact]
+    public async Task Stop_waiting_for_saves_once_the_host_gives_up()
+    {
+        var saver = Substitute.For<ICharacterSaver>();
+        saver.WhenAllIdle().Returns(new TaskCompletionSource().Task);
+        var server = new TestWorldServer(Substitute.For<IWorld>(), saver);
+
+        using var cancelled = new CancellationTokenSource();
+        await cancelled.CancelAsync();
+
+        await server.Stop(cancelled.Token).WaitAsync(TimeSpan.FromSeconds(5));
+    }
+
     private Avalon.World.WorldConnection Connect(TestWorldServer server)
     {
         var connection = new Avalon.World.WorldConnection(
@@ -111,7 +164,7 @@ public class WorldServerShutdownShould : IDisposable
     /// <summary>Reaches the two members the shutdown path needs: the connection set, and the stop itself.</summary>
     private sealed class TestWorldServer : WorldServer
     {
-        public TestWorldServer(IWorld world) : base(
+        public TestWorldServer(IWorld world, ICharacterSaver? saver = null) : base(
             Substitute.For<IPacketManager>(),
             NullLoggerFactory.Instance,
             new AnyServiceProvider(),
@@ -119,12 +172,13 @@ public class WorldServerShutdownShould : IDisposable
             world,
             Substitute.For<IScriptManager>(),
             Substitute.For<IReplicatedCache>(),
-            Substitute.For<IScriptHotReloader>())
+            Substitute.For<IScriptHotReloader>(),
+            saver ?? new CharacterSaver(Substitute.For<ICharacterSaveRepository>(), NullLogger<CharacterSaver>.Instance))
         { }
 
         public void Add(Avalon.World.WorldConnection connection) => AddConnection(connection);
 
-        public Task Stop() => OnStoppingAsync(CancellationToken.None);
+        public Task Stop(CancellationToken stoppingToken = default) => OnStoppingAsync(stoppingToken);
     }
 
     /// <summary>

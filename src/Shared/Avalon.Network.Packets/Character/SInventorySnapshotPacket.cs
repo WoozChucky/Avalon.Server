@@ -5,8 +5,8 @@ using ProtoBuf;
 namespace Avalon.Network.Packets.Character;
 
 /// <summary>
-/// The whole of what a character carries, sent once on login. "Snapshot" rather than "inventory"
-/// because a later update packet will carry deltas against this.
+/// The whole of what a character carries, and its gold, sent once on login. SInventoryUpdatePacket
+/// carries later changes as absolute slot values.
 /// </summary>
 [ProtoContract]
 public class SInventorySnapshotPacket : Packet
@@ -22,9 +22,15 @@ public class SInventorySnapshotPacket : Packet
     /// </summary>
     [ProtoMember(1)] public ItemSlotDto[] Items { get; set; }
 
-    public static NetworkPacket Create(ItemSlotDto[] items, EncryptFunc encrypt)
+    /// <summary>
+    /// The character's gold in copper (Character.Money). The next free field, so a client that
+    /// predates it reads the rest of the packet unchanged.
+    /// </summary>
+    [ProtoMember(2)] public ulong Money { get; set; }
+
+    public static NetworkPacket Create(ItemSlotDto[] items, ulong money, EncryptFunc encrypt)
         => PacketSerializationHelper.Serialize(
-            new SInventorySnapshotPacket { Items = items },
+            new SInventorySnapshotPacket { Items = items, Money = money },
             PacketType, Flags, Protocol, encrypt);
 }
 

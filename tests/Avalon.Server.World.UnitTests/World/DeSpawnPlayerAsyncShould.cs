@@ -1,5 +1,6 @@
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.Characters;
+using Avalon.Domain.World;
 using Avalon.World.Public.Characters;
 using Avalon.World.Respawn;
 using NSubstitute;
@@ -30,12 +31,22 @@ public class DeSpawnPlayerAsyncShould
         charEntity.Map.Returns(new MapId(2));
         charEntity.Health.Returns(100u);
 
-        await Avalon.World.World.ApplyDeathLogoutAsync(charEntity, dbCharacter, resolver, CancellationToken.None);
+        MapTemplate town = new()
+        {
+            Id = new MapTemplateId(1), Name = "town", Description = "town",
+            DefaultSpawnX = 10, DefaultSpawnY = 20, DefaultSpawnZ = 30
+        };
+
+        Avalon.World.World.ReviveForDeathLogout(charEntity, dbCharacter);
+        await Avalon.World.World.MoveToRespawnTownAsync(
+            new MapTemplateId(2), dbCharacter, resolver, [town],
+            Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance, CancellationToken.None);
 
         // Live entity is revived (Revive() invoked once).
         charEntity.Received(1).Revive();
-        // Persisted row points at town map 1 with full HP.
+        // Persisted row points at town map 1, at its default spawn, with full HP.
         Assert.Equal((ushort)1, dbCharacter.Map);
+        Assert.Equal((10f, 20f, 30f), (dbCharacter.X, dbCharacter.Y, dbCharacter.Z));
         Assert.Equal(100, dbCharacter.Health);
     }
 }

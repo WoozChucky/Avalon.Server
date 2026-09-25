@@ -9,8 +9,8 @@ namespace Avalon.World.Inventory;
 
 /// <summary>
 /// Puts a CharacterInventory row together with the ItemInstance it points at. The row says where
-/// an item sits and the instance says what it is, and they are persisted in different databases,
-/// so this correlation is the only thing that joins them.
+/// an item sits and the instance says what it is. Both now live in the Character database, joined
+/// by a foreign key, but they are still read as two queries and correlated here.
 /// </summary>
 public static class InventoryAssembler
 {
@@ -63,7 +63,8 @@ public static class InventoryAssembler
                 instance.TemplateId,
                 instance.Count,
                 instance.Durability,
-                instance.Flags));
+                instance.Flags,
+                instance.Charges));
         }
 
         return assembled;

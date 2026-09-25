@@ -32,13 +32,13 @@ variant empty
 
 variant populated
   field 1 Header : NetworkPacketHeader
-    field 1 Type : NetworkPacketType = SMSG_THREAT_LIST (12553)
+    field 1 Type : NetworkPacketType = CMSG_AUDIO_RECORD (8272)
     field 2 Flags : NetworkPacketFlags = ClearText (1)
     field 3 Protocol : NetworkProtocol = Both (3)
     field 4 Version : int = 1000
   field 2 Payload : byte[] = 6 bytes 0a 0d 09 1b 22 5c
   bytes 20
-    0a 0a 08 89 62 10 01 18 03 20 e8 07 12 06 0a 0d
+    0a 0a 08 d0 40 10 01 18 03 20 e8 07 12 06 0a 0d
     09 1b 22 5c
 
 variant maxima

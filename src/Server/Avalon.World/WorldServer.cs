@@ -14,6 +14,8 @@ using Avalon.Network.Packets;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Generic;
 using Avalon.World.Characters;
+using Avalon.World.Inventory;
+using Avalon.World.Persistence;
 using Avalon.World.Public;
 using Avalon.World.Scripts;
 using Avalon.World.Scripts.Abstractions;
@@ -117,6 +119,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
     private readonly Stopwatch _serverTimer = new();
     private readonly Stopwatch _stopwatch = Stopwatch.StartNew();
     private readonly IWorld _world;
+    private readonly ICharacterSaver _characterSaver;
     private readonly ConcurrentQueue<WorldConnection> _pendingDisconnects = new();
     private long _lastTpsCalculationMs;
     private long _tickCount;
@@ -147,13 +150,15 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         IWorld world,
         IScriptManager scriptManager,
         IReplicatedCache cache,
-        IScriptHotReloader scriptHotReloader) : base(packetManager, loggerFactory.CreateLogger<WorldServer>(),
+        IScriptHotReloader scriptHotReloader,
+        ICharacterSaver characterSaver) : base(packetManager, loggerFactory.CreateLogger<WorldServer>(),
         serviceProvider,
         hostingOptions)
     {
         _scriptManager = scriptManager;
         _cache = cache;
         _scriptHotReloader = scriptHotReloader;
+        _characterSaver = characterSaver;
         _logger = loggerFactory.CreateLogger<WorldServer>();
         _world = world;
         
@@ -271,10 +276,39 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
 
         await Task.WhenAll(despawning).ConfigureAwait(false);
 
+        // The pass above only covers despawns it started. A tick starts each despawn without
+        // waiting for it, so one begun on an earlier tick can still be queued behind another save,
+        // or be mid-transaction, and the host disposes the database as soon as this returns. The
+        // periodic saves in flight are the same. Bounded by the host's own stop timeout and by
+        // SaveDrainLimit, because a write that never returns must not hold the process up forever.
+        await WaitForSavesAsync(stoppingToken).ConfigureAwait(false);
+
         if (_waitableTimer != IntPtr.Zero)
         {
             CloseHandle(_waitableTimer);
             _waitableTimer = IntPtr.Zero;
+        }
+    }
+
+    /// <summary>How long shutdown waits for character saves still in flight before giving up on them.</summary>
+    public TimeSpan SaveDrainLimit { get; init; } = TimeSpan.FromSeconds(20);
+
+    private async Task WaitForSavesAsync(CancellationToken stoppingToken)
+    {
+        Task saves = _characterSaver.WhenAllIdle();
+        if (saves.IsCompleted)
+            return;
+
+        try
+        {
+            await saves.WaitAsync(SaveDrainLimit, stoppingToken).ConfigureAwait(false);
+        }
+        catch (Exception e) when (e is TimeoutException or OperationCanceledException)
+        {
+            _logger.LogError(
+                "Shutdown stopped waiting for character saves still in flight after {Limit} or at the host's stop timeout; " +
+                "changes since those characters' last committed save may be lost",
+                SaveDrainLimit);
         }
     }
 
@@ -396,6 +430,12 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         double worldUs = TicksToUs(t2 - t1);
         _worldUpdateHist.Record((long)worldUs);
         _worldUpdateDuration.Record(worldUs);
+
+        // Inventory and money changed anywhere in this tick, in either pass, leave as one packet per
+        // connection with each slot at its final value (spec #459 section 3). Before the ping below,
+        // which has to be the last thing enqueued ahead of the flush.
+        for (int i = 0; i < conns.Length; i++)
+            InventoryUpdateFlusher.Flush(conns[i]);
 
         // Time-sync ping: stagger across the 600-tick window using each connection's
         // list index, so 600 connections still produce only ~1 ping/tick worst case.

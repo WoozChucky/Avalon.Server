@@ -24,6 +24,35 @@ public class CharacterInventoryContainer(ILoggerFactory loggerFactory, Inventory
 
     public IReadOnlyCollection<InventoryItem> Items => _items.Values;
 
+    /// <summary>How many slots this container has.</summary>
+    public ushort Capacity => MaxSlots;
+
+    /// <summary>The empty slots, lowest first.</summary>
+    public IEnumerable<ushort> FreeSlots()
+    {
+        for (ushort slot = 0; slot < MaxSlots; slot++)
+        {
+            if (!_items.ContainsKey(slot))
+                yield return slot;
+        }
+    }
+
+    /// <summary>
+    /// Puts <paramref name="item" /> in its slot, replacing what was there. Only
+    /// CharacterInventoryService calls this, because it also marks the save state and the client
+    /// change; a write that goes around it is neither saved nor sent.
+    /// </summary>
+    public void Put(InventoryItem item)
+    {
+        if (item.Slot >= MaxSlots)
+            throw new ArgumentOutOfRangeException(nameof(item), item.Slot, $"{type} has {MaxSlots} slots");
+
+        _items[item.Slot] = item;
+    }
+
+    /// <summary>Empties a slot. Same caller rule as <see cref="Put" />.</summary>
+    public bool Remove(ushort slot) => _items.Remove(slot);
+
     public void Load(IReadOnlyCollection<InventoryItem> items)
     {
         _items.Clear();

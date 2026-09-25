@@ -10,10 +10,10 @@ using Xunit;
 namespace Avalon.Server.World.UnitTests.Entities;
 
 /// <summary>
-/// The row says where an item sits; the instance says what it is. They live in different
-/// databases, so nothing but this correlation puts them together -- and a row whose instance
-/// is gone must not become a slot holding template zero, which a client would render as
-/// something rather than as nothing.
+/// The row says where an item sits; the instance says what it is. Both live in the Character
+/// database but are read as two queries, so this correlation is what puts them together -- and a
+/// row whose instance is gone must not become a slot holding template zero, which a client would
+/// render as something rather than as nothing.
 /// </summary>
 public class InventoryAssemblerShould
 {
@@ -134,5 +134,18 @@ public class InventoryAssemblerShould
         Assert.Empty(result[InventoryType.Equipment]);
         Assert.Empty(result[InventoryType.Bag]);
         Assert.Empty(result[InventoryType.Bank]);
+    }
+
+    /// <summary>A save writes the whole instance back, so a charge the assembler dropped would be lost.</summary>
+    [Fact]
+    public void Carry_the_charges_onto_the_item()
+    {
+        Guid id = Guid.NewGuid();
+        ItemInstance instance = Instance(id);
+        instance.Charges = 6;
+
+        var result = Assemble([Row(InventoryType.Bag, 0, id)], [instance]);
+
+        Assert.Equal(6u, Assert.Single(result[InventoryType.Bag]).Charges);
     }
 }

@@ -29,6 +29,9 @@ public class Character : IDbEntity<CharacterId>
     [Required]
     public ulong Experience { get; set; } = 0;
 
+    /// <summary>The character's gold, stored in copper. Changed only through IWallet.</summary>
+    public ulong Money { get; set; }
+
     public float X { get; set; }
 
     public float Y { get; set; }
@@ -75,4 +78,10 @@ public class Character : IDbEntity<CharacterId>
     public DateTime CreationDate { get; set; }
 
     public ulong DeleteDate { get; set; }
+
+    /// <summary>
+    /// A detached copy of every column, for a save snapshot. The live row keeps changing on the tick
+    /// thread while the copy is written from another.
+    /// </summary>
+    public Character Copy() => (Character)MemberwiseClone();
 }

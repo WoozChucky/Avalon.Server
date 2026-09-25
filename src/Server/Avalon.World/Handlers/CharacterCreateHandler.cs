@@ -1,7 +1,7 @@
 using Avalon.World.Public;
 using Avalon.Common;
 using Avalon.Database.Character.Repositories;
-using Avalon.Database.World.Repositories;
+using Avalon.World.Inventory;
 using Avalon.Domain.Characters;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abstractions;
@@ -19,6 +19,7 @@ public class CharacterCreateHandler(
     ICharacterAbilityRepository characterAbilityRepository,
     ICharacterInventoryRepository characterInventoryRepository,
     IItemInstanceRepository itemInstanceRepository,
+    IItemIdAllocator itemIds,
     IWorld world)
     : WorldPacketHandler<CCharacterCreatePacket>
 {
@@ -202,15 +203,11 @@ public class CharacterCreateHandler(
                 continue;
             }
 
-            var durability = itemTemplate.Class switch
-            {
-                ItemClass.Weapon => 42U,
-                ItemClass.Armor => 69U,
-                _ => 0U
-            };
+            var durability = ItemInstanceDefaults.InitialDurability(itemTemplate);
 
             var itemInstance = new ItemInstance
             {
+                Id = itemIds.Next(),
                 TemplateId = itemTemplate.Id,
                 CharacterId = character.Id,
                 Count = itemTemplate.Stackable ? itemTemplate.MaxStackSize : 1,

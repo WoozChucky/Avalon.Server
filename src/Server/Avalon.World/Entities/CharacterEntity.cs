@@ -12,15 +12,17 @@ using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Units;
 using Avalon.World.Abilities;
+using Avalon.World.Inventory;
+using Avalon.World.Persistence;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Entities;
 
 public class CharacterEntity : ICharacter
 {
-    private readonly ICharacterInventory _bag;
-    private readonly ICharacterInventory _bank;
-    private readonly ICharacterInventory _equipment;
+    private readonly CharacterInventoryContainer _bag;
+    private readonly CharacterInventoryContainer _bank;
+    private readonly CharacterInventoryContainer _equipment;
 
     private readonly ILogger<CharacterEntity> _logger;
     private readonly RegenConfiguration _regenConfig;
@@ -76,7 +78,13 @@ public class CharacterEntity : ICharacter
 
     public ICharacterGameState CharacterGameState { get; }
 
-    public ICharacterInventory this[InventoryType type] => type switch
+    public ICharacterInventory this[InventoryType type] => Container(type);
+
+    /// <summary>
+    /// The mutable container behind the read-only indexer. Only the inventory service writes through
+    /// it, because it also marks <see cref="SaveState" /> and <see cref="ClientChanges" />.
+    /// </summary>
+    public CharacterInventoryContainer Container(InventoryType type) => type switch
     {
         InventoryType.Equipment => _equipment,
         InventoryType.Bag => _bag,
@@ -84,7 +92,16 @@ public class CharacterEntity : ICharacter
         _ => throw new ArgumentOutOfRangeException(nameof(type), type, null)
     };
 
+    /// <summary>Slots and money the client must be told about at the end of this tick.</summary>
+    public InventoryClientChanges ClientChanges { get; } = new();
+
     public ICharacterAbilities Spells { get; }
+
+    /// <summary>What the next save must write. Marked by the inventory service and the wallet.</summary>
+    public SaveStateTracker SaveState { get; } = new();
+
+    /// <summary>Time left until the next periodic save; null until the character first ticks in a map.</summary>
+    public TimeSpan? NextPeriodicSaveIn { get; set; }
 
     public ObjectGuid Guid { get; set; }
 

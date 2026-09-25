@@ -9,8 +9,8 @@ namespace Avalon.Domain.World;
 /// <remarks>
 /// Deliberately central rather than inline on whatever references it. Both dialogue nodes and
 /// dialogue options are translatable, and quests, items and abilities will be — inline text would
-/// mean a locale table per structural table, which is how AzerothCore reached roughly twenty of
-/// them. This is the shape newer TrinityCore moved to with broadcast_text.
+/// mean a locale table per structural table, and the count would grow with every new kind of
+/// content. One shared text table keeps translation to a single table, whatever references it.
 /// </remarks>
 public class LocalizedText : IDbEntity<LocalizedTextId>
 {

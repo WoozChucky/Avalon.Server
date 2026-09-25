@@ -1,13 +1,13 @@
 using Avalon.World.Public;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
-using Avalon.Database.Character.Repositories;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.World;
 using Avalon.World.ChunkLayouts;
 using Avalon.World.Entities;
 using Avalon.World.Instances;
+using Avalon.World.Persistence;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Instances;
@@ -18,7 +18,7 @@ namespace Avalon.World.Handlers;
 [PacketHandler(NetworkPacketType.CMSG_ENTER_MAP)]
 public class EnterMapHandler(
     ILogger<EnterMapHandler> logger,
-    ICharacterRepository characterRepository,
+    ICharacterSaver characterSaver,
     IChunkLibrary chunkLibrary,
     IWorld world) : WorldPacketHandler<CEnterMapPacket>
 {
@@ -198,8 +198,9 @@ public class EnterMapHandler(
                 connection.CryptoSession.Encrypt));
         }
 
-        // 13. Persist updated map and position
-        if (connection.Character is CharacterEntity {Data: { } dbCharacter})
+        // 13. Persist updated map and position, with any dirty inventory and money, through the one
+        // save path (spec #459 section 1).
+        if (connection.Character is CharacterEntity { Data: { } dbCharacter } entity)
         {
             dbCharacter.Map = targetMapId;
             dbCharacter.InstanceId = targetInstance.InstanceId.ToString();
@@ -207,11 +208,12 @@ public class EnterMapHandler(
             dbCharacter.Y = spawnY;
             dbCharacter.Z = spawnZ;
 
-            connection.EnqueueContinuation(characterRepository.UpdateAsync(dbCharacter, CancellationToken.None), () =>
+            // The saver logs a failure itself; this logs the transfer once the save has finished.
+            connection.EnqueueContinuation(characterSaver.Save(connection, entity), committed =>
             {
                 logger.LogInformation(
-                    "Character {Name} transferred to map {MapId} (instance {InstanceId})",
-                    connection.Character!.Name, targetMapId, targetInstance.InstanceId);
+                    "Character {Name} transferred to map {MapId} (instance {InstanceId}); save committed: {Committed}",
+                    entity.Name, targetMapId, targetInstance.InstanceId, committed);
             });
         }
     }

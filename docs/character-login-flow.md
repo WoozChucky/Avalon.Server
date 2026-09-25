@@ -49,10 +49,10 @@ Game Client              World Server                  Databases / Redis
     │                        │<──────────────────────────────│ List<CharacterInventory>
     │                        │ [OnInventoryReceived]         │
     │                        │                               │
-    │                        │ ItemInstanceRepository.GetByCharacterIdWithTemplateAsync
-    │                        │──────────────────────────────>│  (WorldDbContext -- a second,
-    │                        │<──────────────────────────────│   separate database; no SQL join
-    │                        │                               │   is possible between the two)
+    │                        │ ItemInstanceRepository.GetByCharacterIdAsync
+    │                        │──────────────────────────────>│  (CharacterDbContext, beside
+    │                        │<──────────────────────────────│   the slot rows)
+    │                        │                               │
     │                        │ [OnItemInstancesReceived]     │
     │                        │  InventoryAssembler joins rows to instances,
     │                        │  skipping orphan rows and rows past MaxSlots
@@ -106,17 +106,19 @@ the client sends `CMSG_CHARACTER_LOADED`, or until the wait expires. See
 
 ## Inventory On Login
 
-A character's inventory lives across **two separate Postgres databases**, and no SQL join between
-them is possible:
+A character's inventory is two tables in the **Character database** (`CharacterDbContext`), joined
+by a foreign key:
 
-- `CharacterInventory` rows (`CharacterId, Container, Slot, ItemId`) live in `CharacterDbContext`.
-  They say *where* an item sits.
-- `ItemInstance` rows (`Id, TemplateId, CharacterId, Count, Durability, Flags`) live in
-  `WorldDbContext`. They say *what* it is.
+- `CharacterInventory` rows (`CharacterId, Container, Slot, ItemId`) say *where* an item sits.
+  `ItemId` is a foreign key to `ItemInstance.Id` (cascade on delete).
+- `ItemInstance` rows (`Id, TemplateId, CharacterId, Count, Durability, Charges, Flags, UpdatedAt`)
+  say *what* it is. `Id` is allocated by the world server (`IItemIdAllocator`, a version-7 Guid).
+  `TemplateId` points into the World database, which holds reference data only, so it has no
+  foreign key.
 
 `OnInventoryReceived` (in `CharacterSelectHandler`) fetches the rows via
 `ICharacterInventoryRepository.GetByCharacterIdAsync`, then chains one more continuation —
-`IItemInstanceRepository.GetByCharacterIdWithTemplateAsync` — before anything can be loaded or
+`IItemInstanceRepository.GetByCharacterIdAsync` — before anything can be loaded or
 sent. `OnItemInstancesReceived` correlates the two results (`InventoryAssembler`, keyed on
 `ItemInstance.Id`), skipping a row whose instance is missing or whose slot is `>= MaxSlots`
 (logged as a warning either way — a bad row must not corrupt or oversize a container). The result
@@ -139,6 +141,7 @@ public class SInventorySnapshotPacket : Packet
     public static NetworkPacketType PacketType = NetworkPacketType.SMSG_INVENTORY_SNAPSHOT; // 0x3028
 
     [ProtoMember(1)] public ItemSlotDto[] Items { get; set; }
+    [ProtoMember(2)] public ulong Money { get; set; } // Character.Money, copper
 }
 
 [ProtoContract]
@@ -167,6 +170,32 @@ Notes for a client implementer:
 - `ItemTemplateId` resolves to a name, icon, rarity, etc. via the vendored catalog — see
   `schema/items/item-catalog-v1.json` and `schema/items/item-schema-v1.json` (`docs/tooling.md`
   documents the exporter that produces both).
+- **`Money`** is the character's gold in copper. It is field 2, added after `Items`, so an older
+  reader ignores it.
+
+### `SInventoryUpdatePacket`
+
+Sent at the end of any tick in which the character's equipment, bag or gold changed, at most once
+per connection per tick (`InventoryUpdateFlusher`, called from `WorldServer.Update`). Values are
+absolute, so a lost or duplicated packet cannot leave the client drifting:
+
+```csharp
+public class SInventoryUpdatePacket : Packet   // SMSG_INVENTORY_UPDATE, 0x3029
+{
+    [ProtoMember(1)] public InventorySlotUpdateDto[] Slots { get; set; } // null when only money changed
+    [ProtoMember(2)] public ulong? Money { get; set; }                   // new balance; absent if unchanged
+}
+
+public class InventorySlotUpdateDto
+{
+    [ProtoMember(1)] public ushort Container { get; set; }
+    [ProtoMember(2)] public ushort Slot { get; set; }
+    [ProtoMember(3)] public ItemSlotDto? Item { get; set; } // absent: the slot is now empty
+}
+```
+
+Several changes to one slot within a tick arrive as that slot's final value. Bank slots are never
+sent.
 
 ---
 
@@ -229,6 +258,9 @@ Client sends CPlayerMovementPacket
 | Two characters same world → same `InstanceId`         | see [instanced-maps.md](instanced-maps.md) |
 | 2 equipment + 3 bag items → `SInventorySnapshotPacket` carries exactly 5, bank excluded, every field (`Container`, `Slot`, `ItemTemplateId`, `ItemInstanceId`, `Count`, `Durability`, `Flags`) asserted on at least one slot | `CharacterSelectHandlerShould.Send_Equipment_And_Bag_Items_In_The_Snapshot_But_Not_The_Bank` |
 | Empty inventory → packet still sent, `Items` empty (`null` on the wire, per protobuf-net's empty-repeated-field encoding) | `CharacterSelectHandlerShould.Send_An_Empty_Snapshot_When_The_Character_Has_No_Items` |
+| The character's `Money` crosses in the snapshot | `CharacterSelectHandlerShould.Send_The_Characters_Money_In_The_Snapshot` |
+| Several changes to one slot in a tick → one `SInventoryUpdatePacket` entry at the final value; emptied slot → no `Item`; `Money` only when it changed; nothing sent when nothing changed | `InventoryUpdateFlusherShould` |
+| The tick drains a character's inventory changes | `WorldServerBarrierTickShould.Send_a_characters_inventory_changes_on_the_tick_they_were_made` |
 | Equipment, bag and bank all load into their own containers via the real select chain (`Load()`, not the packet) | `CharacterSelectChainShould.Load_Equipment_Bag_And_Bank_Into_Their_Containers` |
 | Orphan row (no matching `ItemInstance`) → skipped, remaining items unaffected | `InventoryAssemblerShould.Skip_A_Row_Whose_Instance_Is_Missing` |
 | Slot `>= MaxSlots` → dropped on `Load`, container size unaffected | `CharacterInventoryContainerShould.Refuse_A_Slot_Beyond_Its_Capacity` |

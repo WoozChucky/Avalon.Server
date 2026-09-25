@@ -2,7 +2,6 @@ using Avalon.Common.Mathematics;
 using Avalon.Common.Utils;
 using Avalon.Common.ValueObjects;
 using Avalon.Database.Auth.Repositories;
-using Avalon.Database.Character.Repositories;
 using Avalon.Database.World.Repositories;
 using Avalon.Domain.Auth;
 using Avalon.Domain.Characters;
@@ -11,6 +10,7 @@ using Avalon.World.Configuration;
 using Avalon.World.Entities;
 using Avalon.World.Instances;
 using Avalon.World.Maps;
+using Avalon.World.Persistence;
 using Avalon.World.ChunkLayouts;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
@@ -126,24 +126,30 @@ public class World : IWorld
         // Marked online here rather than at select. Between the two the character is built but not
         // in the world, so a row written online there is a claim nothing can retract: the despawn
         // writes it back from an instance membership that does not exist yet.
-        if (connection.Character is CharacterEntity { Data: { } row })
+        if (connection.Character is CharacterEntity { Data: { } row } entity)
         {
             row.Online = true;
-            _ = PersistOnlineAsync(row);
+            PersistOnline(connection, entity);
         }
     }
 
-    private async Task PersistOnlineAsync(Character row)
+    /// <summary>
+    /// Through the character's save chain, like every other write of the row. A separate write of the
+    /// live row could land after a later save and put back an older balance, or after the despawn
+    /// save and mark a character online who has already left.
+    /// </summary>
+    private void PersistOnline(IWorldConnection connection, CharacterEntity entity)
     {
         try
         {
-            await using AsyncServiceScope scope = _serviceScopeFactory.CreateAsyncScope();
-            await scope.ServiceProvider.GetRequiredService<ICharacterRepository>()
-                .UpdateAsync(row, CancellationToken.None);
+            using IServiceScope scope = _serviceScopeFactory.CreateScope();
+            // Fire and forget: the saver logs a failed write, and the flag goes out again with the
+            // next save, which writes the whole row.
+            _ = scope.ServiceProvider.GetRequiredService<ICharacterSaver>().Save(connection, entity);
         }
         catch (Exception e)
         {
-            _logger.LogError(e, "Failed to mark character {CharacterId} online", row.Id);
+            _logger.LogError(e, "Failed to mark character {CharacterId} online", entity.Data?.Id);
         }
     }
 
@@ -178,7 +184,7 @@ public class World : IWorld
             // Exit-path (Phase H): drop the character from any in-progress encounter before
             // unregistering them from the instance. Single hook covers logout, alt-F4, and TCP
             // timeout — all disconnect paths flow through DeSpawnPlayerAsync. Done before
-            // RemoveCharacter (and before ApplyDeathLogoutAsync below) so the encounter doesn't
+            // RemoveCharacter (and before ReviveForDeathLogout below) so the encounter doesn't
             // hold a stale dead-player participant after Revive() runs.
             instance?.CombatService.DropPlayerFromEncounter(connection.Character);
 
@@ -189,22 +195,32 @@ public class World : IWorld
             instance?.RemoveCharacter(connection);
 
             await using AsyncServiceScope scope = _serviceScopeFactory.CreateAsyncScope();
-            ICharacterRepository characterRepository =
-                scope.ServiceProvider.GetRequiredService<ICharacterRepository>();
+            ICharacterSaver characterSaver = scope.ServiceProvider.GetRequiredService<ICharacterSaver>();
 
             CharacterEntity? entity = connection.Character! as CharacterEntity;
             Character dbCharacter = entity!.Data!;
 
+            // Everything from here to the save runs on the tick, with no await before it: until the
+            // connection leaves the server, the tick can still run this character's queued save
+            // acknowledgements, so the snapshot must be taken here and not on the thread pool.
+            Func<Character, CancellationToken, Task>? prepareRow = null;
+
             if (connection.Character.IsDead)
             {
-                await ApplyDeathLogoutAsync(connection.Character, dbCharacter,
-                    scope.ServiceProvider.GetRequiredService<IRespawnTargetResolver>(),
-                    CancellationToken.None);
+                ReviveForDeathLogout(connection.Character, dbCharacter);
 
-                var townTemplate = _mapManager.Templates.FirstOrDefault(t => t.Id == new MapTemplateId(dbCharacter.Map));
-                dbCharacter.X = townTemplate?.DefaultSpawnX ?? 0f;
-                dbCharacter.Y = townTemplate?.DefaultSpawnY ?? 0f;
-                dbCharacter.Z = townTemplate?.DefaultSpawnZ ?? 0f;
+                // Where it died, which is where it stays if no town can be found at all.
+                dbCharacter.X = entity.Position.x;
+                dbCharacter.Y = entity.Position.y;
+                dbCharacter.Z = entity.Position.z;
+
+                // Finding the respawn town needs the database, so it happens inside the chained
+                // write, on the copy of the row the snapshot took.
+                var diedOn = new MapTemplateId(connection.Character.Map.Value);
+                IRespawnTargetResolver resolver = scope.ServiceProvider.GetRequiredService<IRespawnTargetResolver>();
+                IReadOnlyList<MapTemplate> templates = _mapManager.Templates;
+                ILogger logger = _logger;
+                prepareRow = (row, token) => MoveToRespawnTownAsync(diedOn, row, resolver, templates, logger, token);
             }
             // If logging out from a Normal map, redirect the character to the associated town
             else if (instance?.MapType == MapType.Normal)
@@ -231,7 +247,11 @@ public class World : IWorld
             dbCharacter.Online = false;
             dbCharacter.LevelTime += (ulong)(DateTime.UtcNow - entity.EnteredWorld).TotalSeconds;
             dbCharacter.TotalTime += (ulong)(DateTime.UtcNow - entity.EnteredWorld).TotalSeconds;
-            await characterRepository.UpdateAsync(dbCharacter);
+            // Memory is authoritative (spec #459 D3): the row, the money and every dirty item and slot
+            // go in one transaction, queued behind any save of this character still in flight. The
+            // snapshot is taken and the save joins the chain synchronously, here on the tick, so a
+            // relog's WhenIdle already sees it.
+            await characterSaver.SaveOnDespawnAsync(entity, prepareRow, CancellationToken.None);
         }
         catch (InvalidOperationException)
         {
@@ -301,24 +321,77 @@ public class World : IWorld
     }
 
     /// <summary>
-    /// Applies the "logout while dead" branch in isolation — resolves the respawn town,
-    /// revives the live entity, and rewrites the persisted Character row to land at the
-    /// town with full HP. No outbound packets are sent (the connection is gone). Public
-    /// so the unit-test for this branch can drive it without standing up the full
-    /// DeSpawnPlayerAsync DI graph.
+    /// The tick half of "logout while dead": revives the live entity and writes its full HP to the
+    /// row, before the save snapshots it. No outbound packets are sent (the connection is gone).
+    /// Public so the unit test for this branch can drive it without the full despawn DI graph.
     /// </summary>
-    public static async Task ApplyDeathLogoutAsync(
-        ICharacter character,
-        Character dbCharacter,
+    public static void ReviveForDeathLogout(ICharacter character, Character dbCharacter)
+    {
+        character.Revive();
+        dbCharacter.Health = (int)character.Health;
+    }
+
+    /// <summary>The town a dead logout goes to when the respawn town cannot be looked up at all.</summary>
+    private static readonly MapTemplateId FallbackTownId = new(1);
+
+    /// <summary>
+    /// The database half of "logout while dead": resolves the respawn town for the map the character
+    /// died on, and moves <paramref name="row" /> to it, at the town's default spawn. Runs inside the
+    /// chained despawn save, on the thread pool, against the snapshot's copy of the row only.
+    /// </summary>
+    /// <remarks>
+    /// Never throws for a failed lookup. The lookup reads the World database and the save writes the
+    /// Character database; a throw here would fail the whole save and lose the character's items,
+    /// money and offline flag with it. On failure the row goes to town 1's default spawn, or, when
+    /// town 1 is not a known template either, stays at the map and position it died at. A cancelled
+    /// save still cancels.
+    /// </remarks>
+    public static async Task MoveToRespawnTownAsync(
+        MapTemplateId diedOn,
+        Character row,
         IRespawnTargetResolver resolver,
+        IReadOnlyList<MapTemplate> templates,
+        ILogger logger,
         CancellationToken ct)
     {
-        var townId = await resolver.ResolveTownAsync(new MapTemplateId(character.Map.Value), ct);
-        character.Revive();
-        dbCharacter.Map = townId.Value;
-        dbCharacter.Health = (int)character.Health;
-        // Position is overwritten by the caller (DeSpawnPlayerAsync) using
-        // MapTemplate.DefaultSpawn{X,Y,Z}.
+        MapTemplateId townId;
+        try
+        {
+            townId = await resolver.ResolveTownAsync(diedOn, ct).ConfigureAwait(false);
+        }
+        catch (Exception e) when (e is not OperationCanceledException || !ct.IsCancellationRequested)
+        {
+            MapTemplate? fallback = templates.FirstOrDefault(t => t.Id == FallbackTownId);
+            if (fallback is null)
+            {
+                logger.LogError(e,
+                    "Finding the respawn town for character {CharacterId}, who logged out dead on map {MapId}, failed, " +
+                    "and town {FallbackTownId} is not loaded; saving it where it died",
+                    row.Id.Value, diedOn.Value, FallbackTownId.Value);
+                return;
+            }
+
+            logger.LogError(e,
+                "Finding the respawn town for character {CharacterId}, who logged out dead on map {MapId}, failed; " +
+                "saving it at town {FallbackTownId}",
+                row.Id.Value, diedOn.Value, FallbackTownId.Value);
+            MoveTo(row, fallback);
+            return;
+        }
+
+        MapTemplate? town = templates.FirstOrDefault(t => t.Id == townId);
+        row.Map = townId.Value;
+        row.X = town?.DefaultSpawnX ?? 0f;
+        row.Y = town?.DefaultSpawnY ?? 0f;
+        row.Z = town?.DefaultSpawnZ ?? 0f;
+    }
+
+    private static void MoveTo(Character row, MapTemplate town)
+    {
+        row.Map = town.Id.Value;
+        row.X = town.DefaultSpawnX;
+        row.Y = town.DefaultSpawnY;
+        row.Z = town.DefaultSpawnZ;
     }
 
     private void ApplyScriptsHotReload(List<Type> aiScriptTypes)

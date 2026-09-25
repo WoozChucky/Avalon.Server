@@ -77,4 +77,32 @@ public class CharacterInventoryContainerShould
     {
         Assert.Empty(Bag().Items);
     }
+
+    [Fact]
+    public void List_its_free_slots_lowest_first()
+    {
+        var container = Bag();
+        container.Load([Item(0), Item(2)]);
+
+        Assert.Equal<ushort>([1, 3, 4], container.FreeSlots().Take(3));
+        Assert.Equal(30, container.Capacity);
+    }
+
+    [Fact]
+    public void Put_and_remove_an_item_by_slot()
+    {
+        var container = Bag();
+
+        container.Put(Item(5, template: 9));
+        Assert.True(container.TryGet(5, out _));
+
+        Assert.True(container.Remove(5));
+        Assert.False(container.Remove(5));
+    }
+
+    [Fact]
+    public void Refuse_a_slot_the_container_does_not_have()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => Bag().Put(Item(30)));
+    }
 }

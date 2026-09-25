@@ -15,6 +15,7 @@ using Avalon.World;
 using Avalon.World.ChunkLayouts;
 using Avalon.World.Configuration;
 using Avalon.World.Handlers;
+using Avalon.World.Persistence;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Enums;
@@ -51,7 +52,8 @@ public class CharacterSelectHandlerShould
 
     private static async Task<Fixture> BuildAsync(
         IReadOnlyCollection<CharacterInventory>? inventoryRows = null,
-        IReadOnlyCollection<ItemInstance>? itemInstances = null)
+        IReadOnlyCollection<ItemInstance>? itemInstances = null,
+        ulong money = 0)
     {
         var row = new Character
         {
@@ -61,7 +63,8 @@ public class CharacterSelectHandlerShould
             Class = CharacterClass.Warrior,
             Level = 1,
             Map = TownMapId,
-            X = 1, Y = 2, Z = 3
+            X = 1, Y = 2, Z = 3,
+            Money = money,
         };
 
         var characterRepository = Substitute.For<ICharacterRepository>();
@@ -117,6 +120,7 @@ public class CharacterSelectHandlerShould
                 sentPackets.Add(packet);
             });
         RunContinuationsInline<Character>(connection);
+        RunContinuationsInline<(Character? Character, bool SaveStillRunning)>(connection);
         RunContinuationsInline<IMapInstance>(connection);
         RunContinuationsInline<IReadOnlyCollection<CharacterInventory>>(connection);
         RunContinuationsInline<IReadOnlyList<ItemInstance>>(connection);
@@ -133,7 +137,8 @@ public class CharacterSelectHandlerShould
             world,
             Substitute.For<IRespawnTargetResolver>(),
             Options.Create(new RegenConfiguration()),
-            Substitute.For<IAccountRepository>());
+            Substitute.For<IAccountRepository>(),
+            Substitute.For<ICharacterSaver>());
 
         return new Fixture
         {
@@ -325,18 +330,23 @@ public class CharacterSelectHandlerShould
         Assert.Empty(snapshot.Items ?? []);
     }
 
+    [Fact]
+    public async Task Send_The_Characters_Money_In_The_Snapshot()
+    {
+        Fixture f = await BuildAsync(money: 123_456_789_012UL);
+
+        f.Handler.Execute(f.Connection, new CCharacterSelectedPacket { CharacterId = TheCharacter });
+
+        Assert.Equal(123_456_789_012UL, DeserializeInventorySnapshot(f).Money);
+    }
+
     /// <summary>
-    /// Login reads only TemplateId, Count, Durability and Flags off each instance, and the client
-    /// resolves template ids against the vendored item catalog -- so joining the 41-column
-    /// ItemTemplate to every carried item loads a row nothing reads. The REST API's inventory
-    /// endpoint does project the template, which is why both methods exist.
-    ///
-    /// Asserted at the repository seam rather than on the SQL: this repository has no integration
-    /// test infrastructure, so which method login asks for is the only observable that
-    /// distinguishes the two queries.
+    /// Login reads the character's item instances from the Character database, beside the slot
+    /// rows. There is no template join to ask for any more: templates live in the World database,
+    /// and the client resolves template ids against the vendored item catalog.
     /// </summary>
     [Fact]
-    public async Task Ask_For_Item_Instances_Without_Joining_Their_Templates()
+    public async Task Read_The_Characters_Item_Instances()
     {
         Fixture f = await BuildAsync();
 
@@ -344,8 +354,6 @@ public class CharacterSelectHandlerShould
 
         await f.ItemInstances.Received(1)
             .GetByCharacterIdAsync(TheCharacter, Arg.Any<CancellationToken>());
-        await f.ItemInstances.DidNotReceiveWithAnyArgs()
-            .GetByCharacterIdWithTemplateAsync(default!, default);
     }
 
     [Fact]
@@ -432,7 +440,8 @@ public class CharacterSelectHandlerShould
             Substitute.For<IWorld>(),
             Substitute.For<IRespawnTargetResolver>(),
             Options.Create(new RegenConfiguration()),
-            accountRepository);
+            accountRepository,
+            Substitute.For<ICharacterSaver>());
 
         handler.Execute(connection, new CCharacterSelectedPacket { CharacterId = TheCharacter });
 

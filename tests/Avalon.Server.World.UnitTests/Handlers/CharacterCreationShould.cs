@@ -11,6 +11,7 @@ using Avalon.World;
 using Avalon.World.Configuration;
 using Avalon.World.Entities;
 using Avalon.World.Handlers;
+using Avalon.World.Inventory;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Enums;
@@ -60,11 +61,15 @@ public class CharacterCreationShould : IDisposable
         Assert.Equal(createInfo.StartingItems.Count,
             await characterDb.CharacterInventory.CountAsync(i => i.CharacterId == character.Id));
 
-        // The item instances name their template by foreign key. A navigation would point at the
-        // cached template StaticData has held since startup, and insert it a second time.
+        // The item instances now live beside the slots that point at them, and each carries an id
+        // the server allocated.
+        List<ItemInstance> items = await characterDb.ItemInstances.AsNoTracking()
+            .Where(i => i.CharacterId == character.Id).ToListAsync();
+        Assert.Equal(createInfo.StartingItems.Count, items.Count);
+        Assert.All(items, item => Assert.NotEqual(Guid.Empty, item.Id.Value));
+
+        // StaticData's cached templates were not written back into the World database.
         await using WorldDbContext worldDb = _world.CreateDbContext();
-        Assert.Equal(createInfo.StartingItems.Count,
-            await worldDb.ItemInstances.CountAsync(i => i.CharacterId == character.Id));
         Assert.Equal(createInfo.StartingItems.Distinct().Count(),
             await worldDb.ItemTemplates.CountAsync(t => createInfo.StartingItems.Contains(t.Id)));
     }
@@ -110,7 +115,7 @@ public class CharacterCreationShould : IDisposable
         IWorldConnection connection = NewConnection();
         CharacterCreateHandler handler = new(
             NullLogger<CharacterCreateHandler>.Instance,
-            characters, stats, abilities, inventory, items, NewWorld(data));
+            characters, stats, abilities, inventory, items, new ItemIdAllocator(), NewWorld(data));
 
         handler.Execute(connection, new CCharacterCreatePacket
         {
@@ -132,7 +137,7 @@ public class CharacterCreationShould : IDisposable
         Assert.NotEmpty(instances);
         Assert.All(instances, instance =>
         {
-            Assert.Null(instance.Template);
+            Assert.NotEqual(Guid.Empty, instance.Id.Value);
             Assert.NotEqual(default, instance.TemplateId);
         });
     }
@@ -278,7 +283,8 @@ public class CharacterCreationShould : IDisposable
         new CharacterStatsRepository(_characters),
         new CharacterAbilityRepository(_characters),
         new CharacterInventoryRepository(_characters),
-        new ItemInstanceRepository(_world),
+        new ItemInstanceRepository(_characters),
+        new ItemIdAllocator(),
         NewWorld(data));
 
     private static IWorld NewWorld(StaticData data)

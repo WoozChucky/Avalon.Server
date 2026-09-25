@@ -86,4 +86,19 @@ public class GameConfiguration
     /// </summary>
     [Range(0.5, 20.0)]
     public float MeleeSlotRadius { get; set; } = 1.5f;
+
+    /// <summary>
+    ///     The most copper a character can hold. An addition that would pass it is refused whole,
+    ///     rather than clamped. The default is large enough that normal play never reaches it and
+    ///     well within what the database column holds.
+    /// </summary>
+    public ulong MaxMoney { get; set; } = 9_999_999_999;
+
+    /// <summary>
+    ///     How often every in-world character is saved (spec #459, D4). Each character's first save is
+    ///     staggered inside one interval by its id, so characters that entered together do not all
+    ///     save on the same tick.
+    /// </summary>
+    [Range(typeof(TimeSpan), "00:00:10", "01:00:00")]
+    public TimeSpan CharacterSaveInterval { get; set; } = TimeSpan.FromMinutes(5);
 }

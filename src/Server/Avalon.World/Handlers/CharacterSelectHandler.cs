@@ -17,6 +17,7 @@ using Avalon.World.Configuration;
 using Avalon.World.Entities;
 using Avalon.World.Instances;
 using Avalon.World.Inventory;
+using Avalon.World.Persistence;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Enums;
@@ -41,9 +42,18 @@ public class CharacterSelectHandler(
     IWorld world,
     IRespawnTargetResolver respawnTargetResolver,
     IOptions<RegenConfiguration> regenConfig,
-    IAccountRepository accountRepository) : WorldPacketHandler<CCharacterSelectedPacket>
+    IAccountRepository accountRepository,
+    ICharacterSaver characterSaver) : WorldPacketHandler<CCharacterSelectedPacket>
 {
     private Activity? _parentActivity;
+
+    /// <summary>
+    /// How long a select waits for the character's previous saves before giving up. Past it the
+    /// select fails without reading, and the client can select again. Well inside
+    /// <see cref="GameConfiguration.CharacterLoadTimeoutSeconds" />, which cancels the whole select,
+    /// so a slow save leaves the rest of the load time to the reads.
+    /// </summary>
+    public TimeSpan SaveWaitLimit { get; init; } = TimeSpan.FromSeconds(5);
 
     public override void Execute(IWorldConnection connection, CCharacterSelectedPacket packet)
     {
@@ -76,8 +86,18 @@ public class CharacterSelectHandler(
         connection.BeginSelect(DateTime.UtcNow.Ticks);
 
         connection.EnqueueContinuation(
-            characterRepository.FindByIdAndAccountAsync(packet.CharacterId, connection.AccountId),
-            character => { OnCharacterReceived(connection, character); });
+            FindAfterSavesAsync(packet.CharacterId, connection.AccountId),
+            found =>
+            {
+                if (found.SaveStillRunning)
+                {
+                    // Nothing was read and nothing was built: the select simply did not happen.
+                    connection.CancelSelect();
+                    return;
+                }
+
+                OnCharacterReceived(connection, found.Character);
+            });
 
         // Locale for dialogue text. Independent of the select chain: the default is enUS, so a slow
         // or failed read costs English text rather than correctness. TODO-029 wants the world's
@@ -103,6 +123,40 @@ public class CharacterSelectHandler(
             });
 
         _parentActivity = activity;
+    }
+
+    /// <summary>
+    /// A relog builds a new entity from the database, while the previous session's despawn save may
+    /// still be writing. Reading before it commits would load the inventory and money as they were
+    /// before that save, and the next save would then write the stale state back over it. Every read
+    /// of the select chain follows this one, so waiting here covers all of them.
+    /// </summary>
+    /// <remarks>
+    /// A wait that runs out reads nothing. Reading anyway would load the row and slots from before
+    /// the save still running; that save would then commit, and the new session's first save (the
+    /// one marking it online at spawn) would write the stale money and slots back over it.
+    /// </remarks>
+    private async Task<(Character? Character, bool SaveStillRunning)> FindAfterSavesAsync(CharacterId id, AccountId accountId)
+    {
+        Task idle = characterSaver.WhenIdle(id);
+        if (!idle.IsCompleted)
+        {
+            try
+            {
+                await idle.WaitAsync(SaveWaitLimit, CancellationToken.None).ConfigureAwait(false);
+            }
+            catch (TimeoutException)
+            {
+                logger.LogWarning(
+                    "Character {CharacterId} still had a save in flight after {Limit}; failing the select without reading it, so the client can retry",
+                    id.Value, SaveWaitLimit);
+                return (null, true);
+            }
+        }
+
+        Character? character = await characterRepository.FindByIdAndAccountAsync(id, accountId, CancellationToken.None)
+            .ConfigureAwait(false);
+        return (character, false);
     }
 
     private void OnCharacterReceived(IWorldConnection connection, Character? character)
@@ -324,8 +378,9 @@ public class CharacterSelectHandler(
         activity?.SetTag(nameof(connection.AccountId), connection.AccountId);
         activity?.SetTag("CharacterId", character.Id);
 
-        // The rows say where the items sit; the instances say what they are, and they live in a
-        // different database. Nothing can be loaded or sent until both are in hand.
+        // The rows say where the items sit; the instances say what they are. Both live in the
+        // Character database but are read as two queries. Nothing can be loaded or sent until
+        // both are in hand.
         //
         // Without the templates: login reads only the instance's own columns, and the client
         // resolves template ids against the vendored item catalog. Joining 41 columns per carried
@@ -362,7 +417,7 @@ public class CharacterSelectHandler(
             .. ToDtos(InventoryType.Bag, entity[InventoryType.Bag].Items),
         ];
 
-        connection.Send(SInventorySnapshotPacket.Create(carried, connection.CryptoSession.Encrypt));
+        connection.Send(SInventorySnapshotPacket.Create(carried, character.Money, connection.CryptoSession.Encrypt));
 
         connection.EnqueueContinuation(characterAbilityRepository.GetCharacterAbilitiesAsync(character.Id, CancellationToken.None),
             spells => OnSpellsReceived(connection, entity, instance, spells));
@@ -370,16 +425,7 @@ public class CharacterSelectHandler(
     }
 
     private static IEnumerable<ItemSlotDto> ToDtos(InventoryType container, IReadOnlyCollection<InventoryItem> items)
-        => items.Select(item => new ItemSlotDto
-        {
-            Container = (ushort)container,
-            Slot = item.Slot,
-            ItemTemplateId = item.TemplateId.Value,
-            ItemInstanceId = item.InstanceId.Value,
-            Count = item.Count,
-            Durability = item.Durability,
-            Flags = (uint)item.Flags,
-        });
+        => items.Select(item => ItemSlotDtoMapper.ToDto(container, item));
 
     private void OnSpellsReceived(IWorldConnection connection, CharacterEntity entity, IMapInstance instance,
         IReadOnlyCollection<CharacterAbility> spells)

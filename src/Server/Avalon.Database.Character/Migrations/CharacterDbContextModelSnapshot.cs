@@ -17,7 +17,7 @@ namespace Avalon.Database.Character.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.7")
+                .HasAnnotation("ProductVersion", "10.0.12")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -77,6 +77,9 @@ namespace Avalon.Database.Character.Migrations
 
                     b.Property<int>("Map")
                         .HasColumnType("integer");
+
+                    b.Property<decimal>("Money")
+                        .HasColumnType("numeric(20,0)");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -162,6 +165,8 @@ namespace Avalon.Database.Character.Migrations
 
                     b.HasIndex("CharacterId");
 
+                    b.HasIndex("ItemId");
+
                     b.ToTable("CharacterInventory");
                 });
 
@@ -216,6 +221,39 @@ namespace Avalon.Database.Character.Migrations
                     b.ToTable("CharacterStats");
                 });
 
+            modelBuilder.Entity("Avalon.Domain.World.ItemInstance", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<long>("CharacterId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("Charges")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("Count")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("Durability")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("Flags")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal>("TemplateId")
+                        .HasColumnType("numeric(20,0)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CharacterId");
+
+                    b.ToTable("ItemInstances");
+                });
+
             modelBuilder.Entity("Avalon.Domain.Characters.CharacterAbility", b =>
                 {
                     b.HasOne("Avalon.Domain.Characters.Character", "Character")
@@ -235,6 +273,12 @@ namespace Avalon.Database.Character.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("Avalon.Domain.World.ItemInstance", null)
+                        .WithMany()
+                        .HasForeignKey("ItemId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
                     b.Navigation("Character");
                 });
 
@@ -247,6 +291,15 @@ namespace Avalon.Database.Character.Migrations
                         .IsRequired();
 
                     b.Navigation("Character");
+                });
+
+            modelBuilder.Entity("Avalon.Domain.World.ItemInstance", b =>
+                {
+                    b.HasOne("Avalon.Domain.Characters.Character", null)
+                        .WithMany()
+                        .HasForeignKey("CharacterId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 #pragma warning restore 612, 618
         }

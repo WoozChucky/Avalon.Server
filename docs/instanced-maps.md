@@ -6,7 +6,7 @@ This document describes the instanced map architecture used by the World server.
 
 ## Overview
 
-Avalon uses a Path of Exile-style instanced map system rather than a single persistent open world.
+Avalon has no single persistent open world. Players gather in shared town instances and play in private instances, created on demand and freed after a period of disuse.
 
 > **Map geometry / authoring:** instances are built from chunk-composed layouts — the same pipeline drives both town and procedural maps. See **[Map Generation](map-generation.md)** for chunk authoring, town layout authoring, the `ChunkLayoutInstanceFactory` build flow, and the `SChunkLayoutPacket` wire format. This document covers instance lifecycle (creation, routing, transitions, expiry); the geometry stack lives in the map-generation doc.
 
