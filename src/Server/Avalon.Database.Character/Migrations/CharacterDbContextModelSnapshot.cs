@@ -292,6 +292,15 @@ namespace Avalon.Database.Character.Migrations
 
                     b.Navigation("Character");
                 });
+
+            modelBuilder.Entity("Avalon.Domain.World.ItemInstance", b =>
+                {
+                    b.HasOne("Avalon.Domain.Characters.Character", null)
+                        .WithMany()
+                        .HasForeignKey("CharacterId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
 #pragma warning restore 612, 618
         }
     }

@@ -34,6 +34,12 @@ namespace Avalon.Database.Character.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_ItemInstances", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_ItemInstances_Characters_CharacterId",
+                        column: x => x.CharacterId,
+                        principalTable: "Characters",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
                 });
 
             migrationBuilder.CreateIndex(
@@ -50,6 +56,10 @@ namespace Avalon.Database.Character.Migrations
             // slot rows point at items that are not in this database yet, which on the first run is
             // every row. This is the migration's only data change. The owner's one-off carry-over
             // script puts the rows back afterwards; any other environment simply starts empty.
+            //
+            // The table's own key to Characters is created with the table, while it is still empty,
+            // so it can never be violated here; the carry-over script imports only items whose
+            // character still exists.
             migrationBuilder.Sql("""
                 DELETE FROM "CharacterInventory" AS ci
                 WHERE NOT EXISTS (SELECT 1 FROM "ItemInstances" AS ii WHERE ii."Id" = ci."ItemId");

@@ -2,11 +2,13 @@ using Avalon.Common;
 using Avalon.Common.ValueObjects;
 using Avalon.Database.Character;
 using Avalon.Database.Character.Migrations;
+using Avalon.Database.Character.Repositories;
 using Avalon.Domain.Characters;
 using Avalon.Domain.World;
 using Avalon.World.Public.Enums;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Migrations.Operations;
 using Xunit;
 using CharacterRow = Avalon.Domain.Characters.Character;
@@ -124,6 +126,63 @@ public class CharacterDbContextShould
         Assert.Equal(DeleteBehavior.Cascade, foreignKey.DeleteBehavior);
     }
 
+    /// <summary>
+    /// A character is hard-deleted. Its slots cascade from the character row, and its items must
+    /// too, or every item it held is left in the table with nothing that owns it.
+    /// </summary>
+    [Fact]
+    public async Task Delete_a_characters_items_together_with_the_character()
+    {
+        using SqliteDatabase<CharacterDbContext> database = WithForeignKeys();
+        CharacterId owner, other;
+
+        await using (CharacterDbContext write = database.CreateDbContext())
+        {
+            CharacterRow deleted = NewCharacter(), kept = NewCharacter();
+            kept.Name = "Keeper";
+            write.Characters.AddRange(deleted, kept);
+            await write.SaveChangesAsync();
+            (owner, other) = (deleted.Id, kept.Id);
+
+            foreach ((CharacterId holder, ushort slot) in new[] { (owner, (ushort)0), (owner, (ushort)1), (other, (ushort)0) })
+            {
+                var itemId = new ItemInstanceId(Guid.CreateVersion7());
+                write.ItemInstances.Add(new ItemInstance
+                {
+                    Id = itemId, TemplateId = new ItemTemplateId(4242), CharacterId = holder, Count = 1,
+                    UpdatedAt = DateTime.UtcNow,
+                });
+                write.CharacterInventory.Add(new CharacterInventory
+                {
+                    CharacterId = holder, Container = InventoryType.Bag, Slot = slot, ItemId = itemId,
+                });
+            }
+
+            await write.SaveChangesAsync();
+        }
+
+        // The path the character delete takes: the row is loaded on its own and removed.
+        await new CharacterRepository(database).DeleteAsync(owner);
+
+        await using CharacterDbContext read = database.CreateDbContext();
+        Assert.Equal(other, Assert.Single(await read.ItemInstances.AsNoTracking().ToListAsync()).CharacterId);
+        Assert.Equal(other, Assert.Single(await read.CharacterInventory.AsNoTracking().ToListAsync()).CharacterId);
+    }
+
+    [Fact]
+    public void Tie_every_item_to_its_character_by_a_cascading_key()
+    {
+        using SqliteDatabase<CharacterDbContext> database = SqliteDatabase.Characters();
+        using CharacterDbContext context = database.CreateDbContext();
+
+        IForeignKey foreignKey = context.Model.FindEntityType(typeof(ItemInstance))!
+            .GetForeignKeys()
+            .Single(fk => fk.PrincipalEntityType.ClrType == typeof(CharacterRow));
+
+        Assert.Equal(nameof(ItemInstance.CharacterId), Assert.Single(foreignKey.Properties).Name);
+        Assert.Equal(DeleteBehavior.Cascade, foreignKey.DeleteBehavior);
+    }
+
     [Fact]
     public void Leave_item_ids_to_the_server()
     {
@@ -172,6 +231,24 @@ public class CharacterDbContextShould
         Assert.True(delete >= 0, "the migration does not delete orphaned CharacterInventory rows");
         Assert.True(foreignKey >= 0, "the migration does not add the CharacterInventory -> ItemInstances foreign key");
         Assert.True(delete < foreignKey, "the orphan delete must run before the foreign key is added");
+    }
+
+    /// <summary>
+    /// The table is created with its key to the character in place, so no item row can ever exist
+    /// without its character, including the ones the owner's carry-over script imports afterwards.
+    /// </summary>
+    [Fact]
+    public void Create_the_item_table_with_its_key_to_the_character()
+    {
+        var migration = new AddMoneyAndItemInstances { ActiveProvider = "Npgsql.EntityFrameworkCore.PostgreSQL" };
+        List<MigrationOperation> operations = migration.UpOperations.ToList();
+
+        CreateTableOperation table = operations.OfType<CreateTableOperation>().Single(t => t.Name == "ItemInstances");
+        AddForeignKeyOperation foreignKey = Assert.Single(table.ForeignKeys);
+
+        Assert.Equal("Characters", foreignKey.PrincipalTable);
+        Assert.Equal(["CharacterId"], foreignKey.Columns);
+        Assert.Equal(ReferentialAction.Cascade, foreignKey.OnDelete);
     }
 
     private static SqliteDatabase<CharacterDbContext> WithForeignKeys()

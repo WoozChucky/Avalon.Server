@@ -12,7 +12,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Avalon.Database.Character.Migrations
 {
     [DbContext(typeof(CharacterDbContext))]
-    [Migration("20260925173326_AddMoneyAndItemInstances")]
+    [Migration("20260925191105_AddMoneyAndItemInstances")]
     partial class AddMoneyAndItemInstances
     {
         /// <inheritdoc />
@@ -294,6 +294,15 @@ namespace Avalon.Database.Character.Migrations
                         .IsRequired();
 
                     b.Navigation("Character");
+                });
+
+            modelBuilder.Entity("Avalon.Domain.World.ItemInstance", b =>
+                {
+                    b.HasOne("Avalon.Domain.Characters.Character", null)
+                        .WithMany()
+                        .HasForeignKey("CharacterId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 #pragma warning restore 612, 618
         }

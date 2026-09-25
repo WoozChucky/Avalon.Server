@@ -217,6 +217,13 @@ public class CharacterDbContext : DbContext
                 v => new CharacterId(v)
             );
 
+        // Characters are hard-deleted. The slots cascade from the character row, and the items must
+        // too, or every item a deleted character held is left behind with nothing that owns it.
+        builder.HasOne<Domain.Characters.Character>()
+            .WithMany()
+            .HasForeignKey(i => i.CharacterId)
+            .OnDelete(DeleteBehavior.Cascade);
+
         // A plain reference into the World database: no navigation and no foreign key.
         builder.Property(b => b.TemplateId)
             .HasConversion(
