@@ -1,0 +1,130 @@
+using System.Net;
+using System.Net.Http.Json;
+using Avalon.Api.Services;
+using Avalon.Common.ValueObjects;
+using Avalon.Domain.Auth;
+using Avalon.Infrastructure.Services;
+using NSubstitute;
+using Xunit;
+using static Avalon.Api.UnitTests.Authentication.ApiAuthHost;
+using RefreshResponse = Avalon.Api.Contract.RefreshResponse;
+
+namespace Avalon.Api.UnitTests.Authentication;
+
+/// <summary>
+/// #480: the ways a session is handed out — refresh and MFA verify here, password login in
+/// <c>AccountLoginStatusShould</c> — must refuse an account that is not Active, or a banned
+/// account could keep minting fresh access tokens. Runs the real controllers over HTTP.
+/// </summary>
+public sealed class SessionIssuanceShould : IAsyncLifetime
+{
+    private const string RefreshCookie = "refresh-raw";
+
+    private ApiAuthHost _host = null!;
+
+    public async Task InitializeAsync() => _host = await ApiAuthHost.StartAsync();
+
+    public async Task DisposeAsync() => await _host.DisposeAsync();
+
+    private void RefreshCookieBelongsTo(Account? account)
+    {
+        _host.Refresh.RotateAsync(RefreshCookie, Arg.Any<CancellationToken>())
+            .Returns(new RefreshRotateResult("refresh-next", DateTime.UtcNow.AddDays(30), new AccountId(AccountIdValue)));
+        _host.AccountRepository.FindByIdAsync(Arg.Is<AccountId>(id => id.Value == AccountIdValue), Arg.Any<bool>(),
+                Arg.Any<CancellationToken>())
+            .Returns(account);
+    }
+
+    private async Task<HttpResponseMessage> PostRefreshAsync(string? bearer = null)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/account/refresh");
+        if (bearer is not null)
+            request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", bearer);
+        request.Headers.Add("Cookie", $"{AuthConfig.RefreshCookieName}={RefreshCookie}");
+        return await _host.Client.SendAsync(request);
+    }
+
+    private static bool SetsRefreshCookie(HttpResponseMessage response, string value) =>
+        response.Headers.TryGetValues("Set-Cookie", out var cookies)
+        && cookies.Any(c => c.StartsWith($"{AuthConfig.RefreshCookieName}={value}", StringComparison.Ordinal));
+
+    // Lifetime validation must not lock a client out of renewing: refresh is anonymous and reads
+    // only the refresh cookie, so an expired access token sent alongside it is no obstacle, and
+    // the token it returns is accepted.
+    [Fact]
+    public async Task Refresh_with_an_expired_access_token_and_a_valid_refresh_cookie()
+    {
+        Account account = MakeAccount();
+        _host.AccountNowIs(account);
+        RefreshCookieBelongsTo(account);
+        DateTime now = DateTime.UtcNow;
+
+        using HttpResponseMessage refreshed =
+            await PostRefreshAsync(MintCustom(now.AddMinutes(-20), now.AddMinutes(-5)));
+
+        Assert.Equal(HttpStatusCode.OK, refreshed.StatusCode);
+        Assert.True(SetsRefreshCookie(refreshed, "refresh-next"));
+        RefreshResponse? body = await refreshed.Content.ReadFromJsonAsync<RefreshResponse>();
+        Assert.False(string.IsNullOrEmpty(body?.Token));
+
+        using HttpResponseMessage response = await _host.GetAsync("/player", body!.Token);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    [Theory]
+    [InlineData(AccountStatus.Banned)]
+    [InlineData(AccountStatus.Deactivated)]
+    public async Task Refuse_to_refresh_an_account_that_is_not_active(AccountStatus status)
+    {
+        RefreshCookieBelongsTo(MakeAccount(status: status));
+
+        using HttpResponseMessage response = await PostRefreshAsync();
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        Assert.DoesNotContain("token", await response.Content.ReadAsStringAsync(), StringComparison.OrdinalIgnoreCase);
+        Assert.False(SetsRefreshCookie(response, "refresh-next"));
+        // The rotation already minted a successor; it and every other refresh token must die.
+        await _host.Refresh.Received(1).RevokeAllForAccountAsync(
+            Arg.Is<AccountId>(id => id.Value == AccountIdValue), Arg.Any<CancellationToken>());
+    }
+
+    private void MfaCodeIsValid(Account? account)
+    {
+        _host.Mfa.VerifyMFAAsync("hash", "123456", Arg.Any<CancellationToken>())
+            .Returns(new MFAVerifyResult(true, new AccountId(AccountIdValue)));
+        _host.AccountRepository.FindByIdAsync(Arg.Is<AccountId>(id => id.Value == AccountIdValue), Arg.Any<bool>(),
+                Arg.Any<CancellationToken>())
+            .Returns(account);
+        _host.Refresh.IssueAsync(Arg.Any<AccountId>(), Arg.Any<CancellationToken>())
+            .Returns(new RefreshIssueResult("refresh-new", DateTime.UtcNow.AddDays(30), Guid.NewGuid()));
+    }
+
+    private Task<HttpResponseMessage> PostVerifyAsync() =>
+        _host.Client.PostAsJsonAsync("/mfa/verify", new { hash = "hash", code = "123456" });
+
+    [Fact]
+    public async Task Issue_a_session_on_mfa_verify_for_an_active_account()
+    {
+        MfaCodeIsValid(MakeAccount());
+
+        using HttpResponseMessage response = await PostVerifyAsync();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.True(SetsRefreshCookie(response, "refresh-new"));
+    }
+
+    [Theory]
+    [InlineData(AccountStatus.Banned)]
+    [InlineData(AccountStatus.Deactivated)]
+    public async Task Refuse_mfa_verify_for_an_account_that_is_not_active(AccountStatus status)
+    {
+        MfaCodeIsValid(MakeAccount(status: status));
+
+        using HttpResponseMessage response = await PostVerifyAsync();
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        Assert.False(SetsRefreshCookie(response, "refresh-new"));
+        await _host.Refresh.DidNotReceiveWithAnyArgs().IssueAsync(default!, default);
+        await _host.AccountRepository.DidNotReceiveWithAnyArgs().UpdateAsync(default!, default);
+    }
+}
