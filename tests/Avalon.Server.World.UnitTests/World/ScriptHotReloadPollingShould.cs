@@ -1,6 +1,7 @@
 using Avalon.Database.Auth.Repositories;
 using Avalon.Database.Character.Repositories;
 using Avalon.Database.World.Repositories;
+using Avalon.Server.World.UnitTests.Loot;
 using Avalon.World.ChunkLayouts;
 using Avalon.World.Configuration;
 using Avalon.World.Maps;
@@ -150,7 +151,7 @@ public class ScriptHotReloadPollingShould
             localizedText,
             reloader,
             Substitute.For<IChunkLibrary>(),
-            dialogue);
+            dialogue, LootRepositories.Empty());
 
         await world.LoadAsync(CancellationToken.None);
         return world;

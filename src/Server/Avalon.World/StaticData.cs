@@ -4,6 +4,7 @@ using Avalon.Domain.World;
 using Avalon.World.Creatures;
 using Avalon.World.Dialogue;
 using Avalon.World.Localization;
+using Avalon.World.Loot;
 using Avalon.World.Public.Dialogue;
 using Avalon.World.Public.Localization;
 using Avalon.World.Reload;
@@ -22,6 +23,7 @@ public class StaticData(
     ICreatureRarityModifierRepository creatureRarityModifierRepository,
     ILocalizedTextRepository localizedTextRepository,
     IDialogueRepository dialogueRepository,
+    ILootTableRepository lootTableRepository,
     ILoggerFactory loggerFactory)
 {
     private readonly ConcurrentQueue<(StaticDataPatch Patch, TaskCompletionSource Done)> _pending = new();
@@ -39,6 +41,7 @@ public class StaticData(
     private volatile AbilitiesPatch? _abilities;
     private volatile ItemsPatch? _items;
     private volatile ProgressionPatch? _progression;
+    private volatile LootPatch? _loot;
 
     /// <summary>
     /// Reads the database and builds a whole patch for one area. Runs on the thread pool and
@@ -87,6 +90,9 @@ public class StaticData(
                     await classLevelStatRepository.FindAllAsync(ct),
                     await characterCreateInfoRepository.FindAllAsync(ct));
 
+            case ReloadArea.Loot:
+                return new LootPatch(new LootCatalog(await lootTableRepository.GetAllAsync(ct), loggerFactory));
+
             default:
                 throw new ArgumentOutOfRangeException(nameof(area), area, null);
         }
@@ -115,6 +121,9 @@ public class StaticData(
                 break;
             case ProgressionPatch p:
                 _progression = p;
+                break;
+            case LootPatch p:
+                _loot = p;
                 break;
             default:
                 throw new NotSupportedException($"No apply for {patch.GetType().Name}");
@@ -182,6 +191,12 @@ public class StaticData(
 
     public ILocalizedTextCatalog LocalizedTexts => _dialogue!.Texts;
     public IDialogueCatalog Dialogue => _dialogue!.Dialogue;
+
+    /// <summary>
+    /// Read on the tick when a creature dies. One reference, so a kill sees one whole generation of
+    /// tables even if a reload is queued.
+    /// </summary>
+    public LootCatalog Loot => _loot!.Catalog;
 
     /// <summary>
     /// Snapshot accessor for a reader that needs more than one member of the creatures area

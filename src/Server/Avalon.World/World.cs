@@ -90,7 +90,8 @@ public class World : IWorld
         ILocalizedTextRepository localizedTextRepository,
         IScriptHotReloader scriptHotReloader,
         IChunkLibrary chunkLibrary,
-        IDialogueRepository dialogueRepository)
+        IDialogueRepository dialogueRepository,
+        ILootTableRepository lootTableRepository)
     {
         _logger = loggerFactory.CreateLogger<World>();
         _loggerFactory = loggerFactory;
@@ -104,7 +105,7 @@ public class World : IWorld
         Data = new StaticData(characterCreateInfoRepository, classLevelStatRepository, itemTemplateRepository,
             abilityTemplateRepository, characterLevelExperienceRepository, creatureTemplateRepository,
             creatureBaseStatRepository, creatureRarityModifierRepository, localizedTextRepository,
-            dialogueRepository, loggerFactory);
+            dialogueRepository, lootTableRepository, loggerFactory);
 
         _hotReloadTimer.SetInterval(
             (long)TimeSpan.FromSeconds(configuration.Value.ScriptHotReloadIntervalSeconds).TotalMilliseconds);

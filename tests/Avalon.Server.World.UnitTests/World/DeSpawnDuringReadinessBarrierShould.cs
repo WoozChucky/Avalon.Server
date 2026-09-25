@@ -5,6 +5,7 @@ using Avalon.Database.World.Repositories;
 using Avalon.Domain.Characters;
 using Avalon.Domain.World;
 using Avalon.Server.World.UnitTests.Characters;
+using Avalon.Server.World.UnitTests.Loot;
 using Avalon.World.ChunkLayouts;
 using Avalon.World.Configuration;
 using Avalon.World.Entities;
@@ -332,7 +333,7 @@ public class DeSpawnDuringReadinessBarrierShould
             localizedText,
             Substitute.For<IScriptHotReloader>(),
             Substitute.For<IChunkLibrary>(),
-            dialogue);
+            dialogue, LootRepositories.Empty());
 
         await world.LoadAsync(CancellationToken.None);
         return (world, characterRepository, saver);

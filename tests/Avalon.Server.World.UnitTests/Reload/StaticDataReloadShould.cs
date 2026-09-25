@@ -1,6 +1,7 @@
 using Avalon.Common.ValueObjects;
 using Avalon.Database.World.Repositories;
 using Avalon.Domain.World;
+using Avalon.Server.World.UnitTests.Loot;
 using Avalon.World;
 using Avalon.World.Public.Enums;
 using Avalon.World.Reload;
@@ -38,6 +39,7 @@ public class StaticDataReloadShould
         public List<CharacterLevelExperience> Levels = [];
         public List<ClassLevelStat> ClassStats = [];
         public List<CharacterCreateInfo> CreateInfos = [];
+        public List<LootTable> LootTables = [];
     }
 
     private static CreatureTemplate Template(ulong id, float healthModifier = 1f) => new()
@@ -206,6 +208,18 @@ public class StaticDataReloadShould
         Assert.Single(data.CharacterCreateInfos);
     }
 
+    [Fact]
+    public async Task Make_Reloaded_Loot_Visible_Through_Its_Properties()
+    {
+        (StaticData data, Repos repos) = await LoadedData(creatureCount: 1);
+        Assert.Equal(0, data.Loot.TableCount);
+        repos.LootTables = [new LootTable { Id = new LootTableId(1), Name = "boar" }];
+
+        data.Apply(await data.PrepareAsync(ReloadArea.Loot));
+
+        Assert.True(data.Loot.TryGet(new LootTableId(1), out _));
+    }
+
     private static async Task<(StaticData Data, Repos Repos)> LoadedData(int creatureCount)
     {
         var repos = new Repos
@@ -270,7 +284,8 @@ public class StaticDataReloadShould
 
         StaticData data = new(createInfos, classLevelStats, itemTemplates, abilityTemplates,
             characterLevelExperiences, templates, baseStats, rarities,
-            localizedText, dialogue, NullLoggerFactory.Instance);
+            localizedText, dialogue, LootRepositories.Of(() => repos.LootTables.ToList()),
+            NullLoggerFactory.Instance);
 
         await data.LoadAsync();
         return (data, repos);
