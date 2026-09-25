@@ -41,6 +41,7 @@ public class CAuthHandlerShould
         _connection.CryptoSession.Returns(_cryptoSession);
         _connection.RemoteEndPoint.Returns("127.0.0.1:12345");
         _connection.Id.Returns(Guid.NewGuid());
+        _accountRepository.TryRecordLoginAsync(default!, default!, default, default).ReturnsForAnyArgs(true);
         _handler = CreateHandler();
     }
 
@@ -171,10 +172,11 @@ public class CAuthHandlerShould
 
         await _handler.ExecuteAsync(ctx);
 
-        Assert.Equal(1, account.FailedLogins);
-        Assert.False(account.Locked);
+        Assert.Equal(AuthResult.INVALID_CREDENTIALS, SentResult());
         _connection.Received(1).Send(Arg.Any<NetworkPacket>());
-        await _accountRepository.Received(1).UpdateAsync(account);
+        await _accountRepository.Received(1).RecordFailedLoginAsync(account.Id, "127.0.0.1", Arg.Any<DateTime>(), 5,
+            Arg.Any<DateTime>(), Arg.Any<CancellationToken>());
+        await _accountRepository.DidNotReceiveWithAnyArgs().UpdateAsync(default!, default);
     }
 
     [Fact]
@@ -191,9 +193,9 @@ public class CAuthHandlerShould
 
         await _handler.ExecuteAsync(ctx);
 
-        Assert.Equal(5, account.FailedLogins);
-        Assert.True(account.Locked);
-        await _accountRepository.Received(1).UpdateAsync(account);
+        Assert.Equal(AuthResult.LOCKED, SentResult());
+        await _accountRepository.Received(1).RecordFailedLoginAsync(account.Id, Arg.Any<string>(), Arg.Any<DateTime>(), 5,
+            Arg.Any<DateTime>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -211,8 +213,9 @@ public class CAuthHandlerShould
 
         await handler.ExecuteAsync(ctx);
 
-        Assert.Equal(3, account.FailedLogins);
-        Assert.True(account.Locked);
+        Assert.Equal(AuthResult.LOCKED, SentResult());
+        await _accountRepository.Received(1).RecordFailedLoginAsync(account.Id, Arg.Any<string>(), Arg.Any<DateTime>(), 3,
+            Arg.Any<DateTime>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -230,8 +233,9 @@ public class CAuthHandlerShould
 
         await handler.ExecuteAsync(ctx);
 
-        Assert.Equal(5, account.FailedLogins);
-        Assert.False(account.Locked);
+        Assert.Equal(AuthResult.INVALID_CREDENTIALS, SentResult());
+        await _accountRepository.Received(1).RecordFailedLoginAsync(account.Id, Arg.Any<string>(), Arg.Any<DateTime>(), 10,
+            Arg.Any<DateTime>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -306,7 +310,9 @@ public class CAuthHandlerShould
         Assert.True(account.Online);
         Assert.Equal(0, account.FailedLogins);
         _connection.Received(1).Send(Arg.Any<NetworkPacket>());
-        await _accountRepository.Received(1).UpdateAsync(account);
+        await _accountRepository.Received(1).TryRecordLoginAsync(account.Id, "127.0.0.1", Arg.Any<DateTime>(),
+            Arg.Any<CancellationToken>());
+        await _accountRepository.DidNotReceiveWithAnyArgs().UpdateAsync(default!, default);
         await _cache.Received(1).PublishAsync("auth:accounts:online", Arg.Any<string>());
     }
 
@@ -450,7 +456,8 @@ public class CAuthHandlerShould
         });
 
         Assert.Equal(AuthResult.INVALID_CREDENTIALS, SentResult());
-        Assert.Equal(1, account.FailedLogins);
+        await _accountRepository.Received(1).RecordFailedLoginAsync(account.Id, Arg.Any<string>(), Arg.Any<DateTime>(),
+            Arg.Any<int>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>());
     }
 
     // ── #471: login hardening ─────────────────────────────────────────────────
@@ -547,9 +554,10 @@ public class CAuthHandlerShould
 
         await LogInAsync(CreateHandler(HardeningOptions()), password: "wrong_password");
 
+        // Five failures on the expired lock would re-lock at once if they still counted.
         Assert.Equal(AuthResult.INVALID_CREDENTIALS, SentResult());
-        Assert.Equal(1, account.FailedLogins);
-        Assert.False(account.Locked);
+        await _accountRepository.Received(1).RecordFailedLoginAsync(account.Id, Arg.Any<string>(), Arg.Any<DateTime>(),
+            5, Arg.Any<DateTime>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -563,10 +571,8 @@ public class CAuthHandlerShould
         DateTime after = DateTime.UtcNow;
 
         Assert.Equal(AuthResult.LOCKED, SentResult());
-        Assert.True(account.Locked);
-        Assert.NotNull(account.LockedUntil);
-        Assert.InRange(account.LockedUntil!.Value, before.AddMinutes(30), after.AddMinutes(30));
-        await _accountRepository.Received(1).UpdateAsync(account);
+        await _accountRepository.Received(1).RecordFailedLoginAsync(account.Id, Arg.Any<string>(), Arg.Any<DateTime>(), 5,
+            Arg.Is<DateTime>(d => d >= before.AddMinutes(30) && d <= after.AddMinutes(30)), Arg.Any<CancellationToken>());
     }
 
     /// <summary>A lock with no end (one set before locks expired, or by hand) is not lifted.</summary>
@@ -590,7 +596,7 @@ public class CAuthHandlerShould
     [Fact]
     public async Task Refuse_a_source_past_its_failed_login_limit_before_touching_any_account()
     {
-        _cache.GetAsync(SourceKey).Returns("10");
+        _cache.IncrementAsync(SourceKey, Arg.Any<TimeSpan>()).Returns(11L);
         var account = MakeAccount();
         _accountRepository.FindByUserNameAsync(Arg.Any<string>()).Returns(account);
         var verifier = Substitute.For<IPasswordVerifier>();
@@ -600,14 +606,15 @@ public class CAuthHandlerShould
         Assert.Equal(AuthResult.LOCKED, SentResult());
         await _accountRepository.DidNotReceiveWithAnyArgs().FindByUserNameAsync(default!, default);
         verifier.DidNotReceiveWithAnyArgs().Verify(default!, default!);
-        await _accountRepository.DidNotReceiveWithAnyArgs().UpdateAsync(default!, default);
-        Assert.Equal(0, account.FailedLogins);
+        await _accountRepository.DidNotReceiveWithAnyArgs().RecordFailedLoginAsync(default!, default!, default,
+            default, default, default);
     }
 
     [Fact]
     public async Task Allow_a_source_below_its_failed_login_limit()
     {
-        _cache.GetAsync(SourceKey).Returns("9");
+        // The tenth attempt in the window: it takes the last slot.
+        _cache.IncrementAsync(SourceKey, Arg.Any<TimeSpan>()).Returns(10L);
         var account = MakeAccount();
         _accountRepository.FindByUserNameAsync(Arg.Any<string>()).Returns(account);
 
@@ -620,7 +627,8 @@ public class CAuthHandlerShould
     [Fact]
     public async Task Allow_a_source_again_once_its_window_has_passed()
     {
-        _cache.GetAsync(SourceKey).Returns("10", (string?)null);
+        // The counter expires with its window, so the next increment starts it again at one.
+        _cache.IncrementAsync(SourceKey, Arg.Any<TimeSpan>()).Returns(11L, 1L);
         var account = MakeAccount();
         _accountRepository.FindByUserNameAsync(Arg.Any<string>()).Returns(account);
         CAuthHandler handler = CreateHandler(HardeningOptions(perSource: 10));
@@ -647,6 +655,159 @@ public class CAuthHandlerShould
         await _cache.Received(1).IncrementAsync(SourceKey, TimeSpan.FromMinutes(20));
     }
 
+    // ── #471 review ───────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Checking the counter, then verifying, then counting let every connection that arrived before
+    /// the first failure was counted through. Each request must take its slot before it is let in.
+    /// </summary>
+    [Fact]
+    public async Task Let_no_more_than_the_source_limit_through_when_failures_arrive_in_parallel()
+    {
+        long counter = 0;
+        _cache.IncrementAsync(SourceKey, Arg.Any<TimeSpan>()).Returns(_ => Interlocked.Increment(ref counter));
+        _cache.GetAsync(SourceKey).Returns(_ => Interlocked.Read(ref counter).ToString());
+        var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _accountRepository.FindByUserNameAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(_ => gate.Task.ContinueWith(_ => (Account?)MakeAccount(), TaskScheduler.Default));
+        int verifies = 0;
+        var verifier = Substitute.For<IPasswordVerifier>();
+        verifier.Verify(Arg.Any<string>(), Arg.Any<string>()).Returns(_ =>
+        {
+            Interlocked.Increment(ref verifies);
+            return false;
+        });
+        CAuthHandler handler = CreateHandler(HardeningOptions(perSource: 10), verifier);
+
+        // Every request starts before any is let past the lookup, the shape of parallel connections.
+        Task[] logins = Enumerable.Range(0, 40)
+            .Select(_ => LogInAsync(handler, password: "wrong_password"))
+            .ToArray();
+        gate.SetResult();
+        await Task.WhenAll(logins);
+
+        Assert.InRange(verifies, 1, 10);
+    }
+
+    [Fact]
+    public async Task Refuse_on_the_count_the_increment_returns()
+    {
+        _cache.IncrementAsync(SourceKey, Arg.Any<TimeSpan>()).Returns(11L);
+        _accountRepository.FindByUserNameAsync(Arg.Any<string>()).Returns(MakeAccount());
+
+        await LogInAsync(CreateHandler(HardeningOptions(perSource: 10)));
+
+        Assert.Equal(AuthResult.LOCKED, SentResult());
+        await _accountRepository.DidNotReceiveWithAnyArgs().FindByUserNameAsync(default!, default);
+    }
+
+    /// <summary>A correct password gives back its own slot, and only its own.</summary>
+    [Fact]
+    public async Task Give_back_its_own_source_slot_on_a_correct_password()
+    {
+        _accountRepository.FindByUserNameAsync(Arg.Any<string>()).Returns(MakeAccount());
+
+        await LogInAsync(CreateHandler(HardeningOptions()));
+
+        await _cache.Received(1).DecrementFloorAsync(SourceKey);
+        await _cache.DidNotReceive().RemoveAsync(SourceKey);
+    }
+
+    [Fact]
+    public async Task Keep_its_source_slot_on_a_wrong_password()
+    {
+        _accountRepository.FindByUserNameAsync(Arg.Any<string>()).Returns(MakeAccount());
+
+        await LogInAsync(CreateHandler(HardeningOptions()), password: "wrong_password");
+
+        await _cache.DidNotReceiveWithAnyArgs().DecrementFloorAsync(default!);
+    }
+
+    /// <summary>Probing for locked accounts costs budget like any other failed attempt.</summary>
+    [Fact]
+    public async Task Count_an_attempt_on_a_locked_account_against_its_source()
+    {
+        var account = MakeAccount(locked: true);
+        account.LockedUntil = DateTime.UtcNow.AddMinutes(10);
+        _accountRepository.FindByUserNameAsync(Arg.Any<string>()).Returns(account);
+
+        await LogInAsync(CreateHandler(HardeningOptions()));
+
+        Assert.Equal(AuthResult.LOCKED, SentResult());
+        await _cache.Received(1).IncrementAsync(SourceKey, Arg.Any<TimeSpan>());
+        await _cache.DidNotReceiveWithAnyArgs().DecrementFloorAsync(default!);
+    }
+
+    /// <summary>
+    /// A wrong password on a known account wrote to the database before replying, and an unknown
+    /// username did not, so the reply time told them apart. The reply now goes first.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Reply_to_a_wrong_password_before_writing_the_failure(bool expiredLock)
+    {
+        var account = MakeAccount(locked: expiredLock, failedLogins: expiredLock ? 5 : 0);
+        if (expiredLock) account.LockedUntil = DateTime.UtcNow.AddSeconds(-1);
+        _accountRepository.FindByUserNameAsync(Arg.Any<string>()).Returns(account);
+
+        await LogInAsync(CreateHandler(HardeningOptions()), password: "wrong_password");
+
+        Assert.Equal(AuthResult.INVALID_CREDENTIALS, SentResult());
+        Received.InOrder(() =>
+        {
+            _connection.Send(Arg.Any<NetworkPacket>());
+            _accountRepository.RecordFailedLoginAsync(account.Id, Arg.Any<string>(), Arg.Any<DateTime>(),
+                Arg.Any<int>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>());
+        });
+        await _accountRepository.DidNotReceiveWithAnyArgs().UpdateAsync(default!, default);
+    }
+
+    [Fact]
+    public async Task Answer_the_failure_that_reaches_the_threshold_as_locked()
+    {
+        var account = MakeAccount(failedLogins: 4);
+        _accountRepository.FindByUserNameAsync(Arg.Any<string>()).Returns(account);
+
+        DateTime before = DateTime.UtcNow;
+        await LogInAsync(CreateHandler(HardeningOptions(lockoutMinutes: 30)), password: "wrong_password");
+        DateTime after = DateTime.UtcNow;
+
+        Assert.Equal(AuthResult.LOCKED, SentResult());
+        await _accountRepository.Received(1).RecordFailedLoginAsync(account.Id, "127.0.0.1", Arg.Any<DateTime>(), 5,
+            Arg.Is<DateTime>(d => d >= before.AddMinutes(30) && d <= after.AddMinutes(30)), Arg.Any<CancellationToken>());
+    }
+
+    [Theory]
+    [InlineData("[2001:db8:1:2:3:4:5:6]:50000", "auth:source:2001:db8:1:2::/64:failedLogins", "2001:db8:1:2:3:4:5:6")]
+    [InlineData("[::ffff:10.0.0.7]:50000", "auth:source:10.0.0.7:failedLogins", "10.0.0.7")]
+    [InlineData("10.0.0.7:50000", "auth:source:10.0.0.7:failedLogins", "10.0.0.7")]
+    public async Task Count_the_source_by_address_and_record_the_full_address(string endPoint, string sourceKey, string address)
+    {
+        _connection.RemoteEndPoint.Returns(endPoint);
+        var account = MakeAccount();
+        _accountRepository.FindByUserNameAsync(Arg.Any<string>()).Returns(account);
+
+        await LogInAsync(CreateHandler(HardeningOptions()), password: "wrong_password");
+
+        await _cache.Received(1).IncrementAsync(sourceKey, Arg.Any<TimeSpan>());
+        await _accountRepository.Received(1).RecordFailedLoginAsync(account.Id, address, Arg.Any<DateTime>(),
+            Arg.Any<int>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Record_the_full_ipv6_address_as_the_last_login_address()
+    {
+        _connection.RemoteEndPoint.Returns("[2001:db8:1:2:3:4:5:6]:50000");
+        var account = MakeAccount();
+        _accountRepository.FindByUserNameAsync(Arg.Any<string>()).Returns(account);
+
+        await LogInAsync(CreateHandler(HardeningOptions()));
+
+        await _accountRepository.Received(1).TryRecordLoginAsync(account.Id, "2001:db8:1:2:3:4:5:6",
+            Arg.Any<DateTime>(), Arg.Any<CancellationToken>());
+    }
+
     [Fact]
     public async Task Not_count_a_successful_login_against_its_source()
     {
@@ -654,7 +815,9 @@ public class CAuthHandlerShould
 
         await LogInAsync(CreateHandler(HardeningOptions()));
 
+        // The slot the attempt took is given back, so the success leaves the count where it was.
         Assert.Equal(AuthResult.SUCCESS, SentResult());
-        await _cache.DidNotReceiveWithAnyArgs().IncrementAsync(default!, default);
+        await _cache.Received(1).IncrementAsync(SourceKey, Arg.Any<TimeSpan>());
+        await _cache.Received(1).DecrementFloorAsync(SourceKey);
     }
 }

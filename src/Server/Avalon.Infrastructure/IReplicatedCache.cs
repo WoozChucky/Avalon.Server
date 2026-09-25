@@ -20,6 +20,17 @@ public interface IReplicatedCache
     /// first increment and later ones do not extend it.
     /// </summary>
     Task<long> IncrementAsync(string key, TimeSpan window);
+    /// <summary>
+    /// Atomically decrements the counter at <paramref name="key"/>, never below zero, keeping its
+    /// expiry. A missing key stays missing. Returns the new value.
+    /// </summary>
+    Task<long> DecrementFloorAsync(string key);
+    /// <summary>
+    /// Atomically increments <paramref name="field"/> of the hash at <paramref name="key"/> and
+    /// returns the new value, but only while the hash exists: returns -1, creating nothing, when
+    /// it does not, so an expired hash is never recreated without its expiry.
+    /// </summary>
+    Task<long> HashIncrementIfExistsAsync(string key, string field);
     Task<bool> RemoveAsync(string key);
     Task<bool> KeyExistsAsync(string key);
     Task<bool> KeyExpireAsync(string key, TimeSpan expiry);
@@ -91,6 +102,28 @@ public class ReplicatedCache : IReplicatedCache
     {
         RedisResult result = await _redis.GetDatabase().ScriptEvaluateAsync(IncrementWithWindowScript,
             [new RedisKey(key)], [(long)window.TotalMilliseconds]);
+        return (long)result;
+    }
+
+    private const string DecrementFloorScript =
+        "local v = tonumber(redis.call('GET', KEYS[1])) " +
+        "if v and v > 0 then return redis.call('DECR', KEYS[1]) end " +
+        "return 0";
+
+    public async Task<long> DecrementFloorAsync(string key)
+    {
+        RedisResult result = await _redis.GetDatabase().ScriptEvaluateAsync(DecrementFloorScript, [new RedisKey(key)]);
+        return (long)result;
+    }
+
+    private const string HashIncrementIfExistsScript =
+        "if redis.call('EXISTS', KEYS[1]) == 1 then return redis.call('HINCRBY', KEYS[1], ARGV[1], 1) end " +
+        "return -1";
+
+    public async Task<long> HashIncrementIfExistsAsync(string key, string field)
+    {
+        RedisResult result = await _redis.GetDatabase().ScriptEvaluateAsync(HashIncrementIfExistsScript,
+            [new RedisKey(key)], [field]);
         return (long)result;
     }
 

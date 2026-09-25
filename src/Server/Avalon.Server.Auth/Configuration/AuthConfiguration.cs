@@ -30,6 +30,13 @@ public class AuthConfiguration
     [Range(1, int.MaxValue, ErrorMessage = "FailedLoginSourceWindowMinutes must be at least 1.")]
     public int FailedLoginSourceWindowMinutes { get; set; } = 15;
 
+    /// <summary>
+    /// Code attempts one MFA hash allows. The hash is deleted after this many failures, so the
+    /// client must log in with the password again to get another.
+    /// </summary>
+    [Range(1, int.MaxValue, ErrorMessage = "MaxFailedMfaAttempts must be at least 1.")]
+    public int MaxFailedMfaAttempts { get; set; } = 5;
+
     [Required]
     public string Issuer { get; set; } = "Avalon";
 }
