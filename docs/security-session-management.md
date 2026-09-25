@@ -133,6 +133,12 @@ Client               Auth Server           Redis
 
 - Ephemeral hash TTL: 5 minutes.
 - MFA hash is deleted from Redis after a successful verify (single-use).
+- Recovery codes (`MFARecoveryCodes`): three per account, each 80 bits from `ISecureRandom`, shown as
+  16 Crockford base32 characters (`XXXX-XXXX-XXXX-XXXX`). They are generated at confirm and returned
+  only in that response; the `MfaSetups` row stores only the SHA-256 of each canonical code (upper
+  case, no separators). Reset hashes each input and compares with `CryptographicOperations.FixedTimeEquals`,
+  and a successful reset deletes the row, which consumes the codes. A stored value that is not a
+  32-byte hash, such as a plaintext code written before #464, never verifies.
 - Failed logins increment `account.FailedLogins` and lock the account at the configured threshold.
 
 ---

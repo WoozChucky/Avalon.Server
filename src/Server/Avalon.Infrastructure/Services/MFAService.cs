@@ -1,4 +1,3 @@
-using System.Text;
 using Avalon.Common.ValueObjects;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Domain.Auth;
@@ -13,18 +12,14 @@ public class MFAService : IMFAService
     private readonly ILogger<MFAService> _logger;
     private readonly IMfaSetupRepository _mfaSetupRepository;
     private readonly IMFAHashService _mfaHashService;
+    private readonly ISecureRandom _secureRandom;
 
-    public MFAService(ILoggerFactory loggerFactory, IMfaSetupRepository mfaSetupRepository, IMFAHashService mfaHashService)
+    public MFAService(ILoggerFactory loggerFactory, IMfaSetupRepository mfaSetupRepository, IMFAHashService mfaHashService, ISecureRandom secureRandom)
     {
         _logger = loggerFactory.CreateLogger<MFAService>();
         _mfaSetupRepository = mfaSetupRepository;
         _mfaHashService = mfaHashService;
-    }
-
-    private static string GenerateRecoveryCode()
-    {
-        var hex = Guid.NewGuid().ToString("N").ToUpperInvariant();
-        return $"{hex[..4]}-{hex[4..8]}-{hex[8..12]}";
+        _secureRandom = secureRandom;
     }
 
     public async Task<MFASetupResult> SetupMFAAsync(Account account, string issuer, CancellationToken cancellationToken = default)
@@ -43,9 +38,11 @@ public class MFAService : IMFAService
         var mfaSetup = new MFASetup
         {
             Secret = KeyGeneration.GenerateRandomKey(32),
-            RecoveryCode1 = Encoding.UTF8.GetBytes(GenerateRecoveryCode()),
-            RecoveryCode2 = Encoding.UTF8.GetBytes(GenerateRecoveryCode()),
-            RecoveryCode3 = Encoding.UTF8.GetBytes(GenerateRecoveryCode()),
+            // Recovery codes are issued at confirm, the only time they are shown. Until then the
+            // row holds no code, and an empty value never verifies.
+            RecoveryCode1 = [],
+            RecoveryCode2 = [],
+            RecoveryCode3 = [],
             AccountId = account.Id,
             Status = MfaSetupStatus.Setup,
             CreatedAt = DateTime.UtcNow,
@@ -75,16 +72,18 @@ public class MFAService : IMFAService
         if (!totp.VerifyTotp(code, out _, new VerificationWindow(2, 2)))
             return new MFAConfirmResult(false, null, MFAOperationResult.InvalidCode);
 
+        // Generate the codes here and return them once; only their hashes are stored.
+        var codes = new string[MFARecoveryCodes.Count];
+        for (var i = 0; i < codes.Length; i++)
+            codes[i] = MFARecoveryCodes.Generate(_secureRandom);
+
+        mfaSetup.RecoveryCode1 = MFARecoveryCodes.Hash(codes[0])!;
+        mfaSetup.RecoveryCode2 = MFARecoveryCodes.Hash(codes[1])!;
+        mfaSetup.RecoveryCode3 = MFARecoveryCodes.Hash(codes[2])!;
         mfaSetup.Status = MfaSetupStatus.Confirmed;
         mfaSetup.ConfirmedAt = DateTime.UtcNow;
         await _mfaSetupRepository.UpdateAsync(mfaSetup, cancellationToken);
 
-        var codes = new[]
-        {
-            Encoding.UTF8.GetString(mfaSetup.RecoveryCode1),
-            Encoding.UTF8.GetString(mfaSetup.RecoveryCode2),
-            Encoding.UTF8.GetString(mfaSetup.RecoveryCode3)
-        };
         return new MFAConfirmResult(true, codes, MFAOperationResult.Success);
     }
 
@@ -116,13 +115,16 @@ public class MFAService : IMFAService
         if (mfaSetup.Status != MfaSetupStatus.Confirmed)
             return new MFAResetResult(false, MFAOperationResult.NotEnabled);
 
-        if (r1 != Encoding.UTF8.GetString(mfaSetup.RecoveryCode1)
-            || r2 != Encoding.UTF8.GetString(mfaSetup.RecoveryCode2)
-            || r3 != Encoding.UTF8.GetString(mfaSetup.RecoveryCode3))
-        {
+        // Hash each input and compare in constant time. Non-short-circuiting '&' so every code is
+        // checked whichever one is wrong. A stored value that is not a hash (a pre-#464 plaintext
+        // code) never matches, which is how those codes are invalidated.
+        var valid = MFARecoveryCodes.Matches(r1, mfaSetup.RecoveryCode1)
+                    & MFARecoveryCodes.Matches(r2, mfaSetup.RecoveryCode2)
+                    & MFARecoveryCodes.Matches(r3, mfaSetup.RecoveryCode3);
+        if (!valid)
             return new MFAResetResult(false, MFAOperationResult.InvalidCode);
-        }
 
+        // Deleting the setup consumes the codes: they cannot be used again.
         await _mfaSetupRepository.DeleteAsync(mfaSetup.Id, cancellationToken);
         return new MFAResetResult(true, MFAOperationResult.Success);
     }

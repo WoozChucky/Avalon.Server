@@ -38,7 +38,8 @@ public sealed class RefreshTokenService : IRefreshTokenService
     {
         var now = _time.GetUtcNow().UtcDateTime;
         var (raw, hash) = Generate();
-        var familyId = Guid.NewGuid();
+        // Not a secret (tokens are looked up by hash); time-ordered because (AccountId, FamilyId) is indexed.
+        var familyId = Guid.CreateVersion7();
 
         await _repository.CreateAsync(new RefreshToken
         {
