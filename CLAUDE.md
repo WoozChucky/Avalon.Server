@@ -112,6 +112,25 @@ CClientInfoPacket → SHandshakePacket → CHandshakePacket → SHandshakeResult
 - `auth:accounts:online` — pub/sub: login event (reserved, no subscriber yet)
 - `world:{worldId}:select` — pub/sub: world-select event (reserved, for future sharding)
 
+## REST API Auth
+
+`Avalon.Api` takes two credentials:
+- an access JWT, sent as `Authorization: Bearer` or in the `AVToken` cookie, and minted by `JwtUtils` at login, MFA verify and refresh;
+- a personal access token, sent as `Authorization: Avalon avp_...` and read by `AvalonAuthenticationHandler`.
+
+**Neither is believed on its own (#451, #480).** On every request both go through `AccountAccessCheck` (`Avalon.Api/Authentication`):
+- the account is reloaded;
+- a missing or non-Active one (Banned, Deactivated) is refused with 401;
+- the request carries only `credential roles & account.AccessLevel` as `GroupSid` claims. That is a mask, never `>=`.
+
+For a JWT this runs in `JwtBearerEvents.OnTokenValidated` (`JwtAccountRevalidation`), after the bearer handler has checked the signature (HS256 only, `ValidAlgorithms`), issuer, audience and lifetime. The loaded account is kept in `HttpContext.Items`, and `AvalonAuthHandler` (the default policy's requirement) reuses it rather than loading it again. A demotion or a ban therefore takes effect on the next request. A promotion does not reach an existing token: the caller gets it on their next sign-in or refresh. A database failure during that lookup is a 503 (`ExceptionHandlerMiddleware` maps `DbException`), never a pass.
+
+The JWT's lifetime is enforced: `ValidateLifetime = true`, with `AccessTokenLifetimeMinutes` (default 15) plus `ClockSkewInMinutes`. An expired JWT gets a 401, and the client renews it with `POST /account/refresh`. That endpoint is `[AllowAnonymous]` and reads only the HttpOnly refresh cookie, so an expired access token does not stand in its way.
+
+**Nothing issues a credential to an account that is not Active** (`AccountAccessCheck.MayHoldSession`):
+- password login (`AccountService.Authenticate`) checks after the BCrypt verify, and MFA verify after the code is accepted. Both throw `AccountInactiveException`, which `ExceptionHandlerMiddleware` answers as 403 ProblemDetails with `Detail` BANNED or DEACTIVATED, as the game client is told. A wrong password or bad code still gets the generic 401, whatever the status, so nothing about the account leaks before the proof;
+- refresh revokes every refresh token the account holds, clears the cookie and returns 401.
+
 ## World Simulation
 
 `WorldServer` is an `IHostedService` that runs the tick loop at ~60 Hz (16.67ms intervals). On each tick it calls `World.Update(deltaTime)`, which ticks all active `MapInstance` objects via `IInstanceRegistry`.

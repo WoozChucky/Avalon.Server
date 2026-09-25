@@ -1,6 +1,7 @@
 using System.Net;
 using System.Security.Authentication;
 using System.Text;
+using Avalon.Api.Authentication;
 using Avalon.Api.Authentication.Jwt;
 using Avalon.Api.Config;
 using Avalon.Api.Contract;
@@ -97,6 +98,12 @@ public class AccountService : IAccountService
         {
             throw new AuthenticationException("Invalid username or password");
         }
+
+        // A banned or deactivated account gets nothing, not even an MFA hash (#480). Past the
+        // password check it is told its status, as the game client is; a wrong password above
+        // never learns it.
+        if (!AccountAccessCheck.MayHoldSession(account))
+            throw new AccountInactiveException(account.Status);
 
         var mfaSetup = await _mfaSetupRepository.FindByAccountIdAsync(account.Id, cancellationToken);
         if (mfaSetup is { Status: MfaSetupStatus.Confirmed })
