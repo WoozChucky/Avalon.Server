@@ -124,8 +124,10 @@ Prerequisites: .NET 10 SDK, Docker (for infra services).
    # Windows PowerShell 5.1 or PowerShell 7 (no openssl needed)
    $b = New-Object byte[] 48; [Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($b); dotnet user-secrets set "Application:Authentication:IssuerSigningKey" ([Convert]::ToBase64String($b)) --project src/Server/Avalon.Api
    ```
-   Outside Development (containers, Helm), set the environment variable
-   `Application__Authentication__IssuerSigningKey` instead.
+   Outside Development, set the environment variable `Application__Authentication__IssuerSigningKey`
+   instead. The Helm chart reads it from a Kubernetes Secret: name one you manage with
+   `--set existingSecret=<name>`, or pass the key from a file with
+   `--set-file authentication.issuerSigningKey=<file>` (see the chart's `values.yaml`).
 3. Run the API — migrations are applied automatically on startup:
    ```bash
    dotnet run --project src/Server/Avalon.Api

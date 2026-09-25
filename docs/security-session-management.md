@@ -164,12 +164,13 @@ ban takes effect on the next request.
 
 The JWTs are signed and validated with an HMAC-SHA256 key, `Application:Authentication:IssuerSigningKey`.
 No key is committed (#482). In development it comes from `dotnet user-secrets`; everywhere else it comes
-from the environment variable `Application__Authentication__IssuerSigningKey` (the Helm chart's
-`authentication.issuerSigningKey`).
+from the environment variable `Application__Authentication__IssuerSigningKey`, which the Helm chart fills
+from a Kubernetes Secret rather than a plain value in the pod spec.
 
 `JwtSigningKey.Create` runs when `AddAuth` registers authentication, so the API refuses to start, with an
 error naming the setting, when the key is:
 - missing;
+- padded with leading or trailing whitespace, such as a key file's newline;
 - under 32 bytes in UTF-8;
 - the value that used to be committed to `appsettings.json`, which is public.
 

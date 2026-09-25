@@ -49,3 +49,15 @@ Selector labels
 app.kubernetes.io/name: {{ include "avalon-api.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
+
+{{/*
+The Secret the pod reads its secrets from: the one existingSecret names, or the one
+templates/secret.yaml creates.
+*/}}
+{{- define "avalon-api.secretName" -}}
+{{- if .Values.existingSecret }}
+{{- .Values.existingSecret }}
+{{- else }}
+{{- include "avalon-api.fullname" . }}
+{{- end }}
+{{- end }}

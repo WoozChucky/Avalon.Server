@@ -181,8 +181,8 @@ Section: `Application:Authentication` in `Avalon.Api` (**never committed to sour
 | `IssuerSigningKey` | string | _(required)_ | HMAC-SHA256 key that signs and validates the API's access JWTs |
 
 `JwtSigningKey.Create` runs when `AddAuth` registers authentication, so the API refuses to start, naming the
-setting, when the key is missing, shorter than 32 bytes in UTF-8, or the value once committed to
-`appsettings.json` (public now). The key is deliberately absent from `appsettings.json`.
+setting, when the key is missing, has leading or trailing whitespace, is shorter than 32 bytes in UTF-8, or is
+the value once committed to `appsettings.json` (public now). The key is deliberately absent from `appsettings.json`.
 
 ```bash
 # Development: user-secrets (the Avalon.Api project has a UserSecretsId)
@@ -192,7 +192,10 @@ dotnet user-secrets set "Application:Authentication:IssuerSigningKey" "$(openssl
 Application__Authentication__IssuerSigningKey=<random value, at least 32 bytes>
 ```
 
-The Helm chart takes it as `authentication.issuerSigningKey` and refuses to render without it.
+The Helm chart passes it, with the other secrets, through a Kubernetes Secret (`secretKeyRef`): either one
+you manage, named by `existingSecret`, or one the chart creates from `--set-file
+authentication.issuerSigningKey=<file>`. It refuses to render with neither. The `ValidateIssuerKey` setting
+is gone: the signing key is always validated.
 
 ---
 
