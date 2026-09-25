@@ -103,6 +103,8 @@ public class WorldDbContext : DbContext
     public DbSet<DialogueNode> DialogueNodes { get; set; } = null!;
     public DbSet<DialogueOption> DialogueOptions { get; set; } = null!;
     public DbSet<CharacterClassName> CharacterClassNames { get; set; } = null!;
+    public DbSet<LootTable> LootTables { get; set; } = null!;
+    public DbSet<LootTableEntry> LootTableEntries { get; set; } = null!;
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
@@ -145,6 +147,8 @@ public class WorldDbContext : DbContext
         Configure(modelBuilder.Entity<DialogueNode>());
         Configure(modelBuilder.Entity<DialogueOption>());
         Configure(modelBuilder.Entity<CharacterClassName>());
+        Configure(modelBuilder.Entity<LootTable>());
+        Configure(modelBuilder.Entity<LootTableEntry>());
 
         modelBuilder.Entity<ChunkPoolMembership>(e =>
         {
@@ -548,6 +552,16 @@ public class WorldDbContext : DbContext
             )
             .IsRequired();
 
+        // Issue #460. Null means the creature drops no items. Deleting a table leaves its creatures
+        // dropping nothing rather than deleting them.
+        builder.Property(b => b.LootTableId)
+            .HasConversion(v => v!.Value, v => new LootTableId(v))
+            .IsRequired(false);
+        builder.HasOne<LootTable>()
+            .WithMany()
+            .HasForeignKey(b => b.LootTableId)
+            .OnDelete(DeleteBehavior.SetNull);
+
         // Templates 1-3 are the town NPCs, placed on map 1 by the MapCreatureSpawns rows above.
         // They are Invulnerable — a town NPC is never killable — and run TownNpcScript, which
         // stands still and never aggros. Experience is 0 because a creature that cannot die cannot
@@ -569,7 +583,7 @@ public class WorldDbContext : DbContext
             Family = CreatureFamily.None,
             Type = CreatureType.Humanoid,
             Experience = 0,
-            LootId = 0,
+            LootTableId = null,
             MinGold = 0,
             MaxGold = 0,
             AIName = string.Empty,
@@ -602,7 +616,7 @@ public class WorldDbContext : DbContext
             Family = CreatureFamily.None,
             Type = CreatureType.Humanoid,
             Experience = 0,
-            LootId = 0,
+            LootTableId = null,
             MinGold = 0,
             MaxGold = 0,
             AIName = string.Empty,
@@ -635,7 +649,7 @@ public class WorldDbContext : DbContext
             Family = CreatureFamily.None,
             Type = CreatureType.Humanoid,
             Experience = 0,
-            LootId = 0,
+            LootTableId = null,
             MinGold = 0,
             MaxGold = 0,
             AIName = string.Empty,
@@ -670,7 +684,7 @@ public class WorldDbContext : DbContext
 
             // Null so the experience is derived from the creature's level rather than authored here.
             Experience = null,
-            LootId = 0,
+            LootTableId = null,
             MinGold = 0,
             MaxGold = 0,
             AIName = string.Empty,
@@ -704,7 +718,7 @@ public class WorldDbContext : DbContext
 
             // Null so the experience is derived from the creature's level rather than authored here.
             Experience = null,
-            LootId = 0,
+            LootTableId = null,
             MinGold = 0,
             MaxGold = 0,
             AIName = string.Empty,
@@ -738,7 +752,7 @@ public class WorldDbContext : DbContext
 
             // Null so the experience is derived from the creature's level rather than authored here.
             Experience = null,
-            LootId = 0,
+            LootTableId = null,
             MinGold = 0,
             MaxGold = 0,
             AIName = string.Empty,
@@ -772,7 +786,7 @@ public class WorldDbContext : DbContext
 
             // Null so the experience is derived from the creature's level rather than authored here.
             Experience = null,
-            LootId = 0,
+            LootTableId = null,
             MinGold = 0,
             MaxGold = 0,
             AIName = string.Empty,
@@ -806,7 +820,7 @@ public class WorldDbContext : DbContext
 
             // Null so the experience is derived from the creature's level rather than authored here.
             Experience = null,
-            LootId = 0,
+            LootTableId = null,
             MinGold = 0,
             MaxGold = 0,
             AIName = string.Empty,
@@ -840,7 +854,7 @@ public class WorldDbContext : DbContext
 
             // Null so the experience is derived from the creature's level rather than authored here.
             Experience = null,
-            LootId = 0,
+            LootTableId = null,
             MinGold = 0,
             MaxGold = 0,
             AIName = string.Empty,
@@ -874,7 +888,7 @@ public class WorldDbContext : DbContext
 
             // Null so the experience is derived from the creature's level rather than authored here.
             Experience = null,
-            LootId = 0,
+            LootTableId = null,
             MinGold = 0,
             MaxGold = 0,
             AIName = string.Empty,
@@ -1366,6 +1380,54 @@ public class WorldDbContext : DbContext
             new CharacterClassName { Class = CharacterClass.Wizard,  TextId = 12 },
             new CharacterClassName { Class = CharacterClass.Hunter,  TextId = 13 },
             new CharacterClassName { Class = CharacterClass.Healer,  TextId = 14 });
+    }
+
+    /// <summary>Loot tables (issue #460). Rolled on the tick when a creature dies; see Avalon.World.Loot.</summary>
+    private static void Configure(EntityTypeBuilder<LootTable> builder)
+    {
+        builder.ToTable("LootTables");
+        builder.HasKey(b => b.Id);
+        builder.Property(b => b.Id)
+            .HasConversion(v => v.Value, v => new LootTableId(v))
+            .IsRequired()
+            .ValueGeneratedNever();
+        builder.Property(b => b.Name).IsRequired().HasMaxLength(100);
+
+        builder.HasMany(b => b.Entries)
+            .WithOne()
+            .HasForeignKey(e => e.LootTableId)
+            .OnDelete(DeleteBehavior.Cascade);
+    }
+
+    private static void Configure(EntityTypeBuilder<LootTableEntry> builder)
+    {
+        // Exactly one target. Written to read the same on Postgres and on the SQLite the unit tests
+        // build the model on: each side of <> is a boolean.
+        builder.ToTable("LootTableEntries", t => t.HasCheckConstraint(
+            "CK_LootTableEntries_ExactlyOneTarget",
+            "(\"ItemTemplateId\" IS NULL) <> (\"ReferenceTableId\" IS NULL)"));
+
+        // An entry is identified by its roll order, so the order is unique per table.
+        builder.HasKey(b => new { b.LootTableId, b.Sequence });
+        builder.Property(b => b.LootTableId)
+            .HasConversion(v => v.Value, v => new LootTableId(v))
+            .IsRequired();
+
+        builder.Property(b => b.ItemTemplateId)
+            .HasConversion(v => v!.Value, v => new ItemTemplateId(v))
+            .IsRequired(false);
+        builder.HasOne<ItemTemplate>()
+            .WithMany()
+            .HasForeignKey(b => b.ItemTemplateId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.Property(b => b.ReferenceTableId)
+            .HasConversion(v => v!.Value, v => new LootTableId(v))
+            .IsRequired(false);
+        builder.HasOne<LootTable>()
+            .WithMany()
+            .HasForeignKey(b => b.ReferenceTableId)
+            .OnDelete(DeleteBehavior.Restrict);
     }
 
     private static void Configure(EntityTypeBuilder<AbilityTemplate> builder)
