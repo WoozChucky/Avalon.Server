@@ -26,14 +26,8 @@ public class MFAService : IMFAService
     {
         var existingMfaSetup = await _mfaSetupRepository.FindByAccountIdAsync(account.Id, cancellationToken);
 
-        if (existingMfaSetup != null)
-        {
-            if (existingMfaSetup.Status == MfaSetupStatus.Confirmed)
-                return new MFASetupResult(false, null, MFAOperationResult.AlreadyEnabled);
-
-            // Delete stale or in-progress setup and recreate
-            await _mfaSetupRepository.DeleteAsync(existingMfaSetup.Id, cancellationToken);
-        }
+        if (existingMfaSetup is { Status: MfaSetupStatus.Confirmed })
+            return new MFASetupResult(false, null, MFAOperationResult.AlreadyEnabled);
 
         var mfaSetup = new MFASetup
         {
@@ -49,7 +43,10 @@ public class MFAService : IMFAService
             ConfirmedAt = DateTime.MinValue,
         };
 
-        mfaSetup = await _mfaSetupRepository.CreateAsync(mfaSetup, cancellationToken);
+        // One row per account (#470): a stale or in-progress setup is replaced in place, never
+        // joined by a second row, and a row confirmed meanwhile by another request is left alone.
+        if (!await _mfaSetupRepository.UpsertPendingAsync(mfaSetup, cancellationToken))
+            return new MFASetupResult(false, null, MFAOperationResult.AlreadyEnabled);
 
         var uri = new OtpUri(OtpType.Totp, mfaSetup.Secret, account.Email, issuer).ToString();
         return new MFASetupResult(true, uri, MFAOperationResult.Success);
@@ -64,7 +61,8 @@ public class MFAService : IMFAService
 
         if (mfaSetup.CreatedAt.AddMinutes(5) < DateTime.UtcNow)
         {
-            await _mfaSetupRepository.DeleteAsync(mfaSetup.Id, cancellationToken);
+            // Only the expired setup this request read: a newer setup may have replaced it in place.
+            await _mfaSetupRepository.DeletePendingAsync(mfaSetup.Id, mfaSetup.Secret, cancellationToken);
             return new MFAConfirmResult(false, null, MFAOperationResult.Error);
         }
 
@@ -77,12 +75,14 @@ public class MFAService : IMFAService
         for (var i = 0; i < codes.Length; i++)
             codes[i] = MFARecoveryCodes.Generate(_secureRandom);
 
-        mfaSetup.RecoveryCode1 = MFARecoveryCodes.Hash(codes[0])!;
-        mfaSetup.RecoveryCode2 = MFARecoveryCodes.Hash(codes[1])!;
-        mfaSetup.RecoveryCode3 = MFARecoveryCodes.Hash(codes[2])!;
-        mfaSetup.Status = MfaSetupStatus.Confirmed;
-        mfaSetup.ConfirmedAt = DateTime.UtcNow;
-        await _mfaSetupRepository.UpdateAsync(mfaSetup, cancellationToken);
+        // Conditional on the row still being the Setup row, with the secret, that this code was
+        // verified against (#470). A double-submitted confirm, or a setup that replaced the secret
+        // meanwhile, loses here instead of overwriting codes another response already showed.
+        var confirmed = await _mfaSetupRepository.TryConfirmAsync(mfaSetup.Id, mfaSetup.Secret,
+            MFARecoveryCodes.Hash(codes[0])!, MFARecoveryCodes.Hash(codes[1])!, MFARecoveryCodes.Hash(codes[2])!,
+            DateTime.UtcNow, cancellationToken);
+        if (!confirmed)
+            return new MFAConfirmResult(false, null, MFAOperationResult.Error);
 
         return new MFAConfirmResult(true, codes, MFAOperationResult.Success);
     }
