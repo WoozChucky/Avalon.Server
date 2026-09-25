@@ -127,6 +127,8 @@ public class CWorldListHandlerShould
     [InlineData(AccountAccessLevel.PTR, new ushort[] { 2, 3 })]
     [InlineData(AccountAccessLevel.Player | AccountAccessLevel.PTR, new ushort[] { 2, 3 })]
     [InlineData(AccountAccessLevel.Tournament, new ushort[] { 2, 4 })]
+    // Staff below Admin: sees the PTR and Tournament worlds, not the Admin one.
+    [InlineData(AccountAccessLevel.GameMaster, new ushort[] { 2, 3, 4 })]
     [InlineData(AccountAccessLevel.Player | AccountAccessLevel.GameMaster | AccountAccessLevel.Admin, new ushort[] { 1, 2, 3, 4 })]
     public async Task List_Exactly_The_Worlds_The_Account_May_Enter(AccountAccessLevel level, ushort[] expected)
     {
