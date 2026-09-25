@@ -129,7 +129,7 @@ namespace Avalon.Database.World.Migrations
                 {
                     { "ptPT", 1, "A mata escurece a cada estação, {name}. Já há estações em que nunca chega a clarear." },
                     { "ptPT", 2, "Algo se enraizou no coração dela. Os bichos sentem-no antes de nós — mudam, e depois não voltam a ser o que eram." },
-                    { "ptPT", 3, "Alguns regressam. Mas não tudo o que regressa é quem partiu." },
+                    { "ptPT", 3, "Alguns regressam. Mas nem tudo o que regressa é quem partiu." },
                     { "ptPT", 4, "O aço aguenta. A madeira apodrece. Lembra-te de qual dos dois levas contigo quando caminhares debaixo daquelas árvores." },
                     { "ptPT", 5, "Uma vez, e voltei pela bigorna e não pela paisagem. {g:Um|Uma} {class} talvez se saia melhor do que um ferreiro se saiu." },
                     { "ptPT", 6, "Sê bem-{g:vindo|vinda}, {name}. O quarto é lá em cima, o guisado está ao lume, e não faço perguntas sobre o estado das tuas botas." },
