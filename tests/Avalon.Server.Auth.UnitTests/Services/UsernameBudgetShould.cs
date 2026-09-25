@@ -494,7 +494,7 @@ public class UsernameBudgetShould
         await LogInAsync(handler, ConnectionFrom(Max), "wrong_password");
 
         Assert.Equal(TimeSpan.FromMinutes(15), _counters.TimeToLive(key));
-        Assert.Equal(Max, _counters.CountOf(key));
+        Assert.Equal(Max + 1, _counters.CountOf(key));
     }
 
     /// <summary>
@@ -623,6 +623,124 @@ public class UsernameBudgetShould
 
         Assert.Equal(AuthResult.LOCKED, ResultOf(connection));
         await _mfa.DidNotReceiveWithAnyArgs().VerifyMFAAsync(default!, default!, default);
+    }
+
+    /// <summary>
+    /// #484 re-review: the completed-login reset deleted the key whatever it held. A login recorded
+    /// just before a concurrent failure held the budget at the limit (and locked the row) would
+    /// delete that hold, and the row would stay locked with nothing refusing an unknown username the
+    /// same way. The reset deletes the key only while it is below the limit.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Keep_a_held_budget_when_a_login_completes_as_the_lock_lands(bool mfa)
+    {
+        Account account = MakeAccount();
+        _accounts.FindByUserNameAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(account);
+        LiveMfaHashFor(account);
+        _mfa.VerifyMFAAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(new MFAVerifyResult(true, account.Id));
+        string key = UsernameBudget.KeyFor("testuser");
+        // A concurrent last-slot failure holds the budget right after this login was recorded.
+        _accounts.TryRecordLoginAsync(default!, default!, default, default).ReturnsForAnyArgs(_ =>
+        {
+            UsernameBudget.HoldLockAsync(_counters.Cache, Options().Value, key);
+            return true;
+        });
+        IAuthConnection connection = ConnectionFrom(1);
+
+        if (mfa) await VerifyCodeAsync(MfaHandler(), connection, "123456");
+        else await LogInAsync(PasswordHandler(), connection, CorrectPassword);
+
+        Assert.Equal(AuthResult.SUCCESS, ResultOf(connection));
+        Assert.True(_counters.Exists(key));
+        Assert.Equal(Max + 1, _counters.CountOf(key));
+    }
+
+    /// <summary>
+    /// #484 re-review: the row lock was written with the request's token, so a connection closing
+    /// at that moment could skip the lock. A lock write never takes it.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Write_the_row_lock_without_the_request_token(bool mfa)
+    {
+        Account account = MakeAccount();
+        _accounts.FindByUserNameAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(account);
+        LiveMfaHashFor(account);
+        _mfa.VerifyMFAAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(new MFAVerifyResult(false, null));
+        using var closing = new CancellationTokenSource();
+
+        for (var i = 0; i < Max; i++)
+        {
+            IAuthConnection connection = ConnectionFrom(i);
+            if (mfa)
+            {
+                await MfaHandler().ExecuteAsync(new AuthPacketContext<CMFAVerifyPacket>
+                {
+                    Packet = new CMFAVerifyPacket { MfaHash = "hash", Code = "000000" },
+                    Connection = connection,
+                }, closing.Token);
+            }
+            else
+            {
+                await PasswordHandler().ExecuteAsync(new AuthPacketContext<CAuthPacket>
+                {
+                    Packet = new CAuthPacket { Username = "testuser", Password = "wrong_password" },
+                    Connection = connection,
+                }, closing.Token);
+            }
+        }
+
+        await _accounts.Received(1).RecordFailedLoginAsync(account.Id, Arg.Any<string>(), Arg.Any<DateTime>(),
+            Arg.Is<DateTime?>(d => d != null), CancellationToken.None);
+        await _accounts.DidNotReceive().RecordFailedLoginAsync(Arg.Any<AccountId>(), Arg.Any<string>(),
+            Arg.Any<DateTime>(), Arg.Is<DateTime?>(d => d != null), closing.Token);
+    }
+
+    /// <summary>
+    /// #484 re-review: with the hold's error left to propagate through the finally, a failing row
+    /// write replaced it and the Redis error was never seen. It is logged before the row is written.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Log_the_hold_error_even_when_the_row_write_fails_too(bool mfa)
+    {
+        Account account = MakeAccount();
+        _accounts.FindByUserNameAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(account);
+        LiveMfaHashFor(account);
+        _mfa.VerifyMFAAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(new MFAVerifyResult(false, null));
+        _accounts.RecordFailedLoginAsync(Arg.Any<AccountId>(), Arg.Any<string>(), Arg.Any<DateTime>(),
+                Arg.Is<DateTime?>(d => d != null), Arg.Any<CancellationToken>())
+            .Returns<Task<FailedLoginResult>>(_ => throw new TimeoutException("database is down"));
+        var redisDown = new InvalidOperationException("redis is down");
+        ILogger logger = Substitute.For<ILogger>();
+        ILoggerFactory loggers = Substitute.For<ILoggerFactory>();
+        loggers.CreateLogger(Arg.Any<string>()).Returns(logger);
+        var password = new CAuthHandler(loggers, _accounts, _counters.Cache, _hashes, _mfaSetups, Options(), _verifier);
+        var code = new CMFAVerifyHandler(loggers, _mfa, _accounts, _counters.Cache, _hashes, Options());
+        for (var i = 0; i < Max - 1; i++)
+        {
+            if (mfa) await VerifyCodeAsync(code, ConnectionFrom(i), "000000");
+            else await LogInAsync(password, ConnectionFrom(i), "wrong_password");
+        }
+        _counters.BeforeHold = _ => throw redisDown;
+
+        IAuthConnection connection = ConnectionFrom(Max);
+        await Assert.ThrowsAnyAsync<Exception>(() => mfa
+            ? VerifyCodeAsync(code, connection, "000000")
+            : LogInAsync(password, connection, "wrong_password"));
+
+        Assert.Contains(logger.ReceivedCalls(), c => c.GetMethodInfo().Name == nameof(ILogger.Log)
+            && (LogLevel)c.GetArguments()[0]! == LogLevel.Error
+            && ReferenceEquals(c.GetArguments()[3], redisDown));
+        await _accounts.Received(1).RecordFailedLoginAsync(account.Id, Arg.Any<string>(), Arg.Any<DateTime>(),
+            Arg.Is<DateTime?>(d => d != null), Arg.Any<CancellationToken>());
     }
 
     // ── Redis failing ─────────────────────────────────────────────────────

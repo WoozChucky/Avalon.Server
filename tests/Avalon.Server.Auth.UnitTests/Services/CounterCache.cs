@@ -11,6 +11,7 @@ namespace Avalon.Server.Auth.UnitTests.Services;
 /// <item><c>DecrementFloorAsync</c>: DECR floored at zero, keeping the expiry; a missing key stays missing.</item>
 /// <item><c>HoldCounterAtLeastAsync</c>: raise to the floor and SET with a fresh expiry, recreating the key.</item>
 /// <item><c>KeyExpireAsync</c>: sets the expiry of a key that exists, and does nothing to one that does not.</item>
+/// <item><c>RemoveCounterIfBelowAsync</c>: DEL only while the value is below the limit; a missing key stays missing.</item>
 /// <item><c>RemoveAsync</c>: DEL.</item>
 /// </list>
 /// Everything else is a plain substitute.
@@ -43,6 +44,17 @@ internal sealed class CounterCache
             {
                 BeforeHold?.Invoke(ci.ArgAt<string>(0));
                 return Expire(ci.ArgAt<string>(0), ci.ArgAt<TimeSpan>(1));
+            });
+        Cache.RemoveCounterIfBelowAsync(Arg.Any<string>(), Arg.Any<long>())
+            .Returns(ci =>
+            {
+                lock (_gate)
+                {
+                    string key = ci.ArgAt<string>(0);
+                    Purge(key);
+                    if (!_keys.TryGetValue(key, out var entry) || entry.Value >= ci.ArgAt<long>(1)) return false;
+                    return _keys.Remove(key);
+                }
             });
         Cache.RemoveAsync(Arg.Any<string>())
             .Returns(ci =>

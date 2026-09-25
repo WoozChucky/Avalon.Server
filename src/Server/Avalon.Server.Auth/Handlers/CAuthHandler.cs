@@ -46,7 +46,8 @@ public class CAuthHandler : IAuthPacketHandler<CAuthPacket>
         // before it can guess another password or push another account towards a lock. LOCKED
         // rather than INVALID_CREDENTIALS, so the player is told to wait instead of retyping; it is
         // answered for every username alike, so it says nothing about which ones exist. The slot is
-        // taken here, before any work, and given back only once the password proves correct.
+        // taken here, before any work, and given back only once an MFA hash is issued or the login
+        // completes (#484).
         var sourceKey = SourceBudget.KeyFor(ctx.Connection.RemoteEndPoint);
         if (!await SourceBudget.TryTakeAsync(_cache, _authConfig, sourceKey))
         {
@@ -163,7 +164,7 @@ public class CAuthHandler : IAuthPacketHandler<CAuthPacket>
         // The login is complete: the source gets its own slot back, and the username's count is
         // cleared (owner decision on #484), so earlier typos do not carry over.
         await SourceBudget.GiveBackAsync(_cache, sourceKey);
-        await UsernameBudget.ResetAsync(_cache, usernameKey);
+        await UsernameBudget.ResetAsync(_cache, _authConfig, usernameKey);
 
         ctx.Connection.AccountId = account.Id;
 
@@ -192,29 +193,17 @@ public class CAuthHandler : IAuthPacketHandler<CAuthPacket>
     private async Task FailAsync(AuthPacketContext<CAuthPacket> ctx, AccountId? accountId, string usernameKey, long taken,
         CancellationToken token)
     {
-        bool locks = UsernameBudget.Locks(_authConfig, taken);
         ctx.Connection.Send(SAuthResultPacket.Create(null, null, FailureResult(taken), ctx.Connection.CryptoSession.Encrypt));
 
-        // The row's lock end is taken before the hold, so it always ends before the budget's
-        // refusal does. The row is written whatever the hold does: a Redis error there must not
-        // leave the account unlocked. The error itself still propagates, and the server closes the
+        // The row is written whatever the hold does: a Redis error there must not leave the account
+        // unlocked. The error is logged, then rethrown after the write, and the server closes the
         // connection.
-        var now = DateTime.UtcNow;
-        DateTime? lockUntil = locks ? now.AddMinutes(_authConfig.LockoutDurationMinutes) : null;
-        try
-        {
-            if (locks)
-            {
-                await UsernameBudget.HoldLockAsync(_cache, _authConfig, usernameKey);
-            }
-        }
-        finally
-        {
-            if (accountId != null)
-            {
-                await _accountRepository.RecordFailedLoginAsync(accountId, RemoteAddress.Of(ctx.Connection.RemoteEndPoint),
-                    now, lockUntil, token);
-            }
-        }
+        var attemptIp = RemoteAddress.Of(ctx.Connection.RemoteEndPoint);
+        await UsernameBudget.RecordFailureAsync(_cache, _authConfig, _logger, usernameKey, taken,
+            accountId == null
+                ? null
+                : (now, lockUntil, writeToken) =>
+                    _accountRepository.RecordFailedLoginAsync(accountId, attemptIp, now, lockUntil, writeToken),
+            token);
     }
 }

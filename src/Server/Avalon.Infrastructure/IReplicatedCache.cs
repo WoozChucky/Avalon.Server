@@ -32,6 +32,12 @@ public interface IReplicatedCache
     /// </summary>
     Task<long> HoldCounterAtLeastAsync(string key, long floor, TimeSpan window);
     /// <summary>
+    /// Atomically deletes the counter at <paramref name="key"/>, but only while its value is below
+    /// <paramref name="limit"/>. Returns true when it deleted the key; a missing key, or one at or
+    /// above the limit, is left as it is.
+    /// </summary>
+    Task<bool> RemoveCounterIfBelowAsync(string key, long limit);
+    /// <summary>
     /// Atomically increments <paramref name="field"/> of the hash at <paramref name="key"/> and
     /// returns the new value, but only while the hash exists: returns -1, creating nothing, when
     /// it does not, so an expired hash is never recreated without its expiry.
@@ -136,6 +142,20 @@ public class ReplicatedCache : IReplicatedCache
         RedisResult result = await _redis.GetDatabase().ScriptEvaluateAsync(HoldCounterAtLeastScript,
             [new RedisKey(key)], [floor, (long)window.TotalMilliseconds]);
         return (long)result;
+    }
+
+    // GET and DEL in one script: a hold that raised the counter to the limit between the two is
+    // never deleted.
+    private const string RemoveCounterIfBelowScript =
+        "local v = tonumber(redis.call('GET', KEYS[1])) " +
+        "if v and v < tonumber(ARGV[1]) then redis.call('DEL', KEYS[1]) return 1 end " +
+        "return 0";
+
+    public async Task<bool> RemoveCounterIfBelowAsync(string key, long limit)
+    {
+        RedisResult result = await _redis.GetDatabase().ScriptEvaluateAsync(RemoveCounterIfBelowScript,
+            [new RedisKey(key)], [limit]);
+        return (long)result == 1;
     }
 
     private const string HashIncrementIfExistsScript =

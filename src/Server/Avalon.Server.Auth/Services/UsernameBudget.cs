@@ -1,3 +1,4 @@
+using System.Runtime.ExceptionServices;
 using System.Security.Cryptography;
 using System.Text;
 using Avalon.Infrastructure;
@@ -34,7 +35,8 @@ public static class UsernameBudget
     public static bool Locks(AuthConfiguration config, long taken) => taken >= config.MaxFailedLoginAttempts;
 
     /// <summary>
-    /// Holds the lock: in one atomic step, raises the count to at least the limit and restarts the
+    /// Holds the lock: in one atomic step, raises the count to at least <see cref="HeldValue"/> (one
+    /// past the limit, so later attempts are refused and a reset can tell it apart) and restarts the
     /// window from the failure that set the lock, recreating the key if it expired after this
     /// attempt took its slot. Call it after computing the row's <c>LockedUntil</c>, so the row's lock
     /// always ends first and the refusal lasts at least as long. Done for a username no account has
@@ -42,7 +44,7 @@ public static class UsernameBudget
     /// EXPIRE left an unknown username unlocked while a known one's row stayed locked).
     /// </summary>
     public static Task HoldLockAsync(IReplicatedCache cache, AuthConfiguration config, string key) =>
-        cache.HoldCounterAtLeastAsync(key, config.MaxFailedLoginAttempts, Window(config));
+        cache.HoldCounterAtLeastAsync(key, HeldValue(config), Window(config));
 
     /// <inheritdoc cref="AttemptBudget.GiveBackAsync"/>
     public static Task GiveBackAsync(IReplicatedCache cache, string key) => AttemptBudget.GiveBackAsync(cache, key);
@@ -51,9 +53,61 @@ public static class UsernameBudget
     /// Clears the username's count once a login has fully completed (owner decision on #484): the
     /// login is recorded, and for an MFA account the code has been accepted too. Never at the
     /// password step of an MFA account, since every password login makes a fresh MFA hash and a
-    /// reset there would hand out a fresh set of code guesses each time.
+    /// reset there would hand out a fresh set of code guesses each time. The key is deleted only
+    /// while the failures before this login are below the limit, in one script, so a hold that a
+    /// concurrent last-slot failure set (with the row lock it goes with) is never deleted by a login
+    /// that completed just before it (#484 re-review). The count still includes the login's own
+    /// slot, so that is a count below <see cref="HeldValue"/>: four typos and a completed login
+    /// leave five, and the key goes; a held key is at least six, and stays.
     /// </summary>
-    public static Task ResetAsync(IReplicatedCache cache, string key) => cache.RemoveAsync(key);
+    public static Task ResetAsync(IReplicatedCache cache, AuthConfiguration config, string key) =>
+        cache.RemoveCounterIfBelowAsync(key, HeldValue(config));
+
+    /// <summary>
+    /// The value a hold raises the count to: one past the limit, which only a hold (or attempts
+    /// already refused) can reach, so the reset can tell a held key from a count of failures.
+    /// </summary>
+    public static long HeldValue(AuthConfiguration config) => config.MaxFailedLoginAttempts + 1L;
+
+    /// <summary>
+    /// After a failure has been answered: holds the budget when the failure is in the last slot,
+    /// and runs <paramref name="recordRow"/> (null for a username no account has) with the row's
+    /// lock end, taken before the hold so the row's lock always ends first. The row is written
+    /// whatever the hold does; a hold error is logged first and rethrown after the write, so a
+    /// failing write cannot hide it. A lock write never takes <paramref name="token"/>: a closing
+    /// connection must not skip the lock (#484 re-review).
+    /// </summary>
+    public static async Task RecordFailureAsync(IReplicatedCache cache, AuthConfiguration config, ILogger logger,
+        string key, long taken, Func<DateTime, DateTime?, CancellationToken, Task>? recordRow, CancellationToken token)
+    {
+        bool locks = Locks(config, taken);
+        DateTime now = DateTime.UtcNow;
+        DateTime? lockUntil = locks ? now.AddMinutes(config.LockoutDurationMinutes) : null;
+
+        Exception? holdError = null;
+        if (locks)
+        {
+            try
+            {
+                await HoldLockAsync(cache, config, key);
+            }
+            catch (Exception e)
+            {
+                logger.LogError(e, "Could not hold the failed-login budget of a locked username");
+                holdError = e;
+            }
+        }
+
+        if (recordRow != null)
+        {
+            await recordRow(now, lockUntil, lockUntil != null ? CancellationToken.None : token);
+        }
+
+        if (holdError != null)
+        {
+            ExceptionDispatchInfo.Throw(holdError);
+        }
+    }
 
     private static TimeSpan Window(AuthConfiguration config) => TimeSpan.FromMinutes(config.LockoutDurationMinutes);
 }

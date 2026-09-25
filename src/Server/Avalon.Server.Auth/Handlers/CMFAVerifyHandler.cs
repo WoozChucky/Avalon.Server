@@ -34,7 +34,7 @@ public class CMFAVerifyHandler : IAuthPacketHandler<CMFAVerifyPacket>
     public async Task ExecuteAsync(AuthPacketContext<CMFAVerifyPacket> ctx, CancellationToken token = default)
     {
         // A code attempt spends the source's budget like a password attempt (#471), taken before the
-        // code is checked and given back only when it is right.
+        // code is checked and given back only once the login it completes is recorded.
         var sourceKey = SourceBudget.KeyFor(ctx.Connection.RemoteEndPoint);
         if (!await SourceBudget.TryTakeAsync(_cache, _authConfig, sourceKey))
         {
@@ -104,27 +104,16 @@ public class CMFAVerifyHandler : IAuthPacketHandler<CMFAVerifyPacket>
                 await _mfaHashService.CleanupHash(hash);
             }
 
-            bool locks = UsernameBudget.Locks(_authConfig, taken);
             ctx.Connection.Send(SAuthResultPacket.Create(null, null, FailureResult(taken), ctx.Connection.CryptoSession.Encrypt));
 
             // Written after the reply, as a wrong password is. The failure in the budget's last
-            // slot locks the account; its end is taken before the hold, so the row's lock ends
-            // first, and the row is written whatever the hold does (the error still propagates,
-            // and the server closes the connection).
-            var now = DateTime.UtcNow;
-            DateTime? lockUntil = locks ? now.AddMinutes(_authConfig.LockoutDurationMinutes) : null;
-            try
-            {
-                if (locks)
-                {
-                    await UsernameBudget.HoldLockAsync(_cache, _authConfig, usernameKey);
-                }
-            }
-            finally
-            {
-                await _accountRepository.RecordFailedLoginAsync(account.Id, RemoteAddress.Of(ctx.Connection.RemoteEndPoint),
-                    now, lockUntil, token);
-            }
+            // slot locks the account, and the row is written whatever the hold does (a hold error
+            // is logged, rethrown after the write, and the server closes the connection).
+            var attemptIp = RemoteAddress.Of(ctx.Connection.RemoteEndPoint);
+            await UsernameBudget.RecordFailureAsync(_cache, _authConfig, _logger, usernameKey, taken,
+                (now, lockUntil, writeToken) =>
+                    _accountRepository.RecordFailedLoginAsync(account.Id, attemptIp, now, lockUntil, writeToken),
+                token);
             return;
         }
 
@@ -180,7 +169,7 @@ public class CMFAVerifyHandler : IAuthPacketHandler<CMFAVerifyPacket>
         // The login is complete: the source gets its own slot back, and the username's count is
         // cleared (owner decision on #484).
         await SourceBudget.GiveBackAsync(_cache, sourceKey);
-        await UsernameBudget.ResetAsync(_cache, usernameKey);
+        await UsernameBudget.ResetAsync(_cache, _authConfig, usernameKey);
 
         ctx.Connection.AccountId = account.Id;
 
