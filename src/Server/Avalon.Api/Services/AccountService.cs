@@ -1,6 +1,7 @@
 using System.Net;
 using System.Security.Authentication;
 using System.Text;
+using Avalon.Api.Authentication;
 using Avalon.Api.Authentication.Jwt;
 using Avalon.Api.Config;
 using Avalon.Api.Contract;
@@ -30,6 +31,14 @@ public interface IAccountService
     Task ConfirmEmailChangeAsync(string token, CancellationToken cancellationToken = default);
     Task UpdateStatusAsync(AccountId accountId, Avalon.Api.Contract.AccountStatus state, string? reason, AccountId actorId, CancellationToken cancellationToken = default);
     Task UpdateRolesAsync(AccountId accountId, Avalon.Api.Contract.AccountAccessLevel roles, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Removes MFA from <paramref name="accountId"/> on behalf of admin <paramref name="actorId"/>.
+    /// Returns <c>false</c> when the account does not exist. Once the database change commits it
+    /// returns <c>true</c> even if the Redis cleanup or the world-disconnect publish fails; those
+    /// are best-effort and only logged. Refusing an admin's own account is the caller's job.
+    /// </summary>
+    Task<bool> RemoveMfaAsync(AccountId accountId, AccountId actorId, CancellationToken cancellationToken = default);
 }
 
 public class AccountService : IAccountService
@@ -89,6 +98,12 @@ public class AccountService : IAccountService
         {
             throw new AuthenticationException("Invalid username or password");
         }
+
+        // A banned or deactivated account gets nothing, not even an MFA hash (#480). Past the
+        // password check it is told its status, as the game client is; a wrong password above
+        // never learns it.
+        if (!AccountAccessCheck.MayHoldSession(account))
+            throw new AccountInactiveException(account.Status);
 
         var mfaSetup = await _mfaSetupRepository.FindByAccountIdAsync(account.Id, cancellationToken);
         if (mfaSetup is { Status: MfaSetupStatus.Confirmed })
@@ -272,5 +287,68 @@ public class AccountService : IAccountService
             ?? throw new BusinessException("Account not found");
         account.AccessLevel = (Avalon.Common.Accounts.AccountAccessLevel)roles;
         await _accountRepository.UpdateAsync(account, cancellationToken);
+    }
+
+    public async Task<bool> RemoveMfaAsync(AccountId accountId, AccountId actorId,
+        CancellationToken cancellationToken = default)
+    {
+        // The only way back into an account whose authenticator is lost. The MFA row goes, and
+        // every refresh token and personal access token goes with it in the same transaction, so
+        // no session opened before the reset outlives it.
+        var removed = await _authTransaction.ExecuteAsync(async (context, token) =>
+        {
+            if (!await context.Accounts.AnyAsync(a => a.Id == accountId, token))
+                return (Found: false, Rows: 0);
+
+            var rows = await MfaSetupRepository.DeleteAllForAccountAsync(context, accountId, token);
+            await RefreshTokenRepository.RevokeAllForAccountAsync(context, accountId, token);
+            await PersonalAccessTokenRepository.RevokeAllForAccountAsync(context, accountId, actorId,
+                DateTime.UtcNow, token);
+
+            return (Found: true, Rows: rows);
+        }, cancellationToken);
+
+        if (!removed.Found)
+            return false;
+
+        // The audit line goes first, straight after the commit: the reset has happened, and a
+        // Redis failure below must not be able to lose the record of who did it.
+        _logger.LogInformation(
+            "Admin {ActorId} removed MFA from account {AccountId} ({Rows} row(s) deleted); its refresh and personal access tokens were revoked",
+            actorId.Value, accountId.Value, removed.Rows);
+
+        // Everything from here is best-effort. The database change is committed, so a Redis
+        // failure is logged and the call still succeeds; each step is attempted on its own.
+        try
+        {
+            // A login already past its password step holds MFA state in Redis; clear it and its
+            // reverse lookup so that login cannot finish against an enrolment that no longer exists.
+            // The state also expires on its own short TTL.
+            var mfaKey = CacheKeys.AccountMfa(accountId.Value);
+            var pendingHash = await _cache.Database.HashGetAsync(mfaKey, "hash");
+            if (pendingHash.HasValue)
+                await _cache.RemoveAsync(CacheKeys.MfaReverseHash(pendingHash!));
+            await _cache.RemoveAsync(mfaKey);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex,
+                "Could not clear pending MFA state in Redis for account {AccountId} after its MFA was removed",
+                accountId.Value);
+        }
+
+        try
+        {
+            // Kick any live world session, the same way a ban or a password change does.
+            await _cache.PublishAsync(CacheKeys.WorldAccountsDisconnectChannel, accountId.Value.ToString());
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex,
+                "Could not publish a world disconnect for account {AccountId} after its MFA was removed",
+                accountId.Value);
+        }
+
+        return true;
     }
 }

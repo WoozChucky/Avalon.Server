@@ -20,9 +20,18 @@ public interface IMfaSetupRepository : IRepository<MFASetup, Guid>
     /// Confirms row <paramref name="id"/> and stores the recovery-code hashes, but only while the
     /// row is still in Setup with the secret the code was verified against. Returns <c>false</c>,
     /// writing nothing, when another request confirmed or replaced it first.
+    /// <paramref name="acceptedTotpStep"/>, the step of the confirming code, is stored as the last
+    /// one accepted, so that code cannot then be used to log in.
     /// </summary>
     Task<bool> TryConfirmAsync(Guid id, byte[] verifiedSecret, byte[] recoveryCode1, byte[] recoveryCode2,
-        byte[] recoveryCode3, DateTime confirmedAt, CancellationToken cancellationToken = default);
+        byte[] recoveryCode3, DateTime confirmedAt, long acceptedTotpStep, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Records <paramref name="step"/> as the last TOTP step accepted on confirmed row
+    /// <paramref name="id"/>, but only when it is later than the one stored. Returns <c>false</c>,
+    /// writing nothing, when it is not: the code was already used, or an older one.
+    /// </summary>
+    Task<bool> TryAcceptTotpStepAsync(Guid id, long step, CancellationToken cancellationToken = default);
 
     /// <summary>Deletes row <paramref name="id"/> only while it is still in Setup with <paramref name="secret"/>.</summary>
     Task DeletePendingAsync(Guid id, byte[] secret, CancellationToken cancellationToken = default);
@@ -83,7 +92,7 @@ public class MfaSetupRepository(IDbContextFactory<AuthDbContext> contextFactory)
     }
 
     public async Task<bool> TryConfirmAsync(Guid id, byte[] verifiedSecret, byte[] recoveryCode1, byte[] recoveryCode2,
-        byte[] recoveryCode3, DateTime confirmedAt, CancellationToken cancellationToken = default)
+        byte[] recoveryCode3, DateTime confirmedAt, long acceptedTotpStep, CancellationToken cancellationToken = default)
     {
         await using var context = await CreateContextAsync(cancellationToken);
 
@@ -94,9 +103,22 @@ public class MfaSetupRepository(IDbContextFactory<AuthDbContext> contextFactory)
                 .SetProperty(m => m.RecoveryCode2, recoveryCode2)
                 .SetProperty(m => m.RecoveryCode3, recoveryCode3)
                 .SetProperty(m => m.Status, MfaSetupStatus.Confirmed)
-                .SetProperty(m => m.ConfirmedAt, confirmedAt), cancellationToken);
+                .SetProperty(m => m.ConfirmedAt, confirmedAt)
+                .SetProperty(m => m.LastAcceptedTotpStep, acceptedTotpStep), cancellationToken);
 
         return confirmed == 1;
+    }
+
+    public async Task<bool> TryAcceptTotpStepAsync(Guid id, long step, CancellationToken cancellationToken = default)
+    {
+        await using var context = await CreateContextAsync(cancellationToken);
+
+        var accepted = await context.MfaSetups
+            .Where(m => m.Id == id && m.Status == MfaSetupStatus.Confirmed
+                        && (m.LastAcceptedTotpStep == null || m.LastAcceptedTotpStep < step))
+            .ExecuteUpdateAsync(s => s.SetProperty(m => m.LastAcceptedTotpStep, step), cancellationToken);
+
+        return accepted == 1;
     }
 
     public async Task DeletePendingAsync(Guid id, byte[] secret, CancellationToken cancellationToken = default)
@@ -107,4 +129,14 @@ public class MfaSetupRepository(IDbContextFactory<AuthDbContext> contextFactory)
             .Where(m => m.Id == id && m.Status == MfaSetupStatus.Setup && m.Secret == secret)
             .ExecuteDeleteAsync(cancellationToken);
     }
+
+    /// <summary>
+    /// Deletes every MFA row the account has, in any status, on a context the caller owns, so the
+    /// statement joins that context's transaction. Returns the number of rows deleted.
+    /// </summary>
+    public static Task<int> DeleteAllForAccountAsync(AuthDbContext context, AccountId accountId,
+        CancellationToken cancellationToken = default) =>
+        context.MfaSetups
+            .Where(m => m.AccountId == accountId)
+            .ExecuteDeleteAsync(cancellationToken);
 }

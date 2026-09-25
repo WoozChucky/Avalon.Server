@@ -35,6 +35,12 @@ public class MFASetup : IDbEntity<Guid>
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     public DateTime ConfirmedAt { get; set; }
+
+    /// <summary>
+    /// The TOTP time step of the last code accepted for this account (#471). A code whose step is
+    /// not later than this one is refused, so each code is accepted once.
+    /// </summary>
+    public long? LastAcceptedTotpStep { get; set; }
 }
 
 public enum MfaSetupStatus : ushort

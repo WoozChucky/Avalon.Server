@@ -12,7 +12,6 @@ namespace Avalon.Api.Authentication.Jwt;
 public interface IJwtUtils
 {
     string GenerateJwtToken(Account account);
-    int? ValidateJwtToken(string? token);
 }
 
 public class JwtUtils : IJwtUtils
@@ -58,37 +57,5 @@ public class JwtUtils : IJwtUtils
 
         var token = _tokenHandler.CreateToken(tokenDescriptor);
         return _tokenHandler.WriteToken(token);
-    }
-
-    public int? ValidateJwtToken(string? token)
-    {
-        if (token == null)
-            return null;
-
-        try
-        {
-            _tokenHandler.ValidateToken(token, new TokenValidationParameters
-            {
-                ValidIssuer = _authenticationConfig.Issuer,
-                ValidateIssuer = _authenticationConfig.ValidateIssuer,
-                IssuerSigningKey = _key,
-                ValidateIssuerSigningKey = _authenticationConfig.ValidateIssuerKey,
-                ValidAudience = _authenticationConfig.Audience,
-                ValidateAudience = _authenticationConfig.ValidateAudience,
-                ValidateLifetime = true,
-                ClockSkew = TimeSpan.FromMinutes(1)
-            }, out var validatedToken);
-
-            var jwtToken = (JwtSecurityToken)validatedToken;
-            var accountId = int.Parse(jwtToken.Claims.First(x => x.Type == JwtRegisteredClaimNames.Sub).Value);
-
-            // return account id from JWT token if validation successful
-            return accountId;
-        }
-        catch
-        {
-            // return null if validation fails
-            return null;
-        }
     }
 }

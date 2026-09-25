@@ -24,8 +24,15 @@ public class CMFAVerifyHandlerShould
     private readonly IAuthConnection _connection = Substitute.For<IAuthConnection>();
     private readonly IAvalonCryptoSession _cryptoSession = new FakeAvalonCryptoSession();
 
-    private CMFAVerifyHandler CreateHandler() =>
-        new(NullLoggerFactory.Instance, _mfaService, _accountRepository, _cache);
+    private readonly IMFAHashService _mfaHashService = Substitute.For<IMFAHashService>();
+
+    private CMFAVerifyHandler CreateHandler(int maxPerSource = 10, int maxMfaAttempts = 5) =>
+        new(NullLoggerFactory.Instance, _mfaService, _accountRepository, _cache, _mfaHashService,
+            Options.Create(new AuthConfiguration
+            {
+                MaxFailedLoginsPerSource = maxPerSource,
+                MaxFailedMfaAttempts = maxMfaAttempts,
+            }));
 
     private static Account MakeAccount(long id = 1) => new()
     {
@@ -41,6 +48,10 @@ public class CMFAVerifyHandlerShould
     {
         _connection.CryptoSession.Returns(_cryptoSession);
         _connection.RemoteEndPoint.Returns("127.0.0.1:12345");
+        _accountRepository.TryRecordLoginAsync(default!, default!, default, default).ReturnsForAnyArgs(true);
+        // A live MFA hash for account 1 with its first attempt, unless a test says otherwise.
+        _mfaHashService.GetAccountIdAsync(Arg.Any<string>()).Returns(new AccountId(1L));
+        _mfaHashService.RecordAttemptAsync(Arg.Any<AccountId>()).Returns(1L);
     }
 
     [Fact]
@@ -63,7 +74,9 @@ public class CMFAVerifyHandlerShould
         _connection.Received(1).Send(Arg.Any<NetworkPacket>());
         _connection.Received().AccountId = accountId;
         await _cache.Received(1).PublishAsync(CacheKeys.AuthAccountsOnlineChannel, Arg.Any<string>());
-        await _accountRepository.Received(1).UpdateAsync(account);
+        await _accountRepository.Received(1).TryRecordLoginAsync(accountId, "127.0.0.1", Arg.Any<DateTime>(),
+            Arg.Any<CancellationToken>());
+        await _accountRepository.DidNotReceiveWithAnyArgs().UpdateAsync(default!, default);
     }
 
     [Fact]
@@ -196,5 +209,240 @@ public class CMFAVerifyHandlerShould
         _connection.DidNotReceiveWithAnyArgs().AccountId = default;
         await _accountRepository.DidNotReceiveWithAnyArgs().UpdateAsync(default!, default);
         await _cache.DidNotReceiveWithAnyArgs().PublishAsync(default!, default!);
+    }
+
+    private SAuthResultPacket SentPacket()
+    {
+        NetworkPacket sent = (NetworkPacket)_connection.ReceivedCalls()
+            .Single(c => c.GetMethodInfo().Name == nameof(IAuthConnection.Send))
+            .GetArguments()[0]!;
+        using var stream = new MemoryStream(sent.Payload);
+        return Serializer.Deserialize<SAuthResultPacket>(stream);
+    }
+
+    /// <summary>
+    /// #471: an account locked between the password step and the code (by failed logins inside the
+    /// MFA hash's two minutes) must not finish logging in with a valid code.
+    /// </summary>
+    [Fact]
+    public async Task Refuse_a_valid_code_for_an_account_locked_after_the_password_step()
+    {
+        var account = MakeAccount();
+        var accountId = new AccountId(1L);
+        _mfaService.VerifyMFAAsync("valid-hash", "123456").Returns(new MFAVerifyResult(true, accountId));
+        _accountRepository.FindByIdAsync(accountId).Returns(account);
+        account.Locked = true;
+        account.LockedUntil = DateTime.UtcNow.AddMinutes(15);
+
+        await CreateHandler().ExecuteAsync(new AuthPacketContext<CMFAVerifyPacket>
+        {
+            Packet = new CMFAVerifyPacket { MfaHash = "valid-hash", Code = "123456" },
+            Connection = _connection
+        });
+
+        SAuthResultPacket packet = SentPacket();
+        Assert.Equal(AuthResult.LOCKED, packet.Result);
+        Assert.Equal(0, packet.AccountId);
+        Assert.False(account.Online);
+        _connection.DidNotReceiveWithAnyArgs().AccountId = default;
+        await _accountRepository.DidNotReceiveWithAnyArgs().UpdateAsync(default!, default);
+        await _cache.DidNotReceiveWithAnyArgs().PublishAsync(default!, default!);
+    }
+
+    // ── #471 review: wrong codes are counted ─────────────────────────────────
+
+    private const string SourceKey = "auth:source:127.0.0.1:failedLogins";
+
+    private Task VerifyAsync(string code = "000000") =>
+        CreateHandler().ExecuteAsync(new AuthPacketContext<CMFAVerifyPacket>
+        {
+            Packet = new CMFAVerifyPacket { MfaHash = "valid-hash", Code = code },
+            Connection = _connection
+        });
+
+    [Fact]
+    public async Task Count_a_wrong_code_against_the_source()
+    {
+        _mfaService.VerifyMFAAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(new MFAVerifyResult(false, null));
+
+        await VerifyAsync();
+
+        Assert.Equal(AuthResult.MFA_FAILED, SentPacket().Result);
+        await _cache.Received(1).IncrementAsync(SourceKey, Arg.Any<TimeSpan>());
+        await _cache.DidNotReceiveWithAnyArgs().DecrementFloorAsync(default!);
+    }
+
+    [Fact]
+    public async Task Refuse_a_source_past_its_limit_before_checking_the_code()
+    {
+        _cache.IncrementAsync(SourceKey, Arg.Any<TimeSpan>()).Returns(11L);
+
+        await VerifyAsync();
+
+        Assert.Equal(AuthResult.LOCKED, SentPacket().Result);
+        await _mfaService.DidNotReceiveWithAnyArgs().VerifyMFAAsync(default!, default!, default);
+    }
+
+    [Fact]
+    public async Task Count_a_wrong_code_against_the_mfa_hash()
+    {
+        var accountId = new AccountId(1L);
+        _mfaHashService.GetAccountIdAsync("valid-hash").Returns(accountId);
+        _mfaHashService.RecordAttemptAsync(accountId).Returns(1L);
+        _mfaService.VerifyMFAAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(new MFAVerifyResult(false, null));
+
+        await VerifyAsync();
+
+        await _mfaHashService.Received(1).RecordAttemptAsync(accountId);
+        await _mfaHashService.DidNotReceiveWithAnyArgs().CleanupHash(default!);
+    }
+
+    /// <summary>The fifth wrong code deletes the hash: the client has to log in again for another.</summary>
+    [Fact]
+    public async Task Delete_the_mfa_hash_after_the_last_allowed_wrong_code()
+    {
+        var accountId = new AccountId(1L);
+        _mfaHashService.GetAccountIdAsync("valid-hash").Returns(accountId);
+        _mfaHashService.RecordAttemptAsync(accountId).Returns(5L);
+        _mfaService.VerifyMFAAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(new MFAVerifyResult(false, null));
+
+        await VerifyAsync();
+
+        Assert.Equal(AuthResult.MFA_FAILED, SentPacket().Result);
+        await _mfaHashService.Received(1).CleanupHash("valid-hash");
+    }
+
+    [Fact]
+    public async Task Refuse_a_code_past_the_attempt_limit_without_checking_it()
+    {
+        var accountId = new AccountId(1L);
+        _mfaHashService.GetAccountIdAsync("valid-hash").Returns(accountId);
+        _mfaHashService.RecordAttemptAsync(accountId).Returns(6L);
+        _mfaService.VerifyMFAAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(new MFAVerifyResult(true, accountId));
+
+        await VerifyAsync("123456");
+
+        Assert.Equal(AuthResult.MFA_FAILED, SentPacket().Result);
+        await _mfaService.DidNotReceiveWithAnyArgs().VerifyMFAAsync(default!, default!, default);
+        await _mfaHashService.Received(1).CleanupHash("valid-hash");
+    }
+
+    /// <summary>
+    /// Re-review: a fresh password login makes a fresh MFA hash, so the per-hash cap reset on every
+    /// login, and a correct password gives its source slot back. A wrong code must therefore count
+    /// towards the account lock like a wrong password does. The reply goes first, as for a password.
+    /// </summary>
+    [Fact]
+    public async Task Count_a_wrong_code_towards_the_account_lock()
+    {
+        var accountId = new AccountId(7L);
+        _mfaHashService.GetAccountIdAsync("valid-hash").Returns(accountId);
+        _mfaService.VerifyMFAAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(new MFAVerifyResult(false, null));
+
+        DateTime before = DateTime.UtcNow;
+        await VerifyAsync();
+        DateTime after = DateTime.UtcNow;
+
+        Assert.Equal(AuthResult.MFA_FAILED, SentPacket().Result);
+        await _accountRepository.Received(1).RecordFailedLoginAsync(accountId, "127.0.0.1", Arg.Any<DateTime>(), 5,
+            Arg.Is<DateTime>(d => d >= before.AddMinutes(15) && d <= after.AddMinutes(15)), Arg.Any<CancellationToken>());
+        Received.InOrder(() =>
+        {
+            _connection.Send(Arg.Any<NetworkPacket>());
+            _accountRepository.RecordFailedLoginAsync(accountId, Arg.Any<string>(), Arg.Any<DateTime>(), Arg.Any<int>(),
+                Arg.Any<DateTime>(), Arg.Any<CancellationToken>());
+        });
+    }
+
+    [Fact]
+    public async Task Not_count_a_correct_code_towards_the_account_lock()
+    {
+        var account = MakeAccount();
+        var accountId = new AccountId(1L);
+        _mfaService.VerifyMFAAsync("valid-hash", "123456").Returns(new MFAVerifyResult(true, accountId));
+        _accountRepository.FindByIdAsync(accountId).Returns(account);
+
+        await VerifyAsync("123456");
+
+        await _accountRepository.DidNotReceiveWithAnyArgs().RecordFailedLoginAsync(default!, default!, default,
+            default, default, default);
+    }
+
+    /// <summary>
+    /// Re-review: between the :mfa hash being deleted and its reverse key being deleted (an expiry,
+    /// or an admin removing MFA), the attempt count is -1. Such a request is refused, not checked.
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Refuse_a_code_whose_mfa_hash_is_gone_without_checking_it(bool reverseKeyStillThere)
+    {
+        var accountId = new AccountId(1L);
+        _mfaHashService.GetAccountIdAsync("valid-hash").Returns(reverseKeyStillThere ? accountId : null);
+        _mfaHashService.RecordAttemptAsync(accountId).Returns(-1L);
+        _mfaService.VerifyMFAAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(new MFAVerifyResult(true, accountId));
+
+        await VerifyAsync("123456");
+
+        Assert.Equal(AuthResult.MFA_FAILED, SentPacket().Result);
+        await _mfaService.DidNotReceiveWithAnyArgs().VerifyMFAAsync(default!, default!, default);
+        _connection.DidNotReceiveWithAnyArgs().AccountId = default;
+    }
+
+    [Fact]
+    public async Task Give_back_its_source_slot_on_a_correct_code()
+    {
+        var account = MakeAccount();
+        var accountId = new AccountId(1L);
+        _mfaService.VerifyMFAAsync("valid-hash", "123456").Returns(new MFAVerifyResult(true, accountId));
+        _accountRepository.FindByIdAsync(accountId).Returns(account);
+
+        await VerifyAsync("123456");
+
+        Assert.Equal(AuthResult.SUCCESS, SentPacket().Result);
+        await _cache.Received(1).DecrementFloorAsync(SourceKey);
+    }
+
+    [Fact]
+    public async Task Record_the_full_ipv6_address_as_the_last_login_address()
+    {
+        _connection.RemoteEndPoint.Returns("[2001:db8:1:2:3:4:5:6]:50000");
+        var account = MakeAccount();
+        var accountId = new AccountId(1L);
+        _mfaService.VerifyMFAAsync("valid-hash", "123456").Returns(new MFAVerifyResult(true, accountId));
+        _accountRepository.FindByIdAsync(accountId).Returns(account);
+
+        await VerifyAsync("123456");
+
+        await _accountRepository.Received(1).TryRecordLoginAsync(accountId, "2001:db8:1:2:3:4:5:6",
+            Arg.Any<DateTime>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Accept_a_valid_code_for_an_account_whose_lock_has_expired()
+    {
+        var account = MakeAccount();
+        var accountId = new AccountId(1L);
+        _mfaService.VerifyMFAAsync("valid-hash", "123456").Returns(new MFAVerifyResult(true, accountId));
+        _accountRepository.FindByIdAsync(accountId).Returns(account);
+        account.Locked = true;
+        account.LockedUntil = DateTime.UtcNow.AddSeconds(-1);
+
+        await CreateHandler().ExecuteAsync(new AuthPacketContext<CMFAVerifyPacket>
+        {
+            Packet = new CMFAVerifyPacket { MfaHash = "valid-hash", Code = "123456" },
+            Connection = _connection
+        });
+
+        Assert.Equal(AuthResult.SUCCESS, SentPacket().Result);
+        Assert.True(account.Online);
+        Assert.False(account.Locked);
+        Assert.Null(account.LockedUntil);
     }
 }
