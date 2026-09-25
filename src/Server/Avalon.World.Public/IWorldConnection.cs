@@ -65,6 +65,13 @@ public interface IWorldConnection : IConnection
     public bool IsConnected { get; }
 
     /// <summary>
+    ///     Whether a close has been asked for. Set at once by the close, while
+    ///     <see cref="IsConnected" /> stays true until queued packets have gone out, so a connection
+    ///     that was kicked or is closing can still have packets dispatched. Read-only.
+    /// </summary>
+    bool IsClosing { get; }
+
+    /// <summary>
     ///     Holds a built character out of its instance. Clears <see cref="SelectInProgress" />:
     ///     the pending spawn supersedes it. <paramref name="sinceTicks" /> is
     ///     <c>DateTime.UtcNow.Ticks</c> and starts the readiness barrier.

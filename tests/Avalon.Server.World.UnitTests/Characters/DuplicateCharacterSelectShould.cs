@@ -56,13 +56,21 @@ public class DuplicateCharacterSelectShould : IDisposable
 {
     private static readonly TimeSpan Limit = TimeSpan.FromSeconds(5);
     private static readonly CharacterId TheCharacter = new(7);
+    private static readonly CharacterId AnotherCharacter = new(8);
+    private static readonly CharacterId ThirdCharacter = new(9);
     private static readonly AccountId TheAccount = new(42L);
+    private static readonly AccountId OtherAccount = new(43L);
 
     private readonly List<TcpClient> _sockets = [];
     private readonly TaskCompletionSource _commit = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly List<CharacterSaveBatch> _written = [];
     private int _committed;
     private readonly TaskCompletionSource<bool> _read = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    // Per-character holds on top of _commit, for a test that kicks more than one character and
+    // releases their saves one at a time. Filled before the select, read by the save mock.
+    private readonly Dictionary<CharacterId, TaskCompletionSource> _gates = [];
+    private readonly HashSet<CharacterId> _committedIds = [];
 
     private readonly ICharacterSaveRepository _saves = Substitute.For<ICharacterSaveRepository>();
     private readonly ICharacterRepository _characters = Substitute.For<ICharacterRepository>();
@@ -73,9 +81,22 @@ public class DuplicateCharacterSelectShould : IDisposable
         _saves.WriteAsync(Arg.Any<IReadOnlyList<CharacterSaveBatch>>(), Arg.Any<CancellationToken>())
             .Returns(async call =>
             {
+                IReadOnlyList<CharacterSaveBatch> batches = call.Arg<IReadOnlyList<CharacterSaveBatch>>();
                 lock (_written)
-                    _written.AddRange(call.Arg<IReadOnlyList<CharacterSaveBatch>>());
+                    _written.AddRange(batches);
                 await _commit.Task.WaitAsync(Limit);
+                foreach (CharacterSaveBatch batch in batches)
+                {
+                    if (_gates.TryGetValue(batch.Row.Id, out TaskCompletionSource? gate))
+                        await gate.Task.WaitAsync(Limit);
+                }
+
+                lock (_committedIds)
+                {
+                    foreach (CharacterSaveBatch batch in batches)
+                        _committedIds.Add(batch.Row.Id);
+                }
+
                 Volatile.Write(ref _committed, 1);
             });
         _saver = new CharacterSaver(_saves, NullLogger<CharacterSaver>.Instance);
@@ -93,6 +114,8 @@ public class DuplicateCharacterSelectShould : IDisposable
     public void Dispose()
     {
         _commit.TrySetResult();
+        foreach (TaskCompletionSource gate in _gates.Values)
+            gate.TrySetResult();
         foreach (TcpClient socket in _sockets)
             socket.Dispose();
     }
@@ -189,13 +212,87 @@ public class DuplicateCharacterSelectShould : IDisposable
     }
 
     /// <summary>
-    /// A connection of the same account part way through its own select has no entity yet, and
-    /// nothing says which character it is reading: characters belong to accounts, so it may be this
-    /// one. Kicking it would not stop the reads it already has in flight, so the second select is
-    /// refused instead, reading nothing; the client can select again once the first one settles.
+    /// The prerequisite from #474: one session per account, not only one copy per character. With
+    /// character A of the account live on the first connection, selecting character B on the second
+    /// disconnects the first and despawns A, and B is read only once A's logout save has committed.
+    /// Before, A was left live beside B.
     /// </summary>
     [Fact]
-    public async Task Refuse_the_select_while_another_session_of_the_account_is_still_selecting()
+    public async Task Kick_a_session_of_the_account_holding_another_character_and_read_only_after_its_logout_save_commits()
+    {
+        (TestWorldServer server, CharacterSelectHandler select) = await BuildAsync();
+        Avalon.World.WorldConnection first = Connect(server);
+        Avalon.World.WorldConnection second = Connect(server);
+        first.Character = New(AnotherCharacter.Value);
+
+        select.Execute(second, new CCharacterSelectedPacket { CharacterId = TheCharacter });
+
+        Assert.Null(first.Character);
+        await first.CloseAsync().WaitAsync(Limit);
+        Assert.DoesNotContain(server.Connections, c => ReferenceEquals(c, first));
+        Assert.False(_read.Task.IsCompleted, "the second character was read while the account's first one was still live");
+
+        _commit.SetResult();
+
+        Assert.True(await _read.Task.WaitAsync(Limit), "the second character was read before the first one's logout save committed");
+        CharacterSaveBatch logout = Assert.Single(_written);
+        Assert.Equal(AnotherCharacter, logout.Row.Id);
+        Assert.False(logout.Row.Online);
+
+        // The kicked connection's own close then despawns nothing a second time.
+        server.Tick();
+        await _saver.WhenIdle(AnotherCharacter).WaitAsync(Limit);
+        Assert.Single(_written);
+    }
+
+    /// <summary>
+    /// Several kicked characters, several saves: the read waits for every one of them, not the
+    /// first to finish. They are released one at a time so the order is observed.
+    /// </summary>
+    [Fact]
+    public async Task Wait_for_every_kicked_characters_logout_save_before_reading()
+    {
+        (TestWorldServer server, CharacterSelectHandler select) = await BuildAsync();
+        Avalon.World.WorldConnection first = Connect(server);
+        Avalon.World.WorldConnection third = Connect(server);
+        Avalon.World.WorldConnection selecting = Connect(server);
+        first.Character = New(AnotherCharacter.Value);
+        third.SetPendingSpawn(New(ThirdCharacter.Value), Substitute.For<IMapInstance>(), DateTime.UtcNow.Ticks);
+        var thirdGate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _gates[ThirdCharacter] = thirdGate;
+
+        select.Execute(selecting, new CCharacterSelectedPacket { CharacterId = TheCharacter });
+
+        Assert.Null(first.Character);
+        Assert.Null(third.PendingSpawn);
+        Assert.Null(third.Character);
+
+        _commit.SetResult();
+        await _saver.WhenIdle(AnotherCharacter).WaitAsync(Limit);
+        await Task.Delay(100);
+        Assert.False(_read.Task.IsCompleted, "the select read while a kicked character's logout save was still running");
+
+        thirdGate.SetResult();
+
+        await _read.Task.WaitAsync(Limit);
+        lock (_committedIds)
+        {
+            Assert.Contains(AnotherCharacter, _committedIds);
+            Assert.Contains(ThirdCharacter, _committedIds);
+        }
+
+        lock (_written)
+            Assert.Equal(2, _written.Count);
+    }
+
+    /// <summary>
+    /// A connection of the account part way through its own select has no entity yet. It is kicked
+    /// like any other: its select is cancelled and it is disconnected, and the new select goes
+    /// ahead. That the kicked chain's remaining steps then do nothing, and that the new select waits
+    /// for the step it had in flight, is driven through the real chain in CharacterSelectChainShould.
+    /// </summary>
+    [Fact]
+    public async Task Kick_a_session_of_the_account_that_is_still_selecting()
     {
         (TestWorldServer server, CharacterSelectHandler select) = await BuildAsync();
         Avalon.World.WorldConnection first = Connect(server);
@@ -204,28 +301,68 @@ public class DuplicateCharacterSelectShould : IDisposable
 
         select.Execute(second, new CCharacterSelectedPacket { CharacterId = TheCharacter });
 
-        Assert.False(second.SelectInProgress);
-        Assert.True(first.SelectInProgress);
-        Assert.True(first.IsConnected);
-        await _characters.DidNotReceiveWithAnyArgs().FindByIdAndAccountAsync(default!, default!, default);
+        Assert.False(first.SelectInProgress);
+        await DisconnectedAsync(first);
+        Assert.True(second.SelectInProgress);
+        await _read.Task.WaitAsync(Limit);
     }
 
-    /// <summary>The decision is about one character, not one account: another character of the account is left alone.</summary>
+    /// <summary>
+    /// Two sessions of the account each have a select queued for the same tick. The first to run
+    /// kicks the second, but a close only drops the socket once the outbox has flushed, so the
+    /// second's queued select is still dispatched after the kick. It must be refused rather than
+    /// kick back; kicking back would leave both closing and neither in the world.
+    /// </summary>
     [Fact]
-    public async Task Leave_a_session_holding_another_character_of_the_account_alone()
+    public async Task Refuse_a_select_from_a_session_already_kicked_in_the_same_tick_rather_than_kick_back()
+    {
+        (TestWorldServer server, CharacterSelectHandler select) = await BuildAsync();
+        Avalon.World.WorldConnection winner = Connect(server);
+        Avalon.World.WorldConnection kicked = Connect(server);
+
+        select.Execute(winner, new CCharacterSelectedPacket { CharacterId = TheCharacter });
+        select.Execute(kicked, new CCharacterSelectedPacket { CharacterId = AnotherCharacter });
+
+        Assert.True(winner.SelectInProgress, "the kicked session kicked back and cancelled the winner's select");
+        Assert.False(kicked.SelectInProgress);
+        await DisconnectedAsync(kicked);
+        Assert.True(winner.IsConnected, "the kicked session kicked back and disconnected the winner");
+        await _read.Task.WaitAsync(Limit);
+        await _characters.DidNotReceive().FindByIdAndAccountAsync(AnotherCharacter, TheAccount, Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>Every other session of the account ends, including one still at the character list.</summary>
+    [Fact]
+    public async Task Kick_a_session_of_the_account_that_has_not_selected_anything()
     {
         (TestWorldServer server, CharacterSelectHandler select) = await BuildAsync();
         Avalon.World.WorldConnection first = Connect(server);
         Avalon.World.WorldConnection second = Connect(server);
-        CharacterEntity other = New(8);
-        first.Character = other;
 
         select.Execute(second, new CCharacterSelectedPacket { CharacterId = TheCharacter });
 
-        // Read at once: there is no save of this character to wait for.
+        await DisconnectedAsync(first);
         await _read.Task.WaitAsync(Limit);
-        Assert.Same(other, first.Character);
-        Assert.True(first.IsConnected);
+        Assert.Empty(_written);
+    }
+
+    /// <summary>The rule is per account: another account's session is left alone.</summary>
+    [Fact]
+    public async Task Leave_a_session_of_another_account_alone()
+    {
+        (TestWorldServer server, CharacterSelectHandler select) = await BuildAsync();
+        Avalon.World.WorldConnection other = Connect(server, OtherAccount);
+        Avalon.World.WorldConnection selecting = Connect(server);
+        CharacterEntity theirs = New(AnotherCharacter.Value);
+        other.Character = theirs;
+
+        select.Execute(selecting, new CCharacterSelectedPacket { CharacterId = TheCharacter });
+
+        // Read at once: there is no save of this account's to wait for.
+        await _read.Task.WaitAsync(Limit);
+        Assert.Same(theirs, other.Character);
+        Assert.True(other.IsConnected);
+        Assert.Contains(server.Connections, c => ReferenceEquals(c, other));
         Assert.Empty(_written);
     }
 
@@ -312,7 +449,18 @@ public class DuplicateCharacterSelectShould : IDisposable
         despawnSaver.ReceivedWithAnyArgs(1).SaveOnDespawnAsync(default!, default, default);
     }
 
-    private Avalon.World.WorldConnection Connect(TestWorldServer server)
+    /// <summary>Waits, bounded, for the kick's close to drop the socket. The test never closes it itself.</summary>
+    private static async Task DisconnectedAsync(Avalon.World.WorldConnection connection)
+    {
+        DateTime deadline = DateTime.UtcNow + Limit;
+        while (connection.IsConnected)
+        {
+            Assert.True(DateTime.UtcNow < deadline, "the other session of the account was not disconnected");
+            await Task.Delay(10);
+        }
+    }
+
+    private Avalon.World.WorldConnection Connect(TestWorldServer server, AccountId? account = null)
     {
         var listener = new TcpListener(IPAddress.Loopback, 0);
         listener.Start();
@@ -326,7 +474,7 @@ public class DuplicateCharacterSelectShould : IDisposable
         var connection = new Avalon.World.WorldConnection(
             server, clientSide, NullLoggerFactory.Instance, Substitute.For<IPacketReader>())
         {
-            AccountId = TheAccount
+            AccountId = account ?? TheAccount
         };
         server.Add(connection);
         return connection;
