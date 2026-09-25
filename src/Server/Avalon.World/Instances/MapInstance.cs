@@ -10,6 +10,7 @@ using Avalon.World.Configuration;
 using Avalon.World.Creatures;
 using Avalon.World.Creatures.Locomotion;
 using Avalon.World.Maps.Navigation;
+using Avalon.World.Persistence;
 using Avalon.World.Public;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Characters;
@@ -53,6 +54,7 @@ public class MapInstance : IMapInstance, IPortalSink, IDisposable
     private readonly Dictionary<ObjectGuid, GameEntityFields> _frameDirtyFields = new(256);
     private readonly Dictionary<ObjectGuid, PerPlayerBroadcastState> _broadcastStates = [];
     private readonly List<PortalInstance> _portals = new();
+    private readonly ICharacterSaveScheduler? _saveScheduler;
 
     public MapInstance(
         ILoggerFactory loggerFactory,
@@ -98,6 +100,9 @@ public class MapInstance : IMapInstance, IPortalSink, IDisposable
         // any first-tick cast resolves through a non-null service.
         _abilityCastSystem = new InstanceAbilityCastSystem(loggerFactory, serviceProvider,
             serviceProvider.GetRequiredService<IScriptManager>(), this);
+
+        // Optional so an instance built without one (tests) simply has no periodic save.
+        _saveScheduler = serviceProvider.GetService<ICharacterSaveScheduler>();
 
         SubscribeToEntityEvents();
     }
@@ -344,6 +349,10 @@ public class MapInstance : IMapInstance, IPortalSink, IDisposable
             IWorldConnection connection = _connections[guid];
             connection.UpdateMap();
             character.Update(deltaTime);
+
+            // Periodic save (spec #459 D4): the scheduler decides whether this is the character's tick.
+            if (character is CharacterEntity entity)
+                _saveScheduler?.Tick(connection, entity, deltaTime);
         }
 
         List<IWorldObject> objectAbilities = [];

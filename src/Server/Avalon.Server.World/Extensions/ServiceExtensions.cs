@@ -56,6 +56,7 @@ public static class ServiceExtensions
         services.AddSingleton<IItemIdAllocator, ItemIdAllocator>();
         services.AddSingleton<ICharacterEconomy, CharacterEconomy>();
         services.AddSingleton<ICharacterSaver, CharacterSaver>();
+        services.AddSingleton<ICharacterSaveScheduler, CharacterSaveScheduler>();
         services.AddSingleton<PredefinedChunkLayoutSource>();
         services.AddSingleton<ProceduralChunkLayoutSource>();
         services.AddSingleton<IChunkLayoutSourceResolver, ChunkLayoutSourceResolver>();

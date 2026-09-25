@@ -113,6 +113,7 @@ Section in `appsettings.json`: `"Game"` (World server only)
 | `MeleeSlotCount`                 | int    | `6`        | Standing positions on the ring around a target. Range `1`–`16` |
 | `MeleeSlotRadius`                | float  | `1.5`      | Ring radius. Range `0.5`–`20.0` |
 | `MaxMoney`                       | ulong  | `9999999999` | Most copper a character can hold; an addition past it is refused whole. Large enough that normal play never reaches it |
+| `CharacterSaveInterval`          | TimeSpan | `00:05:00` | How often every in-world character is saved; first saves are staggered across one interval by character id. Range `00:00:10`–`01:00:00` |
 
 ```json
 "Game": {
@@ -127,7 +128,8 @@ Section in `appsettings.json`: `"Game"` (World server only)
   "CreatureAgentRadius": 0.6,
   "MeleeSlotCount": 6,
   "MeleeSlotRadius": 1.5,
-  "MaxMoney": 9999999999
+  "MaxMoney": 9999999999,
+  "CharacterSaveInterval": "00:05:00"
 }
 ```
 

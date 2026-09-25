@@ -100,6 +100,9 @@ public class CharacterEntity : ICharacter
     /// <summary>What the next save must write. Marked by the inventory service and the wallet.</summary>
     public SaveStateTracker SaveState { get; } = new();
 
+    /// <summary>Time left until the next periodic save; null until the character first ticks in a map.</summary>
+    public TimeSpan? NextPeriodicSaveIn { get; set; }
+
     public ObjectGuid Guid { get; set; }
 
     // Backing fields for dirty-tracked properties
