@@ -581,7 +581,7 @@ public class CAuthHandlerShould
         Assert.Equal(AuthResult.LOCKED, SentResult());
         await _accountRepository.Received(1).RecordFailedLoginAsync(account.Id, Arg.Any<string>(), Arg.Any<DateTime>(),
             Arg.Is<DateTime?>(d => d >= before.AddMinutes(30) && d <= after.AddMinutes(30)), Arg.Any<CancellationToken>());
-        await _cache.Received(1).KeyExpireAsync(UsernameKey, TimeSpan.FromMinutes(30));
+        await _cache.Received(1).HoldCounterAtLeastAsync(UsernameKey, 5, TimeSpan.FromMinutes(30));
     }
 
     /// <summary>A lock with no end (one set before locks expired, or by hand) is not lifted.</summary>
@@ -787,7 +787,7 @@ public class CAuthHandlerShould
         Assert.Equal(AuthResult.INVALID_CREDENTIALS, SentResult());
         await _accountRepository.Received(1).RecordFailedLoginAsync(account.Id, "127.0.0.1", Arg.Any<DateTime>(),
             (DateTime?)null, Arg.Any<CancellationToken>());
-        await _cache.DidNotReceiveWithAnyArgs().KeyExpireAsync(default!, default(TimeSpan));
+        await _cache.DidNotReceiveWithAnyArgs().HoldCounterAtLeastAsync(default!, default, default);
     }
 
     [Theory]

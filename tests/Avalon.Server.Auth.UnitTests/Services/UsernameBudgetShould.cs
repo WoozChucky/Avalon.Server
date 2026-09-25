@@ -1,5 +1,9 @@
 using System.Text;
 using Avalon.Common.ValueObjects;
+using Avalon.Configuration;
+using Avalon.Infrastructure;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Domain.Auth;
 using Avalon.Infrastructure.Services;
@@ -267,24 +271,195 @@ public class UsernameBudgetShould
         Assert.Equal(allWrong, withRight);
     }
 
+    /// <summary>
+    /// The same batch on an account with MFA. Inside the budget the right password is answered
+    /// MFA_REQUIRED, which singles it out by design: it is a real find within the allowed guesses,
+    /// and the code step still has to be passed. Past the budget it is refused like every wrong one.
+    /// </summary>
+    [Theory]
+    [InlineData(0)]
+    [InlineData(4)]
+    [InlineData(5)]
+    [InlineData(7)]
+    public async Task Answer_the_right_password_for_an_mfa_account_in_a_batch_that_crosses_the_lock(int position)
+    {
+        async Task<AuthResult?[]> BatchAsync(int? correctAt)
+        {
+            var counters = new CounterCache();
+            var accounts = Substitute.For<IAccountRepository>();
+            var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            accounts.FindByUserNameAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+                .Returns(_ => gate.Task.ContinueWith(_ => (Account?)MakeAccount(), TaskScheduler.Default));
+            accounts.TryRecordLoginAsync(default!, default!, default, default).ReturnsForAnyArgs(false);
+            var setups = Substitute.For<IMfaSetupRepository>();
+            setups.FindByAccountIdAsync(Arg.Any<AccountId>(), Arg.Any<CancellationToken>())
+                .Returns(new MFASetup { Status = MfaSetupStatus.Confirmed });
+            var hashes = Substitute.For<IMFAHashService>();
+            hashes.GenerateHashAsync(Arg.Any<Account>()).Returns("hash");
+            var handler = new CAuthHandler(NullLoggerFactory.Instance, accounts, counters.Cache, hashes, setups,
+                Options(), new CountingVerifier());
+
+            IAuthConnection[] connections = Enumerable.Range(0, 8).Select(ConnectionFrom).ToArray();
+            Task[] logins = connections
+                .Select((c, i) => LogInAsync(handler, c, i == correctAt ? CorrectPassword : "wrong_password"))
+                .ToArray();
+            gate.SetResult();
+            await Task.WhenAll(logins);
+            return connections.Select(ResultOf).ToArray();
+        }
+
+        AuthResult?[] expected = await BatchAsync(null);
+        if (position < Max) expected[position] = AuthResult.MFA_REQUIRED;
+
+        Assert.Equal(expected, await BatchAsync(position));
+    }
+
     // ── the slot ──────────────────────────────────────────────────────────
 
+    /// <summary>
+    /// Owner decision on #484: a login that completes clears the username's count, so a player's
+    /// own typos before it do not carry over and lock them on the next one.
+    /// </summary>
     [Fact]
-    public async Task Give_back_only_its_own_slot_on_a_correct_password()
+    public async Task Reset_the_username_count_after_a_completed_login()
     {
         _accounts.FindByUserNameAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(MakeAccount());
+        CAuthHandler handler = PasswordHandler();
+        for (var i = 0; i < Max - 1; i++) await LogInAsync(handler, ConnectionFrom(i), "wrong_password");
+        string key = Assert.Single(_counters.UsernameKeys);
+
+        IAuthConnection login = ConnectionFrom(9);
+        await LogInAsync(handler, login, CorrectPassword);
+        Assert.Equal(AuthResult.SUCCESS, ResultOf(login));
+        Assert.False(_counters.Exists(key));
+
+        IAuthConnection typo = ConnectionFrom(10);
+        await LogInAsync(handler, typo, "wrong_password");
+        Assert.Equal(AuthResult.INVALID_CREDENTIALS, ResultOf(typo));
+        await _accounts.DidNotReceive().RecordFailedLoginAsync(Arg.Any<AccountId>(), Arg.Any<string>(),
+            Arg.Any<DateTime>(), Arg.Is<DateTime?>(d => d != null), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>A completed login clears the username's count, never the source's.</summary>
+    [Fact]
+    public async Task Never_reset_the_source_count_on_a_completed_login()
+    {
+        _accounts.FindByUserNameAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(MakeAccount());
+        CAuthHandler handler = PasswordHandler();
+        IAuthConnection source = ConnectionFrom(1);
+        for (var i = 0; i < 2; i++) await LogInAsync(handler, source, "wrong_password");
+
+        await LogInAsync(handler, source, CorrectPassword);
+
+        Assert.Equal(AuthResult.SUCCESS, ResultOf(source));
+        string sourceKey = SourceBudget.KeyFor(source.RemoteEndPoint);
+        Assert.Equal(2, _counters.CountOf(sourceKey));
+        await _counters.Cache.DidNotReceive().RemoveAsync(sourceKey);
+    }
+
+    /// <summary>
+    /// A correct password on an MFA account is not a completed login: each one makes a fresh MFA
+    /// hash, so a reset there would hand out a fresh set of code guesses per password login. It
+    /// gives back only its own slot.
+    /// </summary>
+    [Fact]
+    public async Task Give_back_only_its_own_slot_when_a_correct_password_issues_an_mfa_hash()
+    {
+        _accounts.FindByUserNameAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(MakeAccount());
+        _mfaSetups.FindByAccountIdAsync(Arg.Any<AccountId>(), Arg.Any<CancellationToken>())
+            .Returns(new MFASetup { Status = MfaSetupStatus.Confirmed });
         CAuthHandler handler = PasswordHandler();
         for (var i = 0; i < 3; i++) await LogInAsync(handler, ConnectionFrom(i), "wrong_password");
 
         IAuthConnection connection = ConnectionFrom(9);
         await LogInAsync(handler, connection, CorrectPassword);
 
-        Assert.Equal(AuthResult.SUCCESS, ResultOf(connection));
+        Assert.Equal(AuthResult.MFA_REQUIRED, ResultOf(connection));
         string key = Assert.Single(_counters.UsernameKeys);
-        // Three failures, one success that took a slot and gave it back: the failures still count.
         Assert.Equal(3, _counters.CountOf(key));
         await _counters.Cache.Received(1).DecrementFloorAsync(key);
         await _counters.Cache.DidNotReceive().RemoveAsync(key);
+    }
+
+    [Fact]
+    public async Task Not_reset_the_count_on_a_correct_password_followed_by_a_wrong_code()
+    {
+        Account account = MakeAccount();
+        _accounts.FindByUserNameAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(account);
+        _mfaSetups.FindByAccountIdAsync(Arg.Any<AccountId>(), Arg.Any<CancellationToken>())
+            .Returns(new MFASetup { Status = MfaSetupStatus.Confirmed });
+        LiveMfaHashFor(account);
+        _mfa.VerifyMFAAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(new MFAVerifyResult(false, null));
+        CAuthHandler handler = PasswordHandler();
+        for (var i = 0; i < 3; i++) await LogInAsync(handler, ConnectionFrom(i), "wrong_password");
+
+        await LogInAsync(handler, ConnectionFrom(9), CorrectPassword);
+        await VerifyCodeAsync(MfaHandler(), ConnectionFrom(10), "000000");
+
+        string key = Assert.Single(_counters.UsernameKeys);
+        Assert.Equal(4, _counters.CountOf(key));
+        IAuthConnection last = ConnectionFrom(11);
+        await LogInAsync(handler, last, "wrong_password");
+        Assert.Equal(AuthResult.LOCKED, ResultOf(last));
+    }
+
+    [Fact]
+    public async Task Reset_the_username_count_once_an_mfa_login_completes()
+    {
+        Account account = MakeAccount();
+        LiveMfaHashFor(account);
+        _mfa.VerifyMFAAsync(Arg.Any<string>(), "123456", Arg.Any<CancellationToken>())
+            .Returns(new MFAVerifyResult(true, account.Id));
+        _mfa.VerifyMFAAsync(Arg.Any<string>(), "000000", Arg.Any<CancellationToken>())
+            .Returns(new MFAVerifyResult(false, null));
+        CMFAVerifyHandler handler = MfaHandler();
+        for (var i = 0; i < Max - 1; i++) await VerifyCodeAsync(handler, ConnectionFrom(i), "000000");
+        string key = Assert.Single(_counters.UsernameKeys);
+
+        IAuthConnection connection = ConnectionFrom(9);
+        await VerifyCodeAsync(handler, connection, "123456");
+
+        Assert.Equal(AuthResult.SUCCESS, ResultOf(connection));
+        Assert.False(_counters.Exists(key));
+    }
+
+    /// <summary>
+    /// #484 review: both slots were given back before the success write, so a right password
+    /// refused by a lock that landed mid-login had still returned its source slot, which an attacker
+    /// spread across sources can see. The slots stay taken unless the login is recorded.
+    /// </summary>
+    [Fact]
+    public async Task Keep_both_slots_when_a_correct_password_is_refused_by_a_lock_that_landed_mid_login()
+    {
+        _accounts.FindByUserNameAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(MakeAccount());
+        _accounts.TryRecordLoginAsync(default!, default!, default, default).ReturnsForAnyArgs(false);
+        IAuthConnection connection = ConnectionFrom(1);
+
+        await LogInAsync(PasswordHandler(), connection, CorrectPassword);
+
+        Assert.Equal(AuthResult.INVALID_CREDENTIALS, ResultOf(connection));
+        Assert.Equal(1, _counters.CountOf(SourceBudget.KeyFor(connection.RemoteEndPoint)));
+        Assert.Equal(1, _counters.CountOf(Assert.Single(_counters.UsernameKeys)));
+        await _counters.Cache.DidNotReceiveWithAnyArgs().DecrementFloorAsync(default!);
+    }
+
+    [Fact]
+    public async Task Keep_both_slots_when_a_correct_code_is_refused_by_a_lock_that_landed_mid_login()
+    {
+        Account account = MakeAccount();
+        LiveMfaHashFor(account);
+        _mfa.VerifyMFAAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(new MFAVerifyResult(true, account.Id));
+        _accounts.TryRecordLoginAsync(default!, default!, default, default).ReturnsForAnyArgs(false);
+        IAuthConnection connection = ConnectionFrom(1);
+
+        await VerifyCodeAsync(MfaHandler(), connection, "123456");
+
+        Assert.Equal(AuthResult.MFA_FAILED, ResultOf(connection));
+        Assert.Equal(1, _counters.CountOf(SourceBudget.KeyFor(connection.RemoteEndPoint)));
+        Assert.Equal(1, _counters.CountOf(Assert.Single(_counters.UsernameKeys)));
+        await _counters.Cache.DidNotReceiveWithAnyArgs().DecrementFloorAsync(default!);
     }
 
     [Fact]
@@ -312,12 +487,88 @@ public class UsernameBudgetShould
         CAuthHandler handler = PasswordHandler();
 
         for (var i = 0; i < Max - 1; i++) await LogInAsync(handler, ConnectionFrom(i), "wrong_password");
-        await _counters.Cache.DidNotReceiveWithAnyArgs().KeyExpireAsync(default!, default(TimeSpan));
+        string key = Assert.Single(_counters.UsernameKeys);
+        _counters.Advance(TimeSpan.FromMinutes(10));
+        Assert.Equal(TimeSpan.FromMinutes(5), _counters.TimeToLive(key));
 
         await LogInAsync(handler, ConnectionFrom(Max), "wrong_password");
 
-        string key = Assert.Single(_counters.UsernameKeys);
-        await _counters.Cache.Received(1).KeyExpireAsync(key, TimeSpan.FromMinutes(15));
+        Assert.Equal(TimeSpan.FromMinutes(15), _counters.TimeToLive(key));
+        Assert.Equal(Max, _counters.CountOf(key));
+    }
+
+    /// <summary>
+    /// #484 review: the hold restarted the expiry of a key that had to still exist. When the key
+    /// expired between the take and the hold, the hold did nothing and the budget started again
+    /// at one while the row stayed locked, so from then on a known username answered LOCKED and an
+    /// unknown one INVALID_CREDENTIALS. The hold now recreates the key.
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Keep_refusing_when_the_key_expires_between_the_take_and_the_hold(bool known)
+    {
+        Account account = MakeAccount();
+        _accounts.FindByUserNameAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(known ? account : null);
+        // The row locks as the real repository would.
+        _accounts.When(a => a.RecordFailedLoginAsync(Arg.Any<AccountId>(), Arg.Any<string>(), Arg.Any<DateTime>(),
+                Arg.Is<DateTime?>(d => d != null), Arg.Any<CancellationToken>()))
+            .Do(ci =>
+            {
+                account.Locked = true;
+                account.LockedUntil = ci.ArgAt<DateTime?>(3);
+            });
+        CAuthHandler handler = PasswordHandler();
+        for (var i = 0; i < Max - 1; i++) await LogInAsync(handler, ConnectionFrom(i), "wrong_password");
+        _counters.BeforeHold = key => _counters.ExpireNow(key);
+
+        await LogInAsync(handler, ConnectionFrom(Max), "wrong_password");
+        _counters.BeforeHold = null;
+
+        IAuthConnection next = ConnectionFrom(Max + 1);
+        await LogInAsync(handler, next, "wrong_password");
+        Assert.Equal(AuthResult.LOCKED, ResultOf(next));
+        Assert.Equal(TimeSpan.FromMinutes(15), _counters.TimeToLive(Assert.Single(_counters.UsernameKeys)));
+    }
+
+    /// <summary>
+    /// #484 review: a Redis error in the hold skipped the database write, so the row was never
+    /// locked. The write runs whatever the hold does, and the error still ends the connection.
+    /// </summary>
+    [Fact]
+    public async Task Lock_the_row_even_when_the_hold_throws()
+    {
+        Account account = MakeAccount();
+        _accounts.FindByUserNameAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(account);
+        CAuthHandler handler = PasswordHandler();
+        for (var i = 0; i < Max - 1; i++) await LogInAsync(handler, ConnectionFrom(i), "wrong_password");
+        _counters.BeforeHold = _ => throw new InvalidOperationException("redis is down");
+
+        IAuthConnection connection = ConnectionFrom(Max);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => LogInAsync(handler, connection, "wrong_password"));
+
+        Assert.Equal(AuthResult.LOCKED, ResultOf(connection));
+        await _accounts.Received(1).RecordFailedLoginAsync(account.Id, Arg.Any<string>(), Arg.Any<DateTime>(),
+            Arg.Is<DateTime?>(d => d != null), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Lock_the_row_even_when_the_hold_throws_at_mfa_verify()
+    {
+        Account account = MakeAccount();
+        LiveMfaHashFor(account);
+        _mfa.VerifyMFAAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(new MFAVerifyResult(false, null));
+        CMFAVerifyHandler handler = MfaHandler();
+        for (var i = 0; i < Max - 1; i++) await VerifyCodeAsync(handler, ConnectionFrom(i), "000000");
+        _counters.BeforeHold = _ => throw new InvalidOperationException("redis is down");
+
+        IAuthConnection connection = ConnectionFrom(Max);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => VerifyCodeAsync(handler, connection, "000000"));
+
+        Assert.Equal(AuthResult.LOCKED, ResultOf(connection));
+        await _accounts.Received(1).RecordFailedLoginAsync(account.Id, Arg.Any<string>(), Arg.Any<DateTime>(),
+            Arg.Is<DateTime?>(d => d != null), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -374,25 +625,50 @@ public class UsernameBudgetShould
         await _mfa.DidNotReceiveWithAnyArgs().VerifyMFAAsync(default!, default!, default);
     }
 
+    // ── Redis failing ─────────────────────────────────────────────────────
+
+    /// <summary>
+    /// A budget that cannot be taken fails closed: the handler throws before any lookup or verify,
+    /// and the server closes the connection, so nothing is ever answered SUCCESS.
+    /// </summary>
     [Fact]
-    public async Task Give_back_only_its_own_slot_on_a_correct_mfa_code()
+    public async Task Close_the_connection_without_verifying_when_the_username_budget_cannot_be_taken()
     {
-        Account account = MakeAccount();
-        LiveMfaHashFor(account);
-        _mfa.VerifyMFAAsync(Arg.Any<string>(), "123456", Arg.Any<CancellationToken>())
-            .Returns(new MFAVerifyResult(true, account.Id));
-        _mfa.VerifyMFAAsync(Arg.Any<string>(), "000000", Arg.Any<CancellationToken>())
-            .Returns(new MFAVerifyResult(false, null));
-        CMFAVerifyHandler handler = MfaHandler();
-        for (var i = 0; i < 2; i++) await VerifyCodeAsync(handler, ConnectionFrom(i), "000000");
+        IReplicatedCache cache = Substitute.For<IReplicatedCache>();
+        cache.IncrementAsync(Arg.Is<string>(k => k.StartsWith("auth:username:", StringComparison.Ordinal)), Arg.Any<TimeSpan>())
+            .Returns<Task<long>>(_ => throw new InvalidOperationException("redis is down"));
+        _accounts.FindByUserNameAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(MakeAccount());
+        ServiceProvider services = new ServiceCollection()
+            .AddSingleton<ILoggerFactory>(NullLoggerFactory.Instance)
+            .AddSingleton(_accounts)
+            .AddSingleton(cache)
+            .AddSingleton(_hashes)
+            .AddSingleton(_mfaSetups)
+            .AddSingleton(Options())
+            .AddSingleton<IPasswordVerifier>(_verifier)
+            .BuildServiceProvider();
+        IPacketManager packets = Substitute.For<IPacketManager>();
+        packets.TryGetPacketInfo(NetworkPacketType.CMSG_AUTH, out Arg.Any<PacketInfo>())
+            .Returns(ci =>
+            {
+                ci[1] = new PacketInfo(typeof(CAuthPacket), typeof(CAuthHandler));
+                return true;
+            });
+        var hosting = Substitute.For<IOptions<HostingConfiguration>>();
+        hosting.Value.Returns(new HostingConfiguration { Port = 0, Host = "127.0.0.1" });
+        var security = Substitute.For<IOptions<HostingSecurity>>();
+        security.Value.Returns(new HostingSecurity());
+        var server = new AuthServer(services, packets, NullLoggerFactory.Instance, _accounts, hosting, security);
+        IAuthConnection connection = ConnectionFrom(1);
 
-        IAuthConnection connection = ConnectionFrom(9);
-        await VerifyCodeAsync(handler, connection, "123456");
+        await server.CallListener(connection, new NetworkPacketHeader { Type = NetworkPacketType.CMSG_AUTH },
+            new CAuthPacket { Username = "testuser", Password = CorrectPassword });
 
-        Assert.Equal(AuthResult.SUCCESS, ResultOf(connection));
-        string key = Assert.Single(_counters.UsernameKeys);
-        Assert.Equal(2, _counters.CountOf(key));
-        await _counters.Cache.Received(1).DecrementFloorAsync(key);
+        connection.Received(1).Close();
+        Assert.Equal(0, _verifier.Count);
+        Assert.Null(ResultOf(connection));
+        await _accounts.DidNotReceiveWithAnyArgs().FindByUserNameAsync(default!, default);
+        await _accounts.DidNotReceiveWithAnyArgs().TryRecordLoginAsync(default!, default!, default, default);
     }
 
     /// <summary>

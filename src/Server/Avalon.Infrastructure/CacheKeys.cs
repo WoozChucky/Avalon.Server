@@ -61,10 +61,12 @@ public static class CacheKeys
     /// LOCKED before the username is looked up, whether or not an account has it. The segment is the
     /// lowercase hex SHA-256 of the username trimmed and upper-cased (the form it is looked up by),
     /// so the key's length does not depend on what a client sends.
-    /// Value: counter written with INCR before each attempt; a correct password or code gives its own
-    /// slot back with a floored DECR. Expires <c>Application:LockoutDurationMinutes</c> (default 15)
-    /// after the first attempt, and the failure that reaches the limit restarts that expiry, so the
-    /// refusal ends when the account row's lock does.
+    /// Value: counter written with INCR before each attempt. Expires
+    /// <c>Application:LockoutDurationMinutes</c> (default 15) after the first attempt. The failure
+    /// that reaches the limit holds it in one script (raised to at least the limit and SET with a
+    /// fresh expiry, recreated if it had expired), so the refusal outlasts the account row's lock. A
+    /// correct password that issues an MFA hash gives its own slot back with a floored DECR; a
+    /// completed login deletes the key.
     /// </summary>
     public static string AuthUsernameFailedLogins(string usernameHash) => $"auth:username:{usernameHash}:failedLogins";
 

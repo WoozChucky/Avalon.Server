@@ -99,8 +99,8 @@ public class CAuthHandler : IAuthPacketHandler<CAuthPacket>
             return;
         }
 
-        await SourceBudget.GiveBackAsync(_cache, sourceKey);
-        await UsernameBudget.GiveBackAsync(_cache, usernameKey);
+        // Both slots stay taken until the login is recorded, or an MFA hash is issued: a right
+        // password refused below keeps its slots exactly as a wrong one does (#484 review).
 
         // After the password check, so a wrong password cannot be used to probe for a ban (#462);
         // before MFA and before any success, so an inactive account never gets past this point.
@@ -115,6 +115,10 @@ public class CAuthHandler : IAuthPacketHandler<CAuthPacket>
         var mfa = await _mfaSetupRepository.FindByAccountIdAsync(account.Id, token);
         if (mfa is { Status: MfaSetupStatus.Confirmed })
         {
+            // Only its own slots back, and no reset: the login is not complete until the code is
+            // accepted, and each password login makes a fresh hash with fresh code attempts.
+            await SourceBudget.GiveBackAsync(_cache, sourceKey);
+            await UsernameBudget.GiveBackAsync(_cache, usernameKey);
             var mfaHash = await _mfaHashService.GenerateHashAsync(account);
             ctx.Connection.Send(SAuthResultPacket.Create(null, mfaHash, AuthResult.MFA_REQUIRED, ctx.Connection.CryptoSession.Encrypt));
             return;
@@ -143,9 +147,11 @@ public class CAuthHandler : IAuthPacketHandler<CAuthPacket>
         }
 
         // Written only while the account is not locked, in SQL: a lock set by failures after the
-        // row was read is never written away by this success. The refusal is the answer a wrong
-        // password in this attempt's place got (#484), so a parallel batch that crosses the lock
-        // does not single out the right password by answering it differently.
+        // row was read is never written away by this success. On this path (Active, offline, no
+        // MFA) the refusal is the answer a wrong password in this attempt's slot got, and both
+        // slots stay taken (#484), so a parallel batch that crosses the lock does not single out
+        // the right password. MFA_REQUIRED, ALREADY_CONNECTED and BANNED/DEACTIVATED above do
+        // single it out, by design.
         var lastIp = RemoteAddress.Of(ctx.Connection.RemoteEndPoint);
         if (!await _accountRepository.TryRecordLoginAsync(account.Id, lastIp, DateTime.UtcNow, token))
         {
@@ -153,6 +159,11 @@ public class CAuthHandler : IAuthPacketHandler<CAuthPacket>
             ctx.Connection.Send(SAuthResultPacket.Create(null, null, FailureResult(taken), ctx.Connection.CryptoSession.Encrypt));
             return;
         }
+
+        // The login is complete: the source gets its own slot back, and the username's count is
+        // cleared (owner decision on #484), so earlier typos do not carry over.
+        await SourceBudget.GiveBackAsync(_cache, sourceKey);
+        await UsernameBudget.ResetAsync(_cache, usernameKey);
 
         ctx.Connection.AccountId = account.Id;
 
@@ -184,16 +195,26 @@ public class CAuthHandler : IAuthPacketHandler<CAuthPacket>
         bool locks = UsernameBudget.Locks(_authConfig, taken);
         ctx.Connection.Send(SAuthResultPacket.Create(null, null, FailureResult(taken), ctx.Connection.CryptoSession.Encrypt));
 
+        // The row's lock end is taken before the hold, so it always ends before the budget's
+        // refusal does. The row is written whatever the hold does: a Redis error there must not
+        // leave the account unlocked. The error itself still propagates, and the server closes the
+        // connection.
         var now = DateTime.UtcNow;
-        if (locks)
+        DateTime? lockUntil = locks ? now.AddMinutes(_authConfig.LockoutDurationMinutes) : null;
+        try
         {
-            await UsernameBudget.HoldLockAsync(_cache, _authConfig, usernameKey);
+            if (locks)
+            {
+                await UsernameBudget.HoldLockAsync(_cache, _authConfig, usernameKey);
+            }
         }
-
-        if (accountId != null)
+        finally
         {
-            await _accountRepository.RecordFailedLoginAsync(accountId, RemoteAddress.Of(ctx.Connection.RemoteEndPoint),
-                now, locks ? now.AddMinutes(_authConfig.LockoutDurationMinutes) : null, token);
+            if (accountId != null)
+            {
+                await _accountRepository.RecordFailedLoginAsync(accountId, RemoteAddress.Of(ctx.Connection.RemoteEndPoint),
+                    now, lockUntil, token);
+            }
         }
     }
 }

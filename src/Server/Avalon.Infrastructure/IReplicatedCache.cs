@@ -26,6 +26,12 @@ public interface IReplicatedCache
     /// </summary>
     Task<long> DecrementFloorAsync(string key);
     /// <summary>
+    /// Atomically raises the counter at <paramref name="key"/> to at least <paramref name="floor"/>
+    /// and sets its expiry to <paramref name="window"/> from now, recreating the key if it has
+    /// expired or never existed. Returns the new value.
+    /// </summary>
+    Task<long> HoldCounterAtLeastAsync(string key, long floor, TimeSpan window);
+    /// <summary>
     /// Atomically increments <paramref name="field"/> of the hash at <paramref name="key"/> and
     /// returns the new value, but only while the hash exists: returns -1, creating nothing, when
     /// it does not, so an expired hash is never recreated without its expiry.
@@ -113,6 +119,22 @@ public class ReplicatedCache : IReplicatedCache
     public async Task<long> DecrementFloorAsync(string key)
     {
         RedisResult result = await _redis.GetDatabase().ScriptEvaluateAsync(DecrementFloorScript, [new RedisKey(key)]);
+        return (long)result;
+    }
+
+    // GET, raise and SET with PX in one script: a key that expired between the caller's INCR and
+    // this call is recreated rather than left missing.
+    private const string HoldCounterAtLeastScript =
+        "local v = tonumber(redis.call('GET', KEYS[1])) or 0 " +
+        "local m = tonumber(ARGV[1]) " +
+        "if v < m then v = m end " +
+        "redis.call('SET', KEYS[1], v, 'PX', ARGV[2]) " +
+        "return v";
+
+    public async Task<long> HoldCounterAtLeastAsync(string key, long floor, TimeSpan window)
+    {
+        RedisResult result = await _redis.GetDatabase().ScriptEvaluateAsync(HoldCounterAtLeastScript,
+            [new RedisKey(key)], [floor, (long)window.TotalMilliseconds]);
         return (long)result;
     }
 

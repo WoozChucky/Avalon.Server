@@ -108,20 +108,28 @@ public class CMFAVerifyHandler : IAuthPacketHandler<CMFAVerifyPacket>
             ctx.Connection.Send(SAuthResultPacket.Create(null, null, FailureResult(taken), ctx.Connection.CryptoSession.Encrypt));
 
             // Written after the reply, as a wrong password is. The failure in the budget's last
-            // slot locks the account.
+            // slot locks the account; its end is taken before the hold, so the row's lock ends
+            // first, and the row is written whatever the hold does (the error still propagates,
+            // and the server closes the connection).
             var now = DateTime.UtcNow;
-            if (locks)
+            DateTime? lockUntil = locks ? now.AddMinutes(_authConfig.LockoutDurationMinutes) : null;
+            try
             {
-                await UsernameBudget.HoldLockAsync(_cache, _authConfig, usernameKey);
+                if (locks)
+                {
+                    await UsernameBudget.HoldLockAsync(_cache, _authConfig, usernameKey);
+                }
             }
-
-            await _accountRepository.RecordFailedLoginAsync(account.Id, RemoteAddress.Of(ctx.Connection.RemoteEndPoint),
-                now, locks ? now.AddMinutes(_authConfig.LockoutDurationMinutes) : null, token);
+            finally
+            {
+                await _accountRepository.RecordFailedLoginAsync(account.Id, RemoteAddress.Of(ctx.Connection.RemoteEndPoint),
+                    now, lockUntil, token);
+            }
             return;
         }
 
-        await SourceBudget.GiveBackAsync(_cache, sourceKey);
-        await UsernameBudget.GiveBackAsync(_cache, usernameKey);
+        // Both slots stay taken until the login is recorded (#484 review): a right code refused
+        // below keeps its slots exactly as a wrong one does.
 
         // The same refusal as CAuthHandler (#462): the MFA hash outlives the password step by two
         // minutes, so an account banned or deactivated inside that window is caught here.
@@ -157,8 +165,10 @@ public class CMFAVerifyHandler : IAuthPacketHandler<CMFAVerifyPacket>
 
         // Written only while the account is not locked, in SQL: a lock set after the row was read is
         // never written away by this success. An expired lock is lifted with the count it was set by.
-        // The refusal is the answer a wrong code in this attempt's place got (#484), so a parallel
-        // batch that crosses the lock does not single out the right code by answering it differently.
+        // On this path (Active, offline) the refusal is the answer a wrong code in this attempt's
+        // slot got, and both slots stay taken (#484), so a parallel batch that crosses the lock does
+        // not single out the right code. ALREADY_CONNECTED and BANNED/DEACTIVATED above do single
+        // it out, by design.
         var lastIp = RemoteAddress.Of(ctx.Connection.RemoteEndPoint);
         if (!await _accountRepository.TryRecordLoginAsync(account.Id, lastIp, DateTime.UtcNow, token))
         {
@@ -166,6 +176,11 @@ public class CMFAVerifyHandler : IAuthPacketHandler<CMFAVerifyPacket>
             ctx.Connection.Send(SAuthResultPacket.Create(null, null, FailureResult(taken), ctx.Connection.CryptoSession.Encrypt));
             return;
         }
+
+        // The login is complete: the source gets its own slot back, and the username's count is
+        // cleared (owner decision on #484).
+        await SourceBudget.GiveBackAsync(_cache, sourceKey);
+        await UsernameBudget.ResetAsync(_cache, usernameKey);
 
         ctx.Connection.AccountId = account.Id;
 

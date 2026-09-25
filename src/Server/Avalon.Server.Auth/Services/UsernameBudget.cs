@@ -34,14 +34,26 @@ public static class UsernameBudget
     public static bool Locks(AuthConfiguration config, long taken) => taken >= config.MaxFailedLoginAttempts;
 
     /// <summary>
-    /// Restarts the window from the failure that set the lock, so the refusal lasts as long as the
-    /// account row's lock does. Done for a username no account has too, so the two look the same.
+    /// Holds the lock: in one atomic step, raises the count to at least the limit and restarts the
+    /// window from the failure that set the lock, recreating the key if it expired after this
+    /// attempt took its slot. Call it after computing the row's <c>LockedUntil</c>, so the row's lock
+    /// always ends first and the refusal lasts at least as long. Done for a username no account has
+    /// too, so the two look the same (#484 review: a key that expired between the take and a plain
+    /// EXPIRE left an unknown username unlocked while a known one's row stayed locked).
     /// </summary>
     public static Task HoldLockAsync(IReplicatedCache cache, AuthConfiguration config, string key) =>
-        cache.KeyExpireAsync(key, Window(config));
+        cache.HoldCounterAtLeastAsync(key, config.MaxFailedLoginAttempts, Window(config));
 
     /// <inheritdoc cref="AttemptBudget.GiveBackAsync"/>
     public static Task GiveBackAsync(IReplicatedCache cache, string key) => AttemptBudget.GiveBackAsync(cache, key);
+
+    /// <summary>
+    /// Clears the username's count once a login has fully completed (owner decision on #484): the
+    /// login is recorded, and for an MFA account the code has been accepted too. Never at the
+    /// password step of an MFA account, since every password login makes a fresh MFA hash and a
+    /// reset there would hand out a fresh set of code guesses each time.
+    /// </summary>
+    public static Task ResetAsync(IReplicatedCache cache, string key) => cache.RemoveAsync(key);
 
     private static TimeSpan Window(AuthConfiguration config) => TimeSpan.FromMinutes(config.LockoutDurationMinutes);
 }

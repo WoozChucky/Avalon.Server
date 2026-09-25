@@ -387,7 +387,7 @@ public class CMFAVerifyHandlerShould
         Assert.Equal(AuthResult.LOCKED, SentPacket().Result);
         await _accountRepository.Received(1).RecordFailedLoginAsync(accountId, "127.0.0.1", Arg.Any<DateTime>(),
             Arg.Is<DateTime?>(d => d >= before.AddMinutes(15) && d <= after.AddMinutes(15)), Arg.Any<CancellationToken>());
-        await _cache.Received(1).KeyExpireAsync(usernameKey, TimeSpan.FromMinutes(15));
+        await _cache.Received(1).HoldCounterAtLeastAsync(usernameKey, 5, TimeSpan.FromMinutes(15));
     }
 
     [Fact]
