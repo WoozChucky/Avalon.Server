@@ -78,4 +78,10 @@ public class Character : IDbEntity<CharacterId>
     public DateTime CreationDate { get; set; }
 
     public ulong DeleteDate { get; set; }
+
+    /// <summary>
+    /// A detached copy of every column, for a save snapshot. The live row keeps changing on the tick
+    /// thread while the copy is written from another.
+    /// </summary>
+    public Character Copy() => (Character)MemberwiseClone();
 }

@@ -38,9 +38,8 @@ internal static class TestCharacters
         return new CharacterEntity(NullLoggerFactory.Instance, row, new RegenConfiguration()) { Data = row };
     }
 
-    // `charges` is passed through from Task 6, when InventoryItem gains its Charges member.
     public static InventoryItem Item(ushort slot, ItemTemplate template, uint count = 1, uint durability = 0, uint charges = 0) =>
-        new(slot, new ItemInstanceId(Guid.CreateVersion7()), template.Id, count, durability, ItemInstanceFlags.None);
+        new(slot, new ItemInstanceId(Guid.CreateVersion7()), template.Id, count, durability, ItemInstanceFlags.None, charges);
 
     public static CharacterInventoryService InventoryFor(CharacterEntity character) =>
         new(character, Find, new ItemIdAllocator());

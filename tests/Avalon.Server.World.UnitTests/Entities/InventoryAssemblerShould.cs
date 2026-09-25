@@ -135,4 +135,17 @@ public class InventoryAssemblerShould
         Assert.Empty(result[InventoryType.Bag]);
         Assert.Empty(result[InventoryType.Bank]);
     }
+
+    /// <summary>A save writes the whole instance back, so a charge the assembler dropped would be lost.</summary>
+    [Fact]
+    public void Carry_the_charges_onto_the_item()
+    {
+        Guid id = Guid.NewGuid();
+        ItemInstance instance = Instance(id);
+        instance.Charges = 6;
+
+        var result = Assemble([Row(InventoryType.Bag, 0, id)], [instance]);
+
+        Assert.Equal(6u, Assert.Single(result[InventoryType.Bag]).Charges);
+    }
 }

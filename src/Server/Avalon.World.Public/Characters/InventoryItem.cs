@@ -14,4 +14,5 @@ public readonly record struct InventoryItem(
     ItemTemplateId TemplateId,
     uint Count,
     uint Durability,
-    ItemInstanceFlags Flags);
+    ItemInstanceFlags Flags,
+    uint Charges = 0);

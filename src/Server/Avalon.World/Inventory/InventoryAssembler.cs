@@ -63,7 +63,8 @@ public static class InventoryAssembler
                 instance.TemplateId,
                 instance.Count,
                 instance.Durability,
-                instance.Flags));
+                instance.Flags,
+                instance.Charges));
         }
 
         return assembled;
