@@ -12,6 +12,7 @@ using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Units;
 using Avalon.World.Abilities;
+using Avalon.World.Persistence;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Entities;
@@ -85,6 +86,9 @@ public class CharacterEntity : ICharacter
     };
 
     public ICharacterAbilities Spells { get; }
+
+    /// <summary>What the next save must write. Marked by the inventory service and the wallet.</summary>
+    public SaveStateTracker SaveState { get; } = new();
 
     public ObjectGuid Guid { get; set; }
 
