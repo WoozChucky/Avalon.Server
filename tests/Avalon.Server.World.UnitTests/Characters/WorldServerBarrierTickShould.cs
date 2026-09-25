@@ -91,7 +91,6 @@ public class WorldServerBarrierTickShould : IDisposable
             Options.Create(new HostingConfiguration { Host = "127.0.0.1", Port = 0 }),
             world,
             Substitute.For<IScriptManager>(),
-            Substitute.For<ICreatureSpawner>(),
             Substitute.For<IReplicatedCache>(),
             Substitute.For<IScriptHotReloader>())
         { }
