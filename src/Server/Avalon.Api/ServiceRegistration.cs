@@ -132,8 +132,8 @@ public static class ServiceRegistration
             );
 
             options.AddPolicy(AvalonRoles.Player, policy => policy
-                .RequireClaim(ClaimTypes.GroupSid, AvalonRoles.Player, AvalonRoles.GameMaster, AvalonRoles.Admin,
-                    AvalonRoles.Console)
+                .RequireClaim(ClaimTypes.GroupSid, AvalonRoles.Player, AvalonRoles.Tournament, AvalonRoles.PTR,
+                    AvalonRoles.GameMaster, AvalonRoles.Admin, AvalonRoles.Console)
                 .Combine(options.DefaultPolicy)
             );
         });

@@ -42,14 +42,19 @@ public class CommandDispatcherShould
         await command.DidNotReceiveWithAnyArgs().ExecuteAsync(default, default!, default);
     }
 
-    [Fact]
-    public async Task Let_A_Player_Run_A_Command_That_Declares_No_Access()
+    /// <summary>
+    /// Existing commands such as GroupInviteCommand declare nothing; the default must keep them
+    /// runnable by ordinary players — and Tournament and PTR accounts are ordinary players (#447).
+    /// </summary>
+    [Theory]
+    [InlineData(AccountAccessLevel.Player)]
+    [InlineData(AccountAccessLevel.Tournament)]
+    [InlineData(AccountAccessLevel.PTR)]
+    public async Task Let_A_Player_Run_A_Command_That_Declares_No_Access(AccountAccessLevel level)
     {
-        // Existing commands such as GroupInviteCommand declare nothing; the default must keep them
-        // runnable by ordinary players.
         ICommand command = new UndeclaredCommand();
 
-        Assert.True(await Dispatch(command, "/undeclared", AccountAccessLevel.Player));
+        Assert.True(await Dispatch(command, "/undeclared", level));
     }
 
     /// <summary>
@@ -85,9 +90,7 @@ public class CommandDispatcherShould
     [InlineData(AccountAccessLevel.Console)]
     public async Task Say_Nothing_To_Anyone_Else_When_A_Command_Fails(AccountAccessLevel level)
     {
-        // Required access is the caller's own level, so each case reaches the throw rather than
-        // being turned away at the gate (AccessLevels.Player does not include Tournament or PTR).
-        ICommand command = Throwing("undeclared", new InvalidOperationException("secret detail"), required: level);
+        ICommand command = Throwing("undeclared", new InvalidOperationException("secret detail"));
         var fixture = new Fixture(level);
 
         bool dispatched = await fixture.Dispatch(command, "/undeclared");
