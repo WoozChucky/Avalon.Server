@@ -57,8 +57,12 @@ public class AvalonAuthenticationHandler : AuthenticationHandler<AvalonAuthentic
             new(ClaimTypes.Email, account.Email),
             new("pat_id", pat.Id.Value.ToString()),
         };
+        // A token never carries more than the account holds now: the mint-time cap in
+        // PersonalAccessTokenService is not enough on its own, because the account can be
+        // demoted afterwards (#451). The token keeps its narrower scope otherwise.
+        var effectiveRoles = pat.Roles & account.AccessLevel;
         foreach (AccountAccessLevel flag in Enum.GetValues<AccountAccessLevel>())
-            if (flag != 0 && pat.Roles.HasFlag(flag))
+            if (flag != 0 && (effectiveRoles & flag) == flag)
                 claims.Add(new Claim(ClaimTypes.GroupSid, flag.ToString()));
 
         // Fire-and-forget write-coalesced last-used update — don't block the request.

@@ -133,7 +133,9 @@ public class AvalonAuthenticationHandlerShould
     {
         var token = "avp_" + new string('A', 43);
         _pats.FindByRawTokenAsync(token, Arg.Any<CancellationToken>()).Returns(MakePat(token, AccountAccessLevel.Player));
-        _accounts.FindByIdAsync(Arg.Any<AccountId>(), Arg.Any<CancellationToken>()).Returns(MakeAccount(AccountAccessLevel.Admin));
+        // The account must still hold Player: claims are the token's roles masked by the account's current ones.
+        _accounts.FindByIdAsync(Arg.Any<AccountId>(), Arg.Any<CancellationToken>())
+                 .Returns(MakeAccount(AccountAccessLevel.Player | AccountAccessLevel.Admin));
 
         var result = await Authenticate("Avalon " + token);
 
@@ -142,5 +144,42 @@ public class AvalonAuthenticationHandlerShould
         Assert.Contains(result.Principal.Claims, c => c.Type == ClaimTypes.GroupSid && c.Value == "Player");
         // Token roles (Player) NOT account roles (Admin) — crucial.
         Assert.DoesNotContain(result.Principal.Claims, c => c.Type == ClaimTypes.GroupSid && c.Value == "Admin");
+    }
+
+    // #451: a token must never carry more than the account holds now. An Admin who
+    // minted an Admin-scoped token and was later demoted must lose Admin on the next request.
+    [Fact]
+    public async Task NotGrantAdmin_WhenAccountWasDemotedAfterMinting()
+    {
+        var token = "avp_" + new string('A', 43);
+        _pats.FindByRawTokenAsync(token, Arg.Any<CancellationToken>())
+             .Returns(MakePat(token, AccountAccessLevel.Player | AccountAccessLevel.GameMaster | AccountAccessLevel.Admin));
+        _accounts.FindByIdAsync(Arg.Any<AccountId>(), Arg.Any<CancellationToken>())
+                 .Returns(MakeAccount(AccountAccessLevel.Player));
+
+        var result = await Authenticate("Avalon " + token);
+
+        Assert.True(result.Succeeded);
+        var roles = result.Principal!.Claims.Where(c => c.Type == ClaimTypes.GroupSid).Select(c => c.Value).ToArray();
+        Assert.DoesNotContain("Admin", roles);
+        Assert.DoesNotContain("GameMaster", roles);
+        Assert.Equal(new[] { "Player" }, roles);
+    }
+
+    // The token keeps its narrower scope: a Player-only token on an account that still
+    // holds Player, GameMaster and Admin yields Player and nothing else.
+    [Fact]
+    public async Task KeepNarrowerTokenScope_WhenAccountHoldsMore()
+    {
+        var token = "avp_" + new string('A', 43);
+        _pats.FindByRawTokenAsync(token, Arg.Any<CancellationToken>()).Returns(MakePat(token, AccountAccessLevel.Player));
+        _accounts.FindByIdAsync(Arg.Any<AccountId>(), Arg.Any<CancellationToken>())
+                 .Returns(MakeAccount(AccountAccessLevel.Player | AccountAccessLevel.GameMaster | AccountAccessLevel.Admin));
+
+        var result = await Authenticate("Avalon " + token);
+
+        Assert.True(result.Succeeded);
+        var roles = result.Principal!.Claims.Where(c => c.Type == ClaimTypes.GroupSid).Select(c => c.Value).ToArray();
+        Assert.Equal(new[] { "Player" }, roles);
     }
 }
