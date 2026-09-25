@@ -163,6 +163,57 @@ public class AccountControllerShould
     }
 
     [Fact]
+    public async Task RemoveMfa_Returns204_AndNamesTheActingAdmin()
+    {
+        var user = User(99, AvalonRoles.Admin);
+        _accountService.RemoveMfaAsync(new AccountId(7), new AccountId(99), Arg.Any<CancellationToken>()).Returns(true);
+
+        var sut = MakeSut(user);
+        var result = await sut.RemoveMfa(7, CancellationToken.None);
+
+        Assert.IsType<NoContentResult>(result);
+        await _accountService.Received(1).RemoveMfaAsync(new AccountId(7), new AccountId(99), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task RemoveMfa_Returns404_WhenAccountMissing()
+    {
+        var user = User(99, AvalonRoles.Admin);
+        _accountService.RemoveMfaAsync(Arg.Any<AccountId>(), Arg.Any<AccountId>(), Arg.Any<CancellationToken>())
+            .Returns(false);
+
+        var sut = MakeSut(user);
+        var result = await sut.RemoveMfa(123, CancellationToken.None);
+
+        Assert.IsType<NotFoundResult>(result);
+    }
+
+    [Fact]
+    public async Task RemoveMfa_Returns403_WhenAdminTargetsOwnAccount()
+    {
+        var user = User(99, AvalonRoles.Admin);
+
+        var sut = MakeSut(user);
+        var result = await sut.RemoveMfa(99, CancellationToken.None);
+
+        var objectResult = Assert.IsType<ObjectResult>(result);
+        Assert.Equal(StatusCodes.Status403Forbidden, objectResult.StatusCode);
+        await _accountService.DidNotReceiveWithAnyArgs().RemoveMfaAsync(default!, default!, default);
+    }
+
+    [Fact]
+    public async Task RemoveMfa_Returns204_WhenCalledTwice()
+    {
+        var user = User(99, AvalonRoles.Admin);
+        _accountService.RemoveMfaAsync(new AccountId(7), new AccountId(99), Arg.Any<CancellationToken>()).Returns(true);
+
+        var sut = MakeSut(user);
+
+        Assert.IsType<NoContentResult>(await sut.RemoveMfa(7, CancellationToken.None));
+        Assert.IsType<NoContentResult>(await sut.RemoveMfa(7, CancellationToken.None));
+    }
+
+    [Fact]
     public async Task UpdateRoles_Delegates()
     {
         var user = User(99, AvalonRoles.Console);
