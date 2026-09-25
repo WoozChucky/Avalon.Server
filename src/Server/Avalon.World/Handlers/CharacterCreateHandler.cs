@@ -203,12 +203,7 @@ public class CharacterCreateHandler(
                 continue;
             }
 
-            var durability = itemTemplate.Class switch
-            {
-                ItemClass.Weapon => 42U,
-                ItemClass.Armor => 69U,
-                _ => 0U
-            };
+            var durability = ItemInstanceDefaults.InitialDurability(itemTemplate);
 
             var itemInstance = new ItemInstance
             {

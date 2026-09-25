@@ -86,4 +86,10 @@ public class GameConfiguration
     /// </summary>
     [Range(0.5, 20.0)]
     public float MeleeSlotRadius { get; set; } = 1.5f;
+
+    /// <summary>
+    ///     The most copper a character can hold. An addition that would pass it is refused whole,
+    ///     as TrinityCore refuses past <c>MAX_MONEY_AMOUNT</c>, whose 3.3.5 value is the default.
+    /// </summary>
+    public ulong MaxMoney { get; set; } = 9_999_999_999;
 }

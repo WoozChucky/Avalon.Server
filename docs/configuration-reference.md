@@ -112,6 +112,7 @@ Section in `appsettings.json`: `"Game"` (World server only)
 | `CreatureAgentRadius`            | float  | `0.6`      | Separation radius in world units. Range `0.05`–`10.0` |
 | `MeleeSlotCount`                 | int    | `6`        | Standing positions on the ring around a target. Range `1`–`16` |
 | `MeleeSlotRadius`                | float  | `1.5`      | Ring radius. Range `0.5`–`20.0` |
+| `MaxMoney`                       | ulong  | `9999999999` | Most copper a character can hold; an addition past it is refused whole (TrinityCore's `MAX_MONEY_AMOUNT`) |
 
 ```json
 "Game": {
@@ -125,7 +126,8 @@ Section in `appsettings.json`: `"Game"` (World server only)
   "CrowdIncludesPlayers": false,
   "CreatureAgentRadius": 0.6,
   "MeleeSlotCount": 6,
-  "MeleeSlotRadius": 1.5
+  "MeleeSlotRadius": 1.5,
+  "MaxMoney": 9999999999
 }
 ```
 

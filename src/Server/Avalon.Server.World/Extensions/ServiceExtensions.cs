@@ -53,6 +53,7 @@ public static class ServiceExtensions
         services.AddSingleton<ICreatureSpawner, CreatureSpawner>();
         services.AddSingleton<IChunkLibrary, ChunkLibrary>();
         services.AddSingleton<IItemIdAllocator, ItemIdAllocator>();
+        services.AddSingleton<ICharacterEconomy, CharacterEconomy>();
         services.AddSingleton<PredefinedChunkLayoutSource>();
         services.AddSingleton<ProceduralChunkLayoutSource>();
         services.AddSingleton<IChunkLayoutSourceResolver, ChunkLayoutSourceResolver>();
