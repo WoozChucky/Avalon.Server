@@ -3,6 +3,7 @@ using Avalon.Database.Auth.Repositories;
 using Avalon.Database.Character.Repositories;
 using Avalon.Database.World.Repositories;
 using Avalon.Domain.Characters;
+using Avalon.Domain.World;
 using Avalon.Server.World.UnitTests.Characters;
 using Avalon.World.ChunkLayouts;
 using Avalon.World.Configuration;
@@ -11,7 +12,9 @@ using Avalon.World.Maps;
 using Avalon.World.Persistence;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
+using Avalon.World.Public.Enums;
 using Avalon.World.Public.Instances;
+using Avalon.World.Respawn;
 using Avalon.World.Scripts.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -41,7 +44,7 @@ public class DeSpawnDuringReadinessBarrierShould
 
         // The despawn save snapshots the row where it is called, so Online must already be false then.
         bool? onlineWhenSaved = null;
-        saver.SaveOnDespawnAsync(entity, Arg.Any<CancellationToken>()).Returns(call =>
+        saver.SaveOnDespawnAsync(entity, Arg.Any<Func<Character, CancellationToken, Task>?>(), Arg.Any<CancellationToken>()).Returns(call =>
         {
             onlineWhenSaved = call.Arg<CharacterEntity>().Data!.Online;
             return Task.FromResult(true);
@@ -54,6 +57,72 @@ public class DeSpawnDuringReadinessBarrierShould
 
         Assert.False(onlineWhenSaved);
         Assert.Null(connection.PendingSpawn);
+    }
+
+    /// <summary>
+    /// Until the connection leaves the server, the tick can still run this character's queued save
+    /// acknowledgements, so a despawn snapshot taken on the thread pool races them. A dead logout
+    /// must therefore snapshot and join the save chain on the tick, before it goes to the database
+    /// for the respawn town, and move only the snapshot's copy of the row there.
+    /// </summary>
+    [Fact]
+    public async Task Snapshot_a_dead_logout_on_the_tick_before_the_respawn_town_is_found()
+    {
+        TimeSpan limit = TimeSpan.FromSeconds(5);
+        var written = new TaskCompletionSource<CharacterSaveBatch>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var repository = Substitute.For<ICharacterSaveRepository>();
+        repository.WriteAsync(Arg.Any<IReadOnlyList<CharacterSaveBatch>>(), Arg.Any<CancellationToken>())
+            .Returns(call =>
+            {
+                written.TrySetResult(call.Arg<IReadOnlyList<CharacterSaveBatch>>().Single());
+                return Task.CompletedTask;
+            });
+        var saver = new CharacterSaver(repository, NullLogger<CharacterSaver>.Instance);
+
+        var townFound = new TaskCompletionSource<MapTemplateId>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var resolver = Substitute.For<IRespawnTargetResolver>();
+        resolver.ResolveTownAsync(new MapTemplateId(2), Arg.Any<CancellationToken>()).Returns(townFound.Task);
+        var town = new MapTemplate
+        {
+            Id = new MapTemplateId(1), Name = "town", Description = "town", MapType = MapType.Town,
+            DefaultSpawnX = 10, DefaultSpawnY = 20, DefaultSpawnZ = 30
+        };
+
+        (Avalon.World.World world, _, _) = await LoadedWorldAsync(saver, resolver, [town]);
+
+        var row = new Character { Id = new CharacterId(7), Name = "Tester", Map = 2, Health = 100, Online = true };
+        var entity = new CharacterEntity(NullLoggerFactory.Instance, row, new RegenConfiguration())
+        {
+            Data = row,
+            EnteredWorld = DateTime.UtcNow,
+        };
+        entity.IsDead = true;
+        Avalon.Server.World.UnitTests.Inventory.TestCharacters.InventoryFor(entity)
+            .TryAdd(Avalon.Server.World.UnitTests.Inventory.TestCharacters.Potion.Id, 1);
+        IWorldConnection connection = PendingSpawnConnection.Create();
+        connection.Character = entity;
+
+        Task despawn = world.DeSpawnPlayerAsync(connection);
+
+        // The town is not known yet, and the save is already in the chain, revived on the tick.
+        Assert.False(saver.WhenIdle(new CharacterId(7)).IsCompleted, "the despawn save had not joined the chain");
+        Assert.False(entity.IsDead);
+
+        // Whatever the tick does to the entity from here on is after the snapshot.
+        Avalon.Server.World.UnitTests.Inventory.TestCharacters.InventoryFor(entity)
+            .TryAdd(Avalon.Server.World.UnitTests.Inventory.TestCharacters.Sword.Id, 1);
+
+        townFound.SetResult(new MapTemplateId(1));
+        await despawn.WaitAsync(limit);
+        CharacterSaveBatch batch = await written.Task.WaitAsync(limit);
+
+        Assert.Equal(Avalon.Server.World.UnitTests.Inventory.TestCharacters.Potion.Id,
+            Assert.Single(batch.UpsertItems).TemplateId);
+        Assert.Equal((ushort)1, batch.Row.Map);
+        Assert.Equal((10f, 20f, 30f), (batch.Row.X, batch.Row.Y, batch.Row.Z));
+        Assert.Equal(100, batch.Row.Health);
+        Assert.False(batch.Row.Online);
+        Assert.Equal((ushort)2, row.Map);   // only the copy moved to the town
     }
 
     /// <summary>
@@ -94,14 +163,18 @@ public class DeSpawnDuringReadinessBarrierShould
     /// <summary>
     /// DeSpawnPlayerAsync reads the instance registry, which only exists after LoadAsync.
     /// </summary>
-    private static async Task<(Avalon.World.World world, ICharacterRepository characters, ICharacterSaver saver)> LoadedWorldAsync()
+    private static async Task<(Avalon.World.World world, ICharacterRepository characters, ICharacterSaver saver)> LoadedWorldAsync(
+        ICharacterSaver? realSaver = null,
+        IRespawnTargetResolver? resolver = null,
+        IReadOnlyList<MapTemplate>? templates = null)
     {
         var characterRepository = Substitute.For<ICharacterRepository>();
-        var saver = Substitute.For<ICharacterSaver>();
+        ICharacterSaver saver = realSaver ?? Substitute.For<ICharacterSaver>();
 
         var scopedProvider = Substitute.For<IServiceProvider>();
         scopedProvider.GetService(typeof(ICharacterRepository)).Returns(characterRepository);
         scopedProvider.GetService(typeof(ICharacterSaver)).Returns(saver);
+        scopedProvider.GetService(typeof(IRespawnTargetResolver)).Returns(resolver ?? Substitute.For<IRespawnTargetResolver>());
         var scope = Substitute.For<IServiceScope>();
         scope.ServiceProvider.Returns(scopedProvider);
         var scopeFactory = Substitute.For<IServiceScopeFactory>();
@@ -152,6 +225,10 @@ public class DeSpawnDuringReadinessBarrierShould
         rarities.GetAllAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyCollection<Avalon.Domain.World.CreatureRarityModifier>>([]));
 
+        var mapManager = Substitute.For<IAvalonMapManager>();
+        if (templates is not null)
+            mapManager.Templates.Returns(templates);
+
         var serviceProvider = Substitute.For<IServiceProvider>();
         serviceProvider.GetService(typeof(IChunkLayoutInstanceFactory))
             .Returns(Substitute.For<IChunkLayoutInstanceFactory>());
@@ -161,7 +238,7 @@ public class DeSpawnDuringReadinessBarrierShould
             Options.Create(new GameConfiguration { WorldId = new Avalon.Domain.Auth.WorldId(1) }),
             serviceProvider,
             worldRepository,
-            Substitute.For<IAvalonMapManager>(),
+            mapManager,
             scopeFactory,
             createInfos,
             stats,

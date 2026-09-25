@@ -1,5 +1,6 @@
 using Avalon.Common.ValueObjects;
 using Avalon.Database.Character.Repositories;
+using Avalon.Domain.Characters;
 using Avalon.World.Entities;
 using Avalon.World.Public;
 using Microsoft.Extensions.Logging;
@@ -24,10 +25,21 @@ public interface ICharacterSaver
     Task<bool> Save(IReadOnlyList<(IWorldConnection Connection, CharacterEntity Character)> characters);
 
     /// <summary>
-    /// Despawn, after the character has left its instance. Snapshots where it is called, waits behind
-    /// any save in flight, and acknowledges nothing, because the entity is about to be discarded.
+    /// Despawn, on the tick, after the character has left its instance. Snapshots and joins the
+    /// character's chain before it returns, waits behind any save in flight, and acknowledges
+    /// nothing, because the entity is about to be discarded.
     /// </summary>
-    Task<bool> SaveOnDespawnAsync(CharacterEntity character, CancellationToken cancellationToken);
+    /// <param name="character">The despawning character. Read only here, on the calling thread.</param>
+    /// <param name="prepareRow">
+    /// Optional last changes to the <em>copied</em> row, made inside the chained write on the thread
+    /// pool just before it is written: the dead-logout move to the respawn town needs a database
+    /// lookup, and the tick must not wait for it. It never sees the entity; a throw fails the save.
+    /// </param>
+    /// <param name="cancellationToken">Passed to the row preparation and the write.</param>
+    Task<bool> SaveOnDespawnAsync(
+        CharacterEntity character,
+        Func<Character, CancellationToken, Task>? prepareRow,
+        CancellationToken cancellationToken);
 
     /// <summary>
     /// Completes once every save queued so far for <paramref name="id" /> has finished, committed or
@@ -60,7 +72,7 @@ public sealed class CharacterSaver(ICharacterSaveRepository repository, ILogger<
 
         EnsureOneBatchPerCharacter(snapshots);
 
-        Task<bool> write = Enqueue(snapshots, CancellationToken.None);
+        Task<bool> write = Enqueue(snapshots, prepareRow: null, CancellationToken.None);
 
         for (int i = 0; i < characters.Count; i++)
         {
@@ -76,8 +88,11 @@ public sealed class CharacterSaver(ICharacterSaveRepository repository, ILogger<
         return write;
     }
 
-    public Task<bool> SaveOnDespawnAsync(CharacterEntity character, CancellationToken cancellationToken) =>
-        Enqueue([CharacterSaveSnapshot.Take(character)], cancellationToken);
+    public Task<bool> SaveOnDespawnAsync(
+        CharacterEntity character,
+        Func<Character, CancellationToken, Task>? prepareRow,
+        CancellationToken cancellationToken) =>
+        Enqueue([CharacterSaveSnapshot.Take(character)], prepareRow, cancellationToken);
 
     public Task WhenIdle(CharacterId id)
     {
@@ -121,7 +136,10 @@ public sealed class CharacterSaver(ICharacterSaveRepository repository, ILogger<
     /// latest for each of them. Choosing what to wait for and publishing the new tail happen under
     /// one lock, so two saves of one character can never both see the same predecessor.
     /// </summary>
-    private Task<bool> Enqueue(CharacterSaveSnapshot[] snapshots, CancellationToken cancellationToken)
+    private Task<bool> Enqueue(
+        CharacterSaveSnapshot[] snapshots,
+        Func<Character, CancellationToken, Task>? prepareRow,
+        CancellationToken cancellationToken)
     {
         Task<bool> write;
         lock (_gate)
@@ -143,7 +161,7 @@ public sealed class CharacterSaver(ICharacterSaveRepository repository, ILogger<
             // Off the tick thread from the first line: the snapshot is all the tick owes a save. The
             // token goes to the write, not to Task.Run, so a cancelled save still comes back false
             // instead of cancelled, and whatever is queued behind it still runs.
-            write = Task.Run(() => WriteAfterAsync(after, snapshots, cancellationToken), CancellationToken.None);
+            write = Task.Run(() => WriteAfterAsync(after, snapshots, prepareRow, cancellationToken), CancellationToken.None);
 
             foreach (CharacterSaveSnapshot snapshot in snapshots)
                 _latest[snapshot.CharacterId] = write;
@@ -171,13 +189,24 @@ public sealed class CharacterSaver(ICharacterSaveRepository repository, ILogger<
         }
     }
 
-    private async Task<bool> WriteAfterAsync(Task previous, CharacterSaveSnapshot[] snapshots, CancellationToken cancellationToken)
+    private async Task<bool> WriteAfterAsync(
+        Task previous,
+        CharacterSaveSnapshot[] snapshots,
+        Func<Character, CancellationToken, Task>? prepareRow,
+        CancellationToken cancellationToken)
     {
         // Only orders: a save never faults, it comes back false.
         await previous.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
 
         try
         {
+            // The copies only: the snapshot owns them, and the live row stays with the tick.
+            if (prepareRow is not null)
+            {
+                foreach (CharacterSaveSnapshot snapshot in snapshots)
+                    await prepareRow(snapshot.Batch.Row, cancellationToken).ConfigureAwait(false);
+            }
+
             await repository.WriteAsync(snapshots.Select(s => s.Batch).ToList(), cancellationToken).ConfigureAwait(false);
             return true;
         }

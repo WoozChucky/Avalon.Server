@@ -292,7 +292,7 @@ public class CharacterSelectChainShould : IDisposable
             .Do(_ => read.TrySetResult(Volatile.Read(ref committed) == 1));
 
         Task<bool> despawn = saver.SaveOnDespawnAsync(
-            Avalon.Server.World.UnitTests.Inventory.TestCharacters.New(TheCharacter.Value), CancellationToken.None);
+            Avalon.Server.World.UnitTests.Inventory.TestCharacters.New(TheCharacter.Value), prepareRow: null, CancellationToken.None);
         select.Execute(_connection, new CCharacterSelectedPacket { CharacterId = TheCharacter });
 
         Assert.False(read.Task.IsCompleted, "the select read the character while its save was still in flight");

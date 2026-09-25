@@ -213,7 +213,7 @@ public sealed class CharacterSaverShould : IDisposable
         InventoryFor(character).TryAdd(Sword.Id, 1);
         Task<bool> periodic = saver.Save(_connection, character);
         character.Data!.Online = false;
-        Task<bool> despawn = saver.SaveOnDespawnAsync(character, CancellationToken.None);
+        Task<bool> despawn = saver.SaveOnDespawnAsync(character, prepareRow: null, CancellationToken.None);
         gated.Open();
 
         Assert.True(await periodic.WaitAsync(Limit));
@@ -235,7 +235,7 @@ public sealed class CharacterSaverShould : IDisposable
         var recording = new RecordingRepository();
         CharacterSaver saver = Saver(recording);
 
-        Task<bool> despawn = saver.SaveOnDespawnAsync(oldSession, CancellationToken.None);
+        Task<bool> despawn = saver.SaveOnDespawnAsync(oldSession, prepareRow: null, CancellationToken.None);
         CharacterEntity newSession = New(7);
         Task<bool> next = saver.Save(_connection, newSession);
 
@@ -255,7 +255,7 @@ public sealed class CharacterSaverShould : IDisposable
         var gated = new GatedRepository(Repository());
         CharacterSaver saver = Saver(gated);
 
-        Task<bool> despawn = saver.SaveOnDespawnAsync(character, CancellationToken.None);
+        Task<bool> despawn = saver.SaveOnDespawnAsync(character, prepareRow: null, CancellationToken.None);
         Task idle = saver.WhenIdle(new CharacterId(7));
 
         Assert.False(idle.IsCompleted);
@@ -275,7 +275,7 @@ public sealed class CharacterSaverShould : IDisposable
             .Returns(Task.FromException(new InvalidOperationException("database down")));
         CharacterSaver saver = Saver(failing);
 
-        Assert.False(await saver.SaveOnDespawnAsync(character, CancellationToken.None).WaitAsync(Limit));
+        Assert.False(await saver.SaveOnDespawnAsync(character, prepareRow: null, CancellationToken.None).WaitAsync(Limit));
 
         await saver.WhenIdle(new CharacterId(7)).WaitAsync(Limit);
     }

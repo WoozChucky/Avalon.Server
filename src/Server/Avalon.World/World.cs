@@ -184,7 +184,7 @@ public class World : IWorld
             // Exit-path (Phase H): drop the character from any in-progress encounter before
             // unregistering them from the instance. Single hook covers logout, alt-F4, and TCP
             // timeout — all disconnect paths flow through DeSpawnPlayerAsync. Done before
-            // RemoveCharacter (and before ApplyDeathLogoutAsync below) so the encounter doesn't
+            // RemoveCharacter (and before ReviveForDeathLogout below) so the encounter doesn't
             // hold a stale dead-player participant after Revive() runs.
             instance?.CombatService.DropPlayerFromEncounter(connection.Character);
 
@@ -200,16 +200,21 @@ public class World : IWorld
             CharacterEntity? entity = connection.Character! as CharacterEntity;
             Character dbCharacter = entity!.Data!;
 
+            // Everything from here to the save runs on the tick, with no await before it: until the
+            // connection leaves the server, the tick can still run this character's queued save
+            // acknowledgements, so the snapshot must be taken here and not on the thread pool.
+            Func<Character, CancellationToken, Task>? prepareRow = null;
+
             if (connection.Character.IsDead)
             {
-                await ApplyDeathLogoutAsync(connection.Character, dbCharacter,
-                    scope.ServiceProvider.GetRequiredService<IRespawnTargetResolver>(),
-                    CancellationToken.None);
+                ReviveForDeathLogout(connection.Character, dbCharacter);
 
-                var townTemplate = _mapManager.Templates.FirstOrDefault(t => t.Id == new MapTemplateId(dbCharacter.Map));
-                dbCharacter.X = townTemplate?.DefaultSpawnX ?? 0f;
-                dbCharacter.Y = townTemplate?.DefaultSpawnY ?? 0f;
-                dbCharacter.Z = townTemplate?.DefaultSpawnZ ?? 0f;
+                // Finding the respawn town needs the database, so it happens inside the chained
+                // write, on the copy of the row the snapshot took.
+                var diedOn = new MapTemplateId(connection.Character.Map.Value);
+                IRespawnTargetResolver resolver = scope.ServiceProvider.GetRequiredService<IRespawnTargetResolver>();
+                IReadOnlyList<MapTemplate> templates = _mapManager.Templates;
+                prepareRow = (row, token) => MoveToRespawnTownAsync(diedOn, row, resolver, templates, token);
             }
             // If logging out from a Normal map, redirect the character to the associated town
             else if (instance?.MapType == MapType.Normal)
@@ -238,9 +243,9 @@ public class World : IWorld
             dbCharacter.TotalTime += (ulong)(DateTime.UtcNow - entity.EnteredWorld).TotalSeconds;
             // Memory is authoritative (spec #459 D3): the row, the money and every dirty item and slot
             // go in one transaction, queued behind any save of this character still in flight. The
-            // snapshot is taken here, after RemoveCharacter, when nothing on the tick reaches this
-            // entity any more.
-            await characterSaver.SaveOnDespawnAsync(entity, CancellationToken.None);
+            // snapshot is taken and the save joins the chain synchronously, here on the tick, so a
+            // relog's WhenIdle already sees it.
+            await characterSaver.SaveOnDespawnAsync(entity, prepareRow, CancellationToken.None);
         }
         catch (InvalidOperationException)
         {
@@ -310,24 +315,34 @@ public class World : IWorld
     }
 
     /// <summary>
-    /// Applies the "logout while dead" branch in isolation — resolves the respawn town,
-    /// revives the live entity, and rewrites the persisted Character row to land at the
-    /// town with full HP. No outbound packets are sent (the connection is gone). Public
-    /// so the unit-test for this branch can drive it without standing up the full
-    /// DeSpawnPlayerAsync DI graph.
+    /// The tick half of "logout while dead": revives the live entity and writes its full HP to the
+    /// row, before the save snapshots it. No outbound packets are sent (the connection is gone).
+    /// Public so the unit test for this branch can drive it without the full despawn DI graph.
     /// </summary>
-    public static async Task ApplyDeathLogoutAsync(
-        ICharacter character,
-        Character dbCharacter,
+    public static void ReviveForDeathLogout(ICharacter character, Character dbCharacter)
+    {
+        character.Revive();
+        dbCharacter.Health = (int)character.Health;
+    }
+
+    /// <summary>
+    /// The database half of "logout while dead": resolves the respawn town for the map the character
+    /// died on, and moves <paramref name="row" /> to it, at the town's default spawn. Runs inside the
+    /// chained despawn save, on the thread pool, against the snapshot's copy of the row only.
+    /// </summary>
+    public static async Task MoveToRespawnTownAsync(
+        MapTemplateId diedOn,
+        Character row,
         IRespawnTargetResolver resolver,
+        IReadOnlyList<MapTemplate> templates,
         CancellationToken ct)
     {
-        var townId = await resolver.ResolveTownAsync(new MapTemplateId(character.Map.Value), ct);
-        character.Revive();
-        dbCharacter.Map = townId.Value;
-        dbCharacter.Health = (int)character.Health;
-        // Position is overwritten by the caller (DeSpawnPlayerAsync) using
-        // MapTemplate.DefaultSpawn{X,Y,Z}.
+        MapTemplateId townId = await resolver.ResolveTownAsync(diedOn, ct).ConfigureAwait(false);
+        MapTemplate? town = templates.FirstOrDefault(t => t.Id == townId);
+        row.Map = townId.Value;
+        row.X = town?.DefaultSpawnX ?? 0f;
+        row.Y = town?.DefaultSpawnY ?? 0f;
+        row.Z = town?.DefaultSpawnZ ?? 0f;
     }
 
     private void ApplyScriptsHotReload(List<Type> aiScriptTypes)

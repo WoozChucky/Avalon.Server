@@ -83,7 +83,7 @@ Server → all clients in the instance. Triggers revive animation, snaps positio
 | `Position` | 2 | `Vector3Dto` | World-space position to snap to. |
 | `Health` | 3 | `uint` | Current HP after revive. |
 
-**V1 caveat (own character).** The current "die → release → home town" path uses the existing `World.ApplyDeathLogoutAsync` flow, which persists town coordinates and full HP at logout time. Because `IsDead` and `CurrentHealth` are not persisted, on re-login the character is alive at full HP without an `SUnitRevivePacket`. The packet is fully wired and is used for in-session revives (and reserved for V2 party-revive / corpse-walk / partial-HP penalty).
+**V1 caveat (own character).** The current "die → release → home town" path uses the existing dead-logout flow in `World.DeSpawnPlayerAsync` (`ReviveForDeathLogout` on the tick, then `MoveToRespawnTownAsync` on the saved copy of the row), which persists town coordinates and full HP at logout time. Because `IsDead` and `CurrentHealth` are not persisted, on re-login the character is alive at full HP without an `SUnitRevivePacket`. The packet is fully wired and is used for in-session revives (and reserved for V2 party-revive / corpse-walk / partial-HP penalty).
 
 ### `SThreatListPacket` (`SMSG_THREAT_LIST = 0x3109`, encrypted, TCP)
 
