@@ -56,16 +56,22 @@ Target framework: **.NET 10**. Docker compose credentials default to password `1
 dotnet user-secrets set "Application:Authentication:IssuerSigningKey" "$(openssl rand -base64 48)" --project src/Server/Avalon.Api   # bash
 $b = New-Object byte[] 48; [Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($b); dotnet user-secrets set "Application:Authentication:IssuerSigningKey" ([Convert]::ToBase64String($b)) --project src/Server/Avalon.Api   # PowerShell 5.1 or 7
 
-# Containers and every non-Development host: the environment
-docker run -e Application__Authentication__IssuerSigningKey="<key>" ...
+# Containers and every non-Development host: the environment. Keep the key out of shell history:
+# put it in a file (api.env is gitignored) holding the line Application__Authentication__IssuerSigningKey=<key> ...
+docker run --env-file ./api.env ...
+# ... or name the variable without a value, so docker passes it through from the current environment.
+docker run -e Application__Authentication__IssuerSigningKey ...
 
 # Helm: the chart reads every secret through a Kubernetes Secret (secretKeyRef), never a plain env value.
-# Either name a Secret you manage (preferred; keys listed in values.yaml) ...
+# Either name a Secret you manage (preferred; keys listed in values.yaml; leave the chart's own secret
+# values empty, or it refuses to render) ...
 helm install ... --set existingSecret=avalon-api-secrets
 # ... or let the chart create it, passing the key from a file (a trailing newline is trimmed).
 # Without one of the two, the chart refuses to render.
 helm install ... --set-file authentication.issuerSigningKey=./jwt.key
 ```
+
+Rotating the key: with a chart-managed Secret, `helm upgrade` with the new file restarts the pods (a checksum annotation). With `existingSecret`, the chart cannot see the change, so after updating the Secret run `kubectl rollout restart statefulset/<release>-avalon-api` (the chart's fullname).
 
 `docker-compose.yml` runs only Redis and Postgres, so it needs no key. EF design-time commands (`dotnet ef migrations ...` with `--startup-project src/Server/Avalon.Api`) need no key either: they build each context through its `IDesignTimeDbContextFactory` and never run `AddAuth`. Tests never read one: `ApiAuthHost` and the other API tests make their own key in code. Changing the key invalidates every access token already issued; clients get a 401 and refresh.
 

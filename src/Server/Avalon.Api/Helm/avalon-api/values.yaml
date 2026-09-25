@@ -4,8 +4,12 @@
 #  - name a Secret you manage in existingSecret (preferred: the values never pass through Helm). It
 #    needs the keys database-auth-connection-string, database-characters-connection-string,
 #    database-world-connection-string and jwt-signing-key, plus cache-password and
-#    notification-private-key if used; or
-#  - leave existingSecret empty and supply the values below; the chart then creates the Secret.
+#    notification-private-key if used. Leave every secret value below empty: the chart refuses to
+#    render with existingSecret set and a value given, rather than ignore it. The chart cannot see
+#    a change to your Secret, so after rotating a key in it restart the pods yourself:
+#    kubectl rollout restart statefulset/<release>-avalon-api (the chart's fullname); or
+#  - leave existingSecret empty and supply the values below; the chart then creates the Secret, and
+#    a checksum annotation restarts the pods whenever it changes.
 #    Pass them from files, not the command line, so they stay out of shell history:
 #    --set-file authentication.issuerSigningKey=./jwt.key (a trailing newline is trimmed).
 existingSecret: ""
