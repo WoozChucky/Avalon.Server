@@ -25,6 +25,21 @@ public interface ICharacterSaveRepository
     /// that does not exist does nothing, so a save may safely carry an entry an earlier save has
     /// already written.
     /// </summary>
+    /// <remarks>
+    /// Caller contracts, which this method does not check:
+    /// <list type="bullet">
+    /// <item>At most one batch per character in a call, and each item id and each slot key at most
+    /// once among the upserts of a call. A repeated upsert is tracked twice, EF refuses the second,
+    /// and the whole call fails, every time it is retried. A delete in one batch and an upsert of the
+    /// same item in another (a trade) is allowed: every delete runs first.</item>
+    /// <item>Saves for one character are serialised by the caller: a call for a character starts only
+    /// once the previous call for that character has finished. Otherwise an insert still in flight
+    /// can land after a later delete of the same row and leave it behind.</item>
+    /// </list>
+    /// <c>CharacterSaver</c> in Avalon.World honours both: it builds one batch per character from
+    /// marks keyed by item and slot, refuses a multi-character save that names a character twice,
+    /// and chains every save behind the previous one for the same character.
+    /// </remarks>
     Task WriteAsync(IReadOnlyList<CharacterSaveBatch> batches, CancellationToken cancellationToken = default);
 }
 

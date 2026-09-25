@@ -8,6 +8,7 @@ using Avalon.World.Configuration;
 using Avalon.World.Entities;
 using Avalon.World.Inventory;
 using Avalon.World.Maps;
+using Avalon.World.Persistence;
 using Avalon.World.ChunkLayouts;
 using Avalon.World.Public.Combat;
 using Avalon.World.Reload;
@@ -54,6 +55,7 @@ public static class ServiceExtensions
         services.AddSingleton<IChunkLibrary, ChunkLibrary>();
         services.AddSingleton<IItemIdAllocator, ItemIdAllocator>();
         services.AddSingleton<ICharacterEconomy, CharacterEconomy>();
+        services.AddSingleton<ICharacterSaver, CharacterSaver>();
         services.AddSingleton<PredefinedChunkLayoutSource>();
         services.AddSingleton<ProceduralChunkLayoutSource>();
         services.AddSingleton<IChunkLayoutSourceResolver, ChunkLayoutSourceResolver>();
