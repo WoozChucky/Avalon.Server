@@ -122,8 +122,7 @@ For a JWT this runs in `JwtBearerEvents.OnTokenValidated` (`JwtAccountRevalidati
 The JWT's lifetime is enforced: `ValidateLifetime = true`, with `AccessTokenLifetimeMinutes` (default 15) plus `ClockSkewInMinutes`. An expired JWT gets a 401, and the client renews it with `POST /account/refresh`. That endpoint is `[AllowAnonymous]` and reads only the HttpOnly refresh cookie, so an expired access token does not stand in its way.
 
 **Nothing issues a credential to an account that is not Active** (`AccountAccessCheck.MayHoldSession`):
-- password login (`AccountService.Authenticate`) checks after the BCrypt verify, and refuses with the same "Invalid username or password" as a wrong password;
-- MFA verify answers as it does for a bad code;
+- password login (`AccountService.Authenticate`) checks after the BCrypt verify, and MFA verify after the code is accepted. Both throw `AccountInactiveException`, which `ExceptionHandlerMiddleware` answers as 403 ProblemDetails with `Detail` BANNED or DEACTIVATED, as the game client is told. A wrong password or bad code still gets the generic 401, whatever the status, so nothing about the account leaks before the proof;
 - refresh revokes every refresh token the account holds, clears the cookie and returns 401.
 
 ## World Simulation

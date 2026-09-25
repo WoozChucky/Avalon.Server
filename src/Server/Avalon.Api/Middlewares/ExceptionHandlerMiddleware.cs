@@ -47,6 +47,18 @@ public class ExceptionHandlerMiddleware
                     Instance = $"{context.Request.Method} {context.Request.Path}"
                 }, cancellationToken: context.RequestAborted);
                 return;
+            // Only thrown once the caller has proved they hold the account (password or MFA code).
+            case AccountInactiveException ex:
+                context.Request.HttpContext.Response.StatusCode = (int)HttpStatusCode.Forbidden;
+                await context.Response.WriteAsJsonAsync(new ProblemDetails
+                {
+                    Status = (int)HttpStatusCode.Forbidden,
+                    Type = exception.GetType().Name,
+                    Title = "Account not active",
+                    Detail = ex.Message,
+                    Instance = $"{context.Request.Method} {context.Request.Path}"
+                }, cancellationToken: context.RequestAborted);
+                return;
             case BusinessException ex:
                 context.Request.HttpContext.Response.StatusCode = (int)HttpStatusCode.BadRequest;
                 await context.Response.WriteAsJsonAsync(new ProblemDetails

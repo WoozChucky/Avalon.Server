@@ -2,6 +2,7 @@ using Avalon.Api.Authentication;
 using Avalon.Api.Authentication.Jwt;
 using Avalon.Api.Config;
 using Avalon.Api.Contract;
+using Avalon.Api.Exceptions;
 using Avalon.Api.Services;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Infrastructure.Services;
@@ -77,10 +78,12 @@ public class MFAController : BaseController
             return Problem("Invalid MFA code or expired hash", statusCode: 401);
 
         var account = await _accountRepository.FindByIdAsync(result.AccountId!, false, CancellationToken);
-        // Same answer as a bad code: a banned or deactivated account gets no session, and the
-        // endpoint does not say which accounts are banned (#480).
-        if (!AccountAccessCheck.MayHoldSession(account))
+        if (account == null)
             return Problem("Invalid MFA code or expired hash", statusCode: 401);
+        // The code was right, so the caller holds the account: a banned or deactivated one is
+        // told its status, as at login, and gets no session (#480).
+        if (!AccountAccessCheck.MayHoldSession(account))
+            throw new AccountInactiveException(account.Status);
 
         account.LastIp = IpAddress.ToString();
         account.LastLogin = DateTime.UtcNow;
