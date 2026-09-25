@@ -24,8 +24,15 @@ public class AccessLevelsShould
         Assert.False(AccessLevels.GameMaster.Allows(actual));
     }
 
+    /// <summary>
+    /// Tournament and PTR are players with the exact Player permission set; the only thing they add
+    /// is access to their own worlds (#447). A Tournament- or PTR-only account left out of this mask
+    /// was refused every default chat command and every Player-policy endpoint.
+    /// </summary>
     [Theory]
     [InlineData(AccountAccessLevel.Player)]
+    [InlineData(AccountAccessLevel.Tournament)]
+    [InlineData(AccountAccessLevel.PTR)]
     [InlineData(AccountAccessLevel.GameMaster)]
     [InlineData(AccountAccessLevel.Admin)]
     [InlineData(AccountAccessLevel.Console)]

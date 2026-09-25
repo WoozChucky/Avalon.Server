@@ -14,7 +14,10 @@ public static class AccessLevels
     public const AccountAccessLevel Console    = AccountAccessLevel.Console;
     public const AccountAccessLevel Admin      = AccountAccessLevel.Admin | Console;
     public const AccountAccessLevel GameMaster = AccountAccessLevel.GameMaster | Admin;
-    public const AccountAccessLevel Player     = AccountAccessLevel.Player | GameMaster;
+    // Tournament and PTR are players with exactly the Player permission set. All they add is
+    // access to their own worlds, which World.AccessLevelRequired gates, not this mask (#447).
+    public const AccountAccessLevel Player     =
+        AccountAccessLevel.Player | AccountAccessLevel.Tournament | AccountAccessLevel.PTR | GameMaster;
 
     /// <summary>True when <paramref name="actual"/> holds any level the mask allows.</summary>
     public static bool Allows(this AccountAccessLevel required, AccountAccessLevel actual)
