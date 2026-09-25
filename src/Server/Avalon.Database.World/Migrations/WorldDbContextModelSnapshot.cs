@@ -1854,7 +1854,7 @@ namespace Avalon.Database.World.Migrations
                         {
                             TextId = 3,
                             Locale = "ptPT",
-                            Text = "Alguns regressam. Mas não tudo o que regressa é quem partiu."
+                            Text = "Alguns regressam. Mas nem tudo o que regressa é quem partiu."
                         },
                         new
                         {
