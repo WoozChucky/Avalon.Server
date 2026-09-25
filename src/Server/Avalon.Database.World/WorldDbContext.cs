@@ -549,8 +549,8 @@ public class WorldDbContext : DbContext
         // They are Invulnerable — a town NPC is never killable — and run TownNpcScript, which
         // stands still and never aggros. Experience is 0 because a creature that cannot die cannot
         // pay out; the 20 they used to carry was left over from their stint as placeholder monsters
-        // in the forest spawn table. They are visible but not yet interactive: talking to an NPC
-        // is issue #431.
+        // in the forest spawn table. They are interactive: talking to an NPC opens a dialogue,
+        // added for issue #431.
         builder.HasData(new CreatureTemplate
         {
             Id = 1,
@@ -1254,11 +1254,11 @@ public class WorldDbContext : DbContext
 
         // ptPT. The gender selects and the class-name inflections are the parts that matter:
         // Portuguese agrees adjectives with gender where English does not, which is why the
-        // {g:male|female} construct exists at all. Reviewed by a native speaker before merge.
+        // {g:male|female} construct exists at all. Needs native-speaker review before merge.
         builder.HasData(
             new LocalizedTextLocale { TextId = 1, Locale = AccountLocale.ptPT, Text = "A mata escurece a cada estação, {name}. Já há estações em que nunca chega a clarear." },
             new LocalizedTextLocale { TextId = 2, Locale = AccountLocale.ptPT, Text = "Algo se enraizou no coração dela. Os bichos sentem-no antes de nós — mudam, e depois não voltam a ser o que eram." },
-            new LocalizedTextLocale { TextId = 3, Locale = AccountLocale.ptPT, Text = "Alguns regressam. Mas não tudo o que regressa é quem partiu." },
+            new LocalizedTextLocale { TextId = 3, Locale = AccountLocale.ptPT, Text = "Alguns regressam. Mas nem tudo o que regressa é quem partiu." },
             new LocalizedTextLocale { TextId = 4, Locale = AccountLocale.ptPT, Text = "O aço aguenta. A madeira apodrece. Lembra-te de qual dos dois levas contigo quando caminhares debaixo daquelas árvores." },
             // {g:Um|Uma} agrees the article with the class name, which inflects on the same gender.
             new LocalizedTextLocale { TextId = 5, Locale = AccountLocale.ptPT, Text = "Uma vez, e voltei pela bigorna e não pela paisagem. {g:Um|Uma} {class} talvez se saia melhor do que um ferreiro se saiu." },

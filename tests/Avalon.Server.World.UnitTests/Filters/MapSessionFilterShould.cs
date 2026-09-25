@@ -8,10 +8,13 @@ using NSubstitute;
 namespace Avalon.Server.World.UnitTests.Filters;
 
 /// <summary>
-/// ProcessQueue peeks: a packet neither filter will take is not dropped, it stays at the head of the
-/// queue and stops everything behind it. CMSG_INTERACT and CMSG_DIALOGUE_CHOOSE are in-map packets —
-/// MapSessionFilter is the only filter that can take them, and until it does, an interact silently
-/// wedges the sending connection rather than merely failing to reach InteractHandler.
+/// CMSG_INTERACT and CMSG_DIALOGUE_CHOOSE are in-map packets — MapSessionFilter is the only filter
+/// that can take them. A packet no filter accepts at arrival never reaches the receive queue: it
+/// routes to Server.CallListener, which finds no handler and logs "Could not find a handler for
+/// packet {PacketType}" — a silent drop plus a warning, not a wedge. (A genuine wedge needs a packet
+/// accepted at arrival whose acceptance changes before the tick dispatches it — see
+/// ProcessQueueWedgeShould.) Without a MapSessionFilter entry, the handler still never runs, which is
+/// the bug this branch had to fix.
 /// </summary>
 public class MapSessionFilterShould
 {

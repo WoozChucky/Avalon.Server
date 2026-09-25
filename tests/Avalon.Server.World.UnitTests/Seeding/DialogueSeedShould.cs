@@ -241,6 +241,61 @@ public class DialogueSeedShould
             + string.Join("; ", mismatches));
     }
 
+    [Fact]
+    public void Have_Exactly_One_Separator_In_Every_Gender_Select()
+    {
+        // {g:o|a} needs exactly one '|' to split its two branches. Either branch may be empty
+        // (Caçador{g:|a} has no masculine suffix, and that is correct), but zero or two-or-more
+        // separators — {g:vindo} or {g:o|a|x} — render literally to players, in one language.
+        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+
+        var offenders = new List<string>();
+
+        foreach (LocalizedText text in context.LocalizedTexts.AsNoTracking().ToList())
+        {
+            foreach (string body in GenderSelectBodies(text.Text))
+            {
+                if (body.Count(c => c == '|') != 1) offenders.Add($"text {text.Id.Value}: {{g:{body}}}");
+            }
+        }
+
+        foreach (LocalizedTextLocale locale in context.LocalizedTextLocales.AsNoTracking().ToList())
+        {
+            foreach (string body in GenderSelectBodies(locale.Text))
+            {
+                if (body.Count(c => c == '|') != 1)
+                {
+                    offenders.Add($"text {locale.TextId.Value} ({locale.Locale}): {{g:{body}}}");
+                }
+            }
+        }
+
+        Assert.True(offenders.Count == 0,
+            "these gender selects do not have exactly one '|' separator: " + string.Join(", ", offenders));
+    }
+
+    /// <summary>
+    /// Gender-select bodies (the part after "g:") in a template, with the same scanning rules as
+    /// ValueTokens: {{ is an escaped brace, and a construct ends at the next }.
+    /// </summary>
+    private static IEnumerable<string> GenderSelectBodies(string template)
+    {
+        for (int i = 0; i < template.Length; i++)
+        {
+            if (template[i] != '{') continue;
+            if (i + 1 < template.Length && template[i + 1] == '{') { i++; continue; }
+
+            int close = template.IndexOf('}', i + 1);
+            if (close < 0) break;
+
+            string body = template[(i + 1)..close];
+            i = close;
+
+            if (body.StartsWith("g:", StringComparison.Ordinal)) yield return body[2..];
+        }
+    }
+
     /// <summary>
     /// Value-token names in a template, ignoring gender selects and escaped braces. Mirrors
     /// TextInterpolator's scanning rules; kept local so the test does not depend on internals.

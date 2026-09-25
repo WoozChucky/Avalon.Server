@@ -12,7 +12,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Avalon.Database.World.Migrations
 {
     [DbContext(typeof(WorldDbContext))]
-    [Migration("20260924210751_AddDialogue")]
+    [Migration("20260925003518_AddDialogue")]
     partial class AddDialogue
     {
         /// <inheritdoc />
@@ -1857,7 +1857,7 @@ namespace Avalon.Database.World.Migrations
                         {
                             TextId = 3,
                             Locale = "ptPT",
-                            Text = "Alguns regressam. Mas não tudo o que regressa é quem partiu."
+                            Text = "Alguns regressam. Mas nem tudo o que regressa é quem partiu."
                         },
                         new
                         {

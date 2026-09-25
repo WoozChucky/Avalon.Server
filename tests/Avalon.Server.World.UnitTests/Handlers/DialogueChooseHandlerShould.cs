@@ -35,6 +35,8 @@ public class DialogueChooseHandlerShould
 
         Assert.Equal((NpcGuid, new DialogueNodeId(2)), fixture.Connection.CurrentDialogue);
         fixture.Connection.Received(1).Send(Arg.Any<NetworkPacket>());
+        NetworkPacket sent = Assert.Single(fixture.SentPackets);
+        Assert.Equal(NetworkPacketType.SMSG_DIALOGUE_NODE, sent.Header.Type);
     }
 
     [Fact]
@@ -47,6 +49,8 @@ public class DialogueChooseHandlerShould
 
         Assert.Null(fixture.Connection.CurrentDialogue);
         fixture.Connection.Received(1).Send(Arg.Any<NetworkPacket>());
+        NetworkPacket sent = Assert.Single(fixture.SentPackets);
+        Assert.Equal(NetworkPacketType.SMSG_DIALOGUE_END, sent.Header.Type);
     }
 
     [Fact]
@@ -100,6 +104,7 @@ public class DialogueChooseHandlerShould
             new CDialogueChoosePacket { TargetGuid = other.RawValue, NodeId = 1, OptionId = 1 });
 
         fixture.Connection.DidNotReceive().Send(Arg.Any<NetworkPacket>());
+        Assert.Equal((NpcGuid, new DialogueNodeId(1)), fixture.Connection.CurrentDialogue);
     }
 
     [Fact]
