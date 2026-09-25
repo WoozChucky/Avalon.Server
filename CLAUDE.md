@@ -91,8 +91,10 @@ CClientInfoPacket → SHandshakePacket → CHandshakePacket → SHandshakeResult
 → CAuthPacket → SAuthResultPacket (BCrypt verify, lockout, MFA check)
 → CWorldListPacket → SWorldListPacket
 → CWorldSelectPacket → SWorldSelectPacket (CSPRNG world key written to Redis, SETNX inWorld mutex)
-→ [new TCP to World] CExchangeWorldKeyPacket → SExchangeWorldKeyPacket (key consumed from Redis, inWorld mutex cleared)
+→ [new TCP to World] CExchangeWorldKeyPacket → SExchangeWorldKeyPacket (key consumed from Redis, access re-checked, inWorld mutex cleared)
 ```
+
+**Spending the world key** (`ExchangeWorldKeyHandler`): the `DEL` spends the key, not the `GET`. Two connections presenting the same key can both read it, so the handler goes on only when `RemoveAsync` reports it deleted the key — Redis tells exactly one caller that (#450). The key is spent before any other check, so a refused exchange cannot retry it. The handler then re-checks the account against a freshly read `World` row — `Status == Active` and the same `AccessLevels.ForWorld(...).Allows(...)` rule — because the key lives five minutes and the account may have been banned or demoted since it was issued. The `inWorld` mutex is cleared only once every check has passed; a refused exchange leaves it to expire on its TTL.
 
 **World access** is decided by `AccessLevels.ForWorld(world.AccessLevelRequired).Allows(account.AccessLevel)`, the same test in `CWorldListHandler` (what is listed) and `CWorldSelectHandler` (what can be entered). A Player world admits every player, Tournament and PTR included; a Tournament or PTR world admits holders of that flag plus staff; a staff-gated world admits its staff mask. Never compare a world's level with `<=`: `AccountAccessLevel` is `[Flags]`, and PTR (32) and Tournament (16) are numerically above Admin (4), which is how PTR accounts used to reach the Admin-only world.
 
