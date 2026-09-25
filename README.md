@@ -114,12 +114,16 @@ Prerequisites: .NET 10 SDK, Docker (for infra services).
    docker compose -f docker-compose.yml -f docker-compose.tools.yml up -d
    ```
 2. Give the API a JWT signing key, once per machine. None is committed, and the API refuses to start
-   without one of at least 32 bytes:
+   without one of at least 32 bytes. From the repository root, each of these generates a key and stores it
+   in your user-secrets:
    ```bash
+   # bash (needs openssl)
    dotnet user-secrets set "Application:Authentication:IssuerSigningKey" "$(openssl rand -base64 48)" --project src/Server/Avalon.Api
    ```
-   In PowerShell, generate the key with
-   `[Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(48))`.
+   ```powershell
+   # Windows PowerShell 5.1 or PowerShell 7 (no openssl needed)
+   $b = New-Object byte[] 48; [Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($b); dotnet user-secrets set "Application:Authentication:IssuerSigningKey" ([Convert]::ToBase64String($b)) --project src/Server/Avalon.Api
+   ```
    Outside Development (containers, Helm), set the environment variable
    `Application__Authentication__IssuerSigningKey` instead.
 3. Run the API — migrations are applied automatically on startup:

@@ -16,7 +16,7 @@ Avalon uses strongly-typed configuration classes bound from `appsettings.json` (
 |---------------------------|------------------------------|------------------------------|
 | `DatabaseConfiguration`   | `Avalon.Configuration`       | `ConnectionStrings:*`        |
 | `CacheConfiguration`      | `Avalon.Configuration`       | `Cache:*`                    |
-| `AuthenticationConfig`    | `Avalon.Configuration`       | `Authentication:*`           |
+| `AuthenticationConfig`    | `Avalon.Api.Config`          | `Application:Authentication:*` (REST API) |
 | `HostingConfiguration`    | `Avalon.Configuration`       | `Hosting:*`                  |
 | `AuthConfiguration`       | `Avalon.Server.Auth.Configuration` | `Application:*`        |
 | `GameConfiguration`       | `Avalon.World.Configuration` | `Game:*`                     |
@@ -196,20 +196,11 @@ The Helm chart takes it as `authentication.issuerSigningKey` and refuses to rend
 
 ---
 
-## Avalon Internal Authentication
+## REST API Personal Access Tokens
 
-Section: environment variable or secrets manager (**never committed to source control**)
-
-| Key                   | Type   | Default       | Description                                               |
-|-----------------------|--------|---------------|-----------------------------------------------------------|
-| `Avalon:SharedSecret` | string | _(required)_  | Shared secret for `Authorization: Avalon <token>` scheme  |
-
-> **Warning:** This key must **never** appear in `appsettings.json`. Use environment variables or a secrets manager (Azure Key Vault, AWS Secrets Manager, dotnet user-secrets) in all environments.
-
-```bash
-# Environment variable:
-Avalon__SharedSecret=<minimum-32-char-random-value>
-```
+The `Authorization: Avalon avp_...` scheme takes no configuration and there is no shared secret. Each
+token belongs to one account; only its SHA-256 hash is stored, and `AvalonAuthenticationHandler` looks
+it up per request. See [Security — Session Management](security-session-management.md#rest-api-authentication).
 
 ---
 
@@ -245,13 +236,13 @@ public class CAuthHandler(IOptions<AuthConfiguration> authConfig, ...)
 
 ## Environment-Specific Overrides
 
-Use `appsettings.{Environment}.json` (e.g. `appsettings.Production.json`) to override defaults per environment without changing the base file. Sensitive values (database passwords, `SharedSecret`) must come from environment variables or a secrets manager, not files.
+Use `appsettings.{Environment}.json` (e.g. `appsettings.Production.json`) to override defaults per environment without changing the base file. Sensitive values (database passwords, the REST API's JWT signing key) must come from environment variables, user-secrets or a secrets manager, not committed files.
 
 ```bash
 # Environment variable override syntax (.NET):
 Application__MinClientVersion=1.5.0
 Application__MaxFailedLoginAttempts=10
-Avalon__SharedSecret=<from-vault>
+Application__Authentication__IssuerSigningKey=<from-vault>
 ```
 
 ---
@@ -266,3 +257,7 @@ All config classes opt into startup validation to fail fast on misconfiguration:
 ```
 
 This causes the application to throw an `OptionsValidationException` at startup rather than at runtime when the missing/invalid value is first accessed.
+
+The REST API's `AuthenticationConfig` is bound directly rather than through `IOptions<T>`, so its signing
+key is checked by `JwtSigningKey.Create` instead: startup throws `InvalidOperationException` naming the
+setting (see [REST API JWT Signing Key](#rest-api-jwt-signing-key)).

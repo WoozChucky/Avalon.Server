@@ -51,12 +51,10 @@ Target framework: **.NET 10**. Docker compose credentials default to password `1
 `Avalon.Api` will not start without a JWT signing key, and none is committed (#482). The setting is `Application:Authentication:IssuerSigningKey` (environment variable `Application__Authentication__IssuerSigningKey`). `JwtSigningKey.Create` refuses a key that is missing, under 32 bytes in UTF-8, or the one that used to sit in `appsettings.json` (public now), and the error names the setting. Set it once per machine:
 
 ```bash
-# Generate a key (either one)
-openssl rand -base64 48
-pwsh -c "[Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(48))"
-
-# Local runs (dotnet run, or the Aspire AppHost in src/Server/Avalon): Development loads user-secrets
-dotnet user-secrets set "Application:Authentication:IssuerSigningKey" "<key>" --project src/Server/Avalon.Api
+# Local runs (dotnet run, or the Aspire AppHost in src/Server/Avalon): Development loads user-secrets.
+# Each line generates a key and stores it; run one from the repo root.
+dotnet user-secrets set "Application:Authentication:IssuerSigningKey" "$(openssl rand -base64 48)" --project src/Server/Avalon.Api   # bash
+$b = New-Object byte[] 48; [Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($b); dotnet user-secrets set "Application:Authentication:IssuerSigningKey" ([Convert]::ToBase64String($b)) --project src/Server/Avalon.Api   # PowerShell 5.1 or 7
 
 # Containers and every non-Development host: the environment
 docker run -e Application__Authentication__IssuerSigningKey="<key>" ...

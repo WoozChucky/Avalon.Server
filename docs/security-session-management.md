@@ -143,32 +143,38 @@ Client               Auth Server           Redis
 
 ---
 
-## `Avalon` Bearer Token Validation
+## REST API Authentication
 
-`AvalonAuthenticationHandler` (`src/Server/Avalon.Api/Authentication/AV/`) handles the `Authorization: Avalon <token>` scheme used for internal management operations. Token validation is not yet implemented — the handler currently returns success with a placeholder claim.
+`Avalon.Api` accepts two credentials. The CLAUDE.md "REST API Auth" section has the full rules.
 
-### Intended Implementation
+- **Access JWT:** sent as `Authorization: Bearer <jwt>` or in the `AVToken` cookie. `JwtUtils` mints it at
+  login, MFA verify and refresh. The bearer handler checks the signature (HS256 only), issuer, audience and
+  lifetime (`AccessTokenLifetimeMinutes`, default 15, plus `ClockSkewInMinutes`). An expired JWT gets a
+  401, and the client renews it with `POST /account/refresh`.
+- **Personal access token (PAT):** sent as `Authorization: Avalon avp_...`. `AvalonAuthenticationHandler`
+  (`src/Server/Avalon.Api/Authentication/AV/`) reads it, looks up the token by its SHA-256 hash, and refuses
+  it if it is revoked or expired.
 
-1. Add `SharedSecret` (string) to `AvalonAuthenticationSchemeOptions`.
-2. Populate from environment variable or secrets manager (never from committed config).
-3. Use constant-time comparison:
+Neither credential is trusted on its own (#451, #480). On every request both go through
+`AccountAccessCheck`. It reloads the account and refuses a missing or non-Active one with 401. The request
+then carries only the credential's roles masked by the account's current `AccessLevel`, so a demotion or
+ban takes effect on the next request.
 
-```csharp
-bool valid = CryptographicOperations.FixedTimeEquals(
-    Encoding.UTF8.GetBytes(token),
-    Encoding.UTF8.GetBytes(Options.SharedSecret));
+### JWT Signing Key
 
-if (!valid)
-    return AuthenticateResult.Fail("Invalid Avalon token");
-```
+The JWTs are signed and validated with an HMAC-SHA256 key, `Application:Authentication:IssuerSigningKey`.
+No key is committed (#482). In development it comes from `dotnet user-secrets`; everywhere else it comes
+from the environment variable `Application__Authentication__IssuerSigningKey` (the Helm chart's
+`authentication.issuerSigningKey`).
 
-4. Replace the placeholder claim with a meaningful role claim, e.g. `("role", "InternalAdmin")`.
+`JwtSigningKey.Create` runs when `AddAuth` registers authentication, so the API refuses to start, with an
+error naming the setting, when the key is:
+- missing;
+- under 32 bytes in UTF-8;
+- the value that used to be committed to `appsettings.json`, which is public.
 
-### Security Requirements
-
-- `SharedSecret` must be at least 32 characters (entropy ≥ 192 bits).
-- Timing-safe comparison prevents oracle attacks.
-- Secret must **not** appear in application logs.
+The key never appears in logs. Changing it invalidates every access token already issued; clients get a 401
+and refresh. Setup commands: README "Running Locally", CONTRIBUTING "Local Setup".
 
 ---
 

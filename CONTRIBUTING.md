@@ -23,17 +23,17 @@ Thank you for your interest in contributing. This document covers how to set up 
 
 ---
 
-## Zero-Config Dev Environment
+## Almost Zero-Config Dev Environment
 
-The repository is intentionally set up so that cloning and running is enough to get started — no manual
-configuration required. Specifically:
+Almost everything a local run needs is committed. The one exception is the REST API's JWT signing key: you
+set it once per machine (step 4 of [Local Setup](#local-setup)). Specifically:
 
 - **`appsettings.json` files** contain hardcoded local-dev credentials (Postgres password `123`, Redis password
   `123`, etc.). These are development-only defaults, safe to use locally, and deliberately
   committed so contributors can run the project immediately.
 - **The REST API's JWT signing key is the one exception.** A committed key lets anyone forge a token for any
-  account, so none is committed and `Avalon.Api` refuses to start without one (#482). Set it once with
-  `dotnet user-secrets` as the README's "Running Locally" section shows.
+  account, so none is committed and `Avalon.Api` refuses to start without one (#482). It lives in your
+  machine's `dotnet user-secrets` store, outside the repository.
 - **`certs/cert-tcp.pfx`** is a pre-generated self-signed TLS certificate (password `avalon`) used by the Auth
   TCP server. It is committed for the same reason — so no manual cert generation is needed.
 - **`docker-compose.yml`** uses matching credentials so the infra spins up in sync with the app config.
@@ -66,14 +66,30 @@ configuration required. Specifically:
    dotnet build --no-restore
    ```
 
-4. **Run the servers** (separate terminals):
+4. **Set the REST API signing key** (once per machine). `Avalon.Api` needs a random key of at least 32 bytes,
+   and none is committed. Run one of these from the repository root; each generates a key and stores it in
+   your user-secrets.
+
+   bash (needs `openssl`, which Git Bash, macOS and most Linux distributions include):
+   ```bash
+   dotnet user-secrets set "Application:Authentication:IssuerSigningKey" "$(openssl rand -base64 48)" --project src/Server/Avalon.Api
+   ```
+   PowerShell (Windows PowerShell or PowerShell 7, no `openssl` needed):
+   ```powershell
+   $b = New-Object byte[] 48; [Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($b); dotnet user-secrets set "Application:Authentication:IssuerSigningKey" ([Convert]::ToBase64String($b)) --project src/Server/Avalon.Api
+   ```
+   If you skip this, `Avalon.Api` exits at startup with `System.InvalidOperationException: The JWT signing key
+   is not set.`, followed by the setting's name and these commands. Only the API needs the key; the Auth and
+   World servers start without it.
+
+5. **Run the servers** (separate terminals):
    ```bash
    dotnet run --project src/Server/Avalon.Api
    dotnet run --project src/Server/Avalon.Server.Auth
    dotnet run --project src/Server/Avalon.Server.World
    ```
 
-5. **API docs** are served at `https://localhost:<port>/scalar`.
+6. **API docs** are served at `https://localhost:<port>/scalar`.
 
 ---
 
