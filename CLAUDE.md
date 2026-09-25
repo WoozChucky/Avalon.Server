@@ -94,6 +94,8 @@ CClientInfoPacket → SHandshakePacket → CHandshakePacket → SHandshakeResult
 → [new TCP to World] CExchangeWorldKeyPacket → SExchangeWorldKeyPacket (key consumed from Redis, inWorld mutex cleared)
 ```
 
+**World access** is decided by `AccessLevels.ForWorld(world.AccessLevelRequired).Allows(account.AccessLevel)`, the same test in `CWorldListHandler` (what is listed) and `CWorldSelectHandler` (what can be entered). A Player world admits every player, Tournament and PTR included; a Tournament or PTR world admits holders of that flag plus staff; a staff-gated world admits its staff mask. Never compare a world's level with `<=`: `AccountAccessLevel` is `[Flags]`, and PTR (32) and Tournament (16) are numerically above Admin (4), which is how PTR accounts used to reach the Admin-only world.
+
 **Key Redis patterns** (all string literals in `CacheKeys`):
 - `world:{worldId}:keys:{base64}` — one-time world entry token (5 min TTL)
 - `account:{accountId}:inWorld` — duplicate session mutex via `SETNX` (5 min TTL)

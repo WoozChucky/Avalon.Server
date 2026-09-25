@@ -118,6 +118,50 @@ public class CWorldSelectHandlerShould
         await _accountRepository.DidNotReceive().UpdateAsync(Arg.Any<Account>());
     }
 
+    /// <summary>
+    /// #447: select used an ordinal "required &gt; actual" check, so a PTR or Tournament account
+    /// could enter the Admin-only world. Refusal is observable as no session slot being taken.
+    /// </summary>
+    [Theory]
+    [InlineData(AccountAccessLevel.Admin, AccountAccessLevel.PTR)]
+    [InlineData(AccountAccessLevel.Admin, AccountAccessLevel.Tournament)]
+    [InlineData(AccountAccessLevel.Admin, AccountAccessLevel.Player | AccountAccessLevel.PTR)]
+    [InlineData(AccountAccessLevel.PTR, AccountAccessLevel.Player)]
+    [InlineData(AccountAccessLevel.Tournament, AccountAccessLevel.PTR)]
+    public async Task Refuse_A_World_The_Account_May_Not_Enter(AccountAccessLevel required, AccountAccessLevel level)
+    {
+        await SelectAsync(required, level);
+
+        await _cache.DidNotReceiveWithAnyArgs().SetNxAsync(default!, default!, default);
+    }
+
+    /// <summary>Staff reach a PTR world without holding the PTR flag; PTR testers reach it too.</summary>
+    [Theory]
+    [InlineData(AccountAccessLevel.PTR, AccountAccessLevel.PTR)]
+    [InlineData(AccountAccessLevel.PTR, AccountAccessLevel.Player | AccountAccessLevel.GameMaster | AccountAccessLevel.Admin)]
+    [InlineData(AccountAccessLevel.Player, AccountAccessLevel.Tournament)]
+    public async Task Admit_A_World_The_Account_May_Enter(AccountAccessLevel required, AccountAccessLevel level)
+    {
+        await SelectAsync(required, level);
+
+        await _cache.ReceivedWithAnyArgs(1).SetNxAsync(default!, default!, default);
+    }
+
+    private async Task SelectAsync(AccountAccessLevel required, AccountAccessLevel level)
+    {
+        var account = MakeAccount(level: level);
+        _connection.AccountId.Returns(account.Id);
+        _accountRepository.FindByIdAsync(account.Id).Returns(account);
+        var world = MakeWorld(1, required);
+        _worldRepository.FindByIdAsync(world.Id).Returns(world);
+
+        await _handler.ExecuteAsync(new AuthPacketContext<CWorldSelectPacket>
+        {
+            Packet = new CWorldSelectPacket { WorldId = world.Id },
+            Connection = _connection
+        });
+    }
+
     [Fact]
     public async Task SaveSessionKey_AndPublishToCache_WhenSelectionSucceeds()
     {
