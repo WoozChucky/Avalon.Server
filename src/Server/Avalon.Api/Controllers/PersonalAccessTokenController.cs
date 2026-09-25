@@ -39,10 +39,10 @@ public class PersonalAccessTokenController : BaseController
         RevokedAt = p.RevokedAt,
     };
 
-    private static Avalon.Domain.Auth.AccountAccessLevel CollectRoles(ClaimsPrincipal user)
+    private static Avalon.Common.Accounts.AccountAccessLevel CollectRoles(ClaimsPrincipal user)
     {
-        var roles = (Avalon.Domain.Auth.AccountAccessLevel)0;
-        foreach (Avalon.Domain.Auth.AccountAccessLevel flag in Enum.GetValues<Avalon.Domain.Auth.AccountAccessLevel>())
+        var roles = (Avalon.Common.Accounts.AccountAccessLevel)0;
+        foreach (Avalon.Common.Accounts.AccountAccessLevel flag in Enum.GetValues<Avalon.Common.Accounts.AccountAccessLevel>())
             if (flag != 0 && user.IsInRole(flag.ToString())) roles |= flag;
         return roles;
     }
@@ -62,7 +62,7 @@ public class PersonalAccessTokenController : BaseController
             callerRoles: CollectRoles(User),
             name: req.Name,
             expiresAt: req.ExpiresAt,
-            requestedRoles: (Avalon.Domain.Auth.AccountAccessLevel?)req.Roles,
+            requestedRoles: (Avalon.Common.Accounts.AccountAccessLevel?)req.Roles,
             ct);
 
         return CreatedAtAction(nameof(GetById), new { id = result.Id.Value }, new PatCreatedDto
@@ -128,7 +128,7 @@ public class PersonalAccessTokenController : BaseController
             targetAccountId: new AccountId(req.AccountId),
             name: req.Name,
             expiresAt: req.ExpiresAt,
-            requestedRoles: (Avalon.Domain.Auth.AccountAccessLevel)req.Roles,
+            requestedRoles: (Avalon.Common.Accounts.AccountAccessLevel)req.Roles,
             ct);
 
         return CreatedAtAction(nameof(GetById), new { id = result.Id.Value }, new PatCreatedDto

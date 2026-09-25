@@ -135,6 +135,17 @@ public class DeSpawnDuringReadinessBarrierShould
         dialogue.GetAllOptionsAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyCollection<Avalon.Domain.World.DialogueOption>>([]));
 
+        var creatureTemplates = Substitute.For<ICreatureTemplateRepository>();
+        creatureTemplates.FindAllAsync(Arg.Any<bool>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new List<Avalon.Domain.World.CreatureTemplate>()));
+        var baseStats = Substitute.For<ICreatureBaseStatRepository>();
+        baseStats.GetAllAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<IReadOnlyCollection<Avalon.Domain.World.CreatureBaseStat>>(
+                [new Avalon.Domain.World.CreatureBaseStat { Level = 1, Health = 1, DamageMin = 1, DamageMax = 1, Experience = 1 }]));
+        var rarities = Substitute.For<ICreatureRarityModifierRepository>();
+        rarities.GetAllAsync(Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult<IReadOnlyCollection<Avalon.Domain.World.CreatureRarityModifier>>([]));
+
         var serviceProvider = Substitute.For<IServiceProvider>();
         serviceProvider.GetService(typeof(IChunkLayoutInstanceFactory))
             .Returns(Substitute.For<IChunkLayoutInstanceFactory>());
@@ -151,8 +162,9 @@ public class DeSpawnDuringReadinessBarrierShould
             items,
             abilityTemplates,
             levels,
-            Substitute.For<ICreatureBaseStatRepository>(),
-            Substitute.For<ICreatureRarityModifierRepository>(),
+            creatureTemplates,
+            baseStats,
+            rarities,
             localizedText,
             Substitute.For<IScriptHotReloader>(),
             Substitute.For<IChunkLibrary>(),

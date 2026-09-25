@@ -89,12 +89,17 @@ public class CharacterSelectHandler(
             {
                 if (account is null)
                 {
-                    logger.LogWarning("No account {AccountId} for locale lookup; leaving {Locale}",
+                    logger.LogWarning("No account {AccountId} for account lookup; leaving {Locale}",
                         connection.AccountId, connection.Locale);
                     return;
                 }
 
                 connection.Locale = account.Locale;
+
+                if (connection is IAccessLevelAssignable assignable)
+                {
+                    assignable.AssignAccessLevel(account.AccessLevel);
+                }
             });
 
         _parentActivity = activity;

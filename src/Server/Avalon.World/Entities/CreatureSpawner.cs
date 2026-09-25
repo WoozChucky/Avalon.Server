@@ -1,40 +1,25 @@
 using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
-using Avalon.Database.World.Repositories;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.State;
 using Avalon.World.Public;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Creatures;
 using Avalon.World.Public.Maps;
+using Avalon.World.Reload;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Entities;
 
 public interface ICreatureSpawner
 {
-    Task LoadAsync();
-
     ICreature Spawn(CreatureInfo virtualCreature);
 }
 
-public class CreatureSpawner(
-    ILoggerFactory loggerFactory,
-    ICreatureTemplateRepository creatureTemplateRepository,
-    Lazy<CreatureStatDeriver> statDeriver)
-    : ICreatureSpawner
+public class CreatureSpawner(ILoggerFactory loggerFactory, IWorld world) : ICreatureSpawner
 {
     private readonly ILogger<CreatureSpawner> _logger = loggerFactory.CreateLogger<CreatureSpawner>();
-    private IEnumerable<CreatureTemplate> _templates = new List<CreatureTemplate>();
-
-    public async Task LoadAsync()
-    {
-        _templates = await creatureTemplateRepository.FindAllAsync();
-
-        _logger.LogInformation("Loaded {CreatureCount} creatures template from database", _templates.Count());
-    }
-
 
     public ICreature Spawn(CreatureInfo virtualCreature)
     {
@@ -60,7 +45,14 @@ public class CreatureSpawner(
 
     public ICreature Spawn(CreatureTemplateId templateId)
     {
-        CreatureTemplate? template = _templates.FirstOrDefault(t => t.Id == templateId);
+        // Instance construction — the caller of Spawn — awaits a database read before reaching here,
+        // so this runs on a thread-pool thread, not the tick thread. Read the creatures area once
+        // into a local: two separate property reads (CreatureTemplates, then CreatureStats) could
+        // each observe a different generation if a reload lands in between, pairing a new template
+        // with the old deriver or the reverse.
+        CreaturesPatch creatures = world.Data.Creatures;
+
+        CreatureTemplate? template = creatures.Templates.FirstOrDefault(t => t.Id == templateId);
         if (template == null)
         {
             _logger.LogWarning("Could not find creature template {CreatureId}", templateId);
@@ -68,7 +60,7 @@ public class CreatureSpawner(
         }
 
         ushort level = RollLevel(template);
-        DerivedCreatureStats stats = statDeriver.Value.Derive(template, level);
+        DerivedCreatureStats stats = creatures.Stats.Derive(template, level);
 
         Creature creature = new Creature
         {

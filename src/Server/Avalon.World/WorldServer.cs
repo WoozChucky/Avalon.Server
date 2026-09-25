@@ -14,7 +14,6 @@ using Avalon.Network.Packets;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Generic;
 using Avalon.World.Characters;
-using Avalon.World.Entities;
 using Avalon.World.Public;
 using Avalon.World.Scripts;
 using Avalon.World.Scripts.Abstractions;
@@ -111,7 +110,6 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
     private readonly IReplicatedCache _cache;
     private readonly ConcurrentDictionary<Type, Func<IConnection, Packet?, object>>
         _contextFactoryCache = new();
-    private readonly ICreatureSpawner _creatureSpawner;
     private readonly Stopwatch _gameTime = new();
     private readonly ILogger<WorldServer> _logger;
     private readonly IScriptHotReloader _scriptHotReloader;
@@ -148,14 +146,12 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         IOptions<HostingConfiguration> hostingOptions,
         IWorld world,
         IScriptManager scriptManager,
-        ICreatureSpawner creatureSpawner,
         IReplicatedCache cache,
         IScriptHotReloader scriptHotReloader) : base(packetManager, loggerFactory.CreateLogger<WorldServer>(),
         serviceProvider,
         hostingOptions)
     {
         _scriptManager = scriptManager;
-        _creatureSpawner = creatureSpawner;
         _cache = cache;
         _scriptHotReloader = scriptHotReloader;
         _logger = loggerFactory.CreateLogger<WorldServer>();
@@ -205,10 +201,7 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        await Task.WhenAll(
-            Task.Run(() => _scriptManager.Load(), stoppingToken),
-            _creatureSpawner.LoadAsync()
-        );
+        await Task.Run(() => _scriptManager.Load(), stoppingToken);
 
         await _world.LoadAsync(stoppingToken);
 
