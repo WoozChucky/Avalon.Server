@@ -1,14 +1,22 @@
 using Avalon.Common.Accounts;
 using Avalon.Network.Packets.Social;
+using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Chat;
 
 public sealed class CommandDispatcher : ICommandDispatcher
 {
-    private readonly Dictionary<string, ICommand> _commands;
+    // Who is told that a command failed, and why. Everyone else gets silence: an error line would
+    // tell them the command exists and what inside it broke. Named flags, not AccessLevels.Admin —
+    // that mask includes Console. A mask test, never ">=": AccountAccessLevel is [Flags].
+    private const AccountAccessLevel SeesCommandFailures = AccountAccessLevel.GameMaster | AccountAccessLevel.Admin;
 
-    public CommandDispatcher(IEnumerable<ICommand> commands)
+    private readonly Dictionary<string, ICommand> _commands;
+    private readonly ILogger<CommandDispatcher> _logger;
+
+    public CommandDispatcher(IEnumerable<ICommand> commands, ILogger<CommandDispatcher> logger)
     {
+        _logger = logger;
         _commands = new Dictionary<string, ICommand>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var command in commands)
@@ -45,7 +53,33 @@ public sealed class CommandDispatcher : ICommandDispatcher
         }
 
         var args = parts[1..];
-        await command.ExecuteAsync(ctx, args, token);
+
+        try
+        {
+            await command.ExecuteAsync(ctx, args, token);
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            // Caught here because nothing downstream will: the connection's continuation drain logs
+            // a faulted task and drops its callback, so an escaping exception leaves the caller with
+            // no reply at all (#443).
+            _logger.LogError(ex, "Command /{Command} failed for account {AccountId}",
+                command.Name, ctx.Connection.AccountId);
+
+            if (SeesCommandFailures.Allows(ctx.Connection.AccessLevel))
+            {
+                // Type name only — the message and stack stay in the log.
+                ctx.Connection.Send(SChatMessagePacket.Create(
+                    0UL, 0UL, "System", $"Command /{command.Name} failed: {ex.GetType().Name}.",
+                    ctx.Packet.DateTime, ctx.Connection.CryptoSession.Encrypt));
+            }
+        }
+
+        // True even on failure: the command was found and ran, so "Unknown command." would be wrong.
         return true;
     }
 }
