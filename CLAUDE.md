@@ -88,9 +88,9 @@ Auth handlers are registered in DI and resolved manually; World handlers use `Ac
 
 ```
 CClientInfoPacket → SHandshakePacket → CHandshakePacket → SHandshakeResultPacket
-→ CAuthPacket → SAuthResultPacket (BCrypt verify, lockout, MFA check)
+→ CAuthPacket → SAuthResultPacket (BCrypt verify, lockout, then non-Active Status refused as BANNED/DEACTIVATED, then MFA check)
 → CWorldListPacket → SWorldListPacket
-→ CWorldSelectPacket → SWorldSelectPacket (CSPRNG world key written to Redis, SETNX inWorld mutex)
+→ CWorldSelectPacket → SWorldSelectPacket (non-Active Status closes the connection; CSPRNG world key written to Redis, SETNX inWorld mutex)
 → [new TCP to World] CExchangeWorldKeyPacket → SExchangeWorldKeyPacket (key consumed from Redis, access re-checked, inWorld mutex cleared)
 ```
 

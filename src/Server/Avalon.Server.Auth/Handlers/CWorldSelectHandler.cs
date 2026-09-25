@@ -1,5 +1,6 @@
 using Avalon.Common.Accounts;
 using Avalon.Database.Auth.Repositories;
+using Avalon.Domain.Auth;
 using Avalon.Hosting.Networking;
 using Avalon.Infrastructure;
 using Avalon.Infrastructure.Services;
@@ -31,6 +32,15 @@ public class CWorldSelectHandler : IAuthPacketHandler<CWorldSelectPacket>
         if (account == null)
         {
             _logger.LogWarning("Account not found for connection {Session}", ctx.Connection.Id);
+            ctx.Connection.Close();
+            return;
+        }
+
+        // Defence in depth behind CAuthHandler (#462): an account banned or deactivated after it
+        // logged in must not take the inWorld slot or be issued a world key.
+        if (account.Status != AccountStatus.Active)
+        {
+            _logger.LogWarning("Account {AccountId} tried to select a world while {Status}", account.Id, account.Status);
             ctx.Connection.Close();
             return;
         }

@@ -14,6 +14,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NSubstitute;
+using ProtoBuf;
 
 namespace Avalon.Server.Auth.UnitTests.Handlers;
 
@@ -368,5 +369,85 @@ public class CAuthHandlerShould
 
         Assert.True(account.Online);
         _connection.Received(1).Send(Arg.Any<NetworkPacket>());
+    }
+
+    private AuthResult? SentResult()
+    {
+        NetworkPacket? sent = _connection.ReceivedCalls()
+            .Where(c => c.GetMethodInfo().Name == nameof(IAuthConnection.Send))
+            .Select(c => c.GetArguments()[0])
+            .OfType<NetworkPacket>()
+            .LastOrDefault();
+        if (sent == null) return null;
+
+        // FakeAvalonCryptoSession.Encrypt is a pass-through, so the payload is the plain protobuf.
+        using var stream = new MemoryStream(sent.Payload);
+        return Serializer.Deserialize<SAuthResultPacket>(stream).Result;
+    }
+
+    /// <summary>
+    /// #462: the TCP login verified the password and the lock flag but never looked at Status, so a
+    /// banned or deactivated account logged in, listed worlds and was issued a world key.
+    /// </summary>
+    [Theory]
+    [InlineData(AccountStatus.Banned, false)]
+    [InlineData(AccountStatus.Banned, true)]
+    [InlineData(AccountStatus.Deactivated, false)]
+    [InlineData(AccountStatus.Deactivated, true)]
+    public async Task Refuse_A_Correct_Password_For_An_Account_That_Is_Not_Active(AccountStatus status, bool mfaConfirmed)
+    {
+        var account = MakeAccount();
+        account.Status = status;
+        _accountRepository.FindByUserNameAsync(Arg.Any<string>()).Returns(account);
+        if (mfaConfirmed)
+        {
+            _noMfaRepo.FindByAccountIdAsync(Arg.Any<AccountId>())
+                .Returns(new MFASetup { Status = MfaSetupStatus.Confirmed });
+        }
+
+        await _handler.ExecuteAsync(new AuthPacketContext<CAuthPacket>
+        {
+            Packet = new CAuthPacket { Username = "testuser", Password = "correct_password" },
+            Connection = _connection
+        });
+
+        _connection.Received(1).Send(Arg.Any<NetworkPacket>());
+        AuthResult? result = SentResult();
+        Assert.NotEqual(AuthResult.SUCCESS, result);
+        Assert.NotEqual(AuthResult.MFA_REQUIRED, result);
+        Assert.Equal(status == AccountStatus.Banned ? AuthResult.BANNED : AuthResult.DEACTIVATED, result);
+
+        // Stopped before MFA: the setup is never looked up and no MFA hash is issued.
+        await _noMfaRepo.DidNotReceiveWithAnyArgs().FindByAccountIdAsync(default!, default);
+        await _mfaHashService.DidNotReceiveWithAnyArgs().GenerateHashAsync(default!);
+
+        // And before any success: not online, not bound to the connection, nothing published.
+        Assert.False(account.Online);
+        _connection.DidNotReceiveWithAnyArgs().AccountId = default;
+        await _accountRepository.DidNotReceiveWithAnyArgs().UpdateAsync(default!, default);
+        await _cache.DidNotReceiveWithAnyArgs().PublishAsync(default!, default!);
+    }
+
+    /// <summary>
+    /// The status check sits after the password check, so a wrong password gets the same answer
+    /// for a banned account as for an active one and cannot be used to probe for a ban.
+    /// </summary>
+    [Theory]
+    [InlineData(AccountStatus.Banned)]
+    [InlineData(AccountStatus.Deactivated)]
+    public async Task Answer_A_Wrong_Password_For_An_Inactive_Account_As_Invalid_Credentials(AccountStatus status)
+    {
+        var account = MakeAccount();
+        account.Status = status;
+        _accountRepository.FindByUserNameAsync(Arg.Any<string>()).Returns(account);
+
+        await _handler.ExecuteAsync(new AuthPacketContext<CAuthPacket>
+        {
+            Packet = new CAuthPacket { Username = "testuser", Password = "wrong_password" },
+            Connection = _connection
+        });
+
+        Assert.Equal(AuthResult.INVALID_CREDENTIALS, SentResult());
+        Assert.Equal(1, account.FailedLogins);
     }
 }
