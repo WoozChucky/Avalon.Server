@@ -12,6 +12,7 @@ using Avalon.Server.Auth.Handlers;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NSubstitute;
+using ProtoBuf;
 
 namespace Avalon.Server.Auth.UnitTests.Handlers;
 
@@ -155,5 +156,45 @@ public class CMFAVerifyHandlerShould
         await _cache.Received(1).PublishAsync("world:accounts:disconnect", Arg.Any<string>());
         Assert.False(account.Online);
         await _accountRepository.Received(1).UpdateAsync(account);
+    }
+
+    /// <summary>
+    /// #462: the password step refuses a non-Active account, but the MFA hash it hands out lives two
+    /// minutes. An account banned or deactivated inside that window must not complete login with a
+    /// valid code: no success, not online, not bound to the connection, nothing published.
+    /// </summary>
+    [Theory]
+    [InlineData(AccountStatus.Banned, AuthResult.BANNED)]
+    [InlineData(AccountStatus.Deactivated, AuthResult.DEACTIVATED)]
+    public async Task Refuse_A_Valid_Code_For_An_Account_That_Stopped_Being_Active_After_The_Password_Step(
+        AccountStatus status, AuthResult expected)
+    {
+        // Active when the password step issued the hash; the status changes before the code arrives.
+        var account = MakeAccount();
+        Assert.Equal(AccountStatus.Active, account.Status);
+        var accountId = new AccountId(1L);
+        _mfaService.VerifyMFAAsync("valid-hash", "123456").Returns(new MFAVerifyResult(true, accountId));
+        _accountRepository.FindByIdAsync(accountId).Returns(account);
+        account.Status = status;
+
+        await CreateHandler().ExecuteAsync(new AuthPacketContext<CMFAVerifyPacket>
+        {
+            Packet = new CMFAVerifyPacket { MfaHash = "valid-hash", Code = "123456" },
+            Connection = _connection
+        });
+
+        NetworkPacket sent = (NetworkPacket)_connection.ReceivedCalls()
+            .Single(c => c.GetMethodInfo().Name == nameof(IAuthConnection.Send))
+            .GetArguments()[0]!;
+        // FakeAvalonCryptoSession.Encrypt is a pass-through, so the payload is the plain protobuf.
+        using var stream = new MemoryStream(sent.Payload);
+        SAuthResultPacket packet = Serializer.Deserialize<SAuthResultPacket>(stream);
+        Assert.Equal(expected, packet.Result);
+        Assert.Equal(0, packet.AccountId);
+
+        Assert.False(account.Online);
+        _connection.DidNotReceiveWithAnyArgs().AccountId = default;
+        await _accountRepository.DidNotReceiveWithAnyArgs().UpdateAsync(default!, default);
+        await _cache.DidNotReceiveWithAnyArgs().PublishAsync(default!, default!);
     }
 }
