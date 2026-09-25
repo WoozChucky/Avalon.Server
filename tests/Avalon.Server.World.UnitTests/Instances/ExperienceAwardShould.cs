@@ -155,9 +155,14 @@ public class ExperienceAwardShould
             Task.FromResult<IReadOnlyCollection<CharacterLevelExperience>>(
                 [new CharacterLevelExperience { Level = 9, Experience = 6500 }]));
 
+        var creatureTemplates = Substitute.For<ICreatureTemplateRepository>();
+        creatureTemplates.FindAllAsync(Arg.Any<bool>(), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(new List<CreatureTemplate>()));
+
         var baseStats = Substitute.For<ICreatureBaseStatRepository>();
         baseStats.GetAllAsync(Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<IReadOnlyCollection<CreatureBaseStat>>([]));
+            .Returns(Task.FromResult<IReadOnlyCollection<CreatureBaseStat>>(
+                [new CreatureBaseStat { Level = 1, Health = 1, DamageMin = 1, DamageMax = 1, Experience = 1 }]));
 
         var rarities = Substitute.For<ICreatureRarityModifierRepository>();
         rarities.GetAllAsync(Arg.Any<CancellationToken>())
@@ -177,8 +182,9 @@ public class ExperienceAwardShould
         dialogue.GetAllOptionsAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyCollection<DialogueOption>>([]));
 
-        var data = new StaticData(createInfos, stats, items, abilities, levels, baseStats, rarities,
-            localizedText, NullLoggerFactory.Instance, dialogue);
+        var data = new StaticData(createInfos, stats, items, abilities, levels,
+            creatureTemplates, baseStats, rarities,
+            localizedText, dialogue, NullLoggerFactory.Instance);
         data.LoadAsync(CancellationToken.None).GetAwaiter().GetResult();
         return data;
     }

@@ -1,4 +1,4 @@
-namespace Avalon.World.Public.Enums;
+namespace Avalon.Common.Accounts;
 
 public enum AccountLocale : ushort
 {

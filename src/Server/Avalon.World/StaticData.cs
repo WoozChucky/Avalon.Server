@@ -1,9 +1,12 @@
+using System.Collections.Concurrent;
 using Avalon.Database.World.Repositories;
 using Avalon.Domain.World;
+using Avalon.World.Creatures;
 using Avalon.World.Dialogue;
 using Avalon.World.Localization;
 using Avalon.World.Public.Dialogue;
 using Avalon.World.Public.Localization;
+using Avalon.World.Reload;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.World;
@@ -14,41 +17,179 @@ public class StaticData(
     IItemTemplateRepository itemTemplateRepository,
     IAbilityTemplateRepository abilityTemplateRepository,
     ICharacterLevelExperienceRepository characterLevelExperienceRepository,
+    ICreatureTemplateRepository creatureTemplateRepository,
     ICreatureBaseStatRepository creatureBaseStatRepository,
     ICreatureRarityModifierRepository creatureRarityModifierRepository,
     ILocalizedTextRepository localizedTextRepository,
-    ILoggerFactory loggerFactory,
-    IDialogueRepository dialogueRepository)
+    IDialogueRepository dialogueRepository,
+    ILoggerFactory loggerFactory)
 {
-    public async Task LoadAsync(CancellationToken cancellationToken = default)
+    private readonly ConcurrentQueue<(StaticDataPatch Patch, TaskCompletionSource Done)> _pending = new();
+
+    // One volatile reference per area. Apply replaces exactly one of these per area, never a member
+    // of one — so a reader on any thread that takes the field once sees one whole generation, never
+    // a template from a new patch paired with a deriver from an old one. `volatile` is what makes a
+    // write on the tick thread visible, fully published, to a read on a thread-pool thread; without
+    // it a reader could observe a torn or stale reference.
+    //
+    // Nothing is assigned here at construction, deliberately: before LoadAsync runs there is no data
+    // and nothing reads it, so there is no "empty default patch" to invent.
+    private volatile DialoguePatch? _dialogue;
+    private volatile CreaturesPatch? _creatures;
+    private volatile AbilitiesPatch? _abilities;
+    private volatile ItemsPatch? _items;
+    private volatile ProgressionPatch? _progression;
+
+    /// <summary>
+    /// Reads the database and builds a whole patch for one area. Runs on the thread pool and
+    /// touches nothing live; a failure throws and leaves the current data exactly as it was.
+    /// </summary>
+    public async Task<StaticDataPatch> PrepareAsync(ReloadArea area, CancellationToken ct = default)
     {
-        CharacterCreateInfos = await characterCreateInfoRepository.FindAllAsync(cancellationToken);
-        ClassLevelStats = await classLevelStatRepository.FindAllAsync(cancellationToken);
-        ItemTemplates = (await itemTemplateRepository.FindAllAsync(false, cancellationToken)).AsReadOnly();
-        AbilityTemplates = (await abilityTemplateRepository.FindAllAsync(false, cancellationToken)).AsReadOnly();
-        CharacterLevelExperiences = await characterLevelExperienceRepository.GetAllAsync(cancellationToken);
-        CreatureBaseStats = await creatureBaseStatRepository.GetAllAsync(cancellationToken);
-        CreatureRarityModifiers = await creatureRarityModifierRepository.GetAllAsync(cancellationToken);
+        switch (area)
+        {
+            case ReloadArea.Dialogue:
+            {
+                var texts = await localizedTextRepository.GetAllAsync(ct);
+                var locales = await localizedTextRepository.GetAllLocalesAsync(ct);
+                var classNames = await localizedTextRepository.GetAllClassNamesAsync(ct);
+                var nodes = await dialogueRepository.GetAllNodesAsync(ct);
+                var options = await dialogueRepository.GetAllOptionsAsync(ct);
 
-        LocalizedTexts = new LocalizedTextCatalog(
-            await localizedTextRepository.GetAllAsync(cancellationToken),
-            await localizedTextRepository.GetAllLocalesAsync(cancellationToken),
-            await localizedTextRepository.GetAllClassNamesAsync(cancellationToken),
-            loggerFactory);
+                return new DialoguePatch(
+                    new LocalizedTextCatalog(texts, locales, classNames, loggerFactory),
+                    new DialogueCatalog(nodes, options, loggerFactory),
+                    texts.Count, nodes.Count, options.Count);
+            }
 
-        Dialogue = new DialogueCatalog(
-            await dialogueRepository.GetAllNodesAsync(cancellationToken),
-            await dialogueRepository.GetAllOptionsAsync(cancellationToken),
-            loggerFactory);
+            case ReloadArea.Creatures:
+            {
+                IReadOnlyCollection<CreatureTemplate> templates =
+                    (await creatureTemplateRepository.FindAllAsync(false, ct)).AsReadOnly();
+                var baseStats = await creatureBaseStatRepository.GetAllAsync(ct);
+                var rarities = await creatureRarityModifierRepository.GetAllAsync(ct);
+
+                // Built from the collections just read, never from the ones currently applied —
+                // capturing the applied ones is exactly the trap this work removes.
+                return new CreaturesPatch(templates, baseStats, rarities,
+                    new CreatureStatDeriver(baseStats, rarities, loggerFactory));
+            }
+
+            case ReloadArea.Abilities:
+                return new AbilitiesPatch((await abilityTemplateRepository.FindAllAsync(false, ct)).AsReadOnly());
+
+            case ReloadArea.Items:
+                return new ItemsPatch((await itemTemplateRepository.FindAllAsync(false, ct)).AsReadOnly());
+
+            case ReloadArea.Progression:
+                return new ProgressionPatch(
+                    await characterLevelExperienceRepository.GetAllAsync(ct),
+                    await classLevelStatRepository.FindAllAsync(ct),
+                    await characterCreateInfoRepository.FindAllAsync(ct));
+
+            default:
+                throw new ArgumentOutOfRangeException(nameof(area), area, null);
+        }
     }
 
-    public IReadOnlyCollection<CharacterCreateInfo> CharacterCreateInfos { get; private set; }
-    public IReadOnlyCollection<ClassLevelStat> ClassLevelStats { get; private set; }
-    public IReadOnlyCollection<ItemTemplate> ItemTemplates { get; private set; }
-    public IReadOnlyCollection<AbilityTemplate> AbilityTemplates { get; private set; }
-    public IReadOnlyCollection<CharacterLevelExperience> CharacterLevelExperiences { get; private set; }
-    public IReadOnlyCollection<CreatureBaseStat> CreatureBaseStats { get; private set; }
-    public IReadOnlyCollection<CreatureRarityModifier> CreatureRarityModifiers { get; private set; }
-    public ILocalizedTextCatalog LocalizedTexts { get; private set; } = null!;
-    public IDialogueCatalog Dialogue { get; private set; } = null!;
+    /// <summary>
+    /// Assigns a prepared patch. Only called on the tick thread, or during startup load. Each area
+    /// replaces exactly one volatile reference — never assigns a member of one — so the area is
+    /// published as a single whole generation.
+    /// </summary>
+    public void Apply(StaticDataPatch patch)
+    {
+        switch (patch)
+        {
+            case DialoguePatch p:
+                _dialogue = p;
+                break;
+            case CreaturesPatch p:
+                _creatures = p;
+                break;
+            case AbilitiesPatch p:
+                _abilities = p;
+                break;
+            case ItemsPatch p:
+                _items = p;
+                break;
+            case ProgressionPatch p:
+                _progression = p;
+                break;
+            default:
+                throw new NotSupportedException($"No apply for {patch.GetType().Name}");
+        }
+    }
+
+    /// <summary>
+    /// Queues a patch for the top of the next world tick and completes once it is live. Continuations
+    /// run asynchronously, so completing this on the tick thread never runs a caller's code there.
+    /// </summary>
+    public Task ApplyOnNextTickAsync(StaticDataPatch patch)
+    {
+        var done = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _pending.Enqueue((patch, done));
+        return done.Task;
+    }
+
+    /// <summary>
+    /// Applies every queued patch. Called at the top of World.Update, on the tick thread, before any
+    /// instance ticks. One failing patch faults its own task and does not stop the rest.
+    /// </summary>
+    public void ApplyPending()
+    {
+        while (_pending.TryDequeue(out var item))
+        {
+            try
+            {
+                Apply(item.Patch);
+                item.Done.TrySetResult();
+            }
+            catch (Exception ex)
+            {
+                item.Done.TrySetException(ex);
+            }
+        }
+    }
+
+    public async Task LoadAsync(CancellationToken cancellationToken = default)
+    {
+        // Startup: there is no tick yet, so applying directly is correct.
+        foreach (ReloadArea area in Enum.GetValues<ReloadArea>())
+        {
+            Apply(await PrepareAsync(area, cancellationToken));
+        }
+    }
+
+    // Read-through properties. Each reads its area's volatile field, so an existing caller sees
+    // exactly the same shape as before — but a caller that needs more than one member of the same
+    // area together (Creatures below) must not chain two of these, since a reload could land between
+    // them and pair a new template with an old deriver, or vice versa.
+    public IReadOnlyCollection<CharacterCreateInfo> CharacterCreateInfos => _progression!.CreateInfos;
+    public IReadOnlyCollection<ClassLevelStat> ClassLevelStats => _progression!.ClassStats;
+    public IReadOnlyCollection<ItemTemplate> ItemTemplates => _items!.Templates;
+    public IReadOnlyCollection<AbilityTemplate> AbilityTemplates => _abilities!.Templates;
+    public IReadOnlyCollection<CharacterLevelExperience> CharacterLevelExperiences => _progression!.Levels;
+    public IReadOnlyCollection<CreatureBaseStat> CreatureBaseStats => _creatures!.BaseStats;
+    public IReadOnlyCollection<CreatureRarityModifier> CreatureRarityModifiers => _creatures!.Rarities;
+    public IReadOnlyCollection<CreatureTemplate> CreatureTemplates => _creatures!.Templates;
+
+    /// <summary>
+    /// Rebuilt whenever creature data loads. It used to be a Lazy singleton that captured the base
+    /// stats once on first use and ignored every later change.
+    /// </summary>
+    public CreatureStatDeriver CreatureStats => _creatures!.Stats;
+
+    public ILocalizedTextCatalog LocalizedTexts => _dialogue!.Texts;
+    public IDialogueCatalog Dialogue => _dialogue!.Dialogue;
+
+    /// <summary>
+    /// Snapshot accessor for a reader that needs more than one member of the creatures area
+    /// together — chiefly <c>CreatureSpawner.Spawn</c>, which runs off the tick thread (instance
+    /// construction awaits before it spawns). A caller must read this once into a local and use
+    /// <c>Templates</c>/<c>Stats</c> from that local: two separate reads of <see cref="CreatureTemplates"/>
+    /// and <see cref="CreatureStats"/> could each observe a different generation if a reload lands
+    /// in between, pairing a new template with an old deriver or the reverse.
+    /// </summary>
+    public CreaturesPatch Creatures => _creatures!;
 }

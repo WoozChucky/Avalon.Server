@@ -4,14 +4,13 @@ using Avalon.Database.World.Extensions;
 using Avalon.Infrastructure.Extensions;
 using Avalon.World;
 using Avalon.World.Chat;
-using Avalon.World.Creatures;
 using Avalon.World.Configuration;
 using Avalon.World.Entities;
 using Avalon.World.Maps;
 using Avalon.World.ChunkLayouts;
 using Avalon.World.Public.Combat;
+using Avalon.World.Reload;
 using Avalon.World.Respawn;
-using Microsoft.Extensions.Logging;
 using Avalon.World.Scripts;
 using Avalon.World.Scripts.Abstractions;
 using Microsoft.Extensions.Configuration;
@@ -50,21 +49,6 @@ public static class ServiceExtensions
         services.AddSingleton<IWorld, Avalon.World.World>();
         services.AddSingleton<IAvalonMapManager, AvalonMapManager>();
         services.AddSingleton<IScriptManager, ScriptManager>();
-        // Lazy deliberately. WorldServer.ExecuteAsync awaits _creatureSpawner.LoadAsync() BEFORE
-        // _world.LoadAsync(), and the latter is what populates StaticData — so a deriver built eagerly
-        // here would be built from empty collections, and CreatureStatDeriver throws on empty base
-        // stats, taking down world startup. Deferring to first use is safe because spawning only
-        // happens when a player enters a map, long after both loads have finished.
-        services.AddSingleton(provider => new Lazy<CreatureStatDeriver>(() =>
-        {
-            IWorld world = provider.GetRequiredService<IWorld>();
-
-            return new CreatureStatDeriver(
-                world.Data.CreatureBaseStats,
-                world.Data.CreatureRarityModifiers,
-                provider.GetRequiredService<ILoggerFactory>());
-        }));
-
         services.AddSingleton<ICreatureSpawner, CreatureSpawner>();
         services.AddSingleton<IChunkLibrary, ChunkLibrary>();
         services.AddSingleton<PredefinedChunkLayoutSource>();
@@ -89,7 +73,10 @@ public static class ServiceExtensions
 
         // Chat commands
         services.AddSingleton<ICommand, GroupInviteCommand>();
+        services.AddSingleton<ICommand, ReloadCommand>();
         services.AddSingleton<ICommandDispatcher, CommandDispatcher>();
+
+        services.AddSingleton<IReferenceDataReloader, ReferenceDataReloader>();
 
         return services;
     }
