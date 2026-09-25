@@ -158,14 +158,28 @@ public class AccountController : BaseController
 
     /// <summary>
     /// Removes MFA from an account whose owner lost the authenticator, and revokes the account's
-    /// refresh tokens and personal access tokens. Idempotent: an account without MFA is also 204.
+    /// refresh tokens and personal access tokens, then kicks any live world session. Idempotent: an
+    /// account without MFA is also 204. An admin cannot remove their own MFA (403); another admin must.
     /// </summary>
     [HttpDelete("{id:long}/mfa")]
     [Authorize(Policy = AvalonRoles.Admin)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> RemoveMfa([FromRoute] long id, CancellationToken ct)
     {
+        // Removing your own second factor with only your own session would let a stolen admin
+        // session strip the one thing standing between it and a full takeover.
+        if (id == User.AccountId().Value)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden, new ProblemDetails
+            {
+                Status = StatusCodes.Status403Forbidden,
+                Title = "Forbidden",
+                Detail = "An admin cannot remove MFA from their own account; another admin must do it.",
+            });
+        }
+
         var found = await _accountService.RemoveMfaAsync(new AccountId(id), User.AccountId(), ct);
         return found ? NoContent() : NotFound();
     }

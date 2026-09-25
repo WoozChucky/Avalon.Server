@@ -189,6 +189,19 @@ public class AccountControllerShould
     }
 
     [Fact]
+    public async Task RemoveMfa_Returns403_WhenAdminTargetsOwnAccount()
+    {
+        var user = User(99, AvalonRoles.Admin);
+
+        var sut = MakeSut(user);
+        var result = await sut.RemoveMfa(99, CancellationToken.None);
+
+        var objectResult = Assert.IsType<ObjectResult>(result);
+        Assert.Equal(StatusCodes.Status403Forbidden, objectResult.StatusCode);
+        await _accountService.DidNotReceiveWithAnyArgs().RemoveMfaAsync(default!, default!, default);
+    }
+
+    [Fact]
     public async Task RemoveMfa_Returns204_WhenCalledTwice()
     {
         var user = User(99, AvalonRoles.Admin);
