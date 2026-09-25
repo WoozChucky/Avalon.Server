@@ -6,6 +6,7 @@ using Avalon.World;
 using Avalon.World.Chat;
 using Avalon.World.Configuration;
 using Avalon.World.Entities;
+using Avalon.World.Inventory;
 using Avalon.World.Maps;
 using Avalon.World.ChunkLayouts;
 using Avalon.World.Public.Combat;
@@ -51,6 +52,7 @@ public static class ServiceExtensions
         services.AddSingleton<IScriptManager, ScriptManager>();
         services.AddSingleton<ICreatureSpawner, CreatureSpawner>();
         services.AddSingleton<IChunkLibrary, ChunkLibrary>();
+        services.AddSingleton<IItemIdAllocator, ItemIdAllocator>();
         services.AddSingleton<PredefinedChunkLayoutSource>();
         services.AddSingleton<ProceduralChunkLayoutSource>();
         services.AddSingleton<IChunkLayoutSourceResolver, ChunkLayoutSourceResolver>();
