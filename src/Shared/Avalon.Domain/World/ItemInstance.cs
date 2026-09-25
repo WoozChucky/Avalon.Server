@@ -6,14 +6,18 @@ using Avalon.Common.ValueObjects;
 
 namespace Avalon.Domain.World;
 
+/// <summary>
+/// One item a character owns. Persisted in the Character database beside the CharacterInventory
+/// row that places it. <see cref="TemplateId" /> names a row in the World database, so there is no
+/// navigation to the template and no foreign key: a join across two databases is not possible.
+/// </summary>
 public class ItemInstance : IDbEntity<ItemInstanceId>
 {
+    /// <summary>Allocated by the world server (IItemIdAllocator), never by EF or the database.</summary>
     [Key]
-    [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
+    [DatabaseGenerated(DatabaseGeneratedOption.None)]
     public ItemInstanceId Id { get; set; }
 
-    [Required]
-    public ItemTemplate Template { get; set; }
     public ItemTemplateId TemplateId { get; set; }
 
     public CharacterId CharacterId { get; set; }

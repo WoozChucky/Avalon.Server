@@ -49,10 +49,10 @@ Game Client              World Server                  Databases / Redis
     │                        │<──────────────────────────────│ List<CharacterInventory>
     │                        │ [OnInventoryReceived]         │
     │                        │                               │
-    │                        │ ItemInstanceRepository.GetByCharacterIdWithTemplateAsync
-    │                        │──────────────────────────────>│  (WorldDbContext -- a second,
-    │                        │<──────────────────────────────│   separate database; no SQL join
-    │                        │                               │   is possible between the two)
+    │                        │ ItemInstanceRepository.GetByCharacterIdAsync
+    │                        │──────────────────────────────>│  (CharacterDbContext, beside
+    │                        │<──────────────────────────────│   the slot rows)
+    │                        │                               │
     │                        │ [OnItemInstancesReceived]     │
     │                        │  InventoryAssembler joins rows to instances,
     │                        │  skipping orphan rows and rows past MaxSlots
@@ -106,17 +106,19 @@ the client sends `CMSG_CHARACTER_LOADED`, or until the wait expires. See
 
 ## Inventory On Login
 
-A character's inventory lives across **two separate Postgres databases**, and no SQL join between
-them is possible:
+A character's inventory is two tables in the **Character database** (`CharacterDbContext`), joined
+by a foreign key:
 
-- `CharacterInventory` rows (`CharacterId, Container, Slot, ItemId`) live in `CharacterDbContext`.
-  They say *where* an item sits.
-- `ItemInstance` rows (`Id, TemplateId, CharacterId, Count, Durability, Flags`) live in
-  `WorldDbContext`. They say *what* it is.
+- `CharacterInventory` rows (`CharacterId, Container, Slot, ItemId`) say *where* an item sits.
+  `ItemId` is a foreign key to `ItemInstance.Id` (cascade on delete).
+- `ItemInstance` rows (`Id, TemplateId, CharacterId, Count, Durability, Charges, Flags, UpdatedAt`)
+  say *what* it is. `Id` is allocated by the world server (`IItemIdAllocator`, a version-7 Guid).
+  `TemplateId` points into the World database, which holds reference data only, so it has no
+  foreign key.
 
 `OnInventoryReceived` (in `CharacterSelectHandler`) fetches the rows via
 `ICharacterInventoryRepository.GetByCharacterIdAsync`, then chains one more continuation —
-`IItemInstanceRepository.GetByCharacterIdWithTemplateAsync` — before anything can be loaded or
+`IItemInstanceRepository.GetByCharacterIdAsync` — before anything can be loaded or
 sent. `OnItemInstancesReceived` correlates the two results (`InventoryAssembler`, keyed on
 `ItemInstance.Id`), skipping a row whose instance is missing or whose slot is `>= MaxSlots`
 (logged as a warning either way — a bad row must not corrupt or oversize a container). The result

@@ -27,19 +27,22 @@ public class CharacterService : ICharacterService
     private readonly IItemInstanceRepository _itemInstanceRepository;
     private readonly ICharacterAbilityRepository _characterAbilityRepository;
     private readonly IAbilityTemplateRepository _abilityTemplateRepository;
+    private readonly IItemTemplateRepository _itemTemplateRepository;
 
     public CharacterService(
         ICharacterRepository characterRepository,
         ICharacterInventoryRepository inventoryRepository,
         IItemInstanceRepository itemInstanceRepository,
         ICharacterAbilityRepository characterAbilityRepository,
-        IAbilityTemplateRepository abilityTemplateRepository)
+        IAbilityTemplateRepository abilityTemplateRepository,
+        IItemTemplateRepository itemTemplateRepository)
     {
         _characterRepository = characterRepository;
         _inventoryRepository = inventoryRepository;
         _itemInstanceRepository = itemInstanceRepository;
         _characterAbilityRepository = characterAbilityRepository;
         _abilityTemplateRepository = abilityTemplateRepository;
+        _itemTemplateRepository = itemTemplateRepository;
     }
 
     public Task<List<Character>> GetAllCharactersAsync(AccountId id, CancellationToken cancellationToken = default) =>
@@ -88,21 +91,32 @@ public class CharacterService : ICharacterService
         if (character is null) return null;
 
         var inventoryRows = await _inventoryRepository.GetByCharacterIdAsync(id, cancellationToken);
-        var instances = await _itemInstanceRepository.GetByCharacterIdWithTemplateAsync(id, cancellationToken);
+        var instances = await _itemInstanceRepository.GetByCharacterIdAsync(id, cancellationToken);
+
+        // Instances live in the Character database and templates in the World database, so the
+        // template is looked up by id rather than joined.
+        var templates = await _itemTemplateRepository.GetByIdsAsync(
+            instances.Select(i => i.TemplateId), cancellationToken);
+
         var instanceById = instances.ToDictionary(i => i.Id);
+        var templateById = templates.ToDictionary(t => t.Id);
 
         return new CharacterInventoryDto
         {
             CharacterId = character.Id.Value,
-            Items = inventoryRows.Select(row => MapItem(row, instanceById)).ToList(),
+            Items = inventoryRows.Select(row => MapItem(row, instanceById, templateById)).ToList(),
         };
     }
 
     private static CharacterInventoryItemDto MapItem(
         CharacterInventory row,
-        Dictionary<ItemInstanceId, ItemInstance> instanceById)
+        Dictionary<ItemInstanceId, ItemInstance> instanceById,
+        Dictionary<ItemTemplateId, ItemTemplate> templateById)
     {
         instanceById.TryGetValue(row.ItemId, out var instance);
+        ItemTemplate? template = instance is not null && templateById.TryGetValue(instance.TemplateId, out var found)
+            ? found
+            : null;
 
         return new CharacterInventoryItemDto
         {
@@ -111,15 +125,15 @@ public class CharacterService : ICharacterService
             Slot = row.Slot,
             Count = instance?.Count ?? 0,
             Durability = instance?.Durability ?? 0,
-            Template = instance?.Template is null ? null : new CharacterInventoryItemTemplateDto
+            Template = template is null ? null : new CharacterInventoryItemTemplateDto
             {
-                Id = instance.Template.Id.Value,
-                Name = instance.Template.Name ?? string.Empty,
-                Rarity = (Avalon.Api.Contract.ItemRarity)instance.Template.Rarity,
-                DisplayId = instance.Template.DisplayId,
-                SlotType = (Avalon.Api.Contract.ItemSlotType)(instance.Template.Slot ?? default),
-                ItemPower = instance.Template.ItemPower ?? 0,
-                RequiredLevel = instance.Template.RequiredLevel ?? 0,
+                Id = template.Id.Value,
+                Name = template.Name ?? string.Empty,
+                Rarity = (Avalon.Api.Contract.ItemRarity)template.Rarity,
+                DisplayId = template.DisplayId,
+                SlotType = (Avalon.Api.Contract.ItemSlotType)(template.Slot ?? default),
+                ItemPower = template.ItemPower ?? 0,
+                RequiredLevel = template.RequiredLevel ?? 0,
             },
         };
     }

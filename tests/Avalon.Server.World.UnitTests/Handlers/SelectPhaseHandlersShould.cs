@@ -4,6 +4,7 @@ using Avalon.Network.Packets.Character;
 using Avalon.Server.World.UnitTests.Characters;
 using Avalon.World;
 using Avalon.World.Handlers;
+using Avalon.World.Inventory;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Instances;
@@ -49,6 +50,7 @@ public class SelectPhaseHandlersShould
             Substitute.For<ICharacterAbilityRepository>(),
             Substitute.For<ICharacterInventoryRepository>(),
             Substitute.For<IItemInstanceRepository>(),
+            Substitute.For<IItemIdAllocator>(),
             Substitute.For<IWorld>());
         IWorldConnection connection = PendingConnection();
 

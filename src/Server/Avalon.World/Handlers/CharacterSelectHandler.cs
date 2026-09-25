@@ -324,8 +324,9 @@ public class CharacterSelectHandler(
         activity?.SetTag(nameof(connection.AccountId), connection.AccountId);
         activity?.SetTag("CharacterId", character.Id);
 
-        // The rows say where the items sit; the instances say what they are, and they live in a
-        // different database. Nothing can be loaded or sent until both are in hand.
+        // The rows say where the items sit; the instances say what they are. Both live in the
+        // Character database but are read as two queries. Nothing can be loaded or sent until
+        // both are in hand.
         //
         // Without the templates: login reads only the instance's own columns, and the client
         // resolves template ids against the vendored item catalog. Joining 41 columns per carried

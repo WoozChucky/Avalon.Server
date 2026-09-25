@@ -1,6 +1,7 @@
 using Avalon.Common.ValueObjects;
 using Avalon.Configuration;
 using Avalon.Domain.Characters;
+using Avalon.Domain.World;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
@@ -28,7 +29,9 @@ public sealed class CharacterDbContextFactory : IDesignTimeDbContextFactory<Char
         DatabaseConfiguration dbConfig = new();
         configuration.GetSection("Database").Bind(dbConfig);
 
-        string authConn = dbConfig.Auth?.ConnectionString
+        // Characters, not Auth: reading Auth first pointed design-time commands for this context at
+        // the auth database whenever an appsettings file with both sections was in reach.
+        string authConn = dbConfig.Characters?.ConnectionString
                           ?? configuration["Database:Characters:ConnectionString"]
                           ?? throw new InvalidOperationException(
                               "Characters connection string not found for design time. " +
@@ -78,6 +81,7 @@ public class CharacterDbContext : DbContext
     public DbSet<CharacterStats> CharacterStats { get; set; } = null!;
     public DbSet<CharacterInventory> CharacterInventory { get; set; } = null!;
     public DbSet<CharacterAbility> CharacterAbilities { get; set; } = null!;
+    public DbSet<ItemInstance> ItemInstances { get; set; } = null!;
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
@@ -99,6 +103,7 @@ public class CharacterDbContext : DbContext
         Configure(modelBuilder.Entity<CharacterStats>());
         Configure(modelBuilder.Entity<CharacterInventory>());
         Configure(modelBuilder.Entity<CharacterAbility>());
+        Configure(modelBuilder.Entity<ItemInstance>());
     }
 
     private static void Configure(EntityTypeBuilder<Domain.Characters.Character> builder)
@@ -158,6 +163,13 @@ public class CharacterDbContext : DbContext
             .HasForeignKey(e => e.CharacterId)
             .OnDelete(DeleteBehavior.Cascade);
 
+        // A real foreign key now that the item lives in the same database. Deleting an item takes
+        // the slot that held it with it.
+        builder.HasOne<ItemInstance>()
+            .WithMany()
+            .HasForeignKey(e => e.ItemId)
+            .OnDelete(DeleteBehavior.Cascade);
+
         builder.HasIndex(b => b.CharacterId);
     }
 
@@ -181,6 +193,36 @@ public class CharacterDbContext : DbContext
             .WithMany()
             .HasForeignKey(e => e.CharacterId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasIndex(b => b.CharacterId);
+    }
+
+    private static void Configure(EntityTypeBuilder<ItemInstance> builder)
+    {
+        builder.HasKey(b => b.Id);
+        builder.Property(b => b.Id)
+            .HasConversion(
+                v => v.Value,
+                v => new ItemInstanceId(v)
+            )
+            .IsRequired()
+            // The world server allocates ids (IItemIdAllocator): by the owner's ruling they are
+            // Guid.CreateVersion7() and the database never generates one. Never letting EF invent one
+            // means an item that skipped the allocator fails loudly instead of inserting under a fresh Guid.
+            .ValueGeneratedNever();
+
+        builder.Property(b => b.CharacterId)
+            .HasConversion(
+                v => v.Value,
+                v => new CharacterId(v)
+            );
+
+        // A plain reference into the World database: no navigation and no foreign key.
+        builder.Property(b => b.TemplateId)
+            .HasConversion(
+                v => v.Value,
+                v => new ItemTemplateId(v)
+            );
 
         builder.HasIndex(b => b.CharacterId);
     }

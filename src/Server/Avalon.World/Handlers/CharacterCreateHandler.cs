@@ -1,7 +1,7 @@
 using Avalon.World.Public;
 using Avalon.Common;
 using Avalon.Database.Character.Repositories;
-using Avalon.Database.World.Repositories;
+using Avalon.World.Inventory;
 using Avalon.Domain.Characters;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abstractions;
@@ -19,6 +19,7 @@ public class CharacterCreateHandler(
     ICharacterAbilityRepository characterAbilityRepository,
     ICharacterInventoryRepository characterInventoryRepository,
     IItemInstanceRepository itemInstanceRepository,
+    IItemIdAllocator itemIds,
     IWorld world)
     : WorldPacketHandler<CCharacterCreatePacket>
 {
@@ -211,6 +212,7 @@ public class CharacterCreateHandler(
 
             var itemInstance = new ItemInstance
             {
+                Id = itemIds.Next(),
                 TemplateId = itemTemplate.Id,
                 CharacterId = character.Id,
                 Count = itemTemplate.Stackable ? itemTemplate.MaxStackSize : 1,

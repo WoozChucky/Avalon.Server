@@ -3,6 +3,7 @@ using Avalon.Database.Auth.Repositories;
 using Avalon.Database.World.Repositories;
 using Avalon.Domain.Auth;
 using Avalon.Domain.World;
+using Avalon.World.Public.Enums;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
 
@@ -141,24 +142,28 @@ public class RepositoryWritePathShould
     [Fact]
     public async Task Insert_a_list_of_dependents_that_name_their_principal_by_foreign_key()
     {
-        using SqliteDatabase<World.WorldDbContext> database = SqliteDatabase.World();
-        ItemInstanceRepository instances = new(database);
+        using SqliteDatabase<Character.CharacterDbContext> database = SqliteDatabase.Characters();
+        Character.Repositories.CharacterRepository characters = new(database);
+        Character.Repositories.ItemInstanceRepository items = new(database);
+        Character.Repositories.CharacterInventoryRepository slots = new(database);
 
-        ItemTemplateId templateId;
-        await using (World.WorldDbContext read = database.CreateDbContext())
+        Domain.Characters.Character owner = await characters.CreateAsync(new Domain.Characters.Character
         {
-            templateId = (await read.ItemTemplates.AsNoTracking().FirstAsync()).Id;
-        }
+            AccountId = new AccountId(1), Name = "Holder", CreationDate = DateTime.UtcNow,
+        });
 
-        await instances.CreateAsync(
-        [
-            NewItemInstance(templateId),
-            NewItemInstance(templateId),
-        ]);
+        List<ItemInstance> created = await items.CreateAsync([NewItemInstance(owner.Id), NewItemInstance(owner.Id)]);
 
-        await using World.WorldDbContext context = database.CreateDbContext();
-        Assert.Equal(1, await context.ItemTemplates.CountAsync(t => t.Id == templateId));
-        Assert.Equal(2, await context.ItemInstances.CountAsync(i => i.TemplateId == templateId));
+        await slots.CreateAsync(created
+            .Select((item, index) => new Domain.Characters.CharacterInventory
+            {
+                CharacterId = owner.Id, Container = InventoryType.Bag, Slot = (ushort)index, ItemId = item.Id,
+            })
+            .ToList());
+
+        await using Character.CharacterDbContext context = database.CreateDbContext();
+        Assert.Equal(2, await context.ItemInstances.CountAsync(i => i.CharacterId == owner.Id));
+        Assert.Equal(2, await context.CharacterInventory.CountAsync(s => s.CharacterId == owner.Id));
     }
 
     /// <summary>
@@ -236,10 +241,11 @@ public class RepositoryWritePathShould
         Assert.Equal(2, unchanged.SpawnSlots.Count);
     }
 
-    private static ItemInstance NewItemInstance(ItemTemplateId templateId) => new()
+    private static ItemInstance NewItemInstance(CharacterId owner) => new()
     {
-        TemplateId = templateId,
-        CharacterId = new CharacterId(1),
+        Id = new ItemInstanceId(Guid.CreateVersion7()),
+        TemplateId = new ItemTemplateId(1),
+        CharacterId = owner,
         Count = 1,
         UpdatedAt = DateTime.UtcNow,
     };

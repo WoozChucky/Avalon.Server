@@ -326,17 +326,12 @@ public class CharacterSelectHandlerShould
     }
 
     /// <summary>
-    /// Login reads only TemplateId, Count, Durability and Flags off each instance, and the client
-    /// resolves template ids against the vendored item catalog -- so joining the 41-column
-    /// ItemTemplate to every carried item loads a row nothing reads. The REST API's inventory
-    /// endpoint does project the template, which is why both methods exist.
-    ///
-    /// Asserted at the repository seam rather than on the SQL: this repository has no integration
-    /// test infrastructure, so which method login asks for is the only observable that
-    /// distinguishes the two queries.
+    /// Login reads the character's item instances from the Character database, beside the slot
+    /// rows. There is no template join to ask for any more: templates live in the World database,
+    /// and the client resolves template ids against the vendored item catalog.
     /// </summary>
     [Fact]
-    public async Task Ask_For_Item_Instances_Without_Joining_Their_Templates()
+    public async Task Read_The_Characters_Item_Instances()
     {
         Fixture f = await BuildAsync();
 
@@ -344,8 +339,6 @@ public class CharacterSelectHandlerShould
 
         await f.ItemInstances.Received(1)
             .GetByCharacterIdAsync(TheCharacter, Arg.Any<CancellationToken>());
-        await f.ItemInstances.DidNotReceiveWithAnyArgs()
-            .GetByCharacterIdWithTemplateAsync(default!, default);
     }
 
     [Fact]

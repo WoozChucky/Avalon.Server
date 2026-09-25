@@ -80,7 +80,6 @@ public class WorldDbContext : DbContext
 
     public DbSet<CreatureTemplate> CreatureTemplates { get; set; } = null!;
     public DbSet<ItemTemplate> ItemTemplates { get; set; } = null!;
-    public DbSet<ItemInstance> ItemInstances { get; set; } = null!;
     public DbSet<MapTemplate> MapTemplates { get; set; } = null!;
     public DbSet<QuestReward> QuestRewards { get; set; } = null!;
     public DbSet<QuestRewardTemplate> QuestRewardTemplates { get; set; } = null!;
@@ -123,7 +122,6 @@ public class WorldDbContext : DbContext
     {
         Configure(modelBuilder.Entity<CreatureTemplate>());
         Configure(modelBuilder.Entity<ItemTemplate>());
-        Configure(modelBuilder.Entity<ItemInstance>());
         Configure(modelBuilder.Entity<MapTemplate>());
         Configure(modelBuilder.Entity<QuestReward>());
         Configure(modelBuilder.Entity<QuestRewardTemplate>());
@@ -894,35 +892,6 @@ public class WorldDbContext : DbContext
             BaseAttackTime = 1,
             RangeAttackTime = 0
         });
-    }
-
-    private static void Configure(EntityTypeBuilder<ItemInstance> builder)
-    {
-        builder.HasKey(b => b.Id);
-        builder.Property(b => b.Id)
-            .HasConversion(
-                v => v.Value,
-                v => new ItemInstanceId(v)
-            )
-            .IsRequired()
-            .ValueGeneratedOnAdd();
-
-        builder.Property(b => b.CharacterId)
-            .HasConversion(
-                v => v.Value,
-                v => new CharacterId(v)
-            );
-
-        builder.Property(b => b.TemplateId)
-            .HasConversion(
-                v => v.Value,
-                v => new ItemTemplateId(v)
-            );
-
-        builder.HasOne(b => b.Template)
-            .WithMany()
-            .HasForeignKey(b => b.TemplateId)
-            .OnDelete(DeleteBehavior.Cascade);
     }
 
     private static void Configure(EntityTypeBuilder<ItemTemplate> builder)

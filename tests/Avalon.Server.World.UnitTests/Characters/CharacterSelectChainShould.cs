@@ -15,6 +15,7 @@ using Avalon.World.ChunkLayouts;
 using Avalon.World.Characters;
 using Avalon.World.Configuration;
 using Avalon.World.Handlers;
+using Avalon.World.Inventory;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Enums;
@@ -225,6 +226,7 @@ public class CharacterSelectChainShould : IDisposable
                 Substitute.For<ICharacterAbilityRepository>(),
                 Substitute.For<ICharacterInventoryRepository>(),
                 Substitute.For<IItemInstanceRepository>(),
+                Substitute.For<IItemIdAllocator>(),
                 Substitute.For<IWorld>())
             .Execute(_connection, new CCharacterCreatePacket());
         Step(2);

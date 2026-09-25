@@ -10,10 +10,10 @@ using Xunit;
 namespace Avalon.Server.World.UnitTests.Entities;
 
 /// <summary>
-/// The row says where an item sits; the instance says what it is. They live in different
-/// databases, so nothing but this correlation puts them together -- and a row whose instance
-/// is gone must not become a slot holding template zero, which a client would render as
-/// something rather than as nothing.
+/// The row says where an item sits; the instance says what it is. Both live in the Character
+/// database but are read as two queries, so this correlation is what puts them together -- and a
+/// row whose instance is gone must not become a slot holding template zero, which a client would
+/// render as something rather than as nothing.
 /// </summary>
 public class InventoryAssemblerShould
 {
