@@ -26,6 +26,9 @@ public interface IServerBase
     long ServerTime { get; }
     int SendBufferCapacity { get; }
     void CallConnectionListener(IConnection connection);
+
+    /// <summary>Which peers prefix their connections with a PROXY v2 header (#524).</summary>
+    ProxyProtocolPolicy ProxyProtocol => ProxyProtocolPolicy.Disabled;
 }
 
 public class PacketHandlerCache
@@ -37,6 +40,7 @@ public abstract class ServerBase<T> : BackgroundService, IServerBase where T : I
 {
     public ushort Port { get; }
     public int SendBufferCapacity { get; }
+    public ProxyProtocolPolicy ProxyProtocol { get; }
 
     protected TcpListener Listener { get; }
     public IPacketManager PacketManager { get; }
@@ -61,6 +65,7 @@ public abstract class ServerBase<T> : BackgroundService, IServerBase where T : I
         PacketManager = packetManager;
         Port = hostingOptions.Value.Port;
         SendBufferCapacity = hostingOptions.Value.SendBufferCapacity;
+        ProxyProtocol = ProxyProtocolPolicy.From(hostingOptions.Value.ProxyProtocol);
 
         // Start server timer
         _serverTimer.Start();

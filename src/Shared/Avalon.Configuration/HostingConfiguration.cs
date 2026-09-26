@@ -21,4 +21,7 @@ public class HostingConfiguration
     [Range(10, 10000)]
     public int SendBufferCapacity { get; set; } = 100;
 
+    /// <summary>PROXY protocol v2 from a fronting L4 proxy. Disabled unless configured.</summary>
+    public ProxyProtocolConfiguration ProxyProtocol { get; set; } = new();
+
 }
