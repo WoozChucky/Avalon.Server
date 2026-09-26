@@ -57,3 +57,12 @@ resources:
     memory: 256Mi
   limits:
     memory: 1Gi
+
+# OpenTelemetry export (OTLP gRPC), e.g. http://otel-collector:4317.
+# Empty: nothing is exported.
+otel:
+  endpoint: ""
+  # Defaults to the release's full name.
+  serviceName: ""
+  # Extra resource attributes, e.g. {deployment.environment: production}.
+  resourceAttributes: {}

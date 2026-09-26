@@ -38,7 +38,7 @@ public class ConnectionRateRegistryShould
             listener.InstrumentPublished = (instrument, _) => { if (instrument.Meter == meter) published++; };
             listener.Start();
 
-            Assert.Equal(4, published);
+            Assert.Equal(5, published);
         }
     }
 
@@ -65,6 +65,32 @@ public class ConnectionRateRegistryShould
 
             Assert.Equal(3, observed);
             Assert.Equal(1, registry.Count);
+        }
+    }
+
+    [Fact]
+    public void Report_how_many_connections_are_open()
+    {
+        (Meter meter, ConnectionRateRegistry registry) = Create();
+        using (meter)
+        {
+            Rates kept = new(0), closed = new(0);
+            registry.Track(kept);
+            registry.Track(closed);
+            registry.Track(new Rates(0));
+            registry.Untrack(closed.Id);
+
+            int observed = -1;
+            using MeterListener listener = new();
+            listener.InstrumentPublished = (instrument, l) =>
+            {
+                if (instrument.Meter == meter && instrument.Name == "avalon.connections.active") l.EnableMeasurementEvents(instrument);
+            };
+            listener.SetMeasurementEventCallback<int>((_, value, _, _) => observed = value);
+            listener.Start();
+            listener.RecordObservableInstruments();
+
+            Assert.Equal(2, observed);
         }
     }
 }

@@ -126,6 +126,9 @@ public class World : IWorld
     public void SpawnInInstance(IWorldConnection connection, IMapInstance instance)
     {
         instance.AddCharacter(connection);
+        _logger.LogInformation(
+            "Character {CharacterName} of account {AccountId} entered instance {InstanceId} (map {MapTemplateId})",
+            connection.Character?.Name, connection.AccountId?.Value, instance.InstanceId, instance.TemplateId);
 
         // Marked online here rather than at select. Between the two the character is built but not
         // in the world, so a row written online there is a claim nothing can retract: the despawn
@@ -188,6 +191,9 @@ public class World : IWorld
 
         if (connection.Character is not { } character)
             return;
+
+        _logger.LogInformation("Character {CharacterName} of account {AccountId} left the world",
+            character.Name, connection.AccountId?.Value);
 
         AsyncServiceScope? scope = null;
         Task<bool>? saved = null;

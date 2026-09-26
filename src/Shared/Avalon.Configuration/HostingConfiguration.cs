@@ -24,4 +24,6 @@ public class HostingConfiguration
     /// <summary>PROXY protocol v2 from a fronting L4 proxy. Disabled unless configured.</summary>
     public ProxyProtocolConfiguration ProxyProtocol { get; set; } = new();
 
+    public TelemetryConfiguration Telemetry { get; set; } = new();
+
 }

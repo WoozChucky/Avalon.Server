@@ -9,6 +9,7 @@ using Avalon.Common.Telemetry;
 using Avalon.Common.ValueObjects;
 using Avalon.Configuration;
 using Avalon.Hosting.Networking;
+using Avalon.Hosting.Telemetry;
 using Avalon.Infrastructure;
 using Avalon.Network.Packets;
 using Avalon.Network.Packets.Abstractions;
@@ -19,6 +20,7 @@ using Avalon.World.Persistence;
 using Avalon.World.Public;
 using Avalon.World.Scripts;
 using Avalon.World.Scripts.Abstractions;
+using Avalon.World.Telemetry;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -60,6 +62,9 @@ public interface IWorldServer
 
     IWorld World { get; }
     Dictionary<NetworkPacketType, IWorldPacketHandler> PacketHandlers { get; }
+
+    /// <summary>The per-packet telemetry ProcessQueue records into, as CallListener does.</summary>
+    PacketDispatchTelemetry PacketTelemetry { get; }
 }
 
 public class WorldServer : ServerBase<WorldConnection>, IWorldServer
@@ -163,7 +168,9 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         IScriptHotReloader scriptHotReloader,
         ICharacterSaver characterSaver) : base(packetManager, loggerFactory.CreateLogger<WorldServer>(),
         serviceProvider,
-        hostingOptions)
+        hostingOptions,
+        PacketDispatchTelemetry.From(DiagnosticsConfig.World.Source, DiagnosticsConfig.World.Meter,
+            hostingOptions.Value.Telemetry))
     {
         _scriptManager = scriptManager;
         _cache = cache;
@@ -206,10 +213,15 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
             "Duration of the world update phase of the tick loop in microseconds");
         _sessionUpdateDuration = DiagnosticsConfig.World.Meter.CreateHistogram<double>("world.session_update.duration", "us",
             "Duration of the session update phase of the tick loop in microseconds");
+
+        WorldGauges.Register(DiagnosticsConfig.World.Meter, () => Connections, () => _world.InstanceRegistry);
     }
 
     public new ImmutableArray<IWorldConnection> Connections =>
         TypedConnections.CastArray<IWorldConnection>();
+
+    protected override PacketTags DescribeConnection(IConnection connection) =>
+        connection is WorldConnection world ? world.TelemetryTags() : base.DescribeConnection(connection);
 
     public IWorld World => _world;
 
