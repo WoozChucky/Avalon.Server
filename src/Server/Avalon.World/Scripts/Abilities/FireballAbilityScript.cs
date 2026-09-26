@@ -38,9 +38,11 @@ public class FireballAbilityScript(
         {
             logger.LogWarning("Fireball ability has no target");
             State = SpellState.Finished;
+            Velocity = Vector3.zero;
+            return;
         }
 
-        Velocity = Vector3.Normalize(Target!.Position + AbilityHeightOffset - Position);
+        Velocity = VelocityTowards(Target);
     }
 
     public override void Update(TimeSpan deltaTime)
@@ -55,12 +57,20 @@ public class FireballAbilityScript(
             logger.LogInformation("Ability {AbilityId} hit {CreatureId}", Ability.AbilityId, Target.Guid);
             context.CombatService.ApplyDamage(Caster, Target, Ability.Metadata.EffectValue, Ability);
             State = SpellState.Finished;
+            Velocity = Vector3.zero;
             return;
         }
 
-        Velocity = Vector3.Normalize(Target.Position + AbilityHeightOffset - Position);
-        Position += Velocity * ProjectileSpeed * (float)deltaTime.TotalSeconds;
+        Velocity = VelocityTowards(Target);
+        Position += Velocity * (float)deltaTime.TotalSeconds;
     }
+
+    /// <summary>
+    /// Metres per second, not the bare direction (#424): the client extrapolates a projectile by
+    /// Velocity * seconds since the last broadcast, so the magnitude has to be the speed it flies at.
+    /// </summary>
+    private Vector3 VelocityTowards(IUnit target) =>
+        Vector3.Normalize(target.Position + AbilityHeightOffset - Position) * ProjectileSpeed;
 
     public override AbilityScript Clone()
     {
