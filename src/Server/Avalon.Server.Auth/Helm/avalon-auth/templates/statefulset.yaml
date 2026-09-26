@@ -41,6 +41,14 @@ spec:
               value: {{ .Values.server.hosting.host | quote }}
             - name: Hosting__Port
               value: {{ .Values.service.port | quote }}
+            - name: Hosting__ProxyProtocol__Enabled
+              value: {{ .Values.server.proxyProtocol.enabled | quote }}
+            - name: Hosting__ProxyProtocol__HeaderTimeoutSeconds
+              value: {{ .Values.server.proxyProtocol.headerTimeoutSeconds | quote }}
+            {{- range $i, $network := .Values.server.proxyProtocol.trustedProxies }}
+            - name: Hosting__ProxyProtocol__TrustedProxies__{{ $i }}
+              value: {{ $network | quote }}
+            {{- end }}
             - name: Hosting__Security__CertificatePath
               value: /app/certs/tls.pfx
             - name: Hosting__Security__CertificatePassword
