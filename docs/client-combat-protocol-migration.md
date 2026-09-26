@@ -104,7 +104,8 @@ Each `ThreatEntry`:
 ## 5. Cast Pipeline Expectations (Client Side)
 
 - Click → emit `CCastAbilityPacket {AbilityId, TargetGuid?, GroundPos?}`. The server validates everything; the client must NOT pre-gate.
-- On rejection, the server replies with `SAbilityNotReadyPacket {AbilityId, CooldownMs (uint)}`. Trigger reasons: GCD, per-ability cooldown, cost shortfall, combat-state mismatch (`RequiresOutOfCombat` / `RequiresInCombat`), out of range, not facing, dead. Use the `CooldownMs` field (remaining cooldown in milliseconds) to drive HUD feedback. Other rejection reasons (cost, range, combat-state) send `CooldownMs = 0`.
+- On rejection, the server replies with exactly one `SAbilityNotReadyPacket {AbilityId, CooldownMs (uint), Reason (CastRejectReason)}` (#512). `Reason` names the refusal: `Gcd`, `Cooldown`, `RequiresOutOfCombat`, `RequiresInCombat`, `NotEnoughPower`, `OutOfRange`, `TargetNotFound`, `NotFacing`, `Dead`, `NotOwned` or `InternalError`; `Unknown` (0) is only what a payload without the field decodes as. `CooldownMs` is the remaining time in milliseconds for `Gcd` and `Cooldown`, and 0 for every other reason. The only cast that gets no answer is one from a connection with no character.
+- The facing cone is on the wire (#513): `AbilityInfo.FacingAngle` in `SMSG_CHARACTER_ABILITIES` is the half-angle in degrees from the caster's facing. A targeted cast is accepted only when the angle to the target is strictly less than it; exactly equal is refused as `NotFacing`.
 - For abilities with `CastTime > 0`, the server replies `SUnitStartCastPacket` (existing, generic). Render the cast bar from the `CastTime` field on the packet.
 - On completion, the server replies `SUnitFinishCastPacket` (existing, generic). End the cast bar and play the cast-finish animation.
 - On movement-interrupt, the server replies `SCharacterInterruptedCastPacket {Caster, AbilityId}` (existing). Power refund is handled server-side; the client just ends the cast bar.
