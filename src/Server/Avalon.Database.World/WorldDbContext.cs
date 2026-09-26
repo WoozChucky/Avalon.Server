@@ -906,6 +906,44 @@ public class WorldDbContext : DbContext
             BaseAttackTime = 1,
             RangeAttackTime = 0
         });
+
+        // Template 11: Marta Ledgerwell, the town's banker (#463). A town NPC like 1-3: invulnerable,
+        // TownNpcScript, no loot, experience 0. Her dialogue offers OpenBank, which is what makes her
+        // a banker (NpcInteraction.IsBanker).
+        builder.HasData(new CreatureTemplate
+        {
+            Id = 11,
+            Name = "Marta Ledgerwell",
+            SubName = "Banker",
+            IconName = string.Empty,
+            MinLevel = 1,
+            MaxLevel = 1,
+            SpeedWalk = 2.0f,
+            SpeedRun = 5.0f,
+            SpeedSwim = 1.6f,
+            Rarity = CreatureRarity.Normal,
+            Family = CreatureFamily.None,
+            Type = CreatureType.Humanoid,
+            Experience = 0,
+            LootTableId = null,
+            MinGold = 0,
+            MaxGold = 0,
+            AIName = string.Empty,
+            MovementType = 0,
+            DetectionRange = 20,
+            MovementId = 0,
+            ScriptName = "TownNpcScript",
+            Invulnerable = true,
+            HealthModifier = 1,
+            ManaModifier = 1,
+            ArmorModifier = 1,
+            ExperienceModifier = 1,
+            RegenHealth = 1,
+            DmgSchool = 0,
+            DamageModifier = 1,
+            BaseAttackTime = 1,
+            RangeAttackTime = 0
+        });
     }
 
     private static void Configure(EntityTypeBuilder<ItemTemplate> builder)
@@ -1398,6 +1436,13 @@ public class WorldDbContext : DbContext
                 Id = 3, MapTemplateId = 1, CreatureTemplateId = 3,     // Innkeeper
                 OffsetX = 0f, OffsetY = 0f, OffsetZ = 7f, Facing = 180f
             });
+
+        // Marta (#463), beyond Uriel on the same side, facing the entry: atan2(6, -6) = 135 degrees.
+        builder.HasData(new MapCreatureSpawn
+        {
+            Id = 4, MapTemplateId = 1, CreatureTemplateId = 11,     // Marta Ledgerwell
+            OffsetX = -6f, OffsetY = 0f, OffsetZ = 6f, Facing = 135f
+        });
     }
 
     private static void Configure(EntityTypeBuilder<CreaturePath> builder)
@@ -1459,6 +1504,11 @@ public class WorldDbContext : DbContext
             new LocalizedText { Id = 12, Text = "Wizard" },
             new LocalizedText { Id = 13, Text = "Hunter" },
             new LocalizedText { Id = 14, Text = "Healer" });
+
+        // Marta Ledgerwell, the banker (#463). Her closing option reuses "Farewell." (10).
+        builder.HasData(
+            new LocalizedText { Id = 15, Text = "Coin and keepsakes both, {name}. The vault keeps what the road would take." },
+            new LocalizedText { Id = 16, Text = "Open my bank." });
     }
 
     private static void Configure(EntityTypeBuilder<LocalizedTextLocale> builder)
@@ -1492,6 +1542,11 @@ public class WorldDbContext : DbContext
             new LocalizedTextLocale { TextId = 12, Locale = AccountLocale.ptPT, Text = "Mag{g:o|a}" },
             new LocalizedTextLocale { TextId = 13, Locale = AccountLocale.ptPT, Text = "Caçador{g:|a}" },
             new LocalizedTextLocale { TextId = 14, Locale = AccountLocale.ptPT, Text = "Curandeir{g:o|a}" });
+
+        // Marta (#463). Needs native-speaker review before merge, like the rows above.
+        builder.HasData(
+            new LocalizedTextLocale { TextId = 15, Locale = AccountLocale.ptPT, Text = "Moedas e recordações, {name}. O cofre guarda o que a estrada levaria." },
+            new LocalizedTextLocale { TextId = 16, Locale = AccountLocale.ptPT, Text = "Abre o meu cofre." });
     }
 
     private static void Configure(EntityTypeBuilder<DialogueNode> builder)
@@ -1521,6 +1576,9 @@ public class WorldDbContext : DbContext
             new DialogueNode { Id = 5, CreatureTemplateId = 2, IsRoot = false, TextId = 5 },
             // Innkeeper (template 3).
             new DialogueNode { Id = 6, CreatureTemplateId = 3, IsRoot = true,  TextId = 6 });
+
+        // Marta Ledgerwell (template 11, #463).
+        builder.HasData(new DialogueNode { Id = 7, CreatureTemplateId = 11, IsRoot = true, TextId = 15 });
     }
 
     private static void Configure(EntityTypeBuilder<DialogueOption> builder)
@@ -1557,6 +1615,12 @@ public class WorldDbContext : DbContext
             new DialogueOption { Id = 7,  NodeId = 4, TextId = 10, NextNodeId = null, SortOrder = 1 },
             new DialogueOption { Id = 8,  NodeId = 5, TextId = 10, NextNodeId = null, SortOrder = 0 },
             new DialogueOption { Id = 9,  NodeId = 6, TextId = 10, NextNodeId = null, SortOrder = 0 });
+
+        // Marta (#463). "Open my bank." opens the bank and leads back to her greeting, so the
+        // conversation, and the bank with it, stays open; "Farewell." ends both.
+        builder.HasData(
+            new DialogueOption { Id = 10, NodeId = 7, TextId = 16, NextNodeId = 7, SortOrder = 0, Action = DialogueOptionAction.OpenBank },
+            new DialogueOption { Id = 11, NodeId = 7, TextId = 10, NextNodeId = null, SortOrder = 1 });
     }
 
     private static void Configure(EntityTypeBuilder<CharacterClassName> builder)
