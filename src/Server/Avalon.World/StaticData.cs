@@ -62,7 +62,8 @@ public class StaticData(
                 return new DialoguePatch(
                     new LocalizedTextCatalog(texts, locales, classNames, loggerFactory),
                     new DialogueCatalog(nodes, options, loggerFactory),
-                    texts.Count, nodes.Count, options.Count);
+                    texts.Count, nodes.Count, options.Count,
+                    new DialogueActions(nodes, options));
             }
 
             case ReloadArea.Creatures:
@@ -191,6 +192,12 @@ public class StaticData(
 
     public ILocalizedTextCatalog LocalizedTexts => _dialogue!.Texts;
     public IDialogueCatalog Dialogue => _dialogue!.Dialogue;
+
+    /// <summary>
+    /// What dialogue options do (spec #463). The same generation as <see cref="Dialogue" />: both
+    /// are read on the tick, where no reload can land between two reads.
+    /// </summary>
+    public DialogueActions DialogueActions => _dialogue!.Actions;
 
     /// <summary>
     /// Read on the tick when a creature dies. One reference, so a kill sees one whole generation of

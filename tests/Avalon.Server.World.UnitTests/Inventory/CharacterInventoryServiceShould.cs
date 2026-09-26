@@ -282,8 +282,12 @@ public class CharacterInventoryServiceShould
         Assert.Equal(SaveState.Removed, character.SaveState.SlotState(InventoryType.Bag, 0));
     }
 
+    /// <summary>
+    /// Bank slots are recorded like any other; whether they are sent is the flusher's decision,
+    /// which depends on the bank being open (spec #463).
+    /// </summary>
     [Fact]
-    public void Record_the_slots_the_client_must_hear_about_but_never_the_bank()
+    public void Record_every_slot_the_client_may_need_to_hear_about_bank_included()
     {
         CharacterEntity character = New();
         InventoryItem banked = Item(4, Sword);
@@ -291,10 +295,8 @@ public class CharacterInventoryServiceShould
         CharacterInventoryService inventory = InventoryFor(character);
 
         inventory.TryRemove(banked.InstanceId, 1);
-        Assert.False(character.ClientChanges.HasChanges);
 
-        inventory.TryAdd(Potion.Id, 1);
-        Assert.Equal((InventoryType.Bag, (ushort)0), Assert.Single(character.ClientChanges.Slots));
+        Assert.Equal((InventoryType.Bank, (ushort)4), Assert.Single(character.ClientChanges.Slots));
     }
 
     [Fact]

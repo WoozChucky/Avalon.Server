@@ -12,9 +12,11 @@ using Avalon.Domain.World;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Character;
 using Avalon.Server.World.UnitTests.Characters;
+using Avalon.Server.World.UnitTests.Inventory;
 using Avalon.World;
 using Avalon.World.ChunkLayouts;
 using Avalon.World.Configuration;
+using Avalon.World.Entities;
 using Avalon.World.Handlers;
 using Avalon.World.Persistence;
 using Avalon.World.Public;
@@ -54,7 +56,10 @@ public class CharacterSelectHandlerShould
     private static async Task<Fixture> BuildAsync(
         IReadOnlyCollection<CharacterInventory>? inventoryRows = null,
         IReadOnlyCollection<ItemInstance>? itemInstances = null,
-        ulong money = 0)
+        ulong money = 0,
+        IReadOnlyCollection<ClassLevelStat>? classStats = null,
+        IReadOnlyCollection<ItemTemplate>? itemTemplates = null,
+        int storedHealth = 0)
     {
         var row = new Character
         {
@@ -66,6 +71,7 @@ public class CharacterSelectHandlerShould
             Map = TownMapId,
             X = 1, Y = 2, Z = 3,
             Money = money,
+            Health = storedHealth,
         };
 
         var characterRepository = Substitute.For<ICharacterRepository>();
@@ -94,7 +100,7 @@ public class CharacterSelectHandlerShould
 
         // Built first: configuring a substitute inside a Returns() argument breaks NSubstitute's
         // last-call tracking.
-        StaticData staticData = await EmptyStaticDataAsync();
+        StaticData staticData = await EmptyStaticDataAsync(classStats, itemTemplates);
 
         IWorld world = Substitute.For<IWorld>();
         world.InstanceRegistry.Returns(registry);
@@ -203,16 +209,18 @@ public class CharacterSelectHandlerShould
         connection.When(c => c.EnqueueContinuation(Arg.Any<Task<T>>(), Arg.Any<Action<T>>()))
             .Do(ci => ci.Arg<Action<T>>()(ci.Arg<Task<T>>().Result));
 
-    private static async Task<StaticData> EmptyStaticDataAsync()
+    private static async Task<StaticData> EmptyStaticDataAsync(
+        IReadOnlyCollection<ClassLevelStat>? classStats = null,
+        IReadOnlyCollection<ItemTemplate>? itemTemplates = null)
     {
         var levels = Substitute.For<ICharacterLevelExperienceRepository>();
         levels.GetAllAsync(Arg.Any<CancellationToken>()).Returns(Array.Empty<CharacterLevelExperience>());
         var stats = Substitute.For<IClassLevelStatRepository>();
-        stats.FindAllAsync(Arg.Any<CancellationToken>()).Returns(Array.Empty<ClassLevelStat>());
+        stats.FindAllAsync(Arg.Any<CancellationToken>()).Returns(classStats?.ToArray() ?? Array.Empty<ClassLevelStat>());
         var createInfos = Substitute.For<ICharacterCreateInfoRepository>();
         createInfos.FindAllAsync(Arg.Any<CancellationToken>()).Returns(Array.Empty<CharacterCreateInfo>());
         var items = Substitute.For<IItemTemplateRepository>();
-        items.FindAllAsync(Arg.Any<bool>(), Arg.Any<CancellationToken>()).Returns(new List<ItemTemplate>());
+        items.FindAllAsync(Arg.Any<bool>(), Arg.Any<CancellationToken>()).Returns(itemTemplates?.ToList() ?? new List<ItemTemplate>());
         var abilities = Substitute.For<IAbilityTemplateRepository>();
         abilities.FindAllAsync(Arg.Any<bool>(), Arg.Any<CancellationToken>()).Returns(new List<AbilityTemplate>());
 
@@ -340,6 +348,55 @@ public class CharacterSelectHandlerShould
         f.Handler.Execute(f.Connection, new CCharacterSelectedPacket { CharacterId = TheCharacter });
 
         Assert.Equal(123_456_789_012UL, DeserializeInventorySnapshot(f).Money);
+    }
+
+    /// <summary>
+    /// #434: select derives stats from the character's level and what it wears, replacing the old
+    /// half-levelled patch of Stamina and the regen stat. Nothing stores the current pools, so the
+    /// character enters full at the new maximum.
+    /// </summary>
+    [Fact]
+    public async Task Derive_the_stats_from_the_level_and_what_is_worn_and_enter_full()
+    {
+        (List<CharacterInventory> rows, List<ItemInstance> instances) = BuildInventory(
+            (InventoryType.Equipment, 3, EquipTemplates.Chestguard.Id.Value, 1u, 69u, ItemInstanceFlags.None));
+        ClassLevelStat warrior = new()
+        {
+            Class = CharacterClass.Warrior, Level = 1, BaseHp = 20, BaseMana = 0,
+            Stamina = 22, Strength = 23, Agility = 20, Intellect = 20,
+        };
+        Fixture f = await BuildAsync(rows, instances, classStats: [warrior],
+            itemTemplates: [EquipTemplates.Chestguard], storedHealth: 1);
+
+        f.Handler.Execute(f.Connection, new CCharacterSelectedPacket { CharacterId = TheCharacter });
+
+        var entity = (CharacterEntity)f.Connection.PendingSpawn!.Character;
+        Assert.Equal(260u, entity.Health);
+        Assert.Equal(260u, entity.CurrentHealth);
+        Assert.Equal(100u, entity.Power);
+        Assert.Equal(100u, entity.CurrentPower);
+        Assert.Equal(24u, entity.Stamina);
+        Assert.Equal(8u, entity.Stats!.Value.Armor);
+        Assert.True(entity.SaveState.StatsDirty);
+    }
+
+    /// <summary>
+    /// Regression guard: this passes before the select refresh too, because select then copied the
+    /// stored maximums and patched Stamina from a row that is not there. It pins that a class and
+    /// level with no ClassLevelStat row keeps the stored maximums and derives nothing.
+    /// </summary>
+    [Fact]
+    public async Task Keep_the_stored_maximums_when_the_class_and_level_have_no_row()
+    {
+        Fixture f = await BuildAsync(storedHealth: 150);
+
+        f.Handler.Execute(f.Connection, new CCharacterSelectedPacket { CharacterId = TheCharacter });
+
+        var entity = (CharacterEntity)f.Connection.PendingSpawn!.Character;
+        Assert.Equal(150u, entity.Health);
+        Assert.Equal(150u, entity.CurrentHealth);
+        Assert.Null(entity.Stats);
+        Assert.Equal(0u, entity.Stamina);
     }
 
     /// <summary>

@@ -13,6 +13,7 @@ using Avalon.Domain.World;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Character;
 using Avalon.Network.Packets.World;
+using Avalon.World.Characters;
 using Avalon.World.ChunkLayouts;
 using Avalon.World.Configuration;
 using Avalon.World.Entities;
@@ -322,9 +323,6 @@ public class CharacterSelectHandler(
         ulong requiredExperience = world.Data.CharacterLevelExperiences.FirstOrDefault(c => c.Level == character.Level)
             ?.Experience ?? 0;
 
-        ClassLevelStat? classLevelStat = world.Data.ClassLevelStats
-            .FirstOrDefault(s => s.Class == character.Class && s.Level == character.Level);
-
         CharacterEntity entity = new(loggerFactory, character, regenConfig.Value)
         {
             Data = character,
@@ -333,14 +331,6 @@ public class CharacterSelectHandler(
             Orientation = new Vector3(0, character.Rotation, 0),
             EnteredWorld = DateTime.UtcNow,
             RequiredExperience = requiredExperience
-        };
-
-        entity.Stamina = classLevelStat?.Stamina ?? 0;
-        entity.RegenStat = character.Class switch
-        {
-            CharacterClass.Wizard or CharacterClass.Healer => classLevelStat?.Intellect ?? 0,
-            CharacterClass.Hunter => classLevelStat?.Agility ?? 0,
-            _ => 0
         };
 
         entity.CurrentHealth = entity.Health;
@@ -548,6 +538,15 @@ public class CharacterSelectHandler(
         entity[InventoryType.Equipment].Load(assembled[InventoryType.Equipment]);
         entity[InventoryType.Bag].Load(assembled[InventoryType.Bag]);
         entity[InventoryType.Bank].Load(assembled[InventoryType.Bank]);
+
+        // #434: stats follow the class, the level and what is worn. No current health or power is
+        // stored, so the character enters full at the new maximum, as it always has.
+        if (!CharacterStatsRefresh.Apply(entity, world.Data, CurrentValues.Refill))
+        {
+            logger.LogWarning(
+                "No class stats for {Class} level {Level}; character {CharacterId} keeps its stored maximums",
+                character.Class, character.Level, character.Id);
+        }
 
         // The bank is loaded but not sent: opening it is a separate interaction, and a client
         // told about items it has no way to show would have to decide what to do with them.

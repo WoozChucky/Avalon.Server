@@ -75,6 +75,38 @@ public class CharacterCreationShould : IDisposable
     }
 
     /// <summary>
+    /// Creation derives the new character's maximums and its stats row from the seeded level 1
+    /// row with nothing worn: every starting item goes to the Bag. The Warrior row is a regression
+    /// guard: the old GetBase* helpers already produced these values for a Warrior, so it passed
+    /// before the calculator was wired; the other three classes did not.
+    /// </summary>
+    [Theory]
+    [InlineData(CharacterClass.Warrior, "Warrioress", 240, 100, 46u, 4u, 5.0f)]
+    [InlineData(CharacterClass.Wizard, "Wizardess", 121, 365, 10u, 69u, 0f)]
+    [InlineData(CharacterClass.Hunter, "Huntress", 178, 68, 45u, 10u, 0f)]
+    [InlineData(CharacterClass.Healer, "Healeress", 158, 296, 10u, 46u, 0f)]
+    public async Task Derive_a_new_characters_maximums_and_stats_from_its_level_one_row(
+        CharacterClass @class, string name, int health, int power, uint attack, uint ability, float block)
+    {
+        StaticData data = await LoadStaticDataAsync();
+        IWorldConnection connection = NewConnection();
+
+        NewHandler(data).Execute(connection, new CCharacterCreatePacket { Name = name, Class = (int)@class });
+        await PumpAsync(connection);
+
+        await using CharacterDbContext characterDb = _characters.CreateDbContext();
+        Avalon.Domain.Characters.Character character =
+            await characterDb.Characters.AsNoTracking().SingleAsync(c => c.Name == name);
+        Assert.Equal((health, power), (character.Health, character.Power1));
+
+        Avalon.Domain.Characters.CharacterStats stats =
+            await characterDb.CharacterStats.AsNoTracking().SingleAsync(s => s.CharacterId == character.Id);
+        Assert.Equal(((uint)health, (uint)power), (stats.MaxHealth, stats.MaxPower1));
+        Assert.Equal((attack, ability, block), (stats.AttackDamage, stats.AbilityDamage, stats.BlockPct));
+        Assert.Equal(0u, stats.Armor);
+    }
+
+    /// <summary>
     /// Every principal the handler writes is named by its foreign key alone. A navigation would
     /// point at a row that already exists — the character the previous call returned, or the
     /// template StaticData has cached since startup — and insert it a second time.

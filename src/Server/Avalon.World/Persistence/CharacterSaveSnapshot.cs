@@ -79,8 +79,12 @@ public sealed record CharacterSaveSnapshot(CharacterSaveBatch Batch, SaveMarks M
             }
         }
 
+        CharacterStats? stats = marks.StatsVersion is not null && character.Stats is { } derived
+            ? derived.ToRow(row.Id)
+            : null;
+
         return new CharacterSaveSnapshot(
-            new CharacterSaveBatch(row.Copy(), upsertItems, deleteItems, upsertSlots, deleteSlots),
+            new CharacterSaveBatch(row.Copy(), upsertItems, deleteItems, upsertSlots, deleteSlots, stats),
             marks);
     }
 }

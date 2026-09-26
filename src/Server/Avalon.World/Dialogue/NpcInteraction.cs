@@ -1,5 +1,10 @@
+using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
+using Avalon.Domain.World;
+using Avalon.Network.Packets.World;
+using Avalon.World.Entities;
+using Avalon.World.Public;
 using Avalon.World.Public.Dialogue;
 
 namespace Avalon.World.Dialogue;
@@ -56,5 +61,25 @@ public static class NpcInteraction
     {
         float distance = Vector3.Distance(characterPosition, npcPosition);
         return distance <= LeashRange;
+    }
+
+    /// <summary>
+    /// The one rule for who keeps a bank (spec #463): a creature whose dialogue offers OpenBank
+    /// somewhere. No template flag: the dialogue that opens the bank is the definition.
+    /// </summary>
+    public static bool IsBanker(DialogueActions actions, CreatureTemplateId templateId) =>
+        actions.Offers(templateId, DialogueOptionAction.OpenBank);
+
+    /// <summary>
+    /// Ends the open conversation: clears it, closes any bank opened in it, and tells the client,
+    /// whose SMSG_DIALOGUE_END is also its signal to hide the bank window.
+    /// </summary>
+    public static void EndConversation(IWorldConnection connection, ObjectGuid npc)
+    {
+        connection.CurrentDialogue = null;
+        if (connection.Character is CharacterEntity character)
+            character.OpenBankNpc = null;
+
+        connection.Send(SDialogueEndPacket.Create(npc.RawValue, connection.CryptoSession.Encrypt));
     }
 }

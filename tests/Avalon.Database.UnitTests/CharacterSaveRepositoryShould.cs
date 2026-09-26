@@ -120,6 +120,19 @@ public sealed class CharacterSaveRepositoryShould : IDisposable
         Assert.Equal((ushort)4, slot.Slot);
     }
 
+    [Fact]
+    public async Task Insert_the_stats_row_when_there_is_none_and_update_it_when_there_is()
+    {
+        CharacterRow row = await SeedCharacterAsync(1);
+
+        await _saves.WriteAsync([Batch(row, stats: new CharacterStats { CharacterId = row.Id, MaxHealth = 240 })]);
+        await _saves.WriteAsync([Batch(row, stats: new CharacterStats { CharacterId = row.Id, MaxHealth = 260, Armor = 8 })]);
+
+        await using CharacterDbContext read = _database.CreateDbContext();
+        CharacterStats stored = await read.CharacterStats.AsNoTracking().SingleAsync();
+        Assert.Equal((260u, 8u), (stored.MaxHealth, stored.Armor));
+    }
+
     private async Task<CharacterRow> SeedCharacterAsync(uint id)
     {
         var row = new CharacterRow
@@ -151,6 +164,7 @@ public sealed class CharacterSaveRepositoryShould : IDisposable
         IReadOnlyList<ItemInstance>? upsertItems = null,
         IReadOnlyList<ItemInstanceId>? deleteItems = null,
         IReadOnlyList<CharacterInventory>? upsertSlots = null,
-        IReadOnlyList<(InventoryType Container, ushort Slot)>? deleteSlots = null) =>
-        new(row, upsertItems ?? [], deleteItems ?? [], upsertSlots ?? [], deleteSlots ?? []);
+        IReadOnlyList<(InventoryType Container, ushort Slot)>? deleteSlots = null,
+        CharacterStats? stats = null) =>
+        new(row, upsertItems ?? [], deleteItems ?? [], upsertSlots ?? [], deleteSlots ?? [], stats);
 }

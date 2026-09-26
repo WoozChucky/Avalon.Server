@@ -1,7 +1,11 @@
 using Avalon.Common;
+using Avalon.Domain.World;
 using Avalon.Network.Packets.Abstractions;
+using Avalon.Network.Packets.Character;
 using Avalon.Network.Packets.World;
 using Avalon.World.Dialogue;
+using Avalon.World.Entities;
+using Avalon.World.Inventory;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
@@ -27,7 +31,9 @@ namespace Avalon.World.Handlers;
 /// <c>SMSG_DIALOGUE_END</c>, like the other close paths, and nothing advances. Any other handler
 /// acting on an open conversation must pass <see cref="NpcInteraction.IsWithinLeash"/> as well.
 /// The NPC still existing and being alive is re-checked too, because talking to a corpse is
-/// nonsense the player can see.
+/// nonsense the player can see. An option with an action (DialogueActions, #463) runs it after the
+/// leash check, and only when the option leads to a node that keeps the conversation open; OpenBank
+/// sends every Bank slot and opens the bank for as long as this conversation stays open.
 /// </remarks>
 [PacketHandler(NetworkPacketType.CMSG_DIALOGUE_CHOOSE)]
 public class DialogueChooseHandler(ILogger<DialogueChooseHandler> logger, IWorld world)
@@ -35,6 +41,7 @@ public class DialogueChooseHandler(ILogger<DialogueChooseHandler> logger, IWorld
 {
     private IDialogueCatalog Dialogue => world.Data.Dialogue;
     private ILocalizedTextCatalog Text => world.Data.LocalizedTexts;
+    private DialogueActions Actions => world.Data.DialogueActions;
 
     public override void Execute(IWorldConnection connection, CDialogueChoosePacket packet)
     {
@@ -124,13 +131,39 @@ public class DialogueChooseHandler(ILogger<DialogueChooseHandler> logger, IWorld
             return;
         }
 
+        // An action runs only once the conversation is known to stay open: OpenBank opens the bank
+        // for as long as this conversation lasts, so on an option that ends it (or leads nowhere)
+        // it would send the Bank to a window that closes in the same breath. The leash was checked
+        // above.
+        if (Actions.For(chosen.Id) is { } action)
+            RunAction(connection, character, npc, action);
+
         connection.CurrentDialogue = (open.Npc, next.Id);
         InteractHandler.Send(connection, npc, next, character, Text);
     }
 
-    private static void End(IWorldConnection connection, ObjectGuid npc)
+    private static void End(IWorldConnection connection, ObjectGuid npc) =>
+        NpcInteraction.EndConversation(connection, npc);
+
+    private void RunAction(IWorldConnection connection, ICharacter character, ICreature npc, DialogueOptionAction action)
     {
-        connection.CurrentDialogue = null;
-        connection.Send(SDialogueEndPacket.Create(npc.RawValue, connection.CryptoSession.Encrypt));
+        switch (action)
+        {
+            case DialogueOptionAction.OpenBank:
+                if (character is not CharacterEntity entity || !NpcInteraction.IsBanker(Actions, npc.Metadata.Id))
+                {
+                    logger.LogWarning("OpenBank chosen with {Npc}, which is not a banker", npc.Metadata.Id);
+                    return;
+                }
+
+                entity.OpenBankNpc = npc.Guid;
+                connection.Send(SInventoryUpdatePacket.Create(
+                    BankAccess.Snapshot(entity), null, connection.CryptoSession.Encrypt));
+                break;
+
+            default:
+                logger.LogWarning("Dialogue action {Action} is not one this server knows", action);
+                break;
+        }
     }
 }

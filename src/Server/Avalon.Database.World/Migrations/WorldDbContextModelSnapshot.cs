@@ -713,6 +713,490 @@ namespace Avalon.Database.World.Migrations
                             Intellect = 31L,
                             Stamina = 24L,
                             Strength = 20L
+                        },
+                        new
+                        {
+                            Class = 1,
+                            Level = 6,
+                            Agility = 27L,
+                            BaseHp = 120L,
+                            BaseMana = 0L,
+                            Intellect = 20L,
+                            Stamina = 32L,
+                            Strength = 33L
+                        },
+                        new
+                        {
+                            Class = 1,
+                            Level = 7,
+                            Agility = 29L,
+                            BaseHp = 140L,
+                            BaseMana = 0L,
+                            Intellect = 20L,
+                            Stamina = 34L,
+                            Strength = 35L
+                        },
+                        new
+                        {
+                            Class = 1,
+                            Level = 8,
+                            Agility = 30L,
+                            BaseHp = 160L,
+                            BaseMana = 0L,
+                            Intellect = 20L,
+                            Stamina = 36L,
+                            Strength = 37L
+                        },
+                        new
+                        {
+                            Class = 1,
+                            Level = 9,
+                            Agility = 32L,
+                            BaseHp = 180L,
+                            BaseMana = 0L,
+                            Intellect = 20L,
+                            Stamina = 38L,
+                            Strength = 39L
+                        },
+                        new
+                        {
+                            Class = 1,
+                            Level = 10,
+                            Agility = 33L,
+                            BaseHp = 200L,
+                            BaseMana = 0L,
+                            Intellect = 20L,
+                            Stamina = 40L,
+                            Strength = 41L
+                        },
+                        new
+                        {
+                            Class = 1,
+                            Level = 11,
+                            Agility = 35L,
+                            BaseHp = 220L,
+                            BaseMana = 0L,
+                            Intellect = 20L,
+                            Stamina = 42L,
+                            Strength = 43L
+                        },
+                        new
+                        {
+                            Class = 1,
+                            Level = 12,
+                            Agility = 36L,
+                            BaseHp = 240L,
+                            BaseMana = 0L,
+                            Intellect = 20L,
+                            Stamina = 44L,
+                            Strength = 45L
+                        },
+                        new
+                        {
+                            Class = 1,
+                            Level = 13,
+                            Agility = 38L,
+                            BaseHp = 260L,
+                            BaseMana = 0L,
+                            Intellect = 20L,
+                            Stamina = 46L,
+                            Strength = 47L
+                        },
+                        new
+                        {
+                            Class = 1,
+                            Level = 14,
+                            Agility = 39L,
+                            BaseHp = 280L,
+                            BaseMana = 0L,
+                            Intellect = 20L,
+                            Stamina = 48L,
+                            Strength = 49L
+                        },
+                        new
+                        {
+                            Class = 1,
+                            Level = 15,
+                            Agility = 41L,
+                            BaseHp = 300L,
+                            BaseMana = 0L,
+                            Intellect = 20L,
+                            Stamina = 50L,
+                            Strength = 51L
+                        },
+                        new
+                        {
+                            Class = 1,
+                            Level = 16,
+                            Agility = 42L,
+                            BaseHp = 320L,
+                            BaseMana = 0L,
+                            Intellect = 20L,
+                            Stamina = 52L,
+                            Strength = 53L
+                        },
+                        new
+                        {
+                            Class = 2,
+                            Level = 6,
+                            Agility = 25L,
+                            BaseHp = 96L,
+                            BaseMana = 120L,
+                            Intellect = 33L,
+                            Stamina = 26L,
+                            Strength = 20L
+                        },
+                        new
+                        {
+                            Class = 2,
+                            Level = 7,
+                            Agility = 26L,
+                            BaseHp = 112L,
+                            BaseMana = 140L,
+                            Intellect = 35L,
+                            Stamina = 27L,
+                            Strength = 20L
+                        },
+                        new
+                        {
+                            Class = 2,
+                            Level = 8,
+                            Agility = 27L,
+                            BaseHp = 128L,
+                            BaseMana = 160L,
+                            Intellect = 37L,
+                            Stamina = 28L,
+                            Strength = 20L
+                        },
+                        new
+                        {
+                            Class = 2,
+                            Level = 9,
+                            Agility = 28L,
+                            BaseHp = 144L,
+                            BaseMana = 180L,
+                            Intellect = 39L,
+                            Stamina = 29L,
+                            Strength = 20L
+                        },
+                        new
+                        {
+                            Class = 2,
+                            Level = 10,
+                            Agility = 29L,
+                            BaseHp = 160L,
+                            BaseMana = 200L,
+                            Intellect = 41L,
+                            Stamina = 30L,
+                            Strength = 20L
+                        },
+                        new
+                        {
+                            Class = 2,
+                            Level = 11,
+                            Agility = 30L,
+                            BaseHp = 176L,
+                            BaseMana = 220L,
+                            Intellect = 43L,
+                            Stamina = 31L,
+                            Strength = 20L
+                        },
+                        new
+                        {
+                            Class = 2,
+                            Level = 12,
+                            Agility = 31L,
+                            BaseHp = 192L,
+                            BaseMana = 240L,
+                            Intellect = 45L,
+                            Stamina = 32L,
+                            Strength = 20L
+                        },
+                        new
+                        {
+                            Class = 2,
+                            Level = 13,
+                            Agility = 32L,
+                            BaseHp = 208L,
+                            BaseMana = 260L,
+                            Intellect = 47L,
+                            Stamina = 33L,
+                            Strength = 20L
+                        },
+                        new
+                        {
+                            Class = 2,
+                            Level = 14,
+                            Agility = 33L,
+                            BaseHp = 224L,
+                            BaseMana = 280L,
+                            Intellect = 49L,
+                            Stamina = 34L,
+                            Strength = 20L
+                        },
+                        new
+                        {
+                            Class = 2,
+                            Level = 15,
+                            Agility = 34L,
+                            BaseHp = 240L,
+                            BaseMana = 300L,
+                            Intellect = 51L,
+                            Stamina = 35L,
+                            Strength = 20L
+                        },
+                        new
+                        {
+                            Class = 2,
+                            Level = 16,
+                            Agility = 35L,
+                            BaseHp = 256L,
+                            BaseMana = 320L,
+                            Intellect = 53L,
+                            Stamina = 36L,
+                            Strength = 20L
+                        },
+                        new
+                        {
+                            Class = 3,
+                            Level = 6,
+                            Agility = 33L,
+                            BaseHp = 108L,
+                            BaseMana = 60L,
+                            Intellect = 20L,
+                            Stamina = 25L,
+                            Strength = 26L
+                        },
+                        new
+                        {
+                            Class = 3,
+                            Level = 7,
+                            Agility = 35L,
+                            BaseHp = 126L,
+                            BaseMana = 70L,
+                            Intellect = 20L,
+                            Stamina = 26L,
+                            Strength = 27L
+                        },
+                        new
+                        {
+                            Class = 3,
+                            Level = 8,
+                            Agility = 37L,
+                            BaseHp = 144L,
+                            BaseMana = 80L,
+                            Intellect = 20L,
+                            Stamina = 27L,
+                            Strength = 28L
+                        },
+                        new
+                        {
+                            Class = 3,
+                            Level = 9,
+                            Agility = 39L,
+                            BaseHp = 162L,
+                            BaseMana = 90L,
+                            Intellect = 20L,
+                            Stamina = 28L,
+                            Strength = 29L
+                        },
+                        new
+                        {
+                            Class = 3,
+                            Level = 10,
+                            Agility = 41L,
+                            BaseHp = 180L,
+                            BaseMana = 100L,
+                            Intellect = 20L,
+                            Stamina = 29L,
+                            Strength = 30L
+                        },
+                        new
+                        {
+                            Class = 3,
+                            Level = 11,
+                            Agility = 43L,
+                            BaseHp = 198L,
+                            BaseMana = 110L,
+                            Intellect = 20L,
+                            Stamina = 30L,
+                            Strength = 31L
+                        },
+                        new
+                        {
+                            Class = 3,
+                            Level = 12,
+                            Agility = 45L,
+                            BaseHp = 216L,
+                            BaseMana = 120L,
+                            Intellect = 20L,
+                            Stamina = 31L,
+                            Strength = 32L
+                        },
+                        new
+                        {
+                            Class = 3,
+                            Level = 13,
+                            Agility = 47L,
+                            BaseHp = 234L,
+                            BaseMana = 130L,
+                            Intellect = 20L,
+                            Stamina = 32L,
+                            Strength = 33L
+                        },
+                        new
+                        {
+                            Class = 3,
+                            Level = 14,
+                            Agility = 49L,
+                            BaseHp = 252L,
+                            BaseMana = 140L,
+                            Intellect = 20L,
+                            Stamina = 33L,
+                            Strength = 34L
+                        },
+                        new
+                        {
+                            Class = 3,
+                            Level = 15,
+                            Agility = 51L,
+                            BaseHp = 270L,
+                            BaseMana = 150L,
+                            Intellect = 20L,
+                            Stamina = 34L,
+                            Strength = 35L
+                        },
+                        new
+                        {
+                            Class = 3,
+                            Level = 16,
+                            Agility = 53L,
+                            BaseHp = 288L,
+                            BaseMana = 160L,
+                            Intellect = 20L,
+                            Stamina = 35L,
+                            Strength = 36L
+                        },
+                        new
+                        {
+                            Class = 4,
+                            Level = 6,
+                            Agility = 26L,
+                            BaseHp = 108L,
+                            BaseMana = 120L,
+                            Intellect = 33L,
+                            Stamina = 25L,
+                            Strength = 20L
+                        },
+                        new
+                        {
+                            Class = 4,
+                            Level = 7,
+                            Agility = 27L,
+                            BaseHp = 126L,
+                            BaseMana = 140L,
+                            Intellect = 35L,
+                            Stamina = 26L,
+                            Strength = 20L
+                        },
+                        new
+                        {
+                            Class = 4,
+                            Level = 8,
+                            Agility = 28L,
+                            BaseHp = 144L,
+                            BaseMana = 160L,
+                            Intellect = 37L,
+                            Stamina = 27L,
+                            Strength = 20L
+                        },
+                        new
+                        {
+                            Class = 4,
+                            Level = 9,
+                            Agility = 29L,
+                            BaseHp = 162L,
+                            BaseMana = 180L,
+                            Intellect = 39L,
+                            Stamina = 28L,
+                            Strength = 20L
+                        },
+                        new
+                        {
+                            Class = 4,
+                            Level = 10,
+                            Agility = 30L,
+                            BaseHp = 180L,
+                            BaseMana = 200L,
+                            Intellect = 41L,
+                            Stamina = 29L,
+                            Strength = 20L
+                        },
+                        new
+                        {
+                            Class = 4,
+                            Level = 11,
+                            Agility = 31L,
+                            BaseHp = 198L,
+                            BaseMana = 220L,
+                            Intellect = 43L,
+                            Stamina = 30L,
+                            Strength = 20L
+                        },
+                        new
+                        {
+                            Class = 4,
+                            Level = 12,
+                            Agility = 32L,
+                            BaseHp = 216L,
+                            BaseMana = 240L,
+                            Intellect = 45L,
+                            Stamina = 31L,
+                            Strength = 20L
+                        },
+                        new
+                        {
+                            Class = 4,
+                            Level = 13,
+                            Agility = 33L,
+                            BaseHp = 234L,
+                            BaseMana = 260L,
+                            Intellect = 47L,
+                            Stamina = 32L,
+                            Strength = 20L
+                        },
+                        new
+                        {
+                            Class = 4,
+                            Level = 14,
+                            Agility = 34L,
+                            BaseHp = 252L,
+                            BaseMana = 280L,
+                            Intellect = 49L,
+                            Stamina = 33L,
+                            Strength = 20L
+                        },
+                        new
+                        {
+                            Class = 4,
+                            Level = 15,
+                            Agility = 35L,
+                            BaseHp = 270L,
+                            BaseMana = 300L,
+                            Intellect = 51L,
+                            Stamina = 34L,
+                            Strength = 20L
+                        },
+                        new
+                        {
+                            Class = 4,
+                            Level = 16,
+                            Agility = 36L,
+                            BaseHp = 288L,
+                            BaseMana = 320L,
+                            Intellect = 53L,
+                            Stamina = 35L,
+                            Strength = 20L
                         });
                 });
 
@@ -1380,6 +1864,41 @@ namespace Avalon.Database.World.Migrations
                             SpeedWalk = 2f,
                             SubName = "rooted at the heart of the wold",
                             Type = 4
+                        },
+                        new
+                        {
+                            Id = 11m,
+                            AIName = "",
+                            ArmorModifier = 1f,
+                            BaseAttackTime = 1,
+                            BodyRemoveTimerSecs = 10,
+                            DamageModifier = 1f,
+                            DetectionRange = 20f,
+                            DmgSchool = (short)0,
+                            Experience = 0L,
+                            ExperienceModifier = 1f,
+                            Family = 0,
+                            HealthModifier = 1f,
+                            IconName = "",
+                            Invulnerable = true,
+                            ManaModifier = 1f,
+                            MaxGold = 0,
+                            MaxLevel = (short)1,
+                            MinGold = 0,
+                            MinLevel = (short)1,
+                            MovementId = 0,
+                            MovementType = (short)0,
+                            Name = "Marta Ledgerwell",
+                            RangeAttackTime = 0,
+                            Rarity = 0,
+                            RegenHealth = (short)1,
+                            RespawnTimerSecs = 180,
+                            ScriptName = "TownNpcScript",
+                            SpeedRun = 5f,
+                            SpeedSwim = 1.6f,
+                            SpeedWalk = 2f,
+                            SubName = "Banker",
+                            Type = 7
                         });
                 });
 
@@ -1448,6 +1967,13 @@ namespace Avalon.Database.World.Migrations
                             CreatureTemplateId = 3m,
                             IsRoot = true,
                             TextId = 6
+                        },
+                        new
+                        {
+                            Id = 7,
+                            CreatureTemplateId = 11m,
+                            IsRoot = true,
+                            TextId = 15
                         });
                 });
 
@@ -1458,6 +1984,9 @@ namespace Avalon.Database.World.Migrations
                         .HasColumnType("integer");
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int?>("Action")
+                        .HasColumnType("integer");
 
                     b.Property<int?>("NextNodeId")
                         .HasColumnType("integer");
@@ -1542,6 +2071,22 @@ namespace Avalon.Database.World.Migrations
                             Id = 9,
                             NodeId = 6,
                             SortOrder = (short)0,
+                            TextId = 10
+                        },
+                        new
+                        {
+                            Id = 10,
+                            Action = 0,
+                            NextNodeId = 7,
+                            NodeId = 7,
+                            SortOrder = (short)0,
+                            TextId = 16
+                        },
+                        new
+                        {
+                            Id = 11,
+                            NodeId = 7,
+                            SortOrder = (short)1,
                             TextId = 10
                         });
                 });
@@ -2405,6 +2950,16 @@ namespace Avalon.Database.World.Migrations
                         {
                             Id = 14,
                             Text = "Healer"
+                        },
+                        new
+                        {
+                            Id = 15,
+                            Text = "Coin and keepsakes both, {name}. The vault keeps what the road would take."
+                        },
+                        new
+                        {
+                            Id = 16,
+                            Text = "Open my bank."
                         });
                 });
 
@@ -2508,6 +3063,18 @@ namespace Avalon.Database.World.Migrations
                             TextId = 14,
                             Locale = "ptPT",
                             Text = "Curandeir{g:o|a}"
+                        },
+                        new
+                        {
+                            TextId = 15,
+                            Locale = "ptPT",
+                            Text = "Moedas e recordações, {name}. O cofre guarda o que a estrada levaria."
+                        },
+                        new
+                        {
+                            TextId = 16,
+                            Locale = "ptPT",
+                            Text = "Abre o meu cofre."
                         });
                 });
 
@@ -3387,6 +3954,16 @@ namespace Avalon.Database.World.Migrations
                             OffsetX = 0f,
                             OffsetY = 0f,
                             OffsetZ = 7f
+                        },
+                        new
+                        {
+                            Id = 4,
+                            CreatureTemplateId = 11m,
+                            Facing = 135f,
+                            MapTemplateId = 1,
+                            OffsetX = -6f,
+                            OffsetY = 0f,
+                            OffsetZ = 6f
                         });
                 });
 
