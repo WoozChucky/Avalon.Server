@@ -4,6 +4,7 @@ using Avalon.Common;
 using Avalon.Common.Telemetry;
 using Avalon.Common.ValueObjects;
 using Avalon.Hosting.Networking;
+using Avalon.Hosting.Telemetry;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Generic;
 using Avalon.Common.Accounts;
@@ -44,6 +45,10 @@ public class WorldConnection : Connection, IWorldConnection, IAccessLevelAssigna
     }
 
     public AccountId? AccountId { get; set; }
+
+    /// <summary>Who this connection is, for its packets' spans and log scope.</summary>
+    public PacketTags TelemetryTags() =>
+        new(Id, PacketTags.AddressOf(RemoteEndPoint), AccountId?.Value, _characterEntity?.Data?.Id.Value);
 
     public ICharacter? Character
     {

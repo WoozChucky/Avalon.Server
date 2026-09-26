@@ -2,10 +2,12 @@ using System.Collections.Concurrent;
 using System.Collections.Immutable;
 using System.Reflection;
 using System.Security.Cryptography.X509Certificates;
+using Avalon.Common.Telemetry;
 using Avalon.Configuration;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Domain.Auth;
 using Avalon.Hosting.Networking;
+using Avalon.Hosting.Telemetry;
 using Avalon.Infrastructure;
 using Avalon.Network.Packets;
 using Avalon.Network.Packets.Generic;
@@ -24,7 +26,9 @@ public class AuthServer(
     IOptions<HostingConfiguration> hostingOptions,
     IOptions<HostingSecurity> securityOptions)
     : ServerBase<AuthConnection>(packetManager, loggerFactory.CreateLogger<AuthServer>(),
-        serviceProvider, hostingOptions)
+        serviceProvider, hostingOptions,
+        PacketDispatchTelemetry.From(DiagnosticsConfig.Auth.Source, DiagnosticsConfig.Auth.Meter,
+            hostingOptions.Value.Telemetry))
 {
     private static readonly MethodInfo s_buildContextMethod =
         typeof(AuthServer).GetMethod(nameof(BuildContextFactory), BindingFlags.NonPublic | BindingFlags.Static)
@@ -41,6 +45,9 @@ public class AuthServer(
 
     public new ImmutableArray<IAuthConnection> Connections =>
         TypedConnections.CastArray<IAuthConnection>();
+
+    protected override PacketTags DescribeConnection(IConnection connection) =>
+        base.DescribeConnection(connection) with { AccountId = (connection as IAuthConnection)?.AccountId?.Value };
 
     public X509Certificate2 Certificate { get; private set; }
 

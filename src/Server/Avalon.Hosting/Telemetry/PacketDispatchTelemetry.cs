@@ -6,20 +6,11 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
 using System.Linq;
-using System.Net;
 using Avalon.Configuration;
 using Avalon.Network.Packets.Abstractions;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.Hosting.Telemetry;
-
-/// <summary>Who a packet came from, as its span, metrics and log scope describe it.</summary>
-public readonly record struct PacketTags(Guid ConnectionId, string ClientAddress, long? AccountId, uint? CharacterId)
-{
-    /// <summary>The address without its port: "203.0.113.7:5000" is "203.0.113.7".</summary>
-    public static string AddressOf(string remoteEndPoint) =>
-        IPEndPoint.TryParse(remoteEndPoint, out IPEndPoint? endPoint) ? endPoint.Address.ToString() : remoteEndPoint;
-}
 
 /// <summary>
 /// What every packet handler run records, at both dispatch points: a span (unless its type is too
@@ -96,44 +87,5 @@ public sealed class PacketDispatchTelemetry
         _duration.Record(milliseconds, packetType, new("avalon.outcome", failed ? "error" : "ok"));
         if (failed)
             _errors.Add(1, packetType);
-    }
-}
-
-/// <summary>One handler run. Dispose it when the handler returns; call <see cref="Fail" /> if it threw.</summary>
-public sealed class PacketDispatch : IDisposable
-{
-    private readonly PacketDispatchTelemetry _owner;
-    private readonly NetworkPacketType _type;
-    private readonly Activity? _activity;
-    private readonly IDisposable? _scope;
-    private readonly long _started = Stopwatch.GetTimestamp();
-    private bool _failed;
-    private bool _disposed;
-
-    internal PacketDispatch(PacketDispatchTelemetry owner, NetworkPacketType type, Activity? activity, IDisposable? scope)
-    {
-        _owner = owner;
-        _type = type;
-        _activity = activity;
-        _scope = scope;
-    }
-
-    public void Fail(Exception exception)
-    {
-        _failed = true;
-        _activity?.SetStatus(ActivityStatusCode.Error, exception.Message);
-        _activity?.AddException(exception);
-    }
-
-    public void Dispose()
-    {
-        if (_disposed)
-            return;
-        _disposed = true;
-
-        _owner.Record(_type, Stopwatch.GetElapsedTime(_started).TotalMilliseconds, _failed);
-        _activity?.SetTag("avalon.outcome", _failed ? "error" : "ok");
-        _activity?.Dispose();
-        _scope?.Dispose();
     }
 }

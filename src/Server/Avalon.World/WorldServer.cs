@@ -9,6 +9,7 @@ using Avalon.Common.Telemetry;
 using Avalon.Common.ValueObjects;
 using Avalon.Configuration;
 using Avalon.Hosting.Networking;
+using Avalon.Hosting.Telemetry;
 using Avalon.Infrastructure;
 using Avalon.Network.Packets;
 using Avalon.Network.Packets.Abstractions;
@@ -163,7 +164,9 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         IScriptHotReloader scriptHotReloader,
         ICharacterSaver characterSaver) : base(packetManager, loggerFactory.CreateLogger<WorldServer>(),
         serviceProvider,
-        hostingOptions)
+        hostingOptions,
+        PacketDispatchTelemetry.From(DiagnosticsConfig.World.Source, DiagnosticsConfig.World.Meter,
+            hostingOptions.Value.Telemetry))
     {
         _scriptManager = scriptManager;
         _cache = cache;
@@ -210,6 +213,9 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
 
     public new ImmutableArray<IWorldConnection> Connections =>
         TypedConnections.CastArray<IWorldConnection>();
+
+    protected override PacketTags DescribeConnection(IConnection connection) =>
+        connection is WorldConnection world ? world.TelemetryTags() : base.DescribeConnection(connection);
 
     public IWorld World => _world;
 
