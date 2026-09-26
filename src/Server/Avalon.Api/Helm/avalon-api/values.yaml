@@ -52,10 +52,10 @@ forwardedHeaders:
 replicaCount: 1
 
 image:
-  repository: <YOUR_REGISTRY>/avalon/avalon-api
-  pullPolicy: Always
-  # Overrides the image tag whose default is the chart appVersion.
-  tag: latest
+  repository: ghcr.io/woozchucky/avalon-server/api
+  pullPolicy: IfNotPresent
+  # Empty means the chart's appVersion, which the release sets to the git tag.
+  tag: ""
 
 imagePullSecrets: []
 nameOverride: ""
@@ -87,8 +87,15 @@ resources:
     memory: 256Mi
 
 autoscaling:
-  enabled: true
+  enabled: false
   minReplicas: 1
   maxReplicas: 10
   targetCPUUtilizationPercentage: 80
   targetMemoryUtilizationPercentage: 80
+
+# ASP.NET Core environment. Health endpoints are mapped in every environment.
+environment: Production
+
+mapAssets:
+  # Where the image keeps the World chunk assets (see Avalon.Api.csproj).
+  chunkAssetRoot: /app/Maps

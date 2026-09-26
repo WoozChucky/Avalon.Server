@@ -1,5 +1,5 @@
 apiVersion: apps/v1
-kind: StatefulSet
+kind: Deployment
 metadata:
   name: {{ include "avalon-api.fullname" . }}
   labels:
@@ -90,27 +90,29 @@ spec:
               value: {{ .Values.forwardedHeaders.forwardLimit | quote }}
             - name: DOTNET_HOSTBUILDER__RELOADCONFIGONCHANGE
               value: "false"
+            - name: ASPNETCORE_ENVIRONMENT
+              value: {{ .Values.environment | quote }}
+            - name: Application__MapAssets__ChunkAssetRoot
+              value: {{ .Values.mapAssets.chunkAssetRoot | quote }}
           ports:
             - name: http
               containerPort: {{ .Values.service.port }}
               protocol: TCP
           livenessProbe:
             httpGet:
-              path: /health
+              path: /alive
               port: http
             initialDelaySeconds: 10
-            timeoutSeconds: 30
-            periodSeconds: 60
-            successThreshold: 1
-            failureThreshold: 5
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 3
           readinessProbe:
             httpGet:
               path: /health
               port: http
-            initialDelaySeconds: 10
+            initialDelaySeconds: 5
+            periodSeconds: 10
             timeoutSeconds: 5
-            periodSeconds: 15
-            successThreshold: 1
             failureThreshold: 3
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
