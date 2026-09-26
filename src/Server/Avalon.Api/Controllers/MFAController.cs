@@ -69,16 +69,22 @@ public class MFAController : BaseController
         };
     }
 
+    /// <summary>
+    /// Removes MFA with the recovery codes, and revokes the account's refresh tokens and personal
+    /// access tokens. It enrols nothing (#478 review): the recovery codes are not the password, so
+    /// the client enrols again with <c>POST /mfa/setup</c>, which asks for it.
+    /// </summary>
     [HttpPost("reset", Name = "Reset MFA for the logged account")]
-    public async Task<ActionResult<SetupMFAResponse>> ResetMFA([FromBody] ResetMFARequest request)
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> ResetMFA([FromBody] ResetMFARequest request)
     {
         var account = _authContext.Account!;
         var reset = await _mfaService.ResetMFAAsync(account.Id, request.RecoveryCode1, request.RecoveryCode2, request.RecoveryCode3, CancellationToken);
         if (!reset.Success)
             return Problem(reset.Status.ToString(), statusCode: 400);
 
-        var setup = await _mfaService.SetupMFAAsync(account, _authConfig.Issuer, CancellationToken);
-        return new SetupMFAResponse { Uri = setup.OtpUri! };
+        return NoContent();
     }
 
     [AllowAnonymous]

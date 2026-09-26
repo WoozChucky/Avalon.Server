@@ -105,6 +105,24 @@ public sealed class SensitiveActionReauthenticationShould : IAsyncLifetime
         await _host.Mfa.Received(1).SetupMFAAsync(Arg.Any<Account>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
 
+    /// <summary>
+    /// #478 review: the reset used to enrol a fresh authenticator on the spot, with recovery codes
+    /// and no password. It now only resets (and revokes); enrolling again is <c>POST /mfa/setup</c>,
+    /// which needs the password.
+    /// </summary>
+    [Fact]
+    public async Task Reset_mfa_without_enrolling_a_new_authenticator()
+    {
+        _host.Mfa.ResetMFAAsync(Arg.Any<AccountId>(), "a", "b", "c", Arg.Any<CancellationToken>())
+            .Returns(new MFAResetResult(true, MFAOperationResult.Success));
+
+        using HttpResponseMessage response = await PostAsync("/mfa/reset",
+            new { recoveryCode1 = "a", recoveryCode2 = "b", recoveryCode3 = "c" });
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        await AssertNoSetupAsync();
+    }
+
     [Fact]
     public async Task Refuse_to_mint_a_personal_access_token_without_the_current_password()
     {
