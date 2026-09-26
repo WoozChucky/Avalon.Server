@@ -1,9 +1,12 @@
 using System.IO;
 using Avalon.Common;
+using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Network.Packets.Abilities;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Combat;
+using Avalon.Network.Packets.State;
+using Avalon.Network.Packets.World;
 using Avalon.Server.World.UnitTests.Abilities;
 using Avalon.World;
 using Avalon.World.Handlers;
@@ -15,6 +18,7 @@ using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
 using Avalon.World.Instances;
 using Avalon.World.Public.Abilities;
+using Avalon.World.Public.Maps;
 using NSubstitute;
 using ProtoBuf;
 using Xunit;
@@ -176,5 +180,33 @@ public class MapInstanceAbilityCastShould
         // The watcher stands inside the circle, but an unflagged player is not hostile.
         Assert.Empty(watcher.Read<SCharacterDamagePacket>(NetworkPacketType.SMSG_CHARACTER_DAMAGED));
         Assert.Equal(watcher.Character.Health, watcher.Character.CurrentHealth);
+    }
+
+    /// <summary>A projectile is a world object (#164): it enters every client's view, moves, and leaves it when it ends.</summary>
+    [Fact]
+    public void Spawn_move_and_despawn_a_projectile_through_the_world_object_path()
+    {
+        var scripts = Substitute.For<IScriptManager>();
+        scripts.GetAbilityScript(nameof(ProjectileAbilityScript)).Returns(typeof(ProjectileAbilityScript));
+        var navigator = Substitute.For<IMapNavigator>();
+        navigator.RaycastWalkable(default, default).ReturnsForAnyArgs(ci => ci.ArgAt<Vector3>(1));
+        IWorld world = NewWorld();
+        using MapInstance instance = TestMapInstances.Build(world, scripts, navigator);
+        world.InstanceRegistry.GetInstanceById(instance.InstanceId).Returns(instance);
+        MapInstanceClient caster = Join(instance, 164_151);
+        MapInstanceClient watcher = Join(instance, 164_152);
+        caster.Character.Spells.Load([AbilityTestData.Game(AbilityTestData.Projectile(210, reach: 5f, speed: 20f))]);
+        var handler = new CastAbilityHandler(NullLogger<CastAbilityHandler>.Instance, world, new CombatConfig());
+
+        handler.Execute(caster.Connection,
+            new CCastAbilityPacket { AbilityId = 210, GroundPos = new Vector3Dto { X = 0f, Y = 0f, Z = 5f } });
+        for (int i = 0; i < 30; i++)
+        {
+            instance.Update(Tick);
+        }
+
+        Assert.Empty(caster.Read<SAbilityNotReadyPacket>(NetworkPacketType.SMSG_ABILITY_NOT_READY));
+        ObjectState projectile = Assert.Single(watcher.Added(), s => new ObjectGuid(s.Guid).Type == ObjectType.SpellProjectile);
+        Assert.Contains(projectile.Guid, watcher.Removed());
     }
 }

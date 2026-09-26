@@ -18,7 +18,8 @@ namespace Avalon.Server.World.UnitTests.Instances;
 internal static class TestMapInstances
 {
     /// <param name="scripts">The script manager the instance builds ability scripts from; a substitute that finds none when omitted.</param>
-    public static MapInstance Build(IWorld world, IScriptManager? scripts = null)
+    /// <param name="navigator">The instance's navigator; a bare substitute when omitted.</param>
+    public static MapInstance Build(IWorld world, IScriptManager? scripts = null, IMapNavigator? navigator = null)
     {
         var serviceProvider = Substitute.For<IServiceProvider>();
         serviceProvider.GetService(typeof(IScriptManager)).Returns(scripts ?? Substitute.For<IScriptManager>());
@@ -42,7 +43,7 @@ internal static class TestMapInstances
             new MapTemplateId(1),
             ownerCharacterId: null,
             layout,
-            Substitute.For<IMapNavigator>(),
+            navigator ?? Substitute.For<IMapNavigator>(),
             seed: 0);
     }
 }

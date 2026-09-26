@@ -30,6 +30,16 @@ internal sealed record MapInstanceClient(IWorldConnection Connection, CharacterE
     public List<ObjectState> StateUpdates() => Read<SInstanceStateUpdatePacket>(NetworkPacketType.SMSG_WORLD_STATE_UPDATE)
         .SelectMany(p => p.Updates ?? [])
         .ToList();
+
+    /// <summary>Every object state this client was sent as newly in view, oldest first.</summary>
+    public List<ObjectState> Added() => Read<SInstanceStateAddPacket>(NetworkPacketType.SMSG_WORLD_STATE_ADD)
+        .SelectMany(p => p.Adds ?? [])
+        .ToList();
+
+    /// <summary>Every raw guid this client was told has left its view, oldest first.</summary>
+    public List<ulong> Removed() => Read<SInstanceStateRemovePacket>(NetworkPacketType.SMSG_WORLD_STATE_REMOVE)
+        .SelectMany(p => p.Removes ?? [])
+        .ToList();
 }
 
 /// <summary>
