@@ -109,6 +109,38 @@ public sealed class VendorSaveRoundTripShould : IDisposable
         Assert.False(character.SaveState.HasChanges);
     }
 
+    /// <summary>
+    /// Sold from slot 4, bought back into slot 1 because another item took slot 0 in between, all
+    /// before any save. One save must leave slot 4's row deleted, slot 1 naming the original
+    /// instance, and slot 0 holding the other item (#432).
+    /// </summary>
+    [Fact]
+    public async Task Move_a_sold_item_to_its_new_slot_when_the_buyback_lands_elsewhere_before_any_save()
+    {
+        InventoryItem blade = TestCharacters.Item(4, Blade, durability: 42);
+        CharacterEntity character = await LoadedWithAsync(blade);
+        VendorTrade trade = Trade(character);
+
+        Assert.Equal(VendorResult.Ok, trade.TrySell(true, 4, null));
+        Assert.Equal(InventoryAddResult.Ok, TestCharacters.InventoryFor(character, Find).TryAdd(Tonic.Id, 1));
+        Assert.Equal(VendorResult.Ok, trade.TryBuyback(true, 0));
+        Assert.True(character.Container(InventoryType.Bag).TryGet(0, out InventoryItem tonic));
+        Assert.True(character.Container(InventoryType.Bag).TryGet(1, out InventoryItem back));
+        Assert.Equal(blade.InstanceId, back.InstanceId);
+        await SaveAsync(character);
+
+        List<CharacterInventory> slots = await SlotsAsync();
+        Assert.Equal(blade.InstanceId, Assert.Single(slots, s => s.Slot == 1).ItemId);
+        Assert.DoesNotContain(slots, s => s.Slot == 4);
+        Assert.Equal(tonic.InstanceId, Assert.Single(slots, s => s.Slot == 0).ItemId);
+        Assert.Equal(2, slots.Count);
+        List<ItemInstance> rows = await ItemsAsync();
+        Assert.Equal(42u, Assert.Single(rows, r => r.Id == blade.InstanceId).Durability);
+        Assert.Equal(Tonic.Id, Assert.Single(rows, r => r.Id == tonic.InstanceId).TemplateId);
+        Assert.Equal(2, rows.Count);
+        Assert.False(character.SaveState.HasChanges);
+    }
+
     [Fact]
     public async Task Keep_the_row_when_the_buyback_comes_before_any_save()
     {
