@@ -230,26 +230,51 @@ public class AccountService : IAccountService
     public async Task ChangePasswordAsync(AccountId accountId, string currentPassword, string newPassword, IPAddress ipAddress,
         CancellationToken cancellationToken = default)
     {
-        var account = await _accountRepository.FindByIdAsync(accountId, track: true, cancellationToken);
-        if (account == null)
-            throw new AuthenticationException("Invalid current password");
-
-        var existingHash = Encoding.UTF8.GetString(account.Verifier);
-        if (!BCrypt.Net.BCrypt.Verify(currentPassword, existingHash))
-        {
-            throw new AuthenticationException("Invalid current password");
-        }
+        // Through the login policy (#478): a stolen session guessing the current password here
+        // spends the same budgets, and locks the same account, as guessing it at login.
+        await _reauthentication.RequireCurrentPasswordAsync(accountId, currentPassword, ipAddress, cancellationToken);
 
         var salt = BCrypt.Net.BCrypt.GenerateSalt();
         var hash = BCrypt.Net.BCrypt.HashPassword(newPassword.Trim(), salt);
+        var saltBytes = Encoding.UTF8.GetBytes(salt);
+        var hashBytes = Encoding.UTF8.GetBytes(hash);
 
-        account.Salt = Encoding.UTF8.GetBytes(salt);
-        account.Verifier = Encoding.UTF8.GetBytes(hash);
+        // One transaction: the password is written by column (#484), so a lock or a ban written
+        // since the account was read survives it, and every refresh token and personal access
+        // token the account holds is revoked with it (#483), so none minted with the old password,
+        // or with a stolen session, outlives the change.
+        var changed = await _authTransaction.ExecuteAsync(async (context, token) =>
+        {
+            if (await AccountRepository.SetPasswordAsync(context, accountId, saltBytes, hashBytes, token) == 0)
+                return false;
 
-        await _accountRepository.UpdateAsync(account, cancellationToken);
+            await RefreshTokenRepository.RevokeAllForAccountAsync(context, accountId, token);
+            await PersonalAccessTokenRepository.RevokeAllForAccountAsync(context, accountId, accountId,
+                DateTime.UtcNow, token);
+            return true;
+        }, cancellationToken);
 
-        await _refreshService.RevokeAllForAccountAsync(accountId, cancellationToken);
-        await _cache.PublishAsync(CacheKeys.WorldAccountsDisconnectChannel, accountId.Value.ToString());
+        if (!changed)
+            throw new AuthenticationException(Reauthentication.InvalidPassword);
+
+        await PublishDisconnectAsync(accountId, "its password was changed");
+    }
+
+    /// <summary>
+    /// Kicks any live world session of the account. Best-effort: the change it follows is committed,
+    /// so a Redis failure is logged and the call still succeeds.
+    /// </summary>
+    private async Task PublishDisconnectAsync(AccountId accountId, string reason)
+    {
+        try
+        {
+            await _cache.PublishAsync(CacheKeys.WorldAccountsDisconnectChannel, accountId.Value.ToString());
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not publish a world disconnect for account {AccountId} after {Reason}",
+                accountId.Value, reason);
+        }
     }
 
     public async Task<string> InitiateEmailChangeAsync(AccountId accountId, string newEmail,

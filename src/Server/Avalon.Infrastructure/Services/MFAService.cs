@@ -150,8 +150,28 @@ public class MFAService : IMFAService
         if (!valid)
             return new MFAResetResult(false, MFAOperationResult.InvalidCode);
 
-        // Deleting the setup consumes the codes: they cannot be used again.
-        await _mfaSetupRepository.DeleteAsync(mfaSetup.Id, cancellationToken);
+        // Deleting the setup consumes the codes: they cannot be used again. In the same transaction
+        // every refresh token and personal access token the account holds is revoked (#483), as the
+        // admin removal does, so no session opened before the reset outlives it. False when a
+        // concurrent reset deleted the row first.
+        if (!await _mfaSetupRepository.ResetConfirmedAsync(mfaSetup.Id, accountId, DateTime.UtcNow, cancellationToken))
+            return new MFAResetResult(false, MFAOperationResult.NotEnabled);
+
+        _logger.LogInformation("Account {AccountId} reset its MFA; its refresh and personal access tokens were revoked",
+            accountId.Value);
+
+        // Best-effort, as after the admin removal: the reset is committed, so a Redis failure is
+        // logged and the reset still succeeds.
+        try
+        {
+            await _cache.PublishAsync(CacheKeys.WorldAccountsDisconnectChannel, accountId.Value.ToString());
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not publish a world disconnect for account {AccountId} after its MFA reset",
+                accountId.Value);
+        }
+
         return new MFAResetResult(true, MFAOperationResult.Success);
     }
 

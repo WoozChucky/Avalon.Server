@@ -62,6 +62,14 @@ public class MFAServiceShould
             });
         _repository.When(r => r.DeleteAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()))
             .Do(ci => { if (_row?.Id == ci.Arg<Guid>()) _row = null; });
+        // The reset's delete (with the token revocation it commits alongside, #483).
+        _repository.ResetConfirmedAsync(Arg.Any<Guid>(), Arg.Any<AccountId>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>())
+            .Returns(ci =>
+            {
+                if (_row == null || _row.Id != ci.ArgAt<Guid>(0) || _row.Status != MfaSetupStatus.Confirmed) return false;
+                _row = null;
+                return true;
+            });
 
         _random.GetBytes(Arg.Any<int>()).Returns(ci => RandomNumberGenerator.GetBytes(ci.Arg<int>()));
     }
