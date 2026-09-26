@@ -59,6 +59,11 @@ jobs:
 
       - name: Generate the OpenAPI document
         env:
+          # The generator invokes Program.Main and interrupts it once the host starts, so
+          # the startup work after Build() - migrations, workers, the cache connection -
+          # would run against a Postgres and a Redis this runner does not have. This
+          # tells Program.cs to skip it.
+          AVALON_OPENAPI_GENERATION_ONLY: 'true'
           # Generation is opt-in (see Avalon.Api.csproj) because it boots the host and
           # trips the signing-key guard (#482). This key signs nothing and dies with
           # the runner; generating it here avoids storing a secret that isn't secret.
