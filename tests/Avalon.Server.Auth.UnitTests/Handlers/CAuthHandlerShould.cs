@@ -47,7 +47,7 @@ public class CAuthHandlerShould
 
     private static Account MakeAccount(string username = "TESTUSER", bool locked = false, bool online = false, int failedLogins = 0)
     {
-        var password = BCrypt.Net.BCrypt.HashPassword("correct_password");
+        var password = BCrypt.Net.BCrypt.HashPassword(TestPasswords.Valid);
         return new Account
         {
             Username = username,
@@ -67,7 +67,7 @@ public class CAuthHandlerShould
     {
         var ctx = new AuthPacketContext<CAuthPacket>
         {
-            Packet = new CAuthPacket { Username = null!, Password = "abc" },
+            Packet = new CAuthPacket { Username = null!, Password = TestPasswords.Wrong },
             Connection = _connection
         };
 
@@ -97,7 +97,7 @@ public class CAuthHandlerShould
     {
         var ctx = new AuthPacketContext<CAuthPacket>
         {
-            Packet = new CAuthPacket { Username = "", Password = "pass" },
+            Packet = new CAuthPacket { Username = "", Password = TestPasswords.Wrong },
             Connection = _connection
         };
 
@@ -114,7 +114,7 @@ public class CAuthHandlerShould
 
         var ctx = new AuthPacketContext<CAuthPacket>
         {
-            Packet = new CAuthPacket { Username = "  testUser  ", Password = "pass" },
+            Packet = new CAuthPacket { Username = "  testUser  ", Password = TestPasswords.Wrong },
             Connection = _connection
         };
 
@@ -130,7 +130,7 @@ public class CAuthHandlerShould
 
         var ctx = new AuthPacketContext<CAuthPacket>
         {
-            Packet = new CAuthPacket { Username = "unknown", Password = "pass" },
+            Packet = new CAuthPacket { Username = "unknown", Password = TestPasswords.Wrong },
             Connection = _connection
         };
 
@@ -148,7 +148,7 @@ public class CAuthHandlerShould
 
         var ctx = new AuthPacketContext<CAuthPacket>
         {
-            Packet = new CAuthPacket { Username = "testuser", Password = "pass" },
+            Packet = new CAuthPacket { Username = "testuser", Password = TestPasswords.Wrong },
             Connection = _connection
         };
 
@@ -166,7 +166,7 @@ public class CAuthHandlerShould
 
         var ctx = new AuthPacketContext<CAuthPacket>
         {
-            Packet = new CAuthPacket { Username = "testuser", Password = "wrong_password" },
+            Packet = new CAuthPacket { Username = "testuser", Password = TestPasswords.Wrong },
             Connection = _connection
         };
 
@@ -188,7 +188,7 @@ public class CAuthHandlerShould
 
         var ctx = new AuthPacketContext<CAuthPacket>
         {
-            Packet = new CAuthPacket { Username = "testuser", Password = "wrong_password" },
+            Packet = new CAuthPacket { Username = "testuser", Password = TestPasswords.Wrong },
             Connection = _connection
         };
 
@@ -209,7 +209,7 @@ public class CAuthHandlerShould
 
         var ctx = new AuthPacketContext<CAuthPacket>
         {
-            Packet = new CAuthPacket { Username = "testuser", Password = "wrong_password" },
+            Packet = new CAuthPacket { Username = "testuser", Password = TestPasswords.Wrong },
             Connection = _connection
         };
 
@@ -231,7 +231,7 @@ public class CAuthHandlerShould
 
         var ctx = new AuthPacketContext<CAuthPacket>
         {
-            Packet = new CAuthPacket { Username = "testuser", Password = "wrong_password" },
+            Packet = new CAuthPacket { Username = "testuser", Password = TestPasswords.Wrong },
             Connection = _connection
         };
 
@@ -251,7 +251,7 @@ public class CAuthHandlerShould
 
         var ctx = new AuthPacketContext<CAuthPacket>
         {
-            Packet = new CAuthPacket { Username = "testuser", Password = "correct_password" },
+            Packet = new CAuthPacket { Username = "testuser", Password = TestPasswords.Valid },
             Connection = _connection
         };
 
@@ -287,7 +287,7 @@ public class CAuthHandlerShould
 
         var ctx = new AuthPacketContext<CAuthPacket>
         {
-            Packet = new CAuthPacket { Username = "testuser", Password = "correct_password" },
+            Packet = new CAuthPacket { Username = "testuser", Password = TestPasswords.Valid },
             Connection = _connection
         };
 
@@ -312,7 +312,7 @@ public class CAuthHandlerShould
 
         var ctx = new AuthPacketContext<CAuthPacket>
         {
-            Packet = new CAuthPacket { Username = "testuser", Password = "correct_password" },
+            Packet = new CAuthPacket { Username = "testuser", Password = TestPasswords.Valid },
             Connection = _connection
         };
 
@@ -337,7 +337,7 @@ public class CAuthHandlerShould
 
         var ctx = new AuthPacketContext<CAuthPacket>
         {
-            Packet = new CAuthPacket { Username = "testuser", Password = "correct_password" },
+            Packet = new CAuthPacket { Username = "testuser", Password = TestPasswords.Valid },
             Connection = _connection
         };
 
@@ -372,7 +372,7 @@ public class CAuthHandlerShould
         var handler = new CAuthHandler(NullLoggerFactory.Instance, _accountRepository, _cache, _mfaHashService, mfaSetupRepo, AuthOptions(), _passwordVerifier);
         var ctx = new AuthPacketContext<CAuthPacket>
         {
-            Packet = new CAuthPacket { Username = "testuser", Password = "correct_password" },
+            Packet = new CAuthPacket { Username = "testuser", Password = TestPasswords.Valid },
             Connection = _connection
         };
 
@@ -394,7 +394,7 @@ public class CAuthHandlerShould
         var handler = new CAuthHandler(NullLoggerFactory.Instance, _accountRepository, _cache, _mfaHashService, mfaSetupRepo, AuthOptions(), _passwordVerifier);
         var ctx = new AuthPacketContext<CAuthPacket>
         {
-            Packet = new CAuthPacket { Username = "testuser", Password = "correct_password" },
+            Packet = new CAuthPacket { Username = "testuser", Password = TestPasswords.Valid },
             Connection = _connection
         };
 
@@ -440,7 +440,7 @@ public class CAuthHandlerShould
 
         await _handler.ExecuteAsync(new AuthPacketContext<CAuthPacket>
         {
-            Packet = new CAuthPacket { Username = "testuser", Password = "correct_password" },
+            Packet = new CAuthPacket { Username = "testuser", Password = TestPasswords.Valid },
             Connection = _connection
         });
 
@@ -476,7 +476,7 @@ public class CAuthHandlerShould
 
         await _handler.ExecuteAsync(new AuthPacketContext<CAuthPacket>
         {
-            Packet = new CAuthPacket { Username = "testuser", Password = "wrong_password" },
+            Packet = new CAuthPacket { Username = "testuser", Password = TestPasswords.Wrong },
             Connection = _connection
         });
 
@@ -505,10 +505,10 @@ public class CAuthHandlerShould
         new(NullLoggerFactory.Instance, _accountRepository, _cache, _mfaHashService, _noMfaRepo, options,
             verifier ?? _passwordVerifier);
 
-    private Task LogInAsync(CAuthHandler handler, string username = "testuser", string password = "correct_password") =>
+    private Task LogInAsync(CAuthHandler handler, string username = "testuser", string? password = null) =>
         handler.ExecuteAsync(new AuthPacketContext<CAuthPacket>
         {
-            Packet = new CAuthPacket { Username = username, Password = password },
+            Packet = new CAuthPacket { Username = username, Password = password ?? TestPasswords.Valid },
             Connection = _connection
         });
 
@@ -522,9 +522,9 @@ public class CAuthHandlerShould
         _accountRepository.FindByUserNameAsync(Arg.Any<string>()).Returns((Account?)null);
         var verifier = Substitute.For<IPasswordVerifier>();
 
-        await LogInAsync(CreateHandler(HardeningOptions(), verifier), "nobody", " some_password ");
+        await LogInAsync(CreateHandler(HardeningOptions(), verifier), "nobody", " " + TestPasswords.Wrong + " ");
 
-        verifier.Received(1).Verify("some_password", BCryptPasswordVerifier.UnknownAccountHash);
+        verifier.Received(1).Verify(TestPasswords.Wrong, BCryptPasswordVerifier.UnknownAccountHash);
         Assert.Equal(AuthResult.INVALID_CREDENTIALS, SentResult());
     }
 
@@ -544,9 +544,9 @@ public class CAuthHandlerShould
         _accountRepository.FindByUserNameAsync(Arg.Any<string>()).Returns(MakeAccount());
         var verifier = Substitute.For<IPasswordVerifier>();
 
-        await LogInAsync(CreateHandler(HardeningOptions(), verifier), username, "correct_password");
+        await LogInAsync(CreateHandler(HardeningOptions(), verifier), username, TestPasswords.Valid);
 
-        verifier.Received(1).Verify("correct_password", BCryptPasswordVerifier.UnknownAccountHash);
+        verifier.Received(1).Verify(TestPasswords.Valid, BCryptPasswordVerifier.UnknownAccountHash);
         verifier.ReceivedWithAnyArgs(1).Verify(default!, default!);
         Assert.Equal(AuthResult.INVALID_CREDENTIALS, SentResult());
         await _accountRepository.ReceivedWithAnyArgs(1).FindByUserNameAsync(default!, default);
@@ -566,9 +566,9 @@ public class CAuthHandlerShould
         _accountRepository.FindByUserNameAsync(Arg.Any<string>()).Returns(account);
         var verifier = Substitute.For<IPasswordVerifier>();
 
-        await LogInAsync(CreateHandler(HardeningOptions(), verifier), password: "correct_password");
+        await LogInAsync(CreateHandler(HardeningOptions(), verifier), password: TestPasswords.Valid);
 
-        verifier.Received(1).Verify("correct_password", BCryptPasswordVerifier.UnknownAccountHash);
+        verifier.Received(1).Verify(TestPasswords.Valid, BCryptPasswordVerifier.UnknownAccountHash);
         verifier.ReceivedWithAnyArgs(1).Verify(default!, default!);
         Assert.Equal(AuthResult.LOCKED, SentResult());
     }
@@ -580,7 +580,7 @@ public class CAuthHandlerShould
 
         // Same algorithm and cost as a registered account's hash, so the verify costs the same.
         Assert.Equal(BCrypt.Net.BCrypt.HashPassword("x", BCrypt.Net.BCrypt.GenerateSalt())[..7], hash[..7]);
-        Assert.False(new BCryptPasswordVerifier().Verify("correct_password", hash));
+        Assert.False(new BCryptPasswordVerifier().Verify(TestPasswords.Valid, hash));
     }
 
     [Fact]
@@ -624,7 +624,7 @@ public class CAuthHandlerShould
         account.LockedUntil = DateTime.UtcNow.AddSeconds(-1);
         _accountRepository.FindByUserNameAsync(Arg.Any<string>()).Returns(account);
 
-        await LogInAsync(CreateHandler(HardeningOptions()), password: "wrong_password");
+        await LogInAsync(CreateHandler(HardeningOptions()), password: TestPasswords.Wrong);
 
         // Five failures on the expired lock would re-lock at once if they still counted.
         Assert.Equal(AuthResult.INVALID_CREDENTIALS, SentResult());
@@ -640,7 +640,7 @@ public class CAuthHandlerShould
         _cache.IncrementAsync(UsernameKey, Arg.Any<TimeSpan>()).Returns(5L);
 
         DateTime before = DateTime.UtcNow;
-        await LogInAsync(CreateHandler(HardeningOptions(lockoutMinutes: 30)), password: "wrong_password");
+        await LogInAsync(CreateHandler(HardeningOptions(lockoutMinutes: 30)), password: TestPasswords.Wrong);
         DateTime after = DateTime.UtcNow;
 
         Assert.Equal(AuthResult.LOCKED, SentResult());
@@ -675,7 +675,7 @@ public class CAuthHandlerShould
         _accountRepository.FindByUserNameAsync(Arg.Any<string>()).Returns(account);
         var verifier = Substitute.For<IPasswordVerifier>();
 
-        await LogInAsync(CreateHandler(HardeningOptions(perSource: 10), verifier), password: "wrong_password");
+        await LogInAsync(CreateHandler(HardeningOptions(perSource: 10), verifier), password: TestPasswords.Wrong);
 
         Assert.Equal(AuthResult.LOCKED, SentResult());
         await _accountRepository.DidNotReceiveWithAnyArgs().FindByUserNameAsync(default!, default);
@@ -722,7 +722,7 @@ public class CAuthHandlerShould
     {
         _accountRepository.FindByUserNameAsync(Arg.Any<string>()).Returns(knownUsername ? MakeAccount() : null);
 
-        await LogInAsync(CreateHandler(HardeningOptions(sourceWindowMinutes: 20)), password: "wrong_password");
+        await LogInAsync(CreateHandler(HardeningOptions(sourceWindowMinutes: 20)), password: TestPasswords.Wrong);
 
         Assert.Equal(AuthResult.INVALID_CREDENTIALS, SentResult());
         await _cache.Received(1).IncrementAsync(SourceKey, TimeSpan.FromMinutes(20));
@@ -754,7 +754,7 @@ public class CAuthHandlerShould
 
         // Every request starts before any is let past the lookup, the shape of parallel connections.
         Task[] logins = Enumerable.Range(0, 40)
-            .Select(_ => LogInAsync(handler, password: "wrong_password"))
+            .Select(_ => LogInAsync(handler, password: TestPasswords.Wrong))
             .ToArray();
         gate.SetResult();
         await Task.WhenAll(logins);
@@ -791,7 +791,7 @@ public class CAuthHandlerShould
     {
         _accountRepository.FindByUserNameAsync(Arg.Any<string>()).Returns(MakeAccount());
 
-        await LogInAsync(CreateHandler(HardeningOptions()), password: "wrong_password");
+        await LogInAsync(CreateHandler(HardeningOptions()), password: TestPasswords.Wrong);
 
         await _cache.DidNotReceiveWithAnyArgs().DecrementFloorAsync(default!);
     }
@@ -824,7 +824,7 @@ public class CAuthHandlerShould
         if (expiredLock) account.LockedUntil = DateTime.UtcNow.AddSeconds(-1);
         _accountRepository.FindByUserNameAsync(Arg.Any<string>()).Returns(account);
 
-        await LogInAsync(CreateHandler(HardeningOptions()), password: "wrong_password");
+        await LogInAsync(CreateHandler(HardeningOptions()), password: TestPasswords.Wrong);
 
         Assert.Equal(AuthResult.INVALID_CREDENTIALS, SentResult());
         Received.InOrder(() =>
@@ -847,7 +847,7 @@ public class CAuthHandlerShould
         _accountRepository.FindByUserNameAsync(Arg.Any<string>()).Returns(account);
         _cache.IncrementAsync(UsernameKey, Arg.Any<TimeSpan>()).Returns(1L);
 
-        await LogInAsync(CreateHandler(HardeningOptions()), password: "wrong_password");
+        await LogInAsync(CreateHandler(HardeningOptions()), password: TestPasswords.Wrong);
 
         Assert.Equal(AuthResult.INVALID_CREDENTIALS, SentResult());
         await _accountRepository.Received(1).RecordFailedLoginAsync(account.Id, "127.0.0.1", Arg.Any<DateTime>(),
@@ -865,7 +865,7 @@ public class CAuthHandlerShould
         var account = MakeAccount();
         _accountRepository.FindByUserNameAsync(Arg.Any<string>()).Returns(account);
 
-        await LogInAsync(CreateHandler(HardeningOptions()), password: "wrong_password");
+        await LogInAsync(CreateHandler(HardeningOptions()), password: TestPasswords.Wrong);
 
         await _cache.Received(1).IncrementAsync(sourceKey, Arg.Any<TimeSpan>());
         await _accountRepository.Received(1).RecordFailedLoginAsync(account.Id, address, Arg.Any<DateTime>(),

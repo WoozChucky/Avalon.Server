@@ -47,7 +47,7 @@ public sealed class OfflineWriteRaceShould : IDisposable
             Username = "RACEUSER",
             Email = "race@example.com",
             Salt = new byte[16],
-            Verifier = Encoding.UTF8.GetBytes(BCrypt.Net.BCrypt.HashPassword("correct_password")),
+            Verifier = Encoding.UTF8.GetBytes(BCrypt.Net.BCrypt.HashPassword(TestPasswords.Valid)),
             JoinDate = DateTime.UtcNow,
             LastLogin = DateTime.UtcNow.AddMinutes(-10),
             TotalTime = 100,
@@ -121,7 +121,7 @@ public sealed class OfflineWriteRaceShould : IDisposable
 
         await handler.ExecuteAsync(new AuthPacketContext<CAuthPacket>
         {
-            Packet = new CAuthPacket { Username = "raceuser", Password = "correct_password" },
+            Packet = new CAuthPacket { Username = "raceuser", Password = TestPasswords.Valid },
             Connection = ConnectionWithNoSessions(),
         });
 

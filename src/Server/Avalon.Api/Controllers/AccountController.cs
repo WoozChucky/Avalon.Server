@@ -105,23 +105,37 @@ public class AccountController : BaseController
         return NoContent();
     }
 
-    [HttpPost("email/change")]
-    [ProducesResponseType(StatusCodes.Status202Accepted)]
-    public async Task<IActionResult> InitiateEmailChange([FromBody] AccountEmailChangeRequest req, CancellationToken ct)
-    {
-        await _accountService.InitiateEmailChangeAsync(User.AccountId(), req.NewEmail, ct);
-        return Accepted();
-    }
+    /// <summary>The answer both email-change endpoints give while no email sender exists (#503).</summary>
+    public const string EmailChangeUnavailable = "Email change is unavailable until email delivery exists";
 
+    /// <summary>
+    /// Disabled (owner decision, #503): 501 until an email sender can deliver the confirm token to
+    /// the new address. <see cref="IAccountService.InitiateEmailChangeAsync"/> is kept, re-auth,
+    /// normalisation and all, for when it can; wire it back in here then.
+    /// </summary>
+    [HttpPost("email/change")]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status501NotImplemented)]
+    public Task<IActionResult> InitiateEmailChange([FromBody] AccountEmailChangeRequest req, CancellationToken ct) =>
+        Task.FromResult(EmailChangeRefused());
+
+    /// <summary>Disabled with <see cref="InitiateEmailChange"/> (#503): 501.</summary>
     [AllowAnonymous]
     [HttpPost("email/confirm")]
-    [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> ConfirmEmailChange([FromBody] AccountEmailConfirmRequest req, CancellationToken ct)
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status501NotImplemented)]
+    public Task<IActionResult> ConfirmEmailChange([FromBody] AccountEmailConfirmRequest req, CancellationToken ct) =>
+        Task.FromResult(EmailChangeRefused());
+
+    private IActionResult EmailChangeRefused() => new ObjectResult(new ProblemDetails
     {
-        await _accountService.ConfirmEmailChangeAsync(req.Token, ct);
-        return NoContent();
-    }
+        Status = StatusCodes.Status501NotImplemented,
+        Type = "NotImplemented",
+        Title = "Not implemented",
+        Detail = EmailChangeUnavailable,
+        Instance = $"{Request.Method} {Request.Path}",
+    })
+    {
+        StatusCode = StatusCodes.Status501NotImplemented,
+    };
 
     [AllowAnonymous]
     [HttpPost("logout", Name = "Logout")]
@@ -157,7 +171,7 @@ public class AccountController : BaseController
         [FromBody] AccountRolesPatchRequest req,
         CancellationToken ct)
     {
-        await _accountService.UpdateRolesAsync(new AccountId(id), req.Roles, ct);
+        await _accountService.UpdateRolesAsync(new AccountId(id), req.Roles, User.AccountId(), ct);
         return NoContent();
     }
 

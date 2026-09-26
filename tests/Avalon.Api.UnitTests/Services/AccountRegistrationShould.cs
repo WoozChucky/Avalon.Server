@@ -42,7 +42,6 @@ public class AccountRegistrationShould : IDisposable
             _devices,
             Substitute.For<IReplicatedCache>(),
             Substitute.For<ISecureRandom>(),
-            Substitute.For<IRefreshTokenService>(),
             Substitute.For<IDbTransactionRunner<AuthDbContext>>(),
             new AuthenticationConfig(),
             TestLogin.Password(new AccountRepository(_database), Substitute.For<IReplicatedCache>()),
@@ -53,7 +52,7 @@ public class AccountRegistrationShould : IDisposable
     public async Task Persist_the_account_and_its_device_exactly_once()
     {
         (RegisterResponse _, AccountId accountId) = await _service.Register(
-            new RegisterRequest { Username = "newplayer", Password = "hunter2", Email = "new@avalon.monster" },
+            new RegisterRequest { Username = "newplayer", Password = TestPasswords.Valid, Email = "new@avalon.monster" },
             "test-agent",
             IPAddress.Loopback,
             CancellationToken.None);
@@ -81,14 +80,13 @@ public class AccountRegistrationShould : IDisposable
             spy,
             Substitute.For<IReplicatedCache>(),
             Substitute.For<ISecureRandom>(),
-            Substitute.For<IRefreshTokenService>(),
             Substitute.For<IDbTransactionRunner<AuthDbContext>>(),
             new AuthenticationConfig(),
             TestLogin.Password(new AccountRepository(_database), Substitute.For<IReplicatedCache>()),
             TestLogin.Reauthentication(new AccountRepository(_database), Substitute.For<IReplicatedCache>()));
 
         await service.Register(
-            new RegisterRequest { Username = "navcheck", Password = "hunter2", Email = "nav@avalon.monster" },
+            new RegisterRequest { Username = "navcheck", Password = TestPasswords.Valid, Email = "nav@avalon.monster" },
             "test-agent",
             IPAddress.Loopback,
             CancellationToken.None);
@@ -149,7 +147,6 @@ public class AccountRegistrationShould : IDisposable
             _devices,
             Substitute.For<IReplicatedCache>(),
             Substitute.For<ISecureRandom>(),
-            Substitute.For<IRefreshTokenService>(),
             Substitute.For<IDbTransactionRunner<AuthDbContext>>(),
             new AuthenticationConfig(),
             TestLogin.Password(real, Substitute.For<IReplicatedCache>()),
@@ -172,6 +169,78 @@ public class AccountRegistrationShould : IDisposable
 
         await using AuthDbContext context = _database.CreateDbContext();
         Assert.Equal(1, await context.Accounts.CountAsync(a => a.Username == "TWIN"));
+    }
+
+    private static Task<(RegisterResponse, AccountId)> RegisterAsync(AccountService service, string username, string email) =>
+        service.Register(new RegisterRequest { Username = username, Password = TestPasswords.Valid, Email = email },
+            "test-agent", IPAddress.Loopback, CancellationToken.None);
+
+    /// <summary>#503 follow-up: the service refuses what the request contract refuses, and does not rely on it.</summary>
+    [Theory]
+    [InlineData("x")]
+    [InlineData("\u00FCser@avalon.monster")]
+    [InlineData("   ")]
+    public async Task Refuse_to_register_an_email_that_is_not_an_ascii_address(string email)
+    {
+        BusinessException refused = await Assert.ThrowsAsync<BusinessException>(() => RegisterAsync(_service, "player", email));
+
+        Assert.Equal(AccountEmail.Requirement, refused.Message);
+        await using AuthDbContext context = _database.CreateDbContext();
+        Assert.Equal(0, await context.Accounts.CountAsync(a => a.Username == "PLAYER"));
+    }
+
+    /// <summary>#503: the lookup was exact and the email stored as sent, so these were two accounts.</summary>
+    [Fact]
+    public async Task Refuse_a_second_registration_whose_email_differs_only_in_case()
+    {
+        await RegisterAsync(_service, "first", "player@avalon.monster");
+
+        BusinessException refused = await Assert.ThrowsAsync<BusinessException>(() =>
+            RegisterAsync(_service, "second", " Player@Avalon.Monster"));
+
+        Assert.Equal("Email already exists", refused.Message);
+    }
+
+    [Fact]
+    public async Task Store_the_email_trimmed_and_lower_cased()
+    {
+        (RegisterResponse _, AccountId id) = await RegisterAsync(_service, "mixed", "  Mixed.Case@Avalon.MONSTER ");
+
+        await using AuthDbContext context = _database.CreateDbContext();
+        Assert.Equal("mixed.case@avalon.monster", (await context.Accounts.SingleAsync(a => a.Id == id)).Email);
+    }
+
+    /// <summary>
+    /// #503: two registrations of one email that both pass the check. The unique index refuses the
+    /// second insert, and its caller gets the check's answer.
+    /// </summary>
+    [Fact]
+    public async Task Answer_email_taken_to_a_registration_that_loses_to_the_email_index()
+    {
+        AccountRepository real = new(_database);
+        await RegisterAsync(_service, "first", "player@avalon.monster");
+        // The check ran before the first registration's insert: it saw the email free.
+        IAccountRepository stale = Substitute.For<IAccountRepository>();
+        stale.FindByUserNameAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(call => real.FindByUserNameAsync(call.Arg<string>()));
+        int emailLookups = 0;
+        stale.FindByEmailAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(call =>
+            ++emailLookups == 1 ? Task.FromResult<Account?>(null) : real.FindByEmailAsync(call.Arg<string>()));
+        stale.CreateAsync(Arg.Any<Account>(), Arg.Any<CancellationToken>())
+            .Returns(call => real.CreateAsync(call.Arg<Account>()));
+        AccountService service = new(
+            NullLoggerFactory.Instance, stale, Substitute.For<Avalon.Api.Authentication.Jwt.IJwtUtils>(),
+            Substitute.For<IMFAHashService>(), new MfaSetupRepository(_database), _devices,
+            Substitute.For<IReplicatedCache>(), Substitute.For<ISecureRandom>(), Substitute.For<IDbTransactionRunner<AuthDbContext>>(), new AuthenticationConfig(),
+            TestLogin.Password(real, Substitute.For<IReplicatedCache>()),
+            TestLogin.Reauthentication(real, Substitute.For<IReplicatedCache>()));
+
+        BusinessException refused = await Assert.ThrowsAsync<BusinessException>(() =>
+            RegisterAsync(service, "second", "PLAYER@avalon.monster"));
+
+        Assert.Equal("Email already exists", refused.Message);
+        await using AuthDbContext context = _database.CreateDbContext();
+        Assert.Equal(1, await context.Accounts.CountAsync(a => a.Email == "player@avalon.monster"));
     }
 
     public void Dispose() => _database.Dispose();

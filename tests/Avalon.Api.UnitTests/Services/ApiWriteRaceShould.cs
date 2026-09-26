@@ -33,7 +33,7 @@ namespace Avalon.Api.UnitTests.Services;
 /// </summary>
 public sealed class ApiWriteRaceShould : IDisposable
 {
-    private const string Password = "correct horse";
+    private static readonly string Password = TestPasswords.Valid;
 
     private readonly SqliteAuthDatabase _database = new();
     private readonly AccountRepository _accounts;
@@ -93,8 +93,7 @@ public sealed class ApiWriteRaceShould : IDisposable
 
     private AccountService Service(IAccountRepository accounts) => new(NullLoggerFactory.Instance, accounts,
         Substitute.For<IJwtUtils>(), Substitute.For<IMFAHashService>(), new MfaSetupRepository(_database),
-        new DeviceRepository(_database), _cache, Substitute.For<ISecureRandom>(), Substitute.For<IRefreshTokenService>(),
-        new DbTransactionRunner<AuthDbContext>(_database), new AuthenticationConfig(),
+        new DeviceRepository(_database), _cache, Substitute.For<ISecureRandom>(), new DbTransactionRunner<AuthDbContext>(_database), new AuthenticationConfig(),
         TestLogin.Password(accounts, _cache), TestLogin.Reauthentication(accounts, _cache));
 
     [Fact]
@@ -114,34 +113,39 @@ public sealed class ApiWriteRaceShould : IDisposable
     {
         Account account = await AccountAsync();
 
-        await Service(Stale(account)).ChangePasswordAsync(account.Id, Password, "a new strong one", IPAddress.Loopback);
+        await Service(Stale(account)).ChangePasswordAsync(account.Id, Password, TestPasswords.Third, IPAddress.Loopback);
 
         await AssertBanAndLockSurvivedAsync(account.Id);
         Account stored = await StoredAsync(account.Id);
-        Assert.True(BCrypt.Net.BCrypt.Verify("a new strong one", Encoding.UTF8.GetString(stored.Verifier)));
+        Assert.True(BCrypt.Net.BCrypt.Verify(TestPasswords.Third, Encoding.UTF8.GetString(stored.Verifier)));
     }
 
+    /// <summary>
+    /// The email change was started (with the password) before the ban and the lock; the confirm
+    /// writes the email by column in its own transaction (#503), reading no row to write back.
+    /// </summary>
     [Fact]
     public async Task Keep_a_ban_and_a_lock_written_while_an_email_change_was_being_confirmed()
     {
         Account account = await AccountAsync();
-        _cache.GetAsync("auth:emailChange:token").Returns($"{account.Id.Value}|new@avalon.monster");
+        _cache.GetAsync("auth:emailChange:token").Returns($"{account.Id.Value}|0|new@avalon.monster");
         _cache.RemoveAsync("auth:emailChange:token").Returns(true);
+        await BanAndLockAsync(account.Id);
 
-        await Service(new StaleAccountRepository(_accounts) { BeforeWrite = () => BanAndLockAsync(account.Id) })
-            .ConfirmEmailChangeAsync("token");
+        await Service(_accounts).ConfirmEmailChangeAsync("token");
 
         await AssertBanAndLockSurvivedAsync(account.Id);
         Assert.Equal("new@avalon.monster", (await StoredAsync(account.Id)).Email);
     }
 
+    /// <summary>The role change writes the level by column in its own transaction (#504), reading no row to write back.</summary>
     [Fact]
     public async Task Keep_a_ban_and_a_lock_written_while_roles_were_being_changed()
     {
         Account account = await AccountAsync();
+        await BanAndLockAsync(account.Id);
 
-        await Service(new StaleAccountRepository(_accounts) { BeforeWrite = () => BanAndLockAsync(account.Id) })
-            .UpdateRolesAsync(account.Id, Contract.AccountAccessLevel.GameMaster);
+        await Service(_accounts).UpdateRolesAsync(account.Id, Contract.AccountAccessLevel.GameMaster, new AccountId(1));
 
         await AssertBanAndLockSurvivedAsync(account.Id);
         Assert.Equal(Avalon.Common.Accounts.AccountAccessLevel.GameMaster, (await StoredAsync(account.Id)).AccessLevel);

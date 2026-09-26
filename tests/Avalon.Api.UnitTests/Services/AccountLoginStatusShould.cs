@@ -30,7 +30,7 @@ namespace Avalon.Api.UnitTests.Services;
 /// </summary>
 public class AccountLoginStatusShould
 {
-    private const string Password = "correct horse";
+    private static readonly string Password = TestPasswords.Valid;
 
     private readonly IAccountRepository _accounts = Substitute.For<IAccountRepository>();
     private readonly IJwtUtils _jwt = Substitute.For<IJwtUtils>();
@@ -46,7 +46,6 @@ public class AccountLoginStatusShould
         Substitute.For<IDeviceRepository>(),
         Substitute.For<IReplicatedCache>(),
         Substitute.For<ISecureRandom>(),
-        Substitute.For<IRefreshTokenService>(),
         Substitute.For<IDbTransactionRunner<AuthDbContext>>(),
         new AuthenticationConfig(),
         TestLogin.Password(_accounts, Substitute.For<IReplicatedCache>()),
@@ -113,7 +112,7 @@ public class AccountLoginStatusShould
     {
         AccountIs(status);
 
-        var refused = await Assert.ThrowsAsync<AuthenticationException>(() => LoginAsync("wrong"));
+        var refused = await Assert.ThrowsAsync<AuthenticationException>(() => LoginAsync(TestPasswords.Wrong));
 
         Assert.Equal("Invalid username or password", refused.Message);
         _jwt.DidNotReceiveWithAnyArgs().GenerateJwtToken(default!);

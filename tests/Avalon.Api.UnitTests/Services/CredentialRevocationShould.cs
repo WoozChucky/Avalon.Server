@@ -31,7 +31,7 @@ namespace Avalon.Api.UnitTests.Services;
 /// </summary>
 public sealed class CredentialRevocationShould : IDisposable
 {
-    private const string Password = "correct horse";
+    private static readonly string Password = TestPasswords.Valid;
 
     private readonly SqliteAuthDatabase _database = new();
     private readonly AccountRepository _accounts;
@@ -91,15 +91,14 @@ public sealed class CredentialRevocationShould : IDisposable
     private AccountService AccountService() => new(NullLoggerFactory.Instance, _accounts,
         Substitute.For<IJwtUtils>(), Substitute.For<IMFAHashService>(), new MfaSetupRepository(_database),
         new DeviceRepository(_database), _cache, Substitute.For<ISecureRandom>(),
-        new RefreshTokenService(new RefreshTokenRepository(_database), new SecureRandom(), TimeProvider.System),
         new DbTransactionRunner<AuthDbContext>(_database), new AuthenticationConfig(),
         TestLogin.Password(_accounts, _cache), TestLogin.Reauthentication(_accounts, _cache));
 
     private MFAService MfaService() => new(NullLoggerFactory.Instance, new MfaSetupRepository(_database),
         Substitute.For<IMFAHashService>(), new SecureRandom(), _cache);
 
-    private Task ChangePasswordAsync(AccountId id, string current = Password) =>
-        AccountService().ChangePasswordAsync(id, current, "a new strong one", IPAddress.Loopback);
+    private Task ChangePasswordAsync(AccountId id, string? current = null) =>
+        AccountService().ChangePasswordAsync(id, current ?? Password, TestPasswords.Third, IPAddress.Loopback);
 
     [Fact]
     public async Task Refuse_a_personal_access_token_minted_before_a_password_change()
@@ -114,7 +113,7 @@ public sealed class CredentialRevocationShould : IDisposable
         Assert.True(await AllRefreshTokensRevokedAsync(account.Id));
         await _cache.Received(1).PublishAsync(CacheKeys.WorldAccountsDisconnectChannel, account.Id.Value.ToString());
         Account stored = (await _accounts.FindByIdAsync(account.Id))!;
-        Assert.True(BCrypt.Net.BCrypt.Verify("a new strong one", Encoding.UTF8.GetString(stored.Verifier)));
+        Assert.True(BCrypt.Net.BCrypt.Verify(TestPasswords.Third, Encoding.UTF8.GetString(stored.Verifier)));
     }
 
     [Fact]
@@ -123,7 +122,7 @@ public sealed class CredentialRevocationShould : IDisposable
         Account account = await AccountAsync();
         string pat = await MintPatAsync(account.Id);
 
-        await Assert.ThrowsAsync<AuthenticationException>(() => ChangePasswordAsync(account.Id, "wrong"));
+        await Assert.ThrowsAsync<AuthenticationException>(() => ChangePasswordAsync(account.Id, TestPasswords.Wrong));
 
         Assert.False(await PatIsRefusedAsync(pat));
         Account stored = (await _accounts.FindByIdAsync(account.Id))!;

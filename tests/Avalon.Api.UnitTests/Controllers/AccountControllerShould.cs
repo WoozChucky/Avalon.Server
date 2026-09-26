@@ -113,38 +113,49 @@ public class AccountControllerShould
         var sut = MakeSut(user);
 
         await sut.ChangePassword(
-            new AccountPasswordChangeRequest { CurrentPassword = "a", NewPassword = "newstrong1" },
+            new AccountPasswordChangeRequest { CurrentPassword = TestPasswords.Valid, NewPassword = TestPasswords.Other },
             CancellationToken.None);
 
         await _accountService.Received(1).ChangePasswordAsync(
-            new AccountId(7), "a", "newstrong1", Arg.Any<System.Net.IPAddress>(), Arg.Any<CancellationToken>());
+            new AccountId(7), TestPasswords.Valid, TestPasswords.Other, Arg.Any<System.Net.IPAddress>(), Arg.Any<CancellationToken>());
     }
 
+    /// <summary>
+    /// Owner decision (#503): email change stays off until the confirm token can be delivered by
+    /// email. Both endpoints answer 501 and never reach the service.
+    /// </summary>
     [Fact]
-    public async Task InitiateEmailChange_Delegates()
+    public async Task Refuse_to_start_an_email_change_with_501()
     {
-        var user = User(7, AvalonRoles.Player);
-        _accountService.InitiateEmailChangeAsync(new AccountId(7), "new@t", Arg.Any<CancellationToken>())
-            .Returns("tok");
+        var sut = MakeSut(User(7, AvalonRoles.Player));
 
-        var sut = MakeSut(user);
         var result = await sut.InitiateEmailChange(
-            new AccountEmailChangeRequest { NewEmail = "new@t" }, CancellationToken.None);
+            new AccountEmailChangeRequest { NewEmail = "new@avalon.monster", CurrentPassword = TestPasswords.Valid },
+            CancellationToken.None);
 
-        Assert.IsType<AcceptedResult>(result);
+        AssertEmailChangeUnavailable(result);
+        await _accountService.DidNotReceiveWithAnyArgs().InitiateEmailChangeAsync(default!, default!, default!, default!, default);
     }
 
     [Fact]
-    public async Task ConfirmEmailChange_Delegates()
+    public async Task Refuse_to_confirm_an_email_change_with_501()
     {
-        var user = User(7, AvalonRoles.Player);
-        var sut = MakeSut(user);
+        var sut = MakeSut(User(7, AvalonRoles.Player));
 
         var result = await sut.ConfirmEmailChange(
             new AccountEmailConfirmRequest { Token = "tok" }, CancellationToken.None);
 
-        Assert.IsType<NoContentResult>(result);
-        await _accountService.Received(1).ConfirmEmailChangeAsync("tok", Arg.Any<CancellationToken>());
+        AssertEmailChangeUnavailable(result);
+        await _accountService.DidNotReceiveWithAnyArgs().ConfirmEmailChangeAsync(default!, default);
+    }
+
+    private static void AssertEmailChangeUnavailable(IActionResult result)
+    {
+        var refused = Assert.IsType<ObjectResult>(result);
+        Assert.Equal(StatusCodes.Status501NotImplemented, refused.StatusCode);
+        var problem = Assert.IsType<ProblemDetails>(refused.Value);
+        Assert.Equal(StatusCodes.Status501NotImplemented, problem.Status);
+        Assert.Equal("Email change is unavailable until email delivery exists", problem.Detail);
     }
 
     [Fact]
@@ -227,6 +238,7 @@ public class AccountControllerShould
         await _accountService.Received(1).UpdateRolesAsync(
             new AccountId(7),
             Contract.AccountAccessLevel.Player | Contract.AccountAccessLevel.GameMaster,
+            new AccountId(99),
             Arg.Any<CancellationToken>());
     }
 }

@@ -21,7 +21,7 @@ namespace Avalon.Api.UnitTests.Services;
 /// </summary>
 public sealed class ReauthenticationShould : IDisposable
 {
-    private const string Password = "correct horse";
+    private static readonly string Password = TestPasswords.Valid;
     private const string SourceKey = "auth:source:127.0.0.1:failedLogins";
 
     private readonly SqliteAuthDatabase _database = new();
@@ -79,7 +79,7 @@ public sealed class ReauthenticationShould : IDisposable
     {
         Account account = await AccountAsync();
 
-        await Assert.ThrowsAsync<AuthenticationException>(() => CheckAsync(account, "wrong"));
+        await Assert.ThrowsAsync<AuthenticationException>(() => CheckAsync(account, TestPasswords.Wrong));
 
         Assert.Equal(1, (await StoredAsync(account.Id)).FailedLogins);
         Assert.Equal(1, _cache.CountOf(Assert.Single(_cache.UsernameKeys)));
@@ -91,9 +91,9 @@ public sealed class ReauthenticationShould : IDisposable
     {
         Account account = await AccountAsync();
         for (var i = 1; i < _config.MaxFailedLoginAttempts; i++)
-            await Assert.ThrowsAsync<AuthenticationException>(() => CheckAsync(account, "wrong"));
+            await Assert.ThrowsAsync<AuthenticationException>(() => CheckAsync(account, TestPasswords.Wrong));
 
-        await Assert.ThrowsAsync<AccountLockedException>(() => CheckAsync(account, "wrong"));
+        await Assert.ThrowsAsync<AccountLockedException>(() => CheckAsync(account, TestPasswords.Wrong));
 
         Assert.True((await StoredAsync(account.Id)).Locked);
         await Assert.ThrowsAsync<AccountLockedException>(() => CheckAsync(account, Password));
@@ -112,7 +112,7 @@ public sealed class ReauthenticationShould : IDisposable
     public async Task Give_back_only_its_own_slots_for_the_right_password()
     {
         Account account = await AccountAsync();
-        await Assert.ThrowsAsync<AuthenticationException>(() => CheckAsync(account, "wrong"));
+        await Assert.ThrowsAsync<AuthenticationException>(() => CheckAsync(account, TestPasswords.Wrong));
 
         await CheckAsync(account, Password);
 

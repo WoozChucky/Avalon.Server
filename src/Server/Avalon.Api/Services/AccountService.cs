@@ -33,10 +33,12 @@ public interface IAccountService
     Task<PagedResult<Account>> Paginate(AccountPaginateFilters filters, CancellationToken cancellationToken = default);
     Task ChangePasswordAsync(AccountId accountId, string currentPassword, string newPassword, IPAddress ipAddress,
         CancellationToken cancellationToken = default);
-    Task<string> InitiateEmailChangeAsync(AccountId accountId, string newEmail, CancellationToken cancellationToken = default);
+    Task<string> InitiateEmailChangeAsync(AccountId accountId, string newEmail, string currentPassword,
+        IPAddress ipAddress, CancellationToken cancellationToken = default);
     Task ConfirmEmailChangeAsync(string token, CancellationToken cancellationToken = default);
     Task UpdateStatusAsync(AccountId accountId, Avalon.Api.Contract.AccountStatus state, string? reason, AccountId actorId, CancellationToken cancellationToken = default);
-    Task UpdateRolesAsync(AccountId accountId, Avalon.Api.Contract.AccountAccessLevel roles, CancellationToken cancellationToken = default);
+    Task UpdateRolesAsync(AccountId accountId, Avalon.Api.Contract.AccountAccessLevel roles, AccountId actorId,
+        CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Removes MFA from <paramref name="accountId"/> on behalf of admin <paramref name="actorId"/>.
@@ -57,7 +59,6 @@ public class AccountService : IAccountService
     private readonly IDeviceRepository _deviceRepository;
     private readonly IReplicatedCache _cache;
     private readonly ISecureRandom _secureRandom;
-    private readonly IRefreshTokenService _refreshService;
     private readonly IDbTransactionRunner<AuthDbContext> _authTransaction;
     private readonly AuthenticationConfig _authConfig;
     private readonly PasswordLoginPolicy _loginPolicy;
@@ -71,7 +72,6 @@ public class AccountService : IAccountService
         IDeviceRepository deviceRepository,
         IReplicatedCache cache,
         ISecureRandom secureRandom,
-        IRefreshTokenService refreshService,
         IDbTransactionRunner<AuthDbContext> authTransaction,
         AuthenticationConfig authConfig,
         PasswordLoginPolicy loginPolicy,
@@ -85,7 +85,6 @@ public class AccountService : IAccountService
         _deviceRepository = deviceRepository;
         _cache = cache;
         _secureRandom = secureRandom;
-        _refreshService = refreshService;
         _authTransaction = authTransaction;
         _authConfig = authConfig;
         _loginPolicy = loginPolicy;
@@ -168,6 +167,8 @@ public class AccountService : IAccountService
 
     private const string InvalidCredentials = "Invalid username or password";
     private const string UsernameTaken = "Username already exists";
+    private const string EmailTaken = "Email already exists";
+    private const string InvalidEmailToken = "Invalid or expired token";
 
     /// <summary>The answer to a failed password in this attempt's budget slot: locked in the last one.</summary>
     private Exception FailureFor(PasswordAttempt attempt) =>
@@ -184,17 +185,21 @@ public class AccountService : IAccountService
         // The request contract checks this too; the service does not rely on it.
         if (!UsernameRule.IsValid(model.Username))
             throw new BusinessException(UsernameRule.Requirement);
+        if (!AccountEmail.IsValid(model.Email))
+            throw new BusinessException(AccountEmail.Requirement);
 
-        var sourceKey = await TakeRegistrationSlotAsync(ipAddress);
+        var sourceKey = await TakeSourceSlotAsync(ipAddress, "Registration");
 
         var username = model.Username.ToUpperInvariant().Trim();
         var existingAccount = await _accountRepository.FindByUserNameAsync(username, cancellationToken);
         if (existingAccount != null)
             throw new BusinessException(UsernameTaken);
 
-        existingAccount = await _accountRepository.FindByEmailAsync(model.Email, cancellationToken);
+        // Stored, and so compared, trimmed and lower-cased (#503): A@x.com is a@x.com's account.
+        var email = AccountEmail.Normalise(model.Email);
+        existingAccount = await _accountRepository.FindByEmailAsync(email, cancellationToken);
         if (existingAccount != null)
-            throw new BusinessException("Email already exists");
+            throw new BusinessException(EmailTaken);
 
         var salt = BCrypt.Net.BCrypt.GenerateSalt();
         var hash = BCrypt.Net.BCrypt.HashPassword(model.Password.Trim(), salt);
@@ -205,7 +210,7 @@ public class AccountService : IAccountService
         var account = new Account
         {
             Username = username,
-            Email = model.Email,
+            Email = email,
             Salt = saltBytes,
             Verifier = hashBytes,
             LastIp = ipAddress.ToString(),
@@ -238,14 +243,18 @@ public class AccountService : IAccountService
         }, account.Id);
     }
 
-    /// <summary>Takes the registration's slot from its source's budget (#495); 429 LOCKED past it.</summary>
-    private async Task<string> TakeRegistrationSlotAsync(IPAddress ipAddress)
+    /// <summary>
+    /// Takes a slot from the source's budget (#495) for a step that answers whether a name or an
+    /// address is taken (registration, and the start of an email change, #503 review); 429 LOCKED
+    /// past it. The caller gives it back only when the step succeeds.
+    /// </summary>
+    private async Task<string> TakeSourceSlotAsync(IPAddress ipAddress, string action)
     {
         var sourceKey = LoginSource.FromAddress(ipAddress).Key;
         if (await SourceBudget.TryTakeAsync(_cache, _authConfig, sourceKey))
             return sourceKey;
 
-        _logger.LogWarning("Registration refused for source {SourceKey}: too many attempts", sourceKey);
+        _logger.LogWarning("{Action} refused for source {SourceKey}: too many attempts", action, sourceKey);
         throw new AccountLockedException();
     }
 
@@ -268,10 +277,10 @@ public class AccountService : IAccountService
     }
 
     /// <summary>
-    /// Inserts a new account. The "taken" check before it and this insert are not atomic: a
-    /// registration of the same name can land in between, and the unique index on Username
-    /// refuses this one (#487). Its caller gets the answer the check would have given; any other
-    /// failure is rethrown. The insert takes a slot of the source's creation cap first, given back
+    /// Inserts a new account. The "taken" checks before it and this insert are not atomic: a
+    /// registration of the same name or email can land in between, and the unique index on
+    /// Username (#487) or Email (#503) refuses this one. Its caller gets the answer the check would
+    /// have given; any other failure is rethrown. The insert takes a slot of the source's creation cap first, given back
     /// when no account comes of it.
     /// </summary>
     private async Task<Account> InsertAccountAsync(Account account, IPAddress ipAddress,
@@ -287,6 +296,8 @@ public class AccountService : IAccountService
             await AttemptBudget.GiveBackAsync(_cache, creationKey);
             if (await _accountRepository.FindByUserNameAsync(account.Username, cancellationToken) != null)
                 throw new BusinessException(UsernameTaken, ex);
+            if (await _accountRepository.FindByEmailAsync(account.Email, cancellationToken) != null)
+                throw new BusinessException(EmailTaken, ex);
             throw;
         }
         catch
@@ -381,41 +392,108 @@ public class AccountService : IAccountService
         }
     }
 
-    public async Task<string> InitiateEmailChangeAsync(AccountId accountId, string newEmail,
-        CancellationToken cancellationToken = default)
+    /// <summary>
+    /// Starts an email change (#503). Needs the current password, checked by the login policy as
+    /// for a password change, so a session alone cannot take the account's email. The new address
+    /// is normalised and refused as "Email already exists" when another account holds it. The
+    /// pending change records the credentials version the password was checked at: a credentials
+    /// change before the confirm voids it.
+    /// </summary>
+    /// <remarks>
+    /// The token is returned to the in-process caller, never in the HTTP response. Nothing
+    /// delivers it yet: the API has no email sender (see #503).
+    /// </remarks>
+    public async Task<string> InitiateEmailChangeAsync(AccountId accountId, string newEmail, string currentPassword,
+        IPAddress ipAddress, CancellationToken cancellationToken = default)
     {
+        if (!AccountEmail.IsValid(newEmail))
+            throw new BusinessException(AccountEmail.Requirement);
+
+        var proof = await _reauthentication.RequireCurrentPasswordAsync(accountId, currentPassword, ipAddress,
+            cancellationToken);
+
+        // "Email already exists" says whether an address has an account. The proof above gave back
+        // its own slots, so this answer takes one of its own (#503 review), as registration does,
+        // kept unless the change is started: a stolen password cannot test addresses for free.
+        var sourceKey = await TakeSourceSlotAsync(ipAddress, "Email change");
+
+        var email = AccountEmail.Normalise(newEmail);
+        if (await _accountRepository.FindByEmailAsync(email, cancellationToken) != null)
+            throw new BusinessException(EmailTaken);
+
         var raw = _secureRandom.GetBytes(24);
         var token = Convert.ToBase64String(raw).Replace("+", "-").Replace("/", "_").TrimEnd('=');
 
-        var payload = $"{accountId.Value}|{newEmail}";
-        var key = $"auth:emailChange:{token}";
-        await _cache.SetAsync(key, payload, TimeSpan.FromMinutes(15));
+        // The email goes last: it is the only part that can hold the separator.
+        var payload = string.Create(System.Globalization.CultureInfo.InvariantCulture,
+            $"{accountId.Value}|{proof.CredentialsVersion}|{email}");
+        await _cache.SetAsync(EmailChangeKey(token), payload, TimeSpan.FromMinutes(15));
 
+        await SourceBudget.GiveBackAsync(_cache, sourceKey);
         return token;
     }
 
+    private static string EmailChangeKey(string token) => $"auth:emailChange:{token}";
+
+    /// <summary>
+    /// Confirms an email change: a credentials change (#503). One transaction writes the email by
+    /// column and raises the credentials version, only while the account is still at the version
+    /// the change was started at, and revokes every refresh token and personal access token; the
+    /// account is then published on the disconnect channel, best-effort.
+    /// </summary>
     public async Task ConfirmEmailChangeAsync(string token, CancellationToken cancellationToken = default)
     {
-        var key = $"auth:emailChange:{token}";
+        var key = EmailChangeKey(token);
         var payload = await _cache.GetAsync(key)
-            ?? throw new BusinessException("Invalid or expired token");
+            ?? throw new BusinessException(InvalidEmailToken);
         // The DEL spends the token, not the GET (#478 review): two confirms can both read it, and
         // only the one whose delete removed it goes on.
         if (!await _cache.RemoveAsync(key))
-            throw new BusinessException("Invalid or expired token");
+            throw new BusinessException(InvalidEmailToken);
 
-        var parts = payload.Split('|', 2);
-        if (parts.Length != 2)
+        // {accountId}|{credentialsVersion}|{email}. A token from before #503 has no version and is
+        // refused; it would expire within 15 minutes anyway.
+        var parts = payload.Split('|', 3);
+        if (parts.Length != 3
+            || !long.TryParse(parts[0], System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out long id)
+            || !int.TryParse(parts[1], System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out int version))
             throw new BusinessException("Invalid token payload");
 
-        var accountId = new AccountId(long.Parse(parts[0]));
-        var newEmail = parts[1];
+        var accountId = new AccountId(id);
+        var newEmail = parts[2];
 
-        // By column (#478): a lock or a ban written since the account was last read survives it.
-        if (!await _accountRepository.SetEmailAsync(accountId, newEmail, cancellationToken))
-            throw new BusinessException("Account not found");
+        bool changed;
+        try
+        {
+            changed = await _authTransaction.ExecuteAsync(async (context, ct) =>
+            {
+                // By column (#478), and the version raised in the same statement, the first of the
+                // transaction, so its row lock orders it against a concurrent credential issue.
+                if (await AccountRepository.SetEmailAsync(context, accountId, newEmail, version, ct) == 0)
+                    return false;
 
-        await _refreshService.RevokeAllForAccountAsync(accountId, cancellationToken);
+                await RefreshTokenRepository.RevokeAllForAccountAsync(context, accountId, ct);
+                await PersonalAccessTokenRepository.RevokeAllForAccountAsync(context, accountId, accountId,
+                    DateTime.UtcNow, ct);
+                return true;
+            }, cancellationToken);
+        }
+        catch (System.Data.Common.DbException ex)
+        {
+            // Another account took the address between the start and this confirm: the unique index.
+            // A bulk update bypasses SaveChanges, so the provider's own exception arrives here.
+            if (await _accountRepository.FindByEmailAsync(newEmail, cancellationToken) != null)
+                throw new BusinessException(EmailTaken, ex);
+            throw;
+        }
+
+        // The account is gone, or its credentials changed since the change was started.
+        if (!changed)
+            throw new BusinessException(InvalidEmailToken);
+
+        // A login past its password step holds an MFA hash made at the old version: it can no
+        // longer complete, and clearing it frees the account's hash slot, as after a password change.
+        await ClearPendingMfaAsync(accountId, "its email was changed");
         await PublishDisconnectAsync(accountId, "its email was changed");
     }
 
@@ -449,12 +527,38 @@ public class AccountService : IAccountService
         }
     }
 
-    public async Task UpdateRolesAsync(AccountId accountId, Avalon.Api.Contract.AccountAccessLevel roles, CancellationToken cancellationToken = default)
+    public async Task UpdateRolesAsync(AccountId accountId, Avalon.Api.Contract.AccountAccessLevel roles,
+        AccountId actorId, CancellationToken cancellationToken = default)
     {
-        // By column (#478): a lock or a ban written since the account was last read survives it.
-        if (!await _accountRepository.SetAccessLevelAsync(accountId, (Avalon.Common.Accounts.AccountAccessLevel)roles,
-                cancellationToken))
+        // A role change is a credentials change (#504), for a promotion as for a demotion. One
+        // transaction: the level is written by column (#478), so a lock or a ban written since the
+        // account was last read survives it, and the credentials version is raised in the same
+        // statement, which refuses every access token, refresh token, pending MFA hash and world key
+        // issued before it. Every refresh token and personal access token goes with it, as for a
+        // password change. The account then signs in again, which is what gets the new roles onto a
+        // game-client connection (the TCP session holds the roles it logged in with).
+        var found = await _authTransaction.ExecuteAsync(async (context, token) =>
+        {
+            if (await AccountRepository.SetAccessLevelAsync(context, accountId,
+                    (Avalon.Common.Accounts.AccountAccessLevel)roles, token) == 0)
+                return false;
+
+            await RefreshTokenRepository.RevokeAllForAccountAsync(context, accountId, token);
+            await PersonalAccessTokenRepository.RevokeAllForAccountAsync(context, accountId, actorId,
+                DateTime.UtcNow, token);
+            return true;
+        }, cancellationToken);
+
+        if (!found)
             throw new BusinessException("Account not found");
+
+        _logger.LogInformation("Account {ActorId} set the roles of account {AccountId} to {Roles}; its sessions were ended",
+            actorId.Value, accountId.Value, roles);
+
+        // Kicks the account's world and auth-server connections, after clearing a pending MFA login
+        // made at the old version. Both best-effort: the change is committed.
+        await ClearPendingMfaAsync(accountId, "its roles were changed");
+        await PublishDisconnectAsync(accountId, "its roles were changed");
     }
 
     /// <inheritdoc />

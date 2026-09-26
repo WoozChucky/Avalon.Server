@@ -17,8 +17,8 @@ internal sealed class StaleAccountRepository(IAccountRepository inner) : IAccoun
     public Func<Task>? AfterRead { get; init; }
 
     /// <summary>
-    /// Runs just before a whole-row update or a single-column email or access-level write: another
-    /// writer landing between whatever the request read and its own write, whether it read or not.
+    /// Runs just before a whole-row update: another writer landing between whatever the request read
+    /// and its own write, whether it read or not.
     /// </summary>
     public Func<Task>? BeforeWrite { get; init; }
 
@@ -52,19 +52,6 @@ internal sealed class StaleAccountRepository(IAccountRepository inner) : IAccoun
     public Task<bool> TryRecordApiLoginAsync(AccountId id, string lastIp, DateTime now,
         CancellationToken cancellationToken = default) =>
         inner.TryRecordApiLoginAsync(id, lastIp, now, cancellationToken);
-
-    public async Task<bool> SetEmailAsync(AccountId id, string email, CancellationToken cancellationToken = default)
-    {
-        if (BeforeWrite != null) await BeforeWrite();
-        return await inner.SetEmailAsync(id, email, cancellationToken);
-    }
-
-    public async Task<bool> SetAccessLevelAsync(AccountId id, Avalon.Common.Accounts.AccountAccessLevel accessLevel,
-        CancellationToken cancellationToken = default)
-    {
-        if (BeforeWrite != null) await BeforeWrite();
-        return await inner.SetAccessLevelAsync(id, accessLevel, cancellationToken);
-    }
 
     public Task MarkOfflineAsync(AccountId id, Guid? sessionId, long sessionSeconds = 0,
         CancellationToken cancellationToken = default) =>

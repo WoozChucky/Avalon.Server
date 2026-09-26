@@ -20,8 +20,12 @@ public class AccountPaginateFilters : EntityPaginateFilter<Account>
         if (Username != null)
             predicate = predicate.And(a => a.Username == Username);
 
+        // Emails are stored normalised (#503), so the filter is compared in that form too.
         if (Email != null)
-            predicate = predicate.And(a => a.Email == Email);
+        {
+            string email = AccountEmail.Normalise(Email);
+            predicate = predicate.And(a => a.Email == email);
+        }
 
         return predicate;
     }

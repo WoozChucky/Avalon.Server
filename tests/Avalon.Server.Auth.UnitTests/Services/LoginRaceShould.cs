@@ -42,7 +42,7 @@ public sealed class LoginRaceShould : IDisposable
         Username = "RACEUSER",
         Email = "race@example.com",
         Salt = new byte[16],
-        Verifier = Encoding.UTF8.GetBytes(BCrypt.Net.BCrypt.HashPassword("correct_password")),
+        Verifier = Encoding.UTF8.GetBytes(BCrypt.Net.BCrypt.HashPassword(TestPasswords.Valid)),
         JoinDate = DateTime.UtcNow,
         LastLogin = DateTime.UtcNow,
     };
@@ -97,7 +97,7 @@ public sealed class LoginRaceShould : IDisposable
         {
             await handler.ExecuteAsync(new AuthPacketContext<CAuthPacket>
             {
-                Packet = new CAuthPacket { Username = "raceuser", Password = "wrong_password" },
+                Packet = new CAuthPacket { Username = "raceuser", Password = TestPasswords.Wrong },
                 Connection = Connection(),
             });
         }
@@ -128,7 +128,7 @@ public sealed class LoginRaceShould : IDisposable
 
         await handler.ExecuteAsync(new AuthPacketContext<CAuthPacket>
         {
-            Packet = new CAuthPacket { Username = "raceuser", Password = "correct_password" },
+            Packet = new CAuthPacket { Username = "raceuser", Password = TestPasswords.Valid },
             Connection = connection,
         });
 

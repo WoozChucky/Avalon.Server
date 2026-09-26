@@ -113,6 +113,9 @@ public class AuthDbContext : DbContext
     /// <summary>The check constraint that holds <c>Accounts.Username</c> trimmed and upper-cased (#487).</summary>
     public const string UsernameNormalisedConstraint = "CK_Accounts_Username_Normalised";
 
+    /// <summary>The check constraint that holds <c>Accounts.Email</c> trimmed and lower-cased (#503).</summary>
+    public const string EmailNormalisedConstraint = "CK_Accounts_Email_Normalised";
+
     private static void Configure(EntityTypeBuilder<Account> builder)
     {
         builder.Property(b => b.Id)
@@ -132,6 +135,14 @@ public class AuthDbContext : DbContext
         // expression runs on Postgres and on the SQLite the tests use.
         builder.ToTable(t => t.HasCheckConstraint(UsernameNormalisedConstraint,
             "\"Username\" = upper(trim(\"Username\"))"));
+
+        // One account per email (#503), on the form every writer stores and every lookup uses:
+        // trimmed and lower-cased (AccountEmail.Normalise). Before it, the lookup was exact and the
+        // email stored as sent, so A@x.com and a@x.com could be two accounts. The check constraint
+        // holds every writer to that form, as for the username.
+        builder.HasIndex(b => b.Email).IsUnique();
+        builder.ToTable(t => t.HasCheckConstraint(EmailNormalisedConstraint,
+            "\"Email\" = lower(trim(\"Email\"))"));
 
         builder.Property(b => b.Locale)
             .HasConversion(new EnumToStringConverter<AccountLocale>());

@@ -160,7 +160,7 @@ public sealed class MfaSetupRowShould : IDisposable
 
         await handler.ExecuteAsync(new AuthPacketContext<CAuthPacket>
         {
-            Packet = new CAuthPacket { Username = "mfauser", Password = "correct_password" },
+            Packet = new CAuthPacket { Username = "mfauser", Password = TestPasswords.Valid },
             Connection = connection,
         });
 
@@ -192,7 +192,7 @@ public sealed class MfaSetupRowShould : IDisposable
         Username = "MFAUSER",
         Email = "mfauser@example.com",
         Salt = new byte[16],
-        Verifier = Encoding.UTF8.GetBytes(BCrypt.Net.BCrypt.HashPassword("correct_password")),
+        Verifier = Encoding.UTF8.GetBytes(BCrypt.Net.BCrypt.HashPassword(TestPasswords.Valid)),
         SessionKey = [],
         LastIp = "127.0.0.1",
         LastAttemptIp = string.Empty,

@@ -12,21 +12,32 @@ public class PasswordChangeRequestShould
 {
     private static bool IsValid(string newPassword)
     {
-        var request = new AccountPasswordChangeRequest { CurrentPassword = "current", NewPassword = newPassword };
+        var request = new AccountPasswordChangeRequest { CurrentPassword = TestPasswords.Valid, NewPassword = newPassword };
         return Validator.TryValidateObject(request, new ValidationContext(request), new List<ValidationResult>(),
             validateAllProperties: true);
     }
 
+    // Built at run time, so no source line holds a password-looking literal.
+    public static TheoryData<string> TooShort => new()
+    {
+        "   " + TestPasswords.OfLength(3) + "    ",
+        "        ",
+        " " + TestPasswords.OfLength(7) + " ",
+    };
+
+    public static TheoryData<string> LongEnough => new()
+    {
+        TestPasswords.OfLength(8),
+        "  " + TestPasswords.Valid + "  ",
+    };
+
     [Theory]
-    [InlineData("   abc    ")]
-    [InlineData("        ")]
-    [InlineData(" 1234567 ")]
+    [MemberData(nameof(TooShort))]
     public void Refuse_a_new_password_shorter_than_eight_once_trimmed(string newPassword) =>
         Assert.False(IsValid(newPassword));
 
     [Theory]
-    [InlineData("12345678")]
-    [InlineData("  a strong one  ")]
+    [MemberData(nameof(LongEnough))]
     public void Accept_a_new_password_of_eight_or_more_once_trimmed(string newPassword) =>
         Assert.True(IsValid(newPassword));
 }
