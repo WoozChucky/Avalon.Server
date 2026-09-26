@@ -33,20 +33,31 @@ Section in `appsettings.json`: `"Application"`
 | `ServerVersion`             | string | `"1.0.0"` | Server version sent in `SServerInfoPacket` to clients |
 | `MaxFailedLoginAttempts`    | int    | `5`       | Failed password or MFA-code attempts at one username, from every source, before it is locked (counted in Redis, #484) |
 | `LockoutDurationMinutes`    | int    | `15`      | The window those attempts are counted over, and how long the lock lasts from the failure that set it |
+| `MaxFailedLoginsPerSource`  | int    | `10`      | Password and MFA-code attempts one source address may make, across every account, per window (#471) |
+| `FailedLoginSourceWindowMinutes` | int | `15`   | The window, fixed from a source's first attempt, those are counted over |
+| `MaxFailedMfaAttempts`      | int    | `5`       | Codes one MFA hash allows; the last wrong one deletes the hash |
 | `Issuer`                    | string | `"Avalon"` | Issuer name embedded in MFA OTP URIs           |
+
+The five login limits are shared with the REST API (#478): both servers spend the same Redis budgets, so
+the API's `Application:Authentication` values of the same names must match these. See
+[REST API Login Limits](#rest-api-login-limits).
 
 ```json
 "Application": {
   "MinClientVersion": "0.0.1",
   "ServerVersion": "1.0.0",
   "MaxFailedLoginAttempts": 5,
+  "LockoutDurationMinutes": 15,
+  "MaxFailedLoginsPerSource": 10,
+  "FailedLoginSourceWindowMinutes": 15,
+  "MaxFailedMfaAttempts": 5,
   "Issuer": "Avalon"
 }
 ```
 
 **Validation rules:**
 - `MinClientVersion`, `ServerVersion`: required, must match `^\d+\.\d+\.\d+$` (SemVer).
-- `MaxFailedLoginAttempts`: minimum `1`.
+- The five login limits: minimum `1`.
 - `Issuer`: required, non-empty.
 
 ---
@@ -197,6 +208,35 @@ The Helm chart passes it, with the other secrets, through a Kubernetes Secret (`
 you manage, named by `existingSecret`, or one the chart creates from `--set-file
 authentication.issuerSigningKey=<file>`. It refuses to render with neither. The `ValidateIssuerKey` setting
 is gone: the signing key is always validated.
+
+---
+
+## REST API Login Limits
+
+Section: `Application:Authentication` in `Avalon.Api` (#478)
+
+| Key                              | Type | Default | Description |
+|----------------------------------|------|---------|-------------|
+| `MaxFailedLoginAttempts`         | int  | `5`     | Password and MFA-code attempts at one username, from every source and both servers, before it is locked |
+| `LockoutDurationMinutes`         | int  | `15`    | That budget's window, and how long the lock lasts |
+| `MaxFailedLoginsPerSource`       | int  | `10`    | Attempts one source address may make, across every account, per window |
+| `FailedLoginSourceWindowMinutes` | int  | `15`    | The source budget's window |
+| `MaxFailedMfaAttempts`           | int  | `5`     | Codes one MFA hash allows |
+
+The REST login, MFA verify and the current-password checks (password change, `POST /mfa/setup`,
+`POST /pat`, `POST /pat/admin`) run the Auth server's login policy over **the same Redis keys**, so these
+must equal the Auth server's `Application:*` values of the same names: a key counted against two
+different limits locks at whichever is lower. The defaults match. The section is bound without validated
+options, so `AddInfrastructure` refuses a value below `1` at startup, naming the setting.
+
+```bash
+Application__Authentication__MaxFailedLoginAttempts=5
+```
+
+The per-source budget keys on the caller's address after `UseForwardedHeaders`, which trusts only a
+loopback proxy by default. Behind any other proxy every caller is the proxy's address, one source for
+everyone, so configure the proxy as trusted before relying on this budget
+(see [Security — Session Management](security-session-management.md#login-policy-shared-by-both-servers)).
 
 ---
 
