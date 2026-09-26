@@ -4,6 +4,7 @@ using Avalon.Api.Authentication.AV;
 using Avalon.Api.Authentication.Jwt;
 using Avalon.Api.Config;
 using Avalon.Api.Services;
+using Avalon.Api.Services.Email;
 using Avalon.Database.Auth.Extensions;
 using Avalon.Infrastructure.Extensions;
 using Avalon.Database.Character.Extensions;
@@ -50,6 +51,7 @@ public static class ServiceRegistration
         // Application:Authentication, checked here since that section is bound without validation.
         LoginLimitsValidation.Validate(config.Authentication ?? new AuthenticationConfig(), "Application:Authentication");
         ValidateAccountCreationCap(config.Authentication ?? new AuthenticationConfig());
+        ValidateEmailChangeSendCaps(config.Authentication ?? new AuthenticationConfig());
         services.AddSingleton<ILoginLimits>(sp => sp.GetRequiredService<AuthenticationConfig>());
         services.AddLoginPolicy();
         services.AddScoped<IReauthentication, Reauthentication>();
@@ -170,6 +172,68 @@ public static class ServiceRegistration
         services.AddScoped<IAuthorizationHandler, Authorization.AccountWriteHandler>();
         services.AddScoped<IAuthorizationHandler, Authorization.PatReadHandler>();
         services.AddScoped<IAuthorizationHandler, Authorization.PatWriteHandler>();
+    }
+
+    /// <summary>
+    /// Registers the email sender <c>Application:Email:Sender</c> names (#510), or none for
+    /// <see cref="EmailSenderKind.None"/>, the default. Whether an <see cref="IEmailSender"/> is
+    /// registered is the one test of whether the api can send email: email change answers 501
+    /// without one. Stops startup, naming the setting, for the pickup sender outside Development
+    /// (its files hold confirm tokens, on the api's own disk) and for a sender with no valid
+    /// <c>From</c>.
+    /// </summary>
+    public static void AddEmail(this IServiceCollection services, EmailConfig? config, IHostEnvironment environment)
+    {
+        config ??= new EmailConfig();
+        switch (config.Sender)
+        {
+            case EmailSenderKind.None:
+                return;
+            case EmailSenderKind.Pickup:
+                if (!environment.IsDevelopment())
+                    throw new InvalidOperationException(
+                        $"{EmailConfig.Section}:Sender is Pickup, which is for Development only: it writes every " +
+                        $"email, confirm tokens included, to a folder on this machine. The environment is " +
+                        $"'{environment.EnvironmentName}'. Set {EmailConfig.Section}:Sender to None.");
+                if (!IsBareAddress(config.From))
+                    throw new InvalidOperationException(
+                        $"{EmailConfig.Section}:From must be an email address, such as noreply@example.com, " +
+                        $"when {EmailConfig.Section}:Sender is Pickup.");
+                if (string.IsNullOrWhiteSpace(config.PickupDirectory))
+                    throw new InvalidOperationException(
+                        $"{EmailConfig.Section}:PickupDirectory must name a folder when {EmailConfig.Section}:Sender is Pickup.");
+                services.AddSingleton<IEmailSender>(sp =>
+                    new PickupEmailSender(config, sp.GetService<TimeProvider>() ?? TimeProvider.System));
+                return;
+            default:
+                throw new InvalidOperationException(
+                    $"{EmailConfig.Section}:Sender '{config.Sender}' is not a known sender; use None or Pickup.");
+        }
+    }
+
+    /// <summary>A bare address, as it goes into a From header: printable ASCII, one '@', no padding, no display name.</summary>
+    private static bool IsBareAddress(string? address) =>
+        address is not null
+        && string.Equals(address, address.Trim(), StringComparison.Ordinal)
+        && Avalon.Domain.Auth.AccountEmail.IsValid(address)
+        && System.Net.Mail.MailAddress.TryCreate(address, out System.Net.Mail.MailAddress? parsed)
+        && string.Equals(parsed.Address, address, StringComparison.Ordinal);
+
+    /// <summary>
+    /// Stops startup, naming the setting, when an email-change send budget (#510 review) is below
+    /// one: zero would refuse every email change.
+    /// </summary>
+    public static void ValidateEmailChangeSendCaps(AuthenticationConfig config)
+    {
+        if (config.MaxEmailChangeSendsPerAccount < 1)
+            throw new InvalidOperationException(
+                "Application:Authentication:MaxEmailChangeSendsPerAccount must be at least 1.");
+        if (config.MaxEmailChangeSendsPerAddress < 1)
+            throw new InvalidOperationException(
+                "Application:Authentication:MaxEmailChangeSendsPerAddress must be at least 1.");
+        if (config.EmailChangeSendWindowMinutes < 1)
+            throw new InvalidOperationException(
+                "Application:Authentication:EmailChangeSendWindowMinutes must be at least 1.");
     }
 
     /// <summary>

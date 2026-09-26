@@ -4,6 +4,8 @@ using Avalon.Api.Config;
 using Avalon.Api.Contract;
 using Avalon.Api.Controllers;
 using Avalon.Api.Services;
+using Avalon.Api.Services.Email;
+using Avalon.Api.UnitTests.Services;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.Auth;
 using Microsoft.AspNetCore.Authorization;
@@ -22,8 +24,8 @@ public class AccountControllerShould
     private readonly IRefreshTokenService _refreshService = Substitute.For<IRefreshTokenService>();
     private readonly AuthenticationConfig _authConfig = new();
 
-    private AccountController MakeSut(ClaimsPrincipal user) =>
-        new(_accountService, _authContext, _authz, _refreshService, _authConfig)
+    private AccountController MakeSut(ClaimsPrincipal user, IEmailSender? emailSender = null) =>
+        new(_accountService, _authContext, _authz, _refreshService, _authConfig, emailSender)
         {
             ControllerContext = new ControllerContext
             {
@@ -121,8 +123,38 @@ public class AccountControllerShould
     }
 
     /// <summary>
-    /// Owner decision (#503): email change stays off until the confirm token can be delivered by
-    /// email. Both endpoints answer 501 and never reach the service.
+    /// Email change is on only when an email sender is configured (#510). With a sender, the start
+    /// answers 202 with no body, so the token cannot come back in the response.
+    /// </summary>
+    [Fact]
+    public async Task Start_an_email_change_with_202_and_no_body_when_a_sender_is_configured()
+    {
+        var sut = MakeSut(User(7, AvalonRoles.Player), new RecordingEmailSender());
+
+        var result = await sut.InitiateEmailChange(
+            new AccountEmailChangeRequest { NewEmail = "new@avalon.monster", CurrentPassword = TestPasswords.Valid },
+            CancellationToken.None);
+
+        var accepted = Assert.IsType<AcceptedResult>(result);
+        Assert.Null(accepted.Value);
+        await _accountService.Received(1).InitiateEmailChangeAsync(new AccountId(7), "new@avalon.monster",
+            TestPasswords.Valid, Arg.Any<System.Net.IPAddress>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Confirm_an_email_change_with_204_when_a_sender_is_configured()
+    {
+        var sut = MakeSut(User(7, AvalonRoles.Player), new RecordingEmailSender());
+
+        var result = await sut.ConfirmEmailChange(new AccountEmailConfirmRequest { Token = "tok" }, CancellationToken.None);
+
+        Assert.IsType<NoContentResult>(result);
+        await _accountService.Received(1).ConfirmEmailChangeAsync("tok", Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>
+    /// Owner decision (#503), kept by #510: with no email sender configured (Application:Email:Sender
+    /// None, the default) both endpoints answer 501 and never reach the service.
     /// </summary>
     [Fact]
     public async Task Refuse_to_start_an_email_change_with_501()

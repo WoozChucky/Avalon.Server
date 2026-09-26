@@ -128,8 +128,8 @@ public sealed class ApiWriteRaceShould : IDisposable
     public async Task Keep_a_ban_and_a_lock_written_while_an_email_change_was_being_confirmed()
     {
         Account account = await AccountAsync();
-        _cache.GetAsync("auth:emailChange:token").Returns($"{account.Id.Value}|0|new@avalon.monster");
-        _cache.RemoveAsync("auth:emailChange:token").Returns(true);
+        _cache.GetAsync(AccountService.EmailChangeKey("token")).Returns($"{account.Id.Value}|0|new@avalon.monster");
+        _cache.RemoveAsync(AccountService.EmailChangeKey("token")).Returns(true);
         await BanAndLockAsync(account.Id);
 
         await Service(_accounts).ConfirmEmailChangeAsync("token");

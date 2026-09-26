@@ -4,6 +4,7 @@ using Avalon.Api.Config;
 using Avalon.Api.Contract;
 using Avalon.Api.Contract.Mappers;
 using Avalon.Api.Services;
+using Avalon.Api.Services.Email;
 using Avalon.Common.ValueObjects;
 using Avalon.Database;
 using Avalon.Database.Extensions;
@@ -23,9 +24,16 @@ public class AccountController : BaseController
     private readonly IRefreshTokenService _refreshService;
     private readonly AuthenticationConfig _authConfig;
 
+    private readonly IEmailSender? _emailSender;
+
+    /// <param name="emailSender">
+    /// Registered only when <c>Application:Email:Sender</c> names a sender (#510); without one,
+    /// email change answers 501.
+    /// </param>
     public AccountController(IAccountService accountService, IAuthContext authContext, IAuthorizationService authz,
-        IRefreshTokenService refreshService, AuthenticationConfig authConfig)
+        IRefreshTokenService refreshService, AuthenticationConfig authConfig, IEmailSender? emailSender = null)
     {
+        _emailSender = emailSender;
         _accountService = accountService;
         _authContext = authContext;
         _authz = authz;
@@ -105,25 +113,44 @@ public class AccountController : BaseController
         return NoContent();
     }
 
-    /// <summary>The answer both email-change endpoints give while no email sender exists (#503).</summary>
+    /// <summary>
+    /// The answer both email-change endpoints give while no email sender is configured
+    /// (<c>Application:Email:Sender</c> None, the default; #503, #510).
+    /// </summary>
     public const string EmailChangeUnavailable = "Email change is unavailable until email delivery exists";
 
     /// <summary>
-    /// Disabled (owner decision, #503): 501 until an email sender can deliver the confirm token to
-    /// the new address. <see cref="IAccountService.InitiateEmailChangeAsync"/> is kept, re-auth,
-    /// normalisation and all, for when it can; wire it back in here then.
+    /// Starts an email change (#503, #510): the current password, then the confirm token by email to
+    /// the new address and a notice to the old one. 202 with no body: the token never comes back
+    /// here. 503 "Email could not be sent" when the confirmation could not be sent, with nothing
+    /// left pending. 501 while no email sender is configured.
     /// </summary>
     [HttpPost("email/change")]
+    [ProducesResponseType(StatusCodes.Status202Accepted)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status503ServiceUnavailable)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status501NotImplemented)]
-    public Task<IActionResult> InitiateEmailChange([FromBody] AccountEmailChangeRequest req, CancellationToken ct) =>
-        Task.FromResult(EmailChangeRefused());
+    public async Task<IActionResult> InitiateEmailChange([FromBody] AccountEmailChangeRequest req, CancellationToken ct)
+    {
+        if (_emailSender is null) return EmailChangeRefused();
 
-    /// <summary>Disabled with <see cref="InitiateEmailChange"/> (#503): 501.</summary>
+        await _accountService.InitiateEmailChangeAsync(User.AccountId(), req.NewEmail, req.CurrentPassword,
+            SourceAddress, ct);
+        return Accepted();
+    }
+
+    /// <summary>Confirms an email change with the token sent to the new address. 501 while no email sender is configured.</summary>
     [AllowAnonymous]
     [HttpPost("email/confirm")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status501NotImplemented)]
-    public Task<IActionResult> ConfirmEmailChange([FromBody] AccountEmailConfirmRequest req, CancellationToken ct) =>
-        Task.FromResult(EmailChangeRefused());
+    public async Task<IActionResult> ConfirmEmailChange([FromBody] AccountEmailConfirmRequest req, CancellationToken ct)
+    {
+        if (_emailSender is null) return EmailChangeRefused();
+
+        await _accountService.ConfirmEmailChangeAsync(req.Token, ct);
+        return NoContent();
+    }
 
     private IActionResult EmailChangeRefused() => new ObjectResult(new ProblemDetails
     {

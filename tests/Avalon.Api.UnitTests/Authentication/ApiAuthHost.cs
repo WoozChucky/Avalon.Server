@@ -68,15 +68,20 @@ public sealed class ApiAuthHost : IAsyncDisposable
     public HttpClient Client { get; private set; } = null!;
 
     /// <param name="cache">The cache the login policy counts on; a plain substitute when not given.</param>
-    public static async Task<ApiAuthHost> StartAsync(IReplicatedCache? cache = null)
+    /// <param name="configure">
+    /// Runs after the host's own registrations, so a test can put a real service, or an email
+    /// sender, in place of a substitute.
+    /// </param>
+    public static async Task<ApiAuthHost> StartAsync(IReplicatedCache? cache = null,
+        Action<IServiceCollection>? configure = null)
     {
         var host = new ApiAuthHost();
         if (cache != null) host.Cache = cache;
-        await host.InitializeAsync();
+        await host.InitializeAsync(configure);
         return host;
     }
 
-    private async Task InitializeAsync()
+    private async Task InitializeAsync(Action<IServiceCollection>? configure)
     {
         WebApplicationBuilder builder = WebApplication.CreateBuilder();
         builder.WebHost.UseTestServer();
@@ -106,6 +111,7 @@ public sealed class ApiAuthHost : IAsyncDisposable
         AccountRepository.TryRecordApiLoginAsync(Arg.Any<AccountId>(), Arg.Any<string>(), Arg.Any<DateTime>(),
             Arg.Any<CancellationToken>()).Returns(true);
         services.AddSingleton<IJwtUtils>(new JwtUtils(AuthConfig, JwtSigningKey.Create(AuthConfig)));
+        configure?.Invoke(services);
 
         _app = builder.Build();
         // The test server has no socket, so no peer address; a real connection always has one.

@@ -60,6 +60,17 @@ public interface IReplicatedCache
     /// <paramref name="field"/> equals <paramref name="expected"/>. Returns true when it deleted it.
     /// </summary>
     Task<bool> RemoveHashIfFieldEqualsAsync(string key, string field, string expected);
+    /// <summary>
+    /// Atomically sets <paramref name="key"/> to <paramref name="value"/> with <paramref name="expiry"/>
+    /// and returns the value it held before, or null when it held none: two callers swapping the
+    /// same key each see the other's value, never both the same old one.
+    /// </summary>
+    Task<string?> SwapAsync(string key, string value, TimeSpan expiry);
+    /// <summary>
+    /// Atomically deletes <paramref name="key"/>, but only while it holds <paramref name="expected"/>.
+    /// Returns true when it deleted it.
+    /// </summary>
+    Task<bool> RemoveIfEqualsAsync(string key, string expected);
     Task<bool> RemoveAsync(string key);
     Task<bool> KeyExistsAsync(string key);
     Task<bool> KeyExpireAsync(string key, TimeSpan expiry);
@@ -179,6 +190,33 @@ public class ReplicatedCache : IReplicatedCache
     {
         RedisResult result = await _redis.GetDatabase().ScriptEvaluateAsync(RemoveHashIfFieldEqualsScript,
             [new RedisKey(key)], [field, expected]);
+        return (long)result == 1;
+    }
+
+    // GET and SET in one script: of two swaps of one key, the second returns the first's value
+    // (an email change's pending pointer, #510 re-review).
+    private const string SwapScript =
+        "local p = redis.call('GET', KEYS[1]) " +
+        "redis.call('SET', KEYS[1], ARGV[1], 'PX', ARGV[2]) " +
+        "return p";
+
+    public async Task<string?> SwapAsync(string key, string value, TimeSpan expiry)
+    {
+        RedisResult result = await _redis.GetDatabase().ScriptEvaluateAsync(SwapScript,
+            [new RedisKey(key)], [value, (long)expiry.TotalMilliseconds]);
+        return result.IsNull ? null : (string?)result;
+    }
+
+    // GET and DEL in one script: a value another caller wrote since is left alone (an email change's
+    // pending pointer, swapped by a newer start, #510 re-review).
+    private const string RemoveIfEqualsScript =
+        "if redis.call('GET', KEYS[1]) == ARGV[1] then return redis.call('DEL', KEYS[1]) end " +
+        "return 0";
+
+    public async Task<bool> RemoveIfEqualsAsync(string key, string expected)
+    {
+        RedisResult result = await _redis.GetDatabase().ScriptEvaluateAsync(RemoveIfEqualsScript,
+            [new RedisKey(key)], [expected]);
         return (long)result == 1;
     }
 

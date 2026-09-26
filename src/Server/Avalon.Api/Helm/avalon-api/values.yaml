@@ -49,6 +49,10 @@ forwardedHeaders:
   # Proxy hops read from X-Forwarded-For, from the right; at least 1.
   forwardLimit: 1
 
+# Email (Application:Email) is not set by the chart. The only sender so far, Pickup, writes .eml files
+# to local disk and the API refuses it outside Development, so a chart deployment has no sender and
+# email change answers 501. A real provider will add its settings here.
+
 replicaCount: 1
 
 image:

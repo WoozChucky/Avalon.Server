@@ -12,4 +12,5 @@ public class ApplicationConfig
     public NotificationConfig? Notification { get; set; }
     public CacheConfiguration? Cache { get; set; }
     public ForwardedHeadersConfig? ForwardedHeaders { get; set; }
+    public EmailConfig? Email { get; set; }
 }
