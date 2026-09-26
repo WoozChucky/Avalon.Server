@@ -44,4 +44,42 @@ public class LoginLimitsShould
     {
         StartWith(nameof(AuthenticationConfig.Issuer), "Avalon");
     }
+
+    /// <summary>
+    /// #478 review: both hosts spend the same Redis budgets but configure their limits apart, so
+    /// each logs its five limits at startup, at Information, for the two logs to be compared.
+    /// </summary>
+    [Fact]
+    public void Log_all_five_limits_and_their_section_at_information()
+    {
+        var logger = new CapturingLogger();
+        var limits = new AuthenticationConfig
+        {
+            MaxFailedLoginAttempts = 6, LockoutDurationMinutes = 16, MaxFailedLoginsPerSource = 11,
+            FailedLoginSourceWindowMinutes = 17, MaxFailedMfaAttempts = 4,
+        };
+
+        Avalon.Infrastructure.Login.LoginLimitsValidation.LogAtStartup(logger, limits, "Application:Authentication");
+
+        var (level, message) = Assert.Single(logger.Entries);
+        Assert.Equal(Microsoft.Extensions.Logging.LogLevel.Information, level);
+        foreach (string expected in new[]
+                 {
+                     "Application:Authentication", "MaxFailedLoginAttempts=6", "LockoutDurationMinutes=16",
+                     "MaxFailedLoginsPerSource=11", "FailedLoginSourceWindowMinutes=17", "MaxFailedMfaAttempts=4",
+                 })
+            Assert.Contains(expected, message, StringComparison.Ordinal);
+    }
+
+    private sealed class CapturingLogger : Microsoft.Extensions.Logging.ILogger
+    {
+        public List<(Microsoft.Extensions.Logging.LogLevel, string)> Entries { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public bool IsEnabled(Microsoft.Extensions.Logging.LogLevel logLevel) => true;
+
+        public void Log<TState>(Microsoft.Extensions.Logging.LogLevel logLevel, Microsoft.Extensions.Logging.EventId eventId,
+            TState state, Exception? exception, Func<TState, Exception?, string> formatter) =>
+            Entries.Add((logLevel, formatter(state, exception)));
+    }
 }

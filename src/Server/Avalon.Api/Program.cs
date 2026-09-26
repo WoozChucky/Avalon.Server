@@ -123,6 +123,8 @@ app.MapDefaultEndpoints();
 ILogger<Program> logger = app.Services.GetRequiredService<ILogger<Program>>();
 ForwardedHeadersSetup.WarnIfNoProxyTrusted(logger, app.Services.GetRequiredService<ApplicationConfig>().ForwardedHeaders,
     app.Environment);
+Avalon.Infrastructure.Login.LoginLimitsValidation.LogAtStartup(logger,
+    app.Services.GetRequiredService<Avalon.Infrastructure.Login.ILoginLimits>(), "Application:Authentication");
 
 await using (AsyncServiceScope scope = app.Services.CreateAsyncScope())
 {

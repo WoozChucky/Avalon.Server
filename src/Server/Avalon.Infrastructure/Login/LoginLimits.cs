@@ -40,6 +40,21 @@ public static class LoginLimitsValidation
         Require(limits.MaxFailedMfaAttempts, nameof(ILoginLimits.MaxFailedMfaAttempts), section);
     }
 
+    /// <summary>
+    /// Logs the five limits at Information (#478 review). The Auth server and the API count on the
+    /// same Redis keys but are configured apart, so their startup lines are how a drift is seen.
+    /// </summary>
+    public static void LogAtStartup(Microsoft.Extensions.Logging.ILogger logger, ILoginLimits limits, string section)
+    {
+        Microsoft.Extensions.Logging.LoggerExtensions.LogInformation(logger,
+            "Login limits ({Section}): MaxFailedLoginAttempts={MaxFailedLoginAttempts}, " +
+            "LockoutDurationMinutes={LockoutDurationMinutes}, MaxFailedLoginsPerSource={MaxFailedLoginsPerSource}, " +
+            "FailedLoginSourceWindowMinutes={FailedLoginSourceWindowMinutes}, MaxFailedMfaAttempts={MaxFailedMfaAttempts}. " +
+            "The Auth server and the API must agree on these",
+            section, limits.MaxFailedLoginAttempts, limits.LockoutDurationMinutes, limits.MaxFailedLoginsPerSource,
+            limits.FailedLoginSourceWindowMinutes, limits.MaxFailedMfaAttempts);
+    }
+
     private static void Require(int value, string name, string section)
     {
         if (value < 1)
