@@ -110,4 +110,8 @@ internal static class VendorTestData
 
     public static VendorCatalog Catalog(IReadOnlyCollection<VendorStock>? rows = null) =>
         new(rows ?? Rows(), Items, NullLoggerFactory.Instance);
+
+    /// <summary>A fresh, full stock state for the Smith over <paramref name="catalog" /> (or the default rows).</summary>
+    public static VendorStockState Stock(VendorCatalog? catalog = null) =>
+        new(Smith, (catalog ?? Catalog()).RowsFor(Smith));
 }
