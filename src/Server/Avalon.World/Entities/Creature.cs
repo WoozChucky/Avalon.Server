@@ -44,7 +44,8 @@ public class Creature : ICreature
     /// Deliberately not on <see cref="ICreature"/>: <c>Avalon.World.Public</c> is the modding API,
     /// and a mod must not be able to make a creature advertise an interaction the server would
     /// refuse. Init-only, because it is decided once at spawn: a <c>/reload dialogue</c> reaches
-    /// only creatures spawned after it.
+    /// only creatures spawned after it. A town NPC, in a persistent instance and never respawned,
+    /// keeps its flag until the server restarts.
     /// </remarks>
     public bool CanInteract { get; init; }
 

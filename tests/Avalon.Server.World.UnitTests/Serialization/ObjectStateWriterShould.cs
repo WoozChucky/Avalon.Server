@@ -10,6 +10,7 @@ using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
 using Avalon.World.Serialization;
+using NSubstitute;
 using ProtoBuf;
 using Xunit;
 
@@ -105,6 +106,27 @@ public class ObjectStateWriterShould
     public void Leave_CanInteract_out_for_a_creature_that_cannot_be_interacted_with(GameEntityFields fields)
     {
         ObjectState state = ObjectStateWriter.From(Npc(canInteract: false), fields);
+
+        Assert.Null(state.CanInteract);
+        Assert.Null(RoundTrip(state).CanInteract);
+    }
+
+    /// <summary>
+    /// Only the World-side Creature carries the value, so any other ICreature (a substitute here,
+    /// a mod's implementation in principle) never advertises an interaction. Failing safe is the
+    /// point: at worst the client offers no prompt, and InteractHandler stays authoritative.
+    /// </summary>
+    [Theory]
+    [InlineData(GameEntityFields.None)]
+    [InlineData(GameEntityFields.CreatureUpdate)]
+    public void Never_advertise_CanInteract_for_a_creature_that_is_not_the_world_side_Creature(GameEntityFields fields)
+    {
+        var creature = NSubstitute.Substitute.For<ICreature>();
+        creature.Guid.Returns(new ObjectGuid(ObjectType.Creature, 6));
+        creature.Name.Returns("Impostor");
+        creature.Metadata.Returns(new Avalon.Domain.World.CreatureTemplate { Id = new Avalon.Common.ValueObjects.CreatureTemplateId(3) });
+
+        ObjectState state = ObjectStateWriter.From(creature, fields);
 
         Assert.Null(state.CanInteract);
         Assert.Null(RoundTrip(state).CanInteract);

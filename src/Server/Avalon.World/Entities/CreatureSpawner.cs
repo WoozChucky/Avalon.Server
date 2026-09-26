@@ -56,7 +56,8 @@ public class CreatureSpawner(ILoggerFactory loggerFactory, IWorld world) : ICrea
         // Dialogue is its own reload area, published as its own reference, so it is read once too.
         // Whether this creature can be interacted with is fixed here, at spawn: a later
         // /reload dialogue reaches only creatures spawned after it, and one already standing keeps
-        // the flag it spawned with until it is spawned again.
+        // the flag it spawned with. Creatures never respawn and the town instance persists, so a
+        // town NPC's flag stays as it was until the server restarts.
         IDialogueCatalog dialogue = world.Data.Dialogue;
 
         CreatureTemplate? template = creatures.Templates.FirstOrDefault(t => t.Id == templateId);

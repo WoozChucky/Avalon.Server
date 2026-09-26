@@ -58,7 +58,10 @@ public static class ObjectStateWriter
         // that first sees this creature on an update still needs it to offer a prompt. Sent only
         // as true; a creature that cannot be interacted with leaves the member out, which a client
         // reads as false. The value lives on the World-side Creature, not on ICreature, so no mod
-        // can make a creature advertise an interaction the server would refuse.
+        // can make a creature advertise an interaction the server would refuse. Any ICreature other
+        // than Creature therefore never advertises the flag, and that is deliberate: it fails safe,
+        // costing at most a prompt the client does not offer, and InteractHandler stays the
+        // authority on whether an interact is accepted.
         if (creature is Creature { CanInteract: true })
         {
             state.CanInteract = true;
