@@ -66,6 +66,11 @@ public interface IReplicatedCache
     /// same key each see the other's value, never both the same old one.
     /// </summary>
     Task<string?> SwapAsync(string key, string value, TimeSpan expiry);
+    /// <summary>
+    /// Atomically deletes <paramref name="key"/>, but only while it holds <paramref name="expected"/>.
+    /// Returns true when it deleted it.
+    /// </summary>
+    Task<bool> RemoveIfEqualsAsync(string key, string expected);
     Task<bool> RemoveAsync(string key);
     Task<bool> KeyExistsAsync(string key);
     Task<bool> KeyExpireAsync(string key, TimeSpan expiry);
@@ -200,6 +205,19 @@ public class ReplicatedCache : IReplicatedCache
         RedisResult result = await _redis.GetDatabase().ScriptEvaluateAsync(SwapScript,
             [new RedisKey(key)], [value, (long)expiry.TotalMilliseconds]);
         return result.IsNull ? null : (string?)result;
+    }
+
+    // GET and DEL in one script: a value another caller wrote since is left alone (an email change's
+    // pending pointer, swapped by a newer start, #510 re-review).
+    private const string RemoveIfEqualsScript =
+        "if redis.call('GET', KEYS[1]) == ARGV[1] then return redis.call('DEL', KEYS[1]) end " +
+        "return 0";
+
+    public async Task<bool> RemoveIfEqualsAsync(string key, string expected)
+    {
+        RedisResult result = await _redis.GetDatabase().ScriptEvaluateAsync(RemoveIfEqualsScript,
+            [new RedisKey(key)], [expected]);
+        return (long)result == 1;
     }
 
     public async Task<bool> RemoveCounterIfBelowAsync(string key, long heldValue)

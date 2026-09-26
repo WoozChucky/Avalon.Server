@@ -627,11 +627,12 @@ public class AccountService : IAccountService
         if (!changed)
             throw new BusinessException(InvalidEmailToken);
 
-        // Nothing is pending any more (#510 re-review). Best-effort: the change is committed, and a
+        // Nothing is pending any more (#510 re-review), unless a newer start swapped the pointer since:
+        // it goes only while it still names this token. Best-effort: the change is committed, and a
         // pointer left behind only names an entry that is gone, until its TTL.
         try
         {
-            await _cache.RemoveAsync(CacheKeys.AccountEmailChangePending(accountId.Value));
+            await _cache.RemoveIfEqualsAsync(CacheKeys.AccountEmailChangePending(accountId.Value), Sha256Hex(token));
         }
         catch (Exception ex)
         {

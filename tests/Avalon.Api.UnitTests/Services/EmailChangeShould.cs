@@ -63,6 +63,10 @@ public sealed class EmailChangeShould : IDisposable
             _store[key] = call.ArgAt<string>(1);
             return previous;
         });
+        _cache.RemoveIfEqualsAsync(Arg.Any<string>(), Arg.Any<string>()).Returns(call =>
+            _store.TryGetValue(call.ArgAt<string>(0), out string? held)
+            && string.Equals(held, call.ArgAt<string>(1), StringComparison.Ordinal)
+            && _store.Remove(call.ArgAt<string>(0)));
         // The send budgets (#510 review) count for real; every other counter reads as a first attempt.
         _cache.IncrementAsync(Arg.Any<string>(), Arg.Any<TimeSpan>()).Returns(call =>
         {
@@ -477,6 +481,23 @@ public sealed class EmailChangeShould : IDisposable
         await ChangeAsync(account.Id, "new@avalon.monster");
 
         Assert.False(_store.ContainsKey(CacheKeys.AccountEmailChangePending(account.Id.Value)));
+    }
+
+    /// <summary>
+    /// A start that swapped the pointer between the confirm's commit and its cleanup keeps its
+    /// pointer: the confirm deletes it only while it still names the confirmed token.
+    /// </summary>
+    [Fact]
+    public async Task Keep_a_pending_pointer_that_names_another_change_when_confirming()
+    {
+        Account account = await AccountAsync();
+        string token = await StartAsync(account.Id, "new@avalon.monster");
+        string pointer = CacheKeys.AccountEmailChangePending(account.Id.Value);
+        _store[pointer] = "0123456789abcdef";
+
+        await Service().ConfirmEmailChangeAsync(token);
+
+        Assert.Equal("0123456789abcdef", _store[pointer]);
     }
 
     /// <summary>#510 re-review: each send gets a token of its own, with a timeout, not the request's and not None.</summary>
