@@ -149,7 +149,7 @@ public sealed class CredentialRevocationShould : IDisposable
         MFAService service = MfaService();
         Assert.True((await service.SetupMFAAsync(account, "Avalon")).Success);
         MFASetup pending = (await new MfaSetupRepository(_database).FindByAccountIdAsync(account.Id))!;
-        MFAConfirmResult confirmed = await service.ConfirmMFAAsync(account.Id, new Totp(pending.Secret).ComputeTotp());
+        MFAConfirmResult confirmed = await service.ConfirmMFAAsync(account.Id, 0, new Totp(pending.Secret).ComputeTotp());
         Assert.True(confirmed.Success);
         return confirmed.RecoveryCodes!;
     }
@@ -162,7 +162,7 @@ public sealed class CredentialRevocationShould : IDisposable
         string pat = await MintPatAsync(account.Id);
         await RefreshTokenAsync(account.Id);
 
-        MFAResetResult reset = await MfaService().ResetMFAAsync(account.Id, codes[0], codes[1], codes[2]);
+        MFAResetResult reset = await MfaService().ResetMFAAsync(account.Id, 0, codes[0], codes[1], codes[2]);
 
         Assert.True(reset.Success);
         Assert.True(await PatIsRefusedAsync(pat));
@@ -177,7 +177,7 @@ public sealed class CredentialRevocationShould : IDisposable
         await EnrolAsync(account);
         string pat = await MintPatAsync(account.Id);
 
-        MFAResetResult reset = await MfaService().ResetMFAAsync(account.Id, "0000-0000-0000-0000", "x", "y");
+        MFAResetResult reset = await MfaService().ResetMFAAsync(account.Id, 0, "0000-0000-0000-0000", "x", "y");
 
         Assert.False(reset.Success);
         Assert.False(await PatIsRefusedAsync(pat));
@@ -193,7 +193,7 @@ public sealed class CredentialRevocationShould : IDisposable
         _cache.PublishAsync(Arg.Any<string>(), Arg.Any<string>())
             .Returns<Task>(_ => throw new RedisConnectionException(ConnectionFailureType.UnableToConnect, "down"));
 
-        MFAResetResult reset = await MfaService().ResetMFAAsync(account.Id, codes[0], codes[1], codes[2]);
+        MFAResetResult reset = await MfaService().ResetMFAAsync(account.Id, 0, codes[0], codes[1], codes[2]);
 
         Assert.True(reset.Success);
         Assert.True(await PatIsRefusedAsync(pat));

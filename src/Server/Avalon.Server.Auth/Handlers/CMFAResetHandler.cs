@@ -27,10 +27,19 @@ public class CMFAResetHandler : IAuthPacketHandler<CMFAResetPacket>
 
         var result = await _mfaService.ResetMFAAsync(
             account.Id,
+            ctx.Connection.CredentialsVersion,
             ctx.Packet.RecoveryCode1,
             ctx.Packet.RecoveryCode2,
             ctx.Packet.RecoveryCode3,
             token);
+
+        if (result.CredentialsChanged)
+        {
+            // Changed between the guard's read and the write (#495 re-review): as the guard would.
+            _logger.LogWarning("Account {AccountId} MFA reset refused: its credentials changed", account.Id);
+            ctx.Connection.Close();
+            return;
+        }
 
         ctx.Connection.Send(SMFAResetPacket.Create(result.Status, ctx.Connection.CryptoSession.Encrypt));
     }

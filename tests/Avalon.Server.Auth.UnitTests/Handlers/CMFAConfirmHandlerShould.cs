@@ -38,7 +38,7 @@ public class CMFAConfirmHandlerShould
     public async Task SendRecoveryCodes_WhenCodeIsValid()
     {
         var codes = new[] { "code1", "code2", "code3" };
-        _mfaService.ConfirmMFAAsync(Arg.Any<AccountId>(), "123456", Arg.Any<CancellationToken>())
+        _mfaService.ConfirmMFAAsync(Arg.Any<AccountId>(), Arg.Any<int>(), "123456", Arg.Any<CancellationToken>())
             .Returns(new MFAConfirmResult(true, codes, MFAOperationResult.Success));
 
         var ctx = new AuthPacketContext<CMFAConfirmPacket>
@@ -55,7 +55,7 @@ public class CMFAConfirmHandlerShould
     [Fact]
     public async Task SendInvalidCode_WhenCodeIsWrong()
     {
-        _mfaService.ConfirmMFAAsync(Arg.Any<AccountId>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+        _mfaService.ConfirmMFAAsync(Arg.Any<AccountId>(), Arg.Any<int>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(new MFAConfirmResult(false, null, MFAOperationResult.InvalidCode));
 
         var ctx = new AuthPacketContext<CMFAConfirmPacket>
@@ -83,6 +83,27 @@ public class CMFAConfirmHandlerShould
         await CreateHandler().ExecuteAsync(ctx);
 
         _connection.Received(1).Close();
-        await _mfaService.DidNotReceive().ConfirmMFAAsync(Arg.Any<AccountId>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+        await _mfaService.DidNotReceive().ConfirmMFAAsync(Arg.Any<AccountId>(), Arg.Any<int>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>
+    /// #495 re-review: the credentials changed between the guard's read and the write. The handler
+    /// closes the connection, as the guard would, and sends no result.
+    /// </summary>
+    [Fact]
+    public async Task CloseTheConnection_WhenTheCredentialsChangedBeforeTheWrite()
+    {
+        _connection.CredentialsVersion.Returns(0);
+        _mfaService.ConfirmMFAAsync(Arg.Any<AccountId>(), Arg.Any<int>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(new MFAConfirmResult(false, null, MFAOperationResult.Error, CredentialsChanged: true));
+
+        await CreateHandler().ExecuteAsync(new AuthPacketContext<CMFAConfirmPacket>
+        {
+            Packet = new CMFAConfirmPacket { Code = "123456" },
+            Connection = _connection
+        });
+
+        _connection.Received(1).Close();
+        _connection.DidNotReceive().Send(Arg.Any<NetworkPacket>());
     }
 }

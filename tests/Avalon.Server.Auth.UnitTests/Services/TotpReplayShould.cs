@@ -190,7 +190,7 @@ public sealed class TotpReplayShould : IDisposable
         MFASetup pending = (await _mfa.FindByAccountIdAsync(account.Id))!;
         string code = new Totp(pending.Secret).ComputeTotp();
 
-        Assert.True((await service.ConfirmMFAAsync(account.Id, code)).Success);
+        Assert.True((await service.ConfirmMFAAsync(account.Id, 0, code)).Success);
         MFAVerifyResult result = await service.VerifyMFAAsync(Hash, code);
 
         Assert.False(result.Success);
@@ -227,7 +227,7 @@ public sealed class TotpReplayShould : IDisposable
         MFASetup pending = (await _mfa.FindByAccountIdAsync(account.Id))!;
         string code = new Totp(pending.Secret).ComputeTotp(DateTime.UtcNow.AddSeconds(-60));
 
-        MFAConfirmResult result = await service.ConfirmMFAAsync(account.Id, code);
+        MFAConfirmResult result = await service.ConfirmMFAAsync(account.Id, 0, code);
 
         Assert.False(result.Success);
         Assert.Equal(MFAOperationResult.InvalidCode, result.Status);

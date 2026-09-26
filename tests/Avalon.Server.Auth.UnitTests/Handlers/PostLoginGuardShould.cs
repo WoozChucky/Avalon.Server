@@ -129,8 +129,8 @@ public sealed class PostLoginGuardShould
     {
         AccountIs(AccountStatus.Active, credentialsVersion: 3);
         _mfa.SetupMFAAsync(default!, default!, default).ReturnsForAnyArgs(new MFASetupResult(true, "otpauth://x", MFAOperationResult.Success));
-        _mfa.ConfirmMFAAsync(default!, default!, default).ReturnsForAnyArgs(new MFAConfirmResult(true, ["a", "b", "c"], MFAOperationResult.Success));
-        _mfa.ResetMFAAsync(default!, default!, default!, default!, default).ReturnsForAnyArgs(new MFAResetResult(true, MFAOperationResult.Success));
+        _mfa.ConfirmMFAAsync(default!, default, default!, default).ReturnsForAnyArgs(new MFAConfirmResult(true, ["a", "b", "c"], MFAOperationResult.Success));
+        _mfa.ResetMFAAsync(default!, default, default!, default!, default!, default).ReturnsForAnyArgs(new MFAResetResult(true, MFAOperationResult.Success));
 
         await RunAsync(handler);
 

@@ -90,7 +90,7 @@ public sealed class CredentialsVersionShould : IDisposable
         MFAService service = MfaService();
         Assert.True((await service.SetupMFAAsync(account, "Avalon")).Success);
         MFASetup pending = (await new MfaSetupRepository(_database).FindByAccountIdAsync(account.Id))!;
-        MFAConfirmResult confirmed = await service.ConfirmMFAAsync(account.Id, new Totp(pending.Secret).ComputeTotp());
+        MFAConfirmResult confirmed = await service.ConfirmMFAAsync(account.Id, 0, new Totp(pending.Secret).ComputeTotp());
         Assert.True(confirmed.Success);
         return confirmed.RecoveryCodes!;
     }
@@ -130,10 +130,10 @@ public sealed class CredentialsVersionShould : IDisposable
         Account account = await AccountAsync();
         string[] codes = await EnrolAsync(account);
 
-        Assert.False((await MfaService().ResetMFAAsync(account.Id, "0000-0000-0000-0000", "x", "y")).Success);
+        Assert.False((await MfaService().ResetMFAAsync(account.Id, 0, "0000-0000-0000-0000", "x", "y")).Success);
         Assert.Equal(0, await VersionAsync(account.Id));
 
-        Assert.True((await MfaService().ResetMFAAsync(account.Id, codes[0], codes[1], codes[2])).Success);
+        Assert.True((await MfaService().ResetMFAAsync(account.Id, 0, codes[0], codes[1], codes[2])).Success);
         Assert.Equal(1, await VersionAsync(account.Id));
     }
 
@@ -149,6 +149,50 @@ public sealed class CredentialsVersionShould : IDisposable
 
         Assert.Equal(1, await VersionAsync(account.Id));
         Assert.Equal(0, await VersionAsync(admin.Id));
+    }
+
+    private async Task BumpAsync(AccountId id)
+    {
+        await using AuthDbContext context = _database.CreateDbContext();
+        await AccountRepository.BumpCredentialsVersionAsync(context, id);
+    }
+
+    private async Task<MFASetup?> SetupRowAsync(AccountId id) =>
+        await new MfaSetupRepository(_database).FindByAccountIdAsync(id);
+
+    /// <summary>
+    /// #495 re-review: the session proved version 0 and passed the guard; a password change then
+    /// committed before the confirm's write. The write is refused and the setup stays pending.
+    /// </summary>
+    [Fact]
+    public async Task Refuse_an_mfa_confirm_whose_session_was_outdated_after_the_guard()
+    {
+        Account account = await AccountAsync();
+        MFAService service = MfaService();
+        Assert.True((await service.SetupMFAAsync(account, "Avalon")).Success);
+        MFASetup pending = (await SetupRowAsync(account.Id))!;
+        await BumpAsync(account.Id);
+
+        MFAConfirmResult result = await service.ConfirmMFAAsync(account.Id, 0, new Totp(pending.Secret).ComputeTotp());
+
+        Assert.False(result.Success);
+        Assert.True(result.CredentialsChanged);
+        Assert.Equal(MfaSetupStatus.Setup, (await SetupRowAsync(account.Id))!.Status);
+    }
+
+    [Fact]
+    public async Task Refuse_an_mfa_reset_whose_session_was_outdated_after_the_guard()
+    {
+        Account account = await AccountAsync();
+        string[] codes = await EnrolAsync(account);
+        await BumpAsync(account.Id);
+
+        MFAResetResult result = await MfaService().ResetMFAAsync(account.Id, 0, codes[0], codes[1], codes[2]);
+
+        Assert.False(result.Success);
+        Assert.True(result.CredentialsChanged);
+        Assert.Equal(MfaSetupStatus.Confirmed, (await SetupRowAsync(account.Id))!.Status);
+        Assert.Equal(1, await VersionAsync(account.Id)); // the reset did not bump it again
     }
 
     /// <summary>

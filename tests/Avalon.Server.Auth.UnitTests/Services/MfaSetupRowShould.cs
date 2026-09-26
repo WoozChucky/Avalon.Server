@@ -118,10 +118,10 @@ public sealed class MfaSetupRowShould : IDisposable
         var gated = new GatedMfaSetupRepository(_mfa);
         MFAService service = Service(gated);
 
-        Task<MFAConfirmResult> first = service.ConfirmMFAAsync(account.Id, code);
+        Task<MFAConfirmResult> first = service.ConfirmMFAAsync(account.Id, 0, code);
         await gated.FirstReadDone.WaitAsync(Bound);
 
-        MFAConfirmResult second = await service.ConfirmMFAAsync(account.Id, code).WaitAsync(Bound);
+        MFAConfirmResult second = await service.ConfirmMFAAsync(account.Id, 0, code).WaitAsync(Bound);
         gated.Release();
         MFAConfirmResult firstResult = await first.WaitAsync(Bound);
 
@@ -256,14 +256,15 @@ public sealed class MfaSetupRowShould : IDisposable
         public Task<bool> UpsertPendingAsync(MFASetup pending, CancellationToken cancellationToken = default) =>
             inner.UpsertPendingAsync(pending, cancellationToken);
 
-        public Task<bool> ResetConfirmedAsync(Guid id, AccountId accountId, DateTime now,
-            CancellationToken cancellationToken = default) =>
-            inner.ResetConfirmedAsync(id, accountId, now, cancellationToken);
+        public Task<MfaSetupWrite> ResetConfirmedAsync(Guid id, AccountId accountId, int credentialsVersion,
+            DateTime now, CancellationToken cancellationToken = default) =>
+            inner.ResetConfirmedAsync(id, accountId, credentialsVersion, now, cancellationToken);
 
-        public Task<bool> TryConfirmAsync(Guid id, byte[] verifiedSecret, byte[] recoveryCode1, byte[] recoveryCode2,
-            byte[] recoveryCode3, DateTime confirmedAt, long acceptedTotpStep, CancellationToken cancellationToken = default) =>
-            inner.TryConfirmAsync(id, verifiedSecret, recoveryCode1, recoveryCode2, recoveryCode3, confirmedAt,
-                acceptedTotpStep, cancellationToken);
+        public Task<MfaSetupWrite> TryConfirmAsync(Guid id, AccountId accountId, int credentialsVersion,
+            byte[] verifiedSecret, byte[] recoveryCode1, byte[] recoveryCode2, byte[] recoveryCode3, DateTime confirmedAt,
+            long acceptedTotpStep, CancellationToken cancellationToken = default) =>
+            inner.TryConfirmAsync(id, accountId, credentialsVersion, verifiedSecret, recoveryCode1, recoveryCode2,
+                recoveryCode3, confirmedAt, acceptedTotpStep, cancellationToken);
 
         public Task<bool> TryAcceptTotpStepAsync(Guid id, long step, CancellationToken cancellationToken = default) =>
             inner.TryAcceptTotpStepAsync(id, step, cancellationToken);

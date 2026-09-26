@@ -58,7 +58,12 @@ public class MFAController : BaseController
     [HttpPost("confirm", Name = "Confirm a MFA setup process for the logged account")]
     public async Task<ActionResult<ConfirmMFAResponse>> ConfirmMFA([FromBody] ConfirmMFARequest request)
     {
-        var result = await _mfaService.ConfirmMFAAsync(_authContext.Account!.Id, request.Code, CancellationToken);
+        // At the version the request's credential was checked against (#495 re-review).
+        var account = _authContext.Account!;
+        var result = await _mfaService.ConfirmMFAAsync(account.Id, account.CredentialsVersion, request.Code,
+            CancellationToken);
+        if (result.CredentialsChanged)
+            return Unauthorized();
         if (!result.Success)
             return Problem(result.Status.ToString(), statusCode: 400);
         return new ConfirmMFAResponse
@@ -80,7 +85,10 @@ public class MFAController : BaseController
     public async Task<IActionResult> ResetMFA([FromBody] ResetMFARequest request)
     {
         var account = _authContext.Account!;
-        var reset = await _mfaService.ResetMFAAsync(account.Id, request.RecoveryCode1, request.RecoveryCode2, request.RecoveryCode3, CancellationToken);
+        var reset = await _mfaService.ResetMFAAsync(account.Id, account.CredentialsVersion, request.RecoveryCode1,
+            request.RecoveryCode2, request.RecoveryCode3, CancellationToken);
+        if (reset.CredentialsChanged)
+            return Unauthorized();
         if (!reset.Success)
             return Problem(reset.Status.ToString(), statusCode: 400);
 

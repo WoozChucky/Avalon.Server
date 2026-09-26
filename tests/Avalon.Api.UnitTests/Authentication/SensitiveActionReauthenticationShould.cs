@@ -113,7 +113,7 @@ public sealed class SensitiveActionReauthenticationShould : IAsyncLifetime
     [Fact]
     public async Task Reset_mfa_without_enrolling_a_new_authenticator()
     {
-        _host.Mfa.ResetMFAAsync(Arg.Any<AccountId>(), "a", "b", "c", Arg.Any<CancellationToken>())
+        _host.Mfa.ResetMFAAsync(Arg.Any<AccountId>(), Arg.Any<int>(), "a", "b", "c", Arg.Any<CancellationToken>())
             .Returns(new MFAResetResult(true, MFAOperationResult.Success));
 
         using HttpResponseMessage response = await PostAsync("/mfa/reset",

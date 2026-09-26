@@ -25,7 +25,15 @@ public class CMFAConfirmHandler : IAuthPacketHandler<CMFAConfirmPacket>
         if (account == null)
             return;
 
-        var result = await _mfaService.ConfirmMFAAsync(account.Id, ctx.Packet.Code, token);
+        var result = await _mfaService.ConfirmMFAAsync(account.Id, ctx.Connection.CredentialsVersion, ctx.Packet.Code,
+            token);
+        if (result.CredentialsChanged)
+        {
+            // Changed between the guard's read and the write (#495 re-review): as the guard would.
+            _logger.LogWarning("Account {AccountId} MFA confirm refused: its credentials changed", account.Id);
+            ctx.Connection.Close();
+            return;
+        }
 
         ctx.Connection.Send(SMFAConfirmPacket.Create(
             result.RecoveryCodes ?? [],

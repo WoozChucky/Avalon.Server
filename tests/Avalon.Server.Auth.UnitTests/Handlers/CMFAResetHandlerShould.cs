@@ -37,7 +37,7 @@ public class CMFAResetHandlerShould
     [Fact]
     public async Task SendSuccess_WhenRecoveryCodesMatch()
     {
-        _mfaService.ResetMFAAsync(Arg.Any<AccountId>(), "r1", "r2", "r3", Arg.Any<CancellationToken>())
+        _mfaService.ResetMFAAsync(Arg.Any<AccountId>(), Arg.Any<int>(), "r1", "r2", "r3", Arg.Any<CancellationToken>())
             .Returns(new MFAResetResult(true, MFAOperationResult.Success));
 
         var ctx = new AuthPacketContext<CMFAResetPacket>
@@ -54,7 +54,7 @@ public class CMFAResetHandlerShould
     [Fact]
     public async Task SendInvalidCode_WhenRecoveryCodesWrong()
     {
-        _mfaService.ResetMFAAsync(Arg.Any<AccountId>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+        _mfaService.ResetMFAAsync(Arg.Any<AccountId>(), Arg.Any<int>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(new MFAResetResult(false, MFAOperationResult.InvalidCode));
 
         var ctx = new AuthPacketContext<CMFAResetPacket>
@@ -82,6 +82,27 @@ public class CMFAResetHandlerShould
         await CreateHandler().ExecuteAsync(ctx);
 
         _connection.Received(1).Close();
-        await _mfaService.DidNotReceive().ResetMFAAsync(Arg.Any<AccountId>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+        await _mfaService.DidNotReceive().ResetMFAAsync(Arg.Any<AccountId>(), Arg.Any<int>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>
+    /// #495 re-review: the credentials changed between the guard's read and the write. The handler
+    /// closes the connection, as the guard would, and sends no result.
+    /// </summary>
+    [Fact]
+    public async Task CloseTheConnection_WhenTheCredentialsChangedBeforeTheWrite()
+    {
+        _connection.CredentialsVersion.Returns(0);
+        _mfaService.ResetMFAAsync(Arg.Any<AccountId>(), Arg.Any<int>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(new MFAResetResult(false, MFAOperationResult.Error, CredentialsChanged: true));
+
+        await CreateHandler().ExecuteAsync(new AuthPacketContext<CMFAResetPacket>
+        {
+            Packet = new CMFAResetPacket { RecoveryCode1 = "r1", RecoveryCode2 = "r2", RecoveryCode3 = "r3" },
+            Connection = _connection
+        });
+
+        _connection.Received(1).Close();
+        _connection.DidNotReceive().Send(Arg.Any<NetworkPacket>());
     }
 }
