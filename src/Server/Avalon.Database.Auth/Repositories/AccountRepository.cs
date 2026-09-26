@@ -170,14 +170,17 @@ public class AccountRepository(IDbContextFactory<AuthDbContext> contextFactory)
     /// <summary>
     /// Sets the password's salt and verifier, and raises <c>CredentialsVersion</c> by one (#495),
     /// on a context the caller owns, so the write joins that context's transaction (a password
-    /// change revokes the account's tokens with it), and writes nothing else. Returns the rows
-    /// written: 0 when no account has <paramref name="id"/>.
+    /// change revokes the account's tokens with it), and writes nothing else. A compare-and-set:
+    /// it writes only while the account is still at <paramref name="expectedVersion"/>, the
+    /// version the current password was checked at, so of two changes that both proved the same
+    /// password only the first lands. Returns the rows written: 0 when no account has
+    /// <paramref name="id"/> or its version has moved.
     /// </summary>
     public static Task<int> SetPasswordAsync(AuthDbContext context, AccountId id, byte[] salt, byte[] verifier,
-        CancellationToken cancellationToken = default)
+        int expectedVersion, CancellationToken cancellationToken = default)
     {
         return context.Accounts
-            .Where(a => a.Id == id)
+            .Where(a => a.Id == id && a.CredentialsVersion == expectedVersion)
             .ExecuteUpdateAsync(s => s
                 .SetProperty(a => a.Salt, salt)
                 .SetProperty(a => a.Verifier, verifier)

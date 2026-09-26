@@ -302,7 +302,8 @@ public class AccountService : IAccountService
     {
         // Through the login policy (#478): a stolen session guessing the current password here
         // spends the same budgets, and locks the same account, as guessing it at login.
-        await _reauthentication.RequireCurrentPasswordAsync(accountId, currentPassword, ipAddress, cancellationToken);
+        var proof = await _reauthentication.RequireCurrentPasswordAsync(accountId, currentPassword, ipAddress,
+            cancellationToken);
 
         var salt = BCrypt.Net.BCrypt.GenerateSalt();
         var hash = BCrypt.Net.BCrypt.HashPassword(newPassword.Trim(), salt);
@@ -315,7 +316,9 @@ public class AccountService : IAccountService
         // or with a stolen session, outlives the change.
         var changed = await _authTransaction.ExecuteAsync(async (context, token) =>
         {
-            if (await AccountRepository.SetPasswordAsync(context, accountId, saltBytes, hashBytes, token) == 0)
+            // Only while still at the version the current password was checked at (#495 review).
+            if (await AccountRepository.SetPasswordAsync(context, accountId, saltBytes, hashBytes,
+                    proof.CredentialsVersion, token) == 0)
                 return false;
 
             await RefreshTokenRepository.RevokeAllForAccountAsync(context, accountId, token);
@@ -324,8 +327,9 @@ public class AccountService : IAccountService
             return true;
         }, cancellationToken);
 
+        // The account is gone, or another credentials change landed since the password was checked.
         if (!changed)
-            throw new AuthenticationException(Reauthentication.InvalidPassword);
+            throw new AuthenticationException(RefreshTokenService.CredentialsChanged);
 
         // A login past its password step holds an MFA hash made with the old password (#495). Its
         // version no longer matches, so it cannot complete; clearing it also frees the account's

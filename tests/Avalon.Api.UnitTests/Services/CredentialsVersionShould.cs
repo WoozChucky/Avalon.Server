@@ -70,11 +70,12 @@ public sealed class CredentialsVersionShould : IDisposable
     private RefreshTokenService Refresh() =>
         new(new RefreshTokenRepository(_database), new SecureRandom(), TimeProvider.System);
 
-    private AccountService AccountService(IAccountRepository? accounts = null) => new(NullLoggerFactory.Instance,
+    private AccountService AccountService(IAccountRepository? accounts = null, IReauthentication? reauthentication = null) =>
+        new(NullLoggerFactory.Instance,
         accounts ?? _accounts, Substitute.For<IJwtUtils>(), Substitute.For<IMFAHashService>(),
         new MfaSetupRepository(_database), new DeviceRepository(_database), _cache, Substitute.For<ISecureRandom>(),
         Refresh(), new DbTransactionRunner<AuthDbContext>(_database), new AuthenticationConfig(),
-        TestLogin.Password(accounts ?? _accounts, _cache), TestLogin.Reauthentication(_accounts, _cache));
+        TestLogin.Password(accounts ?? _accounts, _cache), reauthentication ?? TestLogin.Reauthentication(_accounts, _cache));
 
     private Task ChangePasswordAsync(AccountId id) =>
         AccountService().ChangePasswordAsync(id, Password, NewPassword, IPAddress.Loopback);
@@ -165,6 +166,30 @@ public sealed class CredentialsVersionShould : IDisposable
 
         await _cache.Received(1).RemoveAsync(CacheKeys.MfaReverseHash("PENDINGHASH"));
         await _cache.Received(1).RemoveAsync(CacheKeys.AccountMfa(account.Id.Value));
+    }
+
+    /// <summary>
+    /// #495 review: two password changes whose re-authentications both read the row at version 0.
+    /// The write is a compare-and-set on that version, so only the first lands; the second is 401
+    /// and its password is not written.
+    /// </summary>
+    [Fact]
+    public async Task Let_only_the_change_at_the_current_version_win_two_racing_password_changes()
+    {
+        Account account = await AccountAsync();
+        IReauthentication bothReadVersionZero = Substitute.For<IReauthentication>();
+        bothReadVersionZero.RequireCurrentPasswordAsync(account.Id, Arg.Any<string>(), Arg.Any<IPAddress>(),
+            Arg.Any<CancellationToken>()).Returns(new Reauthenticated(account.Id, 0));
+        AccountService service = AccountService(reauthentication: bothReadVersionZero);
+
+        await service.ChangePasswordAsync(account.Id, Password, TestPasswords.Third, IPAddress.Loopback);
+        AuthenticationException refused = await Assert.ThrowsAsync<AuthenticationException>(() =>
+            service.ChangePasswordAsync(account.Id, Password, TestPasswords.Fourth, IPAddress.Loopback));
+
+        Assert.Equal(RefreshTokenService.CredentialsChanged, refused.Message);
+        Assert.Equal(1, await VersionAsync(account.Id));
+        Account stored = (await _accounts.FindByIdAsync(account.Id))!;
+        Assert.True(BCrypt.Net.BCrypt.Verify(TestPasswords.Third, Encoding.UTF8.GetString(stored.Verifier)));
     }
 
     // ---------------- A login that proved the old password ----------------
