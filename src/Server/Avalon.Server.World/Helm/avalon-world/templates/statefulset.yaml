@@ -42,7 +42,7 @@ spec:
             - name: Hosting__Port
               value: {{ .Values.service.port | quote }}
             - name: Cache__Host
-              value: {{ .Values.server.cache.host | quote }}
+              value: {{ required "server.cache.host is required: host:port of Redis" .Values.server.cache.host | quote }}
             - name: Cache__Password
               valueFrom:
                 secretKeyRef:
@@ -75,6 +75,12 @@ spec:
             - name: server-tcp
               containerPort: {{ .Values.service.port }}
               protocol: TCP
+          startupProbe:
+            # Migrations run before the port opens; allow them up to 5 minutes on first install.
+            tcpSocket:
+              port: server-tcp
+            periodSeconds: 10
+            failureThreshold: 30
           livenessProbe:
             tcpSocket:
               port: server-tcp
