@@ -35,6 +35,7 @@ variant absent
   field 17 PortalRadius : float? = null
   field 18 PortalTargetMapId : ushort? = null
   field 19 PortalRole : byte? = null
+  field 20 CanInteract : bool? = null
   bytes 0
 
 variant empty
@@ -63,10 +64,12 @@ variant empty
   field 17 PortalRadius : float? = 0 (0x00000000)
   field 18 PortalTargetMapId : ushort? = 0
   field 19 PortalRole : byte? = 0
-  bytes 46
+  field 20 CanInteract : bool? = false
+  bytes 49
     12 00 1a 00 25 00 00 00 00 28 00 30 00 38 00 40
     00 48 00 50 00 58 00 60 00 68 00 70 00 78 00 82
-    01 00 8d 01 00 00 00 00 90 01 00 98 01 00
+    01 00 8d 01 00 00 00 00 90 01 00 98 01 00 a0 01
+    00
 
 variant populated
   field 1 Guid : ulong = 7
@@ -94,13 +97,15 @@ variant populated
   field 17 PortalRadius : float? = -2.25 (0xc0100000)
   field 18 PortalTargetMapId : ushort? = 19
   field 19 PortalRole : byte? = 19
-  bytes 94
+  field 20 CanInteract : bool? = true
+  bytes 97
     08 07 12 0f 0d db 0f 49 40 15 cd cc cc 3d 1d db
     0f 49 40 1a 0f 0d db 0f 49 40 15 cd cc cc 3d 1d
     db 0f 49 40 25 f9 02 15 50 28 02 30 07 38 ac 02
     40 01 48 80 d0 ac f3 0e 50 c0 84 3d 58 ac 02 60
     01 68 c0 84 3d 70 07 78 ac 02 82 01 05 61 6c 70
-    68 61 8d 01 00 00 10 c0 90 01 13 98 01 13
+    68 61 8d 01 00 00 10 c0 90 01 13 98 01 13 a0 01
+    01
 
 variant maxima
   field 1 Guid : ulong = 18446744073709551615
@@ -128,7 +133,8 @@ variant maxima
   field 17 PortalRadius : float? = 3.40282347E+38 (0x7f7fffff)
   field 18 PortalTargetMapId : ushort? = 65535
   field 19 PortalRole : byte? = 255
-  bytes 268
+  field 20 CanInteract : bool? = true
+  bytes 271
     08 ff ff ff ff ff ff ff ff ff 01 12 0f 0d ff ff
     7f 7f 15 ff ff 7f 7f 1d ff ff 7f 7f 1a 0f 0d ff
     ff 7f 7f 15 ff ff 7f 7f 1d ff ff 7f 7f 25 ff ff
@@ -145,7 +151,7 @@ variant maxima
     ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
     a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
     78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 8d 01 ff
-    ff 7f 7f 90 01 ff ff 03 98 01 ff 01
+    ff 7f 7f 90 01 ff ff 03 98 01 ff 01 a0 01 01
 
 variant minima
   field 1 Guid : ulong = 0
@@ -173,12 +179,13 @@ variant minima
   field 17 PortalRadius : float? = -3.40282347E+38 (0xff7fffff)
   field 18 PortalTargetMapId : ushort? = 0
   field 19 PortalRole : byte? = 0
-  bytes 77
+  field 20 CanInteract : bool? = false
+  bytes 80
     12 0f 0d ff ff 7f ff 15 ff ff 7f ff 1d ff ff 7f
     ff 1a 0f 0d ff ff 7f ff 15 ff ff 7f ff 1d ff ff
     7f ff 25 ff ff 7f ff 28 00 30 00 38 00 40 00 48
     00 50 00 58 00 60 00 68 00 70 00 78 00 82 01 01
-    00 8d 01 ff ff 7f ff 90 01 00 98 01 00
+    00 8d 01 ff ff 7f ff 90 01 00 98 01 00 a0 01 00
 
 variant varint-edges
   field 1 Guid : ulong = 2097151
@@ -206,7 +213,8 @@ variant varint-edges
   field 17 PortalRadius : float? = 1.17549435E-38 (0x00800000)
   field 18 PortalTargetMapId : ushort? = 128
   field 19 PortalRole : byte? = 128
-  bytes 228
+  field 20 CanInteract : bool? = true
+  bytes 231
     08 ff ff 7f 12 0f 0d 00 00 80 00 15 00 00 80 00
     1d 00 00 80 00 1a 0f 0d 00 00 80 00 15 00 00 80
     00 1d 00 00 80 00 25 00 00 80 00 28 04 30 80 80
@@ -221,7 +229,7 @@ variant varint-edges
     78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
     78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
     78 78 78 78 78 78 8d 01 00 00 80 00 90 01 80 01
-    98 01 80 01
+    98 01 80 01 a0 01 01
 
 variant float-specials
   field 1 Guid : ulong = 7
@@ -249,10 +257,12 @@ variant float-specials
   field 17 PortalRadius : float? = Infinity (0x7f800000)
   field 18 PortalTargetMapId : ushort? = 19
   field 19 PortalRole : byte? = 19
-  bytes 94
+  field 20 CanInteract : bool? = true
+  bytes 97
     08 07 12 0f 0d 01 00 c0 7f 15 00 00 80 7f 1d 00
     00 80 ff 1a 0f 0d 01 00 c0 7f 15 00 00 80 7f 1d
     00 00 80 ff 25 01 00 c0 7f 28 02 30 07 38 ac 02
     40 01 48 80 d0 ac f3 0e 50 c0 84 3d 58 ac 02 60
     01 68 c0 84 3d 70 07 78 ac 02 82 01 05 61 6c 70
-    68 61 8d 01 00 00 80 7f 90 01 13 98 01 13
+    68 61 8d 01 00 00 80 7f 90 01 13 98 01 13 a0 01
+    01

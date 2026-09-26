@@ -6,6 +6,8 @@ using Avalon.Network.Packets.State;
 using Avalon.World.Public;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Creatures;
+using Avalon.World.Dialogue;
+using Avalon.World.Public.Dialogue;
 using Avalon.World.Public.Maps;
 using Avalon.World.Reload;
 using Microsoft.Extensions.Logging;
@@ -51,6 +53,13 @@ public class CreatureSpawner(ILoggerFactory loggerFactory, IWorld world) : ICrea
         // with the old deriver or the reverse.
         CreaturesPatch creatures = world.Data.Creatures;
 
+        // Dialogue is its own reload area, published as its own reference, so it is read once too.
+        // Whether this creature can be interacted with is fixed here, at spawn: a later
+        // /reload dialogue reaches only creatures spawned after it, and one already standing keeps
+        // the flag it spawned with. Creatures never respawn and the town instance persists, so a
+        // town NPC's flag stays as it was until the server restarts.
+        IDialogueCatalog dialogue = world.Data.Dialogue;
+
         CreatureTemplate? template = creatures.Templates.FirstOrDefault(t => t.Id == templateId);
         if (template == null)
         {
@@ -72,6 +81,7 @@ public class CreatureSpawner(ILoggerFactory loggerFactory, IWorld world) : ICrea
             Velocity = new Vector2(0, 0),
             ScriptName = template.ScriptName,
             Invulnerable = template.Invulnerable,
+            CanInteract = NpcInteraction.CanInteract(dialogue, template.Id),
             MoveState = MoveState.Idle,
             Level = stats.Level,
             Health = stats.Health,

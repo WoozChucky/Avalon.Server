@@ -8,6 +8,7 @@ using Avalon.World.Entities;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
 using Avalon.World.Reload;
+using Avalon.World.Serialization;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Xunit;
@@ -203,12 +204,91 @@ public class CreatureSpawnerShould
         Assert.False(creature.Invulnerable);
     }
 
+    [Fact]
+    public void Mark_A_Creature_Whose_Template_Has_Dialogue_As_Interactable()
+    {
+        // What lets a client offer "talk to" for an NPC and not for a wolf. The flag is read off the
+        // dialogue catalog at spawn, with the same rule InteractHandler applies.
+        CreatureTemplate template = PlainTemplate(46, "Innkeeper");
+
+        ICreature creature = SpawnerOver(template, RootNodeFor(template.Id)).Spawn(template.Id);
+
+        Assert.True(ObjectStateWriter.From(creature, GameEntityFields.CreatureUpdate).CanInteract);
+    }
+
+    [Fact]
+    public void Leave_A_Monster_Without_The_Interact_Flag()
+    {
+        // Null, not false: a monster's state omits the member altogether.
+        CreatureTemplate template = PlainTemplate(47, "Grey Fen Wolf");
+
+        ICreature creature = SpawnerOver(template).Spawn(template.Id);
+
+        Assert.Null(ObjectStateWriter.From(creature, GameEntityFields.CreatureUpdate).CanInteract);
+    }
+
+    [Fact]
+    public void Leave_A_Creature_Without_The_Flag_When_Only_Another_Template_Has_Dialogue()
+    {
+        CreatureTemplate template = PlainTemplate(48, "Thornback Boar");
+
+        ICreature creature = SpawnerOver(template, RootNodeFor(new CreatureTemplateId(999)))
+            .Spawn(template.Id);
+
+        Assert.Null(ObjectStateWriter.From(creature, GameEntityFields.CreatureUpdate).CanInteract);
+    }
+
+    /// <summary>
+    /// <c>/reload dialogue</c> is forward-only like every other reload area: the flag is fixed at
+    /// spawn, so a creature already standing keeps the value it spawned with and only the next spawn
+    /// of that template picks up the new dialogue.
+    /// </summary>
+    [Fact]
+    public async Task Fix_The_Interact_Flag_At_Spawn_So_A_Dialogue_Reload_Reaches_Only_Later_Spawns()
+    {
+        CreatureTemplate template = PlainTemplate(62, "Late Talker");
+        template.MinLevel = 1;
+        template.MaxLevel = 1;
+
+        (CreatureSpawner spawner, StaticData data, MutableRepos repos) = ReloadableSpawnerOver(template);
+
+        ICreature before = spawner.Spawn(template.Id);
+
+        repos.DialogueNodes.Add(RootNodeFor(template.Id));
+        data.Apply(await data.PrepareAsync(ReloadArea.Dialogue));
+
+        ICreature after = spawner.Spawn(template.Id);
+
+        Assert.Null(ObjectStateWriter.From(before, GameEntityFields.None).CanInteract);
+        Assert.True(ObjectStateWriter.From(after, GameEntityFields.None).CanInteract);
+    }
+
+    private static CreatureTemplate PlainTemplate(ulong id, string name) => new()
+    {
+        Id = new CreatureTemplateId(id),
+        Name = name,
+        MinLevel = 2,
+        MaxLevel = 2,
+        Rarity = CreatureRarity.Normal,
+        HealthModifier = 1f,
+        DamageModifier = 1f,
+        ExperienceModifier = 1f
+    };
+
+    private static DialogueNode RootNodeFor(CreatureTemplateId templateId) => new()
+    {
+        Id = new DialogueNodeId(1),
+        CreatureTemplateId = templateId,
+        IsRoot = true,
+        TextId = new LocalizedTextId(1)
+    };
+
     /// <summary>
     /// A real <c>StaticData</c> over substituted repositories, loaded once, so the spawner reads its
     /// template and stats from <c>world.Data</c> the same way it does in production. The base stats
     /// and rarity rows are the real seeded values for the levels these tests touch.
     /// </summary>
-    private static CreatureSpawner SpawnerOver(CreatureTemplate template)
+    private static CreatureSpawner SpawnerOver(CreatureTemplate template, params DialogueNode[] dialogueNodes)
     {
         var templateRepository = Substitute.For<ICreatureTemplateRepository>();
         templateRepository.FindAllAsync(Arg.Any<bool>(), Arg.Any<CancellationToken>())
@@ -258,7 +338,7 @@ public class CreatureSpawnerShould
             .Returns(Task.FromResult<IReadOnlyCollection<CharacterClassName>>([]));
         var dialogue = Substitute.For<IDialogueRepository>();
         dialogue.GetAllNodesAsync(Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<IReadOnlyCollection<DialogueNode>>([]));
+            .Returns(Task.FromResult<IReadOnlyCollection<DialogueNode>>(dialogueNodes));
         dialogue.GetAllOptionsAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyCollection<DialogueOption>>([]));
 
@@ -282,6 +362,7 @@ public class CreatureSpawnerShould
     {
         public List<CreatureTemplate> Templates = [];
         public List<CreatureBaseStat> BaseStats = [];
+        public List<DialogueNode> DialogueNodes = [];
     }
 
     /// <summary>
@@ -339,7 +420,7 @@ public class CreatureSpawnerShould
             .Returns(Task.FromResult<IReadOnlyCollection<CharacterClassName>>([]));
         var dialogue = Substitute.For<IDialogueRepository>();
         dialogue.GetAllNodesAsync(Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<IReadOnlyCollection<DialogueNode>>([]));
+            .Returns(_ => Task.FromResult<IReadOnlyCollection<DialogueNode>>(repos.DialogueNodes.ToList()));
         dialogue.GetAllOptionsAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyCollection<DialogueOption>>([]));
 

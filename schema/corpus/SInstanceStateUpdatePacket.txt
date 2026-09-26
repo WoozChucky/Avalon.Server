@@ -51,6 +51,7 @@ variant populated
       field 17 PortalRadius : float? = -2.25 (0xc0100000)
       field 18 PortalTargetMapId : ushort? = 19
       field 19 PortalRole : byte? = 19
+      field 20 CanInteract : bool? = true
     element 1
       field 1 Guid : ulong = 1000000
       field 2 Position : Vec3
@@ -77,21 +78,22 @@ variant populated
       field 17 PortalRadius : float? = 3.14159274 (0x40490fdb)
       field 18 PortalTargetMapId : ushort? = 42
       field 19 PortalRole : byte? = 42
-  bytes 209
-    0a 5e 08 07 12 0f 0d db 0f 49 40 15 cd cc cc 3d
+      field 20 CanInteract : bool? = true
+  bytes 215
+    0a 61 08 07 12 0f 0d db 0f 49 40 15 cd cc cc 3d
     1d db 0f 49 40 1a 0f 0d db 0f 49 40 15 cd cc cc
     3d 1d db 0f 49 40 25 f9 02 15 50 28 02 30 07 38
     ac 02 40 01 48 80 d0 ac f3 0e 50 c0 84 3d 58 ac
     02 60 01 68 c0 84 3d 70 07 78 ac 02 82 01 05 61
     6c 70 68 61 8d 01 00 00 10 c0 90 01 13 98 01 13
-    0a 6f 08 c0 84 3d 12 0f 0d 00 00 10 c0 15 00 00
-    c0 3f 1d 00 00 10 c0 1a 0f 0d 00 00 10 c0 15 00
-    00 c0 3f 1d 00 00 10 c0 25 b0 0f a1 b3 28 03 30
-    ff ff 03 38 2a 40 03 48 ac 02 50 07 58 ff ff 03
-    60 01 68 07 70 c0 84 3d 78 2a 82 01 18 22 71 75
-    6f 74 65 64 22 20 61 6e 64 20 5c 62 61 63 6b 73
-    6c 61 73 68 5c 8d 01 db 0f 49 40 90 01 2a 98 01
-    2a
+    a0 01 01 0a 72 08 c0 84 3d 12 0f 0d 00 00 10 c0
+    15 00 00 c0 3f 1d 00 00 10 c0 1a 0f 0d 00 00 10
+    c0 15 00 00 c0 3f 1d 00 00 10 c0 25 b0 0f a1 b3
+    28 03 30 ff ff 03 38 2a 40 03 48 ac 02 50 07 58
+    ff ff 03 60 01 68 07 70 c0 84 3d 78 2a 82 01 18
+    22 71 75 6f 74 65 64 22 20 61 6e 64 20 5c 62 61
+    63 6b 73 6c 61 73 68 5c 8d 01 db 0f 49 40 90 01
+    2a 98 01 2a a0 01 01
 
 variant maxima
   field 1 Updates : List<ObjectState> = 3 elements
@@ -121,6 +123,7 @@ variant maxima
       field 17 PortalRadius : float? = 3.40282347E+38 (0x7f7fffff)
       field 18 PortalTargetMapId : ushort? = 65535
       field 19 PortalRole : byte? = 255
+      field 20 CanInteract : bool? = true
     element 1
       field 1 Guid : ulong = 18446744073709551615
       field 2 Position : Vec3
@@ -147,6 +150,7 @@ variant maxima
       field 17 PortalRadius : float? = 3.40282347E+38 (0x7f7fffff)
       field 18 PortalTargetMapId : ushort? = 65535
       field 19 PortalRole : byte? = 255
+      field 20 CanInteract : bool? = true
     element 2
       field 1 Guid : ulong = 18446744073709551615
       field 2 Position : Vec3
@@ -173,8 +177,9 @@ variant maxima
       field 17 PortalRadius : float? = 3.40282347E+38 (0x7f7fffff)
       field 18 PortalTargetMapId : ushort? = 65535
       field 19 PortalRole : byte? = 255
-  bytes 813
-    0a 8c 02 08 ff ff ff ff ff ff ff ff ff 01 12 0f
+      field 20 CanInteract : bool? = true
+  bytes 822
+    0a 8f 02 08 ff ff ff ff ff ff ff ff ff 01 12 0f
     0d ff ff 7f 7f 15 ff ff 7f 7f 1d ff ff 7f 7f 1a
     0f 0d ff ff 7f 7f 15 ff ff 7f 7f 1d ff ff 7f 7f
     25 ff ff 7f 7f 28 03 30 ff ff ff ff 0f 38 ff ff
@@ -190,15 +195,15 @@ variant maxima
     ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
     a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
     78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
-    8d 01 ff ff 7f 7f 90 01 ff ff 03 98 01 ff 01 0a
-    8c 02 08 ff ff ff ff ff ff ff ff ff 01 12 0f 0d
-    ff ff 7f 7f 15 ff ff 7f 7f 1d ff ff 7f 7f 1a 0f
-    0d ff ff 7f 7f 15 ff ff 7f 7f 1d ff ff 7f 7f 25
-    ff ff 7f 7f 28 03 30 ff ff ff ff 0f 38 ff ff ff
-    ff 0f 40 03 48 ff ff ff ff 0f 50 ff ff ff ff 0f
-    58 ff ff 03 60 01 68 ff ff ff ff ff ff ff ff ff
-    01 70 ff ff ff ff ff ff ff ff ff 01 78 ff ff ff
-    ff ff ff ff ff ff 01 82 01 84 01 ce a9 78 ce a9
+    8d 01 ff ff 7f 7f 90 01 ff ff 03 98 01 ff 01 a0
+    01 01 0a 8f 02 08 ff ff ff ff ff ff ff ff ff 01
+    12 0f 0d ff ff 7f 7f 15 ff ff 7f 7f 1d ff ff 7f
+    7f 1a 0f 0d ff ff 7f 7f 15 ff ff 7f 7f 1d ff ff
+    7f 7f 25 ff ff 7f 7f 28 03 30 ff ff ff ff 0f 38
+    ff ff ff ff 0f 40 03 48 ff ff ff ff 0f 50 ff ff
+    ff ff 0f 58 ff ff 03 60 01 68 ff ff ff ff ff ff
+    ff ff ff 01 70 ff ff ff ff ff ff ff ff ff 01 78
+    ff ff ff ff ff ff ff ff ff 01 82 01 84 01 ce a9
     78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
     ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
     a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
@@ -206,16 +211,16 @@ variant maxima
     ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
     a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
     78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
-    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 8d
-    01 ff ff 7f 7f 90 01 ff ff 03 98 01 ff 01 0a 8c
-    02 08 ff ff ff ff ff ff ff ff ff 01 12 0f 0d ff
-    ff 7f 7f 15 ff ff 7f 7f 1d ff ff 7f 7f 1a 0f 0d
-    ff ff 7f 7f 15 ff ff 7f 7f 1d ff ff 7f 7f 25 ff
-    ff 7f 7f 28 03 30 ff ff ff ff 0f 38 ff ff ff ff
-    0f 40 03 48 ff ff ff ff 0f 50 ff ff ff ff 0f 58
-    ff ff 03 60 01 68 ff ff ff ff ff ff ff ff ff 01
-    70 ff ff ff ff ff ff ff ff ff 01 78 ff ff ff ff
-    ff ff ff ff ff 01 82 01 84 01 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 8d 01 ff ff 7f 7f 90 01 ff ff 03 98 01 ff
+    01 a0 01 01 0a 8f 02 08 ff ff ff ff ff ff ff ff
+    ff 01 12 0f 0d ff ff 7f 7f 15 ff ff 7f 7f 1d ff
+    ff 7f 7f 1a 0f 0d ff ff 7f 7f 15 ff ff 7f 7f 1d
+    ff ff 7f 7f 25 ff ff 7f 7f 28 03 30 ff ff ff ff
+    0f 38 ff ff ff ff 0f 40 03 48 ff ff ff ff 0f 50
+    ff ff ff ff 0f 58 ff ff 03 60 01 68 ff ff ff ff
+    ff ff ff ff ff 01 70 ff ff ff ff ff ff ff ff ff
+    01 78 ff ff ff ff ff ff ff ff ff 01 82 01 84 01
     ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
     a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
     78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
@@ -223,8 +228,9 @@ variant maxima
     a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
     78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
     ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
-    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 8d 01
-    ff ff 7f 7f 90 01 ff ff 03 98 01 ff 01
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 8d 01 ff ff 7f 7f 90 01 ff ff 03 98
+    01 ff 01 a0 01 01
 
 variant minima
   field 1 Updates : List<ObjectState> = 1 element
@@ -254,12 +260,14 @@ variant minima
       field 17 PortalRadius : float? = -3.40282347E+38 (0xff7fffff)
       field 18 PortalTargetMapId : ushort? = 0
       field 19 PortalRole : byte? = 0
-  bytes 79
-    0a 4d 12 0f 0d ff ff 7f ff 15 ff ff 7f ff 1d ff
+      field 20 CanInteract : bool? = false
+  bytes 82
+    0a 50 12 0f 0d ff ff 7f ff 15 ff ff 7f ff 1d ff
     ff 7f ff 1a 0f 0d ff ff 7f ff 15 ff ff 7f ff 1d
     ff ff 7f ff 25 ff ff 7f ff 28 00 30 00 38 00 40
     00 48 00 50 00 58 00 60 00 68 00 70 00 78 00 82
-    01 01 00 8d 01 ff ff 7f ff 90 01 00 98 01 00
+    01 01 00 8d 01 ff ff 7f ff 90 01 00 98 01 00 a0
+    01 00
 
 variant varint-edges
   field 1 Updates : List<ObjectState> = 2 elements
@@ -289,6 +297,7 @@ variant varint-edges
       field 17 PortalRadius : float? = 1.17549435E-38 (0x00800000)
       field 18 PortalTargetMapId : ushort? = 128
       field 19 PortalRole : byte? = 128
+      field 20 CanInteract : bool? = true
     element 1
       field 1 Guid : ulong = 16384
       field 2 Position : Vec3
@@ -315,8 +324,9 @@ variant varint-edges
       field 17 PortalRadius : float? = 1.17549449E-38 (0x00800001)
       field 18 PortalTargetMapId : ushort? = 16383
       field 19 PortalRole : byte? = 127
-  bytes 460
-    0a e4 01 08 ff ff 7f 12 0f 0d 00 00 80 00 15 00
+      field 20 CanInteract : bool? = true
+  bytes 466
+    0a e7 01 08 ff ff 7f 12 0f 0d 00 00 80 00 15 00
     00 80 00 1d 00 00 80 00 1a 0f 0d 00 00 80 00 15
     00 00 80 00 1d 00 00 80 00 25 00 00 80 00 28 04
     30 80 80 80 80 01 38 ff ff ff 7f 40 04 48 ff ff
@@ -330,21 +340,22 @@ variant varint-edges
     78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
     78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
     78 78 78 78 78 78 78 78 78 8d 01 00 00 80 00 90
-    01 80 01 98 01 80 01 0a e2 01 08 80 80 01 12 0f
-    0d 01 00 80 00 15 01 00 80 00 1d 01 00 80 00 1a
-    0f 0d 01 00 80 00 15 01 00 80 00 1d 01 00 80 00
-    25 01 00 80 00 28 04 30 ff ff 7f 38 80 01 40 04
-    48 80 80 80 80 01 50 ff ff 7f 58 ff 7f 60 01 68
-    ff 7f 70 80 80 01 78 80 80 01 82 01 81 01 c3 a9
-    c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9
-    c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9
-    c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9
-    c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9
-    c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 7a 7a
+    01 80 01 98 01 80 01 a0 01 01 0a e5 01 08 80 80
+    01 12 0f 0d 01 00 80 00 15 01 00 80 00 1d 01 00
+    80 00 1a 0f 0d 01 00 80 00 15 01 00 80 00 1d 01
+    00 80 00 25 01 00 80 00 28 04 30 ff ff 7f 38 80
+    01 40 04 48 80 80 80 80 01 50 ff ff 7f 58 ff 7f
+    60 01 68 ff 7f 70 80 80 01 78 80 80 01 82 01 81
+    01 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3
+    a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3
+    a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3
+    a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3
+    a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3 a9 c3
+    a9 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a
     7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a
     7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a
-    7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 7a 8d
-    01 01 00 80 00 90 01 ff 7f 98 01 7f
+    7a 7a 8d 01 01 00 80 00 90 01 ff 7f 98 01 7f a0
+    01 01
 
 variant float-specials
   field 1 Updates : List<ObjectState> = 2 elements
@@ -374,6 +385,7 @@ variant float-specials
       field 17 PortalRadius : float? = Infinity (0x7f800000)
       field 18 PortalTargetMapId : ushort? = 19
       field 19 PortalRole : byte? = 19
+      field 20 CanInteract : bool? = true
     element 1
       field 1 Guid : ulong = 1000000
       field 2 Position : Vec3
@@ -400,17 +412,18 @@ variant float-specials
       field 17 PortalRadius : float? = -Infinity (0xff800000)
       field 18 PortalTargetMapId : ushort? = 42
       field 19 PortalRole : byte? = 42
-  bytes 199
-    0a 5e 08 07 12 0f 0d 01 00 c0 7f 15 00 00 80 7f
+      field 20 CanInteract : bool? = true
+  bytes 205
+    0a 61 08 07 12 0f 0d 01 00 c0 7f 15 00 00 80 7f
     1d 00 00 80 ff 1a 0f 0d 01 00 c0 7f 15 00 00 80
     7f 1d 00 00 80 ff 25 01 00 c0 7f 28 02 30 07 38
     ac 02 40 01 48 80 d0 ac f3 0e 50 c0 84 3d 58 ac
     02 60 01 68 c0 84 3d 70 07 78 ac 02 82 01 05 61
     6c 70 68 61 8d 01 00 00 80 7f 90 01 13 98 01 13
-    0a 65 08 c0 84 3d 12 0a 0d 00 00 80 7f 15 00 00
-    80 ff 1a 0a 0d 00 00 80 7f 15 00 00 80 ff 25 00
-    00 80 7f 28 03 30 ff ff 03 38 2a 40 03 48 ac 02
-    50 07 58 ff ff 03 60 01 68 07 70 c0 84 3d 78 2a
-    82 01 18 22 71 75 6f 74 65 64 22 20 61 6e 64 20
-    5c 62 61 63 6b 73 6c 61 73 68 5c 8d 01 00 00 80
-    ff 90 01 2a 98 01 2a
+    a0 01 01 0a 68 08 c0 84 3d 12 0a 0d 00 00 80 7f
+    15 00 00 80 ff 1a 0a 0d 00 00 80 7f 15 00 00 80
+    ff 25 00 00 80 7f 28 03 30 ff ff 03 38 2a 40 03
+    48 ac 02 50 07 58 ff ff 03 60 01 68 07 70 c0 84
+    3d 78 2a 82 01 18 22 71 75 6f 74 65 64 22 20 61
+    6e 64 20 5c 62 61 63 6b 73 6c 61 73 68 5c 8d 01
+    00 00 80 ff 90 01 2a 98 01 2a a0 01 01

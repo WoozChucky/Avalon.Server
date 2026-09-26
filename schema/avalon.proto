@@ -435,6 +435,7 @@ message ObjectState {
    optional float PortalRadius = 17;
    optional uint32 PortalTargetMapId = 18;
    optional uint32 PortalRole = 19;
+   optional bool CanInteract = 20;
 }
 message PlacedChunkDto {
    int32 ChunkTemplateId = 1;
