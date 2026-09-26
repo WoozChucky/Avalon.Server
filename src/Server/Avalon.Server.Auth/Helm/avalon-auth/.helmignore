@@ -21,3 +21,5 @@
 .idea/
 *.tmproj
 .vscode/
+# Chart tests (ci/test.sh) run in CI, not in the cluster
+ci/

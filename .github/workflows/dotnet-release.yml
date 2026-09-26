@@ -13,7 +13,9 @@ jobs:
   release:
 
     runs-on: ubuntu-latest
-    permissions: write-all
+    permissions:
+      contents: write   # create the GitHub release
+      packages: write   # push images and charts to ghcr
 
     steps:
       - uses: actions/checkout@v7
@@ -97,6 +99,26 @@ jobs:
           push: true
           tags: ${{ steps.meta-api.outputs.tags }}
           labels: ${{ steps.meta-api.outputs.labels }}
+
+      - uses: azure/setup-helm@v4
+
+      - name: Package and push Helm charts
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          VERSION="${TAG#v}"
+          echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io -u "${{ github.actor }}" --password-stdin
+          mkdir -p dist/charts
+          for chart in src/Server/Avalon.Api/Helm/avalon-api \
+                       src/Server/Avalon.Server.Auth/Helm/avalon-auth \
+                       src/Server/Avalon.Server.World/Helm/avalon-world; do
+            bash "$chart/ci/test.sh"
+            helm package "$chart" --version "$VERSION" --app-version "$VERSION" -d dist/charts
+          done
+          for tgz in dist/charts/*.tgz; do
+            helm push "$tgz" oci://ghcr.io/woozchucky/charts
+          done
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v3
