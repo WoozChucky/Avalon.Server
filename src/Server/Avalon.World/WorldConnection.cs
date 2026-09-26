@@ -1,5 +1,4 @@
 using System.Collections.Concurrent;
-using System.Diagnostics.Metrics;
 using System.Net.Sockets;
 using Avalon.Common;
 using Avalon.Common.Telemetry;
@@ -25,15 +24,11 @@ public class WorldConnection : Connection, IWorldConnection, IAccessLevelAssigna
     private readonly ConcurrentQueue<WorldPacket> _receiveQueue;
 
     private readonly IWorldServer _server;
-    private ObservableGauge<double> _bytesReceivedRate;
-    private ObservableGauge<double> _bytesSentRate;
 
     private CharacterEntity? _characterEntity;
 
     private long _lastClientTicks;
     private long _lastServerTicks;
-    private ObservableGauge<double> _packetReceivedRate;
-    private ObservableGauge<double> _packetSentRate;
 
     public WorldConnection(IWorldServer server, TcpClient client, ILoggerFactory loggerFactory,
         IPacketReader packetReader)
@@ -46,15 +41,6 @@ public class WorldConnection : Connection, IWorldConnection, IAccessLevelAssigna
         _sessionFilterPredicate = wp => _worldSessionFilter.CanProcess(wp.Type);
         _mapFilterPredicate = wp => _worldMapFilter.CanProcess(wp.Type);
         Init(client);
-
-        _packetSentRate = DiagnosticsConfig.World.Meter.CreateObservableGauge("network.out.packets.rate",
-            () => PacketSentRate, "packets/s", "Rate of packets sent");
-        _packetReceivedRate = DiagnosticsConfig.World.Meter.CreateObservableGauge("network.in.packets.rate",
-            () => PacketReceivedRate, "packets/s", "Rate of packets received");
-        _bytesSentRate = DiagnosticsConfig.World.Meter.CreateObservableGauge("network.out.bytes.rate",
-            () => BytesSentRate, "bytes/s", "Rate of bytes sent");
-        _bytesReceivedRate = DiagnosticsConfig.World.Meter.CreateObservableGauge("network.in.bytes.rate",
-            () => BytesReceivedRate, "bytes/s", "Rate of bytes received");
     }
 
     public AccountId? AccountId { get; set; }

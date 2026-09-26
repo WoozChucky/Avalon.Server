@@ -1,6 +1,6 @@
 apiVersion: v2
-name: avalon-api
-description: Avalon HTTP API
+name: avalon-world
+description: Avalon world server (TCP)
 type: application
 # Both are overwritten by the release workflow with the git tag (helm package --version/--app-version).
 version: 0.0.0-dev
