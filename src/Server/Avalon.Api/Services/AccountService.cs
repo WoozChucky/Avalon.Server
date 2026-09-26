@@ -211,17 +211,7 @@ public class AccountService : IAccountService
             Os = OperatingSystem.Windows,
         };
 
-        var creationKey = await TakeCreationSlotAsync(ipAddress);
-        try
-        {
-            account = await InsertAccountAsync(account, cancellationToken);
-        }
-        catch
-        {
-            // No account came of it, so it does not count against the cap.
-            await AttemptBudget.GiveBackAsync(_cache, creationKey);
-            throw;
-        }
+        account = await InsertAccountAsync(account, ipAddress, cancellationToken);
 
         if (account == null)
             throw new Exception("Failed to insert account");
@@ -277,18 +267,27 @@ public class AccountService : IAccountService
     /// Inserts a new account. The "taken" check before it and this insert are not atomic: a
     /// registration of the same name can land in between, and the unique index on Username
     /// refuses this one (#487). Its caller gets the answer the check would have given; any other
-    /// failure is rethrown.
+    /// failure is rethrown. The insert takes a slot of the source's creation cap first, given back
+    /// when no account comes of it.
     /// </summary>
-    private async Task<Account> InsertAccountAsync(Account account, CancellationToken cancellationToken)
+    private async Task<Account> InsertAccountAsync(Account account, IPAddress ipAddress,
+        CancellationToken cancellationToken)
     {
+        var creationKey = await TakeCreationSlotAsync(ipAddress);
         try
         {
             return await _accountRepository.CreateAsync(account, cancellationToken);
         }
         catch (DbUpdateException ex)
         {
+            await AttemptBudget.GiveBackAsync(_cache, creationKey);
             if (await _accountRepository.FindByUserNameAsync(account.Username, cancellationToken) != null)
                 throw new BusinessException(UsernameTaken, ex);
+            throw;
+        }
+        catch
+        {
+            await AttemptBudget.GiveBackAsync(_cache, creationKey);
             throw;
         }
     }
