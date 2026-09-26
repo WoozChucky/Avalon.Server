@@ -15,6 +15,7 @@ using Avalon.World.Abilities;
 using Avalon.World.Characters;
 using Avalon.World.Inventory;
 using Avalon.World.Persistence;
+using Avalon.World.Vendors;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Entities;
@@ -150,6 +151,12 @@ public class CharacterEntity : ICharacter
     /// that ends or changes closes the bank whatever this still says.
     /// </summary>
     public ObjectGuid? OpenBankNpc { get; set; }
+
+    /// <summary>
+    /// This session's last ten sales to a vendor, newest first (spec #432). In memory only. Cleared
+    /// when the character leaves the world, so a buyback lost on logout is simply a completed sale.
+    /// </summary>
+    public VendorBuyback Buyback { get; } = new();
 
     public ObjectGuid Guid { get; set; }
 

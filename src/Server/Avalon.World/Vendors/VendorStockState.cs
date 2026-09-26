@@ -57,11 +57,19 @@ public sealed class VendorStockState
     /// <summary>
     /// Takes <paramref name="count" /> of a limited row, and starts its timer if none is running.
     /// Does nothing for an unlimited row. The caller has checked <see cref="Available" /> first;
-    /// taking more than is left throws.
+    /// taking more than is left throws, and so does taking from a limited row this state does not
+    /// track, which <see cref="Available" /> reports as 0 left (#432).
     /// </summary>
     public void Take(VendorStockView row, uint count, DateTime now)
     {
-        if (count == 0 || !_limited.TryGetValue(row.Id, out Limited? limited))
+        if (!row.IsLimited)
+            return;
+
+        if (!_limited.TryGetValue(row.Id, out Limited? limited))
+            throw new InvalidOperationException(
+                $"Taking {count} of limited stock row {row.Id}, which this vendor's state does not track; the caller resolves rows from Rows.");
+
+        if (count == 0)
             return;
 
         if (count > limited.Count)

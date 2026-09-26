@@ -46,6 +46,23 @@ public class VendorStockStateShould
         Assert.False(state.Changed);
     }
 
+    /// <summary>
+    /// A limited row this state does not track (not in the rows it was built or reconciled with)
+    /// reports 0 left, so taking from it would sell stock that does not exist. It throws instead of
+    /// selling without a decrement (#432).
+    /// </summary>
+    [Fact]
+    public void Refuse_to_take_from_a_limited_row_it_does_not_track()
+    {
+        VendorStockState state = Stock();
+        VendorStockView stranger = RowOf(state, BladeSequence) with { Id = 99 };
+
+        Assert.Equal(0u, state.Available(stranger));
+        Assert.Throws<InvalidOperationException>(() => state.Take(stranger, 1, Now));
+        Assert.Equal(2u, state.Available(RowOf(state, BladeSequence)));
+        Assert.False(state.Changed);
+    }
+
     [Fact]
     public void Refuse_to_take_more_than_is_left()
     {
