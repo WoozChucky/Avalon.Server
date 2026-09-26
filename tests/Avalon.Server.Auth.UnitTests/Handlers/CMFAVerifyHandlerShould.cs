@@ -160,6 +160,7 @@ public class CMFAVerifyHandlerShould
             Substitute.For<IPacketManager>(),
             NullLoggerFactory.Instance,
             Substitute.For<IAccountRepository>(),
+            Substitute.For<IReplicatedCache>(),
             hostingOptions,
             securityOptions);
         _connection.Server.Returns(server);

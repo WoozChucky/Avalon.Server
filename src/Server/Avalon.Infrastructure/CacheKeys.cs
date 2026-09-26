@@ -9,8 +9,10 @@ public static class CacheKeys
     // ── Pub/Sub Channels (fixed) ──────────────────────────────────────────────
 
     /// <summary>
-    /// Published by the Auth server when a duplicate login triggers a forced disconnect.
-    /// Subscribed by World servers to close the matching in-world connection.
+    /// Published, with the account id, whenever an account's sessions must end: a duplicate login,
+    /// a password change, an MFA reset or removal, a ban, an email change, a refresh-token reuse.
+    /// Subscribed by World servers to close the matching in-world connection, and by the Auth server
+    /// to close the account's logged-in auth connections (#495).
     /// </summary>
     public const string WorldAccountsDisconnectChannel = "world:accounts:disconnect";
 

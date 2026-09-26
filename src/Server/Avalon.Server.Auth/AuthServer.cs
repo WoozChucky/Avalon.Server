@@ -6,10 +6,12 @@ using Avalon.Configuration;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Domain.Auth;
 using Avalon.Hosting.Networking;
+using Avalon.Infrastructure;
 using Avalon.Network.Packets;
 using Avalon.Network.Packets.Generic;
 using Avalon.Server.Auth.Configuration;
 using Microsoft.Extensions.Options;
+using StackExchange.Redis;
 
 namespace Avalon.Server.Auth;
 
@@ -18,6 +20,7 @@ public class AuthServer(
     IPacketManager packetManager,
     ILoggerFactory loggerFactory,
     IAccountRepository accountRepository,
+    IReplicatedCache cache,
     IOptions<HostingConfiguration> hostingOptions,
     IOptions<HostingSecurity> securityOptions)
     : ServerBase<AuthConnection>(packetManager, loggerFactory.CreateLogger<AuthServer>(),
@@ -59,11 +62,25 @@ public class AuthServer(
         // setup that does not work anyway. The Helm chart runs one replica.
         await accountRepository.MarkAllOfflineAsync(stoppingToken);
 
+        await SubscribeToAccountDisconnectsAsync();
+
         RegisterNewConnectionListener(NewConnection);
     }
 
     protected override async Task OnStoppingAsync(CancellationToken stoppingToken)
     {
+        if (_accountDisconnectHandler != null)
+        {
+            try
+            {
+                await cache.UnsubscribeAsync(CacheKeys.WorldAccountsDisconnectChannel, _accountDisconnectHandler);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Could not unsubscribe from the account disconnect channel");
+            }
+        }
+
         // Awaited, and all at once: the shutdown notice is delivered by the close, so returning
         // before they finish lets the host exit with the packets still queued.
         var closing = new List<Task>();
@@ -71,6 +88,55 @@ public class AuthServer(
             closing.Add(GracefulShutdownHelper.NotifyAndCloseAsync(connection, "Server is shutting down", DisconnectReason.ServerShutdown, _logger));
 
         await Task.WhenAll(closing).ConfigureAwait(false);
+    }
+
+    /// <summary>What a connection closed by <see cref="CloseAccountConnections"/> is told.</summary>
+    public const string SessionEndedMessage = "Your session has ended. Please log in again.";
+
+    private Action<RedisChannel, RedisValue>? _accountDisconnectHandler;
+
+    /// <summary>
+    /// Listens on <see cref="CacheKeys.WorldAccountsDisconnectChannel"/> (#495). Everything that
+    /// ends an account's sessions publishes there (a password change, an MFA reset or removal, a
+    /// ban, a refresh-token reuse, a duplicate login), and a logged-in connection here is a session
+    /// too: left open, it could go on asking for world keys with the old credentials.
+    /// </summary>
+    public Task SubscribeToAccountDisconnectsAsync()
+    {
+        _accountDisconnectHandler ??= (_, message) => CloseAccountConnections(Connections, message, _logger);
+        return cache.SubscribeAsync(CacheKeys.WorldAccountsDisconnectChannel, _accountDisconnectHandler);
+    }
+
+    /// <summary>
+    /// Closes every connection in <paramref name="connections"/> logged in as the account
+    /// <paramref name="message"/> names, telling it why first. A message that names no account is
+    /// ignored. Returns how many were closed. A connection not logged in yet is left alone: the
+    /// account it may log in to next is checked then, against its current credentials.
+    /// </summary>
+    public static int CloseAccountConnections(IEnumerable<IAuthConnection> connections, RedisValue message,
+        ILogger logger)
+    {
+        if (!long.TryParse(message.ToString(), System.Globalization.NumberStyles.None,
+                System.Globalization.CultureInfo.InvariantCulture, out long id))
+        {
+            logger.LogWarning("Ignored an account disconnect that names no account: {Message}", message.ToString());
+            return 0;
+        }
+
+        var accountId = new Avalon.Common.ValueObjects.AccountId(id);
+        int closed = 0;
+        foreach (IAuthConnection connection in connections)
+        {
+            if (connection.AccountId != accountId)
+                continue;
+
+            logger.LogInformation("Closing auth connection {EndPoint} of account {AccountId}: its sessions were ended",
+                connection.RemoteEndPoint, id);
+            GracefulShutdownHelper.NotifyAndClose(connection, SessionEndedMessage, DisconnectReason.Kicked, logger);
+            closed++;
+        }
+
+        return closed;
     }
 
     private bool NewConnection(IConnection connection) => true;

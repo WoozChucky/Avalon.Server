@@ -104,7 +104,8 @@ public sealed class OfflineWriteRaceShould : IDisposable
         var security = Substitute.For<IOptions<HostingSecurity>>();
         security.Value.Returns(new HostingSecurity());
         var server = new AuthServer(Substitute.For<IServiceProvider>(), Substitute.For<IPacketManager>(),
-            NullLoggerFactory.Instance, Substitute.For<IAccountRepository>(), hosting, security);
+            NullLoggerFactory.Instance, Substitute.For<IAccountRepository>(), Substitute.For<IReplicatedCache>(),
+            hosting, security);
         connection.Server.Returns(server);
         return connection;
     }

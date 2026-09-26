@@ -878,7 +878,8 @@ public class UsernameBudgetShould
         hosting.Value.Returns(new HostingConfiguration { Port = 0, Host = "127.0.0.1" });
         var security = Substitute.For<IOptions<HostingSecurity>>();
         security.Value.Returns(new HostingSecurity());
-        var server = new AuthServer(services, packets, NullLoggerFactory.Instance, _accounts, hosting, security);
+        var server = new AuthServer(services, packets, NullLoggerFactory.Instance, _accounts,
+            Substitute.For<IReplicatedCache>(), hosting, security);
         IAuthConnection connection = ConnectionFrom(1);
 
         await server.CallListener(connection, new NetworkPacketHeader { Type = NetworkPacketType.CMSG_AUTH },
