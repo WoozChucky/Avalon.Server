@@ -96,6 +96,10 @@ public abstract class Connection : BackgroundService, IConnection, IConnectionRa
 
     public void Close(bool expected = true) => _ = CloseAsync(expected);
 
+    /// <summary>Probes connect and send nothing (#528): their disconnects are Debug.</summary>
+    public static LogLevel DisconnectLogLevel(int packetsReceived) =>
+        packetsReceived > 0 ? LogLevel.Information : LogLevel.Debug;
+
     public Task CloseAsync(bool expected = true)
     {
         if (Interlocked.Exchange(ref _closed, 1) == 0)
@@ -122,6 +126,10 @@ public abstract class Connection : BackgroundService, IConnection, IConnectionRa
             _client?.Close();
 
             await OnClose(expected).ConfigureAwait(false);
+
+            _logger.Log(DisconnectLogLevel(Volatile.Read(ref PacketReceivedCount)),
+                "Connection {ConnectionId} from {RemoteEndPoint} closed ({CloseKind})",
+                Id, RemoteEndPoint, expected ? "expected" : "unexpected");
         }
         catch (Exception e)
         {
