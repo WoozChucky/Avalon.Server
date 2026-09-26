@@ -101,7 +101,9 @@ public sealed class RestLoginPolicyShould : IDisposable
         var refused = await Assert.ThrowsAsync<AccountLockedException>(() => LoginAsync(Password));
 
         Assert.Equal("LOCKED", refused.Message);
-        Assert.Equal(0, _verifier.Count);
+        // One verify, against the fixed hash (#478 review), as an unknown username pays; the
+        // account's own hash is never checked.
+        Assert.Equal(new[] { BCryptPasswordVerifier.UnknownAccountHash }, _verifier.Hashes);
     }
 
     [Fact]
@@ -284,11 +286,16 @@ public sealed class RestLoginPolicyShould : IDisposable
     {
         private int _count;
 
+        private readonly System.Collections.Concurrent.ConcurrentQueue<string> _hashes = new();
+
         public int Count => Volatile.Read(ref _count);
+
+        public IReadOnlyList<string> Hashes => _hashes.ToArray();
 
         public bool Verify(string password, string hash)
         {
             Interlocked.Increment(ref _count);
+            _hashes.Enqueue(hash);
             return BCrypt.Net.BCrypt.Verify(password, hash);
         }
     }

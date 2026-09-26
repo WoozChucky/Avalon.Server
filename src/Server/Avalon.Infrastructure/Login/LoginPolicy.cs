@@ -162,7 +162,13 @@ public sealed class PasswordLoginPolicy : LoginPolicy
     private PasswordAttempt Check(Account account, string password, LoginSource source, string usernameKey, long taken)
     {
         if (account.IsLockedAt(DateTime.UtcNow))
+        {
+            // Pay for one verify against the fixed hash (#478 review), as an unknown username does:
+            // a locked row whose budget hold is gone (expired, or lost by Redis) must not answer
+            // measurably faster. The account's own hash is never checked while it is locked.
+            _verifier.Verify(password, BCryptPasswordVerifier.UnknownAccountHash);
             return new PasswordAttempt(PasswordCheck.Locked, source, usernameKey, taken, account);
+        }
 
         bool right = _verifier.Verify(password, Encoding.UTF8.GetString(account.Verifier));
         return new PasswordAttempt(right ? PasswordCheck.Correct : PasswordCheck.WrongPassword, source, usernameKey,
