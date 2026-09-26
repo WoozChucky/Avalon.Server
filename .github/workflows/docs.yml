@@ -33,6 +33,11 @@ jobs:
 
     steps:
       - uses: actions/checkout@v7
+        with:
+          # Avalon.Common compiles against vendor/DotRecast, so generating the
+          # OpenAPI document needs the submodule the way dotnet-ci.yml does. The
+          # docs build never touched C# before, which is why it lacked this.
+          submodules: recursive
 
       - name: Set up Python
         uses: actions/setup-python@v7
