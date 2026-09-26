@@ -9,6 +9,7 @@ using Avalon.Domain.World;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.World;
 using Avalon.World;
+using Avalon.World.Dialogue;
 using Avalon.World.Handlers;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
@@ -185,6 +186,86 @@ public class DialogueChooseHandlerShould
         fixture.Handler.Execute(fixture.Connection, Choose(node: 3, option: 1));
 
         Assert.Null(fixture.Connection.CurrentDialogue);
+    }
+
+    [Fact]
+    public void Advance_When_The_Player_Has_Stepped_Back_Within_The_Leash()
+    {
+        // 14 m: well past the 5 m needed to open the conversation, still inside the 15 m leash.
+        // Stepping back mid-sentence must not slam the window shut.
+        Fixture fixture = Fixture.Build();
+        fixture.Connection.CurrentDialogue = (NpcGuid, new DialogueNodeId(1));
+        fixture.Npc.Position.Returns(new Vector3(0, 0, 14));
+
+        fixture.Handler.Execute(fixture.Connection, Choose(node: 1, option: 1));
+
+        Assert.Equal((NpcGuid, new DialogueNodeId(2)), fixture.Connection.CurrentDialogue);
+        NetworkPacket sent = Assert.Single(fixture.SentPackets);
+        Assert.Equal(NetworkPacketType.SMSG_DIALOGUE_NODE, sent.Header.Type);
+    }
+
+    [Fact]
+    public void End_The_Conversation_When_The_Player_Has_Walked_Past_The_Leash()
+    {
+        // 16 m: the player walked away. Once options have effects, advancing here would let them
+        // act on the NPC from anywhere on the map.
+        Fixture fixture = Fixture.Build();
+        fixture.Connection.CurrentDialogue = (NpcGuid, new DialogueNodeId(1));
+        fixture.Npc.Position.Returns(new Vector3(0, 0, 16));
+
+        fixture.Handler.Execute(fixture.Connection, Choose(node: 1, option: 1));
+
+        Assert.Null(fixture.Connection.CurrentDialogue);
+        NetworkPacket sent = Assert.Single(fixture.SentPackets);
+        Assert.Equal(NetworkPacketType.SMSG_DIALOGUE_END, sent.Header.Type);
+    }
+
+    [Fact]
+    public void Advance_At_Exactly_The_Leash_Range()
+    {
+        // The leash is inclusive: exactly 15 m is still with the NPC.
+        Fixture fixture = Fixture.Build();
+        fixture.Connection.CurrentDialogue = (NpcGuid, new DialogueNodeId(1));
+        fixture.Npc.Position.Returns(new Vector3(0, 0, NpcInteraction.LeashRange));
+
+        fixture.Handler.Execute(fixture.Connection, Choose(node: 1, option: 1));
+
+        Assert.Equal((NpcGuid, new DialogueNodeId(2)), fixture.Connection.CurrentDialogue);
+        NetworkPacket sent = Assert.Single(fixture.SentPackets);
+        Assert.Equal(NetworkPacketType.SMSG_DIALOGUE_NODE, sent.Header.Type);
+    }
+
+    [Fact]
+    public void Ignore_A_Further_Choice_After_A_Leash_Close()
+    {
+        Fixture fixture = Fixture.Build();
+        fixture.Connection.CurrentDialogue = (NpcGuid, new DialogueNodeId(1));
+        fixture.Npc.Position.Returns(new Vector3(0, 0, 16));
+        fixture.Handler.Execute(fixture.Connection, Choose(node: 1, option: 1));
+
+        // Walking back does not reopen it: the conversation is closed until the next interact.
+        fixture.Npc.Position.Returns(new Vector3(0, 0, 2));
+        fixture.Handler.Execute(fixture.Connection, Choose(node: 1, option: 1));
+
+        Assert.Null(fixture.Connection.CurrentDialogue);
+        NetworkPacket sent = Assert.Single(fixture.SentPackets);
+        Assert.Equal(NetworkPacketType.SMSG_DIALOGUE_END, sent.Header.Type);
+    }
+
+    [Fact]
+    public void Treat_A_NaN_Distance_As_Out_Of_Range()
+    {
+        // A NaN position compares false against everything. Written as "distance > LeashRange" the
+        // check would let it through; the leash must fail closed.
+        Fixture fixture = Fixture.Build();
+        fixture.Connection.CurrentDialogue = (NpcGuid, new DialogueNodeId(1));
+        fixture.Character.Position.Returns(new Vector3(float.NaN, 0, 0));
+
+        fixture.Handler.Execute(fixture.Connection, Choose(node: 1, option: 1));
+
+        Assert.Null(fixture.Connection.CurrentDialogue);
+        NetworkPacket sent = Assert.Single(fixture.SentPackets);
+        Assert.Equal(NetworkPacketType.SMSG_DIALOGUE_END, sent.Header.Type);
     }
 
     private static CDialogueChoosePacket Choose(int node, int option)

@@ -1,6 +1,7 @@
 using Avalon.Common;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.World;
+using Avalon.World.Dialogue;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
@@ -16,10 +17,17 @@ namespace Avalon.World.Handlers;
 /// so they log at information rather than debug — worth seeing.
 /// </summary>
 /// <remarks>
-/// Range is deliberately NOT re-checked. Stepping back a metre mid-sentence should not slam a
-/// window shut, and the only thing a distant player can do is read text the server already sent.
-/// The NPC still existing and being alive IS re-checked, because talking to a corpse is nonsense
-/// the player can see.
+/// Range is re-checked on every choose, but against the generous dialogue leash
+/// (<see cref="NpcInteraction.LeashRange"/>, 15 m), not the 5 m interact range that opening a
+/// conversation needs. Stepping back a metre mid-sentence should not slam a window shut, so the
+/// 5 m check would be wrong here. No check at all would be wrong too: <c>CurrentDialogue</c> lives
+/// until the connection leaves the instance, and once an option does something (a vendor, a quest,
+/// a payment, #432) an unchecked choose would let a player do it from anywhere on the map after
+/// opening the conversation once next to the NPC. Past the leash the conversation ends with
+/// <c>SMSG_DIALOGUE_END</c>, like the other close paths, and nothing advances. Any other handler
+/// acting on an open conversation must pass <see cref="NpcInteraction.IsWithinLeash"/> as well.
+/// The NPC still existing and being alive is re-checked too, because talking to a corpse is
+/// nonsense the player can see.
 /// </remarks>
 [PacketHandler(NetworkPacketType.CMSG_DIALOGUE_CHOOSE)]
 public class DialogueChooseHandler(ILogger<DialogueChooseHandler> logger, IWorld world)
@@ -68,6 +76,17 @@ public class DialogueChooseHandler(ILogger<DialogueChooseHandler> logger, IWorld
         if (!context.Creatures.TryGetValue(open.Npc, out ICreature? npc) || npc.CurrentHealth == 0)
         {
             logger.LogInformation("Dialogue partner {Npc} is gone; closing the conversation", open.Npc);
+            End(connection, open.Npc);
+            return;
+        }
+
+        // The leash, after the NPC check because it needs the NPC's position. Walking away closes
+        // the conversation rather than just dropping the choice, so the client's window cannot
+        // stay open on a conversation the server no longer honours.
+        if (!NpcInteraction.IsWithinLeash(character.Position, npc.Position))
+        {
+            logger.LogInformation("Dialogue partner {Npc} is past the {Leash} m leash; closing the conversation",
+                open.Npc, NpcInteraction.LeashRange);
             End(connection, open.Npc);
             return;
         }
