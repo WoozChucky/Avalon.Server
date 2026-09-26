@@ -3,19 +3,57 @@
   "extends": [
     "config:recommended"
   ],
+  "ignorePaths": [
+    "**/node_modules/**",
+    "vendor/**"
+  ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "TargetFramework follows the aspnet runtime image, so both move to a new .NET major together.",
+      "managerFilePatterns": [
+        "/(^|/)[^/]+\\.csproj$/",
+        "/(^|/)Directory\\.Build\\.props$/"
+      ],
+      "matchStrings": [
+        "<TargetFramework>net(?<currentValue>\\d+\\.\\d+)</TargetFramework>"
+      ],
+      "depNameTemplate": "mcr.microsoft.com/dotnet/aspnet",
+      "datasourceTemplate": "docker",
+      "versioningTemplate": "docker"
+    },
+    {
+      "customType": "regex",
+      "description": "The SDK the workflows install follows the aspnet runtime image.",
+      "managerFilePatterns": [
+        "/^\\.github/workflows/[^/]+\\.ya?ml$/"
+      ],
+      "matchStrings": [
+        "dotnet-version: (?<currentValue>\\d+\\.\\d+)\\.x"
+      ],
+      "depNameTemplate": "mcr.microsoft.com/dotnet/aspnet",
+      "datasourceTemplate": "docker",
+      "versioningTemplate": "docker"
+    }
+  ],
   "packageRules": [
     {
-      "description": "The runtime image's major version must match TargetFramework, which is bumped by hand.",
-      "matchDatasources": [
-        "docker"
-      ],
-      "matchPackageNames": [
-        "mcr.microsoft.com/dotnet/**"
-      ],
+      "description": "A .NET major moves the runtime images, TargetFramework, the SDK and the packages on the .NET release train in one PR. Packages that ship later (the Npgsql EF provider usually lags) join the same PR; until then its CI fails, which is the signal it is not ready.",
       "matchUpdateTypes": [
         "major"
       ],
-      "enabled": false
+      "matchPackageNames": [
+        "mcr.microsoft.com/dotnet/**",
+        "dotnet-sdk",
+        "Microsoft.AspNetCore.**",
+        "Microsoft.EntityFrameworkCore**",
+        "Microsoft.Extensions.**",
+        "Npgsql",
+        "Npgsql.EntityFrameworkCore.PostgreSQL",
+        "System.Text.Json"
+      ],
+      "groupName": ".NET major",
+      "automerge": false
     }
   ]
 }
