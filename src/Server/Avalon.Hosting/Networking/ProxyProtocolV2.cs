@@ -16,6 +16,13 @@ namespace Avalon.Hosting.Networking;
 public sealed record ProxyHeader(bool IsLocal, IPEndPoint? Source);
 
 /// <summary>
+/// The peer closed the connection before sending a single byte: a TCP health check or a port scan,
+/// not a proxy that sent a bad header (#528).
+/// </summary>
+public sealed class ProxyHeaderNotSentException()
+    : EndOfStreamException("The peer closed the connection before sending any byte.");
+
+/// <summary>
 /// Reads the binary PROXY protocol v2 header (haproxy.org/download/2.8/doc/proxy-protocol.txt) that
 /// an L4 proxy writes before any application byte. Reads exactly the header and nothing after it,
 /// so the stream is left at the first byte of the proxied connection (the TLS ClientHello for auth).
@@ -34,11 +41,15 @@ public static class ProxyProtocolV2
     private const byte TransportStream = 0x1;
 
     /// <exception cref="InvalidDataException">Not a PROXY v2 header, or a malformed one.</exception>
+    /// <exception cref="ProxyHeaderNotSentException">The stream ended before its first byte.</exception>
     /// <exception cref="EndOfStreamException">The stream ended inside the header.</exception>
     public static async Task<ProxyHeader> ReadAsync(Stream stream, CancellationToken ct)
     {
         byte[] prefix = new byte[16];
-        await stream.ReadExactlyAsync(prefix, ct).ConfigureAwait(false);
+        // The first byte on its own, so a peer that sends nothing can be told from a truncated header.
+        if (await stream.ReadAsync(prefix.AsMemory(0, 1), ct).ConfigureAwait(false) == 0)
+            throw new ProxyHeaderNotSentException();
+        await stream.ReadExactlyAsync(prefix.AsMemory(1), ct).ConfigureAwait(false);
 
         if (!prefix.AsSpan(0, 12).SequenceEqual(Signature))
             throw new InvalidDataException("Connection did not start with a PROXY protocol v2 signature.");

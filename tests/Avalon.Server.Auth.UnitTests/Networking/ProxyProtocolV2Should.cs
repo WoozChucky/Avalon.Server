@@ -128,4 +128,19 @@ public class ProxyProtocolV2Should
 
         await Assert.ThrowsAsync<EndOfStreamException>(() => Read(full[..20]));
     }
+
+    [Fact]
+    public async Task Report_a_stream_that_ends_before_its_first_byte_as_no_header_sent()
+    {
+        await Assert.ThrowsAsync<ProxyHeaderNotSentException>(() => Read([]));
+    }
+
+    [Fact]
+    public async Task Report_a_stream_that_ends_after_its_first_byte_as_a_header_cut_short()
+    {
+        byte[] full = ProxyTcp4("203.0.113.7", 51000);
+
+        // ThrowsAsync matches the exact type, so this also proves it is not ProxyHeaderNotSentException.
+        await Assert.ThrowsAsync<EndOfStreamException>(() => Read(full[..1]));
+    }
 }

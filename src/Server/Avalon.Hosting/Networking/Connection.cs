@@ -169,6 +169,7 @@ public abstract class Connection : BackgroundService, IConnection, IConnectionRa
     /// Other peers are direct clients and are never asked for one, so only a trusted proxy can assert
     /// an address. A trusted peer that sends no valid header in time is dropped: accepting it would
     /// let whoever reached the proxy's address speak for any client.
+    /// One that closes before sending any byte (a health check) is logged at Debug, the rest at Warning (#528).
     /// </summary>
     /// <returns>False when the connection must be dropped.</returns>
     private async Task<bool> ResolveProxiedClientAsync(TcpClient client, CancellationToken stoppingToken)
@@ -187,6 +188,12 @@ public abstract class Connection : BackgroundService, IConnection, IConnectionRa
             if (header.Source is not null)
                 RemoteEndPoint = header.Source.ToString();
             return true;
+        }
+        catch (ProxyHeaderNotSentException)
+        {
+            // Connected and closed without a byte: a health check or a port scan, not a bad proxy (#528).
+            _logger.LogDebug("Dropped connection from trusted proxy {Peer}: closed before sending anything", peer);
+            return false;
         }
         catch (Exception e) when (e is InvalidDataException or EndOfStreamException or IOException
                                       || (e is OperationCanceledException && !stoppingToken.IsCancellationRequested))
