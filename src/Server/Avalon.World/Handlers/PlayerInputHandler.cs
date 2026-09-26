@@ -58,9 +58,15 @@ public class PlayerInputHandler(
         var groundY = navigator.SampleGroundHeight(clamped.x, ch.Position.y, clamped.z);
         var newPosition = new Vector3(clamped.x, groundY, clamped.z);
 
+        // Metres per second, and the step actually taken rather than the one asked for (#424): other
+        // clients extrapolate this character as position + Velocity * seconds, so a character pressed
+        // into a wall must publish zero, not full speed into the wall. Horizontal only, as before: the
+        // ground snap is not motion to extrapolate.
+        var velocity = new Vector3((clamped.x - ch.Position.x) / TickDt, 0f, (clamped.z - ch.Position.z) / TickDt);
+
         // Setting these properties marks the dirty fields automatically on CharacterEntity.
         ch.Position = newPosition;
-        ch.Velocity = new Vector3(dir.x * speed, 0f, dir.z * speed);
+        ch.Velocity = velocity;
         ch.Orientation = new Vector3(0f, packet.YawDeg, 0f);
 
         connection.LastInputSeq = packet.Seq;

@@ -325,7 +325,9 @@ internal static class EntityStateScenarios
         IsAdd = true,
         Entity = NewCharacter(isDead: true, name: LongName),
         Fields = MapInstance.MaskSelfSuppression(GameEntityFields.All, CharacterGuid, OtherPlayer),
-        Expected = CharacterBase(isDead: true, name: LongName),
+        // A corpse is at rest: dying zeroes the velocity it was built with (#424), and a zero
+        // velocity is still sent, as a present all-zero vector rather than an absent one.
+        Expected = CharacterBase(isDead: true, name: LongName) with { Velocity = Vector3.zero },
     };
 
     private static EntitySnapshot CreatureBase() => new()

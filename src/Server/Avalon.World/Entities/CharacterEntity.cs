@@ -321,6 +321,12 @@ public class CharacterEntity : ICharacter
             if (_isDead == value) return;
             _isDead = value;
             _dirtyFields |= GameEntityFields.IsDead;
+
+            // A corpse is at rest (#424). Input from a dead character is dropped before it can write
+            // Velocity, so without this the velocity it died with would be broadcast until respawn
+            // and other clients would extrapolate the corpse onwards.
+            if (value)
+                Velocity = Vector3.zero;
         }
     }
 

@@ -40,6 +40,35 @@ public class CharacterEntityShould
         Assert.True(entity.IsDead);
     }
 
+    /// <summary>
+    /// #424. Input from a dead character is dropped, so nothing else would ever clear the velocity it
+    /// had when it died, and other clients would extrapolate the corpse onwards.
+    /// </summary>
+    [Fact]
+    public void Come_to_rest_when_it_dies()
+    {
+        var entity = NewEntity();
+        entity.Velocity = new Avalon.Common.Mathematics.Vector3(5f, 0f, 0f);
+        entity.ConsumeDirtyFields();
+
+        entity.IsDead = true;
+
+        Assert.Equal(Avalon.Common.Mathematics.Vector3.zero, entity.Velocity);
+        Assert.True((entity.ConsumeDirtyFields() & GameEntityFields.Velocity) != 0);
+    }
+
+    [Fact]
+    public void Stay_at_rest_after_it_is_revived()
+    {
+        var entity = NewEntity();
+        entity.Velocity = new Avalon.Common.Mathematics.Vector3(5f, 0f, 0f);
+        entity.IsDead = true;
+
+        entity.Revive();
+
+        Assert.Equal(Avalon.Common.Mathematics.Vector3.zero, entity.Velocity);
+    }
+
     [Fact]
     public void Not_dirty_when_IsDead_setter_value_unchanged()
     {
