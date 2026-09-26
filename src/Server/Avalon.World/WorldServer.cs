@@ -526,12 +526,14 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
 
     private void DelayedDisconnect(RedisChannel channel, RedisValue value)
     {
-        _logger.LogInformation("Disconnecting account {AccountId}", value);
         CloseAccountSessions(Connections, value, _logger);
     }
 
     /// <summary>What a connection closed by an account disconnect is told (#504 review).</summary>
     public const string SessionEndedMessage = "Your session has ended. Please log in again.";
+
+    /// <summary>The most of a rejected disconnect message that is logged.</summary>
+    private const int MaxLoggedMessageLength = 64;
 
     /// <summary>
     /// Closes every connection in <paramref name="connections"/> held by the account
@@ -550,10 +552,14 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         if (!long.TryParse(message.ToString(), System.Globalization.NumberStyles.None,
                 System.Globalization.CultureInfo.InvariantCulture, out long id))
         {
-            logger.LogWarning("Ignored an account disconnect that names no account: {Message}", message.ToString());
+            // Anyone who can publish on the channel chooses this text: never log more than a prefix.
+            string text = message.ToString();
+            logger.LogWarning("Ignored an account disconnect that names no account: {Message}",
+                text.Length > MaxLoggedMessageLength ? text[..MaxLoggedMessageLength] : text);
             return 0;
         }
 
+        logger.LogInformation("Disconnecting account {AccountId}", id);
         var accountId = new AccountId(id);
         int closed = 0;
         // A snapshot: closing a connection can change the collection it came from.

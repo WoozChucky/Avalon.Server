@@ -87,4 +87,49 @@ public sealed class AccountDisconnectShould
         Assert.Equal(0, closed);
         connection.DidNotReceiveWithAnyArgs().Close();
     }
+
+    /// <summary>
+    /// The channel carries whatever anyone publishes: a rejected message is logged cut to 64
+    /// characters, and an accepted one only as the id it parsed to.
+    /// </summary>
+    [Fact]
+    public void Log_a_rejected_message_cut_to_64_characters()
+    {
+        var logger = new CapturingLogger();
+        string message = new('x', 500);
+
+        WorldServer.CloseAccountSessions([], message, logger);
+
+        string logged = Assert.Single(logger.Messages);
+        Assert.DoesNotContain(new string('x', 65), logged, StringComparison.Ordinal);
+        Assert.Contains(new string('x', 64), logged, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Log_an_accepted_message_as_its_parsed_id_only()
+    {
+        var logger = new CapturingLogger();
+
+        WorldServer.CloseAccountSessions([Connection(7)], "7", logger);
+
+        Assert.Contains(logger.Values, v => v is long id && id == 7);
+        Assert.DoesNotContain(logger.Values, v => v is string or StackExchange.Redis.RedisValue);
+    }
+
+    private sealed class CapturingLogger : Microsoft.Extensions.Logging.ILogger
+    {
+        public List<string> Messages { get; } = [];
+        public List<object?> Values { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public bool IsEnabled(Microsoft.Extensions.Logging.LogLevel logLevel) => true;
+
+        public void Log<TState>(Microsoft.Extensions.Logging.LogLevel logLevel, Microsoft.Extensions.Logging.EventId eventId,
+            TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+        {
+            Messages.Add(formatter(state, exception));
+            if (state is IEnumerable<KeyValuePair<string, object?>> pairs)
+                Values.AddRange(pairs.Where(p => p.Key != "{OriginalFormat}").Select(p => p.Value));
+        }
+    }
 }
