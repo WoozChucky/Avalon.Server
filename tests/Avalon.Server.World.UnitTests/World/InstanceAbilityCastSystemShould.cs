@@ -308,6 +308,7 @@ public class InstanceAbilityCastSystemShould
         caster.Received(1).CurrentPower = 70u;
         Assert.Equal(2f, ability.CooldownTimer);
     }
+
     /// <summary>
     /// A projectile that ends stays a world object until its final state has been taken for the next
     /// broadcast, so every client sees where it stopped; it is not ticked again, and the update after
@@ -346,5 +347,34 @@ public class InstanceAbilityCastSystemShould
         Assert.Empty(objects);
         Assert.Null(sut.GetAbility(projectile.Guid));
         Assert.Single(arena.Damaged());
+    }
+
+    /// <summary>
+    /// For an instance nobody is in (#164): a finished projectile goes at once, its final state unsent,
+    /// and one still in flight stays.
+    /// </summary>
+    [Fact]
+    public void Drop_a_finished_projectile_unsent_and_keep_one_in_flight()
+    {
+        var arena = new TestArena();
+        _scripts.GetAbilityScript(nameof(ProjectileAbilityScript)).Returns(typeof(ProjectileAbilityScript));
+        var sut = new InstanceAbilityCastSystem(NullLoggerFactory.Instance, Substitute.For<IServiceProvider>(), _scripts, arena);
+        arena.Creature(0f, 1f);
+        var aim = new AbilityAim(new Vector3(0f, 0f, 1f), new Vector3(0f, 0f, 5f));
+        Assert.True(sut.RunInstant(arena.Player(1, 0f, 0f), aim,
+            AbilityTestData.Game(AbilityTestData.Projectile(1, reach: 5f, speed: 20f))));
+        sut.Update(Tick, []);   // the point-blank one hits and finishes
+        Assert.True(sut.RunInstant(arena.Player(2, 10f, 0f), aim,
+            AbilityTestData.Game(AbilityTestData.Projectile(2, reach: 20f, speed: 20f))));
+        List<IWorldObject> before = [];
+        sut.Update(Tick, before);
+        AbilityScript finished = Assert.Single(before.Cast<AbilityScript>(), s => s.State is SpellState.Finished);
+        AbilityScript flying = Assert.Single(before.Cast<AbilityScript>(), s => s.State is not SpellState.Finished);
+        Assert.True(finished.HasUnsentChanges);
+
+        sut.DropFinished();
+
+        Assert.Null(sut.GetAbility(finished.Guid));
+        Assert.Same(flying, sut.GetAbility(flying.Guid));
     }
 }

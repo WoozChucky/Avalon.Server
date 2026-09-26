@@ -9,10 +9,14 @@ namespace Avalon.Server.World.UnitTests.Abilities;
 /// <summary>Ability templates the catalog accepts, one per shape. Each test changes only what it is about.</summary>
 internal static class AbilityTestData
 {
-    /// <summary>A ready-to-cast ability built from <paramref name="template" /> through the production mapper.</summary>
+    /// <summary>
+    /// A ready-to-cast ability built from <paramref name="template" /> through the production mapper, its
+    /// cast timer full as character select sets it.
+    /// </summary>
     public static GameAbility Game(AbilityTemplate template) => new()
     {
-        AbilityId = template.Id, Metadata = AbilityMetadataMapper.From(template), CastTimeTimer = 0f, CooldownTimer = 0f,
+        AbilityId = template.Id, Metadata = AbilityMetadataMapper.From(template),
+        CastTimeTimer = (float)template.CastTime / 1000, CooldownTimer = 0f,
     };
 
     public static AbilityTemplate Circle(uint id, string name = "Circle", float radius = 3f) => new()

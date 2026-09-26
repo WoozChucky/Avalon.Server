@@ -523,6 +523,10 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     {
         if (_characters.Count == 0)
         {
+            // Nothing ticks while nobody is here, but a projectile that finished just before the last
+            // character left would wait for a broadcast that never comes, and show frozen to the next
+            // player to enter (#164). Nobody is left to send its final state to, so drop it now.
+            _abilityCastSystem.DropFinished();
             return;
         }
 

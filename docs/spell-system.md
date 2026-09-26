@@ -179,7 +179,9 @@ It never homes and has no target.
 - **Projectiles** are world objects, so clients see them through the ordinary world-state add, update
   and remove packets. A finished projectile is not ticked again and stays until its final state (where
   it stopped, with zero velocity) has gone out in a broadcast, so every client sees it spawn, stop and
-  despawn, even one that ended on the tick it was first seen.
+  despawn, even one that ended on the tick it was first seen. An instance nobody is in drops its
+  finished projectiles at once, since there is nobody to send them to, so a player who enters later
+  never sees one frozen where it stopped.
 - **Circles and cones** broadcast `SMSG_ABILITY_FIRED` (`SAbilityFiredPacket { CasterGuid, AbilityId,
   Origin, Direction?, Centre? }`) to the instance: a circle carries its centre, a cone its direction.
 - **Damage** arrives as the usual damage packets; `SCharacterDamagePacket.AbilityId` is filled (#521

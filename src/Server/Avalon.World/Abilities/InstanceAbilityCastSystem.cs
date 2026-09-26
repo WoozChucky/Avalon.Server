@@ -29,6 +29,13 @@ public interface IAbilityCastSystem
     bool RunInstant(IUnit caster, AbilityAim aim, IAbility ability);
 
     void Update(TimeSpan deltaTime, List<IWorldObject> objects);
+
+    /// <summary>
+    /// Drops every finished script at once, its final state sent or not. For an instance nobody is in
+    /// (#164): there is nobody to send that state to, and a player who entered later would otherwise
+    /// see a projectile frozen where it stopped.
+    /// </summary>
+    void DropFinished();
     IWorldObject? GetAbility(ObjectGuid guid);
 }
 
@@ -161,6 +168,8 @@ public class InstanceAbilityCastSystem(
             }
         }
     }
+
+    public void DropFinished() => _activeAbilities.RemoveAll(static s => s.State is SpellState.Finished);
 
     public IWorldObject? GetAbility(ObjectGuid guid) => _activeAbilities.Find(p => p.Guid == guid);
 
