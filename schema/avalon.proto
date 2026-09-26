@@ -216,6 +216,20 @@ message CRespawnAtTownPacket {
 message CTargetUnitPacket {
    optional uint64 TargetGuid = 1;
 }
+message CVendorBuyPacket {
+   uint32 RequestId = 1;
+   uint32 Sequence = 2;
+   optional uint32 Count = 3;
+}
+message CVendorBuybackPacket {
+   uint32 RequestId = 1;
+   uint32 Index = 2;
+}
+message CVendorSellPacket {
+   uint32 RequestId = 1;
+   uint32 BagSlot = 2;
+   optional uint32 Count = 3;
+}
 message CWorldHandshakePacket {
    optional string Version = 1;
 }
@@ -383,6 +397,9 @@ enum NetworkPacketType {
    NetworkPacketType_CMSG_LOOT_PICKUP = 8304;
    NetworkPacketType_CMSG_ITEM_MOVE = 8320;
    NetworkPacketType_CMSG_ITEM_DESTROY = 8321;
+   NetworkPacketType_CMSG_VENDOR_BUY = 8336;
+   NetworkPacketType_CMSG_VENDOR_SELL = 8337;
+   NetworkPacketType_CMSG_VENDOR_BUYBACK = 8338;
    NetworkPacketType_CMSG_CAST_ABILITY = 8449;
    NetworkPacketType_CMSG_TARGET_UNIT = 8450;
    NetworkPacketType_SMSG_SERVER_INFO = 12288;
@@ -429,6 +446,8 @@ enum NetworkPacketType {
    NetworkPacketType_SMSG_LOOT_DESPAWNED = 12417;
    NetworkPacketType_SMSG_LOOT_PICKUP_RESULT = 12418;
    NetworkPacketType_SMSG_ITEM_RESULT = 12432;
+   NetworkPacketType_SMSG_VENDOR_LIST = 12448;
+   NetworkPacketType_SMSG_VENDOR_RESULT = 12449;
    NetworkPacketType_SMSG_CHARACTER_DAMAGED = 12544;
    NetworkPacketType_SMSG_CREATURE_ATTACK_ANIMATION = 12545;
    NetworkPacketType_SMSG_CREATURE_DAMAGED = 12546;
@@ -748,6 +767,15 @@ message SUnitStartCastPacket {
    uint64 Caster = 1;
    float CastTime = 2;
 }
+message SVendorListPacket {
+   uint64 VendorGuid = 1;
+   repeated VendorEntryDto Entries = 2;
+   repeated VendorBuybackDto Buyback = 3;
+}
+message SVendorResultPacket {
+   uint32 RequestId = 1;
+   VendorResult Result = 2;
+}
 message SWorldHandshakePacket {
    optional int64 AccountId = 1;
    bool Verified = 2;
@@ -776,6 +804,37 @@ message Vector3Dto {
    float X = 1;
    float Y = 2;
    float Z = 3;
+}
+message VendorBuybackDto {
+   uint32 Index = 1;
+   ItemSlotDto Item = 2;
+   uint64 Price = 3;
+}
+message VendorCostDto {
+   uint64 ItemTemplateId = 1;
+   uint32 Count = 2;
+}
+message VendorEntryDto {
+   uint32 Sequence = 1;
+   uint64 ItemTemplateId = 2;
+   uint64 Price = 3;
+   optional uint32 Stock = 4;
+   repeated VendorCostDto Costs = 5;
+}
+enum VendorResult {
+   VendorResult_Ok = 0;
+   VendorResult_ShopClosed = 1;
+   VendorResult_NotFound = 2;
+   VendorResult_OutOfStock = 3;
+   VendorResult_InvalidCount = 4;
+   VendorResult_NotEnoughGold = 5;
+   VendorResult_MissingItems = 6;
+   VendorResult_InventoryFull = 7;
+   VendorResult_UniqueAlreadyOwned = 8;
+   VendorResult_NotSellable = 9;
+   VendorResult_MoneyCapReached = 10;
+   VendorResult_Dead = 11;
+   VendorResult_Damaged = 12;
 }
 message WorldInfo {
    uint32 Id = 1;

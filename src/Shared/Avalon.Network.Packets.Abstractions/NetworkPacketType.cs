@@ -58,6 +58,11 @@ public enum NetworkPacketType : short
     CMSG_ITEM_MOVE = 0x2080,
     CMSG_ITEM_DESTROY = 0x2081,
 
+    // Vendors (#432)
+    CMSG_VENDOR_BUY = 0x2090,
+    CMSG_VENDOR_SELL = 0x2091,
+    CMSG_VENDOR_BUYBACK = 0x2092,
+
     CMSG_PING = 0x2005,
     CMSG_PONG = 0x2006,
     CMSG_CHAT_MESSAGE = 0x2007,
@@ -162,4 +167,8 @@ public enum NetworkPacketType : short
 
     // Inventory requests (#463)
     SMSG_ITEM_RESULT = 0x3090,
+
+    // Vendors (#432)
+    SMSG_VENDOR_LIST = 0x30A0,
+    SMSG_VENDOR_RESULT = 0x30A1,
 }
