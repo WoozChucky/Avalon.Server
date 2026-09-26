@@ -134,6 +134,26 @@ public sealed class PacketDispatchTelemetryShould : IDisposable
     }
 
     [Fact]
+    public void Bucket_handler_durations_finely_enough_for_sub_millisecond_handlers()
+    {
+        Create();
+
+        Histogram<double>? histogram = null;
+        using MeterListener listener = new();
+        listener.InstrumentPublished = (instrument, _) =>
+        {
+            if (instrument.Meter == _meter && instrument.Name == "avalon.packet.handler.duration")
+                histogram = instrument as Histogram<double>;
+        };
+        listener.Start();
+
+        IReadOnlyList<double>? buckets = histogram?.Advice?.HistogramBucketBoundaries;
+        Assert.NotNull(buckets);
+        Assert.True(buckets[0] <= 0.01, $"first bucket {buckets[0]}ms is too coarse for tick handlers");
+        Assert.True(buckets[^1] >= 1000, $"last bucket {buckets[^1]}ms cuts off slow handlers");
+    }
+
+    [Fact]
     public void Record_each_dispatch_once_even_if_disposed_twice()
     {
         PacketDispatch dispatch = Create().Begin(NetworkPacketType.CMSG_AUTH, Tags, new ScopeLogger());

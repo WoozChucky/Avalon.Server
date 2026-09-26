@@ -162,7 +162,7 @@ public class CAuthHandler : IAuthPacketHandler<CAuthPacket>
     private void Record(AuthPacketContext<CAuthPacket> ctx, string result, AccountId? account)
     {
         DiagnosticsConfig.Auth.Logins.Add(1, new KeyValuePair<string, object?>("result", result));
-        _logger.LogInformation("Login {LoginResult} for account {AccountId} from {ClientAddress}",
+        _logger.Log(LoginTelemetry.LogLevelFor(result), "Login {LoginResult} for account {AccountId} from {ClientAddress}",
             result, account?.Value, PacketTags.AddressOf(ctx.Connection.RemoteEndPoint));
     }
 

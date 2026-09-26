@@ -1,6 +1,7 @@
 using Avalon.Infrastructure.Login;
 using Avalon.Network.Packets.Auth;
 using Avalon.Server.Auth.Telemetry;
+using Microsoft.Extensions.Logging;
 using NSubstitute;
 
 namespace Avalon.Server.Auth.UnitTests.Handlers;
@@ -19,6 +20,15 @@ public partial class CAuthHandlerShould
     public void Name_each_login_result_for_the_counter(AuthResult result, string tag)
     {
         Assert.Equal(tag, LoginTelemetry.Tag(result));
+    }
+
+    [Theory]
+    [InlineData("rate_limited", LogLevel.Debug)]
+    [InlineData("invalid_credentials", LogLevel.Information)]
+    [InlineData("success", LogLevel.Information)]
+    public void Log_refusals_by_the_budget_at_debug_so_a_flood_does_not_flood_the_logs(string result, LogLevel level)
+    {
+        Assert.Equal(level, LoginTelemetry.LogLevelFor(result));
     }
 
     [Fact]

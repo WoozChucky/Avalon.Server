@@ -2,6 +2,7 @@
 // Avalon ARPG Game licenses this file to you under the MIT license.
 
 using Avalon.Network.Packets.Auth;
+using Microsoft.Extensions.Logging;
 
 namespace Avalon.Server.Auth.Telemetry;
 
@@ -14,6 +15,13 @@ namespace Avalon.Server.Auth.Telemetry;
 public static class LoginTelemetry
 {
     public const string RateLimited = "rate_limited";
+
+    /// <summary>
+    /// Refusals by the budget are Debug: the auth port is public, and a flood of attempts must not
+    /// become a flood of log lines. The counter still counts every one.
+    /// </summary>
+    public static LogLevel LogLevelFor(string result) =>
+        string.Equals(result, RateLimited, StringComparison.Ordinal) ? LogLevel.Debug : LogLevel.Information;
 
     public static string Tag(AuthResult result) => result switch
     {
