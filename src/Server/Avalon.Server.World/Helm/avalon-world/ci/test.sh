@@ -38,4 +38,11 @@ off=$(helm template t . $CACHE --set existingSecret=x)
 if helm template t . $CACHE --set existingSecret=x --set server.cache.password=leak >/dev/null 2>&1; then
   echo "existingSecret + inline secret must fail"; exit 1
 fi
+ot=$(helm template t . $CACHE --set existingSecret=x --set server.game.worldId=2 --set otel.endpoint=http://otel-collector.observability:4317 --set 'otel.resourceAttributes.deployment\.environment=k3s-home')
+grep -A1 "name: OTEL_EXPORTER_OTLP_ENDPOINT" <<<"$ot" | grep -q "http://otel-collector.observability:4317"      || { echo "otel endpoint missing"; exit 1; }
+grep -A1 "name: OTEL_SERVICE_NAME" <<<"$ot" | grep -q '"t-avalon-world"'                                      || { echo "service name must default to the fullname"; exit 1; }
+grep -A1 "name: OTEL_RESOURCE_ATTRIBUTES" <<<"$ot" | grep -q '"avalon.world.id=2,deployment.environment=k3s-home"' || { echo "world id must lead the resource attributes"; exit 1; }
+bare=$(helm template t . $CACHE --set existingSecret=x --set otel.endpoint=http://c:4317)
+grep -A1 "name: OTEL_RESOURCE_ATTRIBUTES" <<<"$bare" | grep -q '"avalon.world.id=1"'                         || { echo "world id attribute missing"; exit 1; }
+! grep -q "OTEL_" <<<"$off"                                                                                   || { echo "otel env rendered without an endpoint"; exit 1; }
 echo "avalon-world chart OK"

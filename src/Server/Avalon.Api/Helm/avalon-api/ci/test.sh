@@ -22,4 +22,9 @@ grep -A2 "scaleTargetRef" <<<"$hpa" | grep -q "kind: Deployment"       || { echo
 if helm template t . --set existingSecret=x --set cache.password=leak >/dev/null 2>&1; then
   echo "existingSecret + inline secret must fail"; exit 1
 fi
+ot=$(helm template t . --set existingSecret=x --set otel.endpoint=http://otel-collector.observability:4317 --set 'otel.resourceAttributes.deployment\.environment=k3s-home')
+grep -A1 "name: OTEL_EXPORTER_OTLP_ENDPOINT" <<<"$ot" | grep -q "http://otel-collector.observability:4317" || { echo "otel endpoint missing"; exit 1; }
+grep -A1 "name: OTEL_SERVICE_NAME" <<<"$ot" | grep -q '"t-avalon-api"'                                  || { echo "service name must default to the fullname"; exit 1; }
+grep -A1 "name: OTEL_RESOURCE_ATTRIBUTES" <<<"$ot" | grep -q '"deployment.environment=k3s-home"'          || { echo "resource attributes missing"; exit 1; }
+! grep -q "OTEL_" <<<"$out"                                                                              || { echo "otel env rendered without an endpoint"; exit 1; }
 echo "avalon-api chart OK"

@@ -70,6 +70,20 @@ spec:
                   key: database-auth-connection-string
             - name: DOTNET_HOSTBUILDER__RELOADCONFIGONCHANGE
               value: "false"
+            {{- with .Values.otel.endpoint }}
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: {{ . | quote }}
+            - name: OTEL_SERVICE_NAME
+              value: {{ $.Values.otel.serviceName | default (include "avalon-server.fullname" $) | quote }}
+            {{- $attrs := list }}
+            {{- range $key, $value := $.Values.otel.resourceAttributes }}
+            {{- $attrs = append $attrs (printf "%s=%v" $key $value) }}
+            {{- end }}
+            {{- with $attrs }}
+            - name: OTEL_RESOURCE_ATTRIBUTES
+              value: {{ join "," . | quote }}
+            {{- end }}
+            {{- end }}
           ports:
             - name: server-tcp
               containerPort: {{ .Values.service.port }}
