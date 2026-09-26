@@ -55,6 +55,7 @@ public sealed class ApiAuthHost : IAsyncDisposable
     public IRefreshTokenService Refresh { get; } = Substitute.For<IRefreshTokenService>();
     public IMFAService Mfa { get; } = Substitute.For<IMFAService>();
     public IMFAHashService MfaHashes { get; } = Substitute.For<IMFAHashService>();
+    public IPersonalAccessTokenService Pats { get; } = Substitute.For<IPersonalAccessTokenService>();
     public IReplicatedCache Cache { get; private set; } = Substitute.For<IReplicatedCache>();
 
     private WebApplication _app = null!;
@@ -78,7 +79,7 @@ public sealed class ApiAuthHost : IAsyncDisposable
         IServiceCollection services = builder.Services;
         services.AddHttpContextAccessor();
         services.AddSingleton(Accounts);
-        services.AddSingleton(Substitute.For<IPersonalAccessTokenService>());
+        services.AddSingleton(Pats);
         services.AddAuth(new ApplicationConfig { Authentication = AuthConfig });
         services.AddControllers().AddApplicationPart(typeof(AccountRefreshController).Assembly);
         services.AddSingleton(AuthConfig);

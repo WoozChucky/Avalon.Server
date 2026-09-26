@@ -43,6 +43,12 @@ public class MFAController : BaseController
     [HttpPost("setup", Name = "Setup MFA for the logged account")]
     public async Task<ActionResult<SetupMFAResponse>> SetupMFA([FromBody] SetupMFARequest request)
     {
+        // A session alone must not enrol an authenticator (#478): with a stolen access token and
+        // no MFA yet, that locks the owner out of an account they can still log in to. The current
+        // password is checked by the login policy, so a wrong one is a failed login.
+        await _reauthentication.RequireCurrentPasswordAsync(_authContext.Account!.Id, request.CurrentPassword,
+            IpAddress, CancellationToken);
+
         var result = await _mfaService.SetupMFAAsync(_authContext.Account!, _authConfig.Issuer, CancellationToken);
         if (!result.Success)
             return Problem(result.Status.ToString(), statusCode: 400);
