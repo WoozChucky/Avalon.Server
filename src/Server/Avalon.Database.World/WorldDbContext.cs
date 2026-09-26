@@ -171,9 +171,10 @@ public class WorldDbContext : DbContext
     /// </summary>
     /// <remarks>
     /// Seeded to level 10 while the only banded map reaches 5, so the next zone needs no migration.
-    /// These numbers are provisional: they are calibrated against a player who has 100 health and never
-    /// grows, which is issue #434. Creature and character numbers get revisited together in a balance
-    /// pass once gear and character scaling exist to compensate.
+    /// These numbers are provisional: they were calibrated against a player who had 100 health and
+    /// never grew. Players now derive health and power from <see cref="ClassLevelStat" /> by level plus
+    /// worn gear (#434, #463), but combat does not yet read the derived damage or armour, so creature
+    /// and character numbers get revisited together in the combat-balance pass (#506).
     /// </remarks>
     private static void Configure(EntityTypeBuilder<CreatureBaseStat> builder)
     {
@@ -525,6 +526,62 @@ public class WorldDbContext : DbContext
             Agility = 25,
             Intellect = 31
         });
+
+        // Levels 6-16 (#463): the experience table ends at 15, so 16 is reachable, and a level with
+        // no row leaves a character's stats where they were. Each column continues the step its
+        // class takes over levels 1-5, where L is the level:
+        //   Warrior: BaseHp 20L, BaseMana 0,   Stamina 20+2L, Strength 21+2L, Agility 20+floor(3(L-1)/2), Intellect 20
+        //   Wizard:  BaseHp 16L, BaseMana 20L, Stamina 20+L,  Strength 20,    Agility 19+L,  Intellect 21+2L
+        //   Hunter:  BaseHp 18L, BaseMana 10L, Stamina 19+L,  Strength 20+L,  Agility 21+2L, Intellect 20
+        //   Healer:  BaseHp 18L, BaseMana 20L, Stamina 19+L,  Strength 20,    Agility 20+L,  Intellect 21+2L
+        // Warrior Agility is the one column that does not rise by a whole step: 20, 21, 23, 24, 26
+        // alternates +1 and +2, so it keeps alternating. Every formula reproduces levels 1-5 exactly.
+        // Provisional, like the creature numbers: revisited in the combat-balance pass (#506).
+        builder.HasData(
+            new ClassLevelStat { Class = CharacterClass.Warrior, Level =  6, BaseHp = 120, BaseMana =   0, Stamina = 32, Strength = 33, Agility = 27, Intellect = 20 },
+            new ClassLevelStat { Class = CharacterClass.Warrior, Level =  7, BaseHp = 140, BaseMana =   0, Stamina = 34, Strength = 35, Agility = 29, Intellect = 20 },
+            new ClassLevelStat { Class = CharacterClass.Warrior, Level =  8, BaseHp = 160, BaseMana =   0, Stamina = 36, Strength = 37, Agility = 30, Intellect = 20 },
+            new ClassLevelStat { Class = CharacterClass.Warrior, Level =  9, BaseHp = 180, BaseMana =   0, Stamina = 38, Strength = 39, Agility = 32, Intellect = 20 },
+            new ClassLevelStat { Class = CharacterClass.Warrior, Level = 10, BaseHp = 200, BaseMana =   0, Stamina = 40, Strength = 41, Agility = 33, Intellect = 20 },
+            new ClassLevelStat { Class = CharacterClass.Warrior, Level = 11, BaseHp = 220, BaseMana =   0, Stamina = 42, Strength = 43, Agility = 35, Intellect = 20 },
+            new ClassLevelStat { Class = CharacterClass.Warrior, Level = 12, BaseHp = 240, BaseMana =   0, Stamina = 44, Strength = 45, Agility = 36, Intellect = 20 },
+            new ClassLevelStat { Class = CharacterClass.Warrior, Level = 13, BaseHp = 260, BaseMana =   0, Stamina = 46, Strength = 47, Agility = 38, Intellect = 20 },
+            new ClassLevelStat { Class = CharacterClass.Warrior, Level = 14, BaseHp = 280, BaseMana =   0, Stamina = 48, Strength = 49, Agility = 39, Intellect = 20 },
+            new ClassLevelStat { Class = CharacterClass.Warrior, Level = 15, BaseHp = 300, BaseMana =   0, Stamina = 50, Strength = 51, Agility = 41, Intellect = 20 },
+            new ClassLevelStat { Class = CharacterClass.Warrior, Level = 16, BaseHp = 320, BaseMana =   0, Stamina = 52, Strength = 53, Agility = 42, Intellect = 20 },
+            new ClassLevelStat { Class = CharacterClass.Wizard,  Level =  6, BaseHp =  96, BaseMana = 120, Stamina = 26, Strength = 20, Agility = 25, Intellect = 33 },
+            new ClassLevelStat { Class = CharacterClass.Wizard,  Level =  7, BaseHp = 112, BaseMana = 140, Stamina = 27, Strength = 20, Agility = 26, Intellect = 35 },
+            new ClassLevelStat { Class = CharacterClass.Wizard,  Level =  8, BaseHp = 128, BaseMana = 160, Stamina = 28, Strength = 20, Agility = 27, Intellect = 37 },
+            new ClassLevelStat { Class = CharacterClass.Wizard,  Level =  9, BaseHp = 144, BaseMana = 180, Stamina = 29, Strength = 20, Agility = 28, Intellect = 39 },
+            new ClassLevelStat { Class = CharacterClass.Wizard,  Level = 10, BaseHp = 160, BaseMana = 200, Stamina = 30, Strength = 20, Agility = 29, Intellect = 41 },
+            new ClassLevelStat { Class = CharacterClass.Wizard,  Level = 11, BaseHp = 176, BaseMana = 220, Stamina = 31, Strength = 20, Agility = 30, Intellect = 43 },
+            new ClassLevelStat { Class = CharacterClass.Wizard,  Level = 12, BaseHp = 192, BaseMana = 240, Stamina = 32, Strength = 20, Agility = 31, Intellect = 45 },
+            new ClassLevelStat { Class = CharacterClass.Wizard,  Level = 13, BaseHp = 208, BaseMana = 260, Stamina = 33, Strength = 20, Agility = 32, Intellect = 47 },
+            new ClassLevelStat { Class = CharacterClass.Wizard,  Level = 14, BaseHp = 224, BaseMana = 280, Stamina = 34, Strength = 20, Agility = 33, Intellect = 49 },
+            new ClassLevelStat { Class = CharacterClass.Wizard,  Level = 15, BaseHp = 240, BaseMana = 300, Stamina = 35, Strength = 20, Agility = 34, Intellect = 51 },
+            new ClassLevelStat { Class = CharacterClass.Wizard,  Level = 16, BaseHp = 256, BaseMana = 320, Stamina = 36, Strength = 20, Agility = 35, Intellect = 53 },
+            new ClassLevelStat { Class = CharacterClass.Hunter,  Level =  6, BaseHp = 108, BaseMana =  60, Stamina = 25, Strength = 26, Agility = 33, Intellect = 20 },
+            new ClassLevelStat { Class = CharacterClass.Hunter,  Level =  7, BaseHp = 126, BaseMana =  70, Stamina = 26, Strength = 27, Agility = 35, Intellect = 20 },
+            new ClassLevelStat { Class = CharacterClass.Hunter,  Level =  8, BaseHp = 144, BaseMana =  80, Stamina = 27, Strength = 28, Agility = 37, Intellect = 20 },
+            new ClassLevelStat { Class = CharacterClass.Hunter,  Level =  9, BaseHp = 162, BaseMana =  90, Stamina = 28, Strength = 29, Agility = 39, Intellect = 20 },
+            new ClassLevelStat { Class = CharacterClass.Hunter,  Level = 10, BaseHp = 180, BaseMana = 100, Stamina = 29, Strength = 30, Agility = 41, Intellect = 20 },
+            new ClassLevelStat { Class = CharacterClass.Hunter,  Level = 11, BaseHp = 198, BaseMana = 110, Stamina = 30, Strength = 31, Agility = 43, Intellect = 20 },
+            new ClassLevelStat { Class = CharacterClass.Hunter,  Level = 12, BaseHp = 216, BaseMana = 120, Stamina = 31, Strength = 32, Agility = 45, Intellect = 20 },
+            new ClassLevelStat { Class = CharacterClass.Hunter,  Level = 13, BaseHp = 234, BaseMana = 130, Stamina = 32, Strength = 33, Agility = 47, Intellect = 20 },
+            new ClassLevelStat { Class = CharacterClass.Hunter,  Level = 14, BaseHp = 252, BaseMana = 140, Stamina = 33, Strength = 34, Agility = 49, Intellect = 20 },
+            new ClassLevelStat { Class = CharacterClass.Hunter,  Level = 15, BaseHp = 270, BaseMana = 150, Stamina = 34, Strength = 35, Agility = 51, Intellect = 20 },
+            new ClassLevelStat { Class = CharacterClass.Hunter,  Level = 16, BaseHp = 288, BaseMana = 160, Stamina = 35, Strength = 36, Agility = 53, Intellect = 20 },
+            new ClassLevelStat { Class = CharacterClass.Healer,  Level =  6, BaseHp = 108, BaseMana = 120, Stamina = 25, Strength = 20, Agility = 26, Intellect = 33 },
+            new ClassLevelStat { Class = CharacterClass.Healer,  Level =  7, BaseHp = 126, BaseMana = 140, Stamina = 26, Strength = 20, Agility = 27, Intellect = 35 },
+            new ClassLevelStat { Class = CharacterClass.Healer,  Level =  8, BaseHp = 144, BaseMana = 160, Stamina = 27, Strength = 20, Agility = 28, Intellect = 37 },
+            new ClassLevelStat { Class = CharacterClass.Healer,  Level =  9, BaseHp = 162, BaseMana = 180, Stamina = 28, Strength = 20, Agility = 29, Intellect = 39 },
+            new ClassLevelStat { Class = CharacterClass.Healer,  Level = 10, BaseHp = 180, BaseMana = 200, Stamina = 29, Strength = 20, Agility = 30, Intellect = 41 },
+            new ClassLevelStat { Class = CharacterClass.Healer,  Level = 11, BaseHp = 198, BaseMana = 220, Stamina = 30, Strength = 20, Agility = 31, Intellect = 43 },
+            new ClassLevelStat { Class = CharacterClass.Healer,  Level = 12, BaseHp = 216, BaseMana = 240, Stamina = 31, Strength = 20, Agility = 32, Intellect = 45 },
+            new ClassLevelStat { Class = CharacterClass.Healer,  Level = 13, BaseHp = 234, BaseMana = 260, Stamina = 32, Strength = 20, Agility = 33, Intellect = 47 },
+            new ClassLevelStat { Class = CharacterClass.Healer,  Level = 14, BaseHp = 252, BaseMana = 280, Stamina = 33, Strength = 20, Agility = 34, Intellect = 49 },
+            new ClassLevelStat { Class = CharacterClass.Healer,  Level = 15, BaseHp = 270, BaseMana = 300, Stamina = 34, Strength = 20, Agility = 35, Intellect = 51 },
+            new ClassLevelStat { Class = CharacterClass.Healer,  Level = 16, BaseHp = 288, BaseMana = 320, Stamina = 35, Strength = 20, Agility = 36, Intellect = 53 });
     }
 
     // ReSharper disable once UnusedParameter.Local

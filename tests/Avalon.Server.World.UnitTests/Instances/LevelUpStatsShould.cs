@@ -1,6 +1,8 @@
 using Avalon.Common;
 using Avalon.Common.ValueObjects;
+using Avalon.Database.World;
 using Avalon.Domain.World;
+using Avalon.Server.World.UnitTests.Handlers;
 using Avalon.Server.World.UnitTests.Inventory;
 using Avalon.World;
 using Avalon.World.Characters;
@@ -9,6 +11,7 @@ using Avalon.World.Entities;
 using Avalon.World.Instances;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
+using Microsoft.EntityFrameworkCore;
 using NSubstitute;
 
 namespace Avalon.Server.World.UnitTests.Instances;
@@ -63,6 +66,57 @@ public class LevelUpStatsShould
         Assert.Equal(100u, killer.CurrentPower);
         Assert.Equal(50u, killer.Stats!.Value.AttackDamage);
         Assert.True(killer.SaveState.StatsDirty);
+        instance.Dispose();
+    }
+
+    /// <summary>
+    /// #463 final review: against the seeded rows, not hand-written ones. The seed once stopped at
+    /// level 5, so a level-up to 6 found no row and left health where it was; 16 is the highest
+    /// level the seeded experience table lets a character reach. Warrior health is BaseHp + 10 per
+    /// Stamina: 400 at 5, 440 at 6, 800 at 15, 840 at 16.
+    /// </summary>
+    [Theory]
+    [InlineData(5, 400u, 440u)]
+    [InlineData(15, 800u, 840u)]
+    public async Task Raise_and_refill_health_on_a_level_up_past_level_5_with_the_seeded_rows(
+        int fromLevel, uint healthBefore, uint healthAfter)
+    {
+        List<ClassLevelStat> classStats;
+        List<CharacterLevelExperience> levels;
+        using (SqliteDatabase<WorldDbContext> database = SqliteDatabase.World())
+        using (WorldDbContext context = database.CreateDbContext())
+        {
+            classStats = context.ClassLevelStats.AsNoTracking().ToList();
+            levels = context.CharacterLevelExperiences.AsNoTracking().ToList();
+        }
+
+        StaticData data = await TestStaticData.LoadAsync(classStats: classStats, levels: levels);
+        var world = Substitute.For<IWorld>();
+        world.Configuration.Returns(new GameConfiguration());
+        world.MapTemplates.Returns(new List<MapTemplate> { new() { Id = new MapTemplateId(1), Name = "Town" } });
+        world.Data.Returns(data);
+        MapInstance instance = TestMapInstances.Build(world);
+
+        CharacterEntity killer = TestCharacters.New();
+        killer.Level = (ushort)fromLevel;
+        Assert.True(CharacterStatsRefresh.Apply(killer, data, CurrentValues.Refill));
+        Assert.Equal(healthBefore, killer.Health);
+        killer.Experience = levels.Single(l => l.Level == fromLevel).Experience - 1;
+        killer.CurrentHealth = 10;
+
+        var creature = new Creature
+        {
+            Guid = new ObjectGuid(ObjectType.Creature, 434_010u + (uint)fromLevel),
+            Metadata = Substitute.For<ICreatureMetadata>(),
+            Experience = 1,
+        };
+        instance.AddCreature(creature);
+
+        creature.Died(killer);
+
+        Assert.Equal((ushort)(fromLevel + 1), killer.Level);
+        Assert.Equal(healthAfter, killer.Health);
+        Assert.Equal(healthAfter, killer.CurrentHealth);
         instance.Dispose();
     }
 

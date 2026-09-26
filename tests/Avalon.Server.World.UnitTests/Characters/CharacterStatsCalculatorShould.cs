@@ -33,6 +33,8 @@ public class CharacterStatsCalculatorShould
     [InlineData(CharacterClass.Hunter, 5, 282u, 114u, 59u, 10u)]
     [InlineData(CharacterClass.Healer, 1, 158u, 296u, 10u, 46u)]
     [InlineData(CharacterClass.Healer, 5, 258u, 472u, 10u, 62u)]
+    [InlineData(CharacterClass.Warrior, 10, 600u, 100u, 82u, 4u)]
+    [InlineData(CharacterClass.Hunter, 10, 412u, 172u, 76u, 10u)]
     public void Derive_the_seeded_numbers_for_each_class_with_no_gear(
         CharacterClass @class, ushort level, uint health, uint power, uint attack, uint ability)
     {
@@ -47,6 +49,20 @@ public class CharacterStatsCalculatorShould
         Assert.Equal((row.Stamina, row.Strength, row.Agility, row.Intellect),
             (stats.Stamina, stats.Strength, stats.Agility, stats.Intellect));
         Assert.Equal(0u, stats.Armor);
+    }
+
+    /// <summary>
+    /// The one attribute whose seeded growth is not a whole step per level: Warrior Agility rises
+    /// by 1 and 2 in turn (20, 21, 23, 24, 26), i.e. 20 + floor(3 x (level - 1) / 2). The
+    /// level-10 row pins that the levels 6-16 seed carries the same rule on.
+    /// </summary>
+    [Fact]
+    public void Seed_a_level_10_warrior_row_that_continues_the_level_1_to_5_growth()
+    {
+        ClassLevelStat row = SeededRow(CharacterClass.Warrior, 10);
+
+        Assert.Equal((200u, 0u, 40u, 41u, 33u, 20u),
+            (row.BaseHp, row.BaseMana, row.Stamina, row.Strength, row.Agility, row.Intellect));
     }
 
     [Theory]

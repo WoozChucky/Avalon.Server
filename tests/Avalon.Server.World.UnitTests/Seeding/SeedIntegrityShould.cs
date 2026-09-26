@@ -500,6 +500,36 @@ public class SeedIntegrityShould
         Assert.Equal(ItemSubClass.Ranged, bow.SubClass);
     }
 
+    /// <summary>
+    /// #463 final review: a character's stats come only from its class and level's ClassLevelStat
+    /// row, and a level with no row changes nothing, so gear and level-ups silently stop working
+    /// there. The seeded experience table ends at level 15, which makes level 16 reachable; every
+    /// class needs a row at every level from 1 up to it, with no gaps.
+    /// </summary>
+    [Fact]
+    public void Seed_class_stats_for_every_class_at_every_reachable_level()
+    {
+        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+
+        ushort topLevel = (ushort)(context.CharacterLevelExperiences.AsNoTracking().Max(e => e.Level) + 1);
+        Assert.Equal((ushort)16, topLevel);
+
+        List<ClassLevelStat> rows = context.ClassLevelStats.AsNoTracking().ToList();
+        var missing = new List<string>();
+        foreach (CharacterClass @class in Enum.GetValues<CharacterClass>())
+        {
+            for (ushort level = 1; level <= topLevel; level++)
+            {
+                if (!rows.Exists(r => r.Class == @class && r.Level == level))
+                    missing.Add($"{@class} {level}");
+            }
+        }
+
+        Assert.True(missing.Count == 0, "no ClassLevelStat row for: " + string.Join(", ", missing));
+        Assert.All(rows, r => Assert.InRange(r.Level, (ushort)1, topLevel));
+    }
+
     private static uint ArmorOf(ItemTemplate item) =>
         (uint)new (StatType? Type, uint? Value)[]
             {
