@@ -1,0 +1,72 @@
+{#
+  A full-page template for the generated API reference.
+
+  Scalar renders its own sidebar, search and theme toggle, so rendering it inside
+  Material's content column nests two of each and squeezes the reference into a
+  narrow strip. This page therefore skips Material's chrome entirely and keeps one
+  slim bar to get back to the docs.
+#}
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>API Reference - {{ config.site_name }}</title>
+    <link rel="icon" href="{{ 'assets/images/favicon.png' | url }}" />
+    <style>
+      :root {
+        --bar-height: 3rem;
+        --bar-bg: #1f1f28;
+        --bar-fg: #e7e7ef;
+        --bar-border: #33333f;
+      }
+      * { box-sizing: border-box; }
+      html, body { height: 100%; }
+      body { margin: 0; }
+
+      .docs-bar {
+        position: fixed;
+        inset: 0 0 auto 0;
+        height: var(--bar-height);
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        padding: 0 1rem;
+        background: var(--bar-bg);
+        color: var(--bar-fg);
+        border-bottom: 1px solid var(--bar-border);
+        font: 500 0.875rem/1.2 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+        z-index: 10;
+      }
+      .docs-bar a { color: inherit; text-decoration: none; }
+      .docs-bar a:hover { text-decoration: underline; }
+      .docs-bar .spacer { flex: 1; }
+      .docs-bar .muted { color: #9a9aa8; font-weight: 400; }
+
+      /* Scalar mounts here and manages its own scrolling. */
+      #api-reference { position: absolute; inset: var(--bar-height) 0 0 0; }
+
+      @media (max-width: 40rem) {
+        .docs-bar .muted { display: none; }
+      }
+    </style>
+  </head>
+  <body>
+    <nav class="docs-bar">
+      <a href="{{ 'index.html' | url }}">&larr; {{ config.site_name }} docs</a>
+      <span class="muted">Generated from Avalon.Api at build time</span>
+      <span class="spacer"></span>
+      <a href="{{ 'api/openapi.json' | url }}">openapi.json</a>
+    </nav>
+
+    <div id="api-reference"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@scalar/api-reference@1.72.1"></script>
+    <script>
+      Scalar.createApiReference('#api-reference', {
+        url: '{{ 'api/openapi.json' | url }}',
+        theme: 'purple',
+      })
+    </script>
+  </body>
+</html>
