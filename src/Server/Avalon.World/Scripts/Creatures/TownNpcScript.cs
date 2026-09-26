@@ -24,7 +24,10 @@ namespace Avalon.World.Scripts.Creatures;
 /// running this script has no code path that can reduce its health.
 /// </para>
 /// <para>
-/// Interaction — talking to an NPC — does not exist yet and belongs here when it does. See #431.
+/// Nor is this script what makes a town NPC talk. Interaction is not a script concern:
+/// <c>InteractHandler</c> opens a conversation for any creature whose template has a dialogue root,
+/// and <c>ObjectState.CanInteract</c> tells the client which creatures those are. Both use
+/// <c>NpcInteraction</c>.
 /// </para>
 /// </remarks>
 public class TownNpcScript(ICreature creature, ISimulationContext context) : AiScript(creature, context)

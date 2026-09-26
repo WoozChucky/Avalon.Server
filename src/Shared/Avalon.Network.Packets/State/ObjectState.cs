@@ -85,4 +85,18 @@ public class ObjectState
 
     /// <summary>0 = back, 1 = forward.</summary>
     [ProtoMember(19)] public byte? PortalRole { get; set; }
+
+    /// <summary>
+    ///     True when interacting with this creature will do something, so a client can offer an
+    ///     interact prompt for it. Today that means the creature's template has a dialogue root;
+    ///     vendors will set it too.
+    /// </summary>
+    /// <remarks>
+    ///     Only a creature that can be interacted with carries it, and then always as true. Every
+    ///     other creature leaves it out rather than sending false, and characters, portals and
+    ///     spells never carry it, so a missing value means false. It is fixed when the creature
+    ///     spawns and sent on every creature state, like <see cref="CreatureMetadataId" />, so a
+    ///     client that first sees the creature mid-stream still learns it.
+    /// </remarks>
+    [ProtoMember(20)] public bool? CanInteract { get; set; }
 }

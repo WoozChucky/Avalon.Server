@@ -35,6 +35,19 @@ public class Creature : ICreature
     public string ScriptName { get; set; } = string.Empty;
     public bool Invulnerable { get; set; }
 
+    /// <summary>
+    /// Whether interacting with this creature will do something, fixed by
+    /// <see cref="CreatureSpawner"/> from <see cref="Dialogue.NpcInteraction.CanInteract"/> and
+    /// replicated as <c>ObjectState.CanInteract</c>.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately not on <see cref="ICreature"/>: <c>Avalon.World.Public</c> is the modding API,
+    /// and a mod must not be able to make a creature advertise an interaction the server would
+    /// refuse. Init-only, because it is decided once at spawn: a <c>/reload dialogue</c> reaches
+    /// only creatures spawned after it.
+    /// </remarks>
+    public bool CanInteract { get; init; }
+
     // No dirty-field tracking on these three, unlike Health and Level: none is broadcast in entity
     // state. The client learns damage from combat packets and never sees a creature's experience value.
     public uint DamageMin { get; set; }

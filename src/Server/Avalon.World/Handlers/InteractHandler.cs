@@ -2,6 +2,7 @@ using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.World;
+using Avalon.World.Dialogue;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
@@ -63,7 +64,11 @@ public class InteractHandler(ILogger<InteractHandler> logger, IWorld world)
             return;
         }
 
-        DialogueNodeView? root = Dialogue.GetRoot(npc.Metadata.Id);
+        // The same rule CreatureSpawner used to set ObjectState.CanInteract, so a creature the
+        // client offered a prompt for is one this accepts. The catalog stays the authority: a
+        // creature spawned before a /reload dialogue still carries its old flag, and this answers
+        // from the current catalog either way.
+        DialogueNodeView? root = NpcInteraction.RootFor(Dialogue, npc.Metadata.Id);
         if (root is null)
         {
             // Every monster in the game lands here, so this is not worth a warning.

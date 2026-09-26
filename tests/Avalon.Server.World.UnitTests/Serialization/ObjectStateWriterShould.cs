@@ -71,8 +71,65 @@ public class ObjectStateWriterShould
             Assert.Equal(scenario.Guid.RawValue, parsed.Guid);
             Assert.Equal(scenario.Expected.Name, parsed.Name);
             Assert.Equal(scenario.Expected.PortalRole, parsed.PortalRole);
+
+            // No scenario entity can be interacted with: characters, portals and projectiles never
+            // carry the flag, and the scenario creature is a plain one.
+            Assert.Null(parsed.CanInteract);
         }
     }
+
+    /// <summary>
+    /// The flag goes out on every creature state whatever is marked changed, exactly like the
+    /// template id: it never changes after spawn, and a client that first sees the creature on an
+    /// update rather than an add would otherwise never learn it.
+    /// </summary>
+    [Theory]
+    [InlineData(GameEntityFields.None)]
+    [InlineData(GameEntityFields.CreatureUpdate)]
+    [InlineData(GameEntityFields.CurrentHealth)]
+    public void Send_CanInteract_whatever_fields_are_marked_changed(GameEntityFields fields)
+    {
+        ObjectState state = RoundTrip(ObjectStateWriter.From(Npc(canInteract: true), fields));
+
+        Assert.True(state.CanInteract);
+        Assert.Equal(3ul, state.CreatureMetadataId);
+    }
+
+    /// <summary>
+    /// A monster leaves the flag out rather than sending false, so the thousands of creature
+    /// states that are not NPCs pay nothing for it.
+    /// </summary>
+    [Theory]
+    [InlineData(GameEntityFields.None)]
+    [InlineData(GameEntityFields.CreatureUpdate)]
+    public void Leave_CanInteract_out_for_a_creature_that_cannot_be_interacted_with(GameEntityFields fields)
+    {
+        ObjectState state = ObjectStateWriter.From(Npc(canInteract: false), fields);
+
+        Assert.Null(state.CanInteract);
+        Assert.Null(RoundTrip(state).CanInteract);
+    }
+
+    /// <summary>
+    /// Pins the field number clients read. Field 20, varint wire type: tag (20 &lt;&lt; 3) | 0 = 160,
+    /// which is the two-byte varint A0 01, followed by the value 1.
+    /// </summary>
+    [Fact]
+    public void Carry_CanInteract_as_field_20()
+    {
+        using var stream = new MemoryStream();
+        Serializer.Serialize(stream, new ObjectState { CanInteract = true });
+
+        Assert.Equal(new byte[] { 0xA0, 0x01, 0x01 }, stream.ToArray());
+    }
+
+    private static ICreature Npc(bool canInteract) => new Creature
+    {
+        Guid = new ObjectGuid(ObjectType.Creature, 5),
+        Name = "Innkeeper",
+        Metadata = new Avalon.Domain.World.CreatureTemplate { Id = new Avalon.Common.ValueObjects.CreatureTemplateId(3) },
+        CanInteract = canInteract,
+    };
 
     /// <summary>
     /// A unit with no power type reports the type and neither amount, which is what the
@@ -128,6 +185,7 @@ public class ObjectStateWriterShould
                 projectile.Power, projectile.CurrentPower, projectile.Level, projectile.IsDead,
                 projectile.Experience, projectile.RequiredExperience, projectile.CreatureMetadataId,
                 projectile.Name, projectile.PortalRadius, projectile.PortalTargetMapId, projectile.PortalRole,
+                projectile.CanInteract,
             },
             Assert.Null);
     }
