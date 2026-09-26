@@ -3,6 +3,7 @@ using Avalon.Api.Authentication.Jwt;
 using Avalon.Api.Config;
 using Avalon.Api.Contract;
 using Avalon.Api.Exceptions;
+using Avalon.Api.Middlewares;
 using Avalon.Api.Services;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Infrastructure;
@@ -21,14 +22,17 @@ public sealed class AccountRefreshController : BaseController
     private readonly IAccountRepository _accounts;
     private readonly AuthenticationConfig _authConfig;
     private readonly IReplicatedCache _cache;
+    private readonly Microsoft.AspNetCore.Builder.ForwardedHeadersOptions _forwarded;
 
     public AccountRefreshController(
         IRefreshTokenService refresh,
         IJwtUtils jwt,
         IAccountRepository accounts,
         AuthenticationConfig authConfig,
-        IReplicatedCache cache)
+        IReplicatedCache cache,
+        Microsoft.AspNetCore.Builder.ForwardedHeadersOptions forwarded)
     {
+        _forwarded = forwarded;
         _refresh = refresh;
         _jwt = jwt;
         _accounts = accounts;
@@ -46,7 +50,13 @@ public sealed class AccountRefreshController : BaseController
 
         try
         {
-            var rotated = await _refresh.RotateAsync(raw, ct);
+            // Behind a trusted proxy that forwarded no client, the address is the proxy's, shared by
+            // every caller behind it: such a caller gets no source, so no refresh grace (#495 final review).
+            var peer = HttpContext.Connection.RemoteIpAddress;
+            if (peer is not null && ForwardedHeadersSetup.IsTrustedProxy(_forwarded, peer))
+                peer = null;
+            var caller = RefreshCaller.From(peer, Request.Headers.UserAgent.ToString());
+            var rotated = await _refresh.RotateAsync(raw, caller, ct);
             var account = await _accounts.FindByIdAsync(rotated.AccountId, track: false, ct);
             if (!AccountAccessCheck.MayHoldSession(account))
             {
@@ -54,6 +64,15 @@ public sealed class AccountRefreshController : BaseController
                 // gets no access token, and none of its refresh tokens survives, so a ban cannot
                 // be outlived by refreshing (#480).
                 await _refresh.RevokeAllForAccountAsync(rotated.AccountId, ct);
+                ClearRefreshCookie();
+                return Unauthorized();
+            }
+
+            if (account.CredentialsVersion != rotated.CredentialsVersion)
+            {
+                // The credentials changed after the rotation committed (#495): that change revoked
+                // the successor, and an access token minted from the fresh row would carry the new
+                // version for a session that proved the old one.
                 ClearRefreshCookie();
                 return Unauthorized();
             }
@@ -67,6 +86,12 @@ public sealed class AccountRefreshController : BaseController
                     .AddMinutes(_authConfig.AccessTokenLifetimeMinutes)
                     .ToUnixTimeSeconds(),
             };
+        }
+        catch (RefreshAlreadyRotatedException)
+        {
+            // Two tabs or a retry (#495 review). The cookie is left alone: the browser shares it
+            // between tabs, and it already holds the token the winning rotation set.
+            return Unauthorized();
         }
         catch (RefreshTheftException ex)
         {

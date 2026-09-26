@@ -37,6 +37,9 @@ public sealed class OfflineWriteRaceShould : IDisposable
 
     public void Dispose() => _database.Dispose();
 
+    /// <summary>The auth-server connection whose login set <c>Online</c>.</summary>
+    private readonly Guid _session = Guid.NewGuid();
+
     private async Task<Account> OnlineAccountAsync()
     {
         Account account = await _accounts.CreateAsync(new Account
@@ -51,7 +54,9 @@ public sealed class OfflineWriteRaceShould : IDisposable
         });
         await using AuthDbContext context = _database.CreateDbContext();
         await context.Accounts.Where(a => a.Id == account.Id)
-            .ExecuteUpdateAsync(s => s.SetProperty(a => a.Online, true));
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(a => a.Online, true)
+                .SetProperty(a => a.OnlineSessionId, (Guid?)_session));
         return account;
     }
 
@@ -99,7 +104,8 @@ public sealed class OfflineWriteRaceShould : IDisposable
         var security = Substitute.For<IOptions<HostingSecurity>>();
         security.Value.Returns(new HostingSecurity());
         var server = new AuthServer(Substitute.For<IServiceProvider>(), Substitute.For<IPacketManager>(),
-            NullLoggerFactory.Instance, Substitute.For<IAccountRepository>(), hosting, security);
+            NullLoggerFactory.Instance, Substitute.For<IAccountRepository>(), Substitute.For<IReplicatedCache>(),
+            hosting, security);
         connection.Server.Returns(server);
         return connection;
     }
@@ -153,7 +159,7 @@ public sealed class OfflineWriteRaceShould : IDisposable
         Account account = await OnlineAccountAsync();
         var stale = new StaleAccountRepository(_accounts) { AfterRead = () => BanAndLockAsync(account.Id) };
 
-        await AuthConnection.RecordDisconnectAsync(stale, account.Id, account.LastLogin.AddSeconds(600));
+        await AuthConnection.RecordDisconnectAsync(stale, account.Id, _session, account.LastLogin.AddSeconds(600));
 
         await AssertBanAndLockSurvivedAsync(account.Id);
         Account stored = await StoredAsync(account.Id);

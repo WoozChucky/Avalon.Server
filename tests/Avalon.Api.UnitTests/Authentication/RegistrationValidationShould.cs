@@ -23,7 +23,7 @@ public sealed class RegistrationValidationShould : IAsyncLifetime
         _host = await ApiAuthHost.StartAsync();
         _host.Accounts.Register(Arg.Any<RegisterRequest>(), Arg.Any<string>(), Arg.Any<IPAddress>(), Arg.Any<CancellationToken>())
             .Returns((new RegisterResponse { Token = "jwt" }, new AccountId(ApiAuthHost.AccountIdValue)));
-        _host.Refresh.IssueAsync(Arg.Any<AccountId>(), Arg.Any<CancellationToken>())
+        _host.Refresh.IssueAsync(Arg.Any<AccountId>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
             .Returns(new RefreshIssueResult("refresh", DateTime.UtcNow.AddDays(30), Guid.NewGuid()));
     }
 
@@ -55,6 +55,45 @@ public sealed class RegistrationValidationShould : IAsyncLifetime
     [Fact]
     public Task Refuse_a_missing_email() =>
         AssertRefusedAsync(new { username = "newplayer", password = "a strong one" });
+
+    /// <summary>
+    /// Owner decision (#487 re-review): a username is 3 to 16 ASCII letters, digits or underscores,
+    /// checked as sent, before it is trimmed or upper-cased.
+    /// </summary>
+    [Theory]
+    [InlineData("ab")]                   // too short
+    [InlineData("abcdefghijklmnopq")]    // 17: too long
+    [InlineData("bad-name")]
+    [InlineData("bad name")]
+    [InlineData(" padded")]
+    [InlineData("tab\t")]
+    [InlineData("\u00FCmlaut")]           // not ASCII
+    [InlineData("new\nline")]
+    [InlineData("trailing\n")]
+    public Task Refuse_a_username_outside_the_allowed_characters_and_length(string username) =>
+        AssertRefusedAsync(new { username, email = "new@avalon.monster", password = TestPasswords.Valid });
+
+    [Theory]
+    [InlineData("abc")]
+    [InlineData("Good_Name_16char")]
+    [InlineData("player_01")]
+    public async Task Register_a_username_inside_the_rule(string username)
+    {
+        using HttpResponseMessage response = await RegisterAsync(
+            new { username, email = "new@avalon.monster", password = TestPasswords.Valid });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Say_what_a_username_must_be()
+    {
+        using HttpResponseMessage response = await RegisterAsync(
+            new { username = "bad-name", email = "new@avalon.monster", password = TestPasswords.Valid });
+
+        string body = await response.Content.ReadAsStringAsync();
+        Assert.Contains("3 to 16", body, StringComparison.Ordinal);
+    }
 
     [Fact]
     public async Task Register_a_valid_request()

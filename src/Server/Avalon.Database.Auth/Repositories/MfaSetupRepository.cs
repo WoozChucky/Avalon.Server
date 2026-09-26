@@ -4,6 +4,21 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Avalon.Database.Auth.Repositories;
 
+/// <summary>How a conditional MFA write ended.</summary>
+public enum MfaSetupWrite
+{
+    Written,
+
+    /// <summary>The row was no longer what the caller read (confirmed, replaced or deleted meanwhile).</summary>
+    Lost,
+
+    /// <summary>
+    /// The account's credentials version moved past the one the caller's session proved (#495
+    /// re-review): nothing written.
+    /// </summary>
+    CredentialsChanged,
+}
+
 public interface IMfaSetupRepository : IRepository<MFASetup, Guid>
 {
     /// <summary>The account's MFA row. There is at most one: <c>AccountId</c> is unique.</summary>
@@ -21,10 +36,14 @@ public interface IMfaSetupRepository : IRepository<MFASetup, Guid>
     /// row is still in Setup with the secret the code was verified against. Returns <c>false</c>,
     /// writing nothing, when another request confirmed or replaced it first.
     /// <paramref name="acceptedTotpStep"/>, the step of the confirming code, is stored as the last
-    /// one accepted, so that code cannot then be used to log in.
+    /// one accepted, so that code cannot then be used to log in. The transaction first holds account
+    /// <paramref name="accountId"/> at <paramref name="credentialsVersion"/>, the version the
+    /// caller's session proved (#495 re-review): a password change or an MFA reset committed since
+    /// refuses it.
     /// </summary>
-    Task<bool> TryConfirmAsync(Guid id, byte[] verifiedSecret, byte[] recoveryCode1, byte[] recoveryCode2,
-        byte[] recoveryCode3, DateTime confirmedAt, long acceptedTotpStep, CancellationToken cancellationToken = default);
+    Task<MfaSetupWrite> TryConfirmAsync(Guid id, AccountId accountId, int credentialsVersion, byte[] verifiedSecret,
+        byte[] recoveryCode1, byte[] recoveryCode2, byte[] recoveryCode3, DateTime confirmedAt, long acceptedTotpStep,
+        CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Records <paramref name="step"/> as the last TOTP step accepted on confirmed row
@@ -37,13 +56,17 @@ public interface IMfaSetupRepository : IRepository<MFASetup, Guid>
     Task DeletePendingAsync(Guid id, byte[] secret, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// The owner's own MFA reset (#483), in one transaction: deletes confirmed row
+    /// The owner's own MFA reset (#483), in one transaction: raises the account's
+    /// <c>CredentialsVersion</c> (#495), deletes confirmed row
     /// <paramref name="id"/>, which spends its recovery codes, and revokes every refresh token and
     /// personal access token <paramref name="accountId"/> holds, so no session opened before the
-    /// reset outlives it. Returns <c>false</c>, writing nothing, when the row is no longer there
-    /// and confirmed (a concurrent reset won).
+    /// reset outlives it. Nothing is written when the account is no longer at
+    /// <paramref name="credentialsVersion"/>, the version the caller's session proved
+    /// (<see cref="MfaSetupWrite.CredentialsChanged"/>, #495 re-review), or when the row is no
+    /// longer there and confirmed (<see cref="MfaSetupWrite.Lost"/>: a concurrent reset won).
     /// </summary>
-    Task<bool> ResetConfirmedAsync(Guid id, AccountId accountId, DateTime now, CancellationToken cancellationToken = default);
+    Task<MfaSetupWrite> ResetConfirmedAsync(Guid id, AccountId accountId, int credentialsVersion, DateTime now,
+        CancellationToken cancellationToken = default);
 }
 
 public class MfaSetupRepository(IDbContextFactory<AuthDbContext> contextFactory)
@@ -100,10 +123,17 @@ public class MfaSetupRepository(IDbContextFactory<AuthDbContext> contextFactory)
         }
     }
 
-    public async Task<bool> TryConfirmAsync(Guid id, byte[] verifiedSecret, byte[] recoveryCode1, byte[] recoveryCode2,
-        byte[] recoveryCode3, DateTime confirmedAt, long acceptedTotpStep, CancellationToken cancellationToken = default)
+    public async Task<MfaSetupWrite> TryConfirmAsync(Guid id, AccountId accountId, int credentialsVersion,
+        byte[] verifiedSecret, byte[] recoveryCode1, byte[] recoveryCode2, byte[] recoveryCode3, DateTime confirmedAt,
+        long acceptedTotpStep, CancellationToken cancellationToken = default)
     {
         await using var context = await CreateContextAsync(cancellationToken);
+        await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
+
+        // First, as a token mint does (#495 re-review): the session's version, held for the write.
+        if (!await AccountRepository.HoldCredentialsVersionAsync(context, accountId, credentialsVersion,
+                cancellationToken))
+            return MfaSetupWrite.CredentialsChanged;
 
         var confirmed = await context.MfaSetups
             .Where(m => m.Id == id && m.Status == MfaSetupStatus.Setup && m.Secret == verifiedSecret)
@@ -114,8 +144,11 @@ public class MfaSetupRepository(IDbContextFactory<AuthDbContext> contextFactory)
                 .SetProperty(m => m.Status, MfaSetupStatus.Confirmed)
                 .SetProperty(m => m.ConfirmedAt, confirmedAt)
                 .SetProperty(m => m.LastAcceptedTotpStep, acceptedTotpStep), cancellationToken);
+        if (confirmed != 1)
+            return MfaSetupWrite.Lost;
 
-        return confirmed == 1;
+        await transaction.CommitAsync(cancellationToken);
+        return MfaSetupWrite.Written;
     }
 
     public async Task<bool> TryAcceptTotpStepAsync(Guid id, long step, CancellationToken cancellationToken = default)
@@ -139,25 +172,36 @@ public class MfaSetupRepository(IDbContextFactory<AuthDbContext> contextFactory)
             .ExecuteDeleteAsync(cancellationToken);
     }
 
-    public async Task<bool> ResetConfirmedAsync(Guid id, AccountId accountId, DateTime now,
-        CancellationToken cancellationToken = default)
+    public async Task<MfaSetupWrite> ResetConfirmedAsync(Guid id, AccountId accountId, int credentialsVersion,
+        DateTime now, CancellationToken cancellationToken = default)
     {
         await using var context = await CreateContextAsync(cancellationToken);
         // An uncommitted transaction rolls back when it is disposed, so the throw path needs no catch.
         await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
 
+        // First, so this transaction holds the account row before it revokes anything: a refresh
+        // token issue or rotation, or a token mint, running now either sees the new version or
+        // finishes before the revocations below, which then take what it issued (#495).
+        // ...only while the account is still at the version the caller's session proved (#495
+        // re-review): a password change committed since refuses the reset.
+        if (!await AccountRepository.HoldCredentialsVersionAsync(context, accountId, credentialsVersion,
+                cancellationToken))
+            return MfaSetupWrite.CredentialsChanged;
+        if (await AccountRepository.BumpCredentialsVersionAsync(context, accountId, cancellationToken) == 0)
+            return MfaSetupWrite.Lost;
+
         int deleted = await context.MfaSetups
             .Where(m => m.Id == id && m.AccountId == accountId && m.Status == MfaSetupStatus.Confirmed)
             .ExecuteDeleteAsync(cancellationToken);
         if (deleted == 0)
-            return false;
+            return MfaSetupWrite.Lost;
 
         await RefreshTokenRepository.RevokeAllForAccountAsync(context, accountId, cancellationToken);
         await PersonalAccessTokenRepository.RevokeAllForAccountAsync(context, accountId, accountId, now,
             cancellationToken);
 
         await transaction.CommitAsync(cancellationToken);
-        return true;
+        return MfaSetupWrite.Written;
     }
 
     /// <summary>

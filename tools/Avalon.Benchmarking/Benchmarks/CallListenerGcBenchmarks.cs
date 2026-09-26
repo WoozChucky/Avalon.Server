@@ -56,6 +56,8 @@ public class CallListenerGcBenchmarks
         public IAvalonCryptoSession CryptoSession => null!;
         public ICryptoManager ServerCrypto => null!;
         public AccountId? AccountId { get; set; }
+        public int CredentialsVersion { get; set; }
+        public long LoggedInAt { get; set; }
         public AuthServer Server => null!;
         public void Close(bool expected = true) { }
         public Task CloseAsync(bool expected = true) => Task.CompletedTask;

@@ -27,6 +27,53 @@ public class MFAHashServiceShould
         Assert.Equal(new AccountId(42L), result);
     }
 
+    /// <summary>
+    /// #495 review: two logins raced, one with the old password (version 0) and one with the new
+    /// (version 1). The account's record now says 1, but hash H0 was issued by the old password's
+    /// login. Its own reverse key says 0, and that is what counts.
+    /// </summary>
+    [Fact]
+    public async Task Read_the_version_from_the_presented_hash_not_from_the_accounts_record()
+    {
+        _cache.GetAsync(CacheKeys.MfaReverseHash("H0")).Returns("42:0");
+        _cache.GetAsync(CacheKeys.MfaReverseHash("H1")).Returns("42:1");
+        StackExchange.Redis.IDatabase redis = Substitute.For<StackExchange.Redis.IDatabase>();
+        _cache.Database.Returns(redis);
+        redis.HashGetAsync((StackExchange.Redis.RedisKey)CacheKeys.AccountMfa(42), (StackExchange.Redis.RedisValue)"cver",
+            Arg.Any<StackExchange.Redis.CommandFlags>()).Returns((StackExchange.Redis.RedisValue)"1");
+
+        Assert.Equal(0, await _service.GetHashCredentialsVersionAsync("H0"));
+        Assert.Equal(1, await _service.GetHashCredentialsVersionAsync("H1"));
+        Assert.Equal(new AccountId(42L), await _service.GetAccountIdAsync("H0"));
+    }
+
+    [Theory]
+    [InlineData("42")]
+    [InlineData("42:")]
+    [InlineData("42:x")]
+    public async Task Give_no_version_for_a_hash_whose_reverse_key_carries_none(string value)
+    {
+        _cache.GetAsync(CacheKeys.MfaReverseHash("old")).Returns(value);
+
+        Assert.Equal(-1, await _service.GetHashCredentialsVersionAsync("old"));
+    }
+
+    /// <summary>
+    /// #495 re-review: cleaning up an old hash deleted the account's MFA record whatever hash it now
+    /// held, wiping a newer login's. The record goes only while its hash field is this hash.
+    /// </summary>
+    [Fact]
+    public async Task Delete_the_accounts_record_only_while_it_holds_the_hash_being_cleaned()
+    {
+        _cache.GetAsync(CacheKeys.MfaReverseHash("H0")).Returns("42:0");
+
+        await _service.CleanupHash("H0");
+
+        await _cache.Received(1).RemoveHashIfFieldEqualsAsync(CacheKeys.AccountMfa(42), "hash", "H0");
+        await _cache.DidNotReceive().RemoveAsync(CacheKeys.AccountMfa(42));
+        await _cache.Received(1).RemoveAsync(CacheKeys.MfaReverseHash("H0"));
+    }
+
     [Fact]
     public async Task ReturnNull_WhenHashNotFound()
     {
@@ -67,7 +114,8 @@ public class MFAHashServiceShould
 
         await _service.CleanupHash("myhash");
 
-        await _cache.Received(1).RemoveAsync(CacheKeys.AccountMfa(42));
+        // The record by compare-and-delete on its hash field (#495 re-review), the reverse key outright.
+        await _cache.Received(1).RemoveHashIfFieldEqualsAsync(CacheKeys.AccountMfa(42), "hash", "myhash");
         await _cache.Received(1).RemoveAsync(CacheKeys.MfaReverseHash("myhash"));
     }
 

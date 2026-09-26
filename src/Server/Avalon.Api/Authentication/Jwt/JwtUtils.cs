@@ -15,6 +15,12 @@ public interface IJwtUtils
 
 public class JwtUtils : IJwtUtils
 {
+    /// <summary>
+    /// The claim holding the account's credentials version when the token was minted (#495). The
+    /// token is refused once the account's version has moved on.
+    /// </summary>
+    public const string CredentialsVersionClaim = "cver";
+
     private readonly JwtSecurityTokenHandler _tokenHandler;
     private readonly AuthenticationConfig _authenticationConfig;
     private readonly SymmetricSecurityKey _key;
@@ -40,6 +46,9 @@ public class JwtUtils : IJwtUtils
             new(ClaimTypes.NameIdentifier, account.Id.ToString() ?? throw new InvalidOperationException()),
             new(JwtRegisteredClaimNames.Name, account.Username),
             new(JwtRegisteredClaimNames.Email, account.Email),
+            new(CredentialsVersionClaim,
+                account.CredentialsVersion.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                ClaimValueTypes.Integer32),
         };
 
         // Emit one GroupSid claim per individual flag bit that is set

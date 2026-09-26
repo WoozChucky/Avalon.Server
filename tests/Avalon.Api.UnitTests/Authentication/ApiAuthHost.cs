@@ -40,6 +40,9 @@ public sealed class ApiAuthHost : IAsyncDisposable
 
     /// <summary>A request carrying this header reaches the api with no peer address.</summary>
     public const string NoAddressHeader = "X-Test-No-Address";
+
+    /// <summary>A request carrying this header reaches the api from the address it names.</summary>
+    public const string PeerHeader = "X-Test-Peer";
     public const string SigningKey = "test-signing-key-test-signing-key-test-signing-key-0123456789-abcdef";
 
     public static readonly AuthenticationConfig AuthConfig = new()
@@ -88,6 +91,8 @@ public sealed class ApiAuthHost : IAsyncDisposable
         services.AddSingleton(AuthConfig);
         services.AddSingleton(Refresh);
         services.AddSingleton(AccountRepository);
+        // Which peers are proxies (loopback by default): the refresh grace is not given behind one.
+        services.AddSingleton(Avalon.Api.Middlewares.ForwardedHeadersSetup.BuildOptions(null));
         services.AddSingleton(Mfa);
         services.AddSingleton(Cache);
         // The real login policy (#478) over the substitutes above: a live hash for the account, a
@@ -107,7 +112,9 @@ public sealed class ApiAuthHost : IAsyncDisposable
         // Loopback stands in, unless a request asks to be the address-less caller.
         _app.Use((context, next) =>
         {
-            if (!context.Request.Headers.ContainsKey(NoAddressHeader))
+            if (context.Request.Headers.TryGetValue(PeerHeader, out var peer))
+                context.Connection.RemoteIpAddress = System.Net.IPAddress.Parse(peer.ToString());
+            else if (!context.Request.Headers.ContainsKey(NoAddressHeader))
                 context.Connection.RemoteIpAddress ??= System.Net.IPAddress.Loopback;
             return next(context);
         });
@@ -153,7 +160,7 @@ public sealed class ApiAuthHost : IAsyncDisposable
     /// chooses. A null subject leaves the name-identifier claim out.
     /// </summary>
     public static string MintCustom(DateTime notBefore, DateTime expires, string? subject = "7",
-        string algorithm = SecurityAlgorithms.HmacSha256Signature)
+        string algorithm = SecurityAlgorithms.HmacSha256Signature, string? credentialsVersion = "0")
     {
         var claims = new List<Claim>
         {
@@ -161,6 +168,7 @@ public sealed class ApiAuthHost : IAsyncDisposable
             new(JwtRegisteredClaimNames.Name, "CALLER"),
             new(ClaimTypes.GroupSid, nameof(AccountAccessLevel.Player)),
         };
+        if (credentialsVersion is not null) claims.Add(new Claim(JwtUtils.CredentialsVersionClaim, credentialsVersion));
         if (subject is not null) claims.Add(new Claim(ClaimTypes.NameIdentifier, subject));
 
         var handler = new JwtSecurityTokenHandler();

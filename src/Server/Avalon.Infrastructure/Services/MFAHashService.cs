@@ -10,6 +10,13 @@ public interface IMFAHashService
 {
     Task<string> GenerateHashAsync(Account account);
     Task<AccountId?> GetAccountIdAsync(string hash);
+
+    /// <summary>
+    /// The credentials version of the row whose password issued <paramref name="hash"/> itself
+    /// (#495 review), read from that hash's own reverse key, or -1 when the hash is gone or carries
+    /// none. -1 is never a version, so a caller comparing it with the account's refuses.
+    /// </summary>
+    Task<int> GetHashCredentialsVersionAsync(string hash);
     Task CleanupHash(string hash);
 
     /// <summary>
@@ -51,7 +58,11 @@ public class MFAHashService : IMFAHashService
         if (existingHash.HasValue)
         {
             RedisValue expiry = await _cache.Database.HashGetAsync(CacheKeys.AccountMfa(account.Id), "expiry");
-            if (DateTime.TryParse(expiry, out DateTime expiryDate) && expiryDate > DateTime.UtcNow)
+            // Reused only while it was issued at this row's credentials version (#495): a hash left
+            // by a login with the old password must not be handed to a login with the new one.
+            int existingVersion = await GetHashCredentialsVersionAsync(existingHash!);
+            if (DateTime.TryParse(expiry, out DateTime expiryDate) && expiryDate > DateTime.UtcNow
+                && existingVersion == account.CredentialsVersion)
             {
                 _logger.LogDebug("Returning existing hash");
                 return existingHash!;
@@ -78,9 +89,12 @@ public class MFAHashService : IMFAHashService
                 new HashEntry("accountId", account.Id.Value.ToString())
             });
         _ = transaction.KeyExpireAsync(CacheKeys.AccountMfa(account.Id), _expiry);
+        // The reverse key carries the version of the row whose password issued this very hash
+        // (#495 review), as {accountId}:{version}. Two logins racing on one account, one with the
+        // old password and one with the new, share the per-account record, but not this key.
         _ = transaction.StringSetAsync(
             CacheKeys.MfaReverseHash(hash),
-            account.Id!.Value.ToString(),
+            CacheKeys.WorldKeyValue(account.Id!.Value, account.CredentialsVersion),
             _expiry);
 
         bool committed = await transaction.ExecuteAsync();
@@ -93,9 +107,18 @@ public class MFAHashService : IMFAHashService
 
     public async Task<AccountId?> GetAccountIdAsync(string hash)
     {
-        var accountIdStr = await _cache.GetAsync(CacheKeys.MfaReverseHash(hash));
-        if (accountIdStr == null) return null;
-        return new AccountId(long.Parse(accountIdStr));
+        var value = await _cache.GetAsync(CacheKeys.MfaReverseHash(hash));
+        if (value == null) return null;
+        // {accountId}:{version}; a bare id (a hash issued before #495) still names its account.
+        int colon = value.IndexOf(':', StringComparison.Ordinal);
+        return new AccountId(long.Parse(colon < 0 ? value : value[..colon],
+            System.Globalization.CultureInfo.InvariantCulture));
+    }
+
+    public async Task<int> GetHashCredentialsVersionAsync(string hash)
+    {
+        var value = await _cache.GetAsync(CacheKeys.MfaReverseHash(hash));
+        return CacheKeys.TryParseWorldKeyValue(value, out _, out int version) ? version : -1;
     }
 
     public Task<long> RecordAttemptAsync(AccountId accountId) =>
@@ -120,7 +143,9 @@ public class MFAHashService : IMFAHashService
         var accountId = await GetAccountIdAsync(hash);
         if (accountId != null)
         {
-            await _cache.RemoveAsync(CacheKeys.AccountMfa((long)accountId));
+            // Only while the account's record is this hash's (#495 re-review): a newer login may have
+            // written its own hash over it, and that record is not this cleanup's to delete.
+            await _cache.RemoveHashIfFieldEqualsAsync(CacheKeys.AccountMfa((long)accountId), "hash", hash);
         }
         await _cache.RemoveAsync(CacheKeys.MfaReverseHash(hash));
     }

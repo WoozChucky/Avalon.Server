@@ -39,7 +39,7 @@ public class UsernameBudgetShould
 
     public UsernameBudgetShould()
     {
-        _accounts.TryRecordLoginAsync(default!, default!, default, default).ReturnsForAnyArgs(true);
+        _accounts.TryRecordLoginAsync(default!, default!, default, default, default).ReturnsForAnyArgs(true);
     }
 
     private static IOptions<AuthConfiguration> Options() => Microsoft.Extensions.Options.Options.Create(new AuthConfiguration
@@ -208,7 +208,7 @@ public class UsernameBudgetShould
             accounts.FindByUserNameAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
                 .Returns(_ => gate.Task.ContinueWith(_ => (Account?)MakeAccount(), TaskScheduler.Default));
             // The batch's own failures locked the account after every request had read it.
-            accounts.TryRecordLoginAsync(default!, default!, default, default).ReturnsForAnyArgs(false);
+            accounts.TryRecordLoginAsync(default!, default!, default, default, default).ReturnsForAnyArgs(false);
             var handler = new CAuthHandler(NullLoggerFactory.Instance, accounts, counters.Cache, _hashes, _mfaSetups,
                 Options(), new CountingVerifier());
 
@@ -239,7 +239,7 @@ public class UsernameBudgetShould
             var accounts = Substitute.For<IAccountRepository>();
             Account account = MakeAccount();
             accounts.FindByIdAsync(account.Id, Arg.Any<bool>(), Arg.Any<CancellationToken>()).Returns(account);
-            accounts.TryRecordLoginAsync(default!, default!, default, default).ReturnsForAnyArgs(false);
+            accounts.TryRecordLoginAsync(default!, default!, default, default, default).ReturnsForAnyArgs(false);
             var hashes = Substitute.For<IMFAHashService>();
             hashes.GetAccountIdAsync(Arg.Any<string>()).Returns(account.Id);
             hashes.RecordAttemptAsync(account.Id).Returns(1L);
@@ -290,7 +290,7 @@ public class UsernameBudgetShould
             var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             accounts.FindByUserNameAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
                 .Returns(_ => gate.Task.ContinueWith(_ => (Account?)MakeAccount(), TaskScheduler.Default));
-            accounts.TryRecordLoginAsync(default!, default!, default, default).ReturnsForAnyArgs(false);
+            accounts.TryRecordLoginAsync(default!, default!, default, default, default).ReturnsForAnyArgs(false);
             var setups = Substitute.For<IMfaSetupRepository>();
             setups.FindByAccountIdAsync(Arg.Any<AccountId>(), Arg.Any<CancellationToken>())
                 .Returns(new MFASetup { Status = MfaSetupStatus.Confirmed });
@@ -434,7 +434,7 @@ public class UsernameBudgetShould
     public async Task Keep_both_slots_when_a_correct_password_is_refused_by_a_lock_that_landed_mid_login()
     {
         _accounts.FindByUserNameAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(MakeAccount());
-        _accounts.TryRecordLoginAsync(default!, default!, default, default).ReturnsForAnyArgs(false);
+        _accounts.TryRecordLoginAsync(default!, default!, default, default, default).ReturnsForAnyArgs(false);
         IAuthConnection connection = ConnectionFrom(1);
 
         await LogInAsync(PasswordHandler(), connection, CorrectPassword);
@@ -453,7 +453,7 @@ public class UsernameBudgetShould
         LiveMfaHashFor(account);
         _mfa.VerifyMFAAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(new MFAVerifyResult(true, account.Id));
-        _accounts.TryRecordLoginAsync(default!, default!, default, default).ReturnsForAnyArgs(false);
+        _accounts.TryRecordLoginAsync(default!, default!, default, default, default).ReturnsForAnyArgs(false);
         IAuthConnection connection = ConnectionFrom(1);
 
         await VerifyCodeAsync(MfaHandler(), connection, "123456");
@@ -646,7 +646,7 @@ public class UsernameBudgetShould
             .Returns(new MFAVerifyResult(true, account.Id));
         string key = UsernameBudget.KeyFor("testuser");
         // A concurrent last-slot failure holds the budget right after this login was recorded.
-        _accounts.TryRecordLoginAsync(default!, default!, default, default).ReturnsForAnyArgs(_ =>
+        _accounts.TryRecordLoginAsync(default!, default!, default, default, default).ReturnsForAnyArgs(_ =>
         {
             UsernameBudget.HoldLockAsync(_counters.Cache, Options().Value, key);
             return true;
@@ -878,7 +878,8 @@ public class UsernameBudgetShould
         hosting.Value.Returns(new HostingConfiguration { Port = 0, Host = "127.0.0.1" });
         var security = Substitute.For<IOptions<HostingSecurity>>();
         security.Value.Returns(new HostingSecurity());
-        var server = new AuthServer(services, packets, NullLoggerFactory.Instance, _accounts, hosting, security);
+        var server = new AuthServer(services, packets, NullLoggerFactory.Instance, _accounts,
+            Substitute.For<IReplicatedCache>(), hosting, security);
         IAuthConnection connection = ConnectionFrom(1);
 
         await server.CallListener(connection, new NetworkPacketHeader { Type = NetworkPacketType.CMSG_AUTH },
@@ -888,7 +889,7 @@ public class UsernameBudgetShould
         Assert.Equal(0, _verifier.Count);
         Assert.Null(ResultOf(connection));
         await _accounts.DidNotReceiveWithAnyArgs().FindByUserNameAsync(default!, default);
-        await _accounts.DidNotReceiveWithAnyArgs().TryRecordLoginAsync(default!, default!, default, default);
+        await _accounts.DidNotReceiveWithAnyArgs().TryRecordLoginAsync(default!, default!, default, default, default);
     }
 
     /// <summary>

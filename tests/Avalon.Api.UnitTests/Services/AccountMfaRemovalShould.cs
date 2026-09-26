@@ -50,12 +50,12 @@ public class AccountMfaRemovalShould : IDisposable
         await CreateConfirmedMfaAsync(account.Id);
         AccountService service = MakeService();
 
-        (AuthenticateResponse before, _) = await service.Authenticate(Login("LOSTPHONE"), IPAddress.Loopback, default);
+        (AuthenticateResponse before, _, _) = await service.Authenticate(Login("LOSTPHONE"), IPAddress.Loopback, default);
         Assert.Equal(AuthenticationResponseStatus.RequiresMFA, before.Status);
 
         Assert.True(await service.RemoveMfaAsync(account.Id, _admin));
 
-        (AuthenticateResponse after, AccountId? loggedIn) =
+        (AuthenticateResponse after, AccountId? loggedIn, _) =
             await service.Authenticate(Login("LOSTPHONE"), IPAddress.Loopback, default);
         Assert.Equal(AuthenticationResponseStatus.Success, after.Status);
         Assert.Equal(account.Id, loggedIn);

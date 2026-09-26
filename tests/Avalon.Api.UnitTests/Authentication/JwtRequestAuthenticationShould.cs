@@ -216,5 +216,69 @@ public sealed class JwtRequestAuthenticationShould : IAsyncLifetime
         Assert.False(response.IsSuccessStatusCode);
     }
 
+    // ---------------- Credentials version (#495) ----------------
+
+    private static Account AtVersion(int version)
+    {
+        Account account = MakeAccount();
+        account.CredentialsVersion = version;
+        return account;
+    }
+
+    /// <summary>
+    /// The change moved the account to version 1 in the same second the token was minted at
+    /// version 0. A timestamp compared at the second let it through; the version does not.
+    /// </summary>
+    [Fact]
+    public async Task Refuse_a_token_minted_in_the_same_second_as_a_credentials_change()
+    {
+        string token = Mint(AtVersion(0));
+        _host.AccountNowIs(AtVersion(1));
+
+        using HttpResponseMessage response = await _host.GetAsync("/player", token);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Accept_the_owners_fresh_login_straight_after_the_change()
+    {
+        string token = Mint(AtVersion(1));
+        _host.AccountNowIs(AtVersion(1));
+
+        using HttpResponseMessage response = await _host.GetAsync("/player", token);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Refuse_a_stale_token_through_the_session_cookie_too()
+    {
+        string token = Mint(AtVersion(0));
+        _host.AccountNowIs(AtVersion(1));
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/player");
+        request.Headers.Add("Cookie", $"{AuthConstants.CookieName}={token}");
+
+        using HttpResponseMessage response = await _host.Client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("one")]
+    [InlineData("-1")]
+    public async Task Refuse_a_token_whose_credentials_version_is_missing_or_malformed(string? claim)
+    {
+        _host.AccountNowIs(AtVersion(0));
+        DateTime now = DateTime.UtcNow;
+
+        using HttpResponseMessage response = await _host.GetAsync("/player",
+            MintCustom(now.AddMinutes(-1), now.AddMinutes(10), credentialsVersion: claim));
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
     private sealed class FakeDbException() : DbException("connection refused");
 }

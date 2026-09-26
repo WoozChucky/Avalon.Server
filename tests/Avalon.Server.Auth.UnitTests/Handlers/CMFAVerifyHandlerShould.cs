@@ -49,7 +49,8 @@ public class CMFAVerifyHandlerShould
     {
         _connection.CryptoSession.Returns(_cryptoSession);
         _connection.RemoteEndPoint.Returns("127.0.0.1:12345");
-        _accountRepository.TryRecordLoginAsync(default!, default!, default, default).ReturnsForAnyArgs(true);
+        _connection.Id.Returns(Guid.NewGuid());
+        _accountRepository.TryRecordLoginAsync(default!, default!, default, default, default).ReturnsForAnyArgs(true);
         // A live MFA hash for account 1 with its first attempt, unless a test says otherwise.
         _mfaHashService.GetAccountIdAsync(Arg.Any<string>()).Returns(new AccountId(1L));
         _mfaHashService.RecordAttemptAsync(Arg.Any<AccountId>()).Returns(1L);
@@ -78,9 +79,53 @@ public class CMFAVerifyHandlerShould
         _connection.Received(1).Send(Arg.Any<NetworkPacket>());
         _connection.Received().AccountId = accountId;
         await _cache.Received(1).PublishAsync(CacheKeys.AuthAccountsOnlineChannel, Arg.Any<string>());
+        // The login is recorded as this connection's session (#487).
         await _accountRepository.Received(1).TryRecordLoginAsync(accountId, "127.0.0.1", Arg.Any<DateTime>(),
-            Arg.Any<CancellationToken>());
+            _connection.Id, Arg.Any<CancellationToken>());
         await _accountRepository.DidNotReceiveWithAnyArgs().UpdateAsync(default!, default);
+    }
+
+    /// <summary>
+    /// #495: the hash was issued by a login at version 0 (the old password); a password change has
+    /// since moved the account to 2. A right code on that hash logs nobody in.
+    /// </summary>
+    [Fact]
+    public async Task SendMfaFailed_WhenTheHashPredatesACredentialsChange()
+    {
+        var account = MakeAccount();
+        account.CredentialsVersion = 2;
+        _accountRepository.FindByIdAsync(account.Id, Arg.Any<bool>(), Arg.Any<CancellationToken>()).Returns(account);
+        _mfaHashService.GetHashCredentialsVersionAsync("valid-hash").Returns(0);
+        _mfaService.VerifyMFAAsync("valid-hash", "123456").Returns(new MFAVerifyResult(true, account.Id));
+
+        await CreateHandler().ExecuteAsync(new AuthPacketContext<CMFAVerifyPacket>
+        {
+            Packet = new CMFAVerifyPacket { MfaHash = "valid-hash", Code = "123456" },
+            Connection = _connection
+        });
+
+        _connection.DidNotReceive().AccountId = Arg.Any<AccountId?>();
+        await _accountRepository.DidNotReceiveWithAnyArgs().TryRecordLoginAsync(default!, default!, default, default, default);
+        await _mfaHashService.Received(1).CleanupHash("valid-hash");
+    }
+
+    [Fact]
+    public async Task KeepTheCredentialsVersionItsProofWasCheckedAt()
+    {
+        var account = MakeAccount();
+        account.CredentialsVersion = 4;
+        _accountRepository.FindByIdAsync(account.Id, Arg.Any<bool>(), Arg.Any<CancellationToken>()).Returns(account);
+        _mfaHashService.GetHashCredentialsVersionAsync("valid-hash").Returns(4);
+        _mfaService.VerifyMFAAsync("valid-hash", "123456").Returns(new MFAVerifyResult(true, account.Id));
+
+        await CreateHandler().ExecuteAsync(new AuthPacketContext<CMFAVerifyPacket>
+        {
+            Packet = new CMFAVerifyPacket { MfaHash = "valid-hash", Code = "123456" },
+            Connection = _connection
+        });
+
+        _connection.Received().CredentialsVersion = 4;
+        _connection.Received().AccountId = account.Id;
     }
 
     [Fact]
@@ -158,6 +203,7 @@ public class CMFAVerifyHandlerShould
             Substitute.For<IPacketManager>(),
             NullLoggerFactory.Instance,
             Substitute.For<IAccountRepository>(),
+            Substitute.For<IReplicatedCache>(),
             hostingOptions,
             securityOptions);
         _connection.Server.Returns(server);
@@ -174,7 +220,7 @@ public class CMFAVerifyHandlerShould
         await _cache.Received(1).PublishAsync("world:accounts:disconnect", Arg.Any<string>());
         Assert.False(account.Online);
         // Only the Online flag, never the whole row (#484).
-        await _accountRepository.Received(1).MarkOfflineAsync(accountId, 0, Arg.Any<CancellationToken>());
+        await _accountRepository.Received(1).MarkOfflineAsync(accountId, Arg.Any<Guid?>(), 0, Arg.Any<CancellationToken>());
         await _accountRepository.DidNotReceiveWithAnyArgs().UpdateAsync(default!, default);
     }
 
@@ -497,7 +543,7 @@ public class CMFAVerifyHandlerShould
         await VerifyAsync("123456");
 
         await _accountRepository.Received(1).TryRecordLoginAsync(accountId, "2001:db8:1:2:3:4:5:6",
-            Arg.Any<DateTime>(), Arg.Any<CancellationToken>());
+            Arg.Any<DateTime>(), Arg.Any<Guid>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]

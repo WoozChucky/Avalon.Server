@@ -128,7 +128,10 @@ public sealed class PasswordLoginPolicy : LoginPolicy
 
         string trimmed = password.Trim();
         Account? account = await Accounts.FindByUserNameAsync(normalised, token);
-        if (account == null)
+        // A name outside the username rule, as sent, is an unknown username (owner decision, #487
+        // re-review), whatever row may hold its normalised form. The lookup above still runs and the
+        // same dummy verify follows, so it is answered as fast, and as, an unknown one.
+        if (account == null || !UsernameRule.IsValid(username))
         {
             _verifier.Verify(trimmed, BCryptPasswordVerifier.UnknownAccountHash);
             return new PasswordAttempt(PasswordCheck.UnknownUsername, source, usernameKey, taken, null);
@@ -205,24 +208,39 @@ public sealed class MfaLoginPolicy : LoginPolicy
             return new MfaCodeAttempt(MfaCodeCheck.SourceRefused, source, null, 0, null);
 
         AccountId? hashAccountId = await _hashes.GetAccountIdAsync(hash);
-        long attempts = hashAccountId == null ? -1 : await _hashes.RecordAttemptAsync(hashAccountId);
-
-        // Fail closed on a hash that is gone: no reverse key, or a reverse key that outlived the
-        // :mfa hash for a moment (an expiry, or an admin removing MFA deletes them one at a time).
-        if (hashAccountId == null || attempts < 0)
+        if (hashAccountId == null)
             return new MfaCodeAttempt(MfaCodeCheck.HashGone, source, null, 0, null);
-
-        if (attempts > Limits.MaxFailedMfaAttempts)
-        {
-            await _hashes.CleanupHash(hash);
-            return new MfaCodeAttempt(MfaCodeCheck.HashSpent, source, null, 0, null);
-        }
 
         Account? account = await Accounts.FindByIdAsync(hashAccountId, false, token);
         if (account == null)
         {
             Logger.LogWarning("Account {AccountId} of an MFA hash was not found", hashAccountId);
             return new MfaCodeAttempt(MfaCodeCheck.AccountMissing, source, null, 0, null);
+        }
+
+        // The hash was issued by a password login at the version of the row that password matched
+        // (#495). A password change, an MFA reset or an admin's MFA removal since then has moved
+        // the account on, and the hash is gone: a right code on it logs nobody in. Checked before
+        // an attempt is counted (#495 re-review): attempts count on the account's record, which a
+        // newer login's hash may hold, and a stale presentation must not spend that login's tries.
+        if (await _hashes.GetHashCredentialsVersionAsync(hash) != account.CredentialsVersion)
+        {
+            Logger.LogWarning("MFA hash for account {AccountId} predates a credentials change", account.Id);
+            await _hashes.CleanupHash(hash);
+            return new MfaCodeAttempt(MfaCodeCheck.HashGone, source, null, 0, null);
+        }
+
+        long attempts = await _hashes.RecordAttemptAsync(hashAccountId);
+
+        // Fail closed on a hash that is gone: a reverse key that outlived the :mfa hash for a moment
+        // (an expiry, or an admin removing MFA deletes them one at a time).
+        if (attempts < 0)
+            return new MfaCodeAttempt(MfaCodeCheck.HashGone, source, null, 0, null);
+
+        if (attempts > Limits.MaxFailedMfaAttempts)
+        {
+            await _hashes.CleanupHash(hash);
+            return new MfaCodeAttempt(MfaCodeCheck.HashSpent, source, null, 0, null);
         }
 
         string usernameKey = UsernameBudget.KeyFor(account.Username);

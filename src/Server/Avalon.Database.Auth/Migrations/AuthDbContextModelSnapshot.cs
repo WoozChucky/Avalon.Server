@@ -33,6 +33,9 @@ namespace Avalon.Database.Auth.Migrations
                     b.Property<int>("AccessLevel")
                         .HasColumnType("integer");
 
+                    b.Property<int>("CredentialsVersion")
+                        .HasColumnType("integer");
+
                     b.Property<string>("Email")
                         .IsRequired()
                         .HasColumnType("text");
@@ -78,6 +81,9 @@ namespace Avalon.Database.Auth.Migrations
                     b.Property<bool>("Online")
                         .HasColumnType("boolean");
 
+                    b.Property<Guid?>("OnlineSessionId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("Os")
                         .IsRequired()
                         .HasColumnType("text");
@@ -107,13 +113,20 @@ namespace Avalon.Database.Auth.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("Accounts");
+                    b.HasIndex("Username")
+                        .IsUnique();
+
+                    b.ToTable("Accounts", t =>
+                        {
+                            t.HasCheckConstraint("CK_Accounts_Username_Normalised", "\"Username\" = upper(trim(\"Username\"))");
+                        });
 
                     b.HasData(
                         new
                         {
                             Id = 1L,
                             AccessLevel = 7,
+                            CredentialsVersion = 0,
                             Email = "admin@avalon.monster",
                             FailedLogins = 0,
                             JoinDate = new DateTime(2021, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
@@ -307,6 +320,9 @@ namespace Avalon.Database.Auth.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<int>("CredentialsVersion")
+                        .HasColumnType("integer");
+
                     b.Property<DateTime>("ExpiresAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -322,6 +338,12 @@ namespace Avalon.Database.Auth.Migrations
 
                     b.Property<bool>("Revoked")
                         .HasColumnType("boolean");
+
+                    b.Property<byte[]>("RotatedByAgentHash")
+                        .HasColumnType("bytea");
+
+                    b.Property<string>("RotatedBySource")
+                        .HasColumnType("text");
 
                     b.Property<long>("Usages")
                         .HasColumnType("bigint");

@@ -4,7 +4,12 @@ using Avalon.Network.Packets.Auth;
 namespace Avalon.Infrastructure.Services;
 
 public record MFASetupResult(bool Success, string? OtpUri, MFAOperationResult Status);
-public record MFAConfirmResult(bool Success, string[]? RecoveryCodes, MFAOperationResult Status);
+/// <param name="CredentialsChanged">
+/// The account's credentials changed after the caller's session proved them (#495 re-review):
+/// nothing was written, and the session should end.
+/// </param>
+public record MFAConfirmResult(bool Success, string[]? RecoveryCodes, MFAOperationResult Status,
+    bool CredentialsChanged = false);
 
 /// <summary>
 /// The outcome of an MFA code. On a refusal, <paramref name="Refusal"/> says why, because only a
@@ -26,4 +31,5 @@ public enum MfaCodeRefusal
     HashSpent,
 }
 
-public record MFAResetResult(bool Success, MFAOperationResult Status);
+/// <inheritdoc cref="MFAConfirmResult"/>
+public record MFAResetResult(bool Success, MFAOperationResult Status, bool CredentialsChanged = false);

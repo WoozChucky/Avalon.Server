@@ -17,6 +17,19 @@ public interface IAuthConnection : IConnection
 {
     public AccountId? AccountId { get; set; }
 
+    /// <summary>
+    /// The credentials version of the row this connection's login proved (#495). World select
+    /// refuses once the account's version has moved past it.
+    /// </summary>
+    int CredentialsVersion { get; set; }
+
+    /// <summary>
+    /// When this connection's login completed, as a <see cref="System.Diagnostics.Stopwatch"/>
+    /// timestamp; 0 before it has. Lets the server tell a login from the duplicate-login
+    /// disconnect published just before it (#495 review).
+    /// </summary>
+    long LoggedInAt { get; set; }
+
     AuthServer Server { get; }
 
     byte[] GenerateHandshakeData();
@@ -53,6 +66,8 @@ public class AuthConnection : Connection, IAuthConnection
     }
 
     public AccountId? AccountId { get; set; }
+    public int CredentialsVersion { get; set; }
+    public long LoggedInAt { get; set; }
     public new AuthServer Server { get; }
 
     public byte[] GenerateHandshakeData()
@@ -100,7 +115,7 @@ public class AuthConnection : Connection, IAuthConnection
         await using AsyncServiceScope scope = _serviceScopeFactory.CreateAsyncScope();
         IAccountRepository accountRepository = scope.ServiceProvider.GetRequiredService<IAccountRepository>();
 
-        await RecordDisconnectAsync(accountRepository, AccountId, DateTime.UtcNow);
+        await RecordDisconnectAsync(accountRepository, AccountId, Id, DateTime.UtcNow);
     }
 
     /// <summary>
@@ -108,14 +123,15 @@ public class AuthConnection : Connection, IAuthConnection
     /// two columns are written (#484): this runs on every logged-in disconnect, and writing back the
     /// row as read would undo a lock, a ban or a failed-login count written since.
     /// </summary>
-    public static async Task RecordDisconnectAsync(IAccountRepository accountRepository, AccountId accountId, DateTime now)
+    public static async Task RecordDisconnectAsync(IAccountRepository accountRepository, AccountId accountId,
+        Guid sessionId, DateTime now)
     {
         // Disconnect cleanup runs from the TCP read-loop exit path — no request-scoped CT here.
         Account? account = await accountRepository.FindByIdAsync(accountId, false, CancellationToken.None);
         if (account != null)
         {
             long sessionSeconds = Math.Max(0L, (long)(now - account.LastLogin).TotalSeconds);
-            await accountRepository.MarkOfflineAsync(accountId, sessionSeconds, CancellationToken.None);
+            await accountRepository.MarkOfflineAsync(accountId, sessionId, sessionSeconds, CancellationToken.None);
         }
     }
 

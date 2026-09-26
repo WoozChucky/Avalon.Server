@@ -42,9 +42,9 @@ public sealed class SensitiveActionReauthenticationShould : IAsyncLifetime
         var minted = new MintResult(new PersonalAccessTokenId(1), "cli", "avp_token", "avp_toke", DateTime.UtcNow.AddDays(30),
             AccountAccessLevel.Player);
         _host.Pats.MintSelfAsync(Arg.Any<AccountId>(), Arg.Any<AccountAccessLevel>(), Arg.Any<string>(),
-            Arg.Any<DateTime?>(), Arg.Any<AccountAccessLevel?>(), Arg.Any<CancellationToken>()).Returns(minted);
+            Arg.Any<DateTime?>(), Arg.Any<AccountAccessLevel?>(), Arg.Any<Reauthenticated>(), Arg.Any<CancellationToken>()).Returns(minted);
         _host.Pats.MintAdminAsync(Arg.Any<AccountAccessLevel>(), Arg.Any<AccountId>(), Arg.Any<string>(),
-            Arg.Any<DateTime?>(), Arg.Any<AccountAccessLevel>(), Arg.Any<CancellationToken>()).Returns(minted);
+            Arg.Any<DateTime?>(), Arg.Any<AccountAccessLevel>(), Arg.Any<Reauthenticated>(), Arg.Any<CancellationToken>()).Returns(minted);
     }
 
     public async Task DisposeAsync() => await _host.DisposeAsync();
@@ -71,7 +71,7 @@ public sealed class SensitiveActionReauthenticationShould : IAsyncLifetime
         _host.Mfa.DidNotReceiveWithAnyArgs().SetupMFAAsync(default!, default!, default);
 
     private Task AssertNoMintAsync() =>
-        _host.Pats.DidNotReceiveWithAnyArgs().MintSelfAsync(default!, default, default!, default, default, default);
+        _host.Pats.DidNotReceiveWithAnyArgs().MintSelfAsync(default!, default, default!, default, default, default, default);
 
     private Task AssertFailureCountedAsync() =>
         _host.AccountRepository.Received(1).RecordFailedLoginAsync(Arg.Is<AccountId>(id => id.Value == AccountIdValue),
@@ -113,7 +113,7 @@ public sealed class SensitiveActionReauthenticationShould : IAsyncLifetime
     [Fact]
     public async Task Reset_mfa_without_enrolling_a_new_authenticator()
     {
-        _host.Mfa.ResetMFAAsync(Arg.Any<AccountId>(), "a", "b", "c", Arg.Any<CancellationToken>())
+        _host.Mfa.ResetMFAAsync(Arg.Any<AccountId>(), Arg.Any<int>(), "a", "b", "c", Arg.Any<CancellationToken>())
             .Returns(new MFAResetResult(true, MFAOperationResult.Success));
 
         using HttpResponseMessage response = await PostAsync("/mfa/reset",
@@ -157,7 +157,7 @@ public sealed class SensitiveActionReauthenticationShould : IAsyncLifetime
         using HttpResponseMessage response = await MintAdminAsync(null);
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
-        await _host.Pats.DidNotReceiveWithAnyArgs().MintAdminAsync(default, default!, default!, default, default, default);
+        await _host.Pats.DidNotReceiveWithAnyArgs().MintAdminAsync(default, default!, default!, default, default, default, default);
     }
 
     [Fact]

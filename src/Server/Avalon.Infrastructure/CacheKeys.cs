@@ -6,11 +6,36 @@ namespace Avalon.Infrastructure;
 /// </summary>
 public static class CacheKeys
 {
+    /// <summary>
+    /// An account id with a credentials version, as <c>{accountId}:{version}</c> (#495): the value
+    /// stored under <see cref="WorldKey"/> (the version of the connection that selected the world)
+    /// and under <see cref="MfaReverseHash"/> (the version of the login that issued the hash).
+    /// </summary>
+    public static string WorldKeyValue(long accountId, int credentialsVersion) =>
+        string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{accountId}:{credentialsVersion}");
+
+    /// <summary>Reads a <see cref="WorldKeyValue"/>. False for anything else, a bare id included.</summary>
+    public static bool TryParseWorldKeyValue(string? value, out long accountId, out int credentialsVersion)
+    {
+        accountId = 0;
+        credentialsVersion = 0;
+        if (value is null)
+            return false;
+        int colon = value.IndexOf(':', StringComparison.Ordinal);
+        return colon > 0
+               && long.TryParse(value.AsSpan(0, colon), System.Globalization.NumberStyles.None,
+                   System.Globalization.CultureInfo.InvariantCulture, out accountId)
+               && int.TryParse(value.AsSpan(colon + 1), System.Globalization.NumberStyles.None,
+                   System.Globalization.CultureInfo.InvariantCulture, out credentialsVersion);
+    }
+
     // ── Pub/Sub Channels (fixed) ──────────────────────────────────────────────
 
     /// <summary>
-    /// Published by the Auth server when a duplicate login triggers a forced disconnect.
-    /// Subscribed by World servers to close the matching in-world connection.
+    /// Published, with the account id, whenever an account's sessions must end: a duplicate login,
+    /// a password change, an MFA reset or removal, a ban, an email change, a refresh-token reuse.
+    /// Subscribed by World servers to close the matching in-world connection, and by the Auth server
+    /// to close the account's logged-in auth connections (#495).
     /// </summary>
     public const string WorldAccountsDisconnectChannel = "world:accounts:disconnect";
 
@@ -55,6 +80,13 @@ public static class CacheKeys
     /// (<c>Application:FailedLoginSourceWindowMinutes</c>, default 15 minutes).
     /// </summary>
     public static string AuthSourceFailedLogins(string source) => $"auth:source:{source}:failedLogins";
+
+    /// <summary>
+    /// Accounts created by one source (same source form as <see cref="AuthSourceFailedLogins"/>) in the
+    /// current window (#495 review). <c>INCR</c> before the insert, the expiry set by the first; given
+    /// back only when the registration does not create its account.
+    /// </summary>
+    public static string AuthSourceAccountsCreated(string source) => $"auth:source:{source}:accountsCreated";
 
     /// <summary>
     /// Login and MFA-code attempts at one username, from every source and over both the TCP login and the

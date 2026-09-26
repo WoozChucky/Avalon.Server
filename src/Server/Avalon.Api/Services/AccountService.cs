@@ -22,7 +22,11 @@ namespace Avalon.Api.Services;
 public interface IAccountService
 {
     Task<Account?> FindByIdAsync(AccountId id, CancellationToken cancellationToken = default);
-    Task<(AuthenticateResponse Response, AccountId? AccountId)> Authenticate(AuthenticateRequest model, IPAddress ipAddress, CancellationToken cancellationToken);
+    /// <summary>
+    /// A password login. On a completed login <c>AccountId</c> is set, with the credentials version
+    /// of the row the password matched: the refresh token is issued against it (#495).
+    /// </summary>
+    Task<(AuthenticateResponse Response, AccountId? AccountId, int CredentialsVersion)> Authenticate(AuthenticateRequest model, IPAddress ipAddress, CancellationToken cancellationToken);
     Task<(RegisterResponse Response, AccountId AccountId)> Register(RegisterRequest model, string userAgent, IPAddress ipAddress,
         CancellationToken cancellationToken);
 
@@ -93,7 +97,7 @@ public class AccountService : IAccountService
         return await _accountRepository.FindByIdAsync(id, track: false, cancellationToken);
     }
 
-    public async Task<(AuthenticateResponse Response, AccountId? AccountId)> Authenticate(AuthenticateRequest model, IPAddress ipAddress,
+    public async Task<(AuthenticateResponse Response, AccountId? AccountId, int CredentialsVersion)> Authenticate(AuthenticateRequest model, IPAddress ipAddress,
         CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(model.Username) || string.IsNullOrWhiteSpace(model.Password))
@@ -139,7 +143,7 @@ public class AccountService : IAccountService
                 ExpiresAt = null,
                 MfaHash = await _mfaHashService.GenerateHashAsync(account),
                 Status = AuthenticationResponseStatus.RequiresMFA
-            }, null);
+            }, null, account.CredentialsVersion);
         }
 
         // By column, and only while the account is not locked (#484): a lock or a ban written
@@ -159,10 +163,11 @@ public class AccountService : IAccountService
             Token = _jwtUtils.GenerateJwtToken(account),
             ExpiresAt = DateTimeOffset.UtcNow.AddMinutes(_authConfig.AccessTokenLifetimeMinutes).ToUnixTimeSeconds(),
             Status = AuthenticationResponseStatus.Success
-        }, account.Id);
+        }, account.Id, account.CredentialsVersion);
     }
 
     private const string InvalidCredentials = "Invalid username or password";
+    private const string UsernameTaken = "Username already exists";
 
     /// <summary>The answer to a failed password in this attempt's budget slot: locked in the last one.</summary>
     private Exception FailureFor(PasswordAttempt attempt) =>
@@ -171,12 +176,21 @@ public class AccountService : IAccountService
     public async Task<(RegisterResponse Response, AccountId AccountId)> Register(RegisterRequest model, string userAgent, IPAddress ipAddress,
         CancellationToken cancellationToken)
     {
-        var existingAccount = await _accountRepository.FindByUserNameAsync(
-            model.Username.ToUpperInvariant().Trim(),
-            cancellationToken
-        );
+        // Registration says whether a username or an email is taken, so it is budgeted like a
+        // login (#495): a slot from the source's budget, the one logins spend over TCP and REST,
+        // taken before any lookup. Past the budget the answer is 429 LOCKED, whatever the name.
+        // A registration that creates the account gives its slot back; every other ending,
+        // "already exists" included, keeps it, so a source can ask about only so many names.
+        // The request contract checks this too; the service does not rely on it.
+        if (!UsernameRule.IsValid(model.Username))
+            throw new BusinessException(UsernameRule.Requirement);
+
+        var sourceKey = await TakeRegistrationSlotAsync(ipAddress);
+
+        var username = model.Username.ToUpperInvariant().Trim();
+        var existingAccount = await _accountRepository.FindByUserNameAsync(username, cancellationToken);
         if (existingAccount != null)
-            throw new BusinessException("Username already exists");
+            throw new BusinessException(UsernameTaken);
 
         existingAccount = await _accountRepository.FindByEmailAsync(model.Email, cancellationToken);
         if (existingAccount != null)
@@ -190,7 +204,7 @@ public class AccountService : IAccountService
 
         var account = new Account
         {
-            Username = model.Username.ToUpperInvariant().Trim(),
+            Username = username,
             Email = model.Email,
             Salt = saltBytes,
             Verifier = hashBytes,
@@ -201,7 +215,7 @@ public class AccountService : IAccountService
             Os = OperatingSystem.Windows,
         };
 
-        account = await _accountRepository.CreateAsync(account, cancellationToken);
+        account = await InsertAccountAsync(account, ipAddress, cancellationToken);
 
         if (account == null)
             throw new Exception("Failed to insert account");
@@ -215,11 +229,71 @@ public class AccountService : IAccountService
             TrustEnd = DateTime.UtcNow,
         }, cancellationToken);
 
+        await SourceBudget.GiveBackAsync(_cache, sourceKey);
+
         return (new RegisterResponse
         {
             Token = _jwtUtils.GenerateJwtToken(account),
             ExpiresAt = DateTimeOffset.UtcNow.AddMinutes(_authConfig.AccessTokenLifetimeMinutes).ToUnixTimeSeconds(),
         }, account.Id);
+    }
+
+    /// <summary>Takes the registration's slot from its source's budget (#495); 429 LOCKED past it.</summary>
+    private async Task<string> TakeRegistrationSlotAsync(IPAddress ipAddress)
+    {
+        var sourceKey = LoginSource.FromAddress(ipAddress).Key;
+        if (await SourceBudget.TryTakeAsync(_cache, _authConfig, sourceKey))
+            return sourceKey;
+
+        _logger.LogWarning("Registration refused for source {SourceKey}: too many attempts", sourceKey);
+        throw new AccountLockedException();
+    }
+
+    /// <summary>
+    /// Takes a slot of the source's account-creation cap (#495 review): at most
+    /// <c>MaxAccountsCreatedPerSource</c> accounts per <c>AccountCreationWindowMinutes</c>. Unlike the
+    /// login budget, a created account keeps its slot. Past the cap: 429 LOCKED.
+    /// </summary>
+    private async Task<string> TakeCreationSlotAsync(IPAddress ipAddress)
+    {
+        var key = CacheKeys.AuthSourceAccountsCreated(RemoteAddress.SourceOf(ipAddress));
+        long created = await AttemptBudget.TakeAsync(_cache, key,
+            TimeSpan.FromMinutes(_authConfig.AccountCreationWindowMinutes));
+        if (created <= _authConfig.MaxAccountsCreatedPerSource)
+            return key;
+
+        await AttemptBudget.GiveBackAsync(_cache, key);
+        _logger.LogWarning("Registration refused for source {SourceKey}: account creation cap reached", key);
+        throw new AccountLockedException();
+    }
+
+    /// <summary>
+    /// Inserts a new account. The "taken" check before it and this insert are not atomic: a
+    /// registration of the same name can land in between, and the unique index on Username
+    /// refuses this one (#487). Its caller gets the answer the check would have given; any other
+    /// failure is rethrown. The insert takes a slot of the source's creation cap first, given back
+    /// when no account comes of it.
+    /// </summary>
+    private async Task<Account> InsertAccountAsync(Account account, IPAddress ipAddress,
+        CancellationToken cancellationToken)
+    {
+        var creationKey = await TakeCreationSlotAsync(ipAddress);
+        try
+        {
+            return await _accountRepository.CreateAsync(account, cancellationToken);
+        }
+        catch (DbUpdateException ex)
+        {
+            await AttemptBudget.GiveBackAsync(_cache, creationKey);
+            if (await _accountRepository.FindByUserNameAsync(account.Username, cancellationToken) != null)
+                throw new BusinessException(UsernameTaken, ex);
+            throw;
+        }
+        catch
+        {
+            await AttemptBudget.GiveBackAsync(_cache, creationKey);
+            throw;
+        }
     }
 
     public async Task<PagedResult<Account>> Paginate(AccountPaginateFilters filters, CancellationToken cancellationToken)
@@ -232,7 +306,8 @@ public class AccountService : IAccountService
     {
         // Through the login policy (#478): a stolen session guessing the current password here
         // spends the same budgets, and locks the same account, as guessing it at login.
-        await _reauthentication.RequireCurrentPasswordAsync(accountId, currentPassword, ipAddress, cancellationToken);
+        var proof = await _reauthentication.RequireCurrentPasswordAsync(accountId, currentPassword, ipAddress,
+            cancellationToken);
 
         var salt = BCrypt.Net.BCrypt.GenerateSalt();
         var hash = BCrypt.Net.BCrypt.HashPassword(newPassword.Trim(), salt);
@@ -245,7 +320,9 @@ public class AccountService : IAccountService
         // or with a stolen session, outlives the change.
         var changed = await _authTransaction.ExecuteAsync(async (context, token) =>
         {
-            if (await AccountRepository.SetPasswordAsync(context, accountId, saltBytes, hashBytes, token) == 0)
+            // Only while still at the version the current password was checked at (#495 review).
+            if (await AccountRepository.SetPasswordAsync(context, accountId, saltBytes, hashBytes,
+                    proof.CredentialsVersion, token) == 0)
                 return false;
 
             await RefreshTokenRepository.RevokeAllForAccountAsync(context, accountId, token);
@@ -254,10 +331,37 @@ public class AccountService : IAccountService
             return true;
         }, cancellationToken);
 
+        // The account is gone, or another credentials change landed since the password was checked.
         if (!changed)
-            throw new AuthenticationException(Reauthentication.InvalidPassword);
+            throw new AuthenticationException(RefreshTokenService.CredentialsChanged);
 
+        // A login past its password step holds an MFA hash made with the old password (#495). Its
+        // version no longer matches, so it cannot complete; clearing it also frees the account's
+        // hash slot for the owner's next login. Best-effort, as after an admin's MFA removal.
+        await ClearPendingMfaAsync(accountId, "its password was changed");
         await PublishDisconnectAsync(accountId, "its password was changed");
+    }
+
+    /// <summary>
+    /// Clears the MFA state of a login already past its password step, and its reverse lookup, so
+    /// that login cannot finish. The state also expires on its own short TTL. Best-effort: the
+    /// change it follows is committed, so a Redis failure is logged and the call still succeeds.
+    /// </summary>
+    private async Task ClearPendingMfaAsync(AccountId accountId, string reason)
+    {
+        try
+        {
+            var mfaKey = CacheKeys.AccountMfa(accountId.Value);
+            var pendingHash = await _cache.Database.HashGetAsync(mfaKey, "hash");
+            if (pendingHash.HasValue)
+                await _cache.RemoveAsync(CacheKeys.MfaReverseHash(pendingHash!));
+            await _cache.RemoveAsync(mfaKey);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not clear pending MFA state in Redis for account {AccountId} after {Reason}",
+                accountId.Value, reason);
+        }
     }
 
     /// <summary>
@@ -353,6 +457,12 @@ public class AccountService : IAccountService
             throw new BusinessException("Account not found");
     }
 
+    /// <inheritdoc />
+    /// <remarks>
+    /// The transaction starts by raising the credentials version (#495). It is also the existence
+    /// check, and the row lock it takes orders this removal against a concurrent refresh rotation
+    /// or token mint, as for a password change.
+    /// </remarks>
     public async Task<bool> RemoveMfaAsync(AccountId accountId, AccountId actorId,
         CancellationToken cancellationToken = default)
     {
@@ -361,7 +471,7 @@ public class AccountService : IAccountService
         // no session opened before the reset outlives it.
         var removed = await _authTransaction.ExecuteAsync(async (context, token) =>
         {
-            if (!await context.Accounts.AnyAsync(a => a.Id == accountId, token))
+            if (await AccountRepository.BumpCredentialsVersionAsync(context, accountId, token) == 0)
                 return (Found: false, Rows: 0);
 
             var rows = await MfaSetupRepository.DeleteAllForAccountAsync(context, accountId, token);
@@ -383,23 +493,7 @@ public class AccountService : IAccountService
 
         // Everything from here is best-effort. The database change is committed, so a Redis
         // failure is logged and the call still succeeds; each step is attempted on its own.
-        try
-        {
-            // A login already past its password step holds MFA state in Redis; clear it and its
-            // reverse lookup so that login cannot finish against an enrolment that no longer exists.
-            // The state also expires on its own short TTL.
-            var mfaKey = CacheKeys.AccountMfa(accountId.Value);
-            var pendingHash = await _cache.Database.HashGetAsync(mfaKey, "hash");
-            if (pendingHash.HasValue)
-                await _cache.RemoveAsync(CacheKeys.MfaReverseHash(pendingHash!));
-            await _cache.RemoveAsync(mfaKey);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex,
-                "Could not clear pending MFA state in Redis for account {AccountId} after its MFA was removed",
-                accountId.Value);
-        }
+        await ClearPendingMfaAsync(accountId, "its MFA was removed");
 
         try
         {

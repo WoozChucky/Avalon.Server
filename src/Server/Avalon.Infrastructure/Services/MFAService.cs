@@ -58,7 +58,8 @@ public class MFAService : IMFAService
         return new MFASetupResult(true, uri, MFAOperationResult.Success);
     }
 
-    public async Task<MFAConfirmResult> ConfirmMFAAsync(AccountId accountId, string code, CancellationToken cancellationToken = default)
+    public async Task<MFAConfirmResult> ConfirmMFAAsync(AccountId accountId, int credentialsVersion, string code,
+        CancellationToken cancellationToken = default)
     {
         var mfaSetup = await _mfaSetupRepository.FindByAccountIdAsync(accountId, cancellationToken);
 
@@ -84,10 +85,12 @@ public class MFAService : IMFAService
         // Conditional on the row still being the Setup row, with the secret, that this code was
         // verified against (#470). A double-submitted confirm, or a setup that replaced the secret
         // meanwhile, loses here instead of overwriting codes another response already showed.
-        var confirmed = await _mfaSetupRepository.TryConfirmAsync(mfaSetup.Id, mfaSetup.Secret,
-            MFARecoveryCodes.Hash(codes[0])!, MFARecoveryCodes.Hash(codes[1])!, MFARecoveryCodes.Hash(codes[2])!,
-            DateTime.UtcNow, step, cancellationToken);
-        if (!confirmed)
+        var confirmed = await _mfaSetupRepository.TryConfirmAsync(mfaSetup.Id, accountId, credentialsVersion,
+            mfaSetup.Secret, MFARecoveryCodes.Hash(codes[0])!, MFARecoveryCodes.Hash(codes[1])!,
+            MFARecoveryCodes.Hash(codes[2])!, DateTime.UtcNow, step, cancellationToken);
+        if (confirmed == MfaSetupWrite.CredentialsChanged)
+            return new MFAConfirmResult(false, null, MFAOperationResult.Error, CredentialsChanged: true);
+        if (confirmed != MfaSetupWrite.Written)
             return new MFAConfirmResult(false, null, MFAOperationResult.Error);
 
         return new MFAConfirmResult(true, codes, MFAOperationResult.Success);
@@ -130,7 +133,8 @@ public class MFAService : IMFAService
         return new MFAVerifyResult(true, accountId);
     }
 
-    public async Task<MFAResetResult> ResetMFAAsync(AccountId accountId, string r1, string r2, string r3, CancellationToken cancellationToken = default)
+    public async Task<MFAResetResult> ResetMFAAsync(AccountId accountId, int credentialsVersion, string r1, string r2,
+        string r3, CancellationToken cancellationToken = default)
     {
         var mfaSetup = await _mfaSetupRepository.FindByAccountIdAsync(accountId, cancellationToken);
 
@@ -153,7 +157,11 @@ public class MFAService : IMFAService
         // every refresh token and personal access token the account holds is revoked (#483), as the
         // admin removal does, so no session opened before the reset outlives it. False when a
         // concurrent reset deleted the row first.
-        if (!await _mfaSetupRepository.ResetConfirmedAsync(mfaSetup.Id, accountId, DateTime.UtcNow, cancellationToken))
+        var reset = await _mfaSetupRepository.ResetConfirmedAsync(mfaSetup.Id, accountId, credentialsVersion,
+            DateTime.UtcNow, cancellationToken);
+        if (reset == MfaSetupWrite.CredentialsChanged)
+            return new MFAResetResult(false, MFAOperationResult.Error, CredentialsChanged: true);
+        if (reset != MfaSetupWrite.Written)
             return new MFAResetResult(false, MFAOperationResult.NotEnabled);
 
         _logger.LogInformation("Account {AccountId} reset its MFA; its refresh and personal access tokens were revoked",

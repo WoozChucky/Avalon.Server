@@ -49,6 +49,7 @@ public static class ServiceRegistration
         // The login policy the Auth server shares (#478), with the limits under
         // Application:Authentication, checked here since that section is bound without validation.
         LoginLimitsValidation.Validate(config.Authentication ?? new AuthenticationConfig(), "Application:Authentication");
+        ValidateAccountCreationCap(config.Authentication ?? new AuthenticationConfig());
         services.AddSingleton<ILoginLimits>(sp => sp.GetRequiredService<AuthenticationConfig>());
         services.AddLoginPolicy();
         services.AddScoped<IReauthentication, Reauthentication>();
@@ -169,5 +170,19 @@ public static class ServiceRegistration
         services.AddScoped<IAuthorizationHandler, Authorization.AccountWriteHandler>();
         services.AddScoped<IAuthorizationHandler, Authorization.PatReadHandler>();
         services.AddScoped<IAuthorizationHandler, Authorization.PatWriteHandler>();
+    }
+
+    /// <summary>
+    /// Stops startup, naming the setting, when the account-creation cap (#495 review) is below one:
+    /// zero would refuse every registration.
+    /// </summary>
+    public static void ValidateAccountCreationCap(AuthenticationConfig config)
+    {
+        if (config.MaxAccountsCreatedPerSource < 1)
+            throw new InvalidOperationException(
+                "Application:Authentication:MaxAccountsCreatedPerSource must be at least 1.");
+        if (config.AccountCreationWindowMinutes < 1)
+            throw new InvalidOperationException(
+                "Application:Authentication:AccountCreationWindowMinutes must be at least 1.");
     }
 }

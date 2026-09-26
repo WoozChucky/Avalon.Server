@@ -46,7 +46,7 @@ public sealed class RestMfaVerifyShould : IAsyncLifetime
             .Returns(new MFAVerifyResult(false, null));
         _host.Mfa.VerifyMFAAsync(Arg.Any<string>(), RightCode, Arg.Any<CancellationToken>())
             .Returns(new MFAVerifyResult(true, new AccountId(AccountIdValue)));
-        _host.Refresh.IssueAsync(Arg.Any<AccountId>(), Arg.Any<CancellationToken>())
+        _host.Refresh.IssueAsync(Arg.Any<AccountId>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
             .Returns(new RefreshIssueResult("refresh-new", DateTime.UtcNow.AddDays(30), Guid.NewGuid()));
         return account;
     }
@@ -113,7 +113,7 @@ public sealed class RestMfaVerifyShould : IAsyncLifetime
         using (HttpResponseMessage right = await VerifyAsync(RightCode))
             await AssertLocked(right);
         Assert.Equal(AuthConfig.MaxFailedLoginAttempts, CodesChecked());
-        await _host.Refresh.DidNotReceiveWithAnyArgs().IssueAsync(default!, default);
+        await _host.Refresh.DidNotReceiveWithAnyArgs().IssueAsync(default!, default, default);
     }
 
     /// <summary>#478 review: a replayed code, or one that lost the hash to another verify, is refused but not counted.</summary>
@@ -174,7 +174,7 @@ public sealed class RestMfaVerifyShould : IAsyncLifetime
         using HttpResponseMessage response = await VerifyAsync(RightCode);
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
-        await _host.Refresh.DidNotReceiveWithAnyArgs().IssueAsync(default!, default);
+        await _host.Refresh.DidNotReceiveWithAnyArgs().IssueAsync(default!, default, default);
         await _host.AccountRepository.DidNotReceiveWithAnyArgs().UpdateAsync(default!, default);
     }
 

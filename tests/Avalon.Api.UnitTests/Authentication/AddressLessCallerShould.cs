@@ -47,11 +47,22 @@ public sealed class AddressLessCallerShould : IAsyncLifetime
         await _host.Mfa.DidNotReceiveWithAnyArgs().VerifyMFAAsync(default!, default!, default);
     }
 
+    /// <summary>Registration spends the source budget too (#495).</summary>
+    [Fact]
+    public async Task Refuse_a_registration_from_a_caller_with_no_address()
+    {
+        using HttpResponseMessage response = await PostWithoutAddressAsync("/account/register",
+            new { username = "newcomer", password = TestPasswords.Valid, email = "new@avalon.monster" });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        await _host.Accounts.DidNotReceiveWithAnyArgs().Register(default!, default!, default!, default);
+    }
+
     [Fact]
     public async Task Still_log_in_a_caller_with_an_address()
     {
         _host.Accounts.Authenticate(Arg.Any<AuthenticateRequest>(), IPAddress.Loopback, Arg.Any<CancellationToken>())
-            .Returns((new AuthenticateResponse { Status = AuthenticationResponseStatus.RequiresMFA, MfaHash = "h" }, null));
+            .Returns((new AuthenticateResponse { Status = AuthenticationResponseStatus.RequiresMFA, MfaHash = "h" }, null, 0));
 
         using HttpResponseMessage response = await _host.Client.PostAsJsonAsync("/account/authenticate",
             new { username = "caller", password = "pw" });

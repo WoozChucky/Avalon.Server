@@ -25,20 +25,10 @@ public class CMFASetupHandler : IAuthPacketHandler<CMFASetupPacket>
 
     public async Task ExecuteAsync(AuthPacketContext<CMFASetupPacket> ctx, CancellationToken token = default)
     {
-        if (ctx.Connection.AccountId == null)
-        {
-            _logger.LogWarning("Unauthenticated connection attempted CMFASetup from {Endpoint}", ctx.Connection.RemoteEndPoint);
-            ctx.Connection.Close();
-            return;
-        }
-
-        var account = await _accountRepository.FindByIdAsync(ctx.Connection.AccountId, false, token);
+        var account = await PostLoginGuard.AccountOrCloseAsync(ctx.Connection, _accountRepository, _logger,
+            "MFA setup", token);
         if (account == null)
-        {
-            _logger.LogWarning("Account not found for connection {Id}", ctx.Connection.Id);
-            ctx.Connection.Close();
             return;
-        }
 
         var result = await _mfaService.SetupMFAAsync(account, _authConfig.Issuer, token);
 

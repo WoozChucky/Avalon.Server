@@ -1,3 +1,4 @@
+using Avalon.Database.Auth.Repositories;
 using Avalon.Infrastructure.Services;
 using Avalon.Network.Packets.Auth;
 using Microsoft.Extensions.Logging;
@@ -8,23 +9,31 @@ public class CMFAConfirmHandler : IAuthPacketHandler<CMFAConfirmPacket>
 {
     private readonly ILogger<CMFAConfirmHandler> _logger;
     private readonly IMFAService _mfaService;
+    private readonly IAccountRepository _accountRepository;
 
-    public CMFAConfirmHandler(ILoggerFactory loggerFactory, IMFAService mfaService)
+    public CMFAConfirmHandler(ILoggerFactory loggerFactory, IMFAService mfaService, IAccountRepository accountRepository)
     {
         _logger = loggerFactory.CreateLogger<CMFAConfirmHandler>();
         _mfaService = mfaService;
+        _accountRepository = accountRepository;
     }
 
     public async Task ExecuteAsync(AuthPacketContext<CMFAConfirmPacket> ctx, CancellationToken token = default)
     {
-        if (ctx.Connection.AccountId == null)
+        var account = await PostLoginGuard.AccountOrCloseAsync(ctx.Connection, _accountRepository, _logger,
+            "MFA confirm", token);
+        if (account == null)
+            return;
+
+        var result = await _mfaService.ConfirmMFAAsync(account.Id, ctx.Connection.CredentialsVersion, ctx.Packet.Code,
+            token);
+        if (result.CredentialsChanged)
         {
-            _logger.LogWarning("Unauthenticated connection attempted CMFAConfirm from {Endpoint}", ctx.Connection.RemoteEndPoint);
+            // Changed between the guard's read and the write (#495 re-review): as the guard would.
+            _logger.LogWarning("Account {AccountId} MFA confirm refused: its credentials changed", account.Id);
             ctx.Connection.Close();
             return;
         }
-
-        var result = await _mfaService.ConfirmMFAAsync(ctx.Connection.AccountId, ctx.Packet.Code, token);
 
         ctx.Connection.Send(SMFAConfirmPacket.Create(
             result.RecoveryCodes ?? [],

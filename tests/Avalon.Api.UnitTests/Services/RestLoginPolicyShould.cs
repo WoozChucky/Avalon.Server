@@ -47,7 +47,7 @@ public sealed class RestLoginPolicyShould : IDisposable
 
     public void Dispose() => _database.Dispose();
 
-    private AccountService Service(IAccountRepository? accounts = null)
+    private AccountService Service(IAccountRepository? accounts = null, IPasswordVerifier? verifier = null)
     {
         IAccountRepository repository = accounts ?? _accounts;
         IJwtUtils jwt = Substitute.For<IJwtUtils>();
@@ -56,8 +56,8 @@ public sealed class RestLoginPolicyShould : IDisposable
             new MfaSetupRepository(_database), new DeviceRepository(_database), _cache.Cache,
             Substitute.For<ISecureRandom>(), Substitute.For<IRefreshTokenService>(),
             new DbTransactionRunner<AuthDbContext>(_database), _config,
-            TestLogin.Password(repository, _cache.Cache, _config, _verifier),
-            TestLogin.Reauthentication(repository, _cache.Cache, _config, _verifier));
+            TestLogin.Password(repository, _cache.Cache, _config, verifier ?? _verifier),
+            TestLogin.Reauthentication(repository, _cache.Cache, _config, verifier ?? _verifier));
     }
 
     private static Account NewAccount(string username = "CALLER") => new()
@@ -70,7 +70,31 @@ public sealed class RestLoginPolicyShould : IDisposable
         LastLogin = DateTime.UtcNow.AddDays(-1),
     };
 
-    private Task<(AuthenticateResponse Response, AccountId? AccountId)> LoginAsync(string password,
+    /// <summary>
+    /// Owner decision (#487 re-review): a name outside the username rule is an unknown username,
+    /// whatever row may hold it: the same budgets, one dummy verify, the same generic 401.
+    /// </summary>
+    [Theory]
+    [InlineData("ab")]
+    [InlineData("abcdefghijklmnopq")]
+    [InlineData("bad-name")]
+    [InlineData(" caller")]
+    public async Task Answer_a_name_outside_the_rule_as_an_unknown_username(string username)
+    {
+        // A row holding the name's normalised form, with the right password: it still gets nothing.
+        await _accounts.CreateAsync(NewAccount(username.Trim().ToUpperInvariant()));
+        var verifier = Substitute.For<IPasswordVerifier>();
+        verifier.Verify(default!, default!).ReturnsForAnyArgs(true);
+
+        var failure = await Assert.ThrowsAsync<System.Security.Authentication.AuthenticationException>(() =>
+            LoginAsync(Password, username, Service(verifier: verifier)));
+
+        Assert.Equal("Invalid username or password", failure.Message);
+        verifier.Received(1).Verify(Arg.Any<string>(), BCryptPasswordVerifier.UnknownAccountHash);
+        verifier.ReceivedWithAnyArgs(1).Verify(default!, default!);
+    }
+
+    private Task<(AuthenticateResponse Response, AccountId? AccountId, int CredentialsVersion)> LoginAsync(string password,
         string username = "caller", AccountService? service = null) =>
         (service ?? Service()).Authenticate(new AuthenticateRequest { Username = username, Password = password },
             IPAddress.Loopback, CancellationToken.None);
@@ -251,7 +275,7 @@ public sealed class RestLoginPolicyShould : IDisposable
         for (var i = 0; i < 3; i++)
             await Assert.ThrowsAsync<AuthenticationException>(() => LoginAsync("wrong"));
 
-        var (response, accountId) = await LoginAsync(Password);
+        var (response, accountId, _) = await LoginAsync(Password);
 
         Assert.Equal(AuthenticationResponseStatus.Success, response.Status);
         Assert.Equal(account.Id, accountId);

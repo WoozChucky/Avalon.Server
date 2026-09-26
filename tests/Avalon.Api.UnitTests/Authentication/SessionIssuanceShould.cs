@@ -32,16 +32,18 @@ public sealed class SessionIssuanceShould : IAsyncLifetime
 
     private void RefreshCookieBelongsTo(Account? account)
     {
-        _host.Refresh.RotateAsync(RefreshCookie, Arg.Any<CancellationToken>())
-            .Returns(new RefreshRotateResult("refresh-next", DateTime.UtcNow.AddDays(30), new AccountId(AccountIdValue)));
+        _host.Refresh.RotateAsync(RefreshCookie, Arg.Any<RefreshCaller>(), Arg.Any<CancellationToken>())
+            .Returns(new RefreshRotateResult("refresh-next", DateTime.UtcNow.AddDays(30), new AccountId(AccountIdValue), 0));
         _host.AccountRepository.FindByIdAsync(Arg.Is<AccountId>(id => id.Value == AccountIdValue), Arg.Any<bool>(),
                 Arg.Any<CancellationToken>())
             .Returns(account);
     }
 
-    private async Task<HttpResponseMessage> PostRefreshAsync(string? bearer = null)
+    private async Task<HttpResponseMessage> PostRefreshAsync(string? bearer = null, string? peer = null)
     {
         using var request = new HttpRequestMessage(HttpMethod.Post, "/account/refresh");
+        if (peer is not null)
+            request.Headers.Add(PeerHeader, peer);
         if (bearer is not null)
             request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", bearer);
         request.Headers.Add("Cookie", $"{AuthConfig.RefreshCookieName}={RefreshCookie}");
@@ -75,6 +77,59 @@ public sealed class SessionIssuanceShould : IAsyncLifetime
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
+    /// <summary>
+    /// #495 review: the second of two tabs refreshing at once, inside the grace window. It is told
+    /// 401, but the refresh cookie the tabs share (now the winner's) is not cleared, and nothing
+    /// ends the account's sessions.
+    /// </summary>
+    [Fact]
+    public async Task Leave_the_cookie_and_the_sessions_alone_for_a_refresh_that_lost_a_race()
+    {
+        _host.Refresh.RotateAsync(RefreshCookie, Arg.Any<RefreshCaller>(), Arg.Any<CancellationToken>())
+            .Returns<RefreshRotateResult>(_ => throw new RefreshAlreadyRotatedException());
+
+        using HttpResponseMessage response = await PostRefreshAsync();
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        Assert.False(response.Headers.Contains("Set-Cookie"));
+        await _host.Cache.DidNotReceiveWithAnyArgs().PublishAsync(default!, default!);
+    }
+
+    /// <summary>
+    /// #495 final review: behind a trusted proxy that forwarded no client, the peer is the proxy,
+    /// and every caller behind it shares its source. Matching it proves nothing, so the grace is not
+    /// given: the rotation is made for a caller with no source.
+    /// </summary>
+    [Theory]
+    [InlineData("127.0.0.1")] // loopback: trusted as a proxy by default
+    [InlineData("::1")]
+    public async Task Give_no_refresh_grace_to_a_caller_that_is_a_trusted_proxy(string proxy)
+    {
+        Account account = MakeAccount();
+        _host.AccountNowIs(account);
+        RefreshCookieBelongsTo(account);
+
+        using HttpResponseMessage response = await PostRefreshAsync(peer: proxy);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        await _host.Refresh.Received(1).RotateAsync(RefreshCookie, Arg.Is<RefreshCaller>(c => c.Source == null),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Record_the_source_of_a_caller_that_is_not_a_proxy()
+    {
+        Account account = MakeAccount();
+        _host.AccountNowIs(account);
+        RefreshCookieBelongsTo(account);
+
+        using HttpResponseMessage response = await PostRefreshAsync(peer: "203.0.113.7");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        await _host.Refresh.Received(1).RotateAsync(RefreshCookie,
+            Arg.Is<RefreshCaller>(c => c.Source == "203.0.113.7"), Arg.Any<CancellationToken>());
+    }
+
     [Theory]
     [InlineData(AccountStatus.Banned)]
     [InlineData(AccountStatus.Deactivated)]
@@ -99,7 +154,7 @@ public sealed class SessionIssuanceShould : IAsyncLifetime
         _host.AccountRepository.FindByIdAsync(Arg.Is<AccountId>(id => id.Value == AccountIdValue), Arg.Any<bool>(),
                 Arg.Any<CancellationToken>())
             .Returns(account);
-        _host.Refresh.IssueAsync(Arg.Any<AccountId>(), Arg.Any<CancellationToken>())
+        _host.Refresh.IssueAsync(Arg.Any<AccountId>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
             .Returns(new RefreshIssueResult("refresh-new", DateTime.UtcNow.AddDays(30), Guid.NewGuid()));
     }
 
@@ -128,7 +183,7 @@ public sealed class SessionIssuanceShould : IAsyncLifetime
 
         await AssertInactive(response, expected);
         Assert.False(SetsRefreshCookie(response, "refresh-new"));
-        await _host.Refresh.DidNotReceiveWithAnyArgs().IssueAsync(default!, default);
+        await _host.Refresh.DidNotReceiveWithAnyArgs().IssueAsync(default!, default, default);
         await _host.AccountRepository.DidNotReceiveWithAnyArgs().UpdateAsync(default!, default);
     }
 
@@ -161,7 +216,7 @@ public sealed class SessionIssuanceShould : IAsyncLifetime
             new { username = "caller", password = "right" });
 
         await AssertInactive(response, expected);
-        await _host.Refresh.DidNotReceiveWithAnyArgs().IssueAsync(default!, default);
+        await _host.Refresh.DidNotReceiveWithAnyArgs().IssueAsync(default!, default, default);
     }
 
     private static async Task AssertInactive(HttpResponseMessage response, string expected)
