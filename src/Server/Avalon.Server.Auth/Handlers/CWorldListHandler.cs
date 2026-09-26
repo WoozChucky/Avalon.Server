@@ -19,15 +19,12 @@ public class CWorldListHandler : IAuthPacketHandler<CWorldListPacket>
 
     public async Task ExecuteAsync(AuthPacketContext<CWorldListPacket> ctx, CancellationToken token = default)
     {
-        var worlds = await _worldRepository.FindAllAsync(false, token);
-
-        var account = await _accountRepository.FindByIdAsync(ctx.Connection.AccountId ?? 0, false, token);
+        var account = await PostLoginGuard.AccountOrCloseAsync(ctx.Connection, _accountRepository, _logger,
+            "world list", token);
         if (account == null)
-        {
-            _logger.LogWarning("Account not found for connection {Session}", ctx.Connection.Id);
-            ctx.Connection.Close();
             return;
-        }
+
+        var worlds = await _worldRepository.FindAllAsync(false, token);
 
         // A mask test, never "<=": AccountAccessLevel is [Flags] (#447).
         worlds = worlds.Where(w => AccessLevels.ForWorld(w.AccessLevelRequired).Allows(account.AccessLevel)).ToList();

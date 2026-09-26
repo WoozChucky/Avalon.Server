@@ -1,5 +1,7 @@
 using Avalon.Common.Cryptography;
 using Avalon.Common.ValueObjects;
+using Avalon.Database.Auth.Repositories;
+using Avalon.Domain.Auth;
 using Avalon.Infrastructure.Services;
 using Avalon.Network.Packets.Auth;
 using Avalon.Network.Packets.Abstractions;
@@ -12,16 +14,24 @@ namespace Avalon.Server.Auth.UnitTests.Handlers;
 public class CMFAResetHandlerShould
 {
     private readonly IMFAService _mfaService = Substitute.For<IMFAService>();
+    private readonly IAccountRepository _accountRepository = Substitute.For<IAccountRepository>();
     private readonly IAuthConnection _connection = Substitute.For<IAuthConnection>();
     private readonly IAvalonCryptoSession _cryptoSession = new FakeAvalonCryptoSession();
 
     private CMFAResetHandler CreateHandler() =>
-        new(NullLoggerFactory.Instance, _mfaService);
+        new(NullLoggerFactory.Instance, _mfaService, _accountRepository);
 
     public CMFAResetHandlerShould()
     {
         _connection.CryptoSession.Returns(_cryptoSession);
         _connection.AccountId.Returns(new AccountId(1L));
+        // The connection's account, Active and at the version its login proved (#495 review).
+        _accountRepository.FindByIdAsync(Arg.Any<AccountId>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
+            .Returns(ci => new Account
+            {
+                Id = ci.ArgAt<AccountId>(0), Username = "TESTUSER", Email = "t@t", Salt = [1], Verifier = [2],
+                JoinDate = DateTime.UtcNow,
+            });
     }
 
     [Fact]

@@ -28,31 +28,13 @@ public class CWorldSelectHandler : IAuthPacketHandler<CWorldSelectPacket>
     public async Task ExecuteAsync(AuthPacketContext<CWorldSelectPacket> ctx, CancellationToken token = default)
     {
 
-        var account = await _accountRepository.FindByIdAsync(ctx.Connection.AccountId ?? 0, false, token);
+        // Defence in depth behind CAuthHandler (#462, #495): an account banned or deactivated, or
+        // whose credentials changed, since this connection logged in takes no inWorld slot and is
+        // issued no world key.
+        var account = await PostLoginGuard.AccountOrCloseAsync(ctx.Connection, _accountRepository, _logger,
+            "world select", token);
         if (account == null)
-        {
-            _logger.LogWarning("Account not found for connection {Session}", ctx.Connection.Id);
-            ctx.Connection.Close();
             return;
-        }
-
-        // Defence in depth behind CAuthHandler (#462): an account banned or deactivated after it
-        // logged in must not take the inWorld slot or be issued a world key.
-        if (account.Status != AccountStatus.Active)
-        {
-            _logger.LogWarning("Account {AccountId} tried to select a world while {Status}", account.Id, account.Status);
-            ctx.Connection.Close();
-            return;
-        }
-
-        // The connection proved the credentials at its login (#495). A password change, an MFA
-        // reset or an admin's MFA removal since then ends it: no world key for the old credentials.
-        if (account.CredentialsVersion != ctx.Connection.CredentialsVersion)
-        {
-            _logger.LogWarning("Account {AccountId} tried to select a world after its credentials changed", account.Id);
-            ctx.Connection.Close();
-            return;
-        }
 
         var world = await _worldRepository.FindByIdAsync(ctx.Packet.WorldId, false, token);
         if (world == null)

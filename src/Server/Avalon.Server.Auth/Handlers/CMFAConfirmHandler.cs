@@ -1,3 +1,4 @@
+using Avalon.Database.Auth.Repositories;
 using Avalon.Infrastructure.Services;
 using Avalon.Network.Packets.Auth;
 using Microsoft.Extensions.Logging;
@@ -8,23 +9,23 @@ public class CMFAConfirmHandler : IAuthPacketHandler<CMFAConfirmPacket>
 {
     private readonly ILogger<CMFAConfirmHandler> _logger;
     private readonly IMFAService _mfaService;
+    private readonly IAccountRepository _accountRepository;
 
-    public CMFAConfirmHandler(ILoggerFactory loggerFactory, IMFAService mfaService)
+    public CMFAConfirmHandler(ILoggerFactory loggerFactory, IMFAService mfaService, IAccountRepository accountRepository)
     {
         _logger = loggerFactory.CreateLogger<CMFAConfirmHandler>();
         _mfaService = mfaService;
+        _accountRepository = accountRepository;
     }
 
     public async Task ExecuteAsync(AuthPacketContext<CMFAConfirmPacket> ctx, CancellationToken token = default)
     {
-        if (ctx.Connection.AccountId == null)
-        {
-            _logger.LogWarning("Unauthenticated connection attempted CMFAConfirm from {Endpoint}", ctx.Connection.RemoteEndPoint);
-            ctx.Connection.Close();
+        var account = await PostLoginGuard.AccountOrCloseAsync(ctx.Connection, _accountRepository, _logger,
+            "MFA confirm", token);
+        if (account == null)
             return;
-        }
 
-        var result = await _mfaService.ConfirmMFAAsync(ctx.Connection.AccountId, ctx.Packet.Code, token);
+        var result = await _mfaService.ConfirmMFAAsync(account.Id, ctx.Packet.Code, token);
 
         ctx.Connection.Send(SMFAConfirmPacket.Create(
             result.RecoveryCodes ?? [],
