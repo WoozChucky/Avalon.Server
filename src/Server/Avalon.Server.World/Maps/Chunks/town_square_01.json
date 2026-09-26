@@ -1,0 +1,20 @@
+{
+  "name": "town_square_01",
+  "assetKey": "chunks/town_square_01",
+  "cellFootprintX": 1,
+  "cellFootprintZ": 1,
+  "cellSize": 30,
+  "exits": {
+    "N": ["center"],
+    "E": ["center"],
+    "S": ["center"],
+    "W": ["center"]
+  },
+  "spawnSlots": [
+    { "tag": "entry", "localX": 15, "localY": 0, "localZ": 15 }
+  ],
+  "portalSlots": [
+    { "role": "Back", "localX": 15, "localY": 0, "localZ": 28 }
+  ],
+  "tags": ["town", "entry"]
+}

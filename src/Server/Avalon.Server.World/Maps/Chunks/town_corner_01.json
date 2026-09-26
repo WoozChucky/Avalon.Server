@@ -1,0 +1,18 @@
+{
+  "name": "town_corner_01",
+  "assetKey": "chunks/town_corner_01",
+  "cellFootprintX": 1,
+  "cellFootprintZ": 1,
+  "cellSize": 30,
+  "exits": {
+    "N": [],
+    "E": ["center"],
+    "S": ["center"],
+    "W": []
+  },
+  "spawnSlots": [
+  ],
+  "portalSlots": [
+  ],
+  "tags": ["town", "path"]
+}

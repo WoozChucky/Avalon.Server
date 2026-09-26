@@ -46,7 +46,8 @@ public class PredefinedChunkLayoutSource : IChunkLayoutSource
         var rows = await repo.FindByMapAsync(template.Id, ct);
         if (rows.Count == 0)
             throw new InvalidOperationException(
-                $"No MapChunkPlacement rows for town map {template.Id.Value}. Run Avalon.ChunkImporter.");
+                $"No MapChunkPlacement rows for town map {template.Id.Value}. Add Maps/TownLayouts/{template.Id.Value}.json " +
+                "(Unity Town Layout Exporter); the World server seeds it on start.");
 
         var entryRows = rows.Where(r => r.IsEntry).ToList();
         if (entryRows.Count != 1)

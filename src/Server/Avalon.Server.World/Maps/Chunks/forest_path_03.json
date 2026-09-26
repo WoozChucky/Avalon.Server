@@ -1,0 +1,20 @@
+{
+  "name": "forest_path_03",
+  "assetKey": "chunks/forest_path_03",
+  "cellFootprintX": 1,
+  "cellFootprintZ": 1,
+  "cellSize": 30,
+  "exits": {
+    "N": ["center"],
+    "E": ["center"],
+    "S": [],
+    "W": []
+  },
+  "spawnSlots": [
+    { "tag": "pack", "localX": 12, "localY": 1, "localZ": 18 },
+    { "tag": "pack", "localX": 20, "localY": 1, "localZ": 12 }
+  ],
+  "portalSlots": [
+  ],
+  "tags": ["path", "forest"]
+}

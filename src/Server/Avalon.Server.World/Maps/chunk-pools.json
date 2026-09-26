@@ -1,0 +1,14 @@
+{
+  "forest_pool": [
+    "forest_entry_01",
+    "forest_path_01",
+    "forest_path_02",
+    "forest_path_03",
+    "forest_path_04",
+    "forest_junction_t",
+    "forest_junction_x",
+    "forest_clearing_01",
+    "forest_deadend_01",
+    "forest_boss_01"
+  ]
+}
