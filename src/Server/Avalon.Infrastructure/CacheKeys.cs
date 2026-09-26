@@ -47,7 +47,8 @@ public static class CacheKeys
     public static string AccountInWorld(long accountId) => $"account:{accountId}:inWorld";
 
     /// <summary>
-    /// Game-client login and MFA-code attempts from one source, across every account it tried (#471).
+    /// Login and MFA-code attempts from one source, across every account it tried (#471), over the game
+    /// client's TCP login and the REST API alike (#478).
     /// The source is an IPv4 address, or an IPv6 /64 prefix written <c>prefix::/64</c>.
     /// Value: counter written with INCR before each attempt; a correct password or code gives its own
     /// slot back with a floored DECR. Expires at the end of a fixed window from the first attempt
@@ -56,7 +57,8 @@ public static class CacheKeys
     public static string AuthSourceFailedLogins(string source) => $"auth:source:{source}:failedLogins";
 
     /// <summary>
-    /// Game-client login and MFA-code attempts at one username, from every source (#484). It decides
+    /// Login and MFA-code attempts at one username, from every source and over both the TCP login and the
+    /// REST API (#484, #478). It decides
     /// the account lock: an attempt past <c>Application:MaxFailedLoginAttempts</c> is refused as
     /// LOCKED before the username is looked up, whether or not an account has it. The segment is the
     /// lowercase hex SHA-256 of the username trimmed and upper-cased (the form it is looked up by),

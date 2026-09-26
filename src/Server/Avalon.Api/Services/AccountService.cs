@@ -268,7 +268,7 @@ public class AccountService : IAccountService
     {
         try
         {
-            await _cache.PublishAsync(CacheKeys.WorldAccountsDisconnectChannel, accountId.Value.ToString());
+            await _cache.PublishAsync(CacheKeys.WorldAccountsDisconnectChannel, accountId.Value.ToString(System.Globalization.CultureInfo.InvariantCulture));
         }
         catch (Exception ex)
         {

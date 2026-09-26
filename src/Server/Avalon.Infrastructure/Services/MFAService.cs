@@ -164,7 +164,7 @@ public class MFAService : IMFAService
         // logged and the reset still succeeds.
         try
         {
-            await _cache.PublishAsync(CacheKeys.WorldAccountsDisconnectChannel, accountId.Value.ToString());
+            await _cache.PublishAsync(CacheKeys.WorldAccountsDisconnectChannel, accountId.Value.ToString(System.Globalization.CultureInfo.InvariantCulture));
         }
         catch (Exception ex)
         {
