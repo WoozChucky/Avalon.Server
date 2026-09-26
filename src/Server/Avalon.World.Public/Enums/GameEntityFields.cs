@@ -19,9 +19,10 @@ public enum GameEntityFields
     Experience = 1 << 13,
     RequiredExperience = 1 << 14,
     IsDead = 1 << 15,
+    PvpEnabled = 1 << 16,
 
     WorldObjectUpdate = Position | Velocity | Orientation,
     CreatureUpdate = Position | CurrentHealth | CurrentPower | Velocity | Orientation | MoveState | PowerType,
-    CharacterUpdate = Position | CurrentHealth | CurrentPower | Velocity | Orientation | MoveState | Level | Health | Power | PowerType | Experience | RequiredExperience | IsDead,
-    All = Position | CurrentHealth | CurrentPower | Velocity | Orientation | MoveState | Level | Power | Health | PowerType | CreatureMetadataId | Name | Experience | RequiredExperience | IsDead
+    CharacterUpdate = Position | CurrentHealth | CurrentPower | Velocity | Orientation | MoveState | Level | Health | Power | PowerType | Experience | RequiredExperience | IsDead | PvpEnabled,
+    All = Position | CurrentHealth | CurrentPower | Velocity | Orientation | MoveState | Level | Power | Health | PowerType | CreatureMetadataId | Name | Experience | RequiredExperience | IsDead | PvpEnabled
 }

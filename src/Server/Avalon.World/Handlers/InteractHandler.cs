@@ -32,7 +32,7 @@ public class InteractHandler(ILogger<InteractHandler> logger, IWorld world)
 
     /// <summary>
     /// Metres. A local constant. There is no facing check: you do not have to be looking at someone
-    /// to talk to them, and the facing cone (CombatConfig.MaxFacingAngleDeg) exists for combat.
+    /// to talk to them.
     /// </summary>
     private const float InteractRange = 5f;
 

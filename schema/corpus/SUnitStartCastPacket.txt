@@ -18,39 +18,48 @@ message SUnitStartCastPacket
 variant absent
   field 1 Caster : ulong = 0
   field 2 CastTime : float = 0 (0x00000000)
+  field 3 AbilityId : uint = 0
   bytes 0
 
 variant empty
   field 1 Caster : ulong = 0
   field 2 CastTime : float = 0 (0x00000000)
+  field 3 AbilityId : uint = 0
   bytes 0
 
 variant populated
   field 1 Caster : ulong = 4000000000
   field 2 CastTime : float = 0.100000001 (0x3dcccccd)
-  bytes 11
-    08 80 d0 ac f3 0e 15 cd cc cc 3d
+  field 3 AbilityId : uint = 4000000000
+  bytes 17
+    08 80 d0 ac f3 0e 15 cd cc cc 3d 18 80 d0 ac f3
+    0e
 
 variant maxima
   field 1 Caster : ulong = 18446744073709551615
   field 2 CastTime : float = 3.40282347E+38 (0x7f7fffff)
-  bytes 16
+  field 3 AbilityId : uint = 4294967295
+  bytes 22
     08 ff ff ff ff ff ff ff ff ff 01 15 ff ff 7f 7f
+    18 ff ff ff ff 0f
 
 variant minima
   field 1 Caster : ulong = 0
   field 2 CastTime : float = -3.40282347E+38 (0xff7fffff)
+  field 3 AbilityId : uint = 0
   bytes 5
     15 ff ff 7f ff
 
 variant varint-edges
   field 1 Caster : ulong = 268435456
   field 2 CastTime : float = 1.17549435E-38 (0x00800000)
-  bytes 11
-    08 80 80 80 80 01 15 00 00 80 00
+  field 3 AbilityId : uint = 16383
+  bytes 14
+    08 80 80 80 80 01 15 00 00 80 00 18 ff 7f
 
 variant float-specials
   field 1 Caster : ulong = 4000000000
-  field 2 CastTime : float = NaN (0xffc00000)
-  bytes 11
-    08 80 d0 ac f3 0e 15 00 00 c0 ff
+  field 2 CastTime : float = -0 (0x80000000)
+  field 3 AbilityId : uint = 4000000000
+  bytes 12
+    08 80 d0 ac f3 0e 18 80 d0 ac f3 0e

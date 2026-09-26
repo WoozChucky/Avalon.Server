@@ -380,6 +380,15 @@
       "flagNames": "Encrypted"
     },
     {
+      "name": "CMSG_PVP_TOGGLE",
+      "opcode": 8451,
+      "hex": "0x2103",
+      "message": "CPvpTogglePacket",
+      "direction": "ClientToServer",
+      "flags": 4,
+      "flagNames": "Encrypted"
+    },
+    {
       "name": "SMSG_SERVER_INFO",
       "opcode": 12288,
       "hex": "0x3000",
@@ -879,6 +888,24 @@
       "opcode": 12553,
       "hex": "0x3109",
       "message": "SThreatListPacket",
+      "direction": "ServerToClient",
+      "flags": 4,
+      "flagNames": "Encrypted"
+    },
+    {
+      "name": "SMSG_ABILITY_FIRED",
+      "opcode": 12554,
+      "hex": "0x310A",
+      "message": "SAbilityFiredPacket",
+      "direction": "ServerToClient",
+      "flags": 4,
+      "flagNames": "Encrypted"
+    },
+    {
+      "name": "SMSG_PVP_STATE",
+      "opcode": 12555,
+      "hex": "0x310B",
+      "message": "SPvpStatePacket",
       "direction": "ServerToClient",
       "flags": 4,
       "flagNames": "Encrypted"

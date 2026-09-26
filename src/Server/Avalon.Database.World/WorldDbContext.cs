@@ -2,6 +2,7 @@ using Avalon.Common.Accounts;
 using Avalon.Common.ValueObjects;
 using Avalon.Configuration;
 using Avalon.Domain.World;
+using Avalon.Network.Packets.Abilities;
 using Avalon.World.Public.Enums;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
@@ -276,7 +277,7 @@ public class WorldDbContext : DbContext
             Z = 25,
             Rotation = 0,
             StartingItems = [1, 2, 3],
-            StartingSpells = [1, 2, 100]
+            StartingSpells = [200, 201, 202]
         }, new CharacterCreateInfo
         {
             Class = CharacterClass.Wizard,
@@ -286,7 +287,7 @@ public class WorldDbContext : DbContext
             Z = 25,
             Rotation = 0,
             StartingItems = [1, 2],
-            StartingSpells = [2, 101]
+            StartingSpells = [210, 211, 212]
         }, new CharacterCreateInfo
         {
             Class = CharacterClass.Hunter,
@@ -296,7 +297,7 @@ public class WorldDbContext : DbContext
             Z = 25,
             Rotation = 0,
             StartingItems = [1, 2],
-            StartingSpells = [102]
+            StartingSpells = [220, 221, 222]
         }, new CharacterCreateInfo
         {
             Class = CharacterClass.Healer,
@@ -306,7 +307,7 @@ public class WorldDbContext : DbContext
             Z = 25,
             Rotation = 0,
             StartingItems = [1, 2],
-            StartingSpells = [103]
+            StartingSpells = [230, 231, 232]
         });
     }
 
@@ -606,6 +607,14 @@ public class WorldDbContext : DbContext
     private static void Configure(EntityTypeBuilder<CreatureTemplate> builder)
     {
         builder.HasKey(b => b.Id);
+
+        // #164. A body of radius 0 or less could never be hit by anything. The upper bound refuses
+        // Infinity and NaN too: Postgres sorts NaN above every number, so "> 0" alone lets it through.
+        // The literal is left untyped so Postgres reads it as the column's real; a "::real" cast would
+        // not parse in SQLite, where the tests build the schema and a number is always below text.
+        builder.ToTable("CreatureTemplates", t => t.HasCheckConstraint(
+            "CK_CreatureTemplates_BodyRadius_Positive",
+            "\"BodyRadius\" > 0 AND \"BodyRadius\" < 'Infinity'"));
         builder.Property(b => b.Id)
             .HasConversion(
                 v => v.Value,
@@ -2182,86 +2191,54 @@ public class WorldDbContext : DbContext
                 v => new AbilityId(v)
             ).IsRequired();
 
-        builder.HasData(new AbilityTemplate
-        {
-            Id = 1,
-            Name = "Strike",
-            CastTime = 0,
-            Cooldown = 2500,
-            Cost = 25,
-            Range = SpellRange.Melee,
-            Effects = SpellEffect.Damage,
-            EffectValue = 10,
-            AllowedClasses = [CharacterClass.Warrior],
-            SpellScript = "StrikeAbilityScript"
-        }, new AbilityTemplate
-        {
-            Id = 2,
-            Name = "Fireball",
-            CastTime = 2000,
-            Cooldown = 1000,
-            Cost = 10,
-            Range = SpellRange.Medium,
-            Effects = SpellEffect.Damage,
-            EffectValue = 10,
-            AllowedClasses = [CharacterClass.Warrior, CharacterClass.Wizard],
-            SpellScript = "FireballAbilityScript"
-        }, new AbilityTemplate
-        {
-            // Basic attack — Warrior
-            Id = 100,
-            Name = "Warrior Slash",
-            CastTime = 0,
-            Cooldown = 500,
-            Cost = 0,
-            Range = SpellRange.Melee,
-            Effects = SpellEffect.Damage,
-            EffectValue = 15,
-            AllowedClasses = [CharacterClass.Warrior],
-            SpellScript = "StrikeAbilityScript",
-            ThreatMultiplier = 1.5f
-        }, new AbilityTemplate
-        {
-            // Basic attack — Wizard
-            Id = 101,
-            Name = "Wizard Bolt",
-            CastTime = 200,
-            Cooldown = 700,
-            Cost = 0,
-            Range = SpellRange.Medium,
-            Effects = SpellEffect.Damage,
-            EffectValue = 8,
-            AllowedClasses = [CharacterClass.Wizard],
-            SpellScript = "StrikeAbilityScript",
-            ThreatMultiplier = 1.0f
-        }, new AbilityTemplate
-        {
-            // Basic attack — Hunter
-            Id = 102,
-            Name = "Hunter Shot",
-            CastTime = 0,
-            Cooldown = 600,
-            Cost = 0,
-            Range = SpellRange.Long,
-            Effects = SpellEffect.Damage,
-            EffectValue = 10,
-            AllowedClasses = [CharacterClass.Hunter],
-            SpellScript = "StrikeAbilityScript",
-            ThreatMultiplier = 1.0f
-        }, new AbilityTemplate
-        {
-            // Basic attack — Healer
-            Id = 103,
-            Name = "Healer Wand",
-            CastTime = 300,
-            Cooldown = 800,
-            Cost = 0,
-            Range = SpellRange.Medium,
-            Effects = SpellEffect.Damage,
-            EffectValue = 5,
-            AllowedClasses = [CharacterClass.Healer],
-            SpellScript = "StrikeAbilityScript",
-            ThreatMultiplier = 0.8f
-        });
+        // The starter kit (#164): three skills per class, one generic script per shape. The ids are new,
+        // so no client that cached the retired abilities (1, 2, 100-103) confuses them. Numbers are
+        // placeholders to tune. Cooldowns and cast times in milliseconds, distances in metres.
+        builder.HasData(
+            Kit(200, CharacterClass.Warrior, "Cleave", AbilityShape.Cone, AbilityAimMode.Movement, reach: 2.5f, arc: 100f, cooldown: 800, cost: 0, value: 12, range: SpellRange.Melee),
+            Kit(201, CharacterClass.Warrior, "Ground Slam", AbilityShape.Circle, AbilityAimMode.Movement, radius: 3f, cooldown: 5000, cost: 20, value: 25, range: SpellRange.Short),
+            Kit(202, CharacterClass.Warrior, "Hurled Axe", AbilityShape.Projectile, AbilityAimMode.Cursor, reach: 15f, speed: 18f, cooldown: 3000, cost: 10, value: 20, range: SpellRange.Medium),
+            Kit(210, CharacterClass.Wizard, "Arcane Bolt", AbilityShape.Projectile, AbilityAimMode.Cursor, reach: 20f, speed: 22f, cooldown: 800, cost: 0, value: 12, range: SpellRange.Long),
+            Kit(211, CharacterClass.Wizard, "Flame Burst", AbilityShape.Circle, AbilityAimMode.Cursor, anchor: AbilityAnchor.AimPoint, reach: 18f, radius: 3f, castTime: 600, cooldown: 5000, cost: 25, value: 35, range: SpellRange.Long),
+            Kit(212, CharacterClass.Wizard, "Frost Fan", AbilityShape.Cone, AbilityAimMode.Cursor, reach: 6f, arc: 60f, cooldown: 4000, cost: 15, value: 22, range: SpellRange.Short),
+            Kit(220, CharacterClass.Hunter, "Quick Shot", AbilityShape.Projectile, AbilityAimMode.Cursor, reach: 25f, speed: 28f, cooldown: 800, cost: 0, value: 12, range: SpellRange.Long),
+            Kit(221, CharacterClass.Hunter, "Piercing Arrow", AbilityShape.Projectile, AbilityAimMode.Cursor, reach: 30f, speed: 24f, pierce: true, cooldown: 4000, cost: 15, value: 25, range: SpellRange.Long),
+            Kit(222, CharacterClass.Hunter, "Scatter Shot", AbilityShape.Cone, AbilityAimMode.Cursor, reach: 8f, arc: 45f, cooldown: 4000, cost: 20, value: 22, range: SpellRange.Medium),
+            Kit(230, CharacterClass.Healer, "Smite", AbilityShape.Projectile, AbilityAimMode.Cursor, reach: 18f, speed: 20f, cooldown: 800, cost: 0, value: 12, range: SpellRange.Long),
+            Kit(231, CharacterClass.Healer, "Radiant Pulse", AbilityShape.Circle, AbilityAimMode.Movement, radius: 4f, cooldown: 5000, cost: 20, value: 22, range: SpellRange.Short),
+            Kit(232, CharacterClass.Healer, "Mending Circle", AbilityShape.Circle, AbilityAimMode.Cursor, anchor: AbilityAnchor.AimPoint, reach: 15f, radius: 4f, cooldown: 8000, cost: 25, value: 40, range: SpellRange.Medium, affects: AbilityAffects.Ally));
     }
+
+    private static AbilityTemplate Kit(uint id, CharacterClass cls, string name, AbilityShape shape, AbilityAimMode aim,
+        SpellRange range, uint cooldown, uint cost, uint value, AbilityAnchor anchor = AbilityAnchor.Caster,
+        float reach = 0f, float radius = 0f, float arc = 0f, float speed = 0f, bool pierce = false, uint castTime = 0,
+        AbilityAffects affects = AbilityAffects.Hostile) => new()
+    {
+        Id = id,
+        Name = name,
+        CastTime = castTime,
+        Cooldown = cooldown,
+        Cost = cost,
+        Range = range,
+        Effects = affects == AbilityAffects.Ally ? SpellEffect.Heal : SpellEffect.Damage,
+        EffectValue = value,
+        AllowedClasses = [cls],
+        SpellScript = shape switch
+        {
+            AbilityShape.Circle => "CircleAbilityScript",
+            AbilityShape.Cone => "ConeAbilityScript",
+            _ => "ProjectileAbilityScript",
+        },
+        ThreatMultiplier = 1f,
+        HealThreatPerHp = affects == AbilityAffects.Ally ? 0.5f : 0f,
+        AimMode = aim,
+        Shape = shape,
+        Anchor = anchor,
+        Reach = reach,
+        Radius = radius,
+        ArcDegrees = arc,
+        ProjectileSpeed = speed,
+        Pierce = pierce,
+        Affects = affects,
+    };
 }

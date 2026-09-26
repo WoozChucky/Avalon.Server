@@ -21,6 +21,17 @@ using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Instances;
 
+/// <summary>
+/// Runs on its own, never alongside another test class. <c>MapInstance</c> subscribes to static events
+/// on <see cref="Creature" /> and <see cref="CharacterEntity" />, and a test class raising one of them in
+/// parallel holds a snapshot of the invocation list while it runs, which can keep a just-disposed
+/// instance reachable for the length of that call, so the collection check below would fail on timing
+/// rather than on a leak.
+/// </summary>
+[CollectionDefinition(nameof(MapInstanceDisposalShould), DisableParallelization = true)]
+public sealed class MapInstanceDisposalCollection;
+
+[Collection(nameof(MapInstanceDisposalShould))]
 public class MapInstanceDisposalShould
 {
     /// <summary>

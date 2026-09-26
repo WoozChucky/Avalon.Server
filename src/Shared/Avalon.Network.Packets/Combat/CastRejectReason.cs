@@ -27,16 +27,13 @@ public enum CastRejectReason : byte
     /// <summary>The caster has less power than the ability costs.</summary>
     NotEnoughPower = 5,
 
-    /// <summary>The target is farther away than the ability's range.</summary>
+    /// <summary>No longer sent (#164): casts do not name a target. Was: the target is farther away than the ability's range.</summary>
     OutOfRange = 6,
 
-    /// <summary>The target named is not a creature or character in the caster's instance.</summary>
+    /// <summary>No longer sent (#164): casts do not name a target. Was: the target named is not in the caster's instance.</summary>
     TargetNotFound = 7,
 
-    /// <summary>
-    /// The target is outside the caster's facing cone: its angle from the caster's facing is not
-    /// strictly less than AbilityInfo.FacingAngle.
-    /// </summary>
+    /// <summary>No longer sent (#164): casts do not name a target. Was: the target is outside the caster's facing cone.</summary>
     NotFacing = 8,
 
     /// <summary>The caster is dead.</summary>
@@ -47,4 +44,10 @@ public enum CastRejectReason : byte
 
     /// <summary>The server could not run the cast. Nothing the player did caused it.</summary>
     InternalError = 11,
+
+    /// <summary>A Cursor skill arrived without a ground point, or with a non-finite component (#164).</summary>
+    NoAimPoint = 12,
+
+    /// <summary>Another cast by this caster is still in progress (#521).</summary>
+    AlreadyCasting = 13,
 }

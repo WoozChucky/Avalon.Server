@@ -480,8 +480,7 @@ public class CharacterSelectChainShould : IDisposable
             Options.Create(new RegenConfiguration()),
             Substitute.For<IAccountRepository>(),
             saver ?? Substitute.For<ICharacterSaver>(),
-            worldServer ?? Substitute.For<IWorldServer>(),
-            new CombatConfig())
+            worldServer ?? Substitute.For<IWorldServer>())
         {
             SaveWaitLimit = saveWaitLimit ?? TimeSpan.FromSeconds(5)
         };

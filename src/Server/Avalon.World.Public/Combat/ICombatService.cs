@@ -16,6 +16,11 @@ public interface ICombatService
     /// pipeline so death broadcasts are still emitted.
     /// </summary>
     void ApplyDamage(IUnit attacker, IUnit target, uint damage);
+
+    /// <summary>
+    /// Restores up to <paramref name="amount" /> health to <paramref name="target" />, capped at its
+    /// maximum, and adds heal threat against the hostiles fighting it. A dead unit is never healed.
+    /// </summary>
     void ApplyHeal  (IUnit healer,   IUnit target, uint amount, IAbility ability);
     void ApplyTaunt (IUnit caster,   IUnit target, uint durationMs);
     void EnterCombat(IUnit hostile,  IUnit player);

@@ -4,6 +4,7 @@ using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
+using Avalon.World.Public.Units;
 
 namespace Avalon.Domain.World;
 
@@ -65,6 +66,12 @@ public class CreatureTemplate : IDbEntity<CreatureTemplateId>, ICreatureMetadata
     /// monster leaves it false. Enforced in CombatService.ApplyDamageCore.
     /// </summary>
     public bool Invulnerable { get; set; }
+
+    /// <summary>
+    /// Metres. The radius of this creature's body circle for skill hit tests (#164). Above 0; a check
+    /// constraint enforces it.
+    /// </summary>
+    public float BodyRadius { get; set; } = UnitBody.DefaultCreatureRadius;
 
     public int MovementId { get; set; }
 

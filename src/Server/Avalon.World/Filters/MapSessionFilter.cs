@@ -23,6 +23,7 @@ public class MapSessionFilter(IWorldConnection connection) : PacketFilter
         {
             NetworkPacketType.CMSG_PLAYER_INPUT => true,
             NetworkPacketType.CMSG_CAST_ABILITY => true,
+            NetworkPacketType.CMSG_PVP_TOGGLE => true,
             NetworkPacketType.CMSG_TARGET_UNIT => true,
             NetworkPacketType.CMSG_INTERACT => true,
             NetworkPacketType.CMSG_DIALOGUE_CHOOSE => true,

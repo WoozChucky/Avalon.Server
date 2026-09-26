@@ -1,180 +1,243 @@
-# Spell System
+# Skill System
 
-This document describes the lifecycle of a spell from definition to client animation.
+How a player skill (an *ability*) is defined, cast, resolved and shown to clients (#164, #521).
 
----
+A skill **aims**; it never **targets**. A cast carries a direction (the character's facing) or a point
+on the ground (the cursor), never a selected unit. The skill's **shape** (a circle, a cone or a
+projectile) then decides which units it affects. There is one generic script per shape, and every
+number that makes one skill differ from another is a column on its row.
 
-## Spell Data Model
+Terms used below:
 
-### `SpellTemplate` (persisted — `Avalon.Domain.World`)
-
-Stored in the World database. Loaded at server startup into `StaticData.SpellTemplates`.
-
-| Field           | Type           | Description                                               |
-|-----------------|----------------|-----------------------------------------------------------|
-| `Id`            | `SpellId`      | Primary key                                               |
-| `Name`          | `string`       | Display name                                              |
-| `CastTime`      | `uint`         | Cast duration in milliseconds; `0` = instant              |
-| `Cooldown`      | `uint`         | Cooldown in milliseconds                                  |
-| `Cost`          | `uint`         | Power cost (mana / energy / fury depending on class)      |
-| `SpellScript`   | `string`       | Script class name used to resolve the `SpellScript` type  |
-| `Range`         | `SpellRange`   | Targeting range category                                  |
-| `Effects`       | `SpellEffect`  | Flags: `Damage`, `Heal`, `AoE`, `DoT`, `HoT`, etc.       |
-| `EffectValue`   | `uint`         | Base effect magnitude (damage dealt, healing done, etc.)  |
-| `AllowedClasses`| `List<CharacterClass>` | Which classes can learn this spell                |
-| `AnimationId`   | `uint`         | Client animation ID to play on cast (not yet propagated to packet) |
-
-### `SpellMetadata` (runtime — `Avalon.World.Public.Spells`)
-
-In-memory representation loaded from `SpellTemplate`. Immutable (uses `init` properties).
-
-```csharp
-public class SpellMetadata
-{
-    public string Name { get; init; }
-    public float CastTime { get; init; }  // seconds
-    public float Cooldown { get; init; }  // seconds
-    public uint Cost { get; init; }
-    public string ScriptName { get; init; }
-    public SpellRange Range { get; init; }
-    public SpellEffect Effects { get; init; }
-    public uint EffectValue { get; init; }
-    public uint AnimationId { get; init; }
-}
-```
+- **Caster**: the unit casting the skill. Only players cast today; creature casting is #163.
+- **Aim**: what the cast was pointed at, captured when the cast starts (`AbilityAim`): the caster's
+  facing, and for a cursor skill the ground point.
+- **Body radius**: every unit is a circle on the ground for hit tests (`IUnit.BodyRadius`). A creature
+  takes `CreatureTemplate.BodyRadius` (default 0.5 m); a character is a fixed 0.5 m
+  (`UnitBody.CharacterRadius`). A unit is hit when its body circle overlaps the shape.
+- **2D**: every hit test works on the ground plane (X and Z). Heights are ignored.
 
 ---
 
-## Spell Lifecycle
+## 1. Data
 
-```
-Player presses spell key
-        │
-        ▼
-CCharacterAttackPacket / CCastSpellPacket
-        │
-        ▼
-CharacterAttackHandler.Execute
-  ├── AoE check: skip target if SpellEffect.AoE
-  ├── Single-target: validate target exists and is in range
-  └── context.QueueSpell(character, target, spell)
-        │
-        ▼
-InstanceSpellSystem.QueueSpell
-  ├── Power check: character.CurrentPower >= spell.Metadata.Cost?
-  │   └── NO → return false (client notified out-of-power)
-  ├── Deduct power: character.CurrentPower -= Cost
-  └── Add SpellInstance to _spellQueue
-        │
-        ▼
-InstanceSpellSystem.Update (per-tick)
-  ├── Decrement CastTimeTimer
-  ├── Check for cast interruption (movement)
-  └── CastTimeTimer <= 0
-        │
-        ├── Resolve SpellScript type via IScriptManager
-        ├── Instantiate SpellScript via DI
-        └── SpellScript.Prepare() → add to _activeSpells
-              │
-              ▼
-        SpellScript.Update (per-tick)
-          └── Script logic: hit detection, projectile movement, DoT ticks, etc.
-              │
-              ▼
-        On impact / completion
-          ├── Apply damage / heal to target
-          ├── Broadcast SUnitDamagePacket or SHealPacket
-          └── BroadcastFinishCastAnimation (uses AnimationId)
-```
+Skills are rows of `AbilityTemplate` in the World database (`Avalon.Domain.World`), loaded into
+`StaticData` through `AbilityCatalog` (the `/reload abilities` area). `AbilityMetadataMapper` turns a
+row into the runtime `AbilityMetadata` (`Avalon.World.Public.Abilities`), and a character's skills
+are sent to its client in `SMSG_CHARACTER_ABILITIES` (`AbilityInfo`).
+
+| Column | Type | Unit | Meaning |
+|---|---|---|---|
+| `Id` | `AbilityId` | | Primary key. Retired ids are never reused, so no client cache confuses an old skill with a new one. |
+| `Name` | string | | Display name. |
+| `CastTime` | uint | ms | 0 is instant; above 0 the cast waits in the queue first. |
+| `Cooldown` | uint | ms | Time before the skill can be cast again. |
+| `Cost` | uint | power points | Paid from the caster's power pool (see the power rule below). |
+| `SpellScript` | string | | The script class that runs the skill: `CircleAbilityScript`, `ConeAbilityScript` or `ProjectileAbilityScript`. |
+| `Effects` | `SpellEffect` | | `Damage` for a hostile skill, `Heal` for an ally skill. |
+| `EffectValue` | uint | health points | Damage dealt or health restored per unit affected. |
+| `AllowedClasses` | list of `CharacterClass` | | The classes that may hold it. |
+| `ThreatMultiplier`, `HealThreatPerHp`, `TauntDurationMs` | float, float, uint | | Threat rules, unchanged by #164. |
+| `Flags` | `AbilityFlags` | | `RequiresInCombat`, `RequiresOutOfCombat`. |
+| `AnimationId` | uint | | Reserved for the client's cast animation. |
+| `AimMode` | `AbilityAimMode` | | `Movement` (0): the caster's facing. `Cursor` (1): a ground point sent with the cast. |
+| `Shape` | `AbilityShape` | | `Circle` (0), `Cone` (1), `Projectile` (2). |
+| `Anchor` | `AbilityAnchor` | | Circle only: `Caster` (0) centres it on the caster, `AimPoint` (1) on the aim point. |
+| `Reach` | float | m | An aim-point circle's furthest centre, a cone's length, a projectile's furthest travel. 0 for a circle on the caster. |
+| `Radius` | float | m | A circle's radius; 0 otherwise. |
+| `ArcDegrees` | float | degrees | A cone's full width; 0 otherwise. |
+| `ProjectileSpeed` | float | m/s | Projectile only; 0 otherwise. |
+| `Pierce` | bool | | Projectile only: false ends on the first unit hit; true hits each unit once and flies on. |
+| `Affects` | `AbilityAffects` | | `Hostile` (0) damages hostile units; `Ally` (1) heals allies. |
+
+**Legacy `Range`.** The `Range` column (`SpellRange`) stays for schema compatibility and is still sent
+in `AbilityInfo.Range`, but no server code reads it: `Reach` replaced it. `AbilityInfo.FacingAngle` is
+likewise no longer set, because there is no facing check.
 
 ---
 
-## Power Cost Deduction
+## 2. `AbilityCatalog` validation
 
-Power deduction happens **at queue time** (when the spell is accepted into the queue), not at cast completion. This prevents exploiting cast interruptions to "bank" the power refund.
+`AbilityCatalog` (`Avalon.World/Abilities`) checks every row. A bad row is refused with an error that
+names it (`ability <id> '<name>': <reason>`), logged at Error, and left out; every other row still
+loads. A character holding a refused skill simply does not get it at character select. The rules:
 
-### Power Types
-
-| `PowerType`   | Class(es)              | Mechanic                                 |
-|---------------|------------------------|------------------------------------------|
-| `Mana`        | Wizard, Healer         | Depleted on cast; regenerates over time  |
-| `Energy`      | Hunter                 | Depleted on cast; regenerates quickly    |
-| `Fury`        | Warrior                | Accumulation mechanic — do **not** deduct on cast; generated by melee and consumed differently |
-| `None`        | —                      | No resource check                        |
-
----
-
-## `SpellScript.Clone()`
-
-`SpellScript` instances are cloned from a prototype when a spell is activated. The base class provides a `virtual Clone()` using `MemberwiseClone`, which handles all value-type fields. Subclasses override when they have additional mutable state.
-
-### Base Implementation
-
-```csharp
-public virtual SpellScript Clone()
-{
-    // Shallow clone of all value-type fields
-    var clone = (SpellScript)MemberwiseClone();
-
-    // Deep-clone the chained scripts list
-    var clonedChain = new List<SpellScript>(ChainedScripts.Count);
-    foreach (var chained in ChainedScripts)
-        clonedChain.Add(chained.Clone());
-
-    clone._chainedScripts = clonedChain;
-
-    return clone;
-}
-```
-
-Concrete scripts with additional mutable state (e.g. an elapsed timer field) override and reset those fields:
-
-```csharp
-public override SpellScript Clone()
-{
-    var clone = (FireballScript)base.Clone();
-    clone._elapsedTime = 0f;
-    return clone;
-}
-```
+- `Reach`, `Radius`, `ArcDegrees` and `ProjectileSpeed` are finite and 0 or more;
+- `AimMode`, `Shape`, `Anchor` and `Affects` are known values;
+- `Affects = Ally` only on a circle;
+- **circle**: `Radius > 0`; on the aim point it needs `AimMode = Cursor` and `Reach > 0`; on the
+  caster it needs `Reach = 0`;
+- **cone**: `Reach > 0`, and `ArcDegrees` above 0 and at most 360;
+- **projectile**: `Reach > 0`, `ProjectileSpeed > 0` and `AimMode = Cursor`.
 
 ---
 
-## Animation ID
+## 3. Cast flow
 
-`SpellTemplate` and `SpellMetadata` carry an `AnimationId` field. The `SUnitAttackAnimationPacket` is currently broadcast with a hardcoded default animation; propagating `spell.Metadata.AnimationId` to the packet is a pending improvement. An EF migration adding `animation_id` to the `spell_templates` table is also needed.
+A client casts with `CMSG_CAST_ABILITY` (`CCastAbilityPacket { AbilityId, GroundPos? }`).
+`CastAbilityHandler` checks, in this order, and answers the first refusal with exactly one
+`SAbilityNotReadyPacket` naming a `CastRejectReason` (#512). A connection with no character is the one
+silent case.
 
-### Reserved Animation IDs
+1. **Dead**: the caster is dead.
+2. **AlreadyCasting**: a cast-time cast is still in progress (#521 item 4).
+3. **Gcd**: the global cooldown (`CombatConfig.GcdMs`, default 200 ms) since the last cast start has
+   not run out; the answer carries the time left, rounded up.
+4. **NotOwned**: the caster does not hold the skill.
+5. **Cooldown**: the skill's own cooldown is running; the answer carries the time left, rounded up.
+6. **RequiresOutOfCombat** / **RequiresInCombat**: the skill's combat flags.
+7. **NoAimPoint**: a cursor skill whose `GroundPos` is missing or has a non-finite component.
+8. **The power rule** (`AbilityCost`, #521 item 2): a cost above 0 needs a pool the cast spends
+   (Mana, Energy or Fury) holding at least the cost. Too little is **NotEnoughPower**; a caster with no
+   pool (`PowerType.None`) is **InternalError**, since the player cannot fix it. Fury is spent like the
+   others but nothing generates it yet (#526): a Warrior enters full and does not regenerate.
+9. **The instance**: the caster's instance must exist, and the cast system must accept the cast (its
+   script found and built); otherwise **InternalError**.
 
-| ID | Meaning                          |
-|----|----------------------------------|
-| 0  | No animation (silent cast)       |
-| 1  | Default melee swing              |
-| 2+ | Spell-specific (defined in client assets) |
+`TargetGuid`, a range check and a facing check no longer exist. `TargetNotFound`, `NotFacing` and
+`OutOfRange` stay in the enum (values are append-only) but are never sent.
+
+**Aim is captured at cast start.** The handler builds the `AbilityAim` (facing from the caster's
+`Orientation.y`, and the ground point for a cursor skill) before the cast is accepted, and the shape
+script is built with it at once. A cast-time cast therefore fires with the aim it started with. A
+script reads the caster's *position* only when it fires, never when it is built.
+
+**Two paths**, both in `InstanceAbilityCastSystem`, both checking the power rule again:
+
+- **Instant** (`CastTime = 0`): the script is built, the cost paid, the cooldown started, the
+  finish-cast broadcast, and the script fired, all on the tick the request arrives.
+- **Cast-time**: the script is built, the cast joins the queue, the skill is marked `Casting` and the
+  cost paid, in that order, so a refused cast spends nothing and never leaves `Casting` set (#521
+  item 1). Every client in the instance gets `SUnitStartCastPacket`, which carries the `AbilityId` (#521 item 9). Each
+  tick the cast timer runs down. Moving interrupts it (`SCharacterInterruptedCastPacket`; the cost is
+  not refunded). When the timer runs out the cast leaves the queue and fires; a caster who died during
+  the cast fires nothing and is free to cast again. The queue is never changed while it is walked
+  (#521 item 3).
+
+Firing starts the cooldown, sends the finish-cast animation, and runs the script's `Prepare`. A circle
+or cone resolves completely there; a projectile keeps ticking. A skill that affects nobody is not
+refused: its cost and cooldown are spent all the same.
 
 ---
 
-## Creature Spell Support
+## 4. Hit resolution
 
-Creatures currently always execute melee attacks. Support for caster creatures requires adding `IReadOnlyList<SpellId> SpellIds` to `ICreatureMetadata` and updating `CreatureCombatScript.AttackTarget` to select a spell when one is off cooldown and in range.
+- **`IHitQuery`** (`Avalon.World/Abilities/Targeting`, implemented by `MapInstance` over its
+  characters and creatures) returns the living units whose body circle overlaps a circle, a cone or a
+  line segment. A dead unit never appears. Each list is **nearest first**, by the distance from the
+  shape's origin (a circle's centre, a cone's apex, a segment's start) to the unit's centre, ties broken
+  by the unit's guid. It is World-side, not part of the modding API.
+- **Once per cast.** Each unit is affected at most once by one cast (`AbilityEffect`), in that order.
+- **Hostility** (`Hostility`):
+  - a creature is hostile to a player caster unless it is `Invulnerable`;
+  - two players are hostile only when both have PvP on and the map is not a town;
+  - nothing is hostile to itself;
+  - a creature caster finds nothing hostile (creature casting is #163).
+- **Allies** are the caster itself and every player not hostile to it. A creature is never an ally.
+- **Damage**: a `Hostile` skill calls `CombatService.ApplyDamage(caster, unit, EffectValue, ability)`
+  on each hostile unit, with the usual threat, encounter, combat tag, death and invulnerable rules.
+- **Heal**: an `Ally` skill calls `CombatService.ApplyHeal` on each ally, which restores
+  `min(Health, CurrentHealth + EffectValue)`, never heals a dead unit, and adds heal threat from
+  `HealThreatPerHp` when the healed unit is in an encounter.
 
 ---
 
-## AoE Targeting
+## 5. The three shapes
 
-AoE spells have `SpellEffect.AoE` in their `Effects` flags. They do not require a single target in the attack packet. The `CharacterAttackHandler` routes AoE spells without a target directly to `QueueSpell`; the `SpellScript` is responsible for finding affected targets within its radius during `Prepare()` or `Update()`.
+**Circle** (`CircleAbilityScript`). On the caster, the centre is the caster's position. On the aim
+point, the centre is the point moved toward the caster until it is at most `Reach` away, then pulled
+back by `MapNavigator.RaycastWalkable` from the caster, so a blast cannot land behind a wall. A caster
+off the navmesh centres it on itself. Every qualifying unit whose body overlaps `Radius` is affected,
+once, when it fires.
+
+**Cone** (`ConeAbilityScript`). The apex is the caster. It points along the caster's facing (a
+movement skill) or toward the aim point (a cursor skill; a point on the caster falls back to facing).
+A unit is inside when its centre is within `Reach` plus its body radius, and its direction from the
+apex is within half of `ArcDegrees`, widened by the angle its body spans at that distance, so a large
+body at the edge still counts. A body over the apex is inside whatever the direction, and a 360-degree
+cone is a circle. It resolves once, when it fires. Walls do not clip it (an accepted limitation).
+
+**Projectile** (`ProjectileAbilityScript`). A world object (`ObjectType.SpellProjectile`) spawned at
+the caster, flying flat toward the aim point at `ProjectileSpeed`. Its velocity is metres per second,
+like every other moving object (#424), and it is drawn 0.5 m above the ground it flies along. Each
+tick it sweeps its whole step as a segment:
+
+- the step is speed × tick time, capped at the `Reach` still left, so a long tick cannot carry it
+  past `Reach` or through a unit;
+- the segment is cut by `RaycastWalkable`, so a wall stops it;
+- the units whose body the segment touches are taken nearest first. Without `Pierce` it ends on the
+  first qualifying unit, stopping at the point of its step nearest that unit's centre. With `Pierce`
+  it hits each unit once and flies on.
+
+It ends at `Reach`, at a wall (a caster off the navmesh ends it on its first tick), or on a first hit.
+It never homes and has no target.
 
 ---
 
-## Test Coverage
+## 6. Broadcast
 
-| Scenario                                       |
-|------------------------------------------------|
-| Sufficient power → spell queued, power deducted |
-| Insufficient power → `QueueSpell` returns false |
-| Clone has independent chain list               |
-| Subclass clone resets mutable fields           |
-| `SpellMetadata.AnimationId` preserved through clone |
-| Creature with spell → `QueueSpell` called      |
-| AoE spell, no target → queued                  |
-| Non-AoE spell, no target → rejected            |
+- **Projectiles** are world objects, so clients see them through the ordinary world-state add, update
+  and remove packets. A finished projectile is not ticked again and stays until its final state (where
+  it stopped, with zero velocity) has gone out in a broadcast, so every client sees it spawn, stop and
+  despawn, even one that ended on the tick it was first seen. An instance nobody is in drops its
+  finished projectiles at once, since there is nobody to send them to, so a player who enters later
+  never sees one frozen where it stopped.
+- **Circles and cones** broadcast `SMSG_ABILITY_FIRED` (`SAbilityFiredPacket { CasterGuid, AbilityId,
+  Origin, Direction?, Centre? }`) to the instance: a circle carries its centre, a cone its direction.
+- **Damage** arrives as the usual damage packets; `SCharacterDamagePacket.AbilityId` is filled (#521
+  item 8).
+- **Heals** have no packet of their own: the healed unit's new current health reaches clients through
+  ordinary state replication.
+
+---
+
+## 7. PvP
+
+A player's PvP flag lives on the character row (`Characters.PvpEnabled`, `PvpOffAt`) and is changed
+only by `PvpToggle`, reached from `CMSG_PVP_TOGGLE` and from the `/pvp` command. Turning it on is
+immediate. Asking to turn it off starts a five-minute timer (`Game:PvpOffDelay`), during which the
+player is still hostile; asking again cancels the timer. Every hit that deals damage from one player to
+another living player restarts both players' running timers. The answer, and every change the timer
+makes, is `SMSG_PVP_STATE { Enabled, OffInMs }`. Other players see the flag as `ObjectState.PvpEnabled`.
+Towns never allow player hostility, whatever the flags.
+
+---
+
+## 8. The starter kit
+
+Seeded by the World migration `SeedStarterSkillKit`; `CharacterCreateInfos.StartingSpells` grants each
+class its three, and the Character migration `GrantStarterSkillKit` gave every existing character its
+class's three in place of whatever it held. The retired skills 1, 2 and 100-103 are gone and their ids
+are never reused. Every kit skill has `AllowedClasses` its own class, `ThreatMultiplier` 1, and
+`HealThreatPerHp` 0 except Mending Circle (0.5). The numbers are placeholders to tune.
+
+| id | class | name | shape | aim | anchor | reach (m) | radius (m) | arc (°) | speed (m/s) | pierce | affects | cast | cooldown | cost | value |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 200 | Warrior | Cleave | Cone | Movement | – | 2.5 | – | 100 | – | – | Hostile | 0 | 0.8 s | 0 | 12 |
+| 201 | Warrior | Ground Slam | Circle | Movement | Caster | 0 | 3 | – | – | – | Hostile | 0 | 5 s | 20 | 25 |
+| 202 | Warrior | Hurled Axe | Projectile | Cursor | – | 15 | – | – | 18 | no | Hostile | 0 | 3 s | 10 | 20 |
+| 210 | Wizard | Arcane Bolt | Projectile | Cursor | – | 20 | – | – | 22 | no | Hostile | 0 | 0.8 s | 0 | 12 |
+| 211 | Wizard | Flame Burst | Circle | Cursor | AimPoint | 18 | 3 | – | – | – | Hostile | 0.6 s | 5 s | 25 | 35 |
+| 212 | Wizard | Frost Fan | Cone | Cursor | – | 6 | – | 60 | – | – | Hostile | 0 | 4 s | 15 | 22 |
+| 220 | Hunter | Quick Shot | Projectile | Cursor | – | 25 | – | – | 28 | no | Hostile | 0 | 0.8 s | 0 | 12 |
+| 221 | Hunter | Piercing Arrow | Projectile | Cursor | – | 30 | – | – | 24 | yes | Hostile | 0 | 4 s | 15 | 25 |
+| 222 | Hunter | Scatter Shot | Cone | Cursor | – | 8 | – | 45 | – | – | Hostile | 0 | 4 s | 20 | 22 |
+| 230 | Healer | Smite | Projectile | Cursor | – | 18 | – | – | 20 | no | Hostile | 0 | 0.8 s | 0 | 12 |
+| 231 | Healer | Radiant Pulse | Circle | Movement | Caster | 0 | 4 | – | – | – | Hostile | 0 | 5 s | 20 | 22 |
+| 232 | Healer | Mending Circle | Circle | Cursor | AimPoint | 15 | 4 | – | – | – | Ally | 0 | 8 s | 25 | 40 |
+
+Costs are paid from the class's pool: Warriors Fury, Wizards and Healers Mana, Hunters Energy
+(`ClassPowerType`). `SeedIntegrityShould` pins the twelve rows, the class links, the starting skills,
+one script per shape, Mending Circle as the only ally heal, and that every cost is payable by its
+class's pool under the power rule.
+
+---
+
+## 9. Out of scope
+
+- Creature casting on this pipeline (#163): creatures still only melee.
+- Tempo: attack and cast speed, and removing the global cooldown (a later spec, with the #506 stats).
+- A line or beam shape.
+- Cones clipped by walls.
+- Groups: allies are every non-hostile player, not a party.
+- A cap on how many units one shape may hit.

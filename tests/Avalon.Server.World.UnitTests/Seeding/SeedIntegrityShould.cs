@@ -2,10 +2,15 @@ using Avalon.Common.ValueObjects;
 using Avalon.Database.World;
 using Avalon.Domain.World;
 using Avalon.Server.World.UnitTests.Handlers;
+using Avalon.Network.Packets.Abilities;
+using Avalon.World.Abilities;
+using Avalon.World.Characters;
 using Avalon.World.Loot;
 using Avalon.World.Public.Enums;
+using Avalon.World.Public.Units;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
+using NSubstitute;
 using Xunit;
 
 namespace Avalon.Server.World.UnitTests.Seeding;
@@ -557,4 +562,118 @@ public class SeedIntegrityShould
         ItemSubClass.Boots => ItemSlotType.Feet,
         _ => throw new ArgumentOutOfRangeException(nameof(subClass), subClass, "not an armour slot"),
     };
+
+    /// <summary>The starter kit (#164): three skills per class.</summary>
+    private static readonly Dictionary<CharacterClass, uint[]> Kit = new()
+    {
+        [CharacterClass.Warrior] = [200, 201, 202],
+        [CharacterClass.Wizard] = [210, 211, 212],
+        [CharacterClass.Hunter] = [220, 221, 222],
+        [CharacterClass.Healer] = [230, 231, 232],
+    };
+
+    [Fact]
+    public void Seed_exactly_the_twelve_kit_abilities_and_none_of_the_old_ones()
+    {
+        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+
+        List<uint> ids = context.AbilityTemplates.AsNoTracking().AsEnumerable().Select(a => a.Id.Value).OrderBy(i => i).ToList();
+
+        Assert.Equal(Kit.Values.SelectMany(v => v).OrderBy(i => i), ids);
+    }
+
+    [Fact]
+    public void Load_every_kit_ability_through_the_catalog()
+    {
+        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+
+        var catalog = new AbilityCatalog(context.AbilityTemplates.AsNoTracking().ToList(), NullLoggerFactory.Instance);
+
+        Assert.Empty(catalog.Refused);
+        Assert.Equal(12, catalog.Count);
+    }
+
+    [Fact]
+    public void Give_each_class_its_own_three_kit_abilities_to_start_with()
+    {
+        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+
+        List<CharacterCreateInfo> infos = context.CharacterCreateInfos.AsNoTracking().ToList();
+        Assert.Equal(Kit.Keys.OrderBy(c => c), infos.Select(i => i.Class).OrderBy(c => c));
+
+        foreach (CharacterCreateInfo info in infos)
+        {
+            Assert.Equal(Kit[info.Class], info.StartingSpells.Select(s => s.Value));
+
+            foreach (uint id in Kit[info.Class])
+            {
+                AbilityTemplate ability = context.AbilityTemplates.AsNoTracking().AsEnumerable().Single(a => a.Id.Value == id);
+                Assert.Equal([info.Class], ability.AllowedClasses);
+            }
+        }
+    }
+
+    /// <summary>
+    /// A kit skill its class's power pool cannot pay under the one power rule could never be cast.
+    /// Every character enters with a full pool, so a pool holding exactly the cost must be enough, and
+    /// the class's level-1 maximum (seeded ClassLevelStats through CharacterStatsCalculator, with
+    /// nothing worn, as at creation) must hold at least the cost.
+    /// </summary>
+    [Fact]
+    public void Price_every_kit_ability_in_a_power_its_class_can_pay()
+    {
+        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+
+        List<AbilityTemplate> abilities = context.AbilityTemplates.AsNoTracking().ToList();
+        List<ClassLevelStat> levelStats = context.ClassLevelStats.AsNoTracking().ToList();
+
+        foreach ((CharacterClass cls, uint[] ids) in Kit)
+        {
+            ClassLevelStat levelOne = levelStats.Single(s => s.Class == cls && s.Level == 1);
+            uint maxPower = CharacterStatsCalculator.Calculate(levelOne, []).MaxPower;
+
+            foreach (uint id in ids)
+            {
+                AbilityTemplate ability = abilities.Single(a => a.Id.Value == id);
+                IUnit caster = Substitute.For<IUnit>();
+                caster.PowerType.Returns(ClassPowerType.Of(cls));
+                caster.CurrentPower.Returns(ability.Cost);
+
+                Assert.True(AbilityCost.Check(caster, AbilityMetadataMapper.From(ability)) == CostCheck.Payable,
+                    $"{cls} cannot pay for ability {id} '{ability.Name}' ({ability.Cost} power)");
+                Assert.True(ability.Cost <= maxPower,
+                    $"ability {id} '{ability.Name}' costs {ability.Cost}, above a level-1 {cls}'s {maxPower} power");
+            }
+        }
+    }
+
+    [Fact]
+    public void Name_one_script_per_shape_on_every_kit_ability()
+    {
+        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+
+        Assert.All(context.AbilityTemplates.AsNoTracking().ToList(), a => Assert.Equal(a.Shape switch
+        {
+            AbilityShape.Circle => "CircleAbilityScript",
+            AbilityShape.Cone => "ConeAbilityScript",
+            _ => "ProjectileAbilityScript",
+        }, a.SpellScript));
+    }
+
+    [Fact]
+    public void Seed_only_the_healers_mending_circle_as_an_ally_heal()
+    {
+        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+
+        AbilityTemplate heal = Assert.Single(context.AbilityTemplates.AsNoTracking().ToList(), a => a.Affects == AbilityAffects.Ally);
+        Assert.Equal(232u, heal.Id.Value);
+        Assert.Equal(0.5f, heal.HealThreatPerHp);
+        Assert.Equal(SpellEffect.Heal, heal.Effects);
+    }
 }

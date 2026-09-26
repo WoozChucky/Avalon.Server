@@ -19,7 +19,7 @@ public class GameConfiguration
     public int CharacterLoadTimeoutSeconds { get; set; } = 15;
 
     /// <summary>
-    ///     How often the world tick asks <c>IScriptHotReloader</c> whether any AI or spell script
+    ///     How often the world tick asks <c>IScriptHotReloader</c> whether any AI script
     ///     changed on disk. Polling, so this is the worst-case delay between saving a script and the
     ///     world picking it up — and the cost of a shorter interval is paid every tick.
     /// </summary>
@@ -108,6 +108,13 @@ public class GameConfiguration
     /// </summary>
     [Range(0.5, 50.0)]
     public float LootPickupRange { get; set; } = 5f;
+
+    /// <summary>
+    ///     How long a PvP flag stays on after its owner asks to turn it off (#164). Any player-on-player
+    ///     hit restarts a running timer at this length, for both players.
+    /// </summary>
+    [Range(typeof(TimeSpan), "00:00:01", "01:00:00")]
+    public TimeSpan PvpOffDelay { get; set; } = TimeSpan.FromMinutes(5);
 
     /// <summary>
     ///     How often every in-world character is saved (spec #459, D4). Each character's first save is

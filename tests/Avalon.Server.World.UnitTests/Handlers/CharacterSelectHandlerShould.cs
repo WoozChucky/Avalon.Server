@@ -1,3 +1,4 @@
+using Avalon.Network.Packets.Abilities;
 using Avalon.Server.World.UnitTests.Loot;
 using System.IO;
 using Avalon.Common;
@@ -11,6 +12,7 @@ using Avalon.Domain.Characters;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Character;
+using Avalon.Server.World.UnitTests.Abilities;
 using Avalon.Server.World.UnitTests.Characters;
 using Avalon.Server.World.UnitTests.Inventory;
 using Avalon.World;
@@ -61,7 +63,6 @@ public class CharacterSelectHandlerShould
         IReadOnlyCollection<ClassLevelStat>? classStats = null,
         IReadOnlyCollection<ItemTemplate>? itemTemplates = null,
         int storedHealth = 0,
-        CombatConfig? combatConfig = null,
         IReadOnlyCollection<AbilityTemplate>? abilityTemplates = null)
     {
         var row = new Character
@@ -153,8 +154,7 @@ public class CharacterSelectHandlerShould
             Options.Create(new RegenConfiguration()),
             Substitute.For<IAccountRepository>(),
             Substitute.For<ICharacterSaver>(),
-            Substitute.For<IWorldServer>(),
-            combatConfig ?? new CombatConfig());
+            Substitute.For<IWorldServer>());
 
         return new Fixture
         {
@@ -292,19 +292,16 @@ public class CharacterSelectHandlerShould
         Assert.Contains(NetworkPacketType.SMSG_CHARACTER_ABILITIES, f.Sent);
     }
 
-    /// <summary>
-    /// The cone the client is sent is the cone the cast handler checks (#513): both read one
-    /// CombatConfig, so the two cannot drift. A non-default value proves it is the config, not a
-    /// constant that happens to agree.
-    /// </summary>
+    /// <summary>There is no facing cone since #164, so AbilityInfo.FacingAngle is never set.</summary>
     [Fact]
-    public async Task Send_every_ability_the_facing_cone_the_cast_handler_checks()
+    public async Task Send_each_abilitys_shape_and_leave_the_facing_angle_unset()
     {
-        var combatConfig = new CombatConfig { MaxFacingAngleDeg = 37.5f };
-        Fixture f = await BuildAsync(combatConfig: combatConfig, abilityTemplates:
+        Fixture f = await BuildAsync(abilityTemplates:
         [
-            new AbilityTemplate { Id = new AbilityId(1), Name = "Strike", SpellScript = "strike", Range = SpellRange.Short },
-            new AbilityTemplate { Id = new AbilityId(2), Name = "Bolt", SpellScript = "bolt", Range = SpellRange.Long },
+            AbilityTestData.AimedCircle(1, reach: 18f, radius: 3f),
+            AbilityTestData.Projectile(2, reach: 25f, speed: 28f, pierce: true),
+            AbilityTestData.Cone(3, arc: 60f),
+            AbilityTestData.HealCircle(4),
         ]);
 
         f.Handler.Execute(f.Connection, new CCharacterSelectedPacket { CharacterId = TheCharacter });
@@ -313,8 +310,24 @@ public class CharacterSelectHandlerShould
             f.SentPackets, p => p.Header.Type == NetworkPacketType.SMSG_CHARACTER_ABILITIES);
         using var stream = new MemoryStream(sent.Payload);
         AbilityInfo[] abilities = Serializer.Deserialize<SCharacterAbilitiesPacket>(stream).Abilities;
-        Assert.Equal(2, abilities.Length);
-        Assert.All(abilities, a => Assert.Equal(combatConfig.MaxFacingAngleDeg, a.FacingAngle));
+        Assert.Equal(4, abilities.Length);
+        Assert.All(abilities, a => Assert.Equal(0f, a.FacingAngle));
+
+        AbilityInfo circle = Assert.Single(abilities, a => a.AbilityId == 1);
+        Assert.Equal(AbilityShape.Circle, circle.Shape);
+        Assert.Equal(AbilityAnchor.AimPoint, circle.Anchor);
+        Assert.Equal(AbilityAimMode.Cursor, circle.AimMode);
+        Assert.Equal(18f, circle.Reach);
+        Assert.Equal(3f, circle.Radius);
+
+        AbilityInfo projectile = Assert.Single(abilities, a => a.AbilityId == 2);
+        Assert.Equal(AbilityShape.Projectile, projectile.Shape);
+        Assert.Equal(28f, projectile.ProjectileSpeed);
+        Assert.True(projectile.Pierce);
+
+        Assert.Equal(60f, Assert.Single(abilities, a => a.AbilityId == 3).ArcDegrees);
+        Assert.Equal(AbilityAffects.Ally, Assert.Single(abilities, a => a.AbilityId == 4).Affects);
+        Assert.Equal(AbilityAffects.Hostile, circle.Affects);
     }
 
     /// <summary>
@@ -535,8 +548,7 @@ public class CharacterSelectHandlerShould
             Options.Create(new RegenConfiguration()),
             accountRepository,
             Substitute.For<ICharacterSaver>(),
-            Substitute.For<IWorldServer>(),
-            new CombatConfig());
+            Substitute.For<IWorldServer>());
 
         handler.Execute(connection, new CCharacterSelectedPacket { CharacterId = TheCharacter });
 

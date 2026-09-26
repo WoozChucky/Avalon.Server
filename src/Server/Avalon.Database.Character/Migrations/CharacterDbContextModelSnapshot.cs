@@ -97,6 +97,12 @@ namespace Avalon.Database.Character.Migrations
                     b.Property<int>("Power2")
                         .HasColumnType("integer");
 
+                    b.Property<bool>("PvpEnabled")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime?>("PvpOffAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<float>("RestBonus")
                         .HasColumnType("real");
 

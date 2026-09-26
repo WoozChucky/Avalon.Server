@@ -83,6 +83,14 @@ public class MapSessionFilterShould
     }
 
     [Fact]
+    public void Accept_Pvp_Toggle_For_A_Character_On_A_Map() =>
+        Assert.True(For(CharacterOnMap()).CanProcess(NetworkPacketType.CMSG_PVP_TOGGLE));
+
+    [Fact]
+    public void Reject_Pvp_Toggle_Without_A_Character() =>
+        Assert.False(For(null).CanProcess(NetworkPacketType.CMSG_PVP_TOGGLE));
+
+    [Fact]
     public void Reject_Loot_Pickup_Without_A_Character()
     {
         Assert.False(For(null).CanProcess(NetworkPacketType.CMSG_LOOT_PICKUP));

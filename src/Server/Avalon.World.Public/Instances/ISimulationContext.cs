@@ -33,20 +33,28 @@ public interface ISimulationContext
     /// <summary>Standing positions around a target, so attackers surround it rather than stack.</summary>
     IMeleeSlots MeleeSlots { get; }
 
-    bool QueueAbility(ICharacter caster, IUnit? target, IAbility ability);
+    /// <summary>
+    /// Queues a cast-time ability aimed at <paramref name="aim" />, captured now (#164). False, with
+    /// nothing spent and <c>Casting</c> left clear, when the cast cannot be taken.
+    /// </summary>
+    bool QueueAbility(ICharacter caster, AbilityAim aim, IAbility ability);
 
     /// <summary>
-    /// Runs an instant-cast ability immediately, bypassing the cast queue. Used by
-    /// <c>CastAbilityHandler</c> for abilities with <c>CastTime == 0</c>: the script's
-    /// effect runs in this tick, the ability's cooldown is started, and a finish-cast
-    /// broadcast is emitted to mirror the queue-completion path.
+    /// Fires an instant ability this tick, aimed at <paramref name="aim" />. False, with nothing spent,
+    /// when the cast cannot run (its script is missing or cannot be built, or the cost cannot be paid).
     /// </summary>
-    void RunInstantAbility(IUnit caster, IUnit? target, IAbility ability);
+    bool RunInstantAbility(IUnit caster, AbilityAim aim, IAbility ability);
 
     void AddCreature(ICreature creature);
     void RemoveCreature(ICreature creature);
     void BroadcastUnitHit(IUnit attacker, IUnit target, uint currentHealth, uint damage);
-    void BroadcastUnitStartCast(IUnit caster, float castTime);
+
+    /// <summary>
+    /// Tells every client in the instance that <paramref name="caster" /> started casting
+    /// <paramref name="ability" /> (#521 item 9). The cast time is read from the ability, so the id and
+    /// the time always come from the same one.
+    /// </summary>
+    void BroadcastUnitStartCast(IUnit caster, IAbility ability);
 
     /// <summary>
     /// Broadcasts a death event to all connections in the instance. Called by

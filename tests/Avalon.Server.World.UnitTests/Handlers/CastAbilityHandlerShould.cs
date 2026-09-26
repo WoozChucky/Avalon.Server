@@ -8,13 +8,14 @@ using Avalon.Common.ValueObjects;
 using Avalon.Network.Packets.Abilities;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Combat;
+using Avalon.Network.Packets.State;
+using Avalon.Network.Packets.World;
 using Avalon.World;
 using Avalon.World.Handlers;
 using Avalon.World.Public;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Combat;
-using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Instances;
 using Avalon.World.Public.Units;
@@ -27,8 +28,8 @@ namespace Avalon.Server.World.UnitTests.Handlers;
 
 /// <summary>
 /// Every refused cast is answered with exactly one SAbilityNotReadyPacket naming its reason (#512);
-/// only a connection with no character hears nothing. The facing cone is read from CombatConfig
-/// (#513), and compared strictly.
+/// only a connection with no character hears nothing. A cast aims at a direction or a ground point,
+/// never at a unit (#164): TargetGuid is ignored, and there is no range or facing check.
 /// </summary>
 public class CastAbilityHandlerShould
 {
@@ -169,85 +170,162 @@ public class CastAbilityHandlerShould
         Assert.Equal(CastRejectReason.InternalError, f.SingleRefusal().Reason);
     }
 
-    // ── Target / facing / range ─────────────────────────────────────────────
+    // ── One cast at a time (#521 item 4) ──────────────────────────────────────
 
     [Fact]
-    public void Answer_TargetNotFound_when_the_target_is_not_in_the_instance()
+    public void Answer_AlreadyCasting_while_another_cast_is_in_progress()
     {
         var f = new Fixture();
-        f.GiveAbility(new AbilityMetadata { Name = "X", ScriptName = "x", Range = SpellRange.Medium });
+        f.Character.Spells.IsCasting.Returns(true);
+        f.GiveAbility(new AbilityMetadata { Name = "X", ScriptName = "x" });
 
-        var unknownGuid = new ObjectGuid(ObjectType.Creature, 999u);
-        f.Cast(new CCastAbilityPacket { AbilityId = 1, TargetGuid = unknownGuid.RawValue });
+        f.Cast(new CCastAbilityPacket { AbilityId = 1 });
 
-        Assert.Equal(CastRejectReason.TargetNotFound, f.SingleRefusal().Reason);
+        Assert.Equal(CastRejectReason.AlreadyCasting, f.SingleRefusal().Reason);
+        f.Instance.DidNotReceiveWithAnyArgs().RunInstantAbility(default!, default, default!);
+        f.Instance.DidNotReceiveWithAnyArgs().QueueAbility(default!, default, default!);
     }
 
+    /// <summary>The refusal order: a dead caster is told Dead, even with a cast still in progress.</summary>
     [Fact]
-    public void Answer_OutOfRange_when_the_target_is_too_far()
+    public void Answer_Dead_before_AlreadyCasting()
     {
         var f = new Fixture();
-        ObjectGuid target = f.AddTarget(new Vector3(50, 0, 0));
-        f.Character.Orientation.Returns(new Vector3(0, 90, 0)); // facing +X, at the target
-        f.GiveAbility(new AbilityMetadata { Name = "X", ScriptName = "x", Range = SpellRange.Short });
+        f.Character.IsDead.Returns(true);
+        f.Character.Spells.IsCasting.Returns(true);
+        f.GiveAbility(new AbilityMetadata { Name = "X", ScriptName = "x" });
 
-        f.Cast(new CCastAbilityPacket { AbilityId = 1, TargetGuid = target.RawValue });
+        f.Cast(new CCastAbilityPacket { AbilityId = 1 });
+
+        Assert.Equal(CastRejectReason.Dead, f.SingleRefusal().Reason);
+    }
+
+    /// <summary>The refusal order: a cast in progress is AlreadyCasting, even inside the global cooldown.</summary>
+    [Fact]
+    public void Answer_AlreadyCasting_before_Gcd()
+    {
+        var f = new Fixture();
+        f.Character.Spells.IsCasting.Returns(true);
+        f.Character.LastCastStartTime.Returns(DateTime.UtcNow.AddMilliseconds(-50));
+        f.GiveAbility(new AbilityMetadata { Name = "X", ScriptName = "x" });
+
+        f.Cast(new CCastAbilityPacket { AbilityId = 1 });
 
         SAbilityNotReadyPacket refusal = f.SingleRefusal();
-        Assert.Equal(CastRejectReason.OutOfRange, refusal.Reason);
+        Assert.Equal(CastRejectReason.AlreadyCasting, refusal.Reason);
         Assert.Equal(0u, refusal.CooldownMs);
     }
 
-    [Fact]
-    public void Answer_NotFacing_when_the_caster_faces_away_from_the_target()
+    // ── Aim (#164) ────────────────────────────────────────────────────────────
+
+    public static TheoryData<Vector3Dto?> MissingAimPoints() => new()
     {
-        var f = new Fixture();
-        ObjectGuid target = f.AddTarget(new Vector3(0, 0, 5));
-        f.Character.Orientation.Returns(new Vector3(0, 180, 0)); // facing -Z, target at +Z
-        f.GiveAbility(new AbilityMetadata { Name = "X", ScriptName = "x", Range = SpellRange.Medium });
-
-        f.Cast(new CCastAbilityPacket { AbilityId = 1, TargetGuid = target.RawValue });
-
-        Assert.Equal(CastRejectReason.NotFacing, f.SingleRefusal().Reason);
-    }
-
-    /// <summary>
-    /// Yaw 0 faces exactly +Z and a target on +X lies exactly along +X, so the angle the handler
-    /// measures is exactly Vector3.Angle(forward, right). A cone of exactly that angle refuses the
-    /// cast (strict less-than); the next float up accepts it. Neither is the default 65, so this
-    /// also proves the handler reads CombatConfig, not a constant.
-    /// </summary>
-    [Fact]
-    public void Refuse_a_target_exactly_on_the_configured_cone_edge_and_accept_one_just_inside()
-    {
-        float edge = Vector3.Angle(Vector3.forward, Vector3.right);
-
-        var onEdge = new Fixture(new CombatConfig { MaxFacingAngleDeg = edge });
-        onEdge.CastSideways();
-        Assert.Equal(CastRejectReason.NotFacing, onEdge.SingleRefusal().Reason);
-
-        var inside = new Fixture(new CombatConfig { MaxFacingAngleDeg = MathF.BitIncrement(edge) });
-        inside.CastSideways();
-        Assert.Empty(inside.SentPackets());
-        inside.Instance.Received(1).RunInstantAbility(inside.Character, Arg.Any<IUnit?>(), Arg.Any<IAbility>());
-    }
+        null,
+        new Vector3Dto { X = float.NaN, Y = 0f, Z = 1f },
+        new Vector3Dto { X = 1f, Y = float.PositiveInfinity, Z = 1f },
+        new Vector3Dto { X = 1f, Y = 0f, Z = float.NegativeInfinity },
+    };
 
     [Theory]
-    [InlineData(64.9f, true)]
-    [InlineData(65.1f, false)]
-    public void Use_a_65_degree_cone_by_default(float yawToTarget, bool accepted)
+    [MemberData(nameof(MissingAimPoints))]
+    public void Answer_NoAimPoint_for_a_cursor_skill_without_a_finite_point(Vector3Dto? point)
     {
         var f = new Fixture();
-        float radians = yawToTarget * Mathf.Deg2Rad;
-        ObjectGuid target = f.AddTarget(new Vector3(MathF.Sin(radians), 0, MathF.Cos(radians)));
-        f.GiveAbility(new AbilityMetadata { Name = "X", ScriptName = "x", Range = SpellRange.Medium });
+        f.GiveAbility(new AbilityMetadata { Name = "X", ScriptName = "x", AimMode = AbilityAimMode.Cursor });
 
-        f.Cast(new CCastAbilityPacket { AbilityId = 1, TargetGuid = target.RawValue });
+        f.Cast(new CCastAbilityPacket { AbilityId = 1, GroundPos = point });
 
-        if (accepted)
-            Assert.Empty(f.SentPackets());
-        else
-            Assert.Equal(CastRejectReason.NotFacing, f.SingleRefusal().Reason);
+        Assert.Equal(CastRejectReason.NoAimPoint, f.SingleRefusal().Reason);
+        f.Instance.DidNotReceiveWithAnyArgs().RunInstantAbility(default!, default, default!);
+    }
+
+    [Fact]
+    public void Aim_a_cursor_skill_at_the_ground_point_and_ignore_TargetGuid()
+    {
+        var f = new Fixture();
+        IAbility ability = f.GiveAbility(new AbilityMetadata { Name = "X", ScriptName = "x", AimMode = AbilityAimMode.Cursor });
+
+        f.Cast(new CCastAbilityPacket { AbilityId = 1, TargetGuid = 12345, GroundPos = new Vector3Dto { X = 3f, Y = 9f, Z = 4f } });
+
+        Assert.Empty(f.SentPackets());
+        f.Instance.Received(1).RunInstantAbility(f.Character,
+            Arg.Is<AbilityAim>(a => a.Point == new Vector3(3f, 9f, 4f)), ability);
+    }
+
+    [Fact]
+    public void Aim_a_movement_skill_along_the_casters_facing_without_a_point()
+    {
+        var f = new Fixture();
+        f.Character.Orientation.Returns(new Vector3(0f, 90f, 0f));
+        IAbility ability = f.GiveAbility(new AbilityMetadata { Name = "X", ScriptName = "x" });
+
+        f.Cast(new CCastAbilityPacket { AbilityId = 1, GroundPos = new Vector3Dto { X = 3f, Y = 0f, Z = 4f } });
+
+        f.Instance.Received(1).RunInstantAbility(f.Character,
+            Arg.Is<AbilityAim>(a => a.Point == null && Math.Abs(a.Facing.x - 1f) < 1e-4f), ability);
+    }
+
+    /// <summary>A queued cast is aimed once, when it starts: the aim travels with it into the queue.</summary>
+    [Fact]
+    public void Queue_a_cast_time_cursor_skill_with_the_aim_it_started_with()
+    {
+        var f = new Fixture();
+        IAbility ability = f.GiveAbility(new AbilityMetadata
+        {
+            Name = "X", ScriptName = "x", AimMode = AbilityAimMode.Cursor, CastTime = 1f,
+        });
+
+        f.Cast(new CCastAbilityPacket { AbilityId = 1, GroundPos = new Vector3Dto { X = 5f, Y = 0f, Z = 6f } });
+
+        f.Instance.Received(1).QueueAbility(f.Character,
+            Arg.Is<AbilityAim>(a => a.Point == new Vector3(5f, 0f, 6f) && Math.Abs(a.Facing.z - 1f) < 1e-4f), ability);
+    }
+
+    // ── The power rule (#521 item 2) ──────────────────────────────────────────
+
+    [Theory]
+    [InlineData(0f)]
+    [InlineData(1f)]
+    public void Answer_InternalError_on_both_paths_for_a_cost_without_a_pool(float castTime)
+    {
+        var f = new Fixture();
+        f.Character.PowerType.Returns(PowerType.None);
+        f.GiveAbility(new AbilityMetadata { Name = "X", ScriptName = "x", Cost = 10, CastTime = castTime });
+
+        f.Cast(new CCastAbilityPacket { AbilityId = 1 });
+
+        Assert.Equal(CastRejectReason.InternalError, f.SingleRefusal().Reason);
+        f.Instance.DidNotReceiveWithAnyArgs().RunInstantAbility(default!, default, default!);
+        f.Instance.DidNotReceiveWithAnyArgs().QueueAbility(default!, default, default!);
+    }
+
+    /// <summary>Fury is spendable like Mana and Energy (#526).</summary>
+    [Fact]
+    public void Dispatch_a_Fury_cast_the_pool_can_pay()
+    {
+        var f = new Fixture();
+        f.Character.PowerType.Returns(PowerType.Fury);
+        f.Character.CurrentPower.Returns((uint?)20);
+        IAbility ability = f.GiveAbility(new AbilityMetadata { Name = "X", ScriptName = "x", Cost = 20 });
+
+        f.Cast(new CCastAbilityPacket { AbilityId = 1 });
+
+        Assert.Empty(f.SentPackets());
+        f.Instance.Received(1).RunInstantAbility(f.Character, Arg.Any<AbilityAim>(), ability);
+    }
+
+    [Fact]
+    public void Answer_NotEnoughPower_for_a_Fury_cast_the_pool_cannot_pay()
+    {
+        var f = new Fixture();
+        f.Character.PowerType.Returns(PowerType.Fury);
+        f.Character.CurrentPower.Returns((uint?)19);
+        f.GiveAbility(new AbilityMetadata { Name = "X", ScriptName = "x", Cost = 20 });
+
+        f.Cast(new CCastAbilityPacket { AbilityId = 1 });
+
+        Assert.Equal(CastRejectReason.NotEnoughPower, f.SingleRefusal().Reason);
+        f.Instance.DidNotReceiveWithAnyArgs().RunInstantAbility(default!, default, default!);
     }
 
     // ── Cast dispatch ────────────────────────────────────────────────────────
@@ -256,16 +334,13 @@ public class CastAbilityHandlerShould
     public void Dispatch_an_instant_ability_and_send_no_refusal()
     {
         var f = new Fixture();
-        ObjectGuid targetGuid = f.AddTarget(new Vector3(0, 0, 1)); // facing +Z, target at +Z
-        IAbility ability = f.GiveAbility(new AbilityMetadata
-        {
-            Name = "X", ScriptName = "x", Range = SpellRange.Medium, CastTime = 0
-        });
+        IAbility ability = f.GiveAbility(new AbilityMetadata { Name = "X", ScriptName = "x", CastTime = 0 });
 
-        f.Cast(new CCastAbilityPacket { AbilityId = 1, TargetGuid = targetGuid.RawValue });
+        f.Cast(new CCastAbilityPacket { AbilityId = 1 });
 
-        f.Instance.Received(1).RunInstantAbility(f.Character, f.Creature(targetGuid), ability);
-        f.Instance.DidNotReceive().QueueAbility(Arg.Any<ICharacter>(), Arg.Any<IUnit?>(), Arg.Any<IAbility>());
+        f.Instance.Received(1).RunInstantAbility(f.Character, Arg.Any<AbilityAim>(), ability);
+        f.Instance.DidNotReceiveWithAnyArgs().QueueAbility(default!, default, default!);
+        f.Instance.DidNotReceiveWithAnyArgs().BroadcastUnitStartCast(default!, default!);
         Assert.Empty(f.SentPackets());
     }
 
@@ -273,19 +348,13 @@ public class CastAbilityHandlerShould
     public void Queue_a_cast_time_ability_and_send_no_refusal()
     {
         var f = new Fixture();
-        ObjectGuid targetGuid = f.AddTarget(new Vector3(0, 0, 1));
-        IAbility ability = f.GiveAbility(new AbilityMetadata
-        {
-            Name = "X", ScriptName = "x", Range = SpellRange.Medium, CastTime = 1.5f
-        });
-        ICreature target = f.Creature(targetGuid);
-        f.Instance.QueueAbility(f.Character, target, ability).Returns(true);
+        IAbility ability = f.GiveAbility(new AbilityMetadata { Name = "X", ScriptName = "x", CastTime = 1.5f });
 
-        f.Cast(new CCastAbilityPacket { AbilityId = 1, TargetGuid = targetGuid.RawValue });
+        f.Cast(new CCastAbilityPacket { AbilityId = 1 });
 
-        f.Instance.Received(1).QueueAbility(f.Character, target, ability);
-        f.Instance.Received(1).BroadcastUnitStartCast(f.Character, 1.5f);
-        f.Instance.DidNotReceive().RunInstantAbility(Arg.Any<IUnit>(), Arg.Any<IUnit?>(), Arg.Any<IAbility>());
+        f.Instance.Received(1).QueueAbility(f.Character, Arg.Any<AbilityAim>(), ability);
+        f.Instance.Received(1).BroadcastUnitStartCast(f.Character, ability);
+        f.Instance.DidNotReceiveWithAnyArgs().RunInstantAbility(default!, default, default!);
         Assert.Empty(f.SentPackets());
     }
 
@@ -293,18 +362,28 @@ public class CastAbilityHandlerShould
     public void Answer_InternalError_when_the_queue_refuses_the_cast()
     {
         var f = new Fixture();
-        ObjectGuid targetGuid = f.AddTarget(new Vector3(0, 0, 1));
-        IAbility ability = f.GiveAbility(new AbilityMetadata
-        {
-            Name = "X", ScriptName = "x", Range = SpellRange.Medium, CastTime = 1.5f
-        });
-        f.Instance.QueueAbility(f.Character, f.Creature(targetGuid), ability).Returns(false);
+        IAbility ability = f.GiveAbility(new AbilityMetadata { Name = "X", ScriptName = "x", CastTime = 1.5f });
+        f.Instance.QueueAbility(f.Character, Arg.Any<AbilityAim>(), ability).Returns(false);
 
-        f.Cast(new CCastAbilityPacket { AbilityId = 1, TargetGuid = targetGuid.RawValue });
+        f.Cast(new CCastAbilityPacket { AbilityId = 1 });
 
         Assert.Equal(CastRejectReason.InternalError, f.SingleRefusal().Reason);
-        f.Instance.DidNotReceive().BroadcastUnitStartCast(Arg.Any<IUnit>(), Arg.Any<float>());
+        f.Instance.DidNotReceiveWithAnyArgs().BroadcastUnitStartCast(default!, default!);
         // A refusal starts no global cooldown and does not put the caster in combat.
+        f.Character.DidNotReceive().LastCastStartTime = Arg.Any<DateTime>();
+        f.Character.DidNotReceive().MarkCombat();
+    }
+
+    [Fact]
+    public void Answer_InternalError_when_the_instant_path_refuses_the_cast()
+    {
+        var f = new Fixture();
+        IAbility ability = f.GiveAbility(new AbilityMetadata { Name = "X", ScriptName = "x" });
+        f.Instance.RunInstantAbility(f.Character, Arg.Any<AbilityAim>(), ability).Returns(false);
+
+        f.Cast(new CCastAbilityPacket { AbilityId = 1 });
+
+        Assert.Equal(CastRejectReason.InternalError, f.SingleRefusal().Reason);
         f.Character.DidNotReceive().LastCastStartTime = Arg.Any<DateTime>();
         f.Character.DidNotReceive().MarkCombat();
     }
@@ -313,10 +392,9 @@ public class CastAbilityHandlerShould
     public void Set_LastCastStartTime_on_a_successful_cast()
     {
         var f = new Fixture();
-        ObjectGuid targetGuid = f.AddTarget(new Vector3(0, 0, 1));
-        f.GiveAbility(new AbilityMetadata { Name = "X", ScriptName = "x", Range = SpellRange.Medium, CastTime = 0 });
+        f.GiveAbility(new AbilityMetadata { Name = "X", ScriptName = "x", CastTime = 0 });
 
-        f.Cast(new CCastAbilityPacket { AbilityId = 1, TargetGuid = targetGuid.RawValue });
+        f.Cast(new CCastAbilityPacket { AbilityId = 1 });
 
         f.Character.Received().LastCastStartTime = Arg.Any<DateTime>();
     }
@@ -362,30 +440,30 @@ public class CastAbilityHandlerShould
     }
 
     /// <summary>
-    /// A living caster at the origin facing +Z (yaw 0), out of the GCD window and with power to
-    /// spare, in an instance the registry finds. Each test changes only what it is about.
+    /// A living Mana caster at the origin facing +Z (yaw 0), not casting, out of the GCD window and
+    /// with power to spare, in an instance the registry finds and whose cast system takes every cast.
+    /// Each test changes only what it is about.
     /// </summary>
     private sealed class Fixture
     {
-        private readonly Dictionary<ObjectGuid, ICreature> _creatures = new();
-        private uint _nextCreatureId = 100;
-
         public ICharacter Character { get; } = Substitute.For<ICharacter>();
         public IWorldConnection Connection { get; } = Substitute.For<IWorldConnection>();
         public IMapInstance Instance { get; } = Substitute.For<IMapInstance>();
         public IInstanceRegistry Registry { get; } = Substitute.For<IInstanceRegistry>();
         public CastAbilityHandler Handler { get; }
 
-        public Fixture(CombatConfig? config = null)
+        public Fixture()
         {
             Character.IsDead.Returns(false);
             Character.LastCastStartTime.Returns(DateTime.UtcNow.AddSeconds(-10));
             Character.Position.Returns(Vector3.zero);
             Character.Orientation.Returns(Vector3.zero);
+            Character.PowerType.Returns(PowerType.Mana);
             Character.CurrentPower.Returns((uint?)100);
+            Character.Spells.IsCasting.Returns(false);
 
-            Instance.Creatures.Returns(_creatures);
-            Instance.Characters.Returns(new Dictionary<ObjectGuid, ICharacter>());
+            Instance.RunInstantAbility(default!, default, default!).ReturnsForAnyArgs(true);
+            Instance.QueueAbility(default!, default, default!).ReturnsForAnyArgs(true);
             Registry.GetInstanceById(Arg.Any<Guid>()).Returns(Instance);
 
             Connection.Character.Returns(Character);
@@ -394,7 +472,7 @@ public class CastAbilityHandlerShould
 
             var world = Substitute.For<IWorld>();
             world.InstanceRegistry.Returns(Registry);
-            Handler = new CastAbilityHandler(NullLogger<CastAbilityHandler>.Instance, world, config ?? new CombatConfig());
+            Handler = new CastAbilityHandler(NullLogger<CastAbilityHandler>.Instance, world, new CombatConfig());
         }
 
         public void Cast(CCastAbilityPacket packet) => Handler.Execute(Connection, packet);
@@ -407,30 +485,6 @@ public class CastAbilityHandlerShould
             ability.Metadata.Returns(metadata);
             Character.Spells[Arg.Any<AbilityId>()].Returns(ability);
             return ability;
-        }
-
-        public ObjectGuid AddTarget(Vector3 position)
-        {
-            var guid = new ObjectGuid(ObjectType.Creature, _nextCreatureId++);
-            var creature = Substitute.For<ICreature>();
-            creature.Guid.Returns(guid);
-            creature.Position.Returns(position);
-            _creatures[guid] = creature;
-            return guid;
-        }
-
-        /// <summary>
-        /// The creature behind a guid, read from the fixture's own dictionary: reading it through
-        /// the substitute instance inside a Received() or Returns() call would break NSubstitute.
-        /// </summary>
-        public ICreature Creature(ObjectGuid guid) => _creatures[guid];
-
-        /// <summary>An instant cast at a target 1 m along +X, square to the caster's +Z facing.</summary>
-        public void CastSideways()
-        {
-            ObjectGuid target = AddTarget(Vector3.right);
-            GiveAbility(new AbilityMetadata { Name = "X", ScriptName = "x", Range = SpellRange.Medium });
-            Cast(new CCastAbilityPacket { AbilityId = 1, TargetGuid = target.RawValue });
         }
 
         public List<NetworkPacket> SentPackets() =>

@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using Avalon.Common.ValueObjects;
+using Avalon.Network.Packets.Abilities;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Enums;
 
@@ -37,4 +38,33 @@ public class AbilityTemplate : IDbEntity<AbilityId>
     [Required] public AbilityFlags Flags { get; set; } = AbilityFlags.None;
 
     [Required] public uint AnimationId { get; set; } = 0;
+
+    // Aim and shape (#164). All non-null with defaults so the rows that predate them still load.
+
+    [Required] public AbilityAimMode AimMode { get; set; } = AbilityAimMode.Movement;
+
+    [Required] public AbilityShape Shape { get; set; } = AbilityShape.Circle;
+
+    /// <summary>Circle only: centred on the caster or on the aim point.</summary>
+    [Required] public AbilityAnchor Anchor { get; set; } = AbilityAnchor.Caster;
+
+    /// <summary>
+    /// Metres. The cursor clamp for an AimPoint circle, a cone's length, a projectile's maximum
+    /// travel; 0 for a circle on the caster. Replaces <see cref="Range" />, which new code does not read.
+    /// </summary>
+    [Required] public float Reach { get; set; }
+
+    /// <summary>Metres. A circle's radius; 0 otherwise.</summary>
+    [Required] public float Radius { get; set; }
+
+    /// <summary>Degrees. A cone's full arc; 0 otherwise.</summary>
+    [Required] public float ArcDegrees { get; set; }
+
+    /// <summary>Metres per second. Projectile only; 0 otherwise.</summary>
+    [Required] public float ProjectileSpeed { get; set; }
+
+    /// <summary>Projectile only: false ends at the first hit, true hits each unit once and flies on.</summary>
+    [Required] public bool Pierce { get; set; }
+
+    [Required] public AbilityAffects Affects { get; set; } = AbilityAffects.Hostile;
 }

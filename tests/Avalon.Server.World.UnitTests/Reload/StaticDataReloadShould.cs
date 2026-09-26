@@ -1,6 +1,7 @@
 using Avalon.Common.ValueObjects;
 using Avalon.Database.World.Repositories;
 using Avalon.Domain.World;
+using Avalon.Server.World.UnitTests.Abilities;
 using Avalon.Server.World.UnitTests.Loot;
 using Avalon.World;
 using Avalon.World.Public.Enums;
@@ -194,7 +195,7 @@ public class StaticDataReloadShould
     {
         (StaticData data, Repos repos) = await LoadedData(creatureCount: 1);
         Assert.Empty(data.AbilityTemplates);
-        repos.Abilities = [new AbilityTemplate { Id = new AbilityId(1), Name = "ability-1", SpellScript = "" }];
+        repos.Abilities = [AbilityTestData.Circle(1, "ability-1")];
 
         data.Apply(await data.PrepareAsync(ReloadArea.Abilities));
 

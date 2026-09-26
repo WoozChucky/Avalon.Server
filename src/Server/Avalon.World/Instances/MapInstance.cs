@@ -14,6 +14,7 @@ using Avalon.World.Creatures.Locomotion;
 using Avalon.World.Loot;
 using Avalon.World.Maps.Navigation;
 using Avalon.World.Persistence;
+using Avalon.World.Pvp;
 using Avalon.World.Public;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Characters;
@@ -26,6 +27,7 @@ using Avalon.World.Public.Units;
 using Avalon.World.Quests;
 using Avalon.World.Vendors;
 using Avalon.World.Abilities;
+using Avalon.World.Abilities.Targeting;
 using Avalon.World.Combat;
 using Avalon.World.Public.Combat;
 using Avalon.World.Scripts;
@@ -33,10 +35,11 @@ using Avalon.World.Scripts.Creatures;
 using Avalon.World.Serialization;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Avalon.World.Instances;
 
-public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHost, IDisposable
+public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHost, IAbilityArena, IDisposable
 {
     private const float BroadcastInterval = 0.1f;
 
@@ -53,6 +56,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     private readonly IAbilityCastSystem _abilityCastSystem;
     private readonly EncounterRegistry _encounterRegistry;
     private readonly CombatService _combatService;
+    private readonly UnitHitQuery _hits;
     private readonly ThreatBroadcastService _threatBroadcast;
     private readonly IWorld _world;
     private float _lastBroadcastTime;
@@ -71,6 +75,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     private readonly VendorStocks _vendors = new();
 
     private readonly TimeProvider _time;
+    private readonly PvpToggle _pvp;
     private readonly IQuestProgress _quests;
 
     /// <summary>
@@ -80,6 +85,9 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     /// the new map before it learns what lies on it.
     /// </summary>
     private readonly HashSet<ObjectGuid> _lootSnapshotOwed = [];
+
+    /// <summary>Characters that entered since the last tick and are owed their own PvP state (#164).</summary>
+    private readonly HashSet<ObjectGuid> _pvpStateOwed = [];
 
     public MapInstance(
         ILoggerFactory loggerFactory,
@@ -111,18 +119,29 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
 
         _corpseRemover = new CreatureCorpseRemover(this);
 
+        // The container's clock, the one the loot allocator and the vendor handlers read (#432). It
+        // falls back, so an instance built without one (tests) still ticks; production registers it.
+        _time = serviceProvider.GetService<TimeProvider>() ?? TimeProvider.System;
+
+        // PvP (#164): the one toggle the handler, /pvp and every instance share. Production registers
+        // it (WorldHostGraphShould); the fallback serves instances built without one (tests).
+        _pvp = serviceProvider.GetService<PvpToggle>()
+               ?? new PvpToggle(Options.Create(world.Configuration), _time);
+
         // Per-instance combat state. CombatConfig is a process-wide singleton (V1: defaults);
         // EncounterRegistry + CombatService are instance-scoped so encounters cannot bleed
         // between MapInstances.
         CombatConfig combatConfig = serviceProvider.GetRequiredService<CombatConfig>();
         _encounterRegistry = new EncounterRegistry(combatConfig);
-        _combatService     = new CombatService(combatConfig, _encounterRegistry, this);
+        _combatService     = new CombatService(combatConfig, _encounterRegistry, this, _pvp);
         _threatBroadcast   = new ThreatBroadcastService(combatConfig);
 
-        // Cast system gets `this` as ISimulationContext so it can forward the context to
-        // ability scripts (E7): scripts route damage through CombatService.ApplyDamage rather
-        // than directly calling Target.OnHit. CombatService must be assigned BEFORE this so
-        // any first-tick cast resolves through a non-null service.
+        // Shape scripts ask this for the living units their shape overlaps (#164).
+        _hits = new UnitHitQuery(_characters, _creatures);
+
+        // The cast system gets `this` as the IAbilityArena every ability script is built with
+        // (#164): scripts route damage through CombatService.ApplyDamage. CombatService must be
+        // assigned BEFORE this so any first-tick cast resolves through a non-null service.
         _abilityCastSystem = new InstanceAbilityCastSystem(loggerFactory, serviceProvider,
             serviceProvider.GetRequiredService<IScriptManager>(), this);
 
@@ -134,9 +153,8 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         _lootRoller = serviceProvider.GetService<ILootRoller>();
         _lootAllocator = serviceProvider.GetService<ILootAllocator>();
 
-        // Vendors (#432). The same clock as the loot allocator and the vendor handlers. Both fall
-        // back, so an instance built without them (tests) still ticks; production registers both.
-        _time = serviceProvider.GetService<TimeProvider>() ?? TimeProvider.System;
+        // Vendor quest gates (#432). Falls back, so an instance built without it (tests) still
+        // ticks; production registers it.
         _quests = serviceProvider.GetService<IQuestProgress>() ?? NoQuestProgress.Instance;
 
         SubscribeToEntityEvents();
@@ -184,6 +202,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         // of every drop still on its ground.
         _groundLoot.Clear();
         _lootSnapshotOwed.Clear();
+        _pvpStateOwed.Clear();
     }
 
     public Guid InstanceId { get; }
@@ -202,6 +221,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     public IReadOnlyDictionary<ObjectGuid, ICharacter> Characters => _characters;
     public IReadOnlyDictionary<ObjectGuid, ICreature> Creatures => _creatures;
     public ICombatService CombatService => _combatService;
+    public IHitQuery Hits => _hits;
     public ICreatureLocomotion Locomotion => _locomotion;
     public IMeleeSlots MeleeSlots => _meleeSlots;
 
@@ -282,6 +302,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         _connections[connection.Character.Guid] = connection;
         _broadcastStates[connection.Character.Guid] = new PerPlayerBroadcastState();
         _lootSnapshotOwed.Add(connection.Character.Guid);
+        _pvpStateOwed.Add(connection.Character.Guid);
         LastEmptyAt = null;
     }
 
@@ -290,13 +311,28 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         ICharacter character = connection.Character!;
         ObjectGuid guid = character.Guid;
 
-        // Membership first. These cannot throw, and once they are gone the tick no longer updates,
+        // A cast in progress ends here, while the character is still a member, so everyone here sees
+        // the interrupt (#164). Left queued, it would never complete once this instance empties, and
+        // Casting would refuse every cast the character tried anywhere else. Contained, so a failure
+        // cannot keep the character a member.
+        try
+        {
+            _abilityCastSystem.CancelCasts(character);
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Cancelling the casts of {CharacterGuid} as it left instance {InstanceId} failed",
+                guid, InstanceId);
+        }
+
+        // Membership next. These cannot throw, and once they are gone the tick no longer updates,
         // broadcasts or periodically saves the character, whatever the hooks below do. A disconnect
         // hook that threw ahead of them used to leave a despawned character live in the instance.
         _characters.Remove(guid);
         _connections.Remove(guid);
         _broadcastStates.Remove(guid);
         _lootSnapshotOwed.Remove(guid);
+        _pvpStateOwed.Remove(guid);
 
         if (_characters.Count == 0)
         {
@@ -344,11 +380,11 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         _meleeSlots.ReleaseClaimant(creature.Guid);
     }
 
-    public bool QueueAbility(ICharacter caster, IUnit? target, IAbility ability) =>
-        _abilityCastSystem.QueueAbility(caster, target, ability);
+    public bool QueueAbility(ICharacter caster, AbilityAim aim, IAbility ability) =>
+        _abilityCastSystem.QueueAbility(caster, aim, ability);
 
-    public void RunInstantAbility(IUnit caster, IUnit? target, IAbility ability) =>
-        _abilityCastSystem.RunInstant(caster, target, ability);
+    public bool RunInstantAbility(IUnit caster, AbilityAim aim, IAbility ability) =>
+        _abilityCastSystem.RunInstant(caster, aim, ability);
 
      public void BroadcastUnitHit(IUnit attacker, IUnit target, uint currentHealth, uint damage)
     {
@@ -359,12 +395,21 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         }
     }
 
-    public void BroadcastUnitStartCast(IUnit caster, float castTime)
+    public void BroadcastUnitStartCast(IUnit caster, IAbility ability)
     {
-        foreach ((ObjectGuid guid, IWorldConnection connection) in _connections)
+        foreach ((ObjectGuid _, IWorldConnection connection) in _connections)
         {
-            connection.Send(SUnitStartCastPacket.Create(caster.Guid, castTime,
-                connection.CryptoSession.Encrypt));
+            connection.Send(SUnitStartCastPacket.Create(caster.Guid, ability.Metadata.CastTime,
+                ability.AbilityId.Value, connection.CryptoSession.Encrypt));
+        }
+    }
+
+    public void BroadcastAbilityFired(IUnit caster, IAbility ability, Vector3 origin, Vector3? direction, Vector3? centre)
+    {
+        foreach ((ObjectGuid _, IWorldConnection connection) in _connections)
+        {
+            connection.Send(SAbilityFiredPacket.Create(caster.Guid.RawValue, ability.AbilityId.Value, origin,
+                direction, centre, connection.CryptoSession.Encrypt));
         }
     }
 
@@ -459,6 +504,24 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         _lootSnapshotOwed.Clear();
     }
 
+    /// <summary>
+    /// #164: a character entering this instance learns its own flag and any timer left. A timer that
+    /// ran out while it was offline is expired first, so it hears one (false, 0), not a stale "on".
+    /// </summary>
+    private void SendOwedPvpStates()
+    {
+        foreach (ObjectGuid guid in _pvpStateOwed)
+        {
+            if (_connections.TryGetValue(guid, out IWorldConnection? owed) && owed.Character is CharacterEntity entity)
+            {
+                _pvp.ExpireIfDue(entity);
+                _pvp.Send(owed, entity);
+            }
+        }
+
+        _pvpStateOwed.Clear();
+    }
+
     private static void SendLootSpawned(IEnumerable<IWorldConnection> recipients, IReadOnlyCollection<GroundLoot> drops)
     {
         // Built once; each connection serializes it under its own session key.
@@ -474,6 +537,10 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     {
         if (_characters.Count == 0)
         {
+            // Nothing ticks while nobody is here, but a projectile that finished just before the last
+            // character left would wait for a broadcast that never comes, and show frozen to the next
+            // player to enter (#164). Nobody is left to send its final state to, so drop it now.
+            _abilityCastSystem.DropFinished();
             return;
         }
 
@@ -483,6 +550,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         // before any packet is processed, so a kill later in this tick reaches them once, through the
         // kill broadcast, rather than twice.
         SendOwedLootSnapshots();
+        SendOwedPvpStates();
 
         // Step 1: Update creature respawns
         _corpseRemover.Update(deltaTime);
@@ -493,6 +561,12 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
             IWorldConnection connection = _connections[guid];
             connection.UpdateMap();
             character.Update(deltaTime);
+
+            // #164: the off timer is checked every tick, ahead of the periodic save so it carries the
+            // change. A running timer a player-on-player hit moved is re-sent, so the countdown is exact.
+            if (character is CharacterEntity pvpEntity
+                && (_pvp.ExpireIfDue(pvpEntity) || PvpToggle.CountdownOwed(pvpEntity)))
+                _pvp.Send(connection, pvpEntity);
 
             // Periodic save (spec #459 D4): the scheduler decides whether this is the character's tick.
             if (character is CharacterEntity entity)
@@ -834,15 +908,15 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         BroadcastUnitHit(attacker, unit, unit.CurrentHealth, damage);
     }
 
-    private void OnCharacterSelfDamaged(IUnit unit, IUnit attacker, uint damage)
+    private void OnCharacterSelfDamaged(CharacterEntity character, IUnit attacker, uint damage, AbilityId? abilityId)
     {
-        if (unit is not ICharacter character || !_connections.TryGetValue(character.Guid, out IWorldConnection? connection))
+        if (!_connections.TryGetValue(character.Guid, out IWorldConnection? connection))
         {
             return;
         }
 
         connection.Send(SCharacterDamagePacket.Create(attacker.Guid.RawValue, character.Guid.RawValue,
-            character.CurrentHealth, damage, null, connection.CryptoSession.Encrypt));
+            character.CurrentHealth, damage, abilityId?.Value, connection.CryptoSession.Encrypt));
     }
 
     private void OnCreatureKilled(ICreature creature, IUnit killer)

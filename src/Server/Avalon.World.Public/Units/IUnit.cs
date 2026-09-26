@@ -19,6 +19,12 @@ public interface IUnit : IWorldObject
     MoveState MoveState { get; set; }
     DateTime LastCastStartTime { get; set; }
 
+    /// <summary>
+    /// Metres. The radius of this unit's body circle on X/Z, which a skill's shape must overlap to
+    /// affect it (#164). Read-only.
+    /// </summary>
+    float BodyRadius { get; }
+
     GameEntityFields ConsumeDirtyFields();
 
     void OnHit(IUnit attacker, uint damage);

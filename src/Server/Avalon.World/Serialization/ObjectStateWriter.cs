@@ -88,6 +88,14 @@ public static class ObjectStateWriter
         // in the world, and a client that missed it would have nothing to label it with.
         state.Name = character.Name;
 
+        // Whatever is marked changed, only as true (#164): a client reads its absence on any character
+        // state as off, so a flag that turned off is told by the next state leaving it out, which the
+        // PvpEnabled dirty bit guarantees is sent. World-side value, so a mod cannot fake it.
+        if (character is CharacterEntity { PvpEnabled: true })
+        {
+            state.PvpEnabled = true;
+        }
+
         return state;
     }
 

@@ -18,6 +18,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NSubstitute;
 using static Avalon.Server.World.UnitTests.Inventory.TestCharacters;
+using Avalon.World.Pvp;
 
 namespace Avalon.Server.World.UnitTests.Characters;
 
@@ -129,6 +130,10 @@ public class WorldServerBarrierTickShould : IDisposable
         public object? GetService(Type serviceType)
         {
             if (serviceType == typeof(ILoggerFactory)) return NullLoggerFactory.Instance;
+
+            // PvpToggleHandler takes the one PvP toggle (#164), a class with settings and a clock.
+            if (serviceType == typeof(PvpToggle))
+                return new PvpToggle(Options.Create(new GameConfiguration()), TimeProvider.System);
 
             if (serviceType.IsGenericType && serviceType.GetGenericTypeDefinition() == typeof(ILogger<>))
                 return Activator.CreateInstance(

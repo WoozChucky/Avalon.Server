@@ -20,6 +20,9 @@ using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Entities;
 
+/// <summary>A character took damage; <paramref name="abilityId" /> is the ability that dealt it, or null for a swing (#521 item 8).</summary>
+public delegate void CharacterDamagedDelegate(CharacterEntity character, IUnit attacker, uint damage, AbilityId? abilityId);
+
 public class CharacterEntity : ICharacter
 {
     private readonly CharacterInventoryContainer _bag;
@@ -142,6 +145,24 @@ public class CharacterEntity : ICharacter
     /// <summary>What the next save must write. Marked by the inventory service and the wallet.</summary>
     public SaveStateTracker SaveState { get; } = new();
 
+    /// <summary>World-side only, not on ICharacter: the modding API cannot read or set PvP (#164).</summary>
+    public bool PvpEnabled => Data?.PvpEnabled ?? false;
+
+    public DateTime? PvpOffAt => Data?.PvpOffAt;
+
+    /// <summary>
+    /// The off time this character's client was last told in SMSG_PVP_STATE, null for none (#164). Set
+    /// only by PvpToggle.Send; never saved, so every session starts untold. World-side only.
+    /// </summary>
+    public DateTime? PvpOffAtTold { get; internal set; }
+
+    /// <summary>Called by PvpToggle after it writes the row: replicates the flag and marks the save.</summary>
+    public void MarkPvpChanged()
+    {
+        _dirtyFields |= GameEntityFields.PvpEnabled;
+        SaveState.PvpChanged();
+    }
+
     /// <summary>Time left until the next periodic save; null until the character first ticks in a map.</summary>
     public TimeSpan? NextPeriodicSaveIn { get; set; }
 
@@ -261,6 +282,8 @@ public class CharacterEntity : ICharacter
 
     public DateTime LastCastStartTime { get; set; } = DateTime.MinValue;
 
+    public float BodyRadius => UnitBody.CharacterRadius;
+
     public GameEntityFields ConsumeDirtyFields()
     {
         var dirty = _dirtyFields;
@@ -270,7 +293,10 @@ public class CharacterEntity : ICharacter
 
     public void MarkCombat() => _lastCombatTime = DateTime.UtcNow;
 
-    public void OnHit(IUnit attacker, uint damage)
+    public void OnHit(IUnit attacker, uint damage) => OnHit(attacker, damage, abilityId: null);
+
+    /// <summary>Takes <paramref name="damage" /> from <paramref name="attacker" />; <paramref name="abilityId" /> names the ability that dealt it, or null for a swing.</summary>
+    public void OnHit(IUnit attacker, uint damage, AbilityId? abilityId)
     {
         if (IsDead) return; // corpse — no further state changes or broadcast
 
@@ -290,7 +316,7 @@ public class CharacterEntity : ICharacter
         }
 
         // Send to self (routed via MapInstance which holds the connection)
-        OnSelfDamaged?.Invoke(this, attacker, damage);
+        OnSelfDamaged?.Invoke(this, attacker, damage, abilityId);
         // Broadcast to instance
         OnUnitDamaged?.Invoke(this, attacker, damage);
     }
@@ -492,7 +518,7 @@ public class CharacterEntity : ICharacter
     public static event CharacterDisconnectedDelegate? CharacterDisconnected;
     public static event UnitInterruptedCastAnimationDelegate? OnUnitInterruptedCastAnimation;
     public static event UnitDamagedDelegate? OnUnitDamaged;
-    public static event UnitDamagedDelegate? OnSelfDamaged;
+    public static event CharacterDamagedDelegate? OnSelfDamaged;
 
     private void CalculateMovementSpeed()
     {

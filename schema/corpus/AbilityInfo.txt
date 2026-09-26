@@ -23,6 +23,15 @@ variant absent
   field 5 Cost : uint = 0
   field 6 Range : ushort = 0
   field 7 FacingAngle : float = 0 (0x00000000)
+  field 8 AimMode : AbilityAimMode = Movement (0)
+  field 9 Shape : AbilityShape = Circle (0)
+  field 10 Anchor : AbilityAnchor = Caster (0)
+  field 11 Reach : float = 0 (0x00000000)
+  field 12 Radius : float = 0 (0x00000000)
+  field 13 ArcDegrees : float = 0 (0x00000000)
+  field 14 ProjectileSpeed : float = 0 (0x00000000)
+  field 15 Pierce : bool = false
+  field 16 Affects : AbilityAffects = Hostile (0)
   bytes 0
 
 variant empty
@@ -33,6 +42,15 @@ variant empty
   field 5 Cost : uint = 0
   field 6 Range : ushort = 0
   field 7 FacingAngle : float = 0 (0x00000000)
+  field 8 AimMode : AbilityAimMode = Movement (0)
+  field 9 Shape : AbilityShape = Circle (0)
+  field 10 Anchor : AbilityAnchor = Caster (0)
+  field 11 Reach : float = 0 (0x00000000)
+  field 12 Radius : float = 0 (0x00000000)
+  field 13 ArcDegrees : float = 0 (0x00000000)
+  field 14 ProjectileSpeed : float = 0 (0x00000000)
+  field 15 Pierce : bool = false
+  field 16 Affects : AbilityAffects = Hostile (0)
   bytes 2
     12 00
 
@@ -44,10 +62,21 @@ variant populated
   field 5 Cost : uint = 300
   field 6 Range : ushort = 42
   field 7 FacingAngle : float = 3.14159274 (0x40490fdb)
-  bytes 45
+  field 8 AimMode : AbilityAimMode = Cursor (1)
+  field 9 Shape : AbilityShape = Cone (1)
+  field 10 Anchor : AbilityAnchor = AimPoint (1)
+  field 11 Reach : float = 1.5 (0x3fc00000)
+  field 12 Radius : float = -2.25 (0xc0100000)
+  field 13 ArcDegrees : float = -7.50000027E-08 (0xb3a10fb0)
+  field 14 ProjectileSpeed : float = -2.25 (0xc0100000)
+  field 15 Pierce : bool = true
+  field 16 Affects : AbilityAffects = Ally (1)
+  bytes 76
     08 2a 12 15 ce a9 ce bc ce ad ce b3 ce b1 20 ce
     94 ce 95 ce 9b ce a4 ce 91 1d b0 0f a1 b3 25 f9
-    02 15 50 28 ac 02 30 2a 3d db 0f 49 40
+    02 15 50 28 ac 02 30 2a 3d db 0f 49 40 40 01 48
+    01 50 01 5d 00 00 c0 3f 65 00 00 10 c0 6d b0 0f
+    a1 b3 75 00 00 10 c0 78 01 80 01 01
 
 variant maxima
   field 1 AbilityId : uint = 4294967295
@@ -57,7 +86,16 @@ variant maxima
   field 5 Cost : uint = 4294967295
   field 6 Range : ushort = 65535
   field 7 FacingAngle : float = 3.40282347E+38 (0x7f7fffff)
-  bytes 166
+  field 8 AimMode : AbilityAimMode = Cursor (1)
+  field 9 Shape : AbilityShape = Projectile (2)
+  field 10 Anchor : AbilityAnchor = AimPoint (1)
+  field 11 Reach : float = 3.40282347E+38 (0x7f7fffff)
+  field 12 Radius : float = 3.40282347E+38 (0x7f7fffff)
+  field 13 ArcDegrees : float = 3.40282347E+38 (0x7f7fffff)
+  field 14 ProjectileSpeed : float = 3.40282347E+38 (0x7f7fffff)
+  field 15 Pierce : bool = true
+  field 16 Affects : AbilityAffects = Ally (1)
+  bytes 197
     08 ff ff ff ff 0f 12 84 01 ce a9 78 ce a9 78 ce
     a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
     78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
@@ -68,7 +106,9 @@ variant maxima
     a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
     78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 1d ff ff
     7f 7f 25 ff ff 7f 7f 28 ff ff ff ff 0f 30 ff ff
-    03 3d ff ff 7f 7f
+    03 3d ff ff 7f 7f 40 01 48 02 50 01 5d ff ff 7f
+    7f 65 ff ff 7f 7f 6d ff ff 7f 7f 75 ff ff 7f 7f
+    78 01 80 01 01
 
 variant minima
   field 1 AbilityId : uint = 0
@@ -78,9 +118,19 @@ variant minima
   field 5 Cost : uint = 0
   field 6 Range : ushort = 0
   field 7 FacingAngle : float = -3.40282347E+38 (0xff7fffff)
-  bytes 18
+  field 8 AimMode : AbilityAimMode = Movement (0)
+  field 9 Shape : AbilityShape = Circle (0)
+  field 10 Anchor : AbilityAnchor = Caster (0)
+  field 11 Reach : float = -3.40282347E+38 (0xff7fffff)
+  field 12 Radius : float = -3.40282347E+38 (0xff7fffff)
+  field 13 ArcDegrees : float = -3.40282347E+38 (0xff7fffff)
+  field 14 ProjectileSpeed : float = -3.40282347E+38 (0xff7fffff)
+  field 15 Pierce : bool = false
+  field 16 Affects : AbilityAffects = Hostile (0)
+  bytes 38
     12 01 01 1d ff ff 7f ff 25 ff ff 7f ff 3d ff ff
-    7f ff
+    7f ff 5d ff ff 7f ff 65 ff ff 7f ff 6d ff ff 7f
+    ff 75 ff ff 7f ff
 
 variant varint-edges
   field 1 AbilityId : uint = 2097151
@@ -90,7 +140,16 @@ variant varint-edges
   field 5 Cost : uint = 127
   field 6 Range : ushort = 16383
   field 7 FacingAngle : float = 1.17549435E-38 (0x00800000)
-  bytes 155
+  field 8 AimMode : AbilityAimMode = <not a declared member> (2)
+  field 9 Shape : AbilityShape = <not a declared member> (3)
+  field 10 Anchor : AbilityAnchor = <not a declared member> (2)
+  field 11 Reach : float = 1.17549435E-38 (0x00800000)
+  field 12 Radius : float = 1.17549435E-38 (0x00800000)
+  field 13 ArcDegrees : float = 1.17549435E-38 (0x00800000)
+  field 14 ProjectileSpeed : float = 1.17549435E-38 (0x00800000)
+  field 15 Pierce : bool = true
+  field 16 Affects : AbilityAffects = <not a declared member> (2)
+  bytes 186
     08 ff ff 7f 12 80 01 79 79 79 79 79 79 79 79 79
     79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
     79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
@@ -100,17 +159,30 @@ variant varint-edges
     79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
     79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
     79 79 79 79 79 79 79 1d 00 00 80 00 25 00 00 80
-    00 28 7f 30 ff 7f 3d 00 00 80 00
+    00 28 7f 30 ff 7f 3d 00 00 80 00 40 02 48 03 50
+    02 5d 00 00 80 00 65 00 00 80 00 6d 00 00 80 00
+    75 00 00 80 00 78 01 80 01 02
 
 variant float-specials
   field 1 AbilityId : uint = 42
   field 2 Name : string = "Ωμέγα ΔΕΛΤΑ" (11 chars, 21 bytes utf-8)
-  field 3 Cooldown : float = NaN (0x7fc00001)
-  field 4 CastTime : float = NaN (0xffc00000)
+  field 3 Cooldown : float = Infinity (0x7f800000)
+  field 4 CastTime : float = NaN (0x7fc00001)
   field 5 Cost : uint = 300
   field 6 Range : ushort = 42
-  field 7 FacingAngle : float = Infinity (0x7f800000)
-  bytes 45
+  field 7 FacingAngle : float = -Infinity (0xff800000)
+  field 8 AimMode : AbilityAimMode = Cursor (1)
+  field 9 Shape : AbilityShape = Cone (1)
+  field 10 Anchor : AbilityAnchor = AimPoint (1)
+  field 11 Reach : float = 1.17549421E-38 (0x007fffff)
+  field 12 Radius : float = 1.40129846E-45 (0x00000001)
+  field 13 ArcDegrees : float = NaN (0xffc00000)
+  field 14 ProjectileSpeed : float = -0 (0x80000000)
+  field 15 Pierce : bool = true
+  field 16 Affects : AbilityAffects = Ally (1)
+  bytes 71
     08 2a 12 15 ce a9 ce bc ce ad ce b3 ce b1 20 ce
-    94 ce 95 ce 9b ce a4 ce 91 1d 01 00 c0 7f 25 00
-    00 c0 ff 28 ac 02 30 2a 3d 00 00 80 7f
+    94 ce 95 ce 9b ce a4 ce 91 1d 00 00 80 7f 25 01
+    00 c0 7f 28 ac 02 30 2a 3d 00 00 80 ff 40 01 48
+    01 50 01 5d ff ff 7f 00 65 01 00 00 00 6d 00 00
+    c0 ff 78 01 80 01 01

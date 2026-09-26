@@ -1,3 +1,4 @@
+using Avalon.Network.Packets.Abilities;
 using Avalon.Network.Packets.Abstractions;
 using ProtoBuf;
 using Avalon.Network.Packets.Serialization;
@@ -29,11 +30,17 @@ public class AbilityInfo
     [ProtoMember(5)] public uint Cost { get; set; }
     [ProtoMember(6)] public ushort Range { get; set; }
 
-    /// <summary>
-    /// The facing cone's half-angle, in degrees from the caster's facing (#513). A cast at a target
-    /// is accepted only when the angle between the caster's facing and the direction to the target
-    /// is strictly less than this value; a target at exactly this angle is refused, with
-    /// CastRejectReason.NotFacing. Targetless casts are not checked.
-    /// </summary>
+    /// <summary>Unused since #164 and never set: there is no facing cone. Kept so the field number is not reused.</summary>
     [ProtoMember(7)] public float FacingAngle { get; set; }
+
+    // Aim and shape (#164), so a client can draw the telegraph. Metres and degrees as on AbilityTemplate.
+    [ProtoMember(8)] public AbilityAimMode AimMode { get; set; }
+    [ProtoMember(9)] public AbilityShape Shape { get; set; }
+    [ProtoMember(10)] public AbilityAnchor Anchor { get; set; }
+    [ProtoMember(11)] public float Reach { get; set; }
+    [ProtoMember(12)] public float Radius { get; set; }
+    [ProtoMember(13)] public float ArcDegrees { get; set; }
+    [ProtoMember(14)] public float ProjectileSpeed { get; set; }
+    [ProtoMember(15)] public bool Pierce { get; set; }
+    [ProtoMember(16)] public AbilityAffects Affects { get; set; }
 }

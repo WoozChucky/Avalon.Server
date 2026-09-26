@@ -81,6 +81,7 @@ public enum NetworkPacketType : short
     // 0x2100 retired (CMSG_ATTACK — replaced by CMSG_CAST_ABILITY in V1 combat system)
     CMSG_CAST_ABILITY = 0x2101,
     CMSG_TARGET_UNIT  = 0x2102,
+    CMSG_PVP_TOGGLE   = 0x2103,
 
     /**************************************************************************
      * Server Packets
@@ -138,6 +139,8 @@ public enum NetworkPacketType : short
     SMSG_UNIT_DEATH = 0x3107,
     SMSG_UNIT_REVIVE = 0x3108,
     SMSG_THREAT_LIST = 0x3109,
+    SMSG_ABILITY_FIRED = 0x310A,
+    SMSG_PVP_STATE = 0x310B,
 
 
     SMSG_PONG = 0x3006,

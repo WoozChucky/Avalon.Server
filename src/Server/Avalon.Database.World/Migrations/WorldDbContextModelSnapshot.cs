@@ -26,12 +26,24 @@ namespace Avalon.Database.World.Migrations
                     b.Property<long>("Id")
                         .HasColumnType("bigint");
 
+                    b.Property<byte>("Affects")
+                        .HasColumnType("smallint");
+
+                    b.Property<byte>("AimMode")
+                        .HasColumnType("smallint");
+
                     b.PrimitiveCollection<int[]>("AllowedClasses")
                         .IsRequired()
                         .HasColumnType("integer[]");
 
+                    b.Property<byte>("Anchor")
+                        .HasColumnType("smallint");
+
                     b.Property<long>("AnimationId")
                         .HasColumnType("bigint");
+
+                    b.Property<float>("ArcDegrees")
+                        .HasColumnType("real");
 
                     b.Property<long>("CastTime")
                         .HasColumnType("bigint");
@@ -58,8 +70,23 @@ namespace Avalon.Database.World.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<bool>("Pierce")
+                        .HasColumnType("boolean");
+
+                    b.Property<float>("ProjectileSpeed")
+                        .HasColumnType("real");
+
+                    b.Property<float>("Radius")
+                        .HasColumnType("real");
+
                     b.Property<int>("Range")
                         .HasColumnType("integer");
+
+                    b.Property<float>("Reach")
+                        .HasColumnType("real");
+
+                    b.Property<byte>("Shape")
+                        .HasColumnType("smallint");
 
                     b.Property<string>("SpellScript")
                         .IsRequired()
@@ -78,111 +105,327 @@ namespace Avalon.Database.World.Migrations
                     b.HasData(
                         new
                         {
-                            Id = 1L,
+                            Id = 200L,
+                            Affects = (byte)0,
+                            AimMode = (byte)0,
                             AllowedClasses = new[] { 1 },
+                            Anchor = (byte)0,
                             AnimationId = 0L,
+                            ArcDegrees = 100f,
                             CastTime = 0L,
-                            Cooldown = 2500L,
-                            Cost = 25L,
-                            EffectValue = 10L,
-                            Effects = 1,
-                            Flags = 0L,
-                            HealThreatPerHp = 0f,
-                            Name = "Strike",
-                            Range = 2,
-                            SpellScript = "StrikeAbilityScript",
-                            TauntDurationMs = 0L,
-                            ThreatMultiplier = 1f
-                        },
-                        new
-                        {
-                            Id = 2L,
-                            AllowedClasses = new[] { 1, 2 },
-                            AnimationId = 0L,
-                            CastTime = 2000L,
-                            Cooldown = 1000L,
-                            Cost = 10L,
-                            EffectValue = 10L,
-                            Effects = 1,
-                            Flags = 0L,
-                            HealThreatPerHp = 0f,
-                            Name = "Fireball",
-                            Range = 10,
-                            SpellScript = "FireballAbilityScript",
-                            TauntDurationMs = 0L,
-                            ThreatMultiplier = 1f
-                        },
-                        new
-                        {
-                            Id = 100L,
-                            AllowedClasses = new[] { 1 },
-                            AnimationId = 0L,
-                            CastTime = 0L,
-                            Cooldown = 500L,
-                            Cost = 0L,
-                            EffectValue = 15L,
-                            Effects = 1,
-                            Flags = 0L,
-                            HealThreatPerHp = 0f,
-                            Name = "Warrior Slash",
-                            Range = 2,
-                            SpellScript = "StrikeAbilityScript",
-                            TauntDurationMs = 0L,
-                            ThreatMultiplier = 1.5f
-                        },
-                        new
-                        {
-                            Id = 101L,
-                            AllowedClasses = new[] { 2 },
-                            AnimationId = 0L,
-                            CastTime = 200L,
-                            Cooldown = 700L,
-                            Cost = 0L,
-                            EffectValue = 8L,
-                            Effects = 1,
-                            Flags = 0L,
-                            HealThreatPerHp = 0f,
-                            Name = "Wizard Bolt",
-                            Range = 10,
-                            SpellScript = "StrikeAbilityScript",
-                            TauntDurationMs = 0L,
-                            ThreatMultiplier = 1f
-                        },
-                        new
-                        {
-                            Id = 102L,
-                            AllowedClasses = new[] { 3 },
-                            AnimationId = 0L,
-                            CastTime = 0L,
-                            Cooldown = 600L,
-                            Cost = 0L,
-                            EffectValue = 10L,
-                            Effects = 1,
-                            Flags = 0L,
-                            HealThreatPerHp = 0f,
-                            Name = "Hunter Shot",
-                            Range = 20,
-                            SpellScript = "StrikeAbilityScript",
-                            TauntDurationMs = 0L,
-                            ThreatMultiplier = 1f
-                        },
-                        new
-                        {
-                            Id = 103L,
-                            AllowedClasses = new[] { 4 },
-                            AnimationId = 0L,
-                            CastTime = 300L,
                             Cooldown = 800L,
                             Cost = 0L,
-                            EffectValue = 5L,
+                            EffectValue = 12L,
                             Effects = 1,
                             Flags = 0L,
                             HealThreatPerHp = 0f,
-                            Name = "Healer Wand",
-                            Range = 10,
-                            SpellScript = "StrikeAbilityScript",
+                            Name = "Cleave",
+                            Pierce = false,
+                            ProjectileSpeed = 0f,
+                            Radius = 0f,
+                            Range = 2,
+                            Reach = 2.5f,
+                            Shape = (byte)1,
+                            SpellScript = "ConeAbilityScript",
                             TauntDurationMs = 0L,
-                            ThreatMultiplier = 0.8f
+                            ThreatMultiplier = 1f
+                        },
+                        new
+                        {
+                            Id = 201L,
+                            Affects = (byte)0,
+                            AimMode = (byte)0,
+                            AllowedClasses = new[] { 1 },
+                            Anchor = (byte)0,
+                            AnimationId = 0L,
+                            ArcDegrees = 0f,
+                            CastTime = 0L,
+                            Cooldown = 5000L,
+                            Cost = 20L,
+                            EffectValue = 25L,
+                            Effects = 1,
+                            Flags = 0L,
+                            HealThreatPerHp = 0f,
+                            Name = "Ground Slam",
+                            Pierce = false,
+                            ProjectileSpeed = 0f,
+                            Radius = 3f,
+                            Range = 5,
+                            Reach = 0f,
+                            Shape = (byte)0,
+                            SpellScript = "CircleAbilityScript",
+                            TauntDurationMs = 0L,
+                            ThreatMultiplier = 1f
+                        },
+                        new
+                        {
+                            Id = 202L,
+                            Affects = (byte)0,
+                            AimMode = (byte)1,
+                            AllowedClasses = new[] { 1 },
+                            Anchor = (byte)0,
+                            AnimationId = 0L,
+                            ArcDegrees = 0f,
+                            CastTime = 0L,
+                            Cooldown = 3000L,
+                            Cost = 10L,
+                            EffectValue = 20L,
+                            Effects = 1,
+                            Flags = 0L,
+                            HealThreatPerHp = 0f,
+                            Name = "Hurled Axe",
+                            Pierce = false,
+                            ProjectileSpeed = 18f,
+                            Radius = 0f,
+                            Range = 10,
+                            Reach = 15f,
+                            Shape = (byte)2,
+                            SpellScript = "ProjectileAbilityScript",
+                            TauntDurationMs = 0L,
+                            ThreatMultiplier = 1f
+                        },
+                        new
+                        {
+                            Id = 210L,
+                            Affects = (byte)0,
+                            AimMode = (byte)1,
+                            AllowedClasses = new[] { 2 },
+                            Anchor = (byte)0,
+                            AnimationId = 0L,
+                            ArcDegrees = 0f,
+                            CastTime = 0L,
+                            Cooldown = 800L,
+                            Cost = 0L,
+                            EffectValue = 12L,
+                            Effects = 1,
+                            Flags = 0L,
+                            HealThreatPerHp = 0f,
+                            Name = "Arcane Bolt",
+                            Pierce = false,
+                            ProjectileSpeed = 22f,
+                            Radius = 0f,
+                            Range = 20,
+                            Reach = 20f,
+                            Shape = (byte)2,
+                            SpellScript = "ProjectileAbilityScript",
+                            TauntDurationMs = 0L,
+                            ThreatMultiplier = 1f
+                        },
+                        new
+                        {
+                            Id = 211L,
+                            Affects = (byte)0,
+                            AimMode = (byte)1,
+                            AllowedClasses = new[] { 2 },
+                            Anchor = (byte)1,
+                            AnimationId = 0L,
+                            ArcDegrees = 0f,
+                            CastTime = 600L,
+                            Cooldown = 5000L,
+                            Cost = 25L,
+                            EffectValue = 35L,
+                            Effects = 1,
+                            Flags = 0L,
+                            HealThreatPerHp = 0f,
+                            Name = "Flame Burst",
+                            Pierce = false,
+                            ProjectileSpeed = 0f,
+                            Radius = 3f,
+                            Range = 20,
+                            Reach = 18f,
+                            Shape = (byte)0,
+                            SpellScript = "CircleAbilityScript",
+                            TauntDurationMs = 0L,
+                            ThreatMultiplier = 1f
+                        },
+                        new
+                        {
+                            Id = 212L,
+                            Affects = (byte)0,
+                            AimMode = (byte)1,
+                            AllowedClasses = new[] { 2 },
+                            Anchor = (byte)0,
+                            AnimationId = 0L,
+                            ArcDegrees = 60f,
+                            CastTime = 0L,
+                            Cooldown = 4000L,
+                            Cost = 15L,
+                            EffectValue = 22L,
+                            Effects = 1,
+                            Flags = 0L,
+                            HealThreatPerHp = 0f,
+                            Name = "Frost Fan",
+                            Pierce = false,
+                            ProjectileSpeed = 0f,
+                            Radius = 0f,
+                            Range = 5,
+                            Reach = 6f,
+                            Shape = (byte)1,
+                            SpellScript = "ConeAbilityScript",
+                            TauntDurationMs = 0L,
+                            ThreatMultiplier = 1f
+                        },
+                        new
+                        {
+                            Id = 220L,
+                            Affects = (byte)0,
+                            AimMode = (byte)1,
+                            AllowedClasses = new[] { 3 },
+                            Anchor = (byte)0,
+                            AnimationId = 0L,
+                            ArcDegrees = 0f,
+                            CastTime = 0L,
+                            Cooldown = 800L,
+                            Cost = 0L,
+                            EffectValue = 12L,
+                            Effects = 1,
+                            Flags = 0L,
+                            HealThreatPerHp = 0f,
+                            Name = "Quick Shot",
+                            Pierce = false,
+                            ProjectileSpeed = 28f,
+                            Radius = 0f,
+                            Range = 20,
+                            Reach = 25f,
+                            Shape = (byte)2,
+                            SpellScript = "ProjectileAbilityScript",
+                            TauntDurationMs = 0L,
+                            ThreatMultiplier = 1f
+                        },
+                        new
+                        {
+                            Id = 221L,
+                            Affects = (byte)0,
+                            AimMode = (byte)1,
+                            AllowedClasses = new[] { 3 },
+                            Anchor = (byte)0,
+                            AnimationId = 0L,
+                            ArcDegrees = 0f,
+                            CastTime = 0L,
+                            Cooldown = 4000L,
+                            Cost = 15L,
+                            EffectValue = 25L,
+                            Effects = 1,
+                            Flags = 0L,
+                            HealThreatPerHp = 0f,
+                            Name = "Piercing Arrow",
+                            Pierce = true,
+                            ProjectileSpeed = 24f,
+                            Radius = 0f,
+                            Range = 20,
+                            Reach = 30f,
+                            Shape = (byte)2,
+                            SpellScript = "ProjectileAbilityScript",
+                            TauntDurationMs = 0L,
+                            ThreatMultiplier = 1f
+                        },
+                        new
+                        {
+                            Id = 222L,
+                            Affects = (byte)0,
+                            AimMode = (byte)1,
+                            AllowedClasses = new[] { 3 },
+                            Anchor = (byte)0,
+                            AnimationId = 0L,
+                            ArcDegrees = 45f,
+                            CastTime = 0L,
+                            Cooldown = 4000L,
+                            Cost = 20L,
+                            EffectValue = 22L,
+                            Effects = 1,
+                            Flags = 0L,
+                            HealThreatPerHp = 0f,
+                            Name = "Scatter Shot",
+                            Pierce = false,
+                            ProjectileSpeed = 0f,
+                            Radius = 0f,
+                            Range = 10,
+                            Reach = 8f,
+                            Shape = (byte)1,
+                            SpellScript = "ConeAbilityScript",
+                            TauntDurationMs = 0L,
+                            ThreatMultiplier = 1f
+                        },
+                        new
+                        {
+                            Id = 230L,
+                            Affects = (byte)0,
+                            AimMode = (byte)1,
+                            AllowedClasses = new[] { 4 },
+                            Anchor = (byte)0,
+                            AnimationId = 0L,
+                            ArcDegrees = 0f,
+                            CastTime = 0L,
+                            Cooldown = 800L,
+                            Cost = 0L,
+                            EffectValue = 12L,
+                            Effects = 1,
+                            Flags = 0L,
+                            HealThreatPerHp = 0f,
+                            Name = "Smite",
+                            Pierce = false,
+                            ProjectileSpeed = 20f,
+                            Radius = 0f,
+                            Range = 20,
+                            Reach = 18f,
+                            Shape = (byte)2,
+                            SpellScript = "ProjectileAbilityScript",
+                            TauntDurationMs = 0L,
+                            ThreatMultiplier = 1f
+                        },
+                        new
+                        {
+                            Id = 231L,
+                            Affects = (byte)0,
+                            AimMode = (byte)0,
+                            AllowedClasses = new[] { 4 },
+                            Anchor = (byte)0,
+                            AnimationId = 0L,
+                            ArcDegrees = 0f,
+                            CastTime = 0L,
+                            Cooldown = 5000L,
+                            Cost = 20L,
+                            EffectValue = 22L,
+                            Effects = 1,
+                            Flags = 0L,
+                            HealThreatPerHp = 0f,
+                            Name = "Radiant Pulse",
+                            Pierce = false,
+                            ProjectileSpeed = 0f,
+                            Radius = 4f,
+                            Range = 5,
+                            Reach = 0f,
+                            Shape = (byte)0,
+                            SpellScript = "CircleAbilityScript",
+                            TauntDurationMs = 0L,
+                            ThreatMultiplier = 1f
+                        },
+                        new
+                        {
+                            Id = 232L,
+                            Affects = (byte)1,
+                            AimMode = (byte)1,
+                            AllowedClasses = new[] { 4 },
+                            Anchor = (byte)1,
+                            AnimationId = 0L,
+                            ArcDegrees = 0f,
+                            CastTime = 0L,
+                            Cooldown = 8000L,
+                            Cost = 25L,
+                            EffectValue = 40L,
+                            Effects = 2,
+                            Flags = 0L,
+                            HealThreatPerHp = 0.5f,
+                            Name = "Mending Circle",
+                            Pierce = false,
+                            ProjectileSpeed = 0f,
+                            Radius = 4f,
+                            Range = 10,
+                            Reach = 15f,
+                            Shape = (byte)0,
+                            SpellScript = "CircleAbilityScript",
+                            TauntDurationMs = 0L,
+                            ThreatMultiplier = 1f
                         });
                 });
 
@@ -260,7 +503,7 @@ namespace Avalon.Database.World.Migrations
                             Map = 1,
                             Rotation = 0f,
                             StartingItems = "1,2,3",
-                            StartingSpells = "1,2,100",
+                            StartingSpells = "200,201,202",
                             X = 25f,
                             Y = 51f,
                             Z = 25f
@@ -271,7 +514,7 @@ namespace Avalon.Database.World.Migrations
                             Map = 1,
                             Rotation = 0f,
                             StartingItems = "1,2",
-                            StartingSpells = "2,101",
+                            StartingSpells = "210,211,212",
                             X = 25f,
                             Y = 51f,
                             Z = 25f
@@ -282,7 +525,7 @@ namespace Avalon.Database.World.Migrations
                             Map = 1,
                             Rotation = 0f,
                             StartingItems = "1,2",
-                            StartingSpells = "102",
+                            StartingSpells = "220,221,222",
                             X = 25f,
                             Y = 51f,
                             Z = 25f
@@ -293,7 +536,7 @@ namespace Avalon.Database.World.Migrations
                             Map = 1,
                             Rotation = 0f,
                             StartingItems = "1,2",
-                            StartingSpells = "103",
+                            StartingSpells = "230,231,232",
                             X = 25f,
                             Y = 51f,
                             Z = 25f
@@ -1416,6 +1659,9 @@ namespace Avalon.Database.World.Migrations
                     b.Property<int>("BaseAttackTime")
                         .HasColumnType("integer");
 
+                    b.Property<float>("BodyRadius")
+                        .HasColumnType("real");
+
                     b.Property<int>("BodyRemoveTimerSecs")
                         .HasColumnType("integer");
 
@@ -1512,7 +1758,10 @@ namespace Avalon.Database.World.Migrations
 
                     b.HasIndex("LootTableId");
 
-                    b.ToTable("CreatureTemplates");
+                    b.ToTable("CreatureTemplates", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_CreatureTemplates_BodyRadius_Positive", "\"BodyRadius\" > 0 AND \"BodyRadius\" < 'Infinity'");
+                        });
 
                     b.HasData(
                         new
@@ -1521,6 +1770,7 @@ namespace Avalon.Database.World.Migrations
                             AIName = "",
                             ArmorModifier = 1f,
                             BaseAttackTime = 1,
+                            BodyRadius = 0.5f,
                             BodyRemoveTimerSecs = 10,
                             DamageModifier = 1f,
                             DetectionRange = 20f,
@@ -1556,6 +1806,7 @@ namespace Avalon.Database.World.Migrations
                             AIName = "",
                             ArmorModifier = 1f,
                             BaseAttackTime = 1,
+                            BodyRadius = 0.5f,
                             BodyRemoveTimerSecs = 10,
                             DamageModifier = 1f,
                             DetectionRange = 20f,
@@ -1591,6 +1842,7 @@ namespace Avalon.Database.World.Migrations
                             AIName = "",
                             ArmorModifier = 1f,
                             BaseAttackTime = 1,
+                            BodyRadius = 0.5f,
                             BodyRemoveTimerSecs = 10,
                             DamageModifier = 1f,
                             DetectionRange = 20f,
@@ -1626,6 +1878,7 @@ namespace Avalon.Database.World.Migrations
                             AIName = "",
                             ArmorModifier = 1f,
                             BaseAttackTime = 1,
+                            BodyRadius = 0.5f,
                             BodyRemoveTimerSecs = 10,
                             DamageModifier = 1f,
                             DetectionRange = 12f,
@@ -1661,6 +1914,7 @@ namespace Avalon.Database.World.Migrations
                             AIName = "",
                             ArmorModifier = 1f,
                             BaseAttackTime = 1,
+                            BodyRadius = 0.5f,
                             BodyRemoveTimerSecs = 10,
                             DamageModifier = 1.1f,
                             DetectionRange = 18f,
@@ -1696,6 +1950,7 @@ namespace Avalon.Database.World.Migrations
                             AIName = "",
                             ArmorModifier = 1f,
                             BaseAttackTime = 1,
+                            BodyRadius = 0.5f,
                             BodyRemoveTimerSecs = 10,
                             DamageModifier = 0.7f,
                             DetectionRange = 8f,
@@ -1731,6 +1986,7 @@ namespace Avalon.Database.World.Migrations
                             AIName = "",
                             ArmorModifier = 1f,
                             BaseAttackTime = 1,
+                            BodyRadius = 0.5f,
                             BodyRemoveTimerSecs = 10,
                             DamageModifier = 1f,
                             DetectionRange = 14f,
@@ -1766,6 +2022,7 @@ namespace Avalon.Database.World.Migrations
                             AIName = "",
                             ArmorModifier = 1f,
                             BaseAttackTime = 1,
+                            BodyRadius = 0.5f,
                             BodyRemoveTimerSecs = 10,
                             DamageModifier = 1.1f,
                             DetectionRange = 22f,
@@ -1801,6 +2058,7 @@ namespace Avalon.Database.World.Migrations
                             AIName = "",
                             ArmorModifier = 1f,
                             BaseAttackTime = 1,
+                            BodyRadius = 0.5f,
                             BodyRemoveTimerSecs = 10,
                             DamageModifier = 1.1f,
                             DetectionRange = 20f,
@@ -1836,6 +2094,7 @@ namespace Avalon.Database.World.Migrations
                             AIName = "",
                             ArmorModifier = 1f,
                             BaseAttackTime = 1,
+                            BodyRadius = 0.5f,
                             BodyRemoveTimerSecs = 10,
                             DamageModifier = 1f,
                             DetectionRange = 26f,
@@ -1871,6 +2130,7 @@ namespace Avalon.Database.World.Migrations
                             AIName = "",
                             ArmorModifier = 1f,
                             BaseAttackTime = 1,
+                            BodyRadius = 0.5f,
                             BodyRemoveTimerSecs = 10,
                             DamageModifier = 1f,
                             DetectionRange = 20f,
@@ -1906,6 +2166,7 @@ namespace Avalon.Database.World.Migrations
                             AIName = "",
                             ArmorModifier = 1f,
                             BaseAttackTime = 1,
+                            BodyRadius = 0.5f,
                             BodyRemoveTimerSecs = 10,
                             DamageModifier = 1f,
                             DetectionRange = 20f,
@@ -1941,6 +2202,7 @@ namespace Avalon.Database.World.Migrations
                             AIName = "",
                             ArmorModifier = 1f,
                             BaseAttackTime = 1,
+                            BodyRadius = 0.5f,
                             BodyRemoveTimerSecs = 10,
                             DamageModifier = 1f,
                             DetectionRange = 20f,
@@ -1976,6 +2238,7 @@ namespace Avalon.Database.World.Migrations
                             AIName = "",
                             ArmorModifier = 1f,
                             BaseAttackTime = 1,
+                            BodyRadius = 0.5f,
                             BodyRemoveTimerSecs = 10,
                             DamageModifier = 1f,
                             DetectionRange = 20f,

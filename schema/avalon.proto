@@ -53,6 +53,18 @@ package avalon;
 import "protobuf-net/bcl.proto"; // schema for protobuf-net's handling of core .NET types
 option optimize_for = LITE_RUNTIME;
 
+enum AbilityAffects {
+   AbilityAffects_Hostile = 0;
+   AbilityAffects_Ally = 1;
+}
+enum AbilityAimMode {
+   AbilityAimMode_Movement = 0;
+   AbilityAimMode_Cursor = 1;
+}
+enum AbilityAnchor {
+   AbilityAnchor_Caster = 0;
+   AbilityAnchor_AimPoint = 1;
+}
 message AbilityInfo {
    uint32 AbilityId = 1;
    optional string Name = 2;
@@ -61,6 +73,20 @@ message AbilityInfo {
    uint32 Cost = 5;
    uint32 Range = 6;
    float FacingAngle = 7;
+   AbilityAimMode AimMode = 8;
+   AbilityShape Shape = 9;
+   AbilityAnchor Anchor = 10;
+   float Reach = 11;
+   float Radius = 12;
+   float ArcDegrees = 13;
+   float ProjectileSpeed = 14;
+   bool Pierce = 15;
+   AbilityAffects Affects = 16;
+}
+enum AbilityShape {
+   AbilityShape_Circle = 0;
+   AbilityShape_Cone = 1;
+   AbilityShape_Projectile = 2;
 }
 enum AuthResult {
    AuthResult_INVALID_CREDENTIALS = 0;
@@ -194,6 +220,8 @@ message CPongPacket {
    int64 ClientReceivedTimestamp = 2;
    int64 ClientSentTimestamp = 3;
 }
+message CPvpTogglePacket {
+}
 message CQuestListPacket {
    int32 AccountId = 1;
    int32 CharacterId = 2;
@@ -252,6 +280,8 @@ enum CastRejectReason {
    CastRejectReason_Dead = 9;
    CastRejectReason_NotOwned = 10;
    CastRejectReason_InternalError = 11;
+   CastRejectReason_NoAimPoint = 12;
+   CastRejectReason_AlreadyCasting = 13;
 }
 message CharacterInfo {
    uint32 CharacterId = 1;
@@ -422,6 +452,7 @@ enum NetworkPacketType {
    NetworkPacketType_CMSG_VENDOR_BUYBACK = 8338;
    NetworkPacketType_CMSG_CAST_ABILITY = 8449;
    NetworkPacketType_CMSG_TARGET_UNIT = 8450;
+   NetworkPacketType_CMSG_PVP_TOGGLE = 8451;
    NetworkPacketType_SMSG_SERVER_INFO = 12288;
    NetworkPacketType_SMSG_SERVER_HANDSHAKE_RESULT = 12289;
    NetworkPacketType_SMSG_SERVER_HANDSHAKE = 12290;
@@ -478,6 +509,8 @@ enum NetworkPacketType {
    NetworkPacketType_SMSG_UNIT_DEATH = 12551;
    NetworkPacketType_SMSG_UNIT_REVIVE = 12552;
    NetworkPacketType_SMSG_THREAT_LIST = 12553;
+   NetworkPacketType_SMSG_ABILITY_FIRED = 12554;
+   NetworkPacketType_SMSG_PVP_STATE = 12555;
    NetworkPacketType_ERROR = -1;
 }
 enum NetworkProtocol {
@@ -507,6 +540,7 @@ message ObjectState {
    optional uint32 PortalTargetMapId = 18;
    optional uint32 PortalRole = 19;
    optional bool CanInteract = 20;
+   optional bool PvpEnabled = 21;
 }
 message PlacedChunkDto {
    int32 ChunkTemplateId = 1;
@@ -538,6 +572,13 @@ enum RegisterResult {
    RegisterResult_PasswordTooLong = 7;
    RegisterResult_InvalidEmail = 8;
    RegisterResult_Ok = 9;
+}
+message SAbilityFiredPacket {
+   uint64 CasterGuid = 1;
+   uint32 AbilityId = 2;
+   Vector3Dto Origin = 3;
+   Vector3Dto Direction = 4;
+   Vector3Dto Centre = 5;
 }
 message SAbilityNotReadyPacket {
    uint32 AbilityId = 1;
@@ -750,6 +791,10 @@ message SPongPacket {
    int64 SequenceNumber = 1;
    int64 Ticks = 2;
 }
+message SPvpStatePacket {
+   bool Enabled = 1;
+   uint32 OffInMs = 2;
+}
 message SRegisterResultPacket {
    RegisterResult Result = 1;
 }
@@ -788,6 +833,7 @@ message SUnitRevivePacket {
 message SUnitStartCastPacket {
    uint64 Caster = 1;
    float CastTime = 2;
+   uint32 AbilityId = 3;
 }
 message SVendorListPacket {
    uint64 VendorGuid = 1;

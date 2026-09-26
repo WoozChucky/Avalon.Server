@@ -7,8 +7,9 @@ This document describes how the client must change to align with the server's V1
 
 ## 1. Conceptual Changes
 
-- Auto-attack is **removed**. Basic attack is an ordinary ability (one per class, see §10), fired per click via `CCastAbilityPacket`. There is no separate "attack" opcode any more.
-- A 200 ms hidden GCD lives on the server. The server validates every cast and answers every refusal with `SAbilityNotReadyPacket` carrying a reason (and, for the GCD and cooldowns, the remaining time). The client may pre-check range and facing from `AbilityInfo.Range` / `AbilityInfo.FacingAngle` to avoid spending a packet, but the server stays authoritative.
+- Auto-attack is **removed**. Every attack is an ordinary ability, fired per click via `CCastAbilityPacket`; each class starts with three skills (see §10). There is no separate "attack" opcode any more.
+- A 200 ms hidden GCD lives on the server. The server validates every cast and answers every refusal with `SAbilityNotReadyPacket` carrying a reason (and, for the GCD and cooldowns, the remaining time).
+- Casts aim, they do not target (#164). A cast aims along the caster's facing, or at the cursor's ground point for a Cursor skill, and the ability's shape decides who it affects. There is no range or facing check on a cast, and `TargetGuid` is ignored.
 - Exit-paths (map transitions in V1; future fast-travel / waypoint / town-portal) work mid-combat. The server zeroes the player's threat across all hostiles in the encounter as the player leaves.
 - Combat tag (`IsInCombat`) is unchanged on the wire — it flows via the existing per-character state stream. Client renders the combat icon as before.
 - Threat HUD: a client whose currently-targeted unit is a hostile creature in an encounter receives `SThreatListPacket` updates, throttled to ~250 ms per (connection, target) pair and additionally suppressed when the top-attacker share moved by less than 5 %.
@@ -47,10 +48,10 @@ Client → server. Sent on every ability click (basic attack included). Fire-and
 | Field | Proto # | Type | Notes |
 |---|---|---|---|
 | `AbilityId` | 1 | `uint` | Ability id from the player's ability list (`SCharacterAbilitiesPacket.Abilities[].AbilityId`). |
-| `TargetGuid` | 2 | `ulong?` | Raw `ObjectGuid` of the target unit. `null` for self / ground / AoE abilities. |
-| `GroundPos` | 3 | `Vector3Dto?` | Reserved for V2 ground-target abilities. V1 unused — set `null`. |
+| `TargetGuid` | 2 | `ulong?` | Deprecated, ignored by the server (#164). Leave unset. |
+| `GroundPos` | 3 | `Vector3Dto?` | The cursor's ground point. Required for `AbilityInfo.AimMode = Cursor`: missing or non-finite is refused as `NoAimPoint`. Height ignored. |
 
-**Emission rule.** One packet per click. Do not pre-gate on cooldown, GCD, cost, or combat-state. The client may pre-check range and facing from `AbilityInfo.Range` / `AbilityInfo.FacingAngle` to avoid spending a packet on a cast that cannot land. The server stays authoritative: it validates everything and answers every refusal with `SAbilityNotReadyPacket` carrying a `CastRejectReason`.
+**Emission rule.** One packet per click. Do not pre-gate on cooldown, GCD, cost, or combat-state. There is no range or facing to pre-check: a cast aims rather than targets. The client may clamp its telegraph to `AbilityInfo.Reach`, since the server clamps the aim to it anyway. The server stays authoritative: it validates everything and answers every refusal with `SAbilityNotReadyPacket` carrying a `CastRejectReason`.
 
 ### `CTargetUnitPacket` (`CMSG_TARGET_UNIT = 0x2102`, encrypted, TCP)
 
@@ -101,14 +102,46 @@ Each `ThreatEntry`:
 | `AttackerGuid` | 1 | `ulong` | Raw `ObjectGuid` of an attacker on this hostile's threat list. |
 | `ThreatPercent` | 2 | `float` | Share of total threat in `[0.0, 1.0]`. |
 
+### `SAbilityFiredPacket` (`SMSG_ABILITY_FIRED = 0x310A`, encrypted, TCP)
+
+Server → all clients in the instance. A circle or cone skill fired (#164); draw it. Its hits arrive as the usual damage packets. Projectiles do not send it: they are world objects, replicated through the world-state add, update and remove packets.
+
+| Field | Proto # | Type | Notes |
+|---|---|---|---|
+| `CasterGuid` | 1 | `ulong` | Raw `ObjectGuid` of the caster. |
+| `AbilityId` | 2 | `uint` | The ability that fired. |
+| `Origin` | 3 | `Vector3Dto` | The caster's position when it fired. |
+| `Direction` | 4 | `Vector3Dto?` | A cone's direction, a unit vector on X/Z; absent for a circle. |
+| `Centre` | 5 | `Vector3Dto?` | A circle's centre; absent for a cone. |
+
+A circle sends `Centre`, a cone `Direction`.
+
+### `CPvpTogglePacket` (`CMSG_PVP_TOGGLE = 0x2103`, encrypted, TCP)
+
+Client → server. No fields. Toggles the player's PvP flag (#164), exactly as typing `/pvp` does: off turns on at once; on with no timer starts the off timer (`Game:PvpOffDelay`, default 5 minutes), during which the player stays hostile; on with a timer running cancels it and stays on. Always answered with `SPvpStatePacket`.
+
+### `SPvpStatePacket` (`SMSG_PVP_STATE = 0x310B`, encrypted, TCP)
+
+Server → the player's own client. The player's own flag and off timer.
+
+| Field | Proto # | Type | Notes |
+|---|---|---|---|
+| `Enabled` | 1 | `bool` | Whether the flag is on. It stays on while the off timer runs. |
+| `OffInMs` | 2 | `uint` | Time left on the off timer in milliseconds, rounded up; 0 when no timer is running. |
+
+Sent in four cases: as the reply to every toggle (`CPvpTogglePacket` or `/pvp`), the moment the off timer turns the flag off (`Enabled = false`, `OffInMs = 0`), once when the character enters an instance, and when a hit moves a running timer. Every player-on-player hit restarts a running timer at its full length for both players, and the countdown is re-sent when a hit moves the deadline by more than a second: at most one packet per player per second of combat, and none while no timer runs. So the client can count `OffInMs` down locally, replace its countdown with each packet, and show it as exact.
+
+**Other players' flags.** Every character state (`ObjectState`) carries `PvpEnabled` (field 21) only as `true`; absent on a character state means off. Towns never allow player hostility, whatever the flags.
+
 ## 5. Cast Pipeline Expectations (Client Side)
 
-- Click → emit `CCastAbilityPacket {AbilityId, TargetGuid?, GroundPos?}`. The server validates everything and answers every refusal with a reason. The client may pre-check range and facing from `AbilityInfo.Range` / `AbilityInfo.FacingAngle` to avoid spending a packet, but the server stays authoritative.
-- On rejection, the server replies with exactly one `SAbilityNotReadyPacket {AbilityId, CooldownMs (uint), Reason (CastRejectReason)}` (#512). `Reason` names the refusal: `Gcd`, `Cooldown`, `RequiresOutOfCombat`, `RequiresInCombat`, `NotEnoughPower`, `OutOfRange`, `TargetNotFound`, `NotFacing`, `Dead`, `NotOwned` or `InternalError`; `Unknown` (0) is only what a payload without the field decodes as. `CooldownMs` is the remaining time in milliseconds for `Gcd` and `Cooldown`, rounded up so it is always at least 1, and 0 for every other reason. The only cast that gets no answer is one from a connection with no character.
-- The facing cone is on the wire (#513): `AbilityInfo.FacingAngle` in `SMSG_CHARACTER_ABILITIES` is the half-angle in degrees from the caster's facing. A targeted cast is accepted only when the angle to the target is strictly less than it; exactly equal is refused as `NotFacing`.
-- For abilities with `CastTime > 0`, the server replies `SUnitStartCastPacket` (existing, generic). Render the cast bar from the `CastTime` field on the packet.
+- Click → emit `CCastAbilityPacket {AbilityId, GroundPos?}` (`GroundPos` for a Cursor skill). The server validates everything and answers every refusal with a reason.
+- On rejection, the server replies with exactly one `SAbilityNotReadyPacket {AbilityId, CooldownMs (uint), Reason (CastRejectReason)}` (#512). `Reason` names the refusal: `Gcd`, `Cooldown`, `RequiresOutOfCombat`, `RequiresInCombat`, `NotEnoughPower`, `Dead`, `NotOwned`, `InternalError`, `NoAimPoint` or `AlreadyCasting`; `Unknown` (0) is only what a payload without the field decodes as. `OutOfRange`, `TargetNotFound` and `NotFacing` remain in the enum but are no longer sent (#164). `CooldownMs` is the remaining time in milliseconds for `Gcd` and `Cooldown`, rounded up so it is always at least 1, and 0 for every other reason. The only cast that gets no answer is one from a connection with no character.
+- A cast while another is in progress is refused as `AlreadyCasting`. A cast-time cast fires with the aim it started with: facing and ground point are captured when it starts.
+- `AbilityInfo.FacingAngle` in `SMSG_CHARACTER_ABILITIES` is no longer set (#164): there is no facing cone.
+- For abilities with `CastTime > 0`, every client in the instance receives `SUnitStartCastPacket` (existing, generic): render the cast bar from `CastTime`, and show which ability from `AbilityId` (#521 item 9).
 - On completion, the server replies `SUnitFinishCastPacket` (existing, generic). End the cast bar and play the cast-finish animation.
-- On movement-interrupt, the server replies `SCharacterInterruptedCastPacket {Caster, AbilityId}` (existing). Power refund is handled server-side; the client just ends the cast bar.
+- On movement-interrupt, the server replies `SCharacterInterruptedCastPacket {Caster, AbilityId}` (existing). Power spent on the cast is not refunded; the client just ends the cast bar.
 
 The client never emits a separate "interrupt" or "cancel" packet — moving cancels in-progress casts implicitly via existing movement state.
 
@@ -129,11 +162,15 @@ The client never emits a separate "interrupt" or "cancel" packet — moving canc
 ## 8. Removed Client-Side Concepts
 
 - "Auto-attack" client state — toggle, cycle, queued-swing, attack-on-target. Delete all of it.
-- Spell-vs-attack input split. Replace with a single "use ability" input mapped to `CCastAbilityPacket`. Hotbars now contain only abilities; the basic attack lives in slot 0 of the player's ability list (delivered via `SCharacterAbilitiesPacket` on character login).
+- Spell-vs-attack input split. Replace with a single "use ability" input mapped to `CCastAbilityPacket`. Hotbars now contain only abilities: the ones listed in `SCharacterAbilitiesPacket`, delivered on character login. The list has no guaranteed order, so place skills by `AbilityId`, not by position.
 
 ## 9. Test Checklist (Client)
 
-- [ ] Click on enemy → basic attack fires; server replies `SUnitDamagePacket` (and `SCharacterDamagePacket` for player damage).
+- [ ] Cast a cursor skill with a ground point → it fires; hits on creatures arrive as `SUnitDamagePacket` (and `SCharacterDamagePacket` for player damage, with `AbilityId` set).
+- [ ] Cast a cursor skill without a ground point (or with a non-finite one) → `SAbilityNotReadyPacket` with `Reason = NoAimPoint`.
+- [ ] Cast a circle or cone skill → every client in the instance gets `SMSG_ABILITY_FIRED` (a circle's `Centre`, a cone's `Direction`) and can draw the effect, whether or not it hit anyone.
+- [ ] Cast a projectile skill → the projectile appears as a world object, flies, and is removed where it stopped (at `Reach`, at a wall, or at the first unit hit).
+- [ ] Cast while a cast-time cast is in progress → `SAbilityNotReadyPacket` with `Reason = AlreadyCasting`.
 - [ ] Spam click → server enforces GCD; sub-200 ms casts get `SAbilityNotReadyPacket` with non-zero `CooldownMs`.
 - [ ] Cast a cast-time ability while moving → `SCharacterInterruptedCastPacket` arrives; cast bar clears.
 - [ ] Get hit → combat icon visible (existing `IsInCombat` channel).
@@ -142,21 +179,29 @@ The client never emits a separate "interrupt" or "cancel" packet — moving canc
 - [ ] Clear target (`CTargetUnitPacket {null}`) → no further `SThreatListPacket` for the prior target.
 - [ ] Die → `SUnitDeathPacket` arrives; Release button visible; on Release the character spawns at the home town.
 - [ ] Map-transition / portal out mid-combat → no rejection; transition succeeds. Threat is zeroed server-side.
-- [ ] Login → `SCharacterAbilitiesPacket` populates the ability list including the class basic attack.
+- [ ] Login → `SCharacterAbilitiesPacket` populates the ability list with the class's three starter-kit skills, each with its shape fields.
 
-## 10. Basic Attack Per Class
+## 10. Starter Kit Per Class
 
-V1 seeds one basic-attack ability per class as ordinary `AbilityTemplate` rows in `WorldDbContext`. They are granted automatically on character creation (added to each class's `CharacterCreateInfos.StartingSpells`). The client retrieves the player's full ability list via `SCharacterAbilitiesPacket` on character login.
+Each class starts with three skills (#164), ordinary `AbilityTemplate` rows seeded by the World migration `SeedStarterSkillKit`. They are granted on character creation through each class's `CharacterCreateInfos.StartingSpells`, and the Character migration `GrantStarterSkillKit` gave every existing character its class's three in place of whatever it held. The client retrieves the player's full ability list via `SCharacterAbilitiesPacket` on character login, and learns each skill's shape from `AbilityInfo` fields 8-16 (`AimMode`, `Shape`, `Anchor`, `Reach`, `Radius`, `ArcDegrees`, `ProjectileSpeed`, `Pierce`, `Affects`), which is everything it needs to draw a telegraph.
 
-Seeded values (`Avalon.Database.World/Migrations/20260507161257_SeedBasicAttackAbilities.cs`):
+The retired abilities 1, 2 and 100-103 are gone, and their ids are never reused, so a client that cached them cannot confuse them with a kit skill.
 
-| Class | AbilityId | Name | Range (`SpellRange`) | Damage | Cooldown | Cast Time | Threat × |
-|---|---|---|---|---|---|---|---|
-| Warrior | 100 | Warrior Slash | `Melee` (1 m) | 15 | 500 ms | 0 | 1.5 |
-| Wizard | 101 | Wizard Bolt | `Medium` (10 m) | 8 | 700 ms | 200 ms | 1.0 |
-| Hunter | 102 | Hunter Shot | `Long` (20 m) | 10 | 600 ms | 0 | 1.0 |
-| Healer | 103 | Healer Wand | `Medium` (10 m) | 5 | 800 ms | 300 ms | 0.8 |
+| id | class | name | shape | aim | anchor | reach (m) | radius (m) | arc (°) | speed (m/s) | pierce | affects | cast | cooldown | cost |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 200 | Warrior | Cleave | Cone | Movement | – | 2.5 | – | 100 | – | – | Hostile | 0 | 800 ms | 0 |
+| 201 | Warrior | Ground Slam | Circle | Movement | Caster | 0 | 3 | – | – | – | Hostile | 0 | 5000 ms | 20 |
+| 202 | Warrior | Hurled Axe | Projectile | Cursor | – | 15 | – | – | 18 | no | Hostile | 0 | 3000 ms | 10 |
+| 210 | Wizard | Arcane Bolt | Projectile | Cursor | – | 20 | – | – | 22 | no | Hostile | 0 | 800 ms | 0 |
+| 211 | Wizard | Flame Burst | Circle | Cursor | AimPoint | 18 | 3 | – | – | – | Hostile | 600 ms | 5000 ms | 25 |
+| 212 | Wizard | Frost Fan | Cone | Cursor | – | 6 | – | 60 | – | – | Hostile | 0 | 4000 ms | 15 |
+| 220 | Hunter | Quick Shot | Projectile | Cursor | – | 25 | – | – | 28 | no | Hostile | 0 | 800 ms | 0 |
+| 221 | Hunter | Piercing Arrow | Projectile | Cursor | – | 30 | – | – | 24 | yes | Hostile | 0 | 4000 ms | 15 |
+| 222 | Hunter | Scatter Shot | Cone | Cursor | – | 8 | – | 45 | – | – | Hostile | 0 | 4000 ms | 20 |
+| 230 | Healer | Smite | Projectile | Cursor | – | 18 | – | – | 20 | no | Hostile | 0 | 800 ms | 0 |
+| 231 | Healer | Radiant Pulse | Circle | Movement | Caster | 0 | 4 | – | – | – | Hostile | 0 | 5000 ms | 20 |
+| 232 | Healer | Mending Circle | Circle | Cursor | AimPoint | 15 | 4 | – | – | – | Ally | 0 | 8000 ms | 25 |
 
-`Range` is the `SpellRange` enum (`Melee = 1`, `Short = 5`, `Medium = 10`, `Long = 20`); the underlying `ushort` value is the radius in metres. `Cooldown` and `CastTime` are in milliseconds. `Damage` and `Threat ×` are not transmitted in `AbilityInfo`; they are server-side only and surface on the client through `SUnitDamagePacket` / `SThreatListPacket` outcomes.
+On the wire `AbilityInfo.Cooldown` and `CastTime` are seconds (floats); the table gives the stored milliseconds. The cost is paid from the class's pool: Warrior Fury, Wizard and Healer Mana, Hunter Energy. Damage and heal amounts, and threat, are not transmitted in `AbilityInfo`; they are server-side only and surface through the damage packets, health replication and `SThreatListPacket`. `AbilityInfo.Range` still carries the legacy `SpellRange` value but the server no longer reads it; use `Reach`.
 
-Numbers are V1 placeholders pending balance pass.
+Numbers are placeholders pending a balance pass.

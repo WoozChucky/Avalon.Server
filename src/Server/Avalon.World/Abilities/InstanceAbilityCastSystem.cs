@@ -3,30 +3,48 @@ using Avalon.World.Public;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Enums;
-using Avalon.World.Public.Instances;
 using Avalon.World.Public.Scripts;
 using Avalon.World.Public.Units;
 using Avalon.World.Scripts;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Avalon.Network.Packets.State;
 
 namespace Avalon.World.Abilities;
 
 public interface IAbilityCastSystem
 {
-    bool QueueAbility(ICharacter character, IUnit? target, IAbility ability);
+    /// <summary>
+    /// Takes a cast-time cast aimed at <paramref name="aim" />, pays its cost and marks it casting. False,
+    /// with nothing spent and <c>Casting</c> left clear, when its script is missing or cannot be built, or
+    /// the cost cannot be paid. The script is built now, with this aim, and fired once the cast time has run out.
+    /// </summary>
+    bool QueueAbility(ICharacter character, AbilityAim aim, IAbility ability);
 
     /// <summary>
-    /// Instant-cast counterpart to <see cref="QueueAbility"/>: builds the script, fires the
-    /// finish-cast animation, runs <c>Prepare()</c>, starts the cooldown, and registers the
-    /// script with the active list so its post-cast effects (e.g. projectile travel,
-    /// timed-damage scripts) tick in subsequent updates. Mirrors the cast-completion branch
-    /// of <see cref="Update"/> exactly so queued and instant abilities resolve identically.
+    /// Instant-cast counterpart to <see cref="QueueAbility" />: builds the script, pays the cost, starts
+    /// the cooldown, broadcasts the finish-cast, runs <c>Prepare()</c>, and keeps the script ticking if it
+    /// has not finished (a projectile). False, with nothing spent, when the script cannot be built or
+    /// the cost cannot be paid.
     /// </summary>
-    void RunInstant(IUnit caster, IUnit? target, IAbility ability);
+    bool RunInstant(IUnit caster, AbilityAim aim, IAbility ability);
 
     void Update(TimeSpan deltaTime, List<IWorldObject> objects);
+
+    /// <summary>
+    /// Drops every finished script at once, its final state sent or not. For an instance nobody is in
+    /// (#164): there is nobody to send that state to, and a player who entered later would otherwise
+    /// see a projectile frozen where it stopped.
+    /// </summary>
+    void DropFinished();
+
+    /// <summary>
+    /// Interrupts every queued cast of <paramref name="caster" />, as moving does: its timers reset,
+    /// <c>Casting</c> clears, the interrupt is sent, nothing fires and nothing is refunded. For a caster
+    /// leaving the instance (#164): an instance nobody is in is not ticked, so its queue would never
+    /// clear the cast, and the caster could cast nothing anywhere else.
+    /// </summary>
+    void CancelCasts(IUnit caster);
+
     IWorldObject? GetAbility(ObjectGuid guid);
 }
 
@@ -34,168 +52,202 @@ public class InstanceAbilityCastSystem(
     ILoggerFactory factory,
     IServiceProvider serviceProvider,
     IScriptManager scriptManager,
-    ISimulationContext simulationContext)
+    IAbilityArena arena)
     : IAbilityCastSystem
 {
     private readonly List<AbilityScript> _activeAbilities = [];
     private readonly ILogger<InstanceAbilityCastSystem> _logger = factory.CreateLogger<InstanceAbilityCastSystem>();
-    private readonly HashSet<ObjectGuid> _removeScheduled = [];
-
     private readonly HashSet<AbilityInstance> _abilityQueue = [];
+    private readonly List<AbilityInstance> _dequeued = [];
 
-    public bool QueueAbility(ICharacter character, IUnit? target, IAbility ability)
+    public bool QueueAbility(ICharacter character, AbilityAim aim, IAbility ability)
     {
-        // Power cost deduction: only Mana and Energy are depletion-based resources.
-        // Fury and None are blocked until their mechanics are designed.
-        if (ability.Metadata.Cost > 0)
+        CostCheck cost = AbilityCost.Check(character, ability.Metadata);
+        if (cost != CostCheck.Payable)
         {
-            if (character.PowerType is not (PowerType.Mana or PowerType.Energy))
-            {
-                _logger.LogInformation("QueueAbility reject PowerTypeMismatch ability={AbilityId} powerType={PowerType}",
-                    ability.AbilityId, character.PowerType);
-                return false;
-            }
-
-            if (character.CurrentPower < ability.Metadata.Cost)
-            {
-                _logger.LogInformation("QueueAbility reject Cost ability={AbilityId} need={Cost} have={Have}",
-                    ability.AbilityId, ability.Metadata.Cost, character.CurrentPower);
-                return false;
-            }
-
-            character.CurrentPower -= ability.Metadata.Cost;
+            _logger.LogInformation("QueueAbility reject {Cost} ability={AbilityId} powerType={PowerType}",
+                cost, ability.AbilityId, character.PowerType);
+            return false;
         }
 
-        ability.Casting = true;
-        AbilityInstance abilityInstance = new()
+        // Built now, with the aim captured at cast start, so a script that is missing or cannot be
+        // built is refused before anything is paid, and a reload that removes it mid-cast costs nothing.
+        if (Build(character, aim, ability) is not { } script)
         {
-            Caster = character, Target = target, Ability = ability, CastStartPosition = character.Position
-        };
-        bool added = _abilityQueue.Add(abilityInstance);
-        _logger.LogDebug("QueueAbility queued ability={AbilityId} caster={CharId} target={TargetGuid} castTimeMs={CastTime} added={Added} queueSize={Size}",
-            ability.AbilityId, character.Guid, target?.Guid, ability.Metadata.CastTime, added, _abilityQueue.Count);
-        return added;
+            return false;
+        }
+
+        _abilityQueue.Add(new AbilityInstance
+        {
+            Caster = character, Ability = ability, Script = script, CastStartPosition = character.Position,
+        });
+
+        // #521 item 1: Casting is set, and the cost paid, only once the queue has taken the cast.
+        ability.Casting = true;
+        AbilityCost.Pay(character, ability.Metadata);
+
+        _logger.LogDebug("QueueAbility queued ability={AbilityId} caster={CharId} castTime={CastTime}s queueSize={Size}",
+            ability.AbilityId, character.Guid, ability.Metadata.CastTime, _abilityQueue.Count);
+        return true;
     }
 
-    public void RunInstant(IUnit caster, IUnit? target, IAbility ability)
+    public bool RunInstant(IUnit caster, AbilityAim aim, IAbility ability)
     {
-        // Mirror the completion branch of Update: cooldown is started, script is created,
-        // finish-cast is broadcast, and the script is added to the active list so any
-        // post-cast effects continue to tick.
-        ability.Casting       = false;
-        ability.CooldownTimer = ability.Metadata.Cooldown;
-        ability.CastTimeTimer = ability.Metadata.CastTime;
-
-        Type? scriptType = scriptManager.GetAbilityScript(ability.Metadata.ScriptName);
-        if (scriptType is null)
+        CostCheck cost = AbilityCost.Check(caster, ability.Metadata);
+        if (cost != CostCheck.Payable)
         {
-            _logger.LogWarning("Ability script {ScriptName} not found", ability.Metadata.ScriptName);
-            return;
+            _logger.LogInformation("RunInstant reject {Cost} ability={AbilityId} powerType={PowerType}",
+                cost, ability.AbilityId, caster.PowerType);
+            return false;
         }
 
-        IAbility info = ability.Clone();
-
-#pragma warning disable CS8604 // Possible null reference argument.
-        if (ActivatorUtilities.CreateInstance(serviceProvider, scriptType, info, caster, target, simulationContext)
-            is not AbilityScript abilityScript)
-#pragma warning restore CS8604
+        if (Build(caster, aim, ability) is not { } script)
         {
-            _logger.LogWarning("Failed to create ability script {ScriptName}", ability.Metadata.ScriptName);
-            return;
+            return false;
         }
 
-        caster.SendFinishCastAnimation(ability);
-        abilityScript.Prepare();
-        _activeAbilities.Add(abilityScript);
-
-        _logger.LogDebug("Finished instant ability {AbilityId} cast by {CasterId} on {TargetId}",
-            ability.AbilityId, caster.Guid, target?.Guid);
+        AbilityCost.Pay(caster, ability.Metadata);
+        Fire(caster, ability, script);
+        return true;
     }
 
     public void Update(TimeSpan deltaTime, List<IWorldObject> objects)
     {
-        foreach (AbilityInstance abilityInstance in _abilityQueue)
+        // A script that finished on an earlier tick leaves now, not on the tick it finished (#164): a
+        // projectile stays a world object until its final state (where it stopped, zero velocity) has
+        // been taken for a broadcast, so every client sees it spawn, stop and despawn, even one that
+        // ended on the tick it was first seen. Updates go out only on broadcast ticks, so that can be
+        // a few ticks later.
+        _activeAbilities.RemoveAll(s => s.State is SpellState.Finished
+            && (s.Guid.Type != ObjectType.SpellProjectile || !s.HasUnsentChanges));
+
+        // #521 item 3: nothing is removed from the queue while it is enumerated.
+        _dequeued.Clear();
+
+        foreach (AbilityInstance cast in _abilityQueue)
         {
-            abilityInstance.Ability.CastTimeTimer -= (float)deltaTime.TotalSeconds;
+            IAbility ability = cast.Ability;
+            ability.CastTimeTimer -= (float)deltaTime.TotalSeconds;
 
-            // Check if the ability was interrupted by movement
-            if (abilityInstance.CastStartPosition != abilityInstance.Caster.Position &&
-                abilityInstance.Ability.Metadata.CastTime > 0)
+            if (cast.CastStartPosition != cast.Caster.Position)
             {
-                _logger.LogInformation("QueueAbility interrupt-by-movement ability={AbilityId} caster={CharId}",
-                    abilityInstance.Ability.AbilityId, abilityInstance.Caster.Guid);
-                abilityInstance.Ability.CastTimeTimer = abilityInstance.Ability.Metadata.CastTime;
-                abilityInstance.Ability.Casting = false;
-                if (abilityInstance.Caster is ICharacter character)
-                {
-                    character.SendInterruptedCastAnimation(abilityInstance.Ability);
-                }
-
-                _abilityQueue.Remove(abilityInstance);
+                _logger.LogInformation("Cast interrupted by movement ability={AbilityId} caster={CharId}",
+                    ability.AbilityId, cast.Caster.Guid);
+                ResetCast(ability);
+                cast.Caster.SendInterruptedCastAnimation(ability);
+                _dequeued.Add(cast);
                 continue;
             }
 
-            if (!(abilityInstance.Ability.CastTimeTimer <= 0))
+            if (ability.CastTimeTimer > 0)
             {
                 continue;
             }
 
-            abilityInstance.Ability.Casting = false;
-            abilityInstance.Ability.CooldownTimer = abilityInstance.Ability.Metadata.Cooldown;
-            abilityInstance.Ability.CastTimeTimer = abilityInstance.Ability.Metadata.CastTime;
-            _abilityQueue.Remove(abilityInstance);
+            _dequeued.Add(cast);
+            ResetCast(ability);
 
-            Type? scriptType = scriptManager.GetAbilityScript(abilityInstance.Ability.Metadata.ScriptName);
-            if (scriptType is null)
+            // A caster who died during the cast casts nothing, and is left free to cast again.
+            if (cast.Caster is ICharacter { IsDead: true })
             {
-                _logger.LogWarning("Ability script {ScriptName} not found", abilityInstance.Ability.Metadata.ScriptName);
+                _logger.LogDebug("Dropped the cast of a dead caster ability={AbilityId} caster={CharId}",
+                    ability.AbilityId, cast.Caster.Guid);
                 continue;
             }
 
-            IAbility info = abilityInstance.Ability.Clone();
-
-#pragma warning disable CS8604 // Possible null reference argument.
-            if (ActivatorUtilities.CreateInstance(serviceProvider, scriptType, info, abilityInstance.Caster,
-                    abilityInstance.Target, simulationContext) is not AbilityScript abilityScript)
-#pragma warning restore CS8604 // Possible null reference argument.
-            {
-                _logger.LogWarning("Failed to create ability script {ScriptName}",
-                    abilityInstance.Ability.Metadata.ScriptName);
-                continue;
-            }
-
-            abilityInstance.Caster.SendFinishCastAnimation(abilityInstance.Ability);
-
-            abilityScript.Prepare();
-            _activeAbilities.Add(abilityScript);
-
-            _logger.LogDebug("QueueAbility cast-finished ability={AbilityId} caster={CharId} target={TargetGuid} activeCount={Active}",
-                abilityInstance.Ability.AbilityId, abilityInstance.Caster.Guid, abilityInstance.Target?.Guid, _activeAbilities.Count);
+            Fire(cast.Caster, ability, cast.Script);
         }
 
-        foreach (AbilityScript ability in _activeAbilities)
+        foreach (AbilityInstance cast in _dequeued)
         {
-            ability.Update(deltaTime);
-
-            if (ability.State is SpellState.Finished)
-            {
-                _removeScheduled.Add(ability.Guid);
-            }
-
-            if (ability.Guid.Type == ObjectType.SpellProjectile)
-            {
-                objects.Add(ability);
-            }
+            _abilityQueue.Remove(cast);
         }
 
-
-        foreach (ObjectGuid id in _removeScheduled)
+        foreach (AbilityScript script in _activeAbilities)
         {
-            _activeAbilities.RemoveAll(p => p.Guid == id);
-        }
+            // A finished script is never ticked again, so nothing it does is applied twice.
+            if (script.State is not SpellState.Finished)
+            {
+                script.Update(deltaTime);
+            }
 
-        _removeScheduled.Clear();
+            if (script.Guid.Type == ObjectType.SpellProjectile)
+            {
+                objects.Add(script);
+            }
+        }
     }
 
+    public void CancelCasts(IUnit caster)
+    {
+        // Collected first: nothing is removed from the queue while it is enumerated.
+        List<AbilityInstance> cancelled = [];
+        foreach (AbilityInstance cast in _abilityQueue)
+        {
+            if (ReferenceEquals(cast.Caster, caster))
+            {
+                cancelled.Add(cast);
+            }
+        }
+
+        foreach (AbilityInstance cast in cancelled)
+        {
+            _abilityQueue.Remove(cast);
+            ResetCast(cast.Ability);
+        }
+
+        // Sent once every cast is already cleared, so a failing send cannot leave one stuck.
+        foreach (AbilityInstance cast in cancelled)
+        {
+            _logger.LogInformation("Cast cancelled as its caster left ability={AbilityId} caster={CharId}",
+                cast.Ability.AbilityId, caster.Guid);
+            caster.SendInterruptedCastAnimation(cast.Ability);
+        }
+    }
+
+    public void DropFinished() => _activeAbilities.RemoveAll(static s => s.State is SpellState.Finished);
+
     public IWorldObject? GetAbility(ObjectGuid guid) => _activeAbilities.Find(p => p.Guid == guid);
+
+    private static void ResetCast(IAbility ability)
+    {
+        ability.Casting = false;
+        ability.CastTimeTimer = ability.Metadata.CastTime;
+    }
+
+    private AbilityScript? Build(IUnit caster, AbilityAim aim, IAbility ability)
+    {
+        Type? scriptType = scriptManager.GetAbilityScript(ability.Metadata.ScriptName);
+        if (scriptType is null)
+        {
+            _logger.LogWarning("Ability script {ScriptName} not found", ability.Metadata.ScriptName);
+            return null;
+        }
+
+        try
+        {
+            return ActivatorUtilities.CreateInstance(serviceProvider, scriptType, ability.Clone(), caster, aim, arena)
+                as AbilityScript;
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Failed to build ability script {ScriptName}", ability.Metadata.ScriptName);
+            return null;
+        }
+    }
+
+    /// <summary>The cooldown, the finish-cast broadcast, the effect; a script still running keeps ticking.</summary>
+    private void Fire(IUnit caster, IAbility ability, AbilityScript script)
+    {
+        ability.CooldownTimer = ability.Metadata.Cooldown;
+        caster.SendFinishCastAnimation(ability);
+        script.Prepare();
+
+        if (script.State is not SpellState.Finished)
+        {
+            _activeAbilities.Add(script);
+        }
+
+        _logger.LogDebug("Fired ability {AbilityId} by {CasterId}", ability.AbilityId, caster.Guid);
+    }
 }

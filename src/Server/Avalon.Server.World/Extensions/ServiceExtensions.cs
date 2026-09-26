@@ -13,6 +13,7 @@ using Avalon.World.Persistence;
 using Avalon.World.Quests;
 using Avalon.World.ChunkLayouts;
 using Avalon.World.Public.Combat;
+using Avalon.World.Pvp;
 using Avalon.World.Reload;
 using Avalon.World.Respawn;
 using Avalon.World.Scripts;
@@ -92,6 +93,8 @@ public static class ServiceExtensions
         // Chat commands
         services.AddSingleton<ICommand, GroupInviteCommand>();
         services.AddSingleton<ICommand, ReloadCommand>();
+        services.AddSingleton<PvpToggle>();
+        services.AddSingleton<ICommand, PvpCommand>();
         services.AddSingleton<ICommandDispatcher, CommandDispatcher>();
 
         services.AddSingleton<IReferenceDataReloader, ReferenceDataReloader>();

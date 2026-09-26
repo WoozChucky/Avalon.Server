@@ -15,6 +15,9 @@ public class CCastAbilityPacket : Packet
     public static NetworkPacketFlags Flags = NetworkPacketFlags.Encrypted;
 
     [ProtoMember(1)] public uint AbilityId { get; set; }
+    /// <summary>Deprecated and ignored by the server (#164); kept so older clients still decode. Casts aim, they do not target.</summary>
     [ProtoMember(2)] public ulong? TargetGuid { get; set; }
+
+    /// <summary>The cursor's ground point, required by a Cursor skill (else NoAimPoint). Its height is ignored.</summary>
     [ProtoMember(3)] public Vector3Dto? GroundPos { get; set; }
 }
