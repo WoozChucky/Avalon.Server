@@ -18,32 +18,38 @@ message SAbilityNotReadyPacket
 variant absent
   field 1 AbilityId : uint = 0
   field 2 CooldownMs : uint = 0
+  field 3 Reason : CastRejectReason = Unknown (0)
   bytes 0
 
 variant empty
   field 1 AbilityId : uint = 0
   field 2 CooldownMs : uint = 0
+  field 3 Reason : CastRejectReason = Unknown (0)
   bytes 0
 
 variant populated
   field 1 AbilityId : uint = 42
   field 2 CooldownMs : uint = 300
-  bytes 5
-    08 2a 10 ac 02
+  field 3 Reason : CastRejectReason = NotEnoughPower (5)
+  bytes 7
+    08 2a 10 ac 02 18 05
 
 variant maxima
   field 1 AbilityId : uint = 4294967295
   field 2 CooldownMs : uint = 4294967295
-  bytes 12
-    08 ff ff ff ff 0f 10 ff ff ff ff 0f
+  field 3 Reason : CastRejectReason = InternalError (11)
+  bytes 14
+    08 ff ff ff ff 0f 10 ff ff ff ff 0f 18 0b
 
 variant minima
   field 1 AbilityId : uint = 0
   field 2 CooldownMs : uint = 0
+  field 3 Reason : CastRejectReason = Unknown (0)
   bytes 0
 
 variant varint-edges
   field 1 AbilityId : uint = 268435456
   field 2 CooldownMs : uint = 128
-  bytes 9
-    08 80 80 80 80 01 10 80 01
+  field 3 Reason : CastRejectReason = <not a declared member> (12)
+  bytes 11
+    08 80 80 80 80 01 10 80 01 18 0c

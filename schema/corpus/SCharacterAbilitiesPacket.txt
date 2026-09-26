@@ -32,6 +32,7 @@ variant populated
       field 4 CastTime : float = 1E+10 (0x501502f9)
       field 5 Cost : uint = 300
       field 6 Range : ushort = 42
+      field 7 FacingAngle : float = 3.14159274 (0x40490fdb)
     element 1
       field 1 AbilityId : uint = 19
       field 2 Name : string = "emoji 🜁🚀 astral" (17 chars, 21 bytes utf-8)
@@ -39,13 +40,14 @@ variant populated
       field 4 CastTime : float = -7.50000027E-08 (0xb3a10fb0)
       field 5 Cost : uint = 42
       field 6 Range : ushort = 19
-  bytes 83
-    0a 28 08 2a 12 15 ce a9 ce bc ce ad ce b3 ce b1
+      field 7 FacingAngle : float = -2.25 (0xc0100000)
+  bytes 93
+    0a 2d 08 2a 12 15 ce a9 ce bc ce ad ce b3 ce b1
     20 ce 94 ce 95 ce 9b ce a4 ce 91 1d b0 0f a1 b3
-    25 f9 02 15 50 28 ac 02 30 2a 0a 27 08 13 12 15
-    65 6d 6f 6a 69 20 f0 9f 9c 81 f0 9f 9a 80 20 61
-    73 74 72 61 6c 1d f9 02 15 50 25 b0 0f a1 b3 28
-    2a 30 13
+    25 f9 02 15 50 28 ac 02 30 2a 3d db 0f 49 40 0a
+    2c 08 13 12 15 65 6d 6f 6a 69 20 f0 9f 9c 81 f0
+    9f 9a 80 20 61 73 74 72 61 6c 1d f9 02 15 50 25
+    b0 0f a1 b3 28 2a 30 13 3d 00 00 10 c0
 
 variant maxima
   field 1 Abilities : AbilityInfo[] = 3 elements
@@ -56,6 +58,7 @@ variant maxima
       field 4 CastTime : float = 3.40282347E+38 (0x7f7fffff)
       field 5 Cost : uint = 4294967295
       field 6 Range : ushort = 65535
+      field 7 FacingAngle : float = 3.40282347E+38 (0x7f7fffff)
     element 1
       field 1 AbilityId : uint = 4294967295
       field 2 Name : string = "ΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩx…" (88 chars, 132 bytes utf-8)
@@ -63,6 +66,7 @@ variant maxima
       field 4 CastTime : float = 3.40282347E+38 (0x7f7fffff)
       field 5 Cost : uint = 4294967295
       field 6 Range : ushort = 65535
+      field 7 FacingAngle : float = 3.40282347E+38 (0x7f7fffff)
     element 2
       field 1 AbilityId : uint = 4294967295
       field 2 Name : string = "ΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩxΩx…" (88 chars, 132 bytes utf-8)
@@ -70,8 +74,9 @@ variant maxima
       field 4 CastTime : float = 3.40282347E+38 (0x7f7fffff)
       field 5 Cost : uint = 4294967295
       field 6 Range : ushort = 65535
-  bytes 492
-    0a a1 01 08 ff ff ff ff 0f 12 84 01 ce a9 78 ce
+      field 7 FacingAngle : float = 3.40282347E+38 (0x7f7fffff)
+  bytes 507
+    0a a6 01 08 ff ff ff ff 0f 12 84 01 ce a9 78 ce
     a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
     78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
     ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
@@ -81,27 +86,28 @@ variant maxima
     a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
     78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
     1d ff ff 7f 7f 25 ff ff 7f 7f 28 ff ff ff ff 0f
-    30 ff ff 03 0a a1 01 08 ff ff ff ff 0f 12 84 01
-    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
-    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    30 ff ff 03 3d ff ff 7f 7f 0a a6 01 08 ff ff ff
+    ff 0f 12 84 01 ce a9 78 ce a9 78 ce a9 78 ce a9
     78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
     ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
     a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
     78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
     ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
     a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
-    78 ce a9 78 1d ff ff 7f 7f 25 ff ff 7f 7f 28 ff
-    ff ff ff 0f 30 ff ff 03 0a a1 01 08 ff ff ff ff
-    0f 12 84 01 ce a9 78 ce a9 78 ce a9 78 ce a9 78
-    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
-    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 1d ff ff 7f 7f 25 ff
+    ff 7f 7f 28 ff ff ff ff 0f 30 ff ff 03 3d ff ff
+    7f 7f 0a a6 01 08 ff ff ff ff 0f 12 84 01 ce a9
     78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
     ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
     a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
     78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
     ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
-    a9 78 ce a9 78 ce a9 78 1d ff ff 7f 7f 25 ff ff
-    7f 7f 28 ff ff ff ff 0f 30 ff ff 03
+    a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
+    78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
+    ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce
+    a9 78 1d ff ff 7f 7f 25 ff ff 7f 7f 28 ff ff ff
+    ff 0f 30 ff ff 03 3d ff ff 7f 7f
 
 variant minima
   field 1 Abilities : AbilityInfo[] = 1 element
@@ -112,8 +118,10 @@ variant minima
       field 4 CastTime : float = -3.40282347E+38 (0xff7fffff)
       field 5 Cost : uint = 0
       field 6 Range : ushort = 0
-  bytes 15
-    0a 0d 12 01 01 1d ff ff 7f ff 25 ff ff 7f ff
+      field 7 FacingAngle : float = -3.40282347E+38 (0xff7fffff)
+  bytes 20
+    0a 12 12 01 01 1d ff ff 7f ff 25 ff ff 7f ff 3d
+    ff ff 7f ff
 
 variant varint-edges
   field 1 Abilities : AbilityInfo[] = 2 elements
@@ -124,6 +132,7 @@ variant varint-edges
       field 4 CastTime : float = 1.17549435E-38 (0x00800000)
       field 5 Cost : uint = 127
       field 6 Range : ushort = 16383
+      field 7 FacingAngle : float = 1.17549435E-38 (0x00800000)
     element 1
       field 1 AbilityId : uint = 268435456
       field 2 Name : string = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…" (127 chars, 127 bytes utf-8)
@@ -131,8 +140,9 @@ variant varint-edges
       field 4 CastTime : float = 1.17549449E-38 (0x00800001)
       field 5 Cost : uint = 16384
       field 6 Range : ushort = 128
-  bytes 308
-    0a 96 01 08 ff ff 7f 12 80 01 79 79 79 79 79 79
+      field 7 FacingAngle : float = 1.17549449E-38 (0x00800001)
+  bytes 318
+    0a 9b 01 08 ff ff 7f 12 80 01 79 79 79 79 79 79
     79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
     79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
     79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
@@ -141,8 +151,8 @@ variant varint-edges
     79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
     79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
     79 79 79 79 79 79 79 79 79 79 1d 00 00 80 00 25
-    00 00 80 00 28 7f 30 ff 7f 0a 98 01 08 80 80 80
-    80 01 12 7f 78 78 78 78 78 78 78 78 78 78 78 78
+    00 00 80 00 28 7f 30 ff 7f 3d 00 00 80 00 0a 9d
+    01 08 80 80 80 80 01 12 7f 78 78 78 78 78 78 78
     78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
     78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
     78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
@@ -150,8 +160,8 @@ variant varint-edges
     78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
     78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
     78 78 78 78 78 78 78 78 78 78 78 78 78 78 78 78
-    78 78 78 1d 01 00 80 00 25 01 00 80 00 28 80 80
-    01 30 80 01
+    78 78 78 78 78 78 78 78 1d 01 00 80 00 25 01 00
+    80 00 28 80 80 01 30 80 01 3d 01 00 80 00
 
 variant float-specials
   field 1 Abilities : AbilityInfo[] = 2 elements
@@ -162,6 +172,7 @@ variant float-specials
       field 4 CastTime : float = NaN (0xffc00000)
       field 5 Cost : uint = 300
       field 6 Range : ushort = 42
+      field 7 FacingAngle : float = Infinity (0x7f800000)
     element 1
       field 1 AbilityId : uint = 19
       field 2 Name : string = "emoji 🜁🚀 astral" (17 chars, 21 bytes utf-8)
@@ -169,10 +180,11 @@ variant float-specials
       field 4 CastTime : float = NaN (0x7fc00001)
       field 5 Cost : uint = 42
       field 6 Range : ushort = 19
-  bytes 83
-    0a 28 08 2a 12 15 ce a9 ce bc ce ad ce b3 ce b1
+      field 7 FacingAngle : float = -Infinity (0xff800000)
+  bytes 93
+    0a 2d 08 2a 12 15 ce a9 ce bc ce ad ce b3 ce b1
     20 ce 94 ce 95 ce 9b ce a4 ce 91 1d 01 00 c0 7f
-    25 00 00 c0 ff 28 ac 02 30 2a 0a 27 08 13 12 15
-    65 6d 6f 6a 69 20 f0 9f 9c 81 f0 9f 9a 80 20 61
-    73 74 72 61 6c 1d 00 00 80 7f 25 01 00 c0 7f 28
-    2a 30 13
+    25 00 00 c0 ff 28 ac 02 30 2a 3d 00 00 80 7f 0a
+    2c 08 13 12 15 65 6d 6f 6a 69 20 f0 9f 9c 81 f0
+    9f 9a 80 20 61 73 74 72 61 6c 1d 00 00 80 7f 25
+    01 00 c0 7f 28 2a 30 13 3d 00 00 80 ff

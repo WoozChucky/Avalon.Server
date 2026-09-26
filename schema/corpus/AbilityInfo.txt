@@ -22,6 +22,7 @@ variant absent
   field 4 CastTime : float = 0 (0x00000000)
   field 5 Cost : uint = 0
   field 6 Range : ushort = 0
+  field 7 FacingAngle : float = 0 (0x00000000)
   bytes 0
 
 variant empty
@@ -31,6 +32,7 @@ variant empty
   field 4 CastTime : float = 0 (0x00000000)
   field 5 Cost : uint = 0
   field 6 Range : ushort = 0
+  field 7 FacingAngle : float = 0 (0x00000000)
   bytes 2
     12 00
 
@@ -41,10 +43,11 @@ variant populated
   field 4 CastTime : float = 1E+10 (0x501502f9)
   field 5 Cost : uint = 300
   field 6 Range : ushort = 42
-  bytes 40
+  field 7 FacingAngle : float = 3.14159274 (0x40490fdb)
+  bytes 45
     08 2a 12 15 ce a9 ce bc ce ad ce b3 ce b1 20 ce
     94 ce 95 ce 9b ce a4 ce 91 1d b0 0f a1 b3 25 f9
-    02 15 50 28 ac 02 30 2a
+    02 15 50 28 ac 02 30 2a 3d db 0f 49 40
 
 variant maxima
   field 1 AbilityId : uint = 4294967295
@@ -53,7 +56,8 @@ variant maxima
   field 4 CastTime : float = 3.40282347E+38 (0x7f7fffff)
   field 5 Cost : uint = 4294967295
   field 6 Range : ushort = 65535
-  bytes 161
+  field 7 FacingAngle : float = 3.40282347E+38 (0x7f7fffff)
+  bytes 166
     08 ff ff ff ff 0f 12 84 01 ce a9 78 ce a9 78 ce
     a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
     78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78
@@ -64,7 +68,7 @@ variant maxima
     a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 ce a9
     78 ce a9 78 ce a9 78 ce a9 78 ce a9 78 1d ff ff
     7f 7f 25 ff ff 7f 7f 28 ff ff ff ff 0f 30 ff ff
-    03
+    03 3d ff ff 7f 7f
 
 variant minima
   field 1 AbilityId : uint = 0
@@ -73,8 +77,10 @@ variant minima
   field 4 CastTime : float = -3.40282347E+38 (0xff7fffff)
   field 5 Cost : uint = 0
   field 6 Range : ushort = 0
-  bytes 13
-    12 01 01 1d ff ff 7f ff 25 ff ff 7f ff
+  field 7 FacingAngle : float = -3.40282347E+38 (0xff7fffff)
+  bytes 18
+    12 01 01 1d ff ff 7f ff 25 ff ff 7f ff 3d ff ff
+    7f ff
 
 variant varint-edges
   field 1 AbilityId : uint = 2097151
@@ -83,7 +89,8 @@ variant varint-edges
   field 4 CastTime : float = 1.17549435E-38 (0x00800000)
   field 5 Cost : uint = 127
   field 6 Range : ushort = 16383
-  bytes 150
+  field 7 FacingAngle : float = 1.17549435E-38 (0x00800000)
+  bytes 155
     08 ff ff 7f 12 80 01 79 79 79 79 79 79 79 79 79
     79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
     79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
@@ -93,7 +100,7 @@ variant varint-edges
     79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
     79 79 79 79 79 79 79 79 79 79 79 79 79 79 79 79
     79 79 79 79 79 79 79 1d 00 00 80 00 25 00 00 80
-    00 28 7f 30 ff 7f
+    00 28 7f 30 ff 7f 3d 00 00 80 00
 
 variant float-specials
   field 1 AbilityId : uint = 42
@@ -102,7 +109,8 @@ variant float-specials
   field 4 CastTime : float = NaN (0xffc00000)
   field 5 Cost : uint = 300
   field 6 Range : ushort = 42
-  bytes 40
+  field 7 FacingAngle : float = Infinity (0x7f800000)
+  bytes 45
     08 2a 12 15 ce a9 ce bc ce ad ce b3 ce b1 20 ce
     94 ce 95 ce 9b ce a4 ce 91 1d 01 00 c0 7f 25 00
-    00 c0 ff 28 ac 02 30 2a
+    00 c0 ff 28 ac 02 30 2a 3d 00 00 80 7f
