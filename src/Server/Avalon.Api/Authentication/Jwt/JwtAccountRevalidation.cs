@@ -1,10 +1,12 @@
 using System.Globalization;
+using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using Avalon.Api.Services;
 using Avalon.Common.Accounts;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.Auth;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.JsonWebTokens;
 
 namespace Avalon.Api.Authentication.Jwt;
 
@@ -13,6 +15,7 @@ namespace Avalon.Api.Authentication.Jwt;
 /// reloads the account the token names and applies <see cref="AccountAccessCheck"/>, the same
 /// rule a personal access token gets. A refused account fails authentication (401); an admitted
 /// one has its role claims replaced by the token's roles masked by the account's current ones.
+/// A token issued before the account's credentials last changed (#495) is refused too.
 /// </summary>
 public static class JwtAccountRevalidation
 {
@@ -36,6 +39,14 @@ public static class JwtAccountRevalidation
             return;
         }
 
+        // A password change, an MFA reset or an admin's MFA removal ends every access token issued
+        // before it (#495), rather than leaving it its lifetime.
+        if (IssuedBeforeCredentialsChanged(IssuedAt(context.SecurityToken), account))
+        {
+            context.Fail("credentials changed");
+            return;
+        }
+
         AccountAccessCheck.Remember(context.HttpContext, account);
 
         var source = principal.Identity as ClaimsIdentity;
@@ -45,4 +56,26 @@ public static class JwtAccountRevalidation
             source?.NameClaimType ?? ClaimTypes.Name, ClaimTypes.GroupSid);
         context.Principal = new ClaimsPrincipal(identity);
     }
+
+    /// <summary>
+    /// Whether a token issued at <paramref name="issuedAt"/> predates the account's last
+    /// credentials change. <c>iat</c> has whole seconds, so the change is compared at the second:
+    /// a token issued in the same second as the change is accepted (a login straight after a
+    /// change must work). A token with no <c>iat</c> counts as issued at the earliest instant.
+    /// </summary>
+    internal static bool IssuedBeforeCredentialsChanged(DateTime issuedAt, Account account)
+    {
+        if (account.CredentialsChangedAt is not { } changedAt)
+            return false;
+
+        DateTime changedAtSecond = new(changedAt.Ticks - changedAt.Ticks % TimeSpan.TicksPerSecond, DateTimeKind.Utc);
+        return issuedAt < changedAtSecond;
+    }
+
+    private static DateTime IssuedAt(Microsoft.IdentityModel.Tokens.SecurityToken? token) => token switch
+    {
+        JsonWebToken jwt => jwt.IssuedAt,
+        JwtSecurityToken jwt => jwt.IssuedAt,
+        _ => DateTime.MinValue,
+    };
 }

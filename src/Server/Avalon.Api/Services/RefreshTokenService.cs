@@ -71,12 +71,8 @@ public sealed class RefreshTokenService : IRefreshTokenService
             throw new RefreshTheftException(row.AccountId);
         }
 
-        row.Revoked = true;
-        row.Usages += 1;
-        await _repository.UpdateAsync(row, cancellationToken);
-
         var (newRaw, newHash) = Generate();
-        await _repository.CreateAsync(new RefreshToken
+        var child = new RefreshToken
         {
             AccountId = row.AccountId,
             FamilyId = row.FamilyId,
@@ -86,9 +82,19 @@ public sealed class RefreshTokenService : IRefreshTokenService
             Usages = 0,
             CreatedAt = now,
             ExpiresAt = row.ExpiresAt,
-        }, cancellationToken);
+        };
 
-        return new RefreshRotateResult(newRaw, row.ExpiresAt, row.AccountId);
+        switch (await _repository.RotateAsync(row, child, now, cancellationToken))
+        {
+            case RefreshRotation.Rotated:
+                return new RefreshRotateResult(newRaw, row.ExpiresAt, row.AccountId);
+            case RefreshRotation.CredentialsChanged:
+                // Issued before a password change or an MFA reset (#495). That change revoked the
+                // token already; this refuses a rotation that read it just before.
+                throw new UnauthorizedAccessException("Refresh token predates a credentials change");
+            default:
+                throw new UnauthorizedAccessException("Refresh token revoked");
+        }
     }
 
     public async Task RevokeAsync(string rawToken, CancellationToken cancellationToken = default)

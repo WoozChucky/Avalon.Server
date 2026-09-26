@@ -72,6 +72,15 @@ public class Account : IDbEntity<AccountId>
     public AccountAccessLevel AccessLevel { get; set; } = AccountAccessLevel.Player;
 
     public AccountStatus Status { get; set; } = AccountStatus.Active;
+
+    /// <summary>
+    /// When the account's credentials last changed (#495): a password change, an MFA reset by its
+    /// owner, or an admin's MFA removal, each written in the transaction that makes the change.
+    /// <c>null</c> when they never have. An access token issued before it, a refresh token issued
+    /// before it, and a personal-access-token mint whose re-authentication started before it are
+    /// all refused.
+    /// </summary>
+    public DateTime? CredentialsChangedAt { get; set; }
 }
 
 public enum OperatingSystem : ushort

@@ -73,7 +73,7 @@ public class PersonalAccessTokenControllerShould
         Assert.Equal(StatusCodes.Status403Forbidden, obj.StatusCode);
         await _service.DidNotReceive().MintSelfAsync(
             Arg.Any<AccountId>(), Arg.Any<Common.Accounts.AccountAccessLevel>(), Arg.Any<string>(),
-            Arg.Any<DateTime?>(), Arg.Any<Common.Accounts.AccountAccessLevel?>(), Arg.Any<CancellationToken>());
+            Arg.Any<DateTime?>(), Arg.Any<Common.Accounts.AccountAccessLevel?>(), Arg.Any<Reauthenticated>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -82,7 +82,7 @@ public class PersonalAccessTokenControllerShould
         var user = User(7, AvalonRoles.Player);
         _service.MintSelfAsync(
             Arg.Any<AccountId>(), Arg.Any<Common.Accounts.AccountAccessLevel>(), "x",
-            Arg.Any<DateTime?>(), Arg.Any<Common.Accounts.AccountAccessLevel?>(), Arg.Any<CancellationToken>())
+            Arg.Any<DateTime?>(), Arg.Any<Common.Accounts.AccountAccessLevel?>(), Arg.Any<Reauthenticated>(), Arg.Any<CancellationToken>())
             .Returns(MakeMintResult(5));
 
         var sut = MakeSut(user);
@@ -96,7 +96,7 @@ public class PersonalAccessTokenControllerShould
         Assert.Equal("avp_abcd", dto.Prefix);
         await _service.Received(1).MintSelfAsync(
             Arg.Is<AccountId>(a => a.Value == 7), Arg.Any<Common.Accounts.AccountAccessLevel>(), "x",
-            Arg.Any<DateTime?>(), Arg.Any<Common.Accounts.AccountAccessLevel?>(), Arg.Any<CancellationToken>());
+            Arg.Any<DateTime?>(), Arg.Any<Common.Accounts.AccountAccessLevel?>(), Arg.Any<Reauthenticated>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -205,7 +205,7 @@ public class PersonalAccessTokenControllerShould
         Assert.Equal(StatusCodes.Status403Forbidden, obj.StatusCode);
         await _service.DidNotReceive().MintAdminAsync(
             Arg.Any<Common.Accounts.AccountAccessLevel>(), Arg.Any<AccountId>(), Arg.Any<string>(),
-            Arg.Any<DateTime?>(), Arg.Any<Common.Accounts.AccountAccessLevel>(), Arg.Any<CancellationToken>());
+            Arg.Any<DateTime?>(), Arg.Any<Common.Accounts.AccountAccessLevel>(), Arg.Any<Reauthenticated>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -214,7 +214,7 @@ public class PersonalAccessTokenControllerShould
         var user = User(99, AvalonRoles.Admin);
         _service.MintAdminAsync(
             Arg.Any<Common.Accounts.AccountAccessLevel>(), Arg.Is<AccountId>(a => a.Value == 7), "x",
-            Arg.Any<DateTime?>(), Common.Accounts.AccountAccessLevel.Player, Arg.Any<CancellationToken>())
+            Arg.Any<DateTime?>(), Common.Accounts.AccountAccessLevel.Player, Arg.Any<Reauthenticated>(), Arg.Any<CancellationToken>())
             .Returns(MakeMintResult(10));
 
         var sut = MakeSut(user);
@@ -228,7 +228,7 @@ public class PersonalAccessTokenControllerShould
         Assert.Equal("avp_fulltokenvalue", dto.Token);
         await _service.Received(1).MintAdminAsync(
             Arg.Any<Common.Accounts.AccountAccessLevel>(), Arg.Is<AccountId>(a => a.Value == 7), "x",
-            Arg.Any<DateTime?>(), Common.Accounts.AccountAccessLevel.Player, Arg.Any<CancellationToken>());
+            Arg.Any<DateTime?>(), Common.Accounts.AccountAccessLevel.Player, Arg.Any<Reauthenticated>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]

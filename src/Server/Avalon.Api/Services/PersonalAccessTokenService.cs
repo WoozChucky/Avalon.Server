@@ -1,3 +1,4 @@
+using System.Security.Authentication;
 using System.Security.Cryptography;
 using System.Text;
 using Avalon.Api.Exceptions;
@@ -11,11 +12,19 @@ namespace Avalon.Api.Services;
 
 public interface IPersonalAccessTokenService
 {
+    /// <summary>
+    /// Mints a token for the caller. Refused with <see cref="AuthenticationException"/> (401) when
+    /// the credentials of the account behind <paramref name="reauthenticated"/> changed after its
+    /// check started (#495).
+    /// </summary>
     Task<MintResult> MintSelfAsync(AccountId callerId, AccountAccessLevel callerRoles, string name,
-        DateTime? expiresAt, AccountAccessLevel? requestedRoles, CancellationToken cancellationToken = default);
+        DateTime? expiresAt, AccountAccessLevel? requestedRoles, Reauthenticated reauthenticated,
+        CancellationToken cancellationToken = default);
 
+    /// <inheritdoc cref="MintSelfAsync"/>
     Task<MintResult> MintAdminAsync(AccountAccessLevel callerRoles, AccountId targetAccountId, string name,
-        DateTime? expiresAt, AccountAccessLevel requestedRoles, CancellationToken cancellationToken = default);
+        DateTime? expiresAt, AccountAccessLevel requestedRoles, Reauthenticated reauthenticated,
+        CancellationToken cancellationToken = default);
 
     Task<PersonalAccessToken?> GetAsync(PersonalAccessTokenId id, CancellationToken cancellationToken = default);
     Task<List<PersonalAccessToken>> ListByAccountAsync(AccountId accountId, bool includeRevoked, CancellationToken cancellationToken = default);
@@ -38,6 +47,7 @@ public class PersonalAccessTokenService : IPersonalAccessTokenService
     public static readonly TimeSpan MaxLifetime = TimeSpan.FromDays(365);
     public static readonly TimeSpan DefaultLifetime = TimeSpan.FromDays(365);
     public const string TokenPrefix = "avp_";
+    public const string CredentialsChanged = "Credentials changed; sign in again";
     public const int TokenPrefixDisplayLength = 8;
     private static readonly TimeSpan LastUsedBucket = TimeSpan.FromSeconds(60);
 
@@ -56,16 +66,19 @@ public class PersonalAccessTokenService : IPersonalAccessTokenService
     }
 
     public Task<MintResult> MintSelfAsync(AccountId callerId, AccountAccessLevel callerRoles, string name,
-        DateTime? expiresAt, AccountAccessLevel? requestedRoles, CancellationToken cancellationToken = default)
+        DateTime? expiresAt, AccountAccessLevel? requestedRoles, Reauthenticated reauthenticated,
+        CancellationToken cancellationToken = default)
     {
         var roles = requestedRoles ?? callerRoles;
-        return MintInternalAsync(callerId, callerRoles, roles, name, expiresAt, cancellationToken);
+        return MintInternalAsync(callerId, callerRoles, roles, name, expiresAt, reauthenticated, cancellationToken);
     }
 
     public Task<MintResult> MintAdminAsync(AccountAccessLevel callerRoles, AccountId targetAccountId, string name,
-        DateTime? expiresAt, AccountAccessLevel requestedRoles, CancellationToken cancellationToken = default)
+        DateTime? expiresAt, AccountAccessLevel requestedRoles, Reauthenticated reauthenticated,
+        CancellationToken cancellationToken = default)
     {
-        return MintInternalAsync(targetAccountId, callerRoles, requestedRoles, name, expiresAt, cancellationToken);
+        return MintInternalAsync(targetAccountId, callerRoles, requestedRoles, name, expiresAt, reauthenticated,
+            cancellationToken);
     }
 
     private async Task<MintResult> MintInternalAsync(
@@ -74,6 +87,7 @@ public class PersonalAccessTokenService : IPersonalAccessTokenService
         AccountAccessLevel roles,
         string name,
         DateTime? expiresAt,
+        Reauthenticated reauthenticated,
         CancellationToken cancellationToken)
     {
         if ((roles & ~callerRoles) != 0)
@@ -118,7 +132,12 @@ public class PersonalAccessTokenService : IPersonalAccessTokenService
             ExpiresAt = resolvedExpiry,
         };
 
-        var created = await _repository.CreateAsync(entity, cancellationToken);
+        // Inserted only while the re-authenticated account's credentials have not changed since its
+        // check started (#495): a password change or an MFA reset between the check and this insert
+        // would otherwise leave a token minted on the strength of the old credentials.
+        var created = await _repository.CreateUnlessCredentialsChangedAsync(entity, reauthenticated.AccountId,
+                          reauthenticated.StartedAt, cancellationToken)
+                      ?? throw new AuthenticationException(CredentialsChanged);
 
         return new MintResult(
             created.Id,

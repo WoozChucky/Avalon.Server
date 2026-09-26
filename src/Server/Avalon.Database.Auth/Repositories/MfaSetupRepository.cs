@@ -37,7 +37,8 @@ public interface IMfaSetupRepository : IRepository<MFASetup, Guid>
     Task DeletePendingAsync(Guid id, byte[] secret, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// The owner's own MFA reset (#483), in one transaction: deletes confirmed row
+    /// The owner's own MFA reset (#483), in one transaction: stamps the account's
+    /// <c>CredentialsChangedAt</c> with <paramref name="now"/> (#495), deletes confirmed row
     /// <paramref name="id"/>, which spends its recovery codes, and revokes every refresh token and
     /// personal access token <paramref name="accountId"/> holds, so no session opened before the
     /// reset outlives it. Returns <c>false</c>, writing nothing, when the row is no longer there
@@ -145,6 +146,12 @@ public class MfaSetupRepository(IDbContextFactory<AuthDbContext> contextFactory)
         await using var context = await CreateContextAsync(cancellationToken);
         // An uncommitted transaction rolls back when it is disposed, so the throw path needs no catch.
         await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
+
+        // First, so this transaction holds the account row before it revokes anything: a refresh
+        // rotation or a token mint running now either sees the stamp or finishes before the
+        // revocations below, which then take what it issued (#495).
+        if (await AccountRepository.StampCredentialsChangedAsync(context, accountId, now, cancellationToken) == 0)
+            return false;
 
         int deleted = await context.MfaSetups
             .Where(m => m.Id == id && m.AccountId == accountId && m.Status == MfaSetupStatus.Confirmed)

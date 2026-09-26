@@ -4,8 +4,33 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Avalon.Database.Auth.Repositories;
 
+/// <summary>How a <see cref="IRefreshTokenRepository.RotateAsync"/> ended.</summary>
+public enum RefreshRotation
+{
+    /// <summary>The parent was revoked by this call and the child inserted.</summary>
+    Rotated,
+
+    /// <summary>The account's credentials changed after the parent was issued (#495): nothing written.</summary>
+    CredentialsChanged,
+
+    /// <summary>
+    /// The parent was no longer live when this call went to revoke it: another rotation, or a
+    /// revocation, got there first (#495). Nothing written.
+    /// </summary>
+    ParentNotLive,
+}
+
 public interface IRefreshTokenRepository
 {
+    /// <summary>
+    /// Replaces <paramref name="parent"/> with <paramref name="child"/> in one transaction (#495):
+    /// refused when the account's credentials changed after the parent was issued; otherwise the
+    /// parent is revoked and the child inserted. The account row is held first, so a concurrent
+    /// credentials change either refuses this rotation or revokes the child it inserted.
+    /// </summary>
+    Task<RefreshRotation> RotateAsync(RefreshToken parent, RefreshToken child, DateTime now,
+        CancellationToken cancellationToken = default);
+
     Task<RefreshToken> CreateAsync(RefreshToken token, CancellationToken cancellationToken = default);
     Task<RefreshToken?> FindByHashAsync(byte[] hash, CancellationToken cancellationToken = default);
     Task UpdateAsync(RefreshToken token, CancellationToken cancellationToken = default);
@@ -22,6 +47,27 @@ public sealed class RefreshTokenRepository(IDbContextFactory<AuthDbContext> cont
         var entry = context.TrackForInsert(token);
         await context.SaveChangesAsync(cancellationToken);
         return entry.Entity;
+    }
+
+    public async Task<RefreshRotation> RotateAsync(RefreshToken parent, RefreshToken child, DateTime now,
+        CancellationToken cancellationToken = default)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        // An uncommitted transaction rolls back when it is disposed, so the refusals need no catch.
+        await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
+
+        if (!await AccountRepository.HoldCredentialsUnchangedSinceAsync(context, parent.AccountId, parent.CreatedAt,
+                cancellationToken))
+            return RefreshRotation.CredentialsChanged;
+
+        parent.Revoked = true;
+        parent.Usages += 1;
+        context.TrackForUpdate(parent);
+        context.TrackForInsert(child);
+        await context.SaveChangesAsync(cancellationToken);
+
+        await transaction.CommitAsync(cancellationToken);
+        return RefreshRotation.Rotated;
     }
 
     public async Task<RefreshToken?> FindByHashAsync(byte[] hash, CancellationToken cancellationToken = default)

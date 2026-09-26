@@ -21,11 +21,15 @@ public class PersonalAccessTokenServiceShould
 
     private PersonalAccessTokenService MakeSut() => new(_repo, _random, _time);
 
+    /// <summary>A current-password check that passed a moment ago.</summary>
+    private static readonly Reauthenticated Proof = new(new AccountId(7), FixedNow.UtcDateTime);
+
     [Fact]
     public async Task MintSelf_DefaultsRolesToCallerRoles_WhenRequestedRolesOmitted()
     {
         _random.GetBytes(32).Returns(Enumerable.Repeat((byte)0xAA, 32).ToArray());
-        _repo.CreateAsync(Arg.Any<PersonalAccessToken>(), Arg.Any<CancellationToken>())
+        _repo.CreateUnlessCredentialsChangedAsync(Arg.Any<PersonalAccessToken>(), Arg.Any<AccountId>(),
+                 Arg.Any<DateTime>(), Arg.Any<CancellationToken>())
              .Returns(ci => ci.Arg<PersonalAccessToken>());
 
         var sut = MakeSut();
@@ -35,6 +39,7 @@ public class PersonalAccessTokenServiceShould
             name: "ci",
             expiresAt: null,
             requestedRoles: null,
+            Proof,
             CancellationToken.None);
 
         Assert.Equal(AccountAccessLevel.Player | AccountAccessLevel.GameMaster, result.Roles);
@@ -52,6 +57,7 @@ public class PersonalAccessTokenServiceShould
             name: "ci",
             expiresAt: null,
             requestedRoles: AccountAccessLevel.Admin,
+            Proof,
             CancellationToken.None));
     }
 
@@ -59,7 +65,8 @@ public class PersonalAccessTokenServiceShould
     public async Task MintAdmin_AcceptsRolesBeyondTargetButWithinCaller()
     {
         _random.GetBytes(32).Returns(new byte[32]);
-        _repo.CreateAsync(Arg.Any<PersonalAccessToken>(), Arg.Any<CancellationToken>())
+        _repo.CreateUnlessCredentialsChangedAsync(Arg.Any<PersonalAccessToken>(), Arg.Any<AccountId>(),
+                 Arg.Any<DateTime>(), Arg.Any<CancellationToken>())
              .Returns(ci => ci.Arg<PersonalAccessToken>());
 
         var sut = MakeSut();
@@ -69,6 +76,7 @@ public class PersonalAccessTokenServiceShould
             name: "svc",
             expiresAt: null,
             requestedRoles: AccountAccessLevel.GameMaster,
+            Proof,
             CancellationToken.None);
 
         Assert.Equal(AccountAccessLevel.GameMaster, result.Roles);
@@ -84,6 +92,7 @@ public class PersonalAccessTokenServiceShould
             name: "svc",
             expiresAt: null,
             requestedRoles: AccountAccessLevel.Console,
+            Proof,
             CancellationToken.None));
     }
 
@@ -98,6 +107,7 @@ public class PersonalAccessTokenServiceShould
             name: "ci",
             expiresAt: tooFar,
             requestedRoles: null,
+            Proof,
             CancellationToken.None));
     }
 

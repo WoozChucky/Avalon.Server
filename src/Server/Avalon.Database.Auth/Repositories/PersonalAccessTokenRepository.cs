@@ -10,6 +10,16 @@ public interface IPersonalAccessTokenRepository : IRepository<PersonalAccessToke
     Task<List<PersonalAccessToken>> ListByAccountAsync(AccountId accountId, bool includeRevoked, CancellationToken cancellationToken = default);
     Task<int> RevokeAllForAccountAsync(AccountId accountId, AccountId revokedBy, CancellationToken cancellationToken = default);
     Task<bool> UpdateLastUsedIfStaleAsync(PersonalAccessTokenId id, DateTime now, TimeSpan minStale, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Inserts <paramref name="token"/>, but only while the credentials of
+    /// <paramref name="reauthenticatedAccount"/> (the account whose password authorised the mint)
+    /// have not changed after <paramref name="reauthenticatedAt"/> (#495), in one transaction that
+    /// holds that account's row, so a concurrent change either refuses this insert or revokes it.
+    /// Returns <c>null</c>, inserting nothing, when they changed.
+    /// </summary>
+    Task<PersonalAccessToken?> CreateUnlessCredentialsChangedAsync(PersonalAccessToken token,
+        AccountId reauthenticatedAccount, DateTime reauthenticatedAt, CancellationToken cancellationToken = default);
 }
 
 public class PersonalAccessTokenRepository(IDbContextFactory<AuthDbContext> contextFactory)
@@ -61,6 +71,26 @@ public class PersonalAccessTokenRepository(IDbContextFactory<AuthDbContext> cont
                     .SetProperty(p => p.RevokedAt, now)
                     .SetProperty(p => p.RevokedBy, revokedBy),
                 cancellationToken);
+    }
+
+    public async Task<PersonalAccessToken?> CreateUnlessCredentialsChangedAsync(PersonalAccessToken token,
+        AccountId reauthenticatedAccount, DateTime reauthenticatedAt, CancellationToken cancellationToken = default)
+    {
+        await using var context = await CreateContextAsync(cancellationToken);
+        // An uncommitted transaction rolls back when it is disposed, so the refusal needs no catch.
+        await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
+
+        // First: the account row is held until the insert commits, so a credentials change
+        // either committed before this (and refuses it here) or waits for it, and its revocation
+        // then takes this token.
+        if (!await AccountRepository.HoldCredentialsUnchangedSinceAsync(context, reauthenticatedAccount,
+                reauthenticatedAt, cancellationToken))
+            return null;
+
+        var entry = context.TrackForInsert(token);
+        await context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return entry.Entity;
     }
 
     public async Task<bool> UpdateLastUsedIfStaleAsync(PersonalAccessTokenId id, DateTime now, TimeSpan minStale, CancellationToken cancellationToken = default)
