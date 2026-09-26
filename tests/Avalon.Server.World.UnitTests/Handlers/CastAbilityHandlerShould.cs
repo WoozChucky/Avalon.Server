@@ -84,6 +84,23 @@ public class CastAbilityHandlerShould
         Assert.Equal(1500u, refusal.CooldownMs);
     }
 
+    /// <summary>
+    /// A remainder under a millisecond is rounded up, never truncated to 0: CooldownMs = 0 would
+    /// tell the client the ability is ready when the server just refused it for cooling down.
+    /// </summary>
+    [Fact]
+    public void Round_a_sub_millisecond_cooldown_up_to_1()
+    {
+        var f = new Fixture();
+        f.GiveAbility(new AbilityMetadata { Name = "X", ScriptName = "x" }).CooldownTimer.Returns(0.0004f);
+
+        f.Cast(new CCastAbilityPacket { AbilityId = 42 });
+
+        SAbilityNotReadyPacket refusal = f.SingleRefusal();
+        Assert.Equal(CastRejectReason.Cooldown, refusal.Reason);
+        Assert.Equal(1u, refusal.CooldownMs);
+    }
+
     [Fact]
     public void Answer_Gcd_with_the_time_left_during_the_global_cooldown()
     {
@@ -287,6 +304,9 @@ public class CastAbilityHandlerShould
 
         Assert.Equal(CastRejectReason.InternalError, f.SingleRefusal().Reason);
         f.Instance.DidNotReceive().BroadcastUnitStartCast(Arg.Any<IUnit>(), Arg.Any<float>());
+        // A refusal starts no global cooldown and does not put the caster in combat.
+        f.Character.DidNotReceive().LastCastStartTime = Arg.Any<DateTime>();
+        f.Character.DidNotReceive().MarkCombat();
     }
 
     [Fact]
@@ -306,13 +326,14 @@ public class CastAbilityHandlerShould
     [Fact]
     public void Carry_the_reason_through_a_protobuf_round_trip()
     {
-        NetworkPacket sent = SAbilityNotReadyPacket.Create(7, CastRejectReason.NotFacing, 0u,
+        NetworkPacket sent = SAbilityNotReadyPacket.Create(7, CastRejectReason.Cooldown, 1234u,
             new FakeAvalonCryptoSession().Encrypt);
 
         SAbilityNotReadyPacket decoded = Decode(sent);
 
         Assert.Equal(7u, decoded.AbilityId);
-        Assert.Equal(CastRejectReason.NotFacing, decoded.Reason);
+        Assert.Equal(1234u, decoded.CooldownMs);
+        Assert.Equal(CastRejectReason.Cooldown, decoded.Reason);
     }
 
     /// <summary>A payload from before #512 has no field 3, and must not decode as a real reason.</summary>

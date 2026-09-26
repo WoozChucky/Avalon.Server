@@ -61,10 +61,11 @@ public class WorldHostGraphShould
             Assert.IsType<NoQuestProgress>(host.Services.GetRequiredService<IQuestProgress>());
 
             // The facing cone (#513): CastAbilityHandler checks CombatConfig.MaxFacingAngleDeg and
-            // CharacterSelectHandler sends it. Both are built from this container, so one singleton
-            // is what keeps the cone the client is told equal to the one it is held to.
-            Assert.Same(host.Services.GetRequiredService<CombatConfig>(),
-                host.Services.GetRequiredService<CombatConfig>());
+            // CharacterSelectHandler sends it. Both are built from this container, so a singleton
+            // registration is what keeps the cone the client is told equal to the one it is held to.
+            ServiceDescriptor combatConfig = Assert.Single(builder.Services,
+                d => d.ServiceType == typeof(CombatConfig));
+            Assert.Equal(ServiceLifetime.Singleton, combatConfig.Lifetime);
             Assert.NotNull(ActivatorUtilities.CreateInstance<CharacterSelectHandler>(host.Services));
         }
         finally

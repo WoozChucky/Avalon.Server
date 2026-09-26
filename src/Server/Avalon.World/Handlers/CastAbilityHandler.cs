@@ -45,7 +45,8 @@ public class CastAbilityHandler(ILogger<CastAbilityHandler> logger, IWorld world
         double sinceLastCast = (DateTime.UtcNow - attacker.LastCastStartTime).TotalMilliseconds;
         if (sinceLastCast < combatConfig.GcdMs)
         {
-            uint remaining = (uint)(combatConfig.GcdMs - sinceLastCast);
+            // Rounded up: a sub-millisecond remainder must not read as 0 ("ready") on the wire.
+            uint remaining = (uint)Math.Ceiling(combatConfig.GcdMs - sinceLastCast);
             logger.LogDebug("Cast reject GCD ability={AbilityId} remainingMs={Remaining}", packet.AbilityId, remaining);
             Refuse(connection, packet, CastRejectReason.Gcd, remaining);
             return;
@@ -61,8 +62,9 @@ public class CastAbilityHandler(ILogger<CastAbilityHandler> logger, IWorld world
 
         if (ability.CooldownTimer > 0)
         {
-            // CooldownTimer is float seconds; the wire field is uint milliseconds.
-            uint cooldownMs = (uint)(ability.CooldownTimer * 1000f);
+            // CooldownTimer is float seconds; the wire field is uint milliseconds, rounded up so a
+            // sub-millisecond remainder still carries at least 1.
+            uint cooldownMs = (uint)Math.Ceiling(ability.CooldownTimer * 1000.0);
             logger.LogDebug("Cast reject Cooldown ability={AbilityId} remainingMs={Remaining}", packet.AbilityId, cooldownMs);
             Refuse(connection, packet, CastRejectReason.Cooldown, cooldownMs);
             return;
