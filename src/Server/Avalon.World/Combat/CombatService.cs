@@ -124,23 +124,29 @@ public sealed class CombatService : ICombatService
     /// <summary>
     /// Restores up to <paramref name="amount" />, capped at the target's maximum (#164). A dead unit is
     /// never healed. The health change reaches clients through entity replication, as regeneration's
-    /// does. Heal threat is unchanged: <c>amount × HealThreatPerHp × class modifier</c>, split across
-    /// the hostiles in the target's encounter.
+    /// does. Heal threat counts only the health actually restored (#531):
+    /// <c>restored × HealThreatPerHp × class modifier</c>, split across the hostiles in the target's
+    /// encounter. Overheal adds none, so a heal that restores nothing leaves the encounter untouched and
+    /// does not even add the healer to it.
     /// </summary>
     public void ApplyHeal(IUnit healer, IUnit target, uint amount, IAbility ability)
     {
         bool dead = target is ICharacter { IsDead: true } || target.CurrentHealth == 0;
         if (dead) return;
 
-        target.CurrentHealth = (uint)Math.Min((ulong)target.Health, (ulong)target.CurrentHealth + amount);
+        uint before = target.CurrentHealth;
+        uint after = (uint)Math.Min((ulong)target.Health, (ulong)before + amount);
+        target.CurrentHealth = after;
 
+        uint restored = after > before ? after - before : 0;
+        if (restored == 0) return;
         if (ability.Metadata.HealThreatPerHp <= 0) return;
 
         var enc = _registry.FindEncounterContaining(target) as Encounter;
         if (enc is null || enc.Hostiles.Count == 0) return;
 
         var healerClass = (healer as ICharacter)?.Class ?? CharacterClass.Healer;
-        float threatTotal = amount * ability.Metadata.HealThreatPerHp * ClassThreatModifier.Get(healerClass);
+        float threatTotal = restored * ability.Metadata.HealThreatPerHp * ClassThreatModifier.Get(healerClass);
         float perHostile  = threatTotal / enc.Hostiles.Count;
 
         if (!enc.Players.Contains(healer)) enc.AddPlayer(healer);

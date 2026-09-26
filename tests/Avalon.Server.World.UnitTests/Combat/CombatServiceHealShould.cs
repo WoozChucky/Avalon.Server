@@ -97,4 +97,58 @@ public class CombatServiceHealShould
         Assert.True(encounter.GetThreatList(wolf).TryGetValue(healer, out float threat));
         Assert.True(threat > 0f);
     }
+
+    [Fact]
+    public void Add_no_threat_and_no_healer_for_a_heal_on_a_target_at_full_health()
+    {
+        CharacterEntity healer = TestCharacters.New(2);
+        CharacterEntity target = Wounded(1, max: 100, current: 100);
+        var wolf = Substitute.For<ICreature>();
+        _combat.EnterCombat(wolf, target);
+
+        _combat.ApplyHeal(healer, target, 50, Heal(threatPerHp: 0.5f));
+
+        var encounter = (Encounter)_combat.GetEncounterFor(target)!;
+        Assert.DoesNotContain(healer, encounter.Players);
+        Assert.False(encounter.GetThreatList(wolf).ContainsKey(healer));
+        Assert.Null(_combat.GetEncounterFor(healer));
+    }
+
+    [Fact]
+    public void Count_only_the_health_restored_by_a_partial_overheal()
+    {
+        CharacterEntity healer = TestCharacters.New(2);
+        CharacterEntity target = Wounded(1, max: 100, current: 70);
+        var wolf = Substitute.For<ICreature>();
+        var boar = Substitute.For<ICreature>();
+        _combat.EnterCombat(wolf, target);
+        _combat.EnterCombat(boar, target);
+
+        _combat.ApplyHeal(healer, target, 100, Heal(threatPerHp: 0.5f));
+
+        var encounter = (Encounter)_combat.GetEncounterFor(target)!;
+        Assert.Equal(2, encounter.Hostiles.Count);
+        // Joining seeds the healer at InitialThreatSeed; the heal adds its share on top.
+        float expected = _config.InitialThreatSeed + 30 * 0.5f * ClassThreatModifier.Get(healer.Class) / 2;
+        Assert.Equal(expected, encounter.GetThreatList(wolf)[healer], 3);
+        Assert.Equal(expected, encounter.GetThreatList(boar)[healer], 3);
+    }
+
+    [Fact]
+    public void Count_the_whole_amount_when_the_heal_restores_all_of_it()
+    {
+        CharacterEntity healer = TestCharacters.New(2);
+        CharacterEntity target = Wounded(1, max: 100, current: 40);
+        var wolf = Substitute.For<ICreature>();
+        var boar = Substitute.For<ICreature>();
+        _combat.EnterCombat(wolf, target);
+        _combat.EnterCombat(boar, target);
+
+        _combat.ApplyHeal(healer, target, 20, Heal(threatPerHp: 0.5f));
+
+        var encounter = (Encounter)_combat.GetEncounterFor(target)!;
+        float expected = _config.InitialThreatSeed + 20 * 0.5f * ClassThreatModifier.Get(healer.Class) / 2;
+        Assert.Equal(expected, encounter.GetThreatList(wolf)[healer], 3);
+        Assert.Equal(expected, encounter.GetThreatList(boar)[healer], 3);
+    }
 }

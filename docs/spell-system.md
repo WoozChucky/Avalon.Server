@@ -37,7 +37,7 @@ are sent to its client in `SMSG_CHARACTER_ABILITIES` (`AbilityInfo`).
 | `Effects` | `SpellEffect` | | `Damage` for a hostile skill, `Heal` for an ally skill. |
 | `EffectValue` | uint | health points | Damage dealt or health restored per unit affected. |
 | `AllowedClasses` | list of `CharacterClass` | | The classes that may hold it. |
-| `ThreatMultiplier`, `HealThreatPerHp`, `TauntDurationMs` | float, float, uint | | Threat rules, unchanged by #164. |
+| `ThreatMultiplier`, `HealThreatPerHp`, `TauntDurationMs` | float, float, uint | | Threat rules, unchanged by #164. The two floats must be finite and 0 or more (#529). |
 | `Flags` | `AbilityFlags` | | `RequiresInCombat`, `RequiresOutOfCombat`. |
 | `AnimationId` | uint | | Reserved for the client's cast animation. |
 | `AimMode` | `AbilityAimMode` | | `Movement` (0): the caster's facing. `Cursor` (1): a ground point sent with the cast. |
@@ -138,7 +138,8 @@ refused: its cost and cooldown are spent all the same.
   on each hostile unit, with the usual threat, encounter, combat tag, death and invulnerable rules.
 - **Heal**: an `Ally` skill calls `CombatService.ApplyHeal` on each ally, which restores
   `min(Health, CurrentHealth + EffectValue)`, never heals a dead unit, and adds heal threat from
-  `HealThreatPerHp` when the healed unit is in an encounter.
+  `HealThreatPerHp` when the healed unit is in an encounter. Heal threat counts the health actually
+  restored, so overheal adds none (#531).
 
 ---
 

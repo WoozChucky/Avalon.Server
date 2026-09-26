@@ -223,6 +223,7 @@ public class CombatServiceShould
         var (svc, reg) = BuildService(initialThreatSeed: 0);
         var healer = StubCharacter(CharacterClass.Healer);
         var ally   = StubCharacter(CharacterClass.Warrior);
+        ally.Health.Returns(300u); // room for the whole 100: heal threat counts only what is restored (#531)
         var hostile1 = StubCreature();
         var hostile2 = StubCreature();
         var healAbility = Substitute.For<IAbility>();
