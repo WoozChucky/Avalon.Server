@@ -152,6 +152,37 @@ public class VendorCatalogShould
         Assert.Equal([1, 2], catalog.Refused.Select(r => r.Id));
     }
 
+    /// <summary>
+    /// A row selling below the item's SellPrice would let a player buy and sell it back forever for
+    /// a profit (#432), so it is refused, whether the low price is the override or the BuyPrice.
+    /// Selling at exactly the SellPrice is no gain, and is kept.
+    /// </summary>
+    [Fact]
+    public void Refuse_a_row_that_sells_below_the_items_sell_price()
+    {
+        VendorStock lowOverride = Row(1, 1, Blade);
+        lowOverride.PriceOverride = Blade.SellPrice - 1;
+        var cheap = new ItemTemplate
+        {
+            Id = new ItemTemplateId(750), Name = "Cheap", Class = ItemClass.Junk, SubClass = ItemSubClass.JunkItem,
+            MaxStackSize = 1, BuyPrice = 3, SellPrice = 4,
+        };
+        VendorStock lowBuyPrice = Row(2, 2, cheap);
+        VendorStock atSellPrice = Row(3, 3, Blade);
+        atSellPrice.PriceOverride = Blade.SellPrice;
+        VendorStock highOverrideOverLowBuyPrice = Row(4, 4, cheap);
+        highOverrideOverLowBuyPrice.PriceOverride = 4;
+
+        VendorCatalog catalog = new(
+            [lowOverride, lowBuyPrice, atSellPrice, highOverrideOverLowBuyPrice], [.. Items, cheap], NullLoggerFactory.Instance);
+
+        Assert.Equal([3, 4], catalog.RowsFor(Smith).Select(r => r.Id));
+        Assert.Equal([1, 2], catalog.Refused.Select(r => r.Id));
+        Assert.All(catalog.Refused, r => Assert.Contains("below", r.Reason, StringComparison.Ordinal));
+        Assert.Contains("24", catalog.Refused[0].Reason, StringComparison.Ordinal);
+        Assert.Contains("25", catalog.Refused[0].Reason, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void Refuse_a_duplicate_sequence_and_keep_the_lowest_id()
     {

@@ -158,6 +158,12 @@ public class CharacterEntity : ICharacter
     /// </summary>
     public VendorBuyback Buyback { get; } = new();
 
+    /// <summary>
+    /// A sale or a buyback changed this player's buyback list, so the instance's vendor pass owes
+    /// this connection a new SMSG_VENDOR_LIST if its shop is still open (spec #432).
+    /// </summary>
+    public bool VendorListOwed { get; set; }
+
     public ObjectGuid Guid { get; set; }
 
     // Backing fields for dirty-tracked properties

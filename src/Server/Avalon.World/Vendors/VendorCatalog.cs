@@ -56,7 +56,10 @@ public sealed class VendorCatalog
         ILoggerFactory loggerFactory)
     {
         ILogger<VendorCatalog> logger = loggerFactory.CreateLogger<VendorCatalog>();
-        HashSet<ulong> known = items.Select(i => i.Id.Value).ToHashSet();
+        Dictionary<ulong, ItemTemplate> known = [];
+        foreach (ItemTemplate item in items)
+            known.TryAdd(item.Id.Value, item);
+
         HashSet<(ulong Vendor, uint Sequence)> taken = [];
         List<VendorStock> accepted = [];
         List<VendorStockRefusal> refused = [];
@@ -116,10 +119,16 @@ public sealed class VendorCatalog
             : $"{counts}, {Refused.Count} refused ({string.Join("; ", Refused)})";
     }
 
-    private static string? Problem(VendorStock row, HashSet<ulong> items)
+    private static string? Problem(VendorStock row, Dictionary<ulong, ItemTemplate> items)
     {
-        if (!items.Contains(row.ItemTemplateId.Value))
+        if (!items.TryGetValue(row.ItemTemplateId.Value, out ItemTemplate? item))
             return $"item template {row.ItemTemplateId.Value} does not exist";
+
+        // Selling below what the vendor pays back would let a player buy and sell it forever for a
+        // profit (#432). At exactly the SellPrice the round trip gains nothing.
+        uint price = row.PriceOverride ?? item.BuyPrice;
+        if (price < item.SellPrice)
+            return $"price {price} is below the item's SellPrice {item.SellPrice}; buying and selling it back would make gold";
 
         if (row.MaxStock is not null && row.RestockSeconds is null)
             return "MaxStock is set without RestockSeconds";
@@ -136,7 +145,7 @@ public sealed class VendorCatalog
         HashSet<ulong> costItems = [];
         foreach (VendorStockCost cost in row.Costs.OrderBy(c => c.ItemTemplateId.Value))
         {
-            if (!items.Contains(cost.ItemTemplateId.Value))
+            if (!items.ContainsKey(cost.ItemTemplateId.Value))
                 return $"cost item template {cost.ItemTemplateId.Value} does not exist";
             if (cost.Count == 0)
                 return $"cost of item template {cost.ItemTemplateId.Value} has Count 0";

@@ -129,6 +129,56 @@ public sealed class CharacterInventoryService(
         return ItemRequestResult.Ok;
     }
 
+    public InventoryItem TakeOut(SlotRef slot, uint count)
+    {
+        if (count == 0
+            || !owner.Container(slot.Container).TryGet(slot.Slot, out InventoryItem item)
+            || item.Count < count)
+        {
+            throw new InvalidOperationException(
+                $"Cannot take {count} out of {slot}: VendorRules checks the slot and the count first.");
+        }
+
+        if (count == item.Count)
+        {
+            Delete(slot.Container, item);
+            return item;
+        }
+
+        Replace(slot.Container, item with { Count = item.Count - count });
+        return item with { InstanceId = itemIds.Next(), Count = count };
+    }
+
+    public InventoryAddResult TryAddInstance(InventoryItem item)
+    {
+        foreach (InventoryType container in AllContainers)
+        {
+            if (owner.Container(container).Items.Any(held => held.InstanceId == item.InstanceId))
+                throw new InvalidOperationException($"Item {item.InstanceId} is already held; it cannot be added twice.");
+        }
+
+        ushort? lowestFree = null;
+        foreach (ushort free in Bag.FreeSlots())
+        {
+            lowestFree = free;
+            break;
+        }
+
+        if (lowestFree is not { } slot)
+            return InventoryAddResult.InventoryFull;
+
+        // Its own unique guard (#432), not only the caller's: two copies of a unique item must
+        // never exist. A template that is gone cannot say it is unique, and the item is still the
+        // player's own.
+        if (findTemplate(item.TemplateId) is { } template
+            && template.Flags.HasFlag(ItemTemplateFlags.Unique)
+            && OwnedCount(item.TemplateId) + item.Count > 1)
+            return InventoryAddResult.UniqueAlreadyOwned;
+
+        Create(InventoryType.Bag, item with { Slot = slot });
+        return InventoryAddResult.Ok;
+    }
+
     /// <summary>
     /// Applies a plan InventoryMove accepted a moment ago, on this thread, against this state, so
     /// nothing here can fail part way: every slot it names was checked to exist and hold what the
