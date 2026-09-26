@@ -95,6 +95,67 @@ public class PlayerInputHandlerShould
         ch.Received(1).Position = Arg.Is<Vector3>(p => Math.Abs(p.x - 0.05f) < 1e-4);
     }
 
+    // --- #424: Velocity is metres per second and describes the step actually taken ---------------
+    //
+    // Replicated to every other client, which extrapolates this character as position + Velocity *
+    // seconds between broadcasts. So Velocity must be the movement that happened, in m/s: the input's
+    // intent is not it when the navmesh stopped the character short.
+
+    [Fact]
+    public void Publish_velocity_in_metres_per_second_when_moving_freely()
+    {
+        var (handler, conn, ch, _) = Setup(speed: 5f, startPos: new Vector3(0, 0, 0));
+        handler.Execute(conn, new CPlayerInputPacket { Seq = 1, DirX = 1, DirZ = 0 });
+
+        ch.Received(1).Velocity = Arg.Is<Vector3>(v =>
+            Math.Abs(v.x - 5f) < 1e-3 && Math.Abs(v.y) < 1e-6 && Math.Abs(v.z) < 1e-6);
+    }
+
+    [Fact]
+    public void Publish_zero_velocity_when_there_is_no_input()
+    {
+        var (handler, conn, ch, _) = Setup(speed: 5f);
+        handler.Execute(conn, new CPlayerInputPacket { Seq = 1, DirX = 0, DirZ = 0 });
+
+        ch.Received(1).Velocity = Vector3.zero;
+    }
+
+    /// <summary>Pressing into a wall: the character does not move, so it must not be extrapolated into the wall.</summary>
+    [Fact]
+    public void Publish_zero_velocity_when_the_navmesh_blocks_the_whole_step()
+    {
+        var (handler, conn, ch, nav) = Setup(speed: 5f, startPos: new Vector3(1, 0, 1));
+        nav.RaycastWalkable(Arg.Any<Vector3>(), Arg.Any<Vector3>()).Returns(new Vector3(1, 0, 1));
+
+        handler.Execute(conn, new CPlayerInputPacket { Seq = 1, DirX = 1, DirZ = 0 });
+
+        ch.Received(1).Velocity = Vector3.zero;
+    }
+
+    [Fact]
+    public void Publish_the_clamped_step_as_velocity_when_partly_obstructed()
+    {
+        var (handler, conn, ch, nav) = Setup(speed: 5f, startPos: new Vector3(0, 0, 0));
+        nav.RaycastWalkable(Arg.Any<Vector3>(), Arg.Any<Vector3>()).Returns(new Vector3(0.05f, 0, 0));
+
+        handler.Execute(conn, new CPlayerInputPacket { Seq = 1, DirX = 1, DirZ = 0 });
+
+        // 0.05 m in one 1/60 s step is 3 m/s, not the 5 m/s the input asked for.
+        ch.Received(1).Velocity = Arg.Is<Vector3>(v => Math.Abs(v.x - 0.05f / TickDt) < 1e-2 && Math.Abs(v.z) < 1e-6);
+    }
+
+    /// <summary>A ground-height change is a snap, not motion: velocity stays horizontal as before.</summary>
+    [Fact]
+    public void Keep_velocity_horizontal_when_the_ground_height_changes()
+    {
+        var (handler, conn, ch, nav) = Setup(speed: 5f);
+        nav.SampleGroundHeight(Arg.Any<float>(), Arg.Any<float>(), Arg.Any<float>()).Returns(2.5f);
+
+        handler.Execute(conn, new CPlayerInputPacket { Seq = 1, DirX = 1, DirZ = 0 });
+
+        ch.Received(1).Velocity = Arg.Is<Vector3>(v => Math.Abs(v.y) < 1e-6 && Math.Abs(v.x - 5f) < 1e-3);
+    }
+
     [Fact]
     public void Y_from_ground_sample_not_input()
     {
