@@ -27,14 +27,19 @@ public interface IWorldObject : IObject
     ///     </para>
     ///     <list type="bullet">
     ///         <item>
-    ///             Characters: <c>PlayerInputHandler</c> writes the horizontal step it actually took this
-    ///             input, divided by the input step length, so a character held against a wall or given
-    ///             no input publishes zero. A character that dies is set to zero, since its input is
-    ///             dropped from then on. Spawned at zero by character select.
+    ///             Characters: horizontal only, Y is always zero. <c>PlayerInputHandler</c> writes the
+    ///             horizontal step it actually took this input, divided by the input step length, so a
+    ///             character held against a wall or given no input publishes zero; the ground-height
+    ///             snap is not extrapolated. A character that dies is set to zero, since its input is
+    ///             dropped from then on, and stays zero through revival until its next input. Spawned
+    ///             at zero by character select.
     ///         </item>
     ///         <item>
-    ///             Creatures: written only by the instance's <see cref="Creatures.ICreatureLocomotion" />,
-    ///             direction times speed while walking and zero once at rest, stopped, teleported or killed.
+    ///             Creatures: spawned at zero by <c>CreatureSpawner</c>, then moved only by the
+    ///             instance's <see cref="Creatures.ICreatureLocomotion" />: direction times speed while
+    ///             walking and zero once at rest, stopped, teleported or killed. Unlike a character's,
+    ///             this is the full 3D direction, so a waypoint creature walking up or down a slope
+    ///             carries a Y component.
     ///         </item>
     ///         <item>
     ///             Ability objects: a projectile such as <c>FireballAbilityScript</c> publishes its

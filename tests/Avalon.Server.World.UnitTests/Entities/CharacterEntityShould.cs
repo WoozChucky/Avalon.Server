@@ -58,6 +58,18 @@ public class CharacterEntityShould
     }
 
     [Fact]
+    public void Stay_at_rest_after_it_is_revived()
+    {
+        var entity = NewEntity();
+        entity.Velocity = new Avalon.Common.Mathematics.Vector3(5f, 0f, 0f);
+        entity.IsDead = true;
+
+        entity.Revive();
+
+        Assert.Equal(Avalon.Common.Mathematics.Vector3.zero, entity.Velocity);
+    }
+
+    [Fact]
     public void Not_dirty_when_IsDead_setter_value_unchanged()
     {
         var entity = NewEntity();
