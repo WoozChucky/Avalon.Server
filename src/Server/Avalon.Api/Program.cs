@@ -11,7 +11,6 @@ using Avalon.Database.World;
 using Avalon.Hosting;
 using Avalon.Hosting.Extensions;
 using Avalon.Infrastructure;
-using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi;
 using Scalar.AspNetCore;
@@ -89,10 +88,9 @@ app.MapDefaultEndpoints();
     app.UseMiddleware<ExceptionHandlerMiddleware>();
     app.UseMiddleware<RequestLoggingMiddleware>();
 
-    app.UseForwardedHeaders(new ForwardedHeadersOptions
-    {
-        ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
-    });
+    // Loopback plus the proxies under Application:ForwardedHeaders (#478 review); a header from any
+    // other peer is ignored and logged, rate-limited.
+    app.UseAvalonForwardedHeaders();
 
     app.MapOpenApi();
     app.MapScalarApiReference(options =>
@@ -123,6 +121,8 @@ app.MapDefaultEndpoints();
 }
 
 ILogger<Program> logger = app.Services.GetRequiredService<ILogger<Program>>();
+ForwardedHeadersSetup.WarnIfNoProxyTrusted(logger, app.Services.GetRequiredService<ApplicationConfig>().ForwardedHeaders,
+    app.Environment);
 
 await using (AsyncServiceScope scope = app.Services.CreateAsyncScope())
 {

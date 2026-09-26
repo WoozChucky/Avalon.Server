@@ -78,6 +78,16 @@ spec:
               value: {{ .Values.notification.subject | quote }}
             - name: Application__Notification__PublicKey
               value: {{ .Values.notification.publicKey | quote }}
+            {{- range $i, $proxy := .Values.forwardedHeaders.knownProxies }}
+            - name: Application__ForwardedHeaders__KnownProxies__{{ $i }}
+              value: {{ $proxy | quote }}
+            {{- end }}
+            {{- range $i, $network := .Values.forwardedHeaders.knownNetworks }}
+            - name: Application__ForwardedHeaders__KnownNetworks__{{ $i }}
+              value: {{ $network | quote }}
+            {{- end }}
+            - name: Application__ForwardedHeaders__ForwardLimit
+              value: {{ .Values.forwardedHeaders.forwardLimit | quote }}
             - name: DOTNET_HOSTBUILDER__RELOADCONFIGONCHANGE
               value: "false"
           ports:

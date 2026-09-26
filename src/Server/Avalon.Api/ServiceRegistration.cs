@@ -52,6 +52,10 @@ public static class ServiceRegistration
         services.AddSingleton<ILoginLimits>(sp => sp.GetRequiredService<AuthenticationConfig>());
         services.AddLoginPolicy();
         services.AddScoped<IReauthentication, Reauthentication>();
+        // Which proxies' X-Forwarded-For is believed: the caller's address is its login source.
+        // Built here so a bad entry stops startup, naming the setting.
+        services.AddSingleton(Middlewares.ForwardedHeadersSetup.BuildOptions(config.ForwardedHeaders));
+        services.AddSingleton<Middlewares.UntrustedForwardedHeaderLog>();
         services.AddSecureRandom();
         services.AddSingleton<IReplicatedCache, ReplicatedCache>();
         services.AddScoped<INotificationService, NotificationService>();
