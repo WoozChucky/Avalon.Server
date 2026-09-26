@@ -117,7 +117,7 @@ public class AccountControllerShould
             CancellationToken.None);
 
         await _accountService.Received(1).ChangePasswordAsync(
-            new AccountId(7), "a", "newstrong1", Arg.Any<CancellationToken>());
+            new AccountId(7), "a", "newstrong1", Arg.Any<System.Net.IPAddress>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]

@@ -5,6 +5,7 @@ using Avalon.Api.Contract;
 using Avalon.Api.Exceptions;
 using Avalon.Api.Services;
 using Avalon.Database.Auth.Repositories;
+using Avalon.Infrastructure.Login;
 using Avalon.Infrastructure.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -22,9 +23,12 @@ public class MFAController : BaseController
     private readonly IJwtUtils _jwtUtils;
     private readonly IAccountRepository _accountRepository;
     private readonly IRefreshTokenService _refreshService;
+    private readonly MfaLoginPolicy _mfaPolicy;
+    private readonly IReauthentication _reauthentication;
 
     public MFAController(IMFAService mfaService, IAuthContext authContext, AuthenticationConfig authConfig,
-        IJwtUtils jwtUtils, IAccountRepository accountRepository, IRefreshTokenService refreshService)
+        IJwtUtils jwtUtils, IAccountRepository accountRepository, IRefreshTokenService refreshService,
+        MfaLoginPolicy mfaPolicy, IReauthentication reauthentication)
     {
         _mfaService = mfaService;
         _authContext = authContext;
@@ -32,10 +36,12 @@ public class MFAController : BaseController
         _jwtUtils = jwtUtils;
         _accountRepository = accountRepository;
         _refreshService = refreshService;
+        _mfaPolicy = mfaPolicy;
+        _reauthentication = reauthentication;
     }
 
-    [HttpGet("setup", Name = "Setup MFA for the logged account")]
-    public async Task<ActionResult<SetupMFAResponse>> SetupMFA()
+    [HttpPost("setup", Name = "Setup MFA for the logged account")]
+    public async Task<ActionResult<SetupMFAResponse>> SetupMFA([FromBody] SetupMFARequest request)
     {
         var result = await _mfaService.SetupMFAAsync(_authContext.Account!, _authConfig.Issuer, CancellationToken);
         if (!result.Success)

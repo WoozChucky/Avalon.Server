@@ -71,6 +71,18 @@ public class ExceptionHandlerMiddleware
                     Instance = $"{context.Request.Method} {context.Request.Path}"
                 }, cancellationToken: context.RequestAborted);
                 return;
+            // A spent budget or a locked account (#478): the same answer for every username.
+            case AccountLockedException ex:
+                context.Request.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
+                await context.Response.WriteAsJsonAsync(new ProblemDetails
+                {
+                    Status = StatusCodes.Status429TooManyRequests,
+                    Type = exception.GetType().Name,
+                    Title = "Too many attempts",
+                    Detail = ex.Message,
+                    Instance = $"{context.Request.Method} {context.Request.Path}"
+                }, cancellationToken: context.RequestAborted);
+                return;
             case BusinessException ex:
                 context.Request.HttpContext.Response.StatusCode = (int)HttpStatusCode.BadRequest;
                 await context.Response.WriteAsJsonAsync(new ProblemDetails

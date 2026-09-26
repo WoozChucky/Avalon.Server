@@ -17,11 +17,14 @@ public class PersonalAccessTokenController : BaseController
 {
     private readonly IPersonalAccessTokenService _service;
     private readonly IAuthorizationService _authz;
+    private readonly IReauthentication _reauthentication;
 
-    public PersonalAccessTokenController(IPersonalAccessTokenService service, IAuthorizationService authz)
+    public PersonalAccessTokenController(IPersonalAccessTokenService service, IAuthorizationService authz,
+        IReauthentication reauthentication)
     {
         _service = service;
         _authz = authz;
+        _reauthentication = reauthentication;
     }
 
     private bool CallerIsPat => User.HasClaim(c => c.Type == "pat_id");

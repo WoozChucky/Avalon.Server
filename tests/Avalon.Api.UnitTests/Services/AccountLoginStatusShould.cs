@@ -48,7 +48,9 @@ public class AccountLoginStatusShould
         Substitute.For<ISecureRandom>(),
         Substitute.For<IRefreshTokenService>(),
         Substitute.For<IDbTransactionRunner<AuthDbContext>>(),
-        new AuthenticationConfig());
+        new AuthenticationConfig(),
+        TestLogin.Password(_accounts, Substitute.For<IReplicatedCache>()),
+        TestLogin.Reauthentication(_accounts, Substitute.For<IReplicatedCache>()));
 
     private static readonly byte[] Verifier =
         Encoding.UTF8.GetBytes(BCrypt.Net.BCrypt.HashPassword(Password, BCrypt.Net.BCrypt.GenerateSalt(4)));
@@ -64,6 +66,8 @@ public class AccountLoginStatusShould
         _mfaSetups.FindByAccountIdAsync(Arg.Any<AccountId>(), Arg.Any<CancellationToken>())
             .Returns(mfa ? new MFASetup { Account = account, AccountId = account.Id, Secret = [1], Status = MfaSetupStatus.Confirmed } : null);
         _jwt.GenerateJwtToken(Arg.Any<Account>()).Returns("jwt");
+        _accounts.TryRecordApiLoginAsync(account.Id, Arg.Any<string>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>())
+            .Returns(true);
     }
 
     private Task<(AuthenticateResponse Response, AccountId? AccountId)> LoginAsync(string password) =>

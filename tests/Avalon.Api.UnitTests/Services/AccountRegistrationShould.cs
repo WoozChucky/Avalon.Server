@@ -43,7 +43,9 @@ public class AccountRegistrationShould : IDisposable
             Substitute.For<ISecureRandom>(),
             Substitute.For<IRefreshTokenService>(),
             Substitute.For<IDbTransactionRunner<AuthDbContext>>(),
-            new AuthenticationConfig());
+            new AuthenticationConfig(),
+            TestLogin.Password(new AccountRepository(_database), Substitute.For<IReplicatedCache>()),
+            TestLogin.Reauthentication(new AccountRepository(_database), Substitute.For<IReplicatedCache>()));
     }
 
     [Fact]
@@ -80,7 +82,9 @@ public class AccountRegistrationShould : IDisposable
             Substitute.For<ISecureRandom>(),
             Substitute.For<IRefreshTokenService>(),
             Substitute.For<IDbTransactionRunner<AuthDbContext>>(),
-            new AuthenticationConfig());
+            new AuthenticationConfig(),
+            TestLogin.Password(new AccountRepository(_database), Substitute.For<IReplicatedCache>()),
+            TestLogin.Reauthentication(new AccountRepository(_database), Substitute.For<IReplicatedCache>()));
 
         await service.Register(
             new RegisterRequest { Username = "navcheck", Password = "hunter2", Email = "nav@avalon.monster" },

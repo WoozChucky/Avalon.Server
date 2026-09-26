@@ -13,6 +13,8 @@ using Avalon.Common.ValueObjects;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Domain.Auth;
 using Avalon.Infrastructure;
+using Avalon.Infrastructure.Extensions;
+using Avalon.Infrastructure.Login;
 using Avalon.Infrastructure.Services;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -52,6 +54,9 @@ public sealed class ApiAuthHost : IAsyncDisposable
     public IAccountRepository AccountRepository { get; } = Substitute.For<IAccountRepository>();
     public IRefreshTokenService Refresh { get; } = Substitute.For<IRefreshTokenService>();
     public IMFAService Mfa { get; } = Substitute.For<IMFAService>();
+    public IMFAHashService MfaHashes { get; } = Substitute.For<IMFAHashService>();
+    public IReauthentication Reauthentication { get; } = Substitute.For<IReauthentication>();
+    public IReplicatedCache Cache { get; } = Substitute.For<IReplicatedCache>();
 
     private WebApplication _app = null!;
     public HttpClient Client { get; private set; } = null!;
@@ -79,7 +84,17 @@ public sealed class ApiAuthHost : IAsyncDisposable
         services.AddSingleton(Refresh);
         services.AddSingleton(AccountRepository);
         services.AddSingleton(Mfa);
-        services.AddSingleton(Substitute.For<IReplicatedCache>());
+        services.AddSingleton(Cache);
+        // The real login policy (#478) over the substitutes above: a live hash for the account, a
+        // first attempt on it, and a login record that succeeds, unless a test says otherwise.
+        services.AddSingleton<ILoginLimits>(AuthConfig);
+        services.AddSingleton(MfaHashes);
+        services.AddSingleton(Reauthentication);
+        services.AddLoginPolicy();
+        MfaHashes.GetAccountIdAsync(Arg.Any<string>()).Returns(new AccountId(AccountIdValue));
+        MfaHashes.RecordAttemptAsync(Arg.Any<AccountId>()).Returns(1L);
+        AccountRepository.TryRecordApiLoginAsync(Arg.Any<AccountId>(), Arg.Any<string>(), Arg.Any<DateTime>(),
+            Arg.Any<CancellationToken>()).Returns(true);
         services.AddSingleton<IJwtUtils>(new JwtUtils(AuthConfig, JwtSigningKey.Create(AuthConfig)));
 
         _app = builder.Build();

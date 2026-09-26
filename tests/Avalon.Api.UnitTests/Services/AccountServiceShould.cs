@@ -32,7 +32,9 @@ public class AccountServiceShould
         Substitute.For<ISecureRandom>(),
         _refreshService,
         _transaction,
-        new AuthenticationConfig());
+        new AuthenticationConfig(),
+        TestLogin.Password(_accountRepository, _cache),
+        TestLogin.Reauthentication(_accountRepository, _cache));
 
     /// <summary>
     /// The substituted runner never invokes the body, so anything a collaborator still receives is

@@ -43,6 +43,17 @@ internal sealed class StaleAccountRepository(IAccountRepository inner) : IAccoun
         CancellationToken cancellationToken = default) =>
         inner.TryRecordLoginAsync(id, lastIp, now, cancellationToken);
 
+    public Task<bool> TryRecordApiLoginAsync(AccountId id, string lastIp, DateTime now,
+        CancellationToken cancellationToken = default) =>
+        inner.TryRecordApiLoginAsync(id, lastIp, now, cancellationToken);
+
+    public Task<bool> SetEmailAsync(AccountId id, string email, CancellationToken cancellationToken = default) =>
+        inner.SetEmailAsync(id, email, cancellationToken);
+
+    public Task<bool> SetAccessLevelAsync(AccountId id, Avalon.Common.Accounts.AccountAccessLevel accessLevel,
+        CancellationToken cancellationToken = default) =>
+        inner.SetAccessLevelAsync(id, accessLevel, cancellationToken);
+
     public Task MarkOfflineAsync(AccountId id, long sessionSeconds = 0, CancellationToken cancellationToken = default) =>
         inner.MarkOfflineAsync(id, sessionSeconds, cancellationToken);
 

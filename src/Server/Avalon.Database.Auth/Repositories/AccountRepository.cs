@@ -1,3 +1,4 @@
+using Avalon.Common.Accounts;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.Auth;
 using Microsoft.EntityFrameworkCore;
@@ -26,6 +27,18 @@ public interface IAccountRepository : IRepository<Account, AccountId>
     /// account was read is never erased.
     /// </summary>
     Task<bool> TryRecordLoginAsync(AccountId id, string lastIp, DateTime now, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// The REST API's <see cref="TryRecordLoginAsync"/> (#478): the same write, on the same
+    /// condition, minus <c>Online</c>, which is the game client's session flag and not the API's.
+    /// </summary>
+    Task<bool> TryRecordApiLoginAsync(AccountId id, string lastIp, DateTime now, CancellationToken cancellationToken = default);
+
+    /// <summary>Sets the email, and writes nothing else. False when no account has <paramref name="id"/>.</summary>
+    Task<bool> SetEmailAsync(AccountId id, string email, CancellationToken cancellationToken = default);
+
+    /// <summary>Sets the access level, and writes nothing else. False when no account has <paramref name="id"/>.</summary>
+    Task<bool> SetAccessLevelAsync(AccountId id, AccountAccessLevel accessLevel, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Sets <c>Online = false</c>, adds <paramref name="sessionSeconds"/> to <c>TotalTime</c>, and
@@ -106,6 +119,57 @@ public class AccountRepository(IDbContextFactory<AuthDbContext> contextFactory)
                 .SetProperty(a => a.LockedUntil, (DateTime?)null), cancellationToken);
 
         return updated == 1;
+    }
+
+    public async Task<bool> TryRecordApiLoginAsync(AccountId id, string lastIp, DateTime now,
+        CancellationToken cancellationToken = default)
+    {
+        await using var context = await CreateContextAsync(cancellationToken);
+
+        var updated = await context.Accounts
+            .Where(a => a.Id == id && (!a.Locked || (a.LockedUntil != null && a.LockedUntil <= now)))
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(a => a.LastIp, lastIp)
+                .SetProperty(a => a.LastLogin, now)
+                .SetProperty(a => a.FailedLogins, 0)
+                .SetProperty(a => a.Locked, false)
+                .SetProperty(a => a.LockedUntil, (DateTime?)null), cancellationToken);
+
+        return updated == 1;
+    }
+
+    public async Task<bool> SetEmailAsync(AccountId id, string email, CancellationToken cancellationToken = default)
+    {
+        await using var context = await CreateContextAsync(cancellationToken);
+
+        return await context.Accounts
+            .Where(a => a.Id == id)
+            .ExecuteUpdateAsync(s => s.SetProperty(a => a.Email, email), cancellationToken) == 1;
+    }
+
+    public async Task<bool> SetAccessLevelAsync(AccountId id, AccountAccessLevel accessLevel,
+        CancellationToken cancellationToken = default)
+    {
+        await using var context = await CreateContextAsync(cancellationToken);
+
+        return await context.Accounts
+            .Where(a => a.Id == id)
+            .ExecuteUpdateAsync(s => s.SetProperty(a => a.AccessLevel, accessLevel), cancellationToken) == 1;
+    }
+
+    /// <summary>
+    /// Sets the password's salt and verifier on a context the caller owns, so the write joins that
+    /// context's transaction (a password change revokes the account's tokens with it), and writes
+    /// nothing else. Returns the rows written: 0 when no account has <paramref name="id"/>.
+    /// </summary>
+    public static Task<int> SetPasswordAsync(AuthDbContext context, AccountId id, byte[] salt, byte[] verifier,
+        CancellationToken cancellationToken = default)
+    {
+        return context.Accounts
+            .Where(a => a.Id == id)
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(a => a.Salt, salt)
+                .SetProperty(a => a.Verifier, verifier), cancellationToken);
     }
 
     public async Task MarkOfflineAsync(AccountId id, long sessionSeconds = 0, CancellationToken cancellationToken = default)

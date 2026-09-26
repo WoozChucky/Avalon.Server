@@ -221,7 +221,9 @@ public class AccountMfaRemovalShould : IDisposable
         Substitute.For<ISecureRandom>(),
         Substitute.For<IRefreshTokenService>(),
         new DbTransactionRunner<AuthDbContext>(_database),
-        new AuthenticationConfig());
+        new AuthenticationConfig(),
+        TestLogin.Password(new AccountRepository(_database), _cache),
+        TestLogin.Reauthentication(new AccountRepository(_database), _cache));
 
     private static AuthenticateRequest Login(string username) => new() { Username = username, Password = Password };
 

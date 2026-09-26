@@ -1,6 +1,8 @@
+using Avalon.Infrastructure.Login;
+
 namespace Avalon.Api.Config;
 
-public class AuthenticationConfig
+public class AuthenticationConfig : ILoginLimits
 {
     public string IssuerSigningKey { get; set; } = string.Empty;
     public string Issuer { get; set; } = string.Empty;
@@ -16,4 +18,23 @@ public class AuthenticationConfig
     // producing a Set-Cookie path that the browser can't match on subsequent
     // requests). Defense-in-depth via HttpOnly + SameSite=Strict + Secure remains.
     public string RefreshCookiePath { get; set; } = "/";
+
+    // The login limits (#478). The budgets they govern are the Redis keys the Auth server uses
+    // too, so these must match the Auth server's Application settings of the same names; the
+    // defaults do.
+
+    /// <inheritdoc/>
+    public int MaxFailedLoginAttempts { get; set; } = 5;
+
+    /// <inheritdoc/>
+    public int LockoutDurationMinutes { get; set; } = 15;
+
+    /// <inheritdoc/>
+    public int MaxFailedLoginsPerSource { get; set; } = 10;
+
+    /// <inheritdoc/>
+    public int FailedLoginSourceWindowMinutes { get; set; } = 15;
+
+    /// <inheritdoc/>
+    public int MaxFailedMfaAttempts { get; set; } = 5;
 }

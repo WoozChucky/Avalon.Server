@@ -17,9 +17,10 @@ public class PersonalAccessTokenControllerShould
 {
     private readonly IPersonalAccessTokenService _service = Substitute.For<IPersonalAccessTokenService>();
     private readonly IAuthorizationService _authz = Substitute.For<IAuthorizationService>();
+    private readonly IReauthentication _reauth = Substitute.For<IReauthentication>();
 
     private PersonalAccessTokenController MakeSut(ClaimsPrincipal user) =>
-        new(_service, _authz)
+        new(_service, _authz, _reauth)
         {
             ControllerContext = new ControllerContext
             {

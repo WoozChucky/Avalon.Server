@@ -96,7 +96,7 @@ public class AccountController : BaseController
     public async Task<IActionResult> ChangePassword([FromBody] AccountPasswordChangeRequest request, CancellationToken ct)
     {
         var accountId = User.AccountId();
-        await _accountService.ChangePasswordAsync(accountId, request.CurrentPassword, request.NewPassword, ct);
+        await _accountService.ChangePasswordAsync(accountId, request.CurrentPassword, request.NewPassword, IpAddress, ct);
         return NoContent();
     }
 

@@ -10,6 +10,7 @@ using Avalon.Database.Character.Extensions;
 using Avalon.Database.World.Extensions;
 using Avalon.Infrastructure;
 using Avalon.Infrastructure.Configuration;
+using Avalon.Infrastructure.Login;
 using Avalon.Infrastructure.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
@@ -45,6 +46,11 @@ public static class ServiceRegistration
         services.AddScoped<IRefreshTokenService, RefreshTokenService>();
         services.AddSingleton(TimeProvider.System);
         services.AddMfaService();
+        // The login policy the Auth server shares (#478), with the limits under
+        // Application:Authentication.
+        services.AddSingleton<ILoginLimits>(sp => sp.GetRequiredService<AuthenticationConfig>());
+        services.AddLoginPolicy();
+        services.AddScoped<IReauthentication, Reauthentication>();
         services.AddSecureRandom();
         services.AddSingleton<IReplicatedCache, ReplicatedCache>();
         services.AddScoped<INotificationService, NotificationService>();

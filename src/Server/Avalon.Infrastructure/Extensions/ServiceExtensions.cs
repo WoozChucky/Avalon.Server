@@ -1,4 +1,5 @@
 using Avalon.Infrastructure.Configuration;
+using Avalon.Infrastructure.Login;
 using Avalon.Infrastructure.Services;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -19,6 +20,18 @@ public static class ServiceExtensions
     {
         services.AddScoped<IMFAHashService, MFAHashService>();
         services.AddScoped<IMFAService, MFAService>();
+        return services;
+    }
+
+    /// <summary>
+    /// The login policy both servers share (#478). The host registers its <see cref="ILoginLimits"/>
+    /// (the Auth server's <c>Application</c> settings, the API's <c>Application:Authentication</c>).
+    /// </summary>
+    public static IServiceCollection AddLoginPolicy(this IServiceCollection services)
+    {
+        services.AddSingleton<IPasswordVerifier, BCryptPasswordVerifier>();
+        services.AddScoped<PasswordLoginPolicy>();
+        services.AddScoped<MfaLoginPolicy>();
         return services;
     }
 
