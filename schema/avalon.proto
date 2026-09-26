@@ -220,6 +220,8 @@ message CPongPacket {
    int64 ClientReceivedTimestamp = 2;
    int64 ClientSentTimestamp = 3;
 }
+message CPvpTogglePacket {
+}
 message CQuestListPacket {
    int32 AccountId = 1;
    int32 CharacterId = 2;
@@ -445,6 +447,7 @@ enum NetworkPacketType {
    NetworkPacketType_CMSG_VENDOR_BUYBACK = 8338;
    NetworkPacketType_CMSG_CAST_ABILITY = 8449;
    NetworkPacketType_CMSG_TARGET_UNIT = 8450;
+   NetworkPacketType_CMSG_PVP_TOGGLE = 8451;
    NetworkPacketType_SMSG_SERVER_INFO = 12288;
    NetworkPacketType_SMSG_SERVER_HANDSHAKE_RESULT = 12289;
    NetworkPacketType_SMSG_SERVER_HANDSHAKE = 12290;
@@ -502,6 +505,7 @@ enum NetworkPacketType {
    NetworkPacketType_SMSG_UNIT_REVIVE = 12552;
    NetworkPacketType_SMSG_THREAT_LIST = 12553;
    NetworkPacketType_SMSG_ABILITY_FIRED = 12554;
+   NetworkPacketType_SMSG_PVP_STATE = 12555;
    NetworkPacketType_ERROR = -1;
 }
 enum NetworkProtocol {
@@ -780,6 +784,10 @@ message SPlayerStateAckPacket {
 message SPongPacket {
    int64 SequenceNumber = 1;
    int64 Ticks = 2;
+}
+message SPvpStatePacket {
+   bool Enabled = 1;
+   uint32 OffInMs = 2;
 }
 message SRegisterResultPacket {
    RegisterResult Result = 1;

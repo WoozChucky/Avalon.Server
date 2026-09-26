@@ -110,6 +110,13 @@ public class GameConfiguration
     public float LootPickupRange { get; set; } = 5f;
 
     /// <summary>
+    ///     How long a PvP flag stays on after its owner asks to turn it off (#164). Any player-on-player
+    ///     hit restarts a running timer at this length, for both players.
+    /// </summary>
+    [Range(typeof(TimeSpan), "00:00:01", "01:00:00")]
+    public TimeSpan PvpOffDelay { get; set; } = TimeSpan.FromMinutes(5);
+
+    /// <summary>
     ///     How often every in-world character is saved (spec #459, D4). Each character's first save is
     ///     staggered inside one interval by its id, so characters that entered together do not all
     ///     save on the same tick.

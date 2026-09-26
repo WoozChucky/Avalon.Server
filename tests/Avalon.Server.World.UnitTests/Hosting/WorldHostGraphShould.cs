@@ -8,10 +8,12 @@ using Avalon.Server.World.Extensions;
 using Avalon.Server.World.UnitTests.Loot;
 using Avalon.Server.World.UnitTests.Vendors;
 using Avalon.World;
+using Avalon.World.Chat;
 using Avalon.World.Entities;
 using Avalon.World.Handlers;
 using Avalon.World.Loot;
 using Avalon.World.Public.Combat;
+using Avalon.World.Pvp;
 using Avalon.World.Quests;
 using Avalon.World.Vendors;
 using Microsoft.Extensions.DependencyInjection;
@@ -60,6 +62,11 @@ public class WorldHostGraphShould
             Assert.NotNull(host.Services.GetRequiredService<IVendorStockRepository>());
             Assert.IsType<NoQuestProgress>(host.Services.GetRequiredService<IQuestProgress>());
 
+            // PvP (#164). MapInstance reads the toggle with GetService, so a missing registration would
+            // silently build a second toggle over a different clock. /pvp is found through ICommand.
+            Assert.NotNull(host.Services.GetRequiredService<PvpToggle>());
+            Assert.Contains(host.Services.GetServices<ICommand>(), c => c is PvpCommand);
+
             // CombatConfig is still one singleton: CastAbilityHandler reads its global cooldown, and
             // every combat service reads the same values. The facing cone it once carried is gone
             // (#164), and CharacterSelectHandler no longer takes it, but must still build from here.
@@ -83,6 +90,7 @@ public class WorldHostGraphShould
     [InlineData(NetworkPacketType.CMSG_VENDOR_BUY, typeof(VendorBuyHandler))]
     [InlineData(NetworkPacketType.CMSG_VENDOR_SELL, typeof(VendorSellHandler))]
     [InlineData(NetworkPacketType.CMSG_VENDOR_BUYBACK, typeof(VendorBuybackHandler))]
+    [InlineData(NetworkPacketType.CMSG_PVP_TOGGLE, typeof(PvpToggleHandler))]
     public async Task Find_And_Build_The_Handler_The_Way_WorldServer_Does(NetworkPacketType opcode, Type expected)
     {
         string workingDirectory = Directory.GetCurrentDirectory();

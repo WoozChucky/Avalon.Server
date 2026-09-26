@@ -5,6 +5,7 @@ using Avalon.World.ChunkLayouts;
 using Avalon.World.Instances;
 using Avalon.World.Public.Combat;
 using Avalon.World.Public.Maps;
+using Avalon.World.Pvp;
 using Avalon.World.Scripts;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
@@ -19,11 +20,17 @@ internal static class TestMapInstances
 {
     /// <param name="scripts">The script manager the instance builds ability scripts from; a substitute that finds none when omitted.</param>
     /// <param name="navigator">The instance's navigator; a bare substitute when omitted.</param>
-    public static MapInstance Build(IWorld world, IScriptManager? scripts = null, IMapNavigator? navigator = null)
+    /// <param name="pvp">The PvP toggle the instance and its combat service use; the instance builds its own when omitted.</param>
+    public static MapInstance Build(
+        IWorld world, IScriptManager? scripts = null, IMapNavigator? navigator = null, PvpToggle? pvp = null)
     {
         var serviceProvider = Substitute.For<IServiceProvider>();
         serviceProvider.GetService(typeof(IScriptManager)).Returns(scripts ?? Substitute.For<IScriptManager>());
         serviceProvider.GetService(typeof(CombatConfig)).Returns(new CombatConfig());
+        if (pvp is not null)
+        {
+            serviceProvider.GetService(typeof(PvpToggle)).Returns(pvp);
+        }
 
         var entryChunk = new PlacedChunk(new ChunkTemplateId(1), 0, 0, 0, Vector3.zero);
         var layout = new ChunkLayout(

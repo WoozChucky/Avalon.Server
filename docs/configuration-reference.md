@@ -126,6 +126,7 @@ Section in `appsettings.json`: `"Game"` (World server only)
 | `MeleeSlotRadius`                | float  | `1.5`      | Ring radius. Range `0.5`–`20.0` |
 | `MaxMoney`                       | ulong  | `9999999999` | Most copper a character can hold; an addition past it is refused whole. Large enough that normal play never reaches it |
 | `CharacterSaveInterval`          | TimeSpan | `00:05:00` | How often every in-world character is saved; first saves are staggered across one interval by character id. Range `00:00:10`–`01:00:00` |
+| `PvpOffDelay`                    | TimeSpan | `00:05:00` | How long a PvP flag stays on after its owner asks to turn it off (#164). Any player-on-player hit restarts a running timer at this length, for both players. Range `00:00:01`–`01:00:00` |
 
 ```json
 "Game": {
@@ -141,7 +142,8 @@ Section in `appsettings.json`: `"Game"` (World server only)
   "MeleeSlotCount": 6,
   "MeleeSlotRadius": 1.5,
   "MaxMoney": 9999999999,
-  "CharacterSaveInterval": "00:05:00"
+  "CharacterSaveInterval": "00:05:00",
+  "PvpOffDelay": "00:05:00"
 }
 ```
 

@@ -64,9 +64,12 @@ internal static class MapInstanceClients
     }
 
     /// <summary>A new character <paramref name="id" /> with no abilities, added to the instance.</summary>
-    public static MapInstanceClient Join(MapInstance instance, uint id)
+    public static MapInstanceClient Join(MapInstance instance, uint id) =>
+        Join(instance, Inventory.TestCharacters.New(id));
+
+    /// <summary><paramref name="character" />, given no abilities, added to the instance.</summary>
+    public static MapInstanceClient Join(MapInstance instance, CharacterEntity character)
     {
-        CharacterEntity character = Inventory.TestCharacters.New(id);
         character.Spells.Load(Array.Empty<IAbility>());   // the tick updates abilities; an unloaded list throws
         character.InstanceId = instance.InstanceId;         // a cast looks its instance up by this
 

@@ -1,0 +1,49 @@
+# SPvpStatePacket - golden wire vectors.
+#
+# GENERATED FILE. The bytes below are what the server's serializer writes for the
+# values shown above them, so a client is conformant when it produces the same ones,
+# and a change in what the server emits arrives here as a diff.
+#
+#   Emitted by  tools/Avalon.Exporter
+#   Regenerate  dotnet run --project tools/Avalon.Exporter -- corpus
+#   Format      described in schema/README.md
+#   Schema      the message of this name in schema/avalon.proto
+#
+# A variant is one shape of the same message. "absent" sets nothing, "empty" sets
+# everything to a present-but-empty value, and the rest carry values chosen to make
+# a particular encoding decision observable.
+
+message SPvpStatePacket
+
+variant absent
+  field 1 Enabled : bool = false
+  field 2 OffInMs : uint = 0
+  bytes 0
+
+variant empty
+  field 1 Enabled : bool = false
+  field 2 OffInMs : uint = 0
+  bytes 0
+
+variant populated
+  field 1 Enabled : bool = true
+  field 2 OffInMs : uint = 19
+  bytes 4
+    08 01 10 13
+
+variant maxima
+  field 1 Enabled : bool = true
+  field 2 OffInMs : uint = 4294967295
+  bytes 8
+    08 01 10 ff ff ff ff 0f
+
+variant minima
+  field 1 Enabled : bool = false
+  field 2 OffInMs : uint = 0
+  bytes 0
+
+variant varint-edges
+  field 1 Enabled : bool = true
+  field 2 OffInMs : uint = 16384
+  bytes 6
+    08 01 10 80 80 01

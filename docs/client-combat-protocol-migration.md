@@ -102,6 +102,37 @@ Each `ThreatEntry`:
 | `AttackerGuid` | 1 | `ulong` | Raw `ObjectGuid` of an attacker on this hostile's threat list. |
 | `ThreatPercent` | 2 | `float` | Share of total threat in `[0.0, 1.0]`. |
 
+### `SAbilityFiredPacket` (`SMSG_ABILITY_FIRED = 0x310A`, encrypted, TCP)
+
+Server → all clients in the instance. A circle or cone skill fired (#164); draw it. Its hits arrive as the usual damage packets. Projectiles do not send it: they are world objects, replicated through the world-state add, update and remove packets.
+
+| Field | Proto # | Type | Notes |
+|---|---|---|---|
+| `CasterGuid` | 1 | `ulong` | Raw `ObjectGuid` of the caster. |
+| `AbilityId` | 2 | `uint` | The ability that fired. |
+| `Origin` | 3 | `Vector3Dto` | The caster's position when it fired. |
+| `Direction` | 4 | `Vector3Dto?` | A cone's direction, a unit vector on X/Z; absent for a circle. |
+| `Centre` | 5 | `Vector3Dto?` | A circle's centre; absent for a cone. |
+
+A circle sends `Centre`, a cone `Direction`.
+
+### `CPvpTogglePacket` (`CMSG_PVP_TOGGLE = 0x2103`, encrypted, TCP)
+
+Client → server. No fields. Toggles the player's PvP flag (#164), exactly as typing `/pvp` does: off turns on at once; on with no timer starts the off timer (`Game:PvpOffDelay`, default 5 minutes), during which the player stays hostile; on with a timer running cancels it and stays on. Always answered with `SPvpStatePacket`.
+
+### `SPvpStatePacket` (`SMSG_PVP_STATE = 0x310B`, encrypted, TCP)
+
+Server → the player's own client. The player's own flag and off timer.
+
+| Field | Proto # | Type | Notes |
+|---|---|---|---|
+| `Enabled` | 1 | `bool` | Whether the flag is on. It stays on while the off timer runs. |
+| `OffInMs` | 2 | `uint` | Time left on the off timer in milliseconds, rounded up; 0 when no timer is running. |
+
+Sent in three cases: as the reply to every toggle (`CPvpTogglePacket` or `/pvp`), the moment the off timer turns the flag off (`Enabled = false`, `OffInMs = 0`), and once when the character enters an instance. Every player-on-player hit restarts a running timer at its full length for both players, and no packet is sent for that: a client counting the timer down locally will drift after a PvP hit until its next toggle, so show the timer as approximate.
+
+**Other players' flags.** Every character state (`ObjectState`) carries `PvpEnabled` (field 21) only as `true`; absent on a character state means off. Towns never allow player hostility, whatever the flags.
+
 ## 5. Cast Pipeline Expectations (Client Side)
 
 - Click → emit `CCastAbilityPacket {AbilityId, GroundPos?}` (`GroundPos` for a Cursor skill). The server validates everything and answers every refusal with a reason.

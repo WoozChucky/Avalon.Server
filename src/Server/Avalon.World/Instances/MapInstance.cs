@@ -14,6 +14,7 @@ using Avalon.World.Creatures.Locomotion;
 using Avalon.World.Loot;
 using Avalon.World.Maps.Navigation;
 using Avalon.World.Persistence;
+using Avalon.World.Pvp;
 using Avalon.World.Public;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Characters;
@@ -34,6 +35,7 @@ using Avalon.World.Scripts.Creatures;
 using Avalon.World.Serialization;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Avalon.World.Instances;
 
@@ -73,6 +75,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     private readonly VendorStocks _vendors = new();
 
     private readonly TimeProvider _time;
+    private readonly PvpToggle _pvp;
     private readonly IQuestProgress _quests;
 
     /// <summary>
@@ -82,6 +85,9 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     /// the new map before it learns what lies on it.
     /// </summary>
     private readonly HashSet<ObjectGuid> _lootSnapshotOwed = [];
+
+    /// <summary>Characters that entered since the last tick and are owed their own PvP state (#164).</summary>
+    private readonly HashSet<ObjectGuid> _pvpStateOwed = [];
 
     public MapInstance(
         ILoggerFactory loggerFactory,
@@ -113,12 +119,21 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
 
         _corpseRemover = new CreatureCorpseRemover(this);
 
+        // The container's clock, the one the loot allocator and the vendor handlers read (#432). It
+        // falls back, so an instance built without one (tests) still ticks; production registers it.
+        _time = serviceProvider.GetService<TimeProvider>() ?? TimeProvider.System;
+
+        // PvP (#164): the one toggle the handler, /pvp and every instance share. Production registers
+        // it (WorldHostGraphShould); the fallback serves instances built without one (tests).
+        _pvp = serviceProvider.GetService<PvpToggle>()
+               ?? new PvpToggle(Options.Create(world.Configuration), _time);
+
         // Per-instance combat state. CombatConfig is a process-wide singleton (V1: defaults);
         // EncounterRegistry + CombatService are instance-scoped so encounters cannot bleed
         // between MapInstances.
         CombatConfig combatConfig = serviceProvider.GetRequiredService<CombatConfig>();
         _encounterRegistry = new EncounterRegistry(combatConfig);
-        _combatService     = new CombatService(combatConfig, _encounterRegistry, this);
+        _combatService     = new CombatService(combatConfig, _encounterRegistry, this, _pvp);
         _threatBroadcast   = new ThreatBroadcastService(combatConfig);
 
         // Shape scripts ask this for the living units their shape overlaps (#164).
@@ -138,9 +153,8 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         _lootRoller = serviceProvider.GetService<ILootRoller>();
         _lootAllocator = serviceProvider.GetService<ILootAllocator>();
 
-        // Vendors (#432). The same clock as the loot allocator and the vendor handlers. Both fall
-        // back, so an instance built without them (tests) still ticks; production registers both.
-        _time = serviceProvider.GetService<TimeProvider>() ?? TimeProvider.System;
+        // Vendor quest gates (#432). Falls back, so an instance built without it (tests) still
+        // ticks; production registers it.
         _quests = serviceProvider.GetService<IQuestProgress>() ?? NoQuestProgress.Instance;
 
         SubscribeToEntityEvents();
@@ -188,6 +202,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         // of every drop still on its ground.
         _groundLoot.Clear();
         _lootSnapshotOwed.Clear();
+        _pvpStateOwed.Clear();
     }
 
     public Guid InstanceId { get; }
@@ -287,6 +302,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         _connections[connection.Character.Guid] = connection;
         _broadcastStates[connection.Character.Guid] = new PerPlayerBroadcastState();
         _lootSnapshotOwed.Add(connection.Character.Guid);
+        _pvpStateOwed.Add(connection.Character.Guid);
         LastEmptyAt = null;
     }
 
@@ -302,6 +318,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         _connections.Remove(guid);
         _broadcastStates.Remove(guid);
         _lootSnapshotOwed.Remove(guid);
+        _pvpStateOwed.Remove(guid);
 
         if (_characters.Count == 0)
         {
@@ -473,6 +490,18 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         _lootSnapshotOwed.Clear();
     }
 
+    /// <summary>#164: a character entering this instance learns its own flag and any timer left.</summary>
+    private void SendOwedPvpStates()
+    {
+        foreach (ObjectGuid guid in _pvpStateOwed)
+        {
+            if (_connections.TryGetValue(guid, out IWorldConnection? owed) && owed.Character is CharacterEntity entity)
+                _pvp.Send(owed, entity);
+        }
+
+        _pvpStateOwed.Clear();
+    }
+
     private static void SendLootSpawned(IEnumerable<IWorldConnection> recipients, IReadOnlyCollection<GroundLoot> drops)
     {
         // Built once; each connection serializes it under its own session key.
@@ -497,6 +526,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         // before any packet is processed, so a kill later in this tick reaches them once, through the
         // kill broadcast, rather than twice.
         SendOwedLootSnapshots();
+        SendOwedPvpStates();
 
         // Step 1: Update creature respawns
         _corpseRemover.Update(deltaTime);
@@ -507,6 +537,10 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
             IWorldConnection connection = _connections[guid];
             connection.UpdateMap();
             character.Update(deltaTime);
+
+            // #164: the off timer is checked every tick, ahead of the periodic save so it carries the change.
+            if (character is CharacterEntity pvpEntity && _pvp.ExpireIfDue(pvpEntity))
+                _pvp.Send(connection, pvpEntity);
 
             // Periodic save (spec #459 D4): the scheduler decides whether this is the character's tick.
             if (character is CharacterEntity entity)

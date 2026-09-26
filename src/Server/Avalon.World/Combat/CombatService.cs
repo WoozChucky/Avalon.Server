@@ -10,6 +10,7 @@ using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Instances;
 using Avalon.World.Public.Units;
+using Avalon.World.Pvp;
 
 namespace Avalon.World.Combat;
 
@@ -18,12 +19,15 @@ public sealed class CombatService : ICombatService
     private readonly CombatConfig        _config;
     private readonly EncounterRegistry   _registry;
     private readonly ISimulationContext? _context;
+    private readonly PvpToggle?          _pvp;
 
-    public CombatService(CombatConfig config, EncounterRegistry registry, ISimulationContext? context = null)
+    public CombatService(CombatConfig config, EncounterRegistry registry, ISimulationContext? context = null,
+        PvpToggle? pvp = null)
     {
         _config   = config;
         _registry = registry;
         _context  = context;
+        _pvp      = pvp;
     }
 
     public void ApplyDamage(IUnit attacker, IUnit target, uint damage, IAbility ability)
@@ -39,6 +43,10 @@ public sealed class CombatService : ICombatService
         // put the attacker in combat, or a player could tag themselves in combat on the innkeeper.
         // Every damage source in the game funnels through here, so this one guard covers them all.
         if (target is ICreature { Invulnerable: true }) return;
+
+        // #164: any player-on-player hit restarts both players' running PvP off timers.
+        if (attacker is CharacterEntity attackerEntity && target is CharacterEntity targetEntity)
+            _pvp?.OnPlayerHitPlayer(attackerEntity, targetEntity);
 
         Encounter enc = ResolveOrSpawn(attacker, target);
 
