@@ -2,6 +2,7 @@
 // Avalon ARPG Game licenses this file to you under the MIT license.
 
 using System;
+using System.Collections.Frozen;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
@@ -32,6 +33,12 @@ public sealed class PacketDispatchTelemetry
     /// <summary>Records into a source and a meter nothing listens to.</summary>
     public static readonly PacketDispatchTelemetry Disabled =
         new(new ActivitySource("avalon-telemetry-disabled"), new Meter("avalon-telemetry-disabled"));
+
+    // Enum.ToString allocates on every call; the names are tagged on every packet.
+    private static readonly FrozenDictionary<NetworkPacketType, string> Names =
+        Enum.GetValues<NetworkPacketType>().Distinct().ToFrozenDictionary(t => t, t => t.ToString());
+
+    internal static string NameOf(NetworkPacketType type) => Names.TryGetValue(type, out string? name) ? name : type.ToString();
 
     private readonly ActivitySource _source;
     private readonly HashSet<NetworkPacketType> _noSpan;
@@ -69,7 +76,7 @@ public sealed class PacketDispatchTelemetry
         try
         {
             activity = StartSpan(type, tags);
-            scope = logger.BeginScope(Scope(type, tags));
+            scope = logger.BeginScope(new PacketScope(type, tags));
         }
         catch (Exception)
         {
@@ -92,7 +99,7 @@ public sealed class PacketDispatchTelemetry
         if (activity is null)
             return null;
 
-        activity.SetTag("avalon.packet.type", type.ToString());
+        activity.SetTag("avalon.packet.type", NameOf(type));
         activity.SetTag("avalon.connection.id", tags.ConnectionId.ToString());
         activity.SetTag("client.address", tags.ClientAddress);
         if (tags.AccountId is { } account)
@@ -102,23 +109,9 @@ public sealed class PacketDispatchTelemetry
         return activity;
     }
 
-    private static List<KeyValuePair<string, object?>> Scope(NetworkPacketType type, PacketTags tags)
-    {
-        List<KeyValuePair<string, object?>> scope =
-        [
-            new("PacketType", type.ToString()),
-            new("ConnectionId", tags.ConnectionId),
-        ];
-        if (tags.AccountId is { } accountId)
-            scope.Add(new("AccountId", accountId));
-        if (tags.CharacterId is { } characterId)
-            scope.Add(new("CharacterId", characterId));
-        return scope;
-    }
-
     internal void Record(NetworkPacketType type, double milliseconds, bool failed)
     {
-        KeyValuePair<string, object?> packetType = new("avalon.packet.type", type.ToString());
+        KeyValuePair<string, object?> packetType = new("avalon.packet.type", NameOf(type));
         _duration.Record(milliseconds, packetType, new("avalon.outcome", failed ? "error" : "ok"));
         if (failed)
             _errors.Add(1, packetType);

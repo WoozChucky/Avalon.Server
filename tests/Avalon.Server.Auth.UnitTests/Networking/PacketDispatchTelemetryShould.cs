@@ -219,6 +219,27 @@ public sealed class PacketDispatchTelemetryShould : IDisposable
     }
 
     [Fact]
+    public void Allocate_little_per_packet_for_the_chatty_types()
+    {
+        // A source and meter nothing listens to, so only the dispatch itself is measured. Player input
+        // arrives many times a second per player on the tick thread.
+        using ActivitySource quietSource = new($"quiet-{Guid.NewGuid()}");
+        using Meter quietMeter = new($"quiet-{Guid.NewGuid()}");
+        PacketDispatchTelemetry telemetry = new(quietSource, quietMeter);
+        ILogger logger = Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance;
+        for (int i = 0; i < 100; i++)
+            telemetry.Begin(NetworkPacketType.CMSG_PLAYER_INPUT, Tags, logger).Dispose();
+
+        const int Runs = 1000;
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        for (int i = 0; i < Runs; i++)
+            telemetry.Begin(NetworkPacketType.CMSG_PLAYER_INPUT, Tags, logger).Dispose();
+        long perDispatch = (GC.GetAllocatedBytesForCurrentThread() - before) / Runs;
+
+        Assert.True(perDispatch <= 128, $"{perDispatch} bytes per dispatch");
+    }
+
+    [Fact]
     public void Still_dispatch_when_the_logger_cannot_open_a_scope()
     {
         PacketDispatch dispatch = Create().Begin(NetworkPacketType.CMSG_AUTH, Tags, new ThrowingScopeLogger());

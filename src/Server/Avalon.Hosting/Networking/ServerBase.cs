@@ -87,7 +87,9 @@ public abstract class ServerBase<T> : BackgroundService, IServerBase where T : I
 
     /// <summary>Who <paramref name="connection" /> is, for its packets' spans and log scope.</summary>
     protected virtual PacketTags DescribeConnection(IConnection connection) =>
-        new(connection.Id, PacketTags.AddressOf(connection.RemoteEndPoint), null, null);
+        new(connection.Id,
+            connection is Connection known ? known.ClientAddress : PacketTags.AddressOf(connection.RemoteEndPoint),
+            null, null);
 
     protected abstract object GetContextPacket(IConnection connection, object? packet, Type packetType);
     protected abstract Task OnStoppingAsync(CancellationToken stoppingToken);

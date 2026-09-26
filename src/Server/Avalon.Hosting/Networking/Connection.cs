@@ -13,6 +13,8 @@ using Avalon.Network.Packets.Abstractions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
+using Avalon.Hosting.Telemetry;
+
 namespace Avalon.Hosting.Networking;
 
 public interface IConnection
@@ -86,6 +88,12 @@ public abstract class Connection : BackgroundService, IConnection, IConnectionRa
     public bool IsClosing => Volatile.Read(ref _closed) == 1;
     public Guid Id { get; }
     public string RemoteEndPoint { get; private set; } = "Unknown";
+
+    /// <summary>
+    /// <see cref="RemoteEndPoint" /> without its port, worked out once when the address is settled
+    /// rather than per packet: the telemetry tags every packet with it.
+    /// </summary>
+    public string ClientAddress { get; private set; } = "Unknown";
     public IAvalonCryptoSession CryptoSession { get; }
     public ICryptoManager ServerCrypto { get; }
 
@@ -154,6 +162,7 @@ public abstract class Connection : BackgroundService, IConnection, IConnectionRa
     {
         _client = client;
         RemoteEndPoint = client.Client.RemoteEndPoint?.ToString() ?? "Unknown";
+        ClientAddress = PacketTags.AddressOf(RemoteEndPoint);
     }
 
     protected virtual IOutbox OnCreateOutbox() =>
@@ -195,6 +204,7 @@ public abstract class Connection : BackgroundService, IConnection, IConnectionRa
             ProxyHeader header = await ProxyProtocolV2.ReadAsync(raw, timeout.Token).ConfigureAwait(false);
             if (header.Source is not null)
                 RemoteEndPoint = header.Source.ToString();
+                ClientAddress = PacketTags.AddressOf(RemoteEndPoint);
             return true;
         }
         catch (ProxyHeaderNotSentException)
