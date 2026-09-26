@@ -9,7 +9,11 @@ public enum ItemRequestResult : byte
 {
     Ok = 0,
 
-    /// <summary>The source slot is empty, or holds an item whose template no longer exists.</summary>
+    /// <summary>
+    /// The source slot is empty. An item whose template no longer exists is still found: it can be
+    /// moved within the Bag and the Bank, taken off, and destroyed, and only equipping it is refused,
+    /// with <see cref="WrongEquipSlot" />.
+    /// </summary>
     NotFound = 1,
 
     /// <summary>A container or slot out of range, the same slot twice, or a reserved equipment slot.</summary>
