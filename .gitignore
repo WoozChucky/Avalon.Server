@@ -96,3 +96,6 @@ BenchmarkDotNet.Artifacts/
 # OpenAPI document emitted at build time (see Avalon.Api.csproj)
 src/Server/Avalon.Api/openapi/
 docs/api/openapi.json
+
+# dotnet publish output the Dockerfiles copy (see dotnet-release.yml)
+out/

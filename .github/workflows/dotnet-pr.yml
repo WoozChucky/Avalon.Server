@@ -28,8 +28,8 @@ jobs:
       - name: Test
         run: dotnet test --no-build
       - name: Publish World Server
-        run: dotnet publish src/Server/Avalon.Server.World/Avalon.Server.World.csproj -c Release --no-restore
+        run: dotnet publish src/Server/Avalon.Server.World/Avalon.Server.World.csproj -c Release --no-restore -o src/Server/Avalon.Server.World/out
       - name: Publish Auth Server
-        run: dotnet publish src/Server/Avalon.Server.Auth/Avalon.Server.Auth.csproj -c Release --no-restore
+        run: dotnet publish src/Server/Avalon.Server.Auth/Avalon.Server.Auth.csproj -c Release --no-restore -o src/Server/Avalon.Server.Auth/out
       - name: Publish Api
-        run: dotnet publish src/Server/Avalon.Api/Avalon.Api.csproj -c Release --no-restore
+        run: dotnet publish src/Server/Avalon.Api/Avalon.Api.csproj -c Release --no-restore -o src/Server/Avalon.Api/out
