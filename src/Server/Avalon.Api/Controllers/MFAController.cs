@@ -79,21 +79,41 @@ public class MFAController : BaseController
     [HttpPost("verify", Name = "Verify MFA for the logged account")]
     public async Task<ActionResult<AuthenticateResponse>> VerifyMFA([FromBody] VerifyMFARequest request)
     {
-        var result = await _mfaService.VerifyMFAAsync(request.Hash, request.Code, CancellationToken);
-        if (!result.Success)
-            return Problem("Invalid MFA code or expired hash", statusCode: 401);
+        // The game client's MFA policy (#478): the source's budget, the hash's attempt count (the
+        // last wrong code deletes it), the account's username budget and its lock, all before the
+        // code is checked; and only one caller can win a hash, so two parallel verifies of one
+        // hash cannot both get a session.
+        MfaCodeAttempt attempt = await _mfaPolicy.CheckAsync(request.Hash, request.Code,
+            LoginSource.FromAddress(IpAddress), CancellationToken);
 
-        var account = await _accountRepository.FindByIdAsync(result.AccountId!, false, CancellationToken);
-        if (account == null)
-            return Problem("Invalid MFA code or expired hash", statusCode: 401);
+        switch (attempt.Result)
+        {
+            case MfaCodeCheck.SourceRefused or MfaCodeCheck.UsernameRefused or MfaCodeCheck.Locked:
+                throw new AccountLockedException();
+            case MfaCodeCheck.HashGone or MfaCodeCheck.HashSpent or MfaCodeCheck.AccountMissing:
+                return InvalidCode();
+            case MfaCodeCheck.WrongCode:
+                // Counted on the row; in the budget's last slot it locks the account.
+                await _mfaPolicy.RecordFailureAsync(attempt, CancellationToken);
+                return FailureFor(attempt);
+        }
+
+        var account = attempt.Account!;
+
         // The code was right, so the caller holds the account: a banned or deactivated one is
-        // told its status, as at login, and gets no session (#480).
+        // told its status, as at login, and gets no session (#480). The hash outlives the password
+        // step by two minutes, so a ban inside that window is caught here. Its slots stay taken.
         if (!AccountAccessCheck.MayHoldSession(account))
             throw new AccountInactiveException(account.Status);
 
-        account.LastIp = IpAddress.ToString();
-        account.LastLogin = DateTime.UtcNow;
-        await _accountRepository.UpdateAsync(account, CancellationToken);
+        // By column, and only while the account is not locked (#484): a lock or a ban written
+        // since the row was read survives, and a lock that landed meanwhile gets a wrong code's
+        // answer, with the slots kept.
+        if (!await _accountRepository.TryRecordApiLoginAsync(account.Id, attempt.Source.Ip, DateTime.UtcNow,
+                CancellationToken))
+            return FailureFor(attempt);
+
+        await _mfaPolicy.CompleteAsync(attempt);
 
         var issue = await _refreshService.IssueAsync(account.Id, CancellationToken);
         SetRefreshCookie(issue.RawToken, issue.ExpiresAt, _authConfig);
@@ -105,6 +125,12 @@ public class MFAController : BaseController
             Status = AuthenticationResponseStatus.Success
         };
     }
+
+    private ActionResult InvalidCode() => Problem("Invalid MFA code or expired hash", statusCode: 401);
+
+    /// <summary>A wrong code in this attempt's budget slot: 401, or 429 LOCKED in the last one.</summary>
+    private ActionResult FailureFor(MfaCodeAttempt attempt) =>
+        _mfaPolicy.FailureLocks(attempt) ? throw new AccountLockedException() : InvalidCode();
 
     [HttpGet("status", Name = "Get MFA status for the logged account")]
     [ProducesResponseType(typeof(MfaStatusResponse), StatusCodes.Status200OK)]

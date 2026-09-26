@@ -22,6 +22,7 @@ public class MFAServiceShould
     private readonly IMfaSetupRepository _repository = Substitute.For<IMfaSetupRepository>();
     private readonly IMFAHashService _hashService = Substitute.For<IMFAHashService>();
     private readonly ISecureRandom _random = Substitute.For<ISecureRandom>();
+    private readonly Avalon.Infrastructure.IReplicatedCache _cache = Substitute.For<Avalon.Infrastructure.IReplicatedCache>();
     private MFASetup? _row;
 
     public MFAServiceShould()
@@ -66,7 +67,7 @@ public class MFAServiceShould
     }
 
     private MFAService CreateService() =>
-        new(NullLoggerFactory.Instance, _repository, _hashService, _random);
+        new(NullLoggerFactory.Instance, _repository, _hashService, _random, _cache);
 
     private static Account NewAccount() => new()
     {

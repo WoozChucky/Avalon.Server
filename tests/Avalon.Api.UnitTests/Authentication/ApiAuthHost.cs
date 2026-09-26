@@ -55,15 +55,16 @@ public sealed class ApiAuthHost : IAsyncDisposable
     public IRefreshTokenService Refresh { get; } = Substitute.For<IRefreshTokenService>();
     public IMFAService Mfa { get; } = Substitute.For<IMFAService>();
     public IMFAHashService MfaHashes { get; } = Substitute.For<IMFAHashService>();
-    public IReauthentication Reauthentication { get; } = Substitute.For<IReauthentication>();
-    public IReplicatedCache Cache { get; } = Substitute.For<IReplicatedCache>();
+    public IReplicatedCache Cache { get; private set; } = Substitute.For<IReplicatedCache>();
 
     private WebApplication _app = null!;
     public HttpClient Client { get; private set; } = null!;
 
-    public static async Task<ApiAuthHost> StartAsync()
+    /// <param name="cache">The cache the login policy counts on; a plain substitute when not given.</param>
+    public static async Task<ApiAuthHost> StartAsync(IReplicatedCache? cache = null)
     {
         var host = new ApiAuthHost();
+        if (cache != null) host.Cache = cache;
         await host.InitializeAsync();
         return host;
     }
@@ -89,7 +90,7 @@ public sealed class ApiAuthHost : IAsyncDisposable
         // first attempt on it, and a login record that succeeds, unless a test says otherwise.
         services.AddSingleton<ILoginLimits>(AuthConfig);
         services.AddSingleton(MfaHashes);
-        services.AddSingleton(Reauthentication);
+        services.AddScoped<IReauthentication, Reauthentication>();
         services.AddLoginPolicy();
         MfaHashes.GetAccountIdAsync(Arg.Any<string>()).Returns(new AccountId(AccountIdValue));
         MfaHashes.RecordAttemptAsync(Arg.Any<AccountId>()).Returns(1L);

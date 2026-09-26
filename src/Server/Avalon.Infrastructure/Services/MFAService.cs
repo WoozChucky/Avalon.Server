@@ -16,13 +16,16 @@ public class MFAService : IMFAService
     private readonly IMfaSetupRepository _mfaSetupRepository;
     private readonly IMFAHashService _mfaHashService;
     private readonly ISecureRandom _secureRandom;
+    private readonly IReplicatedCache _cache;
 
-    public MFAService(ILoggerFactory loggerFactory, IMfaSetupRepository mfaSetupRepository, IMFAHashService mfaHashService, ISecureRandom secureRandom)
+    public MFAService(ILoggerFactory loggerFactory, IMfaSetupRepository mfaSetupRepository, IMFAHashService mfaHashService,
+        ISecureRandom secureRandom, IReplicatedCache cache)
     {
         _logger = loggerFactory.CreateLogger<MFAService>();
         _mfaSetupRepository = mfaSetupRepository;
         _mfaHashService = mfaHashService;
         _secureRandom = secureRandom;
+        _cache = cache;
     }
 
     public async Task<MFASetupResult> SetupMFAAsync(Account account, string issuer, CancellationToken cancellationToken = default)
@@ -104,6 +107,18 @@ public class MFAService : IMFAService
         if (!totp.VerifyTotp(code, out var step, TotpWindow))
             return new MFAVerifyResult(false, null);
 
+        // One winner per hash (#478): the DEL spends the hash, not the read above, as #450 does for
+        // world keys. Two verifies of one hash, each with a code the window accepts (this step's
+        // and the previous one's), both passed the step check below when the earlier step went
+        // first, and both got a session. Only the caller whose delete removed the hash goes on;
+        // a right code spends the hash even if its step is refused next, so a refused code cannot
+        // be retried on it.
+        if (!await _mfaHashService.TryConsumeAsync(hash, accountId))
+        {
+            _logger.LogWarning("Refused an MFA code for account {AccountId}: its hash was already spent", accountId);
+            return new MFAVerifyResult(false, null);
+        }
+
         // Each code once (#471): refuse a step no later than the last one accepted. The write is
         // conditional on the same, so two requests racing with one code cannot both pass.
         if (step <= mfaSetup.LastAcceptedTotpStep
@@ -113,7 +128,6 @@ public class MFAService : IMFAService
             return new MFAVerifyResult(false, null);
         }
 
-        await _mfaHashService.CleanupHash(hash);
         return new MFAVerifyResult(true, accountId);
     }
 

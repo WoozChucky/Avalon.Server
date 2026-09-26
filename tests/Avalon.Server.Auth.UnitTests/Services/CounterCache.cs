@@ -122,15 +122,15 @@ internal sealed class CounterCache
     }
 
     /// <summary>The keys of the per-username budget this cache holds now.</summary>
-    public IReadOnlyList<string> UsernameKeys
+    public IReadOnlyList<string> UsernameKeys => KeysStartingWith("auth:username:");
+
+    /// <summary>The keys this cache holds now that start with <paramref name="prefix"/>.</summary>
+    public IReadOnlyList<string> KeysStartingWith(string prefix)
     {
-        get
+        lock (_gate)
         {
-            lock (_gate)
-            {
-                foreach (string key in _keys.Keys.ToList()) Purge(key);
-                return _keys.Keys.Where(k => k.StartsWith("auth:username:", StringComparison.Ordinal)).ToList();
-            }
+            foreach (string key in _keys.Keys.ToList()) Purge(key);
+            return _keys.Keys.Where(k => k.StartsWith(prefix, StringComparison.Ordinal)).ToList();
         }
     }
 

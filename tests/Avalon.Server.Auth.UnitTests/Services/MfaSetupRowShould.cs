@@ -135,7 +135,7 @@ public sealed class MfaSetupRowShould : IDisposable
     }
 
     private MFAService Service(IMfaSetupRepository repository) =>
-        new(NullLoggerFactory.Instance, repository, _hashService, _random);
+        new(NullLoggerFactory.Instance, repository, _hashService, _random, Substitute.For<Avalon.Infrastructure.IReplicatedCache>());
 
     private async Task TryInsertAsync(MFASetup row)
     {
@@ -255,6 +255,10 @@ public sealed class MfaSetupRowShould : IDisposable
 
         public Task<bool> UpsertPendingAsync(MFASetup pending, CancellationToken cancellationToken = default) =>
             inner.UpsertPendingAsync(pending, cancellationToken);
+
+        public Task<bool> ResetConfirmedAsync(Guid id, AccountId accountId, DateTime now,
+            CancellationToken cancellationToken = default) =>
+            inner.ResetConfirmedAsync(id, accountId, now, cancellationToken);
 
         public Task<bool> TryConfirmAsync(Guid id, byte[] verifiedSecret, byte[] recoveryCode1, byte[] recoveryCode2,
             byte[] recoveryCode3, DateTime confirmedAt, long acceptedTotpStep, CancellationToken cancellationToken = default) =>

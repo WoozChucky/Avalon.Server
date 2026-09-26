@@ -46,11 +46,15 @@ public sealed class TotpReplayShould : IDisposable
         _mfa = new MfaSetupRepository(_factory);
         _accounts = new AccountRepository(_factory);
         _random.GetBytes(Arg.Any<int>()).Returns(ci => RandomNumberGenerator.GetBytes(ci.Arg<int>()));
+        // Each verify here stands for a fresh login's hash, so each one wins its hash (#478); the
+        // refusals under test come from the step, not from a spent hash.
+        _hashService.TryConsumeAsync(Hash, Arg.Any<AccountId>()).Returns(true);
     }
 
     public void Dispose() => _connection.Dispose();
 
-    private MFAService Service() => new(NullLoggerFactory.Instance, _mfa, _hashService, _random);
+    private MFAService Service() => new(NullLoggerFactory.Instance, _mfa, _hashService, _random,
+        Substitute.For<Avalon.Infrastructure.IReplicatedCache>());
 
     private async Task<(AccountId Id, byte[] Secret)> EnrolledAccountAsync()
     {
