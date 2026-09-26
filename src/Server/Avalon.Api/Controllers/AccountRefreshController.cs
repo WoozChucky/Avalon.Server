@@ -3,6 +3,7 @@ using Avalon.Api.Authentication.Jwt;
 using Avalon.Api.Config;
 using Avalon.Api.Contract;
 using Avalon.Api.Exceptions;
+using Avalon.Api.Middlewares;
 using Avalon.Api.Services;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Infrastructure;
@@ -21,14 +22,17 @@ public sealed class AccountRefreshController : BaseController
     private readonly IAccountRepository _accounts;
     private readonly AuthenticationConfig _authConfig;
     private readonly IReplicatedCache _cache;
+    private readonly Microsoft.AspNetCore.Builder.ForwardedHeadersOptions _forwarded;
 
     public AccountRefreshController(
         IRefreshTokenService refresh,
         IJwtUtils jwt,
         IAccountRepository accounts,
         AuthenticationConfig authConfig,
-        IReplicatedCache cache)
+        IReplicatedCache cache,
+        Microsoft.AspNetCore.Builder.ForwardedHeadersOptions forwarded)
     {
+        _forwarded = forwarded;
         _refresh = refresh;
         _jwt = jwt;
         _accounts = accounts;
@@ -46,7 +50,12 @@ public sealed class AccountRefreshController : BaseController
 
         try
         {
-            var caller = RefreshCaller.From(HttpContext.Connection.RemoteIpAddress, Request.Headers.UserAgent.ToString());
+            // Behind a trusted proxy that forwarded no client, the address is the proxy's, shared by
+            // every caller behind it: such a caller gets no source, so no refresh grace (#495 final review).
+            var peer = HttpContext.Connection.RemoteIpAddress;
+            if (peer is not null && ForwardedHeadersSetup.IsTrustedProxy(_forwarded, peer))
+                peer = null;
+            var caller = RefreshCaller.From(peer, Request.Headers.UserAgent.ToString());
             var rotated = await _refresh.RotateAsync(raw, caller, ct);
             var account = await _accounts.FindByIdAsync(rotated.AccountId, track: false, ct);
             if (!AccountAccessCheck.MayHoldSession(account))

@@ -69,6 +69,18 @@ public static class ForwardedHeadersSetup
     }
 
     /// <summary>Whether any proxy beyond loopback is trusted.</summary>
+    /// <summary>
+    /// Whether <paramref name="peer"/> is a proxy <paramref name="options"/> believes: loopback or a
+    /// configured proxy or network. After the forwarded-headers middleware, a caller whose address
+    /// is still such a peer is the proxy itself, forwarding no client (#495 final review).
+    /// </summary>
+    public static bool IsTrustedProxy(ForwardedHeadersOptions options, System.Net.IPAddress peer)
+    {
+        if (peer.IsIPv4MappedToIPv6)
+            peer = peer.MapToIPv4();
+        return options.KnownProxies.Contains(peer) || options.KnownIPNetworks.Any(n => n.Contains(peer));
+    }
+
     public static bool TrustsAnyProxy(ForwardedHeadersConfig? config) =>
         config is not null && (config.KnownProxies.Length > 0 || config.KnownNetworks.Length > 0);
 
@@ -174,10 +186,5 @@ public sealed class UntrustedForwardedHeaderLog
             _logger.LogWarning(message + " Last peer: {Peer}", ForwardedHeadersSetup.Section, suppressed, peer.ToString());
     }
 
-    private bool IsTrusted(IPAddress peer)
-    {
-        if (peer.IsIPv4MappedToIPv6)
-            peer = peer.MapToIPv4();
-        return _options.KnownProxies.Contains(peer) || _options.KnownIPNetworks.Any(n => n.Contains(peer));
-    }
+    private bool IsTrusted(IPAddress peer) => ForwardedHeadersSetup.IsTrustedProxy(_options, peer);
 }

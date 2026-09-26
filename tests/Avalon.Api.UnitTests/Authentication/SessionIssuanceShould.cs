@@ -39,9 +39,11 @@ public sealed class SessionIssuanceShould : IAsyncLifetime
             .Returns(account);
     }
 
-    private async Task<HttpResponseMessage> PostRefreshAsync(string? bearer = null)
+    private async Task<HttpResponseMessage> PostRefreshAsync(string? bearer = null, string? peer = null)
     {
         using var request = new HttpRequestMessage(HttpMethod.Post, "/account/refresh");
+        if (peer is not null)
+            request.Headers.Add(PeerHeader, peer);
         if (bearer is not null)
             request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", bearer);
         request.Headers.Add("Cookie", $"{AuthConfig.RefreshCookieName}={RefreshCookie}");
@@ -91,6 +93,41 @@ public sealed class SessionIssuanceShould : IAsyncLifetime
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
         Assert.False(response.Headers.Contains("Set-Cookie"));
         await _host.Cache.DidNotReceiveWithAnyArgs().PublishAsync(default!, default!);
+    }
+
+    /// <summary>
+    /// #495 final review: behind a trusted proxy that forwarded no client, the peer is the proxy,
+    /// and every caller behind it shares its source. Matching it proves nothing, so the grace is not
+    /// given: the rotation is made for a caller with no source.
+    /// </summary>
+    [Theory]
+    [InlineData("127.0.0.1")] // loopback: trusted as a proxy by default
+    [InlineData("::1")]
+    public async Task Give_no_refresh_grace_to_a_caller_that_is_a_trusted_proxy(string proxy)
+    {
+        Account account = MakeAccount();
+        _host.AccountNowIs(account);
+        RefreshCookieBelongsTo(account);
+
+        using HttpResponseMessage response = await PostRefreshAsync(peer: proxy);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        await _host.Refresh.Received(1).RotateAsync(RefreshCookie, Arg.Is<RefreshCaller>(c => c.Source == null),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Record_the_source_of_a_caller_that_is_not_a_proxy()
+    {
+        Account account = MakeAccount();
+        _host.AccountNowIs(account);
+        RefreshCookieBelongsTo(account);
+
+        using HttpResponseMessage response = await PostRefreshAsync(peer: "203.0.113.7");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        await _host.Refresh.Received(1).RotateAsync(RefreshCookie,
+            Arg.Is<RefreshCaller>(c => c.Source == "203.0.113.7"), Arg.Any<CancellationToken>());
     }
 
     [Theory]
