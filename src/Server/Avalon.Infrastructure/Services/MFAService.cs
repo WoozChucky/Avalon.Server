@@ -97,7 +97,7 @@ public class MFAService : IMFAService
     {
         var accountId = await _mfaHashService.GetAccountIdAsync(hash);
         if (accountId == null)
-            return new MFAVerifyResult(false, null);
+            return new MFAVerifyResult(false, null, MfaCodeRefusal.HashSpent);
 
         var mfaSetup = await _mfaSetupRepository.FindByAccountIdAsync(accountId, cancellationToken);
         if (mfaSetup == null || mfaSetup.Status != MfaSetupStatus.Confirmed)
@@ -107,25 +107,24 @@ public class MFAService : IMFAService
         if (!totp.VerifyTotp(code, out var step, TotpWindow))
             return new MFAVerifyResult(false, null);
 
-        // One winner per hash (#478): the DEL spends the hash, not the read above, as #450 does for
-        // world keys. Two verifies of one hash, each with a code the window accepts (this step's
-        // and the previous one's), both passed the step check below when the earlier step went
-        // first, and both got a session. Only the caller whose delete removed the hash goes on;
-        // a right code spends the hash even if its step is refused next, so a refused code cannot
-        // be retried on it.
-        if (!await _mfaHashService.TryConsumeAsync(hash, accountId))
-        {
-            _logger.LogWarning("Refused an MFA code for account {AccountId}: its hash was already spent", accountId);
-            return new MFAVerifyResult(false, null);
-        }
-
         // Each code once (#471): refuse a step no later than the last one accepted. The write is
-        // conditional on the same, so two requests racing with one code cannot both pass.
+        // conditional on the same, so two requests racing with one code cannot both pass. It runs
+        // before the hash is spent (#478 review), so a replay, a right code already used, leaves
+        // the hash for the right one and is not a failed login.
         if (step <= mfaSetup.LastAcceptedTotpStep
             || !await _mfaSetupRepository.TryAcceptTotpStepAsync(mfaSetup.Id, step, cancellationToken))
         {
             _logger.LogWarning("Refused a reused TOTP code for account {AccountId}", accountId);
-            return new MFAVerifyResult(false, null);
+            return new MFAVerifyResult(false, null, MfaCodeRefusal.Replayed);
+        }
+
+        // One winner per hash (#478): the DEL spends the hash, not the read above, as #450 does for
+        // world keys. Two verifies of one hash, each with a code of its own step, can both get past
+        // the step check; only the caller whose delete removed the hash goes on.
+        if (!await _mfaHashService.TryConsumeAsync(hash, accountId))
+        {
+            _logger.LogWarning("Refused an MFA code for account {AccountId}: its hash was already spent", accountId);
+            return new MFAVerifyResult(false, null, MfaCodeRefusal.HashSpent);
         }
 
         return new MFAVerifyResult(true, accountId);

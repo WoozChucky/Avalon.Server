@@ -50,6 +50,12 @@ public enum MfaCodeCheck
     /// <summary>The account row is locked; the code was not checked. Answered as locked.</summary>
     Locked,
     WrongCode,
+    /// <summary>
+    /// A right code whose step was already accepted, or one that lost its hash to a verify that
+    /// won it first (#478 review). Refused, but not a failed login: its slots come back and the row
+    /// is not counted.
+    /// </summary>
+    Replayed,
     Correct,
 }
 

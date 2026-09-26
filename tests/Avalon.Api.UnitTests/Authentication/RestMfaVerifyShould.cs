@@ -116,6 +116,24 @@ public sealed class RestMfaVerifyShould : IAsyncLifetime
         await _host.Refresh.DidNotReceiveWithAnyArgs().IssueAsync(default!, default);
     }
 
+    /// <summary>#478 review: a replayed code, or one that lost the hash to another verify, is refused but not counted.</summary>
+    [Theory]
+    [InlineData(MfaCodeRefusal.Replayed)]
+    [InlineData(MfaCodeRefusal.HashSpent)]
+    public async Task Refuse_a_replayed_or_raced_code_without_counting_a_failed_login(MfaCodeRefusal refusal)
+    {
+        AccountIs();
+        _host.Mfa.VerifyMFAAsync(Arg.Any<string>(), RightCode, Arg.Any<CancellationToken>())
+            .Returns(new MFAVerifyResult(false, null, refusal));
+        _host.MfaHashes.RecordAttemptAsync(Arg.Any<AccountId>()).Returns((long)AuthConfig.MaxFailedMfaAttempts);
+
+        using HttpResponseMessage response = await VerifyAsync(RightCode);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        await _host.AccountRepository.DidNotReceiveWithAnyArgs().RecordFailedLoginAsync(default!, default!, default, default, default);
+        await _host.MfaHashes.DidNotReceiveWithAnyArgs().CleanupHash(default!);
+    }
+
     [Fact]
     public async Task Refuse_a_source_past_its_budget_before_checking_the_code()
     {

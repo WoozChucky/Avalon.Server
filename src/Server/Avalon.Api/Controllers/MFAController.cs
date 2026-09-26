@@ -102,7 +102,7 @@ public class MFAController : BaseController
         {
             case MfaCodeCheck.SourceRefused or MfaCodeCheck.UsernameRefused or MfaCodeCheck.Locked:
                 throw new AccountLockedException();
-            case MfaCodeCheck.HashGone or MfaCodeCheck.HashSpent or MfaCodeCheck.AccountMissing:
+            case MfaCodeCheck.HashGone or MfaCodeCheck.HashSpent or MfaCodeCheck.AccountMissing or MfaCodeCheck.Replayed:
                 return InvalidCode();
             case MfaCodeCheck.WrongCode:
                 // Counted on the row; in the budget's last slot it locks the account.

@@ -236,6 +236,16 @@ public sealed class MfaLoginPolicy : LoginPolicy
         }
 
         MFAVerifyResult result = await _mfa.VerifyMFAAsync(hash, code, token);
+        if (!result.Success && result.Refusal != MfaCodeRefusal.WrongCode)
+        {
+            // A replayed code, or one that lost the hash to another verify (#478 review): refused,
+            // but not a failed login, so its slots come back and neither the row nor the hash is
+            // touched.
+            var refused = new MfaCodeAttempt(MfaCodeCheck.Replayed, source, usernameKey, taken, account);
+            await GiveBackAsync(refused);
+            return refused;
+        }
+
         if (!result.Success || result.AccountId != account.Id)
         {
             if (attempts >= Limits.MaxFailedMfaAttempts)

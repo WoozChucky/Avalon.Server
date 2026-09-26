@@ -218,6 +218,30 @@ public class CMFAVerifyHandlerShould
         await _cache.DidNotReceiveWithAnyArgs().PublishAsync(default!, default!);
     }
 
+    /// <summary>
+    /// #478 review: a right code that was already used is refused, but it is not a failed login:
+    /// nothing is counted on the row, the slots come back, and the hash is not deleted even on its
+    /// last attempt.
+    /// </summary>
+    [Theory]
+    [InlineData(MfaCodeRefusal.Replayed)]
+    [InlineData(MfaCodeRefusal.HashSpent)]
+    public async Task Refuse_a_replayed_or_raced_code_without_counting_a_failed_login(MfaCodeRefusal refusal)
+    {
+        _mfaService.VerifyMFAAsync("valid-hash", "123456").Returns(new MFAVerifyResult(false, null, refusal));
+        _mfaHashService.RecordAttemptAsync(Arg.Any<AccountId>()).Returns(5L);
+
+        await CreateHandler().ExecuteAsync(new AuthPacketContext<CMFAVerifyPacket>
+        {
+            Packet = new CMFAVerifyPacket { MfaHash = "valid-hash", Code = "123456" },
+            Connection = _connection
+        });
+
+        Assert.Equal(AuthResult.MFA_FAILED, SentPacket().Result);
+        await _accountRepository.DidNotReceiveWithAnyArgs().RecordFailedLoginAsync(default!, default!, default, default, default);
+        await _mfaHashService.DidNotReceiveWithAnyArgs().CleanupHash(default!);
+    }
+
     private SAuthResultPacket SentPacket()
     {
         NetworkPacket sent = (NetworkPacket)_connection.ReceivedCalls()

@@ -165,18 +165,26 @@ public sealed class RestMfaCodeShould
         Assert.Equal(MfaCodeCheck.WrongCode, result.Result);
     }
 
-    /// <summary>A code accepted once is refused on the next login's fresh hash.</summary>
+    /// <summary>
+    /// A code accepted once is refused on the next login's fresh hash, as a replay (#478 review):
+    /// the hash is not spent by it, and it is not a failed login.
+    /// </summary>
     [Fact]
-    public async Task Refuse_a_code_that_was_already_accepted()
+    public async Task Refuse_a_code_that_was_already_accepted_without_spending_the_hash()
     {
         string code = new Totp(_secret).ComputeTotp();
         MfaLoginPolicy policy = Policy();
 
         Assert.Equal(MfaCodeCheck.Correct, (await VerifyAsync(policy, code)).Result);
         NewHash();
+        string usernameKey = Assert.Single(_counters.UsernameKeys);
+        long before = _counters.CountOf(usernameKey);
         MfaCodeAttempt replay = await VerifyAsync(policy, code);
 
-        Assert.Equal(MfaCodeCheck.WrongCode, replay.Result);
+        Assert.Equal(MfaCodeCheck.Replayed, replay.Result);
+        Assert.True(_hashLive);
+        // Its own slot came back: the replay did not count.
+        Assert.Equal(before, _counters.CountOf(usernameKey));
     }
 
     /// <summary>A right code spends its hash: it cannot be verified against again.</summary>
