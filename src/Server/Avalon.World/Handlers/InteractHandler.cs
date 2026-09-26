@@ -29,7 +29,6 @@ public class InteractHandler(ILogger<InteractHandler> logger, IWorld world)
     // (CharacterCreateHandler's world.Data.ClassLevelStats, CharacterSelectHandler's
     // world.Data.CharacterLevelExperiences), so follow that rather than registering a holder.
     private IDialogueCatalog Dialogue => world.Data.Dialogue;
-    private ILocalizedTextCatalog Text => world.Data.LocalizedTexts;
 
     /// <summary>
     /// Metres. A local constant. There is no facing check: you do not have to be looking at someone
@@ -101,25 +100,22 @@ public class InteractHandler(ILogger<InteractHandler> logger, IWorld world)
     }
 
     /// <summary>
-    /// Shared with DialogueChooseHandler's advance path. One TextContext is built and reused across
-    /// the node and all its options — the class-name resolution inside it is the expensive part.
+    /// Shared with DialogueChooseHandler's advance path, so both send a node's options, and what
+    /// each will do (DialogueOptionKinds, #522), the same way. One TextContext is built and reused
+    /// across the node and all its options — the class-name resolution inside it is the expensive part.
     /// </summary>
     internal static void Send(
         IWorldConnection connection,
         ICreature npc,
         DialogueNodeView node,
         ICharacter character,
-        ILocalizedTextCatalog text)
+        StaticData data)
     {
+        ILocalizedTextCatalog text = data.LocalizedTexts;
         TextContext context = text.ContextFor(character, connection.Locale);
 
-        List<SDialogueOptionInfo> options = node.Options
-            .Select(option => new SDialogueOptionInfo
-            {
-                OptionId = option.Id.Value,
-                Text = text.Get(option.TextId, context)
-            })
-            .ToList();
+        List<SDialogueOptionInfo> options =
+            DialogueOptionKinds.OptionsOf(node, data.DialogueActions, data.Dialogue, text, context);
 
         connection.Send(SDialogueNodePacket.Create(
             npc.Guid.RawValue,
@@ -131,5 +127,5 @@ public class InteractHandler(ILogger<InteractHandler> logger, IWorld world)
     }
 
     private void SendNode(IWorldConnection connection, ICreature npc, DialogueNodeView node, ICharacter character)
-        => Send(connection, npc, node, character, Text);
+        => Send(connection, npc, node, character, world.Data);
 }
