@@ -43,6 +43,8 @@ public static class DiagnosticsConfig
 
         public static Counter<long> BytesSent =
             Meter.CreateCounter<long>("network.out.bytes", "bytes", "Number of bytes sent");
+
+        public static readonly ActivitySource Source = new(ServiceName);
     }
 
     public static class Api
