@@ -60,86 +60,31 @@ public class ExceptionHandlerMiddleware
             ConstraintName: AuthDbContext.UsernameNormalisedConstraint or AuthDbContext.EmailNormalisedConstraint,
         };
 
+    // The cases are matched in this order, so a subtype takes the first case its type fits.
     private async Task HandleExceptionAsync(HttpContext context, Exception exception)
     {
         context.Response.ContentType = "application/json";
 
-        switch (exception)
+        await (exception switch
         {
-            case AuthenticationException ex:
-                context.Request.HttpContext.Response.StatusCode = (int)HttpStatusCode.Unauthorized;
-                await context.Response.WriteAsJsonAsync(new ProblemDetails
-                {
-                    Status = (int)HttpStatusCode.Unauthorized,
-                    Type = exception.GetType().Name,
-                    Title = "Whoops!",
-                    Detail = ex.Message,
-                    Instance = $"{context.Request.Method} {context.Request.Path}"
-                }, cancellationToken: context.RequestAborted);
-                return;
+            AuthenticationException => WriteProblemAsync(context, (int)HttpStatusCode.Unauthorized,
+                exception.GetType().Name, "Whoops!", exception.Message),
             // Only thrown once the caller has proved they hold the account (password or MFA code).
-            case AccountInactiveException ex:
-                context.Request.HttpContext.Response.StatusCode = (int)HttpStatusCode.Forbidden;
-                await context.Response.WriteAsJsonAsync(new ProblemDetails
-                {
-                    Status = (int)HttpStatusCode.Forbidden,
-                    Type = exception.GetType().Name,
-                    Title = "Account not active",
-                    Detail = ex.Message,
-                    Instance = $"{context.Request.Method} {context.Request.Path}"
-                }, cancellationToken: context.RequestAborted);
-                return;
+            AccountInactiveException => WriteProblemAsync(context, (int)HttpStatusCode.Forbidden,
+                exception.GetType().Name, "Account not active", exception.Message),
             // A spent budget or a locked account (#478): the same answer for every username.
-            case AccountLockedException ex:
-                context.Request.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
-                await context.Response.WriteAsJsonAsync(new ProblemDetails
-                {
-                    Status = StatusCodes.Status429TooManyRequests,
-                    Type = exception.GetType().Name,
-                    Title = "Too many attempts",
-                    Detail = ex.Message,
-                    Instance = $"{context.Request.Method} {context.Request.Path}"
-                }, cancellationToken: context.RequestAborted);
-                return;
+            AccountLockedException => WriteProblemAsync(context, StatusCodes.Status429TooManyRequests,
+                exception.GetType().Name, "Too many attempts", exception.Message),
             // An email the request needed could not be sent (#510). The thrower logged it, by type
             // and domain only; this exception carries nothing more.
-            case EmailDeliveryException ex:
-                context.Request.HttpContext.Response.StatusCode = (int)HttpStatusCode.ServiceUnavailable;
-                await context.Response.WriteAsJsonAsync(new ProblemDetails
-                {
-                    Status = (int)HttpStatusCode.ServiceUnavailable,
-                    Type = "ServiceUnavailable",
-                    Title = "Service unavailable",
-                    Detail = ex.Message,
-                    Instance = $"{context.Request.Method} {context.Request.Path}"
-                }, cancellationToken: context.RequestAborted);
-                return;
-            case BusinessException ex:
-                context.Request.HttpContext.Response.StatusCode = (int)HttpStatusCode.BadRequest;
-                await context.Response.WriteAsJsonAsync(new ProblemDetails
-                {
-                    Status = (int)HttpStatusCode.BadRequest,
-                    Type = exception.GetType().Name,
-                    Title = "Client error",
-                    Detail = ex.Message,
-                    Instance = $"{context.Request.Method} {context.Request.Path}"
-                }, cancellationToken: context.RequestAborted);
-                return;
+            EmailDeliveryException => WriteProblemAsync(context, (int)HttpStatusCode.ServiceUnavailable,
+                "ServiceUnavailable", "Service unavailable", exception.Message),
+            BusinessException => WriteProblemAsync(context, (int)HttpStatusCode.BadRequest,
+                exception.GetType().Name, "Client error", exception.Message),
             // An Accounts check constraint refused the row (#503 follow-up): a username or an email
             // that is not in its stored form. The caller's value, not an outage. The constraint's
             // name stays in the log.
-            case var _ when IsAccountsCheckViolation(exception):
-                context.Request.HttpContext.Response.StatusCode = (int)HttpStatusCode.BadRequest;
-                _logger.LogError(exception, "An account row was refused by a check constraint");
-                await context.Response.WriteAsJsonAsync(new ProblemDetails
-                {
-                    Status = (int)HttpStatusCode.BadRequest,
-                    Type = "BusinessException",
-                    Title = "Client error",
-                    Detail = AccountValueRefused,
-                    Instance = $"{context.Request.Method} {context.Request.Path}"
-                }, cancellationToken: context.RequestAborted);
-                return;
+            _ when IsAccountsCheckViolation(exception) => WriteAccountValueRefusedAsync(context, exception),
             // Redis unreachable must read as "service unavailable", not "server error": an
             // empty roster and a broken pipe must not look alike to a caller. This is a
             // shared middleware, so the mapping applies everywhere IReplicatedCache is used
@@ -148,28 +93,50 @@ public class ExceptionHandlerMiddleware
             // The same holds for the database. Every authenticated request reloads its account
             // (#480), so a database outage would otherwise surface as a 500 on every call.
             // Authentication fails closed either way: the request never reaches the endpoint.
-            case DbException or RetryLimitExceededException:
-                context.Request.HttpContext.Response.StatusCode = (int)HttpStatusCode.ServiceUnavailable;
-                _logger.LogError(exception, "Database unavailable");
-                await WriteServiceUnavailableAsync(context);
-                return;
-            case RedisConnectionException:
-                context.Request.HttpContext.Response.StatusCode = (int)HttpStatusCode.ServiceUnavailable;
-                _logger.LogError(exception, "Cache unavailable");
-                await WriteServiceUnavailableAsync(context);
-                return;
-        }
+            DbException or RetryLimitExceededException => WriteDatabaseUnavailableAsync(context, exception),
+            RedisConnectionException => WriteCacheUnavailableAsync(context, exception),
+            _ => WriteUnexpectedErrorAsync(context, exception),
+        });
+    }
 
-        _logger.LogError(exception, "An unexpected error occurred");
-
-        context.Request.HttpContext.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
-        await context.Response.WriteAsJsonAsync(new ProblemDetails
+    private static Task WriteProblemAsync(HttpContext context, int status, string type, string title, string? detail)
+    {
+        context.Request.HttpContext.Response.StatusCode = status;
+        return context.Response.WriteAsJsonAsync(new ProblemDetails
         {
-            Status = (int)HttpStatusCode.InternalServerError,
-            Type = "ServerError",
-            Title = "An unexpected error occurred",
-            Detail = "An unexpected error occurred",
+            Status = status,
+            Type = type,
+            Title = title,
+            Detail = detail,
             Instance = $"{context.Request.Method} {context.Request.Path}"
         }, cancellationToken: context.RequestAborted);
+    }
+
+    private Task WriteAccountValueRefusedAsync(HttpContext context, Exception exception)
+    {
+        _logger.LogError(exception, "An account row was refused by a check constraint");
+        return WriteProblemAsync(context, (int)HttpStatusCode.BadRequest, "BusinessException", "Client error",
+            AccountValueRefused);
+    }
+
+    private Task WriteDatabaseUnavailableAsync(HttpContext context, Exception exception)
+    {
+        context.Request.HttpContext.Response.StatusCode = (int)HttpStatusCode.ServiceUnavailable;
+        _logger.LogError(exception, "Database unavailable");
+        return WriteServiceUnavailableAsync(context);
+    }
+
+    private Task WriteCacheUnavailableAsync(HttpContext context, Exception exception)
+    {
+        context.Request.HttpContext.Response.StatusCode = (int)HttpStatusCode.ServiceUnavailable;
+        _logger.LogError(exception, "Cache unavailable");
+        return WriteServiceUnavailableAsync(context);
+    }
+
+    private Task WriteUnexpectedErrorAsync(HttpContext context, Exception exception)
+    {
+        _logger.LogError(exception, "An unexpected error occurred");
+        return WriteProblemAsync(context, (int)HttpStatusCode.InternalServerError, "ServerError",
+            "An unexpected error occurred", "An unexpected error occurred");
     }
 }

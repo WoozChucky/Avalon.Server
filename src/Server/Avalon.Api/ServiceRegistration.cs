@@ -67,12 +67,25 @@ public static class ServiceRegistration
 
     public static void AddAuth(this IServiceCollection services, ApplicationConfig config)
     {
+        SymmetricSecurityKey signingKey = AddSigningKey(services, config);
+        AddAuthenticationSchemes(services, config, signingKey);
+        AddAuthorizationPolicies(services);
+        AddAuthorizationHandlers(services);
+    }
+
+    private static SymmetricSecurityKey AddSigningKey(IServiceCollection services, ApplicationConfig config)
+    {
         // Checked here, eagerly, so a missing or weak key stops startup instead of surfacing on the
         // first request (#482).
         // One instance, registered for JwtUtils, so signing and validation share it.
         SymmetricSecurityKey signingKey = JwtSigningKey.Create(config.Authentication);
         services.AddSingleton(signingKey);
+        return signingKey;
+    }
 
+    private static void AddAuthenticationSchemes(IServiceCollection services, ApplicationConfig config,
+        SymmetricSecurityKey signingKey)
+    {
         services.AddAuthentication(options =>
             {
                 options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
@@ -83,48 +96,13 @@ public static class ServiceRegistration
                 x.SaveToken = true;
                 x.Events = new JwtBearerEvents
                 {
-                    OnMessageReceived = context =>
-                    {
-                        if (context.Request.Headers.TryGetValue(HeaderNames.Authorization, out StringValues authHeader))
-                        {
-                            var value = authHeader.ToString();
-                            // Only extract the token when the scheme is Bearer (JWT).
-                            // Avalon-scheme headers (PATs) are handled by AvalonAuthenticationHandler;
-                            // passing them to JwtBearer causes a Fail() result and a spurious 401.
-                            if (value.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
-                            {
-                                context.Token = value["Bearer ".Length..];
-                            }
-                        }
-                        else if (context.Request.Cookies.TryGetValue(AuthConstants.CookieName, out string? cookie))
-                        {
-                            context.Token = cookie;
-                        }
-
-                        return Task.CompletedTask;
-                    },
+                    OnMessageReceived = ReadAccessToken,
                     // A valid signature is not enough: the account behind the token is reloaded
                     // and re-checked on every request, as a PAT's is (#480).
                     OnTokenValidated = JwtAccountRevalidation.OnTokenValidated,
                 };
 
-                x.TokenValidationParameters = new TokenValidationParameters
-                {
-                    ValidIssuer = config.Authentication!.Issuer,
-                    ValidateIssuer = config.Authentication.ValidateIssuer,
-                    IssuerSigningKey = signingKey,
-                    // Not configurable: a token is only as good as the key that signed it.
-                    ValidateIssuerSigningKey = true,
-                    ValidAudience = config.Authentication.Audience,
-                    ValidateAudience = config.Authentication.ValidateAudience,
-                    // The access token's lifetime (AccessTokenLifetimeMinutes) is enforced, with the
-                    // configured skew; a client past it gets a 401 and refreshes (#480).
-                    ValidateLifetime = true,
-                    ClockSkew = TimeSpan.FromMinutes(config.Authentication.ClockSkewInMinutes),
-                    RoleClaimType = ClaimTypes.GroupSid,
-                    // JwtUtils signs with HMAC-SHA256 only; nothing else is accepted.
-                    ValidAlgorithms = [SecurityAlgorithms.HmacSha256],
-                };
+                x.TokenValidationParameters = BuildTokenValidationParameters(config, signingKey);
 
                 x.Validate(JwtBearerDefaults.AuthenticationScheme);
             })
@@ -133,7 +111,51 @@ public static class ServiceRegistration
                 AvalonAuthenticationSchemeOptions.SchemeName,
                 options => { }
             );
+    }
 
+    private static Task ReadAccessToken(MessageReceivedContext context)
+    {
+        if (context.Request.Headers.TryGetValue(HeaderNames.Authorization, out StringValues authHeader))
+        {
+            var value = authHeader.ToString();
+            // Only extract the token when the scheme is Bearer (JWT).
+            // Avalon-scheme headers (PATs) are handled by AvalonAuthenticationHandler;
+            // passing them to JwtBearer causes a Fail() result and a spurious 401.
+            if (value.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+            {
+                context.Token = value["Bearer ".Length..];
+            }
+        }
+        else if (context.Request.Cookies.TryGetValue(AuthConstants.CookieName, out string? cookie))
+        {
+            context.Token = cookie;
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private static TokenValidationParameters BuildTokenValidationParameters(ApplicationConfig config,
+        SymmetricSecurityKey signingKey) =>
+        new()
+        {
+            ValidIssuer = config.Authentication!.Issuer,
+            ValidateIssuer = config.Authentication.ValidateIssuer,
+            IssuerSigningKey = signingKey,
+            // Not configurable: a token is only as good as the key that signed it.
+            ValidateIssuerSigningKey = true,
+            ValidAudience = config.Authentication.Audience,
+            ValidateAudience = config.Authentication.ValidateAudience,
+            // The access token's lifetime (AccessTokenLifetimeMinutes) is enforced, with the
+            // configured skew; a client past it gets a 401 and refreshes (#480).
+            ValidateLifetime = true,
+            ClockSkew = TimeSpan.FromMinutes(config.Authentication.ClockSkewInMinutes),
+            RoleClaimType = ClaimTypes.GroupSid,
+            // JwtUtils signs with HMAC-SHA256 only; nothing else is accepted.
+            ValidAlgorithms = [SecurityAlgorithms.HmacSha256],
+        };
+
+    private static void AddAuthorizationPolicies(IServiceCollection services)
+    {
         services.AddAuthorization(options =>
         {
             options.DefaultPolicy = new AuthorizationPolicyBuilder(JwtBearerDefaults.AuthenticationScheme,
@@ -163,7 +185,10 @@ public static class ServiceRegistration
                 .Combine(options.DefaultPolicy)
             );
         });
+    }
 
+    private static void AddAuthorizationHandlers(IServiceCollection services)
+    {
         services.AddScoped<IAuthContext, AuthContext>();
         services.AddScoped<IAuthorizationHandler, AvalonAuthHandler>();
         services.AddScoped<IAuthorizationHandler, Authorization.CharacterReadHandler>();
