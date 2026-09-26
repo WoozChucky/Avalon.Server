@@ -334,13 +334,7 @@ public class CharacterSelectHandler(
 
         entity.CurrentHealth = entity.Health;
         entity.CurrentPower = entity.Power;
-        entity.PowerType = character.Class switch
-        {
-            CharacterClass.Warrior => PowerType.Fury,
-            CharacterClass.Wizard or CharacterClass.Healer => PowerType.Mana,
-            CharacterClass.Hunter => PowerType.Energy,
-            _ => PowerType.None
-        };
+        entity.PowerType = ClassPowerType.Of(character.Class);
 
         // connection.Character is NOT assigned here, and is not assigned by this handler at all.
         // The entity is handed to the connection as a pending spawn once inventory and spells are

@@ -166,7 +166,11 @@ The client never emits a separate "interrupt" or "cancel" packet — moving canc
 
 ## 9. Test Checklist (Client)
 
-- [ ] Click on enemy → basic attack fires; server replies `SUnitDamagePacket` (and `SCharacterDamagePacket` for player damage).
+- [ ] Cast a cursor skill with a ground point → it fires; hits on creatures arrive as `SUnitDamagePacket` (and `SCharacterDamagePacket` for player damage, with `AbilityId` set).
+- [ ] Cast a cursor skill without a ground point (or with a non-finite one) → `SAbilityNotReadyPacket` with `Reason = NoAimPoint`.
+- [ ] Cast a circle or cone skill → every client in the instance gets `SMSG_ABILITY_FIRED` (a circle's `Centre`, a cone's `Direction`) and can draw the effect, whether or not it hit anyone.
+- [ ] Cast a projectile skill → the projectile appears as a world object, flies, and is removed where it stopped (at `Reach`, at a wall, or at the first unit hit).
+- [ ] Cast while a cast-time cast is in progress → `SAbilityNotReadyPacket` with `Reason = AlreadyCasting`.
 - [ ] Spam click → server enforces GCD; sub-200 ms casts get `SAbilityNotReadyPacket` with non-zero `CooldownMs`.
 - [ ] Cast a cast-time ability while moving → `SCharacterInterruptedCastPacket` arrives; cast bar clears.
 - [ ] Get hit → combat icon visible (existing `IsInCombat` channel).
@@ -175,21 +179,29 @@ The client never emits a separate "interrupt" or "cancel" packet — moving canc
 - [ ] Clear target (`CTargetUnitPacket {null}`) → no further `SThreatListPacket` for the prior target.
 - [ ] Die → `SUnitDeathPacket` arrives; Release button visible; on Release the character spawns at the home town.
 - [ ] Map-transition / portal out mid-combat → no rejection; transition succeeds. Threat is zeroed server-side.
-- [ ] Login → `SCharacterAbilitiesPacket` populates the ability list including the class basic attack.
+- [ ] Login → `SCharacterAbilitiesPacket` populates the ability list with the class's three starter-kit skills, each with its shape fields.
 
-## 10. Basic Attack Per Class
+## 10. Starter Kit Per Class
 
-V1 seeds one basic-attack ability per class as ordinary `AbilityTemplate` rows in `WorldDbContext`. They are granted automatically on character creation (added to each class's `CharacterCreateInfos.StartingSpells`). The client retrieves the player's full ability list via `SCharacterAbilitiesPacket` on character login.
+Each class starts with three skills (#164), ordinary `AbilityTemplate` rows seeded by the World migration `SeedStarterSkillKit`. They are granted on character creation through each class's `CharacterCreateInfos.StartingSpells`, and the Character migration `GrantStarterSkillKit` gave every existing character its class's three in place of whatever it held. The client retrieves the player's full ability list via `SCharacterAbilitiesPacket` on character login, and learns each skill's shape from `AbilityInfo` fields 8-16 (`AimMode`, `Shape`, `Anchor`, `Reach`, `Radius`, `ArcDegrees`, `ProjectileSpeed`, `Pierce`, `Affects`), which is everything it needs to draw a telegraph.
 
-Seeded values (`Avalon.Database.World/Migrations/20260507161257_SeedBasicAttackAbilities.cs`):
+The retired abilities 1, 2 and 100-103 are gone, and their ids are never reused, so a client that cached them cannot confuse them with a kit skill.
 
-| Class | AbilityId | Name | Range (`SpellRange`) | Damage | Cooldown | Cast Time | Threat × |
-|---|---|---|---|---|---|---|---|
-| Warrior | 100 | Warrior Slash | `Melee` (1 m) | 15 | 500 ms | 0 | 1.5 |
-| Wizard | 101 | Wizard Bolt | `Medium` (10 m) | 8 | 700 ms | 200 ms | 1.0 |
-| Hunter | 102 | Hunter Shot | `Long` (20 m) | 10 | 600 ms | 0 | 1.0 |
-| Healer | 103 | Healer Wand | `Medium` (10 m) | 5 | 800 ms | 300 ms | 0.8 |
+| id | class | name | shape | aim | anchor | reach (m) | radius (m) | arc (°) | speed (m/s) | pierce | affects | cast | cooldown | cost |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 200 | Warrior | Cleave | Cone | Movement | – | 2.5 | – | 100 | – | – | Hostile | 0 | 800 ms | 0 |
+| 201 | Warrior | Ground Slam | Circle | Movement | Caster | 0 | 3 | – | – | – | Hostile | 0 | 5000 ms | 20 |
+| 202 | Warrior | Hurled Axe | Projectile | Cursor | – | 15 | – | – | 18 | no | Hostile | 0 | 3000 ms | 10 |
+| 210 | Wizard | Arcane Bolt | Projectile | Cursor | – | 20 | – | – | 22 | no | Hostile | 0 | 800 ms | 0 |
+| 211 | Wizard | Flame Burst | Circle | Cursor | AimPoint | 18 | 3 | – | – | – | Hostile | 600 ms | 5000 ms | 25 |
+| 212 | Wizard | Frost Fan | Cone | Cursor | – | 6 | – | 60 | – | – | Hostile | 0 | 4000 ms | 15 |
+| 220 | Hunter | Quick Shot | Projectile | Cursor | – | 25 | – | – | 28 | no | Hostile | 0 | 800 ms | 0 |
+| 221 | Hunter | Piercing Arrow | Projectile | Cursor | – | 30 | – | – | 24 | yes | Hostile | 0 | 4000 ms | 15 |
+| 222 | Hunter | Scatter Shot | Cone | Cursor | – | 8 | – | 45 | – | – | Hostile | 0 | 4000 ms | 20 |
+| 230 | Healer | Smite | Projectile | Cursor | – | 18 | – | – | 20 | no | Hostile | 0 | 800 ms | 0 |
+| 231 | Healer | Radiant Pulse | Circle | Movement | Caster | 0 | 4 | – | – | – | Hostile | 0 | 5000 ms | 20 |
+| 232 | Healer | Mending Circle | Circle | Cursor | AimPoint | 15 | 4 | – | – | – | Ally | 0 | 8000 ms | 25 |
 
-`Range` is the `SpellRange` enum (`Melee = 1`, `Short = 5`, `Medium = 10`, `Long = 20`); the underlying `ushort` value is the radius in metres. `Cooldown` and `CastTime` are in milliseconds. `Damage` and `Threat ×` are not transmitted in `AbilityInfo`; they are server-side only and surface on the client through `SUnitDamagePacket` / `SThreatListPacket` outcomes.
+On the wire `AbilityInfo.Cooldown` and `CastTime` are seconds (floats); the table gives the stored milliseconds. The cost is paid from the class's pool: Warrior Fury, Wizard and Healer Mana, Hunter Energy. Damage and heal amounts, and threat, are not transmitted in `AbilityInfo`; they are server-side only and surface through the damage packets, health replication and `SThreatListPacket`. `AbilityInfo.Range` still carries the legacy `SpellRange` value but the server no longer reads it; use `Reach`.
 
-Numbers are V1 placeholders pending balance pass.
+Numbers are placeholders pending a balance pass.

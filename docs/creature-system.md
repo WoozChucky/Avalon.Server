@@ -144,7 +144,7 @@ OnCreatureKilled(creature, killer)
 
 Creatures currently always execute melee attacks. To support caster creatures, `ICreatureMetadata` needs a `IReadOnlyList<SpellId> SpellIds` property. `CreatureCombatScript` would use these to initialise per-spell cooldown tracking at script start, selecting a spell over melee when one is available and off cooldown.
 
-See [spell-system.md — Creature Spell Support](spell-system.md#creature-spell-support) for the full design.
+Creature casting on the aimed-skill pipeline is #163; see [spell-system.md — Out of scope](spell-system.md#9-out-of-scope).
 
 ---
 
