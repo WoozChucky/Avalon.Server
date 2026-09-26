@@ -66,6 +66,14 @@ public class HitShapesShould
         Assert.False(HitShapes.ConeOverlaps(Origin, AlongZ, 3f, 360f, At(0f, -4f), 0.5f));
     }
 
+    /// <summary>A NaN position or reach fails every comparison, so the reach test must refuse it rather than let it through (#164).</summary>
+    [Fact]
+    public void Miss_a_NaN_position_or_reach_even_in_a_360_degree_cone()
+    {
+        Assert.False(HitShapes.ConeOverlaps(Origin, AlongZ, 3f, 360f, At(float.NaN, float.NaN), 0.5f));
+        Assert.False(HitShapes.ConeOverlaps(Origin, AlongZ, float.NaN, 360f, At(0f, 1f), 0.5f));
+    }
+
     [Theory]
     [InlineData(0.4f, 5f, true)]     // passes within the body
     [InlineData(0.6f, 5f, false)]    // misses by more than the body

@@ -28,13 +28,13 @@ public class UnitHitQueryShould
         return creature;
     }
 
-    private ICharacter Character(uint id, float x, float z, bool dead = false)
+    private ICharacter Character(uint id, float x, float z, bool dead = false, uint health = 10)
     {
         var character = Substitute.For<ICharacter>();
         character.Guid.Returns(new ObjectGuid(ObjectType.Character, id));
         character.Position.Returns(new Vector3(x, 0f, z));
         character.BodyRadius.Returns(0.5f);
-        character.CurrentHealth.Returns(dead ? 0u : 10u);
+        character.CurrentHealth.Returns(health);
         character.IsDead.Returns(dead);
         _characters[character.Guid] = character;
         return character;
@@ -62,10 +62,18 @@ public class UnitHitQueryShould
     [Fact]
     public void Leave_out_dead_units()
     {
-        Character(1, 0f, 1f, dead: true);
+        Character(1, 0f, 1f, dead: true, health: 10);
         Creature(2, 0f, 1f, health: 0);   // a corpse stays in the instance until the corpse remover takes it
 
         Assert.Empty(Query.InCircle(Vector3.zero, 3f));
+    }
+
+    [Fact]
+    public void Judge_a_character_alive_by_its_dead_flag_not_its_health()
+    {
+        ICharacter alive = Character(1, 0f, 1f, dead: false, health: 0);
+
+        Assert.Equal([alive], Query.InCircle(Vector3.zero, 3f));
     }
 
     [Fact]

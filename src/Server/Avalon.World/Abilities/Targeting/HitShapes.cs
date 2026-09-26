@@ -29,7 +29,8 @@ public static class HitShapes
         Vector3 unit, float bodyRadius)
     {
         float distance = Distance2D(origin, unit);
-        if (distance > reach + bodyRadius)
+        // Written as a negated <= so a NaN distance or reach is refused, not let through.
+        if (!(distance <= reach + bodyRadius))
         {
             return false;
         }
