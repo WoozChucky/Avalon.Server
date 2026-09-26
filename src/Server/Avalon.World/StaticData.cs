@@ -8,6 +8,7 @@ using Avalon.World.Loot;
 using Avalon.World.Public.Dialogue;
 using Avalon.World.Public.Localization;
 using Avalon.World.Reload;
+using Avalon.World.Vendors;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.World;
@@ -24,7 +25,8 @@ public class StaticData(
     ILocalizedTextRepository localizedTextRepository,
     IDialogueRepository dialogueRepository,
     ILootTableRepository lootTableRepository,
-    ILoggerFactory loggerFactory)
+    ILoggerFactory loggerFactory,
+    IVendorStockRepository? vendorStockRepository = null)
 {
     private readonly ConcurrentQueue<(StaticDataPatch Patch, TaskCompletionSource Done)> _pending = new();
 
@@ -42,6 +44,7 @@ public class StaticData(
     private volatile ItemsPatch? _items;
     private volatile ProgressionPatch? _progression;
     private volatile LootPatch? _loot;
+    private volatile VendorsPatch? _vendors;
 
     /// <summary>
     /// Reads the database and builds a whole patch for one area. Runs on the thread pool and
@@ -94,6 +97,18 @@ public class StaticData(
             case ReloadArea.Loot:
                 return new LootPatch(new LootCatalog(await lootTableRepository.GetAllAsync(ct), loggerFactory));
 
+            case ReloadArea.Vendors:
+            {
+                // Validated against the item templates read here, never the ones applied, so the
+                // rows and the items they name are one generation. No repository (tests that build
+                // StaticData without one) is an empty catalog.
+                IReadOnlyCollection<VendorStock> rows = vendorStockRepository is null
+                    ? Array.Empty<VendorStock>()
+                    : await vendorStockRepository.GetAllAsync(ct);
+                IReadOnlyCollection<ItemTemplate> items = (await itemTemplateRepository.FindAllAsync(false, ct)).AsReadOnly();
+                return new VendorsPatch(new VendorCatalog(rows, items, loggerFactory));
+            }
+
             default:
                 throw new ArgumentOutOfRangeException(nameof(area), area, null);
         }
@@ -125,6 +140,9 @@ public class StaticData(
                 break;
             case LootPatch p:
                 _loot = p;
+                break;
+            case VendorsPatch p:
+                _vendors = p;
                 break;
             default:
                 throw new NotSupportedException($"No apply for {patch.GetType().Name}");
@@ -204,6 +222,12 @@ public class StaticData(
     /// tables even if a reload is queued.
     /// </summary>
     public LootCatalog Loot => _loot!.Catalog;
+
+    /// <summary>
+    /// Vendor stock (#432). Read on the tick, when a shop lists, sells, or a town instance runs its
+    /// vendor pass; one reference, so one generation.
+    /// </summary>
+    public VendorCatalog Vendors => _vendors!.Catalog;
 
     /// <summary>
     /// Snapshot accessor for a reader that needs more than one member of the creatures area

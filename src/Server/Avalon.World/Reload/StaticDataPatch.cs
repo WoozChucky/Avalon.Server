@@ -4,6 +4,7 @@ using Avalon.World.Dialogue;
 using Avalon.World.Loot;
 using Avalon.World.Public.Dialogue;
 using Avalon.World.Public.Localization;
+using Avalon.World.Vendors;
 
 namespace Avalon.World.Reload;
 
@@ -67,6 +68,16 @@ public sealed record ProgressionPatch(
 /// the ground keep what they rolled.
 /// </summary>
 public sealed record LootPatch(LootCatalog Catalog) : StaticDataPatch(ReloadArea.Loot)
+{
+    public override string Describe() => Catalog.Describe();
+}
+
+/// <summary>
+/// Vendor stock (#432). Read whenever a shop lists or sells, so a reload changes the next list. On
+/// its next vendor pass each town instance carries its live stock counts over by row id, and
+/// every open shop hears the new list.
+/// </summary>
+public sealed record VendorsPatch(VendorCatalog Catalog) : StaticDataPatch(ReloadArea.Vendors)
 {
     public override string Describe() => Catalog.Describe();
 }

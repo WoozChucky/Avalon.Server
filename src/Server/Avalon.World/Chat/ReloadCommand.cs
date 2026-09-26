@@ -11,7 +11,7 @@ namespace Avalon.World.Chat;
 /// </summary>
 public sealed class ReloadCommand(IReferenceDataReloader reloader, ILogger<ReloadCommand> logger) : ICommand
 {
-    private const string Usage = "Usage: /reload <dialogue|creatures|abilities|items|progression|loot|all>";
+    private const string Usage = "Usage: /reload <dialogue|creatures|abilities|items|progression|loot|vendors|all>";
 
     private const string MapsRefusal =
         "Maps and chunk layouts cannot be reloaded: live instances have already baked a navmesh " +
@@ -75,6 +75,7 @@ public sealed class ReloadCommand(IReferenceDataReloader reloader, ILogger<Reloa
         {
             ReloadArea.Creatures => line + " Affects new spawns only.",
             ReloadArea.Loot => line + " Affects the next kill; drops already on the ground keep what they rolled.",
+            ReloadArea.Vendors => line + " Open shops get the new list on the next tick; live stock counts carry over by row.",
             _ => line
         };
     }

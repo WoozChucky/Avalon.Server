@@ -47,6 +47,20 @@ public class ReloadCommandShould
     }
 
     [Fact]
+    public async Task Reply_With_A_Stock_Caveat_When_Vendors_Reload_Successfully()
+    {
+        Fixture fixture = Fixture.Build();
+        fixture.Returns(new ReloadOutcome(
+            ReloadArea.Vendors, true, "3 vendors, 31 rows", TimeSpan.FromMilliseconds(9), null));
+
+        await fixture.Execute("vendors");
+
+        Assert.Equal(
+            ["Reloaded vendors: 3 vendors, 31 rows (9 ms). Open shops get the new list on the next tick; live stock counts carry over by row."],
+            fixture.CaptureSentMessages());
+    }
+
+    [Fact]
     public async Task Reply_With_A_Spawn_Caveat_When_Creatures_Reload_Successfully()
     {
         Fixture fixture = Fixture.Build();
@@ -149,7 +163,7 @@ public class ReloadCommandShould
         await fixture.Execute(area);
 
         Assert.Equal(
-            ["Usage: /reload <dialogue|creatures|abilities|items|progression|loot|all>"],
+            ["Usage: /reload <dialogue|creatures|abilities|items|progression|loot|vendors|all>"],
             fixture.CaptureSentMessages());
         await fixture.Reloader.DidNotReceiveWithAnyArgs().ReloadAsync(default!, default);
     }
