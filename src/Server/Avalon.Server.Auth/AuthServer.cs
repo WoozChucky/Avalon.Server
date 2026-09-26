@@ -136,19 +136,28 @@ public class AuthServer(
 
     /// <summary>
     /// Handles one message on the account disconnect channel at <paramref name="now"/>: closes the
-    /// account's connections, sparing those that logged in after this server's own note for it, and
-    /// then drops that note, since this message is taken to be its echo (#495 re-review).
+    /// account's connections, sparing those that logged in after this server's own note for it.
+    /// <para>
+    /// The note is not consumed by the message (#495 final review). The message is a bare account
+    /// id, so a ban and this server's own echo cannot be told apart, and a note dropped on the first
+    /// one let the second kick the retry. It lasts its window instead, then expires (dropped on the
+    /// next read or write). Sparing the retry from a ban inside the window costs nothing: a ban
+    /// delivered before the echo was published before this server's publish, so before the retry's
+    /// login, which read the banned row and was refused; and one delivered after it still meets the
+    /// post-login guard, which closes a banned session on its next request.
+    /// </para>
     /// </summary>
-    public int HandleAccountDisconnect(RedisValue message, long now)
+    public int HandleAccountDisconnect(RedisValue message, long now) =>
+        HandleAccountDisconnect(Connections, message, now);
+
+    /// <inheritdoc cref="HandleAccountDisconnect(RedisValue, long)"/>
+    public int HandleAccountDisconnect(IEnumerable<IAuthConnection> connections, RedisValue message, long now)
     {
         if (TryParseAccount(message) is not { } account)
-            return CloseAccountConnections(Connections, message, _logger);
+            return CloseAccountConnections(connections, message, _logger);
 
         long? noted = OwnDisconnectPublishedAt(account, now);
-        int closed = CloseAccountConnections(Connections, message, _logger, _ => noted);
-        if (noted is { } at)
-            _ownDisconnectPublishes.TryRemove(new KeyValuePair<long, long>(account.Value, at));
-        return closed;
+        return CloseAccountConnections(connections, message, _logger, _ => noted);
     }
 
     private static Avalon.Common.ValueObjects.AccountId? TryParseAccount(RedisValue message) =>

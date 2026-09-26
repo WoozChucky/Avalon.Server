@@ -151,17 +151,42 @@ public sealed class AccountDisconnectShould
 
     private static long Seconds(double seconds) => (long)(seconds * System.Diagnostics.Stopwatch.Frequency);
 
-    /// <summary>#495 re-review: a note is consumed by the echo it was made for.</summary>
+    /// <summary>
+    /// #495 final review: the note was dropped on the first message for the account, whatever it
+    /// was. A ban delivered before the echo consumed it, and the echo then kicked the retry. The
+    /// ban still closes every connection that logged in before the note; the retry, logged in
+    /// after it, survives both messages.
+    /// </summary>
     [Fact]
-    public void Drop_the_note_once_its_echo_has_been_handled()
+    public void Close_the_older_session_on_a_ban_that_beats_the_echo_and_spare_the_retry_through_both()
+    {
+        AuthServer server = Server();
+        server.NoteOwnDisconnectPublish(new AccountId(7), now: Seconds(100));
+        IAuthConnection olderSession = LoggedInAt(7, Seconds(99));
+        IAuthConnection retry = LoggedInAt(7, Seconds(100.5));
+
+        // The ban, published by the API before this server's publish, is delivered first.
+        server.HandleAccountDisconnect([olderSession, retry], "7", now: Seconds(100.6));
+        // Then the echo of this server's own publish.
+        server.HandleAccountDisconnect([retry], "7", now: Seconds(100.7));
+
+        olderSession.Received(1).Close();
+        retry.DidNotReceiveWithAnyArgs().Close();
+    }
+
+    [Fact]
+    public void Keep_the_note_through_any_number_of_messages_until_its_window_ends()
     {
         AuthServer server = Server();
         server.NoteOwnDisconnectPublish(new AccountId(7), now: Seconds(100));
 
-        server.HandleAccountDisconnect("7", now: Seconds(100.01));
+        server.HandleAccountDisconnect("7", now: Seconds(100.01)); // a ban, say
+        server.HandleAccountDisconnect("7", now: Seconds(100.02)); // then the echo
 
-        Assert.Equal(0, server.OwnPublishNoteCount);
-        Assert.Null(server.OwnDisconnectPublishedAt(new AccountId(7), Seconds(100.02)));
+        Assert.NotNull(server.OwnDisconnectPublishedAt(new AccountId(7), Seconds(100.03)));
+        Assert.Null(server.OwnDisconnectPublishedAt(new AccountId(7),
+            Seconds(100) + Seconds(AuthServer.OwnPublishWindow.TotalSeconds + 1)));
+        Assert.Equal(0, server.OwnPublishNoteCount); // the expired note was dropped on that read
     }
 
     /// <summary>#495 re-review: notes whose echo never came are pruned on the next write.</summary>
