@@ -63,6 +63,7 @@ internal class Program
 
             IReplicatedCache cache = scope.ServiceProvider.GetRequiredService<IReplicatedCache>();
             await cache.ConnectAsync();
+            host.Services.TraceRedis(cache.Connection);
         }
 
         await AvalonHostBuilder.RunAsync<Program>(host, CancellationToken.None);

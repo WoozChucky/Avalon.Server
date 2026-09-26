@@ -32,6 +32,7 @@ public class Program
 
             IReplicatedCache cache = scope.ServiceProvider.GetRequiredService<IReplicatedCache>();
             await cache.ConnectAsync();
+            host.Services.TraceRedis(cache.Connection);
         }
 
 
