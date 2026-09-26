@@ -107,4 +107,45 @@ public class ShopDialogueShould : IAsyncLifetime
         Assert.Empty(_w.Main.Lists());
         Assert.Equal(2, _w.Main.Read<SDialogueNodePacket>(NetworkPacketType.SMSG_DIALOGUE_NODE).Count);
     }
+
+    private Dictionary<int, DialogueOptionKind> LastNodeKinds() =>
+        _w.Main.Read<SDialogueNodePacket>(NetworkPacketType.SMSG_DIALOGUE_NODE).Last()
+            .Options.ToDictionary(o => o.OptionId, o => o.Kind);
+
+    /// <summary>
+    /// Each option names the action choosing it will run (#522), so a client without a shop can
+    /// hide it. The shop option that ends the conversation opens nothing and goes out as a plain one.
+    /// </summary>
+    [Fact]
+    public void Tell_the_client_which_vendor_option_opens_the_shop()
+    {
+        _w.Interact(_w.Main, VendorWorld.SmithGuid);
+
+        Assert.Equal(
+            new Dictionary<int, DialogueOptionKind>
+            {
+                [VendorWorld.SmithWares] = DialogueOptionKind.OpenShop,
+                [VendorWorld.SmithFarewell] = DialogueOptionKind.Conversation,
+                [VendorWorld.SmithWaresAndLeave] = DialogueOptionKind.Conversation,
+            },
+            LastNodeKinds());
+    }
+
+    [Fact]
+    public void Send_the_kinds_again_on_the_node_the_shop_option_leads_to()
+    {
+        _w.OpenShop();
+
+        Assert.Equal(2, _w.Main.Read<SDialogueNodePacket>(NetworkPacketType.SMSG_DIALOGUE_NODE).Count);
+        Assert.Equal(DialogueOptionKind.OpenShop, LastNodeKinds()[VendorWorld.SmithWares]);
+        Assert.Equal(DialogueOptionKind.Conversation, LastNodeKinds()[VendorWorld.SmithFarewell]);
+    }
+
+    [Fact]
+    public void Send_a_plain_npcs_options_as_conversation()
+    {
+        _w.Interact(_w.Main, VendorWorld.InnkeeperGuid);
+
+        Assert.Equal(DialogueOptionKind.Conversation, Assert.Single(LastNodeKinds()).Value);
+    }
 }
