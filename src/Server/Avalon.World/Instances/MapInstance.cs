@@ -544,8 +544,10 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
             connection.UpdateMap();
             character.Update(deltaTime);
 
-            // #164: the off timer is checked every tick, ahead of the periodic save so it carries the change.
-            if (character is CharacterEntity pvpEntity && _pvp.ExpireIfDue(pvpEntity))
+            // #164: the off timer is checked every tick, ahead of the periodic save so it carries the
+            // change. A running timer a player-on-player hit moved is re-sent, so the countdown is exact.
+            if (character is CharacterEntity pvpEntity
+                && (_pvp.ExpireIfDue(pvpEntity) || PvpToggle.CountdownOwed(pvpEntity)))
                 _pvp.Send(connection, pvpEntity);
 
             // Periodic save (spec #459 D4): the scheduler decides whether this is the character's tick.

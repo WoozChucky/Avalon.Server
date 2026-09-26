@@ -150,6 +150,12 @@ public class CharacterEntity : ICharacter
 
     public DateTime? PvpOffAt => Data?.PvpOffAt;
 
+    /// <summary>
+    /// The off time this character's client was last told in SMSG_PVP_STATE, null for none (#164). Set
+    /// only by PvpToggle.Send; never saved, so every session starts untold. World-side only.
+    /// </summary>
+    public DateTime? PvpOffAtTold { get; internal set; }
+
     /// <summary>Called by PvpToggle after it writes the row: replicates the flag and marks the save.</summary>
     public void MarkPvpChanged()
     {

@@ -12,7 +12,7 @@ public sealed record PvpStatus(bool Enabled, uint OffInMs);
 /// <summary>
 /// The one path that changes a PvP flag (#164): CMSG_PVP_TOGGLE and /pvp both call <see cref="Toggle" />,
 /// the instance tick calls <see cref="ExpireIfDue" />, and a player-on-player hit calls
-/// <see cref="OnPlayerHitPlayer" />. The flag and its timer live on the character row, so every save
+/// <see cref="OnPlayerHitPlayer" />, whose moved deadline the tick re-sends (<see cref="CountdownOwed" />). The flag and its timer live on the character row, so every save
 /// carries them. The off time is always UTC, because its column is a timestamp with time zone. A dead
 /// character may toggle, deliberately: the flag is a choice about the next fight, not an action in this one.
 /// Tick thread only. World-side: the modding API cannot reach it.
@@ -95,9 +95,22 @@ public sealed class PvpToggle(IOptions<GameConfiguration> configuration, TimePro
         return new PvpStatus(character.PvpEnabled, offInMs);
     }
 
+    /// <summary>How far the off time may move from what the client was told before it is told again.</summary>
+    public static readonly TimeSpan CountdownTolerance = TimeSpan.FromSeconds(1);
+
+    /// <summary>
+    /// True when a timer is running and the client was told no off time, or one more than
+    /// <see cref="CountdownTolerance" /> away from it: a player-on-player hit moved the deadline. This
+    /// keeps the client's countdown exact, at no more than one packet a second per player.
+    /// </summary>
+    public static bool CountdownOwed(CharacterEntity character) =>
+        character.PvpOffAt is { } offAt
+        && (character.PvpOffAtTold is not { } told || (offAt - told).Duration() > CountdownTolerance);
+
     public void Send(IWorldConnection connection, CharacterEntity character)
     {
         PvpStatus status = StatusOf(character);
+        character.PvpOffAtTold = character.PvpOffAt;
         connection.Send(SPvpStatePacket.Create(status.Enabled, status.OffInMs, connection.CryptoSession.Encrypt));
     }
 }

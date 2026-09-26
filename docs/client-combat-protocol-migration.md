@@ -129,7 +129,7 @@ Server → the player's own client. The player's own flag and off timer.
 | `Enabled` | 1 | `bool` | Whether the flag is on. It stays on while the off timer runs. |
 | `OffInMs` | 2 | `uint` | Time left on the off timer in milliseconds, rounded up; 0 when no timer is running. |
 
-Sent in three cases: as the reply to every toggle (`CPvpTogglePacket` or `/pvp`), the moment the off timer turns the flag off (`Enabled = false`, `OffInMs = 0`), and once when the character enters an instance. Every player-on-player hit restarts a running timer at its full length for both players, and no packet is sent for that: a client counting the timer down locally will drift after a PvP hit until its next toggle, so show the timer as approximate.
+Sent in four cases: as the reply to every toggle (`CPvpTogglePacket` or `/pvp`), the moment the off timer turns the flag off (`Enabled = false`, `OffInMs = 0`), once when the character enters an instance, and when a hit moves a running timer. Every player-on-player hit restarts a running timer at its full length for both players, and the countdown is re-sent when a hit moves the deadline by more than a second: at most one packet per player per second of combat, and none while no timer runs. So the client can count `OffInMs` down locally, replace its countdown with each packet, and show it as exact.
 
 **Other players' flags.** Every character state (`ObjectState`) carries `PvpEnabled` (field 21) only as `true`; absent on a character state means off. Towns never allow player hostility, whatever the flags.
 

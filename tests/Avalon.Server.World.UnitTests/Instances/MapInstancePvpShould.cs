@@ -203,6 +203,127 @@ public class MapInstancePvpShould
         Assert.False(Hostility.IsHostile(b.Character, a.Character, instance.MapType));
     }
 
+    /// <summary>Flagged, then asked to turn off through the toggle, so each client has been told its countdown.</summary>
+    private void FlagAndAskOff(MapInstance instance, params MapInstanceClient[] clients)
+    {
+        foreach (MapInstanceClient c in clients)
+        {
+            c.Character.Health = 100;
+            c.Character.CurrentHealth = 100;
+            _toggle.Request(c.Character);
+            _toggle.Toggle(c.Connection);
+        }
+
+        instance.Update(Tick);
+        foreach (MapInstanceClient c in clients)
+        {
+            c.Sent.Clear();
+        }
+    }
+
+    /// <summary>The client's countdown is exact: a hit that moves the deadline by more than a second is re-sent.</summary>
+    [Fact]
+    public void Resend_each_players_countdown_once_when_a_hit_moves_it()
+    {
+        using MapInstance instance = Build();
+        MapInstanceClient a = Join(instance, 164_901);
+        MapInstanceClient b = Join(instance, 164_902);
+        FlagAndAskOff(instance, a, b);
+
+        _clock.Now = _clock.Now.AddMinutes(1);
+        instance.CombatService.ApplyDamage(a.Character, b.Character, 5);
+        instance.Update(Tick);
+        instance.Update(Tick);
+
+        foreach (MapInstanceClient c in new[] { a, b })
+        {
+            Assert.Equal((true, 300_000u), PvpStates(c).Select(s => (s.Enabled, s.OffInMs)).Single());
+        }
+    }
+
+    [Fact]
+    public void Send_no_second_countdown_for_a_hit_in_the_same_second()
+    {
+        using MapInstance instance = Build();
+        MapInstanceClient a = Join(instance, 164_911);
+        MapInstanceClient b = Join(instance, 164_912);
+        FlagAndAskOff(instance, a, b);
+        _clock.Now = _clock.Now.AddMinutes(1);
+        instance.CombatService.ApplyDamage(a.Character, b.Character, 5);
+        instance.Update(Tick);
+        a.Sent.Clear();
+        b.Sent.Clear();
+
+        _clock.Now = _clock.Now.AddMilliseconds(500);
+        instance.CombatService.ApplyDamage(a.Character, b.Character, 5);
+        instance.Update(Tick);
+
+        Assert.Empty(PvpStates(a));
+        Assert.Empty(PvpStates(b));
+    }
+
+    [Fact]
+    public void Send_one_more_countdown_for_a_hit_two_seconds_later()
+    {
+        using MapInstance instance = Build();
+        MapInstanceClient a = Join(instance, 164_921);
+        MapInstanceClient b = Join(instance, 164_922);
+        FlagAndAskOff(instance, a, b);
+        _clock.Now = _clock.Now.AddMinutes(1);
+        instance.CombatService.ApplyDamage(a.Character, b.Character, 5);
+        instance.Update(Tick);
+        a.Sent.Clear();
+        b.Sent.Clear();
+
+        _clock.Now = _clock.Now.AddSeconds(2);
+        instance.CombatService.ApplyDamage(a.Character, b.Character, 5);
+        instance.Update(Tick);
+
+        foreach (MapInstanceClient c in new[] { a, b })
+        {
+            Assert.Equal((true, 300_000u), PvpStates(c).Select(s => (s.Enabled, s.OffInMs)).Single());
+        }
+    }
+
+    [Fact]
+    public void Send_no_countdown_for_creature_combat()
+    {
+        using MapInstance instance = Build();
+        MapInstanceClient a = Join(instance, 164_931);
+        FlagAndAskOff(instance, a);
+        var wolf = Substitute.For<ICreature>();
+        wolf.Guid.Returns(new ObjectGuid(ObjectType.Creature, 164_939));
+
+        _clock.Now = _clock.Now.AddMinutes(1);
+        instance.CombatService.ApplyDamage(wolf, a.Character, 5);
+        instance.CombatService.ApplyDamage(a.Character, wolf, 5);
+        instance.Update(Tick);
+
+        Assert.Empty(PvpStates(a));
+    }
+
+    [Fact]
+    public void Send_no_countdown_while_no_timer_runs()
+    {
+        using MapInstance instance = Build();
+        MapInstanceClient a = Join(instance, 164_941);
+        MapInstanceClient b = Join(instance, 164_942);
+        instance.Update(Tick);
+        foreach (MapInstanceClient c in new[] { a, b })
+        {
+            _toggle.Request(c.Character);   // on, no timer, never told
+            c.Character.Health = 100;
+            c.Character.CurrentHealth = 100;
+            c.Sent.Clear();
+        }
+
+        instance.CombatService.ApplyDamage(a.Character, b.Character, 5);
+        instance.Update(Tick);
+
+        Assert.Empty(PvpStates(a));
+        Assert.Empty(PvpStates(b));
+    }
+
     [Fact]
     public void Tell_an_entering_character_once_only()
     {
