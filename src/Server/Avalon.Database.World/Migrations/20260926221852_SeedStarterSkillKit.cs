@@ -100,6 +100,7 @@ namespace Avalon.Database.World.Migrations
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
+            // Reverting only this migration is not a working state: rows 1, 2 and 100-103 come back naming scripts that no longer exist, as radius-0 circles the ability catalog refuses.
             migrationBuilder.InsertData(
                 table: "AbilityTemplates",
                 columns: new[] { "Id", "Affects", "AimMode", "AllowedClasses", "Anchor", "AnimationId", "ArcDegrees", "CastTime", "Cooldown", "Cost", "EffectValue", "Effects", "Flags", "HealThreatPerHp", "Name", "Pierce", "ProjectileSpeed", "Radius", "Range", "Reach", "Shape", "SpellScript", "TauntDurationMs", "ThreatMultiplier" },

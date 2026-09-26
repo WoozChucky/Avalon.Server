@@ -39,6 +39,9 @@ public class AbilityCatalogShould
         { "projectile on movement", "a projectile must aim with the cursor", With(AbilityTestData.Projectile(1), t => t.AimMode = AbilityAimMode.Movement) },
         { "ally cone", "only a circle may affect allies", With(AbilityTestData.Cone(1), t => t.Affects = AbilityAffects.Ally) },
         { "ally projectile", "only a circle may affect allies", With(AbilityTestData.Projectile(1), t => t.Affects = AbilityAffects.Ally) },
+        { "circle on the cone script", "a circle must use CircleAbilityScript", With(AbilityTestData.Circle(1), t => t.SpellScript = "ConeAbilityScript") },
+        { "cone on the projectile script", "a cone must use ConeAbilityScript", With(AbilityTestData.Cone(1), t => t.SpellScript = "ProjectileAbilityScript") },
+        { "projectile on the circle script", "a projectile must use ProjectileAbilityScript", With(AbilityTestData.Projectile(1), t => t.SpellScript = "CircleAbilityScript") },
         { "unknown shape", "unknown shape 9", With(AbilityTestData.Circle(1), t => t.Shape = (AbilityShape)9) },
     };
 

@@ -341,29 +341,36 @@ public class MapInstanceAbilityCastShould
 
     /// <summary>
     /// End to end (#164): a cast-time burst fires where it was aimed when the cast started, once the cast
-    /// time has run out, and not before.
+    /// time has run out, and not before. The caster turns round mid-cast and sends nothing new; the burst
+    /// still lands on the point sent at cast start, not ahead of where the caster now faces.
     /// </summary>
     [Fact]
     public void Fire_a_cast_time_burst_at_the_point_aimed_at_cast_start()
     {
         using MapInstance instance = BuildCasting(out CastAbilityHandler handler);
         MapInstanceClient wizard = Join(instance, 164_181);
+        wizard.Character.Orientation = new Vector3(0f, 0f, 0f);   // yaw 0: facing +Z, towards the target
         wizard.Character.Spells.Load(
             [AbilityTestData.Game(Timed(AbilityTestData.AimedCircle(211, reach: 18f, radius: 3f), castTimeMs: 100))]);
         Creature target = AddCreature(instance, 164_981, new Vector3(0f, 0f, 10f), health: 50);
+        Creature behind = AddCreature(instance, 164_982, new Vector3(0f, 0f, -10f), health: 50);
 
         handler.Execute(wizard.Connection,
             new CCastAbilityPacket { AbilityId = 211, GroundPos = new Vector3Dto { X = 0f, Y = 0f, Z = 10f } });
         Assert.True(wizard.Character.Spells.IsCasting);
         Assert.Equal(50u, target.CurrentHealth);   // still casting
 
+        wizard.Character.Orientation = new Vector3(0f, 180f, 0f);   // turned round: facing -Z, towards the other
         for (int i = 0; i < 12; i++)
         {
             instance.Update(Tick);
         }
 
         Assert.Empty(wizard.Read<SAbilityNotReadyPacket>(NetworkPacketType.SMSG_ABILITY_NOT_READY));
+        SAbilityFiredPacket fired = Assert.Single(wizard.Read<SAbilityFiredPacket>(NetworkPacketType.SMSG_ABILITY_FIRED));
+        Assert.Equal(10f, fired.Centre!.Z, 3);
         Assert.Equal(40u, target.CurrentHealth);
+        Assert.Equal(50u, behind.CurrentHealth);
         Assert.False(wizard.Character.Spells.IsCasting);
     }
 

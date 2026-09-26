@@ -27,7 +27,7 @@ public abstract class AbilityScript(IAbility ability, IUnit caster, AbilityAim a
     }
 
     /// <summary>Whether a change is still waiting to be taken by <see cref="ConsumeDirtyFields" />. Read-only.</summary>
-    public bool HasUnsentChanges => (_dirtyFields & ~GameEntityFields.None) != 0;
+    public bool HasUnsentChanges => _dirtyFields != GameEntityFields.None;
 
     public abstract object State { get; set; }
 

@@ -2,6 +2,7 @@ using System.Diagnostics.CodeAnalysis;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abilities;
+using Avalon.World.Scripts.Abilities;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Abilities;
@@ -84,6 +85,7 @@ public sealed class AbilityCatalog
         switch (t.Shape)
         {
             case AbilityShape.Circle:
+                if (ScriptMismatch(t, nameof(CircleAbilityScript), "a circle") is { } circleScript) return circleScript;
                 if (t.Radius <= 0f) return "a circle needs a Radius above 0";
                 if (t.Anchor == AbilityAnchor.AimPoint && t.AimMode != AbilityAimMode.Cursor)
                     return "a circle on the aim point must aim with the cursor";
@@ -94,11 +96,14 @@ public sealed class AbilityCatalog
                 return null;
 
             case AbilityShape.Cone:
+                if (ScriptMismatch(t, nameof(ConeAbilityScript), "a cone") is { } coneScript) return coneScript;
                 if (t.Reach <= 0f) return "a cone needs a Reach above 0";
                 if (t.ArcDegrees <= 0f || t.ArcDegrees > 360f) return "a cone needs ArcDegrees above 0 and at most 360";
                 return null;
 
             case AbilityShape.Projectile:
+                if (ScriptMismatch(t, nameof(ProjectileAbilityScript), "a projectile") is { } projectileScript)
+                    return projectileScript;
                 if (t.Reach <= 0f) return "a projectile needs a Reach above 0";
                 if (t.ProjectileSpeed <= 0f) return "a projectile needs a ProjectileSpeed above 0";
                 if (t.AimMode != AbilityAimMode.Cursor) return "a projectile must aim with the cursor";
@@ -108,4 +113,13 @@ public sealed class AbilityCatalog
                 return $"unknown shape {(byte)t.Shape}";
         }
     }
+
+    /// <summary>
+    /// Each shape has exactly one script that resolves it, so a row naming another would fire a shape
+    /// the row's other columns were never checked for.
+    /// </summary>
+    private static string? ScriptMismatch(AbilityTemplate t, string expected, string shape) =>
+        string.Equals(t.SpellScript, expected, StringComparison.Ordinal)
+            ? null
+            : $"{shape} must use {expected}, not '{t.SpellScript}'";
 }
