@@ -51,7 +51,7 @@ public static class Extensions
         builder.Services.AddOpenTelemetry()
             .WithMetrics(metrics =>
             {
-                // Latency buckets carry the trace that landed in them, so a graph links to Tempo.
+                // Latency buckets carry the trace that landed in them, so a latency graph can link to a trace.
                 metrics.SetExemplarFilter(ExemplarFilterType.TraceBased);
 
                 metrics.AddMeter("world-server");
