@@ -8,19 +8,66 @@ using NSubstitute;
 namespace Avalon.Server.World.UnitTests;
 
 /// <summary>
+/// The stubbed reference-data repositories StaticData (and World, which builds its own StaticData)
+/// is constructed from. Each one answers from what the test passed, read again on every call, so a
+/// test can change the rows and reload.
+/// </summary>
+internal sealed record TestStaticDataRepositories(
+    ICharacterCreateInfoRepository CreateInfos,
+    IClassLevelStatRepository ClassStats,
+    IItemTemplateRepository Items,
+    IAbilityTemplateRepository Abilities,
+    ICharacterLevelExperienceRepository Levels,
+    ICreatureTemplateRepository Creatures,
+    ICreatureBaseStatRepository BaseStats,
+    ICreatureRarityModifierRepository Rarities,
+    ILocalizedTextRepository Texts,
+    IDialogueRepository Dialogue,
+    ILootTableRepository Loot)
+{
+    public StaticData ToStaticData() =>
+        new(CreateInfos, ClassStats, Items, Abilities, Levels, Creatures, BaseStats, Rarities, Texts, Dialogue, Loot,
+            NullLoggerFactory.Instance);
+}
+
+/// <summary>
 /// A loaded StaticData over stubbed repositories, holding only what a test passes: class stats,
-/// item templates, level thresholds, dialogue and texts. Every other area is empty, except one
-/// creature base-stat row, which the creature area needs to build its deriver.
+/// item templates, level thresholds, dialogue, texts and loot tables. Every other area is empty,
+/// except one creature base-stat row, which the creature area needs to build its deriver.
 /// </summary>
 internal static class TestStaticData
 {
-    public static async Task<StaticData> LoadAsync(
+    public static Task<StaticData> LoadAsync(
         IReadOnlyCollection<ClassLevelStat>? classStats = null,
         IReadOnlyCollection<ItemTemplate>? items = null,
         IReadOnlyCollection<CharacterLevelExperience>? levels = null,
         IReadOnlyCollection<DialogueNode>? nodes = null,
         IReadOnlyCollection<DialogueOption>? options = null,
-        IReadOnlyCollection<LocalizedText>? texts = null)
+        IReadOnlyCollection<LocalizedText>? texts = null) =>
+        LoadAsync(Repositories(
+            classStats: () => classStats ?? [],
+            items: () => items ?? [],
+            levels: () => levels ?? [],
+            nodes: () => nodes ?? [],
+            options: () => options ?? [],
+            texts: () => texts ?? []));
+
+    public static async Task<StaticData> LoadAsync(TestStaticDataRepositories repositories)
+    {
+        StaticData data = repositories.ToStaticData();
+        await data.LoadAsync();
+        return data;
+    }
+
+    /// <summary>Every source is read on each call; one left out is empty.</summary>
+    public static TestStaticDataRepositories Repositories(
+        Func<IReadOnlyCollection<ClassLevelStat>>? classStats = null,
+        Func<IReadOnlyCollection<ItemTemplate>>? items = null,
+        Func<IReadOnlyCollection<CharacterLevelExperience>>? levels = null,
+        Func<IReadOnlyCollection<DialogueNode>>? nodes = null,
+        Func<IReadOnlyCollection<DialogueOption>>? options = null,
+        Func<IReadOnlyCollection<LocalizedText>>? texts = null,
+        ILootTableRepository? loot = null)
     {
         var createInfos = Substitute.For<ICharacterCreateInfoRepository>();
         createInfos.FindAllAsync(Arg.Any<CancellationToken>())
@@ -28,22 +75,23 @@ internal static class TestStaticData
 
         var classStatRepository = Substitute.For<IClassLevelStatRepository>();
         classStatRepository.FindAllAsync(Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult(classStats ?? []));
+            .Returns(_ => Task.FromResult(classStats?.Invoke() ?? []));
 
         var itemRepository = Substitute.For<IItemTemplateRepository>();
         itemRepository.FindAllAsync(Arg.Any<bool>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult((items ?? []).ToList()));
+            .Returns(_ => Task.FromResult((items?.Invoke() ?? []).ToList()));
 
         var abilities = Substitute.For<IAbilityTemplateRepository>();
         abilities.FindAllAsync(Arg.Any<bool>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult(new List<AbilityTemplate>()));
+            .Returns(_ => Task.FromResult(new List<AbilityTemplate>()));
 
         var levelRepository = Substitute.For<ICharacterLevelExperienceRepository>();
-        levelRepository.GetAllAsync(Arg.Any<CancellationToken>()).Returns(Task.FromResult(levels ?? []));
+        levelRepository.GetAllAsync(Arg.Any<CancellationToken>())
+            .Returns(_ => Task.FromResult(levels?.Invoke() ?? []));
 
         var creatures = Substitute.For<ICreatureTemplateRepository>();
         creatures.FindAllAsync(Arg.Any<bool>(), Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult(new List<CreatureTemplate>()));
+            .Returns(_ => Task.FromResult(new List<CreatureTemplate>()));
 
         var baseStats = Substitute.For<ICreatureBaseStatRepository>();
         baseStats.GetAllAsync(Arg.Any<CancellationToken>())
@@ -55,19 +103,20 @@ internal static class TestStaticData
             .Returns(Task.FromResult<IReadOnlyCollection<CreatureRarityModifier>>([]));
 
         var textRepository = Substitute.For<ILocalizedTextRepository>();
-        textRepository.GetAllAsync(Arg.Any<CancellationToken>()).Returns(Task.FromResult(texts ?? []));
+        textRepository.GetAllAsync(Arg.Any<CancellationToken>())
+            .Returns(_ => Task.FromResult(texts?.Invoke() ?? []));
         textRepository.GetAllLocalesAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyCollection<LocalizedTextLocale>>([]));
         textRepository.GetAllClassNamesAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<IReadOnlyCollection<CharacterClassName>>([]));
 
         var dialogue = Substitute.For<IDialogueRepository>();
-        dialogue.GetAllNodesAsync(Arg.Any<CancellationToken>()).Returns(Task.FromResult(nodes ?? []));
-        dialogue.GetAllOptionsAsync(Arg.Any<CancellationToken>()).Returns(Task.FromResult(options ?? []));
+        dialogue.GetAllNodesAsync(Arg.Any<CancellationToken>())
+            .Returns(_ => Task.FromResult(nodes?.Invoke() ?? []));
+        dialogue.GetAllOptionsAsync(Arg.Any<CancellationToken>())
+            .Returns(_ => Task.FromResult(options?.Invoke() ?? []));
 
-        var data = new StaticData(createInfos, classStatRepository, itemRepository, abilities, levelRepository,
-            creatures, baseStats, rarities, textRepository, dialogue, LootRepositories.Empty(), NullLoggerFactory.Instance);
-        await data.LoadAsync();
-        return data;
+        return new TestStaticDataRepositories(createInfos, classStatRepository, itemRepository, abilities,
+            levelRepository, creatures, baseStats, rarities, textRepository, dialogue, loot ?? LootRepositories.Empty());
     }
 }

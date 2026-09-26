@@ -40,6 +40,8 @@ public class StaticDataReloadShould
         public List<ClassLevelStat> ClassStats = [];
         public List<CharacterCreateInfo> CreateInfos = [];
         public List<LootTable> LootTables = [];
+        public List<DialogueNode> Nodes = [];
+        public List<DialogueOption> Options = [];
     }
 
     private static CreatureTemplate Template(ulong id, float healthModifier = 1f) => new()
@@ -147,6 +149,33 @@ public class StaticDataReloadShould
         // references even with unchanged underlying rows — a stale ("??=") apply would not.
         Assert.NotSame(textsBefore, data.LocalizedTexts);
         Assert.NotSame(dialogueBefore, data.Dialogue);
+    }
+
+    /// <summary>
+    /// The dialogue actions (spec #463) are the dialogue area's too: an option gaining OpenBank makes
+    /// its creature a banker on the reload, and losing it takes that away again.
+    /// </summary>
+    [Fact]
+    public async Task Rebuild_The_Dialogue_Actions_On_A_Dialogue_Reload()
+    {
+        (StaticData data, Repos repos) = await LoadedData(creatureCount: 1);
+        var banker = new CreatureTemplateId(11);
+        repos.Nodes = [new DialogueNode { Id = 1, CreatureTemplateId = banker, IsRoot = true, TextId = 1 }];
+        repos.Options = [new DialogueOption { Id = 1, NodeId = 1, TextId = 2 }];
+        data.Apply(await data.PrepareAsync(ReloadArea.Dialogue));
+        Assert.False(data.DialogueActions.Offers(banker, DialogueOptionAction.OpenBank));
+
+        repos.Options = [new DialogueOption { Id = 1, NodeId = 1, TextId = 2, Action = DialogueOptionAction.OpenBank }];
+        data.Apply(await data.PrepareAsync(ReloadArea.Dialogue));
+
+        Assert.True(data.DialogueActions.Offers(banker, DialogueOptionAction.OpenBank));
+        Assert.Equal(DialogueOptionAction.OpenBank, data.DialogueActions.For(new DialogueOptionId(1)));
+
+        repos.Options = [new DialogueOption { Id = 1, NodeId = 1, TextId = 2 }];
+        data.Apply(await data.PrepareAsync(ReloadArea.Dialogue));
+
+        Assert.False(data.DialogueActions.Offers(banker, DialogueOptionAction.OpenBank));
+        Assert.Null(data.DialogueActions.For(new DialogueOptionId(1)));
     }
 
     [Fact]
@@ -278,9 +307,9 @@ public class StaticDataReloadShould
 
         var dialogue = Substitute.For<IDialogueRepository>();
         dialogue.GetAllNodesAsync(Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<IReadOnlyCollection<DialogueNode>>([]));
+            .Returns(_ => Task.FromResult<IReadOnlyCollection<DialogueNode>>(repos.Nodes.ToList()));
         dialogue.GetAllOptionsAsync(Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<IReadOnlyCollection<DialogueOption>>([]));
+            .Returns(_ => Task.FromResult<IReadOnlyCollection<DialogueOption>>(repos.Options.ToList()));
 
         StaticData data = new(createInfos, classLevelStats, itemTemplates, abilityTemplates,
             characterLevelExperiences, templates, baseStats, rarities,

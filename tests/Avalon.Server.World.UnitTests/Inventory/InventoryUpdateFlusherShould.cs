@@ -1,4 +1,6 @@
 using System.IO;
+using Avalon.Common;
+using Avalon.Common.ValueObjects;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Character;
 using Avalon.World.Entities;
@@ -118,5 +120,66 @@ public class InventoryUpdateFlusherShould
 
         Assert.Single(_sent);
         Assert.False(character.ClientChanges.HasChanges);
+    }
+
+    /// <summary>
+    /// Regression guard: already passed before bank slots were recorded (they were never recorded
+    /// then). Pins that a closed bank still keeps every Bank slot off the wire and forgets it.
+    /// </summary>
+    [Fact]
+    public void Leave_bank_slots_out_and_forget_them_while_the_bank_is_closed()
+    {
+        CharacterEntity character = New();
+        InventoryItem banked = Item(4, Sword);
+        character.Container(InventoryType.Bank).Load([banked]);
+        IWorldConnection connection = ConnectionFor(character);
+
+        InventoryFor(character).TryRemove(banked.InstanceId, 1);
+        InventoryUpdateFlusher.Flush(connection);
+
+        Assert.Empty(_sent);
+        Assert.False(character.ClientChanges.HasChanges);
+    }
+
+    [Fact]
+    public void Send_bank_slots_with_the_rest_while_the_bank_is_open()
+    {
+        CharacterEntity character = New();
+        InventoryItem banked = Item(4, Sword);
+        character.Container(InventoryType.Bank).Load([banked]);
+        IWorldConnection connection = ConnectionFor(character);
+        var banker = new ObjectGuid(ObjectType.Creature, 90);
+        connection.CurrentDialogue = (banker, new DialogueNodeId(1));
+        character.OpenBankNpc = banker;
+
+        InventoryFor(character).TryRemove(banked.InstanceId, 1);
+        InventoryFor(character).TryAdd(Potion.Id, 1);
+        InventoryUpdateFlusher.Flush(connection);
+
+        SInventoryUpdatePacket update = Read(Assert.Single(_sent));
+        Assert.Equal(2, update.Slots.Length);
+        InventorySlotUpdateDto bank = update.Slots.Single(s => s.Container == (ushort)InventoryType.Bank);
+        Assert.Equal((ushort)4, bank.Slot);
+        Assert.Null(bank.Item);
+    }
+
+    /// <summary>
+    /// Regression guard: already passed before bank slots were recorded. Pins that dropping the
+    /// closed bank's slots does not drop the Bag slots changed in the same tick.
+    /// </summary>
+    [Fact]
+    public void Send_the_bag_but_not_the_bank_from_one_tick_while_the_bank_is_closed()
+    {
+        CharacterEntity character = New();
+        InventoryItem banked = Item(4, Sword);
+        character.Container(InventoryType.Bank).Load([banked]);
+        IWorldConnection connection = ConnectionFor(character);
+
+        InventoryFor(character).TryRemove(banked.InstanceId, 1);
+        InventoryFor(character).TryAdd(Potion.Id, 1);
+        InventoryUpdateFlusher.Flush(connection);
+
+        InventorySlotUpdateDto slot = Assert.Single(Read(Assert.Single(_sent)).Slots);
+        Assert.Equal((ushort)InventoryType.Bag, slot.Container);
     }
 }

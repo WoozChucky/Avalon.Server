@@ -1540,6 +1540,8 @@ public class WorldDbContext : DbContext
         builder.Property(b => b.NextNodeId)
             .HasConversion(v => v!.Value, v => new DialogueNodeId(v))
             .IsRequired(false);
+        // #463. Null for an option that only talks. A number, so the enum is append-only.
+        builder.Property(b => b.Action).IsRequired(false);
 
         builder.HasIndex(b => b.NodeId);
 

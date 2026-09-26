@@ -144,6 +144,13 @@ public class CharacterEntity : ICharacter
     /// <summary>Time left until the next periodic save; null until the character first ticks in a map.</summary>
     public TimeSpan? NextPeriodicSaveIn { get; set; }
 
+    /// <summary>
+    /// The NPC the bank was opened with (spec #463), or null. The bank is open only while the
+    /// connection's current conversation is with this NPC (BankAccess.IsOpen), so a conversation
+    /// that ends or changes closes the bank whatever this still says.
+    /// </summary>
+    public ObjectGuid? OpenBankNpc { get; set; }
+
     public ObjectGuid Guid { get; set; }
 
     // Backing fields for dirty-tracked properties

@@ -8,6 +8,7 @@ using Avalon.Domain.Auth;
 using Avalon.Domain.Characters;
 using Avalon.Domain.World;
 using Avalon.World.Configuration;
+using Avalon.World.Dialogue;
 using Avalon.World.Entities;
 using Avalon.World.Instances;
 using Avalon.World.Maps;
@@ -157,6 +158,14 @@ public class World : IWorld
 
     public void TransferPlayer(IWorldConnection connection, IMapInstance targetInstance)
     {
+        // The NPC stays behind in the old instance, so an open conversation, and a bank opened in it
+        // (#463), ends here; otherwise the bank would stay usable from the next map. The client hears
+        // SMSG_DIALOGUE_END only when there was a conversation to end.
+        if (connection.CurrentDialogue is { } open)
+            NpcInteraction.EndConversation(connection, open.Npc);
+        if (connection.Character is CharacterEntity entity)
+            entity.OpenBankNpc = null;
+
         IMapInstance? current = InstanceRegistry.GetInstanceById(connection.Character!.InstanceId);
         current?.RemoveCharacter(connection);
 
@@ -234,6 +243,9 @@ public class World : IWorld
         // A stale (npc, node) pair surviving a disconnect would let a reconnecting player
         // resume a conversation with an NPC that may no longer be in their (new) instance.
         connection.CurrentDialogue = null;
+        // The bank opened in that conversation closes with it (#463).
+        if (character is CharacterEntity entity)
+            entity.OpenBankNpc = null;
 
         IMapInstance? instance;
         try

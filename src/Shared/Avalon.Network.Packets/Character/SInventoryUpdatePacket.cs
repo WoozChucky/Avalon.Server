@@ -8,7 +8,7 @@ namespace Avalon.Network.Packets.Character;
 /// What changed in a character's equipment, bag and gold during one tick, as absolute values: each
 /// entry is a slot's final value when the tick ended, and Money, when present, is the new balance.
 /// A lost or duplicated packet therefore cannot leave the client drifting. At most one per
-/// connection per tick. The bank is never included.
+/// connection per tick. Bank slots are included only while the bank is open.
 /// </summary>
 [ProtoContract]
 public class SInventoryUpdatePacket : Packet

@@ -13,4 +13,7 @@ public class DialogueOption : IDbEntity<DialogueOptionId>
     public DialogueNodeId? NextNodeId { get; set; }
 
     public short SortOrder { get; set; }
+
+    /// <summary>What the option does besides moving on; null for most options, which only talk.</summary>
+    public DialogueOptionAction? Action { get; set; }
 }

@@ -3,6 +3,7 @@ using Avalon.Common.Mathematics;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.World;
 using Avalon.World.Dialogue;
+using Avalon.World.Entities;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
@@ -82,6 +83,10 @@ public class InteractHandler(ILogger<InteractHandler> logger, IWorld world)
             logger.LogDebug("Interact reject Range dist={Distance} max={Max}", distance, InteractRange);
             return;
         }
+
+        // A new conversation, even with the same banker, starts with the bank closed.
+        if (character is CharacterEntity entity)
+            entity.OpenBankNpc = null;
 
         // Interacting again mid-conversation restarts at the root, which is what clicking an NPC
         // twice should do and what unwedges a client that lost its window.
