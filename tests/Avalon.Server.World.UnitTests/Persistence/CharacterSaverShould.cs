@@ -6,6 +6,7 @@ using Avalon.Domain.Characters;
 using Avalon.Domain.World;
 using Avalon.Server.World.UnitTests.Handlers;
 using Avalon.Server.World.UnitTests.Inventory;
+using Avalon.World.Characters;
 using Avalon.World.Entities;
 using Avalon.World.Inventory;
 using Avalon.World.Persistence;
@@ -373,6 +374,26 @@ public sealed class CharacterSaverShould : IDisposable
         Assert.Equal(2, slots.Count);
         Assert.Equal(sword.InstanceId, slots.Single(s => s.Slot == 0).ItemId);
         Assert.Equal(potion.InstanceId, slots.Single(s => s.Slot == 1).ItemId);
+    }
+
+    [Fact]
+    public async Task Insert_the_stats_row_on_the_first_save_and_update_it_on_the_next()
+    {
+        CharacterEntity character = await SeedAsync(7);
+        DerivedCharacterStats first = new(240, 100, 22, 23, 20, 20, 0, 5f, 3.664f, 5f, 46, 4);
+
+        character.ApplyStats(first, CurrentValues.Refill);
+        Assert.True(await Saver().Save(_connection, character).WaitAsync(Limit));
+        await PumpAsync();
+        Assert.False(character.SaveState.StatsDirty);
+
+        character.ApplyStats(first with { MaxHealth = 260, Armor = 8 }, CurrentValues.KeepShare);
+        Assert.True(await Saver().Save(_connection, character).WaitAsync(Limit));
+
+        await using CharacterDbContext read = _db.CreateDbContext();
+        CharacterStats stored = await read.CharacterStats.AsNoTracking().SingleAsync();
+        Assert.Equal((260u, 8u, 46u), (stored.MaxHealth, stored.Armor, stored.AttackDamage));
+        Assert.Equal(260, (await StoredRowAsync(7)).Health);
     }
 
     private CharacterSaveRepository Repository() => new(new DbTransactionRunner<CharacterDbContext>(_db));

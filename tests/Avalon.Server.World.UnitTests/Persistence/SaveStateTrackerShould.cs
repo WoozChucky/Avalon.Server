@@ -160,4 +160,34 @@ public class SaveStateTrackerShould
     {
         Assert.NotNull(new CharacterEntity().SaveState);
     }
+
+    [Fact]
+    public void Keep_the_stats_dirty_until_the_save_that_carried_them_is_acknowledged()
+    {
+        var tracker = new SaveStateTracker();
+
+        tracker.StatsChanged();
+        Assert.True(tracker.StatsDirty);
+        Assert.True(tracker.HasChanges);
+
+        SaveMarks marks = tracker.TakeMarks();
+        Assert.NotNull(marks.StatsVersion);
+
+        tracker.Acknowledge(marks);
+        Assert.False(tracker.StatsDirty);
+        Assert.False(tracker.HasChanges);
+    }
+
+    [Fact]
+    public void Keep_a_stats_change_made_while_the_save_was_in_flight()
+    {
+        var tracker = new SaveStateTracker();
+        tracker.StatsChanged();
+        SaveMarks marks = tracker.TakeMarks();
+
+        tracker.StatsChanged();
+        tracker.Acknowledge(marks);
+
+        Assert.True(tracker.StatsDirty);
+    }
 }

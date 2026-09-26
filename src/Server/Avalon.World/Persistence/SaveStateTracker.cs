@@ -25,7 +25,8 @@ public readonly record struct SaveMark(SaveState State, long Version);
 public sealed record SaveMarks(
     IReadOnlyDictionary<ItemInstanceId, SaveMark> Items,
     IReadOnlyDictionary<(InventoryType Container, ushort Slot), SaveMark> Slots,
-    long? MoneyVersion);
+    long? MoneyVersion,
+    long? StatsVersion = null);
 
 /// <summary>
 /// The per-character save state of every item instance and inventory slot, and money's dirty flag.
@@ -37,10 +38,14 @@ public sealed class SaveStateTracker
     private readonly Dictionary<(InventoryType Container, ushort Slot), SaveMark> _slots = [];
     private long _version;
     private long _moneyVersion;
+    private long _statsVersion;
 
     public bool MoneyDirty { get; private set; }
 
-    public bool HasChanges => _items.Count > 0 || _slots.Count > 0 || MoneyDirty;
+    /// <summary>The derived stats changed (spec #463): the next save writes the CharacterStats row.</summary>
+    public bool StatsDirty { get; private set; }
+
+    public bool HasChanges => _items.Count > 0 || _slots.Count > 0 || MoneyDirty || StatsDirty;
 
     public SaveState ItemState(ItemInstanceId id) =>
         _items.TryGetValue(id, out SaveMark mark) ? mark.State : SaveState.Unchanged;
@@ -88,11 +93,18 @@ public sealed class SaveStateTracker
         _moneyVersion = ++_version;
     }
 
+    public void StatsChanged()
+    {
+        StatsDirty = true;
+        _statsVersion = ++_version;
+    }
+
     /// <summary>A copy of every non-Unchanged entry. Later changes do not reach it.</summary>
     public SaveMarks TakeMarks() => new(
         new Dictionary<ItemInstanceId, SaveMark>(_items),
         new Dictionary<(InventoryType Container, ushort Slot), SaveMark>(_slots),
-        MoneyDirty ? _moneyVersion : null);
+        MoneyDirty ? _moneyVersion : null,
+        StatsDirty ? _statsVersion : null);
 
     /// <summary>
     /// Called on the tick thread once the save that took <paramref name="marks" /> has committed.
@@ -114,5 +126,8 @@ public sealed class SaveStateTracker
 
         if (marks.MoneyVersion is { } version && MoneyDirty && _moneyVersion == version)
             MoneyDirty = false;
+
+        if (marks.StatsVersion is { } statsVersion && StatsDirty && _statsVersion == statsVersion)
+            StatsDirty = false;
     }
 }

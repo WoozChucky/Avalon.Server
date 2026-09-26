@@ -9,13 +9,15 @@ namespace Avalon.Database.Character.Repositories;
 /// <summary>
 /// What one character's save writes: its whole row, and only the items and slots whose save state
 /// was not Unchanged. Items and slots to upsert carry their current values; the rest are deleted.
+/// <paramref name="Stats" />, when present, is the character's derived-stats row, upserted.
 /// </summary>
 public sealed record CharacterSaveBatch(
     Domain.Characters.Character Row,
     IReadOnlyList<ItemInstance> UpsertItems,
     IReadOnlyList<ItemInstanceId> DeleteItems,
     IReadOnlyList<CharacterInventory> UpsertSlots,
-    IReadOnlyList<(InventoryType Container, ushort Slot)> DeleteSlots);
+    IReadOnlyList<(InventoryType Container, ushort Slot)> DeleteSlots,
+    CharacterStats? Stats = null);
 
 public interface ICharacterSaveRepository
 {
@@ -110,6 +112,18 @@ public class CharacterSaveRepository(IDbTransactionRunner<CharacterDbContext> tr
                         else
                             context.TrackForInsert(slot);
                     }
+                }
+
+                if (batch.Stats is { } stats)
+                {
+                    // Every character has had a stats row since creation, but upserting costs one
+                    // query and survives a row lost to an old bug.
+                    CharacterId statsOwner = stats.CharacterId;
+                    bool exists = await context.CharacterStats.AnyAsync(s => s.CharacterId == statsOwner, token);
+                    if (exists)
+                        context.TrackForUpdate(stats);
+                    else
+                        context.TrackForInsert(stats);
                 }
             }
 
