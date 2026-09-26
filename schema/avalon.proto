@@ -139,6 +139,20 @@ message CHandshakePacket {
 message CInteractPacket {
    uint64 TargetGuid = 1;
 }
+message CItemDestroyPacket {
+   uint32 RequestId = 1;
+   uint32 Container = 2;
+   uint32 Slot = 3;
+   optional uint32 Count = 4;
+}
+message CItemMovePacket {
+   uint32 RequestId = 1;
+   uint32 FromContainer = 2;
+   uint32 FromSlot = 3;
+   uint32 ToContainer = 4;
+   uint32 ToSlot = 5;
+   optional uint32 Count = 6;
+}
 message CLogoutPacket {
    uint64 AccountId = 1;
 }
@@ -234,6 +248,21 @@ message InventorySlotUpdateDto {
    uint32 Container = 1;
    uint32 Slot = 2;
    ItemSlotDto Item = 3;
+}
+enum ItemRequestResult {
+   ItemRequestResult_Ok = 0;
+   ItemRequestResult_NotFound = 1;
+   ItemRequestResult_InvalidSlot = 2;
+   ItemRequestResult_InvalidCount = 3;
+   ItemRequestResult_WrongEquipSlot = 4;
+   ItemRequestResult_LevelTooLow = 5;
+   ItemRequestResult_WrongClass = 6;
+   ItemRequestResult_NotStackable = 7;
+   ItemRequestResult_TargetFull = 8;
+   ItemRequestResult_CannotDestroy = 9;
+   ItemRequestResult_BankClosed = 10;
+   ItemRequestResult_Dead = 11;
+   ItemRequestResult_Blocked = 12;
 }
 message ItemSlotDto {
    uint32 Container = 1;
@@ -352,6 +381,8 @@ enum NetworkPacketType {
    NetworkPacketType_CMSG_AUDIO_RECORD = 8272;
    NetworkPacketType_CMSG_PLAYER_INPUT = 8288;
    NetworkPacketType_CMSG_LOOT_PICKUP = 8304;
+   NetworkPacketType_CMSG_ITEM_MOVE = 8320;
+   NetworkPacketType_CMSG_ITEM_DESTROY = 8321;
    NetworkPacketType_CMSG_CAST_ABILITY = 8449;
    NetworkPacketType_CMSG_TARGET_UNIT = 8450;
    NetworkPacketType_SMSG_SERVER_INFO = 12288;
@@ -397,6 +428,7 @@ enum NetworkPacketType {
    NetworkPacketType_SMSG_LOOT_SPAWNED = 12416;
    NetworkPacketType_SMSG_LOOT_DESPAWNED = 12417;
    NetworkPacketType_SMSG_LOOT_PICKUP_RESULT = 12418;
+   NetworkPacketType_SMSG_ITEM_RESULT = 12432;
    NetworkPacketType_SMSG_CHARACTER_DAMAGED = 12544;
    NetworkPacketType_SMSG_CREATURE_ATTACK_ANIMATION = 12545;
    NetworkPacketType_SMSG_CREATURE_DAMAGED = 12546;
@@ -601,6 +633,11 @@ message SInventorySnapshotPacket {
 message SInventoryUpdatePacket {
    repeated InventorySlotUpdateDto Slots = 1;
    optional uint64 Money = 2;
+}
+message SItemResultPacket {
+   uint32 RequestId = 1;
+   ItemRequestResult Result = 2;
+   repeated InventorySlotUpdateDto Slots = 3;
 }
 message SLogoutPacket {
    LogoutResult Result = 1;

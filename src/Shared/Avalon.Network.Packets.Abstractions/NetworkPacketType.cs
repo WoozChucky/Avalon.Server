@@ -54,6 +54,10 @@ public enum NetworkPacketType : short
     // Loot
     CMSG_LOOT_PICKUP = 0x2070,
 
+    // Inventory requests (#463)
+    CMSG_ITEM_MOVE = 0x2080,
+    CMSG_ITEM_DESTROY = 0x2081,
+
     CMSG_PING = 0x2005,
     CMSG_PONG = 0x2006,
     CMSG_CHAT_MESSAGE = 0x2007,
@@ -155,4 +159,7 @@ public enum NetworkPacketType : short
     SMSG_LOOT_SPAWNED = 0x3080,
     SMSG_LOOT_DESPAWNED = 0x3081,
     SMSG_LOOT_PICKUP_RESULT = 0x3082,
+
+    // Inventory requests (#463)
+    SMSG_ITEM_RESULT = 0x3090,
 }
