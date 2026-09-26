@@ -159,23 +159,23 @@ public class SeedIntegrityShould
     }
 
     /// <summary>
-    /// The four town NPCs are the whole of map 1's population today: Uriel, Borin, the Innkeeper and
-    /// Marta the banker (#463). Pinning the count and the map catches a seed edit that drops one, or
-    /// that quietly hangs NPCs off the wrong map.
+    /// Map 1's whole population today is seven town NPCs: Uriel, Borin, the Innkeeper, Marta the
+    /// banker (#463), and the three vendors (#432). Pinning the count and the map catches a seed
+    /// edit that drops one, or quietly hangs NPCs off the wrong map.
     /// </summary>
     [Fact]
-    public void Place_The_Four_Town_Npcs_On_Map_One()
+    public void Place_The_Seven_Town_Npcs_On_Map_One()
     {
         using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
 
         List<MapCreatureSpawn> spawns = context.MapCreatureSpawns.AsNoTracking().ToList();
 
-        Assert.Equal(4, spawns.Count);
+        Assert.Equal(7, spawns.Count);
         Assert.All(spawns, spawn => Assert.Equal(1u, spawn.MapTemplateId.Value));
 
         Assert.Equal(
-            [1ul, 2ul, 3ul, 11ul],
+            [1ul, 2ul, 3ul, 11ul, 12ul, 13ul, 14ul],
             spawns.Select(spawn => spawn.CreatureTemplateId.Value).OrderBy(id => id).ToArray());
     }
 

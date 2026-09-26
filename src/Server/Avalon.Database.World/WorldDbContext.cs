@@ -1005,7 +1005,51 @@ public class WorldDbContext : DbContext
             BaseAttackTime = 1,
             RangeAttackTime = 0
         });
+
+        // Templates 12-14 (#432): the town's vendors. Town NPCs like Marta: invulnerable,
+        // TownNpcScript, no loot, experience 0. Each one's dialogue offers OpenShop, which is what
+        // makes it a vendor (NpcInteraction.IsVendor); its stock is in VendorStocks.
+        builder.HasData(
+            TownNpc(12, "Garrick Emberforge", "Weapons Dealer"),
+            TownNpc(13, "Hilde Brassbuckle", "Armourer"),
+            TownNpc(14, "Tobin Marrowfield", "Trade Goods"));
     }
+
+    /// <summary>A town NPC exactly like Marta (template 11): level 1, unkillable, standing still, dropping nothing.</summary>
+    private static CreatureTemplate TownNpc(ulong id, string name, string subName) => new()
+    {
+        Id = id,
+        Name = name,
+        SubName = subName,
+        IconName = string.Empty,
+        MinLevel = 1,
+        MaxLevel = 1,
+        SpeedWalk = 2.0f,
+        SpeedRun = 5.0f,
+        SpeedSwim = 1.6f,
+        Rarity = CreatureRarity.Normal,
+        Family = CreatureFamily.None,
+        Type = CreatureType.Humanoid,
+        Experience = 0,
+        LootTableId = null,
+        MinGold = 0,
+        MaxGold = 0,
+        AIName = string.Empty,
+        MovementType = 0,
+        DetectionRange = 20,
+        MovementId = 0,
+        ScriptName = "TownNpcScript",
+        Invulnerable = true,
+        HealthModifier = 1,
+        ManaModifier = 1,
+        ArmorModifier = 1,
+        ExperienceModifier = 1,
+        RegenHealth = 1,
+        DmgSchool = 0,
+        DamageModifier = 1,
+        BaseAttackTime = 1,
+        RangeAttackTime = 0
+    };
 
     private static void Configure(EntityTypeBuilder<ItemTemplate> builder)
     {
@@ -1259,6 +1303,57 @@ public class WorldDbContext : DbContext
             ForestArmourPiece(29, "Dewleaf Leggings", CharacterClass.Healer, ItemSubClass.Legs, ItemSlotType.Legs, (StatType.Intellect, 2), (StatType.Stamina, 1), (StatType.Armor, 2)),
             ForestArmourPiece(30, "Dewleaf Handwraps", CharacterClass.Healer, ItemSubClass.Gloves, ItemSlotType.Hands, (StatType.Intellect, 1), (StatType.Stamina, 1), (StatType.Armor, 1)),
             ForestArmourPiece(31, "Dewleaf Sandals", CharacterClass.Healer, ItemSubClass.Boots, ItemSlotType.Feet, (StatType.Intellect, 1), (StatType.Stamina, 1), (StatType.Armor, 1)));
+
+        // The Common starter tier (#432), what the town vendors sell: one weapon per class and a
+        // five-slot set per class. Each stat is the matching forest piece's (items 5-8, 12-31) times
+        // 0.6, rounded half away from zero, and at least 1 where the forest piece has it. Weapon
+        // damage is scaled the same way. AttackSpeed is a swing time, so it is copied, never scaled.
+        // Sold, never dropped: no loot table names these.
+        builder.HasData(
+            StarterWeapon(32, "Ironwood Sword", CharacterClass.Warrior, ItemSubClass.OneHanded, damageMax: 2, attackSpeed: 13, (StatType.Strength, 1)),
+            StarterWeapon(33, "Ash Staff", CharacterClass.Wizard, ItemSubClass.TwoHanded, damageMax: 3, attackSpeed: 18, (StatType.Intellect, 1)),
+            StarterWeapon(34, "Hunter's Shortbow", CharacterClass.Hunter, ItemSubClass.Ranged, damageMax: 2, attackSpeed: 15, (StatType.Agility, 1)),
+            StarterWeapon(35, "Oak Mace", CharacterClass.Healer, ItemSubClass.OneHanded, damageMax: 2, attackSpeed: 15, (StatType.Intellect, 1)));
+
+        builder.HasData(
+            StarterArmourPiece(36, "Ironbound Helm", CharacterClass.Warrior, ItemSubClass.Helmet, ItemSlotType.Head, 60, (StatType.Strength, 1), (StatType.Armor, 2), (StatType.Stamina, 1)),
+            StarterArmourPiece(37, "Ironbound Chestguard", CharacterClass.Warrior, ItemSubClass.Chest, ItemSlotType.Chest, 100, (StatType.Strength, 1), (StatType.Armor, 5), (StatType.Stamina, 1)),
+            StarterArmourPiece(38, "Ironbound Legguards", CharacterClass.Warrior, ItemSubClass.Legs, ItemSlotType.Legs, 80, (StatType.Strength, 1), (StatType.Armor, 4), (StatType.Stamina, 1)),
+            StarterArmourPiece(39, "Ironbound Gauntlets", CharacterClass.Warrior, ItemSubClass.Gloves, ItemSlotType.Hands, 40, (StatType.Strength, 1), (StatType.Armor, 2), (StatType.Stamina, 1)),
+            StarterArmourPiece(40, "Ironbound Boots", CharacterClass.Warrior, ItemSubClass.Boots, ItemSlotType.Feet, 40, (StatType.Strength, 1), (StatType.Armor, 2), (StatType.Stamina, 1)),
+            StarterArmourPiece(41, "Linen Hood", CharacterClass.Wizard, ItemSubClass.Helmet, ItemSlotType.Head, 60, (StatType.Intellect, 1), (StatType.Armor, 1)),
+            StarterArmourPiece(42, "Linen Robe", CharacterClass.Wizard, ItemSubClass.Chest, ItemSlotType.Chest, 100, (StatType.Intellect, 2), (StatType.Armor, 2)),
+            StarterArmourPiece(43, "Linen Leggings", CharacterClass.Wizard, ItemSubClass.Legs, ItemSlotType.Legs, 80, (StatType.Intellect, 2), (StatType.Armor, 1)),
+            StarterArmourPiece(44, "Linen Gloves", CharacterClass.Wizard, ItemSubClass.Gloves, ItemSlotType.Hands, 40, (StatType.Intellect, 1), (StatType.Armor, 1)),
+            StarterArmourPiece(45, "Linen Slippers", CharacterClass.Wizard, ItemSubClass.Boots, ItemSlotType.Feet, 40, (StatType.Intellect, 1), (StatType.Armor, 1)),
+            StarterArmourPiece(46, "Hide Cap", CharacterClass.Hunter, ItemSubClass.Helmet, ItemSlotType.Head, 60, (StatType.Agility, 1), (StatType.Armor, 1)),
+            StarterArmourPiece(47, "Hide Jerkin", CharacterClass.Hunter, ItemSubClass.Chest, ItemSlotType.Chest, 100, (StatType.Agility, 2), (StatType.Armor, 3)),
+            StarterArmourPiece(48, "Hide Breeches", CharacterClass.Hunter, ItemSubClass.Legs, ItemSlotType.Legs, 80, (StatType.Agility, 2), (StatType.Armor, 2)),
+            StarterArmourPiece(49, "Hide Grips", CharacterClass.Hunter, ItemSubClass.Gloves, ItemSlotType.Hands, 40, (StatType.Agility, 1), (StatType.Armor, 1)),
+            StarterArmourPiece(50, "Hide Boots", CharacterClass.Hunter, ItemSubClass.Boots, ItemSlotType.Feet, 40, (StatType.Agility, 1), (StatType.Armor, 1)),
+            StarterArmourPiece(51, "Wool Circlet", CharacterClass.Healer, ItemSubClass.Helmet, ItemSlotType.Head, 60, (StatType.Intellect, 1), (StatType.Stamina, 1), (StatType.Armor, 1)),
+            StarterArmourPiece(52, "Wool Vestments", CharacterClass.Healer, ItemSubClass.Chest, ItemSlotType.Chest, 100, (StatType.Intellect, 1), (StatType.Stamina, 1), (StatType.Armor, 2)),
+            StarterArmourPiece(53, "Wool Leggings", CharacterClass.Healer, ItemSubClass.Legs, ItemSlotType.Legs, 80, (StatType.Intellect, 1), (StatType.Stamina, 1), (StatType.Armor, 1)),
+            StarterArmourPiece(54, "Wool Handwraps", CharacterClass.Healer, ItemSubClass.Gloves, ItemSlotType.Hands, 40, (StatType.Intellect, 1), (StatType.Stamina, 1), (StatType.Armor, 1)),
+            StarterArmourPiece(55, "Wool Sandals", CharacterClass.Healer, ItemSubClass.Boots, ItemSlotType.Feet, 40, (StatType.Intellect, 1), (StatType.Stamina, 1), (StatType.Armor, 1)));
+
+        // Item 56 (#432): Tobin's Greater Health Potion, sold for gold plus two Health Potions. Its
+        // fields are the Health Potion's. ItemTemplate carries no potion effect and nothing uses a
+        // potion yet, so there is no effect of its own to seed.
+        builder.HasData(new ItemTemplate
+        {
+            Id = 56,
+            Name = "Greater Health Potion",
+            Class = ItemClass.Consumable,
+            SubClass = ItemSubClass.Potion,
+            Flags = ItemTemplateFlags.NoSell,
+            MaxStackSize = 40,
+            DisplayId = 56,
+            Rarity = ItemRarity.Common,
+            BuyPrice = 25,
+            SellPrice = 12,
+            Slot = null
+        });
     }
 
     /// <summary>
@@ -1282,6 +1377,68 @@ public class WorldDbContext : DbContext
         Slot = slot,
         AllowedClasses = [characterClass],
         ItemPower = 3,
+        RequiredLevel = 1,
+        StatType1 = stats.Length > 0 ? stats[0].Type : null,
+        StatValue1 = stats.Length > 0 ? stats[0].Value : null,
+        StatType2 = stats.Length > 1 ? stats[1].Type : null,
+        StatValue2 = stats.Length > 1 ? stats[1].Value : null,
+        StatType3 = stats.Length > 2 ? stats[2].Type : null,
+        StatValue3 = stats.Length > 2 ? stats[2].Value : null,
+    };
+
+    /// <summary>
+    /// A Common starter weapon (#432): level 1, for one class, main hand. Minimum damage is always
+    /// 1, and the stats are AttackSpeed then one attribute, the forest weapons' shape. Sells for a
+    /// quarter of its 120.
+    /// </summary>
+    private static ItemTemplate StarterWeapon(
+        ulong id, string name, CharacterClass characterClass, ItemSubClass subClass, uint damageMax, uint attackSpeed,
+        (StatType Type, uint Value) stat) => new()
+    {
+        Id = id,
+        Name = name,
+        Class = ItemClass.Weapon,
+        SubClass = subClass,
+        Flags = ItemTemplateFlags.None,
+        MaxStackSize = 1,
+        DisplayId = (uint)id,
+        Rarity = ItemRarity.Common,
+        BuyPrice = 120,
+        SellPrice = 30,
+        Slot = ItemSlotType.MainHand,
+        AllowedClasses = [characterClass],
+        ItemPower = 2,
+        RequiredLevel = 1,
+        DamageMin1 = 1,
+        DamageMax1 = damageMax,
+        DamageType1 = DamageType.Physical,
+        StatType1 = StatType.AttackSpeed,
+        StatValue1 = attackSpeed,
+        StatType2 = stat.Type,
+        StatValue2 = stat.Value,
+    };
+
+    /// <summary>
+    /// A piece of Common starter armour (#432): level 1, for one class, with up to three stats.
+    /// Sells for a quarter of <paramref name="buyPrice" />.
+    /// </summary>
+    private static ItemTemplate StarterArmourPiece(
+        ulong id, string name, CharacterClass characterClass, ItemSubClass subClass, ItemSlotType slot, uint buyPrice,
+        params (StatType Type, uint Value)[] stats) => new()
+    {
+        Id = id,
+        Name = name,
+        Class = ItemClass.Armor,
+        SubClass = subClass,
+        Flags = ItemTemplateFlags.None,
+        MaxStackSize = 1,
+        DisplayId = (uint)id,
+        Rarity = ItemRarity.Common,
+        BuyPrice = buyPrice,
+        SellPrice = buyPrice / 4,
+        Slot = slot,
+        AllowedClasses = [characterClass],
+        ItemPower = 2,
         RequiredLevel = 1,
         StatType1 = stats.Length > 0 ? stats[0].Type : null,
         StatValue1 = stats.Length > 0 ? stats[0].Value : null,
@@ -1504,6 +1661,25 @@ public class WorldDbContext : DbContext
             Id = 4, MapTemplateId = 1, CreatureTemplateId = 11,     // Marta Ledgerwell
             OffsetX = -6f, OffsetY = 0f, OffsetZ = 6f, Facing = 135f
         });
+
+        // The vendors (#432), grouped around Marta on the same side, each facing the entry:
+        // atan2(9, -4) = 114, atan2(9, -8) = 132, atan2(6, -10) = 149 degrees.
+        builder.HasData(
+            new MapCreatureSpawn
+            {
+                Id = 5, MapTemplateId = 1, CreatureTemplateId = 12,     // Garrick Emberforge
+                OffsetX = -9f, OffsetY = 0f, OffsetZ = 4f, Facing = 114f
+            },
+            new MapCreatureSpawn
+            {
+                Id = 6, MapTemplateId = 1, CreatureTemplateId = 13,     // Hilde Brassbuckle
+                OffsetX = -9f, OffsetY = 0f, OffsetZ = 8f, Facing = 132f
+            },
+            new MapCreatureSpawn
+            {
+                Id = 7, MapTemplateId = 1, CreatureTemplateId = 14,     // Tobin Marrowfield
+                OffsetX = -6f, OffsetY = 0f, OffsetZ = 10f, Facing = 149f
+            });
     }
 
     private static void Configure(EntityTypeBuilder<CreaturePath> builder)
@@ -1570,6 +1746,18 @@ public class WorldDbContext : DbContext
         builder.HasData(
             new LocalizedText { Id = 15, Text = "Coin and keepsakes both, {name}. The vault keeps what the road would take." },
             new LocalizedText { Id = 16, Text = "Open my bank." });
+
+        // The vendors (#432): a greeting and a trade line each, then two option lines they share.
+        // Their closing option reuses "Farewell." (10).
+        builder.HasData(
+            new LocalizedText { Id = 17, Text = "Steel, stave or string, traveller. What'll it be?" },
+            new LocalizedText { Id = 18, Text = "Every blade here I hammered myself. Won't match what the forest spits out, but it'll keep you breathing till you find better." },
+            new LocalizedText { Id = 19, Text = "Mind the rack. Looking to cover something?" },
+            new LocalizedText { Id = 20, Text = "Plate, leather, cloth. I fit every trade. Buy it plain, earn it fancy." },
+            new LocalizedText { Id = 21, Text = "Potions, scrolls, supplies. And I'll take what you've no use for." },
+            new LocalizedText { Id = 22, Text = "I buy anything that isn't nailed to you. Fair prices, mostly." },
+            new LocalizedText { Id = 23, Text = "What do you deal in?" },
+            new LocalizedText { Id = 24, Text = "Show me your wares." });
     }
 
     private static void Configure(EntityTypeBuilder<LocalizedTextLocale> builder)
@@ -1608,6 +1796,17 @@ public class WorldDbContext : DbContext
         builder.HasData(
             new LocalizedTextLocale { TextId = 15, Locale = AccountLocale.ptPT, Text = "Moedas e recordações, {name}. O cofre guarda o que a estrada levaria." },
             new LocalizedTextLocale { TextId = 16, Locale = AccountLocale.ptPT, Text = "Abre o meu cofre." });
+
+        // The vendors (#432). Needs native-speaker review before deploying, like the rows above.
+        builder.HasData(
+            new LocalizedTextLocale { TextId = 17, Locale = AccountLocale.ptPT, Text = "Aço, cajado ou corda, viajante. O que vai ser?" },
+            new LocalizedTextLocale { TextId = 18, Locale = AccountLocale.ptPT, Text = "Cada lâmina aqui fui eu que a forjei. Não se compara ao que a floresta cospe, mas há de te manter com vida até encontrares melhor." },
+            new LocalizedTextLocale { TextId = 19, Locale = AccountLocale.ptPT, Text = "Cuidado com o expositor. Queres cobrir alguma coisa?" },
+            new LocalizedTextLocale { TextId = 20, Locale = AccountLocale.ptPT, Text = "Placas, couro, tecido. Visto todos os ofícios. Compra-o simples, ganha-o vistoso." },
+            new LocalizedTextLocale { TextId = 21, Locale = AccountLocale.ptPT, Text = "Poções, pergaminhos, mantimentos. E fico com o que não te faz falta." },
+            new LocalizedTextLocale { TextId = 22, Locale = AccountLocale.ptPT, Text = "Compro tudo o que não estiver pregado a ti. Preços justos, quase sempre." },
+            new LocalizedTextLocale { TextId = 23, Locale = AccountLocale.ptPT, Text = "Com que é que negoceias?" },
+            new LocalizedTextLocale { TextId = 24, Locale = AccountLocale.ptPT, Text = "Mostra-me a tua mercadoria." });
     }
 
     private static void Configure(EntityTypeBuilder<DialogueNode> builder)
@@ -1640,6 +1839,15 @@ public class WorldDbContext : DbContext
 
         // Marta Ledgerwell (template 11, #463).
         builder.HasData(new DialogueNode { Id = 7, CreatureTemplateId = 11, IsRoot = true, TextId = 15 });
+
+        // The vendors (#432): a root (the greeting) and a trade node (the trade line) each.
+        builder.HasData(
+            new DialogueNode { Id = 8,  CreatureTemplateId = 12, IsRoot = true,  TextId = 17 },   // Garrick
+            new DialogueNode { Id = 9,  CreatureTemplateId = 12, IsRoot = false, TextId = 18 },
+            new DialogueNode { Id = 10, CreatureTemplateId = 13, IsRoot = true,  TextId = 19 },   // Hilde
+            new DialogueNode { Id = 11, CreatureTemplateId = 13, IsRoot = false, TextId = 20 },
+            new DialogueNode { Id = 12, CreatureTemplateId = 14, IsRoot = true,  TextId = 21 },   // Tobin
+            new DialogueNode { Id = 13, CreatureTemplateId = 14, IsRoot = false, TextId = 22 });
     }
 
     private static void Configure(EntityTypeBuilder<DialogueOption> builder)
@@ -1682,6 +1890,29 @@ public class WorldDbContext : DbContext
         builder.HasData(
             new DialogueOption { Id = 10, NodeId = 7, TextId = 16, NextNodeId = 7, SortOrder = 0, Action = DialogueOptionAction.OpenBank },
             new DialogueOption { Id = 11, NodeId = 7, TextId = 10, NextNodeId = null, SortOrder = 1 });
+
+        // The vendors (#432). "What do you deal in?" shows the trade line. "Show me your wares."
+        // opens the shop and stays on its node, so the conversation, and the shop with it, stays
+        // open. "Farewell." ends both.
+        builder.HasData(
+            // Garrick: root 8, trade 9.
+            new DialogueOption { Id = 12, NodeId = 8,  TextId = 23, NextNodeId = 9,    SortOrder = 0 },
+            new DialogueOption { Id = 13, NodeId = 8,  TextId = 24, NextNodeId = 8,    SortOrder = 1, Action = DialogueOptionAction.OpenShop },
+            new DialogueOption { Id = 14, NodeId = 8,  TextId = 10, NextNodeId = null, SortOrder = 2 },
+            new DialogueOption { Id = 15, NodeId = 9,  TextId = 24, NextNodeId = 9,    SortOrder = 0, Action = DialogueOptionAction.OpenShop },
+            new DialogueOption { Id = 16, NodeId = 9,  TextId = 10, NextNodeId = null, SortOrder = 1 },
+            // Hilde: root 10, trade 11.
+            new DialogueOption { Id = 17, NodeId = 10, TextId = 23, NextNodeId = 11,   SortOrder = 0 },
+            new DialogueOption { Id = 18, NodeId = 10, TextId = 24, NextNodeId = 10,   SortOrder = 1, Action = DialogueOptionAction.OpenShop },
+            new DialogueOption { Id = 19, NodeId = 10, TextId = 10, NextNodeId = null, SortOrder = 2 },
+            new DialogueOption { Id = 20, NodeId = 11, TextId = 24, NextNodeId = 11,   SortOrder = 0, Action = DialogueOptionAction.OpenShop },
+            new DialogueOption { Id = 21, NodeId = 11, TextId = 10, NextNodeId = null, SortOrder = 1 },
+            // Tobin: root 12, trade 13.
+            new DialogueOption { Id = 22, NodeId = 12, TextId = 23, NextNodeId = 13,   SortOrder = 0 },
+            new DialogueOption { Id = 23, NodeId = 12, TextId = 24, NextNodeId = 12,   SortOrder = 1, Action = DialogueOptionAction.OpenShop },
+            new DialogueOption { Id = 24, NodeId = 12, TextId = 10, NextNodeId = null, SortOrder = 2 },
+            new DialogueOption { Id = 25, NodeId = 13, TextId = 24, NextNodeId = 13,   SortOrder = 0, Action = DialogueOptionAction.OpenShop },
+            new DialogueOption { Id = 26, NodeId = 13, TextId = 10, NextNodeId = null, SortOrder = 1 });
     }
 
     private static void Configure(EntityTypeBuilder<CharacterClassName> builder)
@@ -1885,6 +2116,44 @@ public class WorldDbContext : DbContext
             .WithOne()
             .HasForeignKey(c => c.VendorStockId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        // Garrick Emberforge (template 12): the four starter weapons, unlimited.
+        builder.HasData(
+            new VendorStock { Id = 1, CreatureTemplateId = 12, Sequence = 1, ItemTemplateId = 32 },
+            new VendorStock { Id = 2, CreatureTemplateId = 12, Sequence = 2, ItemTemplateId = 33 },
+            new VendorStock { Id = 3, CreatureTemplateId = 12, Sequence = 3, ItemTemplateId = 34 },
+            new VendorStock { Id = 4, CreatureTemplateId = 12, Sequence = 4, ItemTemplateId = 35 });
+
+        // Hilde Brassbuckle (template 13): the four starter sets, items 36-55, rows 5-24. Each class's
+        // chest piece is limited to 2 and restocks every 30 minutes; the rest are unlimited.
+        builder.HasData(Enumerable.Range(0, 20).Select(piece =>
+        {
+            bool chest = piece % 5 == 1;   // helm, chest, legs, gloves, boots within each set
+            return new VendorStock
+            {
+                Id = 5 + piece,
+                CreatureTemplateId = 13,
+                Sequence = (uint)(1 + piece),
+                ItemTemplateId = (ulong)(36 + piece),
+                MaxStock = chest ? 2u : null,
+                RestockSeconds = chest ? 1800u : null,
+            };
+        }).ToArray());
+
+        // Tobin Marrowfield (template 14): the Health and Mana Potions, the Town Portal Scroll and
+        // the three forest scrolls, unlimited; and the Greater Health Potion, limited to 5,
+        // restocking every 10 minutes, and costing two Health Potions on top of its gold.
+        builder.HasData(
+            new VendorStock { Id = 25, CreatureTemplateId = 14, Sequence = 1, ItemTemplateId = 1 },
+            new VendorStock { Id = 26, CreatureTemplateId = 14, Sequence = 2, ItemTemplateId = 2 },
+            new VendorStock { Id = 27, CreatureTemplateId = 14, Sequence = 3, ItemTemplateId = 3 },
+            new VendorStock { Id = 28, CreatureTemplateId = 14, Sequence = 4, ItemTemplateId = 9 },
+            new VendorStock { Id = 29, CreatureTemplateId = 14, Sequence = 5, ItemTemplateId = 10 },
+            new VendorStock { Id = 30, CreatureTemplateId = 14, Sequence = 6, ItemTemplateId = 11 },
+            new VendorStock
+            {
+                Id = 31, CreatureTemplateId = 14, Sequence = 7, ItemTemplateId = 56, MaxStock = 5, RestockSeconds = 600
+            });
     }
 
     private static void Configure(EntityTypeBuilder<VendorStockCost> builder)
@@ -1900,6 +2169,9 @@ public class WorldDbContext : DbContext
             .WithMany()
             .HasForeignKey(b => b.ItemTemplateId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        // The Greater Health Potion (stock row 31) costs two Health Potions (item 1) per unit.
+        builder.HasData(new VendorStockCost { VendorStockId = 31, ItemTemplateId = 1, Count = 2 });
     }
 
     private static void Configure(EntityTypeBuilder<AbilityTemplate> builder)
