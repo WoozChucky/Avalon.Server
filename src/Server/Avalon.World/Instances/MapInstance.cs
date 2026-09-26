@@ -23,6 +23,8 @@ using Avalon.World.Public.Instances;
 using Avalon.World.Public.Maps;
 using Avalon.World.Public.Scripts;
 using Avalon.World.Public.Units;
+using Avalon.World.Quests;
+using Avalon.World.Vendors;
 using Avalon.World.Abilities;
 using Avalon.World.Combat;
 using Avalon.World.Public.Combat;
@@ -34,7 +36,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Instances;
 
-public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IDisposable
+public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHost, IDisposable
 {
     private const float BroadcastInterval = 0.1f;
 
@@ -61,6 +63,15 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IDisposab
     private readonly GroundLootStore _groundLoot = new();
     private readonly ILootRoller? _lootRoller;
     private readonly ILootAllocator? _lootAllocator;
+
+    /// <summary>
+    /// Vendor stock (#432): one state per vendor creature that has had a shop open here. It lives as
+    /// long as the instance, so for the persistent town a restart is what resets it.
+    /// </summary>
+    private readonly VendorStocks _vendors = new();
+
+    private readonly TimeProvider _time;
+    private readonly IQuestProgress _quests;
 
     /// <summary>
     /// Characters added since the last tick, owed a snapshot of the drops already on the ground. Sent
@@ -122,6 +133,11 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IDisposab
         // Production registers both; WorldHostGraphShould proves it.
         _lootRoller = serviceProvider.GetService<ILootRoller>();
         _lootAllocator = serviceProvider.GetService<ILootAllocator>();
+
+        // Vendors (#432). The same clock as the loot allocator and the vendor handlers. Both fall
+        // back, so an instance built without them (tests) still ticks; production registers both.
+        _time = serviceProvider.GetService<TimeProvider>() ?? TimeProvider.System;
+        _quests = serviceProvider.GetService<IQuestProgress>() ?? NoQuestProgress.Instance;
 
         SubscribeToEntityEvents();
     }
@@ -372,6 +388,8 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IDisposab
 
     public GroundLootStore Drops => _groundLoot;
 
+    public VendorStocks Vendors => _vendors;
+
     public void BroadcastLootDespawned(IReadOnlyCollection<ObjectGuid> lootGuids)
     {
         foreach ((ObjectGuid _, IWorldConnection connection) in _connections)
@@ -481,6 +499,13 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IDisposab
                 _saveScheduler?.Tick(connection, entity, deltaTime);
         }
 
+        // Step 2b: Vendors (#432). After the packets, so this tick's trades are in the lists. The
+        // pass refills due stock, adopts a /reload vendors, and sends each connection whose shop is
+        // open the one list it is owed. It is skipped until someone opens a shop here, so an
+        // instance with no vendor state never reads vendor data.
+        if (_vendors.Count > 0)
+            RunVendorPass();
+
         List<IWorldObject> objectAbilities = [];
 
         // Step 3: Ability cast system update
@@ -571,6 +596,27 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IDisposab
         {
             _lastBroadcastTime = 0;
         }
+    }
+
+    /// <summary>
+    /// The vendor pass (#432), run by <see cref="Update" /> on every tick while this instance keeps
+    /// stock, whether or not a shop is open: a restock timer a reload left owed starts on the next
+    /// tick, not at the next sale. It reads the static data once, so the reconcile, the restock and
+    /// every list work from one catalog, the same one the vendor handlers read on this tick; and it
+    /// takes "now" from the container's TimeProvider, the clock the handlers take sales at. It walks
+    /// the stock and the connections with struct enumerators and sends nothing unless something
+    /// changed, so a quiet pass allocates nothing. Tick thread only. Public rather than internal so
+    /// the unit-test assembly can pin the allocation without an InternalsVisibleTo handshake.
+    /// </summary>
+    public void RunVendorPass()
+    {
+        StaticData data = _world.Data;
+        _vendors.Update(_time.GetUtcNow().UtcDateTime, data.Vendors);
+
+        foreach (IWorldConnection connection in _connections.Values)
+            VendorListBuilder.SendIfOwed(connection, _vendors, data, _quests);
+
+        _vendors.ClearChanged();
     }
 
     private void BroadcastStateTo(ICharacter character)
