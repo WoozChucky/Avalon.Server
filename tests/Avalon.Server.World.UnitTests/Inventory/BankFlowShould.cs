@@ -28,7 +28,7 @@ public class BankFlowShould
     [Fact]
     public async Task Close_the_bank_when_the_character_changes_instance()
     {
-        var w = new BankerWorld();
+        var w = await BankerWorld.CreateAsync();
         w.Character.Container(InventoryType.Bank).Load([Item(2, Potion, count: 7)]);
         OpenBankThroughTheDialogue(w);
         Assert.True(BankAccess.TryUse(w.Connection, w.Character, w.World));
@@ -52,7 +52,7 @@ public class BankFlowShould
     [Fact]
     public async Task Send_no_dialogue_end_on_a_transfer_with_no_conversation_open()
     {
-        var w = new BankerWorld();
+        var w = await BankerWorld.CreateAsync();
         Avalon.World.World world = await RealWorldAsync();
 
         world.TransferPlayer(w.Connection, Elsewhere());
@@ -63,7 +63,7 @@ public class BankFlowShould
     [Fact]
     public async Task Close_the_bank_when_the_character_leaves_the_world()
     {
-        var w = new BankerWorld();
+        var w = await BankerWorld.CreateAsync();
         OpenBankThroughTheDialogue(w);
         Avalon.World.World world = await RealWorldAsync();
 

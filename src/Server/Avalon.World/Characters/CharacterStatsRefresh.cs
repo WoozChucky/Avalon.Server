@@ -4,6 +4,7 @@ using Avalon.World.Entities;
 using Avalon.World.Inventory;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Enums;
+using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Characters;
 
@@ -54,5 +55,26 @@ public static class CharacterStatsRefresh
     {
         IReadOnlyCollection<ItemTemplate> templates = data.ItemTemplates;
         return Apply(character, data.ClassLevelStats, id => templates.FirstOrDefault(t => t.Id == id), current);
+    }
+
+    /// <summary>
+    /// After an accepted change to the Equipment container: KeepShare, so each pool keeps its
+    /// share. Never throws: the change is already applied, and a throw here must not turn it into a
+    /// refusal the client would believe.
+    /// </summary>
+    public static void AfterGearChange(CharacterEntity character, StaticData data, ILogger logger)
+    {
+        try
+        {
+            if (!Apply(character, data, CurrentValues.KeepShare))
+            {
+                logger.LogWarning("No class stats for {Class} level {Level}; {Name}'s gear change left its stats as they were",
+                    character.Class, character.Level, character.Name);
+            }
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "Recalculating {Name}'s stats after a gear change threw", character.Name);
+        }
     }
 }

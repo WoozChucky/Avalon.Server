@@ -17,9 +17,9 @@ namespace Avalon.Server.World.UnitTests.Inventory;
 public class BankAccessShould
 {
     [Fact]
-    public void Be_closed_with_no_conversation()
+    public async Task Be_closed_with_no_conversation()
     {
-        var w = new BankerWorld();
+        var w = await BankerWorld.CreateAsync();
         w.Character.OpenBankNpc = BankerWorld.BankerGuid;
 
         Assert.False(BankAccess.IsOpen(w.Connection, w.Character));
@@ -28,9 +28,9 @@ public class BankAccessShould
     }
 
     [Fact]
-    public void Be_closed_in_a_banker_conversation_that_never_opened_the_bank()
+    public async Task Be_closed_in_a_banker_conversation_that_never_opened_the_bank()
     {
-        var w = new BankerWorld();
+        var w = await BankerWorld.CreateAsync();
         w.Connection.CurrentDialogue = (BankerWorld.BankerGuid, new DialogueNodeId(BankerWorld.BankerRoot));
 
         Assert.False(BankAccess.IsOpen(w.Connection, w.Character));
@@ -39,9 +39,9 @@ public class BankAccessShould
     }
 
     [Fact]
-    public void Be_closed_in_a_conversation_with_someone_else()
+    public async Task Be_closed_in_a_conversation_with_someone_else()
     {
-        var w = new BankerWorld();
+        var w = await BankerWorld.CreateAsync();
         w.Character.OpenBankNpc = BankerWorld.BankerGuid;
         w.Connection.CurrentDialogue = (BankerWorld.StrangerGuid, new DialogueNodeId(BankerWorld.StrangerRoot));
 
@@ -49,9 +49,9 @@ public class BankAccessShould
     }
 
     [Fact]
-    public void Be_usable_inside_the_leash()
+    public async Task Be_usable_inside_the_leash()
     {
-        var w = new BankerWorld();
+        var w = await BankerWorld.CreateAsync();
         w.OpenBank();
 
         Assert.True(BankAccess.IsOpen(w.Connection, w.Character));
@@ -60,9 +60,9 @@ public class BankAccessShould
     }
 
     [Fact]
-    public void Be_usable_at_exactly_the_leash()
+    public async Task Be_usable_at_exactly_the_leash()
     {
-        var w = new BankerWorld();
+        var w = await BankerWorld.CreateAsync();
         w.OpenBank();
         w.Character.Position = new Vector3(0, 0, 3 + 15);
 
@@ -70,9 +70,9 @@ public class BankAccessShould
     }
 
     [Fact]
-    public void End_the_conversation_past_the_leash()
+    public async Task End_the_conversation_past_the_leash()
     {
-        var w = new BankerWorld();
+        var w = await BankerWorld.CreateAsync();
         w.OpenBank();
         w.Character.Position = new Vector3(0, 0, 19);
 
@@ -85,9 +85,9 @@ public class BankAccessShould
     }
 
     [Fact]
-    public void End_the_conversation_with_a_creature_that_is_not_a_banker()
+    public async Task End_the_conversation_with_a_creature_that_is_not_a_banker()
     {
-        var w = new BankerWorld();
+        var w = await BankerWorld.CreateAsync();
         w.Connection.CurrentDialogue = (BankerWorld.StrangerGuid, new DialogueNodeId(BankerWorld.StrangerRoot));
         w.Character.OpenBankNpc = BankerWorld.StrangerGuid;
 
@@ -96,9 +96,9 @@ public class BankAccessShould
     }
 
     [Fact]
-    public void End_the_conversation_when_the_banker_has_left_the_instance()
+    public async Task End_the_conversation_when_the_banker_has_left_the_instance()
     {
-        var w = new BankerWorld();
+        var w = await BankerWorld.CreateAsync();
         w.OpenBank();
         w.Creatures.Remove(BankerWorld.BankerGuid);
 
@@ -107,9 +107,9 @@ public class BankAccessShould
     }
 
     [Fact]
-    public void End_the_conversation_when_the_banker_is_dead()
+    public async Task End_the_conversation_when_the_banker_is_dead()
     {
-        var w = new BankerWorld();
+        var w = await BankerWorld.CreateAsync();
         w.OpenBank();
         w.Banker.CurrentHealth.Returns(0u);
 
@@ -118,9 +118,9 @@ public class BankAccessShould
     }
 
     [Fact]
-    public void Describe_every_bank_slot_in_one_snapshot()
+    public async Task Describe_every_bank_slot_in_one_snapshot()
     {
-        var w = new BankerWorld();
+        var w = await BankerWorld.CreateAsync();
         w.Character.Container(InventoryType.Bank).Load([Item(2, Potion, count: 7)]);
 
         InventorySlotUpdateDto[] snapshot = BankAccess.Snapshot(w.Character);

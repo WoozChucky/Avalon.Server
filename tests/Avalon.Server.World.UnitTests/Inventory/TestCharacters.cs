@@ -44,8 +44,10 @@ internal static class TestCharacters
     public static InventoryItem Item(ushort slot, ItemTemplate template, uint count = 1, uint durability = 0, uint charges = 0) =>
         new(slot, new ItemInstanceId(Guid.CreateVersion7()), template.Id, count, durability, ItemInstanceFlags.None, charges);
 
-    public static CharacterInventoryService InventoryFor(CharacterEntity character) =>
-        new(character, Find, new ItemIdAllocator());
+    /// <summary>An inventory over this catalogue, or over <paramref name="find" /> when given one.</summary>
+    public static CharacterInventoryService InventoryFor(
+        CharacterEntity character, Func<ItemTemplateId, ItemTemplate?>? find = null) =>
+        new(character, find ?? Find, new ItemIdAllocator());
 
     public static InventoryItem At(CharacterEntity character, InventoryType container, ushort slot)
     {

@@ -25,9 +25,9 @@ public class BankDialogueShould
             new CInteractPacket { TargetGuid = BankerWorld.BankerGuid.RawValue });
 
     [Fact]
-    public void Open_the_bank_and_send_every_bank_slot_once()
+    public async Task Open_the_bank_and_send_every_bank_slot_once()
     {
-        var w = new BankerWorld();
+        var w = await BankerWorld.CreateAsync();
         w.Character.Container(InventoryType.Bank).Load([Item(2, Potion, count: 7)]);
         Interact(w);
 
@@ -44,9 +44,9 @@ public class BankDialogueShould
     }
 
     [Fact]
-    public void Close_the_bank_when_the_conversation_ends()
+    public async Task Close_the_bank_when_the_conversation_ends()
     {
-        var w = new BankerWorld();
+        var w = await BankerWorld.CreateAsync();
         Interact(w);
         Choose(w, BankerWorld.OpenBankOption);
 
@@ -58,9 +58,9 @@ public class BankDialogueShould
     }
 
     [Fact]
-    public void Close_the_bank_when_the_player_talks_to_the_banker_again()
+    public async Task Close_the_bank_when_the_player_talks_to_the_banker_again()
     {
-        var w = new BankerWorld();
+        var w = await BankerWorld.CreateAsync();
         Interact(w);
         Choose(w, BankerWorld.OpenBankOption);
 
@@ -77,9 +77,9 @@ public class BankDialogueShould
     }
 
     [Fact]
-    public void Close_the_bank_and_tell_the_client_when_the_player_talks_to_someone_else()
+    public async Task Close_the_bank_and_tell_the_client_when_the_player_talks_to_someone_else()
     {
-        var w = new BankerWorld();
+        var w = await BankerWorld.CreateAsync();
         Interact(w);
         Choose(w, BankerWorld.OpenBankOption);
 
@@ -96,9 +96,9 @@ public class BankDialogueShould
     }
 
     [Fact]
-    public void Send_no_bank_slots_for_an_open_bank_option_that_ends_the_conversation()
+    public async Task Send_no_bank_slots_for_an_open_bank_option_that_ends_the_conversation()
     {
-        var w = new BankerWorld();
+        var w = await BankerWorld.CreateAsync();
         w.Character.Container(InventoryType.Bank).Load([Item(2, Potion, count: 7)]);
         Interact(w);
 
@@ -111,9 +111,9 @@ public class BankDialogueShould
     }
 
     [Fact]
-    public void Close_the_bank_when_a_choice_is_made_past_the_leash()
+    public async Task Close_the_bank_when_a_choice_is_made_past_the_leash()
     {
-        var w = new BankerWorld();
+        var w = await BankerWorld.CreateAsync();
         Interact(w);
         Choose(w, BankerWorld.OpenBankOption);
         w.Character.Position = new Avalon.Common.Mathematics.Vector3(0, 0, 30);

@@ -87,4 +87,31 @@ public class MapSessionFilterShould
     {
         Assert.False(For(null).CanProcess(NetworkPacketType.CMSG_LOOT_PICKUP));
     }
+
+    [Fact]
+    public void Accept_Item_Move_For_A_Character_On_A_Map()
+    {
+        // Without this entry the handler never runs: the request is dropped with a warning.
+        Assert.True(For(CharacterOnMap()).CanProcess(NetworkPacketType.CMSG_ITEM_MOVE));
+    }
+
+    [Fact]
+    public void Accept_Item_Destroy_For_A_Character_On_A_Map()
+    {
+        Assert.True(For(CharacterOnMap()).CanProcess(NetworkPacketType.CMSG_ITEM_DESTROY));
+    }
+
+    [Fact]
+    public void Reject_Item_Requests_Without_A_Character()
+    {
+        Assert.False(For(null).CanProcess(NetworkPacketType.CMSG_ITEM_MOVE));
+        Assert.False(For(null).CanProcess(NetworkPacketType.CMSG_ITEM_DESTROY));
+    }
+
+    [Fact]
+    public void Reject_Item_Requests_Off_Map()
+    {
+        Assert.False(For(CharacterOffMap()).CanProcess(NetworkPacketType.CMSG_ITEM_MOVE));
+        Assert.False(For(CharacterOffMap()).CanProcess(NetworkPacketType.CMSG_ITEM_DESTROY));
+    }
 }

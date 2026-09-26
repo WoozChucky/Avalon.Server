@@ -114,7 +114,7 @@ internal static class EquipTemplates
     ];
 
     public static CharacterInventoryService InventoryFor(CharacterEntity character) =>
-        new(character, Find, new ItemIdAllocator());
+        TestCharacters.InventoryFor(character, Find);
 
     public static SlotRef Bag(ushort slot) => new(InventoryType.Bag, slot);
 

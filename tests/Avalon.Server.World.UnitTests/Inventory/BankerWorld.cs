@@ -52,9 +52,8 @@ internal sealed class BankerWorld
     public ICreature Banker { get; }
     public ICreature Stranger { get; }
 
-    public BankerWorld()
-    {
-        Data = TestStaticData.LoadAsync(
+    /// <summary>Loads the reference data, then builds the world around it.</summary>
+    public static async Task<BankerWorld> CreateAsync() => new(await TestStaticData.LoadAsync(
             classStats: [WarriorLevel1],
             items: EquipTemplates.All,
             nodes:
@@ -83,8 +82,11 @@ internal sealed class BankerWorld
                 new LocalizedText { Id = 2, Text = "Open my bank." },
                 new LocalizedText { Id = 3, Text = "Farewell." },
                 new LocalizedText { Id = 4, Text = "Room's upstairs." },
-            ]).GetAwaiter().GetResult();
+            ]));
 
+    private BankerWorld(StaticData data)
+    {
+        Data = data;
         Character.InstanceId = new Guid("46300000-0000-0000-0000-000000000463");
         Banker = Npc(BankerGuid, BankerTemplate, "Marta Ledgerwell", new Vector3(0, 0, 3));
         Stranger = Npc(StrangerGuid, StrangerTemplate, "Innkeeper", new Vector3(0, 0, 2));
