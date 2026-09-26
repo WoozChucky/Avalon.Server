@@ -33,7 +33,7 @@ namespace Avalon.Server.World.UnitTests.Instances;
 
 /// <summary>
 /// Casting through a real MapInstance, the real cast handler, the shape scripts and CombatService.
-/// Character ids (164_101 to 164_242) and creature ids (164_9xx) are unique to this class.
+/// Character ids (164_101 to 164_252) and creature ids (164_9xx) are unique to this class.
 /// </summary>
 public class MapInstanceAbilityCastShould
 {
@@ -516,6 +516,40 @@ public class MapInstanceAbilityCastShould
 
         Assert.DoesNotContain(next.Added(), s => new ObjectGuid(s.Guid).Type == ObjectType.SpellProjectile);
         Assert.DoesNotContain(next.StateUpdates(), s => new ObjectGuid(s.Guid).Type == ObjectType.SpellProjectile);
+    }
+
+    /// <summary>
+    /// A character that leaves an instance mid-cast (a portal, or a respawn at town) takes no cast with
+    /// it (#164): the old instance may never tick again once it is empty, so its queue cannot be what
+    /// clears Casting. The cast is interrupted as it leaves, and the next instance takes a new cast.
+    /// </summary>
+    [Fact]
+    public void Interrupt_a_cast_in_progress_when_the_caster_leaves_so_the_next_instance_takes_a_new_one()
+    {
+        using MapInstance first = BuildCasting(out CastAbilityHandler firstHandler);
+        using MapInstance second = BuildCasting(out CastAbilityHandler secondHandler);
+        MapInstanceClient wizard = Join(first, 164_251);
+        MapInstanceClient watcher = Join(first, 164_252);
+        wizard.Character.Spells.Load([
+            AbilityTestData.Game(Timed(AbilityTestData.AimedCircle(211, reach: 18f, radius: 3f), castTimeMs: 600)),
+            AbilityTestData.Game(AbilityTestData.Circle(201, radius: 3f)),
+        ]);
+        firstHandler.Execute(wizard.Connection,
+            new CCastAbilityPacket { AbilityId = 211, GroundPos = new Vector3Dto { X = 0f, Y = 0f, Z = 5f } });
+        Assert.True(wizard.Character.Spells.IsCasting);
+
+        first.RemoveCharacter(wizard.Connection);
+        wizard.Character.InstanceId = second.InstanceId;
+        second.AddCharacter(wizard.Connection);
+
+        Assert.False(wizard.Character.Spells.IsCasting);
+        SCharacterInterruptedCastPacket interrupt = Assert.Single(
+            watcher.Read<SCharacterInterruptedCastPacket>(NetworkPacketType.SMSG_INTERRUPTED_CAST));
+        Assert.Equal(211u, interrupt.AbilityId);
+        wizard.Character.LastCastStartTime = DateTime.UtcNow.AddSeconds(-1);   // past the global cooldown
+        secondHandler.Execute(wizard.Connection, new CCastAbilityPacket { AbilityId = 201 });
+        Assert.Empty(wizard.Read<SAbilityNotReadyPacket>(NetworkPacketType.SMSG_ABILITY_NOT_READY));
+        Assert.Single(wizard.Read<SAbilityFiredPacket>(NetworkPacketType.SMSG_ABILITY_FIRED), f => f.AbilityId == 201u);
     }
 
     private static T Decode<T>(NetworkPacket packet)

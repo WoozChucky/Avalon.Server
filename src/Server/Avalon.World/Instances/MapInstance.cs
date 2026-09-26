@@ -311,7 +311,21 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         ICharacter character = connection.Character!;
         ObjectGuid guid = character.Guid;
 
-        // Membership first. These cannot throw, and once they are gone the tick no longer updates,
+        // A cast in progress ends here, while the character is still a member, so everyone here sees
+        // the interrupt (#164). Left queued, it would never complete once this instance empties, and
+        // Casting would refuse every cast the character tried anywhere else. Contained, so a failure
+        // cannot keep the character a member.
+        try
+        {
+            _abilityCastSystem.CancelCasts(character);
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Cancelling the casts of {CharacterGuid} as it left instance {InstanceId} failed",
+                guid, InstanceId);
+        }
+
+        // Membership next. These cannot throw, and once they are gone the tick no longer updates,
         // broadcasts or periodically saves the character, whatever the hooks below do. A disconnect
         // hook that threw ahead of them used to leave a despawned character live in the instance.
         _characters.Remove(guid);

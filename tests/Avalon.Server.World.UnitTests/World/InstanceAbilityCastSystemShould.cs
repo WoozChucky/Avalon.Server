@@ -251,6 +251,44 @@ public class InstanceAbilityCastSystemShould
         mover.Received(1).SendInterruptedCastAnimation(interrupted);
     }
 
+    // ── a caster leaving the instance takes no cast with it (#164) ──
+
+    /// <summary>
+    /// Cancelling one caster's casts clears only that caster's: its timers reset, Casting clears, the
+    /// interrupt is sent, nothing fires and nothing is refunded; another caster's cast still completes.
+    /// </summary>
+    [Fact]
+    public void Cancel_only_the_given_casters_queued_casts()
+    {
+        ICharacter leaving = Caster();
+        ICharacter staying = Caster();
+        GameAbility cancelled = Ability(cost: 30, castTime: 0.6f);
+        GameAbility kept = Ability(castTime: 0.6f);
+        Assert.True(_sut.QueueAbility(leaving, Aim, cancelled));
+        Assert.True(_sut.QueueAbility(staying, Aim, kept));
+        _sut.Update(Tick, []);
+
+        _sut.CancelCasts(leaving);
+
+        Assert.False(cancelled.Casting);
+        Assert.Equal(0.6f, cancelled.CastTimeTimer);
+        leaving.Received(1).SendInterruptedCastAnimation(cancelled);
+        leaving.Received(1).CurrentPower = 70u;
+        Assert.True(kept.Casting);
+        staying.DidNotReceive().SendInterruptedCastAnimation(Arg.Any<IAbility>());
+        Assert.Empty(RecordingAbilityScript.Prepared);
+
+        for (int i = 0; i < 40; i++)
+        {
+            _sut.Update(Tick, []);
+        }
+
+        (IUnit who, _, _) = Assert.Single(RecordingAbilityScript.Prepared);
+        Assert.Same(staying, who);
+        leaving.DidNotReceive().SendFinishCastAnimation(Arg.Any<IAbility>());
+        Assert.Equal(0f, cancelled.CooldownTimer);
+    }
+
     // ── a dead caster's cast is dropped at completion ──
 
     [Fact]

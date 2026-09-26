@@ -36,6 +36,15 @@ public interface IAbilityCastSystem
     /// see a projectile frozen where it stopped.
     /// </summary>
     void DropFinished();
+
+    /// <summary>
+    /// Interrupts every queued cast of <paramref name="caster" />, as moving does: its timers reset,
+    /// <c>Casting</c> clears, the interrupt is sent, nothing fires and nothing is refunded. For a caster
+    /// leaving the instance (#164): an instance nobody is in is not ticked, so its queue would never
+    /// clear the cast, and the caster could cast nothing anywhere else.
+    /// </summary>
+    void CancelCasts(IUnit caster);
+
     IWorldObject? GetAbility(ObjectGuid guid);
 }
 
@@ -166,6 +175,33 @@ public class InstanceAbilityCastSystem(
             {
                 objects.Add(script);
             }
+        }
+    }
+
+    public void CancelCasts(IUnit caster)
+    {
+        // Collected first: nothing is removed from the queue while it is enumerated.
+        List<AbilityInstance> cancelled = [];
+        foreach (AbilityInstance cast in _abilityQueue)
+        {
+            if (ReferenceEquals(cast.Caster, caster))
+            {
+                cancelled.Add(cast);
+            }
+        }
+
+        foreach (AbilityInstance cast in cancelled)
+        {
+            _abilityQueue.Remove(cast);
+            ResetCast(cast.Ability);
+        }
+
+        // Sent once every cast is already cleared, so a failing send cannot leave one stuck.
+        foreach (AbilityInstance cast in cancelled)
+        {
+            _logger.LogInformation("Cast cancelled as its caster left ability={AbilityId} caster={CharId}",
+                cast.Ability.AbilityId, caster.Guid);
+            caster.SendInterruptedCastAnimation(cast.Ability);
         }
     }
 
