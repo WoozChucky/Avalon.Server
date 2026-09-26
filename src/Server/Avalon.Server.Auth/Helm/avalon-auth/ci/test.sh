@@ -29,6 +29,14 @@ fi
 if helm template t . $CACHE --set server.tls.pfx="$PFX" >/dev/null 2>&1; then
   echo "rendering the chart Secret without a connection string must fail"; exit 1
 fi
+pp=$(helm template t . $CACHE --set existingSecret=x --set server.proxyProtocol.enabled=true   --set 'server.proxyProtocol.trustedProxies[0]=10.42.0.0/16' --set 'service.loadBalancerSourceRanges[0]=10.10.1.17/32')
+grep -A1 "name: Hosting__ProxyProtocol__Enabled" <<<"$pp" | grep -q '"true"'            || { echo "proxy protocol not enabled"; exit 1; }
+grep -A1 "name: Hosting__ProxyProtocol__TrustedProxies__0" <<<"$pp" | grep -q "10.42.0.0/16" || { echo "trusted proxies missing"; exit 1; }
+grep -A1 "loadBalancerSourceRanges:" <<<"$pp" | grep -q "10.10.1.17/32"                 || { echo "source ranges missing"; exit 1; }
+off=$(helm template t . $CACHE --set existingSecret=x)
+! grep -q "Hosting__ProxyProtocol__TrustedProxies" <<<"$off"                            || { echo "trusted proxies rendered when unset"; exit 1; }
+! grep -q "loadBalancerSourceRanges" <<<"$off"                                          || { echo "source ranges rendered when unset"; exit 1; }
+
 if helm template t . $CACHE --set existingSecret=x --set server.cache.password=leak >/dev/null 2>&1; then
   echo "existingSecret + inline secret must fail"; exit 1
 fi

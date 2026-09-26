@@ -8,6 +8,13 @@ environment: Production
 server:
   hosting:
     host: "0.0.0.0"
+  # PROXY protocol v2 from an L4 proxy in front (e.g. Caddy layer4): the real client address
+  # instead of the proxy's, so per-source limits apply per player. Connections from
+  # trustedProxies (CIDR) must start with the header; others are read as direct clients.
+  proxyProtocol:
+    enabled: false
+    trustedProxies: []
+    headerTimeoutSeconds: 5
   cache:
     # Required: host:port of Redis.
     host: ""
@@ -40,6 +47,8 @@ securityContext: {}
 service:
   # LoadBalancer on k3s binds the port on the node (ServiceLB).
   type: ClusterIP
+  # With type LoadBalancer: restrict who may connect, e.g. [10.10.1.17/32] for the edge proxy.
+  loadBalancerSourceRanges: []
   port: 21000
 
 resources:

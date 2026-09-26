@@ -1,6 +1,7 @@
 using System.Net;
 using Avalon.Configuration;
 using Avalon.Hosting.Networking;
+using Microsoft.Extensions.Configuration;
 using Xunit;
 
 namespace Avalon.Server.Auth.UnitTests.Networking;
@@ -40,5 +41,24 @@ public class ProxyProtocolPolicyShould
     public void Refuse_a_trusted_network_it_cannot_parse()
     {
         Assert.Throws<FormatException>(() => Policy(true, "10.42.0.0/99"));
+    }
+
+    [Fact]
+    public void Bind_from_the_environment_variable_names_the_charts_emit()
+    {
+        // avalon-auth / avalon-world templates render exactly these names.
+        IConfiguration config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["Hosting:ProxyProtocol:Enabled"] = "true",
+            ["Hosting:ProxyProtocol:HeaderTimeoutSeconds"] = "5",
+            ["Hosting:ProxyProtocol:TrustedProxies:0"] = "10.42.0.0/16",
+        }).Build();
+        HostingConfiguration hosting = new();
+        config.GetSection("Hosting").Bind(hosting);
+
+        ProxyProtocolPolicy policy = ProxyProtocolPolicy.From(hosting.ProxyProtocol);
+
+        Assert.True(policy.IsTrusted(IPAddress.Parse("10.42.0.7")));
+        Assert.Equal(TimeSpan.FromSeconds(5), policy.HeaderTimeout);
     }
 }
