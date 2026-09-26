@@ -21,6 +21,7 @@ using Avalon.World.Handlers;
 using Avalon.World.Persistence;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
+using Avalon.World.Public.Combat;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Instances;
 using Avalon.World.Respawn;
@@ -59,7 +60,9 @@ public class CharacterSelectHandlerShould
         ulong money = 0,
         IReadOnlyCollection<ClassLevelStat>? classStats = null,
         IReadOnlyCollection<ItemTemplate>? itemTemplates = null,
-        int storedHealth = 0)
+        int storedHealth = 0,
+        CombatConfig? combatConfig = null,
+        IReadOnlyCollection<AbilityTemplate>? abilityTemplates = null)
     {
         var row = new Character
         {
@@ -88,8 +91,12 @@ public class CharacterSelectHandlerShould
             .Returns((IReadOnlyList<ItemInstance>)(itemInstances?.ToList() ?? new List<ItemInstance>()));
 
         var abilityRepository = Substitute.For<ICharacterAbilityRepository>();
+        // The character knows every ability template it is given.
+        CharacterAbility[] knownAbilities = (abilityTemplates ?? [])
+            .Select(t => new CharacterAbility { CharacterId = TheCharacter, AbilityId = t.Id })
+            .ToArray();
         abilityRepository.GetCharacterAbilitiesAsync(TheCharacter, Arg.Any<CancellationToken>())
-            .Returns(Array.Empty<CharacterAbility>());
+            .Returns(knownAbilities);
 
         var instance = Substitute.For<IMapInstance>();
         instance.InstanceId.Returns(Guid.NewGuid());
@@ -100,7 +107,7 @@ public class CharacterSelectHandlerShould
 
         // Built first: configuring a substitute inside a Returns() argument breaks NSubstitute's
         // last-call tracking.
-        StaticData staticData = await EmptyStaticDataAsync(classStats, itemTemplates);
+        StaticData staticData = await EmptyStaticDataAsync(classStats, itemTemplates, abilityTemplates);
 
         IWorld world = Substitute.For<IWorld>();
         world.InstanceRegistry.Returns(registry);
@@ -146,7 +153,8 @@ public class CharacterSelectHandlerShould
             Options.Create(new RegenConfiguration()),
             Substitute.For<IAccountRepository>(),
             Substitute.For<ICharacterSaver>(),
-            Substitute.For<IWorldServer>());
+            Substitute.For<IWorldServer>(),
+            combatConfig ?? new CombatConfig());
 
         return new Fixture
         {
@@ -211,7 +219,8 @@ public class CharacterSelectHandlerShould
 
     private static async Task<StaticData> EmptyStaticDataAsync(
         IReadOnlyCollection<ClassLevelStat>? classStats = null,
-        IReadOnlyCollection<ItemTemplate>? itemTemplates = null)
+        IReadOnlyCollection<ItemTemplate>? itemTemplates = null,
+        IReadOnlyCollection<AbilityTemplate>? abilityTemplates = null)
     {
         var levels = Substitute.For<ICharacterLevelExperienceRepository>();
         levels.GetAllAsync(Arg.Any<CancellationToken>()).Returns(Array.Empty<CharacterLevelExperience>());
@@ -222,7 +231,7 @@ public class CharacterSelectHandlerShould
         var items = Substitute.For<IItemTemplateRepository>();
         items.FindAllAsync(Arg.Any<bool>(), Arg.Any<CancellationToken>()).Returns(itemTemplates?.ToList() ?? new List<ItemTemplate>());
         var abilities = Substitute.For<IAbilityTemplateRepository>();
-        abilities.FindAllAsync(Arg.Any<bool>(), Arg.Any<CancellationToken>()).Returns(new List<AbilityTemplate>());
+        abilities.FindAllAsync(Arg.Any<bool>(), Arg.Any<CancellationToken>()).Returns(abilityTemplates?.ToList() ?? new List<AbilityTemplate>());
 
         var localizedText = Substitute.For<ILocalizedTextRepository>();
         localizedText.GetAllAsync(Arg.Any<CancellationToken>())
@@ -281,6 +290,31 @@ public class CharacterSelectHandlerShould
 
         Assert.Contains(NetworkPacketType.SMSG_CHARACTER_SELECTED, f.Sent);
         Assert.Contains(NetworkPacketType.SMSG_CHARACTER_ABILITIES, f.Sent);
+    }
+
+    /// <summary>
+    /// The cone the client is sent is the cone the cast handler checks (#513): both read one
+    /// CombatConfig, so the two cannot drift. A non-default value proves it is the config, not a
+    /// constant that happens to agree.
+    /// </summary>
+    [Fact]
+    public async Task Send_every_ability_the_facing_cone_the_cast_handler_checks()
+    {
+        var combatConfig = new CombatConfig { MaxFacingAngleDeg = 37.5f };
+        Fixture f = await BuildAsync(combatConfig: combatConfig, abilityTemplates:
+        [
+            new AbilityTemplate { Id = new AbilityId(1), Name = "Strike", SpellScript = "strike", Range = SpellRange.Short },
+            new AbilityTemplate { Id = new AbilityId(2), Name = "Bolt", SpellScript = "bolt", Range = SpellRange.Long },
+        ]);
+
+        f.Handler.Execute(f.Connection, new CCharacterSelectedPacket { CharacterId = TheCharacter });
+
+        NetworkPacket sent = Assert.Single(
+            f.SentPackets, p => p.Header.Type == NetworkPacketType.SMSG_CHARACTER_ABILITIES);
+        using var stream = new MemoryStream(sent.Payload);
+        AbilityInfo[] abilities = Serializer.Deserialize<SCharacterAbilitiesPacket>(stream).Abilities;
+        Assert.Equal(2, abilities.Length);
+        Assert.All(abilities, a => Assert.Equal(combatConfig.MaxFacingAngleDeg, a.FacingAngle));
     }
 
     /// <summary>
@@ -501,7 +535,8 @@ public class CharacterSelectHandlerShould
             Options.Create(new RegenConfiguration()),
             accountRepository,
             Substitute.For<ICharacterSaver>(),
-            Substitute.For<IWorldServer>());
+            Substitute.For<IWorldServer>(),
+            new CombatConfig());
 
         handler.Execute(connection, new CCharacterSelectedPacket { CharacterId = TheCharacter });
 

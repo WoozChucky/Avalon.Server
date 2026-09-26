@@ -20,6 +20,7 @@ using Avalon.World.Inventory;
 using Avalon.World.Persistence;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
+using Avalon.World.Public.Combat;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Instances;
 using Avalon.World.Respawn;
@@ -479,7 +480,8 @@ public class CharacterSelectChainShould : IDisposable
             Options.Create(new RegenConfiguration()),
             Substitute.For<IAccountRepository>(),
             saver ?? Substitute.For<ICharacterSaver>(),
-            worldServer ?? Substitute.For<IWorldServer>())
+            worldServer ?? Substitute.For<IWorldServer>(),
+            new CombatConfig())
         {
             SaveWaitLimit = saveWaitLimit ?? TimeSpan.FromSeconds(5)
         };

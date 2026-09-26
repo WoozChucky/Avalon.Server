@@ -20,16 +20,22 @@ namespace Avalon.World.Handlers;
 public class CastAbilityHandler(ILogger<CastAbilityHandler> logger, IWorld world, CombatConfig combatConfig)
     : WorldPacketHandler<CCastAbilityPacket>
 {
-    // Facing-cone half-angle in degrees. Mirrors CharacterAttackHandler.MaxAngle so the cast
-    // pipeline applies the same facing tolerance as the (now-deprecated) attack pipeline.
-    private const uint MaxFacingAngle = 65;
-
+    // Every refusal is answered with exactly one SAbilityNotReadyPacket naming its reason (#512), so
+    // the player can be told why the cast did not happen. The only silent path is a connection with
+    // no character, which has nobody to tell.
     public override void Execute(IWorldConnection connection, CCastAbilityPacket packet)
     {
         var attacker = connection.Character;
-        if (attacker is null || attacker.IsDead)
+        if (attacker is null)
         {
-            logger.LogDebug("Dropped CMSG_CAST_ABILITY from dead/missing char");
+            logger.LogDebug("Dropped CMSG_CAST_ABILITY from a connection with no character");
+            return;
+        }
+
+        if (attacker.IsDead)
+        {
+            logger.LogDebug("Dropped CMSG_CAST_ABILITY from dead char");
+            Refuse(connection, packet, CastRejectReason.Dead);
             return;
         }
 
@@ -41,8 +47,7 @@ public class CastAbilityHandler(ILogger<CastAbilityHandler> logger, IWorld world
         {
             uint remaining = (uint)(combatConfig.GcdMs - sinceLastCast);
             logger.LogDebug("Cast reject GCD ability={AbilityId} remainingMs={Remaining}", packet.AbilityId, remaining);
-            connection.Send(SAbilityNotReadyPacket.Create(packet.AbilityId, remaining,
-                connection.CryptoSession.Encrypt));
+            Refuse(connection, packet, CastRejectReason.Gcd, remaining);
             return;
         }
 
@@ -50,6 +55,7 @@ public class CastAbilityHandler(ILogger<CastAbilityHandler> logger, IWorld world
         if (ability is null)
         {
             logger.LogInformation("Cast reject NotOwned ability={AbilityId}", packet.AbilityId);
+            Refuse(connection, packet, CastRejectReason.NotOwned);
             return;
         }
 
@@ -58,8 +64,7 @@ public class CastAbilityHandler(ILogger<CastAbilityHandler> logger, IWorld world
             // CooldownTimer is float seconds; the wire field is uint milliseconds.
             uint cooldownMs = (uint)(ability.CooldownTimer * 1000f);
             logger.LogDebug("Cast reject Cooldown ability={AbilityId} remainingMs={Remaining}", packet.AbilityId, cooldownMs);
-            connection.Send(SAbilityNotReadyPacket.Create(packet.AbilityId, cooldownMs,
-                connection.CryptoSession.Encrypt));
+            Refuse(connection, packet, CastRejectReason.Cooldown, cooldownMs);
             return;
         }
 
@@ -70,15 +75,13 @@ public class CastAbilityHandler(ILogger<CastAbilityHandler> logger, IWorld world
         if (meta.Flags.HasFlag(AbilityFlags.RequiresOutOfCombat) && attacker.IsInCombat)
         {
             logger.LogInformation("Cast reject RequiresOutOfCombat ability={AbilityId}", packet.AbilityId);
-            connection.Send(SAbilityNotReadyPacket.Create(packet.AbilityId, 0u,
-                connection.CryptoSession.Encrypt));
+            Refuse(connection, packet, CastRejectReason.RequiresOutOfCombat);
             return;
         }
         if (meta.Flags.HasFlag(AbilityFlags.RequiresInCombat) && !attacker.IsInCombat)
         {
             logger.LogInformation("Cast reject RequiresInCombat ability={AbilityId}", packet.AbilityId);
-            connection.Send(SAbilityNotReadyPacket.Create(packet.AbilityId, 0u,
-                connection.CryptoSession.Encrypt));
+            Refuse(connection, packet, CastRejectReason.RequiresInCombat);
             return;
         }
 
@@ -89,8 +92,7 @@ public class CastAbilityHandler(ILogger<CastAbilityHandler> logger, IWorld world
         {
             logger.LogDebug("Cast reject Cost ability={AbilityId} need={Cost} have={Have}",
                 packet.AbilityId, meta.Cost, attacker.CurrentPower ?? 0);
-            connection.Send(SAbilityNotReadyPacket.Create(packet.AbilityId, 0u,
-                connection.CryptoSession.Encrypt));
+            Refuse(connection, packet, CastRejectReason.NotEnoughPower);
             return;
         }
 
@@ -99,6 +101,7 @@ public class CastAbilityHandler(ILogger<CastAbilityHandler> logger, IWorld world
         if (context is null)
         {
             logger.LogWarning("Instance not found for character {CharacterId}", attacker.Guid);
+            Refuse(connection, packet, CastRejectReason.InternalError);
             return;
         }
 
@@ -112,15 +115,17 @@ public class CastAbilityHandler(ILogger<CastAbilityHandler> logger, IWorld world
             {
                 logger.LogInformation("Cast reject TargetNotFound ability={AbilityId} target={TargetGuid}",
                     packet.AbilityId, targetGuidRaw);
+                Refuse(connection, packet, CastRejectReason.TargetNotFound);
                 return;
             }
 
-            // Facing check: silent drop matches existing CharacterAttackHandler behavior — the
-            // client tracks orientation and shouldn't ever fire a cast it can't satisfy.
+            // Facing check against CombatConfig.MaxFacingAngleDeg, the cone the client is sent on
+            // every AbilityInfo.FacingAngle (#513).
             if (!IsFacingTarget(attacker, target))
             {
                 logger.LogInformation("Cast reject Facing ability={AbilityId} caster={Name} target={Target}",
                     packet.AbilityId, attacker.Name, target.Guid);
+                Refuse(connection, packet, CastRejectReason.NotFacing);
                 return;
             }
 
@@ -129,8 +134,7 @@ public class CastAbilityHandler(ILogger<CastAbilityHandler> logger, IWorld world
             {
                 logger.LogDebug("Cast reject Range ability={AbilityId} dist={Distance} max={Range}",
                     packet.AbilityId, distance, meta.Range);
-                connection.Send(SAbilityNotReadyPacket.Create(packet.AbilityId, 0u,
-                    connection.CryptoSession.Encrypt));
+                Refuse(connection, packet, CastRejectReason.OutOfRange);
                 return;
             }
         }
@@ -139,14 +143,18 @@ public class CastAbilityHandler(ILogger<CastAbilityHandler> logger, IWorld world
         // instant abilities run inline and immediately enter cooldown.
         if (meta.CastTime > 0)
         {
-            if (context.QueueAbility(attacker, target, ability))
+            // The cost check above already pre-validated, so a false return implies a PowerType
+            // mismatch the player cannot fix: answered as InternalError, and no GCD is started.
+            if (!context.QueueAbility(attacker, target, ability))
             {
-                attacker.MarkCombat();
-                context.BroadcastUnitStartCast(attacker, meta.CastTime);
+                logger.LogWarning("Cast reject QueueAbility ability={AbilityId} caster={Name}",
+                    packet.AbilityId, attacker.Name);
+                Refuse(connection, packet, CastRejectReason.InternalError);
+                return;
             }
-            // QueueAbility handles its own cost-failure path (returns false) — no extra packet
-            // here; the cost check above already pre-validated, so a false return implies a
-            // PowerType mismatch we can't recover from.
+
+            attacker.MarkCombat();
+            context.BroadcastUnitStartCast(attacker, meta.CastTime);
         }
         else
         {
@@ -166,6 +174,15 @@ public class CastAbilityHandler(ILogger<CastAbilityHandler> logger, IWorld world
         attacker.LastCastStartTime = DateTime.UtcNow;
     }
 
+    /// <summary>
+    /// Answers a refused cast. <paramref name="cooldownMs" /> is the time left, for Gcd and Cooldown
+    /// only; every other reason sends 0.
+    /// </summary>
+    private static void Refuse(IWorldConnection connection, CCastAbilityPacket packet, CastRejectReason reason,
+        uint cooldownMs = 0u) =>
+        connection.Send(SAbilityNotReadyPacket.Create(packet.AbilityId, reason, cooldownMs,
+            connection.CryptoSession.Encrypt));
+
     private IUnit? ResolveTarget(ISimulationContext context, ObjectGuid targetGuid)
     {
         switch (targetGuid.Type)
@@ -180,6 +197,10 @@ public class CastAbilityHandler(ILogger<CastAbilityHandler> logger, IWorld world
         }
     }
 
+    /// <summary>
+    /// Strictly inside the cone: the angle between the caster's facing and the direction to the
+    /// target must be less than <see cref="CombatConfig.MaxFacingAngleDeg" />; exactly equal is refused.
+    /// </summary>
     private bool IsFacingTarget(IUnit caster, IUnit target)
     {
         Vector3 direction = target.Position - caster.Position;
@@ -190,6 +211,6 @@ public class CastAbilityHandler(ILogger<CastAbilityHandler> logger, IWorld world
         Vector3 forward = new(Mathf.Sin(radians), 0, Mathf.Cos(radians));
 
         float angle = Vector3.Angle(forward, direction);
-        return angle < MaxFacingAngle;
+        return angle < combatConfig.MaxFacingAngleDeg;
     }
 }

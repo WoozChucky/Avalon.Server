@@ -22,6 +22,7 @@ using Avalon.World.Inventory;
 using Avalon.World.Persistence;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Characters;
+using Avalon.World.Public.Combat;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Instances;
 using Avalon.World.Respawn;
@@ -48,7 +49,8 @@ public class CharacterSelectHandler(
     IOptions<RegenConfiguration> regenConfig,
     IAccountRepository accountRepository,
     ICharacterSaver characterSaver,
-    IWorldServer worldServer) : WorldPacketHandler<CCharacterSelectedPacket>
+    IWorldServer worldServer,
+    CombatConfig combatConfig) : WorldPacketHandler<CCharacterSelectedPacket>
 {
     private Activity? _parentActivity;
 
@@ -622,7 +624,10 @@ public class CharacterSelectHandler(
             Cooldown = s.Metadata.Cooldown,
             CastTime = s.Metadata.CastTime,
             Cost = s.Metadata.Cost,
-            Range = (ushort)s.Metadata.Range
+            Range = (ushort)s.Metadata.Range,
+            // One global cone for now (#513), the same CombatConfig CastAbilityHandler checks; the
+            // field is per ability so a per-ability cone would change only the server.
+            FacingAngle = combatConfig.MaxFacingAngleDeg
         }).ToArray();
 
         connection.Send(SCharacterAbilitiesPacket.Create(abilityInfos, connection.CryptoSession.Encrypt));

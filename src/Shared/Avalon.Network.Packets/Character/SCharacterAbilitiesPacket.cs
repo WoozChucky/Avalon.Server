@@ -28,4 +28,12 @@ public class AbilityInfo
     [ProtoMember(4)] public float CastTime { get; set; }
     [ProtoMember(5)] public uint Cost { get; set; }
     [ProtoMember(6)] public ushort Range { get; set; }
+
+    /// <summary>
+    /// The facing cone's half-angle, in degrees from the caster's facing (#513). A cast at a target
+    /// is accepted only when the angle between the caster's facing and the direction to the target
+    /// is strictly less than this value; a target at exactly this angle is refused, with
+    /// CastRejectReason.NotFacing. Targetless casts are not checked.
+    /// </summary>
+    [ProtoMember(7)] public float FacingAngle { get; set; }
 }

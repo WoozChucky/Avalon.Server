@@ -500,7 +500,8 @@ public class DuplicateCharacterSelectShould : IDisposable
             Options.Create(new RegenConfiguration()),
             Substitute.For<IAccountRepository>(),
             _saver,
-            server);
+            server,
+            new CombatConfig());
 
         return (server, select);
     }
