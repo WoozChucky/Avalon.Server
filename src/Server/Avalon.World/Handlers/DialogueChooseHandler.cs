@@ -32,8 +32,8 @@ namespace Avalon.World.Handlers;
 /// acting on an open conversation must pass <see cref="NpcInteraction.IsWithinLeash"/> as well.
 /// The NPC still existing and being alive is re-checked too, because talking to a corpse is
 /// nonsense the player can see. An option with an action (DialogueActions, #463) runs it after the
-/// leash check and before moving on; OpenBank sends every Bank slot and opens the bank for as long
-/// as this conversation stays open.
+/// leash check, and only when the option leads to a node that keeps the conversation open; OpenBank
+/// sends every Bank slot and opens the bank for as long as this conversation stays open.
 /// </remarks>
 [PacketHandler(NetworkPacketType.CMSG_DIALOGUE_CHOOSE)]
 public class DialogueChooseHandler(ILogger<DialogueChooseHandler> logger, IWorld world)
@@ -115,11 +115,6 @@ public class DialogueChooseHandler(ILogger<DialogueChooseHandler> logger, IWorld
             return;
         }
 
-        // An action runs before the conversation moves on, so an option that also ends the
-        // conversation still acts once. The leash was checked above.
-        if (Actions.For(chosen.Id) is { } action)
-            RunAction(connection, character, npc, action);
-
         if (chosen.NextNodeId is not { } nextId)
         {
             End(connection, open.Npc);
@@ -135,6 +130,13 @@ public class DialogueChooseHandler(ILogger<DialogueChooseHandler> logger, IWorld
             End(connection, open.Npc);
             return;
         }
+
+        // An action runs only once the conversation is known to stay open: OpenBank opens the bank
+        // for as long as this conversation lasts, so on an option that ends it (or leads nowhere)
+        // it would send the Bank to a window that closes in the same breath. The leash was checked
+        // above.
+        if (Actions.For(chosen.Id) is { } action)
+            RunAction(connection, character, npc, action);
 
         connection.CurrentDialogue = (open.Npc, next.Id);
         InteractHandler.Send(connection, npc, next, character, Text);

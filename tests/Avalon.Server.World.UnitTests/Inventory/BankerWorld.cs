@@ -34,6 +34,8 @@ internal sealed class BankerWorld
     public const int StrangerRoot = 2;
     public const int OpenBankOption = 1;
     public const int FarewellOption = 2;
+    /// <summary>An OpenBank option that also ends the conversation (fix round 1).</summary>
+    public const int OpenBankAndLeaveOption = 4;
 
     public static readonly ClassLevelStat WarriorLevel1 = new()
     {
@@ -69,6 +71,11 @@ internal sealed class BankerWorld
                 },
                 new DialogueOption { Id = FarewellOption, NodeId = BankerRoot, TextId = 3, NextNodeId = null, SortOrder = 1 },
                 new DialogueOption { Id = 3, NodeId = StrangerRoot, TextId = 3, NextNodeId = null, SortOrder = 0 },
+                new DialogueOption
+                {
+                    Id = OpenBankAndLeaveOption, NodeId = BankerRoot, TextId = 2, NextNodeId = null, SortOrder = 2,
+                    Action = DialogueOptionAction.OpenBank,
+                },
             ],
             texts:
             [

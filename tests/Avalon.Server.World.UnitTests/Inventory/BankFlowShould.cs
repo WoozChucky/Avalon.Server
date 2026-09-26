@@ -60,6 +60,18 @@ public class BankFlowShould
         Assert.Empty(w.Read<SDialogueEndPacket>(NetworkPacketType.SMSG_DIALOGUE_END));
     }
 
+    [Fact]
+    public async Task Close_the_bank_when_the_character_leaves_the_world()
+    {
+        var w = new BankerWorld();
+        OpenBankThroughTheDialogue(w);
+        Avalon.World.World world = await RealWorldAsync();
+
+        await world.DeSpawnPlayerAsync(w.Connection);
+
+        Assert.Null(w.Character.OpenBankNpc);
+    }
+
     private static void OpenBankThroughTheDialogue(BankerWorld w)
     {
         new InteractHandler(NullLogger<InteractHandler>.Instance, w.World).Execute(w.Connection,
