@@ -18,7 +18,7 @@ public enum MoveKind
     /// <summary>Count leaves the source for a stack of the same item.</summary>
     Merge,
 
-    /// <summary>Two different items trade slots.</summary>
+    /// <summary>Two whole items trade slots: two different items, or two copies of one that does not stack.</summary>
     Swap,
 }
 
@@ -45,8 +45,10 @@ public readonly record struct MoveDecision(ItemRequestResult Result, MovePlan Pl
 /// </summary>
 /// <remarks>
 /// The checks run in this order, and the first failure answers: the slots exist and differ and
-/// are not reserved; the Bank is accessible if either names it; the source holds an item whose
-/// template exists; the count is 1 to the stack's size; then the rule for what the target holds.
+/// are not reserved; the Bank is accessible if either names it; the source holds an item; the
+/// count is 1 to the stack's size; then the rule for what the target holds.
+/// An item whose template is gone (a reload removed it) is still an item: it can be moved within
+/// the Bag and the Bank, taken off, and destroyed, but never worn, and it stacks to 1.
 /// The character being dead is the handler's check, before any of these.
 /// </remarks>
 public static class InventoryMove
@@ -65,16 +67,16 @@ public static class InventoryMove
         if (!bankAccessible && (from.Container == InventoryType.Bank || to.Container == InventoryType.Bank))
             return MoveDecision.Refused(ItemRequestResult.BankClosed);
 
-        if (!character.Container(from.Container).TryGet(from.Slot, out InventoryItem source)
-            || findTemplate(source.TemplateId) is not { } sourceTemplate)
+        if (!character.Container(from.Container).TryGet(from.Slot, out InventoryItem source))
             return MoveDecision.Refused(ItemRequestResult.NotFound);
 
         uint moving = count ?? source.Count;
         if (moving == 0 || moving > source.Count)
             return MoveDecision.Refused(ItemRequestResult.InvalidCount);
 
+        ItemTemplate? sourceTemplate = findTemplate(source.TemplateId);
         bool whole = moving == source.Count;
-        uint maxStack = MaxStack(sourceTemplate);
+        uint maxStack = sourceTemplate is null ? 1u : MaxStack(sourceTemplate);
 
         if (!character.Container(to.Container).TryGet(to.Slot, out InventoryItem target))
         {
@@ -85,7 +87,7 @@ public static class InventoryMove
                     : MoveDecision.Accept(MoveKind.Split, from, to, moving);
             }
 
-            ItemRequestResult fits = CanWear(character, sourceTemplate, to);
+            ItemRequestResult fits = CanGo(character, sourceTemplate, source, to);
             if (fits != ItemRequestResult.Ok)
                 return MoveDecision.Refused(fits);
 
@@ -94,7 +96,8 @@ public static class InventoryMove
                 : MoveDecision.Accept(MoveKind.Move, from, to, moving);
         }
 
-        if (target.TemplateId == source.TemplateId)
+        // Two whole copies of an item that does not stack trade places, as two different items do.
+        if (target.TemplateId == source.TemplateId && !(maxStack == 1 && whole))
         {
             if (to.Container == InventoryType.Equipment || maxStack == 1)
                 return MoveDecision.Refused(ItemRequestResult.NotStackable);
@@ -109,15 +112,11 @@ public static class InventoryMove
             return MoveDecision.Refused(ItemRequestResult.InvalidCount);
 
         // A swap: each item is checked against the slot it is going to.
-        ItemRequestResult sourceFits = CanWear(character, sourceTemplate, to);
+        ItemRequestResult sourceFits = CanGo(character, sourceTemplate, source, to);
         if (sourceFits != ItemRequestResult.Ok)
             return MoveDecision.Refused(sourceFits);
 
-        ItemRequestResult targetFits = from.Container != InventoryType.Equipment
-            ? ItemRequestResult.Ok
-            : findTemplate(target.TemplateId) is { } targetTemplate
-                ? CanWear(character, targetTemplate, from)
-                : ItemRequestResult.WrongEquipSlot;
+        ItemRequestResult targetFits = CanGo(character, findTemplate(target.TemplateId), target, from);
         if (targetFits != ItemRequestResult.Ok)
             return MoveDecision.Refused(targetFits);
 
@@ -128,7 +127,7 @@ public static class InventoryMove
 
     /// <summary>
     /// Destroy: a count below the stack reduces it. <paramref name="destroying" /> is how many go,
-    /// and 0 whenever the result is not Ok.
+    /// and 0 whenever the result is not Ok. An item whose template is gone can be destroyed.
     /// </summary>
     public static ItemRequestResult DecideDestroy(
         CharacterEntity character,
@@ -146,15 +145,14 @@ public static class InventoryMove
         if (!bankAccessible && slot.Container == InventoryType.Bank)
             return ItemRequestResult.BankClosed;
 
-        if (!character.Container(slot.Container).TryGet(slot.Slot, out InventoryItem item)
-            || findTemplate(item.TemplateId) is not { } template)
+        if (!character.Container(slot.Container).TryGet(slot.Slot, out InventoryItem item))
             return ItemRequestResult.NotFound;
 
         uint amount = count ?? item.Count;
         if (amount == 0 || amount > item.Count)
             return ItemRequestResult.InvalidCount;
 
-        if ((template.Flags & ItemTemplateFlags.NoDestroy) != 0)
+        if (findTemplate(item.TemplateId) is { } template && template.Flags.HasFlag(ItemTemplateFlags.NoDestroy))
             return ItemRequestResult.CannotDestroy;
 
         destroying = amount;
@@ -169,14 +167,22 @@ public static class InventoryMove
     /// <summary>A MaxStackSize of 0 is read as 1, as CharacterInventoryService reads it.</summary>
     public static uint MaxStack(ItemTemplate template) => Math.Max(1u, template.MaxStackSize);
 
-    /// <summary>Whether an item may go to <paramref name="destination" />. Anything may go to the Bag or the Bank.</summary>
-    private static ItemRequestResult CanWear(CharacterEntity character, ItemTemplate template, SlotRef destination)
+    /// <summary>
+    /// Whether a whole <paramref name="item" /> may go to <paramref name="destination" />. Anything
+    /// may go to the Bag or the Bank. Equipment takes one item of a template whose slot fits, and
+    /// never an item whose template is gone.
+    /// </summary>
+    private static ItemRequestResult CanGo(
+        CharacterEntity character, ItemTemplate? template, InventoryItem item, SlotRef destination)
     {
         if (destination.Container != InventoryType.Equipment)
             return ItemRequestResult.Ok;
 
-        if (!EquipmentSlots.Accepts(destination.Slot, template.Slot))
+        if (template is null || !EquipmentSlots.Accepts(destination.Slot, template.Slot))
             return ItemRequestResult.WrongEquipSlot;
+
+        if (item.Count > 1)
+            return ItemRequestResult.NotStackable;
 
         if (template.RequiredLevel is { } required && character.Level < required)
             return ItemRequestResult.LevelTooLow;
