@@ -63,21 +63,47 @@ public sealed class PacketDispatchTelemetry
 
     public PacketDispatch Begin(NetworkPacketType type, PacketTags tags, ILogger logger)
     {
-        Activity? activity = _noSpan.Contains(type)
-            ? null
-            : _source.StartActivity($"packet {type}", ActivityKind.Server);
-
-        if (activity is not null)
+        Activity? previous = Activity.Current;
+        Activity? activity = null;
+        IDisposable? scope = null;
+        try
         {
-            activity.SetTag("avalon.packet.type", type.ToString());
-            activity.SetTag("avalon.connection.id", tags.ConnectionId.ToString());
-            activity.SetTag("client.address", tags.ClientAddress);
-            if (tags.AccountId is { } account)
-                activity.SetTag("avalon.account.id", account);
-            if (tags.CharacterId is { } character)
-                activity.SetTag("avalon.character.id", character);
+            activity = StartSpan(type, tags);
+            scope = logger.BeginScope(Scope(type, tags));
+        }
+        catch (Exception)
+        {
+            // Telemetry must never cost the packet. A throwing activity listener has already made its
+            // activity Current by the time it throws, so Current is put back, or every later span on
+            // this thread would nest under it; the dispatch is still timed, and the handler runs.
+            if (activity is null && !ReferenceEquals(Activity.Current, previous))
+                Activity.Current = previous;
         }
 
+        return new PacketDispatch(this, type, activity, scope);
+    }
+
+    private Activity? StartSpan(NetworkPacketType type, PacketTags tags)
+    {
+        if (_noSpan.Contains(type))
+            return null;
+
+        Activity? activity = _source.StartActivity($"packet {type}", ActivityKind.Server);
+        if (activity is null)
+            return null;
+
+        activity.SetTag("avalon.packet.type", type.ToString());
+        activity.SetTag("avalon.connection.id", tags.ConnectionId.ToString());
+        activity.SetTag("client.address", tags.ClientAddress);
+        if (tags.AccountId is { } account)
+            activity.SetTag("avalon.account.id", account);
+        if (tags.CharacterId is { } character)
+            activity.SetTag("avalon.character.id", character);
+        return activity;
+    }
+
+    private static List<KeyValuePair<string, object?>> Scope(NetworkPacketType type, PacketTags tags)
+    {
         List<KeyValuePair<string, object?>> scope =
         [
             new("PacketType", type.ToString()),
@@ -87,8 +113,7 @@ public sealed class PacketDispatchTelemetry
             scope.Add(new("AccountId", accountId));
         if (tags.CharacterId is { } characterId)
             scope.Add(new("CharacterId", characterId));
-
-        return new PacketDispatch(this, type, activity, logger.BeginScope(scope));
+        return scope;
     }
 
     internal void Record(NetworkPacketType type, double milliseconds, bool failed)
