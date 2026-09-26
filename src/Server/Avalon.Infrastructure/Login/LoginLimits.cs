@@ -23,3 +23,26 @@ public interface ILoginLimits
     /// <summary>Code attempts one MFA hash allows before it is deleted.</summary>
     int MaxFailedMfaAttempts { get; }
 }
+
+/// <summary>Startup check for a host that binds its <see cref="ILoginLimits"/> without validated options.</summary>
+public static class LoginLimitsValidation
+{
+    /// <summary>
+    /// Throws, naming the setting, when a limit is below one: a limit of zero would refuse every
+    /// login, or never count one. <paramref name="section"/> is where the host binds the limits.
+    /// </summary>
+    public static void Validate(ILoginLimits limits, string section)
+    {
+        Require(limits.MaxFailedLoginAttempts, nameof(ILoginLimits.MaxFailedLoginAttempts), section);
+        Require(limits.LockoutDurationMinutes, nameof(ILoginLimits.LockoutDurationMinutes), section);
+        Require(limits.MaxFailedLoginsPerSource, nameof(ILoginLimits.MaxFailedLoginsPerSource), section);
+        Require(limits.FailedLoginSourceWindowMinutes, nameof(ILoginLimits.FailedLoginSourceWindowMinutes), section);
+        Require(limits.MaxFailedMfaAttempts, nameof(ILoginLimits.MaxFailedMfaAttempts), section);
+    }
+
+    private static void Require(int value, string name, string section)
+    {
+        if (value < 1)
+            throw new InvalidOperationException($"{section}:{name} must be at least 1 (it is {value}).");
+    }
+}

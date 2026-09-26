@@ -47,7 +47,8 @@ public static class ServiceRegistration
         services.AddSingleton(TimeProvider.System);
         services.AddMfaService();
         // The login policy the Auth server shares (#478), with the limits under
-        // Application:Authentication.
+        // Application:Authentication, checked here since that section is bound without validation.
+        LoginLimitsValidation.Validate(config.Authentication ?? new AuthenticationConfig(), "Application:Authentication");
         services.AddSingleton<ILoginLimits>(sp => sp.GetRequiredService<AuthenticationConfig>());
         services.AddLoginPolicy();
         services.AddScoped<IReauthentication, Reauthentication>();
