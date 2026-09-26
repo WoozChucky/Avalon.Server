@@ -55,6 +55,11 @@ public interface IReplicatedCache
     /// Returns the value after.
     /// </summary>
     Task<long> HashDecrementFloorIfExistsAsync(string key, string field);
+    /// <summary>
+    /// Atomically deletes the hash at <paramref name="key"/>, but only while its
+    /// <paramref name="field"/> equals <paramref name="expected"/>. Returns true when it deleted it.
+    /// </summary>
+    Task<bool> RemoveHashIfFieldEqualsAsync(string key, string field, string expected);
     Task<bool> RemoveAsync(string key);
     Task<bool> KeyExistsAsync(string key);
     Task<bool> KeyExpireAsync(string key, TimeSpan expiry);
@@ -162,6 +167,20 @@ public class ReplicatedCache : IReplicatedCache
         "local v = tonumber(redis.call('GET', KEYS[1])) " +
         "if v and v < tonumber(ARGV[1]) then redis.call('DEL', KEYS[1]) return 1 end " +
         "return 0";
+
+    // HGET and DEL in one script: the hash goes only while the field still holds the value the
+    // caller means, so a caller cleaning up an old MFA hash never deletes the record a newer login
+    // wrote over it (#495 re-review).
+    private const string RemoveHashIfFieldEqualsScript =
+        "if redis.call('HGET', KEYS[1], ARGV[1]) == ARGV[2] then return redis.call('DEL', KEYS[1]) end " +
+        "return 0";
+
+    public async Task<bool> RemoveHashIfFieldEqualsAsync(string key, string field, string expected)
+    {
+        RedisResult result = await _redis.GetDatabase().ScriptEvaluateAsync(RemoveHashIfFieldEqualsScript,
+            [new RedisKey(key)], [field, expected]);
+        return (long)result == 1;
+    }
 
     public async Task<bool> RemoveCounterIfBelowAsync(string key, long heldValue)
     {

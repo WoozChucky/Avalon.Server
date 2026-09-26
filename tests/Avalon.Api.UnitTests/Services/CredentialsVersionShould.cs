@@ -397,6 +397,35 @@ public sealed class CredentialsVersionShould : IDisposable
         await mfa.DidNotReceiveWithAnyArgs().VerifyMFAAsync(default!, default!, default);
     }
 
+    /// <summary>
+    /// #495 re-review: two logins raced, H0 with the old password and H1 with the new, and both
+    /// hashes are live. Presenting H0 costs H1 nothing: it is refused before an attempt is counted
+    /// on the account's record, and its cleanup leaves H1's record alone, so H1 still verifies.
+    /// </summary>
+    [Fact]
+    public async Task Leave_the_newer_login_able_to_verify_after_its_stale_twin_is_presented()
+    {
+        Account account = await AccountAsync();
+        await ChangePasswordAsync(account.Id); // the account is now at version 1
+        IMFAHashService hashes = Substitute.For<IMFAHashService>();
+        hashes.GetAccountIdAsync(Arg.Any<string>()).Returns(account.Id);
+        hashes.GetHashCredentialsVersionAsync("H0").Returns(0);
+        hashes.GetHashCredentialsVersionAsync("H1").Returns(1);
+        hashes.RecordAttemptAsync(account.Id).Returns(1L);
+        IMFAService mfa = Substitute.For<IMFAService>();
+        mfa.VerifyMFAAsync("H1", "123456", Arg.Any<CancellationToken>()).Returns(new MFAVerifyResult(true, account.Id));
+        MfaLoginPolicy policy = TestLogin.Mfa(_accounts, new CounterCacheless().Cache, mfa, hashes);
+
+        MfaCodeAttempt stale = await policy.CheckAsync("H0", "123456", LoginSource.FromAddress(IPAddress.Loopback), default);
+        await hashes.DidNotReceiveWithAnyArgs().RecordAttemptAsync(default!);
+        MfaCodeAttempt fresh = await policy.CheckAsync("H1", "123456", LoginSource.FromAddress(IPAddress.Loopback), default);
+
+        Assert.Equal(MfaCodeCheck.HashGone, stale.Result);
+        await hashes.Received(1).CleanupHash("H0");
+        await hashes.DidNotReceive().CleanupHash("H1");
+        Assert.Equal(MfaCodeCheck.Correct, fresh.Result);
+    }
+
     /// <summary>A cache whose counters always answer a first attempt.</summary>
     private sealed class CounterCacheless
     {

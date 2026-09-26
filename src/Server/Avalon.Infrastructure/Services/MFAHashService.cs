@@ -143,7 +143,9 @@ public class MFAHashService : IMFAHashService
         var accountId = await GetAccountIdAsync(hash);
         if (accountId != null)
         {
-            await _cache.RemoveAsync(CacheKeys.AccountMfa((long)accountId));
+            // Only while the account's record is this hash's (#495 re-review): a newer login may have
+            // written its own hash over it, and that record is not this cleanup's to delete.
+            await _cache.RemoveHashIfFieldEqualsAsync(CacheKeys.AccountMfa((long)accountId), "hash", hash);
         }
         await _cache.RemoveAsync(CacheKeys.MfaReverseHash(hash));
     }
