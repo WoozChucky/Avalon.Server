@@ -70,7 +70,7 @@ public class AccountLoginStatusShould
             .Returns(true);
     }
 
-    private Task<(AuthenticateResponse Response, AccountId? AccountId)> LoginAsync(string password) =>
+    private Task<(AuthenticateResponse Response, AccountId? AccountId, int CredentialsVersion)> LoginAsync(string password) =>
         CreateService().Authenticate(new AuthenticateRequest { Username = "caller", Password = password },
             IPAddress.Loopback, CancellationToken.None);
 
@@ -79,7 +79,7 @@ public class AccountLoginStatusShould
     {
         AccountIs(DomainStatus.Active);
 
-        var (response, accountId) = await LoginAsync(Password);
+        var (response, accountId, _) = await LoginAsync(Password);
 
         Assert.Equal("jwt", response.Token);
         Assert.Equal(7, accountId!.Value);

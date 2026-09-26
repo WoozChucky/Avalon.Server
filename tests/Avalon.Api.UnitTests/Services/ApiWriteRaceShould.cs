@@ -158,7 +158,7 @@ public sealed class ApiWriteRaceShould : IDisposable
         hashes.GetAccountIdAsync("hash").Returns(account.Id);
         hashes.RecordAttemptAsync(account.Id).Returns(1L);
         IRefreshTokenService refresh = Substitute.For<IRefreshTokenService>();
-        refresh.IssueAsync(Arg.Any<AccountId>(), Arg.Any<CancellationToken>())
+        refresh.IssueAsync(Arg.Any<AccountId>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
             .Returns(new RefreshIssueResult("raw", DateTime.UtcNow.AddDays(1), Guid.NewGuid()));
         var controller = new MFAController(mfa, Substitute.For<IAuthContext>(), new AuthenticationConfig(),
             Substitute.For<IJwtUtils>(), stale, refresh, TestLogin.Mfa(stale, _cache, mfa, hashes),
@@ -171,6 +171,6 @@ public sealed class ApiWriteRaceShould : IDisposable
 
         await AssertBanAndLockSurvivedAsync(account.Id);
         Assert.Null(result.Value);
-        await refresh.DidNotReceiveWithAnyArgs().IssueAsync(default!, default);
+        await refresh.DidNotReceiveWithAnyArgs().IssueAsync(default!, default, default);
     }
 }

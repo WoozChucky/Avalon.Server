@@ -168,54 +168,55 @@ public class AccountRepository(IDbContextFactory<AuthDbContext> contextFactory)
     }
 
     /// <summary>
-    /// Sets the password's salt and verifier, and stamps <c>CredentialsChangedAt</c> with
-    /// <paramref name="changedAt"/> (#495), on a context the caller owns, so the write joins that
-    /// context's transaction (a password change revokes the account's tokens with it), and writes
-    /// nothing else. Returns the rows written: 0 when no account has <paramref name="id"/>.
+    /// Sets the password's salt and verifier, and raises <c>CredentialsVersion</c> by one (#495),
+    /// on a context the caller owns, so the write joins that context's transaction (a password
+    /// change revokes the account's tokens with it), and writes nothing else. Returns the rows
+    /// written: 0 when no account has <paramref name="id"/>.
     /// </summary>
     public static Task<int> SetPasswordAsync(AuthDbContext context, AccountId id, byte[] salt, byte[] verifier,
-        DateTime changedAt, CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default)
     {
         return context.Accounts
             .Where(a => a.Id == id)
             .ExecuteUpdateAsync(s => s
                 .SetProperty(a => a.Salt, salt)
                 .SetProperty(a => a.Verifier, verifier)
-                .SetProperty(a => a.CredentialsChangedAt, (DateTime?)changedAt), cancellationToken);
+                .SetProperty(a => a.CredentialsVersion, a => a.CredentialsVersion + 1), cancellationToken);
     }
 
     /// <summary>
-    /// Stamps <c>CredentialsChangedAt</c> with <paramref name="changedAt"/> (#495) on a context the
-    /// caller owns, so it commits with the change it records, and writes nothing else. Run it first
-    /// in that transaction: the row lock it takes is what orders the change against a concurrent
-    /// refresh rotation or token mint (see <see cref="HoldCredentialsUnchangedSinceAsync"/>).
-    /// Returns the rows written: 0 when no account has <paramref name="id"/>.
+    /// Raises <c>CredentialsVersion</c> by one (#495) on a context the caller owns, so it commits
+    /// with the change it records, and writes nothing else. Run it first in that transaction: the
+    /// row lock it takes is what orders the change against a concurrent credential issue (see
+    /// <see cref="HoldCredentialsVersionAsync"/>). Returns the rows written: 0 when no account has
+    /// <paramref name="id"/>.
     /// </summary>
-    public static Task<int> StampCredentialsChangedAsync(AuthDbContext context, AccountId id, DateTime changedAt,
+    public static Task<int> BumpCredentialsVersionAsync(AuthDbContext context, AccountId id,
         CancellationToken cancellationToken = default)
     {
         return context.Accounts
             .Where(a => a.Id == id)
-            .ExecuteUpdateAsync(s => s.SetProperty(a => a.CredentialsChangedAt, (DateTime?)changedAt),
+            .ExecuteUpdateAsync(s => s.SetProperty(a => a.CredentialsVersion, a => a.CredentialsVersion + 1),
                 cancellationToken);
     }
 
     /// <summary>
-    /// True when the account's credentials have not changed after <paramref name="since"/>
+    /// True when the account's <c>CredentialsVersion</c> is still <paramref name="version"/>
     /// (#495), and then holds the account row until the caller's transaction ends. Run it first in
     /// a transaction that issues a credential: a credentials change that commits first is seen
     /// here, and one that has not committed yet waits for this transaction and then revokes what
-    /// it issued. False, holding nothing, when they changed or no account has <paramref name="id"/>.
+    /// it issued. False, holding nothing, when the version moved or no account has
+    /// <paramref name="id"/>.
     /// </summary>
-    public static async Task<bool> HoldCredentialsUnchangedSinceAsync(AuthDbContext context, AccountId id,
-        DateTime since, CancellationToken cancellationToken = default)
+    public static async Task<bool> HoldCredentialsVersionAsync(AuthDbContext context, AccountId id,
+        int version, CancellationToken cancellationToken = default)
     {
         // A write that changes nothing, so that it takes the row lock a read would not. In
         // Postgres, when a credentials change holds the row, this waits for it and then re-reads
-        // the row it committed, so the condition sees the new stamp.
+        // the row it committed, so the condition sees the new version.
         return await context.Accounts
-            .Where(a => a.Id == id && (a.CredentialsChangedAt == null || a.CredentialsChangedAt <= since))
-            .ExecuteUpdateAsync(s => s.SetProperty(a => a.CredentialsChangedAt, a => a.CredentialsChangedAt),
+            .Where(a => a.Id == id && a.CredentialsVersion == version)
+            .ExecuteUpdateAsync(s => s.SetProperty(a => a.CredentialsVersion, a => a.CredentialsVersion),
                 cancellationToken) == 1;
     }
 

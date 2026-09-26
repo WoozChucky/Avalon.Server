@@ -22,7 +22,11 @@ namespace Avalon.Api.Services;
 public interface IAccountService
 {
     Task<Account?> FindByIdAsync(AccountId id, CancellationToken cancellationToken = default);
-    Task<(AuthenticateResponse Response, AccountId? AccountId)> Authenticate(AuthenticateRequest model, IPAddress ipAddress, CancellationToken cancellationToken);
+    /// <summary>
+    /// A password login. On a completed login <c>AccountId</c> is set, with the credentials version
+    /// of the row the password matched: the refresh token is issued against it (#495).
+    /// </summary>
+    Task<(AuthenticateResponse Response, AccountId? AccountId, int CredentialsVersion)> Authenticate(AuthenticateRequest model, IPAddress ipAddress, CancellationToken cancellationToken);
     Task<(RegisterResponse Response, AccountId AccountId)> Register(RegisterRequest model, string userAgent, IPAddress ipAddress,
         CancellationToken cancellationToken);
 
@@ -93,7 +97,7 @@ public class AccountService : IAccountService
         return await _accountRepository.FindByIdAsync(id, track: false, cancellationToken);
     }
 
-    public async Task<(AuthenticateResponse Response, AccountId? AccountId)> Authenticate(AuthenticateRequest model, IPAddress ipAddress,
+    public async Task<(AuthenticateResponse Response, AccountId? AccountId, int CredentialsVersion)> Authenticate(AuthenticateRequest model, IPAddress ipAddress,
         CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(model.Username) || string.IsNullOrWhiteSpace(model.Password))
@@ -139,7 +143,7 @@ public class AccountService : IAccountService
                 ExpiresAt = null,
                 MfaHash = await _mfaHashService.GenerateHashAsync(account),
                 Status = AuthenticationResponseStatus.RequiresMFA
-            }, null);
+            }, null, account.CredentialsVersion);
         }
 
         // By column, and only while the account is not locked (#484): a lock or a ban written
@@ -159,7 +163,7 @@ public class AccountService : IAccountService
             Token = _jwtUtils.GenerateJwtToken(account),
             ExpiresAt = DateTimeOffset.UtcNow.AddMinutes(_authConfig.AccessTokenLifetimeMinutes).ToUnixTimeSeconds(),
             Status = AuthenticationResponseStatus.Success
-        }, account.Id);
+        }, account.Id, account.CredentialsVersion);
     }
 
     private const string InvalidCredentials = "Invalid username or password";
@@ -272,7 +276,6 @@ public class AccountService : IAccountService
         // Through the login policy (#478): a stolen session guessing the current password here
         // spends the same budgets, and locks the same account, as guessing it at login.
         await _reauthentication.RequireCurrentPasswordAsync(accountId, currentPassword, ipAddress, cancellationToken);
-        var changedAt = DateTime.UtcNow;
 
         var salt = BCrypt.Net.BCrypt.GenerateSalt();
         var hash = BCrypt.Net.BCrypt.HashPassword(newPassword.Trim(), salt);
@@ -285,7 +288,7 @@ public class AccountService : IAccountService
         // or with a stolen session, outlives the change.
         var changed = await _authTransaction.ExecuteAsync(async (context, token) =>
         {
-            if (await AccountRepository.SetPasswordAsync(context, accountId, saltBytes, hashBytes, changedAt, token) == 0)
+            if (await AccountRepository.SetPasswordAsync(context, accountId, saltBytes, hashBytes, token) == 0)
                 return false;
 
             await RefreshTokenRepository.RevokeAllForAccountAsync(context, accountId, token);
@@ -297,7 +300,33 @@ public class AccountService : IAccountService
         if (!changed)
             throw new AuthenticationException(Reauthentication.InvalidPassword);
 
+        // A login past its password step holds an MFA hash made with the old password (#495). Its
+        // version no longer matches, so it cannot complete; clearing it also frees the account's
+        // hash slot for the owner's next login. Best-effort, as after an admin's MFA removal.
+        await ClearPendingMfaAsync(accountId, "its password was changed");
         await PublishDisconnectAsync(accountId, "its password was changed");
+    }
+
+    /// <summary>
+    /// Clears the MFA state of a login already past its password step, and its reverse lookup, so
+    /// that login cannot finish. The state also expires on its own short TTL. Best-effort: the
+    /// change it follows is committed, so a Redis failure is logged and the call still succeeds.
+    /// </summary>
+    private async Task ClearPendingMfaAsync(AccountId accountId, string reason)
+    {
+        try
+        {
+            var mfaKey = CacheKeys.AccountMfa(accountId.Value);
+            var pendingHash = await _cache.Database.HashGetAsync(mfaKey, "hash");
+            if (pendingHash.HasValue)
+                await _cache.RemoveAsync(CacheKeys.MfaReverseHash(pendingHash!));
+            await _cache.RemoveAsync(mfaKey);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not clear pending MFA state in Redis for account {AccountId} after {Reason}",
+                accountId.Value, reason);
+        }
     }
 
     /// <summary>
@@ -395,7 +424,7 @@ public class AccountService : IAccountService
 
     /// <inheritdoc />
     /// <remarks>
-    /// The transaction starts with the credentials-changed stamp (#495). It is also the existence
+    /// The transaction starts by raising the credentials version (#495). It is also the existence
     /// check, and the row lock it takes orders this removal against a concurrent refresh rotation
     /// or token mint, as for a password change.
     /// </remarks>
@@ -407,7 +436,7 @@ public class AccountService : IAccountService
         // no session opened before the reset outlives it.
         var removed = await _authTransaction.ExecuteAsync(async (context, token) =>
         {
-            if (await AccountRepository.StampCredentialsChangedAsync(context, accountId, DateTime.UtcNow, token) == 0)
+            if (await AccountRepository.BumpCredentialsVersionAsync(context, accountId, token) == 0)
                 return (Found: false, Rows: 0);
 
             var rows = await MfaSetupRepository.DeleteAllForAccountAsync(context, accountId, token);
@@ -429,23 +458,7 @@ public class AccountService : IAccountService
 
         // Everything from here is best-effort. The database change is committed, so a Redis
         // failure is logged and the call still succeeds; each step is attempted on its own.
-        try
-        {
-            // A login already past its password step holds MFA state in Redis; clear it and its
-            // reverse lookup so that login cannot finish against an enrolment that no longer exists.
-            // The state also expires on its own short TTL.
-            var mfaKey = CacheKeys.AccountMfa(accountId.Value);
-            var pendingHash = await _cache.Database.HashGetAsync(mfaKey, "hash");
-            if (pendingHash.HasValue)
-                await _cache.RemoveAsync(CacheKeys.MfaReverseHash(pendingHash!));
-            await _cache.RemoveAsync(mfaKey);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex,
-                "Could not clear pending MFA state in Redis for account {AccountId} after its MFA was removed",
-                accountId.Value);
-        }
+        await ClearPendingMfaAsync(accountId, "its MFA was removed");
 
         try
         {

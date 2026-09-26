@@ -48,7 +48,7 @@ public class ExchangeWorldKeyHandler : IWorldPacketHandler<CExchangeWorldKeyPack
             return;
         }
 
-        if (!long.TryParse(id, out long accountId))
+        if (!CacheKeys.TryParseWorldKeyValue(id, out long accountId, out int credentialsVersion))
         {
             _logger.LogWarning("Client {EndPoint} sent an invalid world key", ctx.Connection.RemoteEndPoint);
             return;
@@ -58,6 +58,14 @@ public class ExchangeWorldKeyHandler : IWorldPacketHandler<CExchangeWorldKeyPack
         if (account == null)
         {
             _logger.LogWarning("Client {EndPoint} sent an invalid world key", ctx.Connection.RemoteEndPoint);
+            return;
+        }
+
+        // The key carries the version of the login that selected the world (#495). It lives five
+        // minutes: a password change, an MFA reset or an admin's MFA removal inside them spends it.
+        if (account.CredentialsVersion != credentialsVersion)
+        {
+            _logger.LogWarning("Account {AccountId} sent a world key issued before its credentials changed", account.Id);
             return;
         }
 

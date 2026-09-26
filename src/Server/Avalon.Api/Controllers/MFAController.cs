@@ -127,7 +127,8 @@ public class MFAController : BaseController
 
         await _mfaPolicy.CompleteAsync(attempt);
 
-        var issue = await _refreshService.IssueAsync(account.Id, CancellationToken);
+        // The account was read by the policy, which checked its version against the hash's (#495).
+        var issue = await _refreshService.IssueAsync(account.Id, account.CredentialsVersion, CancellationToken);
         SetRefreshCookie(issue.RawToken, issue.ExpiresAt, _authConfig);
 
         return new AuthenticateResponse

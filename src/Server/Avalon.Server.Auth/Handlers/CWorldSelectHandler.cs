@@ -45,6 +45,15 @@ public class CWorldSelectHandler : IAuthPacketHandler<CWorldSelectPacket>
             return;
         }
 
+        // The connection proved the credentials at its login (#495). A password change, an MFA
+        // reset or an admin's MFA removal since then ends it: no world key for the old credentials.
+        if (account.CredentialsVersion != ctx.Connection.CredentialsVersion)
+        {
+            _logger.LogWarning("Account {AccountId} tried to select a world after its credentials changed", account.Id);
+            ctx.Connection.Close();
+            return;
+        }
+
         var world = await _worldRepository.FindByIdAsync(ctx.Packet.WorldId, false, token);
         if (world == null)
         {
@@ -75,7 +84,10 @@ public class CWorldSelectHandler : IAuthPacketHandler<CWorldSelectPacket>
 
         var worldKeyBase64 = Convert.ToBase64String(worldKey);
 
-        await _cache.SetAsync(CacheKeys.WorldKey(world.Id.Value, worldKeyBase64), account.Id.ToString()!, TimeSpan.FromMinutes(5));
+        // With the version this connection's login proved (#495): the exchange refuses the key once
+        // the account has moved past it.
+        await _cache.SetAsync(CacheKeys.WorldKey(world.Id.Value, worldKeyBase64),
+            CacheKeys.WorldKeyValue(account.Id.Value, ctx.Connection.CredentialsVersion), TimeSpan.FromMinutes(5));
         await _cache.PublishAsync(CacheKeys.WorldSelectChannel(world.Id.Value), $"account:{account.Id}:worldKey:{worldKeyBase64}");
 
         ctx.Connection.Send(SWorldSelectPacket.Create(worldKey, ctx.Connection.CryptoSession.Encrypt));

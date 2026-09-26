@@ -58,6 +58,15 @@ public sealed class AccountRefreshController : BaseController
                 return Unauthorized();
             }
 
+            if (account.CredentialsVersion != rotated.CredentialsVersion)
+            {
+                // The credentials changed after the rotation committed (#495): that change revoked
+                // the successor, and an access token minted from the fresh row would carry the new
+                // version for a session that proved the old one.
+                ClearRefreshCookie();
+                return Unauthorized();
+            }
+
             SetRefreshCookie(rotated.RawToken, rotated.ExpiresAt, _authConfig);
 
             return new RefreshResponse

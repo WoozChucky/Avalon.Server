@@ -153,7 +153,7 @@ public sealed class ApiAuthHost : IAsyncDisposable
     /// chooses. A null subject leaves the name-identifier claim out.
     /// </summary>
     public static string MintCustom(DateTime notBefore, DateTime expires, string? subject = "7",
-        string algorithm = SecurityAlgorithms.HmacSha256Signature)
+        string algorithm = SecurityAlgorithms.HmacSha256Signature, string? credentialsVersion = "0")
     {
         var claims = new List<Claim>
         {
@@ -161,6 +161,7 @@ public sealed class ApiAuthHost : IAsyncDisposable
             new(JwtRegisteredClaimNames.Name, "CALLER"),
             new(ClaimTypes.GroupSid, nameof(AccountAccessLevel.Player)),
         };
+        if (credentialsVersion is not null) claims.Add(new Claim(JwtUtils.CredentialsVersionClaim, credentialsVersion));
         if (subject is not null) claims.Add(new Claim(ClaimTypes.NameIdentifier, subject));
 
         var handler = new JwtSecurityTokenHandler();

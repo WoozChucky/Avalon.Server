@@ -1,12 +1,10 @@
 using System.Globalization;
-using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using Avalon.Api.Services;
 using Avalon.Common.Accounts;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.Auth;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.IdentityModel.JsonWebTokens;
 
 namespace Avalon.Api.Authentication.Jwt;
 
@@ -15,7 +13,8 @@ namespace Avalon.Api.Authentication.Jwt;
 /// reloads the account the token names and applies <see cref="AccountAccessCheck"/>, the same
 /// rule a personal access token gets. A refused account fails authentication (401); an admitted
 /// one has its role claims replaced by the token's roles masked by the account's current ones.
-/// A token issued before the account's credentials last changed (#495) is refused too.
+/// A token whose <c>cver</c> claim is not the account's current credentials version (#495) is
+/// refused too.
 /// </summary>
 public static class JwtAccountRevalidation
 {
@@ -41,7 +40,7 @@ public static class JwtAccountRevalidation
 
         // A password change, an MFA reset or an admin's MFA removal ends every access token issued
         // before it (#495), rather than leaving it its lifetime.
-        if (IssuedBeforeCredentialsChanged(IssuedAt(context.SecurityToken), account))
+        if (!CarriesCurrentCredentials(principal, account))
         {
             context.Fail("credentials changed");
             return;
@@ -58,24 +57,13 @@ public static class JwtAccountRevalidation
     }
 
     /// <summary>
-    /// Whether a token issued at <paramref name="issuedAt"/> predates the account's last
-    /// credentials change. <c>iat</c> has whole seconds, so the change is compared at the second:
-    /// a token issued in the same second as the change is accepted (a login straight after a
-    /// change must work). A token with no <c>iat</c> counts as issued at the earliest instant.
+    /// Whether the token's <c>cver</c> claim equals the account's credentials version. A token with
+    /// no such claim, or one that does not parse, is refused: every token this API mints has one.
     /// </summary>
-    internal static bool IssuedBeforeCredentialsChanged(DateTime issuedAt, Account account)
+    internal static bool CarriesCurrentCredentials(ClaimsPrincipal principal, Account account)
     {
-        if (account.CredentialsChangedAt is not { } changedAt)
-            return false;
-
-        DateTime changedAtSecond = new(changedAt.Ticks - changedAt.Ticks % TimeSpan.TicksPerSecond, DateTimeKind.Utc);
-        return issuedAt < changedAtSecond;
+        string? claim = principal.FindFirstValue(JwtUtils.CredentialsVersionClaim);
+        return int.TryParse(claim, NumberStyles.None, CultureInfo.InvariantCulture, out int version)
+               && version == account.CredentialsVersion;
     }
-
-    private static DateTime IssuedAt(Microsoft.IdentityModel.Tokens.SecurityToken? token) => token switch
-    {
-        JsonWebToken jwt => jwt.IssuedAt,
-        JwtSecurityToken jwt => jwt.IssuedAt,
-        _ => DateTime.MinValue,
-    };
 }

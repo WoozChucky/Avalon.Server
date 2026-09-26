@@ -108,6 +108,9 @@ public class CMFAVerifyHandler : IAuthPacketHandler<CMFAVerifyPacket>
         // cleared (owner decision on #484).
         await _policy.CompleteAsync(attempt);
 
+        // The version of the row the proof was checked against (#495), before the account id
+        // that makes the connection logged in.
+        ctx.Connection.CredentialsVersion = account.CredentialsVersion;
         ctx.Connection.AccountId = account.Id;
 
         account.Online = true;

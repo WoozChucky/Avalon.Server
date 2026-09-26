@@ -70,6 +70,10 @@ public sealed class RefreshRotationRaceShould : IDisposable
             CancellationToken cancellationToken = default) =>
             OneAtATime(() => inner.RotateAsync(parent, child, now, cancellationToken));
 
+        public Task<bool> CreateIfCredentialsCurrentAsync(RefreshToken token,
+            CancellationToken cancellationToken = default) =>
+            OneAtATime(() => inner.CreateIfCredentialsCurrentAsync(token, cancellationToken));
+
         public Task<RefreshToken> CreateAsync(RefreshToken token, CancellationToken cancellationToken = default) =>
             OneAtATime(() => inner.CreateAsync(token, cancellationToken));
 
@@ -89,7 +93,7 @@ public sealed class RefreshRotationRaceShould : IDisposable
         Account account = await AccountAsync();
         RefreshTokenRepository real = new(_database);
         RefreshIssueResult issued = await new RefreshTokenService(real, new SecureRandom(), TimeProvider.System)
-            .IssueAsync(account.Id);
+            .IssueAsync(account.Id, 0);
         var service = new RefreshTokenService(new BothReadFirst(real), new SecureRandom(), TimeProvider.System);
 
         Task<RefreshRotateResult>[] rotations =
@@ -111,7 +115,7 @@ public sealed class RefreshRotationRaceShould : IDisposable
         Account account = await AccountAsync();
         RefreshTokenRepository real = new(_database);
         var service = new RefreshTokenService(real, new SecureRandom(), TimeProvider.System);
-        RefreshIssueResult issued = await service.IssueAsync(account.Id);
+        RefreshIssueResult issued = await service.IssueAsync(account.Id, 0);
         RefreshToken parent = (await real.FindByHashAsync(
             System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(issued.RawToken))))!;
         // Revoked between the rotation's read (parent, live) and its write.

@@ -33,7 +33,7 @@ public sealed class SessionIssuanceShould : IAsyncLifetime
     private void RefreshCookieBelongsTo(Account? account)
     {
         _host.Refresh.RotateAsync(RefreshCookie, Arg.Any<CancellationToken>())
-            .Returns(new RefreshRotateResult("refresh-next", DateTime.UtcNow.AddDays(30), new AccountId(AccountIdValue)));
+            .Returns(new RefreshRotateResult("refresh-next", DateTime.UtcNow.AddDays(30), new AccountId(AccountIdValue), 0));
         _host.AccountRepository.FindByIdAsync(Arg.Is<AccountId>(id => id.Value == AccountIdValue), Arg.Any<bool>(),
                 Arg.Any<CancellationToken>())
             .Returns(account);
@@ -99,7 +99,7 @@ public sealed class SessionIssuanceShould : IAsyncLifetime
         _host.AccountRepository.FindByIdAsync(Arg.Is<AccountId>(id => id.Value == AccountIdValue), Arg.Any<bool>(),
                 Arg.Any<CancellationToken>())
             .Returns(account);
-        _host.Refresh.IssueAsync(Arg.Any<AccountId>(), Arg.Any<CancellationToken>())
+        _host.Refresh.IssueAsync(Arg.Any<AccountId>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
             .Returns(new RefreshIssueResult("refresh-new", DateTime.UtcNow.AddDays(30), Guid.NewGuid()));
     }
 
@@ -128,7 +128,7 @@ public sealed class SessionIssuanceShould : IAsyncLifetime
 
         await AssertInactive(response, expected);
         Assert.False(SetsRefreshCookie(response, "refresh-new"));
-        await _host.Refresh.DidNotReceiveWithAnyArgs().IssueAsync(default!, default);
+        await _host.Refresh.DidNotReceiveWithAnyArgs().IssueAsync(default!, default, default);
         await _host.AccountRepository.DidNotReceiveWithAnyArgs().UpdateAsync(default!, default);
     }
 
@@ -161,7 +161,7 @@ public sealed class SessionIssuanceShould : IAsyncLifetime
             new { username = "caller", password = "right" });
 
         await AssertInactive(response, expected);
-        await _host.Refresh.DidNotReceiveWithAnyArgs().IssueAsync(default!, default);
+        await _host.Refresh.DidNotReceiveWithAnyArgs().IssueAsync(default!, default, default);
     }
 
     private static async Task AssertInactive(HttpResponseMessage response, string expected)

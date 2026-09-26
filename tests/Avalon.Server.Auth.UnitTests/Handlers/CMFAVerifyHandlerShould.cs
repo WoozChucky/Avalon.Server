@@ -85,6 +85,49 @@ public class CMFAVerifyHandlerShould
         await _accountRepository.DidNotReceiveWithAnyArgs().UpdateAsync(default!, default);
     }
 
+    /// <summary>
+    /// #495: the hash was issued by a login at version 0 (the old password); a password change has
+    /// since moved the account to 2. A right code on that hash logs nobody in.
+    /// </summary>
+    [Fact]
+    public async Task SendMfaFailed_WhenTheHashPredatesACredentialsChange()
+    {
+        var account = MakeAccount();
+        account.CredentialsVersion = 2;
+        _accountRepository.FindByIdAsync(account.Id, Arg.Any<bool>(), Arg.Any<CancellationToken>()).Returns(account);
+        _mfaHashService.GetCredentialsVersionAsync(account.Id).Returns(0);
+        _mfaService.VerifyMFAAsync("valid-hash", "123456").Returns(new MFAVerifyResult(true, account.Id));
+
+        await CreateHandler().ExecuteAsync(new AuthPacketContext<CMFAVerifyPacket>
+        {
+            Packet = new CMFAVerifyPacket { MfaHash = "valid-hash", Code = "123456" },
+            Connection = _connection
+        });
+
+        _connection.DidNotReceive().AccountId = Arg.Any<AccountId?>();
+        await _accountRepository.DidNotReceiveWithAnyArgs().TryRecordLoginAsync(default!, default!, default, default, default);
+        await _mfaHashService.Received(1).CleanupHash("valid-hash");
+    }
+
+    [Fact]
+    public async Task KeepTheCredentialsVersionItsProofWasCheckedAt()
+    {
+        var account = MakeAccount();
+        account.CredentialsVersion = 4;
+        _accountRepository.FindByIdAsync(account.Id, Arg.Any<bool>(), Arg.Any<CancellationToken>()).Returns(account);
+        _mfaHashService.GetCredentialsVersionAsync(account.Id).Returns(4);
+        _mfaService.VerifyMFAAsync("valid-hash", "123456").Returns(new MFAVerifyResult(true, account.Id));
+
+        await CreateHandler().ExecuteAsync(new AuthPacketContext<CMFAVerifyPacket>
+        {
+            Packet = new CMFAVerifyPacket { MfaHash = "valid-hash", Code = "123456" },
+            Connection = _connection
+        });
+
+        _connection.Received().CredentialsVersion = 4;
+        _connection.Received().AccountId = account.Id;
+    }
+
     [Fact]
     public async Task SendMfaFailed_WhenHashNotFoundOrExpired()
     {

@@ -6,6 +6,28 @@ namespace Avalon.Infrastructure;
 /// </summary>
 public static class CacheKeys
 {
+    /// <summary>
+    /// The value stored under <see cref="WorldKey"/>: the account id and the credentials version
+    /// of the connection that selected the world (#495), as <c>{accountId}:{version}</c>.
+    /// </summary>
+    public static string WorldKeyValue(long accountId, int credentialsVersion) =>
+        string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{accountId}:{credentialsVersion}");
+
+    /// <summary>Reads a <see cref="WorldKeyValue"/>. False for anything else, a bare id included.</summary>
+    public static bool TryParseWorldKeyValue(string? value, out long accountId, out int credentialsVersion)
+    {
+        accountId = 0;
+        credentialsVersion = 0;
+        if (value is null)
+            return false;
+        int colon = value.IndexOf(':', StringComparison.Ordinal);
+        return colon > 0
+               && long.TryParse(value.AsSpan(0, colon), System.Globalization.NumberStyles.None,
+                   System.Globalization.CultureInfo.InvariantCulture, out accountId)
+               && int.TryParse(value.AsSpan(colon + 1), System.Globalization.NumberStyles.None,
+                   System.Globalization.CultureInfo.InvariantCulture, out credentialsVersion);
+    }
+
     // ── Pub/Sub Channels (fixed) ──────────────────────────────────────────────
 
     /// <summary>

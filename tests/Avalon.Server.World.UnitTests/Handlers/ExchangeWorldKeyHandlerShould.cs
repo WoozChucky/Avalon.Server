@@ -102,7 +102,7 @@ public class ExchangeWorldKeyHandlerShould
     [Fact]
     public async Task SpendKeyButKeepInWorldFlag_WhenExchangeIsRefusedAfterTheKeyIsFound()
     {
-        _cache.GetAsync(Arg.Any<string>()).Returns("1");
+        _cache.GetAsync(Arg.Any<string>()).Returns("1:0");
         _accountRepository.FindByIdAsync(Arg.Any<AccountId>()).Returns((Account?)null);
 
         await _handler.ExecuteAsync(MakeCtx(new byte[32], new byte[ValidKeySize]));
@@ -128,7 +128,7 @@ public class ExchangeWorldKeyHandlerShould
     [Fact]
     public async Task DoNothing_WhenAccountNotFound()
     {
-        _cache.GetAsync(Arg.Any<string>()).Returns("42");
+        _cache.GetAsync(Arg.Any<string>()).Returns("42:0");
         _accountRepository.FindByIdAsync(Arg.Any<AccountId>()).Returns((Account?)null);
 
         await _handler.ExecuteAsync(MakeCtx(new byte[32], new byte[ValidKeySize]));
@@ -139,7 +139,7 @@ public class ExchangeWorldKeyHandlerShould
     [Fact]
     public async Task DoNothing_WhenPublicKeyIsEmpty()
     {
-        _cache.GetAsync(Arg.Any<string>()).Returns("42");
+        _cache.GetAsync(Arg.Any<string>()).Returns("42:0");
         _accountRepository.FindByIdAsync(Arg.Any<AccountId>()).Returns(MakeAccount(42));
 
         await _handler.ExecuteAsync(MakeCtx(new byte[32], Array.Empty<byte>()));
@@ -151,13 +151,47 @@ public class ExchangeWorldKeyHandlerShould
     [Fact]
     public async Task DoNothing_WhenPublicKeySizeIsInvalid()
     {
-        _cache.GetAsync(Arg.Any<string>()).Returns("42");
+        _cache.GetAsync(Arg.Any<string>()).Returns("42:0");
         _accountRepository.FindByIdAsync(Arg.Any<AccountId>()).Returns(MakeAccount(42));
 
         await _handler.ExecuteAsync(MakeCtx(new byte[32], new byte[ValidKeySize + 8]));
 
         _connection.DidNotReceive().Send(Arg.Any<NetworkPacket>());
         _connection.CryptoSession.DidNotReceive().Initialize(Arg.Any<byte[]>());
+    }
+
+    /// <summary>
+    /// #495: the key was issued at version 0; a password change has moved the account to 1 in the
+    /// five minutes the key lives. It is spent, and refused, and the in-world slot is kept.
+    /// </summary>
+    [Fact]
+    public async Task Refuse_a_key_issued_before_the_credentials_changed()
+    {
+        _cache.GetAsync(Arg.Any<string>()).Returns("42:0");
+        Account account = MakeAccount(42);
+        account.CredentialsVersion = 1;
+        _accountRepository.FindByIdAsync(Arg.Any<AccountId>()).Returns(account);
+
+        await _handler.ExecuteAsync(MakeCtx(new byte[32], new byte[ValidKeySize]));
+
+        _connection.DidNotReceive().Send(Arg.Any<NetworkPacket>());
+        _connection.CryptoSession.DidNotReceive().Initialize(Arg.Any<byte[]>());
+        await _cache.Received(1).RemoveAsync(Arg.Is<string>(k => k.StartsWith("world:")));
+        await _cache.DidNotReceive().RemoveAsync(Arg.Is<string>(k => k.EndsWith(":inWorld")));
+    }
+
+    [Theory]
+    [InlineData("42")]
+    [InlineData("42:")]
+    [InlineData("42:x")]
+    public async Task Refuse_a_key_whose_value_carries_no_credentials_version(string value)
+    {
+        _cache.GetAsync(Arg.Any<string>()).Returns(value);
+        _accountRepository.FindByIdAsync(Arg.Any<AccountId>()).Returns(MakeAccount(42));
+
+        await _handler.ExecuteAsync(MakeCtx(new byte[32], new byte[ValidKeySize]));
+
+        _connection.DidNotReceive().Send(Arg.Any<NetworkPacket>());
     }
 
     [Fact]
@@ -169,7 +203,7 @@ public class ExchangeWorldKeyHandlerShould
         new Random().NextBytes(publicKey);
 
         var expectedCacheKey = $"world:{_world.Id}:keys:{Convert.ToBase64String(worldKey)}";
-        _cache.GetAsync(expectedCacheKey).Returns("42");
+        _cache.GetAsync(expectedCacheKey).Returns("42:0");
         _accountRepository.FindByIdAsync(Arg.Any<AccountId>()).Returns(MakeAccount(42));
 
         await _handler.ExecuteAsync(MakeCtx(worldKey, publicKey));
@@ -201,7 +235,7 @@ public class ExchangeWorldKeyHandlerShould
         new Random().NextBytes(worldKey);
         new Random().NextBytes(publicKey);
 
-        _cache.GetAsync(Arg.Any<string>()).Returns("42");
+        _cache.GetAsync(Arg.Any<string>()).Returns("42:0");
         _accountRepository.FindByIdAsync(Arg.Any<AccountId>()).Returns(MakeAccount(42));
 
         await _handler.ExecuteAsync(MakeCtx(worldKey, publicKey));
@@ -243,7 +277,7 @@ public class ExchangeWorldKeyHandlerShould
         Task secondExchange = handler.ExecuteAsync(MakeCtx(worldKey, new byte[ValidKeySize], second));
 
         await bothRead.Task.WaitAsync(TimeSpan.FromSeconds(5));
-        readsHeld.SetResult("42");
+        readsHeld.SetResult("42:0");
         await Task.WhenAll(firstExchange, secondExchange).WaitAsync(TimeSpan.FromSeconds(5));
 
         int accepted = CountSends(first) + CountSends(second);
@@ -268,7 +302,7 @@ public class ExchangeWorldKeyHandlerShould
             .Returns(MakeWorld(required));
         Account account = MakeAccount(42);
         account.AccessLevel = actual;
-        _cache.GetAsync(Arg.Any<string>()).Returns("42");
+        _cache.GetAsync(Arg.Any<string>()).Returns("42:0");
         _accountRepository.FindByIdAsync(Arg.Any<AccountId>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(account);
 
@@ -291,7 +325,7 @@ public class ExchangeWorldKeyHandlerShould
             .Returns(MakeWorld(required));
         Account account = MakeAccount(42);
         account.AccessLevel = actual;
-        _cache.GetAsync(Arg.Any<string>()).Returns("42");
+        _cache.GetAsync(Arg.Any<string>()).Returns("42:0");
         _accountRepository.FindByIdAsync(Arg.Any<AccountId>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(account);
 
@@ -308,7 +342,7 @@ public class ExchangeWorldKeyHandlerShould
     {
         Account account = MakeAccount(42);
         account.Status = status;
-        _cache.GetAsync(Arg.Any<string>()).Returns("42");
+        _cache.GetAsync(Arg.Any<string>()).Returns("42:0");
         _accountRepository.FindByIdAsync(Arg.Any<AccountId>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(account);
 
@@ -324,7 +358,7 @@ public class ExchangeWorldKeyHandlerShould
     {
         _worldRepository.FindByIdAsync(Arg.Any<WorldId>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns((Avalon.Domain.Auth.World?)null);
-        _cache.GetAsync(Arg.Any<string>()).Returns("42");
+        _cache.GetAsync(Arg.Any<string>()).Returns("42:0");
         _accountRepository.FindByIdAsync(Arg.Any<AccountId>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(MakeAccount(42));
 
@@ -337,7 +371,7 @@ public class ExchangeWorldKeyHandlerShould
     [Fact]
     public async Task Refuse_WhenKeyWasAlreadySpent()
     {
-        _cache.GetAsync(Arg.Any<string>()).Returns("42");
+        _cache.GetAsync(Arg.Any<string>()).Returns("42:0");
         _cache.RemoveAsync(Arg.Is<string>(k => k.StartsWith("world:"))).Returns(false);
         _accountRepository.FindByIdAsync(Arg.Any<AccountId>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(MakeAccount(42));
@@ -352,7 +386,7 @@ public class ExchangeWorldKeyHandlerShould
     [Fact]
     public async Task KeepInWorldFlag_WhenPublicKeyIsInvalid()
     {
-        _cache.GetAsync(Arg.Any<string>()).Returns("42");
+        _cache.GetAsync(Arg.Any<string>()).Returns("42:0");
         _accountRepository.FindByIdAsync(Arg.Any<AccountId>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(MakeAccount(42));
 

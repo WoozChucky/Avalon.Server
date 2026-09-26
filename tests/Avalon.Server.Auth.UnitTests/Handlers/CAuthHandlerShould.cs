@@ -344,6 +344,19 @@ public class CAuthHandlerShould
         _connection.Received().AccountId = account.Id;
     }
 
+    /// <summary>#495: the connection keeps the version of the row its password was checked against.</summary>
+    [Fact]
+    public async Task SetConnectionCredentialsVersion_FromTheRowThePasswordMatched()
+    {
+        var account = MakeAccount();
+        account.CredentialsVersion = 7;
+        _accountRepository.FindByUserNameAsync(Arg.Any<string>()).Returns(account);
+
+        await LogInAsync(_handler);
+
+        _connection.Received().CredentialsVersion = 7;
+    }
+
     [Fact]
     public async Task SendMfaRequired_WhenAccountHasConfirmedMfa()
     {

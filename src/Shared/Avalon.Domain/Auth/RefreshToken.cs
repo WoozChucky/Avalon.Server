@@ -23,4 +23,10 @@ public class RefreshToken : IDbEntity<Guid>
     public uint Usages { get; set; } = 0;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime ExpiresAt { get; set; }
+
+    /// <summary>
+    /// The account's <see cref="Account.CredentialsVersion"/> when the family's login proved the
+    /// credentials (#495). A token whose version is no longer the account's cannot be rotated.
+    /// </summary>
+    public int CredentialsVersion { get; set; }
 }

@@ -70,7 +70,7 @@ public sealed class RestLoginPolicyShould : IDisposable
         LastLogin = DateTime.UtcNow.AddDays(-1),
     };
 
-    private Task<(AuthenticateResponse Response, AccountId? AccountId)> LoginAsync(string password,
+    private Task<(AuthenticateResponse Response, AccountId? AccountId, int CredentialsVersion)> LoginAsync(string password,
         string username = "caller", AccountService? service = null) =>
         (service ?? Service()).Authenticate(new AuthenticateRequest { Username = username, Password = password },
             IPAddress.Loopback, CancellationToken.None);
@@ -251,7 +251,7 @@ public sealed class RestLoginPolicyShould : IDisposable
         for (var i = 0; i < 3; i++)
             await Assert.ThrowsAsync<AuthenticationException>(() => LoginAsync("wrong"));
 
-        var (response, accountId) = await LoginAsync(Password);
+        var (response, accountId, _) = await LoginAsync(Password);
 
         Assert.Equal(AuthenticationResponseStatus.Success, response.Status);
         Assert.Equal(account.Id, accountId);

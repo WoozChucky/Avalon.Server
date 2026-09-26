@@ -62,7 +62,7 @@ public sealed class AddressLessCallerShould : IAsyncLifetime
     public async Task Still_log_in_a_caller_with_an_address()
     {
         _host.Accounts.Authenticate(Arg.Any<AuthenticateRequest>(), IPAddress.Loopback, Arg.Any<CancellationToken>())
-            .Returns((new AuthenticateResponse { Status = AuthenticationResponseStatus.RequiresMFA, MfaHash = "h" }, null));
+            .Returns((new AuthenticateResponse { Status = AuthenticationResponseStatus.RequiresMFA, MfaHash = "h" }, null, 0));
 
         using HttpResponseMessage response = await _host.Client.PostAsJsonAsync("/account/authenticate",
             new { username = "caller", password = "pw" });

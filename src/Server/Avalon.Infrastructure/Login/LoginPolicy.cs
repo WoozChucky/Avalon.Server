@@ -225,6 +225,17 @@ public sealed class MfaLoginPolicy : LoginPolicy
             return new MfaCodeAttempt(MfaCodeCheck.AccountMissing, source, null, 0, null);
         }
 
+        // The hash was issued by a password login at the version of the row that password matched
+        // (#495). A password change, an MFA reset or an admin's MFA removal since then has moved
+        // the account on, and the hash is gone: a right code on it logs nobody in. Before the code
+        // is checked, so it costs no TOTP step; the caller answers it as a hash that is gone.
+        if (await _hashes.GetCredentialsVersionAsync(account.Id) != account.CredentialsVersion)
+        {
+            Logger.LogWarning("MFA hash for account {AccountId} predates a credentials change", account.Id);
+            await _hashes.CleanupHash(hash);
+            return new MfaCodeAttempt(MfaCodeCheck.HashGone, source, null, 0, null);
+        }
+
         string usernameKey = UsernameBudget.KeyFor(account.Username);
         long taken = await UsernameBudget.TakeAsync(Cache, Limits, usernameKey);
         if (UsernameBudget.Refuses(Limits, taken))

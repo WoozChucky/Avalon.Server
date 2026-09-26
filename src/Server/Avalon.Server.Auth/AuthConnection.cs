@@ -17,6 +17,12 @@ public interface IAuthConnection : IConnection
 {
     public AccountId? AccountId { get; set; }
 
+    /// <summary>
+    /// The credentials version of the row this connection's login proved (#495). World select
+    /// refuses once the account's version has moved past it.
+    /// </summary>
+    int CredentialsVersion { get; set; }
+
     AuthServer Server { get; }
 
     byte[] GenerateHandshakeData();
@@ -53,6 +59,7 @@ public class AuthConnection : Connection, IAuthConnection
     }
 
     public AccountId? AccountId { get; set; }
+    public int CredentialsVersion { get; set; }
     public new AuthServer Server { get; }
 
     public byte[] GenerateHandshakeData()

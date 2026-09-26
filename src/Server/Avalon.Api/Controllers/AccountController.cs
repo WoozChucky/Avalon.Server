@@ -69,10 +69,12 @@ public class AccountController : BaseController
     [HttpPost("authenticate", Name = "Authenticate")]
     public async Task<AuthenticateResponse> Authenticate([FromBody] AuthenticateRequest model)
     {
-        var (response, accountId) = await _accountService.Authenticate(model, SourceAddress, CancellationToken);
+        var (response, accountId, credentialsVersion) = await _accountService.Authenticate(model, SourceAddress, CancellationToken);
         if (accountId is not null)
         {
-            var issue = await _refreshService.IssueAsync(accountId.Value, CancellationToken);
+            // Against the version the password was checked at (#495): a change committed since
+            // refuses the family, and the caller gets 401 instead of this response.
+            var issue = await _refreshService.IssueAsync(accountId.Value, credentialsVersion, CancellationToken);
             SetRefreshCookie(issue.RawToken, issue.ExpiresAt, _authConfig);
         }
         return response;
@@ -87,7 +89,8 @@ public class AccountController : BaseController
         // The source budget needs the caller's address (#495): an address-less caller is refused
         // with 400, as it is at login, rather than sharing one budget with every other such caller.
         var (response, accountId) = await _accountService.Register(model, userAgent, SourceAddress, CancellationToken);
-        var issue = await _refreshService.IssueAsync(accountId, CancellationToken);
+        // A new account starts at credentials version 0 (#495).
+        var issue = await _refreshService.IssueAsync(accountId, 0, CancellationToken);
         SetRefreshCookie(issue.RawToken, issue.ExpiresAt, _authConfig);
         return response;
     }

@@ -162,6 +162,50 @@ public class CWorldSelectHandlerShould
         });
     }
 
+    /// <summary>
+    /// #495: the connection logged in at version 0, and a password change has since moved the
+    /// account to 1. The connection proved credentials that no longer hold: no key, no slot.
+    /// </summary>
+    [Fact]
+    public async Task CloseConnection_WhenTheCredentialsChangedSinceItsLogin()
+    {
+        var account = MakeAccount();
+        account.CredentialsVersion = 1;
+        _connection.AccountId.Returns(account.Id);
+        _connection.CredentialsVersion.Returns(0);
+        _accountRepository.FindByIdAsync(account.Id).Returns(account);
+        _worldRepository.FindByIdAsync(Arg.Any<WorldId>()).Returns(MakeWorld());
+
+        await _handler.ExecuteAsync(new AuthPacketContext<CWorldSelectPacket>
+        {
+            Packet = new CWorldSelectPacket { WorldId = new WorldId(1) },
+            Connection = _connection
+        });
+
+        _connection.Received(1).Close();
+        await _cache.DidNotReceiveWithAnyArgs().SetNxAsync(default!, default!, default);
+        await _cache.DidNotReceiveWithAnyArgs().SetAsync(default!, default!, default);
+    }
+
+    [Fact]
+    public async Task StoreTheConnectionsCredentialsVersionWithTheWorldKey()
+    {
+        var account = MakeAccount();
+        account.CredentialsVersion = 3;
+        _connection.AccountId.Returns(account.Id);
+        _connection.CredentialsVersion.Returns(3);
+        _accountRepository.FindByIdAsync(account.Id).Returns(account);
+        _worldRepository.FindByIdAsync(Arg.Any<WorldId>()).Returns(MakeWorld());
+
+        await _handler.ExecuteAsync(new AuthPacketContext<CWorldSelectPacket>
+        {
+            Packet = new CWorldSelectPacket { WorldId = new WorldId(1) },
+            Connection = _connection
+        });
+
+        await _cache.Received(1).SetAsync(Arg.Any<string>(), "5:3", Arg.Any<TimeSpan?>());
+    }
+
     [Fact]
     public async Task SaveSessionKey_AndPublishToCache_WhenSelectionSucceeds()
     {

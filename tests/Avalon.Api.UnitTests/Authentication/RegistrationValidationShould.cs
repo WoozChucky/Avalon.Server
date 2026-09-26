@@ -23,7 +23,7 @@ public sealed class RegistrationValidationShould : IAsyncLifetime
         _host = await ApiAuthHost.StartAsync();
         _host.Accounts.Register(Arg.Any<RegisterRequest>(), Arg.Any<string>(), Arg.Any<IPAddress>(), Arg.Any<CancellationToken>())
             .Returns((new RegisterResponse { Token = "jwt" }, new AccountId(ApiAuthHost.AccountIdValue)));
-        _host.Refresh.IssueAsync(Arg.Any<AccountId>(), Arg.Any<CancellationToken>())
+        _host.Refresh.IssueAsync(Arg.Any<AccountId>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
             .Returns(new RefreshIssueResult("refresh", DateTime.UtcNow.AddDays(30), Guid.NewGuid()));
     }
 

@@ -216,22 +216,24 @@ public sealed class JwtRequestAuthenticationShould : IAsyncLifetime
         Assert.False(response.IsSuccessStatusCode);
     }
 
-    // ---------------- Credentials changed (#495) ----------------
+    // ---------------- Credentials version (#495) ----------------
 
-    private static Account ChangedAt(DateTime changedAt)
+    private static Account AtVersion(int version)
     {
         Account account = MakeAccount();
-        account.CredentialsChangedAt = changedAt;
+        account.CredentialsVersion = version;
         return account;
     }
 
+    /// <summary>
+    /// The change moved the account to version 1 in the same second the token was minted at
+    /// version 0. A timestamp compared at the second let it through; the version does not.
+    /// </summary>
     [Fact]
-    public async Task Refuse_a_token_issued_before_the_credentials_changed()
+    public async Task Refuse_a_token_minted_in_the_same_second_as_a_credentials_change()
     {
-        DateTime now = DateTime.UtcNow;
-        _host.AccountNowIs(ChangedAt(now.AddMinutes(-1)));
-        // Live, validly signed, and issued five minutes ago: before the password change.
-        string token = MintCustom(now.AddMinutes(-5), now.AddMinutes(10));
+        string token = Mint(AtVersion(0));
+        _host.AccountNowIs(AtVersion(1));
 
         using HttpResponseMessage response = await _host.GetAsync("/player", token);
 
@@ -239,44 +241,43 @@ public sealed class JwtRequestAuthenticationShould : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Accept_the_owners_fresh_login_straight_after_the_change()
+    {
+        string token = Mint(AtVersion(1));
+        _host.AccountNowIs(AtVersion(1));
+
+        using HttpResponseMessage response = await _host.GetAsync("/player", token);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    [Fact]
     public async Task Refuse_a_stale_token_through_the_session_cookie_too()
     {
-        DateTime now = DateTime.UtcNow;
-        _host.AccountNowIs(ChangedAt(now.AddMinutes(-1)));
+        string token = Mint(AtVersion(0));
+        _host.AccountNowIs(AtVersion(1));
         using var request = new HttpRequestMessage(HttpMethod.Get, "/player");
-        request.Headers.Add("Cookie", $"{AuthConstants.CookieName}={MintCustom(now.AddMinutes(-5), now.AddMinutes(10))}");
+        request.Headers.Add("Cookie", $"{AuthConstants.CookieName}={token}");
 
         using HttpResponseMessage response = await _host.Client.SendAsync(request);
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
-    [Fact]
-    public async Task Accept_a_token_issued_after_the_credentials_changed()
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("one")]
+    [InlineData("-1")]
+    public async Task Refuse_a_token_whose_credentials_version_is_missing_or_malformed(string? claim)
     {
+        _host.AccountNowIs(AtVersion(0));
         DateTime now = DateTime.UtcNow;
-        _host.AccountNowIs(ChangedAt(now.AddMinutes(-10)));
-
-        using HttpResponseMessage response = await _host.GetAsync("/player", MintLive());
-
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-    }
-
-    /// <summary>
-    /// <c>iat</c> has whole seconds, so a token minted just after a change, in the same second, has
-    /// an <c>iat</c> earlier than the stamp's fraction. It is accepted: the check compares seconds.
-    /// </summary>
-    [Fact]
-    public async Task Accept_a_token_issued_in_the_same_second_as_the_change()
-    {
-        DateTime second = DateTime.UtcNow.AddMinutes(-1);
-        second = new DateTime(second.Ticks - second.Ticks % TimeSpan.TicksPerSecond, DateTimeKind.Utc);
-        _host.AccountNowIs(ChangedAt(second.AddMilliseconds(900)));
 
         using HttpResponseMessage response = await _host.GetAsync("/player",
-            MintCustom(second.AddMilliseconds(950), DateTime.UtcNow.AddMinutes(10)));
+            MintCustom(now.AddMinutes(-1), now.AddMinutes(10), credentialsVersion: claim));
 
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
     private sealed class FakeDbException() : DbException("connection refused");

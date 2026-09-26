@@ -1,3 +1,4 @@
+using System.Security.Authentication;
 using System.Security.Cryptography;
 using System.Text;
 using Avalon.Api.Exceptions;
@@ -10,18 +11,26 @@ namespace Avalon.Api.Services;
 
 public interface IRefreshTokenService
 {
-    Task<RefreshIssueResult> IssueAsync(AccountId accountId, CancellationToken cancellationToken = default);
+    /// <summary>
+    /// Opens a refresh-token family for a login that proved the credentials at
+    /// <paramref name="credentialsVersion"/>. Refused with <see cref="AuthenticationException"/>
+    /// (401) when the account's version has moved since (#495).
+    /// </summary>
+    Task<RefreshIssueResult> IssueAsync(AccountId accountId, int credentialsVersion,
+        CancellationToken cancellationToken = default);
     Task<RefreshRotateResult> RotateAsync(string rawToken, CancellationToken cancellationToken = default);
     Task RevokeAsync(string rawToken, CancellationToken cancellationToken = default);
     Task<int> RevokeAllForAccountAsync(AccountId accountId, CancellationToken cancellationToken = default);
 }
 
 public sealed record RefreshIssueResult(string RawToken, DateTime ExpiresAt, Guid FamilyId);
-public sealed record RefreshRotateResult(string RawToken, DateTime ExpiresAt, AccountId AccountId);
+/// <param name="CredentialsVersion">The version the rotation held: the access token minted with it must carry it.</param>
+public sealed record RefreshRotateResult(string RawToken, DateTime ExpiresAt, AccountId AccountId, int CredentialsVersion);
 
 public sealed class RefreshTokenService : IRefreshTokenService
 {
     public static readonly TimeSpan DefaultLifetime = TimeSpan.FromDays(30);
+    public const string CredentialsChanged = "Credentials changed; sign in again";
 
     private readonly IRefreshTokenRepository _repository;
     private readonly ISecureRandom _random;
@@ -34,14 +43,15 @@ public sealed class RefreshTokenService : IRefreshTokenService
         _time = time;
     }
 
-    public async Task<RefreshIssueResult> IssueAsync(AccountId accountId, CancellationToken cancellationToken = default)
+    public async Task<RefreshIssueResult> IssueAsync(AccountId accountId, int credentialsVersion,
+        CancellationToken cancellationToken = default)
     {
         var now = _time.GetUtcNow().UtcDateTime;
         var (raw, hash) = Generate();
         // Not a secret (tokens are looked up by hash); time-ordered because (AccountId, FamilyId) is indexed.
         var familyId = Guid.CreateVersion7();
 
-        await _repository.CreateAsync(new RefreshToken
+        bool issued = await _repository.CreateIfCredentialsCurrentAsync(new RefreshToken
         {
             AccountId = accountId,
             FamilyId = familyId,
@@ -51,7 +61,10 @@ public sealed class RefreshTokenService : IRefreshTokenService
             Usages = 0,
             CreatedAt = now,
             ExpiresAt = now + DefaultLifetime,
+            CredentialsVersion = credentialsVersion,
         }, cancellationToken);
+        if (!issued)
+            throw new AuthenticationException(CredentialsChanged);
 
         return new RefreshIssueResult(raw, now + DefaultLifetime, familyId);
     }
@@ -82,15 +95,16 @@ public sealed class RefreshTokenService : IRefreshTokenService
             Usages = 0,
             CreatedAt = now,
             ExpiresAt = row.ExpiresAt,
+            CredentialsVersion = row.CredentialsVersion,
         };
 
         switch (await _repository.RotateAsync(row, child, now, cancellationToken))
         {
             case RefreshRotation.Rotated:
-                return new RefreshRotateResult(newRaw, row.ExpiresAt, row.AccountId);
+                return new RefreshRotateResult(newRaw, row.ExpiresAt, row.AccountId, row.CredentialsVersion);
             case RefreshRotation.CredentialsChanged:
-                // Issued before a password change or an MFA reset (#495). That change revoked the
-                // token already; this refuses a rotation that read it just before.
+                // The family was opened before a password change or an MFA reset (#495). That
+                // change revoked the token already; this refuses a rotation that read it just before.
                 throw new UnauthorizedAccessException("Refresh token predates a credentials change");
             default:
                 // Revoked between the read above and the write: another rotation of this token won

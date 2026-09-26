@@ -63,7 +63,7 @@ public sealed class CredentialRevocationShould : IDisposable
 
     private async Task<string> MintPatAsync(AccountId id) =>
         (await _pats.MintSelfAsync(id, AccountAccessLevel.Player, "cli", null, null,
-            new Reauthenticated(id, DateTime.UtcNow))).Token;
+            new Reauthenticated(id, 0))).Token;
 
     private async Task RefreshTokenAsync(AccountId id) =>
         await new RefreshTokenRepository(_database).CreateAsync(new RefreshToken

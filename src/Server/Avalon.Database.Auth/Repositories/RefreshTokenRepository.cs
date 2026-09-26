@@ -10,7 +10,7 @@ public enum RefreshRotation
     /// <summary>The parent was revoked by this call and the child inserted.</summary>
     Rotated,
 
-    /// <summary>The account's credentials changed after the parent was issued (#495): nothing written.</summary>
+    /// <summary>The account's credentials version is no longer the parent's (#495): nothing written.</summary>
     CredentialsChanged,
 
     /// <summary>
@@ -24,7 +24,7 @@ public interface IRefreshTokenRepository
 {
     /// <summary>
     /// Replaces <paramref name="parent"/> with <paramref name="child"/> in one transaction (#495):
-    /// refused when the account's credentials changed after the parent was issued; otherwise the
+    /// refused when the account's credentials version is no longer the parent's; otherwise the
     /// parent is revoked by a conditional write, and the child is inserted only when that write is
     /// the one that revoked it, so of two rotations of one token exactly one goes on. The account
     /// row is held first, so a concurrent credentials change either refuses this rotation or
@@ -32,6 +32,14 @@ public interface IRefreshTokenRepository
     /// </summary>
     Task<RefreshRotation> RotateAsync(RefreshToken parent, RefreshToken child, DateTime now,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Inserts a family's first token, in one transaction that holds the account row, but only
+    /// while the account's credentials version is still <see cref="RefreshToken.CredentialsVersion"/>
+    /// (#495): a login that proved the old password cannot open a family after the change
+    /// committed. Returns <c>false</c>, inserting nothing, when the version moved.
+    /// </summary>
+    Task<bool> CreateIfCredentialsCurrentAsync(RefreshToken token, CancellationToken cancellationToken = default);
 
     Task<RefreshToken> CreateAsync(RefreshToken token, CancellationToken cancellationToken = default);
     Task<RefreshToken?> FindByHashAsync(byte[] hash, CancellationToken cancellationToken = default);
@@ -51,6 +59,22 @@ public sealed class RefreshTokenRepository(IDbContextFactory<AuthDbContext> cont
         return entry.Entity;
     }
 
+    public async Task<bool> CreateIfCredentialsCurrentAsync(RefreshToken token,
+        CancellationToken cancellationToken = default)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
+
+        if (!await AccountRepository.HoldCredentialsVersionAsync(context, token.AccountId, token.CredentialsVersion,
+                cancellationToken))
+            return false;
+
+        context.TrackForInsert(token);
+        await context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return true;
+    }
+
     public async Task<RefreshRotation> RotateAsync(RefreshToken parent, RefreshToken child, DateTime now,
         CancellationToken cancellationToken = default)
     {
@@ -58,7 +82,7 @@ public sealed class RefreshTokenRepository(IDbContextFactory<AuthDbContext> cont
         // An uncommitted transaction rolls back when it is disposed, so the refusals need no catch.
         await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
 
-        if (!await AccountRepository.HoldCredentialsUnchangedSinceAsync(context, parent.AccountId, parent.CreatedAt,
+        if (!await AccountRepository.HoldCredentialsVersionAsync(context, parent.AccountId, parent.CredentialsVersion,
                 cancellationToken))
             return RefreshRotation.CredentialsChanged;
 

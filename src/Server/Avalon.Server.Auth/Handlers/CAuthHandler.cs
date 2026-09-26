@@ -126,6 +126,9 @@ public class CAuthHandler : IAuthPacketHandler<CAuthPacket>
         // cleared (owner decision on #484), so earlier typos do not carry over.
         await _policy.CompleteAsync(attempt);
 
+        // The version of the row the proof was checked against (#495), before the account id
+        // that makes the connection logged in.
+        ctx.Connection.CredentialsVersion = account.CredentialsVersion;
         ctx.Connection.AccountId = account.Id;
 
         account.Online = true;

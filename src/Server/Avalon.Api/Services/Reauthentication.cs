@@ -18,8 +18,8 @@ public interface IReauthentication
 {
     /// <summary>
     /// Returns when <paramref name="password"/> is the account's current password, with the
-    /// instant the check started: a credential issued on the strength of it is refused if the
-    /// account's credentials changed after that instant (#495). Throws
+    /// credentials version of the row the password was checked against: a credential issued on the
+    /// strength of it is refused once the account's version has moved (#495). Throws
     /// <see cref="AuthenticationException"/> ("Invalid current password", 401) for a wrong or empty
     /// one, and <see cref="AccountLockedException"/> (429 LOCKED) when a budget is spent, the account
     /// is locked, or this failure locked it.
@@ -29,10 +29,10 @@ public interface IReauthentication
 }
 
 /// <summary>
-/// A passed current-password check: whose password it was, and when the check started, before the
-/// account was read (#495).
+/// A passed current-password check: whose password it was, and the credentials version of the row
+/// the password was verified against (#495).
 /// </summary>
-public readonly record struct Reauthenticated(AccountId AccountId, DateTime StartedAt);
+public readonly record struct Reauthenticated(AccountId AccountId, int CredentialsVersion);
 
 public sealed class Reauthentication : IReauthentication
 {
@@ -50,10 +50,6 @@ public sealed class Reauthentication : IReauthentication
     public async Task<Reauthenticated> RequireCurrentPasswordAsync(AccountId accountId, string password,
         IPAddress address, CancellationToken cancellationToken = default)
     {
-        // Taken before the account is read: a change that lands at any point after this makes the
-        // proof stale.
-        DateTime startedAt = DateTime.UtcNow;
-
         if (string.IsNullOrWhiteSpace(password))
             throw new AuthenticationException(InvalidPassword);
 
@@ -76,6 +72,8 @@ public sealed class Reauthentication : IReauthentication
 
         // Proved, but no login completed: only this attempt's own slots come back.
         await _policy.GiveBackAsync(attempt);
-        return new Reauthenticated(accountId, startedAt);
+        // The version of the very row whose verifier the password matched: a change committed
+        // after this read, however soon, moves the account past it.
+        return new Reauthenticated(accountId, account.CredentialsVersion);
     }
 }

@@ -33,8 +33,8 @@ namespace Avalon.Database.Auth.Migrations
                     b.Property<int>("AccessLevel")
                         .HasColumnType("integer");
 
-                    b.Property<DateTime?>("CredentialsChangedAt")
-                        .HasColumnType("timestamp with time zone");
+                    b.Property<int>("CredentialsVersion")
+                        .HasColumnType("integer");
 
                     b.Property<string>("Email")
                         .IsRequired()
@@ -123,6 +123,7 @@ namespace Avalon.Database.Auth.Migrations
                         {
                             Id = 1L,
                             AccessLevel = 7,
+                            CredentialsVersion = 0,
                             Email = "admin@avalon.monster",
                             FailedLogins = 0,
                             JoinDate = new DateTime(2021, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
@@ -315,6 +316,9 @@ namespace Avalon.Database.Auth.Migrations
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("CredentialsVersion")
+                        .HasColumnType("integer");
 
                     b.Property<DateTime>("ExpiresAt")
                         .HasColumnType("timestamp with time zone");

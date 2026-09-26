@@ -74,13 +74,13 @@ public class Account : IDbEntity<AccountId>
     public AccountStatus Status { get; set; } = AccountStatus.Active;
 
     /// <summary>
-    /// When the account's credentials last changed (#495): a password change, an MFA reset by its
-    /// owner, or an admin's MFA removal, each written in the transaction that makes the change.
-    /// <c>null</c> when they never have. An access token issued before it, a refresh token issued
-    /// before it, and a personal-access-token mint whose re-authentication started before it are
-    /// all refused.
+    /// A counter raised by one, in the transaction that makes the change, by every password change,
+    /// owner MFA reset and admin MFA removal (#495). Everything issued on the strength of the
+    /// credentials (an access token's <c>cver</c> claim, a refresh token, an MFA hash, a
+    /// re-authentication, a TCP login and its world key) carries the value read from the same row
+    /// that proved them, and is refused once it no longer equals this.
     /// </summary>
-    public DateTime? CredentialsChangedAt { get; set; }
+    public int CredentialsVersion { get; set; }
 }
 
 public enum OperatingSystem : ushort

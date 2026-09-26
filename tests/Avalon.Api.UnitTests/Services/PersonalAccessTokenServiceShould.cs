@@ -22,14 +22,14 @@ public class PersonalAccessTokenServiceShould
     private PersonalAccessTokenService MakeSut() => new(_repo, _random, _time);
 
     /// <summary>A current-password check that passed a moment ago.</summary>
-    private static readonly Reauthenticated Proof = new(new AccountId(7), FixedNow.UtcDateTime);
+    private static readonly Reauthenticated Proof = new(new AccountId(7), 0);
 
     [Fact]
     public async Task MintSelf_DefaultsRolesToCallerRoles_WhenRequestedRolesOmitted()
     {
         _random.GetBytes(32).Returns(Enumerable.Repeat((byte)0xAA, 32).ToArray());
         _repo.CreateUnlessCredentialsChangedAsync(Arg.Any<PersonalAccessToken>(), Arg.Any<AccountId>(),
-                 Arg.Any<DateTime>(), Arg.Any<CancellationToken>())
+                 Arg.Any<int>(), Arg.Any<CancellationToken>())
              .Returns(ci => ci.Arg<PersonalAccessToken>());
 
         var sut = MakeSut();
@@ -66,7 +66,7 @@ public class PersonalAccessTokenServiceShould
     {
         _random.GetBytes(32).Returns(new byte[32]);
         _repo.CreateUnlessCredentialsChangedAsync(Arg.Any<PersonalAccessToken>(), Arg.Any<AccountId>(),
-                 Arg.Any<DateTime>(), Arg.Any<CancellationToken>())
+                 Arg.Any<int>(), Arg.Any<CancellationToken>())
              .Returns(ci => ci.Arg<PersonalAccessToken>());
 
         var sut = MakeSut();

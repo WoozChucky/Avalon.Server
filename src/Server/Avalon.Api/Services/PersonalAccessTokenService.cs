@@ -14,8 +14,8 @@ public interface IPersonalAccessTokenService
 {
     /// <summary>
     /// Mints a token for the caller. Refused with <see cref="AuthenticationException"/> (401) when
-    /// the credentials of the account behind <paramref name="reauthenticated"/> changed after its
-    /// check started (#495).
+    /// the credentials version of the account behind <paramref name="reauthenticated"/> moved since
+    /// its password was checked (#495).
     /// </summary>
     Task<MintResult> MintSelfAsync(AccountId callerId, AccountAccessLevel callerRoles, string name,
         DateTime? expiresAt, AccountAccessLevel? requestedRoles, Reauthenticated reauthenticated,
@@ -132,11 +132,11 @@ public class PersonalAccessTokenService : IPersonalAccessTokenService
             ExpiresAt = resolvedExpiry,
         };
 
-        // Inserted only while the re-authenticated account's credentials have not changed since its
-        // check started (#495): a password change or an MFA reset between the check and this insert
-        // would otherwise leave a token minted on the strength of the old credentials.
+        // Inserted only while the re-authenticated account is still at the version its password was
+        // checked against (#495): a password change or an MFA reset between the check and this
+        // insert would otherwise leave a token minted on the strength of the old credentials.
         var created = await _repository.CreateUnlessCredentialsChangedAsync(entity, reauthenticated.AccountId,
-                          reauthenticated.StartedAt, cancellationToken)
+                          reauthenticated.CredentialsVersion, cancellationToken)
                       ?? throw new AuthenticationException(CredentialsChanged);
 
         return new MintResult(

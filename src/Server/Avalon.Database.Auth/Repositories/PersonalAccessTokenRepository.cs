@@ -14,12 +14,12 @@ public interface IPersonalAccessTokenRepository : IRepository<PersonalAccessToke
     /// <summary>
     /// Inserts <paramref name="token"/>, but only while the credentials of
     /// <paramref name="reauthenticatedAccount"/> (the account whose password authorised the mint)
-    /// have not changed after <paramref name="reauthenticatedAt"/> (#495), in one transaction that
+    /// are still at <paramref name="credentialsVersion"/> (#495), in one transaction that
     /// holds that account's row, so a concurrent change either refuses this insert or revokes it.
     /// Returns <c>null</c>, inserting nothing, when they changed.
     /// </summary>
     Task<PersonalAccessToken?> CreateUnlessCredentialsChangedAsync(PersonalAccessToken token,
-        AccountId reauthenticatedAccount, DateTime reauthenticatedAt, CancellationToken cancellationToken = default);
+        AccountId reauthenticatedAccount, int credentialsVersion, CancellationToken cancellationToken = default);
 }
 
 public class PersonalAccessTokenRepository(IDbContextFactory<AuthDbContext> contextFactory)
@@ -74,7 +74,7 @@ public class PersonalAccessTokenRepository(IDbContextFactory<AuthDbContext> cont
     }
 
     public async Task<PersonalAccessToken?> CreateUnlessCredentialsChangedAsync(PersonalAccessToken token,
-        AccountId reauthenticatedAccount, DateTime reauthenticatedAt, CancellationToken cancellationToken = default)
+        AccountId reauthenticatedAccount, int credentialsVersion, CancellationToken cancellationToken = default)
     {
         await using var context = await CreateContextAsync(cancellationToken);
         // An uncommitted transaction rolls back when it is disposed, so the refusal needs no catch.
@@ -83,8 +83,8 @@ public class PersonalAccessTokenRepository(IDbContextFactory<AuthDbContext> cont
         // First: the account row is held until the insert commits, so a credentials change
         // either committed before this (and refuses it here) or waits for it, and its revocation
         // then takes this token.
-        if (!await AccountRepository.HoldCredentialsUnchangedSinceAsync(context, reauthenticatedAccount,
-                reauthenticatedAt, cancellationToken))
+        if (!await AccountRepository.HoldCredentialsVersionAsync(context, reauthenticatedAccount,
+                credentialsVersion, cancellationToken))
             return null;
 
         var entry = context.TrackForInsert(token);
