@@ -25,6 +25,9 @@ public sealed class RefreshRotationRaceShould : IDisposable
 
     public void Dispose() => _database.Dispose();
 
+    /// <summary>One browser: the same source and User-Agent for both of its tabs.</summary>
+    private static readonly RefreshCaller Tab = RefreshCaller.From(System.Net.IPAddress.Parse("203.0.113.7"), "Browser/1.0");
+
     private async Task<Account> AccountAsync()
     {
         await using AuthDbContext context = _database.CreateDbContext();
@@ -103,7 +106,7 @@ public sealed class RefreshRotationRaceShould : IDisposable
         var service = new RefreshTokenService(new BothReadFirst(real), new SecureRandom(), TimeProvider.System);
 
         Task<RefreshRotateResult>[] rotations =
-            [service.RotateAsync(issued.RawToken), service.RotateAsync(issued.RawToken)];
+            [service.RotateAsync(issued.RawToken, Tab), service.RotateAsync(issued.RawToken, Tab)];
         try { await Task.WhenAll(rotations); } catch { /* inspected below */ }
 
         Assert.Single(rotations, r => r.IsCompletedSuccessfully);
@@ -130,7 +133,7 @@ public sealed class RefreshRotationRaceShould : IDisposable
         var clock = new Clock(DateTimeOffset.UtcNow);
         var service = new RefreshTokenService(new RefreshTokenRepository(_database), new SecureRandom(), clock);
         RefreshIssueResult issued = await service.IssueAsync(account.Id, 0);
-        await service.RotateAsync(issued.RawToken);
+        await service.RotateAsync(issued.RawToken, Tab);
         return (service, clock, issued);
     }
 
@@ -146,9 +149,51 @@ public sealed class RefreshRotationRaceShould : IDisposable
         var (service, clock, issued) = await RotatedOnceAsync();
         clock.Now += TimeSpan.FromSeconds(4);
 
-        Exception refused = await Assert.ThrowsAnyAsync<Exception>(() => service.RotateAsync(issued.RawToken));
+        Exception refused = await Assert.ThrowsAnyAsync<Exception>(() => service.RotateAsync(issued.RawToken, Tab));
 
         Assert.IsType<RefreshAlreadyRotatedException>(refused);
+        Assert.Equal(1, await LiveInFamilyAsync(issued.FamilyId));
+    }
+
+    /// <summary>#495 review: someone else replaying inside the window is not the second tab.</summary>
+    [Fact]
+    public async Task Treat_a_replay_from_another_source_inside_the_grace_window_as_a_reuse()
+    {
+        var (service, clock, issued) = await RotatedOnceAsync();
+        clock.Now += TimeSpan.FromSeconds(1);
+
+        await Assert.ThrowsAsync<RefreshTheftException>(() => service.RotateAsync(issued.RawToken,
+            RefreshCaller.From(System.Net.IPAddress.Parse("198.51.100.9"), "Browser/1.0")));
+
+        Assert.Equal(0, await LiveInFamilyAsync(issued.FamilyId));
+    }
+
+    [Fact]
+    public async Task Treat_a_replay_with_another_user_agent_inside_the_grace_window_as_a_reuse()
+    {
+        var (service, clock, issued) = await RotatedOnceAsync();
+        clock.Now += TimeSpan.FromSeconds(1);
+
+        await Assert.ThrowsAsync<RefreshTheftException>(() => service.RotateAsync(issued.RawToken,
+            RefreshCaller.From(System.Net.IPAddress.Parse("203.0.113.7"), "curl/8.0")));
+
+        Assert.Equal(0, await LiveInFamilyAsync(issued.FamilyId));
+    }
+
+    [Fact]
+    public async Task Forgive_the_same_ipv6_64_with_the_same_user_agent()
+    {
+        Account account = await AccountAsync();
+        var clock = new Clock(DateTimeOffset.UtcNow);
+        var service = new RefreshTokenService(new RefreshTokenRepository(_database), new SecureRandom(), clock);
+        RefreshIssueResult issued = await service.IssueAsync(account.Id, 0);
+        await service.RotateAsync(issued.RawToken,
+            RefreshCaller.From(System.Net.IPAddress.Parse("2001:db8:1:2::10"), "Browser/1.0"));
+        clock.Now += TimeSpan.FromSeconds(1);
+
+        await Assert.ThrowsAsync<RefreshAlreadyRotatedException>(() => service.RotateAsync(issued.RawToken,
+            RefreshCaller.From(System.Net.IPAddress.Parse("2001:db8:1:2::99"), "Browser/1.0")));
+
         Assert.Equal(1, await LiveInFamilyAsync(issued.FamilyId));
     }
 
@@ -158,7 +203,7 @@ public sealed class RefreshRotationRaceShould : IDisposable
         var (service, clock, issued) = await RotatedOnceAsync();
         clock.Now += TimeSpan.FromSeconds(6);
 
-        await Assert.ThrowsAsync<RefreshTheftException>(() => service.RotateAsync(issued.RawToken));
+        await Assert.ThrowsAsync<RefreshTheftException>(() => service.RotateAsync(issued.RawToken, Tab));
 
         Assert.Equal(0, await LiveInFamilyAsync(issued.FamilyId));
     }
@@ -172,7 +217,7 @@ public sealed class RefreshRotationRaceShould : IDisposable
                 .ExecuteUpdateAsync(s => s.SetProperty(t => t.Usages, 1u).SetProperty(t => t.Revoked, true));
         clock.Now += TimeSpan.FromSeconds(1);
 
-        await Assert.ThrowsAsync<RefreshTheftException>(() => service.RotateAsync(issued.RawToken));
+        await Assert.ThrowsAsync<RefreshTheftException>(() => service.RotateAsync(issued.RawToken, Tab));
     }
 
     [Fact]

@@ -67,6 +67,8 @@ public sealed class CredentialsVersionShould : IDisposable
         return await context.Accounts.Where(a => a.Id == id).Select(a => a.CredentialsVersion).SingleAsync();
     }
 
+    private static readonly RefreshCaller Caller = RefreshCaller.From(IPAddress.Loopback, "test-agent");
+
     private RefreshTokenService Refresh() =>
         new(new RefreshTokenRepository(_database), new SecureRandom(), TimeProvider.System);
 
@@ -248,7 +250,7 @@ public sealed class CredentialsVersionShould : IDisposable
         await using (AuthDbContext context = _database.CreateDbContext())
             await AccountRepository.BumpCredentialsVersionAsync(context, account.Id);
 
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => refresh.RotateAsync(issued.RawToken));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => refresh.RotateAsync(issued.RawToken, Caller));
 
         await using AuthDbContext check = _database.CreateDbContext();
         Assert.Equal(1, await check.RefreshTokens.CountAsync(t => t.AccountId == account.Id));
@@ -261,7 +263,7 @@ public sealed class CredentialsVersionShould : IDisposable
         RefreshTokenService refresh = Refresh();
         RefreshIssueResult issued = await refresh.IssueAsync(account.Id, 0);
 
-        RefreshRotateResult rotated = await refresh.RotateAsync(issued.RawToken);
+        RefreshRotateResult rotated = await refresh.RotateAsync(issued.RawToken, Caller);
 
         Assert.Equal(0, rotated.CredentialsVersion);
         await using AuthDbContext context = _database.CreateDbContext();

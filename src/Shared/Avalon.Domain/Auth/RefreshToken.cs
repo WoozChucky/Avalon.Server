@@ -29,4 +29,14 @@ public class RefreshToken : IDbEntity<Guid>
     /// credentials (#495). A token whose version is no longer the account's cannot be rotated.
     /// </summary>
     public int CredentialsVersion { get; set; }
+
+    /// <summary>
+    /// The source (IPv4 address, or IPv6 /64) of the caller whose rotation inserted this token, or
+    /// <c>null</c> for a family's first token (#495 review). Its parent presented again inside the
+    /// grace window is forgiven only for this same caller.
+    /// </summary>
+    public string? RotatedBySource { get; set; }
+
+    /// <summary>SHA-256 of the User-Agent of the caller whose rotation inserted this token (#495 review).</summary>
+    public byte[]? RotatedByAgentHash { get; set; }
 }

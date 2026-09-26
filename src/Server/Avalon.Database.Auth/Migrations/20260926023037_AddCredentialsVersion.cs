@@ -28,6 +28,20 @@ namespace Avalon.Database.Auth.Migrations
                 nullable: false,
                 defaultValue: 0);
 
+            // Who rotated a token in (#495 review): the grace for its parent's replay is only for them.
+            // A family's first token, and every token from before this migration, has neither.
+            migrationBuilder.AddColumn<string>(
+                name: "RotatedBySource",
+                table: "RefreshTokens",
+                type: "text",
+                nullable: true);
+
+            migrationBuilder.AddColumn<byte[]>(
+                name: "RotatedByAgentHash",
+                table: "RefreshTokens",
+                type: "bytea",
+                nullable: true);
+
             migrationBuilder.UpdateData(
                 table: "Accounts",
                 keyColumn: "Id",
@@ -39,6 +53,14 @@ namespace Avalon.Database.Auth.Migrations
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.DropColumn(
+                name: "RotatedByAgentHash",
+                table: "RefreshTokens");
+
+            migrationBuilder.DropColumn(
+                name: "RotatedBySource",
+                table: "RefreshTokens");
+
             migrationBuilder.DropColumn(
                 name: "CredentialsVersion",
                 table: "RefreshTokens");

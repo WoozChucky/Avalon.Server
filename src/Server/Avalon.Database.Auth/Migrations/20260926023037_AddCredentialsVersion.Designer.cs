@@ -342,6 +342,12 @@ namespace Avalon.Database.Auth.Migrations
                     b.Property<bool>("Revoked")
                         .HasColumnType("boolean");
 
+                    b.Property<byte[]>("RotatedByAgentHash")
+                        .HasColumnType("bytea");
+
+                    b.Property<string>("RotatedBySource")
+                        .HasColumnType("text");
+
                     b.Property<long>("Usages")
                         .HasColumnType("bigint");
 

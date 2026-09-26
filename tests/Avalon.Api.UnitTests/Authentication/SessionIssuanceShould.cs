@@ -32,7 +32,7 @@ public sealed class SessionIssuanceShould : IAsyncLifetime
 
     private void RefreshCookieBelongsTo(Account? account)
     {
-        _host.Refresh.RotateAsync(RefreshCookie, Arg.Any<CancellationToken>())
+        _host.Refresh.RotateAsync(RefreshCookie, Arg.Any<RefreshCaller>(), Arg.Any<CancellationToken>())
             .Returns(new RefreshRotateResult("refresh-next", DateTime.UtcNow.AddDays(30), new AccountId(AccountIdValue), 0));
         _host.AccountRepository.FindByIdAsync(Arg.Is<AccountId>(id => id.Value == AccountIdValue), Arg.Any<bool>(),
                 Arg.Any<CancellationToken>())
@@ -83,7 +83,7 @@ public sealed class SessionIssuanceShould : IAsyncLifetime
     [Fact]
     public async Task Leave_the_cookie_and_the_sessions_alone_for_a_refresh_that_lost_a_race()
     {
-        _host.Refresh.RotateAsync(RefreshCookie, Arg.Any<CancellationToken>())
+        _host.Refresh.RotateAsync(RefreshCookie, Arg.Any<RefreshCaller>(), Arg.Any<CancellationToken>())
             .Returns<RefreshRotateResult>(_ => throw new RefreshAlreadyRotatedException());
 
         using HttpResponseMessage response = await PostRefreshAsync();

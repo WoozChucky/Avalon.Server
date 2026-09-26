@@ -46,7 +46,8 @@ public sealed class AccountRefreshController : BaseController
 
         try
         {
-            var rotated = await _refresh.RotateAsync(raw, ct);
+            var caller = RefreshCaller.From(HttpContext.Connection.RemoteIpAddress, Request.Headers.UserAgent.ToString());
+            var rotated = await _refresh.RotateAsync(raw, caller, ct);
             var account = await _accounts.FindByIdAsync(rotated.AccountId, track: false, ct);
             if (!AccountAccessCheck.MayHoldSession(account))
             {
