@@ -196,6 +196,21 @@ public class VendorRulesShould
         Assert.Equal(60UL, decision.Plan.TotalPrice);
     }
 
+    /// <summary>
+    /// An open shop with no stock (the instance keeps none) is a closed shop, not a crash: the
+    /// handler passes whatever ShopAccess.TryUse left in its out parameter.
+    /// </summary>
+    [Fact]
+    public void Answer_ShopClosed_with_the_shop_open_but_no_stock()
+    {
+        CharacterEntity character = Arrange([], 1000, dead: false);
+
+        BuyDecision decision = VendorRules.DecideBuy(character, true, null, TonicSequence, null, Find, NoQuestProgress.Instance);
+
+        Assert.Equal(new BuyDecision(VendorResult.ShopClosed, null), decision);
+        AssertUnchanged(character, 1000, 0);
+    }
+
     /// <summary>The spec's quest-gate case: with no quest system every gated row stays hidden.</summary>
     [Fact]
     public void Hide_every_gated_row_while_no_quest_can_be_met()

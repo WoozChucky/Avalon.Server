@@ -3,6 +3,7 @@ using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abstractions;
+using Avalon.Network.Packets.Character;
 using Avalon.Network.Packets.Vendor;
 using Avalon.Network.Packets.World;
 using Avalon.Server.World.UnitTests.Inventory;
@@ -10,6 +11,7 @@ using Avalon.Server.World.UnitTests.Loot;
 using Avalon.World;
 using Avalon.World.Entities;
 using Avalon.World.Handlers;
+using Avalon.World.Inventory;
 using Avalon.World.Public;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Instances;
@@ -70,6 +72,10 @@ internal sealed class VendorWorld
         public List<SVendorListPacket> Lists() => Read<SVendorListPacket>(NetworkPacketType.SMSG_VENDOR_LIST);
 
         public List<SDialogueEndPacket> Ends() => Read<SDialogueEndPacket>(NetworkPacketType.SMSG_DIALOGUE_END);
+
+        public List<SVendorResultPacket> Results() => Read<SVendorResultPacket>(NetworkPacketType.SMSG_VENDOR_RESULT);
+
+        public List<SInventoryUpdatePacket> Updates() => Read<SInventoryUpdatePacket>(NetworkPacketType.SMSG_INVENTORY_UPDATE);
     }
 
     public IWorld World { get; } = Substitute.For<IWorld>();
@@ -81,6 +87,9 @@ internal sealed class VendorWorld
     public FixedTimeProvider Clock { get; } = new(new DateTimeOffset(VendorTestData.Now));
 
     public IQuestProgress Quests { get; set; } = NoQuestProgress.Instance;
+
+    /// <summary>The real economy over this world; a test may swap in a substitute.</summary>
+    public ICharacterEconomy Economy { get; set; } = null!;
 
     public Dictionary<ObjectGuid, ICreature> Creatures { get; } = [];
 
@@ -146,6 +155,7 @@ internal sealed class VendorWorld
 
         // Only these two instances are stubbed; any other id comes back null.
         TestTown.Stub(World, Data, (InstanceId, instance), (PlainInstanceId, plain));
+        Economy = new CharacterEconomy(World, new ItemIdAllocator());
 
         Main = AddShopper(7, money: 1000);
     }
@@ -176,6 +186,28 @@ internal sealed class VendorWorld
         Shopper who = shopper ?? Main;
         Interact(who, SmithGuid);
         Choose(who, SmithGuid, SmithRoot, SmithWares);
+    }
+
+    /// <summary>One CMSG_VENDOR_BUY through the handler; the answer is the result it sent.</summary>
+    public VendorResult Buy(Shopper shopper, uint request, uint sequence, uint? count = null)
+    {
+        new VendorBuyHandler(NullLogger<VendorBuyHandler>.Instance, World, Economy, Quests, Clock).Execute(
+            shopper.Connection, new CVendorBuyPacket { RequestId = request, Sequence = sequence, Count = count });
+        return shopper.Results()[^1].Result;
+    }
+
+    public VendorResult Sell(Shopper shopper, uint request, uint bagSlot, uint? count = null)
+    {
+        new VendorSellHandler(NullLogger<VendorSellHandler>.Instance, World, Economy).Execute(
+            shopper.Connection, new CVendorSellPacket { RequestId = request, BagSlot = bagSlot, Count = count });
+        return shopper.Results()[^1].Result;
+    }
+
+    public VendorResult Buyback(Shopper shopper, uint request, uint index)
+    {
+        new VendorBuybackHandler(NullLogger<VendorBuybackHandler>.Instance, World, Economy).Execute(
+            shopper.Connection, new CVendorBuybackPacket { RequestId = request, Index = index });
+        return shopper.Results()[^1].Result;
     }
 
     /// <summary>What the instance's vendor pass does after the tick's packets (#432): reconcile and restock, send what is owed, clear.</summary>
