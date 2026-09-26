@@ -111,7 +111,51 @@ public class AuthServer(
     /// the World server parses, so it cannot carry an origin; this is kept here instead.
     /// </summary>
     public void NoteOwnDisconnectPublish(Avalon.Common.ValueObjects.AccountId accountId) =>
-        _ownDisconnectPublishes[accountId.Value] = System.Diagnostics.Stopwatch.GetTimestamp();
+        NoteOwnDisconnectPublish(accountId, System.Diagnostics.Stopwatch.GetTimestamp());
+
+    /// <inheritdoc cref="NoteOwnDisconnectPublish(Avalon.Common.ValueObjects.AccountId)"/>
+    public void NoteOwnDisconnectPublish(Avalon.Common.ValueObjects.AccountId accountId, long now)
+    {
+        // Notes whose echo never came (a lost message, a Redis reconnect) go on the next write, so
+        // the map holds at most the publishes of the last window (#495 re-review).
+        long window = OwnPublishWindowTicks;
+        foreach (KeyValuePair<long, long> note in _ownDisconnectPublishes)
+        {
+            if (now - note.Value > window)
+                _ownDisconnectPublishes.TryRemove(note);
+        }
+
+        _ownDisconnectPublishes[accountId.Value] = now;
+    }
+
+    private static long OwnPublishWindowTicks =>
+        (long)(OwnPublishWindow.TotalSeconds * System.Diagnostics.Stopwatch.Frequency);
+
+    /// <summary>How many own-publish notes are held.</summary>
+    public int OwnPublishNoteCount => _ownDisconnectPublishes.Count;
+
+    /// <summary>
+    /// Handles one message on the account disconnect channel at <paramref name="now"/>: closes the
+    /// account's connections, sparing those that logged in after this server's own note for it, and
+    /// then drops that note, since this message is taken to be its echo (#495 re-review).
+    /// </summary>
+    public int HandleAccountDisconnect(RedisValue message, long now)
+    {
+        if (TryParseAccount(message) is not { } account)
+            return CloseAccountConnections(Connections, message, _logger);
+
+        long? noted = OwnDisconnectPublishedAt(account, now);
+        int closed = CloseAccountConnections(Connections, message, _logger, _ => noted);
+        if (noted is { } at)
+            _ownDisconnectPublishes.TryRemove(new KeyValuePair<long, long>(account.Value, at));
+        return closed;
+    }
+
+    private static Avalon.Common.ValueObjects.AccountId? TryParseAccount(RedisValue message) =>
+        long.TryParse(message.ToString(), System.Globalization.NumberStyles.None,
+            System.Globalization.CultureInfo.InvariantCulture, out long id)
+            ? new Avalon.Common.ValueObjects.AccountId(id)
+            : null;
 
     /// <summary>
     /// When this server last noted its own disconnect publish for <paramref name="accountId"/>, if
@@ -137,8 +181,8 @@ public class AuthServer(
     /// </summary>
     public Task SubscribeToAccountDisconnectsAsync()
     {
-        _accountDisconnectHandler ??= (_, message) => CloseAccountConnections(Connections, message, _logger,
-            id => OwnDisconnectPublishedAt(id, System.Diagnostics.Stopwatch.GetTimestamp()));
+        _accountDisconnectHandler ??= (_, message) =>
+            HandleAccountDisconnect(message, System.Diagnostics.Stopwatch.GetTimestamp());
         return cache.SubscribeAsync(CacheKeys.WorldAccountsDisconnectChannel, _accountDisconnectHandler);
     }
 

@@ -149,6 +149,46 @@ public sealed class AccountDisconnectShould
         Assert.Null(server.OwnDisconnectPublishedAt(new AccountId(8), before));
     }
 
+    private static long Seconds(double seconds) => (long)(seconds * System.Diagnostics.Stopwatch.Frequency);
+
+    /// <summary>#495 re-review: a note is consumed by the echo it was made for.</summary>
+    [Fact]
+    public void Drop_the_note_once_its_echo_has_been_handled()
+    {
+        AuthServer server = Server();
+        server.NoteOwnDisconnectPublish(new AccountId(7), now: Seconds(100));
+
+        server.HandleAccountDisconnect("7", now: Seconds(100.01));
+
+        Assert.Equal(0, server.OwnPublishNoteCount);
+        Assert.Null(server.OwnDisconnectPublishedAt(new AccountId(7), Seconds(100.02)));
+    }
+
+    /// <summary>#495 re-review: notes whose echo never came are pruned on the next write.</summary>
+    [Fact]
+    public void Not_grow_with_notes_whose_echo_never_came()
+    {
+        AuthServer server = Server();
+        for (long id = 1; id <= 100; id++)
+            server.NoteOwnDisconnectPublish(new AccountId(id), now: Seconds(100));
+
+        server.NoteOwnDisconnectPublish(new AccountId(101),
+            now: Seconds(100) + Seconds(AuthServer.OwnPublishWindow.TotalSeconds + 1));
+
+        Assert.Equal(1, server.OwnPublishNoteCount);
+    }
+
+    [Fact]
+    public void Keep_notes_still_inside_the_window_when_pruning()
+    {
+        AuthServer server = Server();
+        server.NoteOwnDisconnectPublish(new AccountId(1), now: Seconds(100));
+
+        server.NoteOwnDisconnectPublish(new AccountId(2), now: Seconds(101));
+
+        Assert.Equal(2, server.OwnPublishNoteCount);
+    }
+
     // ---------------- One connection failing to close (#495 review) ----------------
 
     [Fact]
