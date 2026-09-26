@@ -6,6 +6,7 @@ using Avalon.Api.Authentication.Jwt;
 using Avalon.Api.Config;
 using Avalon.Api.Contract;
 using Avalon.Api.Exceptions;
+using Avalon.Api.Services.Email;
 using Avalon.Common.ValueObjects;
 using Avalon.Database;
 using Avalon.Database.Auth;
@@ -33,7 +34,7 @@ public interface IAccountService
     Task<PagedResult<Account>> Paginate(AccountPaginateFilters filters, CancellationToken cancellationToken = default);
     Task ChangePasswordAsync(AccountId accountId, string currentPassword, string newPassword, IPAddress ipAddress,
         CancellationToken cancellationToken = default);
-    Task<string> InitiateEmailChangeAsync(AccountId accountId, string newEmail, string currentPassword,
+    Task InitiateEmailChangeAsync(AccountId accountId, string newEmail, string currentPassword,
         IPAddress ipAddress, CancellationToken cancellationToken = default);
     Task ConfirmEmailChangeAsync(string token, CancellationToken cancellationToken = default);
     Task UpdateStatusAsync(AccountId accountId, Avalon.Api.Contract.AccountStatus state, string? reason, AccountId actorId, CancellationToken cancellationToken = default);
@@ -63,6 +64,10 @@ public class AccountService : IAccountService
     private readonly AuthenticationConfig _authConfig;
     private readonly PasswordLoginPolicy _loginPolicy;
     private readonly IReauthentication _reauthentication;
+    private readonly IEmailSender? _emailSender;
+
+    /// <summary>What precedes the token in an email-change confirmation, on a line of its own (#510).</summary>
+    public const string EmailChangeTokenLabel = "Confirmation token: ";
 
     public AccountService(ILoggerFactory loggerFactory,
         IAccountRepository accountRepository,
@@ -75,8 +80,10 @@ public class AccountService : IAccountService
         IDbTransactionRunner<AuthDbContext> authTransaction,
         AuthenticationConfig authConfig,
         PasswordLoginPolicy loginPolicy,
-        IReauthentication reauthentication)
+        IReauthentication reauthentication,
+        IEmailSender? emailSender = null)
     {
+        _emailSender = emailSender;
         _logger = loggerFactory.CreateLogger<AccountService>();
         _accountRepository = accountRepository;
         _jwtUtils = jwtUtils;
@@ -400,12 +407,18 @@ public class AccountService : IAccountService
     /// change before the confirm voids it.
     /// </summary>
     /// <remarks>
-    /// The token is returned to the in-process caller, never in the HTTP response. Nothing
-    /// delivers it yet: the API has no email sender (see #503).
+    /// The token goes by email to the new address only (#510), never back to the caller, and a
+    /// notice with no token goes to the old one. A confirmation that cannot be sent deletes the
+    /// pending change and throws <see cref="EmailDeliveryException"/> (503), so a retry starts
+    /// afresh; a notice that cannot be sent is logged at Warning and the change stays started.
+    /// Needs an <see cref="IEmailSender"/>: without one the controller answers 501 before this.
     /// </remarks>
-    public async Task<string> InitiateEmailChangeAsync(AccountId accountId, string newEmail, string currentPassword,
+    public async Task InitiateEmailChangeAsync(AccountId accountId, string newEmail, string currentPassword,
         IPAddress ipAddress, CancellationToken cancellationToken = default)
     {
+        IEmailSender sender = _emailSender ?? throw new InvalidOperationException(
+            "Email change needs an email sender; Application:Email:Sender is None.");
+
         if (!AccountEmail.IsValid(newEmail))
             throw new BusinessException(AccountEmail.Requirement);
 
@@ -421,19 +434,142 @@ public class AccountService : IAccountService
         if (await _accountRepository.FindByEmailAsync(email, cancellationToken) != null)
             throw new BusinessException(EmailTaken);
 
+        // The old address, for the notice. Read again: the proof does not hand the row out. Gone
+        // since the proof, it is answered as the proof answers a missing account.
+        var oldEmail = (await _accountRepository.FindByIdAsync(accountId, track: false, cancellationToken))?.Email
+                       ?? throw new AuthenticationException(Reauthentication.InvalidPassword);
+
+        // Last of the checks, just before anything is sent (#510 review): a send is never given back,
+        // so neither a password holder nor many accounts together can turn this into a mail relay.
+        await TakeEmailChangeSendSlotsAsync(accountId, email);
+
         var raw = _secureRandom.GetBytes(24);
         var token = Convert.ToBase64String(raw).Replace("+", "-").Replace("/", "_").TrimEnd('=');
+        var tokenHash = Sha256Hex(token);
 
         // The email goes last: it is the only part that can hold the separator.
         var payload = string.Create(System.Globalization.CultureInfo.InvariantCulture,
             $"{accountId.Value}|{proof.CredentialsVersion}|{email}");
-        await _cache.SetAsync(EmailChangeKey(token), payload, TimeSpan.FromMinutes(15));
+        await _cache.SetAsync(CacheKeys.EmailChange(tokenHash), payload, EmailChangeLifetime);
 
+        // From here the change is stored: a caller dropping the connection must not stop either
+        // email, the notice to the old address least of all (#510 review). Each send has its own
+        // timeout instead of the request's token.
+        try
+        {
+            using var confirmTimeout = new CancellationTokenSource(EmailSendTimeout);
+            await sender.SendAsync(email, EmailChangeConfirmSubject, EmailChangeConfirmBody(token), confirmTimeout.Token);
+        }
+        catch (Exception ex)
+        {
+            // Nobody holds this token, so it must not stay live; a retry makes a new one. The source
+            // slot stays taken: the answer still says the address is free.
+            try
+            {
+                await _cache.RemoveAsync(CacheKeys.EmailChange(tokenHash));
+            }
+            catch (Exception cleanup)
+            {
+                // It expires with its TTL; nobody holds its token.
+                _logger.LogError("Could not delete an unsent email-change confirmation for account {AccountId} ({ExceptionType})",
+                    accountId.Value, cleanup.GetType().Name);
+            }
+
+            // By type and domain only: the exception's message can hold the body, and so the token.
+            _logger.Log(ex is OperationCanceledException ? LogLevel.Information : LogLevel.Error,
+                "Could not send the email-change confirmation for account {AccountId} to an address at {Domain} ({ExceptionType}); the change was not started",
+                accountId.Value, DomainOf(email), ex.GetType().Name);
+            throw new EmailDeliveryException();
+        }
+
+        // Only once the confirmation went (#510 re-review): a start that could not send leaves the
+        // earlier pending change as it was.
+        await ReplacePendingEmailChangeAsync(accountId, tokenHash);
         await SourceBudget.GiveBackAsync(_cache, sourceKey);
-        return token;
+
+        try
+        {
+            using var noticeTimeout = new CancellationTokenSource(EmailSendTimeout);
+            await sender.SendAsync(oldEmail, EmailChangeNoticeSubject, EmailChangeNoticeBody(email), noticeTimeout.Token);
+        }
+        catch (Exception ex)
+        {
+            // The change is started and the new address holds the token; the notice is best-effort.
+            _logger.LogWarning(
+                "Could not send the email-change notice for account {AccountId} to its old address at {Domain} ({ExceptionType})",
+                accountId.Value, DomainOf(oldEmail), ex.GetType().Name);
+        }
     }
 
-    private static string EmailChangeKey(string token) => $"auth:emailChange:{token}";
+    private static readonly TimeSpan EmailChangeLifetime = TimeSpan.FromMinutes(15);
+
+    private const string EmailChangeConfirmSubject = "Confirm your new Avalon email address";
+    private const string EmailChangeNoticeSubject = "Your Avalon email address is being changed";
+
+    private static string EmailChangeConfirmBody(string token) => string.Join('\n',
+        "A change of your Avalon account's email address to this address was requested.",
+        "",
+        "To confirm it, submit this token to POST /account/email/confirm within "
+        + $"{(int)EmailChangeLifetime.TotalMinutes} minutes:",
+        "",
+        EmailChangeTokenLabel + token,
+        "",
+        "If you did not ask for this, ignore this email: nothing changes unless the token is used.");
+
+    private static string EmailChangeNoticeBody(string newEmail) => string.Join('\n',
+        $"A change of your Avalon account's email address to {newEmail} was requested.",
+        "",
+        "The change needed your password. It takes effect only if it is confirmed from the new address.",
+        "",
+        "If this was not you, change your password now: that voids the pending change and signs out every session.");
+
+    private static string DomainOf(string address) => address[(address.LastIndexOf('@') + 1)..];
+
+    /// <summary>The pending change a presented token names: keyed by the token's SHA-256, never the token (#510 review).</summary>
+    public static string EmailChangeKey(string token) => CacheKeys.EmailChange(Sha256Hex(token));
+
+    private static string Sha256Hex(string value) =>
+        Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(value)));
+
+    /// <summary>
+    /// Takes a slot of the account's and of the new address's email-change send budgets (#510
+    /// review), never given back. Past either: 429 LOCKED, and nothing is stored or sent.
+    /// </summary>
+    private async Task TakeEmailChangeSendSlotsAsync(AccountId accountId, string email)
+    {
+        var window = TimeSpan.FromMinutes(_authConfig.EmailChangeSendWindowMinutes);
+        if (await AttemptBudget.TakeAsync(_cache, CacheKeys.AccountEmailChangeSends(accountId.Value), window)
+            > _authConfig.MaxEmailChangeSendsPerAccount)
+        {
+            _logger.LogWarning("Email change refused for account {AccountId}: send budget spent", accountId.Value);
+            throw new AccountLockedException();
+        }
+
+        if (await AttemptBudget.TakeAsync(_cache, CacheKeys.EmailChangeSends(Sha256Hex(email)), window)
+            > _authConfig.MaxEmailChangeSendsPerAddress)
+        {
+            _logger.LogWarning("Email change refused for account {AccountId}: the new address's send budget is spent",
+                accountId.Value);
+            throw new AccountLockedException();
+        }
+    }
+
+    /// <summary>How long each email-change send may take (#510 re-review), whatever the request does.</summary>
+    public static readonly TimeSpan EmailSendTimeout = TimeSpan.FromSeconds(30);
+
+    /// <summary>
+    /// Makes <paramref name="tokenHash"/> the account's one pending change (#510 review): the change
+    /// an earlier start left pending is deleted, so only the latest token confirms. The pointer is
+    /// swapped in one script (#510 re-review), so of two starts the later swap always sees, and
+    /// deletes, the earlier one's change.
+    /// </summary>
+    private async Task ReplacePendingEmailChangeAsync(AccountId accountId, string tokenHash)
+    {
+        var previous = await _cache.SwapAsync(CacheKeys.AccountEmailChangePending(accountId.Value), tokenHash,
+            EmailChangeLifetime);
+        if (!string.IsNullOrEmpty(previous) && !string.Equals(previous, tokenHash, StringComparison.Ordinal))
+            await _cache.RemoveAsync(CacheKeys.EmailChange(previous));
+    }
 
     /// <summary>
     /// Confirms an email change: a credentials change (#503). One transaction writes the email by
@@ -490,6 +626,19 @@ public class AccountService : IAccountService
         // The account is gone, or its credentials changed since the change was started.
         if (!changed)
             throw new BusinessException(InvalidEmailToken);
+
+        // Nothing is pending any more (#510 re-review), unless a newer start swapped the pointer since:
+        // it goes only while it still names this token. Best-effort: the change is committed, and a
+        // pointer left behind only names an entry that is gone, until its TTL.
+        try
+        {
+            await _cache.RemoveIfEqualsAsync(CacheKeys.AccountEmailChangePending(accountId.Value), Sha256Hex(token));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning("Could not clear the email-change pointer of account {AccountId} ({ExceptionType})",
+                accountId.Value, ex.GetType().Name);
+        }
 
         // A login past its password step holds an MFA hash made at the old version: it can no
         // longer complete, and clearing it frees the account's hash slot, as after a password change.

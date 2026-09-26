@@ -9,6 +9,12 @@ public class SDialogueOptionInfo
 {
     [ProtoMember(1)] public int OptionId { get; set; }
     [ProtoMember(2)] public string Text { get; set; } = string.Empty;
+
+    /// <summary>
+    /// The action choosing this option will run, or Conversation when it runs none (#522). A value
+    /// the client does not know means "do not offer this option".
+    /// </summary>
+    [ProtoMember(3)] public DialogueOptionKind Kind { get; set; }
 }
 
 /// <summary>

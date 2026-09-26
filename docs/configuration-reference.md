@@ -286,6 +286,59 @@ A caller with no peer address at all is refused with 400 on the endpoints that s
 
 ---
 
+## REST API Email
+
+Section: `Application:Email` in `Avalon.Api` (#510)
+
+| Key               | Type   | Default                                   | Description |
+|-------------------|--------|-------------------------------------------|-------------|
+| `Sender`          | enum   | `None`                                    | `None` or `Pickup`. Which email sender the API uses |
+| `PickupDirectory` | string | `avalon-mail` under `Environment.SpecialFolder.LocalApplicationData` | Where `Pickup` writes its `.eml` files; created when missing, with mode 0700 on Unix |
+| `From`            | string | none                                      | The address every email is sent from. Required, as a bare address (`noreply@example.com`, no display name), when `Sender` is `Pickup` |
+
+Email change (`POST /account/email/change` and `/account/email/confirm`) is on only while a sender is
+configured:
+
+- `None`, the default, registers no sender. Both endpoints answer 501 "Email change is unavailable until
+  email delivery exists".
+- `Pickup` writes each email as an RFC 5322 `.eml` file (plain text, UTF-8) into `PickupDirectory`, which
+  any mail client opens. Nothing leaves the machine. The files hold the confirm tokens, so it is
+  **Development only**.
+
+With a sender, starting a change sends the confirm token to the new address and a notice with no token to
+the old one, and answers 202 with no body. If the confirmation cannot be sent, the pending change is
+deleted and the answer is 503 "Email could not be sent"; a retry starts afresh. A notice that cannot be
+sent is logged at Warning and the change still starts. Sender failures are logged by exception type and
+recipient domain only, never the subject, body or token.
+
+Sending is budgeted under `Application:Authentication` (#510 review). The slots are taken just before
+the send, after every other check, and are never given back. Past either budget the answer is 429
+`LOCKED`, and nothing is stored or sent. A new start whose confirmation is sent also voids the account's earlier pending change, so
+only the latest token confirms. Each email is sent with its own 30 s timeout, never the request's token. The per-address send budget can be spent by any accounts, so three accounts can block an address as a change target for the window; account creation is capped per source, which keeps the impact small.
+
+| Key                             | Type | Default | Description |
+|---------------------------------|------|---------|-------------|
+| `MaxEmailChangeSendsPerAccount` | int  | `3`     | Confirmations one account may have sent per window |
+| `MaxEmailChangeSendsPerAddress` | int  | `3`     | Confirmations sent to one new address, from every account, per window |
+| `EmailChangeSendWindowMinutes`  | int  | `60`    | The window, fixed from the first send |
+
+- Startup refuses, naming the setting:
+  - any of the three send-budget values above below 1;
+  - `Sender` `Pickup` outside Development (`Application:Email:Sender`);
+  - `Sender` `Pickup` with a missing or invalid `From` (`Application:Email:From`).
+- At startup the API logs the sender and whether email change is on.
+
+```bash
+# Development only
+dotnet user-secrets set "Application:Email:Sender" "Pickup" --project src/Server/Avalon.Api
+dotnet user-secrets set "Application:Email:From" "noreply@avalon.monster" --project src/Server/Avalon.Api
+```
+
+A real provider (SMTP or HTTP) is not implemented yet; it will sit behind the same `IEmailSender`, and its
+credentials will load from user-secrets or the environment, like the JWT signing key.
+
+---
+
 ## REST API Personal Access Tokens
 
 The `Authorization: Avalon avp_...` scheme takes no configuration and there is no shared secret. Each

@@ -1,10 +1,14 @@
+using Avalon.Common.Telemetry;
+using Avalon.Common.ValueObjects;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Domain.Auth;
 using Avalon.Infrastructure;
 using Avalon.Infrastructure.Login;
 using Avalon.Infrastructure.Services;
 using Avalon.Network.Packets.Auth;
+using Avalon.Hosting.Telemetry;
 using Avalon.Server.Auth.Configuration;
+using Avalon.Server.Auth.Telemetry;
 using Microsoft.Extensions.Options;
 
 namespace Avalon.Server.Auth.Handlers;
@@ -36,6 +40,7 @@ public class CAuthHandler : IAuthPacketHandler<CAuthPacket>
         if (string.IsNullOrWhiteSpace(ctx.Packet.Username) || string.IsNullOrWhiteSpace(ctx.Packet.Password))
         {
             ctx.Connection.Send(SAuthResultPacket.Create(null, null, AuthResult.INVALID_CREDENTIALS, ctx.Connection.CryptoSession.Encrypt));
+            Record(ctx, LoginTelemetry.Tag(AuthResult.INVALID_CREDENTIALS), null);
             return;
         }
 
@@ -51,6 +56,7 @@ public class CAuthHandler : IAuthPacketHandler<CAuthPacket>
         if (attempt.Refused)
         {
             ctx.Connection.Send(SAuthResultPacket.Create(null, null, AuthResult.LOCKED, ctx.Connection.CryptoSession.Encrypt));
+            Record(ctx, LoginTelemetry.RateLimited, null);
             return;
         }
 
@@ -72,6 +78,7 @@ public class CAuthHandler : IAuthPacketHandler<CAuthPacket>
             _logger.LogWarning("Account {AccountId} refused at login while {Status}", account.Id, account.Status);
             AuthResult refusal = account.Status == AccountStatus.Deactivated ? AuthResult.DEACTIVATED : AuthResult.BANNED;
             ctx.Connection.Send(SAuthResultPacket.Create(null, null, refusal, ctx.Connection.CryptoSession.Encrypt));
+            Record(ctx, LoginTelemetry.Tag(refusal), account.Id);
             return;
         }
 
@@ -83,12 +90,14 @@ public class CAuthHandler : IAuthPacketHandler<CAuthPacket>
             await _policy.GiveBackAsync(attempt);
             var mfaHash = await _mfaHashService.GenerateHashAsync(account);
             ctx.Connection.Send(SAuthResultPacket.Create(null, mfaHash, AuthResult.MFA_REQUIRED, ctx.Connection.CryptoSession.Encrypt));
+            Record(ctx, LoginTelemetry.Tag(AuthResult.MFA_REQUIRED), account.Id);
             return;
         }
 
         if (account.Online)
         {
             ctx.Connection.Send(SAuthResultPacket.Create(null, null, AuthResult.ALREADY_CONNECTED, ctx.Connection.CryptoSession.Encrypt));
+            Record(ctx, LoginTelemetry.Tag(AuthResult.ALREADY_CONNECTED), account.Id);
 
             // Noted first, so the login that follows this refusal is not kicked when the message
             // comes back to this server (#495 review).
@@ -122,6 +131,7 @@ public class CAuthHandler : IAuthPacketHandler<CAuthPacket>
         {
             _logger.LogWarning("Account {AccountId} was locked during its login", account.Id);
             ctx.Connection.Send(SAuthResultPacket.Create(null, null, FailureResult(attempt), ctx.Connection.CryptoSession.Encrypt));
+            Record(ctx, LoginTelemetry.Tag(FailureResult(attempt)), account.Id);
             return;
         }
 
@@ -145,6 +155,15 @@ public class CAuthHandler : IAuthPacketHandler<CAuthPacket>
         await _cache.PublishAsync(CacheKeys.AuthAccountsOnlineChannel, account.Id.ToString());
 
         ctx.Connection.Send(SAuthResultPacket.Create(account.Id, null, AuthResult.SUCCESS, ctx.Connection.CryptoSession.Encrypt));
+        Record(ctx, LoginTelemetry.Tag(AuthResult.SUCCESS), account.Id);
+    }
+
+    /// <summary>Counts the login by result and logs it, next to the reply that told the client.</summary>
+    private void Record(AuthPacketContext<CAuthPacket> ctx, string result, AccountId? account)
+    {
+        DiagnosticsConfig.Auth.Logins.Add(1, new KeyValuePair<string, object?>("result", result));
+        _logger.Log(LoginTelemetry.LogLevelFor(result), "Login {LoginResult} for account {AccountId} from {ClientAddress}",
+            result, account?.Value, PacketTags.AddressOf(ctx.Connection.RemoteEndPoint));
     }
 
     /// <summary>The answer to a wrong password in this attempt's budget slot.</summary>
@@ -162,6 +181,7 @@ public class CAuthHandler : IAuthPacketHandler<CAuthPacket>
     private async Task FailAsync(AuthPacketContext<CAuthPacket> ctx, PasswordAttempt attempt, CancellationToken token)
     {
         ctx.Connection.Send(SAuthResultPacket.Create(null, null, FailureResult(attempt), ctx.Connection.CryptoSession.Encrypt));
+        Record(ctx, LoginTelemetry.Tag(FailureResult(attempt)), attempt.Account?.Id);
         await _policy.RecordFailureAsync(attempt, token);
     }
 }

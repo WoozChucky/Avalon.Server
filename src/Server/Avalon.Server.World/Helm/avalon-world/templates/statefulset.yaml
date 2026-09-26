@@ -41,6 +41,14 @@ spec:
               value: {{ .Values.server.hosting.host | quote }}
             - name: Hosting__Port
               value: {{ .Values.service.port | quote }}
+            - name: Hosting__ProxyProtocol__Enabled
+              value: {{ .Values.server.proxyProtocol.enabled | quote }}
+            - name: Hosting__ProxyProtocol__HeaderTimeoutSeconds
+              value: {{ .Values.server.proxyProtocol.headerTimeoutSeconds | quote }}
+            {{- range $i, $network := .Values.server.proxyProtocol.trustedProxies }}
+            - name: Hosting__ProxyProtocol__TrustedProxies__{{ $i }}
+              value: {{ $network | quote }}
+            {{- end }}
             - name: Cache__Host
               value: {{ required "server.cache.host is required: host:port of Redis" .Values.server.cache.host | quote }}
             - name: Cache__Password
@@ -71,6 +79,18 @@ spec:
               value: {{ .Values.server.game.maxCharactersPerAccount | quote }}
             - name: DOTNET_HOSTBUILDER__RELOADCONFIGONCHANGE
               value: "false"
+            {{- with .Values.otel.endpoint }}
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: {{ . | quote }}
+            - name: OTEL_SERVICE_NAME
+              value: {{ $.Values.otel.serviceName | default (include "avalon-server.fullname" $) | quote }}
+            {{- $attrs := list (printf "avalon.world.id=%v" $.Values.server.game.worldId) }}
+            {{- range $key, $value := $.Values.otel.resourceAttributes }}
+            {{- $attrs = append $attrs (printf "%s=%v" $key $value) }}
+            {{- end }}
+            - name: OTEL_RESOURCE_ATTRIBUTES
+              value: {{ join "," $attrs | quote }}
+            {{- end }}
           ports:
             - name: server-tcp
               containerPort: {{ .Values.service.port }}

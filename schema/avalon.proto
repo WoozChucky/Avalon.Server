@@ -296,6 +296,11 @@ message CharacterInfo {
    uint64 RequiredExperience = 11;
    float MovementSpeed = 12;
 }
+enum DialogueOptionKind {
+   DialogueOptionKind_Conversation = 0;
+   DialogueOptionKind_OpenBank = 1;
+   DialogueOptionKind_OpenShop = 2;
+}
 enum DisconnectReason {
    DisconnectReason_Unknown = 0;
    DisconnectReason_ServerShutdown = 1;
@@ -666,6 +671,7 @@ message SDialogueNodePacket {
 message SDialogueOptionInfo {
    int32 OptionId = 1;
    optional string Text = 2;
+   DialogueOptionKind Kind = 3;
 }
 message SDisconnectPacket {
    optional string Reason = 1;

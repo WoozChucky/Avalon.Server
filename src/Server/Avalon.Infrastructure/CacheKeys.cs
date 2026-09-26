@@ -89,6 +89,31 @@ public static class CacheKeys
     public static string AuthSourceAccountsCreated(string source) => $"auth:source:{source}:accountsCreated";
 
     /// <summary>
+    /// A pending email change (#503, #510), keyed by the lowercase hex SHA-256 of its confirm token, so
+    /// the key never holds the token. Value: <c>{accountId}|{credentialsVersion}|{email}</c>, 15 min TTL;
+    /// the confirm's DEL spends it.
+    /// </summary>
+    public static string EmailChange(string tokenHash) => $"auth:emailChange:{tokenHash}";
+
+    /// <summary>
+    /// The account's one pending email change (#510 review). Value: the token hash of
+    /// <see cref="EmailChange"/>; a new start deletes the entry it names, so only the latest token works.
+    /// </summary>
+    public static string AccountEmailChangePending(long accountId) => $"auth:account:{accountId}:emailChangePending";
+
+    /// <summary>
+    /// Email-change confirmations sent for one account (#510 review). <c>INCR</c> before each send, the
+    /// expiry set by the first (<c>EmailChangeSendWindowMinutes</c>); never given back.
+    /// </summary>
+    public static string AccountEmailChangeSends(long accountId) => $"auth:account:{accountId}:emailChangeSends";
+
+    /// <summary>
+    /// Email-change confirmations sent to one address from every account (#510 review), keyed by the
+    /// lowercase hex SHA-256 of the normalised address. Counted as <see cref="AccountEmailChangeSends"/>.
+    /// </summary>
+    public static string EmailChangeSends(string emailHash) => $"auth:email:{emailHash}:emailChangeSends";
+
+    /// <summary>
     /// Login and MFA-code attempts at one username, from every source and over both the TCP login and the
     /// REST API (#484, #478). It decides
     /// the account lock: an attempt past <c>Application:MaxFailedLoginAttempts</c> is refused as

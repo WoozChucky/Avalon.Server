@@ -101,6 +101,19 @@ public class ExceptionHandlerMiddleware
                     Instance = $"{context.Request.Method} {context.Request.Path}"
                 }, cancellationToken: context.RequestAborted);
                 return;
+            // An email the request needed could not be sent (#510). The thrower logged it, by type
+            // and domain only; this exception carries nothing more.
+            case EmailDeliveryException ex:
+                context.Request.HttpContext.Response.StatusCode = (int)HttpStatusCode.ServiceUnavailable;
+                await context.Response.WriteAsJsonAsync(new ProblemDetails
+                {
+                    Status = (int)HttpStatusCode.ServiceUnavailable,
+                    Type = "ServiceUnavailable",
+                    Title = "Service unavailable",
+                    Detail = ex.Message,
+                    Instance = $"{context.Request.Method} {context.Request.Path}"
+                }, cancellationToken: context.RequestAborted);
+                return;
             case BusinessException ex:
                 context.Request.HttpContext.Response.StatusCode = (int)HttpStatusCode.BadRequest;
                 await context.Response.WriteAsJsonAsync(new ProblemDetails

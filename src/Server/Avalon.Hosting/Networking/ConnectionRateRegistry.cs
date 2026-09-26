@@ -20,8 +20,8 @@ public interface IConnectionRates
 }
 
 /// <summary>
-/// The network rate gauges, registered once per Meter and reporting the sum over the connections
-/// still open. A Meter keeps every observable instrument, and the closure it captured, until it
+/// The network gauges: the rates, and how many connections are open. Registered once per Meter,
+/// the rates report the sum over the connections still open. A Meter keeps every observable instrument, and the closure it captured, until it
 /// is disposed, so the gauges each connection used to register kept every connection alive for
 /// the life of the process.
 /// </summary>
@@ -41,6 +41,8 @@ public sealed class ConnectionRateRegistry
             "bytes/s", "Rate of bytes sent");
         meter.CreateObservableGauge("network.in.bytes.rate", () => Sum(c => c.BytesReceivedRate),
             "bytes/s", "Rate of bytes received");
+        meter.CreateObservableGauge("avalon.connections.active", () => _live.Count,
+            "{connections}", "Connections open");
     }
 
     public int Count => _live.Count;

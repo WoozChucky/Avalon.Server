@@ -11,7 +11,6 @@ using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Dialogue;
 using Avalon.World.Public.Instances;
-using Avalon.World.Public.Localization;
 using Avalon.World.Quests;
 using Avalon.World.Vendors;
 using Microsoft.Extensions.Logging;
@@ -43,7 +42,6 @@ public class DialogueChooseHandler(ILogger<DialogueChooseHandler> logger, IWorld
     : WorldPacketHandler<CDialogueChoosePacket>
 {
     private IDialogueCatalog Dialogue => world.Data.Dialogue;
-    private ILocalizedTextCatalog Text => world.Data.LocalizedTexts;
     private DialogueActions Actions => world.Data.DialogueActions;
 
     /// <summary>Optional so the tests that build this handler with two arguments keep working; the container passes it.</summary>
@@ -140,12 +138,13 @@ public class DialogueChooseHandler(ILogger<DialogueChooseHandler> logger, IWorld
         // An action runs only once the conversation is known to stay open: OpenBank opens the bank
         // for as long as this conversation lasts, so on an option that ends it (or leads nowhere)
         // it would send the Bank to a window that closes in the same breath. The leash was checked
-        // above.
-        if (Actions.For(chosen.Id) is { } action)
+        // above. DialogueOptionKinds holds that rule, so the kind each option went out with (#522)
+        // names exactly the action that runs here.
+        if (DialogueOptionKinds.ActionThatRuns(Actions, Dialogue, chosen) is { } action)
             RunAction(connection, character, npc, context, action);
 
         connection.CurrentDialogue = (open.Npc, next.Id);
-        InteractHandler.Send(connection, npc, next, character, Text);
+        InteractHandler.Send(connection, npc, next, character, world.Data);
     }
 
     private static void End(IWorldConnection connection, ObjectGuid npc) =>

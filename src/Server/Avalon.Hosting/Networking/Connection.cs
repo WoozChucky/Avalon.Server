@@ -3,6 +3,7 @@
 
 using System;
 using System.IO;
+using System.Net;
 using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
@@ -95,6 +96,10 @@ public abstract class Connection : BackgroundService, IConnection, IConnectionRa
 
     public void Close(bool expected = true) => _ = CloseAsync(expected);
 
+    /// <summary>Probes connect and send nothing (#528): their disconnects are Debug.</summary>
+    public static LogLevel DisconnectLogLevel(int packetsReceived) =>
+        packetsReceived > 0 ? LogLevel.Information : LogLevel.Debug;
+
     public Task CloseAsync(bool expected = true)
     {
         if (Interlocked.Exchange(ref _closed, 1) == 0)
@@ -121,6 +126,10 @@ public abstract class Connection : BackgroundService, IConnection, IConnectionRa
             _client?.Close();
 
             await OnClose(expected).ConfigureAwait(false);
+
+            _logger.Log(DisconnectLogLevel(Volatile.Read(ref PacketReceivedCount)),
+                "Connection {ConnectionId} from {RemoteEndPoint} closed ({CloseKind})",
+                Id, RemoteEndPoint, expected ? "expected" : "unexpected");
         }
         catch (Exception e)
         {
@@ -162,6 +171,47 @@ public abstract class Connection : BackgroundService, IConnection, IConnectionRa
 
     protected abstract long GetServerTime();
 
+    /// <summary>
+    /// A trusted proxy prefixes the connection with a PROXY v2 header naming the real client; it is
+    /// read here, before <see cref="GetStream" /> starts TLS, and replaces <see cref="RemoteEndPoint" />.
+    /// Other peers are direct clients and are never asked for one, so only a trusted proxy can assert
+    /// an address. A trusted peer that sends no valid header in time is dropped: accepting it would
+    /// let whoever reached the proxy's address speak for any client.
+    /// One that closes before sending any byte (a health check) is logged at Debug, the rest at Warning (#528).
+    /// </summary>
+    /// <returns>False when the connection must be dropped.</returns>
+    private async Task<bool> ResolveProxiedClientAsync(TcpClient client, CancellationToken stoppingToken)
+    {
+        ProxyProtocolPolicy policy = Server.ProxyProtocol;
+        if (client.Client.RemoteEndPoint is not IPEndPoint peer || !policy.IsTrusted(peer.Address))
+            return true;
+
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
+        timeout.CancelAfter(policy.HeaderTimeout);
+        try
+        {
+            // Not owning the socket: GetStream wraps the same socket next, at the byte after the header.
+            await using var raw = new NetworkStream(client.Client, ownsSocket: false);
+            ProxyHeader header = await ProxyProtocolV2.ReadAsync(raw, timeout.Token).ConfigureAwait(false);
+            if (header.Source is not null)
+                RemoteEndPoint = header.Source.ToString();
+            return true;
+        }
+        catch (ProxyHeaderNotSentException)
+        {
+            // Connected and closed without a byte: a health check or a port scan, not a bad proxy (#528).
+            _logger.LogDebug("Dropped connection from trusted proxy {Peer}: closed before sending anything", peer);
+            return false;
+        }
+        catch (Exception e) when (e is InvalidDataException or EndOfStreamException or IOException
+                                      || (e is OperationCanceledException && !stoppingToken.IsCancellationRequested))
+        {
+            _logger.LogWarning("Dropped connection from trusted proxy {Peer}: no valid PROXY header ({Reason})",
+                peer, e.Message);
+            return false;
+        }
+    }
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         try
@@ -172,7 +222,10 @@ public abstract class Connection : BackgroundService, IConnection, IConnectionRa
                 return;
             }
 
-            _logger.LogInformation("New connection from {RemoteEndPoint}", _client.Client.RemoteEndPoint?.ToString());
+            if (!await ResolveProxiedClientAsync(_client, stoppingToken))
+                return;
+
+            _logger.LogInformation("New connection from {RemoteEndPoint}", RemoteEndPoint);
 
             _stream = await GetStream(_client);
 

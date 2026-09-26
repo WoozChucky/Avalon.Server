@@ -19,7 +19,7 @@ using ProtoBuf;
 
 namespace Avalon.Server.Auth.UnitTests.Handlers;
 
-public class CAuthHandlerShould
+public partial class CAuthHandlerShould
 {
     private readonly IAccountRepository _accountRepository = Substitute.For<IAccountRepository>();
     private readonly IReplicatedCache _cache = Substitute.For<IReplicatedCache>();

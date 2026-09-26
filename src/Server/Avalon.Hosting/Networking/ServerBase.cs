@@ -10,6 +10,7 @@ using System.Threading.Tasks;
 using Avalon.Common.Cryptography;
 using Avalon.Configuration;
 using Avalon.Hosting.PluginTypes;
+using Avalon.Hosting.Telemetry;
 using Avalon.Network.Packets;
 using Avalon.Network.Packets.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
@@ -26,6 +27,9 @@ public interface IServerBase
     long ServerTime { get; }
     int SendBufferCapacity { get; }
     void CallConnectionListener(IConnection connection);
+
+    /// <summary>Which peers prefix their connections with a PROXY v2 header (#524).</summary>
+    ProxyProtocolPolicy ProxyProtocol => ProxyProtocolPolicy.Disabled;
 }
 
 public class PacketHandlerCache
@@ -37,6 +41,9 @@ public abstract class ServerBase<T> : BackgroundService, IServerBase where T : I
 {
     public ushort Port { get; }
     public int SendBufferCapacity { get; }
+    public ProxyProtocolPolicy ProxyProtocol { get; }
+
+    public PacketDispatchTelemetry PacketTelemetry { get; }
 
     protected TcpListener Listener { get; }
     public IPacketManager PacketManager { get; }
@@ -54,13 +61,16 @@ public abstract class ServerBase<T> : BackgroundService, IServerBase where T : I
     private readonly IServiceProvider _serviceProvider;
 
     protected ServerBase(IPacketManager packetManager, ILogger logger,
-        IServiceProvider serviceProvider, IOptions<HostingConfiguration> hostingOptions)
+        IServiceProvider serviceProvider, IOptions<HostingConfiguration> hostingOptions,
+        PacketDispatchTelemetry? packetTelemetry = null)
     {
         _logger = logger;
         _serviceProvider = serviceProvider;
         PacketManager = packetManager;
+        PacketTelemetry = packetTelemetry ?? PacketDispatchTelemetry.Disabled;
         Port = hostingOptions.Value.Port;
         SendBufferCapacity = hostingOptions.Value.SendBufferCapacity;
+        ProxyProtocol = ProxyProtocolPolicy.From(hostingOptions.Value.ProxyProtocol);
 
         // Start server timer
         _serverTimer.Start();
@@ -74,6 +84,10 @@ public abstract class ServerBase<T> : BackgroundService, IServerBase where T : I
 
     public long ServerTime => _serverTimer.ElapsedMilliseconds;
     public long ServerTicks => _serverTimer.ElapsedTicks;
+
+    /// <summary>Who <paramref name="connection" /> is, for its packets' spans and log scope.</summary>
+    protected virtual PacketTags DescribeConnection(IConnection connection) =>
+        new(connection.Id, PacketTags.AddressOf(connection.RemoteEndPoint), null, null);
 
     protected abstract object GetContextPacket(IConnection connection, object? packet, Type packetType);
     protected abstract Task OnStoppingAsync(CancellationToken stoppingToken);
@@ -175,6 +189,7 @@ public abstract class ServerBase<T> : BackgroundService, IServerBase where T : I
 
         var context = GetContextPacket(connection, payload, details.PacketType);
 
+        using PacketDispatch dispatch = PacketTelemetry.Begin(header.Type, DescribeConnection(connection), _logger);
         try
         {
             await using var scope = _serviceProvider.CreateAsyncScope();
@@ -184,7 +199,8 @@ public abstract class ServerBase<T> : BackgroundService, IServerBase where T : I
         }
         catch (Exception e)
         {
-            _logger.LogError(e, "Failed to execute packet handler");
+            dispatch.Fail(e);
+            _logger.LogError(e, "Failed to execute packet handler for {PacketType}", header.Type);
             connection.Close();
         }
     }
