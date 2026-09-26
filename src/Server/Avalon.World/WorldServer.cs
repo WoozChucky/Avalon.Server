@@ -61,6 +61,9 @@ public interface IWorldServer
 
     IWorld World { get; }
     Dictionary<NetworkPacketType, IWorldPacketHandler> PacketHandlers { get; }
+
+    /// <summary>The per-packet telemetry ProcessQueue records into, as CallListener does.</summary>
+    PacketDispatchTelemetry PacketTelemetry { get; }
 }
 
 public class WorldServer : ServerBase<WorldConnection>, IWorldServer

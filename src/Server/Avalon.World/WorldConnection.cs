@@ -173,6 +173,9 @@ public class WorldConnection : Connection, IWorldConnection, IAccessLevelAssigna
         const uint MaxPacketsPerUpdate = 150;
         uint processedPackets = 0;
 
+        // A substitute server in tests has none.
+        PacketDispatchTelemetry telemetry = _server.PacketTelemetry ?? PacketDispatchTelemetry.Disabled;
+
         // Peek-first: if the front packet doesn't pass the filter, leave it for the other pass.
         // TryDequeue after TryPeek is safe — only the tick thread dequeues (SPSC).
         while (IsConnected &&
@@ -180,17 +183,23 @@ public class WorldConnection : Connection, IWorldConnection, IAccessLevelAssigna
                predicate(packet))
         {
             _receiveQueue.TryDequeue(out _);
-            try
+            CurrentPacketArrivedTicks = packet.ArrivedTicks;
+            if (_server.PacketHandlers.TryGetValue(packet.Type, out IWorldPacketHandler? handler))
             {
-                CurrentPacketArrivedTicks = packet.ArrivedTicks;
-                if (_server.PacketHandlers.TryGetValue(packet.Type, out IWorldPacketHandler? handler))
+                using PacketDispatch dispatch = telemetry.Begin(packet.Type, TelemetryTags(), _logger);
+                try
+                {
                     handler.Execute(this, packet.Payload!);
-                else
-                    _logger.LogWarning("No handler for packet {PacketType}", packet.Type);
+                }
+                catch (Exception ex)
+                {
+                    dispatch.Fail(ex);
+                    _logger.LogError(ex, "Error processing packet {PacketType}", packet.Type);
+                }
             }
-            catch (Exception ex)
+            else
             {
-                _logger.LogError(ex, "Error processing packet {PacketType}", packet.Type);
+                _logger.LogWarning("No handler for packet {PacketType}", packet.Type);
             }
 
             if (++processedPackets > MaxPacketsPerUpdate)
