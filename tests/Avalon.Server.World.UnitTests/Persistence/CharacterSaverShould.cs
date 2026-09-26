@@ -376,6 +376,34 @@ public sealed class CharacterSaverShould : IDisposable
         Assert.Equal(potion.InstanceId, slots.Single(s => s.Slot == 1).ItemId);
     }
 
+    /// <summary>
+    /// One save window holding a destroy of X in slot 0 and then a move of Y into that same slot.
+    /// X's delete cascades to whatever slot row still points at X, so the write must leave slot 0
+    /// holding Y: deleting X after the slot row had become Y's, or re-inserting the slot after X's
+    /// cascade took it, both do; losing slot 0 or keeping X would not.
+    /// Regression guard: it passes against the repository as it is, because the slot-existence query
+    /// runs after every delete. Taking that query before the deletes makes it fail (EF updates a
+    /// slot row the cascade already removed), which was checked by hand.
+    /// </summary>
+    [Fact]
+    public async Task Survive_a_destroy_then_a_move_into_the_freed_slot_through_a_save()
+    {
+        InventoryItem potion = Item(0, Potion, count: 5), sword = Item(1, Sword);
+        CharacterEntity character = await SeedAsync(7, stored: [potion, sword]);
+        var inventory = EquipTemplates.InventoryFor(character);
+
+        Assert.Equal(Avalon.Network.Packets.Character.ItemRequestResult.Ok,
+            inventory.TryDestroy(EquipTemplates.Bag(0), null, false));
+        Assert.Equal(Avalon.Network.Packets.Character.ItemRequestResult.Ok,
+            inventory.TryMove(EquipTemplates.Bag(1), EquipTemplates.Bag(0), null, false));
+        Assert.True(await Saver().Save(_connection, character).WaitAsync(Limit));
+
+        CharacterInventory slot = Assert.Single(await StoredSlotsAsync(7));
+        Assert.Equal((InventoryType.Bag, (ushort)0, sword.InstanceId), (slot.Container, slot.Slot, slot.ItemId));
+        Assert.Null(await StoredItemAsync(potion.InstanceId));
+        Assert.NotNull(await StoredItemAsync(sword.InstanceId));
+    }
+
     [Fact]
     public async Task Insert_the_stats_row_on_the_first_save_and_update_it_on_the_next()
     {

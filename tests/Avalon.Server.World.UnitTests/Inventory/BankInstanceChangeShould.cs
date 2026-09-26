@@ -23,7 +23,7 @@ namespace Avalon.Server.World.UnitTests.Inventory;
 /// through World.TransferPlayer, and the banker stays behind, so the bank must close there rather
 /// than stay usable from the next map.
 /// </summary>
-public class BankFlowShould
+public class BankInstanceChangeShould
 {
     [Fact]
     public async Task Close_the_bank_when_the_character_changes_instance()
