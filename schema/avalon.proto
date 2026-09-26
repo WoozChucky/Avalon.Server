@@ -53,6 +53,18 @@ package avalon;
 import "protobuf-net/bcl.proto"; // schema for protobuf-net's handling of core .NET types
 option optimize_for = LITE_RUNTIME;
 
+enum AbilityAffects {
+   AbilityAffects_Hostile = 0;
+   AbilityAffects_Ally = 1;
+}
+enum AbilityAimMode {
+   AbilityAimMode_Movement = 0;
+   AbilityAimMode_Cursor = 1;
+}
+enum AbilityAnchor {
+   AbilityAnchor_Caster = 0;
+   AbilityAnchor_AimPoint = 1;
+}
 message AbilityInfo {
    uint32 AbilityId = 1;
    optional string Name = 2;
@@ -61,6 +73,20 @@ message AbilityInfo {
    uint32 Cost = 5;
    uint32 Range = 6;
    float FacingAngle = 7;
+   AbilityAimMode AimMode = 8;
+   AbilityShape Shape = 9;
+   AbilityAnchor Anchor = 10;
+   float Reach = 11;
+   float Radius = 12;
+   float ArcDegrees = 13;
+   float ProjectileSpeed = 14;
+   bool Pierce = 15;
+   AbilityAffects Affects = 16;
+}
+enum AbilityShape {
+   AbilityShape_Circle = 0;
+   AbilityShape_Cone = 1;
+   AbilityShape_Projectile = 2;
 }
 enum AuthResult {
    AuthResult_INVALID_CREDENTIALS = 0;
@@ -504,6 +530,7 @@ message ObjectState {
    optional uint32 PortalTargetMapId = 18;
    optional uint32 PortalRole = 19;
    optional bool CanInteract = 20;
+   optional bool PvpEnabled = 21;
 }
 message PlacedChunkDto {
    int32 ChunkTemplateId = 1;

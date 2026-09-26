@@ -190,4 +190,17 @@ public class SaveStateTrackerShould
 
         Assert.True(tracker.StatsDirty);
     }
+
+    [Fact]
+    public void Report_and_acknowledge_a_pvp_change()
+    {
+        var tracker = new SaveStateTracker();
+        tracker.PvpChanged();
+        Assert.True(tracker.HasChanges);
+
+        tracker.Acknowledge(tracker.TakeMarks());
+
+        Assert.False(tracker.PvpDirty);
+        Assert.False(tracker.HasChanges);
+    }
 }

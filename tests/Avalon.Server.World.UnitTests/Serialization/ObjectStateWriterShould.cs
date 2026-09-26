@@ -4,6 +4,7 @@ using System.Linq;
 using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Network.Packets.State;
+using Avalon.Server.World.UnitTests.Inventory;
 using Avalon.World.Entities;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
@@ -210,6 +211,31 @@ public class ObjectStateWriterShould
                 projectile.CanInteract,
             },
             Assert.Null);
+    }
+
+    [Fact]
+    public void Send_PvpEnabled_on_every_character_state_only_as_true()
+    {
+        CharacterEntity flagged = TestCharacters.New(1);
+        flagged.Data!.PvpEnabled = true;
+        CharacterEntity unflagged = TestCharacters.New(2);
+
+        // Whatever is marked changed, even nothing but position.
+        Assert.True(ObjectStateWriter.From(flagged, GameEntityFields.Position).PvpEnabled);
+        Assert.Null(ObjectStateWriter.From(unflagged, GameEntityFields.All).PvpEnabled);
+    }
+
+    [Fact]
+    public void Mark_a_character_for_an_update_when_its_flag_changes()
+    {
+        CharacterEntity character = TestCharacters.New(1);
+        character.ConsumeDirtyFields();
+
+        character.Data!.PvpEnabled = true;
+        character.MarkPvpChanged();
+
+        Assert.True(character.ConsumeDirtyFields().HasFlag(GameEntityFields.PvpEnabled));
+        Assert.True(character.SaveState.PvpDirty);
     }
 
     private static ObjectState RoundTrip(ObjectState state)

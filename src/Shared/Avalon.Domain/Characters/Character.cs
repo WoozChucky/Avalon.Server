@@ -32,6 +32,12 @@ public class Character : IDbEntity<CharacterId>
     /// <summary>The character's gold, stored in copper. Changed only through IWallet.</summary>
     public ulong Money { get; set; }
 
+    /// <summary>Whether this character is flagged for PvP (#164). Hostile to another flagged player outside towns.</summary>
+    public bool PvpEnabled { get; set; }
+
+    /// <summary>UTC. When the flag turns off; null when no off timer is running.</summary>
+    public DateTime? PvpOffAt { get; set; }
+
     public float X { get; set; }
 
     public float Y { get; set; }

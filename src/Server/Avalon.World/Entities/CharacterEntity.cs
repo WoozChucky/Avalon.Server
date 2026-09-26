@@ -145,6 +145,18 @@ public class CharacterEntity : ICharacter
     /// <summary>What the next save must write. Marked by the inventory service and the wallet.</summary>
     public SaveStateTracker SaveState { get; } = new();
 
+    /// <summary>World-side only, not on ICharacter: the modding API cannot read or set PvP (#164).</summary>
+    public bool PvpEnabled => Data?.PvpEnabled ?? false;
+
+    public DateTime? PvpOffAt => Data?.PvpOffAt;
+
+    /// <summary>Called by PvpToggle after it writes the row: replicates the flag and marks the save.</summary>
+    public void MarkPvpChanged()
+    {
+        _dirtyFields |= GameEntityFields.PvpEnabled;
+        SaveState.PvpChanged();
+    }
+
     /// <summary>Time left until the next periodic save; null until the character first ticks in a map.</summary>
     public TimeSpan? NextPeriodicSaveIn { get; set; }
 

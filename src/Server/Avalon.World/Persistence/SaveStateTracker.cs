@@ -26,7 +26,8 @@ public sealed record SaveMarks(
     IReadOnlyDictionary<ItemInstanceId, SaveMark> Items,
     IReadOnlyDictionary<(InventoryType Container, ushort Slot), SaveMark> Slots,
     long? MoneyVersion,
-    long? StatsVersion = null);
+    long? StatsVersion = null,
+    long? PvpVersion = null);
 
 /// <summary>
 /// The per-character save state of every item instance and inventory slot, and money's dirty flag.
@@ -39,13 +40,17 @@ public sealed class SaveStateTracker
     private long _version;
     private long _moneyVersion;
     private long _statsVersion;
+    private long _pvpVersion;
 
     public bool MoneyDirty { get; private set; }
 
     /// <summary>The derived stats changed (spec #463): the next save writes the CharacterStats row.</summary>
     public bool StatsDirty { get; private set; }
 
-    public bool HasChanges => _items.Count > 0 || _slots.Count > 0 || MoneyDirty || StatsDirty;
+    /// <summary>The PvP flag or its timer changed (#164). The row is written whole by every save; this keeps HasChanges honest.</summary>
+    public bool PvpDirty { get; private set; }
+
+    public bool HasChanges => _items.Count > 0 || _slots.Count > 0 || MoneyDirty || StatsDirty || PvpDirty;
 
     public SaveState ItemState(ItemInstanceId id) =>
         _items.TryGetValue(id, out SaveMark mark) ? mark.State : SaveState.Unchanged;
@@ -99,12 +104,19 @@ public sealed class SaveStateTracker
         _statsVersion = ++_version;
     }
 
+    public void PvpChanged()
+    {
+        PvpDirty = true;
+        _pvpVersion = ++_version;
+    }
+
     /// <summary>A copy of every non-Unchanged entry. Later changes do not reach it.</summary>
     public SaveMarks TakeMarks() => new(
         new Dictionary<ItemInstanceId, SaveMark>(_items),
         new Dictionary<(InventoryType Container, ushort Slot), SaveMark>(_slots),
         MoneyDirty ? _moneyVersion : null,
-        StatsDirty ? _statsVersion : null);
+        StatsDirty ? _statsVersion : null,
+        PvpDirty ? _pvpVersion : null);
 
     /// <summary>
     /// Called on the tick thread once the save that took <paramref name="marks" /> has committed.
@@ -129,5 +141,8 @@ public sealed class SaveStateTracker
 
         if (marks.StatsVersion is { } statsVersion && StatsDirty && _statsVersion == statsVersion)
             StatsDirty = false;
+
+        if (marks.PvpVersion is { } pvpVersion && PvpDirty && _pvpVersion == pvpVersion)
+            PvpDirty = false;
     }
 }

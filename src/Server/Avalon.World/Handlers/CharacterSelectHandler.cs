@@ -607,6 +607,15 @@ public class CharacterSelectHandler(
             CastTime = s.Metadata.CastTime,
             Cost = s.Metadata.Cost,
             Range = (ushort)s.Metadata.Range,
+            AimMode = s.Metadata.AimMode,
+            Shape = s.Metadata.Shape,
+            Anchor = s.Metadata.Anchor,
+            Reach = s.Metadata.Reach,
+            Radius = s.Metadata.Radius,
+            ArcDegrees = s.Metadata.ArcDegrees,
+            ProjectileSpeed = s.Metadata.ProjectileSpeed,
+            Pierce = s.Metadata.Pierce,
+            Affects = s.Metadata.Affects,
         }).ToArray();
 
         connection.Send(SCharacterAbilitiesPacket.Create(abilityInfos, connection.CryptoSession.Encrypt));

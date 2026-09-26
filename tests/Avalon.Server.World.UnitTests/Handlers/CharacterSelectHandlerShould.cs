@@ -1,3 +1,4 @@
+using Avalon.Network.Packets.Abilities;
 using Avalon.Server.World.UnitTests.Loot;
 using System.IO;
 using Avalon.Common;
@@ -293,9 +294,13 @@ public class CharacterSelectHandlerShould
 
     /// <summary>There is no facing cone since #164, so AbilityInfo.FacingAngle is never set.</summary>
     [Fact]
-    public async Task Leave_the_retired_facing_angle_unset()
+    public async Task Send_each_abilitys_shape_and_leave_the_facing_angle_unset()
     {
-        Fixture f = await BuildAsync(abilityTemplates: [AbilityTestData.Circle(1, "Strike"), AbilityTestData.Cone(2)]);
+        Fixture f = await BuildAsync(abilityTemplates:
+        [
+            AbilityTestData.AimedCircle(1, reach: 18f, radius: 3f),
+            AbilityTestData.Projectile(2, reach: 25f, speed: 28f, pierce: true),
+        ]);
 
         f.Handler.Execute(f.Connection, new CCharacterSelectedPacket { CharacterId = TheCharacter });
 
@@ -305,6 +310,18 @@ public class CharacterSelectHandlerShould
         AbilityInfo[] abilities = Serializer.Deserialize<SCharacterAbilitiesPacket>(stream).Abilities;
         Assert.Equal(2, abilities.Length);
         Assert.All(abilities, a => Assert.Equal(0f, a.FacingAngle));
+
+        AbilityInfo circle = Assert.Single(abilities, a => a.AbilityId == 1);
+        Assert.Equal(AbilityShape.Circle, circle.Shape);
+        Assert.Equal(AbilityAnchor.AimPoint, circle.Anchor);
+        Assert.Equal(AbilityAimMode.Cursor, circle.AimMode);
+        Assert.Equal(18f, circle.Reach);
+        Assert.Equal(3f, circle.Radius);
+
+        AbilityInfo projectile = Assert.Single(abilities, a => a.AbilityId == 2);
+        Assert.Equal(AbilityShape.Projectile, projectile.Shape);
+        Assert.Equal(28f, projectile.ProjectileSpeed);
+        Assert.True(projectile.Pierce);
     }
 
     /// <summary>

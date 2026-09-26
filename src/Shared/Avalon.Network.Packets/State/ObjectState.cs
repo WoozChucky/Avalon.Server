@@ -99,4 +99,11 @@ public class ObjectState
     ///     client that first sees the creature mid-stream still learns it.
     /// </remarks>
     [ProtoMember(20)] public bool? CanInteract { get; set; }
+
+    /// <summary>
+    ///     True when this character is flagged for PvP (#164). Carried on every character state,
+    ///     whatever else changed, and only as true: absent on a character state means off.
+    ///     Creatures, portals and spells never carry it.
+    /// </summary>
+    [ProtoMember(21)] public bool? PvpEnabled { get; set; }
 }
