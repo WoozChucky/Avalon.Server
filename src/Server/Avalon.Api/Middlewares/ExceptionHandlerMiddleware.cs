@@ -2,6 +2,7 @@
 using System.Net;
 using System.Security.Authentication;
 using Avalon.Api.Exceptions;
+using Avalon.Database.Auth;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
@@ -47,13 +48,16 @@ public class ExceptionHandlerMiddleware
     public const string AccountValueRefused = "The value is not in a form an account can store.";
 
     /// <summary>
-    /// A Postgres check violation (SQLSTATE 23514) on <c>Accounts</c>, raised directly by a bulk
-    /// update or wrapped in a <see cref="DbUpdateException"/> by SaveChanges.
+    /// A Postgres check violation (SQLSTATE 23514) of one of the two constraints that hold an
+    /// account's username and email in their stored form, raised directly by a bulk update or
+    /// wrapped in a <see cref="DbUpdateException"/> by SaveChanges. Any other check violation is not
+    /// the caller's value and keeps its usual mapping.
     /// </summary>
     private static bool IsAccountsCheckViolation(Exception exception) =>
         (exception as PostgresException ?? (exception as DbUpdateException)?.InnerException as PostgresException) is
         {
             SqlState: PostgresErrorCodes.CheckViolation, TableName: "Accounts",
+            ConstraintName: AuthDbContext.UsernameNormalisedConstraint or AuthDbContext.EmailNormalisedConstraint,
         };
 
     private async Task HandleExceptionAsync(HttpContext context, Exception exception)
@@ -113,7 +117,7 @@ public class ExceptionHandlerMiddleware
             // name stays in the log.
             case var _ when IsAccountsCheckViolation(exception):
                 context.Request.HttpContext.Response.StatusCode = (int)HttpStatusCode.BadRequest;
-                _logger.LogWarning(exception, "An account row was refused by a check constraint");
+                _logger.LogError(exception, "An account row was refused by a check constraint");
                 await context.Response.WriteAsJsonAsync(new ProblemDetails
                 {
                     Status = (int)HttpStatusCode.BadRequest,

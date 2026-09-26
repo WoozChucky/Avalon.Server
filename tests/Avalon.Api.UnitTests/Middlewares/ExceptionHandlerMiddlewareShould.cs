@@ -74,5 +74,40 @@ public class ExceptionHandlerMiddlewareShould
         Assert.DoesNotContain("CK_Accounts", body, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// Only the two normalisation constraints are the caller's value. Any other check violation,
+    /// even on Accounts, is not mapped to 400: the database refused something the code chose.
+    /// </summary>
+    [Theory]
+    [InlineData("Accounts", "CK_Accounts_Something_Else")]
+    [InlineData("Characters", "CK_Accounts_Email_Normalised")]
+    public async Task Not_answer_another_check_violation_with_400(string table, string constraint)
+    {
+        var violation = new Npgsql.PostgresException("new row violates check constraint", "ERROR", "ERROR",
+            Npgsql.PostgresErrorCodes.CheckViolation, tableName: table, constraintName: constraint);
+        var middleware = new ExceptionHandlerMiddleware(_ => throw violation, NullLoggerFactory.Instance);
+        var context = new DefaultHttpContext();
+        context.Response.Body = new MemoryStream();
+
+        await middleware.InvokeAsync(context);
+
+        Assert.NotEqual(StatusCodes.Status400BadRequest, context.Response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Answer_a_username_normalisation_violation_with_400()
+    {
+        var violation = new Npgsql.PostgresException("new row violates check constraint", "ERROR", "ERROR",
+            Npgsql.PostgresErrorCodes.CheckViolation, tableName: "Accounts",
+            constraintName: Avalon.Database.Auth.AuthDbContext.UsernameNormalisedConstraint);
+        var middleware = new ExceptionHandlerMiddleware(_ => throw violation, NullLoggerFactory.Instance);
+        var context = new DefaultHttpContext();
+        context.Response.Body = new MemoryStream();
+
+        await middleware.InvokeAsync(context);
+
+        Assert.Equal(StatusCodes.Status400BadRequest, context.Response.StatusCode);
+    }
+
     private sealed class FakeDbException(string message) : DbException(message);
 }
