@@ -36,7 +36,9 @@ public class VendorSellHandler(ILogger<VendorSellHandler> logger, IWorld world, 
         }
         catch (Exception e)
         {
-            // The request still gets its one reply, and nothing escapes onto the tick.
+            // The request still gets its one reply, and nothing escapes onto the tick. The apply order
+            // takes value from the player before giving any, so a failure caused by a bug loses value,
+            // never creates it, and is not rolled back.
             logger.LogError(e, "CMSG_VENDOR_SELL {RequestId} from bag slot {Slot} threw; answering NotFound",
                 packet.RequestId, packet.BagSlot);
             result = VendorResult.NotFound;

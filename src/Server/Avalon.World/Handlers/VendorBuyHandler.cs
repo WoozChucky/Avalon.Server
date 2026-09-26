@@ -50,7 +50,9 @@ public class VendorBuyHandler(
         }
         catch (Exception e)
         {
-            // The request still gets its one reply, and nothing escapes onto the tick.
+            // The request still gets its one reply, and nothing escapes onto the tick. The apply order
+            // takes value from the player before giving any, so a failure caused by a bug loses value,
+            // never creates it, and is not rolled back.
             logger.LogError(e, "CMSG_VENDOR_BUY {RequestId} for row {Sequence} threw; answering NotFound",
                 packet.RequestId, packet.Sequence);
             result = VendorResult.NotFound;

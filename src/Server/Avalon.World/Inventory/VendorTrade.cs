@@ -12,9 +12,11 @@ namespace Avalon.World.Inventory;
 /// <summary>
 /// The vendor service operations (spec #432), beside the inventory service and the wallet. Each
 /// asks VendorRules, then applies the plan it accepted through IInventoryService and IWallet, so
-/// every change carries the usual SaveState and ClientChanges marks. Tick thread only. All or
-/// nothing: the rules checked every step against this same state on this same thread, so no step
-/// can fail part way. If one does, it throws rather than carry on.
+/// every change carries the usual SaveState and ClientChanges marks. Tick thread only. Every step
+/// is checked, against this same state on this same thread, before anything changes, so no client
+/// input can make a step fail part way; if one does, it throws rather than carry on. The apply
+/// order takes value from the player before giving any, so a failure caused by a bug loses value,
+/// never creates it, and is not rolled back.
 /// </summary>
 public sealed class VendorTrade(
     CharacterEntity owner,
