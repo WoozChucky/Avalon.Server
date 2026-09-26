@@ -113,11 +113,11 @@ public class AccountControllerShould
         var sut = MakeSut(user);
 
         await sut.ChangePassword(
-            new AccountPasswordChangeRequest { CurrentPassword = "a", NewPassword = "newstrong1" },
+            new AccountPasswordChangeRequest { CurrentPassword = TestPasswords.Valid, NewPassword = TestPasswords.Other },
             CancellationToken.None);
 
         await _accountService.Received(1).ChangePasswordAsync(
-            new AccountId(7), "a", "newstrong1", Arg.Any<System.Net.IPAddress>(), Arg.Any<CancellationToken>());
+            new AccountId(7), TestPasswords.Valid, TestPasswords.Other, Arg.Any<System.Net.IPAddress>(), Arg.Any<CancellationToken>());
     }
 
     /// <summary>

@@ -32,7 +32,7 @@ namespace Avalon.Api.UnitTests.Services;
 /// </summary>
 public sealed class RestLoginPolicyShould : IDisposable
 {
-    private const string Password = "correct horse";
+    private static readonly string Password = TestPasswords.Valid;
 
     private readonly SqliteAuthDatabase _database = new();
     private readonly AccountRepository _accounts;
@@ -135,9 +135,9 @@ public sealed class RestLoginPolicyShould : IDisposable
         Account account = await _accounts.CreateAsync(NewAccount());
 
         for (var i = 1; i < _config.MaxFailedLoginAttempts; i++)
-            await Assert.ThrowsAsync<AuthenticationException>(() => LoginAsync("wrong"));
+            await Assert.ThrowsAsync<AuthenticationException>(() => LoginAsync(TestPasswords.Wrong));
         // The failure in the last slot is the one that locks, and is answered as locked.
-        await Assert.ThrowsAsync<AccountLockedException>(() => LoginAsync("wrong"));
+        await Assert.ThrowsAsync<AccountLockedException>(() => LoginAsync(TestPasswords.Wrong));
 
         Account stored = await StoredAsync(account.Id);
         Assert.True(stored.Locked);
@@ -162,14 +162,14 @@ public sealed class RestLoginPolicyShould : IDisposable
         PasswordLoginPolicy tcp = TestLogin.Password(_accounts, _cache.Cache, _config, _verifier);
         for (var i = 0; i < 3; i++)
         {
-            PasswordAttempt attempt = await tcp.CheckAsync("caller", "wrong", LoginSource.FromEndPoint("127.0.0.1:50123"),
+            PasswordAttempt attempt = await tcp.CheckAsync("caller", TestPasswords.Wrong, LoginSource.FromEndPoint("127.0.0.1:50123"),
                 CancellationToken.None);
             Assert.Equal(PasswordCheck.WrongPassword, attempt.Result);
             await tcp.RecordFailureAsync(attempt, CancellationToken.None);
         }
 
-        await Assert.ThrowsAsync<AuthenticationException>(() => LoginAsync("wrong"));
-        await Assert.ThrowsAsync<AccountLockedException>(() => LoginAsync("wrong"));
+        await Assert.ThrowsAsync<AuthenticationException>(() => LoginAsync(TestPasswords.Wrong));
+        await Assert.ThrowsAsync<AccountLockedException>(() => LoginAsync(TestPasswords.Wrong));
 
         Account stored = await StoredAsync(account.Id);
         Assert.True(stored.Locked);
@@ -230,12 +230,12 @@ public sealed class RestLoginPolicyShould : IDisposable
         accounts.FindByUserNameAsync("CALLER", Arg.Any<CancellationToken>()).Returns(known);
         AccountService service = Service(accounts);
 
-        var knownRefusal = await Assert.ThrowsAsync<AuthenticationException>(() => LoginAsync("wrong", "caller", service));
+        var knownRefusal = await Assert.ThrowsAsync<AuthenticationException>(() => LoginAsync(TestPasswords.Wrong, "caller", service));
         Assert.Equal(1, _verifier.Count);
         await accounts.Received(1).RecordFailedLoginAsync(new AccountId(7), "127.0.0.1", Arg.Any<DateTime>(), null,
             Arg.Any<CancellationToken>());
 
-        var unknownRefusal = await Assert.ThrowsAsync<AuthenticationException>(() => LoginAsync("wrong", "nobody", service));
+        var unknownRefusal = await Assert.ThrowsAsync<AuthenticationException>(() => LoginAsync(TestPasswords.Wrong, "nobody", service));
         Assert.Equal(2, _verifier.Count);
         await accounts.Received(1).RecordFailedLoginAsync(LoginPolicy.NoAccount, "127.0.0.1", Arg.Any<DateTime>(), null,
             Arg.Any<CancellationToken>());
@@ -247,10 +247,10 @@ public sealed class RestLoginPolicyShould : IDisposable
     public async Task Lock_an_unknown_username_as_it_locks_a_known_one()
     {
         for (var i = 1; i < _config.MaxFailedLoginAttempts; i++)
-            await Assert.ThrowsAsync<AuthenticationException>(() => LoginAsync("wrong", "nobody"));
+            await Assert.ThrowsAsync<AuthenticationException>(() => LoginAsync(TestPasswords.Wrong, "nobody"));
 
-        await Assert.ThrowsAsync<AccountLockedException>(() => LoginAsync("wrong", "nobody"));
-        await Assert.ThrowsAsync<AccountLockedException>(() => LoginAsync("wrong", "nobody"));
+        await Assert.ThrowsAsync<AccountLockedException>(() => LoginAsync(TestPasswords.Wrong, "nobody"));
+        await Assert.ThrowsAsync<AccountLockedException>(() => LoginAsync(TestPasswords.Wrong, "nobody"));
     }
 
     [Fact]
@@ -272,7 +272,7 @@ public sealed class RestLoginPolicyShould : IDisposable
     {
         Account account = await _accounts.CreateAsync(NewAccount());
         for (var i = 0; i < 3; i++)
-            await Assert.ThrowsAsync<AuthenticationException>(() => LoginAsync("wrong"));
+            await Assert.ThrowsAsync<AuthenticationException>(() => LoginAsync(TestPasswords.Wrong));
 
         var (response, accountId, _) = await LoginAsync(Password);
 
@@ -298,7 +298,7 @@ public sealed class RestLoginPolicyShould : IDisposable
         created.Status = Avalon.Domain.Auth.AccountStatus.Banned;
         await _accounts.CreateAsync(created);
 
-        await Assert.ThrowsAsync<AuthenticationException>(() => LoginAsync("wrong"));
+        await Assert.ThrowsAsync<AuthenticationException>(() => LoginAsync(TestPasswords.Wrong));
         var refused = await Assert.ThrowsAsync<AccountInactiveException>(() => LoginAsync(Password));
 
         Assert.Equal("BANNED", refused.Message);

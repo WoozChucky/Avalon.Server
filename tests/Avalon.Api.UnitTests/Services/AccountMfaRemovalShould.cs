@@ -28,7 +28,7 @@ namespace Avalon.Api.UnitTests.Services;
 /// </summary>
 public class AccountMfaRemovalShould : IDisposable
 {
-    private const string Password = "correct horse battery";
+    private static readonly string Password = TestPasswords.Valid;
     private const string PendingHash = "PENDINGLOGINHASH";
 
     private readonly SqliteAuthDatabase _database = new();

@@ -33,7 +33,7 @@ namespace Avalon.Api.UnitTests.Services;
 /// </summary>
 public sealed class ApiWriteRaceShould : IDisposable
 {
-    private const string Password = "correct horse";
+    private static readonly string Password = TestPasswords.Valid;
 
     private readonly SqliteAuthDatabase _database = new();
     private readonly AccountRepository _accounts;
@@ -113,11 +113,11 @@ public sealed class ApiWriteRaceShould : IDisposable
     {
         Account account = await AccountAsync();
 
-        await Service(Stale(account)).ChangePasswordAsync(account.Id, Password, "a new strong one", IPAddress.Loopback);
+        await Service(Stale(account)).ChangePasswordAsync(account.Id, Password, TestPasswords.Third, IPAddress.Loopback);
 
         await AssertBanAndLockSurvivedAsync(account.Id);
         Account stored = await StoredAsync(account.Id);
-        Assert.True(BCrypt.Net.BCrypt.Verify("a new strong one", Encoding.UTF8.GetString(stored.Verifier)));
+        Assert.True(BCrypt.Net.BCrypt.Verify(TestPasswords.Third, Encoding.UTF8.GetString(stored.Verifier)));
     }
 
     /// <summary>

@@ -213,7 +213,7 @@ public sealed class SessionIssuanceShould : IAsyncLifetime
             .ThrowsAsync(new AccountInactiveException(status));
 
         using HttpResponseMessage response = await _host.Client.PostAsJsonAsync("/account/authenticate",
-            new { username = "caller", password = "right" });
+            new { username = "caller", password = TestPasswords.Valid });
 
         await AssertInactive(response, expected);
         await _host.Refresh.DidNotReceiveWithAnyArgs().IssueAsync(default!, default, default);

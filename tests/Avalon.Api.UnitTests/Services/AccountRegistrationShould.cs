@@ -52,7 +52,7 @@ public class AccountRegistrationShould : IDisposable
     public async Task Persist_the_account_and_its_device_exactly_once()
     {
         (RegisterResponse _, AccountId accountId) = await _service.Register(
-            new RegisterRequest { Username = "newplayer", Password = "hunter2", Email = "new@avalon.monster" },
+            new RegisterRequest { Username = "newplayer", Password = TestPasswords.Valid, Email = "new@avalon.monster" },
             "test-agent",
             IPAddress.Loopback,
             CancellationToken.None);
@@ -86,7 +86,7 @@ public class AccountRegistrationShould : IDisposable
             TestLogin.Reauthentication(new AccountRepository(_database), Substitute.For<IReplicatedCache>()));
 
         await service.Register(
-            new RegisterRequest { Username = "navcheck", Password = "hunter2", Email = "nav@avalon.monster" },
+            new RegisterRequest { Username = "navcheck", Password = TestPasswords.Valid, Email = "nav@avalon.monster" },
             "test-agent",
             IPAddress.Loopback,
             CancellationToken.None);

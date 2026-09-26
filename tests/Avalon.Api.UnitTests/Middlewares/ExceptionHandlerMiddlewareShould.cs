@@ -14,7 +14,8 @@ namespace Avalon.Api.UnitTests.Middlewares;
 /// </summary>
 public class ExceptionHandlerMiddlewareShould
 {
-    private const string Secret = "postgres-server:5432 password=hunter2";
+    // A connection string as a driver might echo it, built at run time: no literal credential in source.
+    private static readonly string Secret = "postgres-server:5432 password=" + TestPasswords.Valid;
 
     public static TheoryData<Exception> Outages => new()
     {
@@ -38,7 +39,7 @@ public class ExceptionHandlerMiddlewareShould
         using JsonDocument json = JsonDocument.Parse(body);
         Assert.Equal("ServiceUnavailable", json.RootElement.GetProperty("type").GetString());
         Assert.DoesNotContain(outage.GetType().Name, body, StringComparison.Ordinal);
-        Assert.DoesNotContain("hunter2", body, StringComparison.Ordinal);
+        Assert.DoesNotContain(TestPasswords.Valid, body, StringComparison.Ordinal);
         Assert.DoesNotContain("5432", body, StringComparison.Ordinal);
     }
 

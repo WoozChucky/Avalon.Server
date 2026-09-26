@@ -46,11 +46,11 @@ public sealed class RegistrationValidationShould : IAsyncLifetime
 
     [Fact]
     public Task Refuse_a_password_of_seven_characters_once_trimmed() =>
-        AssertRefusedAsync(new { username = "newplayer", email = "new@avalon.monster", password = "  1234567   " });
+        AssertRefusedAsync(new { username = "newplayer", email = "new@avalon.monster", password = "  " + TestPasswords.OfLength(7) + "   " });
 
     [Fact]
     public Task Refuse_a_missing_username() =>
-        AssertRefusedAsync(new { email = "new@avalon.monster", password = "a strong one" });
+        AssertRefusedAsync(new { email = "new@avalon.monster", password = TestPasswords.Valid });
 
     /// <summary>
     /// #503 follow-up: registration took any string as an email, and an address outside ASCII
@@ -81,7 +81,7 @@ public sealed class RegistrationValidationShould : IAsyncLifetime
 
     [Fact]
     public Task Refuse_a_missing_email() =>
-        AssertRefusedAsync(new { username = "newplayer", password = "a strong one" });
+        AssertRefusedAsync(new { username = "newplayer", password = TestPasswords.Valid });
 
     /// <summary>
     /// Owner decision (#487 re-review): a username is 3 to 16 ASCII letters, digits or underscores,
@@ -126,7 +126,7 @@ public sealed class RegistrationValidationShould : IAsyncLifetime
     public async Task Register_a_valid_request()
     {
         using HttpResponseMessage response = await RegisterAsync(
-            new { username = "newplayer", email = "new@avalon.monster", password = "a strong one" });
+            new { username = "newplayer", email = "new@avalon.monster", password = TestPasswords.Valid });
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         await _host.Accounts.Received(1).Register(Arg.Any<RegisterRequest>(), Arg.Any<string>(), Arg.Any<IPAddress>(),

@@ -32,7 +32,7 @@ public sealed class AddressLessCallerShould : IAsyncLifetime
     public async Task Refuse_a_login_from_a_caller_with_no_address()
     {
         using HttpResponseMessage response = await PostWithoutAddressAsync("/account/authenticate",
-            new { username = "caller", password = "pw" });
+            new { username = "caller", password = TestPasswords.Valid });
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         await _host.Accounts.DidNotReceiveWithAnyArgs().Authenticate(default!, default!, default);
@@ -65,7 +65,7 @@ public sealed class AddressLessCallerShould : IAsyncLifetime
             .Returns((new AuthenticateResponse { Status = AuthenticationResponseStatus.RequiresMFA, MfaHash = "h" }, null, 0));
 
         using HttpResponseMessage response = await _host.Client.PostAsJsonAsync("/account/authenticate",
-            new { username = "caller", password = "pw" });
+            new { username = "caller", password = TestPasswords.Valid });
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }

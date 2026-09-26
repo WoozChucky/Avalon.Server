@@ -119,7 +119,7 @@ public sealed class CredentialsVersionShould : IDisposable
         Account account = await AccountAsync();
 
         await Assert.ThrowsAsync<AuthenticationException>(() =>
-            AccountService().ChangePasswordAsync(account.Id, "wrong", NewPassword, IPAddress.Loopback));
+            AccountService().ChangePasswordAsync(account.Id, TestPasswords.Wrong, NewPassword, IPAddress.Loopback));
 
         Assert.Equal(0, await VersionAsync(account.Id));
     }
