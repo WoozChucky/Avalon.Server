@@ -1,0 +1,11 @@
+{
+  "mapTemplateId": 1,
+  "mapName": "main_town",
+  "cellSize": 30,
+  "chunks": [
+    { "chunkName": "town_sw_01", "gridX": 0, "gridZ": 0, "rotation": 0, "isEntry": true, "entrySpawn": { "localX": 15, "localY": 0, "localZ": 15 } },
+    { "chunkName": "town_se_01", "gridX": 1, "gridZ": 0, "rotation": 0, "isEntry": false },
+    { "chunkName": "town_nw_01", "gridX": 0, "gridZ": 1, "rotation": 0, "isEntry": false, "forwardPortalTargetMapId": 2 },
+    { "chunkName": "town_ne_01", "gridX": 1, "gridZ": 1, "rotation": 0, "isEntry": false }
+  ]
+}

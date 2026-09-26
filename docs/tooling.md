@@ -6,7 +6,6 @@
 | project | what it does |
 | --- | --- |
 | `Avalon.Benchmarking` | BenchmarkDotNet harnesses |
-| `Avalon.ChunkImporter` | imports chunk templates into the database |
 | `Avalon.Exporter` | exports every artifact the client vendors, one subcommand per artifact |
 
 ## The exporter
@@ -55,6 +54,7 @@ to catch.
 
 ## What is not in it
 
-`Avalon.ChunkImporter` reads JSON the editor exports and writes database rows; it is an import, and
-it shares nothing with the above but a directory. `Avalon.Benchmarking` is a harness that owns its
-own `Main`. Neither belongs behind an export subcommand.
+`Avalon.Benchmarking` is a harness that owns its own `Main`; it does not belong behind an export
+subcommand. Chunk data has no tool at all: the Unity exporters write it straight into
+`src/Server/Avalon.Server.World/Maps/`, and the World server seeds the database from there on start
+(see [map-generation.md](map-generation.md)).

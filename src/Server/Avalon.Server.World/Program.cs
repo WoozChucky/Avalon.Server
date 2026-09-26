@@ -1,5 +1,6 @@
 using Avalon.Database.Character;
 using Avalon.Database.World;
+using Avalon.Database.World.Seeding;
 using Avalon.Hosting;
 using Avalon.Infrastructure;
 using Avalon.Network.Packets.Abstractions.Attributes;
@@ -51,6 +52,14 @@ internal class Program
             // Startup migration — host lifetime not active yet, so CancellationToken.None is intentional.
             await characterDb.Database.MigrateAsync(CancellationToken.None);
             await worldDb.Database.MigrateAsync(CancellationToken.None);
+
+            // The chunk catalog lives in files under Maps/, not in migrations: bring the database in
+            // line with them on every start so a fresh install (or a release adding chunks) has them.
+            ChunkCatalogSeedResult seeded = await ChunkCatalogSeeder.SeedAsync(worldDb,
+                Path.Combine(AppContext.BaseDirectory, "Maps"), CancellationToken.None);
+            host.Services.GetRequiredService<ILogger<Program>>().LogInformation(
+                "Chunk catalog seeded: {Added} added, {Updated} updated, {Layouts} town layouts, {Pools} pools",
+                seeded.TemplatesAdded, seeded.TemplatesUpdated, seeded.LayoutsReplaced, seeded.PoolsSynced);
 
             IReplicatedCache cache = scope.ServiceProvider.GetRequiredService<IReplicatedCache>();
             await cache.ConnectAsync();
