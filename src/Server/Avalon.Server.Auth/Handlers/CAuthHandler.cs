@@ -1,12 +1,10 @@
-using System.Text;
-using Avalon.Common.ValueObjects;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Domain.Auth;
 using Avalon.Infrastructure;
+using Avalon.Infrastructure.Login;
 using Avalon.Infrastructure.Services;
 using Avalon.Network.Packets.Auth;
 using Avalon.Server.Auth.Configuration;
-using Avalon.Server.Auth.Services;
 using Microsoft.Extensions.Options;
 
 namespace Avalon.Server.Auth.Handlers;
@@ -18,8 +16,7 @@ public class CAuthHandler : IAuthPacketHandler<CAuthPacket>
     private readonly IMFAHashService _mfaHashService;
     private readonly IMfaSetupRepository _mfaSetupRepository;
     private readonly ILogger<CAuthHandler> _logger;
-    private readonly AuthConfiguration _authConfig;
-    private readonly IPasswordVerifier _passwordVerifier;
+    private readonly PasswordLoginPolicy _policy;
 
     public CAuthHandler(ILoggerFactory logger, IAccountRepository accountRepository, IReplicatedCache cache,
         IMFAHashService mfaHashService, IMfaSetupRepository mfaSetupRepository, IOptions<AuthConfiguration> options,
@@ -30,8 +27,8 @@ public class CAuthHandler : IAuthPacketHandler<CAuthPacket>
         _mfaHashService = mfaHashService;
         _mfaSetupRepository = mfaSetupRepository;
         _logger = logger.CreateLogger<CAuthHandler>();
-        _authConfig = options.Value;
-        _passwordVerifier = passwordVerifier;
+        // The rules the REST login shares (#478): budgets, dummy verify, lock, failure counting.
+        _policy = new PasswordLoginPolicy(accountRepository, cache, options.Value, passwordVerifier, logger);
     }
 
     public async Task ExecuteAsync(AuthPacketContext<CAuthPacket> ctx, CancellationToken token = default)
@@ -42,63 +39,28 @@ public class CAuthHandler : IAuthPacketHandler<CAuthPacket>
             return;
         }
 
-        // Per source, ahead of any account (#471): a source that has failed too often is refused
-        // before it can guess another password or push another account towards a lock. LOCKED
-        // rather than INVALID_CREDENTIALS, so the player is told to wait instead of retyping; it is
-        // answered for every username alike, so it says nothing about which ones exist. The slot is
-        // taken here, before any work, and given back only once an MFA hash is issued or the login
-        // completes (#484).
-        var sourceKey = SourceBudget.KeyFor(ctx.Connection.RemoteEndPoint);
-        if (!await SourceBudget.TryTakeAsync(_cache, _authConfig, sourceKey))
-        {
-            _logger.LogWarning("Login refused for source {SourceKey}: too many failed logins", sourceKey);
-            ctx.Connection.Send(SAuthResultPacket.Create(null, null, AuthResult.LOCKED, ctx.Connection.CryptoSession.Encrypt));
-            return;
-        }
+        // The source's slot, then the username's, both before the lookup (#471, #484); then the
+        // lookup, a dummy verify for an unknown username, the row's lock, and the verify. A refusal
+        // past either budget is LOCKED for every username alike, so it says nothing about which
+        // ones exist; a locked row is LOCKED before its password is checked, so a locked account
+        // cannot be used to test passwords. Every slot taken is kept unless the attempt ends below
+        // with an MFA hash or a completed login (#484).
+        PasswordAttempt attempt = await _policy.CheckAsync(ctx.Packet.Username, ctx.Packet.Password,
+            LoginSource.FromEndPoint(ctx.Connection.RemoteEndPoint), token);
 
-        // Per username, from every source (#484), and before the lookup, so a username no account
-        // has is counted exactly like one that exists. The count this increment returns is this
-        // attempt's place in the window, and it alone decides the lock: parallel guesses that all
-        // read the row before the lock landed can no longer all be verified.
-        var username = UsernameBudget.Normalise(ctx.Packet.Username);
-        var usernameKey = UsernameBudget.KeyFor(username);
-        long taken = await UsernameBudget.TakeAsync(_cache, _authConfig, usernameKey);
-        if (UsernameBudget.Refuses(_authConfig, taken))
-        {
-            _logger.LogWarning("Login refused for a username past its failed-login limit");
-            ctx.Connection.Send(SAuthResultPacket.Create(null, null, AuthResult.LOCKED, ctx.Connection.CryptoSession.Encrypt));
-            return;
-        }
-
-        var password = ctx.Packet.Password.Trim();
-        var account = await _accountRepository.FindByUserNameAsync(username, token);
-
-        if (account == null)
-        {
-            // Pay for one BCrypt verify, as a wrong password on a real account does, so the time
-            // taken does not tell an unknown username from a known one (#471); and answer, and
-            // lock, from the same budget, so the replies do not either (#484).
-            _passwordVerifier.Verify(password, BCryptPasswordVerifier.UnknownAccountHash);
-            await FailAsync(ctx, null, usernameKey, taken, token);
-            return;
-        }
-
-        // Before the password check, so a locked account cannot be used to test passwords. The
-        // slots taken above are kept, so probing for locked accounts is not free.
-        var now = DateTime.UtcNow;
-        if (account.IsLockedAt(now))
+        if (attempt.Refused)
         {
             ctx.Connection.Send(SAuthResultPacket.Create(null, null, AuthResult.LOCKED, ctx.Connection.CryptoSession.Encrypt));
             return;
         }
 
-        var verifier = Encoding.UTF8.GetString(account.Verifier);
-
-        if (!_passwordVerifier.Verify(password, verifier))
+        if (attempt.Failed)
         {
-            await FailAsync(ctx, account.Id, usernameKey, taken, token);
+            await FailAsync(ctx, attempt, token);
             return;
         }
+
+        var account = attempt.Account!;
 
         // Both slots stay taken until the login is recorded, or an MFA hash is issued: a right
         // password refused below keeps its slots exactly as a wrong one does (#484 review).
@@ -118,8 +80,7 @@ public class CAuthHandler : IAuthPacketHandler<CAuthPacket>
         {
             // Only its own slots back, and no reset: the login is not complete until the code is
             // accepted, and each password login makes a fresh hash with fresh code attempts.
-            await SourceBudget.GiveBackAsync(_cache, sourceKey);
-            await UsernameBudget.GiveBackAsync(_cache, _authConfig, usernameKey);
+            await _policy.GiveBackAsync(attempt);
             var mfaHash = await _mfaHashService.GenerateHashAsync(account);
             ctx.Connection.Send(SAuthResultPacket.Create(null, mfaHash, AuthResult.MFA_REQUIRED, ctx.Connection.CryptoSession.Encrypt));
             return;
@@ -153,18 +114,17 @@ public class CAuthHandler : IAuthPacketHandler<CAuthPacket>
         // slots stay taken (#484), so a parallel batch that crosses the lock does not single out
         // the right password. MFA_REQUIRED, ALREADY_CONNECTED and BANNED/DEACTIVATED above do
         // single it out, by design.
-        var lastIp = RemoteAddress.Of(ctx.Connection.RemoteEndPoint);
+        var lastIp = attempt.Source.Ip;
         if (!await _accountRepository.TryRecordLoginAsync(account.Id, lastIp, DateTime.UtcNow, token))
         {
             _logger.LogWarning("Account {AccountId} was locked during its login", account.Id);
-            ctx.Connection.Send(SAuthResultPacket.Create(null, null, FailureResult(taken), ctx.Connection.CryptoSession.Encrypt));
+            ctx.Connection.Send(SAuthResultPacket.Create(null, null, FailureResult(attempt), ctx.Connection.CryptoSession.Encrypt));
             return;
         }
 
         // The login is complete: the source gets its own slot back, and the username's count is
         // cleared (owner decision on #484), so earlier typos do not carry over.
-        await SourceBudget.GiveBackAsync(_cache, sourceKey);
-        await UsernameBudget.ResetAsync(_cache, _authConfig, usernameKey);
+        await _policy.CompleteAsync(attempt);
 
         ctx.Connection.AccountId = account.Id;
 
@@ -180,30 +140,21 @@ public class CAuthHandler : IAuthPacketHandler<CAuthPacket>
         ctx.Connection.Send(SAuthResultPacket.Create(account.Id, null, AuthResult.SUCCESS, ctx.Connection.CryptoSession.Encrypt));
     }
 
-    /// <summary>The answer to a wrong password in budget slot <paramref name="taken"/>.</summary>
-    private AuthResult FailureResult(long taken) =>
-        UsernameBudget.Locks(_authConfig, taken) ? AuthResult.LOCKED : AuthResult.INVALID_CREDENTIALS;
+    /// <summary>The answer to a wrong password in this attempt's budget slot.</summary>
+    private AuthResult FailureResult(PasswordAttempt attempt) =>
+        _policy.FailureLocks(attempt) ? AuthResult.LOCKED : AuthResult.INVALID_CREDENTIALS;
 
     /// <summary>
     /// A wrong password, or a username no account has. Reply first, then write: an unknown username
     /// writes nothing to the database, so a write ahead of the reply would make a known one
     /// measurably slower. The failure in the last slot locks the account and holds the budget for
-    /// the lockout duration, for an unknown username as for a known one.
+    /// the lockout duration, for an unknown username as for a known one. The row is written
+    /// whatever the hold does: a Redis error there must not leave the account unlocked. The error
+    /// is logged, then rethrown after the write, and the server closes the connection.
     /// </summary>
-    private async Task FailAsync(AuthPacketContext<CAuthPacket> ctx, AccountId? accountId, string usernameKey, long taken,
-        CancellationToken token)
+    private async Task FailAsync(AuthPacketContext<CAuthPacket> ctx, PasswordAttempt attempt, CancellationToken token)
     {
-        ctx.Connection.Send(SAuthResultPacket.Create(null, null, FailureResult(taken), ctx.Connection.CryptoSession.Encrypt));
-
-        // The row is written whatever the hold does: a Redis error there must not leave the account
-        // unlocked. The error is logged, then rethrown after the write, and the server closes the
-        // connection.
-        var attemptIp = RemoteAddress.Of(ctx.Connection.RemoteEndPoint);
-        await UsernameBudget.RecordFailureAsync(_cache, _authConfig, _logger, usernameKey, taken,
-            accountId == null
-                ? null
-                : (now, lockUntil, writeToken) =>
-                    _accountRepository.RecordFailedLoginAsync(accountId, attemptIp, now, lockUntil, writeToken),
-            token);
+        ctx.Connection.Send(SAuthResultPacket.Create(null, null, FailureResult(attempt), ctx.Connection.CryptoSession.Encrypt));
+        await _policy.RecordFailureAsync(attempt, token);
     }
 }

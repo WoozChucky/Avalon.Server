@@ -10,7 +10,7 @@ using Avalon.Network.Packets.Auth;
 using Avalon.Server.Auth;
 using Avalon.Server.Auth.Configuration;
 using Avalon.Server.Auth.Handlers;
-using Avalon.Server.Auth.Services;
+using Avalon.Infrastructure.Login;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;

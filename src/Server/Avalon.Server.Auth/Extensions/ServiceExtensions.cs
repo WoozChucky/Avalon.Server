@@ -1,7 +1,7 @@
 using Avalon.Database.Auth.Extensions;
 using Avalon.Infrastructure.Extensions;
 using Avalon.Server.Auth.Configuration;
-using Avalon.Server.Auth.Services;
+using Avalon.Infrastructure.Login;
 
 namespace Avalon.Server.Auth.Extensions;
 

@@ -1,4 +1,4 @@
-namespace Avalon.Server.Auth.Services;
+namespace Avalon.Infrastructure.Login;
 
 /// <summary>Checks a login password against a stored BCrypt hash.</summary>
 public interface IPasswordVerifier
