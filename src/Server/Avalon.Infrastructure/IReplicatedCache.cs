@@ -49,6 +49,12 @@ public interface IReplicatedCache
     /// it does not, so an expired hash is never recreated without its expiry.
     /// </summary>
     Task<long> HashIncrementIfExistsAsync(string key, string field);
+    /// <summary>
+    /// Atomically decrements <paramref name="field"/> of the hash at <paramref name="key"/>, never
+    /// below zero, but only while the hash exists: returns -1, creating nothing, when it does not.
+    /// Returns the value after.
+    /// </summary>
+    Task<long> HashDecrementFloorIfExistsAsync(string key, string field);
     Task<bool> RemoveAsync(string key);
     Task<bool> KeyExistsAsync(string key);
     Task<bool> KeyExpireAsync(string key, TimeSpan expiry);
@@ -185,6 +191,21 @@ public class ReplicatedCache : IReplicatedCache
     public async Task<long> HashIncrementIfExistsAsync(string key, string field)
     {
         RedisResult result = await _redis.GetDatabase().ScriptEvaluateAsync(HashIncrementIfExistsScript,
+            [new RedisKey(key)], [field]);
+        return (long)result;
+    }
+
+    // EXISTS, HGET and HINCRBY -1 in one script: never below zero, and never on a hash that has
+    // expired, which a plain HINCRBY would recreate with no expiry.
+    private const string HashDecrementFloorIfExistsScript =
+        "if redis.call('EXISTS', KEYS[1]) == 0 then return -1 end " +
+        "local v = tonumber(redis.call('HGET', KEYS[1], ARGV[1])) or 0 " +
+        "if v > 0 then return redis.call('HINCRBY', KEYS[1], ARGV[1], -1) end " +
+        "return v";
+
+    public async Task<long> HashDecrementFloorIfExistsAsync(string key, string field)
+    {
+        RedisResult result = await _redis.GetDatabase().ScriptEvaluateAsync(HashDecrementFloorIfExistsScript,
             [new RedisKey(key)], [field]);
         return (long)result;
     }

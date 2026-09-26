@@ -35,6 +35,7 @@ public sealed class RestMfaCodeShould
     private readonly object _gate = new();
     private long _lastAcceptedStep;
     private bool _hashLive = true;
+    private long _attempts;
     private int _setupReads;
     private readonly TaskCompletionSource _bothRead = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly TaskCompletionSource _earlierStepTried = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -93,7 +94,8 @@ public sealed class RestMfaCodeShould
 
         // The hash as Redis holds it: one live hash for the account; a DEL tells one caller it removed it.
         _hashes.GetAccountIdAsync(Hash).Returns(_ => { lock (_gate) return _hashLive ? _account.Id : null; });
-        _hashes.RecordAttemptAsync(_account.Id).Returns(_ => { lock (_gate) return _hashLive ? 1L : -1L; });
+        _hashes.RecordAttemptAsync(_account.Id).Returns(_ => { lock (_gate) return _hashLive ? ++_attempts : -1L; });
+        _hashes.When(h => h.GiveBackAttemptAsync(_account.Id)).Do(_ => { lock (_gate) if (_hashLive && _attempts > 0) _attempts--; });
         _hashes.TryConsumeAsync(Hash, _account.Id).Returns(_ =>
         {
             lock (_gate)
@@ -179,12 +181,15 @@ public sealed class RestMfaCodeShould
         NewHash();
         string usernameKey = Assert.Single(_counters.UsernameKeys);
         long before = _counters.CountOf(usernameKey);
+        long attemptsBefore = _attempts;
         MfaCodeAttempt replay = await VerifyAsync(policy, code);
 
         Assert.Equal(MfaCodeCheck.Replayed, replay.Result);
         Assert.True(_hashLive);
         // Its own slot came back: the replay did not count.
         Assert.Equal(before, _counters.CountOf(usernameKey));
+        // And the hash's attempt came back (#478 re-review): only a right code reaches a replay.
+        Assert.Equal(attemptsBefore, _attempts);
     }
 
     /// <summary>A right code spends its hash: it cannot be verified against again.</summary>

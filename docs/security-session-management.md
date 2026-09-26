@@ -139,7 +139,9 @@ Client               Auth Server           Redis
 - The step is accepted before the hash is spent, so a replayed code (right, but already used) is refused
   without spending the hash, and the owner's own code can still finish the login. A replay, and a right
   code that lost the hash to another verify, are not failed logins: their budget slots come back and the
-  row is not counted.
+  row is not counted. A replay also gives back the attempt it counted on the hash, which is safe because
+  only a right code can be a replay. A code that lost the hash gives no attempt back: the hash is gone,
+  and the account's `:mfa` key may already hold the next login's.
 - Each hash allows `MaxFailedMfaAttempts` codes (counted before the code is checked); the last wrong code
   deletes it. Each code also spends its source's and its account's username budgets, and the account's
   lock is checked before the code. TOTP codes are accepted within ±1 step, each step once

@@ -51,6 +51,15 @@ public class MFAHashServiceShould
         await _cache.Received(1).RemoveAsync(CacheKeys.AccountMfa(42));
     }
 
+    /// <summary>#478 re-review: the give-back decrements the attempts field, only on a live hash.</summary>
+    [Fact]
+    public async Task Give_an_attempt_back_on_the_accounts_live_hash()
+    {
+        await _service.GiveBackAttemptAsync(new AccountId(42L));
+
+        await _cache.Received(1).HashDecrementFloorIfExistsAsync(CacheKeys.AccountMfa(42), "attempts");
+    }
+
     [Fact]
     public async Task CleanupBothKeys_WhenHashExists()
     {

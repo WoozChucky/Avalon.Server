@@ -24,6 +24,12 @@ public interface IMFAHashService
     /// only one may go on (#478, as #450 does for world keys).
     /// </summary>
     Task<bool> TryConsumeAsync(string hash, AccountId accountId);
+
+    /// <summary>
+    /// Gives back one code attempt counted by <see cref="RecordAttemptAsync"/>, for a code that was
+    /// right but replayed (#478 re-review). Does nothing when the account has no live hash.
+    /// </summary>
+    Task GiveBackAttemptAsync(AccountId accountId);
 }
 
 public class MFAHashService : IMFAHashService
@@ -94,6 +100,9 @@ public class MFAHashService : IMFAHashService
 
     public Task<long> RecordAttemptAsync(AccountId accountId) =>
         _cache.HashIncrementIfExistsAsync(CacheKeys.AccountMfa(accountId.Value), "attempts");
+
+    public Task GiveBackAttemptAsync(AccountId accountId) =>
+        _cache.HashDecrementFloorIfExistsAsync(CacheKeys.AccountMfa(accountId.Value), "attempts");
 
     public async Task<bool> TryConsumeAsync(string hash, AccountId accountId)
     {

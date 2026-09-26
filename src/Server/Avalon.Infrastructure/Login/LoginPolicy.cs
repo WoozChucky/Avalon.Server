@@ -245,10 +245,15 @@ public sealed class MfaLoginPolicy : LoginPolicy
         if (!result.Success && result.Refusal != MfaCodeRefusal.WrongCode)
         {
             // A replayed code, or one that lost the hash to another verify (#478 review): refused,
-            // but not a failed login, so its slots come back and neither the row nor the hash is
-            // touched.
+            // but not a failed login. Its budget slots come back, nothing is written to the row, and
+            // the hash is not deleted. A replay also gives back the attempt it counted on the hash
+            // (#478 re-review); that is safe because only a right code gets here. A code that lost
+            // the hash gives none back: the hash is gone, and the per-account key may already hold
+            // the next login's hash.
             var refused = new MfaCodeAttempt(MfaCodeCheck.Replayed, source, usernameKey, taken, account);
             await GiveBackAsync(refused);
+            if (result.Refusal == MfaCodeRefusal.Replayed)
+                await _hashes.GiveBackAttemptAsync(account.Id);
             return refused;
         }
 

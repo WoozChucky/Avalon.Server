@@ -78,7 +78,9 @@ public static class CacheKeys
 
     /// <summary>
     /// Redis hash that holds MFA state for an account during the two-factor login flow.
-    /// Fields: <c>hash</c>, <c>expiry</c>, <c>accountId</c>.
+    /// Fields: <c>hash</c>, <c>expiry</c>, <c>accountId</c>, and <c>attempts</c>: codes tried against it,
+    /// counted with HINCRBY only while the hash exists; a replayed right code gives its attempt back
+    /// with a script that decrements only while the hash exists and the field is above zero.
     /// </summary>
     public static string AccountMfa(long accountId) => $"auth:account:{accountId}:mfa";
 
