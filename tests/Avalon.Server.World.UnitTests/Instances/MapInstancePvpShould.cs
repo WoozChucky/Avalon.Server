@@ -3,6 +3,7 @@ using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Combat;
 using Avalon.Server.World.UnitTests.Inventory;
 using Avalon.Server.World.UnitTests.Loot;
+using Avalon.World.Abilities.Targeting;
 using Avalon.World.Configuration;
 using Avalon.World.Entities;
 using Avalon.World.Instances;
@@ -38,7 +39,20 @@ public class MapInstancePvpShould
         _toggle = new PvpToggle(Options.Create(new GameConfiguration { PvpOffDelay = TimeSpan.FromMinutes(5) }), _clock);
 
     /// <summary>The instance, its combat service and the test share one toggle and one clock.</summary>
-    private MapInstance Build() => TestMapInstances.Build(NewWorld(), pvp: _toggle);
+    private MapInstance Build(MapType mapType = MapType.Normal) =>
+        TestMapInstances.Build(NewWorld(), pvp: _toggle, mapType: mapType);
+
+    /// <summary>Both characters flagged with a running off timer, at full health.</summary>
+    private void FlagWithTimer(params MapInstanceClient[] clients)
+    {
+        foreach (MapInstanceClient c in clients)
+        {
+            _toggle.Request(c.Character);
+            _toggle.Request(c.Character);
+            c.Character.Health = 100;
+            c.Character.CurrentHealth = 100;
+        }
+    }
 
     private static List<SPvpStatePacket> PvpStates(MapInstanceClient client) =>
         client.Read<SPvpStatePacket>(NetworkPacketType.SMSG_PVP_STATE);
@@ -118,6 +132,75 @@ public class MapInstancePvpShould
         SPvpStatePacket state = Assert.Single(PvpStates(player));
         Assert.True(state.Enabled);
         Assert.Equal(120_000u, state.OffInMs);
+    }
+
+    [Fact]
+    public void Turn_off_a_flag_whose_timer_ran_out_while_offline_and_say_so_once_on_entry()
+    {
+        using MapInstance instance = Build();
+        CharacterEntity relogged = TestCharacters.New(164_861);
+        relogged.Data!.PvpEnabled = true;
+        relogged.Data.PvpOffAt = Now.UtcDateTime.AddMinutes(-1);
+
+        MapInstanceClient player = Join(instance, relogged);
+        instance.Update(Tick);
+
+        Assert.False(relogged.PvpEnabled);
+        Assert.Null(relogged.PvpOffAt);
+        Assert.Equal((false, 0u), PvpStates(player).Select(s => (s.Enabled, s.OffInMs)).Single());
+    }
+
+    [Fact]
+    public void Leave_the_timers_alone_on_a_hit_of_no_damage()
+    {
+        using MapInstance instance = Build();
+        MapInstanceClient a = Join(instance, 164_871);
+        MapInstanceClient b = Join(instance, 164_872);
+        FlagWithTimer(a, b);
+        DateTime? before = a.Character.PvpOffAt;
+        _clock.Now = _clock.Now.AddMinutes(1);
+
+        instance.CombatService.ApplyDamage(a.Character, b.Character, 0);
+
+        Assert.Equal(before, a.Character.PvpOffAt);
+        Assert.Equal(before, b.Character.PvpOffAt);
+    }
+
+    [Fact]
+    public void Leave_the_timers_alone_on_a_hit_on_a_dead_player()
+    {
+        using MapInstance instance = Build();
+        MapInstanceClient a = Join(instance, 164_881);
+        MapInstanceClient b = Join(instance, 164_882);
+        FlagWithTimer(a, b);
+        b.Character.IsDead = true;
+        DateTime? before = a.Character.PvpOffAt;
+        _clock.Now = _clock.Now.AddMinutes(1);
+
+        instance.CombatService.ApplyDamage(a.Character, b.Character, 5);
+
+        Assert.Equal(before, a.Character.PvpOffAt);
+        Assert.Equal(before, b.Character.PvpOffAt);
+    }
+
+    /// <summary>A town accepts the toggle and answers it, but never lets two flagged players fight.</summary>
+    [Fact]
+    public void Accept_a_toggle_in_a_town_while_hostility_still_refuses_flagged_players_there()
+    {
+        using MapInstance instance = Build(MapType.Town);
+        MapInstanceClient a = Join(instance, 164_891);
+        MapInstanceClient b = Join(instance, 164_892);
+        instance.Update(Tick);
+        a.Sent.Clear();
+
+        _toggle.Toggle(a.Connection);
+        _toggle.Toggle(b.Connection);
+
+        Assert.Equal((true, 0u), PvpStates(a).Select(s => (s.Enabled, s.OffInMs)).Single());
+        Assert.True(a.Character.PvpEnabled);
+        Assert.True(b.Character.PvpEnabled);
+        Assert.False(Hostility.IsHostile(a.Character, b.Character, instance.MapType));
+        Assert.False(Hostility.IsHostile(b.Character, a.Character, instance.MapType));
     }
 
     [Fact]

@@ -490,13 +490,19 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         _lootSnapshotOwed.Clear();
     }
 
-    /// <summary>#164: a character entering this instance learns its own flag and any timer left.</summary>
+    /// <summary>
+    /// #164: a character entering this instance learns its own flag and any timer left. A timer that
+    /// ran out while it was offline is expired first, so it hears one (false, 0), not a stale "on".
+    /// </summary>
     private void SendOwedPvpStates()
     {
         foreach (ObjectGuid guid in _pvpStateOwed)
         {
             if (_connections.TryGetValue(guid, out IWorldConnection? owed) && owed.Character is CharacterEntity entity)
+            {
+                _pvp.ExpireIfDue(entity);
                 _pvp.Send(owed, entity);
+            }
         }
 
         _pvpStateOwed.Clear();

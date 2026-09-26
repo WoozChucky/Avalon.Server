@@ -44,8 +44,12 @@ public sealed class CombatService : ICombatService
         // Every damage source in the game funnels through here, so this one guard covers them all.
         if (target is ICreature { Invulnerable: true }) return;
 
-        // #164: any player-on-player hit restarts both players' running PvP off timers.
-        if (attacker is CharacterEntity attackerEntity && target is CharacterEntity targetEntity)
+        // #164: a player-on-player hit that deals damage to a living player restarts both players'
+        // running PvP off timers. Towns are covered because AbilityEffect checks Hostility before it
+        // damages anyone, and Hostility refuses players in a town. ICombatService is on the modding
+        // API, though, and this reset does not re-check the town rule itself.
+        if (damage > 0 && attacker is CharacterEntity attackerEntity
+                       && target is CharacterEntity { IsDead: false } targetEntity)
             _pvp?.OnPlayerHitPlayer(attackerEntity, targetEntity);
 
         Encounter enc = ResolveOrSpawn(attacker, target);
