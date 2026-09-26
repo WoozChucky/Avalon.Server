@@ -8,8 +8,18 @@ namespace Avalon.World.Public.Creatures;
 /// how to get there and is the only thing that writes a creature's position.
 /// </summary>
 /// <remarks>
+/// <para>
+/// Also the only thing that writes a creature's <see cref="IWorldObject.Velocity" />, and every
+/// implementation writes it in metres per second: the direction of travel scaled by the speed the
+/// creature is actually moving at (<see cref="ICreature.Speed" /> once up to speed), and exactly
+/// zero whenever the creature comes to rest. Never a bare unit direction — the client extrapolates
+/// by <c>Velocity * seconds</c>, so implementations that disagree on the unit make the configured
+/// locomotion change how far every creature appears to move (#424).
+/// </para>
+/// <para>
 /// Per-instance rather than per-creature because a crowd simulation steers every agent in one
 /// batched call — an abstraction owned by each creature could not express that.
+/// </para>
 /// </remarks>
 public interface ICreatureLocomotion
 {

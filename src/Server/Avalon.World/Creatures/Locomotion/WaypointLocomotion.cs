@@ -124,7 +124,10 @@ public sealed class WaypointLocomotion : ICreatureLocomotion
         Vector3 direction = Vector3.Normalize(next - creature.Position);
 
         creature.LookAt(next);
-        creature.Velocity = direction;
+        // Metres per second, not the bare direction (#424): the client extrapolates a creature by
+        // Velocity * seconds since the last broadcast, and CrowdLocomotion publishes agent.vel in
+        // the same unit. A unit vector here extrapolated every creature at 1 m/s.
+        creature.Velocity = direction * creature.Speed;
 
         // Clamped to the remaining distance: an unclamped step overshoots next every tick once
         // Speed * deltaTime exceeds it (SpeedRun above ~6 at a 60Hz tick), so the creature never

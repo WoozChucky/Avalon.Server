@@ -16,8 +16,17 @@ public interface IWorldObject : IObject
     Vector3 Position { get; set; }
 
     /// <summary>
-    ///     Gets or sets the velocity of the world object.
+    ///     Gets or sets the velocity of the world object, in world units (metres) per second.
     /// </summary>
+    /// <remarks>
+    ///     Replicated as <c>ObjectState.Velocity</c>, and the client extrapolates an object between
+    ///     state broadcasts as <c>position + Velocity * secondsSinceUpdate</c>, so the magnitude is
+    ///     the speed and matters as much as the direction. Zero when the object is at rest. A
+    ///     character's comes from <c>PlayerInputHandler</c> (direction times movement speed); a
+    ///     creature's is written only by its <see cref="Creatures.ICreatureLocomotion" />. Ability projectiles
+    ///     carry their own <c>Velocity</c> and do not follow this yet: <c>FireballAbilityScript</c>
+    ///     publishes a unit direction.
+    /// </remarks>
     Vector3 Velocity { get; set; }
 
     /// <summary>

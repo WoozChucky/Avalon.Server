@@ -199,6 +199,7 @@ The JWT's lifetime is enforced: `ValidateLifetime = true`, with `AccessTokenLife
 **Two contracts worth knowing before touching creature movement or AI scripts:**
 - The calling script owns the *moving* `MoveState` and `Speed`; a locomotion writes `MoveState` only when a creature comes to rest, setting `Idle` and zeroing `Velocity`. A locomotion that writes a moving value stomps the script every tick.
 - `HasArrived` means "no further destination", which includes *no destination was reachable*. Treating it as "arrived successfully" turns a pathing failure into a silent success.
+- `Velocity` is metres per second in both locomotions, the same as a character's, and zero at rest (#424). The client extrapolates by `position + Velocity * secondsSinceUpdate`, so a bare unit direction would move every creature at 1 m/s between broadcasts. `LocomotionVelocityUnitsShould` pins it for both.
 
 ## Inventory, Gold and Character Saves
 
