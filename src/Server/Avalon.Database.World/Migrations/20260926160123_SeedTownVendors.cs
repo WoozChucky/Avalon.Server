@@ -39,7 +39,7 @@ namespace Avalon.Database.World.Migrations
                     { "ptPT", 20, "Placas, couro, tecido. Visto todos os ofícios. Compra-o simples, ganha-o vistoso." },
                     { "ptPT", 21, "Poções, pergaminhos, mantimentos. E fico com o que não te faz falta." },
                     { "ptPT", 22, "Compro tudo o que não estiver pregado a ti. Preços justos, quase sempre." },
-                    { "ptPT", 23, "Com que é que negoceias?" },
+                    { "ptPT", 23, "O que é que vendes?" },
                     { "ptPT", 24, "Mostra-me a tua mercadoria." }
                 });
 

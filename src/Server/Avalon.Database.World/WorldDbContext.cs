@@ -1805,7 +1805,7 @@ public class WorldDbContext : DbContext
             new LocalizedTextLocale { TextId = 20, Locale = AccountLocale.ptPT, Text = "Placas, couro, tecido. Visto todos os ofícios. Compra-o simples, ganha-o vistoso." },
             new LocalizedTextLocale { TextId = 21, Locale = AccountLocale.ptPT, Text = "Poções, pergaminhos, mantimentos. E fico com o que não te faz falta." },
             new LocalizedTextLocale { TextId = 22, Locale = AccountLocale.ptPT, Text = "Compro tudo o que não estiver pregado a ti. Preços justos, quase sempre." },
-            new LocalizedTextLocale { TextId = 23, Locale = AccountLocale.ptPT, Text = "Com que é que negoceias?" },
+            new LocalizedTextLocale { TextId = 23, Locale = AccountLocale.ptPT, Text = "O que é que vendes?" },
             new LocalizedTextLocale { TextId = 24, Locale = AccountLocale.ptPT, Text = "Mostra-me a tua mercadoria." });
     }
 

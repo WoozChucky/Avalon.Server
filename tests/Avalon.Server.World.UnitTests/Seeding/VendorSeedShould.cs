@@ -25,7 +25,7 @@ public class VendorSeedShould
         (14, "Tobin Marrowfield", "Trade Goods"),
     ];
 
-    /// <summary>Each starter piece and the forest piece it is scaled from (Decision 26).</summary>
+    /// <summary>Each starter piece and the forest piece it is scaled from (#432: each starter piece is 60% of its forest piece).</summary>
     private static readonly (ulong Starter, ulong Forest)[] Tiers =
     [
         (32, 7), (33, 5), (34, 6), (35, 8),
@@ -52,7 +52,7 @@ public class VendorSeedShould
             .Where(s => s.Type is not null)
             .ToDictionary(s => s.Type!.Value, s => s.Value ?? 0);
 
-    /// <summary>Decision 26: times 0.6, rounded half away from zero, never below 1.</summary>
+    /// <summary>The starter-tier scaling (#432): times 0.6, rounded half away from zero, never below 1.</summary>
     private static uint SixtyPercent(uint value) =>
         Math.Max(1u, (uint)Math.Round(value * 0.6, MidpointRounding.AwayFromZero));
 
@@ -292,7 +292,10 @@ public class VendorSeedShould
         using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
 
-        Assert.All(Stock(context), r =>
+        List<VendorStock> rows = Stock(context);
+
+        Assert.NotEmpty(rows);
+        Assert.All(rows, r =>
         {
             Assert.Null(r.RequiredQuestId);
             Assert.Null(r.RequiredQuestState);

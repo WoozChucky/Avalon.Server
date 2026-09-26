@@ -3976,7 +3976,7 @@ namespace Avalon.Database.World.Migrations
                         {
                             TextId = 23,
                             Locale = "ptPT",
-                            Text = "Com que é que negoceias?"
+                            Text = "O que é que vendes?"
                         },
                         new
                         {
