@@ -23,7 +23,10 @@ namespace Avalon.Database.Character.Migrations
                 ") AS k(class, ability) ON c.\"Class\" = k.class;");
         }
 
-        /// <summary>Back to the retired per-class abilities the old StartingSpells granted.</summary>
+        /// <summary>
+        /// Back to the retired per-class abilities the old StartingSpells granted. It restores each class's
+        /// old default set, not what each character held before Up, and every cooldown starts at 0.
+        /// </summary>
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.Sql("DELETE FROM \"CharacterAbilities\";");

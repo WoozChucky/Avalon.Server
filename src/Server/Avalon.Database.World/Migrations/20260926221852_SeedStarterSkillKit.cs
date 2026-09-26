@@ -9,7 +9,8 @@ namespace Avalon.Database.World.Migrations
     /// <summary>
     /// #164: the twelve-skill starter kit replaces abilities 1, 2 and 100-103, and each class starts with
     /// its three. Ordered by hand so each step reads after what it depends on: Up deletes the retired
-    /// rows, inserts the kit, then points StartingSpells at it; Down points StartingSpells back first.
+    /// rows, inserts the kit, then points StartingSpells at it; Down re-inserts the retired rows, points
+    /// StartingSpells back at them, then deletes the kit.
     /// StartingSpells is a comma-separated text column with no foreign key, so nothing refuses another
     /// order; the order is for the reader.
     /// </summary>
@@ -99,6 +100,19 @@ namespace Avalon.Database.World.Migrations
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.InsertData(
+                table: "AbilityTemplates",
+                columns: new[] { "Id", "Affects", "AimMode", "AllowedClasses", "Anchor", "AnimationId", "ArcDegrees", "CastTime", "Cooldown", "Cost", "EffectValue", "Effects", "Flags", "HealThreatPerHp", "Name", "Pierce", "ProjectileSpeed", "Radius", "Range", "Reach", "Shape", "SpellScript", "TauntDurationMs", "ThreatMultiplier" },
+                values: new object[,]
+                {
+                    { 1L, (byte)0, (byte)0, new[] { 1 }, (byte)0, 0L, 0f, 0L, 2500L, 25L, 10L, 1, 0L, 0f, "Strike", false, 0f, 0f, 2, 0f, (byte)0, "StrikeAbilityScript", 0L, 1f },
+                    { 2L, (byte)0, (byte)0, new[] { 1, 2 }, (byte)0, 0L, 0f, 2000L, 1000L, 10L, 10L, 1, 0L, 0f, "Fireball", false, 0f, 0f, 10, 0f, (byte)0, "FireballAbilityScript", 0L, 1f },
+                    { 100L, (byte)0, (byte)0, new[] { 1 }, (byte)0, 0L, 0f, 0L, 500L, 0L, 15L, 1, 0L, 0f, "Warrior Slash", false, 0f, 0f, 2, 0f, (byte)0, "StrikeAbilityScript", 0L, 1.5f },
+                    { 101L, (byte)0, (byte)0, new[] { 2 }, (byte)0, 0L, 0f, 200L, 700L, 0L, 8L, 1, 0L, 0f, "Wizard Bolt", false, 0f, 0f, 10, 0f, (byte)0, "StrikeAbilityScript", 0L, 1f },
+                    { 102L, (byte)0, (byte)0, new[] { 3 }, (byte)0, 0L, 0f, 0L, 600L, 0L, 10L, 1, 0L, 0f, "Hunter Shot", false, 0f, 0f, 20, 0f, (byte)0, "StrikeAbilityScript", 0L, 1f },
+                    { 103L, (byte)0, (byte)0, new[] { 4 }, (byte)0, 0L, 0f, 300L, 800L, 0L, 5L, 1, 0L, 0f, "Healer Wand", false, 0f, 0f, 10, 0f, (byte)0, "StrikeAbilityScript", 0L, 0.8f }
+                });
+
             migrationBuilder.UpdateData(
                 table: "CharacterCreateInfos",
                 keyColumn: "Class",
@@ -186,19 +200,6 @@ namespace Avalon.Database.World.Migrations
                 table: "AbilityTemplates",
                 keyColumn: "Id",
                 keyValue: 232L);
-
-            migrationBuilder.InsertData(
-                table: "AbilityTemplates",
-                columns: new[] { "Id", "Affects", "AimMode", "AllowedClasses", "Anchor", "AnimationId", "ArcDegrees", "CastTime", "Cooldown", "Cost", "EffectValue", "Effects", "Flags", "HealThreatPerHp", "Name", "Pierce", "ProjectileSpeed", "Radius", "Range", "Reach", "Shape", "SpellScript", "TauntDurationMs", "ThreatMultiplier" },
-                values: new object[,]
-                {
-                    { 1L, (byte)0, (byte)0, new[] { 1 }, (byte)0, 0L, 0f, 0L, 2500L, 25L, 10L, 1, 0L, 0f, "Strike", false, 0f, 0f, 2, 0f, (byte)0, "StrikeAbilityScript", 0L, 1f },
-                    { 2L, (byte)0, (byte)0, new[] { 1, 2 }, (byte)0, 0L, 0f, 2000L, 1000L, 10L, 10L, 1, 0L, 0f, "Fireball", false, 0f, 0f, 10, 0f, (byte)0, "FireballAbilityScript", 0L, 1f },
-                    { 100L, (byte)0, (byte)0, new[] { 1 }, (byte)0, 0L, 0f, 0L, 500L, 0L, 15L, 1, 0L, 0f, "Warrior Slash", false, 0f, 0f, 2, 0f, (byte)0, "StrikeAbilityScript", 0L, 1.5f },
-                    { 101L, (byte)0, (byte)0, new[] { 2 }, (byte)0, 0L, 0f, 200L, 700L, 0L, 8L, 1, 0L, 0f, "Wizard Bolt", false, 0f, 0f, 10, 0f, (byte)0, "StrikeAbilityScript", 0L, 1f },
-                    { 102L, (byte)0, (byte)0, new[] { 3 }, (byte)0, 0L, 0f, 0L, 600L, 0L, 10L, 1, 0L, 0f, "Hunter Shot", false, 0f, 0f, 20, 0f, (byte)0, "StrikeAbilityScript", 0L, 1f },
-                    { 103L, (byte)0, (byte)0, new[] { 4 }, (byte)0, 0L, 0f, 300L, 800L, 0L, 5L, 1, 0L, 0f, "Healer Wand", false, 0f, 0f, 10, 0f, (byte)0, "StrikeAbilityScript", 0L, 0.8f }
-                });
         }
     }
 }

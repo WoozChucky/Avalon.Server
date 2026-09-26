@@ -618,7 +618,9 @@ public class SeedIntegrityShould
 
     /// <summary>
     /// A kit skill its class's power pool cannot pay under the one power rule could never be cast.
-    /// Every character enters with a full pool, so a pool holding exactly the cost must be enough.
+    /// Every character enters with a full pool, so a pool holding exactly the cost must be enough, and
+    /// the class's level-1 maximum (seeded ClassLevelStats through CharacterStatsCalculator, with
+    /// nothing worn, as at creation) must hold at least the cost.
     /// </summary>
     [Fact]
     public void Price_every_kit_ability_in_a_power_its_class_can_pay()
@@ -627,9 +629,13 @@ public class SeedIntegrityShould
         using WorldDbContext context = database.CreateDbContext();
 
         List<AbilityTemplate> abilities = context.AbilityTemplates.AsNoTracking().ToList();
+        List<ClassLevelStat> levelStats = context.ClassLevelStats.AsNoTracking().ToList();
 
         foreach ((CharacterClass cls, uint[] ids) in Kit)
         {
+            ClassLevelStat levelOne = levelStats.Single(s => s.Class == cls && s.Level == 1);
+            uint maxPower = CharacterStatsCalculator.Calculate(levelOne, []).MaxPower;
+
             foreach (uint id in ids)
             {
                 AbilityTemplate ability = abilities.Single(a => a.Id.Value == id);
@@ -639,6 +645,8 @@ public class SeedIntegrityShould
 
                 Assert.True(AbilityCost.Check(caster, AbilityMetadataMapper.From(ability)) == CostCheck.Payable,
                     $"{cls} cannot pay for ability {id} '{ability.Name}' ({ability.Cost} power)");
+                Assert.True(ability.Cost <= maxPower,
+                    $"ability {id} '{ability.Name}' costs {ability.Cost}, above a level-1 {cls}'s {maxPower} power");
             }
         }
     }

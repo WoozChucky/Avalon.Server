@@ -7,7 +7,7 @@ This document describes how the client must change to align with the server's V1
 
 ## 1. Conceptual Changes
 
-- Auto-attack is **removed**. Basic attack is an ordinary ability (one per class, see §10), fired per click via `CCastAbilityPacket`. There is no separate "attack" opcode any more.
+- Auto-attack is **removed**. Every attack is an ordinary ability, fired per click via `CCastAbilityPacket`; each class starts with three skills (see §10). There is no separate "attack" opcode any more.
 - A 200 ms hidden GCD lives on the server. The server validates every cast and answers every refusal with `SAbilityNotReadyPacket` carrying a reason (and, for the GCD and cooldowns, the remaining time).
 - Casts aim, they do not target (#164). A cast aims along the caster's facing, or at the cursor's ground point for a Cursor skill, and the ability's shape decides who it affects. There is no range or facing check on a cast, and `TargetGuid` is ignored.
 - Exit-paths (map transitions in V1; future fast-travel / waypoint / town-portal) work mid-combat. The server zeroes the player's threat across all hostiles in the encounter as the player leaves.
@@ -162,7 +162,7 @@ The client never emits a separate "interrupt" or "cancel" packet — moving canc
 ## 8. Removed Client-Side Concepts
 
 - "Auto-attack" client state — toggle, cycle, queued-swing, attack-on-target. Delete all of it.
-- Spell-vs-attack input split. Replace with a single "use ability" input mapped to `CCastAbilityPacket`. Hotbars now contain only abilities; the basic attack lives in slot 0 of the player's ability list (delivered via `SCharacterAbilitiesPacket` on character login).
+- Spell-vs-attack input split. Replace with a single "use ability" input mapped to `CCastAbilityPacket`. Hotbars now contain only abilities: the ones listed in `SCharacterAbilitiesPacket`, delivered on character login. The list has no guaranteed order, so place skills by `AbilityId`, not by position.
 
 ## 9. Test Checklist (Client)
 
