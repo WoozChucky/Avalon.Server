@@ -64,11 +64,16 @@
       user-secrets - leaving it on would fail every ordinary build and every existing
       CI job for want of a key that signs nothing.
 
-      The docs workflow turns it on explicitly and supplies a throwaway key:
+      The generator also interrupts Main when the host STARTS, not when it is built, so
+      the startup work after Build() - migrations, workers, the cache connection - runs
+      unless AVALON_OPENAPI_GENERATION_ONLY tells Program.cs to skip it.
 
-        Application__Authentication__IssuerSigningKey=...           dotnet build src/Server/Avalon.Api -c Release -p:OpenApiGenerateDocuments=true
+      The docs workflow turns generation on and supplies both, as
+      .github/workflows/docs.yml shows:
 
-      Migrations are never reached; the generator stops after service registration.
+        AVALON_OPENAPI_GENERATION_ONLY=true
+        Application__Authentication__IssuerSigningKey=<anything>
+        dotnet build src/Server/Avalon.Api -c Release -p:OpenApiGenerateDocuments=true
     -->
     <OpenApiGenerateDocuments Condition="'$(OpenApiGenerateDocuments)' == ''">false</OpenApiGenerateDocuments>
     <OpenApiDocumentsDirectory>$(MSBuildProjectDirectory)/openapi</OpenApiDocumentsDirectory>
