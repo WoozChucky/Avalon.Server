@@ -35,12 +35,15 @@ public static class Hostility
         };
     }
 
-    /// <summary>The caster itself, and every player not hostile to it. Creatures are never allies.</summary>
+    /// <summary>
+    /// The caster itself, and every player not hostile to it. Creatures are never allies. A character
+    /// that is not the World-side entity is never an ally either, as it is never hostile: fails safe.
+    /// </summary>
     public static bool IsAlly(IUnit caster, IUnit unit, MapType mapType)
     {
         if (ReferenceEquals(caster, unit) || caster.Guid == unit.Guid)
             return true;
 
-        return caster is ICharacter && unit is ICharacter && !IsHostile(caster, unit, mapType);
+        return caster is CharacterEntity && unit is CharacterEntity && !IsHostile(caster, unit, mapType);
     }
 }

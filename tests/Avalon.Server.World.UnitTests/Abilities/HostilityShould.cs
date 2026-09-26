@@ -1,6 +1,8 @@
+using Avalon.Common;
 using Avalon.Server.World.UnitTests.Inventory;
 using Avalon.World.Abilities.Targeting;
 using Avalon.World.Entities;
+using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
 using NSubstitute;
@@ -17,10 +19,11 @@ public class HostilityShould
         return character;
     }
 
-    private static ICreature Creature(bool invulnerable = false)
+    private static ICreature Creature(bool invulnerable = false, uint id = 0)
     {
         var creature = Substitute.For<ICreature>();
         creature.Invulnerable.Returns(invulnerable);
+        creature.Guid.Returns(new ObjectGuid(ObjectType.Creature, id));
         return creature;
     }
 
@@ -65,4 +68,32 @@ public class HostilityShould
     [Fact]
     public void Make_nothing_hostile_to_a_creature_caster_until_creatures_cast() =>
         Assert.False(Hostility.IsHostile(Creature(), Player(1, pvp: true), MapType.Normal));
+
+    [Fact]
+    public void Make_no_creature_hostile_to_a_creature_caster() =>
+        Assert.False(Hostility.IsHostile(Creature(id: 1), Creature(id: 2), MapType.Normal));
+
+    /// <summary>Two entities for one character (a relog's old and new copy) count as the same unit.</summary>
+    [Fact]
+    public void Treat_two_entities_with_one_guid_as_the_caster_itself()
+    {
+        CharacterEntity caster = Player(1, pvp: true);
+        CharacterEntity sameGuid = Player(1, pvp: true);
+
+        Assert.False(Hostility.IsHostile(caster, sameGuid, MapType.Normal));
+        Assert.True(Hostility.IsAlly(caster, sameGuid, MapType.Normal));
+    }
+
+    /// <summary>A character that is not the World-side entity is neither hostile nor an ally, which fails safe.</summary>
+    [Fact]
+    public void Never_count_a_character_that_is_not_the_world_side_entity_as_an_ally()
+    {
+        var foreign = Substitute.For<ICharacter>();
+        foreign.Guid.Returns(new ObjectGuid(ObjectType.Character, 99));
+        CharacterEntity caster = Player(1, pvp: false);
+
+        Assert.False(Hostility.IsAlly(caster, foreign, MapType.Normal));
+        Assert.False(Hostility.IsAlly(foreign, caster, MapType.Normal));
+        Assert.False(Hostility.IsHostile(caster, foreign, MapType.Normal));
+    }
 }

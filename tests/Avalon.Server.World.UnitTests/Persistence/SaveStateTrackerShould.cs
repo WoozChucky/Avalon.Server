@@ -203,4 +203,18 @@ public class SaveStateTrackerShould
         Assert.False(tracker.PvpDirty);
         Assert.False(tracker.HasChanges);
     }
+
+    [Fact]
+    public void Keep_a_pvp_change_made_while_the_save_was_in_flight()
+    {
+        var tracker = new SaveStateTracker();
+        tracker.PvpChanged();
+        SaveMarks marks = tracker.TakeMarks();
+
+        tracker.PvpChanged();
+        tracker.Acknowledge(marks);
+
+        Assert.True(tracker.PvpDirty);
+        Assert.True(tracker.HasChanges);
+    }
 }

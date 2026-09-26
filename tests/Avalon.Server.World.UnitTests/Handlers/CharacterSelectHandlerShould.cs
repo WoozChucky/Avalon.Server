@@ -300,6 +300,8 @@ public class CharacterSelectHandlerShould
         [
             AbilityTestData.AimedCircle(1, reach: 18f, radius: 3f),
             AbilityTestData.Projectile(2, reach: 25f, speed: 28f, pierce: true),
+            AbilityTestData.Cone(3, arc: 60f),
+            AbilityTestData.HealCircle(4),
         ]);
 
         f.Handler.Execute(f.Connection, new CCharacterSelectedPacket { CharacterId = TheCharacter });
@@ -308,7 +310,7 @@ public class CharacterSelectHandlerShould
             f.SentPackets, p => p.Header.Type == NetworkPacketType.SMSG_CHARACTER_ABILITIES);
         using var stream = new MemoryStream(sent.Payload);
         AbilityInfo[] abilities = Serializer.Deserialize<SCharacterAbilitiesPacket>(stream).Abilities;
-        Assert.Equal(2, abilities.Length);
+        Assert.Equal(4, abilities.Length);
         Assert.All(abilities, a => Assert.Equal(0f, a.FacingAngle));
 
         AbilityInfo circle = Assert.Single(abilities, a => a.AbilityId == 1);
@@ -322,6 +324,10 @@ public class CharacterSelectHandlerShould
         Assert.Equal(AbilityShape.Projectile, projectile.Shape);
         Assert.Equal(28f, projectile.ProjectileSpeed);
         Assert.True(projectile.Pierce);
+
+        Assert.Equal(60f, Assert.Single(abilities, a => a.AbilityId == 3).ArcDegrees);
+        Assert.Equal(AbilityAffects.Ally, Assert.Single(abilities, a => a.AbilityId == 4).Affects);
+        Assert.Equal(AbilityAffects.Hostile, circle.Affects);
     }
 
     /// <summary>
