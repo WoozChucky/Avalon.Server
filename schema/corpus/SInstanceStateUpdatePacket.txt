@@ -362,14 +362,14 @@ variant float-specials
     element 0
       field 1 Guid : ulong = 7
       field 2 Position : Vec3
-        field 1 X : float = NaN (0x7fc00001)
-        field 2 Y : float = Infinity (0x7f800000)
-        field 3 Z : float = -Infinity (0xff800000)
+        field 1 X : float = Infinity (0x7f800000)
+        field 2 Y : float = -Infinity (0xff800000)
+        field 3 Z : float = -0 (0x80000000)
       field 3 Velocity : Vec3
-        field 1 X : float = NaN (0x7fc00001)
-        field 2 Y : float = Infinity (0x7f800000)
-        field 3 Z : float = -Infinity (0xff800000)
-      field 4 Orientation : float? = NaN (0x7fc00001)
+        field 1 X : float = Infinity (0x7f800000)
+        field 2 Y : float = -Infinity (0xff800000)
+        field 3 Z : float = -0 (0x80000000)
+      field 4 Orientation : float? = Infinity (0x7f800000)
       field 5 MoveState : MoveState? = Running (2)
       field 6 Health : uint? = 7
       field 7 CurrentHealth : uint? = 300
@@ -382,21 +382,21 @@ variant float-specials
       field 14 RequiredExperience : ulong? = 7
       field 15 CreatureMetadataId : ulong? = 300
       field 16 Name : string = "alpha" (5 chars, 5 bytes utf-8)
-      field 17 PortalRadius : float? = Infinity (0x7f800000)
+      field 17 PortalRadius : float? = -Infinity (0xff800000)
       field 18 PortalTargetMapId : ushort? = 19
       field 19 PortalRole : byte? = 19
       field 20 CanInteract : bool? = true
     element 1
       field 1 Guid : ulong = 1000000
       field 2 Position : Vec3
-        field 1 X : float = Infinity (0x7f800000)
-        field 2 Y : float = -Infinity (0xff800000)
-        field 3 Z : float = -0 (0x80000000)
+        field 1 X : float = -Infinity (0xff800000)
+        field 2 Y : float = -0 (0x80000000)
+        field 3 Z : float = 1.40129846E-45 (0x00000001)
       field 3 Velocity : Vec3
-        field 1 X : float = Infinity (0x7f800000)
-        field 2 Y : float = -Infinity (0xff800000)
-        field 3 Z : float = -0 (0x80000000)
-      field 4 Orientation : float? = Infinity (0x7f800000)
+        field 1 X : float = -Infinity (0xff800000)
+        field 2 Y : float = -0 (0x80000000)
+        field 3 Z : float = 1.40129846E-45 (0x00000001)
+      field 4 Orientation : float? = -Infinity (0xff800000)
       field 5 MoveState : MoveState? = Swimming (3)
       field 6 Health : uint? = 65535
       field 7 CurrentHealth : uint? = 42
@@ -409,21 +409,21 @@ variant float-specials
       field 14 RequiredExperience : ulong? = 1000000
       field 15 CreatureMetadataId : ulong? = 42
       field 16 Name : string = "\"quoted\" and \\backslash\\" (24 chars, 24 bytes utf-8)
-      field 17 PortalRadius : float? = -Infinity (0xff800000)
+      field 17 PortalRadius : float? = -0 (0x80000000)
       field 18 PortalTargetMapId : ushort? = 42
       field 19 PortalRole : byte? = 42
       field 20 CanInteract : bool? = true
-  bytes 205
-    0a 61 08 07 12 0f 0d 01 00 c0 7f 15 00 00 80 7f
-    1d 00 00 80 ff 1a 0f 0d 01 00 c0 7f 15 00 00 80
-    7f 1d 00 00 80 ff 25 01 00 c0 7f 28 02 30 07 38
-    ac 02 40 01 48 80 d0 ac f3 0e 50 c0 84 3d 58 ac
-    02 60 01 68 c0 84 3d 70 07 78 ac 02 82 01 05 61
-    6c 70 68 61 8d 01 00 00 80 7f 90 01 13 98 01 13
-    a0 01 01 0a 68 08 c0 84 3d 12 0a 0d 00 00 80 7f
-    15 00 00 80 ff 1a 0a 0d 00 00 80 7f 15 00 00 80
-    ff 25 00 00 80 7f 28 03 30 ff ff 03 38 2a 40 03
-    48 ac 02 50 07 58 ff ff 03 60 01 68 07 70 c0 84
-    3d 78 2a 82 01 18 22 71 75 6f 74 65 64 22 20 61
-    6e 64 20 5c 62 61 63 6b 73 6c 61 73 68 5c 8d 01
-    00 00 80 ff 90 01 2a 98 01 2a a0 01 01
+  bytes 195
+    0a 57 08 07 12 0a 0d 00 00 80 7f 15 00 00 80 ff
+    1a 0a 0d 00 00 80 7f 15 00 00 80 ff 25 00 00 80
+    7f 28 02 30 07 38 ac 02 40 01 48 80 d0 ac f3 0e
+    50 c0 84 3d 58 ac 02 60 01 68 c0 84 3d 70 07 78
+    ac 02 82 01 05 61 6c 70 68 61 8d 01 00 00 80 ff
+    90 01 13 98 01 13 a0 01 01 0a 68 08 c0 84 3d 12
+    0a 0d 00 00 80 ff 1d 01 00 00 00 1a 0a 0d 00 00
+    80 ff 1d 01 00 00 00 25 00 00 80 ff 28 03 30 ff
+    ff 03 38 2a 40 03 48 ac 02 50 07 58 ff ff 03 60
+    01 68 07 70 c0 84 3d 78 2a 82 01 18 22 71 75 6f
+    74 65 64 22 20 61 6e 64 20 5c 62 61 63 6b 73 6c
+    61 73 68 5c 8d 01 00 00 00 80 90 01 2a 98 01 2a
+    a0 01 01

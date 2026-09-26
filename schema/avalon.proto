@@ -60,6 +60,7 @@ message AbilityInfo {
    float CastTime = 4;
    uint32 Cost = 5;
    uint32 Range = 6;
+   float FacingAngle = 7;
 }
 enum AuthResult {
    AuthResult_INVALID_CREDENTIALS = 0;
@@ -237,6 +238,20 @@ message CWorldListPacket {
 }
 message CWorldSelectPacket {
    uint32 WorldId = 1;
+}
+enum CastRejectReason {
+   CastRejectReason_Unknown = 0;
+   CastRejectReason_Gcd = 1;
+   CastRejectReason_Cooldown = 2;
+   CastRejectReason_RequiresOutOfCombat = 3;
+   CastRejectReason_RequiresInCombat = 4;
+   CastRejectReason_NotEnoughPower = 5;
+   CastRejectReason_OutOfRange = 6;
+   CastRejectReason_TargetNotFound = 7;
+   CastRejectReason_NotFacing = 8;
+   CastRejectReason_Dead = 9;
+   CastRejectReason_NotOwned = 10;
+   CastRejectReason_InternalError = 11;
 }
 message CharacterInfo {
    uint32 CharacterId = 1;
@@ -522,6 +537,7 @@ enum RegisterResult {
 message SAbilityNotReadyPacket {
    uint32 AbilityId = 1;
    uint32 CooldownMs = 2;
+   CastRejectReason Reason = 3;
 }
 message SAudioRecordPacket {
    optional bytes SoundBuffer = 1;

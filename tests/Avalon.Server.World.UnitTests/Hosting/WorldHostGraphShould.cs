@@ -11,6 +11,7 @@ using Avalon.World;
 using Avalon.World.Entities;
 using Avalon.World.Handlers;
 using Avalon.World.Loot;
+using Avalon.World.Public.Combat;
 using Avalon.World.Quests;
 using Avalon.World.Vendors;
 using Microsoft.Extensions.DependencyInjection;
@@ -58,6 +59,14 @@ public class WorldHostGraphShould
             // DialogueChooseHandler, MapInstance), so only this proves production supplies them.
             Assert.NotNull(host.Services.GetRequiredService<IVendorStockRepository>());
             Assert.IsType<NoQuestProgress>(host.Services.GetRequiredService<IQuestProgress>());
+
+            // The facing cone (#513): CastAbilityHandler checks CombatConfig.MaxFacingAngleDeg and
+            // CharacterSelectHandler sends it. Both are built from this container, so a singleton
+            // registration is what keeps the cone the client is told equal to the one it is held to.
+            ServiceDescriptor combatConfig = Assert.Single(builder.Services,
+                d => d.ServiceType == typeof(CombatConfig));
+            Assert.Equal(ServiceLifetime.Singleton, combatConfig.Lifetime);
+            Assert.NotNull(ActivatorUtilities.CreateInstance<CharacterSelectHandler>(host.Services));
         }
         finally
         {
@@ -67,6 +76,7 @@ public class WorldHostGraphShould
 
     /// <summary>One row per in-map handler that takes more than an IWorld: each is built from the container.</summary>
     [Theory]
+    [InlineData(NetworkPacketType.CMSG_CAST_ABILITY, typeof(CastAbilityHandler))]
     [InlineData(NetworkPacketType.CMSG_LOOT_PICKUP, typeof(LootPickupHandler))]
     [InlineData(NetworkPacketType.CMSG_ITEM_MOVE, typeof(ItemMoveHandler))]
     [InlineData(NetworkPacketType.CMSG_ITEM_DESTROY, typeof(ItemDestroyHandler))]

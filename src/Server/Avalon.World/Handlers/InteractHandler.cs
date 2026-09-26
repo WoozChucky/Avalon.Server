@@ -32,9 +32,8 @@ public class InteractHandler(ILogger<InteractHandler> logger, IWorld world)
     private ILocalizedTextCatalog Text => world.Data.LocalizedTexts;
 
     /// <summary>
-    /// Metres. A local constant, matching CastAbilityHandler's MaxFacingAngle. There is no facing
-    /// check: you do not have to be looking at someone to talk to them, and the 65 degree cone
-    /// exists for combat.
+    /// Metres. A local constant. There is no facing check: you do not have to be looking at someone
+    /// to talk to them, and the facing cone (CombatConfig.MaxFacingAngleDeg) exists for combat.
     /// </summary>
     private const float InteractRange = 5f;
 

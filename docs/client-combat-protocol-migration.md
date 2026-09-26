@@ -8,7 +8,7 @@ This document describes how the client must change to align with the server's V1
 ## 1. Conceptual Changes
 
 - Auto-attack is **removed**. Basic attack is an ordinary ability (one per class, see §10), fired per click via `CCastAbilityPacket`. There is no separate "attack" opcode any more.
-- A 200 ms hidden GCD lives on the server. The client should **not** pre-gate casts; on rejection the server returns `SAbilityNotReadyPacket` carrying the remaining time.
+- A 200 ms hidden GCD lives on the server. The server validates every cast and answers every refusal with `SAbilityNotReadyPacket` carrying a reason (and, for the GCD and cooldowns, the remaining time). The client may pre-check range and facing from `AbilityInfo.Range` / `AbilityInfo.FacingAngle` to avoid spending a packet, but the server stays authoritative.
 - Exit-paths (map transitions in V1; future fast-travel / waypoint / town-portal) work mid-combat. The server zeroes the player's threat across all hostiles in the encounter as the player leaves.
 - Combat tag (`IsInCombat`) is unchanged on the wire — it flows via the existing per-character state stream. Client renders the combat icon as before.
 - Threat HUD: a client whose currently-targeted unit is a hostile creature in an encounter receives `SThreatListPacket` updates, throttled to ~250 ms per (connection, target) pair and additionally suppressed when the top-attacker share moved by less than 5 %.
@@ -50,7 +50,7 @@ Client → server. Sent on every ability click (basic attack included). Fire-and
 | `TargetGuid` | 2 | `ulong?` | Raw `ObjectGuid` of the target unit. `null` for self / ground / AoE abilities. |
 | `GroundPos` | 3 | `Vector3Dto?` | Reserved for V2 ground-target abilities. V1 unused — set `null`. |
 
-**Emission rule.** One packet per click. Do not pre-gate on cooldown, GCD, range, facing, cost, or combat-state. The server validates everything and replies with `SAbilityNotReadyPacket` on rejection.
+**Emission rule.** One packet per click. Do not pre-gate on cooldown, GCD, cost, or combat-state. The client may pre-check range and facing from `AbilityInfo.Range` / `AbilityInfo.FacingAngle` to avoid spending a packet on a cast that cannot land. The server stays authoritative: it validates everything and answers every refusal with `SAbilityNotReadyPacket` carrying a `CastRejectReason`.
 
 ### `CTargetUnitPacket` (`CMSG_TARGET_UNIT = 0x2102`, encrypted, TCP)
 
@@ -103,8 +103,9 @@ Each `ThreatEntry`:
 
 ## 5. Cast Pipeline Expectations (Client Side)
 
-- Click → emit `CCastAbilityPacket {AbilityId, TargetGuid?, GroundPos?}`. The server validates everything; the client must NOT pre-gate.
-- On rejection, the server replies with `SAbilityNotReadyPacket {AbilityId, CooldownMs (uint)}`. Trigger reasons: GCD, per-ability cooldown, cost shortfall, combat-state mismatch (`RequiresOutOfCombat` / `RequiresInCombat`), out of range, not facing, dead. Use the `CooldownMs` field (remaining cooldown in milliseconds) to drive HUD feedback. Other rejection reasons (cost, range, combat-state) send `CooldownMs = 0`.
+- Click → emit `CCastAbilityPacket {AbilityId, TargetGuid?, GroundPos?}`. The server validates everything and answers every refusal with a reason. The client may pre-check range and facing from `AbilityInfo.Range` / `AbilityInfo.FacingAngle` to avoid spending a packet, but the server stays authoritative.
+- On rejection, the server replies with exactly one `SAbilityNotReadyPacket {AbilityId, CooldownMs (uint), Reason (CastRejectReason)}` (#512). `Reason` names the refusal: `Gcd`, `Cooldown`, `RequiresOutOfCombat`, `RequiresInCombat`, `NotEnoughPower`, `OutOfRange`, `TargetNotFound`, `NotFacing`, `Dead`, `NotOwned` or `InternalError`; `Unknown` (0) is only what a payload without the field decodes as. `CooldownMs` is the remaining time in milliseconds for `Gcd` and `Cooldown`, rounded up so it is always at least 1, and 0 for every other reason. The only cast that gets no answer is one from a connection with no character.
+- The facing cone is on the wire (#513): `AbilityInfo.FacingAngle` in `SMSG_CHARACTER_ABILITIES` is the half-angle in degrees from the caster's facing. A targeted cast is accepted only when the angle to the target is strictly less than it; exactly equal is refused as `NotFacing`.
 - For abilities with `CastTime > 0`, the server replies `SUnitStartCastPacket` (existing, generic). Render the cast bar from the `CastTime` field on the packet.
 - On completion, the server replies `SUnitFinishCastPacket` (existing, generic). End the cast bar and play the cast-finish animation.
 - On movement-interrupt, the server replies `SCharacterInterruptedCastPacket {Caster, AbilityId}` (existing). Power refund is handled server-side; the client just ends the cast bar.
