@@ -92,3 +92,7 @@ docs/superpowers/
 BenchmarkDotNet.Artifacts/
 
 .claude/
+
+# OpenAPI document emitted at build time (see Avalon.Api.csproj)
+src/Server/Avalon.Api/openapi/
+docs/api/openapi.json

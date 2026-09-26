@@ -9,6 +9,11 @@ on:
       - 'mkdocs.yml'
       - 'CONTRIBUTING.md'
       - 'README.md'
+      # The API reference is generated from Avalon.Api, so a contract change has to
+      # republish the site. Without this the published document silently goes stale
+      # until someone happens to edit prose.
+      - 'src/Server/Avalon.Api/**'
+      - 'src/Directory.Packages.props'
 
 permissions:
   contents: read
@@ -36,6 +41,27 @@ jobs:
 
       - name: Install dependencies
         run: pip install -r docs/requirements.txt
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+
+      - name: Generate the OpenAPI document
+        env:
+          # Generation is opt-in (see Avalon.Api.csproj) because it boots the host and
+          # trips the signing-key guard (#482). This key signs nothing and dies with
+          # the runner; generating it here avoids storing a secret that isn't secret.
+          Application__Authentication__IssuerSigningKey: ${{ github.run_id }}-${{ github.sha }}-openapi-generation-only
+        run: |
+          dotnet build src/Server/Avalon.Api -c Release -p:OpenApiGenerateDocuments=true
+          mkdir -p docs/api
+          cp src/Server/Avalon.Api/openapi/Avalon.Api.json docs/api/openapi.json
+
+      - name: Fail if the document is missing or empty
+        run: |
+          test -s docs/api/openapi.json
+          python -c "import json; d=json.load(open('docs/api/openapi.json')); assert d.get('paths'), 'no paths in document'; print(f\"document ok: {len(d['paths'])} paths\")"
 
       - name: Build docs
         run: mkdocs build

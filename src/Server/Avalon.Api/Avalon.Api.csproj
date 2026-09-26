@@ -12,6 +12,13 @@
     <PackageReference Include="LinqKit" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer"/>
     <PackageReference Include="Microsoft.AspNetCore.OpenApi"/>
+    <!-- Emits the OpenAPI document during build so the docs site and the dashboard's
+         drift check can read the contract without running the API. Build-only: it
+         contributes nothing to the shipped output. -->
+    <PackageReference Include="Microsoft.Extensions.ApiDescription.Server">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
@@ -49,5 +56,22 @@
   <ItemGroup>
     <Folder Include="Helm\"/>
   </ItemGroup>
+
+  <PropertyGroup>
+    <!--
+      Off by default, on purpose. The generator boots the host to read the document,
+      so it runs AddAuth and trips the signing-key guard (#482), and it does not load
+      user-secrets - leaving it on would fail every ordinary build and every existing
+      CI job for want of a key that signs nothing.
+
+      The docs workflow turns it on explicitly and supplies a throwaway key:
+
+        Application__Authentication__IssuerSigningKey=...           dotnet build src/Server/Avalon.Api -c Release -p:OpenApiGenerateDocuments=true
+
+      Migrations are never reached; the generator stops after service registration.
+    -->
+    <OpenApiGenerateDocuments Condition="'$(OpenApiGenerateDocuments)' == ''">false</OpenApiGenerateDocuments>
+    <OpenApiDocumentsDirectory>$(MSBuildProjectDirectory)/openapi</OpenApiDocumentsDirectory>
+  </PropertyGroup>
 
 </Project>
