@@ -36,12 +36,13 @@ public class EmailSenderRegistrationShould
     }
 
     [Fact]
-    public void Default_to_no_sender_with_the_pickup_directory_under_the_temp_folder()
+    public void Default_to_no_sender_with_the_pickup_directory_under_local_application_data()
     {
         EmailConfig config = Bind([]);
 
         Assert.Equal(EmailSenderKind.None, config.Sender);
-        Assert.Equal(Path.Combine(Path.GetTempPath(), "avalon-mail"), config.PickupDirectory);
+        Assert.Equal(Path.Combine(System.Environment.GetFolderPath(System.Environment.SpecialFolder.LocalApplicationData), "avalon-mail"),
+            config.PickupDirectory);
         Assert.Null(Registered(config, Environments.Development));
         Assert.Null(Registered(null, Environments.Production));
     }
@@ -98,5 +99,33 @@ public class EmailSenderRegistrationShould
             new ServiceCollection().AddEmail(config, Environment(Environments.Development)));
 
         Assert.Contains("Application:Email:From", refused.Message, StringComparison.Ordinal);
+    }
+
+    // ---------------- The email-change send budgets (#510 review) ----------------
+
+    [Fact]
+    public void Default_the_send_budgets_to_three_per_account_and_per_address_an_hour()
+    {
+        var config = new AuthenticationConfig();
+
+        Assert.Equal(3, config.MaxEmailChangeSendsPerAccount);
+        Assert.Equal(3, config.MaxEmailChangeSendsPerAddress);
+        Assert.Equal(60, config.EmailChangeSendWindowMinutes);
+        ServiceRegistration.ValidateEmailChangeSendCaps(config);
+    }
+
+    [Theory]
+    [InlineData(nameof(AuthenticationConfig.MaxEmailChangeSendsPerAccount))]
+    [InlineData(nameof(AuthenticationConfig.MaxEmailChangeSendsPerAddress))]
+    [InlineData(nameof(AuthenticationConfig.EmailChangeSendWindowMinutes))]
+    public void Refuse_a_send_budget_below_one_naming_the_setting(string setting)
+    {
+        var config = new AuthenticationConfig();
+        typeof(AuthenticationConfig).GetProperty(setting)!.SetValue(config, 0);
+
+        InvalidOperationException refused = Assert.Throws<InvalidOperationException>(() =>
+            ServiceRegistration.ValidateEmailChangeSendCaps(config));
+
+        Assert.Contains("Application:Authentication:" + setting, refused.Message, StringComparison.Ordinal);
     }
 }

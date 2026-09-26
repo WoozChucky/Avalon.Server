@@ -132,7 +132,7 @@ Prerequisites: .NET 10 SDK, Docker (for infra services).
    Optional: email change (`POST /account/email/change`) answers 501 until the API has an email sender
    (`Application:Email:Sender`, default `None`). In Development you can turn on the pickup sender, which
    writes each email as an `.eml` file into `Application:Email:PickupDirectory` (default: an `avalon-mail`
-   folder under the system temp folder) instead of sending it. The API refuses it in any other
+   folder under your local application data folder, readable only by you on Linux and macOS) instead of sending it. The API refuses it in any other
    environment. See [REST API Email](docs/configuration-reference.md#rest-api-email).
    ```bash
    dotnet user-secrets set "Application:Email:Sender" "Pickup" --project src/Server/Avalon.Api

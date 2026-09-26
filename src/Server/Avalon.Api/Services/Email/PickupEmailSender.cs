@@ -51,7 +51,12 @@ public sealed class PickupEmailSender : IEmailSender
         eml.Append(textBody.ReplaceLineEndings("\r\n"));
         if (!textBody.EndsWith('\n')) eml.Append("\r\n");
 
-        Directory.CreateDirectory(_directory);
+        // The files hold confirm tokens: on Unix, only the api's own user may open the folder.
+        if (OperatingSystem.IsWindows())
+            Directory.CreateDirectory(_directory);
+        else
+            Directory.CreateDirectory(_directory,
+                UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
         string name = string.Create(CultureInfo.InvariantCulture, $"{now.UtcDateTime:yyyyMMddTHHmmssfff}-{id:N}.eml");
         string path = Path.Combine(_directory, name);
         // Written under another name and moved into place, so a reader watching the folder never

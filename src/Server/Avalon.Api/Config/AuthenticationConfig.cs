@@ -47,4 +47,17 @@ public class AuthenticationConfig : ILoginLimits
 
     /// <summary>The window, fixed from a source's first creation, over which its creations are counted.</summary>
     public int AccountCreationWindowMinutes { get; set; } = 60;
+
+    /// <summary>
+    /// Email-change confirmations one account may have sent per <see cref="EmailChangeSendWindowMinutes"/>
+    /// (#510 review). A send is never given back, so a player holding the password still cannot use
+    /// the api to mail arbitrary addresses. API only.
+    /// </summary>
+    public int MaxEmailChangeSendsPerAccount { get; set; } = 3;
+
+    /// <summary>Email-change confirmations sent to one address, from every account, per <see cref="EmailChangeSendWindowMinutes"/>.</summary>
+    public int MaxEmailChangeSendsPerAddress { get; set; } = 3;
+
+    /// <summary>The window, fixed from the first send, over which both send budgets count.</summary>
+    public int EmailChangeSendWindowMinutes { get; set; } = 60;
 }

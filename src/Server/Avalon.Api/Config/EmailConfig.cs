@@ -11,8 +11,12 @@ public class EmailConfig
     /// <summary><see cref="EmailSenderKind.None"/> unless set.</summary>
     public EmailSenderKind Sender { get; set; } = EmailSenderKind.None;
 
-    /// <summary>Where the pickup sender writes its .eml files; created when missing.</summary>
-    public string PickupDirectory { get; set; } = Path.Combine(Path.GetTempPath(), "avalon-mail");
+    /// <summary>
+    /// Where the pickup sender writes its .eml files; created when missing, on Unix readable by its
+    /// owner only (0700). Under the user's local application data, not the shared temp folder.
+    /// </summary>
+    public string PickupDirectory { get; set; } =
+        Path.Combine(System.Environment.GetFolderPath(System.Environment.SpecialFolder.LocalApplicationData), "avalon-mail");
 
     /// <summary>The address every email is sent from. Required, and a bare address, when a sender is set.</summary>
     public string? From { get; set; }

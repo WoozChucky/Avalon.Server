@@ -59,8 +59,8 @@ public class AccountServiceShould
     [Fact]
     public async Task Refuse_an_email_change_token_another_confirm_spent_first()
     {
-        _cache.GetAsync("auth:emailChange:token").Returns("7|0|new@avalon.monster");
-        _cache.RemoveAsync("auth:emailChange:token").Returns(false);
+        _cache.GetAsync(AccountService.EmailChangeKey("token")).Returns("7|0|new@avalon.monster");
+        _cache.RemoveAsync(AccountService.EmailChangeKey("token")).Returns(false);
 
         var refused = await Assert.ThrowsAsync<Avalon.Api.Exceptions.BusinessException>(
             () => CreateService().ConfirmEmailChangeAsync("token"));
@@ -72,8 +72,8 @@ public class AccountServiceShould
     [Fact]
     public async Task Confirm_an_email_change_with_the_token_it_spent()
     {
-        _cache.GetAsync("auth:emailChange:token").Returns("7|0|new@avalon.monster");
-        _cache.RemoveAsync("auth:emailChange:token").Returns(true);
+        _cache.GetAsync(AccountService.EmailChangeKey("token")).Returns("7|0|new@avalon.monster");
+        _cache.RemoveAsync(AccountService.EmailChangeKey("token")).Returns(true);
         _transaction.ExecuteAsync(Arg.Any<Func<AuthDbContext, CancellationToken, Task<bool>>>(), Arg.Any<CancellationToken>())
             .Returns(true);
 

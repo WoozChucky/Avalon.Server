@@ -51,6 +51,7 @@ public static class ServiceRegistration
         // Application:Authentication, checked here since that section is bound without validation.
         LoginLimitsValidation.Validate(config.Authentication ?? new AuthenticationConfig(), "Application:Authentication");
         ValidateAccountCreationCap(config.Authentication ?? new AuthenticationConfig());
+        ValidateEmailChangeSendCaps(config.Authentication ?? new AuthenticationConfig());
         services.AddSingleton<ILoginLimits>(sp => sp.GetRequiredService<AuthenticationConfig>());
         services.AddLoginPolicy();
         services.AddScoped<IReauthentication, Reauthentication>();
@@ -222,6 +223,23 @@ public static class ServiceRegistration
     /// Stops startup, naming the setting, when the account-creation cap (#495 review) is below one:
     /// zero would refuse every registration.
     /// </summary>
+    /// <summary>
+    /// Stops startup, naming the setting, when an email-change send budget (#510 review) is below
+    /// one: zero would refuse every email change.
+    /// </summary>
+    public static void ValidateEmailChangeSendCaps(AuthenticationConfig config)
+    {
+        if (config.MaxEmailChangeSendsPerAccount < 1)
+            throw new InvalidOperationException(
+                "Application:Authentication:MaxEmailChangeSendsPerAccount must be at least 1.");
+        if (config.MaxEmailChangeSendsPerAddress < 1)
+            throw new InvalidOperationException(
+                "Application:Authentication:MaxEmailChangeSendsPerAddress must be at least 1.");
+        if (config.EmailChangeSendWindowMinutes < 1)
+            throw new InvalidOperationException(
+                "Application:Authentication:EmailChangeSendWindowMinutes must be at least 1.");
+    }
+
     public static void ValidateAccountCreationCap(AuthenticationConfig config)
     {
         if (config.MaxAccountsCreatedPerSource < 1)

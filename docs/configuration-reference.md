@@ -291,7 +291,7 @@ Section: `Application:Email` in `Avalon.Api` (#510)
 | Key               | Type   | Default                                   | Description |
 |-------------------|--------|-------------------------------------------|-------------|
 | `Sender`          | enum   | `None`                                    | `None` or `Pickup`. Which email sender the API uses |
-| `PickupDirectory` | string | `Path.Combine(Path.GetTempPath(), "avalon-mail")` | Where `Pickup` writes its `.eml` files; created when missing |
+| `PickupDirectory` | string | `avalon-mail` under `Environment.SpecialFolder.LocalApplicationData` | Where `Pickup` writes its `.eml` files; created when missing, with mode 0700 on Unix |
 | `From`            | string | none                                      | The address every email is sent from. Required, as a bare address (`noreply@example.com`, no display name), when `Sender` is `Pickup` |
 
 Email change (`POST /account/email/change` and `/account/email/confirm`) is on only while a sender is
@@ -309,7 +309,19 @@ deleted and the answer is 503 "Email could not be sent"; a retry starts afresh. 
 sent is logged at Warning and the change still starts. Sender failures are logged by exception type and
 recipient domain only, never the subject, body or token.
 
+Sending is budgeted under `Application:Authentication` (#510 review). The slots are taken just before
+the send, after every other check, and are never given back. Past either budget the answer is 429
+`LOCKED`, and nothing is stored or sent. A new start also voids the account's earlier pending change, so
+only the latest token confirms.
+
+| Key                             | Type | Default | Description |
+|---------------------------------|------|---------|-------------|
+| `MaxEmailChangeSendsPerAccount` | int  | `3`     | Confirmations one account may have sent per window |
+| `MaxEmailChangeSendsPerAddress` | int  | `3`     | Confirmations sent to one new address, from every account, per window |
+| `EmailChangeSendWindowMinutes`  | int  | `60`    | The window, fixed from the first send |
+
 - Startup refuses, naming the setting:
+  - any of the three send-budget values above below 1;
   - `Sender` `Pickup` outside Development (`Application:Email:Sender`);
   - `Sender` `Pickup` with a missing or invalid `From` (`Application:Email:From`).
 - At startup the API logs the sender and whether email change is on.

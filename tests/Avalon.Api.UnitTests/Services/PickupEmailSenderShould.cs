@@ -58,6 +58,18 @@ public sealed class PickupEmailSenderShould : IDisposable
         Assert.Equal("Line one\r\nLine two\r\n", body);
     }
 
+    /// <summary>#510 review: the files hold confirm tokens, so on Unix only the api's own user may open the folder.</summary>
+    [Fact]
+    public async Task Create_the_directory_readable_by_its_owner_only_on_unix()
+    {
+        if (OperatingSystem.IsWindows()) return;
+
+        await Sender().SendAsync("player@avalon.monster", "Subject", "body", CancellationToken.None);
+
+        Assert.Equal(UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute,
+            File.GetUnixFileMode(_directory));
+    }
+
     [Fact]
     public async Task Give_every_email_its_own_file()
     {

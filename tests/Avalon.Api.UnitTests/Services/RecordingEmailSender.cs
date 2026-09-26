@@ -21,8 +21,22 @@ internal sealed class RecordingEmailSender : IEmailSender
 
     public Func<string, bool> FailFor { get; set; } = _ => false;
 
+    /// <summary>A send to an address this returns true for throws <see cref="OperationCanceledException"/>, as a timed-out send would.</summary>
+    public Func<string, bool> CancelFor { get; set; } = _ => false;
+
+    /// <summary>Runs as each send starts, before the token given to it is checked.</summary>
+    public Action<string>? OnSend { get; set; }
+
     public Task SendAsync(string to, string subject, string textBody, CancellationToken ct)
     {
+        OnSend?.Invoke(to);
+        // As a real sender would: a cancelled token ends the send before anything goes.
+        ct.ThrowIfCancellationRequested();
+        if (CancelFor(to))
+        {
+            _refused.Enqueue(new Sent(to, subject, textBody));
+            throw new OperationCanceledException();
+        }
         if (FailFor(to))
         {
             _refused.Enqueue(new Sent(to, subject, textBody));
