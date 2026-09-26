@@ -1,4 +1,3 @@
-using System.IO;
 using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
@@ -12,8 +11,6 @@ using Avalon.World.Configuration;
 using Avalon.World.Entities;
 using Avalon.World.Instances;
 using Avalon.World.Loot;
-using Avalon.World.Public;
-using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Combat;
 using Avalon.World.Public.Maps;
@@ -23,9 +20,9 @@ using Avalon.World.Scripts;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NSubstitute;
-using ProtoBuf;
 using Xunit;
 using static Avalon.Server.World.UnitTests.Loot.LootTestData;
+using static Avalon.Server.World.UnitTests.Instances.MapInstanceClients;
 
 namespace Avalon.Server.World.UnitTests.Instances;
 
@@ -42,46 +39,18 @@ public class MapInstanceLootShould
     private List<LootTable> _tables = [Table(1, Item(1, Sword))];
     private StaticData? _data;
 
-    private sealed record Client(IWorldConnection Connection, CharacterEntity Character, List<NetworkPacket> Sent)
-    {
-        public List<SLootSpawnedPacket> Spawned() => Read<SLootSpawnedPacket>(NetworkPacketType.SMSG_LOOT_SPAWNED);
+    private static List<SLootSpawnedPacket> Spawned(MapInstanceClient client) =>
+        client.Read<SLootSpawnedPacket>(NetworkPacketType.SMSG_LOOT_SPAWNED);
 
-        public List<SLootDespawnedPacket> Despawned() => Read<SLootDespawnedPacket>(NetworkPacketType.SMSG_LOOT_DESPAWNED);
-
-        private List<T> Read<T>(NetworkPacketType type) => Sent
-            .Where(p => p.Header.Type == type)
-            .Select(p =>
-            {
-                using var stream = new MemoryStream(p.Payload);
-                return Serializer.Deserialize<T>(stream);
-            })
-            .ToList();
-    }
-
-    private static Client Join(MapInstance instance, uint id)
-    {
-        CharacterEntity character = Inventory.TestCharacters.New(id);
-        character.Spells.Load(Array.Empty<IAbility>());   // the tick updates abilities; an unloaded list throws
-
-        var sent = new List<NetworkPacket>();
-        IWorldConnection connection = Substitute.For<IWorldConnection>();
-        connection.Character.Returns(character);
-        connection.CryptoSession.Returns(new FakeAvalonCryptoSession());
-        connection.When(c => c.Send(Arg.Any<NetworkPacket>())).Do(ci => sent.Add(ci.Arg<NetworkPacket>()));
-
-        instance.AddCharacter(connection);
-        return new Client(connection, character, sent);
-    }
+    private static List<SLootDespawnedPacket> Despawned(MapInstanceClient client) =>
+        client.Read<SLootDespawnedPacket>(NetworkPacketType.SMSG_LOOT_DESPAWNED);
 
     private async Task<MapInstance> Build(uint? owner = 7, ILootRoller? roller = null)
     {
         StaticData data = await LootStaticData.LoadAsync(() => Items, () => _tables);
         _data = data;
 
-        var world = Substitute.For<IWorld>();
-        world.Configuration.Returns(new GameConfiguration());
-        world.MapTemplates.Returns(new List<MapTemplate>());
-        world.Data.Returns(data);
+        IWorld world = NewWorld(data);
 
         var serviceProvider = Substitute.For<IServiceProvider>();
         serviceProvider.GetService(typeof(IScriptManager)).Returns(Substitute.For<IScriptManager>());
@@ -123,16 +92,16 @@ public class MapInstanceLootShould
     public async Task Drop_A_Kills_Loot_And_Tell_Everyone_In_One_Packet()
     {
         using MapInstance instance = await Build();
-        Client first = Join(instance, 460_101);
-        Client second = Join(instance, 460_102);
+        MapInstanceClient first = Join(instance, 460_101);
+        MapInstanceClient second = Join(instance, 460_102);
 
         Kill(instance, 460_001);
 
         // One sword from table 1, then the 5-copper pile.
         Assert.Equal(2, instance.Drops.Count);
-        foreach (Client client in new[] { first, second })
+        foreach (MapInstanceClient client in new[] { first, second })
         {
-            SLootSpawnedPacket spawned = Assert.Single(client.Spawned());
+            SLootSpawnedPacket spawned = Assert.Single(Spawned(client));
             Assert.Equal(2, spawned.Drops.Count);
             Assert.Equal(Sword.Id.Value, spawned.Drops[0].ItemTemplateId);
             Assert.Equal(5UL, spawned.Drops[1].Gold);
@@ -158,7 +127,7 @@ public class MapInstanceLootShould
     public async Task Drop_Nothing_And_Send_Nothing_For_A_Kill_That_Rolls_Nothing()
     {
         using MapInstance instance = await Build();
-        Client client = Join(instance, 460_101);
+        MapInstanceClient client = Join(instance, 460_101);
         instance.Update(Tick);
 
         // No table and no gold: the roll is empty.
@@ -166,68 +135,68 @@ public class MapInstanceLootShould
         instance.Update(Tick);
 
         Assert.Equal(0, instance.Drops.Count);
-        Assert.Empty(client.Spawned());
+        Assert.Empty(Spawned(client));
     }
 
     [Fact]
     public async Task Tell_A_Character_Who_Enters_About_The_Drops_Already_There_On_The_Next_Tick()
     {
         using MapInstance instance = await Build();
-        Client first = Join(instance, 460_101);
+        MapInstanceClient first = Join(instance, 460_101);
         instance.Update(Tick);            // first's own snapshot: nothing on the ground yet, so nothing sent
         Kill(instance, 460_001);
 
-        Client second = Join(instance, 460_102);
-        Assert.Empty(second.Spawned());   // not from AddCharacter: the map transition packets go first
+        MapInstanceClient second = Join(instance, 460_102);
+        Assert.Empty(Spawned(second));   // not from AddCharacter: the map transition packets go first
 
         instance.Update(Tick);
 
-        SLootSpawnedPacket snapshot = Assert.Single(second.Spawned());
+        SLootSpawnedPacket snapshot = Assert.Single(Spawned(second));
         Assert.Equal(2, snapshot.Drops.Count);
-        Assert.Single(first.Spawned());   // the kill broadcast only; first is owed no snapshot
+        Assert.Single(Spawned(first));   // the kill broadcast only; first is owed no snapshot
     }
 
     [Fact]
     public async Task Send_No_Snapshot_To_A_Character_Entering_An_Instance_With_Nothing_On_The_Ground()
     {
         using MapInstance instance = await Build();
-        Client client = Join(instance, 460_101);
+        MapInstanceClient client = Join(instance, 460_101);
 
         instance.Update(Tick);
 
-        Assert.Empty(client.Spawned());
+        Assert.Empty(Spawned(client));
     }
 
     [Fact]
     public async Task Send_No_Snapshot_To_A_Character_Who_Left_Before_The_Tick()
     {
         using MapInstance instance = await Build();
-        Client stays = Join(instance, 460_101);
+        MapInstanceClient stays = Join(instance, 460_101);
         instance.Update(Tick);
         Kill(instance, 460_001);
-        Client leaves = Join(instance, 460_102);
+        MapInstanceClient leaves = Join(instance, 460_102);
 
         instance.RemoveCharacter(leaves.Connection);
         instance.Update(Tick);
 
         // It joined after the kill, so no broadcast reached it, and it left before its snapshot.
-        Assert.Empty(leaves.Spawned());
-        Assert.Single(stays.Spawned());
+        Assert.Empty(Spawned(leaves));
+        Assert.Single(Spawned(stays));
     }
 
     [Fact]
     public async Task Tell_Everyone_When_Drops_Leave_The_Ground()
     {
         using MapInstance instance = await Build();
-        Client first = Join(instance, 460_101);
-        Client second = Join(instance, 460_102);
+        MapInstanceClient first = Join(instance, 460_101);
+        MapInstanceClient second = Join(instance, 460_102);
         Kill(instance, 460_001);
         ObjectGuid[] guids = instance.Drops.All.Select(d => d.Guid).ToArray();
 
         instance.BroadcastLootDespawned(guids);
 
-        foreach (Client client in new[] { first, second })
-            Assert.Equal(guids.Select(g => g.RawValue), Assert.Single(client.Despawned()).LootGuids);
+        foreach (MapInstanceClient client in new[] { first, second })
+            Assert.Equal(guids.Select(g => g.RawValue), Assert.Single(Despawned(client)).LootGuids);
     }
 
     [Fact]

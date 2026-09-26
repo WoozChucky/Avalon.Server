@@ -15,8 +15,8 @@ public interface IAbilityCastSystem
 {
     /// <summary>
     /// Takes a cast-time cast aimed at <paramref name="aim" />, pays its cost and marks it casting. False,
-    /// with nothing spent and <c>Casting</c> left clear, when its script is missing or the cost cannot
-    /// be paid. It fires with the same aim once its cast time has run out.
+    /// with nothing spent and <c>Casting</c> left clear, when its script is missing or cannot be built, or
+    /// the cost cannot be paid. The script is built now, with this aim, and fired once the cast time has run out.
     /// </summary>
     bool QueueAbility(ICharacter character, AbilityAim aim, IAbility ability);
 
@@ -55,22 +55,17 @@ public class InstanceAbilityCastSystem(
             return false;
         }
 
-        // A cast whose script cannot be found would be paid for and then fire nothing.
-        if (scriptManager.GetAbilityScript(ability.Metadata.ScriptName) is null)
-        {
-            _logger.LogWarning("Ability script {ScriptName} not found", ability.Metadata.ScriptName);
-            return false;
-        }
-
-        var instance = new AbilityInstance
-        {
-            Caster = character, Aim = aim, Ability = ability, CastStartPosition = character.Position,
-        };
-
-        if (!_abilityQueue.Add(instance))
+        // Built now, with the aim captured at cast start, so a script that is missing or cannot be
+        // built is refused before anything is paid, and a reload that removes it mid-cast costs nothing.
+        if (Build(character, aim, ability) is not { } script)
         {
             return false;
         }
+
+        _abilityQueue.Add(new AbilityInstance
+        {
+            Caster = character, Aim = aim, Ability = ability, Script = script, CastStartPosition = character.Position,
+        });
 
         // #521 item 1: Casting is set, and the cost paid, only once the queue has taken the cast.
         ability.Casting = true;
@@ -137,10 +132,7 @@ public class InstanceAbilityCastSystem(
                 continue;
             }
 
-            if (Build(cast.Caster, cast.Aim, ability) is { } script)
-            {
-                Fire(cast.Caster, ability, script);
-            }
+            Fire(cast.Caster, ability, cast.Script);
         }
 
         foreach (AbilityInstance cast in _dequeued)

@@ -186,6 +186,36 @@ public class CastAbilityHandlerShould
         f.Instance.DidNotReceiveWithAnyArgs().QueueAbility(default!, default, default!);
     }
 
+    /// <summary>The refusal order: a dead caster is told Dead, even with a cast still in progress.</summary>
+    [Fact]
+    public void Answer_Dead_before_AlreadyCasting()
+    {
+        var f = new Fixture();
+        f.Character.IsDead.Returns(true);
+        f.Character.Spells.IsCasting.Returns(true);
+        f.GiveAbility(new AbilityMetadata { Name = "X", ScriptName = "x" });
+
+        f.Cast(new CCastAbilityPacket { AbilityId = 1 });
+
+        Assert.Equal(CastRejectReason.Dead, f.SingleRefusal().Reason);
+    }
+
+    /// <summary>The refusal order: a cast in progress is AlreadyCasting, even inside the global cooldown.</summary>
+    [Fact]
+    public void Answer_AlreadyCasting_before_Gcd()
+    {
+        var f = new Fixture();
+        f.Character.Spells.IsCasting.Returns(true);
+        f.Character.LastCastStartTime.Returns(DateTime.UtcNow.AddMilliseconds(-50));
+        f.GiveAbility(new AbilityMetadata { Name = "X", ScriptName = "x" });
+
+        f.Cast(new CCastAbilityPacket { AbilityId = 1 });
+
+        SAbilityNotReadyPacket refusal = f.SingleRefusal();
+        Assert.Equal(CastRejectReason.AlreadyCasting, refusal.Reason);
+        Assert.Equal(0u, refusal.CooldownMs);
+    }
+
     // ── Aim (#164) ────────────────────────────────────────────────────────────
 
     public static TheoryData<Vector3Dto?> MissingAimPoints() => new()

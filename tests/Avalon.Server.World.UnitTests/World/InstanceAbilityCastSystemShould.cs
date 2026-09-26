@@ -92,6 +92,46 @@ public class InstanceAbilityCastSystemShould
         Assert.Equal(0f, ability.CooldownTimer);
     }
 
+    /// <summary>
+    /// A queued cast's script is built when it is queued, so one that cannot be built is refused
+    /// before anything is spent, not found out at completion after the cost was paid.
+    /// </summary>
+    [Theory]
+    [InlineData(0f)]
+    [InlineData(1f)]
+    public void Spend_nothing_on_a_script_whose_constructor_throws_on_both_paths(float castTime)
+    {
+        _scripts.GetAbilityScript("Throwing").Returns(typeof(ThrowingAbilityScript));
+        ICharacter caster = Caster();
+        GameAbility ability = Ability(cost: 30, castTime: castTime, script: "Throwing");
+
+        bool accepted = castTime > 0 ? _sut.QueueAbility(caster, Aim, ability) : _sut.RunInstant(caster, Aim, ability);
+
+        Assert.False(accepted);
+        Assert.False(ability.Casting);
+        caster.DidNotReceive().CurrentPower = Arg.Any<uint?>();
+        Assert.Equal(0f, ability.CooldownTimer);
+    }
+
+    /// <summary>
+    /// A script removed after the cast was queued (a reload) does not cost the cast: the script was
+    /// built when the cast was queued, and that one fires.
+    /// </summary>
+    [Fact]
+    public void Fire_the_script_built_at_queue_time_even_if_the_script_is_gone_at_completion()
+    {
+        ICharacter caster = Caster();
+        GameAbility ability = Ability(cost: 30, castTime: 0.01f);
+        Assert.True(_sut.QueueAbility(caster, Aim, ability));
+        _scripts.GetAbilityScript("Recording").Returns((Type?)null);
+
+        _sut.Update(Tick, []);
+
+        Assert.Equal(Aim, Assert.Single(RecordingAbilityScript.Prepared).Aim);
+        caster.Received(1).CurrentPower = 70u;
+        Assert.Equal(2f, ability.CooldownTimer);
+    }
+
     // ── #521 item 2: one power rule on both paths ──
 
     [Theory]

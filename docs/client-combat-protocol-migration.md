@@ -110,7 +110,7 @@ Each `ThreatEntry`:
 - `AbilityInfo.FacingAngle` in `SMSG_CHARACTER_ABILITIES` is no longer set (#164): there is no facing cone.
 - For abilities with `CastTime > 0`, every client in the instance receives `SUnitStartCastPacket` (existing, generic): render the cast bar from `CastTime`, and show which ability from `AbilityId` (#521 item 9).
 - On completion, the server replies `SUnitFinishCastPacket` (existing, generic). End the cast bar and play the cast-finish animation.
-- On movement-interrupt, the server replies `SCharacterInterruptedCastPacket {Caster, AbilityId}` (existing). Power refund is handled server-side; the client just ends the cast bar.
+- On movement-interrupt, the server replies `SCharacterInterruptedCastPacket {Caster, AbilityId}` (existing). Power spent on the cast is not refunded; the client just ends the cast bar.
 
 The client never emits a separate "interrupt" or "cancel" packet — moving cancels in-progress casts implicitly via existing movement state.
 
