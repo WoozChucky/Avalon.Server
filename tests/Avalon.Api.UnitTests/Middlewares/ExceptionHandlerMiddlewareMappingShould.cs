@@ -72,7 +72,7 @@ public class ExceptionHandlerMiddlewareMappingShould
         await middleware.InvokeAsync(context);
 
         Assert.Equal(status, context.Response.StatusCode);
-        Assert.StartsWith("application/", context.Response.ContentType, StringComparison.Ordinal);
+        Assert.Equal("application/json; charset=utf-8", context.Response.ContentType);
         context.Response.Body.Position = 0;
         using JsonDocument json = JsonDocument.Parse(await new StreamReader(context.Response.Body).ReadToEndAsync());
         JsonElement root = json.RootElement;

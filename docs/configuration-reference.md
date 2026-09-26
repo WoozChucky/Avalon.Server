@@ -349,7 +349,7 @@ it up per request. See [Security — Session Management](security-session-manage
 
 ## Applying Configuration at Startup
 
-The World and Auth servers' configuration classes (`GameConfiguration`, `RegenConfiguration`,
+These configuration classes (`GameConfiguration`, `RegenConfiguration`,
 `AuthConfiguration`, and the `HostingConfiguration` both share) use:
 
 1. A property with a data annotation (`[Required]`, `[Range(...)]`, `[RegularExpression(...)]`).
@@ -393,7 +393,7 @@ Application__Authentication__IssuerSigningKey=<from-vault>
 
 ## Startup Validation
 
-The World and Auth servers' configuration classes (`GameConfiguration`, `RegenConfiguration`,
+These configuration classes (`GameConfiguration`, `RegenConfiguration`,
 `AuthConfiguration`, `HostingConfiguration`) opt into startup validation to fail fast on misconfiguration:
 
 ```csharp
