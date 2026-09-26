@@ -65,9 +65,10 @@ public static class CacheKeys
     /// <c>Application:LockoutDurationMinutes</c> (default 15) after the first attempt. The failure
     /// that reaches the limit holds it in one script (raised to at least the limit + 1 and SET with
     /// a fresh expiry, recreated if it had expired), so the refusal outlasts the account row's lock.
-    /// A correct password that issues an MFA hash gives its own slot back with a floored DECR; a
-    /// completed login deletes the key in one script, only while its value is at most the limit, so
-    /// a held key is never deleted.
+    /// A correct password that issues an MFA hash gives its own slot back in one script that
+    /// decrements only while 0 &lt; value &lt;= the limit, so it never lowers a held value. A
+    /// completed login deletes the key in one script, only while its value is below the held value
+    /// (the limit + 1), so a reset never deletes a hold; the key still ends with its expiry.
     /// </summary>
     public static string AuthUsernameFailedLogins(string usernameHash) => $"auth:username:{usernameHash}:failedLogins";
 

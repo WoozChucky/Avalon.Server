@@ -377,7 +377,8 @@ public class UsernameBudgetShould
         Assert.Equal(AuthResult.MFA_REQUIRED, ResultOf(connection));
         string key = Assert.Single(_counters.UsernameKeys);
         Assert.Equal(3, _counters.CountOf(key));
-        await _counters.Cache.Received(1).DecrementFloorAsync(key);
+        await _counters.Cache.Received(1).DecrementCounterIfAtMostAsync(key, Max);
+        await _counters.Cache.DidNotReceive().DecrementFloorAsync(key);
         await _counters.Cache.DidNotReceive().RemoveAsync(key);
     }
 
@@ -442,6 +443,7 @@ public class UsernameBudgetShould
         Assert.Equal(1, _counters.CountOf(SourceBudget.KeyFor(connection.RemoteEndPoint)));
         Assert.Equal(1, _counters.CountOf(Assert.Single(_counters.UsernameKeys)));
         await _counters.Cache.DidNotReceiveWithAnyArgs().DecrementFloorAsync(default!);
+        await _counters.Cache.DidNotReceiveWithAnyArgs().DecrementCounterIfAtMostAsync(default!, default);
     }
 
     [Fact]
@@ -460,6 +462,7 @@ public class UsernameBudgetShould
         Assert.Equal(1, _counters.CountOf(SourceBudget.KeyFor(connection.RemoteEndPoint)));
         Assert.Equal(1, _counters.CountOf(Assert.Single(_counters.UsernameKeys)));
         await _counters.Cache.DidNotReceiveWithAnyArgs().DecrementFloorAsync(default!);
+        await _counters.Cache.DidNotReceiveWithAnyArgs().DecrementCounterIfAtMostAsync(default!, default);
     }
 
     [Fact]
@@ -656,6 +659,105 @@ public class UsernameBudgetShould
         Assert.Equal(AuthResult.SUCCESS, ResultOf(connection));
         Assert.True(_counters.Exists(key));
         Assert.Equal(Max + 1, _counters.CountOf(key));
+    }
+
+    /// <summary>
+    /// Starts logins that each take their slot at once and then wait at the lookup until released,
+    /// one at a time, so a test can fix the order the steps after the take run in.
+    /// </summary>
+    private sealed class OrderedLogins
+    {
+        private readonly List<TaskCompletionSource> _gates = new();
+        private readonly List<Task> _logins = new();
+        private int _lookups = -1;
+
+        public OrderedLogins(IAccountRepository accounts, Account account)
+        {
+            accounts.FindByUserNameAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(_ =>
+            {
+                TaskCompletionSource gate = _gates[Interlocked.Increment(ref _lookups)];
+                return gate.Task.ContinueWith(_ => (Account?)account, TaskScheduler.Default);
+            });
+        }
+
+        /// <summary>Starts a login; it takes its slot before this returns. Returns its index.</summary>
+        public int Start(Func<Task> login)
+        {
+            _gates.Add(new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously));
+            _logins.Add(login());
+            return _logins.Count - 1;
+        }
+
+        /// <summary>Lets one login past its lookup and waits for it to finish.</summary>
+        public async Task RunAsync(int index)
+        {
+            _gates[index].SetResult();
+            await _logins[index];
+        }
+    }
+
+    /// <summary>
+    /// #484 re-review of the reset: the give-back at MFA_REQUIRED was a plain floored DECR, so it
+    /// lowered a hold. B (right password, MFA account) takes 4, A (wrong) takes 5 and holds the
+    /// count at 6, B gives back to 5, and C (right password, no MFA) that had taken 3 completes its
+    /// login and its reset deleted the key. The username give-back leaves a held count alone.
+    /// </summary>
+    [Fact]
+    public async Task Keep_a_hold_when_an_mfa_give_back_and_a_reset_follow_it()
+    {
+        Account account = MakeAccount();
+        string key = UsernameBudget.KeyFor("testuser");
+        for (var i = 0; i < 2; i++) await _counters.Cache.IncrementAsync(key, TimeSpan.FromMinutes(15));
+        _mfaSetups.FindByAccountIdAsync(Arg.Any<AccountId>(), Arg.Any<CancellationToken>())
+            .Returns(new MFASetup { Status = MfaSetupStatus.Confirmed }, (MFASetup?)null);
+        _hashes.GenerateHashAsync(Arg.Any<Account>()).Returns("hash");
+        var logins = new OrderedLogins(_accounts, account);
+        CAuthHandler handler = PasswordHandler();
+        IAuthConnection c = ConnectionFrom(1), b = ConnectionFrom(2), a = ConnectionFrom(3);
+
+        int cIndex = logins.Start(() => LogInAsync(handler, c, CorrectPassword)); // slot 3
+        int bIndex = logins.Start(() => LogInAsync(handler, b, CorrectPassword)); // slot 4
+        int aIndex = logins.Start(() => LogInAsync(handler, a, "wrong_password")); // slot 5
+        await logins.RunAsync(aIndex);
+        Assert.Equal(Max + 1, _counters.CountOf(key));
+        await logins.RunAsync(bIndex);
+        await logins.RunAsync(cIndex);
+
+        Assert.Equal(AuthResult.LOCKED, ResultOf(a));
+        Assert.Equal(AuthResult.MFA_REQUIRED, ResultOf(b));
+        Assert.Equal(AuthResult.SUCCESS, ResultOf(c));
+        Assert.Equal(Max + 1, _counters.CountOf(key));
+    }
+
+    /// <summary>
+    /// The same give-back, twice: two MFA password steps that took slots before the hold would bring
+    /// it from 6 to 4, and the next guess would be verified again.
+    /// </summary>
+    [Fact]
+    public async Task Keep_a_hold_when_two_mfa_give_backs_follow_it()
+    {
+        Account account = MakeAccount();
+        string key = UsernameBudget.KeyFor("testuser");
+        for (var i = 0; i < 2; i++) await _counters.Cache.IncrementAsync(key, TimeSpan.FromMinutes(15));
+        _mfaSetups.FindByAccountIdAsync(Arg.Any<AccountId>(), Arg.Any<CancellationToken>())
+            .Returns(new MFASetup { Status = MfaSetupStatus.Confirmed });
+        _hashes.GenerateHashAsync(Arg.Any<Account>()).Returns("hash");
+        var logins = new OrderedLogins(_accounts, account);
+        CAuthHandler handler = PasswordHandler();
+
+        int b1 = logins.Start(() => LogInAsync(handler, ConnectionFrom(1), CorrectPassword)); // slot 3
+        int b2 = logins.Start(() => LogInAsync(handler, ConnectionFrom(2), CorrectPassword)); // slot 4
+        int a = logins.Start(() => LogInAsync(handler, ConnectionFrom(3), "wrong_password")); // slot 5
+        await logins.RunAsync(a);
+        await logins.RunAsync(b1);
+        await logins.RunAsync(b2);
+
+        Assert.Equal(Max + 1, _counters.CountOf(key));
+        int verifies = _verifier.Count;
+        IAuthConnection next = ConnectionFrom(4);
+        logins.Start(() => LogInAsync(handler, next, "wrong_password"));
+        Assert.Equal(AuthResult.LOCKED, ResultOf(next));
+        Assert.Equal(verifies, _verifier.Count);
     }
 
     /// <summary>

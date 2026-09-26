@@ -46,8 +46,15 @@ public static class UsernameBudget
     public static Task HoldLockAsync(IReplicatedCache cache, AuthConfiguration config, string key) =>
         cache.HoldCounterAtLeastAsync(key, HeldValue(config), Window(config));
 
-    /// <inheritdoc cref="AttemptBudget.GiveBackAsync"/>
-    public static Task GiveBackAsync(IReplicatedCache cache, string key) => AttemptBudget.GiveBackAsync(cache, key);
+    /// <summary>
+    /// Gives back the slot this attempt took, and no more, but never out of a held count: the
+    /// decrement runs only while the count is above zero and at most the limit (#484 re-review).
+    /// A plain floored DECR let a give-back at MFA_REQUIRED lower a hold from six to five, after
+    /// which a completed login's reset deleted it, or two give-backs brought it to four and the next
+    /// guess was verified again.
+    /// </summary>
+    public static Task GiveBackAsync(IReplicatedCache cache, AuthConfiguration config, string key) =>
+        cache.DecrementCounterIfAtMostAsync(key, config.MaxFailedLoginAttempts);
 
     /// <summary>
     /// Clears the username's count once a login has fully completed (owner decision on #484): the
@@ -55,10 +62,14 @@ public static class UsernameBudget
     /// password step of an MFA account, since every password login makes a fresh MFA hash and a
     /// reset there would hand out a fresh set of code guesses each time. The key is deleted only
     /// while the failures before this login are below the limit, in one script, so a hold that a
-    /// concurrent last-slot failure set (with the row lock it goes with) is never deleted by a login
-    /// that completed just before it (#484 re-review). The count still includes the login's own
+    /// concurrent last-slot failure set (with the row lock it goes with) is not deleted by a login
+    /// that completed just before it (#484 re-review); <see cref="GiveBackAsync"/> never lowers a
+    /// hold, so nothing brings one back within reach. The count still includes the login's own
     /// slot, so that is a count below <see cref="HeldValue"/>: four typos and a completed login
-    /// leave five, and the key goes; a held key is at least six, and stays.
+    /// leave five, and the key goes; a held key is at least six, and stays until it expires. Known
+    /// edge case: an attempt refused past the budget that lands between this login's take and its
+    /// reset also raises the count to six, so the key stays and the player is refused as LOCKED
+    /// until the window ends, with no row lock. It fails closed and needs a race of milliseconds.
     /// </summary>
     public static Task ResetAsync(IReplicatedCache cache, AuthConfiguration config, string key) =>
         cache.RemoveCounterIfBelowAsync(key, HeldValue(config));

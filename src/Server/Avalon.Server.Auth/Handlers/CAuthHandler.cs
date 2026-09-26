@@ -119,7 +119,7 @@ public class CAuthHandler : IAuthPacketHandler<CAuthPacket>
             // Only its own slots back, and no reset: the login is not complete until the code is
             // accepted, and each password login makes a fresh hash with fresh code attempts.
             await SourceBudget.GiveBackAsync(_cache, sourceKey);
-            await UsernameBudget.GiveBackAsync(_cache, usernameKey);
+            await UsernameBudget.GiveBackAsync(_cache, _authConfig, usernameKey);
             var mfaHash = await _mfaHashService.GenerateHashAsync(account);
             ctx.Connection.Send(SAuthResultPacket.Create(null, mfaHash, AuthResult.MFA_REQUIRED, ctx.Connection.CryptoSession.Encrypt));
             return;
