@@ -1,17 +1,21 @@
-using System.Text.Json;
-using Avalon.Common.ValueObjects;
 using Avalon.Configuration;
 using Avalon.Database.World;
-using Avalon.Domain.World;
-using Avalon.World.Public.Enums;
-using Microsoft.EntityFrameworkCore;
+using Avalon.Database.World.Seeding;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
+// Copies an editor export into the committed catalog under Maps/, then seeds the dev database from
+// it with the same seeder the World server runs on start. Commit the files it writes: they are the
+// source of truth for every environment.
+//   <exportDir>/<chunk>/chunk.json + chunk.obj  ->  Maps/Chunks/<chunk>.json + <chunk>.obj
+//   <exportDir>/town_layouts/*.json             ->  Maps/TownLayouts/*.json
+// Pool membership is edited by hand in Maps/chunk-pools.json.
+
 var exportDir = args.Length > 0 ? args[0] : "chunks-export";
-var chunksOutDir = "src/Server/Avalon.Server.World/Maps/Chunks";
-Directory.CreateDirectory(chunksOutDir);
+const string mapsRoot = "src/Server/Avalon.Server.World/Maps";
+var chunksOutDir = Path.Combine(mapsRoot, "Chunks");
+var layoutsOutDir = Path.Combine(mapsRoot, "TownLayouts");
 
 if (!Directory.Exists(exportDir))
 {
@@ -19,161 +23,39 @@ if (!Directory.Exists(exportDir))
     return 0;
 }
 
-using var ctx = BuildDbContext();
-int added = 0, updated = 0;
-
-int nextId = (await ctx.ChunkTemplates.AnyAsync())
-    ? (await ctx.ChunkTemplates.Select(t => t.Id).ToListAsync()).Max(id => id.Value) + 1
-    : 1;
-
+Directory.CreateDirectory(chunksOutDir);
+int copied = 0;
 foreach (var dir in Directory.EnumerateDirectories(exportDir))
 {
+    var name = Path.GetFileName(dir);
     var jsonPath = Path.Combine(dir, "chunk.json");
-    var objPath  = Path.Combine(dir, "chunk.obj");
+    var objPath = Path.Combine(dir, "chunk.obj");
     if (!File.Exists(jsonPath) || !File.Exists(objPath))
     {
-        Console.WriteLine($"Skipping '{dir}': missing chunk.json or chunk.obj");
+        if (name != "town_layouts") Console.WriteLine($"Skipping '{dir}': missing chunk.json or chunk.obj");
         continue;
     }
 
-    var meta = JsonSerializer.Deserialize<ChunkMetaDto>(File.ReadAllText(jsonPath),
-        new JsonSerializerOptions { PropertyNameCaseInsensitive = true })
-        ?? throw new InvalidDataException(jsonPath);
-
-    var existing = await ctx.ChunkTemplates.FirstOrDefaultAsync(t => t.Name == meta.Name);
-    var target = existing ?? new ChunkTemplate { Id = new Avalon.Common.ValueObjects.ChunkTemplateId(nextId++) };
-    target.Name = meta.Name;
-    target.AssetKey = meta.AssetKey;
-    target.GeometryFile = $"Chunks/{meta.Name}.obj";
-    target.CellFootprintX = meta.CellFootprintX;
-    target.CellFootprintZ = meta.CellFootprintZ;
-    target.CellSize = meta.CellSize;
-    target.Exits = BuildExitMask(meta.Exits);
-    target.SpawnSlots = meta.SpawnSlots
-        .Select(s => new ChunkSpawnSlot { Tag = s.Tag, LocalX = s.LocalX, LocalY = s.LocalY, LocalZ = s.LocalZ })
-        .ToList();
-    target.PortalSlots = meta.PortalSlots
-        .Select(p => new ChunkPortalSlot { Role = Enum.Parse<PortalRole>(p.Role, ignoreCase: true), LocalX = p.LocalX, LocalY = p.LocalY, LocalZ = p.LocalZ })
-        .ToList();
-    target.Tags = meta.Tags;
-
-    File.Copy(objPath, Path.Combine(chunksOutDir, $"{meta.Name}.obj"), overwrite: true);
-
-    if (existing is null) { ctx.ChunkTemplates.Add(target); added++; }
-    else { ctx.ChunkTemplates.Update(target); updated++; }
+    File.Copy(jsonPath, Path.Combine(chunksOutDir, $"{name}.json"), overwrite: true);
+    File.Copy(objPath, Path.Combine(chunksOutDir, $"{name}.obj"), overwrite: true);
+    copied++;
 }
-
-await ctx.SaveChangesAsync();
-Console.WriteLine($"Imported {added} new, {updated} updated chunks.");
+Console.WriteLine($"Copied {copied} chunks into {chunksOutDir}.");
 
 var townLayoutsDir = Path.Combine(exportDir, "town_layouts");
-int layoutsImported = 0;
 if (Directory.Exists(townLayoutsDir))
 {
+    Directory.CreateDirectory(layoutsOutDir);
     foreach (var jsonFile in Directory.EnumerateFiles(townLayoutsDir, "*.json"))
-    {
-        try
-        {
-            var dto = JsonSerializer.Deserialize<TownLayoutImportDto>(
-                File.ReadAllText(jsonFile),
-                new JsonSerializerOptions { PropertyNameCaseInsensitive = true })
-                ?? throw new InvalidDataException(jsonFile);
-
-            await ImportTownLayoutAsync(ctx, dto, jsonFile);
-            layoutsImported++;
-        }
-        catch (Exception ex)
-        {
-            Console.Error.WriteLine($"Failed to import {jsonFile}: {ex.Message}");
-        }
-    }
+        File.Copy(jsonFile, Path.Combine(layoutsOutDir, Path.GetFileName(jsonFile)), overwrite: true);
 }
-Console.WriteLine($"Imported {layoutsImported} town layout(s).");
+
+await using var ctx = BuildDbContext();
+ChunkCatalogSeedResult result = await ChunkCatalogSeeder.SeedAsync(ctx, mapsRoot);
+Console.WriteLine(
+    $"Seeded the dev database: {result.TemplatesAdded} new, {result.TemplatesUpdated} updated chunks, " +
+    $"{result.LayoutsReplaced} town layout(s), {result.PoolsSynced} pool(s).");
 return 0;
-
-static async Task ImportTownLayoutAsync(WorldDbContext ctx, TownLayoutImportDto dto, string sourcePath)
-{
-    var mapId = new MapTemplateId((ushort)dto.MapTemplateId);
-    var template = await ctx.MapTemplates.FirstOrDefaultAsync(t => t.Id == mapId)
-        ?? throw new InvalidDataException($"{sourcePath}: MapTemplate {dto.MapTemplateId} not found");
-    if (template.MapType != MapType.Town)
-        throw new InvalidDataException($"{sourcePath}: MapTemplate {dto.MapTemplateId} is {template.MapType}, expected Town");
-
-    if (dto.Chunks.Count == 0)
-        throw new InvalidDataException($"{sourcePath}: chunks empty");
-    if (dto.Chunks.Count(c => c.IsEntry) != 1)
-        throw new InvalidDataException($"{sourcePath}: must have exactly one IsEntry placement");
-
-    var dupes = dto.Chunks
-        .GroupBy(c => (c.GridX, c.GridZ))
-        .Where(g => g.Count() > 1)
-        .Select(g => g.Key)
-        .ToList();
-    if (dupes.Count > 0)
-        throw new InvalidDataException($"{sourcePath}: duplicate (gridX, gridZ): {string.Join(", ", dupes)}");
-
-    var names = dto.Chunks.Select(c => c.ChunkName).Distinct().ToList();
-    var chunks = await ctx.ChunkTemplates.Where(c => names.Contains(c.Name)).ToListAsync();
-    if (chunks.Count != names.Count)
-    {
-        var missing = names.Except(chunks.Select(c => c.Name));
-        throw new InvalidDataException($"{sourcePath}: unknown chunk names: {string.Join(", ", missing)}");
-    }
-
-    foreach (var c in chunks)
-    {
-        if (Math.Abs(c.CellSize - dto.CellSize) > 0.001f)
-            throw new InvalidDataException(
-                $"{sourcePath}: chunk '{c.Name}' has CellSize={c.CellSize} but layout declares {dto.CellSize}");
-    }
-
-    var byName = chunks.ToDictionary(c => c.Name, c => c.Id);
-
-    await using var tx = await ctx.Database.BeginTransactionAsync();
-    var existing = await ctx.MapChunkPlacements
-        .Where(p => p.MapTemplateId == mapId).ToListAsync();
-    ctx.MapChunkPlacements.RemoveRange(existing);
-    await ctx.SaveChangesAsync();
-
-    var inserts = dto.Chunks.Select(c => new MapChunkPlacement
-    {
-        MapTemplateId = mapId,
-        ChunkTemplateId = byName[c.ChunkName],
-        GridX = c.GridX,
-        GridZ = c.GridZ,
-        Rotation = c.Rotation,
-        IsEntry = c.IsEntry,
-        EntryLocalX = c.EntrySpawn?.LocalX ?? 0,
-        EntryLocalY = c.EntrySpawn?.LocalY ?? 0,
-        EntryLocalZ = c.EntrySpawn?.LocalZ ?? 0,
-        BackPortalTargetMapId = c.BackPortalTargetMapId,
-        ForwardPortalTargetMapId = c.ForwardPortalTargetMapId,
-    }).ToList();
-
-    await ctx.MapChunkPlacements.AddRangeAsync(inserts);
-    await ctx.SaveChangesAsync();
-    await tx.CommitAsync();
-
-    Console.WriteLine($"  {sourcePath}: replaced {existing.Count}, inserted {inserts.Count} placements for MapId {dto.MapTemplateId}");
-}
-
-static ushort BuildExitMask(IDictionary<string, string[]> exits)
-{
-    ushort mask = 0;
-    int[] sideOffsets = { 0, 3, 6, 9 }; // N, E, S, W
-    string[] sides = { "N", "E", "S", "W" };
-    string[] slots = { "left", "center", "right" };
-    for (int s = 0; s < 4; s++)
-    {
-        if (!exits.TryGetValue(sides[s], out var arr)) continue;
-        foreach (var slot in arr)
-        {
-            int idx = Array.IndexOf(slots, slot.ToLowerInvariant());
-            if (idx >= 0) mask |= (ushort)(1 << (sideOffsets[s] + idx));
-        }
-    }
-    return mask;
-}
 
 static WorldDbContext BuildDbContext()
 {
@@ -199,35 +81,3 @@ static WorldDbContext BuildDbContext()
 
     return new WorldDbContext(NullLoggerFactory.Instance, opts);
 }
-
-record ChunkMetaDto(
-    string Name,
-    string AssetKey,
-    byte CellFootprintX,
-    byte CellFootprintZ,
-    float CellSize,
-    Dictionary<string, string[]> Exits,
-    List<SpawnSlotDto> SpawnSlots,
-    List<PortalSlotDto> PortalSlots,
-    string[] Tags);
-
-record SpawnSlotDto(string Tag, float LocalX, float LocalY, float LocalZ);
-record PortalSlotDto(string Role, float LocalX, float LocalY, float LocalZ);
-
-record TownLayoutImportDto(
-    int MapTemplateId,
-    string MapName,
-    float CellSize,
-    List<TownChunkPlacementDto> Chunks);
-
-record TownChunkPlacementDto(
-    string ChunkName,
-    short GridX,
-    short GridZ,
-    byte Rotation,
-    bool IsEntry,
-    EntrySpawnDto? EntrySpawn,
-    ushort? BackPortalTargetMapId,
-    ushort? ForwardPortalTargetMapId);
-
-record EntrySpawnDto(float LocalX, float LocalY, float LocalZ);

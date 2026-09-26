@@ -48,7 +48,7 @@ Both pipelines emit a `ChunkLayout` record (chunks, entry spawn, portals, cell s
 
 - **Server:** `C:\dev\Avalon.Server` — bake, DB, instance factory, wire packet
 - **Client:** `C:\dev\3D` — Unity authoring scenes, runtime visualizers, predictor
-- **Server CLI tool:** `tools/Avalon.ChunkImporter` — imports chunk + layout JSON files into DB
+- **Server CLI tool:** `tools/Avalon.ChunkImporter` — copies an export into `Maps/` and seeds the dev DB (the World server seeds every environment from `Maps/` on start)
 
 ## Where things live
 
@@ -66,7 +66,8 @@ Both pipelines emit a `ChunkLayout` record (chunks, entry spawn, portals, cell s
 | `src/Shared/Avalon.Domain/World/MapChunkPlacement.cs` | DB entity joining MapTemplate → predefined chunk placements |
 | `src/Shared/Avalon.Domain/World/ProceduralMapConfig.cs` | DB entity for procedural map RNG config |
 | `src/Server/Avalon.Server.World/Maps/Chunks/<chunkName>.obj` | Server-side chunk geometry (consumed by navmesh bake) |
-| `tools/Avalon.ChunkImporter/Program.cs` | CLI tool that reads `<exportDir>` + writes DB rows |
+| `tools/Avalon.ChunkImporter/Program.cs` | CLI tool that copies `<exportDir>` into `Maps/` and seeds the dev DB |
+| `src/Server/Avalon.Database.World/Seeding/ChunkCatalogSeeder.cs` | Seeds chunk templates, town layouts and pools from `Maps/`; run by the World server on start |
 
 ### Client (`C:\dev\3D`)
 
@@ -183,8 +184,10 @@ dotnet run --project tools/Avalon.ChunkImporter -- /c/dev/3D/ChunksExport
 ```
 
 Path is the export dir from step 8. The CLI:
-- Reads each `<chunkName>/chunk.json`, upserts a `ChunkTemplate` row in the World DB (matched by `Name`; existing rows are updated, new rows inserted).
-- Copies `chunk.obj` to `src/Server/Avalon.Server.World/Maps/Chunks/<chunkName>.obj` for the runtime navmesh bake.
+- Copies each `<chunkName>/chunk.json` + `chunk.obj` to `src/Server/Avalon.Server.World/Maps/Chunks/<chunkName>.json` + `.obj`, and `town_layouts/*.json` to `Maps/TownLayouts/`.
+- Seeds your dev World DB from those files with `ChunkCatalogSeeder`, the same code the World server runs on every start: `ChunkTemplate` rows are upserted by `Name` (ids kept), town layouts replace their map's placements, and the pools in `Maps/chunk-pools.json` get exactly the members listed.
+
+**Commit the files under `Maps/`.** They are the source of truth: every World server start seeds the database from them, so a fresh install (or a release that adds chunks) needs no import step. To put a new chunk in a procedural pool, add its name to `Maps/chunk-pools.json`.
 
 DB connection comes from `appsettings.json` or `Database__World__ConnectionString` env var.
 
@@ -471,7 +474,7 @@ Identical bake on both sides (same `.obj` source, same DotRecast settings) keeps
 |---|---|---|
 | Server crashes at startup with "Unable to activate type 'PredefinedChunkLayoutSource'. Constructors are ambiguous" | Two public ctors on the source | Single ctor + static `ForTesting(...)` factory |
 | Server: `Chunk obj not found: Maps\Chunks\N.obj` (where N is a number) | Bake using `TemplateId.Value` instead of `Name` for filename | `ChunkLayoutNavmeshBuilder` resolves name via `IChunkLibrary.GetById(id).Name` |
-| Server: `No MapChunkPlacement rows for town map N` | DB hasn't been imported with placements | Run `ChunkImporter` after exporting `town_layouts/N.json` |
+| Server: `No MapChunkPlacement rows for town map N` | `Maps/TownLayouts/N.json` missing | Export `town_layouts/N.json`, run `ChunkImporter`, commit `Maps/` |
 | Server: `Town map N has no IsEntry placement` | Layout exporter accepted layout with 0 or >1 IsEntry | Edit `TownLayoutAuthoring` scene; ensure exactly one TownChunkPlacement has `IsEntry=true` |
 | Server: `chunk 'X' has CellSize=Y != layout Z` | Mixed cell sizes in one layout | All chunks in a layout MUST have identical `CellSize` |
 | Client: player spawns at wrong position | Persisted `Character.X/Y/Z` is stale | For towns, `CharacterSelectHandler` already overrides with `Layout.EntrySpawnWorldPos`. For procedural, persist position correctly when player exits map. |
