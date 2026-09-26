@@ -4,6 +4,10 @@ on:
   pull_request:
     types: [ opened, synchronize, reopened ]
 
+concurrency:
+  group: pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 jobs:
   build:
 
@@ -21,18 +25,28 @@ jobs:
         uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 10.0.x
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', '**/Directory.*.props', 'global.json') }}
+          restore-keys: |
+            nuget-${{ runner.os }}-
       - name: Restore dependencies
         run: dotnet restore
       - name: Build
-        run: dotnet build --no-restore
+        run: dotnet build -c Release --no-restore
       - name: Test
-        run: dotnet test --no-build
+        run: dotnet test -c Release --no-build
+      # ReadyToRun off: this check only proves publishing works, and native compilation
+      # costs most of the step. With it on, publish infers the runner's runtime identifier
+      # and needs a RID-specific build, so --no-build fails. The release workflow keeps it.
       - name: Publish World Server
-        run: dotnet publish src/Server/Avalon.Server.World/Avalon.Server.World.csproj -c Release --no-restore -o src/Server/Avalon.Server.World/out
+        run: dotnet publish src/Server/Avalon.Server.World/Avalon.Server.World.csproj -c Release --no-build -p:PublishReadyToRun=false -o src/Server/Avalon.Server.World/out
       - name: Publish Auth Server
-        run: dotnet publish src/Server/Avalon.Server.Auth/Avalon.Server.Auth.csproj -c Release --no-restore -o src/Server/Avalon.Server.Auth/out
+        run: dotnet publish src/Server/Avalon.Server.Auth/Avalon.Server.Auth.csproj -c Release --no-build -o src/Server/Avalon.Server.Auth/out
       - name: Publish Api
-        run: dotnet publish src/Server/Avalon.Api/Avalon.Api.csproj -c Release --no-restore -o src/Server/Avalon.Api/out
+        run: dotnet publish src/Server/Avalon.Api/Avalon.Api.csproj -c Release --no-build -o src/Server/Avalon.Api/out
 
   charts:
     runs-on: ubuntu-latest
