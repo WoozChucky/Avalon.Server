@@ -77,6 +77,12 @@ public sealed class AccountRefreshController : BaseController
                     .ToUnixTimeSeconds(),
             };
         }
+        catch (RefreshAlreadyRotatedException)
+        {
+            // Two tabs or a retry (#495 review). The cookie is left alone: the browser shares it
+            // between tabs, and it already holds the token the winning rotation set.
+            return Unauthorized();
+        }
         catch (RefreshTheftException ex)
         {
             await _cache.PublishAsync(CacheKeys.WorldAccountsDisconnectChannel, ex.AccountId.Value.ToString());

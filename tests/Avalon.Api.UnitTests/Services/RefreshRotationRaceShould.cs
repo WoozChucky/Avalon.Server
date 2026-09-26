@@ -14,8 +14,10 @@ namespace Avalon.Api.UnitTests.Services;
 /// <summary>
 /// #495: a rotation read the token, wrote it back revoked, then inserted its child, so two
 /// rotations of one token that both read it live both got a child. The revoke is now a conditional
-/// write, and only the rotation whose write revoked the parent goes on. The other is answered as a
-/// reuse, exactly as it would be had it arrived a moment later. Real repository, real schema.
+/// write, and only the rotation whose write revoked the parent goes on. The other gets 401, and, as
+/// a second tab or a client retry does, it does not revoke the family when the parent was rotated
+/// under five seconds ago and its child is still unused; a replay outside that is still a reuse.
+/// Real repository, real schema.
 /// </summary>
 public sealed class RefreshRotationRaceShould : IDisposable
 {
@@ -70,6 +72,10 @@ public sealed class RefreshRotationRaceShould : IDisposable
             CancellationToken cancellationToken = default) =>
             OneAtATime(() => inner.RotateAsync(parent, child, now, cancellationToken));
 
+        public Task<RefreshToken?> FindChildAsync(Guid familyId, uint index,
+            CancellationToken cancellationToken = default) =>
+            OneAtATime(() => inner.FindChildAsync(familyId, index, cancellationToken));
+
         public Task<bool> CreateIfCredentialsCurrentAsync(RefreshToken token,
             CancellationToken cancellationToken = default) =>
             OneAtATime(() => inner.CreateIfCredentialsCurrentAsync(token, cancellationToken));
@@ -102,11 +108,71 @@ public sealed class RefreshRotationRaceShould : IDisposable
 
         Assert.Single(rotations, r => r.IsCompletedSuccessfully);
         Task loser = Assert.Single(rotations, r => r.IsFaulted);
-        Assert.IsType<RefreshTheftException>(loser.Exception!.InnerException);
+        // Inside the grace window: a plain 401, not a reuse, so the winner's session survives.
+        Assert.IsType<RefreshAlreadyRotatedException>(loser.Exception!.InnerException);
 
-        // One child, not two: the loser inserted nothing.
+        // One child, not two: the loser inserted nothing, and the winner's child is still live.
         await using AuthDbContext context = _database.CreateDbContext();
         Assert.Equal(2, await context.RefreshTokens.CountAsync(t => t.FamilyId == issued.FamilyId));
+        Assert.Equal(1, await context.RefreshTokens.CountAsync(t => t.FamilyId == issued.FamilyId && !t.Revoked));
+    }
+
+    /// <summary>A clock the test moves.</summary>
+    private sealed class Clock(DateTimeOffset now) : TimeProvider
+    {
+        public DateTimeOffset Now { get; set; } = now;
+        public override DateTimeOffset GetUtcNow() => Now;
+    }
+
+    private async Task<(RefreshTokenService Service, Clock Clock, RefreshIssueResult Issued)> RotatedOnceAsync()
+    {
+        Account account = await AccountAsync();
+        var clock = new Clock(DateTimeOffset.UtcNow);
+        var service = new RefreshTokenService(new RefreshTokenRepository(_database), new SecureRandom(), clock);
+        RefreshIssueResult issued = await service.IssueAsync(account.Id, 0);
+        await service.RotateAsync(issued.RawToken);
+        return (service, clock, issued);
+    }
+
+    private async Task<int> LiveInFamilyAsync(Guid familyId)
+    {
+        await using AuthDbContext context = _database.CreateDbContext();
+        return await context.RefreshTokens.CountAsync(t => t.FamilyId == familyId && !t.Revoked);
+    }
+
+    [Fact]
+    public async Task Answer_a_resent_token_inside_the_grace_window_without_revoking_the_family()
+    {
+        var (service, clock, issued) = await RotatedOnceAsync();
+        clock.Now += TimeSpan.FromSeconds(4);
+
+        Exception refused = await Assert.ThrowsAnyAsync<Exception>(() => service.RotateAsync(issued.RawToken));
+
+        Assert.IsType<RefreshAlreadyRotatedException>(refused);
+        Assert.Equal(1, await LiveInFamilyAsync(issued.FamilyId));
+    }
+
+    [Fact]
+    public async Task Treat_a_replay_after_the_grace_window_as_a_reuse()
+    {
+        var (service, clock, issued) = await RotatedOnceAsync();
+        clock.Now += TimeSpan.FromSeconds(6);
+
+        await Assert.ThrowsAsync<RefreshTheftException>(() => service.RotateAsync(issued.RawToken));
+
+        Assert.Equal(0, await LiveInFamilyAsync(issued.FamilyId));
+    }
+
+    [Fact]
+    public async Task Treat_a_replay_as_a_reuse_once_the_child_has_been_used()
+    {
+        var (service, clock, issued) = await RotatedOnceAsync();
+        await using (AuthDbContext context = _database.CreateDbContext())
+            await context.RefreshTokens.Where(t => t.FamilyId == issued.FamilyId && t.Index == 1)
+                .ExecuteUpdateAsync(s => s.SetProperty(t => t.Usages, 1u).SetProperty(t => t.Revoked, true));
+        clock.Now += TimeSpan.FromSeconds(1);
+
+        await Assert.ThrowsAsync<RefreshTheftException>(() => service.RotateAsync(issued.RawToken));
     }
 
     [Fact]

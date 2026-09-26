@@ -75,6 +75,24 @@ public sealed class SessionIssuanceShould : IAsyncLifetime
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
+    /// <summary>
+    /// #495 review: the second of two tabs refreshing at once, inside the grace window. It is told
+    /// 401, but the refresh cookie the tabs share (now the winner's) is not cleared, and nothing
+    /// ends the account's sessions.
+    /// </summary>
+    [Fact]
+    public async Task Leave_the_cookie_and_the_sessions_alone_for_a_refresh_that_lost_a_race()
+    {
+        _host.Refresh.RotateAsync(RefreshCookie, Arg.Any<CancellationToken>())
+            .Returns<RefreshRotateResult>(_ => throw new RefreshAlreadyRotatedException());
+
+        using HttpResponseMessage response = await PostRefreshAsync();
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        Assert.False(response.Headers.Contains("Set-Cookie"));
+        await _host.Cache.DidNotReceiveWithAnyArgs().PublishAsync(default!, default!);
+    }
+
     [Theory]
     [InlineData(AccountStatus.Banned)]
     [InlineData(AccountStatus.Deactivated)]

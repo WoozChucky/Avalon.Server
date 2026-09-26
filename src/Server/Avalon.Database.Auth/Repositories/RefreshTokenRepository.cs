@@ -43,6 +43,9 @@ public interface IRefreshTokenRepository
 
     Task<RefreshToken> CreateAsync(RefreshToken token, CancellationToken cancellationToken = default);
     Task<RefreshToken?> FindByHashAsync(byte[] hash, CancellationToken cancellationToken = default);
+
+    /// <summary>The token a rotation of the family's token at <paramref name="index"/> inserted, if any.</summary>
+    Task<RefreshToken?> FindChildAsync(Guid familyId, uint index, CancellationToken cancellationToken = default);
     Task UpdateAsync(RefreshToken token, CancellationToken cancellationToken = default);
     Task<int> RevokeFamilyAsync(Guid familyId, CancellationToken cancellationToken = default);
     Task<int> RevokeAllForAccountAsync(AccountId accountId, CancellationToken cancellationToken = default);
@@ -102,6 +105,15 @@ public sealed class RefreshTokenRepository(IDbContextFactory<AuthDbContext> cont
 
         await transaction.CommitAsync(cancellationToken);
         return RefreshRotation.Rotated;
+    }
+
+    public async Task<RefreshToken?> FindChildAsync(Guid familyId, uint index, CancellationToken cancellationToken = default)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+
+        return await context.RefreshTokens
+            .AsNoTracking()
+            .FirstOrDefaultAsync(t => t.FamilyId == familyId && t.Index == index + 1, cancellationToken);
     }
 
     public async Task<RefreshToken?> FindByHashAsync(byte[] hash, CancellationToken cancellationToken = default)

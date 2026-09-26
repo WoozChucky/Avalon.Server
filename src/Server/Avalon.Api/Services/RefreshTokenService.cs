@@ -32,6 +32,14 @@ public sealed class RefreshTokenService : IRefreshTokenService
     public static readonly TimeSpan DefaultLifetime = TimeSpan.FromDays(30);
     public const string CredentialsChanged = "Credentials changed; sign in again";
 
+    /// <summary>
+    /// How long after a rotation its parent may be presented again without being taken for a
+    /// reuse, while the child it produced is still unused (#495 review): a second tab refreshing
+    /// at the same moment, or a client retrying a refresh whose answer it lost. It gets 401 and
+    /// nothing more; the family, and the session that won, survive.
+    /// </summary>
+    public static readonly TimeSpan RotationGrace = TimeSpan.FromSeconds(5);
+
     private readonly IRefreshTokenRepository _repository;
     private readonly ISecureRandom _random;
     private readonly TimeProvider _time;
@@ -79,10 +87,7 @@ public sealed class RefreshTokenService : IRefreshTokenService
         if (row.ExpiresAt <= now) throw new UnauthorizedAccessException("Refresh token expired");
 
         if (row.Revoked)
-        {
-            await _repository.RevokeFamilyAsync(row.FamilyId, cancellationToken);
-            throw new RefreshTheftException(row.AccountId);
-        }
+            await RefuseRevokedParentAsync(row, now, cancellationToken);
 
         var (newRaw, newHash) = Generate();
         var child = new RefreshToken
@@ -108,11 +113,26 @@ public sealed class RefreshTokenService : IRefreshTokenService
                 throw new UnauthorizedAccessException("Refresh token predates a credentials change");
             default:
                 // Revoked between the read above and the write: another rotation of this token won
-                // (#495), or it was revoked. A reuse, exactly as if it had arrived after that
-                // rotation finished, so the family goes as it does above.
-                await _repository.RevokeFamilyAsync(row.FamilyId, cancellationToken);
-                throw new RefreshTheftException(row.AccountId);
+                // (#495), or it was revoked. Answered exactly as if it had arrived after that.
+                await RefuseRevokedParentAsync(row, now, cancellationToken);
+                throw new UnauthorizedAccessException("Refresh token revoked");
         }
+    }
+
+    /// <summary>
+    /// Refuses a token that is no longer live. Inside <see cref="RotationGrace"/> of the rotation
+    /// that replaced it, with that rotation's child still unused, it is a plain 401: two tabs or a
+    /// retry, not a thief. Otherwise it is a reuse: the family is revoked and the caller is told
+    /// (<see cref="RefreshTheftException"/>), which also ends the account's world sessions.
+    /// </summary>
+    private async Task RefuseRevokedParentAsync(RefreshToken row, DateTime now, CancellationToken cancellationToken)
+    {
+        RefreshToken? child = await _repository.FindChildAsync(row.FamilyId, row.Index, cancellationToken);
+        if (child is { Revoked: false, Usages: 0 } && now - child.CreatedAt < RotationGrace)
+            throw new RefreshAlreadyRotatedException();
+
+        await _repository.RevokeFamilyAsync(row.FamilyId, cancellationToken);
+        throw new RefreshTheftException(row.AccountId);
     }
 
     public async Task RevokeAsync(string rawToken, CancellationToken cancellationToken = default)
