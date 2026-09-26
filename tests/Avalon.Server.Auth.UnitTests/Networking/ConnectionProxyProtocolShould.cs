@@ -4,7 +4,7 @@ using Avalon.Configuration;
 using Avalon.Hosting.Networking;
 using Avalon.Network.Packets;
 using Avalon.Network.Packets.Abstractions;
-using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Logging;
 using NSubstitute;
 using Xunit;
 
@@ -31,8 +31,8 @@ public class ConnectionProxyProtocolShould
         public readonly TaskCompletionSource StreamRequested = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public readonly TaskCompletionSource Closed = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        public ProbeConnection(TcpClient client, IServerBase server)
-            : base(NullLogger.Instance, server, Substitute.For<IPacketReader>())
+        public ProbeConnection(TcpClient client, IServerBase server, ILogger logger)
+            : base(logger, server, Substitute.For<IPacketReader>())
         {
             Init(client);
         }
@@ -56,14 +56,17 @@ public class ConnectionProxyProtocolShould
         protected override long GetServerTime() => 0;
     }
 
-    private static async Task<(ProbeConnection Connection, TcpClient Client, TcpListener Listener)> Connect(ProxyProtocolConfiguration config)
+    private static Task<(ProbeConnection Connection, TcpClient Client, TcpListener Listener)> Connect(ProxyProtocolConfiguration config) =>
+        Connect(config, new CapturingLogger());
+
+    private static async Task<(ProbeConnection Connection, TcpClient Client, TcpListener Listener)> Connect(ProxyProtocolConfiguration config, ILogger logger)
     {
         var listener = new TcpListener(IPAddress.Loopback, 0);
         listener.Start();
         var client = new TcpClient();
         Task<TcpClient> accept = listener.AcceptTcpClientAsync();
         await client.ConnectAsync(IPAddress.Loopback, ((IPEndPoint)listener.LocalEndpoint).Port);
-        var connection = new ProbeConnection(await accept, new FakeServer(ProxyProtocolPolicy.From(config)));
+        var connection = new ProbeConnection(await accept, new FakeServer(ProxyProtocolPolicy.From(config)), logger);
         return (connection, client, listener);
     }
 
@@ -103,7 +106,8 @@ public class ConnectionProxyProtocolShould
     [Fact]
     public async Task Drop_a_trusted_peer_that_sends_no_proxy_header()
     {
-        var (connection, client, listener) = await Connect(new() { Enabled = true, TrustedProxies = ["127.0.0.0/8"] });
+        var logger = new CapturingLogger();
+        var (connection, client, listener) = await Connect(new() { Enabled = true, TrustedProxies = ["127.0.0.0/8"] }, logger);
         using (client) using (connection)
         {
             byte[] notProxy = new byte[16];
@@ -114,6 +118,7 @@ public class ConnectionProxyProtocolShould
             await connection.Closed.Task.WaitAsync(Wait);
 
             Assert.False(connection.StreamRequested.Task.IsCompleted);
+            Assert.Equal(1, logger.Count(LogLevel.Warning));
             listener.Stop();
         }
     }
@@ -121,7 +126,8 @@ public class ConnectionProxyProtocolShould
     [Fact]
     public async Task Drop_a_trusted_peer_that_stays_silent_past_the_timeout()
     {
-        var (connection, client, listener) = await Connect(new() { Enabled = true, TrustedProxies = ["127.0.0.0/8"], HeaderTimeoutSeconds = 1 });
+        var logger = new CapturingLogger();
+        var (connection, client, listener) = await Connect(new() { Enabled = true, TrustedProxies = ["127.0.0.0/8"], HeaderTimeoutSeconds = 1 }, logger);
         using (client) using (connection)
         {
             await connection.StartAsync(CancellationToken.None);
@@ -129,6 +135,46 @@ public class ConnectionProxyProtocolShould
             await connection.Closed.Task.WaitAsync(Wait);
 
             Assert.False(connection.StreamRequested.Task.IsCompleted);
+            Assert.Equal(1, logger.Count(LogLevel.Warning));
+            listener.Stop();
+        }
+    }
+
+    [Fact]
+    public async Task Drop_a_trusted_peer_that_closes_without_sending_and_log_it_at_debug_only()
+    {
+        var logger = new CapturingLogger();
+        var (connection, client, listener) = await Connect(new() { Enabled = true, TrustedProxies = ["127.0.0.0/8"] }, logger);
+        using (connection)
+        {
+            // A TCP health check or port scan: connect, send nothing, close (#528).
+            client.Dispose();
+            await connection.StartAsync(CancellationToken.None);
+
+            await connection.Closed.Task.WaitAsync(Wait);
+
+            Assert.False(connection.StreamRequested.Task.IsCompleted);
+            Assert.Equal(0, logger.Count(LogLevel.Warning));
+            Assert.Equal(1, logger.Entries.Count(e => e.Level == LogLevel.Debug && e.Message.Contains("trusted proxy", StringComparison.Ordinal)));
+            listener.Stop();
+        }
+    }
+
+    [Fact]
+    public async Task Drop_a_trusted_peer_that_sends_a_partial_header_and_log_a_warning()
+    {
+        var logger = new CapturingLogger();
+        var (connection, client, listener) = await Connect(new() { Enabled = true, TrustedProxies = ["127.0.0.0/8"] }, logger);
+        using (connection)
+        {
+            await client.GetStream().WriteAsync(ProxyProtocolV2Should.ProxyTcp4("203.0.113.7", 51000).AsMemory(0, 5));
+            client.Dispose();
+            await connection.StartAsync(CancellationToken.None);
+
+            await connection.Closed.Task.WaitAsync(Wait);
+
+            Assert.False(connection.StreamRequested.Task.IsCompleted);
+            Assert.Equal(1, logger.Count(LogLevel.Warning));
             listener.Stop();
         }
     }
