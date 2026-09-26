@@ -23,6 +23,13 @@ public interface IAuthConnection : IConnection
     /// </summary>
     int CredentialsVersion { get; set; }
 
+    /// <summary>
+    /// When this connection's login completed, as a <see cref="System.Diagnostics.Stopwatch"/>
+    /// timestamp; 0 before it has. Lets the server tell a login from the duplicate-login
+    /// disconnect published just before it (#495 review).
+    /// </summary>
+    long LoggedInAt { get; set; }
+
     AuthServer Server { get; }
 
     byte[] GenerateHandshakeData();
@@ -60,6 +67,7 @@ public class AuthConnection : Connection, IAuthConnection
 
     public AccountId? AccountId { get; set; }
     public int CredentialsVersion { get; set; }
+    public long LoggedInAt { get; set; }
     public new AuthServer Server { get; }
 
     public byte[] GenerateHandshakeData()

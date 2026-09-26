@@ -298,6 +298,8 @@ public class CAuthHandlerShould
         // No session found => only the Online flag is cleared, never the whole row (#484)
         Assert.False(account.Online);
         // ...and only while the session that set it is still the one online (#487).
+        // Its own publish is noted, so the login that follows is not kicked by it (#495 review).
+        Assert.NotNull(server.OwnDisconnectPublishedAt(account.Id, System.Diagnostics.Stopwatch.GetTimestamp()));
         await _accountRepository.Received(1).MarkOfflineAsync(account.Id, staleSession, 0, Arg.Any<CancellationToken>());
         await _accountRepository.DidNotReceiveWithAnyArgs().UpdateAsync(default!, default);
     }

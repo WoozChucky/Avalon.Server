@@ -90,6 +90,9 @@ public class CAuthHandler : IAuthPacketHandler<CAuthPacket>
         {
             ctx.Connection.Send(SAuthResultPacket.Create(null, null, AuthResult.ALREADY_CONNECTED, ctx.Connection.CryptoSession.Encrypt));
 
+            // Noted first, so the login that follows this refusal is not kicked when the message
+            // comes back to this server (#495 review).
+            ctx.Connection.Server?.NoteOwnDisconnectPublish(account.Id);
             await _cache.PublishAsync(CacheKeys.WorldAccountsDisconnectChannel, account.Id.ToString());
 
             var connectedSession = ctx.Connection.Server.Connections.FirstOrDefault(c => c.AccountId == account.Id);
@@ -129,6 +132,7 @@ public class CAuthHandler : IAuthPacketHandler<CAuthPacket>
         // The version of the row the proof was checked against (#495), before the account id
         // that makes the connection logged in.
         ctx.Connection.CredentialsVersion = account.CredentialsVersion;
+        ctx.Connection.LoggedInAt = System.Diagnostics.Stopwatch.GetTimestamp();
         ctx.Connection.AccountId = account.Id;
 
         account.Online = true;

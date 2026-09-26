@@ -92,6 +92,78 @@ public sealed class AccountDisconnectShould
         anonymous.DidNotReceiveWithAnyArgs().Close();
     }
 
+    // ---------------- Its own duplicate-login publish (#495 review) ----------------
+
+    private static IAuthConnection LoggedInAt(long accountId, long at)
+    {
+        IAuthConnection connection = Connection(accountId);
+        connection.LoggedInAt.Returns(at);
+        return connection;
+    }
+
+    /// <summary>
+    /// Connection B's first login attempt found the account online, closed the old session and
+    /// published the duplicate-login disconnect; B then logged in before that message came back
+    /// round. B is spared; the old session, logged in before the publish, is not.
+    /// </summary>
+    [Fact]
+    public void Spare_a_connection_that_logged_in_after_this_servers_own_publish_for_the_account()
+    {
+        const long publishedAt = 1_000;
+        IAuthConnection oldSession = LoggedInAt(7, publishedAt - 10);
+        IAuthConnection freshLogin = LoggedInAt(7, publishedAt + 10);
+
+        int closed = AuthServer.CloseAccountConnections([oldSession, freshLogin], "7", NullLogger.Instance,
+            id => id.Value == 7 ? publishedAt : null);
+
+        Assert.Equal(1, closed);
+        oldSession.Received(1).Close();
+        freshLogin.DidNotReceiveWithAnyArgs().Close();
+    }
+
+    [Fact]
+    public void Close_a_fresh_login_when_this_server_published_nothing_for_the_account()
+    {
+        IAuthConnection freshLogin = LoggedInAt(7, 5_000);
+
+        int closed = AuthServer.CloseAccountConnections([freshLogin], "7", NullLogger.Instance, _ => null);
+
+        Assert.Equal(1, closed);
+        freshLogin.Received(1).Close();
+    }
+
+    [Fact]
+    public void Remember_its_own_publish_for_a_few_seconds_only()
+    {
+        AuthServer server = Server();
+        var account = new AccountId(7);
+        long before = System.Diagnostics.Stopwatch.GetTimestamp();
+
+        server.NoteOwnDisconnectPublish(account);
+
+        long? noted = server.OwnDisconnectPublishedAt(account, before);
+        Assert.NotNull(noted);
+        Assert.True(noted >= before);
+        long later = noted!.Value + (long)(AuthServer.OwnPublishWindow.TotalSeconds + 1) * System.Diagnostics.Stopwatch.Frequency;
+        Assert.Null(server.OwnDisconnectPublishedAt(account, later));
+        Assert.Null(server.OwnDisconnectPublishedAt(new AccountId(8), before));
+    }
+
+    // ---------------- One connection failing to close (#495 review) ----------------
+
+    [Fact]
+    public void Close_the_others_when_one_connection_throws()
+    {
+        IAuthConnection broken = Connection(7);
+        broken.When(c => c.Close(Arg.Any<bool>())).Do(_ => throw new InvalidOperationException("socket gone"));
+        IAuthConnection fine = Connection(7);
+
+        int closed = AuthServer.CloseAccountConnections([broken, fine], "7", NullLogger.Instance);
+
+        fine.Received(1).Close();
+        Assert.Equal(1, closed);
+    }
+
     [Theory]
     [InlineData("")]
     [InlineData("not-an-id")]

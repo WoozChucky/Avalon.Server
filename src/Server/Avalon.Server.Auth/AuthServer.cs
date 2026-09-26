@@ -96,6 +96,40 @@ public class AuthServer(
     private Action<RedisChannel, RedisValue>? _accountDisconnectHandler;
 
     /// <summary>
+    /// How long this server remembers publishing a duplicate-login disconnect for an account
+    /// (#495 review). Pub/sub hands the message back to this server too, typically within
+    /// milliseconds; a connection that logged in after the publish, inside this window, is spared.
+    /// </summary>
+    public static readonly TimeSpan OwnPublishWindow = TimeSpan.FromSeconds(10);
+
+    private readonly ConcurrentDictionary<long, long> _ownDisconnectPublishes = new();
+
+    /// <summary>
+    /// Records that this server is about to publish a duplicate-login disconnect for
+    /// <paramref name="accountId"/> (<c>ALREADY_CONNECTED</c>), so that the login which follows is
+    /// not kicked when the message comes back round. The channel's message is the bare account id
+    /// the World server parses, so it cannot carry an origin; this is kept here instead.
+    /// </summary>
+    public void NoteOwnDisconnectPublish(Avalon.Common.ValueObjects.AccountId accountId) =>
+        _ownDisconnectPublishes[accountId.Value] = System.Diagnostics.Stopwatch.GetTimestamp();
+
+    /// <summary>
+    /// When this server last noted its own disconnect publish for <paramref name="accountId"/>, if
+    /// within <see cref="OwnPublishWindow"/> of <paramref name="now"/> (Stopwatch timestamps);
+    /// otherwise null, and a note that old is dropped.
+    /// </summary>
+    public long? OwnDisconnectPublishedAt(Avalon.Common.ValueObjects.AccountId accountId, long now)
+    {
+        if (!_ownDisconnectPublishes.TryGetValue(accountId.Value, out long at))
+            return null;
+        if (now - at <= (long)(OwnPublishWindow.TotalSeconds * System.Diagnostics.Stopwatch.Frequency))
+            return at;
+
+        _ownDisconnectPublishes.TryRemove(new KeyValuePair<long, long>(accountId.Value, at));
+        return null;
+    }
+
+    /// <summary>
     /// Listens on <see cref="CacheKeys.WorldAccountsDisconnectChannel"/> (#495). Everything that
     /// ends an account's sessions publishes there (a password change, an MFA reset or removal, a
     /// ban, a refresh-token reuse, a duplicate login), and a logged-in connection here is a session
@@ -103,7 +137,8 @@ public class AuthServer(
     /// </summary>
     public Task SubscribeToAccountDisconnectsAsync()
     {
-        _accountDisconnectHandler ??= (_, message) => CloseAccountConnections(Connections, message, _logger);
+        _accountDisconnectHandler ??= (_, message) => CloseAccountConnections(Connections, message, _logger,
+            id => OwnDisconnectPublishedAt(id, System.Diagnostics.Stopwatch.GetTimestamp()));
         return cache.SubscribeAsync(CacheKeys.WorldAccountsDisconnectChannel, _accountDisconnectHandler);
     }
 
@@ -112,9 +147,18 @@ public class AuthServer(
     /// <paramref name="message"/> names, telling it why first. A message that names no account is
     /// ignored. Returns how many were closed. A connection not logged in yet is left alone: the
     /// account it may log in to next is checked then, against its current credentials.
+    /// <para>
+    /// When <paramref name="ownPublishAt"/> says this server published a duplicate-login disconnect
+    /// for the account at some instant, a connection that logged in after it is spared (#495
+    /// review): the message may be that very publish, made by its own first login attempt. The cost
+    /// is that a different publish for the account inside the window also spares it; world select
+    /// still checks the credentials version and the status, so such a connection gets no world key
+    /// for changed credentials or a banned account.
+    /// </para>
+    /// <para>One connection that throws while closing is logged and does not stop the others.</para>
     /// </summary>
     public static int CloseAccountConnections(IEnumerable<IAuthConnection> connections, RedisValue message,
-        ILogger logger)
+        ILogger logger, Func<Avalon.Common.ValueObjects.AccountId, long?>? ownPublishAt = null)
     {
         if (!long.TryParse(message.ToString(), System.Globalization.NumberStyles.None,
                 System.Globalization.CultureInfo.InvariantCulture, out long id))
@@ -130,10 +174,26 @@ public class AuthServer(
             if (connection.AccountId != accountId)
                 continue;
 
-            logger.LogInformation("Closing auth connection {EndPoint} of account {AccountId}: its sessions were ended",
-                connection.RemoteEndPoint, id);
-            GracefulShutdownHelper.NotifyAndClose(connection, SessionEndedMessage, DisconnectReason.Kicked, logger);
-            closed++;
+            if (ownPublishAt?.Invoke(accountId) is { } publishedAt && connection.LoggedInAt > publishedAt)
+            {
+                logger.LogInformation(
+                    "Spared auth connection {EndPoint} of account {AccountId}: it logged in after this server's own disconnect publish",
+                    connection.RemoteEndPoint, id);
+                continue;
+            }
+
+            try
+            {
+                logger.LogInformation("Closing auth connection {EndPoint} of account {AccountId}: its sessions were ended",
+                    connection.RemoteEndPoint, id);
+                GracefulShutdownHelper.NotifyAndClose(connection, SessionEndedMessage, DisconnectReason.Kicked, logger);
+                closed++;
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Could not close auth connection {EndPoint} of account {AccountId}",
+                    connection.RemoteEndPoint, id);
+            }
         }
 
         return closed;
