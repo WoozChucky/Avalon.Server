@@ -43,6 +43,24 @@ public class ExceptionHandlerMiddlewareShould
         Assert.DoesNotContain("5432", body, StringComparison.Ordinal);
     }
 
+    /// <summary>#510: an email-change confirmation the sender could not send is a 503 that says so.</summary>
+    [Fact]
+    public async Task Answer_an_email_that_could_not_be_sent_with_503()
+    {
+        var middleware = new ExceptionHandlerMiddleware(_ => throw new Avalon.Api.Exceptions.EmailDeliveryException(),
+            NullLoggerFactory.Instance);
+        var context = new DefaultHttpContext();
+        context.Response.Body = new MemoryStream();
+
+        await middleware.InvokeAsync(context);
+
+        Assert.Equal(StatusCodes.Status503ServiceUnavailable, context.Response.StatusCode);
+        context.Response.Body.Position = 0;
+        using JsonDocument json = JsonDocument.Parse(await new StreamReader(context.Response.Body).ReadToEndAsync());
+        Assert.Equal(503, json.RootElement.GetProperty("status").GetInt32());
+        Assert.Equal("Email could not be sent", json.RootElement.GetProperty("detail").GetString());
+    }
+
     /// <summary>
     /// #503 follow-up: a row an Accounts check constraint refuses (a username or an email not in
     /// its stored form) is the caller's value, not an outage: 400, whether it comes straight from a

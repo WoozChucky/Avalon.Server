@@ -71,6 +71,8 @@ services.AddCustomLogging(configuration);
     });
     services.AddAuth(applicationConfig);
     services.AddInfrastructure(applicationConfig);
+    // Application:Email (#510): no sender unless configured, and then email change is off (501).
+    services.AddEmail(applicationConfig.Email, builder.Environment);
 }
 
 // Microsoft.Extensions.ApiDescription.Server generates the OpenAPI document by invoking this
@@ -135,6 +137,9 @@ ForwardedHeadersSetup.WarnIfNoProxyTrusted(logger, app.Services.GetRequiredServi
     app.Environment);
 Avalon.Infrastructure.Login.LoginLimitsValidation.LogAtStartup(logger,
     app.Services.GetRequiredService<Avalon.Infrastructure.Login.ILoginLimits>(), "Application:Authentication");
+logger.LogInformation("Application:Email:Sender is {EmailSender}; email change is {EmailChange}",
+    (app.Services.GetRequiredService<ApplicationConfig>().Email ?? new EmailConfig()).Sender,
+    app.Services.GetService<Avalon.Api.Services.Email.IEmailSender>() is null ? "off (501)" : "on");
 
 CancellationTokenSource cts = new();
 

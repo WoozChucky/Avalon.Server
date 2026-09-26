@@ -13,8 +13,12 @@ using Avalon.Domain.Auth;
 using Avalon.Infrastructure;
 using Avalon.Infrastructure.Services;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Avalon.Api.Services.Email;
+using Avalon.Api.UnitTests.Authentication;
 using Avalon.Infrastructure.Login;
+using CapturingLogs = Avalon.Api.UnitTests.Middlewares.ForwardedHeadersShould.CapturingLogs;
 using Avalon.Server.Auth.UnitTests.Services;
 using NSubstitute;
 using StackExchange.Redis;
@@ -71,14 +75,33 @@ public sealed class EmailChangeShould : IDisposable
     private PersonalAccessTokenService Pats() =>
         new(new PersonalAccessTokenRepository(_database), new SecureRandom(), TimeProvider.System);
 
-    private AccountService Service(IReplicatedCache? cache = null) => new(NullLoggerFactory.Instance, _accounts,
+    private readonly RecordingEmailSender _mail = new();
+    private readonly CapturingLogs _logs = new();
+
+    private AccountService Service(IReplicatedCache? cache = null, IEmailSender? sender = null) => new(
+        LoggerFactory.Create(b => b.AddProvider(_logs)), _accounts,
         Substitute.For<IJwtUtils>(), Substitute.For<IMFAHashService>(), new MfaSetupRepository(_database),
         new DeviceRepository(_database), cache ?? _cache, new SecureRandom(),
         new DbTransactionRunner<AuthDbContext>(_database), new AuthenticationConfig(),
-        TestLogin.Password(_accounts, cache ?? _cache), TestLogin.Reauthentication(_accounts, cache ?? _cache));
+        TestLogin.Password(_accounts, cache ?? _cache), TestLogin.Reauthentication(_accounts, cache ?? _cache),
+        sender ?? _mail);
 
-    private Task<string> StartAsync(AccountId id, string newEmail, string? password = null) =>
-        Service().InitiateEmailChangeAsync(id, newEmail, password ?? TestPasswords.Valid, IPAddress.Loopback);
+    /// <summary>The confirm token in an email-change confirmation, as a player would copy it.</summary>
+    internal static string TokenIn(string body)
+    {
+        int at = body.IndexOf(AccountService.EmailChangeTokenLabel, StringComparison.Ordinal);
+        Assert.True(at >= 0, "The confirmation carries no token.");
+        string rest = body[(at + AccountService.EmailChangeTokenLabel.Length)..];
+        int end = rest.IndexOfAny(['\r', '\n']);
+        return end < 0 ? rest : rest[..end];
+    }
+
+    /// <summary>Starts a change and returns the token the confirmation sent to the new address carries.</summary>
+    private async Task<string> StartAsync(AccountId id, string newEmail, string? password = null)
+    {
+        await Service().InitiateEmailChangeAsync(id, newEmail, password ?? TestPasswords.Valid, IPAddress.Loopback);
+        return TokenIn(_mail.To(AccountEmail.Normalise(newEmail)).Last().TextBody);
+    }
 
     private async Task ChangeAsync(AccountId id, string newEmail) =>
         await Service().ConfirmEmailChangeAsync(await StartAsync(id, newEmail));
@@ -310,5 +333,171 @@ public sealed class EmailChangeShould : IDisposable
         await AccountAsync("FIRST", "same@avalon.monster");
 
         await Assert.ThrowsAsync<DbUpdateException>(() => AccountAsync("SECOND", "same@avalon.monster"));
+    }
+
+    // ---------------- Delivering the token (#510) ----------------
+
+    private string PendingToken() => Assert.Single(_store).Key["auth:emailChange:".Length..];
+
+    [Fact]
+    public async Task Send_the_confirm_token_to_the_new_address_only()
+    {
+        Account account = await AccountAsync();
+
+        await Service().InitiateEmailChangeAsync(account.Id, "New@Avalon.Monster", TestPasswords.Valid, IPAddress.Loopback);
+
+        string token = PendingToken();
+        RecordingEmailSender.Sent confirm = Assert.Single(_mail.To("new@avalon.monster"));
+        Assert.Equal(token, TokenIn(confirm.TextBody));
+        Assert.All(_mail.All.Where(m => m.To != "new@avalon.monster"),
+            m => Assert.DoesNotContain(token, m.TextBody + m.Subject, StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task Send_the_old_address_a_notice_that_names_the_new_one_and_carries_no_token()
+    {
+        Account account = await AccountAsync();
+
+        await Service().InitiateEmailChangeAsync(account.Id, "new@avalon.monster", TestPasswords.Valid, IPAddress.Loopback);
+
+        RecordingEmailSender.Sent notice = Assert.Single(_mail.To("owner@avalon.monster"));
+        Assert.Contains("new@avalon.monster", notice.TextBody, StringComparison.Ordinal);
+        Assert.DoesNotContain(PendingToken(), notice.TextBody + notice.Subject, StringComparison.Ordinal);
+        Assert.Equal(2, _mail.All.Count);
+    }
+
+    [Fact]
+    public async Task Log_nothing_that_holds_the_token()
+    {
+        Account account = await AccountAsync();
+        _mail.FailFor = to => to == "owner@avalon.monster";
+
+        await Service().InitiateEmailChangeAsync(account.Id, "new@avalon.monster", TestPasswords.Valid, IPAddress.Loopback);
+
+        string token = PendingToken();
+        Assert.NotEmpty(_logs.All);
+        Assert.All(_logs.All, e => Assert.DoesNotContain(token, e.Message, StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// The confirmation could not be sent: the pending change is deleted, so no token nobody holds
+    /// is left live, the caller gets 503, and a second attempt starts afresh.
+    /// </summary>
+    [Fact]
+    public async Task Delete_the_pending_change_and_refuse_with_503_when_the_confirmation_cannot_be_sent()
+    {
+        Account account = await AccountAsync();
+        _mail.FailFor = to => to == "new@avalon.monster";
+
+        EmailDeliveryException refused = await Assert.ThrowsAsync<EmailDeliveryException>(() =>
+            Service().InitiateEmailChangeAsync(account.Id, "new@avalon.monster", TestPasswords.Valid, IPAddress.Loopback));
+
+        Assert.Equal("Email could not be sent", refused.Message);
+        Assert.Empty(_store);
+        await _cache.Received(1).RemoveAsync(Arg.Is<string>(k => k.StartsWith("auth:emailChange:", StringComparison.Ordinal)));
+        Assert.Empty(_mail.All);
+        string lostToken = TokenIn(Assert.Single(_mail.Refused).TextBody);
+        Assert.NotEmpty(_logs.All);
+        Assert.All(_logs.All, e => Assert.DoesNotContain(lostToken, e.Message, StringComparison.Ordinal));
+
+        _mail.FailFor = _ => false;
+        await ChangeAsync(account.Id, "new@avalon.monster");
+
+        Assert.Equal("new@avalon.monster", (await StoredAsync(account.Id)).Email);
+    }
+
+    [Fact]
+    public async Task Start_the_change_with_one_warning_when_only_the_notice_to_the_old_address_fails()
+    {
+        Account account = await AccountAsync();
+        _mail.FailFor = to => to == "owner@avalon.monster";
+
+        await Service().InitiateEmailChangeAsync(account.Id, "new@avalon.monster", TestPasswords.Valid, IPAddress.Loopback);
+
+        Assert.Single(_store);
+        Assert.Single(_mail.To("new@avalon.monster"));
+        Assert.Single(_logs.All, e => e.Level == LogLevel.Warning);
+        Assert.Contains("avalon.monster", _logs.All.Single(e => e.Level == LogLevel.Warning).Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>With no sender registered (Application:Email:Sender None, the default), both endpoints stay 501.</summary>
+    [Fact]
+    public async Task Answer_both_endpoints_with_501_over_http_when_no_sender_is_configured()
+    {
+        Account account = await AccountAsync();
+        await using ApiAuthHost host = await ApiAuthHost.StartAsync(_cache,
+            services => services.AddScoped<IAccountService>(_ => Service()));
+
+        using var start = new HttpRequestMessage(HttpMethod.Post, "/account/email/change")
+        {
+            Content = System.Net.Http.Json.JsonContent.Create(new
+            {
+                newEmail = "moved@avalon.monster", currentPassword = TestPasswords.Valid,
+            }),
+        };
+        start.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer",
+            ApiAuthHost.Mint(account));
+        HttpResponseMessage started = await host.Client.SendAsync(start);
+        HttpResponseMessage confirmed = await host.Client.PostAsync("/account/email/confirm",
+            System.Net.Http.Json.JsonContent.Create(new { token = "tok" }));
+
+        Assert.Equal(HttpStatusCode.NotImplemented, started.StatusCode);
+        Assert.Equal(HttpStatusCode.NotImplemented, confirmed.StatusCode);
+        Assert.Empty(_store);
+        Assert.Empty(_mail.All);
+    }
+
+    /// <summary>
+    /// End to end over HTTP with the pickup sender (#510): the start answers 202 with no token, the
+    /// token is read from the .eml written for the new address, and the confirm changes the email.
+    /// </summary>
+    [Fact]
+    public async Task Change_the_email_end_to_end_with_the_token_from_the_pickup_file()
+    {
+        Account account = await AccountAsync();
+        string pickup = Path.Combine(Path.GetTempPath(), "avalon-mail-test-" + Guid.NewGuid().ToString("N"));
+        var sender = new PickupEmailSender(
+            new Avalon.Api.Config.EmailConfig
+            {
+                Sender = Avalon.Api.Config.EmailSenderKind.Pickup, PickupDirectory = pickup, From = "noreply@avalon.monster",
+            }, TimeProvider.System);
+        try
+        {
+            await using ApiAuthHost host = await ApiAuthHost.StartAsync(_cache, services =>
+            {
+                services.AddSingleton<IEmailSender>(sender);
+                services.AddScoped<IAccountService>(_ => Service(sender: sender));
+            });
+
+            using var start = new HttpRequestMessage(HttpMethod.Post, "/account/email/change")
+            {
+                Content = System.Net.Http.Json.JsonContent.Create(new
+                {
+                    newEmail = "moved@avalon.monster", currentPassword = TestPasswords.Valid,
+                }),
+            };
+            start.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer",
+                ApiAuthHost.Mint(account));
+            HttpResponseMessage started = await host.Client.SendAsync(start);
+            string startBody = await started.Content.ReadAsStringAsync();
+
+            Assert.Equal(HttpStatusCode.Accepted, started.StatusCode);
+            string token = PendingToken();
+            Assert.DoesNotContain(token, startBody, StringComparison.Ordinal);
+
+            string mail = Directory.GetFiles(pickup, "*.eml").Select(File.ReadAllText)
+                .Single(m => m.Contains("To: moved@avalon.monster", StringComparison.Ordinal));
+            Assert.Equal(token, TokenIn(mail));
+
+            HttpResponseMessage confirmed = await host.Client.PostAsync("/account/email/confirm",
+                System.Net.Http.Json.JsonContent.Create(new { token = TokenIn(mail) }));
+
+            Assert.Equal(HttpStatusCode.NoContent, confirmed.StatusCode);
+            Assert.Equal("moved@avalon.monster", (await StoredAsync(account.Id)).Email);
+        }
+        finally
+        {
+            if (Directory.Exists(pickup)) Directory.Delete(pickup, recursive: true);
+        }
     }
 }

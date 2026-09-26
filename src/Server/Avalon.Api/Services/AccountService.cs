@@ -6,6 +6,7 @@ using Avalon.Api.Authentication.Jwt;
 using Avalon.Api.Config;
 using Avalon.Api.Contract;
 using Avalon.Api.Exceptions;
+using Avalon.Api.Services.Email;
 using Avalon.Common.ValueObjects;
 using Avalon.Database;
 using Avalon.Database.Auth;
@@ -33,7 +34,7 @@ public interface IAccountService
     Task<PagedResult<Account>> Paginate(AccountPaginateFilters filters, CancellationToken cancellationToken = default);
     Task ChangePasswordAsync(AccountId accountId, string currentPassword, string newPassword, IPAddress ipAddress,
         CancellationToken cancellationToken = default);
-    Task<string> InitiateEmailChangeAsync(AccountId accountId, string newEmail, string currentPassword,
+    Task InitiateEmailChangeAsync(AccountId accountId, string newEmail, string currentPassword,
         IPAddress ipAddress, CancellationToken cancellationToken = default);
     Task ConfirmEmailChangeAsync(string token, CancellationToken cancellationToken = default);
     Task UpdateStatusAsync(AccountId accountId, Avalon.Api.Contract.AccountStatus state, string? reason, AccountId actorId, CancellationToken cancellationToken = default);
@@ -63,6 +64,10 @@ public class AccountService : IAccountService
     private readonly AuthenticationConfig _authConfig;
     private readonly PasswordLoginPolicy _loginPolicy;
     private readonly IReauthentication _reauthentication;
+    private readonly IEmailSender? _emailSender;
+
+    /// <summary>What precedes the token in an email-change confirmation, on a line of its own (#510).</summary>
+    public const string EmailChangeTokenLabel = "Confirmation token: ";
 
     public AccountService(ILoggerFactory loggerFactory,
         IAccountRepository accountRepository,
@@ -75,8 +80,10 @@ public class AccountService : IAccountService
         IDbTransactionRunner<AuthDbContext> authTransaction,
         AuthenticationConfig authConfig,
         PasswordLoginPolicy loginPolicy,
-        IReauthentication reauthentication)
+        IReauthentication reauthentication,
+        IEmailSender? emailSender = null)
     {
+        _emailSender = emailSender;
         _logger = loggerFactory.CreateLogger<AccountService>();
         _accountRepository = accountRepository;
         _jwtUtils = jwtUtils;
@@ -400,12 +407,18 @@ public class AccountService : IAccountService
     /// change before the confirm voids it.
     /// </summary>
     /// <remarks>
-    /// The token is returned to the in-process caller, never in the HTTP response. Nothing
-    /// delivers it yet: the API has no email sender (see #503).
+    /// The token goes by email to the new address only (#510), never back to the caller, and a
+    /// notice with no token goes to the old one. A confirmation that cannot be sent deletes the
+    /// pending change and throws <see cref="EmailDeliveryException"/> (503), so a retry starts
+    /// afresh; a notice that cannot be sent is logged at Warning and the change stays started.
+    /// Needs an <see cref="IEmailSender"/>: without one the controller answers 501 before this.
     /// </remarks>
-    public async Task<string> InitiateEmailChangeAsync(AccountId accountId, string newEmail, string currentPassword,
+    public async Task InitiateEmailChangeAsync(AccountId accountId, string newEmail, string currentPassword,
         IPAddress ipAddress, CancellationToken cancellationToken = default)
     {
+        IEmailSender sender = _emailSender ?? throw new InvalidOperationException(
+            "Email change needs an email sender; Application:Email:Sender is None.");
+
         if (!AccountEmail.IsValid(newEmail))
             throw new BusinessException(AccountEmail.Requirement);
 
@@ -421,17 +434,73 @@ public class AccountService : IAccountService
         if (await _accountRepository.FindByEmailAsync(email, cancellationToken) != null)
             throw new BusinessException(EmailTaken);
 
+        // The old address, for the notice. Read again: the proof does not hand the row out. Gone
+        // since the proof, it is answered as the proof answers a missing account.
+        var oldEmail = (await _accountRepository.FindByIdAsync(accountId, track: false, cancellationToken))?.Email
+                       ?? throw new AuthenticationException(Reauthentication.InvalidPassword);
+
         var raw = _secureRandom.GetBytes(24);
         var token = Convert.ToBase64String(raw).Replace("+", "-").Replace("/", "_").TrimEnd('=');
 
         // The email goes last: it is the only part that can hold the separator.
         var payload = string.Create(System.Globalization.CultureInfo.InvariantCulture,
             $"{accountId.Value}|{proof.CredentialsVersion}|{email}");
-        await _cache.SetAsync(EmailChangeKey(token), payload, TimeSpan.FromMinutes(15));
+        await _cache.SetAsync(EmailChangeKey(token), payload, EmailChangeLifetime);
+
+        try
+        {
+            await sender.SendAsync(email, EmailChangeConfirmSubject, EmailChangeConfirmBody(token), cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            // Nobody holds this token, so it must not stay live; a retry makes a new one. The source
+            // slot stays taken: the answer still says the address is free.
+            await _cache.RemoveAsync(EmailChangeKey(token));
+            // By type and domain only: the exception's message can hold the body, and so the token.
+            _logger.LogError(
+                "Could not send the email-change confirmation for account {AccountId} to an address at {Domain} ({ExceptionType}); the change was not started",
+                accountId.Value, DomainOf(email), ex.GetType().Name);
+            throw new EmailDeliveryException();
+        }
 
         await SourceBudget.GiveBackAsync(_cache, sourceKey);
-        return token;
+
+        try
+        {
+            await sender.SendAsync(oldEmail, EmailChangeNoticeSubject, EmailChangeNoticeBody(email), cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            // The change is started and the new address holds the token; the notice is best-effort.
+            _logger.LogWarning(
+                "Could not send the email-change notice for account {AccountId} to its old address at {Domain} ({ExceptionType})",
+                accountId.Value, DomainOf(oldEmail), ex.GetType().Name);
+        }
     }
+
+    private static readonly TimeSpan EmailChangeLifetime = TimeSpan.FromMinutes(15);
+
+    private const string EmailChangeConfirmSubject = "Confirm your new Avalon email address";
+    private const string EmailChangeNoticeSubject = "Your Avalon email address is being changed";
+
+    private static string EmailChangeConfirmBody(string token) => string.Join('\n',
+        "A change of your Avalon account's email address to this address was requested.",
+        "",
+        "To confirm it, submit this token to POST /account/email/confirm within "
+        + $"{(int)EmailChangeLifetime.TotalMinutes} minutes:",
+        "",
+        EmailChangeTokenLabel + token,
+        "",
+        "If you did not ask for this, ignore this email: nothing changes unless the token is used.");
+
+    private static string EmailChangeNoticeBody(string newEmail) => string.Join('\n',
+        $"A change of your Avalon account's email address to {newEmail} was requested.",
+        "",
+        "The change needed your password. It takes effect only if it is confirmed from the new address.",
+        "",
+        "If this was not you, change your password now: that voids the pending change and signs out every session.");
+
+    private static string DomainOf(string address) => address[(address.LastIndexOf('@') + 1)..];
 
     private static string EmailChangeKey(string token) => $"auth:emailChange:{token}";
 
