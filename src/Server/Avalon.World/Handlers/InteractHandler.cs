@@ -114,6 +114,7 @@ public class InteractHandler(ILogger<InteractHandler> logger, IWorld world)
         ILocalizedTextCatalog text = data.LocalizedTexts;
         TextContext context = text.ContextFor(character, connection.Locale);
 
+        // DialogueActions and Dialogue are read separately; safe only because this runs on the tick thread, where /reload patches also apply.
         List<SDialogueOptionInfo> options =
             DialogueOptionKinds.OptionsOf(node, data.DialogueActions, data.Dialogue, text, context);
 
