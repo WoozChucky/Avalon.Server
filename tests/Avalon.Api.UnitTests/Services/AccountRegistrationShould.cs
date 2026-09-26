@@ -159,7 +159,7 @@ public class AccountRegistrationShould : IDisposable
             new RegisterRequest { Username = "twin", Password = TestPasswords.Valid, Email = "one@avalon.monster" },
             "test-agent", IPAddress.Loopback, CancellationToken.None);
         Task<(RegisterResponse, AccountId)> second = service.Register(
-            new RegisterRequest { Username = " TWIN ", Password = TestPasswords.Valid, Email = "two@avalon.monster" },
+            new RegisterRequest { Username = "TWIN", Password = TestPasswords.Valid, Email = "two@avalon.monster" },
             "test-agent", IPAddress.Loopback, CancellationToken.None);
 
         Task[] both = [first, second];

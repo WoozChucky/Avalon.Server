@@ -128,7 +128,10 @@ public sealed class PasswordLoginPolicy : LoginPolicy
 
         string trimmed = password.Trim();
         Account? account = await Accounts.FindByUserNameAsync(normalised, token);
-        if (account == null)
+        // A name outside the username rule, as sent, is an unknown username (owner decision, #487
+        // re-review), whatever row may hold its normalised form. The lookup above still runs and the
+        // same dummy verify follows, so it is answered as fast, and as, an unknown one.
+        if (account == null || !UsernameRule.IsValid(username))
         {
             _verifier.Verify(trimmed, BCryptPasswordVerifier.UnknownAccountHash);
             return new PasswordAttempt(PasswordCheck.UnknownUsername, source, usernameKey, taken, null);

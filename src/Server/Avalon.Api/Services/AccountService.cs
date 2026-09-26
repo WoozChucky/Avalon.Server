@@ -181,6 +181,10 @@ public class AccountService : IAccountService
         // taken before any lookup. Past the budget the answer is 429 LOCKED, whatever the name.
         // A registration that creates the account gives its slot back; every other ending,
         // "already exists" included, keeps it, so a source can ask about only so many names.
+        // The request contract checks this too; the service does not rely on it.
+        if (!UsernameRule.IsValid(model.Username))
+            throw new BusinessException(UsernameRule.Requirement);
+
         var sourceKey = await TakeRegistrationSlotAsync(ipAddress);
 
         var username = model.Username.ToUpperInvariant().Trim();

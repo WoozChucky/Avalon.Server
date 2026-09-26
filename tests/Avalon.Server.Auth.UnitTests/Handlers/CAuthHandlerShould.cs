@@ -529,6 +529,31 @@ public class CAuthHandlerShould
     }
 
     /// <summary>
+    /// Owner decision (#487 re-review): a name outside the username rule is answered exactly like
+    /// an unknown username (one verify against the fixed hash, INVALID_CREDENTIALS), even if a row
+    /// holds its normalised form, and the lookup still runs, so it takes as long.
+    /// </summary>
+    [Theory]
+    [InlineData("ab")]
+    [InlineData("abcdefghijklmnopq")]
+    [InlineData("test-user")]
+    [InlineData("test user")]
+    [InlineData(" testuser")]
+    public async Task Answer_a_name_outside_the_rule_as_an_unknown_username(string username)
+    {
+        _accountRepository.FindByUserNameAsync(Arg.Any<string>()).Returns(MakeAccount());
+        var verifier = Substitute.For<IPasswordVerifier>();
+
+        await LogInAsync(CreateHandler(HardeningOptions(), verifier), username, "correct_password");
+
+        verifier.Received(1).Verify("correct_password", BCryptPasswordVerifier.UnknownAccountHash);
+        verifier.ReceivedWithAnyArgs(1).Verify(default!, default!);
+        Assert.Equal(AuthResult.INVALID_CREDENTIALS, SentResult());
+        await _accountRepository.ReceivedWithAnyArgs(1).FindByUserNameAsync(default!, default);
+        await _accountRepository.DidNotReceiveWithAnyArgs().TryRecordLoginAsync(default!, default!, default, default, default);
+    }
+
+    /// <summary>
     /// #478 review: a locked row answered LOCKED before any BCrypt work, so with its budget hold
     /// gone (expired, or Redis lost it) it answered faster than an unknown username. It pays for one
     /// verify against the fixed hash too, and the account's own hash is still never checked.
