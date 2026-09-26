@@ -45,6 +45,9 @@ public static class DiagnosticsConfig
             Meter.CreateCounter<long>("network.out.bytes", "bytes", "Number of bytes sent");
 
         public static readonly ActivitySource Source = new(ServiceName);
+
+        public static readonly Counter<long> Logins =
+            Meter.CreateCounter<long>("avalon.auth.logins", "{logins}", "Password logins, by result");
     }
 
     public static class Api
