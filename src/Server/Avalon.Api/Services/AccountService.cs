@@ -304,14 +304,12 @@ public class AccountService : IAccountService
         var accountId = new AccountId(long.Parse(parts[0]));
         var newEmail = parts[1];
 
-        var account = await _accountRepository.FindByIdAsync(accountId, track: true, cancellationToken)
-            ?? throw new BusinessException("Account not found");
-
-        account.Email = newEmail;
-        await _accountRepository.UpdateAsync(account, cancellationToken);
+        // By column (#478): a lock or a ban written since the account was last read survives it.
+        if (!await _accountRepository.SetEmailAsync(accountId, newEmail, cancellationToken))
+            throw new BusinessException("Account not found");
 
         await _refreshService.RevokeAllForAccountAsync(accountId, cancellationToken);
-        await _cache.PublishAsync(CacheKeys.WorldAccountsDisconnectChannel, accountId.Value.ToString());
+        await PublishDisconnectAsync(accountId, "its email was changed");
     }
 
     // NOTE: `reason` is currently accepted but not persisted (future: audit log).
@@ -346,10 +344,10 @@ public class AccountService : IAccountService
 
     public async Task UpdateRolesAsync(AccountId accountId, Avalon.Api.Contract.AccountAccessLevel roles, CancellationToken cancellationToken = default)
     {
-        var account = await _accountRepository.FindByIdAsync(accountId, track: true, cancellationToken)
-            ?? throw new BusinessException("Account not found");
-        account.AccessLevel = (Avalon.Common.Accounts.AccountAccessLevel)roles;
-        await _accountRepository.UpdateAsync(account, cancellationToken);
+        // By column (#478): a lock or a ban written since the account was last read survives it.
+        if (!await _accountRepository.SetAccessLevelAsync(accountId, (Avalon.Common.Accounts.AccountAccessLevel)roles,
+                cancellationToken))
+            throw new BusinessException("Account not found");
     }
 
     public async Task<bool> RemoveMfaAsync(AccountId accountId, AccountId actorId,
