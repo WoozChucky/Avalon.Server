@@ -26,6 +26,24 @@ public interface IReplicatedCache
     /// </summary>
     Task<long> DecrementFloorAsync(string key);
     /// <summary>
+    /// Atomically decrements the counter at <paramref name="key"/>, but only while its value is
+    /// above zero and at most <paramref name="ceiling"/>, keeping its expiry. A value above the
+    /// ceiling (a held counter) and a missing key are left as they are. Returns the value after.
+    /// </summary>
+    Task<long> DecrementCounterIfAtMostAsync(string key, long ceiling);
+    /// <summary>
+    /// Atomically raises the counter at <paramref name="key"/> to at least <paramref name="floor"/>
+    /// and sets its expiry to <paramref name="window"/> from now, recreating the key if it has
+    /// expired or never existed. Returns the new value.
+    /// </summary>
+    Task<long> HoldCounterAtLeastAsync(string key, long floor, TimeSpan window);
+    /// <summary>
+    /// Atomically deletes the counter at <paramref name="key"/>, but only while its value is below
+    /// <paramref name="heldValue"/>. Returns true when it deleted the key; a missing key, or one at or
+    /// above <paramref name="heldValue"/>, is left as it is.
+    /// </summary>
+    Task<bool> RemoveCounterIfBelowAsync(string key, long heldValue);
+    /// <summary>
     /// Atomically increments <paramref name="field"/> of the hash at <paramref name="key"/> and
     /// returns the new value, but only while the hash exists: returns -1, creating nothing, when
     /// it does not, so an expired hash is never recreated without its expiry.
@@ -113,6 +131,50 @@ public class ReplicatedCache : IReplicatedCache
     public async Task<long> DecrementFloorAsync(string key)
     {
         RedisResult result = await _redis.GetDatabase().ScriptEvaluateAsync(DecrementFloorScript, [new RedisKey(key)]);
+        return (long)result;
+    }
+
+    // GET, raise and SET with PX in one script: a key that expired between the caller's INCR and
+    // this call is recreated rather than left missing.
+    private const string HoldCounterAtLeastScript =
+        "local v = tonumber(redis.call('GET', KEYS[1])) or 0 " +
+        "local m = tonumber(ARGV[1]) " +
+        "if v < m then v = m end " +
+        "redis.call('SET', KEYS[1], v, 'PX', ARGV[2]) " +
+        "return v";
+
+    public async Task<long> HoldCounterAtLeastAsync(string key, long floor, TimeSpan window)
+    {
+        RedisResult result = await _redis.GetDatabase().ScriptEvaluateAsync(HoldCounterAtLeastScript,
+            [new RedisKey(key)], [floor, (long)window.TotalMilliseconds]);
+        return (long)result;
+    }
+
+    // GET and DEL in one script: a hold that raised the counter to the held value (the limit + 1)
+    // between the two is not deleted by this call.
+    private const string RemoveCounterIfBelowScript =
+        "local v = tonumber(redis.call('GET', KEYS[1])) " +
+        "if v and v < tonumber(ARGV[1]) then redis.call('DEL', KEYS[1]) return 1 end " +
+        "return 0";
+
+    public async Task<bool> RemoveCounterIfBelowAsync(string key, long heldValue)
+    {
+        RedisResult result = await _redis.GetDatabase().ScriptEvaluateAsync(RemoveCounterIfBelowScript,
+            [new RedisKey(key)], [heldValue]);
+        return (long)result == 1;
+    }
+
+    // GET and DECR in one script, and only while 0 < v <= ceiling: a give-back never lowers a held
+    // counter (above the ceiling), so it cannot bring a hold back within reach of a reset.
+    private const string DecrementCounterIfAtMostScript =
+        "local v = tonumber(redis.call('GET', KEYS[1])) " +
+        "if v and v > 0 and v <= tonumber(ARGV[1]) then return redis.call('DECR', KEYS[1]) end " +
+        "return v or 0";
+
+    public async Task<long> DecrementCounterIfAtMostAsync(string key, long ceiling)
+    {
+        RedisResult result = await _redis.GetDatabase().ScriptEvaluateAsync(DecrementCounterIfAtMostScript,
+            [new RedisKey(key)], [ceiling]);
         return (long)result;
     }
 

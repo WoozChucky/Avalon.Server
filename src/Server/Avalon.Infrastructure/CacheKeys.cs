@@ -55,6 +55,23 @@ public static class CacheKeys
     /// </summary>
     public static string AuthSourceFailedLogins(string source) => $"auth:source:{source}:failedLogins";
 
+    /// <summary>
+    /// Game-client login and MFA-code attempts at one username, from every source (#484). It decides
+    /// the account lock: an attempt past <c>Application:MaxFailedLoginAttempts</c> is refused as
+    /// LOCKED before the username is looked up, whether or not an account has it. The segment is the
+    /// lowercase hex SHA-256 of the username trimmed and upper-cased (the form it is looked up by),
+    /// so the key's length does not depend on what a client sends.
+    /// Value: counter written with INCR before each attempt. Expires
+    /// <c>Application:LockoutDurationMinutes</c> (default 15) after the first attempt. The failure
+    /// that reaches the limit holds it in one script (raised to at least the limit + 1 and SET with
+    /// a fresh expiry, recreated if it had expired), so the refusal outlasts the account row's lock.
+    /// A correct password that issues an MFA hash gives its own slot back in one script that
+    /// decrements only while 0 &lt; value &lt;= the limit, so it never lowers a held value. A
+    /// completed login deletes the key in one script, only while its value is below the held value
+    /// (the limit + 1), so a reset never deletes a hold; the key still ends with its expiry.
+    /// </summary>
+    public static string AuthUsernameFailedLogins(string usernameHash) => $"auth:username:{usernameHash}:failedLogins";
+
     // ── Hash Keys ─────────────────────────────────────────────────────────────
 
     /// <summary>

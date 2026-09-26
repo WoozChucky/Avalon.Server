@@ -31,7 +31,8 @@ Section in `appsettings.json`: `"Application"`
 |-----------------------------|--------|-----------|------------------------------------------------|
 | `MinClientVersion`          | string | `"0.0.1"` | Minimum client version accepted during handshake |
 | `ServerVersion`             | string | `"1.0.0"` | Server version sent in `SServerInfoPacket` to clients |
-| `MaxFailedLoginAttempts`    | int    | `5`       | Consecutive failed logins before account lock  |
+| `MaxFailedLoginAttempts`    | int    | `5`       | Failed password or MFA-code attempts at one username, from every source, before it is locked (counted in Redis, #484) |
+| `LockoutDurationMinutes`    | int    | `15`      | The window those attempts are counted over, and how long the lock lasts from the failure that set it |
 | `Issuer`                    | string | `"Avalon"` | Issuer name embedded in MFA OTP URIs           |
 
 ```json
@@ -230,7 +231,7 @@ public class CAuthHandler(IOptions<AuthConfiguration> authConfig, ...)
     private readonly AuthConfiguration _authConfig = authConfig.Value;
 
     // Usage:
-    if (account.FailedLogins >= _authConfig.MaxFailedLoginAttempts)
+    if (UsernameBudget.Locks(_authConfig, taken))
     { ... }
 }
 ```

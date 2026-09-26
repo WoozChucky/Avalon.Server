@@ -34,7 +34,7 @@ public class CMFAVerifyHandler : IAuthPacketHandler<CMFAVerifyPacket>
     public async Task ExecuteAsync(AuthPacketContext<CMFAVerifyPacket> ctx, CancellationToken token = default)
     {
         // A code attempt spends the source's budget like a password attempt (#471), taken before the
-        // code is checked and given back only when it is right.
+        // code is checked and given back only once the login it completes is recorded.
         var sourceKey = SourceBudget.KeyFor(ctx.Connection.RemoteEndPoint);
         if (!await SourceBudget.TryTakeAsync(_cache, _authConfig, sourceKey))
         {
@@ -45,7 +45,7 @@ public class CMFAVerifyHandler : IAuthPacketHandler<CMFAVerifyPacket>
 
         // And each MFA hash allows MaxFailedMfaAttempts codes, counted before the code is checked so
         // parallel attempts cannot exceed it. The last failure deletes the hash, and the client has to
-        // log in with the password again, which the per-account and per-source limits govern.
+        // log in with the password again, which the per-username and per-source limits govern.
         var hash = ctx.Packet.MfaHash;
         var hashAccountId = await _mfaHashService.GetAccountIdAsync(hash);
         var attempts = hashAccountId == null ? -1 : await _mfaHashService.RecordAttemptAsync(hashAccountId);
@@ -65,9 +65,38 @@ public class CMFAVerifyHandler : IAuthPacketHandler<CMFAVerifyPacket>
             return;
         }
 
+        var account = await _accountRepository.FindByIdAsync(hashAccountId, false, token);
+        if (account == null)
+        {
+            _logger.LogWarning("Account {AccountId} of an MFA hash was not found", hashAccountId);
+            ctx.Connection.Send(SAuthResultPacket.Create(null, null, AuthResult.MFA_FAILED, ctx.Connection.CryptoSession.Encrypt));
+            return;
+        }
+
+        // A code spends the username's budget as a password does (#484), before it is checked: the
+        // budget is the account lock, and a fresh password login makes a fresh hash, so the per-hash
+        // cap alone resets on every login.
+        var usernameKey = UsernameBudget.KeyFor(account.Username);
+        long taken = await UsernameBudget.TakeAsync(_cache, _authConfig, usernameKey);
+        if (UsernameBudget.Refuses(_authConfig, taken))
+        {
+            _logger.LogWarning("MFA verify for account {AccountId} refused: too many failed logins", account.Id);
+            ctx.Connection.Send(SAuthResultPacket.Create(null, null, AuthResult.LOCKED, ctx.Connection.CryptoSession.Encrypt));
+            return;
+        }
+
+        // The same for a lock (#471): failed logins inside the hash's two minutes can lock the
+        // account after its password step passed. Before the code check, as for a password.
+        if (account.IsLockedAt(DateTime.UtcNow))
+        {
+            _logger.LogWarning("Account {AccountId} refused at MFA verify while locked", account.Id);
+            ctx.Connection.Send(SAuthResultPacket.Create(null, null, AuthResult.LOCKED, ctx.Connection.CryptoSession.Encrypt));
+            return;
+        }
+
         var result = await _mfaService.VerifyMFAAsync(hash, ctx.Packet.Code, token);
 
-        if (!result.Success)
+        if (!result.Success || result.AccountId != account.Id)
         {
             if (attempts >= _authConfig.MaxFailedMfaAttempts)
             {
@@ -75,26 +104,21 @@ public class CMFAVerifyHandler : IAuthPacketHandler<CMFAVerifyPacket>
                 await _mfaHashService.CleanupHash(hash);
             }
 
-            ctx.Connection.Send(SAuthResultPacket.Create(null, null, AuthResult.MFA_FAILED, ctx.Connection.CryptoSession.Encrypt));
+            ctx.Connection.Send(SAuthResultPacket.Create(null, null, FailureResult(taken), ctx.Connection.CryptoSession.Encrypt));
 
-            // A wrong code counts towards the account lock like a wrong password: a fresh password
-            // login makes a fresh hash with no attempts, so the per-hash cap alone resets on every
-            // login. Written after the reply, as a wrong password is.
-            var now = DateTime.UtcNow;
-            await _accountRepository.RecordFailedLoginAsync(hashAccountId, RemoteAddress.Of(ctx.Connection.RemoteEndPoint),
-                now, _authConfig.MaxFailedLoginAttempts, now.AddMinutes(_authConfig.LockoutDurationMinutes), token);
+            // Written after the reply, as a wrong password is. The failure in the budget's last
+            // slot locks the account, and the row is written whatever the hold does (a hold error
+            // is logged, rethrown after the write, and the server closes the connection).
+            var attemptIp = RemoteAddress.Of(ctx.Connection.RemoteEndPoint);
+            await UsernameBudget.RecordFailureAsync(_cache, _authConfig, _logger, usernameKey, taken,
+                (now, lockUntil, writeToken) =>
+                    _accountRepository.RecordFailedLoginAsync(account.Id, attemptIp, now, lockUntil, writeToken),
+                token);
             return;
         }
 
-        await SourceBudget.GiveBackAsync(_cache, sourceKey);
-
-        var account = await _accountRepository.FindByIdAsync(result.AccountId!, false, token);
-        if (account == null)
-        {
-            _logger.LogWarning("Account {AccountId} not found after successful MFA verify", result.AccountId);
-            ctx.Connection.Send(SAuthResultPacket.Create(null, null, AuthResult.MFA_FAILED, ctx.Connection.CryptoSession.Encrypt));
-            return;
-        }
+        // Both slots stay taken until the login is recorded (#484 review): a right code refused
+        // below keeps its slots exactly as a wrong one does.
 
         // The same refusal as CAuthHandler (#462): the MFA hash outlives the password step by two
         // minutes, so an account banned or deactivated inside that window is caught here.
@@ -103,15 +127,6 @@ public class CMFAVerifyHandler : IAuthPacketHandler<CMFAVerifyPacket>
             _logger.LogWarning("Account {AccountId} refused at MFA verify while {Status}", account.Id, account.Status);
             AuthResult refusal = account.Status == AccountStatus.Deactivated ? AuthResult.DEACTIVATED : AuthResult.BANNED;
             ctx.Connection.Send(SAuthResultPacket.Create(null, null, refusal, ctx.Connection.CryptoSession.Encrypt));
-            return;
-        }
-
-        // The same for a lock (#471): failed logins inside that window can lock the account after
-        // its password step passed.
-        if (account.IsLockedAt(DateTime.UtcNow))
-        {
-            _logger.LogWarning("Account {AccountId} refused at MFA verify while locked", account.Id);
-            ctx.Connection.Send(SAuthResultPacket.Create(null, null, AuthResult.LOCKED, ctx.Connection.CryptoSession.Encrypt));
             return;
         }
 
@@ -128,22 +143,33 @@ public class CMFAVerifyHandler : IAuthPacketHandler<CMFAVerifyPacket>
             }
             else
             {
+                // Only the flag (#484): writing back the row as read would undo a lock or a ban
+                // written since.
                 _logger.LogWarning("Account {AccountId} is online but no connection was found", account.Id);
                 account.Online = false;
-                await _accountRepository.UpdateAsync(account, token);
+                await _accountRepository.MarkOfflineAsync(account.Id, cancellationToken: token);
             }
             return;
         }
 
         // Written only while the account is not locked, in SQL: a lock set after the row was read is
         // never written away by this success. An expired lock is lifted with the count it was set by.
+        // On this path (Active, offline) the refusal is the answer a wrong code in this attempt's
+        // slot got, and both slots stay taken (#484), so a parallel batch that crosses the lock does
+        // not single out the right code. ALREADY_CONNECTED and BANNED/DEACTIVATED above do single
+        // it out, by design.
         var lastIp = RemoteAddress.Of(ctx.Connection.RemoteEndPoint);
         if (!await _accountRepository.TryRecordLoginAsync(account.Id, lastIp, DateTime.UtcNow, token))
         {
             _logger.LogWarning("Account {AccountId} was locked during its MFA verify", account.Id);
-            ctx.Connection.Send(SAuthResultPacket.Create(null, null, AuthResult.LOCKED, ctx.Connection.CryptoSession.Encrypt));
+            ctx.Connection.Send(SAuthResultPacket.Create(null, null, FailureResult(taken), ctx.Connection.CryptoSession.Encrypt));
             return;
         }
+
+        // The login is complete: the source gets its own slot back, and the username's count is
+        // cleared (owner decision on #484).
+        await SourceBudget.GiveBackAsync(_cache, sourceKey);
+        await UsernameBudget.ResetAsync(_cache, _authConfig, usernameKey);
 
         ctx.Connection.AccountId = account.Id;
 
@@ -158,4 +184,8 @@ public class CMFAVerifyHandler : IAuthPacketHandler<CMFAVerifyPacket>
 
         ctx.Connection.Send(SAuthResultPacket.Create(account.Id, null, AuthResult.SUCCESS, ctx.Connection.CryptoSession.Encrypt));
     }
+
+    /// <summary>The answer to a wrong code in budget slot <paramref name="taken"/>.</summary>
+    private AuthResult FailureResult(long taken) =>
+        UsernameBudget.Locks(_authConfig, taken) ? AuthResult.LOCKED : AuthResult.MFA_FAILED;
 }

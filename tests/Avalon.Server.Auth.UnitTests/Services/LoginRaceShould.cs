@@ -78,7 +78,8 @@ public sealed class LoginRaceShould : IDisposable
 
     /// <summary>
     /// Both wrong passwords read the row at FailedLogins = 0 before either wrote. Each one must still
-    /// count, so the second reaches the threshold of two and locks the account.
+    /// count, so the second reaches the threshold of two (its slot in the username budget) and locks
+    /// the account.
     /// </summary>
     [Fact]
     public async Task Count_both_of_two_failed_logins_that_read_the_same_row()
@@ -88,7 +89,7 @@ public sealed class LoginRaceShould : IDisposable
         stale.UsernameReads.Enqueue((await _accounts.FindByUserNameAsync("RACEUSER"))!);
         stale.UsernameReads.Enqueue((await _accounts.FindByUserNameAsync("RACEUSER"))!);
 
-        var handler = new CAuthHandler(NullLoggerFactory.Instance, stale, Substitute.For<IReplicatedCache>(),
+        var handler = new CAuthHandler(NullLoggerFactory.Instance, stale, new CounterCache().Cache,
             Substitute.For<IMFAHashService>(), Substitute.For<IMfaSetupRepository>(), Options(2),
             new BCryptPasswordVerifier());
 
@@ -138,8 +139,10 @@ public sealed class LoginRaceShould : IDisposable
     }
 
     /// <summary>
-    /// The same at MFA verify: the account was unlocked when it was read after the code verified,
-    /// and locked before the success was written.
+    /// The same at MFA verify: the account was unlocked when it was read, and locked before the
+    /// success was written. The refusal is the answer a wrong code in this attempt's budget slot
+    /// gets (#484), here the first slot's MFA_FAILED, so a parallel batch that crosses the lock does
+    /// not single out the right code.
     /// </summary>
     [Fact]
     public async Task Not_erase_a_lock_set_while_an_mfa_code_was_being_verified()
@@ -166,7 +169,7 @@ public sealed class LoginRaceShould : IDisposable
         Account stored = await StoredAsync(account.Id);
         Assert.True(stored.Locked);
         Assert.False(stored.Online);
-        Assert.Equal(AuthResult.LOCKED, SentResult(connection));
+        Assert.Equal(AuthResult.MFA_FAILED, SentResult(connection));
     }
 
     /// <summary>A live MFA hash for the account, each code the first attempt on a fresh hash.</summary>
@@ -190,7 +193,7 @@ public sealed class LoginRaceShould : IDisposable
         IMFAService mfa = Substitute.For<IMFAService>();
         mfa.VerifyMFAAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(new MFAVerifyResult(false, null));
-        var handler = new CMFAVerifyHandler(NullLoggerFactory.Instance, mfa, _accounts, Substitute.For<IReplicatedCache>(),
+        var handler = new CMFAVerifyHandler(NullLoggerFactory.Instance, mfa, _accounts, new CounterCache().Cache,
             LiveHash(account.Id), Options(5));
 
         for (var i = 0; i < 5; i++)
@@ -220,8 +223,8 @@ public sealed class LoginRaceShould : IDisposable
                 .SetProperty(a => a.LockedUntil, DateTime.UtcNow.AddMinutes(-1)));
         }
 
-        FailedLoginResult result = await _accounts.RecordFailedLoginAsync(account.Id, "10.0.0.1", DateTime.UtcNow, 5,
-            DateTime.UtcNow.AddMinutes(15));
+        FailedLoginResult result = await _accounts.RecordFailedLoginAsync(account.Id, "10.0.0.1", DateTime.UtcNow,
+            null);
 
         Assert.Equal(new FailedLoginResult(1, false), result);
         Account stored = await StoredAsync(account.Id);
@@ -234,9 +237,9 @@ public sealed class LoginRaceShould : IDisposable
     {
         Account account = await _accounts.CreateAsync(NewAccount());
         DateTime firstEnd = DateTime.UtcNow.AddMinutes(10);
-        await _accounts.RecordFailedLoginAsync(account.Id, "10.0.0.1", DateTime.UtcNow, 1, firstEnd);
+        await _accounts.RecordFailedLoginAsync(account.Id, "10.0.0.1", DateTime.UtcNow, firstEnd);
 
-        FailedLoginResult result = await _accounts.RecordFailedLoginAsync(account.Id, "10.0.0.1", DateTime.UtcNow, 1,
+        FailedLoginResult result = await _accounts.RecordFailedLoginAsync(account.Id, "10.0.0.1", DateTime.UtcNow,
             DateTime.UtcNow.AddMinutes(30));
 
         Assert.True(result.Locked);
@@ -269,64 +272,5 @@ public sealed class LoginRaceShould : IDisposable
             .SetProperty(a => a.Locked, true)
             .SetProperty(a => a.FailedLogins, 5)
             .SetProperty(a => a.LockedUntil, DateTime.UtcNow.AddMinutes(15)));
-    }
-
-    /// <summary>
-    /// Forwards to the real repository, but can hand out reads taken earlier (a request that read
-    /// the row before another wrote it) and run a write of its own right after a read.
-    /// </summary>
-    private sealed class StaleAccountRepository(IAccountRepository inner) : IAccountRepository
-    {
-        public Queue<Account> UsernameReads { get; } = new();
-
-        public Func<Task>? AfterRead { get; init; }
-
-        public async Task<Account?> FindByUserNameAsync(string userName, CancellationToken cancellationToken = default)
-        {
-            Account? account = UsernameReads.Count > 0
-                ? UsernameReads.Dequeue()
-                : await inner.FindByUserNameAsync(userName, cancellationToken);
-            if (AfterRead != null) await AfterRead();
-            return account;
-        }
-
-        public async Task<Account?> FindByIdAsync(AccountId id, bool track = false, CancellationToken cancellationToken = default)
-        {
-            Account? account = await inner.FindByIdAsync(id, track, cancellationToken);
-            if (AfterRead != null) await AfterRead();
-            return account;
-        }
-
-        public Task<Account?> FindByEmailAsync(string email, CancellationToken cancellationToken = default) =>
-            inner.FindByEmailAsync(email, cancellationToken);
-
-        public Task<FailedLoginResult> RecordFailedLoginAsync(AccountId id, string attemptIp, DateTime now,
-            int maxFailedLogins, DateTime lockedUntil, CancellationToken cancellationToken = default) =>
-            inner.RecordFailedLoginAsync(id, attemptIp, now, maxFailedLogins, lockedUntil, cancellationToken);
-
-        public Task<bool> TryRecordLoginAsync(AccountId id, string lastIp, DateTime now,
-            CancellationToken cancellationToken = default) =>
-            inner.TryRecordLoginAsync(id, lastIp, now, cancellationToken);
-
-        public Task<PagedResult<Account>> PaginateAsync(EntityPaginateFilter<Account> filter, bool track = false,
-            CancellationToken cancellationToken = default) => inner.PaginateAsync(filter, track, cancellationToken);
-
-        public Task<List<Account>> FindAllAsync(bool track = false, CancellationToken cancellationToken = default) =>
-            inner.FindAllAsync(track, cancellationToken);
-
-        public Task<List<Account>> FindByAsync(Expression<Func<Account, bool>> predicate,
-            CancellationToken cancellationToken = default) => inner.FindByAsync(predicate, cancellationToken);
-
-        public Task<Account> CreateAsync(Account entity, CancellationToken cancellationToken = default) =>
-            inner.CreateAsync(entity, cancellationToken);
-
-        public Task<List<Account>> CreateAsync(List<Account> entities, CancellationToken cancellationToken = default) =>
-            inner.CreateAsync(entities, cancellationToken);
-
-        public Task<Account> UpdateAsync(Account entity, CancellationToken cancellationToken = default) =>
-            inner.UpdateAsync(entity, cancellationToken);
-
-        public Task DeleteAsync(AccountId id, CancellationToken cancellationToken = default) =>
-            inner.DeleteAsync(id, cancellationToken);
     }
 }

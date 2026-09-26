@@ -69,8 +69,9 @@ public class CWorldSelectHandler : IAuthPacketHandler<CWorldSelectPacket>
 
         var worldKey = _secureRandom.GetBytes(32);
 
+        // Only the key (#484): writing back the row as read would undo a lock or a ban written since.
         account.SessionKey = worldKey;
-        await _accountRepository.UpdateAsync(account, token);
+        await _accountRepository.SetSessionKeyAsync(account.Id, worldKey, token);
 
         var worldKeyBase64 = Convert.ToBase64String(worldKey);
 

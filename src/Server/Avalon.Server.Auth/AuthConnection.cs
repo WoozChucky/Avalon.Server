@@ -100,13 +100,22 @@ public class AuthConnection : Connection, IAuthConnection
         await using AsyncServiceScope scope = _serviceScopeFactory.CreateAsyncScope();
         IAccountRepository accountRepository = scope.ServiceProvider.GetRequiredService<IAccountRepository>();
 
+        await RecordDisconnectAsync(accountRepository, AccountId, DateTime.UtcNow);
+    }
+
+    /// <summary>
+    /// Marks the account offline and adds the session that just ended to its total time. Only those
+    /// two columns are written (#484): this runs on every logged-in disconnect, and writing back the
+    /// row as read would undo a lock, a ban or a failed-login count written since.
+    /// </summary>
+    public static async Task RecordDisconnectAsync(IAccountRepository accountRepository, AccountId accountId, DateTime now)
+    {
         // Disconnect cleanup runs from the TCP read-loop exit path — no request-scoped CT here.
-        Account? account = await accountRepository.FindByIdAsync(AccountId, false, CancellationToken.None);
+        Account? account = await accountRepository.FindByIdAsync(accountId, false, CancellationToken.None);
         if (account != null)
         {
-            account.Online = false;
-            account.TotalTime += (int)(DateTime.UtcNow - account.LastLogin).TotalSeconds;
-            await accountRepository.UpdateAsync(account, CancellationToken.None);
+            long sessionSeconds = Math.Max(0L, (long)(now - account.LastLogin).TotalSeconds);
+            await accountRepository.MarkOfflineAsync(accountId, sessionSeconds, CancellationToken.None);
         }
     }
 
