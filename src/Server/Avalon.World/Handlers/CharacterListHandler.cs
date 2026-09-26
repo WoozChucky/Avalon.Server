@@ -20,7 +20,7 @@ public class CharacterListHandler(
     public override void Execute(IWorldConnection connection, CCharacterListPacket packet)
     {
         using Activity? activity =
-            DiagnosticsConfig.World.Source.StartActivity(nameof(CharacterListHandler), ActivityKind.Server);
+            DiagnosticsConfig.World.Source.StartActivity(nameof(CharacterListHandler), ActivityKind.Internal);
         activity?.SetTag(nameof(connection.AccountId), connection.AccountId);
 
         if (connection.AccountId == null)

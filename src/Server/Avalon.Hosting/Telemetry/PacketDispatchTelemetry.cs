@@ -2,6 +2,7 @@
 // Avalon ARPG Game licenses this file to you under the MIT license.
 
 using System;
+using System.Collections.Frozen;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
@@ -33,6 +34,12 @@ public sealed class PacketDispatchTelemetry
     public static readonly PacketDispatchTelemetry Disabled =
         new(new ActivitySource("avalon-telemetry-disabled"), new Meter("avalon-telemetry-disabled"));
 
+    // Enum.ToString allocates on every call; the names are tagged on every packet.
+    private static readonly FrozenDictionary<NetworkPacketType, string> Names =
+        Enum.GetValues<NetworkPacketType>().Distinct().ToFrozenDictionary(t => t, t => t.ToString());
+
+    internal static string NameOf(NetworkPacketType type) => Names.TryGetValue(type, out string? name) ? name : type.ToString();
+
     private readonly ActivitySource _source;
     private readonly HashSet<NetworkPacketType> _noSpan;
     private readonly Histogram<double> _duration;
@@ -53,45 +60,58 @@ public sealed class PacketDispatchTelemetry
     public static PacketDispatchTelemetry From(ActivitySource source, Meter meter, TelemetryConfiguration config) =>
         new(source, meter, config.NoSpanPacketTypes?.Select(Parse).ToArray());
 
+    // Exact names only: Enum.TryParse also takes numbers and comma lists, and a list ORs its values
+    // into whatever other packet type the result happens to equal.
     private static NetworkPacketType Parse(string name) =>
-        Enum.TryParse(name, ignoreCase: false, out NetworkPacketType type) && Enum.IsDefined(type)
-            ? type
+        Enum.GetNames<NetworkPacketType>().Contains(name, StringComparer.Ordinal)
+            ? Enum.Parse<NetworkPacketType>(name)
             : throw new ArgumentException(
                 $"Hosting:Telemetry:NoSpanPacketTypes: '{name}' is not a NetworkPacketType", nameof(name));
 
     public PacketDispatch Begin(NetworkPacketType type, PacketTags tags, ILogger logger)
     {
-        Activity? activity = _noSpan.Contains(type)
-            ? null
-            : _source.StartActivity($"packet {type}", ActivityKind.Server);
-
-        if (activity is not null)
+        Activity? previous = Activity.Current;
+        Activity? activity = null;
+        IDisposable? scope = null;
+        try
         {
-            activity.SetTag("avalon.packet.type", type.ToString());
-            activity.SetTag("avalon.connection.id", tags.ConnectionId.ToString());
-            activity.SetTag("client.address", tags.ClientAddress);
-            if (tags.AccountId is { } account)
-                activity.SetTag("avalon.account.id", account);
-            if (tags.CharacterId is { } character)
-                activity.SetTag("avalon.character.id", character);
+            activity = StartSpan(type, tags);
+            scope = logger.BeginScope(new PacketScope(type, tags));
+        }
+        catch (Exception)
+        {
+            // Telemetry must never cost the packet. A throwing activity listener has already made its
+            // activity Current by the time it throws, so Current is put back, or every later span on
+            // this thread would nest under it; the dispatch is still timed, and the handler runs.
+            if (activity is null && !ReferenceEquals(Activity.Current, previous))
+                Activity.Current = previous;
         }
 
-        List<KeyValuePair<string, object?>> scope =
-        [
-            new("PacketType", type.ToString()),
-            new("ConnectionId", tags.ConnectionId),
-        ];
-        if (tags.AccountId is { } accountId)
-            scope.Add(new("AccountId", accountId));
-        if (tags.CharacterId is { } characterId)
-            scope.Add(new("CharacterId", characterId));
+        return new PacketDispatch(this, type, activity, scope);
+    }
 
-        return new PacketDispatch(this, type, activity, logger.BeginScope(scope));
+    private Activity? StartSpan(NetworkPacketType type, PacketTags tags)
+    {
+        if (_noSpan.Contains(type))
+            return null;
+
+        Activity? activity = _source.StartActivity($"packet {type}", ActivityKind.Server);
+        if (activity is null)
+            return null;
+
+        activity.SetTag("avalon.packet.type", NameOf(type));
+        activity.SetTag("avalon.connection.id", tags.ConnectionId.ToString());
+        activity.SetTag("client.address", tags.ClientAddress);
+        if (tags.AccountId is { } account)
+            activity.SetTag("avalon.account.id", account);
+        if (tags.CharacterId is { } character)
+            activity.SetTag("avalon.character.id", character);
+        return activity;
     }
 
     internal void Record(NetworkPacketType type, double milliseconds, bool failed)
     {
-        KeyValuePair<string, object?> packetType = new("avalon.packet.type", type.ToString());
+        KeyValuePair<string, object?> packetType = new("avalon.packet.type", NameOf(type));
         _duration.Record(milliseconds, packetType, new("avalon.outcome", failed ? "error" : "ok"));
         if (failed)
             _errors.Add(1, packetType);

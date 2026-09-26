@@ -218,6 +218,79 @@ public sealed class PacketDispatchTelemetryShould : IDisposable
         Assert.Contains("CMSG_NOPE", error.Message);
     }
 
+    [Fact]
+    public void Allocate_little_per_packet_for_the_chatty_types()
+    {
+        // A source and meter nothing listens to, so only the dispatch itself is measured. Player input
+        // arrives many times a second per player on the tick thread.
+        using ActivitySource quietSource = new($"quiet-{Guid.NewGuid()}");
+        using Meter quietMeter = new($"quiet-{Guid.NewGuid()}");
+        PacketDispatchTelemetry telemetry = new(quietSource, quietMeter);
+        ILogger logger = Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance;
+        for (int i = 0; i < 100; i++)
+            telemetry.Begin(NetworkPacketType.CMSG_PLAYER_INPUT, Tags, logger).Dispose();
+
+        const int Runs = 1000;
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        for (int i = 0; i < Runs; i++)
+            telemetry.Begin(NetworkPacketType.CMSG_PLAYER_INPUT, Tags, logger).Dispose();
+        long perDispatch = (GC.GetAllocatedBytesForCurrentThread() - before) / Runs;
+
+        Assert.True(perDispatch <= 128, $"{perDispatch} bytes per dispatch");
+    }
+
+    [Fact]
+    public void Still_dispatch_when_the_logger_cannot_open_a_scope()
+    {
+        PacketDispatch dispatch = Create().Begin(NetworkPacketType.CMSG_AUTH, Tags, new ThrowingScopeLogger());
+        dispatch.Dispose();
+
+        Assert.Single(_measurements, m => m.Instrument == "avalon.packet.handler.duration");
+        Assert.Single(_spans);
+    }
+
+    [Fact]
+    public void Still_dispatch_when_an_activity_listener_throws()
+    {
+        using ActivityListener throwing = new()
+        {
+            ShouldListenTo = s => s.Name == _name,
+            Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllDataAndRecorded,
+            ActivityStarted = _ => throw new InvalidOperationException("listener broke"),
+        };
+        ActivitySource.AddActivityListener(throwing);
+
+        Activity? before = Activity.Current;
+        PacketDispatch dispatch = Create().Begin(NetworkPacketType.CMSG_AUTH, Tags, new ScopeLogger());
+        // The half-started activity must not stay Current, or later spans on this thread nest under it.
+        Assert.Same(before, Activity.Current);
+        dispatch.Dispose();
+
+        Assert.Single(_measurements, m => m.Instrument == "avalon.packet.handler.duration");
+    }
+
+    private sealed class ThrowingScopeLogger : ILogger
+    {
+        public IDisposable BeginScope<TState>(TState state) where TState : notnull => throw new InvalidOperationException("scope broke");
+        public bool IsEnabled(LogLevel logLevel) => true;
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
+            Func<TState, Exception?, string> formatter) { }
+    }
+
+    [Theory]
+    [InlineData("3")]
+    [InlineData("8192")]
+    [InlineData("0x2000")]
+    [InlineData("CMSG_AUTH,CMSG_PONG")]
+    [InlineData("cmsg_auth")]
+    public void Accept_only_exact_packet_type_names(string name)
+    {
+        var config = new TelemetryConfiguration { NoSpanPacketTypes = [name] };
+
+        ArgumentException error = Assert.Throws<ArgumentException>(() => PacketDispatchTelemetry.From(_source, _meter, config));
+        Assert.Contains(name, error.Message);
+    }
+
     [Theory]
     [InlineData("203.0.113.7:5000", "203.0.113.7")]
     [InlineData("[2001:db8::1]:5000", "2001:db8::1")]
