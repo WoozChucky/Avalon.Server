@@ -105,6 +105,8 @@ public class WorldDbContext : DbContext
     public DbSet<CharacterClassName> CharacterClassNames { get; set; } = null!;
     public DbSet<LootTable> LootTables { get; set; } = null!;
     public DbSet<LootTableEntry> LootTableEntries { get; set; } = null!;
+    public DbSet<VendorStock> VendorStocks { get; set; } = null!;
+    public DbSet<VendorStockCost> VendorStockCosts { get; set; } = null!;
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
@@ -149,6 +151,8 @@ public class WorldDbContext : DbContext
         Configure(modelBuilder.Entity<CharacterClassName>());
         Configure(modelBuilder.Entity<LootTable>());
         Configure(modelBuilder.Entity<LootTableEntry>());
+        Configure(modelBuilder.Entity<VendorStock>());
+        Configure(modelBuilder.Entity<VendorStockCost>());
 
         modelBuilder.Entity<ChunkPoolMembership>(e =>
         {
@@ -1831,6 +1835,72 @@ public class WorldDbContext : DbContext
 
     private static LootTableEntry ForestArmourEntry(int sequence, ulong item) =>
         new() { LootTableId = 11, Sequence = sequence, ItemTemplateId = item, Chance = 2f, MinCount = 1, MaxCount = 1 };
+
+    /// <summary>
+    /// Vendor stock (#432). Loaded whole into VendorCatalog by the Vendors reload area. Both pairings
+    /// are enforced both ways, and written to read the same on Postgres and on SQLite: each side of
+    /// = is a boolean.
+    /// </summary>
+    private static void Configure(EntityTypeBuilder<VendorStock> builder)
+    {
+        builder.ToTable("VendorStocks", t =>
+        {
+            t.HasCheckConstraint("CK_VendorStocks_RestockPairsWithMaxStock",
+                "(\"MaxStock\" IS NULL) = (\"RestockSeconds\" IS NULL)");
+            t.HasCheckConstraint("CK_VendorStocks_QuestPairs",
+                "(\"RequiredQuestId\" IS NULL) = (\"RequiredQuestState\" IS NULL)");
+            t.HasCheckConstraint("CK_VendorStocks_MaxStockPositive", "\"MaxStock\" IS NULL OR \"MaxStock\" >= 1");
+            t.HasCheckConstraint("CK_VendorStocks_RestockPositive", "\"RestockSeconds\" IS NULL OR \"RestockSeconds\" >= 1");
+        });
+
+        builder.HasKey(b => b.Id);
+        builder.Property(b => b.Id).ValueGeneratedNever();
+
+        builder.Property(b => b.CreatureTemplateId)
+            .HasConversion(v => v.Value, v => new CreatureTemplateId(v))
+            .IsRequired();
+        builder.HasOne<CreatureTemplate>()
+            .WithMany()
+            .HasForeignKey(b => b.CreatureTemplateId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Property(b => b.ItemTemplateId)
+            .HasConversion(v => v.Value, v => new ItemTemplateId(v))
+            .IsRequired();
+        builder.HasOne<ItemTemplate>()
+            .WithMany()
+            .HasForeignKey(b => b.ItemTemplateId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.Property(b => b.MaxStock).IsRequired(false);
+        builder.Property(b => b.RestockSeconds).IsRequired(false);
+        builder.Property(b => b.PriceOverride).IsRequired(false);
+        builder.Property(b => b.RequiredQuestId).IsRequired(false);
+        builder.Property(b => b.RequiredQuestState).IsRequired(false);
+
+        // A row is named by its position in its vendor's list.
+        builder.HasIndex(b => new { b.CreatureTemplateId, b.Sequence }).IsUnique();
+
+        builder.HasMany(b => b.Costs)
+            .WithOne()
+            .HasForeignKey(c => c.VendorStockId)
+            .OnDelete(DeleteBehavior.Cascade);
+    }
+
+    private static void Configure(EntityTypeBuilder<VendorStockCost> builder)
+    {
+        builder.ToTable("VendorStockCosts", t => t.HasCheckConstraint("CK_VendorStockCosts_CountPositive", "\"Count\" >= 1"));
+
+        // One cost line per item per row.
+        builder.HasKey(b => new { b.VendorStockId, b.ItemTemplateId });
+        builder.Property(b => b.ItemTemplateId)
+            .HasConversion(v => v.Value, v => new ItemTemplateId(v))
+            .IsRequired();
+        builder.HasOne<ItemTemplate>()
+            .WithMany()
+            .HasForeignKey(b => b.ItemTemplateId)
+            .OnDelete(DeleteBehavior.Restrict);
+    }
 
     private static void Configure(EntityTypeBuilder<AbilityTemplate> builder)
     {
