@@ -1,6 +1,7 @@
 using Avalon.Common;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
+using Avalon.Network.Packets.Character;
 using Avalon.World.Entities;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Enums;
@@ -106,6 +107,84 @@ public sealed class CharacterInventoryService(
         return InventoryRemoveResult.NotFound;
     }
 
+    public ItemRequestResult TryMove(SlotRef from, SlotRef to, uint? count, bool bankAccessible)
+    {
+        MoveDecision decision = InventoryMove.Decide(owner, findTemplate, bankAccessible, from, to, count);
+        if (!decision.Accepted)
+            return decision.Result;
+
+        Apply(decision.Plan);
+        return ItemRequestResult.Ok;
+    }
+
+    public ItemRequestResult TryDestroy(SlotRef slot, uint? count, bool bankAccessible)
+    {
+        ItemRequestResult result =
+            InventoryMove.DecideDestroy(owner, findTemplate, bankAccessible, slot, count, out uint destroying);
+        if (result != ItemRequestResult.Ok)
+            return result;
+
+        owner.Container(slot.Container).TryGet(slot.Slot, out InventoryItem item);
+        Take(slot.Container, item, destroying);
+        return ItemRequestResult.Ok;
+    }
+
+    /// <summary>
+    /// Applies a plan InventoryMove accepted a moment ago, on this thread, against this state, so
+    /// nothing here can fail part way: every slot it names was checked to exist and hold what the
+    /// plan says.
+    /// </summary>
+    private void Apply(MovePlan plan)
+    {
+        owner.Container(plan.From.Container).TryGet(plan.From.Slot, out InventoryItem source);
+
+        switch (plan.Kind)
+        {
+            case MoveKind.Move:
+                Vacate(plan.From);
+                Occupy(plan.To, source with { Slot = plan.To.Slot }, occupiedBefore: false);
+                break;
+
+            case MoveKind.Swap:
+                owner.Container(plan.To.Container).TryGet(plan.To.Slot, out InventoryItem target);
+                Occupy(plan.To, source with { Slot = plan.To.Slot }, occupiedBefore: true);
+                Occupy(plan.From, target with { Slot = plan.From.Slot }, occupiedBefore: true);
+                break;
+
+            case MoveKind.Split:
+                // The new stack is a copy of the old one's durability, flags and charges.
+                Replace(plan.From.Container, source with { Count = source.Count - plan.Count });
+                Create(plan.To.Container,
+                    source with { Slot = plan.To.Slot, InstanceId = itemIds.Next(), Count = plan.Count });
+                break;
+
+            case MoveKind.Merge:
+                owner.Container(plan.To.Container).TryGet(plan.To.Slot, out InventoryItem stack);
+                Replace(plan.To.Container, stack with { Count = stack.Count + plan.Count });
+                Take(plan.From.Container, source, plan.Count);
+                break;
+
+            default:
+                throw new ArgumentOutOfRangeException(nameof(plan), plan.Kind, "Unknown move kind");
+        }
+    }
+
+    /// <summary>The instance leaves the slot but still exists, so only the slot row changes.</summary>
+    private void Vacate(SlotRef slot)
+    {
+        owner.Container(slot.Container).Remove(slot.Slot);
+        owner.SaveState.SlotChanged(slot.Container, slot.Slot, occupiedBefore: true, occupiedAfter: false);
+        owner.ClientChanges.RecordSlot(slot.Container, slot.Slot);
+    }
+
+    /// <summary>An existing instance arrives in the slot, so only the slot row changes.</summary>
+    private void Occupy(SlotRef slot, InventoryItem item, bool occupiedBefore)
+    {
+        owner.Container(slot.Container).Put(item);
+        owner.SaveState.SlotChanged(slot.Container, slot.Slot, occupiedBefore, occupiedAfter: true);
+        owner.ClientChanges.RecordSlot(slot.Container, slot.Slot);
+    }
+
     private InventoryAddResult Check(ItemTemplateId templateId, uint count, out ItemTemplate? template)
     {
         template = findTemplate(templateId);
@@ -135,7 +214,7 @@ public sealed class CharacterInventoryService(
         Bag.Items.Where(i => i.TemplateId == templateId && i.Count < maxStack);
 
     /// <summary>A MaxStackSize of 0 is read as 1: every item takes at least a slot of its own.</summary>
-    private static uint MaxStack(ItemTemplate template) => Math.Max(1u, template.MaxStackSize);
+    private static uint MaxStack(ItemTemplate template) => InventoryMove.MaxStack(template);
 
     private void Take(InventoryType container, InventoryItem item, uint count)
     {

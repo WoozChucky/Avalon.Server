@@ -1,5 +1,6 @@
 using Avalon.Domain.World;
 using Avalon.World.Creatures;
+using Avalon.World.Dialogue;
 using Avalon.World.Loot;
 using Avalon.World.Public.Dialogue;
 using Avalon.World.Public.Localization;
@@ -17,7 +18,12 @@ public abstract record StaticDataPatch(ReloadArea Area)
 }
 
 public sealed record DialoguePatch(
-    ILocalizedTextCatalog Texts, IDialogueCatalog Dialogue, int TextCount, int NodeCount, int OptionCount)
+    ILocalizedTextCatalog Texts,
+    IDialogueCatalog Dialogue,
+    int TextCount,
+    int NodeCount,
+    int OptionCount,
+    DialogueActions Actions)
     : StaticDataPatch(ReloadArea.Dialogue)
 {
     public override string Describe() => $"{TextCount} texts, {NodeCount} nodes, {OptionCount} options";

@@ -12,6 +12,7 @@ using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Units;
 using Avalon.World.Abilities;
+using Avalon.World.Characters;
 using Avalon.World.Inventory;
 using Avalon.World.Persistence;
 using Microsoft.Extensions.Logging;
@@ -72,6 +73,46 @@ public class CharacterEntity : ICharacter
     public uint Stamina { get; set; }
     public uint RegenStat { get; set; }
 
+    /// <summary>What the stats calculator last derived; null until the first calculation.</summary>
+    public DerivedCharacterStats? Stats { get; private set; }
+
+    /// <summary>
+    /// Tick thread. Writes derived stats: the maximums (which the row stores and replication sends),
+    /// the current pools per <paramref name="current" />, the regen attributes, and a mark so the
+    /// next save writes the CharacterStats row. Refill is for select and level-up; KeepShare is for a
+    /// gear change, and keeps the same share of each pool.
+    /// </summary>
+    public void ApplyStats(DerivedCharacterStats stats, CurrentValues current)
+    {
+        uint oldHealth = Health;
+        uint oldPower = Power ?? 0;
+
+        Health = stats.MaxHealth;
+        Power = stats.MaxPower;
+
+        if (current == CurrentValues.Refill)
+        {
+            CurrentHealth = stats.MaxHealth;
+            CurrentPower = stats.MaxPower;
+        }
+        else
+        {
+            CurrentHealth = CharacterStatsCalculator.KeepShare(CurrentHealth, oldHealth, stats.MaxHealth);
+            CurrentPower = CharacterStatsCalculator.KeepShare(CurrentPower ?? 0, oldPower, stats.MaxPower);
+        }
+
+        Stamina = stats.Stamina;
+        RegenStat = Class switch
+        {
+            CharacterClass.Wizard or CharacterClass.Healer => stats.Intellect,
+            CharacterClass.Hunter => stats.Agility,
+            _ => 0,
+        };
+
+        Stats = stats;
+        SaveState.StatsChanged();
+    }
+
     public bool IsInCombat =>
         _lastCombatTime != DateTime.MinValue &&
         (DateTime.UtcNow - _lastCombatTime).TotalSeconds < _regenConfig.CombatLeaveDelaySeconds;
@@ -102,6 +143,13 @@ public class CharacterEntity : ICharacter
 
     /// <summary>Time left until the next periodic save; null until the character first ticks in a map.</summary>
     public TimeSpan? NextPeriodicSaveIn { get; set; }
+
+    /// <summary>
+    /// The NPC the bank was opened with (spec #463), or null. The bank is open only while the
+    /// connection's current conversation is with this NPC (BankAccess.IsOpen), so a conversation
+    /// that ends or changes closes the bank whatever this still says.
+    /// </summary>
+    public ObjectGuid? OpenBankNpc { get; set; }
 
     public ObjectGuid Guid { get; set; }
 

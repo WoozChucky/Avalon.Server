@@ -6,6 +6,7 @@ using Avalon.Network.Packets.Combat;
 using Avalon.Network.Packets.Loot;
 using Avalon.Network.Packets.State;
 using Avalon.World.Entities;
+using Avalon.World.Characters;
 using Avalon.World.ChunkLayouts;
 using Avalon.World.Configuration;
 using Avalon.World.Creatures;
@@ -871,6 +872,18 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IDisposab
             character.Experience = diff;
             character.RequiredExperience = _world.Data.CharacterLevelExperiences
                 .FirstOrDefault(exp => exp.Level == character.Level)?.Experience ?? 0;
+
+            // #434: the new level's stats. A living killer has health and power refilled to the new
+            // maximums. A kill can land after its killer has died (a projectile in flight): a dead
+            // killer gets the new maximums but keeps its share of each pool instead, so its health
+            // stays at 0 and it is not revived.
+            if (character is CharacterEntity entity
+                && !CharacterStatsRefresh.Apply(entity, _world.Data,
+                    entity.IsDead ? CurrentValues.KeepShare : CurrentValues.Refill))
+            {
+                _logger.LogWarning("No class stats for {Class} level {Level}; {Name} keeps its old maximums",
+                    entity.Class, entity.Level, entity.Name);
+            }
         }
         else
         {

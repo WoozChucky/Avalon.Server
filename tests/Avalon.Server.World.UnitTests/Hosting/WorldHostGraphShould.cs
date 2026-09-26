@@ -54,8 +54,12 @@ public class WorldHostGraphShould
         }
     }
 
-    [Fact]
-    public async Task Find_And_Build_The_Loot_Pickup_Handler_The_Way_WorldServer_Does()
+    /// <summary>One row per in-map handler that takes more than an IWorld: each is built from the container.</summary>
+    [Theory]
+    [InlineData(NetworkPacketType.CMSG_LOOT_PICKUP, typeof(LootPickupHandler))]
+    [InlineData(NetworkPacketType.CMSG_ITEM_MOVE, typeof(ItemMoveHandler))]
+    [InlineData(NetworkPacketType.CMSG_ITEM_DESTROY, typeof(ItemDestroyHandler))]
+    public async Task Find_And_Build_The_Handler_The_Way_WorldServer_Does(NetworkPacketType opcode, Type expected)
     {
         string workingDirectory = Directory.GetCurrentDirectory();
         try
@@ -66,10 +70,10 @@ public class WorldHostGraphShould
 
             // The same scan as the WorldServer constructor.
             Type handlerType = Assert.Single(typeof(WorldServer).Assembly.GetTypes(),
-                t => t.GetCustomAttribute<PacketHandlerAttribute>()?.PacketType == NetworkPacketType.CMSG_LOOT_PICKUP);
-            Assert.Equal(typeof(LootPickupHandler), handlerType);
+                t => t.GetCustomAttribute<PacketHandlerAttribute>()?.PacketType == opcode);
+            Assert.Equal(expected, handlerType);
 
-            Assert.IsType<LootPickupHandler>(ActivatorUtilities.CreateInstance(host.Services, handlerType));
+            Assert.IsType(expected, ActivatorUtilities.CreateInstance(host.Services, handlerType));
         }
         finally
         {

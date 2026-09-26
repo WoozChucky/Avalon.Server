@@ -27,6 +27,8 @@ public class MapSessionFilter(IWorldConnection connection) : PacketFilter
             NetworkPacketType.CMSG_INTERACT => true,
             NetworkPacketType.CMSG_DIALOGUE_CHOOSE => true,
             NetworkPacketType.CMSG_LOOT_PICKUP => true,
+            NetworkPacketType.CMSG_ITEM_MOVE => true,
+            NetworkPacketType.CMSG_ITEM_DESTROY => true,
             NetworkPacketType.CMSG_ENTER_MAP => true,
             NetworkPacketType.CMSG_RESPAWN_AT_TOWN => true,
             NetworkPacketType.CMSG_CHAT_MESSAGE => true,

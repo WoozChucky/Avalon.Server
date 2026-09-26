@@ -317,6 +317,24 @@
       "flagNames": "Encrypted"
     },
     {
+      "name": "CMSG_ITEM_MOVE",
+      "opcode": 8320,
+      "hex": "0x2080",
+      "message": "CItemMovePacket",
+      "direction": "ClientToServer",
+      "flags": 4,
+      "flagNames": "Encrypted"
+    },
+    {
+      "name": "CMSG_ITEM_DESTROY",
+      "opcode": 8321,
+      "hex": "0x2081",
+      "message": "CItemDestroyPacket",
+      "direction": "ClientToServer",
+      "flags": 4,
+      "flagNames": "Encrypted"
+    },
+    {
       "name": "CMSG_CAST_ABILITY",
       "opcode": 8449,
       "hex": "0x2101",
@@ -717,6 +735,15 @@
       "opcode": 12418,
       "hex": "0x3082",
       "message": "SLootPickupResultPacket",
+      "direction": "ServerToClient",
+      "flags": 4,
+      "flagNames": "Encrypted"
+    },
+    {
+      "name": "SMSG_ITEM_RESULT",
+      "opcode": 12432,
+      "hex": "0x3090",
+      "message": "SItemResultPacket",
       "direction": "ServerToClient",
       "flags": 4,
       "flagNames": "Encrypted"

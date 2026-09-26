@@ -2,6 +2,7 @@ using Avalon.Network.Packets.Character;
 using Avalon.World.Entities;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
+using Avalon.World.Public.Enums;
 
 namespace Avalon.World.Inventory;
 
@@ -21,7 +22,12 @@ public static class InventoryUpdateFlusher
         if (!changes.HasChanges)
             return;
 
+        // Bank slots leave only while the bank is open; outside it they are dropped, so the rule
+        // that Bank slots never reach a client without an open bank still holds.
+        bool bankOpen = BankAccess.IsOpen(connection, character);
+
         InventorySlotUpdateDto[] slots = changes.Slots
+            .Where(s => bankOpen || s.Container != InventoryType.Bank)
             .OrderBy(s => s.Container)
             .ThenBy(s => s.Slot)
             .Select(s => new InventorySlotUpdateDto
@@ -36,6 +42,9 @@ public static class InventoryUpdateFlusher
 
         ulong? money = changes.MoneyChanged ? row.Money : null;
         changes.Clear();
+
+        if (slots.Length == 0 && money is null)
+            return;
 
         connection.Send(SInventoryUpdatePacket.Create(slots, money, connection.CryptoSession.Encrypt));
     }

@@ -159,22 +159,23 @@ public class SeedIntegrityShould
     }
 
     /// <summary>
-    /// The three town NPCs are the whole of map 1's population today. Pinning the count and the map
-    /// catches a seed edit that drops one, or that quietly hangs NPCs off the wrong map.
+    /// The four town NPCs are the whole of map 1's population today: Uriel, Borin, the Innkeeper and
+    /// Marta the banker (#463). Pinning the count and the map catches a seed edit that drops one, or
+    /// that quietly hangs NPCs off the wrong map.
     /// </summary>
     [Fact]
-    public void Place_The_Three_Town_Npcs_On_Map_One()
+    public void Place_The_Four_Town_Npcs_On_Map_One()
     {
         using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
         using WorldDbContext context = database.CreateDbContext();
 
         List<MapCreatureSpawn> spawns = context.MapCreatureSpawns.AsNoTracking().ToList();
 
-        Assert.Equal(3, spawns.Count);
+        Assert.Equal(4, spawns.Count);
         Assert.All(spawns, spawn => Assert.Equal(1u, spawn.MapTemplateId.Value));
 
         Assert.Equal(
-            [1ul, 2ul, 3ul],
+            [1ul, 2ul, 3ul, 11ul],
             spawns.Select(spawn => spawn.CreatureTemplateId.Value).OrderBy(id => id).ToArray());
     }
 
@@ -192,7 +193,9 @@ public class SeedIntegrityShould
         var authored = context.CreatureTemplates
             .AsNoTracking()
             .ToList()
-            .Where(template => template.Id.Value >= 4 && template.Experience is not null)
+            // Town NPCs are invulnerable and author 0, because a creature that cannot die cannot pay
+            // out; Marta (11) is one, although her id is above the forest roster's.
+            .Where(template => template.Id.Value >= 4 && !template.Invulnerable && template.Experience is not null)
             .Select(template => template.Name)
             .ToList();
 
@@ -495,6 +498,36 @@ public class SeedIntegrityShould
         });
         ItemTemplate bow = Assert.Single(weapons, w => w.AllowedClasses[0] == CharacterClass.Hunter);
         Assert.Equal(ItemSubClass.Ranged, bow.SubClass);
+    }
+
+    /// <summary>
+    /// #463 final review: a character's stats come only from its class and level's ClassLevelStat
+    /// row, and a level with no row changes nothing, so gear and level-ups silently stop working
+    /// there. The seeded experience table ends at level 15, which makes level 16 reachable; every
+    /// class needs a row at every level from 1 up to it, with no gaps.
+    /// </summary>
+    [Fact]
+    public void Seed_class_stats_for_every_class_at_every_reachable_level()
+    {
+        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+
+        ushort topLevel = (ushort)(context.CharacterLevelExperiences.AsNoTracking().Max(e => e.Level) + 1);
+        Assert.Equal((ushort)16, topLevel);
+
+        List<ClassLevelStat> rows = context.ClassLevelStats.AsNoTracking().ToList();
+        var missing = new List<string>();
+        foreach (CharacterClass @class in Enum.GetValues<CharacterClass>())
+        {
+            for (ushort level = 1; level <= topLevel; level++)
+            {
+                if (!rows.Exists(r => r.Class == @class && r.Level == level))
+                    missing.Add($"{@class} {level}");
+            }
+        }
+
+        Assert.True(missing.Count == 0, "no ClassLevelStat row for: " + string.Join(", ", missing));
+        Assert.All(rows, r => Assert.InRange(r.Level, (ushort)1, topLevel));
     }
 
     private static uint ArmorOf(ItemTemplate item) =>
