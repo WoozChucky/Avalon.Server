@@ -1,10 +1,10 @@
 using System.Runtime.ExceptionServices;
 using System.Security.Cryptography;
 using System.Text;
+using Microsoft.Extensions.Logging;
 using Avalon.Infrastructure;
-using Avalon.Server.Auth.Configuration;
 
-namespace Avalon.Server.Auth.Services;
+namespace Avalon.Infrastructure.Login;
 
 /// <summary>
 /// The failed-attempt budget of one username, counted from every source (#484) and shared by the
@@ -25,14 +25,14 @@ public static class UsernameBudget
     }
 
     /// <summary>Takes a slot for this attempt and returns its place in the window.</summary>
-    public static Task<long> TakeAsync(IReplicatedCache cache, AuthConfiguration config, string key) =>
+    public static Task<long> TakeAsync(IReplicatedCache cache, ILoginLimits config, string key) =>
         AttemptBudget.TakeAsync(cache, key, Window(config));
 
     /// <summary>Past the limit: refused as LOCKED before any work.</summary>
-    public static bool Refuses(AuthConfiguration config, long taken) => taken > config.MaxFailedLoginAttempts;
+    public static bool Refuses(ILoginLimits config, long taken) => taken > config.MaxFailedLoginAttempts;
 
     /// <summary>The attempt in the last slot: its failure locks the account.</summary>
-    public static bool Locks(AuthConfiguration config, long taken) => taken >= config.MaxFailedLoginAttempts;
+    public static bool Locks(ILoginLimits config, long taken) => taken >= config.MaxFailedLoginAttempts;
 
     /// <summary>
     /// Holds the lock: in one atomic step, raises the count to at least <see cref="HeldValue"/> (one
@@ -43,7 +43,7 @@ public static class UsernameBudget
     /// too, so the two look the same (#484 review: a key that expired between the take and a plain
     /// EXPIRE left an unknown username unlocked while a known one's row stayed locked).
     /// </summary>
-    public static Task HoldLockAsync(IReplicatedCache cache, AuthConfiguration config, string key) =>
+    public static Task HoldLockAsync(IReplicatedCache cache, ILoginLimits config, string key) =>
         cache.HoldCounterAtLeastAsync(key, HeldValue(config), Window(config));
 
     /// <summary>
@@ -53,7 +53,7 @@ public static class UsernameBudget
     /// which a completed login's reset deleted it, or two give-backs brought it to four and the next
     /// guess was verified again.
     /// </summary>
-    public static Task GiveBackAsync(IReplicatedCache cache, AuthConfiguration config, string key) =>
+    public static Task GiveBackAsync(IReplicatedCache cache, ILoginLimits config, string key) =>
         cache.DecrementCounterIfAtMostAsync(key, config.MaxFailedLoginAttempts);
 
     /// <summary>
@@ -71,14 +71,14 @@ public static class UsernameBudget
     /// reset also raises the count to six, so the key stays and the player is refused as LOCKED
     /// until the window ends, with no row lock. It fails closed and needs a race of milliseconds.
     /// </summary>
-    public static Task ResetAsync(IReplicatedCache cache, AuthConfiguration config, string key) =>
+    public static Task ResetAsync(IReplicatedCache cache, ILoginLimits config, string key) =>
         cache.RemoveCounterIfBelowAsync(key, HeldValue(config));
 
     /// <summary>
     /// The value a hold raises the count to: one past the limit, which only a hold (or attempts
     /// already refused) can reach, so the reset can tell a held key from a count of failures.
     /// </summary>
-    public static long HeldValue(AuthConfiguration config) => config.MaxFailedLoginAttempts + 1L;
+    public static long HeldValue(ILoginLimits config) => config.MaxFailedLoginAttempts + 1L;
 
     /// <summary>
     /// After a failure has been answered: holds the budget when the failure is in the last slot,
@@ -88,7 +88,7 @@ public static class UsernameBudget
     /// failing write cannot hide it. A lock write never takes <paramref name="token"/>: a closing
     /// connection must not skip the lock (#484 re-review).
     /// </summary>
-    public static async Task RecordFailureAsync(IReplicatedCache cache, AuthConfiguration config, ILogger logger,
+    public static async Task RecordFailureAsync(IReplicatedCache cache, ILoginLimits config, ILogger logger,
         string key, long taken, Func<DateTime, DateTime?, CancellationToken, Task>? recordRow, CancellationToken token)
     {
         bool locks = Locks(config, taken);
@@ -120,5 +120,5 @@ public static class UsernameBudget
         }
     }
 
-    private static TimeSpan Window(AuthConfiguration config) => TimeSpan.FromMinutes(config.LockoutDurationMinutes);
+    private static TimeSpan Window(ILoginLimits config) => TimeSpan.FromMinutes(config.LockoutDurationMinutes);
 }

@@ -1,6 +1,6 @@
 using Avalon.Infrastructure;
 
-namespace Avalon.Server.Auth.Services;
+namespace Avalon.Infrastructure.Login;
 
 /// <summary>
 /// A failed-attempt budget kept as a Redis counter: the mechanics <see cref="SourceBudget"/> and

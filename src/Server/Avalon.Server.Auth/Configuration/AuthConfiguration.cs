@@ -1,8 +1,9 @@
 using System.ComponentModel.DataAnnotations;
+using Avalon.Infrastructure.Login;
 
 namespace Avalon.Server.Auth.Configuration;
 
-public class AuthConfiguration
+public class AuthConfiguration : ILoginLimits
 {
     [Required]
     [RegularExpression(@"^\d+\.\d+\.\d+$", ErrorMessage = "MinClientVersion must be a valid SemVer string (e.g. \"1.2.3\").")]

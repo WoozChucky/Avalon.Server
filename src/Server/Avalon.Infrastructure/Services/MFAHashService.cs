@@ -17,6 +17,19 @@ public interface IMFAHashService
     /// or -1 when the account has no live hash.
     /// </summary>
     Task<long> RecordAttemptAsync(AccountId accountId);
+
+    /// <summary>
+    /// Spends the hash: deletes it, and returns true only to the caller whose delete removed its
+    /// reverse key. Redis tells exactly one caller that, so of two verifies racing on one hash,
+    /// only one may go on (#478, as #450 does for world keys).
+    /// </summary>
+    Task<bool> TryConsumeAsync(string hash, AccountId accountId);
+
+    /// <summary>
+    /// Gives back one code attempt counted by <see cref="RecordAttemptAsync"/>, for a code that was
+    /// right but replayed (#478 re-review). Does nothing when the account has no live hash.
+    /// </summary>
+    Task GiveBackAttemptAsync(AccountId accountId);
 }
 
 public class MFAHashService : IMFAHashService
@@ -87,6 +100,20 @@ public class MFAHashService : IMFAHashService
 
     public Task<long> RecordAttemptAsync(AccountId accountId) =>
         _cache.HashIncrementIfExistsAsync(CacheKeys.AccountMfa(accountId.Value), "attempts");
+
+    public Task GiveBackAttemptAsync(AccountId accountId) =>
+        _cache.HashDecrementFloorIfExistsAsync(CacheKeys.AccountMfa(accountId.Value), "attempts");
+
+    public async Task<bool> TryConsumeAsync(string hash, AccountId accountId)
+    {
+        // The DEL spends the hash, not the GET before it: two callers can both have read the
+        // reverse key, but only one is told it deleted it.
+        if (!await _cache.RemoveAsync(CacheKeys.MfaReverseHash(hash)))
+            return false;
+
+        await _cache.RemoveAsync(CacheKeys.AccountMfa(accountId.Value));
+        return true;
+    }
 
     public async Task CleanupHash(string hash)
     {

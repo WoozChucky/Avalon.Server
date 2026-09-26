@@ -27,7 +27,7 @@ public class AccountControllerShould
         {
             ControllerContext = new ControllerContext
             {
-                HttpContext = new DefaultHttpContext { User = user }
+                HttpContext = new DefaultHttpContext { User = user, Connection = { RemoteIpAddress = System.Net.IPAddress.Loopback } }
             }
         };
 
@@ -117,7 +117,7 @@ public class AccountControllerShould
             CancellationToken.None);
 
         await _accountService.Received(1).ChangePasswordAsync(
-            new AccountId(7), "a", "newstrong1", Arg.Any<CancellationToken>());
+            new AccountId(7), "a", "newstrong1", Arg.Any<System.Net.IPAddress>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]

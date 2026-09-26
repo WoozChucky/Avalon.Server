@@ -46,11 +46,15 @@ public sealed class TotpReplayShould : IDisposable
         _mfa = new MfaSetupRepository(_factory);
         _accounts = new AccountRepository(_factory);
         _random.GetBytes(Arg.Any<int>()).Returns(ci => RandomNumberGenerator.GetBytes(ci.Arg<int>()));
+        // Each verify here stands for a fresh login's hash, so each one wins its hash (#478); the
+        // refusals under test come from the step, not from a spent hash.
+        _hashService.TryConsumeAsync(Hash, Arg.Any<AccountId>()).Returns(true);
     }
 
     public void Dispose() => _connection.Dispose();
 
-    private MFAService Service() => new(NullLoggerFactory.Instance, _mfa, _hashService, _random);
+    private MFAService Service() => new(NullLoggerFactory.Instance, _mfa, _hashService, _random,
+        Substitute.For<Avalon.Infrastructure.IReplicatedCache>());
 
     private async Task<(AccountId Id, byte[] Secret)> EnrolledAccountAsync()
     {
@@ -91,6 +95,38 @@ public sealed class TotpReplayShould : IDisposable
 
         Assert.True(first.Success);
         Assert.False(second.Success);
+    }
+
+    /// <summary>
+    /// #478 review: the step is accepted before the hash is spent, so a replayed code, right but
+    /// already used, is refused as a replay without spending the hash it was sent with.
+    /// </summary>
+    [Fact]
+    public async Task Refuse_a_replayed_code_without_spending_its_hash()
+    {
+        (_, byte[] secret) = await EnrolledAccountAsync();
+        string code = new Totp(secret).ComputeTotp();
+        MFAService service = Service();
+        Assert.True((await service.VerifyMFAAsync(Hash, code)).Success);
+        _hashService.ClearReceivedCalls();
+
+        MFAVerifyResult replay = await service.VerifyMFAAsync(Hash, code);
+
+        Assert.False(replay.Success);
+        Assert.Equal(MfaCodeRefusal.Replayed, replay.Refusal);
+        await _hashService.DidNotReceiveWithAnyArgs().TryConsumeAsync(default!, default!);
+    }
+
+    [Fact]
+    public async Task Refuse_a_right_code_on_a_hash_another_verify_spent_first_as_not_a_wrong_code()
+    {
+        (_, byte[] secret) = await EnrolledAccountAsync();
+        _hashService.TryConsumeAsync(Hash, Arg.Any<AccountId>()).Returns(false);
+
+        MFAVerifyResult result = await Service().VerifyMFAAsync(Hash, new Totp(secret).ComputeTotp());
+
+        Assert.False(result.Success);
+        Assert.Equal(MfaCodeRefusal.HashSpent, result.Refusal);
     }
 
     /// <summary>

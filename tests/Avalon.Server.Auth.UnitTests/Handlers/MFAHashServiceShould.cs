@@ -37,6 +37,29 @@ public class MFAHashServiceShould
         Assert.Null(result);
     }
 
+    /// <summary>#478: the DEL of the reverse key decides who spent the hash, as Redis tells one caller.</summary>
+    [Fact]
+    public async Task Spend_the_hash_only_for_the_caller_whose_delete_removed_it()
+    {
+        _cache.RemoveAsync(CacheKeys.MfaReverseHash("myhash")).Returns(true, false);
+
+        bool first = await _service.TryConsumeAsync("myhash", new AccountId(42L));
+        bool second = await _service.TryConsumeAsync("myhash", new AccountId(42L));
+
+        Assert.True(first);
+        Assert.False(second);
+        await _cache.Received(1).RemoveAsync(CacheKeys.AccountMfa(42));
+    }
+
+    /// <summary>#478 re-review: the give-back decrements the attempts field, only on a live hash.</summary>
+    [Fact]
+    public async Task Give_an_attempt_back_on_the_accounts_live_hash()
+    {
+        await _service.GiveBackAttemptAsync(new AccountId(42L));
+
+        await _cache.Received(1).HashDecrementFloorIfExistsAsync(CacheKeys.AccountMfa(42), "attempts");
+    }
+
     [Fact]
     public async Task CleanupBothKeys_WhenHashExists()
     {

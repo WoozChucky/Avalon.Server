@@ -28,6 +28,13 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- The Auth tests' Redis counter fake and stale-read repository: the REST login runs the same
+         budgets and the same writes (#478), so it is tested against the same fakes. -->
+    <Compile Include="..\Avalon.Server.Auth.UnitTests\Services\CounterCache.cs" Link="Shared\CounterCache.cs"/>
+    <Compile Include="..\Avalon.Server.Auth.UnitTests\Services\StaleAccountRepository.cs" Link="Shared\StaleAccountRepository.cs"/>
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\src\Server\Avalon.Api\Avalon.Api.csproj"/>
     <ProjectReference Include="..\..\src\Server\Avalon.Database\Avalon.Database.csproj"/>
     <ProjectReference Include="..\..\src\Server\Avalon.Infrastructure\Avalon.Infrastructure.csproj"/>

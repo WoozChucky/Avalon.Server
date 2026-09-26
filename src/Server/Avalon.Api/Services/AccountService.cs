@@ -12,6 +12,7 @@ using Avalon.Database.Auth;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Domain.Auth;
 using Avalon.Infrastructure;
+using Avalon.Infrastructure.Login;
 using Avalon.Infrastructure.Services;
 using Microsoft.EntityFrameworkCore;
 using OperatingSystem = Avalon.Domain.Auth.OperatingSystem;
@@ -26,7 +27,8 @@ public interface IAccountService
         CancellationToken cancellationToken);
 
     Task<PagedResult<Account>> Paginate(AccountPaginateFilters filters, CancellationToken cancellationToken = default);
-    Task ChangePasswordAsync(AccountId accountId, string currentPassword, string newPassword, CancellationToken cancellationToken = default);
+    Task ChangePasswordAsync(AccountId accountId, string currentPassword, string newPassword, IPAddress ipAddress,
+        CancellationToken cancellationToken = default);
     Task<string> InitiateEmailChangeAsync(AccountId accountId, string newEmail, CancellationToken cancellationToken = default);
     Task ConfirmEmailChangeAsync(string token, CancellationToken cancellationToken = default);
     Task UpdateStatusAsync(AccountId accountId, Avalon.Api.Contract.AccountStatus state, string? reason, AccountId actorId, CancellationToken cancellationToken = default);
@@ -54,6 +56,8 @@ public class AccountService : IAccountService
     private readonly IRefreshTokenService _refreshService;
     private readonly IDbTransactionRunner<AuthDbContext> _authTransaction;
     private readonly AuthenticationConfig _authConfig;
+    private readonly PasswordLoginPolicy _loginPolicy;
+    private readonly IReauthentication _reauthentication;
 
     public AccountService(ILoggerFactory loggerFactory,
         IAccountRepository accountRepository,
@@ -65,7 +69,9 @@ public class AccountService : IAccountService
         ISecureRandom secureRandom,
         IRefreshTokenService refreshService,
         IDbTransactionRunner<AuthDbContext> authTransaction,
-        AuthenticationConfig authConfig)
+        AuthenticationConfig authConfig,
+        PasswordLoginPolicy loginPolicy,
+        IReauthentication reauthentication)
     {
         _logger = loggerFactory.CreateLogger<AccountService>();
         _accountRepository = accountRepository;
@@ -78,6 +84,8 @@ public class AccountService : IAccountService
         _refreshService = refreshService;
         _authTransaction = authTransaction;
         _authConfig = authConfig;
+        _loginPolicy = loginPolicy;
+        _reauthentication = reauthentication;
     }
 
     public async Task<Account?> FindByIdAsync(AccountId id, CancellationToken cancellationToken = default)
@@ -88,26 +96,43 @@ public class AccountService : IAccountService
     public async Task<(AuthenticateResponse Response, AccountId? AccountId)> Authenticate(AuthenticateRequest model, IPAddress ipAddress,
         CancellationToken cancellationToken)
     {
-        var account = await _accountRepository.FindByUserNameAsync(model.Username.ToUpperInvariant().Trim(), cancellationToken);
-        if (account == null)
-            throw new AuthenticationException("Invalid username or password");
+        if (string.IsNullOrWhiteSpace(model.Username) || string.IsNullOrWhiteSpace(model.Password))
+            throw new AuthenticationException(InvalidCredentials);
 
-        var hash = Encoding.UTF8.GetString(account.Verifier);
+        // The game client's login policy (#478): the source's and the username's budgets, taken
+        // before the lookup; a dummy BCrypt verify for an unknown username; the row's lock before
+        // the password. Refusals past a budget, and a locked row, are 429 LOCKED for every username
+        // alike. Every slot taken is kept unless the attempt ends below with an MFA hash or a
+        // completed login.
+        PasswordAttempt attempt = await _loginPolicy.CheckAsync(model.Username, model.Password,
+            LoginSource.FromAddress(ipAddress), cancellationToken);
 
-        if (!BCrypt.Net.BCrypt.Verify(model.Password, hash))
+        if (attempt.Refused)
+            throw new AccountLockedException();
+
+        if (attempt.Failed)
         {
-            throw new AuthenticationException("Invalid username or password");
+            // HTTP cannot answer before this write, as the game client's login does, so an
+            // unknown username runs the same statements against an id no account has: known and
+            // unknown usernames take the same path. The failure in the last slot locks the
+            // account (or holds the unknown username's budget) and is answered as locked.
+            await _loginPolicy.RecordFailureAsync(attempt, cancellationToken, writeWithoutAccount: true);
+            throw FailureFor(attempt);
         }
+
+        var account = attempt.Account!;
 
         // A banned or deactivated account gets nothing, not even an MFA hash (#480). Past the
         // password check it is told its status, as the game client is; a wrong password above
-        // never learns it.
+        // never learns it. Its slots stay taken, as a wrong password's do.
         if (!AccountAccessCheck.MayHoldSession(account))
             throw new AccountInactiveException(account.Status);
 
         var mfaSetup = await _mfaSetupRepository.FindByAccountIdAsync(account.Id, cancellationToken);
         if (mfaSetup is { Status: MfaSetupStatus.Confirmed })
         {
+            // Only its own slots back, and no reset: the login completes at MFA verify.
+            await _loginPolicy.GiveBackAsync(attempt);
             return (new AuthenticateResponse
             {
                 Token = null,
@@ -117,10 +142,17 @@ public class AccountService : IAccountService
             }, null);
         }
 
-        account.LastIp = ipAddress.ToString();
-        account.LastLogin = DateTime.UtcNow;
+        // By column, and only while the account is not locked (#484): a lock or a ban written
+        // since the row was read survives. A lock that landed meanwhile is answered as a wrong
+        // password in this slot would be, and the slots stay taken.
+        if (!await _accountRepository.TryRecordApiLoginAsync(account.Id, attempt.Source.Ip, DateTime.UtcNow,
+                cancellationToken))
+        {
+            _logger.LogWarning("Account {AccountId} was locked during its login", account.Id);
+            throw FailureFor(attempt);
+        }
 
-        await _accountRepository.UpdateAsync(account, cancellationToken);
+        await _loginPolicy.CompleteAsync(attempt);
 
         return (new AuthenticateResponse
         {
@@ -129,6 +161,12 @@ public class AccountService : IAccountService
             Status = AuthenticationResponseStatus.Success
         }, account.Id);
     }
+
+    private const string InvalidCredentials = "Invalid username or password";
+
+    /// <summary>The answer to a failed password in this attempt's budget slot: locked in the last one.</summary>
+    private Exception FailureFor(PasswordAttempt attempt) =>
+        _loginPolicy.FailureLocks(attempt) ? new AccountLockedException() : new AuthenticationException(InvalidCredentials);
 
     public async Task<(RegisterResponse Response, AccountId AccountId)> Register(RegisterRequest model, string userAgent, IPAddress ipAddress,
         CancellationToken cancellationToken)
@@ -189,29 +227,54 @@ public class AccountService : IAccountService
         return await _accountRepository.PaginateAsync(filters, false, cancellationToken);
     }
 
-    public async Task ChangePasswordAsync(AccountId accountId, string currentPassword, string newPassword,
+    public async Task ChangePasswordAsync(AccountId accountId, string currentPassword, string newPassword, IPAddress ipAddress,
         CancellationToken cancellationToken = default)
     {
-        var account = await _accountRepository.FindByIdAsync(accountId, track: true, cancellationToken);
-        if (account == null)
-            throw new AuthenticationException("Invalid current password");
-
-        var existingHash = Encoding.UTF8.GetString(account.Verifier);
-        if (!BCrypt.Net.BCrypt.Verify(currentPassword, existingHash))
-        {
-            throw new AuthenticationException("Invalid current password");
-        }
+        // Through the login policy (#478): a stolen session guessing the current password here
+        // spends the same budgets, and locks the same account, as guessing it at login.
+        await _reauthentication.RequireCurrentPasswordAsync(accountId, currentPassword, ipAddress, cancellationToken);
 
         var salt = BCrypt.Net.BCrypt.GenerateSalt();
         var hash = BCrypt.Net.BCrypt.HashPassword(newPassword.Trim(), salt);
+        var saltBytes = Encoding.UTF8.GetBytes(salt);
+        var hashBytes = Encoding.UTF8.GetBytes(hash);
 
-        account.Salt = Encoding.UTF8.GetBytes(salt);
-        account.Verifier = Encoding.UTF8.GetBytes(hash);
+        // One transaction: the password is written by column (#484), so a lock or a ban written
+        // since the account was read survives it, and every refresh token and personal access
+        // token the account holds is revoked with it (#483), so none minted with the old password,
+        // or with a stolen session, outlives the change.
+        var changed = await _authTransaction.ExecuteAsync(async (context, token) =>
+        {
+            if (await AccountRepository.SetPasswordAsync(context, accountId, saltBytes, hashBytes, token) == 0)
+                return false;
 
-        await _accountRepository.UpdateAsync(account, cancellationToken);
+            await RefreshTokenRepository.RevokeAllForAccountAsync(context, accountId, token);
+            await PersonalAccessTokenRepository.RevokeAllForAccountAsync(context, accountId, accountId,
+                DateTime.UtcNow, token);
+            return true;
+        }, cancellationToken);
 
-        await _refreshService.RevokeAllForAccountAsync(accountId, cancellationToken);
-        await _cache.PublishAsync(CacheKeys.WorldAccountsDisconnectChannel, accountId.Value.ToString());
+        if (!changed)
+            throw new AuthenticationException(Reauthentication.InvalidPassword);
+
+        await PublishDisconnectAsync(accountId, "its password was changed");
+    }
+
+    /// <summary>
+    /// Kicks any live world session of the account. Best-effort: the change it follows is committed,
+    /// so a Redis failure is logged and the call still succeeds.
+    /// </summary>
+    private async Task PublishDisconnectAsync(AccountId accountId, string reason)
+    {
+        try
+        {
+            await _cache.PublishAsync(CacheKeys.WorldAccountsDisconnectChannel, accountId.Value.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not publish a world disconnect for account {AccountId} after {Reason}",
+                accountId.Value, reason);
+        }
     }
 
     public async Task<string> InitiateEmailChangeAsync(AccountId accountId, string newEmail,
@@ -232,7 +295,10 @@ public class AccountService : IAccountService
         var key = $"auth:emailChange:{token}";
         var payload = await _cache.GetAsync(key)
             ?? throw new BusinessException("Invalid or expired token");
-        await _cache.RemoveAsync(key);
+        // The DEL spends the token, not the GET (#478 review): two confirms can both read it, and
+        // only the one whose delete removed it goes on.
+        if (!await _cache.RemoveAsync(key))
+            throw new BusinessException("Invalid or expired token");
 
         var parts = payload.Split('|', 2);
         if (parts.Length != 2)
@@ -241,14 +307,12 @@ public class AccountService : IAccountService
         var accountId = new AccountId(long.Parse(parts[0]));
         var newEmail = parts[1];
 
-        var account = await _accountRepository.FindByIdAsync(accountId, track: true, cancellationToken)
-            ?? throw new BusinessException("Account not found");
-
-        account.Email = newEmail;
-        await _accountRepository.UpdateAsync(account, cancellationToken);
+        // By column (#478): a lock or a ban written since the account was last read survives it.
+        if (!await _accountRepository.SetEmailAsync(accountId, newEmail, cancellationToken))
+            throw new BusinessException("Account not found");
 
         await _refreshService.RevokeAllForAccountAsync(accountId, cancellationToken);
-        await _cache.PublishAsync(CacheKeys.WorldAccountsDisconnectChannel, accountId.Value.ToString());
+        await PublishDisconnectAsync(accountId, "its email was changed");
     }
 
     // NOTE: `reason` is currently accepted but not persisted (future: audit log).
@@ -277,16 +341,16 @@ public class AccountService : IAccountService
 
         if (state is Avalon.Api.Contract.AccountStatus.Banned or Avalon.Api.Contract.AccountStatus.Deactivated)
         {
-            await _cache.PublishAsync(CacheKeys.WorldAccountsDisconnectChannel, accountId.Value.ToString());
+            await PublishDisconnectAsync(accountId, "its status changed to " + state);
         }
     }
 
     public async Task UpdateRolesAsync(AccountId accountId, Avalon.Api.Contract.AccountAccessLevel roles, CancellationToken cancellationToken = default)
     {
-        var account = await _accountRepository.FindByIdAsync(accountId, track: true, cancellationToken)
-            ?? throw new BusinessException("Account not found");
-        account.AccessLevel = (Avalon.Common.Accounts.AccountAccessLevel)roles;
-        await _accountRepository.UpdateAsync(account, cancellationToken);
+        // By column (#478): a lock or a ban written since the account was last read survives it.
+        if (!await _accountRepository.SetAccessLevelAsync(accountId, (Avalon.Common.Accounts.AccountAccessLevel)roles,
+                cancellationToken))
+            throw new BusinessException("Account not found");
     }
 
     public async Task<bool> RemoveMfaAsync(AccountId accountId, AccountId actorId,

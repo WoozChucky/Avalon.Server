@@ -16,6 +16,12 @@ internal sealed class StaleAccountRepository(IAccountRepository inner) : IAccoun
 
     public Func<Task>? AfterRead { get; init; }
 
+    /// <summary>
+    /// Runs just before a whole-row update or a single-column email or access-level write: another
+    /// writer landing between whatever the request read and its own write, whether it read or not.
+    /// </summary>
+    public Func<Task>? BeforeWrite { get; init; }
+
     public async Task<Account?> FindByUserNameAsync(string userName, CancellationToken cancellationToken = default)
     {
         Account? account = UsernameReads.Count > 0
@@ -43,6 +49,23 @@ internal sealed class StaleAccountRepository(IAccountRepository inner) : IAccoun
         CancellationToken cancellationToken = default) =>
         inner.TryRecordLoginAsync(id, lastIp, now, cancellationToken);
 
+    public Task<bool> TryRecordApiLoginAsync(AccountId id, string lastIp, DateTime now,
+        CancellationToken cancellationToken = default) =>
+        inner.TryRecordApiLoginAsync(id, lastIp, now, cancellationToken);
+
+    public async Task<bool> SetEmailAsync(AccountId id, string email, CancellationToken cancellationToken = default)
+    {
+        if (BeforeWrite != null) await BeforeWrite();
+        return await inner.SetEmailAsync(id, email, cancellationToken);
+    }
+
+    public async Task<bool> SetAccessLevelAsync(AccountId id, Avalon.Common.Accounts.AccountAccessLevel accessLevel,
+        CancellationToken cancellationToken = default)
+    {
+        if (BeforeWrite != null) await BeforeWrite();
+        return await inner.SetAccessLevelAsync(id, accessLevel, cancellationToken);
+    }
+
     public Task MarkOfflineAsync(AccountId id, long sessionSeconds = 0, CancellationToken cancellationToken = default) =>
         inner.MarkOfflineAsync(id, sessionSeconds, cancellationToken);
 
@@ -67,8 +90,11 @@ internal sealed class StaleAccountRepository(IAccountRepository inner) : IAccoun
     public Task<List<Account>> CreateAsync(List<Account> entities, CancellationToken cancellationToken = default) =>
         inner.CreateAsync(entities, cancellationToken);
 
-    public Task<Account> UpdateAsync(Account entity, CancellationToken cancellationToken = default) =>
-        inner.UpdateAsync(entity, cancellationToken);
+    public async Task<Account> UpdateAsync(Account entity, CancellationToken cancellationToken = default)
+    {
+        if (BeforeWrite != null) await BeforeWrite();
+        return await inner.UpdateAsync(entity, cancellationToken);
+    }
 
     public Task DeleteAsync(AccountId id, CancellationToken cancellationToken = default) =>
         inner.DeleteAsync(id, cancellationToken);

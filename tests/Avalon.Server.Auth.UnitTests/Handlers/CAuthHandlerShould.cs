@@ -10,7 +10,7 @@ using Avalon.Network.Packets.Auth;
 using Avalon.Server.Auth;
 using Avalon.Server.Auth.Configuration;
 using Avalon.Server.Auth.Handlers;
-using Avalon.Server.Auth.Services;
+using Avalon.Infrastructure.Login;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -506,6 +506,26 @@ public class CAuthHandlerShould
 
         verifier.Received(1).Verify("some_password", BCryptPasswordVerifier.UnknownAccountHash);
         Assert.Equal(AuthResult.INVALID_CREDENTIALS, SentResult());
+    }
+
+    /// <summary>
+    /// #478 review: a locked row answered LOCKED before any BCrypt work, so with its budget hold
+    /// gone (expired, or Redis lost it) it answered faster than an unknown username. It pays for one
+    /// verify against the fixed hash too, and the account's own hash is still never checked.
+    /// </summary>
+    [Fact]
+    public async Task Run_a_bcrypt_verify_against_the_fixed_hash_for_a_locked_account()
+    {
+        var account = MakeAccount(locked: true);
+        account.LockedUntil = DateTime.UtcNow.AddMinutes(10);
+        _accountRepository.FindByUserNameAsync(Arg.Any<string>()).Returns(account);
+        var verifier = Substitute.For<IPasswordVerifier>();
+
+        await LogInAsync(CreateHandler(HardeningOptions(), verifier), password: "correct_password");
+
+        verifier.Received(1).Verify("correct_password", BCryptPasswordVerifier.UnknownAccountHash);
+        verifier.ReceivedWithAnyArgs(1).Verify(default!, default!);
+        Assert.Equal(AuthResult.LOCKED, SentResult());
     }
 
     [Fact]

@@ -11,4 +11,5 @@ public class ApplicationConfig
     public DatabaseConfiguration? Database { get; set; }
     public NotificationConfig? Notification { get; set; }
     public CacheConfiguration? Cache { get; set; }
+    public ForwardedHeadersConfig? ForwardedHeaders { get; set; }
 }

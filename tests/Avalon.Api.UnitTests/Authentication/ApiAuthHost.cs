@@ -13,6 +13,8 @@ using Avalon.Common.ValueObjects;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Domain.Auth;
 using Avalon.Infrastructure;
+using Avalon.Infrastructure.Extensions;
+using Avalon.Infrastructure.Login;
 using Avalon.Infrastructure.Services;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -35,6 +37,9 @@ namespace Avalon.Api.UnitTests.Authentication;
 public sealed class ApiAuthHost : IAsyncDisposable
 {
     public const long AccountIdValue = 7;
+
+    /// <summary>A request carrying this header reaches the api with no peer address.</summary>
+    public const string NoAddressHeader = "X-Test-No-Address";
     public const string SigningKey = "test-signing-key-test-signing-key-test-signing-key-0123456789-abcdef";
 
     public static readonly AuthenticationConfig AuthConfig = new()
@@ -52,13 +57,18 @@ public sealed class ApiAuthHost : IAsyncDisposable
     public IAccountRepository AccountRepository { get; } = Substitute.For<IAccountRepository>();
     public IRefreshTokenService Refresh { get; } = Substitute.For<IRefreshTokenService>();
     public IMFAService Mfa { get; } = Substitute.For<IMFAService>();
+    public IMFAHashService MfaHashes { get; } = Substitute.For<IMFAHashService>();
+    public IPersonalAccessTokenService Pats { get; } = Substitute.For<IPersonalAccessTokenService>();
+    public IReplicatedCache Cache { get; private set; } = Substitute.For<IReplicatedCache>();
 
     private WebApplication _app = null!;
     public HttpClient Client { get; private set; } = null!;
 
-    public static async Task<ApiAuthHost> StartAsync()
+    /// <param name="cache">The cache the login policy counts on; a plain substitute when not given.</param>
+    public static async Task<ApiAuthHost> StartAsync(IReplicatedCache? cache = null)
     {
         var host = new ApiAuthHost();
+        if (cache != null) host.Cache = cache;
         await host.InitializeAsync();
         return host;
     }
@@ -72,17 +82,35 @@ public sealed class ApiAuthHost : IAsyncDisposable
         IServiceCollection services = builder.Services;
         services.AddHttpContextAccessor();
         services.AddSingleton(Accounts);
-        services.AddSingleton(Substitute.For<IPersonalAccessTokenService>());
+        services.AddSingleton(Pats);
         services.AddAuth(new ApplicationConfig { Authentication = AuthConfig });
         services.AddControllers().AddApplicationPart(typeof(AccountRefreshController).Assembly);
         services.AddSingleton(AuthConfig);
         services.AddSingleton(Refresh);
         services.AddSingleton(AccountRepository);
         services.AddSingleton(Mfa);
-        services.AddSingleton(Substitute.For<IReplicatedCache>());
+        services.AddSingleton(Cache);
+        // The real login policy (#478) over the substitutes above: a live hash for the account, a
+        // first attempt on it, and a login record that succeeds, unless a test says otherwise.
+        services.AddSingleton<ILoginLimits>(AuthConfig);
+        services.AddSingleton(MfaHashes);
+        services.AddScoped<IReauthentication, Reauthentication>();
+        services.AddLoginPolicy();
+        MfaHashes.GetAccountIdAsync(Arg.Any<string>()).Returns(new AccountId(AccountIdValue));
+        MfaHashes.RecordAttemptAsync(Arg.Any<AccountId>()).Returns(1L);
+        AccountRepository.TryRecordApiLoginAsync(Arg.Any<AccountId>(), Arg.Any<string>(), Arg.Any<DateTime>(),
+            Arg.Any<CancellationToken>()).Returns(true);
         services.AddSingleton<IJwtUtils>(new JwtUtils(AuthConfig, JwtSigningKey.Create(AuthConfig)));
 
         _app = builder.Build();
+        // The test server has no socket, so no peer address; a real connection always has one.
+        // Loopback stands in, unless a request asks to be the address-less caller.
+        _app.Use((context, next) =>
+        {
+            if (!context.Request.Headers.ContainsKey(NoAddressHeader))
+                context.Connection.RemoteIpAddress ??= System.Net.IPAddress.Loopback;
+            return next(context);
+        });
         _app.UseMiddleware<ExceptionHandlerMiddleware>();
         _app.UseRouting();
         _app.UseAuthentication();

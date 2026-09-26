@@ -9,7 +9,7 @@ using Avalon.Network.Packets.Auth;
 using Avalon.Server.Auth;
 using Avalon.Server.Auth.Configuration;
 using Avalon.Server.Auth.Handlers;
-using Avalon.Server.Auth.Services;
+using Avalon.Infrastructure.Login;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NSubstitute;
@@ -216,6 +216,52 @@ public class CMFAVerifyHandlerShould
         _connection.DidNotReceiveWithAnyArgs().AccountId = default;
         await _accountRepository.DidNotReceiveWithAnyArgs().UpdateAsync(default!, default);
         await _cache.DidNotReceiveWithAnyArgs().PublishAsync(default!, default!);
+    }
+
+    /// <summary>
+    /// #478 review: a right code that was already used is refused, but it is not a failed login:
+    /// nothing is counted on the row, the slots come back, and the hash is not deleted even on its
+    /// last attempt.
+    /// </summary>
+    [Theory]
+    [InlineData(MfaCodeRefusal.Replayed)]
+    [InlineData(MfaCodeRefusal.HashSpent)]
+    public async Task Refuse_a_replayed_or_raced_code_without_counting_a_failed_login(MfaCodeRefusal refusal)
+    {
+        _mfaService.VerifyMFAAsync("valid-hash", "123456").Returns(new MFAVerifyResult(false, null, refusal));
+        _mfaHashService.RecordAttemptAsync(Arg.Any<AccountId>()).Returns(5L);
+
+        await CreateHandler().ExecuteAsync(new AuthPacketContext<CMFAVerifyPacket>
+        {
+            Packet = new CMFAVerifyPacket { MfaHash = "valid-hash", Code = "123456" },
+            Connection = _connection
+        });
+
+        Assert.Equal(AuthResult.MFA_FAILED, SentPacket().Result);
+        await _accountRepository.DidNotReceiveWithAnyArgs().RecordFailedLoginAsync(default!, default!, default, default, default);
+        await _mfaHashService.DidNotReceiveWithAnyArgs().CleanupHash(default!);
+    }
+
+    /// <summary>
+    /// #478 re-review: a replayed right code gave back its budget slots but still used up one of the
+    /// hash's attempts. It gives that back too. A code that lost the hash to another verify gives
+    /// nothing back to the hash: the hash is gone, and the per-account key may already hold the
+    /// next login's.
+    /// </summary>
+    [Theory]
+    [InlineData(MfaCodeRefusal.Replayed, 1)]
+    [InlineData(MfaCodeRefusal.HashSpent, 0)]
+    public async Task Give_the_hash_attempt_back_only_for_a_replayed_code(MfaCodeRefusal refusal, int givenBack)
+    {
+        _mfaService.VerifyMFAAsync("valid-hash", "123456").Returns(new MFAVerifyResult(false, null, refusal));
+
+        await CreateHandler().ExecuteAsync(new AuthPacketContext<CMFAVerifyPacket>
+        {
+            Packet = new CMFAVerifyPacket { MfaHash = "valid-hash", Code = "123456" },
+            Connection = _connection
+        });
+
+        await _mfaHashService.Received(givenBack).GiveBackAttemptAsync(new AccountId(1L));
     }
 
     private SAuthResultPacket SentPacket()

@@ -36,6 +36,19 @@ notification:
   publicKey:
   privateKey:
 
+# The reverse proxies whose X-Forwarded-For the API believes (Application:ForwardedHeaders). The
+# caller's address is its login source: with the ingress left untrusted, every caller behind it is
+# one source, and ten failed logins by anyone refuse REST logins for everyone. List the ingress's
+# addresses, or the narrowest network it runs in (for example the cluster's pod CIDR). Loopback is
+# always trusted. A network wider than /8 (IPv4) or /32 (IPv6), 0.0.0.0/0 and ::/0 included, stops the
+# API at startup: callers on it could choose their own source. Outside Development the API logs a
+# warning when both lists are empty.
+forwardedHeaders:
+  knownProxies: []
+  knownNetworks: []
+  # Proxy hops read from X-Forwarded-For, from the right; at least 1.
+  forwardLimit: 1
+
 replicaCount: 1
 
 image:

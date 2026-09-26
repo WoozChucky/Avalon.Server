@@ -22,6 +22,7 @@ public class MFAServiceShould
     private readonly IMfaSetupRepository _repository = Substitute.For<IMfaSetupRepository>();
     private readonly IMFAHashService _hashService = Substitute.For<IMFAHashService>();
     private readonly ISecureRandom _random = Substitute.For<ISecureRandom>();
+    private readonly Avalon.Infrastructure.IReplicatedCache _cache = Substitute.For<Avalon.Infrastructure.IReplicatedCache>();
     private MFASetup? _row;
 
     public MFAServiceShould()
@@ -61,12 +62,20 @@ public class MFAServiceShould
             });
         _repository.When(r => r.DeleteAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()))
             .Do(ci => { if (_row?.Id == ci.Arg<Guid>()) _row = null; });
+        // The reset's delete (with the token revocation it commits alongside, #483).
+        _repository.ResetConfirmedAsync(Arg.Any<Guid>(), Arg.Any<AccountId>(), Arg.Any<DateTime>(), Arg.Any<CancellationToken>())
+            .Returns(ci =>
+            {
+                if (_row == null || _row.Id != ci.ArgAt<Guid>(0) || _row.Status != MfaSetupStatus.Confirmed) return false;
+                _row = null;
+                return true;
+            });
 
         _random.GetBytes(Arg.Any<int>()).Returns(ci => RandomNumberGenerator.GetBytes(ci.Arg<int>()));
     }
 
     private MFAService CreateService() =>
-        new(NullLoggerFactory.Instance, _repository, _hashService, _random);
+        new(NullLoggerFactory.Instance, _repository, _hashService, _random, _cache);
 
     private static Account NewAccount() => new()
     {

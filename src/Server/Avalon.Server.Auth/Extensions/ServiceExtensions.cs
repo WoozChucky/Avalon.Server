@@ -1,7 +1,8 @@
 using Avalon.Database.Auth.Extensions;
 using Avalon.Infrastructure.Extensions;
 using Avalon.Server.Auth.Configuration;
-using Avalon.Server.Auth.Services;
+using Microsoft.Extensions.Options;
+using Avalon.Infrastructure.Login;
 
 namespace Avalon.Server.Auth.Extensions;
 
@@ -17,9 +18,10 @@ public static class ServiceExtensions
             .ValidateDataAnnotations()
             .ValidateOnStart();
 
-        services.AddSingleton<IPasswordVerifier, BCryptPasswordVerifier>();
+        services.AddSingleton<ILoginLimits>(sp => sp.GetRequiredService<IOptions<AuthConfiguration>>().Value);
 
         services.AddAuthDatabase()
+            .AddLoginPolicy()
             .AddCache()
             .AddMfaService()
             .AddSecureRandom();

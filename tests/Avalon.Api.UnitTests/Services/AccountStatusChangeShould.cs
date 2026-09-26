@@ -78,7 +78,9 @@ public class AccountStatusChangeShould : IDisposable
             Substitute.For<ISecureRandom>(),
             Substitute.For<IRefreshTokenService>(),
             new DbTransactionRunner<AuthDbContext>(_database),
-            new AuthenticationConfig());
+            new AuthenticationConfig(),
+            TestLogin.Password(accounts, Substitute.For<IReplicatedCache>()),
+            TestLogin.Reauthentication(accounts, Substitute.For<IReplicatedCache>()));
 
         await service.UpdateStatusAsync(account.Id, Contract.AccountStatus.Banned, "spam", actor);
 

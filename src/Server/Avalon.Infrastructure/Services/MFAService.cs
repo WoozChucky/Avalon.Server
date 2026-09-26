@@ -16,13 +16,16 @@ public class MFAService : IMFAService
     private readonly IMfaSetupRepository _mfaSetupRepository;
     private readonly IMFAHashService _mfaHashService;
     private readonly ISecureRandom _secureRandom;
+    private readonly IReplicatedCache _cache;
 
-    public MFAService(ILoggerFactory loggerFactory, IMfaSetupRepository mfaSetupRepository, IMFAHashService mfaHashService, ISecureRandom secureRandom)
+    public MFAService(ILoggerFactory loggerFactory, IMfaSetupRepository mfaSetupRepository, IMFAHashService mfaHashService,
+        ISecureRandom secureRandom, IReplicatedCache cache)
     {
         _logger = loggerFactory.CreateLogger<MFAService>();
         _mfaSetupRepository = mfaSetupRepository;
         _mfaHashService = mfaHashService;
         _secureRandom = secureRandom;
+        _cache = cache;
     }
 
     public async Task<MFASetupResult> SetupMFAAsync(Account account, string issuer, CancellationToken cancellationToken = default)
@@ -94,7 +97,7 @@ public class MFAService : IMFAService
     {
         var accountId = await _mfaHashService.GetAccountIdAsync(hash);
         if (accountId == null)
-            return new MFAVerifyResult(false, null);
+            return new MFAVerifyResult(false, null, MfaCodeRefusal.HashSpent);
 
         var mfaSetup = await _mfaSetupRepository.FindByAccountIdAsync(accountId, cancellationToken);
         if (mfaSetup == null || mfaSetup.Status != MfaSetupStatus.Confirmed)
@@ -105,15 +108,25 @@ public class MFAService : IMFAService
             return new MFAVerifyResult(false, null);
 
         // Each code once (#471): refuse a step no later than the last one accepted. The write is
-        // conditional on the same, so two requests racing with one code cannot both pass.
+        // conditional on the same, so two requests racing with one code cannot both pass. It runs
+        // before the hash is spent (#478 review), so a replay, a right code already used, leaves
+        // the hash for the right one and is not a failed login.
         if (step <= mfaSetup.LastAcceptedTotpStep
             || !await _mfaSetupRepository.TryAcceptTotpStepAsync(mfaSetup.Id, step, cancellationToken))
         {
             _logger.LogWarning("Refused a reused TOTP code for account {AccountId}", accountId);
-            return new MFAVerifyResult(false, null);
+            return new MFAVerifyResult(false, null, MfaCodeRefusal.Replayed);
         }
 
-        await _mfaHashService.CleanupHash(hash);
+        // One winner per hash (#478): the DEL spends the hash, not the read above, as #450 does for
+        // world keys. Two verifies of one hash, each with a code of its own step, can both get past
+        // the step check; only the caller whose delete removed the hash goes on.
+        if (!await _mfaHashService.TryConsumeAsync(hash, accountId))
+        {
+            _logger.LogWarning("Refused an MFA code for account {AccountId}: its hash was already spent", accountId);
+            return new MFAVerifyResult(false, null, MfaCodeRefusal.HashSpent);
+        }
+
         return new MFAVerifyResult(true, accountId);
     }
 
@@ -136,8 +149,28 @@ public class MFAService : IMFAService
         if (!valid)
             return new MFAResetResult(false, MFAOperationResult.InvalidCode);
 
-        // Deleting the setup consumes the codes: they cannot be used again.
-        await _mfaSetupRepository.DeleteAsync(mfaSetup.Id, cancellationToken);
+        // Deleting the setup consumes the codes: they cannot be used again. In the same transaction
+        // every refresh token and personal access token the account holds is revoked (#483), as the
+        // admin removal does, so no session opened before the reset outlives it. False when a
+        // concurrent reset deleted the row first.
+        if (!await _mfaSetupRepository.ResetConfirmedAsync(mfaSetup.Id, accountId, DateTime.UtcNow, cancellationToken))
+            return new MFAResetResult(false, MFAOperationResult.NotEnabled);
+
+        _logger.LogInformation("Account {AccountId} reset its MFA; its refresh and personal access tokens were revoked",
+            accountId.Value);
+
+        // Best-effort, as after the admin removal: the reset is committed, so a Redis failure is
+        // logged and the reset still succeeds.
+        try
+        {
+            await _cache.PublishAsync(CacheKeys.WorldAccountsDisconnectChannel, accountId.Value.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not publish a world disconnect for account {AccountId} after its MFA reset",
+                accountId.Value);
+        }
+
         return new MFAResetResult(true, MFAOperationResult.Success);
     }
 

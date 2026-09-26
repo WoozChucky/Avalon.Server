@@ -33,20 +33,31 @@ Section in `appsettings.json`: `"Application"`
 | `ServerVersion`             | string | `"1.0.0"` | Server version sent in `SServerInfoPacket` to clients |
 | `MaxFailedLoginAttempts`    | int    | `5`       | Failed password or MFA-code attempts at one username, from every source, before it is locked (counted in Redis, #484) |
 | `LockoutDurationMinutes`    | int    | `15`      | The window those attempts are counted over, and how long the lock lasts from the failure that set it |
+| `MaxFailedLoginsPerSource`  | int    | `10`      | Password and MFA-code attempts one source address may make, across every account, per window (#471) |
+| `FailedLoginSourceWindowMinutes` | int | `15`   | The window, fixed from a source's first attempt, those are counted over |
+| `MaxFailedMfaAttempts`      | int    | `5`       | Codes one MFA hash allows; the last wrong one deletes the hash |
 | `Issuer`                    | string | `"Avalon"` | Issuer name embedded in MFA OTP URIs           |
+
+The five login limits are shared with the REST API (#478): both servers spend the same Redis budgets, so
+the API's `Application:Authentication` values of the same names must match these. See
+[REST API Login Limits](#rest-api-login-limits).
 
 ```json
 "Application": {
   "MinClientVersion": "0.0.1",
   "ServerVersion": "1.0.0",
   "MaxFailedLoginAttempts": 5,
+  "LockoutDurationMinutes": 15,
+  "MaxFailedLoginsPerSource": 10,
+  "FailedLoginSourceWindowMinutes": 15,
+  "MaxFailedMfaAttempts": 5,
   "Issuer": "Avalon"
 }
 ```
 
 **Validation rules:**
 - `MinClientVersion`, `ServerVersion`: required, must match `^\d+\.\d+\.\d+$` (SemVer).
-- `MaxFailedLoginAttempts`: minimum `1`.
+- The five login limits: minimum `1`.
 - `Issuer`: required, non-empty.
 
 ---
@@ -197,6 +208,79 @@ The Helm chart passes it, with the other secrets, through a Kubernetes Secret (`
 you manage, named by `existingSecret`, or one the chart creates from `--set-file
 authentication.issuerSigningKey=<file>`. It refuses to render with neither. The `ValidateIssuerKey` setting
 is gone: the signing key is always validated.
+
+---
+
+## REST API Login Limits
+
+Section: `Application:Authentication` in `Avalon.Api` (#478)
+
+| Key                              | Type | Default | Description |
+|----------------------------------|------|---------|-------------|
+| `MaxFailedLoginAttempts`         | int  | `5`     | Password and MFA-code attempts at one username, from every source and both servers, before it is locked |
+| `LockoutDurationMinutes`         | int  | `15`    | That budget's window, and how long the lock lasts |
+| `MaxFailedLoginsPerSource`       | int  | `10`    | Attempts one source address may make, across every account, per window |
+| `FailedLoginSourceWindowMinutes` | int  | `15`    | The source budget's window |
+| `MaxFailedMfaAttempts`           | int  | `5`     | Codes one MFA hash allows |
+
+The REST login, MFA verify and the current-password checks (password change, `POST /mfa/setup`,
+`POST /pat`, `POST /pat/admin`) run the Auth server's login policy over **the same Redis keys**, so these
+must equal the Auth server's `Application:*` values of the same names: a key counted against two
+different limits locks at whichever is lower. The defaults match. The section is bound without validated
+options, so `AddInfrastructure` refuses a value below `1` at startup, naming the setting.
+
+```bash
+Application__Authentication__MaxFailedLoginAttempts=5
+```
+
+Each host logs its five limits at Information when it starts (the Auth server as `Application`, the API
+as `Application:Authentication`), so the two lines can be compared.
+
+The per-source budget keys on the caller's address after the forwarded headers are applied, so behind a
+proxy it needs [REST API Forwarded Headers](#rest-api-forwarded-headers) set up.
+
+---
+
+## REST API Forwarded Headers
+
+Section: `Application:ForwardedHeaders` in `Avalon.Api` (#478 review)
+
+| Key             | Type     | Default | Description |
+|-----------------|----------|---------|-------------|
+| `KnownProxies`  | string[] | `[]`    | Addresses of proxies whose `X-Forwarded-For` is believed, such as `10.0.0.2` |
+| `KnownNetworks` | string[] | `[]`    | Networks of such proxies in CIDR form, such as a cluster's pod network `10.0.0.0/8` |
+| `ForwardLimit`  | int      | `1`     | Proxy hops read from `X-Forwarded-For`, from the right |
+
+Loopback is always trusted, and nothing else is by default, which fails safe: a caller cannot choose its own
+address. The address decides the caller's login source budget, so an ingress left out of these makes every
+REST caller one source, and ten failures by anyone refuse REST logins for everyone for the window. Set them
+wherever the API runs behind a proxy (docker, Kubernetes ingress, CDN), as narrowly as the deployment
+allows.
+
+- Startup refuses, naming the setting:
+  - an entry that does not parse, or a network without a prefix;
+  - a network wider than **/8 for IPv4** or **/32 for IPv6** (`0.0.0.0/0` and `::/0` included). A network
+    that broad is not a proxy network, and every caller on it could choose its own source;
+  - a `ForwardLimit` below 1.
+- Outside Development the API logs a warning at startup when `KnownProxies` and `KnownNetworks` are both
+  empty.
+- A request that carries `X-Forwarded-For` from a peer that is not trusted is served with the peer's own
+  address, and logged as a warning at most once a minute, with the number not logged since.
+- A request with no peer address has its `X-Forwarded-*` headers removed before they are read (and is
+  logged the same way), so it keeps no address and still gets the 400 below.
+
+```bash
+Application__ForwardedHeaders__KnownNetworks__0=10.0.0.0/8
+Application__ForwardedHeaders__KnownProxies__0=10.1.2.3
+Application__ForwardedHeaders__ForwardLimit=1
+```
+
+The Helm chart passes `forwardedHeaders.knownProxies`, `forwardedHeaders.knownNetworks` and
+`forwardedHeaders.forwardLimit` (empty lists and 1 by default). The chart has no ingress of its own, so fill
+them in for whatever ingress fronts the service.
+
+A caller with no peer address at all is refused with 400 on the endpoints that spend a login source budget
+(login, MFA verify, password change, MFA setup, token minting).
 
 ---
 
