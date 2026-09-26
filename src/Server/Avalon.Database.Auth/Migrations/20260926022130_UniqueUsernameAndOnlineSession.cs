@@ -20,6 +20,8 @@ namespace Avalon.Database.Auth.Migrations
             //   2. an account's username is not stored normalised, since then an index on the
             //      column would not be an index on the normalised name.
             // Fix the rows by hand, then run the migration again. Nothing is changed or deleted.
+            // The check constraint added at the end would refuse such rows too, with Postgres's own
+            // error; this names them first.
             migrationBuilder.Sql(
                 """
                 DO $$
@@ -72,11 +74,22 @@ namespace Avalon.Database.Auth.Migrations
                 table: "Accounts",
                 column: "Username",
                 unique: true);
+
+            // Every writer must store the normalised form, or the index above stops being on the
+            // normalised name (#487 review). The database holds them to it from here on.
+            migrationBuilder.AddCheckConstraint(
+                name: "CK_Accounts_Username_Normalised",
+                table: "Accounts",
+                sql: "\"Username\" = upper(trim(\"Username\"))");
         }
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.DropCheckConstraint(
+                name: "CK_Accounts_Username_Normalised",
+                table: "Accounts");
+
             migrationBuilder.DropIndex(
                 name: "IX_Accounts_Username",
                 table: "Accounts");

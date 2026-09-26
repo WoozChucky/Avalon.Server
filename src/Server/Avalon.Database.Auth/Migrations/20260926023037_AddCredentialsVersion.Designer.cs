@@ -119,7 +119,10 @@ namespace Avalon.Database.Auth.Migrations
                     b.HasIndex("Username")
                         .IsUnique();
 
-                    b.ToTable("Accounts");
+                    b.ToTable("Accounts", t =>
+                        {
+                            t.HasCheckConstraint("CK_Accounts_Username_Normalised", "\"Username\" = upper(trim(\"Username\"))");
+                        });
 
                     b.HasData(
                         new

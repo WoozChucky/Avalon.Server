@@ -110,6 +110,9 @@ public class AuthDbContext : DbContext
         Configure(modelBuilder.Entity<Domain.Auth.World>());
     }
 
+    /// <summary>The check constraint that holds <c>Accounts.Username</c> trimmed and upper-cased (#487).</summary>
+    public const string UsernameNormalisedConstraint = "CK_Accounts_Username_Normalised";
+
     private static void Configure(EntityTypeBuilder<Account> builder)
     {
         builder.Property(b => b.Id)
@@ -123,6 +126,12 @@ public class AuthDbContext : DbContext
         // index on the normalised name. Without it two registrations racing past the "taken" check
         // both inserted, and which account a login reached depended on the row order.
         builder.HasIndex(b => b.Username).IsUnique();
+
+        // ...and the database holds every writer to that form (#487 review), so the index cannot
+        // stop being on the normalised name. upper() and trim() are standard SQL, so the same
+        // expression runs on Postgres and on the SQLite the tests use.
+        builder.ToTable(t => t.HasCheckConstraint(UsernameNormalisedConstraint,
+            "\"Username\" = upper(trim(\"Username\"))"));
 
         builder.Property(b => b.Locale)
             .HasConversion(new EnumToStringConverter<AccountLocale>());
