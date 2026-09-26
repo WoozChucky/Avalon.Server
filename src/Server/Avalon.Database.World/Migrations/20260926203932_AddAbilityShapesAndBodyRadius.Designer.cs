@@ -1601,7 +1601,7 @@ namespace Avalon.Database.World.Migrations
 
                     b.ToTable("CreatureTemplates", null, t =>
                         {
-                            t.HasCheckConstraint("CK_CreatureTemplates_BodyRadius_Positive", "\"BodyRadius\" > 0");
+                            t.HasCheckConstraint("CK_CreatureTemplates_BodyRadius_Positive", "\"BodyRadius\" > 0 AND \"BodyRadius\" < 'Infinity'");
                         });
 
                     b.HasData(

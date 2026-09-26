@@ -9,6 +9,7 @@ using Avalon.World.Creatures;
 using Avalon.World.Dialogue;
 using Avalon.World.Public.Dialogue;
 using Avalon.World.Public.Maps;
+using Avalon.World.Public.Units;
 using Avalon.World.Reload;
 using Microsoft.Extensions.Logging;
 
@@ -42,6 +43,22 @@ public class CreatureSpawner(ILoggerFactory loggerFactory, IWorld world) : ICrea
         short max = Math.Max(min, template.MaxLevel);
 
         return (ushort)Random.Shared.Next(min, max + 1);
+    }
+
+    /// <summary>
+    /// The template's body radius, or the default one when it is not a finite value above 0 (#164).
+    /// A NaN body would never be hit and an infinite one would be hit by everything. The check
+    /// constraint keeps such a row out of Postgres, but a template can still arrive another way.
+    /// </summary>
+    private float UsableBodyRadius(CreatureTemplate template)
+    {
+        if (float.IsFinite(template.BodyRadius) && template.BodyRadius > 0f)
+            return template.BodyRadius;
+
+        _logger.LogWarning(
+            "Creature template {CreatureId} has body radius {BodyRadius}, which is not a finite value above 0; using {DefaultRadius}",
+            template.Id, template.BodyRadius, UnitBody.DefaultCreatureRadius);
+        return UnitBody.DefaultCreatureRadius;
     }
 
     public ICreature Spawn(CreatureTemplateId templateId)
@@ -82,7 +99,7 @@ public class CreatureSpawner(ILoggerFactory loggerFactory, IWorld world) : ICrea
             ScriptName = template.ScriptName,
             Invulnerable = template.Invulnerable,
             CanInteract = NpcInteraction.CanInteract(dialogue, template.Id),
-            BodyRadius = template.BodyRadius,
+            BodyRadius = UsableBodyRadius(template),
             MoveState = MoveState.Idle,
             Level = stats.Level,
             Health = stats.Health,

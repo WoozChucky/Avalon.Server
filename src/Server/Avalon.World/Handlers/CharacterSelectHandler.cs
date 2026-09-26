@@ -20,7 +20,6 @@ using Avalon.World.Entities;
 using Avalon.World.Instances;
 using Avalon.World.Inventory;
 using Avalon.World.Persistence;
-using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Combat;
 using Avalon.World.Public.Enums;

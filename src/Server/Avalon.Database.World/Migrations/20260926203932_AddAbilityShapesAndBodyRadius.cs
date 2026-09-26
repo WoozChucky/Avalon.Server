@@ -225,7 +225,7 @@ namespace Avalon.Database.World.Migrations
             migrationBuilder.AddCheckConstraint(
                 name: "CK_CreatureTemplates_BodyRadius_Positive",
                 table: "CreatureTemplates",
-                sql: "\"BodyRadius\" > 0");
+                sql: "\"BodyRadius\" > 0 AND \"BodyRadius\" < 'Infinity'");
         }
 
         /// <inheritdoc />

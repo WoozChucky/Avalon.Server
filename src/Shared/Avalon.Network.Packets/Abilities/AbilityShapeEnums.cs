@@ -10,7 +10,7 @@ public enum AbilityAimMode : byte
     Cursor = 1,
 }
 
-/// <summary>Which units a skill can affect. Append-only.</summary>
+/// <summary>The area a skill hits: a circle, a cone, or a projectile's path. Append-only.</summary>
 public enum AbilityShape : byte
 {
     Circle = 0,

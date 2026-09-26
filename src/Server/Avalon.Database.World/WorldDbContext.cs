@@ -607,9 +607,13 @@ public class WorldDbContext : DbContext
     {
         builder.HasKey(b => b.Id);
 
-        // #164. A body of radius 0 or less could never be hit by anything.
+        // #164. A body of radius 0 or less could never be hit by anything. The upper bound refuses
+        // Infinity and NaN too: Postgres sorts NaN above every number, so "> 0" alone lets it through.
+        // The literal is left untyped so Postgres reads it as the column's real; a "::real" cast would
+        // not parse in SQLite, where the tests build the schema and a number is always below text.
         builder.ToTable("CreatureTemplates", t => t.HasCheckConstraint(
-            "CK_CreatureTemplates_BodyRadius_Positive", "\"BodyRadius\" > 0"));
+            "CK_CreatureTemplates_BodyRadius_Positive",
+            "\"BodyRadius\" > 0 AND \"BodyRadius\" < 'Infinity'"));
         builder.Property(b => b.Id)
             .HasConversion(
                 v => v.Value,

@@ -7,6 +7,8 @@ using Avalon.World.Creatures;
 using Avalon.World.Entities;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
+using Avalon.World.Public.Units;
+using Microsoft.Extensions.Logging;
 using Avalon.World.Reload;
 using Avalon.World.Serialization;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -217,6 +219,27 @@ public class CreatureSpawnerShould
         Assert.Equal(1.75f, creature.BodyRadius);
     }
 
+    [Theory]
+    [InlineData(float.NaN)]
+    [InlineData(float.PositiveInfinity)]
+    [InlineData(float.NegativeInfinity)]
+    [InlineData(0f)]
+    [InlineData(-1f)]
+    public void Fall_back_to_the_default_body_radius_and_warn_when_the_template_has_no_usable_one(float bad)
+    {
+        // The check constraint refuses such a row in Postgres, but a template can still reach the
+        // spawner another way (a test database, a hand-built template). A NaN body is never hit, and an
+        // infinite one is hit by everything (#164).
+        CreatureTemplate template = PlainTemplate(49, "Misshapen Wolf");
+        template.BodyRadius = bad;
+        var warnings = new WarningCountingLoggerFactory();
+
+        ICreature creature = SpawnerOver(template, warnings).Spawn(template.Id);
+
+        Assert.Equal(UnitBody.DefaultCreatureRadius, creature.BodyRadius);
+        Assert.Equal(1, warnings.Warnings);
+    }
+
     [Fact]
     public void Mark_A_Creature_Whose_Template_Has_Dialogue_As_Interactable()
     {
@@ -302,6 +325,10 @@ public class CreatureSpawnerShould
     /// and rarity rows are the real seeded values for the levels these tests touch.
     /// </summary>
     private static CreatureSpawner SpawnerOver(CreatureTemplate template, params DialogueNode[] dialogueNodes)
+        => SpawnerOver(template, NullLoggerFactory.Instance, dialogueNodes);
+
+    private static CreatureSpawner SpawnerOver(CreatureTemplate template, ILoggerFactory spawnerLogging,
+        params DialogueNode[] dialogueNodes)
     {
         var templateRepository = Substitute.For<ICreatureTemplateRepository>();
         templateRepository.FindAllAsync(Arg.Any<bool>(), Arg.Any<CancellationToken>())
@@ -363,7 +390,27 @@ public class CreatureSpawnerShould
         var world = Substitute.For<IWorld>();
         world.Data.Returns(data);
 
-        return new CreatureSpawner(NullLoggerFactory.Instance, world);
+        return new CreatureSpawner(spawnerLogging, world);
+    }
+
+    /// <summary>Counts warnings from every logger it creates.</summary>
+    private sealed class WarningCountingLoggerFactory : ILoggerFactory, ILogger
+    {
+        public int Warnings { get; private set; }
+
+        public ILogger CreateLogger(string categoryName) => this;
+        public void AddProvider(ILoggerProvider provider) { }
+        public void Dispose() { }
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            if (logLevel == LogLevel.Warning)
+                Warnings++;
+        }
     }
 
     /// <summary>

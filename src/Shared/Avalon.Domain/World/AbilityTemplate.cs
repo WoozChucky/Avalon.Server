@@ -50,7 +50,7 @@ public class AbilityTemplate : IDbEntity<AbilityId>
 
     /// <summary>
     /// Metres. The cursor clamp for an AimPoint circle, a cone's length, a projectile's maximum
-    /// travel; 0 for a circle on the caster. Replaces <see cref="Range" />, which nothing reads now.
+    /// travel; 0 for a circle on the caster. Replaces <see cref="Range" />, which new code does not read.
     /// </summary>
     [Required] public float Reach { get; set; }
 
