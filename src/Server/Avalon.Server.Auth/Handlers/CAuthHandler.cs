@@ -103,7 +103,7 @@ public class CAuthHandler : IAuthPacketHandler<CAuthPacket>
                 // written since.
                 _logger.LogWarning("Account {AccountId} is online but no connection was found", account.Id);
                 account.Online = false;
-                await _accountRepository.MarkOfflineAsync(account.Id, cancellationToken: token);
+                await _accountRepository.MarkOfflineAsync(account.Id, account.OnlineSessionId, cancellationToken: token);
             }
             return;
         }
@@ -115,7 +115,7 @@ public class CAuthHandler : IAuthPacketHandler<CAuthPacket>
         // the right password. MFA_REQUIRED, ALREADY_CONNECTED and BANNED/DEACTIVATED above do
         // single it out, by design.
         var lastIp = attempt.Source.Ip;
-        if (!await _accountRepository.TryRecordLoginAsync(account.Id, lastIp, DateTime.UtcNow, token))
+        if (!await _accountRepository.TryRecordLoginAsync(account.Id, lastIp, DateTime.UtcNow, ctx.Connection.Id, token))
         {
             _logger.LogWarning("Account {AccountId} was locked during its login", account.Id);
             ctx.Connection.Send(SAuthResultPacket.Create(null, null, FailureResult(attempt), ctx.Connection.CryptoSession.Encrypt));

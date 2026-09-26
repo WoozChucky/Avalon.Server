@@ -100,7 +100,7 @@ public class AuthConnection : Connection, IAuthConnection
         await using AsyncServiceScope scope = _serviceScopeFactory.CreateAsyncScope();
         IAccountRepository accountRepository = scope.ServiceProvider.GetRequiredService<IAccountRepository>();
 
-        await RecordDisconnectAsync(accountRepository, AccountId, DateTime.UtcNow);
+        await RecordDisconnectAsync(accountRepository, AccountId, Id, DateTime.UtcNow);
     }
 
     /// <summary>
@@ -108,14 +108,15 @@ public class AuthConnection : Connection, IAuthConnection
     /// two columns are written (#484): this runs on every logged-in disconnect, and writing back the
     /// row as read would undo a lock, a ban or a failed-login count written since.
     /// </summary>
-    public static async Task RecordDisconnectAsync(IAccountRepository accountRepository, AccountId accountId, DateTime now)
+    public static async Task RecordDisconnectAsync(IAccountRepository accountRepository, AccountId accountId,
+        Guid sessionId, DateTime now)
     {
         // Disconnect cleanup runs from the TCP read-loop exit path — no request-scoped CT here.
         Account? account = await accountRepository.FindByIdAsync(accountId, false, CancellationToken.None);
         if (account != null)
         {
             long sessionSeconds = Math.Max(0L, (long)(now - account.LastLogin).TotalSeconds);
-            await accountRepository.MarkOfflineAsync(accountId, sessionSeconds, CancellationToken.None);
+            await accountRepository.MarkOfflineAsync(accountId, sessionId, sessionSeconds, CancellationToken.None);
         }
     }
 

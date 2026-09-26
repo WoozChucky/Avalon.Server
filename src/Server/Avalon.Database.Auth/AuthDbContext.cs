@@ -118,6 +118,12 @@ public class AuthDbContext : DbContext
                 v => new AccountId(v)
             ).IsRequired();
 
+        // One account per username (#487). Usernames are stored the way they are looked up,
+        // trimmed and upper-cased (registration normalises them), so an index on the column is an
+        // index on the normalised name. Without it two registrations racing past the "taken" check
+        // both inserted, and which account a login reached depended on the row order.
+        builder.HasIndex(b => b.Username).IsUnique();
+
         builder.Property(b => b.Locale)
             .HasConversion(new EnumToStringConverter<AccountLocale>());
         builder.Property(b => b.Os)

@@ -49,7 +49,8 @@ public class CMFAVerifyHandlerShould
     {
         _connection.CryptoSession.Returns(_cryptoSession);
         _connection.RemoteEndPoint.Returns("127.0.0.1:12345");
-        _accountRepository.TryRecordLoginAsync(default!, default!, default, default).ReturnsForAnyArgs(true);
+        _connection.Id.Returns(Guid.NewGuid());
+        _accountRepository.TryRecordLoginAsync(default!, default!, default, default, default).ReturnsForAnyArgs(true);
         // A live MFA hash for account 1 with its first attempt, unless a test says otherwise.
         _mfaHashService.GetAccountIdAsync(Arg.Any<string>()).Returns(new AccountId(1L));
         _mfaHashService.RecordAttemptAsync(Arg.Any<AccountId>()).Returns(1L);
@@ -78,8 +79,9 @@ public class CMFAVerifyHandlerShould
         _connection.Received(1).Send(Arg.Any<NetworkPacket>());
         _connection.Received().AccountId = accountId;
         await _cache.Received(1).PublishAsync(CacheKeys.AuthAccountsOnlineChannel, Arg.Any<string>());
+        // The login is recorded as this connection's session (#487).
         await _accountRepository.Received(1).TryRecordLoginAsync(accountId, "127.0.0.1", Arg.Any<DateTime>(),
-            Arg.Any<CancellationToken>());
+            _connection.Id, Arg.Any<CancellationToken>());
         await _accountRepository.DidNotReceiveWithAnyArgs().UpdateAsync(default!, default);
     }
 
@@ -174,7 +176,7 @@ public class CMFAVerifyHandlerShould
         await _cache.Received(1).PublishAsync("world:accounts:disconnect", Arg.Any<string>());
         Assert.False(account.Online);
         // Only the Online flag, never the whole row (#484).
-        await _accountRepository.Received(1).MarkOfflineAsync(accountId, 0, Arg.Any<CancellationToken>());
+        await _accountRepository.Received(1).MarkOfflineAsync(accountId, Arg.Any<Guid?>(), 0, Arg.Any<CancellationToken>());
         await _accountRepository.DidNotReceiveWithAnyArgs().UpdateAsync(default!, default);
     }
 
@@ -497,7 +499,7 @@ public class CMFAVerifyHandlerShould
         await VerifyAsync("123456");
 
         await _accountRepository.Received(1).TryRecordLoginAsync(accountId, "2001:db8:1:2:3:4:5:6",
-            Arg.Any<DateTime>(), Arg.Any<CancellationToken>());
+            Arg.Any<DateTime>(), Arg.Any<Guid>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]

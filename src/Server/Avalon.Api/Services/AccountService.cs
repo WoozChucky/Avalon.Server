@@ -163,6 +163,7 @@ public class AccountService : IAccountService
     }
 
     private const string InvalidCredentials = "Invalid username or password";
+    private const string UsernameTaken = "Username already exists";
 
     /// <summary>The answer to a failed password in this attempt's budget slot: locked in the last one.</summary>
     private Exception FailureFor(PasswordAttempt attempt) =>
@@ -171,12 +172,10 @@ public class AccountService : IAccountService
     public async Task<(RegisterResponse Response, AccountId AccountId)> Register(RegisterRequest model, string userAgent, IPAddress ipAddress,
         CancellationToken cancellationToken)
     {
-        var existingAccount = await _accountRepository.FindByUserNameAsync(
-            model.Username.ToUpperInvariant().Trim(),
-            cancellationToken
-        );
+        var username = model.Username.ToUpperInvariant().Trim();
+        var existingAccount = await _accountRepository.FindByUserNameAsync(username, cancellationToken);
         if (existingAccount != null)
-            throw new BusinessException("Username already exists");
+            throw new BusinessException(UsernameTaken);
 
         existingAccount = await _accountRepository.FindByEmailAsync(model.Email, cancellationToken);
         if (existingAccount != null)
@@ -190,7 +189,7 @@ public class AccountService : IAccountService
 
         var account = new Account
         {
-            Username = model.Username.ToUpperInvariant().Trim(),
+            Username = username,
             Email = model.Email,
             Salt = saltBytes,
             Verifier = hashBytes,
@@ -201,7 +200,19 @@ public class AccountService : IAccountService
             Os = OperatingSystem.Windows,
         };
 
-        account = await _accountRepository.CreateAsync(account, cancellationToken);
+        try
+        {
+            account = await _accountRepository.CreateAsync(account, cancellationToken);
+        }
+        catch (DbUpdateException)
+        {
+            // The check above and this insert are not atomic: a registration of the same name can
+            // land in between, and the unique index on Username refuses ours (#487). Its caller
+            // gets the answer the check would have given. Any other failure is rethrown.
+            if (await _accountRepository.FindByUserNameAsync(username, cancellationToken) != null)
+                throw new BusinessException(UsernameTaken);
+            throw;
+        }
 
         if (account == null)
             throw new Exception("Failed to insert account");

@@ -45,9 +45,9 @@ internal sealed class StaleAccountRepository(IAccountRepository inner) : IAccoun
         DateTime? lockUntil, CancellationToken cancellationToken = default) =>
         inner.RecordFailedLoginAsync(id, attemptIp, now, lockUntil, cancellationToken);
 
-    public Task<bool> TryRecordLoginAsync(AccountId id, string lastIp, DateTime now,
+    public Task<bool> TryRecordLoginAsync(AccountId id, string lastIp, DateTime now, Guid sessionId,
         CancellationToken cancellationToken = default) =>
-        inner.TryRecordLoginAsync(id, lastIp, now, cancellationToken);
+        inner.TryRecordLoginAsync(id, lastIp, now, sessionId, cancellationToken);
 
     public Task<bool> TryRecordApiLoginAsync(AccountId id, string lastIp, DateTime now,
         CancellationToken cancellationToken = default) =>
@@ -66,8 +66,9 @@ internal sealed class StaleAccountRepository(IAccountRepository inner) : IAccoun
         return await inner.SetAccessLevelAsync(id, accessLevel, cancellationToken);
     }
 
-    public Task MarkOfflineAsync(AccountId id, long sessionSeconds = 0, CancellationToken cancellationToken = default) =>
-        inner.MarkOfflineAsync(id, sessionSeconds, cancellationToken);
+    public Task MarkOfflineAsync(AccountId id, Guid? sessionId, long sessionSeconds = 0,
+        CancellationToken cancellationToken = default) =>
+        inner.MarkOfflineAsync(id, sessionId, sessionSeconds, cancellationToken);
 
     public Task MarkAllOfflineAsync(CancellationToken cancellationToken = default) =>
         inner.MarkAllOfflineAsync(cancellationToken);

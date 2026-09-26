@@ -47,8 +47,16 @@ public class AuthServer(
 
         Certificate = X509CertificateLoader.LoadPkcs12(serverCertBytes, _securityOptions.CertificatePassword);
 
-        // Reset account online status: one statement that writes only the flag (#484). Reading every
-        // row and writing each back whole would undo any ban or lock written in between.
+        // Reset account online status: one statement that writes only the flag and its session
+        // (#484, #487). Reading every row and writing each back whole would undo any ban or lock
+        // written in between.
+        //
+        // Exactly one auth server is supported (#487), and this reset is where that is assumed: it
+        // clears every account's Online flag, including any a second server's live connections
+        // set. The duplicate-login check (ALREADY_CONNECTED, then closing the other connection)
+        // looks only at this server's connections too, so a second server would break it with or
+        // without this reset; scoping the reset to this server's sessions would fix one half of a
+        // setup that does not work anyway. The Helm chart runs one replica.
         await accountRepository.MarkAllOfflineAsync(stoppingToken);
 
         RegisterNewConnectionListener(NewConnection);

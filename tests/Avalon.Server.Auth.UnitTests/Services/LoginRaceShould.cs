@@ -254,8 +254,8 @@ public sealed class LoginRaceShould : IDisposable
         Account account = await _accounts.CreateAsync(NewAccount());
         await LockAsync(account.Id);
 
-        Assert.False(await _accounts.TryRecordLoginAsync(account.Id, "10.0.0.2", DateTime.UtcNow));
-        Assert.True(await _accounts.TryRecordLoginAsync(account.Id, "10.0.0.2", DateTime.UtcNow.AddMinutes(20)));
+        Assert.False(await _accounts.TryRecordLoginAsync(account.Id, "10.0.0.2", DateTime.UtcNow, Guid.NewGuid()));
+        Assert.True(await _accounts.TryRecordLoginAsync(account.Id, "10.0.0.2", DateTime.UtcNow.AddMinutes(20), Guid.NewGuid()));
 
         Account stored = await StoredAsync(account.Id);
         Assert.True(stored.Online);

@@ -50,6 +50,13 @@ public class Account : IDbEntity<AccountId>
 
     public bool Online { get; set; } = false;
 
+    /// <summary>
+    /// The auth-server connection whose login set <see cref="Online"/> (#487), or <c>null</c> while
+    /// offline. A connection clears the flag on close only while this is still its own id, so a
+    /// stale disconnect cannot mark offline an account a newer session is using.
+    /// </summary>
+    public Guid? OnlineSessionId { get; set; }
+
     public DateTime? MuteTime { get; set; }
 
     public string MuteReason { get; set; } = string.Empty;

@@ -41,7 +41,7 @@ public class CAuthHandlerShould
         _connection.CryptoSession.Returns(_cryptoSession);
         _connection.RemoteEndPoint.Returns("127.0.0.1:12345");
         _connection.Id.Returns(Guid.NewGuid());
-        _accountRepository.TryRecordLoginAsync(default!, default!, default, default).ReturnsForAnyArgs(true);
+        _accountRepository.TryRecordLoginAsync(default!, default!, default, default, default).ReturnsForAnyArgs(true);
         _handler = CreateHandler();
     }
 
@@ -266,6 +266,8 @@ public class CAuthHandlerShould
     {
         var account = MakeAccount(online: true);
         account.Id = new AccountId(42L);
+        Guid staleSession = Guid.NewGuid();
+        account.OnlineSessionId = staleSession;
         _accountRepository.FindByUserNameAsync(Arg.Any<string>()).Returns(account);
 
         // Server.Connections returns empty — no connected session found
@@ -294,7 +296,8 @@ public class CAuthHandlerShould
         await _cache.Received(1).PublishAsync("world:accounts:disconnect", Arg.Any<string>());
         // No session found => only the Online flag is cleared, never the whole row (#484)
         Assert.False(account.Online);
-        await _accountRepository.Received(1).MarkOfflineAsync(account.Id, 0, Arg.Any<CancellationToken>());
+        // ...and only while the session that set it is still the one online (#487).
+        await _accountRepository.Received(1).MarkOfflineAsync(account.Id, staleSession, 0, Arg.Any<CancellationToken>());
         await _accountRepository.DidNotReceiveWithAnyArgs().UpdateAsync(default!, default);
     }
 
@@ -315,8 +318,9 @@ public class CAuthHandlerShould
         Assert.True(account.Online);
         Assert.Equal(0, account.FailedLogins);
         _connection.Received(1).Send(Arg.Any<NetworkPacket>());
+        // The login is recorded as this connection's session (#487).
         await _accountRepository.Received(1).TryRecordLoginAsync(account.Id, "127.0.0.1", Arg.Any<DateTime>(),
-            Arg.Any<CancellationToken>());
+            _connection.Id, Arg.Any<CancellationToken>());
         await _accountRepository.DidNotReceiveWithAnyArgs().UpdateAsync(default!, default);
         await _cache.Received(1).PublishAsync("auth:accounts:online", Arg.Any<string>());
     }
@@ -837,7 +841,7 @@ public class CAuthHandlerShould
         await LogInAsync(CreateHandler(HardeningOptions()));
 
         await _accountRepository.Received(1).TryRecordLoginAsync(account.Id, "2001:db8:1:2:3:4:5:6",
-            Arg.Any<DateTime>(), Arg.Any<CancellationToken>());
+            Arg.Any<DateTime>(), Arg.Any<Guid>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
