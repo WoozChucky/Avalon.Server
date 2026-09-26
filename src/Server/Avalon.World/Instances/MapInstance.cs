@@ -873,9 +873,11 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IDisposab
             character.RequiredExperience = _world.Data.CharacterLevelExperiences
                 .FirstOrDefault(exp => exp.Level == character.Level)?.Experience ?? 0;
 
-            // #434: the new level's stats, with health and power refilled.
+            // #434: the new level's stats, with health and power refilled. A kill can land after its
+            // killer has died (a projectile in flight); a corpse keeps its share, so it stays at 0.
             if (character is CharacterEntity entity
-                && !CharacterStatsRefresh.Apply(entity, _world.Data, CurrentValues.Refill))
+                && !CharacterStatsRefresh.Apply(entity, _world.Data,
+                    entity.IsDead ? CurrentValues.KeepShare : CurrentValues.Refill))
             {
                 _logger.LogWarning("No class stats for {Class} level {Level}; {Name} keeps its old maximums",
                     entity.Class, entity.Level, entity.Name);

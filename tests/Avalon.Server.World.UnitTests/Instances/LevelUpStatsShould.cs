@@ -62,6 +62,50 @@ public class LevelUpStatsShould
         Assert.Equal(killer.Health, killer.CurrentHealth);
         Assert.Equal(100u, killer.CurrentPower);
         Assert.Equal(50u, killer.Stats!.Value.AttackDamage);
+        Assert.True(killer.SaveState.StatsDirty);
+        instance.Dispose();
+    }
+
+    /// <summary>
+    /// A kill can land after its killer has died (a projectile in flight, an ability still
+    /// ticking). The level-up still raises the maximums, but it must not refill a corpse: a dead
+    /// character stays dead at 0 health.
+    /// </summary>
+    [Fact]
+    public async Task Level_up_a_dead_killer_without_refilling_its_corpse()
+    {
+        StaticData data = await TestStaticData.LoadAsync(
+            classStats: WarriorRows,
+            levels:
+            [
+                new CharacterLevelExperience { Level = 1, Experience = 100 },
+                new CharacterLevelExperience { Level = 2, Experience = 500 },
+            ]);
+        var world = Substitute.For<IWorld>();
+        world.Configuration.Returns(new GameConfiguration());
+        world.MapTemplates.Returns(new List<MapTemplate> { new() { Id = new MapTemplateId(1), Name = "Town" } });
+        world.Data.Returns(data);
+        MapInstance instance = TestMapInstances.Build(world);
+
+        CharacterEntity killer = TestCharacters.New();
+        CharacterStatsRefresh.Apply(killer, data, CurrentValues.Refill);
+        killer.CurrentHealth = 0;
+        killer.IsDead = true;
+
+        var creature = new Creature
+        {
+            Guid = new ObjectGuid(ObjectType.Creature, 434_003),
+            Metadata = Substitute.For<ICreatureMetadata>(),
+            Experience = 150,
+        };
+        instance.AddCreature(creature);
+
+        creature.Died(killer);
+
+        Assert.Equal((ushort)2, killer.Level);
+        Assert.Equal(40u + 24u * 10u, killer.Health);
+        Assert.True(killer.IsDead);
+        Assert.Equal(0u, killer.CurrentHealth);
         instance.Dispose();
     }
 
@@ -84,6 +128,7 @@ public class LevelUpStatsShould
 
         CharacterEntity killer = TestCharacters.New();
         CharacterStatsRefresh.Apply(killer, data, CurrentValues.Refill);
+        killer.CurrentHealth = 90;
 
         var creature = new Creature
         {
@@ -97,6 +142,7 @@ public class LevelUpStatsShould
 
         Assert.Equal((ushort)2, killer.Level);
         Assert.Equal(240u, killer.Health);
+        Assert.Equal(90u, killer.CurrentHealth);
         instance.Dispose();
     }
 }
