@@ -1,4 +1,3 @@
-using System.Diagnostics.Metrics;
 using System.Net.Security;
 using System.Net.Sockets;
 using System.Security.Authentication;
@@ -39,13 +38,8 @@ public interface IAuthConnection : IConnection
 public class AuthConnection : Connection, IAuthConnection
 {
     private readonly IServiceScopeFactory _serviceScopeFactory;
-    private ObservableGauge<double> _bytesReceivedRate;
-    private ObservableGauge<double> _bytesSentRate;
 
     private byte[] _handshakeData = [];
-
-    private ObservableGauge<double> _packetReceivedRate;
-    private ObservableGauge<double> _packetSentRate;
 
     public AuthConnection(IServerBase server, TcpClient client, ILoggerFactory loggerFactory,
         IPacketReader packetReader, IServiceScopeFactory serviceScopeFactory)
@@ -54,15 +48,6 @@ public class AuthConnection : Connection, IAuthConnection
         _serviceScopeFactory = serviceScopeFactory;
         Server = (server as AuthServer)!;
         Init(client);
-
-        _packetSentRate = DiagnosticsConfig.World.Meter.CreateObservableGauge("network.out.packets.rate",
-            () => PacketSentRate, "packets/s", "Rate of packets sent");
-        _packetReceivedRate = DiagnosticsConfig.World.Meter.CreateObservableGauge("network.in.packets.rate",
-            () => PacketReceivedRate, "packets/s", "Rate of packets received");
-        _bytesSentRate = DiagnosticsConfig.World.Meter.CreateObservableGauge("network.out.bytes.rate",
-            () => BytesSentRate, "bytes/s", "Rate of bytes sent");
-        _bytesReceivedRate = DiagnosticsConfig.World.Meter.CreateObservableGauge("network.in.bytes.rate",
-            () => BytesReceivedRate, "bytes/s", "Rate of bytes received");
     }
 
     public AccountId? AccountId { get; set; }
