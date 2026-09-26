@@ -109,6 +109,20 @@ public class InteractHandlerShould
     }
 
     [Fact]
+    public void Still_Need_Interact_Range_To_Open_Inside_The_Leash()
+    {
+        // 6 m is inside the 15 m dialogue leash, but the leash only keeps an open conversation
+        // alive. Starting one still needs the 5 m interact range.
+        Fixture fixture = Fixture.WithTalkingNpc();
+        fixture.Npc.Position.Returns(new Vector3(0, 0, 6));
+
+        fixture.Handler.Execute(fixture.Connection, new CInteractPacket { TargetGuid = NpcGuid.RawValue });
+
+        fixture.Connection.DidNotReceive().Send(Arg.Any<NetworkPacket>());
+        Assert.Null(fixture.Connection.CurrentDialogue);
+    }
+
+    [Fact]
     public void Restart_At_The_Root_When_Interacting_Mid_Conversation()
     {
         // What a player expects from clicking an NPC twice, and it unwedges a client that lost the
