@@ -75,7 +75,8 @@ public class VendorRulesShould
         uint BladesSold = 0,
         uint ElixirsSold = 0,
         bool QuestMet = false,
-        bool TonicGone = false);
+        bool TonicGone = false,
+        uint? CharmSellPrice = null);
 
     private static readonly BuyCase[] BuyCases =
     [
@@ -83,6 +84,9 @@ public class VendorRulesShould
         new("Multiply the price by the count", [], 100, TonicSequence, 5, VendorResult.Ok, Total: 50),
         new("Buy exactly what the gold covers", [], 50, TonicSequence, 5, VendorResult.Ok, Total: 50),
         new("Charge the row's price override", [], 40, CharmSequence, null, VendorResult.Ok, Total: 40),
+        // A /reload items raised the Charm's SellPrice to 45, above the row's override of 40, with no
+        // vendor reload to refuse the row: the price never drops below what the item sells back for.
+        new("Charge the SellPrice when the row is priced below it", [], 100, CharmSequence, null, VendorResult.Ok, Total: 45, CharmSellPrice: 45),
         new("Buy a whole stack", [], 1000, TonicSequence, 20, VendorResult.Ok, Total: 200),
         new("Buy the last unit", [], 1000, BladeSequence, null, VendorResult.Ok, Total: 100, BladesSold: 1),
 
@@ -152,6 +156,15 @@ public class VendorRulesShould
         Func<ItemTemplateId, ItemTemplate?> find = Find;
         if (row.TonicGone)
             find = id => id == Tonic.Id ? null : Find(id);
+        if (row.CharmSellPrice is { } sellPrice)
+        {
+            var raised = new ItemTemplate
+            {
+                Id = Charm.Id, Name = Charm.Name, Class = Charm.Class, SubClass = Charm.SubClass,
+                MaxStackSize = Charm.MaxStackSize, Flags = Charm.Flags, BuyPrice = Charm.BuyPrice, SellPrice = sellPrice,
+            };
+            find = id => id == Charm.Id ? raised : Find(id);
+        }
 
         BuyDecision decision = VendorRules.DecideBuy(character, row.Shop, stock, row.Sequence, row.Count, find, quests);
 

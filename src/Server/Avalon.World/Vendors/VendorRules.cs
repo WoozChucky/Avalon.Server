@@ -35,8 +35,14 @@ public readonly record struct BuybackDecision(VendorResult Result, BuybackPlan? 
 /// </summary>
 public static class VendorRules
 {
-    /// <summary>Copper per unit: the row's override, or the item's BuyPrice.</summary>
-    public static ulong UnitPrice(VendorStockView row, ItemTemplate item) => row.PriceOverride ?? item.BuyPrice;
+    /// <summary>
+    /// Copper per unit: the row's override, or the item's BuyPrice, and never less than the item's
+    /// SellPrice. VendorCatalog refuses a row priced below SellPrice, but a later /reload items can
+    /// raise a SellPrice without a vendor reload, so the floor is enforced here too: buying an item
+    /// must never cost less than selling it back pays (#432).
+    /// </summary>
+    public static ulong UnitPrice(VendorStockView row, ItemTemplate item) =>
+        Math.Max(row.PriceOverride ?? item.BuyPrice, item.SellPrice);
 
     /// <summary>A row with a quest requirement is shown, and sold, only once IQuestProgress says it is met.</summary>
     public static bool IsVisible(VendorStockView row, CharacterEntity character, IQuestProgress quests) =>
