@@ -23,10 +23,10 @@ public static class ChunkCatalogSeeder
     public static async Task<ChunkCatalogSeedResult> SeedAsync(WorldDbContext db, string mapsRoot,
         CancellationToken ct = default)
     {
-        List<ChunkMetaDto> chunks = LoadChunks(mapsRoot);
+        List<ChunkMetaDto> chunks = await LoadChunksAsync(mapsRoot, ct);
         HashSet<string> chunkNames = chunks.Select(c => c.Name).ToHashSet(StringComparer.Ordinal);
-        List<(string Path, TownLayoutDto Layout)> layouts = LoadLayouts(mapsRoot, chunkNames);
-        Dictionary<string, string[]> pools = LoadPools(mapsRoot, chunkNames);
+        List<(string Path, TownLayoutDto Layout)> layouts = await LoadLayoutsAsync(mapsRoot, chunkNames, ct);
+        Dictionary<string, string[]> pools = await LoadPoolsAsync(mapsRoot, chunkNames, ct);
 
         await using var tx = await db.Database.BeginTransactionAsync(ct);
 
@@ -46,7 +46,7 @@ public static class ChunkCatalogSeeder
         return new ChunkCatalogSeedResult(added, updated, layouts.Count, pools.Count);
     }
 
-    private static List<ChunkMetaDto> LoadChunks(string mapsRoot)
+    private static async Task<List<ChunkMetaDto>> LoadChunksAsync(string mapsRoot, CancellationToken ct)
     {
         string dir = Path.Combine(mapsRoot, "Chunks");
         if (!Directory.Exists(dir)) return [];
@@ -54,7 +54,7 @@ public static class ChunkCatalogSeeder
         List<ChunkMetaDto> chunks = [];
         foreach (string jsonPath in Directory.EnumerateFiles(dir, "*.json").Order(StringComparer.Ordinal))
         {
-            ChunkMetaDto meta = Read<ChunkMetaDto>(jsonPath);
+            ChunkMetaDto meta = await ReadAsync<ChunkMetaDto>(jsonPath, ct);
             if (meta.Name != Path.GetFileNameWithoutExtension(jsonPath))
                 throw new InvalidDataException($"{jsonPath}: name '{meta.Name}' does not match the file name");
             if (!File.Exists(Path.Combine(dir, meta.Name + ".obj")))
@@ -64,7 +64,8 @@ public static class ChunkCatalogSeeder
         return chunks;
     }
 
-    private static List<(string, TownLayoutDto)> LoadLayouts(string mapsRoot, HashSet<string> chunkNames)
+    private static async Task<List<(string, TownLayoutDto)>> LoadLayoutsAsync(string mapsRoot,
+        HashSet<string> chunkNames, CancellationToken ct)
     {
         string dir = Path.Combine(mapsRoot, "TownLayouts");
         if (!Directory.Exists(dir)) return [];
@@ -72,7 +73,7 @@ public static class ChunkCatalogSeeder
         List<(string, TownLayoutDto)> layouts = [];
         foreach (string path in Directory.EnumerateFiles(dir, "*.json").Order(StringComparer.Ordinal))
         {
-            TownLayoutDto layout = Read<TownLayoutDto>(path);
+            TownLayoutDto layout = await ReadAsync<TownLayoutDto>(path, ct);
             if (layout.Chunks.Count == 0)
                 throw new InvalidDataException($"{path}: chunks empty");
             if (layout.Chunks.Count(c => c.IsEntry) != 1)
@@ -88,12 +89,13 @@ public static class ChunkCatalogSeeder
         return layouts;
     }
 
-    private static Dictionary<string, string[]> LoadPools(string mapsRoot, HashSet<string> chunkNames)
+    private static async Task<Dictionary<string, string[]>> LoadPoolsAsync(string mapsRoot,
+        HashSet<string> chunkNames, CancellationToken ct)
     {
         string path = Path.Combine(mapsRoot, "chunk-pools.json");
         if (!File.Exists(path)) return [];
 
-        Dictionary<string, string[]> pools = Read<Dictionary<string, string[]>>(path);
+        Dictionary<string, string[]> pools = await ReadAsync<Dictionary<string, string[]>>(path, ct);
         foreach ((string pool, string[] members) in pools)
         {
             var unknown = members.Where(n => !chunkNames.Contains(n)).ToList();
@@ -236,8 +238,8 @@ public static class ChunkCatalogSeeder
         return mask;
     }
 
-    private static T Read<T>(string path) =>
-        JsonSerializer.Deserialize<T>(File.ReadAllText(path), Json)
+    private static async Task<T> ReadAsync<T>(string path, CancellationToken ct) =>
+        JsonSerializer.Deserialize<T>(await File.ReadAllTextAsync(path, ct), Json)
         ?? throw new InvalidDataException($"{path}: empty");
 
     private sealed record ChunkMetaDto(
