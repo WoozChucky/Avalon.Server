@@ -20,6 +20,9 @@ using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Entities;
 
+/// <summary>A character took damage; <paramref name="abilityId" /> is the ability that dealt it, or null for a swing (#521 item 8).</summary>
+public delegate void CharacterDamagedDelegate(CharacterEntity character, IUnit attacker, uint damage, AbilityId? abilityId);
+
 public class CharacterEntity : ICharacter
 {
     private readonly CharacterInventoryContainer _bag;
@@ -272,7 +275,10 @@ public class CharacterEntity : ICharacter
 
     public void MarkCombat() => _lastCombatTime = DateTime.UtcNow;
 
-    public void OnHit(IUnit attacker, uint damage)
+    public void OnHit(IUnit attacker, uint damage) => OnHit(attacker, damage, abilityId: null);
+
+    /// <summary>Takes <paramref name="damage" /> from <paramref name="attacker" />; <paramref name="abilityId" /> names the ability that dealt it, or null for a swing.</summary>
+    public void OnHit(IUnit attacker, uint damage, AbilityId? abilityId)
     {
         if (IsDead) return; // corpse — no further state changes or broadcast
 
@@ -292,7 +298,7 @@ public class CharacterEntity : ICharacter
         }
 
         // Send to self (routed via MapInstance which holds the connection)
-        OnSelfDamaged?.Invoke(this, attacker, damage);
+        OnSelfDamaged?.Invoke(this, attacker, damage, abilityId);
         // Broadcast to instance
         OnUnitDamaged?.Invoke(this, attacker, damage);
     }
@@ -494,7 +500,7 @@ public class CharacterEntity : ICharacter
     public static event CharacterDisconnectedDelegate? CharacterDisconnected;
     public static event UnitInterruptedCastAnimationDelegate? OnUnitInterruptedCastAnimation;
     public static event UnitDamagedDelegate? OnUnitDamaged;
-    public static event UnitDamagedDelegate? OnSelfDamaged;
+    public static event CharacterDamagedDelegate? OnSelfDamaged;
 
     private void CalculateMovementSpeed()
     {

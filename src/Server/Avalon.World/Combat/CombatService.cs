@@ -1,6 +1,8 @@
 using System;
 using System.Linq;
 using Avalon.Common.Mathematics;
+using Avalon.Common.ValueObjects;
+using Avalon.World.Entities;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Combat;
@@ -25,12 +27,12 @@ public sealed class CombatService : ICombatService
     }
 
     public void ApplyDamage(IUnit attacker, IUnit target, uint damage, IAbility ability)
-        => ApplyDamageCore(attacker, target, damage, ability.Metadata.ThreatMultiplier);
+        => ApplyDamageCore(attacker, target, damage, ability.Metadata.ThreatMultiplier, ability.AbilityId);
 
     public void ApplyDamage(IUnit attacker, IUnit target, uint damage)
-        => ApplyDamageCore(attacker, target, damage, 1.0f);
+        => ApplyDamageCore(attacker, target, damage, 1.0f, abilityId: null);
 
-    private void ApplyDamageCore(IUnit attacker, IUnit target, uint damage, float threatMultiplier)
+    private void ApplyDamageCore(IUnit attacker, IUnit target, uint damage, float threatMultiplier, AbilityId? abilityId)
     {
         // Invulnerable creatures (town NPCs) absorb nothing and provoke nothing. This sits ahead of
         // ResolveOrSpawn deliberately: attacking one must not create an encounter, add threat, or
@@ -50,8 +52,10 @@ public sealed class CombatService : ICombatService
             enc.AddThreat(target, attacker, threat);
         }
 
-        // Damage application — IUnit.OnHit mutates HP / sets death flags.
-        target.OnHit(attacker, damage);
+        // Damage application — IUnit.OnHit mutates HP / sets death flags. A character is also told
+        // which ability hit it, or none for a swing (#521 item 8).
+        if (target is CharacterEntity character) character.OnHit(attacker, damage, abilityId);
+        else target.OnHit(attacker, damage);
 
         // Combat tag — MarkCombat exists only on ICharacter (see ICharacter.cs). Apply to whichever
         // participants are characters; creature in-combat state is tracked through encounter membership.
@@ -105,8 +109,19 @@ public sealed class CombatService : ICombatService
         else if (unit is ICharacter)  enc.AddPlayer(unit);
     }
 
+    /// <summary>
+    /// Restores up to <paramref name="amount" />, capped at the target's maximum (#164). A dead unit is
+    /// never healed. The health change reaches clients through entity replication, as regeneration's
+    /// does. Heal threat is unchanged: <c>amount × HealThreatPerHp × class modifier</c>, split across
+    /// the hostiles in the target's encounter.
+    /// </summary>
     public void ApplyHeal(IUnit healer, IUnit target, uint amount, IAbility ability)
     {
+        bool dead = target is ICharacter { IsDead: true } || target.CurrentHealth == 0;
+        if (dead) return;
+
+        target.CurrentHealth = (uint)Math.Min((ulong)target.Health, (ulong)target.CurrentHealth + amount);
+
         if (ability.Metadata.HealThreatPerHp <= 0) return;
 
         var enc = _registry.FindEncounterContaining(target) as Encounter;

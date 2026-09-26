@@ -1,6 +1,7 @@
 using System.IO;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abstractions;
+using Avalon.Network.Packets.State;
 using Avalon.World;
 using Avalon.World.Configuration;
 using Avalon.World.Entities;
@@ -23,6 +24,11 @@ internal sealed record MapInstanceClient(IWorldConnection Connection, CharacterE
             using var stream = new MemoryStream(p.Payload);
             return Serializer.Deserialize<T>(stream);
         })
+        .ToList();
+
+    /// <summary>Every object state this client was sent in a world state update, oldest first.</summary>
+    public List<ObjectState> StateUpdates() => Read<SInstanceStateUpdatePacket>(NetworkPacketType.SMSG_WORLD_STATE_UPDATE)
+        .SelectMany(p => p.Updates ?? [])
         .ToList();
 }
 

@@ -833,15 +833,15 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         BroadcastUnitHit(attacker, unit, unit.CurrentHealth, damage);
     }
 
-    private void OnCharacterSelfDamaged(IUnit unit, IUnit attacker, uint damage)
+    private void OnCharacterSelfDamaged(CharacterEntity character, IUnit attacker, uint damage, AbilityId? abilityId)
     {
-        if (unit is not ICharacter character || !_connections.TryGetValue(character.Guid, out IWorldConnection? connection))
+        if (!_connections.TryGetValue(character.Guid, out IWorldConnection? connection))
         {
             return;
         }
 
         connection.Send(SCharacterDamagePacket.Create(attacker.Guid.RawValue, character.Guid.RawValue,
-            character.CurrentHealth, damage, null, connection.CryptoSession.Encrypt));
+            character.CurrentHealth, damage, abilityId?.Value, connection.CryptoSession.Encrypt));
     }
 
     private void OnCreatureKilled(ICreature creature, IUnit killer)
