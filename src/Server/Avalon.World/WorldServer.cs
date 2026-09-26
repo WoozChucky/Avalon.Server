@@ -527,14 +527,52 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
     private void DelayedDisconnect(RedisChannel channel, RedisValue value)
     {
         _logger.LogInformation("Disconnecting account {AccountId}", value);
-        AccountId accountId = value.ToString();
+        CloseAccountSessions(Connections, value, _logger);
+    }
 
-        IWorldConnection? connection = Connections.FirstOrDefault(c => c.AccountId == accountId);
-        if (connection is null) return;
+    /// <summary>What a connection closed by an account disconnect is told (#504 review).</summary>
+    public const string SessionEndedMessage = "Your session has ended. Please log in again.";
 
+    /// <summary>
+    /// Closes every connection in <paramref name="connections"/> held by the account
+    /// <paramref name="message"/> names, and returns how many. Everything that ends an account's
+    /// sessions publishes that message: a duplicate login, a password, email or role change, an MFA
+    /// reset or removal, a ban, a refresh-token reuse. It is the bare account id, so it cannot say
+    /// which, and every connection is told the same neutral <see cref="SessionEndedMessage"/> with
+    /// <see cref="DisconnectReason.Kicked"/>, never "logged in from another location". All of them,
+    /// not the first (#504 review): a second connection of the account, a duplicate session or one
+    /// still closing, would otherwise keep the access the change took away. A message that names no
+    /// account is ignored; one connection that throws while closing is logged and the rest are
+    /// still closed.
+    /// </summary>
+    public static int CloseAccountSessions(IEnumerable<IWorldConnection> connections, RedisValue message, ILogger logger)
+    {
+        if (!long.TryParse(message.ToString(), System.Globalization.NumberStyles.None,
+                System.Globalization.CultureInfo.InvariantCulture, out long id))
+        {
+            logger.LogWarning("Ignored an account disconnect that names no account: {Message}", message.ToString());
+            return 0;
+        }
+
+        var accountId = new AccountId(id);
+        int closed = 0;
+        // A snapshot: closing a connection can change the collection it came from.
+        foreach (IWorldConnection connection in connections.Where(c => c.AccountId == accountId).ToList())
+        {
+            try
+            {
 #pragma warning disable MA0045 // a cache subscription callback, and the process stays up to finish the close
-        GracefulShutdownHelper.NotifyAndClose(connection, "Your account has been logged in from another location.", DisconnectReason.DuplicateLogin, _logger);
+                GracefulShutdownHelper.NotifyAndClose(connection, SessionEndedMessage, DisconnectReason.Kicked, logger);
 #pragma warning restore MA0045
+                closed++;
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Could not close a world connection of account {AccountId}", id);
+            }
+        }
+
+        return closed;
     }
 
     #endregion
