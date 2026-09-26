@@ -14,4 +14,11 @@ public static class ItemInstanceDefaults
         ItemClass.Armor => 69U,
         _ => 0U,
     };
+
+    /// <summary>
+    /// What undamaged means (spec #432): an item below this cannot be sold. Today it is the
+    /// durability a new instance starts with. This is the one place a later max-durability column
+    /// on ItemTemplate has to change.
+    /// </summary>
+    public static uint FullDurability(ItemTemplate template) => InitialDurability(template);
 }

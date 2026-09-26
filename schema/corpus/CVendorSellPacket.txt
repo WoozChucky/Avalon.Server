@@ -1,0 +1,58 @@
+# CVendorSellPacket - golden wire vectors.
+#
+# GENERATED FILE. The bytes below are what the server's serializer writes for the
+# values shown above them, so a client is conformant when it produces the same ones,
+# and a change in what the server emits arrives here as a diff.
+#
+#   Emitted by  tools/Avalon.Exporter
+#   Regenerate  dotnet run --project tools/Avalon.Exporter -- corpus
+#   Format      described in schema/README.md
+#   Schema      the message of this name in schema/avalon.proto
+#
+# A variant is one shape of the same message. "absent" sets nothing, "empty" sets
+# everything to a present-but-empty value, and the rest carry values chosen to make
+# a particular encoding decision observable.
+
+message CVendorSellPacket
+
+variant absent
+  field 1 RequestId : uint = 0
+  field 2 BagSlot : uint = 0
+  field 3 Count : uint? = null
+  bytes 0
+
+variant empty
+  field 1 RequestId : uint = 0
+  field 2 BagSlot : uint = 0
+  field 3 Count : uint? = 0
+  bytes 2
+    18 00
+
+variant populated
+  field 1 RequestId : uint = 7
+  field 2 BagSlot : uint = 42
+  field 3 Count : uint? = 19
+  bytes 6
+    08 07 10 2a 18 13
+
+variant maxima
+  field 1 RequestId : uint = 4294967295
+  field 2 BagSlot : uint = 4294967295
+  field 3 Count : uint? = 4294967295
+  bytes 18
+    08 ff ff ff ff 0f 10 ff ff ff ff 0f 18 ff ff ff
+    ff 0f
+
+variant minima
+  field 1 RequestId : uint = 0
+  field 2 BagSlot : uint = 0
+  field 3 Count : uint? = 0
+  bytes 2
+    18 00
+
+variant varint-edges
+  field 1 RequestId : uint = 16383
+  field 2 BagSlot : uint = 2097151
+  field 3 Count : uint? = 268435456
+  bytes 13
+    08 ff 7f 10 ff ff 7f 18 80 80 80 80 01

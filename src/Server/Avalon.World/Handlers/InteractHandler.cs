@@ -11,6 +11,7 @@ using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Dialogue;
 using Avalon.World.Public.Instances;
 using Avalon.World.Public.Localization;
+using Avalon.World.Vendors;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Handlers;
@@ -85,14 +86,14 @@ public class InteractHandler(ILogger<InteractHandler> logger, IWorld world)
             return;
         }
 
-        // A new conversation, even with the same banker, starts with the bank closed. The old one is
-        // ended out loud when it was with someone else, or when it had the bank open: the client
-        // hides the bank window only on SMSG_DIALOGUE_END (#463).
-        bool bankOpen = character is CharacterEntity entity && BankAccess.IsOpen(connection, entity);
-        if (connection.CurrentDialogue is { } old && (old.Npc != npc.Guid || bankOpen))
+        // A new conversation, even with the same NPC, starts with the bank and the shop closed. The
+        // old one is ended out loud when it was with someone else, or when it had either window
+        // open: the client hides those windows only on SMSG_DIALOGUE_END (#463, #432).
+        bool windowOpen = character is CharacterEntity entity && (BankAccess.IsOpen(connection, entity) || ShopAccess.IsOpen(connection, entity));
+        if (connection.CurrentDialogue is { } old && (old.Npc != npc.Guid || windowOpen))
             NpcInteraction.EndConversation(connection, old.Npc);
         else if (character is CharacterEntity stale)
-            stale.OpenBankNpc = null;
+            stale.CloseNpcWindows();
 
         // Interacting again mid-conversation restarts at the root, which is what clicking an NPC
         // twice should do and what unwedges a client that lost its window.

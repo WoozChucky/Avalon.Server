@@ -114,4 +114,30 @@ public class MapSessionFilterShould
         Assert.False(For(CharacterOffMap()).CanProcess(NetworkPacketType.CMSG_ITEM_MOVE));
         Assert.False(For(CharacterOffMap()).CanProcess(NetworkPacketType.CMSG_ITEM_DESTROY));
     }
+
+    [Fact]
+    public void Accept_Vendor_Requests_For_A_Character_On_A_Map()
+    {
+        MapSessionFilter filter = For(CharacterOnMap());
+
+        Assert.True(filter.CanProcess(NetworkPacketType.CMSG_VENDOR_BUY));
+        Assert.True(filter.CanProcess(NetworkPacketType.CMSG_VENDOR_SELL));
+        Assert.True(filter.CanProcess(NetworkPacketType.CMSG_VENDOR_BUYBACK));
+    }
+
+    [Fact]
+    public void Reject_Vendor_Requests_Without_A_Character()
+    {
+        Assert.False(For(null).CanProcess(NetworkPacketType.CMSG_VENDOR_BUY));
+        Assert.False(For(null).CanProcess(NetworkPacketType.CMSG_VENDOR_SELL));
+        Assert.False(For(null).CanProcess(NetworkPacketType.CMSG_VENDOR_BUYBACK));
+    }
+
+    [Fact]
+    public void Reject_Vendor_Requests_Off_Map()
+    {
+        Assert.False(For(CharacterOffMap()).CanProcess(NetworkPacketType.CMSG_VENDOR_BUY));
+        Assert.False(For(CharacterOffMap()).CanProcess(NetworkPacketType.CMSG_VENDOR_SELL));
+        Assert.False(For(CharacterOffMap()).CanProcess(NetworkPacketType.CMSG_VENDOR_BUYBACK));
+    }
 }

@@ -335,6 +335,33 @@
       "flagNames": "Encrypted"
     },
     {
+      "name": "CMSG_VENDOR_BUY",
+      "opcode": 8336,
+      "hex": "0x2090",
+      "message": "CVendorBuyPacket",
+      "direction": "ClientToServer",
+      "flags": 4,
+      "flagNames": "Encrypted"
+    },
+    {
+      "name": "CMSG_VENDOR_SELL",
+      "opcode": 8337,
+      "hex": "0x2091",
+      "message": "CVendorSellPacket",
+      "direction": "ClientToServer",
+      "flags": 4,
+      "flagNames": "Encrypted"
+    },
+    {
+      "name": "CMSG_VENDOR_BUYBACK",
+      "opcode": 8338,
+      "hex": "0x2092",
+      "message": "CVendorBuybackPacket",
+      "direction": "ClientToServer",
+      "flags": 4,
+      "flagNames": "Encrypted"
+    },
+    {
       "name": "CMSG_CAST_ABILITY",
       "opcode": 8449,
       "hex": "0x2101",
@@ -744,6 +771,24 @@
       "opcode": 12432,
       "hex": "0x3090",
       "message": "SItemResultPacket",
+      "direction": "ServerToClient",
+      "flags": 4,
+      "flagNames": "Encrypted"
+    },
+    {
+      "name": "SMSG_VENDOR_LIST",
+      "opcode": 12448,
+      "hex": "0x30A0",
+      "message": "SVendorListPacket",
+      "direction": "ServerToClient",
+      "flags": 4,
+      "flagNames": "Encrypted"
+    },
+    {
+      "name": "SMSG_VENDOR_RESULT",
+      "opcode": 12449,
+      "hex": "0x30A1",
+      "message": "SVendorResultPacket",
       "direction": "ServerToClient",
       "flags": 4,
       "flagNames": "Encrypted"

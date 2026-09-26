@@ -16,8 +16,9 @@ namespace Avalon.World.Dialogue;
 /// interact the server accepts cannot drift apart.
 /// </summary>
 /// <remarks>
-/// Today an interaction is a conversation, so the rule is "the template has a dialogue root".
-/// When vendors arrive they join it here, and both callers follow.
+/// An interaction is a conversation, so the rule is "the template has a dialogue root". A banker
+/// (#463) and a vendor (#432) are both reached through their dialogue, so neither changed it: a
+/// creature whose dialogue offers OpenBank or OpenShop has a root.
 /// </remarks>
 public static class NpcInteraction
 {
@@ -71,14 +72,22 @@ public static class NpcInteraction
         actions.Offers(templateId, DialogueOptionAction.OpenBank);
 
     /// <summary>
-    /// Ends the open conversation: clears it, closes any bank opened in it, and tells the client,
-    /// whose SMSG_DIALOGUE_END is also its signal to hide the bank window.
+    /// The one rule for who keeps a shop (spec #432): a creature whose dialogue offers OpenShop
+    /// somewhere, as <see cref="IsBanker" /> is for OpenBank. No template flag: the dialogue that
+    /// opens the shop is the definition.
+    /// </summary>
+    public static bool IsVendor(DialogueActions actions, CreatureTemplateId templateId) =>
+        actions.Offers(templateId, DialogueOptionAction.OpenShop);
+
+    /// <summary>
+    /// Ends the open conversation: clears it, closes any bank or shop opened in it, and tells the
+    /// client. SMSG_DIALOGUE_END is also the client's signal to hide the bank and shop windows.
     /// </summary>
     public static void EndConversation(IWorldConnection connection, ObjectGuid npc)
     {
         connection.CurrentDialogue = null;
         if (connection.Character is CharacterEntity character)
-            character.OpenBankNpc = null;
+            character.CloseNpcWindows();
 
         connection.Send(SDialogueEndPacket.Create(npc.RawValue, connection.CryptoSession.Encrypt));
     }

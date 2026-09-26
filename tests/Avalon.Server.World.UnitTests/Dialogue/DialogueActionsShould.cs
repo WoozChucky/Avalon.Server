@@ -48,4 +48,12 @@ public class DialogueActionsShould
         Assert.Null(actions.For(new DialogueOptionId(4)));
         Assert.Equal(1, actions.Count);
     }
+
+    /// <summary>The Action column stores the number, so the enum is append-only (#463, #432).</summary>
+    [Fact]
+    public void Keep_the_stored_action_numbers()
+    {
+        Assert.Equal(0, (int)DialogueOptionAction.OpenBank);
+        Assert.Equal(1, (int)DialogueOptionAction.OpenShop);
+    }
 }

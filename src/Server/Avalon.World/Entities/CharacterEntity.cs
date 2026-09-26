@@ -15,6 +15,7 @@ using Avalon.World.Abilities;
 using Avalon.World.Characters;
 using Avalon.World.Inventory;
 using Avalon.World.Persistence;
+using Avalon.World.Vendors;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Entities;
@@ -150,6 +151,37 @@ public class CharacterEntity : ICharacter
     /// that ends or changes closes the bank whatever this still says.
     /// </summary>
     public ObjectGuid? OpenBankNpc { get; set; }
+
+    /// <summary>
+    /// The NPC whose shop is open (spec #432), or null. Exactly like <see cref="OpenBankNpc" />:
+    /// the shop is open only while the connection's current conversation is with this NPC
+    /// (ShopAccess.IsOpen), so a conversation that ends or changes closes the shop, whatever this
+    /// still says.
+    /// </summary>
+    public ObjectGuid? OpenShopNpc { get; set; }
+
+    /// <summary>
+    /// Closes the bank and the shop together, and forgets any list the shop was owed. Every way a
+    /// conversation ends calls this, so neither window can outlive the conversation it opened in.
+    /// </summary>
+    public void CloseNpcWindows()
+    {
+        OpenBankNpc = null;
+        OpenShopNpc = null;
+        VendorListOwed = false;
+    }
+
+    /// <summary>
+    /// This session's last ten sales to a vendor, newest first (spec #432). In memory only. Cleared
+    /// when the character leaves the world, so a buyback lost on logout is simply a completed sale.
+    /// </summary>
+    public VendorBuyback Buyback { get; } = new();
+
+    /// <summary>
+    /// A sale or a buyback changed this player's buyback list, so the instance's vendor pass owes
+    /// this connection a new SMSG_VENDOR_LIST if its shop is still open (spec #432).
+    /// </summary>
+    public bool VendorListOwed { get; set; }
 
     public ObjectGuid Guid { get; set; }
 

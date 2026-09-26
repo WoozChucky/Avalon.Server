@@ -1,0 +1,101 @@
+# VendorBuybackDto - golden wire vectors.
+#
+# GENERATED FILE. The bytes below are what the server's serializer writes for the
+# values shown above them, so a client is conformant when it produces the same ones,
+# and a change in what the server emits arrives here as a diff.
+#
+#   Emitted by  tools/Avalon.Exporter
+#   Regenerate  dotnet run --project tools/Avalon.Exporter -- corpus
+#   Format      described in schema/README.md
+#   Schema      the message of this name in schema/avalon.proto
+#
+# A variant is one shape of the same message. "absent" sets nothing, "empty" sets
+# everything to a present-but-empty value, and the rest carry values chosen to make
+# a particular encoding decision observable.
+
+message VendorBuybackDto
+
+variant absent
+  field 1 Index : uint = 0
+  field 2 Item : ItemSlotDto = null
+  field 3 Price : ulong = 0
+  bytes 0
+
+variant empty
+  field 1 Index : uint = 0
+  field 2 Item : ItemSlotDto
+    field 1 Container : ushort = 0
+    field 2 Slot : ushort = 0
+    field 3 ItemTemplateId : ulong = 0
+    field 4 ItemInstanceId : Guid = 00000000-0000-0000-0000-000000000000
+    field 5 Count : uint = 0
+    field 6 Durability : uint = 0
+    field 7 Flags : uint = 0
+  field 3 Price : ulong = 0
+  bytes 2
+    12 00
+
+variant populated
+  field 1 Index : uint = 7
+  field 2 Item : ItemSlotDto
+    field 1 Container : ushort = 300
+    field 2 Slot : ushort = 19
+    field 3 ItemTemplateId : ulong = 4000000000
+    field 4 ItemInstanceId : Guid = 0f8fad5b-d9cb-469f-a165-70867728950e
+    field 5 Count : uint = 42
+    field 6 Durability : uint = 300
+    field 7 Flags : uint = 300
+  field 3 Price : ulong = 19
+  bytes 45
+    08 07 12 27 08 ac 02 10 13 18 80 d0 ac f3 0e 22
+    12 09 5b ad 8f 0f cb d9 9f 46 11 a1 65 70 86 77
+    28 95 0e 28 2a 30 ac 02 38 ac 02 18 13
+
+variant maxima
+  field 1 Index : uint = 4294967295
+  field 2 Item : ItemSlotDto
+    field 1 Container : ushort = 65535
+    field 2 Slot : ushort = 65535
+    field 3 ItemTemplateId : ulong = 18446744073709551615
+    field 4 ItemInstanceId : Guid = ffffffff-ffff-ffff-ffff-ffffffffffff
+    field 5 Count : uint = 4294967295
+    field 6 Durability : uint = 4294967295
+    field 7 Flags : uint = 4294967295
+  field 3 Price : ulong = 18446744073709551615
+  bytes 76
+    08 ff ff ff ff 0f 12 39 08 ff ff 03 10 ff ff 03
+    18 ff ff ff ff ff ff ff ff ff 01 22 12 09 ff ff
+    ff ff ff ff ff ff 11 ff ff ff ff ff ff ff ff 28
+    ff ff ff ff 0f 30 ff ff ff ff 0f 38 ff ff ff ff
+    0f 18 ff ff ff ff ff ff ff ff ff 01
+
+variant minima
+  field 1 Index : uint = 0
+  field 2 Item : ItemSlotDto
+    field 1 Container : ushort = 0
+    field 2 Slot : ushort = 0
+    field 3 ItemTemplateId : ulong = 0
+    field 4 ItemInstanceId : Guid = 00000000-0000-0000-0000-000000000000
+    field 5 Count : uint = 0
+    field 6 Durability : uint = 0
+    field 7 Flags : uint = 0
+  field 3 Price : ulong = 0
+  bytes 2
+    12 00
+
+variant varint-edges
+  field 1 Index : uint = 268435456
+  field 2 Item : ItemSlotDto
+    field 1 Container : ushort = 16383
+    field 2 Slot : ushort = 128
+    field 3 ItemTemplateId : ulong = 128
+    field 4 ItemInstanceId : Guid = 01020304-0506-0708-090a-0b0c0d0e0f10
+    field 5 Count : uint = 268435455
+    field 6 Durability : uint = 2097151
+    field 7 Flags : uint = 268435455
+  field 3 Price : ulong = 16383
+  bytes 54
+    08 80 80 80 80 01 12 2b 08 ff 7f 10 80 01 18 80
+    01 22 12 09 04 03 02 01 06 05 08 07 11 09 0a 0b
+    0c 0d 0e 0f 10 28 ff ff ff 7f 30 ff ff 7f 38 ff
+    ff ff 7f 18 ff 7f

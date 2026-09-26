@@ -1,6 +1,7 @@
 using Avalon.Database.World.Repositories;
 using Avalon.Domain.World;
 using Avalon.Server.World.UnitTests.Loot;
+using Avalon.Server.World.UnitTests.Vendors;
 using Avalon.World;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
@@ -23,16 +24,17 @@ internal sealed record TestStaticDataRepositories(
     ICreatureRarityModifierRepository Rarities,
     ILocalizedTextRepository Texts,
     IDialogueRepository Dialogue,
-    ILootTableRepository Loot)
+    ILootTableRepository Loot,
+    IVendorStockRepository? Vendors = null)
 {
     public StaticData ToStaticData() =>
         new(CreateInfos, ClassStats, Items, Abilities, Levels, Creatures, BaseStats, Rarities, Texts, Dialogue, Loot,
-            NullLoggerFactory.Instance);
+            NullLoggerFactory.Instance, Vendors);
 }
 
 /// <summary>
 /// A loaded StaticData over stubbed repositories, holding only what a test passes: class stats,
-/// item templates, level thresholds, dialogue, texts and loot tables. Every other area is empty,
+/// item templates, level thresholds, dialogue, texts, loot tables and vendor stock. Every other area is empty,
 /// except one creature base-stat row, which the creature area needs to build its deriver.
 /// </summary>
 internal static class TestStaticData
@@ -43,14 +45,16 @@ internal static class TestStaticData
         IReadOnlyCollection<CharacterLevelExperience>? levels = null,
         IReadOnlyCollection<DialogueNode>? nodes = null,
         IReadOnlyCollection<DialogueOption>? options = null,
-        IReadOnlyCollection<LocalizedText>? texts = null) =>
+        IReadOnlyCollection<LocalizedText>? texts = null,
+        IReadOnlyCollection<VendorStock>? vendors = null) =>
         LoadAsync(Repositories(
             classStats: () => classStats ?? [],
             items: () => items ?? [],
             levels: () => levels ?? [],
             nodes: () => nodes ?? [],
             options: () => options ?? [],
-            texts: () => texts ?? []));
+            texts: () => texts ?? [],
+            vendors: vendors is { } rows ? VendorRepositories.Of(() => rows) : null));
 
     public static async Task<StaticData> LoadAsync(TestStaticDataRepositories repositories)
     {
@@ -67,7 +71,8 @@ internal static class TestStaticData
         Func<IReadOnlyCollection<DialogueNode>>? nodes = null,
         Func<IReadOnlyCollection<DialogueOption>>? options = null,
         Func<IReadOnlyCollection<LocalizedText>>? texts = null,
-        ILootTableRepository? loot = null)
+        ILootTableRepository? loot = null,
+        IVendorStockRepository? vendors = null)
     {
         var createInfos = Substitute.For<ICharacterCreateInfoRepository>();
         createInfos.FindAllAsync(Arg.Any<CancellationToken>())
@@ -117,6 +122,7 @@ internal static class TestStaticData
             .Returns(_ => Task.FromResult(options?.Invoke() ?? []));
 
         return new TestStaticDataRepositories(createInfos, classStatRepository, itemRepository, abilities,
-            levelRepository, creatures, baseStats, rarities, textRepository, dialogue, loot ?? LootRepositories.Empty());
+            levelRepository, creatures, baseStats, rarities, textRepository, dialogue, loot ?? LootRepositories.Empty(),
+            vendors);
     }
 }
