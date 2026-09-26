@@ -451,13 +451,14 @@ public class AccountService : IAccountService
         var payload = string.Create(System.Globalization.CultureInfo.InvariantCulture,
             $"{accountId.Value}|{proof.CredentialsVersion}|{email}");
         await _cache.SetAsync(CacheKeys.EmailChange(tokenHash), payload, EmailChangeLifetime);
-        await ReplacePendingEmailChangeAsync(accountId, tokenHash);
 
         // From here the change is stored: a caller dropping the connection must not stop either
-        // email, the notice to the old address least of all (#510 review).
+        // email, the notice to the old address least of all (#510 review). Each send has its own
+        // timeout instead of the request's token.
         try
         {
-            await sender.SendAsync(email, EmailChangeConfirmSubject, EmailChangeConfirmBody(token), CancellationToken.None);
+            using var confirmTimeout = new CancellationTokenSource(EmailSendTimeout);
+            await sender.SendAsync(email, EmailChangeConfirmSubject, EmailChangeConfirmBody(token), confirmTimeout.Token);
         }
         catch (Exception ex)
         {
@@ -481,11 +482,15 @@ public class AccountService : IAccountService
             throw new EmailDeliveryException();
         }
 
+        // Only once the confirmation went (#510 re-review): a start that could not send leaves the
+        // earlier pending change as it was.
+        await ReplacePendingEmailChangeAsync(accountId, tokenHash);
         await SourceBudget.GiveBackAsync(_cache, sourceKey);
 
         try
         {
-            await sender.SendAsync(oldEmail, EmailChangeNoticeSubject, EmailChangeNoticeBody(email), CancellationToken.None);
+            using var noticeTimeout = new CancellationTokenSource(EmailSendTimeout);
+            await sender.SendAsync(oldEmail, EmailChangeNoticeSubject, EmailChangeNoticeBody(email), noticeTimeout.Token);
         }
         catch (Exception ex)
         {
@@ -549,15 +554,19 @@ public class AccountService : IAccountService
         }
     }
 
+    /// <summary>How long each email-change send may take (#510 re-review), whatever the request does.</summary>
+    public static readonly TimeSpan EmailSendTimeout = TimeSpan.FromSeconds(30);
+
     /// <summary>
     /// Makes <paramref name="tokenHash"/> the account's one pending change (#510 review): the change
-    /// an earlier start left pending is deleted, so only the latest token confirms.
+    /// an earlier start left pending is deleted, so only the latest token confirms. The pointer is
+    /// swapped in one script (#510 re-review), so of two starts the later swap always sees, and
+    /// deletes, the earlier one's change.
     /// </summary>
     private async Task ReplacePendingEmailChangeAsync(AccountId accountId, string tokenHash)
     {
-        var pointer = CacheKeys.AccountEmailChangePending(accountId.Value);
-        var previous = await _cache.GetAsync(pointer);
-        await _cache.SetAsync(pointer, tokenHash, EmailChangeLifetime);
+        var previous = await _cache.SwapAsync(CacheKeys.AccountEmailChangePending(accountId.Value), tokenHash,
+            EmailChangeLifetime);
         if (!string.IsNullOrEmpty(previous) && !string.Equals(previous, tokenHash, StringComparison.Ordinal))
             await _cache.RemoveAsync(CacheKeys.EmailChange(previous));
     }
@@ -617,6 +626,18 @@ public class AccountService : IAccountService
         // The account is gone, or its credentials changed since the change was started.
         if (!changed)
             throw new BusinessException(InvalidEmailToken);
+
+        // Nothing is pending any more (#510 re-review). Best-effort: the change is committed, and a
+        // pointer left behind only names an entry that is gone, until its TTL.
+        try
+        {
+            await _cache.RemoveAsync(CacheKeys.AccountEmailChangePending(accountId.Value));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning("Could not clear the email-change pointer of account {AccountId} ({ExceptionType})",
+                accountId.Value, ex.GetType().Name);
+        }
 
         // A login past its password step holds an MFA hash made at the old version: it can no
         // longer complete, and clearing it frees the account's hash slot, as after a password change.

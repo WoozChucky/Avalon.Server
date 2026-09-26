@@ -52,6 +52,17 @@ public sealed class EmailChangeShould : IDisposable
         _cache.GetAsync(Arg.Any<string>()).Returns(call =>
             _store.TryGetValue(call.Arg<string>(), out string? value) ? value : null);
         _cache.RemoveAsync(Arg.Any<string>()).Returns(call => _store.Remove(call.Arg<string>()));
+        // GET and SET as one step, as the script is; BeforeSwap runs first, once, to interleave a second start.
+        _cache.SwapAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<TimeSpan>()).Returns(async call =>
+        {
+            Func<Task>? before = BeforeSwap;
+            BeforeSwap = null;
+            if (before != null) await before();
+            string key = call.ArgAt<string>(0);
+            string? previous = _store.GetValueOrDefault(key);
+            _store[key] = call.ArgAt<string>(1);
+            return previous;
+        });
         // The send budgets (#510 review) count for real; every other counter reads as a first attempt.
         _cache.IncrementAsync(Arg.Any<string>(), Arg.Any<TimeSpan>()).Returns(call =>
         {
@@ -63,6 +74,8 @@ public sealed class EmailChangeShould : IDisposable
     }
 
     private readonly Dictionary<string, long> _counters = new(StringComparer.Ordinal);
+
+    private Func<Task>? BeforeSwap { get; set; }
 
     public void Dispose() => _database.Dispose();
 
@@ -420,6 +433,68 @@ public sealed class EmailChangeShould : IDisposable
         Assert.Equal("Invalid or expired token", refused.Message);
         await Service().ConfirmEmailChangeAsync(second);
         Assert.Equal("second@avalon.monster", (await StoredAsync(account.Id)).Email);
+    }
+
+    /// <summary>
+    /// #510 re-review: the pointer was read, written and the old entry deleted in three calls, so two
+    /// starts whose updates interleaved both read "nothing pending" and both left a live change. A
+    /// second start now runs to the end inside the first one's swap; one change is left, the one the
+    /// pointer names.
+    /// </summary>
+    [Fact]
+    public async Task Leave_exactly_one_pending_change_when_two_starts_interleave()
+    {
+        Account account = await AccountAsync();
+        BeforeSwap = () => StartWithAsync(account, "second@avalon.monster");
+
+        await StartWithAsync(account, "first@avalon.monster");
+
+        string live = Assert.Single(PendingKeys());
+        Assert.Equal(live, CacheKeys.EmailChange(_store[CacheKeys.AccountEmailChangePending(account.Id.Value)]));
+        await _cache.DidNotReceive().GetAsync(CacheKeys.AccountEmailChangePending(account.Id.Value));
+    }
+
+    /// <summary>#510 re-review: a start whose confirmation could not be sent leaves the earlier pending change as it was.</summary>
+    [Fact]
+    public async Task Keep_the_earlier_pending_change_when_a_new_start_cannot_send_its_confirmation()
+    {
+        Account account = await AccountAsync();
+        string first = await StartAsync(account.Id, "first@avalon.monster");
+        _mail.FailFor = to => to == "second@avalon.monster";
+
+        await Assert.ThrowsAsync<EmailDeliveryException>(() => StartWithAsync(account, "second@avalon.monster"));
+
+        Assert.Equal(AccountService.EmailChangeKey(first), Assert.Single(PendingKeys()));
+        await Service().ConfirmEmailChangeAsync(first);
+        Assert.Equal("first@avalon.monster", (await StoredAsync(account.Id)).Email);
+    }
+
+    [Fact]
+    public async Task Delete_the_pending_pointer_once_the_change_is_confirmed()
+    {
+        Account account = await AccountAsync();
+
+        await ChangeAsync(account.Id, "new@avalon.monster");
+
+        Assert.False(_store.ContainsKey(CacheKeys.AccountEmailChangePending(account.Id.Value)));
+    }
+
+    /// <summary>#510 re-review: each send gets a token of its own, with a timeout, not the request's and not None.</summary>
+    [Fact]
+    public async Task Send_each_email_with_a_cancellable_token_of_its_own()
+    {
+        Account account = await AccountAsync();
+        using var request = new CancellationTokenSource();
+
+        await StartWithAsync(account, "new@avalon.monster", request.Token);
+
+        Assert.Equal(2, _mail.Tokens.Count);
+        Assert.All(_mail.Tokens, t =>
+        {
+            Assert.True(t.CanBeCanceled);
+            Assert.NotEqual(request.Token, t);
+            Assert.NotEqual(CancellationToken.None, t);
+        });
     }
 
     /// <summary>

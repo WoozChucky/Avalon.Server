@@ -71,6 +71,20 @@ public sealed class PickupEmailSenderShould : IDisposable
     }
 
     [Fact]
+    public async Task Tighten_a_directory_that_already_exists_to_its_owner_only_on_unix()
+    {
+        if (OperatingSystem.IsWindows()) return;
+        Directory.CreateDirectory(_directory);
+        File.SetUnixFileMode(_directory, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute
+            | UnixFileMode.GroupRead | UnixFileMode.GroupExecute | UnixFileMode.OtherRead | UnixFileMode.OtherExecute);
+
+        await Sender().SendAsync("player@avalon.monster", "Subject", "body", CancellationToken.None);
+
+        Assert.Equal(UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute,
+            File.GetUnixFileMode(_directory));
+    }
+
+    [Fact]
     public async Task Give_every_email_its_own_file()
     {
         await Sender().SendAsync("a@avalon.monster", "One", "1", CancellationToken.None);

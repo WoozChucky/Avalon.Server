@@ -220,10 +220,6 @@ public static class ServiceRegistration
         && string.Equals(parsed.Address, address, StringComparison.Ordinal);
 
     /// <summary>
-    /// Stops startup, naming the setting, when the account-creation cap (#495 review) is below one:
-    /// zero would refuse every registration.
-    /// </summary>
-    /// <summary>
     /// Stops startup, naming the setting, when an email-change send budget (#510 review) is below
     /// one: zero would refuse every email change.
     /// </summary>
@@ -240,6 +236,10 @@ public static class ServiceRegistration
                 "Application:Authentication:EmailChangeSendWindowMinutes must be at least 1.");
     }
 
+    /// <summary>
+    /// Stops startup, naming the setting, when the account-creation cap (#495 review) is below one:
+    /// zero would refuse every registration.
+    /// </summary>
     public static void ValidateAccountCreationCap(AuthenticationConfig config)
     {
         if (config.MaxAccountsCreatedPerSource < 1)

@@ -55,8 +55,13 @@ public sealed class PickupEmailSender : IEmailSender
         if (OperatingSystem.IsWindows())
             Directory.CreateDirectory(_directory);
         else
-            Directory.CreateDirectory(_directory,
-                UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        {
+            const UnixFileMode ownerOnly = UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute;
+            Directory.CreateDirectory(_directory, ownerOnly);
+            // A folder that already existed keeps its mode through CreateDirectory: tighten it.
+            if (File.GetUnixFileMode(_directory) != ownerOnly)
+                File.SetUnixFileMode(_directory, ownerOnly);
+        }
         string name = string.Create(CultureInfo.InvariantCulture, $"{now.UtcDateTime:yyyyMMddTHHmmssfff}-{id:N}.eml");
         string path = Path.Combine(_directory, name);
         // Written under another name and moved into place, so a reader watching the folder never

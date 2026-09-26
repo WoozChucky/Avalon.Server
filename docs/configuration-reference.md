@@ -311,8 +311,8 @@ recipient domain only, never the subject, body or token.
 
 Sending is budgeted under `Application:Authentication` (#510 review). The slots are taken just before
 the send, after every other check, and are never given back. Past either budget the answer is 429
-`LOCKED`, and nothing is stored or sent. A new start also voids the account's earlier pending change, so
-only the latest token confirms.
+`LOCKED`, and nothing is stored or sent. A new start whose confirmation is sent also voids the account's earlier pending change, so
+only the latest token confirms. Each email is sent with its own 30 s timeout, never the request's token.
 
 | Key                             | Type | Default | Description |
 |---------------------------------|------|---------|-------------|

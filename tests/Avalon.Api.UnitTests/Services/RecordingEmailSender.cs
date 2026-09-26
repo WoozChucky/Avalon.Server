@@ -27,8 +27,14 @@ internal sealed class RecordingEmailSender : IEmailSender
     /// <summary>Runs as each send starts, before the token given to it is checked.</summary>
     public Action<string>? OnSend { get; set; }
 
+    private readonly ConcurrentQueue<CancellationToken> _tokens = new();
+
+    /// <summary>The token each send was given, in order.</summary>
+    public IReadOnlyList<CancellationToken> Tokens => _tokens.ToList();
+
     public Task SendAsync(string to, string subject, string textBody, CancellationToken ct)
     {
+        _tokens.Enqueue(ct);
         OnSend?.Invoke(to);
         // As a real sender would: a cancelled token ends the send before anything goes.
         ct.ThrowIfCancellationRequested();
