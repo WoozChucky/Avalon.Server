@@ -45,4 +45,6 @@ grep -A1 "name: OTEL_RESOURCE_ATTRIBUTES" <<<"$ot" | grep -q '"avalon.world.id=2
 bare=$(helm template t . $CACHE --set existingSecret=x --set otel.endpoint=http://c:4317)
 grep -A1 "name: OTEL_RESOURCE_ATTRIBUTES" <<<"$bare" | grep -q '"avalon.world.id=1"'                         || { echo "world id attribute missing"; exit 1; }
 ! grep -q "OTEL_" <<<"$off"                                                                                   || { echo "otel env rendered without an endpoint"; exit 1; }
+dup=$(helm template t . $CACHE --set existingSecret=x --set server.game.worldId=2 --set otel.endpoint=http://c:4317 --set 'otel.resourceAttributes.avalon\.world\.id=9' --set 'otel.resourceAttributes.deployment\.environment=production')
+grep -A1 "name: OTEL_RESOURCE_ATTRIBUTES" <<<"$dup" | grep -q '"avalon.world.id=2,deployment.environment=production"' || { echo "avalon.world.id must come from server.game.worldId, once"; exit 1; }
 echo "avalon-world chart OK"

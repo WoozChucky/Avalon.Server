@@ -86,7 +86,9 @@ spec:
               value: {{ $.Values.otel.serviceName | default (include "avalon-server.fullname" $) | quote }}
             {{- $attrs := list (printf "avalon.world.id=%v" $.Values.server.game.worldId) }}
             {{- range $key, $value := $.Values.otel.resourceAttributes }}
+            {{- if ne $key "avalon.world.id" }}{{/* always server.game.worldId, set above */}}
             {{- $attrs = append $attrs (printf "%s=%v" $key $value) }}
+            {{- end }}
             {{- end }}
             - name: OTEL_RESOURCE_ATTRIBUTES
               value: {{ join "," $attrs | quote }}
