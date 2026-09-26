@@ -55,8 +55,8 @@ public class ChunkLayoutNavmeshBuilder : IChunkLayoutNavmeshBuilder
         int vOffset = 0;
         foreach (var chunk in layout.Chunks)
         {
-            // Chunk objs are stored on disk by ChunkTemplate.Name (matches ChunkImporter
-            // which copies <ExportDir>/<name>/chunk.obj → Maps/Chunks/<name>.obj). The
+            // Chunk objs are stored on disk by ChunkTemplate.Name (the Unity Chunk Exporter
+            // writes Maps/Chunks/<name>.obj, and ChunkCatalogSeeder keys templates by it). The
             // ChunkTemplateId is a DB surrogate key, NOT the filename — resolve it through
             // the in-memory chunk library.
             var name = _library.GetById(chunk.TemplateId).Name;

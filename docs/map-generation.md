@@ -48,7 +48,7 @@ Both pipelines emit a `ChunkLayout` record (chunks, entry spawn, portals, cell s
 
 - **Server:** `C:\dev\Avalon.Server` — bake, DB, instance factory, wire packet
 - **Client:** `C:\dev\3D` — Unity authoring scenes, runtime visualizers, predictor
-- **Server CLI tool:** `tools/Avalon.ChunkImporter` — copies an export into `Maps/` and seeds the dev DB (the World server seeds every environment from `Maps/` on start)
+- **Chunk catalog:** `src/Server/Avalon.Server.World/Maps/` — the Unity exporters write here; the World server seeds the database from it on every start
 
 ## Where things live
 
@@ -65,8 +65,9 @@ Both pipelines emit a `ChunkLayout` record (chunks, entry spawn, portals, cell s
 | `src/Shared/Avalon.Domain/World/ChunkTemplate.cs` | DB entity for chunk metadata |
 | `src/Shared/Avalon.Domain/World/MapChunkPlacement.cs` | DB entity joining MapTemplate → predefined chunk placements |
 | `src/Shared/Avalon.Domain/World/ProceduralMapConfig.cs` | DB entity for procedural map RNG config |
-| `src/Server/Avalon.Server.World/Maps/Chunks/<chunkName>.obj` | Server-side chunk geometry (consumed by navmesh bake) |
-| `tools/Avalon.ChunkImporter/Program.cs` | CLI tool that copies `<exportDir>` into `Maps/` and seeds the dev DB |
+| `src/Server/Avalon.Server.World/Maps/Chunks/<chunkName>.obj` + `.json` | Chunk geometry (navmesh bake) and metadata, written by the Unity Chunk Exporter |
+| `src/Server/Avalon.Server.World/Maps/TownLayouts/<MapTemplateId>.json` | Town layouts, written by the Unity Town Layout Exporter |
+| `src/Server/Avalon.Server.World/Maps/chunk-pools.json` | Procedural pool membership (`{ "<pool>": ["<chunk>", …] }`), edited by hand |
 | `src/Server/Avalon.Database.World/Seeding/ChunkCatalogSeeder.cs` | Seeds chunk templates, town layouts and pools from `Maps/`; run by the World server on start |
 
 ### Client (`C:\dev\3D`)
@@ -89,17 +90,15 @@ Both pipelines emit a `ChunkLayout` record (chunks, entry spawn, portals, cell s
 | `Assets/StreamingAssets/Chunks/<name>.json` | Per-chunk metadata (used by ChunkMarkerVisualizer) |
 | `Assets/Scripts/Gameplay/PlayerMovementPredictor.cs` | Movement prediction + reconciliation against server |
 
-### Editor export output (gitignored, project-root)
+### Editor export output
+
+The editor exporters write straight into the server's catalog, `../Avalon.Server/src/Server/Avalon.Server.World/Maps/` by default:
 
 | Path | Purpose |
 |---|---|
-| `<projectRoot>/ChunksExport/<chunkName>/chunk.obj` | Per-chunk geometry emitted by `ChunkExporter` |
-| `<projectRoot>/ChunksExport/<chunkName>/chunk.json` | Per-chunk metadata emitted by `ChunkExporter` |
-| `<projectRoot>/ChunksExport/town_layouts/<MapTemplateId>.json` | Town layout emitted by `TownLayoutExporter` |
-
-`ChunksExport/` is the bridge directory. Both client editor + server CLI read from it. Default location is `<UnityProjectRoot>/ChunksExport`. Persisted via `EditorPrefs` key `Avalon.ChunkExporter.OutputDir` and shared with sibling editor windows.
-
----
+| `<MapsDir>/Chunks/<chunkName>.obj` | Per-chunk geometry emitted by `ChunkExporter` |
+| `<MapsDir>/Chunks/<chunkName>.json` | Per-chunk metadata emitted by `ChunkExporter` |
+| `<MapsDir>/TownLayouts/<MapTemplateId>.json` | Town layout emitted by `TownLayoutExporter` |
 
 ## Authoring a new chunk
 
@@ -163,45 +162,28 @@ Procedural maps use these slots to instantiate portal triggers; `ProceduralMapCo
 ### 8. Export the chunks
 
 - Menu: `Avalon → Procedural → Chunk Exporter`.
-- "Output Dir" — defaults to `ChunksExport`. Change if you want; the `EditorPrefs` value is shared with `ChunkCatalogSync` and `TownLayoutExporter`, so all three pick up the same dir.
+- "Maps Dir" — the server's catalog, defaulting to `../Avalon.Server/src/Server/Avalon.Server.World/Maps` (relative to the Unity project). The `EditorPrefs` value is shared with `ChunkCatalogSync`; `TownLayoutExporter` keeps its own, with the same default.
 - Click **Export Selected** (operates on selected `ChunkAuthoringRoot`s in the hierarchy) or **Export All In Scene**.
-- Per-chunk output: `<ExportDir>/<ChunkName>/chunk.obj` + `<ExportDir>/<ChunkName>/chunk.json`.
+- Per-chunk output: `<MapsDir>/Chunks/<ChunkName>.obj` + `<MapsDir>/Chunks/<ChunkName>.json`.
 - Validation: duplicate `(Side, Slot)` exits, empty `ChunkName`, missing root → printed in the result panel.
 
 ### 9. Sync to the client runtime catalog
 
 - Menu: `Avalon → Chunks → Sync Chunk Catalog`.
-- Click **Sync**. Copies every `<ExportDir>/<chunk>/chunk.obj` AND `chunk.json` → `Assets/StreamingAssets/Chunks/<chunk>.obj` + `<chunk>.json`.
+- Click **Sync**. Copies every `<MapsDir>/Chunks/<chunk>.obj` AND `<chunk>.json` → `Assets/StreamingAssets/Chunks/<chunk>.obj` + `<chunk>.json`.
 - StreamingAssets is the runtime-readable bridge: client's `ClientMapNavigator` reads `.obj` for navmesh bake, `ChunkLayoutVisualizer` reads `.obj` for visual rendering, `ChunkMarkerVisualizer` reads `.json` for debug markers.
 
-### 10. Import into server
+### 10. Add the chunk to a pool (procedural chunks only)
 
-Switch to the server repo:
+Procedural maps draw from pools. To make a new chunk eligible, add its name to the pool in `src/Server/Avalon.Server.World/Maps/chunk-pools.json`. Town-only chunks need nothing here.
 
-```bash
-cd C:\dev\Avalon.Server
-dotnet run --project tools/Avalon.ChunkImporter -- /c/dev/3D/ChunksExport
-```
-
-Path is the export dir from step 8. The CLI:
-- Copies each `<chunkName>/chunk.json` + `chunk.obj` to `src/Server/Avalon.Server.World/Maps/Chunks/<chunkName>.json` + `.obj`, and `town_layouts/*.json` to `Maps/TownLayouts/`.
-- Seeds your dev World DB from those files with `ChunkCatalogSeeder`, the same code the World server runs on every start: `ChunkTemplate` rows are upserted by `Name` (ids kept), town layouts replace their map's placements, and the pools in `Maps/chunk-pools.json` get exactly the members listed.
-
-**Commit the files under `Maps/`.** They are the source of truth: every World server start seeds the database from them, so a fresh install (or a release that adds chunks) needs no import step. To put a new chunk in a procedural pool, add its name to `Maps/chunk-pools.json`.
-
-DB connection comes from `appsettings.json` or `Database__World__ConnectionString` env var.
-
-After this step, the chunk template is in the DB and its geometry is on disk for both server (Maps/Chunks/) and client (StreamingAssets/Chunks/).
+There is no import step: the World server seeds the database from `Maps/` on every start (`ChunkCatalogSeeder`). `ChunkTemplate` rows are upserted by `Name` (ids kept), each town layout replaces its map's placements, and each pool in `chunk-pools.json` gets exactly the members listed. Restart the World server to pick up the new files.
 
 ### 11. Commit
 
 Two repos:
 - Client (`C:\dev\3D`): `Assets/Scenes/ChunkAuthoring.unity`, `Assets/StreamingAssets/Chunks/<name>.obj`, `<name>.json` + meta files.
-- Server (`C:\dev\Avalon.Server`): `src/Server/Avalon.Server.World/Maps/Chunks/<name>.obj`.
-
-Stage explicitly.
-
----
+- Server (`C:\dev\Avalon.Server`): `src/Server/Avalon.Server.World/Maps/` — `Chunks/<name>.obj` + `<name>.json`, and `chunk-pools.json` if you changed it. These files are the catalog every environment is seeded from.
 
 ## Creating a town
 
@@ -236,15 +218,15 @@ Unity → File → Open Scene → `Assets/Scenes/TownLayoutAuthoring.unity`.
 If a layout for your map id already exists, edit it. Otherwise:
 - Create empty GameObject named e.g. `MainTown_Root`.
 - Add component **`TownLayoutAuthoringRoot`**:
-  - **MapTemplateId**: must match an existing MapTemplate row's `Id` AND that row's `MapType` must be `Town`. Importer rejects mismatch.
+  - **MapTemplateId**: must match an existing MapTemplate row's `Id` AND that row's `MapType` must be `Town`. The seeder rejects a mismatch.
   - **MapName**: free-form string for human readability in the JSON output.
-  - **CellSize**: meters per cell. Must match the `CellSize` field on every referenced ChunkTemplate. Importer enforces consistency.
+  - **CellSize**: meters per cell. Must match the `CellSize` field on every referenced ChunkTemplate. The seeder enforces consistency.
 
 ### 5. Add a TownChunkPlacement child per chunk
 
 For each chunk you want to place, add an empty child GameObject and attach **`TownChunkPlacement`**:
 
-- **ChunkName**: must match a `ChunkTemplate.Name` already in the DB (i.e., already imported via `Avalon.ChunkImporter`).
+- **ChunkName**: must match a chunk in `Maps/Chunks/` (i.e., already exported with the Chunk Exporter).
 - **GridX / GridZ**: integer cell coordinates. World position will be `(GridX*CellSize, 0, GridZ*CellSize)`. Cell `(0, 0)` is the SW corner; `+X` is east, `+Z` is north.
 - **Rotation**: 0–3 (90° steps clockwise around Y). All chunks at rotation 0 sit in their authored orientation; non-zero rotates the chunk **around its centre** (`cellSize/2, cellSize/2` of the SW-anchored authoring frame) so the footprint stays inside the declared `(GridX, GridZ)` cell. The single source of truth for that pivot is `ChunkRotation.LocalToWorld` (mirrored on server + client); both bake and visualizer call it. The procedural generator uses all 4 rotations to fit chunk exits to neighbouring cells.
 - **IsEntry**: exactly ONE placement per layout must have `IsEntry = true`. The player spawns at this chunk.
@@ -259,22 +241,11 @@ Adjacency check: walk through pairs of neighbouring placements (`(X, Z) ↔ (X+1
 - Menu: `Avalon → Town → Town Layout Exporter`.
 - Click **Export All In Scene** (or **Export Selected** for a specific root).
 - Validation: at least one placement, exactly one `IsEntry`, no duplicate `(GridX, GridZ)`, every `ChunkName` non-empty, `MapTemplateId > 0`.
-- Output: `<ExportDir>/town_layouts/<MapTemplateId>.json`.
+- Output: `<MapsDir>/TownLayouts/<MapTemplateId>.json`.
 
-### 8. Import the layout
+### 8. Restart the World server
 
-Same CLI as for chunks:
-
-```bash
-dotnet run --project tools/Avalon.ChunkImporter -- /c/dev/3D/ChunksExport
-```
-
-The CLI walks `<exportDir>/town_layouts/*.json` after the chunk loop. For each file:
-- Validates: MapTemplateId exists + is `Town`, exactly one IsEntry, no duplicate `(gridX, gridZ)`, all `ChunkName`s resolve, every chunk's `CellSize` matches the layout's.
-- Transactional upsert: deletes all existing `MapChunkPlacement` rows for the map id, inserts the new set.
-
-Console output: `... town_layouts/N.json: replaced X, inserted Y placements for MapId N`.
-
+No import step: on start the World server seeds the layout from `Maps/TownLayouts/<MapTemplateId>.json`. It validates that the MapTemplate exists and is `Town`, exactly one IsEntry, no duplicate `(gridX, gridZ)`, every `ChunkName` is in `Maps/Chunks/`, and every chunk's `CellSize` matches the layout's; then it replaces the map's `MapChunkPlacement` rows in one transaction. Commit the layout file.
 ### 9. Verify in DB
 
 ```bash
@@ -358,12 +329,12 @@ Each player gets their own seed (server's `ProceduralChunkLayoutSource.NextSeed(
 ### Updating a chunk's geometry or markers
 
 1. Open `Assets/Scenes/ChunkAuthoring.unity`.
-2. Edit the chunk root GameObject in place. Same `ChunkName` MUST be retained — the importer matches by name and does an UPSERT. Renaming creates a new template + leaves the old orphaned.
+2. Edit the chunk root GameObject in place. Same `ChunkName` MUST be retained — the seeder matches by name and does an UPSERT. Renaming creates a new template + leaves the old orphaned.
 3. Re-export (`Avalon → Procedural → Chunk Exporter`).
 4. Sync (`Avalon → Chunks → Sync Chunk Catalog`).
-5. Import (`dotnet run --project tools/Avalon.ChunkImporter ...`).
-6. Restart server.
-7. Test in Unity.
+5. Restart the World server (it seeds from `Maps/`).
+6. Test in Unity.
+7. Commit `Maps/Chunks/` in the server repo.
 
 The `ChunkTemplate` row is updated (CellSize, Exits, SpawnSlots, PortalSlots, Tags). All maps using that chunk pick up the changes on next instance-build.
 
@@ -404,7 +375,7 @@ Portals route the player between maps. Each portal is one of two roles:
    that holds this chunk, set `BackPortalTargetMapId` or
    `ForwardPortalTargetMapId` to the destination map's `MapTemplate.Id`.
    Leave 0 if the slot is decorative / not routed.
-4. Re-export layout + run `Avalon.ChunkImporter`.
+4. Re-export the layout and restart the World server.
 
 For procedural maps the targets come from
 `ProceduralMapConfig.BackPortalTargetMapId` / `ForwardPortalTargetMapId` —
@@ -474,7 +445,7 @@ Identical bake on both sides (same `.obj` source, same DotRecast settings) keeps
 |---|---|---|
 | Server crashes at startup with "Unable to activate type 'PredefinedChunkLayoutSource'. Constructors are ambiguous" | Two public ctors on the source | Single ctor + static `ForTesting(...)` factory |
 | Server: `Chunk obj not found: Maps\Chunks\N.obj` (where N is a number) | Bake using `TemplateId.Value` instead of `Name` for filename | `ChunkLayoutNavmeshBuilder` resolves name via `IChunkLibrary.GetById(id).Name` |
-| Server: `No MapChunkPlacement rows for town map N` | `Maps/TownLayouts/N.json` missing | Export `town_layouts/N.json`, run `ChunkImporter`, commit `Maps/` |
+| Server: `No MapChunkPlacement rows for town map N` | `Maps/TownLayouts/N.json` missing | Export the layout with the Town Layout Exporter, restart the World server, commit `Maps/` |
 | Server: `Town map N has no IsEntry placement` | Layout exporter accepted layout with 0 or >1 IsEntry | Edit `TownLayoutAuthoring` scene; ensure exactly one TownChunkPlacement has `IsEntry=true` |
 | Server: `chunk 'X' has CellSize=Y != layout Z` | Mixed cell sizes in one layout | All chunks in a layout MUST have identical `CellSize` |
 | Client: player spawns at wrong position | Persisted `Character.X/Y/Z` is stale | For towns, `CharacterSelectHandler` already overrides with `Layout.EntrySpawnWorldPos`. For procedural, persist position correctly when player exits map. |
