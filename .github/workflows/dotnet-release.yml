@@ -26,18 +26,28 @@ jobs:
         uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 10.0.x
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', '**/Directory.*.props', 'global.json') }}
+          restore-keys: |
+            nuget-${{ runner.os }}-
       - name: Restore dependencies
         run: dotnet restore
       - name: Build
-        run: dotnet build --no-restore
+        run: dotnet build -c Release --no-restore
       - name: Test
-        run: dotnet test --no-build
+        run: dotnet test -c Release --no-build
+      # Not --no-build: PublishReadyToRun makes publish infer the runner's runtime identifier,
+      # so it wants obj/Release/net10.0/linux-x64/, which the solution build never writes.
+      # Its references are the Release build's own outputs, so only this project recompiles.
       - name: Publish World Server
         run: dotnet publish src/Server/Avalon.Server.World/Avalon.Server.World.csproj -c Release --no-restore -o src/Server/Avalon.Server.World/out
       - name: Publish Auth Server
-        run: dotnet publish src/Server/Avalon.Server.Auth/Avalon.Server.Auth.csproj -c Release --no-restore -o src/Server/Avalon.Server.Auth/out
+        run: dotnet publish src/Server/Avalon.Server.Auth/Avalon.Server.Auth.csproj -c Release --no-build -o src/Server/Avalon.Server.Auth/out
       - name: Publish Api
-        run: dotnet publish src/Server/Avalon.Api/Avalon.Api.csproj -c Release --no-restore -o src/Server/Avalon.Api/out
+        run: dotnet publish src/Server/Avalon.Api/Avalon.Api.csproj -c Release --no-build -o src/Server/Avalon.Api/out
 
       - name: Docker Login
         uses: docker/login-action@v4.6.0
