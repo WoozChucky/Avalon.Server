@@ -1,4 +1,5 @@
 using Avalon.Domain.World;
+using Avalon.World.Abilities;
 using Avalon.World.Creatures;
 using Avalon.World.Dialogue;
 using Avalon.World.Loot;
@@ -41,10 +42,13 @@ public sealed record CreaturesPatch(
         => $"{Templates.Count} templates, {BaseStats.Count} base stats, {Rarities.Count} rarities";
 }
 
-public sealed record AbilitiesPatch(IReadOnlyCollection<AbilityTemplate> Templates)
-    : StaticDataPatch(ReloadArea.Abilities)
+/// <summary>
+/// Ability templates, validated (#164). Read when a character is selected, so a reload reaches the
+/// next select; abilities a character already holds keep the metadata they were built with.
+/// </summary>
+public sealed record AbilitiesPatch(AbilityCatalog Catalog) : StaticDataPatch(ReloadArea.Abilities)
 {
-    public override string Describe() => $"{Templates.Count} ability templates";
+    public override string Describe() => Catalog.Describe();
 }
 
 public sealed record ItemsPatch(IReadOnlyCollection<ItemTemplate> Templates)

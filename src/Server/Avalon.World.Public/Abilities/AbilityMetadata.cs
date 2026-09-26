@@ -1,6 +1,7 @@
 // Licensed to the Avalon ARPG Game under one or more agreements.
 // Avalon ARPG Game licenses this file to you under the MIT license.
 
+using Avalon.Network.Packets.Abilities;
 using Avalon.World.Public.Enums;
 
 namespace Avalon.World.Public.Abilities;
@@ -27,6 +28,35 @@ public class AbilityMetadata
     public AbilityFlags Flags            { get; init; } = AbilityFlags.None;
     public uint         AnimationId      { get; init; } = 0;
 
+    // Aim and shape (#164), copied from the template.
+
+    /// <summary>Along the caster's facing, or at the cursor's ground point.</summary>
+    public AbilityAimMode AimMode         { get; init; } = AbilityAimMode.Movement;
+
+    /// <summary>Circle, cone or projectile.</summary>
+    public AbilityShape   Shape           { get; init; } = AbilityShape.Circle;
+
+    /// <summary>Circle only: centred on the caster or on the aim point.</summary>
+    public AbilityAnchor  Anchor          { get; init; } = AbilityAnchor.Caster;
+
+    /// <summary>Metres: aim point clamp, cone length or projectile travel; 0 for a circle on the caster.</summary>
+    public float          Reach           { get; init; }
+
+    /// <summary>Metres. A circle's radius; 0 otherwise.</summary>
+    public float          Radius          { get; init; }
+
+    /// <summary>Degrees. A cone's full arc; 0 otherwise.</summary>
+    public float          ArcDegrees      { get; init; }
+
+    /// <summary>Metres per second. Projectile only; 0 otherwise.</summary>
+    public float          ProjectileSpeed { get; init; }
+
+    /// <summary>Projectile only: false ends at the first hit, true hits each unit once and flies on.</summary>
+    public bool           Pierce          { get; init; }
+
+    /// <summary>Hostile units are damaged, allies are healed.</summary>
+    public AbilityAffects Affects         { get; init; } = AbilityAffects.Hostile;
+
     public AbilityMetadata Clone() =>
         new()
         {
@@ -43,5 +73,14 @@ public class AbilityMetadata
             TauntDurationMs = TauntDurationMs,
             Flags = Flags,
             AnimationId = AnimationId,
+            AimMode = AimMode,
+            Shape = Shape,
+            Anchor = Anchor,
+            Reach = Reach,
+            Radius = Radius,
+            ArcDegrees = ArcDegrees,
+            ProjectileSpeed = ProjectileSpeed,
+            Pierce = Pierce,
+            Affects = Affects,
         };
 }

@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using Avalon.Database.World.Repositories;
 using Avalon.Domain.World;
+using Avalon.World.Abilities;
 using Avalon.World.Creatures;
 using Avalon.World.Dialogue;
 using Avalon.World.Localization;
@@ -83,7 +84,8 @@ public class StaticData(
             }
 
             case ReloadArea.Abilities:
-                return new AbilitiesPatch((await abilityTemplateRepository.FindAllAsync(false, ct)).AsReadOnly());
+                return new AbilitiesPatch(new AbilityCatalog(
+                    (await abilityTemplateRepository.FindAllAsync(false, ct)).AsReadOnly(), loggerFactory));
 
             case ReloadArea.Items:
                 return new ItemsPatch((await itemTemplateRepository.FindAllAsync(false, ct)).AsReadOnly());
@@ -196,7 +198,11 @@ public class StaticData(
     public IReadOnlyCollection<CharacterCreateInfo> CharacterCreateInfos => _progression!.CreateInfos;
     public IReadOnlyCollection<ClassLevelStat> ClassLevelStats => _progression!.ClassStats;
     public IReadOnlyCollection<ItemTemplate> ItemTemplates => _items!.Templates;
-    public IReadOnlyCollection<AbilityTemplate> AbilityTemplates => _abilities!.Templates;
+    /// <summary>The accepted ability templates only; a refused row is not here.</summary>
+    public IReadOnlyCollection<AbilityTemplate> AbilityTemplates => _abilities!.Catalog.Templates;
+
+    /// <summary>Validated abilities (#164). Read at select on the tick; one reference, so one generation.</summary>
+    public AbilityCatalog Abilities => _abilities!.Catalog;
     public IReadOnlyCollection<CharacterLevelExperience> CharacterLevelExperiences => _progression!.Levels;
     public IReadOnlyCollection<CreatureBaseStat> CreatureBaseStats => _creatures!.BaseStats;
     public IReadOnlyCollection<CreatureRarityModifier> CreatureRarityModifiers => _creatures!.Rarities;

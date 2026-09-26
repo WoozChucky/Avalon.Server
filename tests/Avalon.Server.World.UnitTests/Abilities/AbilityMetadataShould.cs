@@ -1,3 +1,4 @@
+using Avalon.Network.Packets.Abilities;
 using Avalon.World.Public.Abilities;
 using Xunit;
 
@@ -31,6 +32,21 @@ public class AbilityMetadataShould
     {
         var m = BuildMetadata();
         Assert.Equal(AbilityFlags.None, m.Flags);
+    }
+
+    [Fact]
+    public void Clone_every_shape_field()
+    {
+        var original = new AbilityMetadata
+        {
+            Name = "x", ScriptName = "x", AimMode = AbilityAimMode.Cursor, Shape = AbilityShape.Projectile,
+            Anchor = AbilityAnchor.AimPoint, Reach = 1f, Radius = 2f, ArcDegrees = 3f, ProjectileSpeed = 4f,
+            Pierce = true, Affects = AbilityAffects.Ally,
+        };
+
+        AbilityMetadata clone = original.Clone();
+
+        Assert.Equivalent(original, clone, strict: true);
     }
 
     private static AbilityMetadata BuildMetadata() =>

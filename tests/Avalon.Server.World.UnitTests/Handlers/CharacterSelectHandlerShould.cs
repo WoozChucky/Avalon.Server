@@ -11,6 +11,7 @@ using Avalon.Domain.Characters;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Character;
+using Avalon.Server.World.UnitTests.Abilities;
 using Avalon.Server.World.UnitTests.Characters;
 using Avalon.Server.World.UnitTests.Inventory;
 using Avalon.World;
@@ -303,8 +304,8 @@ public class CharacterSelectHandlerShould
         var combatConfig = new CombatConfig { MaxFacingAngleDeg = 37.5f };
         Fixture f = await BuildAsync(combatConfig: combatConfig, abilityTemplates:
         [
-            new AbilityTemplate { Id = new AbilityId(1), Name = "Strike", SpellScript = "strike", Range = SpellRange.Short },
-            new AbilityTemplate { Id = new AbilityId(2), Name = "Bolt", SpellScript = "bolt", Range = SpellRange.Long },
+            AbilityTestData.Circle(1, "Strike"),
+            AbilityTestData.Cone(2),
         ]);
 
         f.Handler.Execute(f.Connection, new CCharacterSelectedPacket { CharacterId = TheCharacter });

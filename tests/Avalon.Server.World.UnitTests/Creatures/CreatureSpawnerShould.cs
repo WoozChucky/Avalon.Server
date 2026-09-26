@@ -205,6 +205,19 @@ public class CreatureSpawnerShould
     }
 
     [Fact]
+    public void Carry_the_templates_body_radius_onto_the_spawned_creature()
+    {
+        // What a skill's shape must overlap (#164). Dropped here, every creature would be the default
+        // size whatever its template says.
+        CreatureTemplate template = PlainTemplate(47, "Stone Giant");
+        template.BodyRadius = 1.75f;
+
+        ICreature creature = SpawnerOver(template).Spawn(template.Id);
+
+        Assert.Equal(1.75f, creature.BodyRadius);
+    }
+
+    [Fact]
     public void Mark_A_Creature_Whose_Template_Has_Dialogue_As_Interactable()
     {
         // What lets a client offer "talk to" for an NPC and not for a wolf. The flag is read off the

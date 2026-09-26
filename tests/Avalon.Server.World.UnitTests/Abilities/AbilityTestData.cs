@@ -1,0 +1,49 @@
+using Avalon.Common.ValueObjects;
+using Avalon.Domain.World;
+using Avalon.Network.Packets.Abilities;
+using Avalon.World.Public.Enums;
+
+namespace Avalon.Server.World.UnitTests.Abilities;
+
+/// <summary>Ability templates the catalog accepts, one per shape. Each test changes only what it is about.</summary>
+internal static class AbilityTestData
+{
+    public static AbilityTemplate Circle(uint id, string name = "Circle", float radius = 3f) => new()
+    {
+        Id = new AbilityId(id), Name = name, SpellScript = "CircleAbilityScript",
+        Shape = AbilityShape.Circle, AimMode = AbilityAimMode.Movement, Anchor = AbilityAnchor.Caster,
+        Radius = radius, Effects = SpellEffect.Damage, EffectValue = 10, AllowedClasses = [CharacterClass.Warrior],
+    };
+
+    public static AbilityTemplate AimedCircle(uint id, float reach = 15f, float radius = 3f) => new()
+    {
+        Id = new AbilityId(id), Name = "Aimed circle", SpellScript = "CircleAbilityScript",
+        Shape = AbilityShape.Circle, AimMode = AbilityAimMode.Cursor, Anchor = AbilityAnchor.AimPoint,
+        Reach = reach, Radius = radius, Effects = SpellEffect.Damage, EffectValue = 10,
+        AllowedClasses = [CharacterClass.Wizard],
+    };
+
+    public static AbilityTemplate HealCircle(uint id, float reach = 15f, float radius = 4f) => new()
+    {
+        Id = new AbilityId(id), Name = "Heal circle", SpellScript = "CircleAbilityScript",
+        Shape = AbilityShape.Circle, AimMode = AbilityAimMode.Cursor, Anchor = AbilityAnchor.AimPoint,
+        Reach = reach, Radius = radius, Affects = AbilityAffects.Ally, Effects = SpellEffect.Heal,
+        EffectValue = 40, HealThreatPerHp = 0.5f, AllowedClasses = [CharacterClass.Healer],
+    };
+
+    public static AbilityTemplate Cone(uint id, float reach = 3f, float arc = 90f,
+        AbilityAimMode aim = AbilityAimMode.Movement) => new()
+    {
+        Id = new AbilityId(id), Name = "Cone", SpellScript = "ConeAbilityScript",
+        Shape = AbilityShape.Cone, AimMode = aim, Reach = reach, ArcDegrees = arc,
+        Effects = SpellEffect.Damage, EffectValue = 10, AllowedClasses = [CharacterClass.Warrior],
+    };
+
+    public static AbilityTemplate Projectile(uint id, float reach = 20f, float speed = 20f, bool pierce = false) => new()
+    {
+        Id = new AbilityId(id), Name = "Projectile", SpellScript = "ProjectileAbilityScript",
+        Shape = AbilityShape.Projectile, AimMode = AbilityAimMode.Cursor, Reach = reach,
+        ProjectileSpeed = speed, Pierce = pierce, Effects = SpellEffect.Damage, EffectValue = 10,
+        AllowedClasses = [CharacterClass.Hunter],
+    };
+}

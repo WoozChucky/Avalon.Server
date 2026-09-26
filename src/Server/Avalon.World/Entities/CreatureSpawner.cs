@@ -82,6 +82,7 @@ public class CreatureSpawner(ILoggerFactory loggerFactory, IWorld world) : ICrea
             ScriptName = template.ScriptName,
             Invulnerable = template.Invulnerable,
             CanInteract = NpcInteraction.CanInteract(dialogue, template.Id),
+            BodyRadius = template.BodyRadius,
             MoveState = MoveState.Idle,
             Level = stats.Level,
             Health = stats.Health,

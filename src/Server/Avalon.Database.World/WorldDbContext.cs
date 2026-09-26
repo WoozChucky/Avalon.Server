@@ -606,6 +606,10 @@ public class WorldDbContext : DbContext
     private static void Configure(EntityTypeBuilder<CreatureTemplate> builder)
     {
         builder.HasKey(b => b.Id);
+
+        // #164. A body of radius 0 or less could never be hit by anything.
+        builder.ToTable("CreatureTemplates", t => t.HasCheckConstraint(
+            "CK_CreatureTemplates_BodyRadius_Positive", "\"BodyRadius\" > 0"));
         builder.Property(b => b.Id)
             .HasConversion(
                 v => v.Value,

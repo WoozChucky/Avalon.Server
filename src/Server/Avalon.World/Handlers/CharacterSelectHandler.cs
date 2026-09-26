@@ -581,10 +581,10 @@ public class CharacterSelectHandler(
 
         foreach (CharacterAbility characterAbility in spells)
         {
-            AbilityTemplate? template = world.Data.AbilityTemplates.FirstOrDefault(sp => sp.Id == characterAbility.AbilityId);
-            if (template == null)
+            if (!world.Data.Abilities.TryGet(characterAbility.AbilityId, out AbilityTemplate? template))
             {
-                logger.LogWarning("Spell template not found for spell {AbilityId}", characterAbility.AbilityId);
+                logger.LogWarning("Ability {AbilityId} is missing or was refused by the catalog; the character does not get it",
+                    characterAbility.AbilityId);
                 activity?.AddEvent(new ActivityEvent("SpellTemplateNotFound"));
                 continue;
             }
@@ -592,22 +592,7 @@ public class CharacterSelectHandler(
             GameAbility gameAbility = new()
             {
                 AbilityId = characterAbility.AbilityId,
-                Metadata = new AbilityMetadata
-                {
-                    Name = template.Name,
-                    Cooldown = (float)template.Cooldown / 1000,
-                    CastTime = (float)template.CastTime / 1000,
-                    Cost = template.Cost,
-                    Range = template.Range,
-                    Effects = template.Effects,
-                    EffectValue = template.EffectValue,
-                    ScriptName = template.SpellScript,
-                    ThreatMultiplier = template.ThreatMultiplier,
-                    HealThreatPerHp = template.HealThreatPerHp,
-                    TauntDurationMs = template.TauntDurationMs,
-                    Flags = template.Flags,
-                    AnimationId = template.AnimationId
-                },
+                Metadata = AbilityMetadataMapper.From(template),
                 CastTimeTimer = (float)template.CastTime / 1000,
                 CooldownTimer = characterAbility.Cooldown
             };
