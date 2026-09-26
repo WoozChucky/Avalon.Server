@@ -2185,6 +2185,17 @@ public class WorldDbContext : DbContext
 
     private static void Configure(EntityTypeBuilder<AbilityTemplate> builder)
     {
+        // #529. Threat values must be finite and 0 or more, or a NaN spreads into every threat total it
+        // touches. Written as the BodyRadius check is: the upper bound refuses Infinity, and NaN too,
+        // since Postgres sorts NaN above every number; the literal is left untyped so Postgres reads it
+        // as the column's real and SQLite, where the tests build the schema, still parses it.
+        builder.ToTable("AbilityTemplates", t =>
+        {
+            t.HasCheckConstraint("CK_AbilityTemplates_ThreatMultiplier_NonNegative",
+                "\"ThreatMultiplier\" >= 0 AND \"ThreatMultiplier\" < 'Infinity'");
+            t.HasCheckConstraint("CK_AbilityTemplates_HealThreatPerHp_NonNegative",
+                "\"HealThreatPerHp\" >= 0 AND \"HealThreatPerHp\" < 'Infinity'");
+        });
         builder.Property(b => b.Id)
             .HasConversion(
                 v => v.Value,

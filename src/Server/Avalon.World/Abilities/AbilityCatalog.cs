@@ -68,6 +68,9 @@ public sealed class AbilityCatalog
                  {
                      ("Reach", t.Reach), ("Radius", t.Radius), ("ArcDegrees", t.ArcDegrees),
                      ("ProjectileSpeed", t.ProjectileSpeed),
+                     // #529. A NaN or infinite threat value would spread into every threat total it
+                     // touches, and a hostile's threat list would stop ordering anything.
+                     ("ThreatMultiplier", t.ThreatMultiplier), ("HealThreatPerHp", t.HealThreatPerHp),
                  })
         {
             if (!float.IsFinite(value) || value < 0f)
