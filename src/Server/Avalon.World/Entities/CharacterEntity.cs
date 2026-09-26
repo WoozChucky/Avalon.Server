@@ -261,6 +261,8 @@ public class CharacterEntity : ICharacter
 
     public DateTime LastCastStartTime { get; set; } = DateTime.MinValue;
 
+    public float BodyRadius => UnitBody.CharacterRadius;
+
     public GameEntityFields ConsumeDirtyFields()
     {
         var dirty = _dirtyFields;

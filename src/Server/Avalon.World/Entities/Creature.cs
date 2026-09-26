@@ -49,6 +49,9 @@ public class Creature : ICreature
     /// </remarks>
     public bool CanInteract { get; init; }
 
+    /// <summary>Metres. Copied from <c>CreatureTemplate.BodyRadius</c> by <see cref="CreatureSpawner"/>.</summary>
+    public float BodyRadius { get; init; } = UnitBody.DefaultCreatureRadius;
+
     // No dirty-field tracking on these three, unlike Health and Level: none is broadcast in entity
     // state. The client learns damage from combat packets and never sees a creature's experience value.
     public uint DamageMin { get; set; }
