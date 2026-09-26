@@ -76,7 +76,7 @@ public sealed class CredentialsVersionShould : IDisposable
         new(NullLoggerFactory.Instance,
         accounts ?? _accounts, Substitute.For<IJwtUtils>(), Substitute.For<IMFAHashService>(),
         new MfaSetupRepository(_database), new DeviceRepository(_database), _cache, Substitute.For<ISecureRandom>(),
-        Refresh(), new DbTransactionRunner<AuthDbContext>(_database), new AuthenticationConfig(),
+        new DbTransactionRunner<AuthDbContext>(_database), new AuthenticationConfig(),
         TestLogin.Password(accounts ?? _accounts, _cache), reauthentication ?? TestLogin.Reauthentication(_accounts, _cache));
 
     private Task ChangePasswordAsync(AccountId id) =>

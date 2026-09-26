@@ -42,7 +42,6 @@ public class AccountRegistrationShould : IDisposable
             _devices,
             Substitute.For<IReplicatedCache>(),
             Substitute.For<ISecureRandom>(),
-            Substitute.For<IRefreshTokenService>(),
             Substitute.For<IDbTransactionRunner<AuthDbContext>>(),
             new AuthenticationConfig(),
             TestLogin.Password(new AccountRepository(_database), Substitute.For<IReplicatedCache>()),
@@ -81,7 +80,6 @@ public class AccountRegistrationShould : IDisposable
             spy,
             Substitute.For<IReplicatedCache>(),
             Substitute.For<ISecureRandom>(),
-            Substitute.For<IRefreshTokenService>(),
             Substitute.For<IDbTransactionRunner<AuthDbContext>>(),
             new AuthenticationConfig(),
             TestLogin.Password(new AccountRepository(_database), Substitute.For<IReplicatedCache>()),
@@ -149,7 +147,6 @@ public class AccountRegistrationShould : IDisposable
             _devices,
             Substitute.For<IReplicatedCache>(),
             Substitute.For<ISecureRandom>(),
-            Substitute.For<IRefreshTokenService>(),
             Substitute.For<IDbTransactionRunner<AuthDbContext>>(),
             new AuthenticationConfig(),
             TestLogin.Password(real, Substitute.For<IReplicatedCache>()),
@@ -234,8 +231,7 @@ public class AccountRegistrationShould : IDisposable
         AccountService service = new(
             NullLoggerFactory.Instance, stale, Substitute.For<Avalon.Api.Authentication.Jwt.IJwtUtils>(),
             Substitute.For<IMFAHashService>(), new MfaSetupRepository(_database), _devices,
-            Substitute.For<IReplicatedCache>(), Substitute.For<ISecureRandom>(), Substitute.For<IRefreshTokenService>(),
-            Substitute.For<IDbTransactionRunner<AuthDbContext>>(), new AuthenticationConfig(),
+            Substitute.For<IReplicatedCache>(), Substitute.For<ISecureRandom>(), Substitute.For<IDbTransactionRunner<AuthDbContext>>(), new AuthenticationConfig(),
             TestLogin.Password(real, Substitute.For<IReplicatedCache>()),
             TestLogin.Reauthentication(real, Substitute.For<IReplicatedCache>()));
 

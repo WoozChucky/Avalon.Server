@@ -43,7 +43,6 @@ public sealed class RegistrationThrottleShould : IDisposable
             new DeviceRepository(_database),
             _counters.Cache,
             Substitute.For<ISecureRandom>(),
-            Substitute.For<IRefreshTokenService>(),
             Substitute.For<IDbTransactionRunner<AuthDbContext>>(),
             _config,
             TestLogin.Password(accounts, _counters.Cache, _config),

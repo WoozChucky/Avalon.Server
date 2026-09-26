@@ -71,7 +71,7 @@ public sealed class RoleChangeShould : IDisposable
 
     private AccountService Service() => new(NullLoggerFactory.Instance, _accounts, Substitute.For<IJwtUtils>(),
         Substitute.For<IMFAHashService>(), new MfaSetupRepository(_database), new DeviceRepository(_database), _cache,
-        Substitute.For<ISecureRandom>(), Refresh(), new DbTransactionRunner<AuthDbContext>(_database),
+        Substitute.For<ISecureRandom>(), new DbTransactionRunner<AuthDbContext>(_database),
         new AuthenticationConfig(), TestLogin.Password(_accounts, _cache), TestLogin.Reauthentication(_accounts, _cache));
 
     private Task DemoteAsync(AccountId id) => Service().UpdateRolesAsync(id, ContractLevel.Player, Admin);
@@ -136,6 +136,25 @@ public sealed class RoleChangeShould : IDisposable
         // The bare account id: what the World server and the Auth server both parse.
         await _cache.Received(1).PublishAsync(CacheKeys.WorldAccountsDisconnectChannel,
             account.Id.Value.ToString(System.Globalization.CultureInfo.InvariantCulture));
+    }
+
+    /// <summary>
+    /// A login past its password step holds an MFA hash made at the old version. The role change
+    /// clears it, as a password change does, which also frees the account's hash slot.
+    /// </summary>
+    [Fact]
+    public async Task Clear_the_pending_mfa_login_state()
+    {
+        Account account = await AccountAsync(GameMaster);
+        IDatabase redis = Substitute.For<IDatabase>();
+        _cache.Database.Returns(redis);
+        redis.HashGetAsync((RedisKey)CacheKeys.AccountMfa(account.Id.Value), (RedisValue)"hash", Arg.Any<CommandFlags>())
+            .Returns((RedisValue)"PENDINGHASH");
+
+        await DemoteAsync(account.Id);
+
+        await _cache.Received(1).RemoveAsync(CacheKeys.MfaReverseHash("PENDINGHASH"));
+        await _cache.Received(1).RemoveAsync(CacheKeys.AccountMfa(account.Id.Value));
     }
 
     [Fact]

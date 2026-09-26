@@ -91,7 +91,6 @@ public sealed class CredentialRevocationShould : IDisposable
     private AccountService AccountService() => new(NullLoggerFactory.Instance, _accounts,
         Substitute.For<IJwtUtils>(), Substitute.For<IMFAHashService>(), new MfaSetupRepository(_database),
         new DeviceRepository(_database), _cache, Substitute.For<ISecureRandom>(),
-        new RefreshTokenService(new RefreshTokenRepository(_database), new SecureRandom(), TimeProvider.System),
         new DbTransactionRunner<AuthDbContext>(_database), new AuthenticationConfig(),
         TestLogin.Password(_accounts, _cache), TestLogin.Reauthentication(_accounts, _cache));
 

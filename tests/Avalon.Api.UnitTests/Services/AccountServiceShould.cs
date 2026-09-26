@@ -15,7 +15,6 @@ namespace Avalon.Api.UnitTests.Services;
 public class AccountServiceShould
 {
     private readonly IAccountRepository _accountRepository = Substitute.For<IAccountRepository>();
-    private readonly IRefreshTokenService _refreshService = Substitute.For<IRefreshTokenService>();
     private readonly IReplicatedCache _cache = Substitute.For<IReplicatedCache>();
 
     private readonly IDbTransactionRunner<AuthDbContext> _transaction =
@@ -30,7 +29,6 @@ public class AccountServiceShould
         Substitute.For<IDeviceRepository>(),
         _cache,
         Substitute.For<ISecureRandom>(),
-        _refreshService,
         _transaction,
         new AuthenticationConfig(),
         TestLogin.Password(_accountRepository, _cache),
@@ -52,7 +50,6 @@ public class AccountServiceShould
         await _transaction.Received(1).ExecuteAsync(Arg.Any<Func<AuthDbContext, CancellationToken, Task>>(),
             Arg.Any<CancellationToken>());
         await _accountRepository.DidNotReceiveWithAnyArgs().UpdateAsync(default!, default);
-        await _refreshService.DidNotReceiveWithAnyArgs().RevokeAllForAccountAsync(default, default);
     }
 
     /// <summary>

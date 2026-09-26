@@ -93,8 +93,7 @@ public sealed class ApiWriteRaceShould : IDisposable
 
     private AccountService Service(IAccountRepository accounts) => new(NullLoggerFactory.Instance, accounts,
         Substitute.For<IJwtUtils>(), Substitute.For<IMFAHashService>(), new MfaSetupRepository(_database),
-        new DeviceRepository(_database), _cache, Substitute.For<ISecureRandom>(), Substitute.For<IRefreshTokenService>(),
-        new DbTransactionRunner<AuthDbContext>(_database), new AuthenticationConfig(),
+        new DeviceRepository(_database), _cache, Substitute.For<ISecureRandom>(), new DbTransactionRunner<AuthDbContext>(_database), new AuthenticationConfig(),
         TestLogin.Password(accounts, _cache), TestLogin.Reauthentication(accounts, _cache));
 
     [Fact]

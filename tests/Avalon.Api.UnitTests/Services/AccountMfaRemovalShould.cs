@@ -219,7 +219,6 @@ public class AccountMfaRemovalShould : IDisposable
         new DeviceRepository(_database),
         _cache,
         Substitute.For<ISecureRandom>(),
-        Substitute.For<IRefreshTokenService>(),
         new DbTransactionRunner<AuthDbContext>(_database),
         new AuthenticationConfig(),
         TestLogin.Password(new AccountRepository(_database), _cache),

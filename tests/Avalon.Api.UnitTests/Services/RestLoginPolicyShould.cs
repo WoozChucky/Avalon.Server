@@ -54,8 +54,7 @@ public sealed class RestLoginPolicyShould : IDisposable
         jwt.GenerateJwtToken(Arg.Any<Account>()).Returns("jwt");
         return new AccountService(NullLoggerFactory.Instance, repository, jwt, Substitute.For<IMFAHashService>(),
             new MfaSetupRepository(_database), new DeviceRepository(_database), _cache.Cache,
-            Substitute.For<ISecureRandom>(), Substitute.For<IRefreshTokenService>(),
-            new DbTransactionRunner<AuthDbContext>(_database), _config,
+            Substitute.For<ISecureRandom>(), new DbTransactionRunner<AuthDbContext>(_database), _config,
             TestLogin.Password(repository, _cache.Cache, _config, verifier ?? _verifier),
             TestLogin.Reauthentication(repository, _cache.Cache, _config, verifier ?? _verifier));
     }

@@ -14,7 +14,10 @@ using Avalon.Infrastructure;
 using Avalon.Infrastructure.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
+using Avalon.Infrastructure.Login;
+using Avalon.Server.Auth.UnitTests.Services;
 using NSubstitute;
+using StackExchange.Redis;
 using Xunit;
 using AccountAccessLevel = Avalon.Common.Accounts.AccountAccessLevel;
 
@@ -68,12 +71,11 @@ public sealed class EmailChangeShould : IDisposable
     private PersonalAccessTokenService Pats() =>
         new(new PersonalAccessTokenRepository(_database), new SecureRandom(), TimeProvider.System);
 
-    private AccountService Service() => new(NullLoggerFactory.Instance, _accounts, Substitute.For<IJwtUtils>(),
-        Substitute.For<IMFAHashService>(), new MfaSetupRepository(_database), new DeviceRepository(_database), _cache,
-        new SecureRandom(),
-        new RefreshTokenService(new RefreshTokenRepository(_database), new SecureRandom(), TimeProvider.System),
+    private AccountService Service(IReplicatedCache? cache = null) => new(NullLoggerFactory.Instance, _accounts,
+        Substitute.For<IJwtUtils>(), Substitute.For<IMFAHashService>(), new MfaSetupRepository(_database),
+        new DeviceRepository(_database), cache ?? _cache, new SecureRandom(),
         new DbTransactionRunner<AuthDbContext>(_database), new AuthenticationConfig(),
-        TestLogin.Password(_accounts, _cache), TestLogin.Reauthentication(_accounts, _cache));
+        TestLogin.Password(_accounts, cache ?? _cache), TestLogin.Reauthentication(_accounts, cache ?? _cache));
 
     private Task<string> StartAsync(AccountId id, string newEmail, string? password = null) =>
         Service().InitiateEmailChangeAsync(id, newEmail, password ?? TestPasswords.Valid, IPAddress.Loopback);
@@ -140,6 +142,75 @@ public sealed class EmailChangeShould : IDisposable
         Assert.True(await context.RefreshTokens.Where(t => t.AccountId == account.Id).AllAsync(t => t.Revoked));
         await _cache.Received(1).PublishAsync(CacheKeys.WorldAccountsDisconnectChannel,
             account.Id.Value.ToString(System.Globalization.CultureInfo.InvariantCulture));
+    }
+
+    /// <summary>A login past its password step holds an MFA hash made at the old version; the change clears it.</summary>
+    [Fact]
+    public async Task Clear_the_pending_mfa_login_state()
+    {
+        Account account = await AccountAsync();
+        string token = await StartAsync(account.Id, "new@avalon.monster");
+        IDatabase redis = Substitute.For<IDatabase>();
+        _cache.Database.Returns(redis);
+        redis.HashGetAsync((RedisKey)CacheKeys.AccountMfa(account.Id.Value), (RedisValue)"hash", Arg.Any<CommandFlags>())
+            .Returns((RedisValue)"PENDINGHASH");
+
+        await Service().ConfirmEmailChangeAsync(token);
+
+        await _cache.Received(1).RemoveAsync(CacheKeys.MfaReverseHash("PENDINGHASH"));
+        await _cache.Received(1).RemoveAsync(CacheKeys.AccountMfa(account.Id.Value));
+    }
+
+    // ---------------- "Email already exists" costs a slot (review, #503) ----------------
+
+    private static readonly string SourceKey = SourceBudget.KeyFor(IPAddress.Loopback);
+
+    /// <summary>
+    /// The start answers whether an address is taken, once the password is proved. The proof gives
+    /// back its own slots, so without a slot of its own the answer was free: a session holding the
+    /// password could test addresses without limit. It now keeps a slot from the source's budget,
+    /// as registration does, and gives it back only when the change is started.
+    /// </summary>
+    [Fact]
+    public async Task Keep_a_source_slot_when_the_address_is_taken()
+    {
+        await AccountAsync("OTHER", "taken@avalon.monster");
+        Account account = await AccountAsync();
+        var counters = new CounterCache();
+
+        await Assert.ThrowsAsync<BusinessException>(() => Service(counters.Cache)
+            .InitiateEmailChangeAsync(account.Id, "taken@avalon.monster", TestPasswords.Valid, IPAddress.Loopback));
+
+        Assert.Equal(1, counters.CountOf(SourceKey));
+    }
+
+    [Fact]
+    public async Task Give_the_source_slot_back_when_the_change_is_started()
+    {
+        Account account = await AccountAsync();
+        var counters = new CounterCache();
+
+        await Service(counters.Cache)
+            .InitiateEmailChangeAsync(account.Id, "free@avalon.monster", TestPasswords.Valid, IPAddress.Loopback);
+
+        Assert.Equal(0, counters.CountOf(SourceKey));
+    }
+
+    [Fact]
+    public async Task Refuse_as_locked_once_taken_addresses_have_spent_the_source_budget()
+    {
+        await AccountAsync("OTHER", "taken@avalon.monster");
+        Account account = await AccountAsync();
+        var counters = new CounterCache();
+        AccountService service = Service(counters.Cache);
+        int budget = new AuthenticationConfig().MaxFailedLoginsPerSource;
+
+        for (int i = 0; i < budget; i++)
+            await Assert.ThrowsAsync<BusinessException>(() =>
+                service.InitiateEmailChangeAsync(account.Id, "taken@avalon.monster", TestPasswords.Valid, IPAddress.Loopback));
+
+        await Assert.ThrowsAsync<AccountLockedException>(() =>
+            service.InitiateEmailChangeAsync(account.Id, "taken@avalon.monster", TestPasswords.Valid, IPAddress.Loopback));
     }
 
     /// <summary>

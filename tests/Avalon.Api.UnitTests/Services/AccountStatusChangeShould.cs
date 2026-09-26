@@ -76,7 +76,6 @@ public class AccountStatusChangeShould : IDisposable
             new DeviceRepository(_database),
             Substitute.For<IReplicatedCache>(),
             Substitute.For<ISecureRandom>(),
-            Substitute.For<IRefreshTokenService>(),
             new DbTransactionRunner<AuthDbContext>(_database),
             new AuthenticationConfig(),
             TestLogin.Password(accounts, Substitute.For<IReplicatedCache>()),

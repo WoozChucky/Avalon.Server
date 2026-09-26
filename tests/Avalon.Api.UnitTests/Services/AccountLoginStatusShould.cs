@@ -46,7 +46,6 @@ public class AccountLoginStatusShould
         Substitute.For<IDeviceRepository>(),
         Substitute.For<IReplicatedCache>(),
         Substitute.For<ISecureRandom>(),
-        Substitute.For<IRefreshTokenService>(),
         Substitute.For<IDbTransactionRunner<AuthDbContext>>(),
         new AuthenticationConfig(),
         TestLogin.Password(_accounts, Substitute.For<IReplicatedCache>()),

@@ -59,7 +59,6 @@ public class AccountService : IAccountService
     private readonly IDeviceRepository _deviceRepository;
     private readonly IReplicatedCache _cache;
     private readonly ISecureRandom _secureRandom;
-    private readonly IRefreshTokenService _refreshService;
     private readonly IDbTransactionRunner<AuthDbContext> _authTransaction;
     private readonly AuthenticationConfig _authConfig;
     private readonly PasswordLoginPolicy _loginPolicy;
@@ -73,7 +72,6 @@ public class AccountService : IAccountService
         IDeviceRepository deviceRepository,
         IReplicatedCache cache,
         ISecureRandom secureRandom,
-        IRefreshTokenService refreshService,
         IDbTransactionRunner<AuthDbContext> authTransaction,
         AuthenticationConfig authConfig,
         PasswordLoginPolicy loginPolicy,
@@ -87,7 +85,6 @@ public class AccountService : IAccountService
         _deviceRepository = deviceRepository;
         _cache = cache;
         _secureRandom = secureRandom;
-        _refreshService = refreshService;
         _authTransaction = authTransaction;
         _authConfig = authConfig;
         _loginPolicy = loginPolicy;
@@ -191,7 +188,7 @@ public class AccountService : IAccountService
         if (!AccountEmail.IsValid(model.Email))
             throw new BusinessException(AccountEmail.Requirement);
 
-        var sourceKey = await TakeRegistrationSlotAsync(ipAddress);
+        var sourceKey = await TakeSourceSlotAsync(ipAddress, "Registration");
 
         var username = model.Username.ToUpperInvariant().Trim();
         var existingAccount = await _accountRepository.FindByUserNameAsync(username, cancellationToken);
@@ -246,14 +243,18 @@ public class AccountService : IAccountService
         }, account.Id);
     }
 
-    /// <summary>Takes the registration's slot from its source's budget (#495); 429 LOCKED past it.</summary>
-    private async Task<string> TakeRegistrationSlotAsync(IPAddress ipAddress)
+    /// <summary>
+    /// Takes a slot from the source's budget (#495) for a step that answers whether a name or an
+    /// address is taken (registration, and the start of an email change, #503 review); 429 LOCKED
+    /// past it. The caller gives it back only when the step succeeds.
+    /// </summary>
+    private async Task<string> TakeSourceSlotAsync(IPAddress ipAddress, string action)
     {
         var sourceKey = LoginSource.FromAddress(ipAddress).Key;
         if (await SourceBudget.TryTakeAsync(_cache, _authConfig, sourceKey))
             return sourceKey;
 
-        _logger.LogWarning("Registration refused for source {SourceKey}: too many attempts", sourceKey);
+        _logger.LogWarning("{Action} refused for source {SourceKey}: too many attempts", action, sourceKey);
         throw new AccountLockedException();
     }
 
@@ -411,6 +412,11 @@ public class AccountService : IAccountService
         var proof = await _reauthentication.RequireCurrentPasswordAsync(accountId, currentPassword, ipAddress,
             cancellationToken);
 
+        // "Email already exists" says whether an address has an account. The proof above gave back
+        // its own slots, so this answer takes one of its own (#503 review), as registration does,
+        // kept unless the change is started: a stolen password cannot test addresses for free.
+        var sourceKey = await TakeSourceSlotAsync(ipAddress, "Email change");
+
         var email = AccountEmail.Normalise(newEmail);
         if (await _accountRepository.FindByEmailAsync(email, cancellationToken) != null)
             throw new BusinessException(EmailTaken);
@@ -423,6 +429,7 @@ public class AccountService : IAccountService
             $"{accountId.Value}|{proof.CredentialsVersion}|{email}");
         await _cache.SetAsync(EmailChangeKey(token), payload, TimeSpan.FromMinutes(15));
 
+        await SourceBudget.GiveBackAsync(_cache, sourceKey);
         return token;
     }
 
@@ -484,6 +491,9 @@ public class AccountService : IAccountService
         if (!changed)
             throw new BusinessException(InvalidEmailToken);
 
+        // A login past its password step holds an MFA hash made at the old version: it can no
+        // longer complete, and clearing it frees the account's hash slot, as after a password change.
+        await ClearPendingMfaAsync(accountId, "its email was changed");
         await PublishDisconnectAsync(accountId, "its email was changed");
     }
 
@@ -545,7 +555,9 @@ public class AccountService : IAccountService
         _logger.LogInformation("Account {ActorId} set the roles of account {AccountId} to {Roles}; its sessions were ended",
             actorId.Value, accountId.Value, roles);
 
-        // Kicks the account's world and auth-server connections. Best-effort: the change is committed.
+        // Kicks the account's world and auth-server connections, after clearing a pending MFA login
+        // made at the old version. Both best-effort: the change is committed.
+        await ClearPendingMfaAsync(accountId, "its roles were changed");
         await PublishDisconnectAsync(accountId, "its roles were changed");
     }
 
