@@ -10,6 +10,7 @@ using Avalon.World.Maps;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Instances;
 using Avalon.World.Scripts.Abstractions;
+using Avalon.World.Vendors;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -70,6 +71,42 @@ public class BankInstanceChangeShould
         await world.DeSpawnPlayerAsync(w.Connection);
 
         Assert.Null(w.Character.OpenBankNpc);
+    }
+
+    /// <summary>The shop closes with the conversation on a transfer, exactly as the bank does (#432).</summary>
+    [Fact]
+    public async Task Close_the_shop_too_when_the_character_changes_instance()
+    {
+        var w = await BankerWorld.CreateAsync();
+        OpenBankThroughTheDialogue(w);
+        w.Character.OpenShopNpc = BankerWorld.BankerGuid;   // as if the banker also kept a shop
+        w.Character.VendorListOwed = true;
+        w.Character.Buyback.Push(new BuybackEntry(Item(0, Sword), 25));
+        Avalon.World.World world = await RealWorldAsync();
+
+        world.TransferPlayer(w.Connection, Elsewhere());
+
+        Assert.Null(w.Character.OpenShopNpc);
+        Assert.False(w.Character.VendorListOwed);
+        Assert.False(ShopAccess.IsOpen(w.Connection, w.Character));
+        Assert.Single(w.Character.Buyback.Entries);   // the session goes on, and so does its buyback
+    }
+
+    [Fact]
+    public async Task Clear_the_shop_and_the_buyback_when_the_character_leaves_the_world()
+    {
+        var w = await BankerWorld.CreateAsync();
+        OpenBankThroughTheDialogue(w);
+        w.Character.OpenShopNpc = BankerWorld.BankerGuid;
+        w.Character.VendorListOwed = true;
+        w.Character.Buyback.Push(new BuybackEntry(Item(0, Sword), 25));
+        Avalon.World.World world = await RealWorldAsync();
+
+        await world.DeSpawnPlayerAsync(w.Connection);
+
+        Assert.Null(w.Character.OpenShopNpc);
+        Assert.False(w.Character.VendorListOwed);
+        Assert.Empty(w.Character.Buyback.Entries);
     }
 
     private static void OpenBankThroughTheDialogue(BankerWorld w)

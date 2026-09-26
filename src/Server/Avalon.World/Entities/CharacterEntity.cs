@@ -153,6 +153,25 @@ public class CharacterEntity : ICharacter
     public ObjectGuid? OpenBankNpc { get; set; }
 
     /// <summary>
+    /// The NPC whose shop is open (spec #432), or null. Exactly like <see cref="OpenBankNpc" />:
+    /// the shop is open only while the connection's current conversation is with this NPC
+    /// (ShopAccess.IsOpen), so a conversation that ends or changes closes the shop, whatever this
+    /// still says.
+    /// </summary>
+    public ObjectGuid? OpenShopNpc { get; set; }
+
+    /// <summary>
+    /// Closes the bank and the shop together, and forgets any list the shop was owed. Every way a
+    /// conversation ends calls this, so neither window can outlive the conversation it opened in.
+    /// </summary>
+    public void CloseNpcWindows()
+    {
+        OpenBankNpc = null;
+        OpenShopNpc = null;
+        VendorListOwed = false;
+    }
+
+    /// <summary>
     /// This session's last ten sales to a vendor, newest first (spec #432). In memory only. Cleared
     /// when the character leaves the world, so a buyback lost on logout is simply a completed sale.
     /// </summary>

@@ -10,6 +10,7 @@ using Avalon.World.Inventory;
 using Avalon.World.Loot;
 using Avalon.World.Maps;
 using Avalon.World.Persistence;
+using Avalon.World.Quests;
 using Avalon.World.ChunkLayouts;
 using Avalon.World.Public.Combat;
 using Avalon.World.Reload;
@@ -78,6 +79,9 @@ public static class ServiceExtensions
         services.AddSingleton<IScriptDatabase, ScriptDatabase>();
 
         //services.AddSingleton<IQuestManager, QuestManager>();
+
+        // Vendor quest gates (#432). Nothing can meet a requirement until quests exist (#433).
+        services.AddSingleton<IQuestProgress, NoQuestProgress>();
 
         services.AddSingleton<IRespawnTargetResolver, RespawnTargetResolver>();
 

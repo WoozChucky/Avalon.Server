@@ -159,13 +159,14 @@ public class World : IWorld
 
     public void TransferPlayer(IWorldConnection connection, IMapInstance targetInstance)
     {
-        // The NPC stays behind in the old instance, so an open conversation, and a bank opened in it
-        // (#463), ends here; otherwise the bank would stay usable from the next map. The client hears
-        // SMSG_DIALOGUE_END only when there was a conversation to end.
+        // The NPC stays behind in the old instance, so an open conversation, and a bank or shop opened
+        // in it (#463, #432), ends here; otherwise the bank would stay usable from the next map. The
+        // client hears SMSG_DIALOGUE_END only when there was a conversation to end. The buyback list
+        // stays: the session goes on.
         if (connection.CurrentDialogue is { } open)
             NpcInteraction.EndConversation(connection, open.Npc);
         if (connection.Character is CharacterEntity entity)
-            entity.OpenBankNpc = null;
+            entity.CloseNpcWindows();
 
         IMapInstance? current = InstanceRegistry.GetInstanceById(connection.Character!.InstanceId);
         current?.RemoveCharacter(connection);
@@ -244,9 +245,14 @@ public class World : IWorld
         // A stale (npc, node) pair surviving a disconnect would let a reconnecting player
         // resume a conversation with an NPC that may no longer be in their (new) instance.
         connection.CurrentDialogue = null;
-        // The bank opened in that conversation closes with it (#463).
+        // The bank and the shop opened in that conversation close with it (#463, #432), and the
+        // session's buyback list ends with the session: a buyback lost on logout is a completed sale.
+        // Both come before any step that can throw, so every despawn clears them.
         if (character is CharacterEntity entity)
-            entity.OpenBankNpc = null;
+        {
+            entity.CloseNpcWindows();
+            entity.Buyback.Clear();
+        }
 
         IMapInstance? instance;
         try

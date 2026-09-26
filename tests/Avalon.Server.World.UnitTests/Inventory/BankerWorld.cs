@@ -1,20 +1,16 @@
-using System.IO;
 using Avalon.Common;
-using Avalon.Common.Accounts;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.World;
 using Avalon.World.Characters;
-using Avalon.World.Configuration;
 using Avalon.World.Entities;
 using Avalon.World.Public;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Instances;
 using NSubstitute;
-using ProtoBuf;
 
 namespace Avalon.Server.World.UnitTests.Inventory;
 
@@ -88,40 +84,16 @@ internal sealed class BankerWorld
     {
         Data = data;
         Character.InstanceId = new Guid("46300000-0000-0000-0000-000000000463");
-        Banker = Npc(BankerGuid, BankerTemplate, "Marta Ledgerwell", new Vector3(0, 0, 3));
-        Stranger = Npc(StrangerGuid, StrangerTemplate, "Innkeeper", new Vector3(0, 0, 2));
+        Banker = TestTown.AddNpc(Creatures, BankerGuid, BankerTemplate, "Marta Ledgerwell", new Vector3(0, 0, 3));
+        Stranger = TestTown.AddNpc(Creatures, StrangerGuid, StrangerTemplate, "Innkeeper", new Vector3(0, 0, 2));
 
         // Only the character's own instance is stubbed; any other id comes back null.
         IMapInstance instance = Substitute.For<IMapInstance>();
         instance.Creatures.Returns(Creatures);
-        var registry = Substitute.For<IInstanceRegistry>();
-        registry.GetInstanceById(Arg.Any<Guid>()).Returns((IMapInstance?)null);
-        registry.GetInstanceById(Character.InstanceId).Returns(instance);
-
-        World.InstanceRegistry.Returns(registry);
-        World.Configuration.Returns(new GameConfiguration());
-        World.Data.Returns(Data);
-
-        Connection.Character.Returns(Character);
-        Connection.Locale.Returns(AccountLocale.enUS);
-        Connection.CryptoSession.Returns(new FakeAvalonCryptoSession());
-        Connection.When(c => c.Send(Arg.Any<NetworkPacket>())).Do(ci => Sent.Add(ci.Arg<NetworkPacket>()));
+        TestTown.Stub(World, Data, (Character.InstanceId, instance));
+        TestTown.Record(Connection, Character, Sent);
 
         CharacterStatsRefresh.Apply(Character, Data, CurrentValues.Refill);
-    }
-
-    private ICreature Npc(ObjectGuid guid, CreatureTemplateId template, string name, Vector3 at)
-    {
-        var metadata = Substitute.For<ICreatureMetadata>();
-        metadata.Id.Returns(template);
-        var npc = Substitute.For<ICreature>();
-        npc.Guid.Returns(guid);
-        npc.Name.Returns(name);
-        npc.CurrentHealth.Returns(100u);
-        npc.Position.Returns(at);
-        npc.Metadata.Returns(metadata);
-        Creatures[guid] = npc;
-        return npc;
     }
 
     /// <summary>What choosing "Open my bank." leaves behind, without going through the handler.</summary>
@@ -131,10 +103,5 @@ internal sealed class BankerWorld
         Character.OpenBankNpc = BankerGuid;
     }
 
-    public List<T> Read<T>(NetworkPacketType type) =>
-        Sent.Where(p => p.Header.Type == type).Select(p =>
-        {
-            using var stream = new MemoryStream(p.Payload);
-            return Serializer.Deserialize<T>(stream);
-        }).ToList();
+    public List<T> Read<T>(NetworkPacketType type) => TestTown.Read<T>(Sent, type);
 }
