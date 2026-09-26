@@ -202,6 +202,50 @@ public class MapInstanceVendorShould
     }
 
     /// <summary>
+    /// A /reload items that changes a BuyPrice reaches every open shop on the next tick with the new
+    /// price, the one the next buy charges, although the vendor catalog itself did not change (#432).
+    /// </summary>
+    [Fact]
+    public async Task Resend_the_list_to_every_open_shop_after_an_item_reload()
+    {
+        using MapInstance instance = await BuildAsync();
+        Client first = Join(instance, 432_001, shopOpen: true);
+        Client second = Join(instance, 432_002, shopOpen: true);
+        Client browsing = Join(instance, 432_003, shopOpen: false);
+        SmithStock(instance);
+        instance.Update(Tick);
+
+        var dearerTonic = new ItemTemplate
+        {
+            Id = Tonic.Id, Name = Tonic.Name, Class = Tonic.Class, SubClass = Tonic.SubClass,
+            MaxStackSize = Tonic.MaxStackSize, BuyPrice = 15, SellPrice = Tonic.SellPrice,
+        };
+        _data.Apply(new ItemsPatch(Items.Select(t => t.Id == Tonic.Id ? dearerTonic : t).ToList()));
+        instance.Update(Tick);
+
+        Assert.Equal(15u, Assert.Single(first.Lists()).Entries.Single(e => e.Sequence == TonicSequence).Price);
+        Assert.Equal(15u, Assert.Single(second.Lists()).Entries.Single(e => e.Sequence == TonicSequence).Price);
+        Assert.Empty(browsing.Lists());
+
+        instance.Update(Tick);
+        Assert.Single(first.Lists());
+    }
+
+    /// <summary>With no reload, an open shop hears nothing, however many ticks pass (#432).</summary>
+    [Fact]
+    public async Task Send_nothing_while_no_item_reload_lands()
+    {
+        using MapInstance instance = await BuildAsync();
+        Client first = Join(instance, 432_001, shopOpen: true);
+        SmithStock(instance);
+
+        for (int tick = 0; tick < 10; tick++)
+            instance.Update(Tick);
+
+        Assert.Empty(first.Lists());
+    }
+
+    /// <summary>
     /// The pass runs on every tick while the instance keeps stock, whether or not a shop is open or
     /// anything changed: a row whose MaxStock a reload raised starts its restock timer on the next
     /// tick, not at its next sale (#432).

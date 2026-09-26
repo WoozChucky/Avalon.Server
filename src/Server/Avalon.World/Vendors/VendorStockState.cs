@@ -147,6 +147,9 @@ public sealed class VendorStockState
         Changed = true;
     }
 
+    /// <summary>Owes every open shop of this vendor a new list: a /reload items changed what a list shows.</summary>
+    public void MarkChanged() => Changed = true;
+
     public void ClearChanged() => Changed = false;
 
     /// <summary>A reference type, so a pass can change its fields while it walks the dictionary.</summary>

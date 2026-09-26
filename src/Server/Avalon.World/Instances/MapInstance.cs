@@ -605,13 +605,14 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     /// every list work from one catalog, the same one the vendor handlers read on this tick; and it
     /// takes "now" from the container's TimeProvider, the clock the handlers take sales at. It walks
     /// the stock and the connections with struct enumerators and sends nothing unless something
-    /// changed, so a quiet pass allocates nothing. Tick thread only. Public rather than internal so
+    /// changed (a stock count, a restock, a /reload vendors, a /reload items, or a buyback), so a
+    /// quiet pass allocates nothing. Tick thread only. Public rather than internal so
     /// the unit-test assembly can pin the allocation without an InternalsVisibleTo handshake.
     /// </summary>
     public void RunVendorPass()
     {
         StaticData data = _world.Data;
-        _vendors.Update(_time.GetUtcNow().UtcDateTime, data.Vendors);
+        _vendors.Update(_time.GetUtcNow().UtcDateTime, data.Vendors, data.ItemTemplates);
 
         foreach (IWorldConnection connection in _connections.Values)
             VendorListBuilder.SendIfOwed(connection, _vendors, data, _quests);

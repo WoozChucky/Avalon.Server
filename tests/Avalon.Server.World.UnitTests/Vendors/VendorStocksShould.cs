@@ -37,7 +37,7 @@ public class VendorStocksShould
         VendorStockView blade = smith.Rows.Single(r => r.Sequence == BladeSequence);
         smith.Take(blade, 2, Now);
 
-        stocks.Update(Now.AddSeconds(60), catalog);
+        stocks.Update(Now.AddSeconds(60), catalog, Items);
 
         Assert.Equal(2u, smith.Available(blade));
     }
@@ -52,7 +52,7 @@ public class VendorStocksShould
         List<VendorStock> rows = Rows();
         rows.RemoveAll(r => r.Id == 4);
         VendorCatalog reloaded = Catalog(rows);
-        stocks.Update(Now, reloaded);
+        stocks.Update(Now, reloaded, Items);
 
         Assert.True(smith.Changed);
         Assert.Same(reloaded.RowsFor(Smith), smith.Rows);
@@ -76,20 +76,22 @@ public class VendorStocksShould
     public void Update_without_allocating_when_nothing_is_due()
     {
         VendorCatalog catalog = Catalog();
+        IReadOnlyCollection<ItemTemplate> items = Items;   // one snapshot, as StaticData holds it between reloads
         var stocks = new VendorStocks();
         VendorStockState smith = stocks.For(SmithGuid, Smith, catalog.RowsFor(Smith));
         stocks.For(PedlarGuid, Pedlar, catalog.RowsFor(Pedlar));
         smith.Take(smith.Rows.Single(r => r.Sequence == BladeSequence), 1, Now);   // a timer is running, not due
-        stocks.Update(Now, catalog);
+        stocks.Update(Now, catalog, items);
         stocks.ClearChanged();
 
         long before = GC.GetAllocatedBytesForCurrentThread();
         for (int tick = 0; tick < 100; tick++)
         {
-            stocks.Update(Now.AddSeconds(1), catalog);
+            stocks.Update(Now.AddSeconds(1), catalog, items);
             stocks.ClearChanged();
         }
 
         Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+        Assert.False(smith.Changed);
     }
 }

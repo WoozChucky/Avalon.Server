@@ -213,7 +213,7 @@ internal sealed class VendorWorld
     /// <summary>What the instance's vendor pass does after the tick's packets (#432): reconcile and restock, send what is owed, clear.</summary>
     public void EndOfTick()
     {
-        Stocks.Update(Clock.GetUtcNow().UtcDateTime, Data.Vendors);
+        Stocks.Update(Clock.GetUtcNow().UtcDateTime, Data.Vendors, Data.ItemTemplates);
         foreach (Shopper shopper in _shoppers)
             VendorListBuilder.SendIfOwed(shopper.Connection, Stocks, Data, Quests);
         Stocks.ClearChanged();

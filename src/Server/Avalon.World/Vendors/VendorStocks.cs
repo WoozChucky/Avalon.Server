@@ -1,6 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 using Avalon.Common;
 using Avalon.Common.ValueObjects;
+using Avalon.Domain.World;
 
 namespace Avalon.World.Vendors;
 
@@ -14,6 +15,9 @@ namespace Avalon.World.Vendors;
 public sealed class VendorStocks
 {
     private readonly Dictionary<ObjectGuid, VendorStockState> _states = [];
+
+    /// <summary>The item templates the last pass saw; null until the first pass.</summary>
+    private IReadOnlyCollection<ItemTemplate>? _items;
 
     /// <summary>How many vendors have stock here. The instance skips its vendor pass at 0.</summary>
     public int Count => _states.Count;
@@ -37,15 +41,24 @@ public sealed class VendorStocks
 
     /// <summary>
     /// The vendor pass. It reconciles each state with the current catalog, which is a reference
-    /// comparison unless a reload landed, then refills what is due. Allocation-free when nothing
-    /// changed.
+    /// comparison unless a reload landed, then refills what is due. When <paramref name="items" />
+    /// is not the snapshot the last pass saw, a /reload items landed: a list shows each item's
+    /// price, so every vendor is marked changed and every open shop hears the new prices, the ones
+    /// the next buy charges. The first pass only records the snapshot, since every list already
+    /// sent was built from it on this tick or an earlier one without a reload in between.
+    /// Allocation-free when nothing changed.
     /// </summary>
-    public void Update(DateTime now, VendorCatalog catalog)
+    public void Update(DateTime now, VendorCatalog catalog, IReadOnlyCollection<ItemTemplate> items)
     {
+        bool itemsReloaded = _items is not null && !ReferenceEquals(items, _items);
+        _items = items;
+
         foreach (VendorStockState state in _states.Values)
         {
             state.Reconcile(catalog.RowsFor(state.Template));
             state.Restock(now);
+            if (itemsReloaded)
+                state.MarkChanged();
         }
     }
 
