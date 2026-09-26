@@ -295,7 +295,10 @@ public class AccountService : IAccountService
         var key = $"auth:emailChange:{token}";
         var payload = await _cache.GetAsync(key)
             ?? throw new BusinessException("Invalid or expired token");
-        await _cache.RemoveAsync(key);
+        // The DEL spends the token, not the GET (#478 review): two confirms can both read it, and
+        // only the one whose delete removed it goes on.
+        if (!await _cache.RemoveAsync(key))
+            throw new BusinessException("Invalid or expired token");
 
         var parts = payload.Split('|', 2);
         if (parts.Length != 2)
@@ -338,7 +341,7 @@ public class AccountService : IAccountService
 
         if (state is Avalon.Api.Contract.AccountStatus.Banned or Avalon.Api.Contract.AccountStatus.Deactivated)
         {
-            await _cache.PublishAsync(CacheKeys.WorldAccountsDisconnectChannel, accountId.Value.ToString());
+            await PublishDisconnectAsync(accountId, "its status changed to " + state);
         }
     }
 

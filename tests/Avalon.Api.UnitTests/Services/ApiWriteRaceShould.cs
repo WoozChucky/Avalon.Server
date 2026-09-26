@@ -126,6 +126,7 @@ public sealed class ApiWriteRaceShould : IDisposable
     {
         Account account = await AccountAsync();
         _cache.GetAsync("auth:emailChange:token").Returns($"{account.Id.Value}|new@avalon.monster");
+        _cache.RemoveAsync("auth:emailChange:token").Returns(true);
 
         await Service(new StaleAccountRepository(_accounts) { BeforeWrite = () => BanAndLockAsync(account.Id) })
             .ConfirmEmailChangeAsync("token");
@@ -163,7 +164,7 @@ public sealed class ApiWriteRaceShould : IDisposable
             Substitute.For<IJwtUtils>(), stale, refresh, TestLogin.Mfa(stale, _cache, mfa, hashes),
             Substitute.For<IReauthentication>())
         {
-            ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() },
+            ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext { Connection = { RemoteIpAddress = IPAddress.Loopback } } },
         };
 
         ActionResult<AuthenticateResponse> result = await controller.VerifyMFA(new VerifyMFARequest { Hash = "hash", Code = "123456" });

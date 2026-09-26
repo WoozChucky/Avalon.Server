@@ -61,7 +61,7 @@ public class PersonalAccessTokenController : BaseController
             return StatusCode(StatusCodes.Status403Forbidden, "PAT cannot mint new PATs");
 
         // A token that outlives the session needs the password, not just the session (#483).
-        await _reauthentication.RequireCurrentPasswordAsync(User.AccountId(), req.CurrentPassword, IpAddress, ct);
+        await _reauthentication.RequireCurrentPasswordAsync(User.AccountId(), req.CurrentPassword, SourceAddress, ct);
 
         var result = await _service.MintSelfAsync(
             callerId: User.AccountId(),
@@ -131,7 +131,7 @@ public class PersonalAccessTokenController : BaseController
 
         // The calling admin's own password (#483): this route can mint for any account, the
         // admin's own included, so without it the self-service check would be one route away.
-        await _reauthentication.RequireCurrentPasswordAsync(User.AccountId(), req.CurrentPassword, IpAddress, ct);
+        await _reauthentication.RequireCurrentPasswordAsync(User.AccountId(), req.CurrentPassword, SourceAddress, ct);
 
         var result = await _service.MintAdminAsync(
             callerRoles: CollectRoles(User),

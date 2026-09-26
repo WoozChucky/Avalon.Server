@@ -47,7 +47,7 @@ public class MFAController : BaseController
         // no MFA yet, that locks the owner out of an account they can still log in to. The current
         // password is checked by the login policy, so a wrong one is a failed login.
         await _reauthentication.RequireCurrentPasswordAsync(_authContext.Account!.Id, request.CurrentPassword,
-            IpAddress, CancellationToken);
+            SourceAddress, CancellationToken);
 
         var result = await _mfaService.SetupMFAAsync(_authContext.Account!, _authConfig.Issuer, CancellationToken);
         if (!result.Success)
@@ -96,7 +96,7 @@ public class MFAController : BaseController
         // code is checked; and only one caller can win a hash, so two parallel verifies of one
         // hash cannot both get a session.
         MfaCodeAttempt attempt = await _mfaPolicy.CheckAsync(request.Hash, request.Code,
-            LoginSource.FromAddress(IpAddress), CancellationToken);
+            LoginSource.FromAddress(SourceAddress), CancellationToken);
 
         switch (attempt.Result)
         {

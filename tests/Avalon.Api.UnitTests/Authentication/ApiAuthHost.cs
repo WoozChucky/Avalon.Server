@@ -37,6 +37,9 @@ namespace Avalon.Api.UnitTests.Authentication;
 public sealed class ApiAuthHost : IAsyncDisposable
 {
     public const long AccountIdValue = 7;
+
+    /// <summary>A request carrying this header reaches the api with no peer address.</summary>
+    public const string NoAddressHeader = "X-Test-No-Address";
     public const string SigningKey = "test-signing-key-test-signing-key-test-signing-key-0123456789-abcdef";
 
     public static readonly AuthenticationConfig AuthConfig = new()
@@ -100,6 +103,14 @@ public sealed class ApiAuthHost : IAsyncDisposable
         services.AddSingleton<IJwtUtils>(new JwtUtils(AuthConfig, JwtSigningKey.Create(AuthConfig)));
 
         _app = builder.Build();
+        // The test server has no socket, so no peer address; a real connection always has one.
+        // Loopback stands in, unless a request asks to be the address-less caller.
+        _app.Use((context, next) =>
+        {
+            if (!context.Request.Headers.ContainsKey(NoAddressHeader))
+                context.Connection.RemoteIpAddress ??= System.Net.IPAddress.Loopback;
+            return next(context);
+        });
         _app.UseMiddleware<ExceptionHandlerMiddleware>();
         _app.UseRouting();
         _app.UseAuthentication();

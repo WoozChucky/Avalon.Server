@@ -69,7 +69,7 @@ public class AccountController : BaseController
     [HttpPost("authenticate", Name = "Authenticate")]
     public async Task<AuthenticateResponse> Authenticate([FromBody] AuthenticateRequest model)
     {
-        var (response, accountId) = await _accountService.Authenticate(model, IpAddress, CancellationToken);
+        var (response, accountId) = await _accountService.Authenticate(model, SourceAddress, CancellationToken);
         if (accountId is not null)
         {
             var issue = await _refreshService.IssueAsync(accountId.Value, CancellationToken);
@@ -96,7 +96,7 @@ public class AccountController : BaseController
     public async Task<IActionResult> ChangePassword([FromBody] AccountPasswordChangeRequest request, CancellationToken ct)
     {
         var accountId = User.AccountId();
-        await _accountService.ChangePasswordAsync(accountId, request.CurrentPassword, request.NewPassword, IpAddress, ct);
+        await _accountService.ChangePasswordAsync(accountId, request.CurrentPassword, request.NewPassword, SourceAddress, ct);
         return NoContent();
     }
 
