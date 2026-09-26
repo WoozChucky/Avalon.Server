@@ -109,7 +109,7 @@ public class AccountController : BaseController
     [ProducesResponseType(StatusCodes.Status202Accepted)]
     public async Task<IActionResult> InitiateEmailChange([FromBody] AccountEmailChangeRequest req, CancellationToken ct)
     {
-        await _accountService.InitiateEmailChangeAsync(User.AccountId(), req.NewEmail, ct);
+        await _accountService.InitiateEmailChangeAsync(User.AccountId(), req.NewEmail, req.CurrentPassword, SourceAddress, ct);
         return Accepted();
     }
 
@@ -157,7 +157,7 @@ public class AccountController : BaseController
         [FromBody] AccountRolesPatchRequest req,
         CancellationToken ct)
     {
-        await _accountService.UpdateRolesAsync(new AccountId(id), req.Roles, ct);
+        await _accountService.UpdateRolesAsync(new AccountId(id), req.Roles, User.AccountId(), ct);
         return NoContent();
     }
 

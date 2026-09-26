@@ -36,12 +36,6 @@ public interface IAccountRepository : IRepository<Account, AccountId>
     /// </summary>
     Task<bool> TryRecordApiLoginAsync(AccountId id, string lastIp, DateTime now, CancellationToken cancellationToken = default);
 
-    /// <summary>Sets the email, and writes nothing else. False when no account has <paramref name="id"/>.</summary>
-    Task<bool> SetEmailAsync(AccountId id, string email, CancellationToken cancellationToken = default);
-
-    /// <summary>Sets the access level, and writes nothing else. False when no account has <paramref name="id"/>.</summary>
-    Task<bool> SetAccessLevelAsync(AccountId id, AccountAccessLevel accessLevel, CancellationToken cancellationToken = default);
-
     /// <summary>
     /// Sets <c>Online = false</c> (and clears <c>OnlineSessionId</c>), but only while the account's
     /// online session is <paramref name="sessionId"/> (#487): a session that is not the one online
@@ -148,23 +142,42 @@ public class AccountRepository(IDbContextFactory<AuthDbContext> contextFactory)
         return updated == 1;
     }
 
-    public async Task<bool> SetEmailAsync(AccountId id, string email, CancellationToken cancellationToken = default)
-    {
-        await using var context = await CreateContextAsync(cancellationToken);
-
-        return await context.Accounts
-            .Where(a => a.Id == id)
-            .ExecuteUpdateAsync(s => s.SetProperty(a => a.Email, email), cancellationToken) == 1;
-    }
-
-    public async Task<bool> SetAccessLevelAsync(AccountId id, AccountAccessLevel accessLevel,
+    /// <summary>
+    /// Sets the access level and raises <c>CredentialsVersion</c> by one (#504), in one statement,
+    /// on a context the caller owns, so the write joins that context's transaction (a role change
+    /// revokes the account's tokens with it), and writes nothing else. Run it first in that
+    /// transaction: its row lock orders the change against a concurrent credential issue, as
+    /// <see cref="BumpCredentialsVersionAsync"/> does. Returns the rows written: 0 when no account
+    /// has <paramref name="id"/>.
+    /// </summary>
+    public static Task<int> SetAccessLevelAsync(AuthDbContext context, AccountId id, AccountAccessLevel accessLevel,
         CancellationToken cancellationToken = default)
     {
-        await using var context = await CreateContextAsync(cancellationToken);
-
-        return await context.Accounts
+        return context.Accounts
             .Where(a => a.Id == id)
-            .ExecuteUpdateAsync(s => s.SetProperty(a => a.AccessLevel, accessLevel), cancellationToken) == 1;
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(a => a.AccessLevel, accessLevel)
+                .SetProperty(a => a.CredentialsVersion, a => a.CredentialsVersion + 1), cancellationToken);
+    }
+
+    /// <summary>
+    /// Sets the email and raises <c>CredentialsVersion</c> by one (#503), in one statement, on a
+    /// context the caller owns, and writes nothing else. <paramref name="email"/> must already be
+    /// normalised (<see cref="AccountEmail.Normalise"/>): the unique index and the check constraint
+    /// are on the stored form. A compare-and-set, like <see cref="SetPasswordAsync"/>: it writes only
+    /// while the account is still at <paramref name="expectedVersion"/>, the version the current
+    /// password was checked at when the change was started, so a password change, an MFA reset or
+    /// a role change since then voids it. Returns the rows written: 0 when no account has
+    /// <paramref name="id"/> or its version has moved.
+    /// </summary>
+    public static Task<int> SetEmailAsync(AuthDbContext context, AccountId id, string email, int expectedVersion,
+        CancellationToken cancellationToken = default)
+    {
+        return context.Accounts
+            .Where(a => a.Id == id && a.CredentialsVersion == expectedVersion)
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(a => a.Email, email)
+                .SetProperty(a => a.CredentialsVersion, a => a.CredentialsVersion + 1), cancellationToken);
     }
 
     /// <summary>
@@ -260,13 +273,18 @@ public class AccountRepository(IDbContextFactory<AuthDbContext> contextFactory)
             .ExecuteUpdateAsync(s => s.SetProperty(a => a.SessionKey, sessionKey), cancellationToken);
     }
 
+    /// <summary>
+    /// Looks the email up in its stored form (#503): <paramref name="email"/> is normalised first, so
+    /// <c>A@X.com</c> and <c>a@x.com</c> find the same account.
+    /// </summary>
     public async Task<Account?> FindByEmailAsync(string email, CancellationToken cancellationToken = default)
     {
         await using var context = await CreateContextAsync(cancellationToken);
+        string normalised = AccountEmail.Normalise(email);
 
         return await context.Accounts
             .AsNoTracking()
-            .Where(x => x.Email == email)
+            .Where(x => x.Email == normalised)
             .FirstOrDefaultAsync(cancellationToken);
     }
 }

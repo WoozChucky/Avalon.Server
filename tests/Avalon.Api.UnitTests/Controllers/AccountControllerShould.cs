@@ -124,14 +124,19 @@ public class AccountControllerShould
     public async Task InitiateEmailChange_Delegates()
     {
         var user = User(7, AvalonRoles.Player);
-        _accountService.InitiateEmailChangeAsync(new AccountId(7), "new@t", Arg.Any<CancellationToken>())
+        _accountService.InitiateEmailChangeAsync(new AccountId(7), "new@t", TestPasswords.Valid, Arg.Any<System.Net.IPAddress>(),
+                Arg.Any<CancellationToken>())
             .Returns("tok");
 
         var sut = MakeSut(user);
         var result = await sut.InitiateEmailChange(
-            new AccountEmailChangeRequest { NewEmail = "new@t" }, CancellationToken.None);
+            new AccountEmailChangeRequest { NewEmail = "new@t", CurrentPassword = TestPasswords.Valid }, CancellationToken.None);
 
-        Assert.IsType<AcceptedResult>(result);
+        // 202 with no body: the confirm token is never handed to the caller (#503).
+        var accepted = Assert.IsType<AcceptedResult>(result);
+        Assert.Null(accepted.Value);
+        await _accountService.Received(1).InitiateEmailChangeAsync(new AccountId(7), "new@t", TestPasswords.Valid,
+            Arg.Any<System.Net.IPAddress>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -227,6 +232,7 @@ public class AccountControllerShould
         await _accountService.Received(1).UpdateRolesAsync(
             new AccountId(7),
             Contract.AccountAccessLevel.Player | Contract.AccountAccessLevel.GameMaster,
+            new AccountId(99),
             Arg.Any<CancellationToken>());
     }
 }
