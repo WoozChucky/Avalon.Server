@@ -132,9 +132,14 @@ Client               Auth Server           Redis
 ### Security Notes
 
 - Ephemeral hash TTL: 2 minutes.
-- The hash is single-use, and the delete decides who used it (#478): a right code spends the hash with
-  `IMFAHashService.TryConsumeAsync`, and only the caller whose `DEL` removed the reverse key goes on, as
-  the world key's exchange does (#450). Two verifies sent together with one hash can no longer both win.
+- The hash is single-use, and the delete decides who used it (#478): once a right code's step is
+  accepted, it spends the hash with `IMFAHashService.TryConsumeAsync`, and only the caller whose `DEL`
+  removed the reverse key goes on, as the world key's exchange does (#450). Two verifies sent together
+  with one hash can no longer both win.
+- The step is accepted before the hash is spent, so a replayed code (right, but already used) is refused
+  without spending the hash, and the owner's own code can still finish the login. A replay, and a right
+  code that lost the hash to another verify, are not failed logins: their budget slots come back and the
+  row is not counted.
 - Each hash allows `MaxFailedMfaAttempts` codes (counted before the code is checked); the last wrong code
   deletes it. Each code also spends its source's and its account's username budgets, and the account's
   lock is checked before the code. TOTP codes are accepted within ±1 step, each step once
@@ -142,7 +147,8 @@ Client               Auth Server           Redis
 - Resetting MFA with the recovery codes deletes the row and revokes every refresh token and personal
   access token the account holds, in one transaction (`MfaSetupRepository.ResetConfirmedAsync`, #483),
   then publishes the account on `world:accounts:disconnect` (best-effort). Both servers share this, in
-  `MFAService.ResetMFAAsync`.
+  `MFAService.ResetMFAAsync`. The REST reset (`POST /mfa/reset`) returns 204 and enrols nothing: the
+  recovery codes are not the password, so enrolling again is `POST /mfa/setup`, which asks for it.
 - Recovery codes (`MFARecoveryCodes`): three per account, each 80 bits from `ISecureRandom`, shown as
   16 Crockford base32 characters (`XXXX-XXXX-XXXX-XXXX`). They are generated at confirm and returned
   only in that response; the `MfaSetups` row stores only the SHA-256 of each canonical code (upper
@@ -183,7 +189,7 @@ step, over `SourceBudget`, `UsernameBudget` and `AttemptBudget`. `CAuthHandler`/
 | 1 | Source budget slot (`auth:source:{source}:failedLogins`) | Source budget slot |
 | 2 | Username budget slot (`auth:username:{sha256}:failedLogins`), before the lookup | Hash attempt count; past `MaxFailedMfaAttempts` the hash is deleted |
 | 3 | Lookup; an unknown username pays one dummy BCrypt verify | Account lookup, then its username budget slot |
-| 4 | Account row lock (`Locked`/`LockedUntil`), before the password | Account row lock, before the code |
+| 4 | Account row lock (`Locked`/`LockedUntil`), before the password; a locked row still pays the dummy verify | Account row lock, before the code |
 | 5 | BCrypt verify | TOTP ±1 step, each step once, one winner per hash |
 | 6 | Status: Banned/Deactivated refused, only now | Status re-checked |
 | 7 | Login written by column, refused if the row locked meanwhile | The same |
@@ -196,10 +202,17 @@ guesser who splits its guesses between the two servers must not get the budget t
 on the connection's address, the API on `HttpContext.Connection.RemoteIpAddress` after
 `UseForwardedHeaders`; both reduce it with `RemoteAddress.SourceOf` (IPv4 address, IPv6 /64).
 
-**Behind a proxy, the API's source is the proxy** unless the proxy is trusted by the forwarded-headers
-middleware. It trusts only loopback by default, so a non-loopback ingress makes every REST caller one
-source, and ten failures in fifteen minutes refuse REST logins for everyone until the window ends. Set
-`KnownProxies`/`KnownNetworks` for the deployment before relying on the per-source budget over REST.
+**Behind a proxy, the API's source is the proxy** unless the proxy is trusted. `UseAvalonForwardedHeaders`
+believes `X-Forwarded-For` from loopback and from `Application:ForwardedHeaders:KnownProxies` and
+`KnownNetworks` only (see [Configuration Reference](configuration-reference.md#rest-api-forwarded-headers)).
+With the ingress missing from those, every REST caller behind it is one source, and ten failures in fifteen
+minutes refuse REST logins for everyone until the window ends. So outside Development the API warns at
+startup when neither is set, and it logs a header sent by an untrusted peer, at most once a minute, since
+that is either a proxy missing from the list or a caller trying to choose its own source. A network that
+trusts every address (`0.0.0.0/0`, `::/0`) is refused at startup.
+
+A caller with no peer address at all (a non-IP transport) is refused with 400 on every endpoint that spends
+a source budget. Before, it was given `IPAddress.None`, so all such callers shared one budget.
 
 On REST, a refusal by a budget or a locked row is **429** ProblemDetails with `Detail` `LOCKED`, the same for
 every username; the failure in the budget's last slot is answered the same way. A wrong password or code
@@ -210,7 +223,8 @@ take the same path. A REST login never sets `Online`, which is the game client's
 
 The limits are configured on both hosts and **must match**: the Auth server's `Application:*` and the
 API's `Application:Authentication:*` (`MaxFailedLoginAttempts`, `LockoutDurationMinutes`,
-`MaxFailedLoginsPerSource`, `FailedLoginSourceWindowMinutes`, `MaxFailedMfaAttempts`).
+`MaxFailedLoginsPerSource`, `FailedLoginSourceWindowMinutes`, `MaxFailedMfaAttempts`). Each host logs its five at
+Information when it starts, so a drift shows by comparing the two lines.
 
 ### Re-authentication for sensitive actions
 
@@ -282,3 +296,7 @@ and refresh. Setup commands: README "Running Locally", CONTRIBUTING "Local Setup
 | MFA setup or PAT mint without the current password   | 401, nothing issued (`SensitiveActionReauthenticationShould`) |
 | PAT minted before a password change or an MFA reset  | Refused afterwards (`CredentialRevocationShould`) |
 | Ban and lock landing during an API account write     | Both survive (`ApiWriteRaceShould`) |
+| X-Forwarded-For from a trusted / untrusted peer      | Source is the client / the peer, warned once a minute (`ForwardedHeadersShould`) |
+| Replayed right MFA code                              | Refused, hash kept, not counted (`TotpReplayShould`, `CMFAVerifyHandlerShould`, `RestMfaVerifyShould`) |
+| Locked account at login                              | One dummy BCrypt verify, as an unknown username (`CAuthHandlerShould`, `RestLoginPolicyShould`) |
+| Caller with no peer address                          | 400 on budget-spending endpoints (`AddressLessCallerShould`) |

@@ -233,10 +233,49 @@ options, so `AddInfrastructure` refuses a value below `1` at startup, naming the
 Application__Authentication__MaxFailedLoginAttempts=5
 ```
 
-The per-source budget keys on the caller's address after `UseForwardedHeaders`, which trusts only a
-loopback proxy by default. Behind any other proxy every caller is the proxy's address, one source for
-everyone, so configure the proxy as trusted before relying on this budget
-(see [Security — Session Management](security-session-management.md#login-policy-shared-by-both-servers)).
+Each host logs its five limits at Information when it starts (the Auth server as `Application`, the API
+as `Application:Authentication`), so the two lines can be compared.
+
+The per-source budget keys on the caller's address after the forwarded headers are applied, so behind a
+proxy it needs [REST API Forwarded Headers](#rest-api-forwarded-headers) set up.
+
+---
+
+## REST API Forwarded Headers
+
+Section: `Application:ForwardedHeaders` in `Avalon.Api` (#478 review)
+
+| Key             | Type     | Default | Description |
+|-----------------|----------|---------|-------------|
+| `KnownProxies`  | string[] | `[]`    | Addresses of proxies whose `X-Forwarded-For` is believed, such as `10.0.0.2` |
+| `KnownNetworks` | string[] | `[]`    | Networks of such proxies in CIDR form, such as a cluster's pod network `10.0.0.0/8` |
+| `ForwardLimit`  | int      | `1`     | Proxy hops read from `X-Forwarded-For`, from the right |
+
+Loopback is always trusted, and nothing else is by default, which fails safe: a caller cannot choose its own
+address. The address decides the caller's login source budget, so an ingress left out of these makes every
+REST caller one source, and ten failures by anyone refuse REST logins for everyone for the window. Set them
+wherever the API runs behind a proxy (docker, Kubernetes ingress, CDN), as narrowly as the deployment
+allows.
+
+- Startup refuses an entry that does not parse, a network without a prefix, a network with prefix length
+  0 (`0.0.0.0/0`, `::/0`, which would trust every caller), and a `ForwardLimit` below 1, naming the setting.
+- Outside Development the API logs a warning at startup when `KnownProxies` and `KnownNetworks` are both
+  empty.
+- A request that carries `X-Forwarded-For` from a peer that is not trusted is served with the peer's own
+  address, and logged as a warning at most once a minute, with the number not logged since.
+
+```bash
+Application__ForwardedHeaders__KnownNetworks__0=10.0.0.0/8
+Application__ForwardedHeaders__KnownProxies__0=10.1.2.3
+Application__ForwardedHeaders__ForwardLimit=1
+```
+
+The Helm chart passes `forwardedHeaders.knownProxies`, `forwardedHeaders.knownNetworks` and
+`forwardedHeaders.forwardLimit` (empty lists and 1 by default). The chart has no ingress of its own, so fill
+them in for whatever ingress fronts the service.
+
+A caller with no peer address at all is refused with 400 on the endpoints that spend a login source budget
+(login, MFA verify, password change, MFA setup, token minting).
 
 ---
 
