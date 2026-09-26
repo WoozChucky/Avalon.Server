@@ -349,7 +349,8 @@ it up per request. See [Security — Session Management](security-session-manage
 
 ## Applying Configuration at Startup
 
-All configuration classes use:
+The World and Auth servers' configuration classes (`GameConfiguration`, `RegenConfiguration`,
+`AuthConfiguration`, and the `HostingConfiguration` both share) use:
 
 1. A property with a data annotation (`[Required]`, `[Range(...)]`, `[RegularExpression(...)]`).
 2. `services.AddOptions<TConfig>().BindConfiguration(section).ValidateDataAnnotations().ValidateOnStart()` in the appropriate DI extension method.
@@ -392,7 +393,8 @@ Application__Authentication__IssuerSigningKey=<from-vault>
 
 ## Startup Validation
 
-All config classes opt into startup validation to fail fast on misconfiguration:
+The World and Auth servers' configuration classes (`GameConfiguration`, `RegenConfiguration`,
+`AuthConfiguration`, `HostingConfiguration`) opt into startup validation to fail fast on misconfiguration:
 
 ```csharp
 .ValidateDataAnnotations()
@@ -401,6 +403,10 @@ All config classes opt into startup validation to fail fast on misconfiguration:
 
 This causes the application to throw an `OptionsValidationException` at startup rather than at runtime when the missing/invalid value is first accessed.
 
-The REST API's `AuthenticationConfig` is bound directly rather than through `IOptions<T>`, so its signing
-key is checked by `JwtSigningKey.Create` instead: startup throws `InvalidOperationException` naming the
-setting (see [REST API JWT Signing Key](#rest-api-jwt-signing-key)).
+The REST API's `Application:*` classes (`ApplicationConfig` and the sections under it) do not use
+`ValidateOnStart`. They are bound directly rather than through `IOptions<T>`, and `ServiceRegistration`
+checks them by hand at startup: the signing key (`JwtSigningKey.Create`, see
+[REST API JWT Signing Key](#rest-api-jwt-signing-key)), the login limits (`LoginLimitsValidation.Validate`),
+the account-creation cap, the email-change send caps, the forwarded-headers entries
+(`ForwardedHeadersSetup.BuildOptions`) and the email sender (`AddEmail`). Each check throws
+`InvalidOperationException`, and its message names the setting.
