@@ -229,7 +229,7 @@ public sealed class MfaLoginPolicy : LoginPolicy
         // (#495). A password change, an MFA reset or an admin's MFA removal since then has moved
         // the account on, and the hash is gone: a right code on it logs nobody in. Before the code
         // is checked, so it costs no TOTP step; the caller answers it as a hash that is gone.
-        if (await _hashes.GetCredentialsVersionAsync(account.Id) != account.CredentialsVersion)
+        if (await _hashes.GetHashCredentialsVersionAsync(hash) != account.CredentialsVersion)
         {
             Logger.LogWarning("MFA hash for account {AccountId} predates a credentials change", account.Id);
             await _hashes.CleanupHash(hash);

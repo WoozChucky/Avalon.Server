@@ -95,7 +95,7 @@ public class CMFAVerifyHandlerShould
         var account = MakeAccount();
         account.CredentialsVersion = 2;
         _accountRepository.FindByIdAsync(account.Id, Arg.Any<bool>(), Arg.Any<CancellationToken>()).Returns(account);
-        _mfaHashService.GetCredentialsVersionAsync(account.Id).Returns(0);
+        _mfaHashService.GetHashCredentialsVersionAsync("valid-hash").Returns(0);
         _mfaService.VerifyMFAAsync("valid-hash", "123456").Returns(new MFAVerifyResult(true, account.Id));
 
         await CreateHandler().ExecuteAsync(new AuthPacketContext<CMFAVerifyPacket>
@@ -115,7 +115,7 @@ public class CMFAVerifyHandlerShould
         var account = MakeAccount();
         account.CredentialsVersion = 4;
         _accountRepository.FindByIdAsync(account.Id, Arg.Any<bool>(), Arg.Any<CancellationToken>()).Returns(account);
-        _mfaHashService.GetCredentialsVersionAsync(account.Id).Returns(4);
+        _mfaHashService.GetHashCredentialsVersionAsync("valid-hash").Returns(4);
         _mfaService.VerifyMFAAsync("valid-hash", "123456").Returns(new MFAVerifyResult(true, account.Id));
 
         await CreateHandler().ExecuteAsync(new AuthPacketContext<CMFAVerifyPacket>

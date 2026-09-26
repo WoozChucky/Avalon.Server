@@ -7,8 +7,9 @@ namespace Avalon.Infrastructure;
 public static class CacheKeys
 {
     /// <summary>
-    /// The value stored under <see cref="WorldKey"/>: the account id and the credentials version
-    /// of the connection that selected the world (#495), as <c>{accountId}:{version}</c>.
+    /// An account id with a credentials version, as <c>{accountId}:{version}</c> (#495): the value
+    /// stored under <see cref="WorldKey"/> (the version of the connection that selected the world)
+    /// and under <see cref="MfaReverseHash"/> (the version of the login that issued the hash).
     /// </summary>
     public static string WorldKeyValue(long accountId, int credentialsVersion) =>
         string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{accountId}:{credentialsVersion}");

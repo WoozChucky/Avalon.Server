@@ -340,7 +340,7 @@ public sealed class CredentialsVersionShould : IDisposable
         IMFAHashService hashes = Substitute.For<IMFAHashService>();
         hashes.GetAccountIdAsync("HASH").Returns(account.Id);
         hashes.RecordAttemptAsync(account.Id).Returns(1L);
-        hashes.GetCredentialsVersionAsync(account.Id).Returns(0); // issued by the old password's login
+        hashes.GetHashCredentialsVersionAsync("HASH").Returns(0); // issued by the old password's login
         IMFAService mfa = Substitute.For<IMFAService>();
         mfa.VerifyMFAAsync("HASH", "123456", Arg.Any<CancellationToken>()).Returns(new MFAVerifyResult(true, account.Id));
         await ChangePasswordAsync(account.Id);

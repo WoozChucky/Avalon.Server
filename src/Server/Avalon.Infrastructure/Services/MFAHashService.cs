@@ -12,11 +12,11 @@ public interface IMFAHashService
     Task<AccountId?> GetAccountIdAsync(string hash);
 
     /// <summary>
-    /// The credentials version of the row whose password issued the account's live MFA hash
-    /// (#495), or -1 when there is no live hash or it carries none. -1 is never a version, so a
-    /// caller comparing it with the account's refuses.
+    /// The credentials version of the row whose password issued <paramref name="hash"/> itself
+    /// (#495 review), read from that hash's own reverse key, or -1 when the hash is gone or carries
+    /// none. -1 is never a version, so a caller comparing it with the account's refuses.
     /// </summary>
-    Task<int> GetCredentialsVersionAsync(AccountId accountId);
+    Task<int> GetHashCredentialsVersionAsync(string hash);
     Task CleanupHash(string hash);
 
     /// <summary>
@@ -60,7 +60,7 @@ public class MFAHashService : IMFAHashService
             RedisValue expiry = await _cache.Database.HashGetAsync(CacheKeys.AccountMfa(account.Id), "expiry");
             // Reused only while it was issued at this row's credentials version (#495): a hash left
             // by a login with the old password must not be handed to a login with the new one.
-            int existingVersion = await GetCredentialsVersionAsync(account.Id);
+            int existingVersion = await GetHashCredentialsVersionAsync(existingHash!);
             if (DateTime.TryParse(expiry, out DateTime expiryDate) && expiryDate > DateTime.UtcNow
                 && existingVersion == account.CredentialsVersion)
             {
@@ -86,14 +86,15 @@ public class MFAHashService : IMFAHashService
             {
                 new HashEntry("hash", hash),
                 new HashEntry("expiry", DateTime.UtcNow.Add(_expiry).ToString("O")),
-                new HashEntry("accountId", account.Id.Value.ToString()),
-                new HashEntry(CredentialsVersionField,
-                    account.CredentialsVersion.ToString(System.Globalization.CultureInfo.InvariantCulture))
+                new HashEntry("accountId", account.Id.Value.ToString())
             });
         _ = transaction.KeyExpireAsync(CacheKeys.AccountMfa(account.Id), _expiry);
+        // The reverse key carries the version of the row whose password issued this very hash
+        // (#495 review), as {accountId}:{version}. Two logins racing on one account, one with the
+        // old password and one with the new, share the per-account record, but not this key.
         _ = transaction.StringSetAsync(
             CacheKeys.MfaReverseHash(hash),
-            account.Id!.Value.ToString(),
+            CacheKeys.WorldKeyValue(account.Id!.Value, account.CredentialsVersion),
             _expiry);
 
         bool committed = await transaction.ExecuteAsync();
@@ -106,22 +107,18 @@ public class MFAHashService : IMFAHashService
 
     public async Task<AccountId?> GetAccountIdAsync(string hash)
     {
-        var accountIdStr = await _cache.GetAsync(CacheKeys.MfaReverseHash(hash));
-        if (accountIdStr == null) return null;
-        return new AccountId(long.Parse(accountIdStr));
+        var value = await _cache.GetAsync(CacheKeys.MfaReverseHash(hash));
+        if (value == null) return null;
+        // {accountId}:{version}; a bare id (a hash issued before #495) still names its account.
+        int colon = value.IndexOf(':', StringComparison.Ordinal);
+        return new AccountId(long.Parse(colon < 0 ? value : value[..colon],
+            System.Globalization.CultureInfo.InvariantCulture));
     }
 
-    /// <summary>The hash field holding the issuing row's credentials version (#495).</summary>
-    public const string CredentialsVersionField = "cver";
-
-    public async Task<int> GetCredentialsVersionAsync(AccountId accountId)
+    public async Task<int> GetHashCredentialsVersionAsync(string hash)
     {
-        RedisValue value = await _cache.Database.HashGetAsync(CacheKeys.AccountMfa(accountId.Value),
-            CredentialsVersionField);
-        return value.HasValue && int.TryParse(value.ToString(), System.Globalization.NumberStyles.None,
-            System.Globalization.CultureInfo.InvariantCulture, out int version)
-            ? version
-            : -1;
+        var value = await _cache.GetAsync(CacheKeys.MfaReverseHash(hash));
+        return CacheKeys.TryParseWorldKeyValue(value, out _, out int version) ? version : -1;
     }
 
     public Task<long> RecordAttemptAsync(AccountId accountId) =>
