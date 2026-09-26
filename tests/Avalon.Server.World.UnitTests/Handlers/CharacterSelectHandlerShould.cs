@@ -62,7 +62,6 @@ public class CharacterSelectHandlerShould
         IReadOnlyCollection<ClassLevelStat>? classStats = null,
         IReadOnlyCollection<ItemTemplate>? itemTemplates = null,
         int storedHealth = 0,
-        CombatConfig? combatConfig = null,
         IReadOnlyCollection<AbilityTemplate>? abilityTemplates = null)
     {
         var row = new Character
@@ -154,8 +153,7 @@ public class CharacterSelectHandlerShould
             Options.Create(new RegenConfiguration()),
             Substitute.For<IAccountRepository>(),
             Substitute.For<ICharacterSaver>(),
-            Substitute.For<IWorldServer>(),
-            combatConfig ?? new CombatConfig());
+            Substitute.For<IWorldServer>());
 
         return new Fixture
         {
@@ -293,20 +291,11 @@ public class CharacterSelectHandlerShould
         Assert.Contains(NetworkPacketType.SMSG_CHARACTER_ABILITIES, f.Sent);
     }
 
-    /// <summary>
-    /// The cone the client is sent is the cone the cast handler checks (#513): both read one
-    /// CombatConfig, so the two cannot drift. A non-default value proves it is the config, not a
-    /// constant that happens to agree.
-    /// </summary>
+    /// <summary>There is no facing cone since #164, so AbilityInfo.FacingAngle is never set.</summary>
     [Fact]
-    public async Task Send_every_ability_the_facing_cone_the_cast_handler_checks()
+    public async Task Leave_the_retired_facing_angle_unset()
     {
-        var combatConfig = new CombatConfig { MaxFacingAngleDeg = 37.5f };
-        Fixture f = await BuildAsync(combatConfig: combatConfig, abilityTemplates:
-        [
-            AbilityTestData.Circle(1, "Strike"),
-            AbilityTestData.Cone(2),
-        ]);
+        Fixture f = await BuildAsync(abilityTemplates: [AbilityTestData.Circle(1, "Strike"), AbilityTestData.Cone(2)]);
 
         f.Handler.Execute(f.Connection, new CCharacterSelectedPacket { CharacterId = TheCharacter });
 
@@ -315,7 +304,7 @@ public class CharacterSelectHandlerShould
         using var stream = new MemoryStream(sent.Payload);
         AbilityInfo[] abilities = Serializer.Deserialize<SCharacterAbilitiesPacket>(stream).Abilities;
         Assert.Equal(2, abilities.Length);
-        Assert.All(abilities, a => Assert.Equal(combatConfig.MaxFacingAngleDeg, a.FacingAngle));
+        Assert.All(abilities, a => Assert.Equal(0f, a.FacingAngle));
     }
 
     /// <summary>
@@ -536,8 +525,7 @@ public class CharacterSelectHandlerShould
             Options.Create(new RegenConfiguration()),
             accountRepository,
             Substitute.For<ICharacterSaver>(),
-            Substitute.For<IWorldServer>(),
-            new CombatConfig());
+            Substitute.For<IWorldServer>());
 
         handler.Execute(connection, new CCharacterSelectedPacket { CharacterId = TheCharacter });
 

@@ -6,11 +6,12 @@ using Avalon.World.Public.Units;
 
 namespace Avalon.World.Public.Scripts;
 
-public abstract class AbilityScript(IAbility ability, IUnit caster, IUnit? target) : IWorldObject
+public abstract class AbilityScript(IAbility ability, IUnit caster, AbilityAim aim) : IWorldObject
 {
     protected IUnit Caster { get; } = caster;
 
-    protected IUnit? Target { get; } = target;
+    /// <summary>What the cast aimed at when it started (#164). There is no target: the shape decides who is affected.</summary>
+    protected AbilityAim Aim { get; } = aim;
 
     protected IAbility Ability { get; } = ability;
 

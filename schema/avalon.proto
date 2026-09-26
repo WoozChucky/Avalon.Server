@@ -252,6 +252,8 @@ enum CastRejectReason {
    CastRejectReason_Dead = 9;
    CastRejectReason_NotOwned = 10;
    CastRejectReason_InternalError = 11;
+   CastRejectReason_NoAimPoint = 12;
+   CastRejectReason_AlreadyCasting = 13;
 }
 message CharacterInfo {
    uint32 CharacterId = 1;
@@ -782,6 +784,7 @@ message SUnitRevivePacket {
 message SUnitStartCastPacket {
    uint64 Caster = 1;
    float CastTime = 2;
+   uint32 AbilityId = 3;
 }
 message SVendorListPacket {
    uint64 VendorGuid = 1;

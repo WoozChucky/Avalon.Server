@@ -36,7 +36,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Instances;
 
-public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHost, IDisposable
+public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHost, IAbilityArena, IDisposable
 {
     private const float BroadcastInterval = 0.1f;
 
@@ -119,10 +119,9 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         _combatService     = new CombatService(combatConfig, _encounterRegistry, this);
         _threatBroadcast   = new ThreatBroadcastService(combatConfig);
 
-        // Cast system gets `this` as ISimulationContext so it can forward the context to
-        // ability scripts (E7): scripts route damage through CombatService.ApplyDamage rather
-        // than directly calling Target.OnHit. CombatService must be assigned BEFORE this so
-        // any first-tick cast resolves through a non-null service.
+        // The cast system gets `this` as the IAbilityArena every ability script is built with
+        // (#164): scripts route damage through CombatService.ApplyDamage. CombatService must be
+        // assigned BEFORE this so any first-tick cast resolves through a non-null service.
         _abilityCastSystem = new InstanceAbilityCastSystem(loggerFactory, serviceProvider,
             serviceProvider.GetRequiredService<IScriptManager>(), this);
 
@@ -344,11 +343,11 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         _meleeSlots.ReleaseClaimant(creature.Guid);
     }
 
-    public bool QueueAbility(ICharacter caster, IUnit? target, IAbility ability) =>
-        _abilityCastSystem.QueueAbility(caster, target, ability);
+    public bool QueueAbility(ICharacter caster, AbilityAim aim, IAbility ability) =>
+        _abilityCastSystem.QueueAbility(caster, aim, ability);
 
-    public void RunInstantAbility(IUnit caster, IUnit? target, IAbility ability) =>
-        _abilityCastSystem.RunInstant(caster, target, ability);
+    public bool RunInstantAbility(IUnit caster, AbilityAim aim, IAbility ability) =>
+        _abilityCastSystem.RunInstant(caster, aim, ability);
 
      public void BroadcastUnitHit(IUnit attacker, IUnit target, uint currentHealth, uint damage)
     {
@@ -359,12 +358,12 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         }
     }
 
-    public void BroadcastUnitStartCast(IUnit caster, float castTime)
+    public void BroadcastUnitStartCast(IUnit caster, IAbility ability)
     {
-        foreach ((ObjectGuid guid, IWorldConnection connection) in _connections)
+        foreach ((ObjectGuid _, IWorldConnection connection) in _connections)
         {
-            connection.Send(SUnitStartCastPacket.Create(caster.Guid, castTime,
-                connection.CryptoSession.Encrypt));
+            connection.Send(SUnitStartCastPacket.Create(caster.Guid, ability.Metadata.CastTime,
+                ability.AbilityId.Value, connection.CryptoSession.Encrypt));
         }
     }
 

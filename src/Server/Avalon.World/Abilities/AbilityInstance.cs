@@ -10,7 +10,7 @@ namespace Avalon.World.Abilities;
 public class AbilityInstance
 {
     public required IUnit Caster { get; init; }
-    public IUnit? Target { get; set; }
+    public required AbilityAim Aim { get; init; }
     public required IAbility Ability { get; init; }
     public required Vector3 CastStartPosition { get; init; }
 }

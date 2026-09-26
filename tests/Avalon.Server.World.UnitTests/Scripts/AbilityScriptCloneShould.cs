@@ -13,8 +13,8 @@ public class AbilityScriptCloneShould
     // Minimal concrete stub — does NOT override Clone()
     // ──────────────────────────────────────────────
 
-    private sealed class StubAbilityScript(IAbility ability, IUnit caster, IUnit? target)
-        : AbilityScript(ability, caster, target)
+    private sealed class StubAbilityScript(IAbility ability, IUnit caster, AbilityAim aim)
+        : AbilityScript(ability, caster, aim)
     {
         public override object State { get; set; } = null!;
         public override Vector3 Position { get; set; }
@@ -30,7 +30,7 @@ public class AbilityScriptCloneShould
     }
 
     private static StubAbilityScript MakeScript(IAbility? ability = null, IUnit? caster = null)
-        => new(ability ?? Substitute.For<IAbility>(), caster ?? Substitute.For<IUnit>(), null);
+        => new(ability ?? Substitute.For<IAbility>(), caster ?? Substitute.For<IUnit>(), default);
 
     // ──────────────────────────────────────────────
     // Tests
@@ -41,7 +41,7 @@ public class AbilityScriptCloneShould
     {
         var ability = Substitute.For<IAbility>();
         var caster = Substitute.For<IUnit>();
-        var original = new StubAbilityScript(ability, caster, null);
+        var original = new StubAbilityScript(ability, caster, default);
 
         var clone = (StubAbilityScript)original.Clone();
 

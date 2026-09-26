@@ -30,16 +30,16 @@ variant empty
 variant populated
   field 1 AbilityId : uint = 42
   field 2 CooldownMs : uint = 300
-  field 3 Reason : CastRejectReason = NotEnoughPower (5)
+  field 3 Reason : CastRejectReason = InternalError (11)
   bytes 7
-    08 2a 10 ac 02 18 05
+    08 2a 10 ac 02 18 0b
 
 variant maxima
   field 1 AbilityId : uint = 4294967295
   field 2 CooldownMs : uint = 4294967295
-  field 3 Reason : CastRejectReason = InternalError (11)
+  field 3 Reason : CastRejectReason = AlreadyCasting (13)
   bytes 14
-    08 ff ff ff ff 0f 10 ff ff ff ff 0f 18 0b
+    08 ff ff ff ff 0f 10 ff ff ff ff 0f 18 0d
 
 variant minima
   field 1 AbilityId : uint = 0
@@ -50,6 +50,6 @@ variant minima
 variant varint-edges
   field 1 AbilityId : uint = 268435456
   field 2 CooldownMs : uint = 128
-  field 3 Reason : CastRejectReason = <not a declared member> (12)
+  field 3 Reason : CastRejectReason = <not a declared member> (14)
   bytes 11
-    08 80 80 80 80 01 10 80 01 18 0c
+    08 80 80 80 80 01 10 80 01 18 0e

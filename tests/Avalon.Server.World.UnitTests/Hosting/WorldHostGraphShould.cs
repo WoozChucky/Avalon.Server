@@ -60,9 +60,9 @@ public class WorldHostGraphShould
             Assert.NotNull(host.Services.GetRequiredService<IVendorStockRepository>());
             Assert.IsType<NoQuestProgress>(host.Services.GetRequiredService<IQuestProgress>());
 
-            // The facing cone (#513): CastAbilityHandler checks CombatConfig.MaxFacingAngleDeg and
-            // CharacterSelectHandler sends it. Both are built from this container, so a singleton
-            // registration is what keeps the cone the client is told equal to the one it is held to.
+            // CombatConfig is still one singleton: CastAbilityHandler reads its global cooldown, and
+            // every combat service reads the same values. The facing cone it once carried is gone
+            // (#164), and CharacterSelectHandler no longer takes it, but must still build from here.
             ServiceDescriptor combatConfig = Assert.Single(builder.Services,
                 d => d.ServiceType == typeof(CombatConfig));
             Assert.Equal(ServiceLifetime.Singleton, combatConfig.Lifetime);

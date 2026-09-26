@@ -42,9 +42,8 @@ public interface IWorldObject : IObject
     ///             carries a Y component.
     ///         </item>
     ///         <item>
-    ///             Ability objects: a projectile such as <c>FireballAbilityScript</c> publishes its
-    ///             direction times its flight speed and zero once it hits or fizzles; a non-projectile
-    ///             ability such as <c>StrikeAbilityScript</c> never moves and leaves it at zero.
+    ///             Ability objects: a projectile such as <c>ProjectileAbilityScript</c> publishes its
+    ///             flight speed; a circle or cone never moves and leaves it at zero.
     ///         </item>
     ///         <item>Portals never move and are zero.</item>
     ///     </list>

@@ -1,150 +1,242 @@
+using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
+using Avalon.Network.Packets.State;
+using Avalon.Server.World.UnitTests.Scripts;
 using Avalon.World.Abilities;
+using Avalon.World.Public;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Characters;
-using Avalon.World.Public.Enums;
-using Avalon.World.Public.Instances;
 using Avalon.World.Public.Units;
 using Avalon.World.Scripts;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Xunit;
-using Avalon.Network.Packets.State;
 
 namespace Avalon.Server.World.UnitTests.World;
 
+/// <summary>RecordingAbilityScript's statics are shared, so the classes reading them never run in parallel.</summary>
+[CollectionDefinition(nameof(RecordingAbilityScript), DisableParallelization = true)]
+public sealed class RecordingAbilityScriptCollection;
+
+[Collection(nameof(RecordingAbilityScript))]
 public class InstanceAbilityCastSystemShould
 {
-    private readonly IScriptManager _scriptManager = Substitute.For<IScriptManager>();
-    private readonly IServiceProvider _serviceProvider = Substitute.For<IServiceProvider>();
-    private readonly ISimulationContext _simulationContext = Substitute.For<ISimulationContext>();
+    private static readonly TimeSpan Tick = TimeSpan.FromSeconds(1d / 60d);
+    private static readonly AbilityAim Aim = new(new Vector3(0f, 0f, 1f), new Vector3(3f, 0f, 4f));
+
+    private readonly IScriptManager _scripts = Substitute.For<IScriptManager>();
+    private readonly IAbilityArena _arena = Substitute.For<IAbilityArena>();
     private readonly InstanceAbilityCastSystem _sut;
 
     public InstanceAbilityCastSystemShould()
     {
-        _serviceProvider.GetService(typeof(IScriptManager)).Returns(_scriptManager);
-        _sut = new InstanceAbilityCastSystem(NullLoggerFactory.Instance, _serviceProvider, _scriptManager, _simulationContext);
+        RecordingAbilityScript.Prepared.Clear();
+        RecordingAbilityScript.LastBuilt = null;
+        _scripts.GetAbilityScript("Recording").Returns(typeof(RecordingAbilityScript));
+        _sut = new InstanceAbilityCastSystem(NullLoggerFactory.Instance, Substitute.For<IServiceProvider>(), _scripts, _arena);
     }
 
-    private static IAbility MakeAbility(uint cost) =>
-        MakeAbility(cost, PowerType.Mana); // default power type for ability metadata is irrelevant here
-
-    private static IAbility MakeAbility(uint cost, PowerType _)
+    private static GameAbility Ability(uint cost = 0, float castTime = 0f, string script = "Recording") => new()
     {
-        var ability = Substitute.For<IAbility>();
-        ability.Metadata.Returns(new AbilityMetadata
-        {
-            Name = "TestAbility",
-            Cost = cost,
-            CastTime = 0,
-            Cooldown = 0,
-            ScriptName = "TestScript",
-            Effects = SpellEffect.None
-        });
-        ability.CooldownTimer.Returns(0f);
-        ability.CastTimeTimer.Returns(0f);
-        ability.Casting.Returns(false);
-        return ability;
-    }
+        AbilityId = new AbilityId(1),
+        Metadata = new AbilityMetadata { Name = "x", ScriptName = script, Cost = cost, CastTime = castTime, Cooldown = 2f },
+        CastTimeTimer = castTime,
+        CooldownTimer = 0f,
+    };
 
-    private static ICharacter MakeCharacter(PowerType powerType, uint currentPower)
+    private static ICharacter Caster(PowerType type = PowerType.Mana, uint power = 100)
     {
         var character = Substitute.For<ICharacter>();
-        character.PowerType.Returns(powerType);
-        character.CurrentPower.Returns(currentPower);
-        character.Position.Returns(default(Avalon.Common.Mathematics.Vector3));
+        character.PowerType.Returns(type);
+        character.CurrentPower.Returns(power);
+        character.Position.Returns(Vector3.zero);
         return character;
     }
 
-    // ── power deduction ────────────────────────────────────────────────────────
+    // ── #521 item 1: Casting is set only once the queue took the cast ──
 
     [Fact]
-    public void DeductPower_WhenManaCharacterHasSufficientMana()
+    public void Leave_Casting_clear_when_the_queue_refuses_the_cast()
     {
-        var character = MakeCharacter(PowerType.Mana, currentPower: 100);
-        var ability = MakeAbility(cost: 30);
+        GameAbility ability = Ability(cost: 30, castTime: 1f);
 
-        bool queued = _sut.QueueAbility(character, null, ability);
-
-        Assert.True(queued);
-        character.Received(1).CurrentPower = 100u - 30u;
-    }
-
-    [Fact]
-    public void DeductPower_WhenEnergyCharacterHasSufficientEnergy()
-    {
-        var character = MakeCharacter(PowerType.Energy, currentPower: 50);
-        var ability = MakeAbility(cost: 20);
-
-        bool queued = _sut.QueueAbility(character, null, ability);
-
-        Assert.True(queued);
-        character.Received(1).CurrentPower = 50u - 20u;
-    }
-
-    [Fact]
-    public void QueueAbility_WhenCostIsZero_RegardlessOfPowerType()
-    {
-        foreach (var pt in new[] { PowerType.Mana, PowerType.Energy, PowerType.Fury, PowerType.None })
-        {
-            var character = MakeCharacter(pt, currentPower: 0);
-            var ability = MakeAbility(cost: 0);
-
-            bool queued = _sut.QueueAbility(character, null, ability);
-
-            Assert.True(queued, $"Expected ability to be queued for PowerType.{pt} with zero cost");
-            character.DidNotReceive().CurrentPower = Arg.Any<uint?>();
-        }
-    }
-
-    // ── insufficient power ─────────────────────────────────────────────────────
-
-    [Fact]
-    public void ReturnFalse_WhenManaIsInsufficient()
-    {
-        var character = MakeCharacter(PowerType.Mana, currentPower: 10);
-        var ability = MakeAbility(cost: 30);
-
-        bool queued = _sut.QueueAbility(character, null, ability);
+        bool queued = _sut.QueueAbility(Caster(PowerType.None), Aim, ability);
 
         Assert.False(queued);
-        character.DidNotReceive().CurrentPower = Arg.Any<uint?>();
+        Assert.False(ability.Casting);
     }
 
     [Fact]
-    public void ReturnFalse_WhenEnergyIsInsufficient()
+    public void Set_Casting_and_pay_once_the_cast_is_queued()
     {
-        var character = MakeCharacter(PowerType.Energy, currentPower: 5);
-        var ability = MakeAbility(cost: 10);
+        ICharacter caster = Caster();
+        GameAbility ability = Ability(cost: 30, castTime: 1f);
 
-        bool queued = _sut.QueueAbility(character, null, ability);
+        Assert.True(_sut.QueueAbility(caster, Aim, ability));
 
-        Assert.False(queued);
+        Assert.True(ability.Casting);
+        caster.Received(1).CurrentPower = 70u;
     }
 
-    // ── Fury and None blocked ──────────────────────────────────────────────────
-
+    /// <summary>A queued cast whose script cannot be found spends nothing and does not start casting.</summary>
     [Fact]
-    public void ReturnFalse_ForFuryCasterWithCostAbility()
+    public void Queue_nothing_and_spend_nothing_when_the_script_is_missing()
     {
-        var character = MakeCharacter(PowerType.Fury, currentPower: 999);
-        var ability = MakeAbility(cost: 1);
+        ICharacter caster = Caster();
+        GameAbility ability = Ability(cost: 30, castTime: 1f, script: "Nope");
 
-        bool queued = _sut.QueueAbility(character, null, ability);
+        Assert.False(_sut.QueueAbility(caster, Aim, ability));
 
-        Assert.False(queued);
-        character.DidNotReceive().CurrentPower = Arg.Any<uint?>();
+        Assert.False(ability.Casting);
+        caster.DidNotReceive().CurrentPower = Arg.Any<uint?>();
+        Assert.Equal(0f, ability.CooldownTimer);
+    }
+
+    // ── #521 item 2: one power rule on both paths ──
+
+    [Theory]
+    [InlineData(0f)]
+    [InlineData(1f)]
+    public void Refuse_a_costed_cast_by_a_caster_without_a_pool_on_both_paths(float castTime)
+    {
+        ICharacter caster = Caster(PowerType.None);
+        GameAbility ability = Ability(cost: 30, castTime: castTime);
+
+        bool accepted = castTime > 0 ? _sut.QueueAbility(caster, Aim, ability) : _sut.RunInstant(caster, Aim, ability);
+
+        Assert.False(accepted);
+        caster.DidNotReceive().CurrentPower = Arg.Any<uint?>();
+        Assert.Equal(0f, ability.CooldownTimer);
+    }
+
+    /// <summary>Fury is spendable on both paths (#526), and nothing generates it yet.</summary>
+    [Theory]
+    [InlineData(0f)]
+    [InlineData(1f)]
+    public void Take_and_charge_a_Fury_cast_the_pool_can_pay_on_both_paths(float castTime)
+    {
+        ICharacter caster = Caster(PowerType.Fury, power: 30);
+        GameAbility ability = Ability(cost: 20, castTime: castTime);
+
+        bool accepted = castTime > 0 ? _sut.QueueAbility(caster, Aim, ability) : _sut.RunInstant(caster, Aim, ability);
+
+        Assert.True(accepted);
+        caster.Received(1).CurrentPower = 10u;
+    }
+
+    [Theory]
+    [InlineData(0f)]
+    [InlineData(1f)]
+    public void Refuse_a_Fury_cast_the_pool_cannot_pay_on_both_paths(float castTime)
+    {
+        ICharacter caster = Caster(PowerType.Fury, power: 19);
+        GameAbility ability = Ability(cost: 20, castTime: castTime);
+
+        bool accepted = castTime > 0 ? _sut.QueueAbility(caster, Aim, ability) : _sut.RunInstant(caster, Aim, ability);
+
+        Assert.False(accepted);
+        Assert.False(ability.Casting);
+        caster.DidNotReceive().CurrentPower = Arg.Any<uint?>();
+        Assert.Empty(RecordingAbilityScript.Prepared);
     }
 
     [Fact]
-    public void ReturnFalse_ForNonePowerTypeCasterWithCostAbility()
+    public void Pay_start_the_cooldown_and_fire_an_instant_cast_with_its_aim()
     {
-        var character = MakeCharacter(PowerType.None, currentPower: 999);
-        var ability = MakeAbility(cost: 1);
+        ICharacter caster = Caster();
+        GameAbility ability = Ability(cost: 30);
 
-        bool queued = _sut.QueueAbility(character, null, ability);
+        Assert.True(_sut.RunInstant(caster, Aim, ability));
 
-        Assert.False(queued);
-        character.DidNotReceive().CurrentPower = Arg.Any<uint?>();
+        caster.Received(1).CurrentPower = 70u;
+        Assert.Equal(2f, ability.CooldownTimer);
+        caster.Received(1).SendFinishCastAnimation(ability);
+        (IUnit who, AbilityAim aim, IAbilityArena arena) = Assert.Single(RecordingAbilityScript.Prepared);
+        Assert.Same(caster, who);
+        Assert.Equal(Aim, aim);
+        Assert.Same(_arena, arena);
+    }
+
+    [Fact]
+    public void Spend_nothing_when_the_script_is_missing()
+    {
+        ICharacter caster = Caster();
+        GameAbility ability = Ability(cost: 30, script: "Nope");
+
+        Assert.False(_sut.RunInstant(caster, Aim, ability));
+
+        caster.DidNotReceive().CurrentPower = Arg.Any<uint?>();
+        Assert.Equal(0f, ability.CooldownTimer);
+    }
+
+    // ── the aim captured at cast start is the one the script gets ──
+
+    [Fact]
+    public void Fire_a_queued_cast_with_the_aim_it_was_queued_with()
+    {
+        ICharacter caster = Caster();
+        GameAbility ability = Ability(castTime: 0.01f);
+        _sut.QueueAbility(caster, Aim, ability);
+
+        _sut.Update(Tick, []);
+
+        Assert.Equal(Aim, Assert.Single(RecordingAbilityScript.Prepared).Aim);
+        Assert.False(ability.Casting);
+        Assert.Equal(2f, ability.CooldownTimer);
+    }
+
+    // ── #521 item 3: finished and interrupted entries are removed after the loop ──
+
+    [Fact]
+    public void Complete_one_cast_and_interrupt_another_in_the_same_update()
+    {
+        ICharacter still = Caster();
+        ICharacter mover = Caster();
+        GameAbility finishing = Ability(castTime: 0.01f);
+        GameAbility interrupted = Ability(castTime: 5f);
+        _sut.QueueAbility(still, Aim, finishing);
+        _sut.QueueAbility(mover, Aim, interrupted);
+        mover.Position.Returns(new Vector3(1f, 0f, 0f));
+
+        _sut.Update(Tick, []);
+        _sut.Update(Tick, []);
+
+        Assert.Single(RecordingAbilityScript.Prepared);
+        Assert.False(finishing.Casting);
+        Assert.False(interrupted.Casting);
+        mover.Received(1).SendInterruptedCastAnimation(interrupted);
+    }
+
+    // ── a dead caster's cast is dropped at completion ──
+
+    [Fact]
+    public void Drop_a_cast_whose_caster_died_before_it_completed_and_take_the_next_one()
+    {
+        ICharacter caster = Caster();
+        GameAbility ability = Ability(castTime: 0.01f);
+        _sut.QueueAbility(caster, Aim, ability);
+        caster.IsDead.Returns(true);
+
+        _sut.Update(Tick, []);
+
+        Assert.Empty(RecordingAbilityScript.Prepared);
+        Assert.False(ability.Casting);
+        caster.DidNotReceive().SendFinishCastAnimation(Arg.Any<IAbility>());
+
+        // Nothing is left behind that would refuse the next cast: the queue takes it again.
+        caster.IsDead.Returns(false);
+        Assert.True(_sut.QueueAbility(caster, Aim, ability));
+        _sut.Update(Tick, []);
+        Assert.Single(RecordingAbilityScript.Prepared);
+    }
+
+    /// <summary>A script that finished in Prepare (a circle, a cone) never enters the active list.</summary>
+    [Fact]
+    public void Keep_no_finished_script_in_the_active_list()
+    {
+        _sut.RunInstant(Caster(), Aim, Ability());
+
+        Assert.NotNull(RecordingAbilityScript.LastBuilt);
+        Assert.Null(_sut.GetAbility(RecordingAbilityScript.LastBuilt!.Guid));
     }
 }
