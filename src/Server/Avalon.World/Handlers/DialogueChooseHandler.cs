@@ -12,6 +12,8 @@ using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Dialogue;
 using Avalon.World.Public.Instances;
 using Avalon.World.Public.Localization;
+using Avalon.World.Quests;
+using Avalon.World.Vendors;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Handlers;
@@ -33,15 +35,19 @@ namespace Avalon.World.Handlers;
 /// The NPC still existing and being alive is re-checked too, because talking to a corpse is
 /// nonsense the player can see. An option with an action (DialogueActions, #463) runs it after the
 /// leash check, and only when the option leads to a node that keeps the conversation open; OpenBank
-/// sends every Bank slot and opens the bank for as long as this conversation stays open.
+/// sends every Bank slot and opens the bank, and OpenShop sends the vendor's list and opens the shop
+/// (#432), each for as long as this conversation stays open.
 /// </remarks>
 [PacketHandler(NetworkPacketType.CMSG_DIALOGUE_CHOOSE)]
-public class DialogueChooseHandler(ILogger<DialogueChooseHandler> logger, IWorld world)
+public class DialogueChooseHandler(ILogger<DialogueChooseHandler> logger, IWorld world, IQuestProgress? quests = null)
     : WorldPacketHandler<CDialogueChoosePacket>
 {
     private IDialogueCatalog Dialogue => world.Data.Dialogue;
     private ILocalizedTextCatalog Text => world.Data.LocalizedTexts;
     private DialogueActions Actions => world.Data.DialogueActions;
+
+    /// <summary>Optional so the tests that build this handler with two arguments keep working; the container passes it.</summary>
+    private IQuestProgress Quests => quests ?? NoQuestProgress.Instance;
 
     public override void Execute(IWorldConnection connection, CDialogueChoosePacket packet)
     {
@@ -136,7 +142,7 @@ public class DialogueChooseHandler(ILogger<DialogueChooseHandler> logger, IWorld
         // it would send the Bank to a window that closes in the same breath. The leash was checked
         // above.
         if (Actions.For(chosen.Id) is { } action)
-            RunAction(connection, character, npc, action);
+            RunAction(connection, character, npc, context, action);
 
         connection.CurrentDialogue = (open.Npc, next.Id);
         InteractHandler.Send(connection, npc, next, character, Text);
@@ -145,7 +151,8 @@ public class DialogueChooseHandler(ILogger<DialogueChooseHandler> logger, IWorld
     private static void End(IWorldConnection connection, ObjectGuid npc) =>
         NpcInteraction.EndConversation(connection, npc);
 
-    private void RunAction(IWorldConnection connection, ICharacter character, ICreature npc, DialogueOptionAction action)
+    private void RunAction(
+        IWorldConnection connection, ICharacter character, ICreature npc, ISimulationContext context, DialogueOptionAction action)
     {
         switch (action)
         {
@@ -159,6 +166,26 @@ public class DialogueChooseHandler(ILogger<DialogueChooseHandler> logger, IWorld
                 entity.OpenBankNpc = npc.Guid;
                 connection.Send(SInventoryUpdatePacket.Create(
                     BankAccess.Snapshot(entity), null, connection.CryptoSession.Encrypt));
+                break;
+
+            case DialogueOptionAction.OpenShop:
+                if (character is not CharacterEntity shopper || !NpcInteraction.IsVendor(Actions, npc.Metadata.Id))
+                {
+                    logger.LogWarning("OpenShop chosen with {Npc}, which is not a vendor", npc.Metadata.Id);
+                    return;
+                }
+
+                if (context is not IVendorHost host)
+                {
+                    logger.LogWarning("OpenShop chosen with {Npc} in an instance that keeps no vendor stock", npc.Metadata.Id);
+                    return;
+                }
+
+                // Open for as long as this conversation lasts (ShopAccess.IsOpen), and the whole
+                // list goes out now, the first time this player hears it.
+                shopper.OpenShopNpc = npc.Guid;
+                VendorStockState stock = host.Vendors.For(npc.Guid, npc.Metadata.Id, world.Data.Vendors.RowsFor(npc.Metadata.Id));
+                VendorListBuilder.Send(connection, npc.Guid, stock, shopper, world.Data, Quests);
                 break;
 
             default:

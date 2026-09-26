@@ -1899,6 +1899,111 @@ namespace Avalon.Database.World.Migrations
                             SpeedWalk = 2f,
                             SubName = "Banker",
                             Type = 7
+                        },
+                        new
+                        {
+                            Id = 12m,
+                            AIName = "",
+                            ArmorModifier = 1f,
+                            BaseAttackTime = 1,
+                            BodyRemoveTimerSecs = 10,
+                            DamageModifier = 1f,
+                            DetectionRange = 20f,
+                            DmgSchool = (short)0,
+                            Experience = 0L,
+                            ExperienceModifier = 1f,
+                            Family = 0,
+                            HealthModifier = 1f,
+                            IconName = "",
+                            Invulnerable = true,
+                            ManaModifier = 1f,
+                            MaxGold = 0,
+                            MaxLevel = (short)1,
+                            MinGold = 0,
+                            MinLevel = (short)1,
+                            MovementId = 0,
+                            MovementType = (short)0,
+                            Name = "Garrick Emberforge",
+                            RangeAttackTime = 0,
+                            Rarity = 0,
+                            RegenHealth = (short)1,
+                            RespawnTimerSecs = 180,
+                            ScriptName = "TownNpcScript",
+                            SpeedRun = 5f,
+                            SpeedSwim = 1.6f,
+                            SpeedWalk = 2f,
+                            SubName = "Weapons Dealer",
+                            Type = 7
+                        },
+                        new
+                        {
+                            Id = 13m,
+                            AIName = "",
+                            ArmorModifier = 1f,
+                            BaseAttackTime = 1,
+                            BodyRemoveTimerSecs = 10,
+                            DamageModifier = 1f,
+                            DetectionRange = 20f,
+                            DmgSchool = (short)0,
+                            Experience = 0L,
+                            ExperienceModifier = 1f,
+                            Family = 0,
+                            HealthModifier = 1f,
+                            IconName = "",
+                            Invulnerable = true,
+                            ManaModifier = 1f,
+                            MaxGold = 0,
+                            MaxLevel = (short)1,
+                            MinGold = 0,
+                            MinLevel = (short)1,
+                            MovementId = 0,
+                            MovementType = (short)0,
+                            Name = "Hilde Brassbuckle",
+                            RangeAttackTime = 0,
+                            Rarity = 0,
+                            RegenHealth = (short)1,
+                            RespawnTimerSecs = 180,
+                            ScriptName = "TownNpcScript",
+                            SpeedRun = 5f,
+                            SpeedSwim = 1.6f,
+                            SpeedWalk = 2f,
+                            SubName = "Armourer",
+                            Type = 7
+                        },
+                        new
+                        {
+                            Id = 14m,
+                            AIName = "",
+                            ArmorModifier = 1f,
+                            BaseAttackTime = 1,
+                            BodyRemoveTimerSecs = 10,
+                            DamageModifier = 1f,
+                            DetectionRange = 20f,
+                            DmgSchool = (short)0,
+                            Experience = 0L,
+                            ExperienceModifier = 1f,
+                            Family = 0,
+                            HealthModifier = 1f,
+                            IconName = "",
+                            Invulnerable = true,
+                            ManaModifier = 1f,
+                            MaxGold = 0,
+                            MaxLevel = (short)1,
+                            MinGold = 0,
+                            MinLevel = (short)1,
+                            MovementId = 0,
+                            MovementType = (short)0,
+                            Name = "Tobin Marrowfield",
+                            RangeAttackTime = 0,
+                            Rarity = 0,
+                            RegenHealth = (short)1,
+                            RespawnTimerSecs = 180,
+                            ScriptName = "TownNpcScript",
+                            SpeedRun = 5f,
+                            SpeedSwim = 1.6f,
+                            SpeedWalk = 2f,
+                            SubName = "Trade Goods",
+                            Type = 7
                         });
                 });
 
@@ -1974,6 +2079,48 @@ namespace Avalon.Database.World.Migrations
                             CreatureTemplateId = 11m,
                             IsRoot = true,
                             TextId = 15
+                        },
+                        new
+                        {
+                            Id = 8,
+                            CreatureTemplateId = 12m,
+                            IsRoot = true,
+                            TextId = 17
+                        },
+                        new
+                        {
+                            Id = 9,
+                            CreatureTemplateId = 12m,
+                            IsRoot = false,
+                            TextId = 18
+                        },
+                        new
+                        {
+                            Id = 10,
+                            CreatureTemplateId = 13m,
+                            IsRoot = true,
+                            TextId = 19
+                        },
+                        new
+                        {
+                            Id = 11,
+                            CreatureTemplateId = 13m,
+                            IsRoot = false,
+                            TextId = 20
+                        },
+                        new
+                        {
+                            Id = 12,
+                            CreatureTemplateId = 14m,
+                            IsRoot = true,
+                            TextId = 21
+                        },
+                        new
+                        {
+                            Id = 13,
+                            CreatureTemplateId = 14m,
+                            IsRoot = false,
+                            TextId = 22
                         });
                 });
 
@@ -2086,6 +2233,126 @@ namespace Avalon.Database.World.Migrations
                         {
                             Id = 11,
                             NodeId = 7,
+                            SortOrder = (short)1,
+                            TextId = 10
+                        },
+                        new
+                        {
+                            Id = 12,
+                            NextNodeId = 9,
+                            NodeId = 8,
+                            SortOrder = (short)0,
+                            TextId = 23
+                        },
+                        new
+                        {
+                            Id = 13,
+                            Action = 1,
+                            NextNodeId = 8,
+                            NodeId = 8,
+                            SortOrder = (short)1,
+                            TextId = 24
+                        },
+                        new
+                        {
+                            Id = 14,
+                            NodeId = 8,
+                            SortOrder = (short)2,
+                            TextId = 10
+                        },
+                        new
+                        {
+                            Id = 15,
+                            Action = 1,
+                            NextNodeId = 9,
+                            NodeId = 9,
+                            SortOrder = (short)0,
+                            TextId = 24
+                        },
+                        new
+                        {
+                            Id = 16,
+                            NodeId = 9,
+                            SortOrder = (short)1,
+                            TextId = 10
+                        },
+                        new
+                        {
+                            Id = 17,
+                            NextNodeId = 11,
+                            NodeId = 10,
+                            SortOrder = (short)0,
+                            TextId = 23
+                        },
+                        new
+                        {
+                            Id = 18,
+                            Action = 1,
+                            NextNodeId = 10,
+                            NodeId = 10,
+                            SortOrder = (short)1,
+                            TextId = 24
+                        },
+                        new
+                        {
+                            Id = 19,
+                            NodeId = 10,
+                            SortOrder = (short)2,
+                            TextId = 10
+                        },
+                        new
+                        {
+                            Id = 20,
+                            Action = 1,
+                            NextNodeId = 11,
+                            NodeId = 11,
+                            SortOrder = (short)0,
+                            TextId = 24
+                        },
+                        new
+                        {
+                            Id = 21,
+                            NodeId = 11,
+                            SortOrder = (short)1,
+                            TextId = 10
+                        },
+                        new
+                        {
+                            Id = 22,
+                            NextNodeId = 13,
+                            NodeId = 12,
+                            SortOrder = (short)0,
+                            TextId = 23
+                        },
+                        new
+                        {
+                            Id = 23,
+                            Action = 1,
+                            NextNodeId = 12,
+                            NodeId = 12,
+                            SortOrder = (short)1,
+                            TextId = 24
+                        },
+                        new
+                        {
+                            Id = 24,
+                            NodeId = 12,
+                            SortOrder = (short)2,
+                            TextId = 10
+                        },
+                        new
+                        {
+                            Id = 25,
+                            Action = 1,
+                            NextNodeId = 13,
+                            NodeId = 13,
+                            SortOrder = (short)0,
+                            TextId = 24
+                        },
+                        new
+                        {
+                            Id = 26,
+                            NodeId = 13,
                             SortOrder = (short)1,
                             TextId = 10
                         });
@@ -2861,6 +3128,556 @@ namespace Avalon.Database.World.Migrations
                             StatValue2 = 1L,
                             StatValue3 = 1L,
                             SubClass = 204
+                        },
+                        new
+                        {
+                            Id = 32m,
+                            AllowedClasses = "Warrior",
+                            BuyPrice = 120L,
+                            Class = 1,
+                            DamageMax1 = 2L,
+                            DamageMin1 = 1L,
+                            DamageType1 = 0,
+                            DisplayId = 32L,
+                            Flags = 0,
+                            ItemPower = 2,
+                            MaxStackSize = 1L,
+                            Name = "Ironwood Sword",
+                            Rarity = 1,
+                            RequiredLevel = 1,
+                            SellPrice = 30L,
+                            Slot = 9,
+                            StatType1 = 12,
+                            StatType2 = 1,
+                            StatValue1 = 13L,
+                            StatValue2 = 1L,
+                            SubClass = 100
+                        },
+                        new
+                        {
+                            Id = 33m,
+                            AllowedClasses = "Wizard",
+                            BuyPrice = 120L,
+                            Class = 1,
+                            DamageMax1 = 3L,
+                            DamageMin1 = 1L,
+                            DamageType1 = 0,
+                            DisplayId = 33L,
+                            Flags = 0,
+                            ItemPower = 2,
+                            MaxStackSize = 1L,
+                            Name = "Ash Staff",
+                            Rarity = 1,
+                            RequiredLevel = 1,
+                            SellPrice = 30L,
+                            Slot = 9,
+                            StatType1 = 12,
+                            StatType2 = 3,
+                            StatValue1 = 18L,
+                            StatValue2 = 1L,
+                            SubClass = 101
+                        },
+                        new
+                        {
+                            Id = 34m,
+                            AllowedClasses = "Hunter",
+                            BuyPrice = 120L,
+                            Class = 1,
+                            DamageMax1 = 2L,
+                            DamageMin1 = 1L,
+                            DamageType1 = 0,
+                            DisplayId = 34L,
+                            Flags = 0,
+                            ItemPower = 2,
+                            MaxStackSize = 1L,
+                            Name = "Hunter's Shortbow",
+                            Rarity = 1,
+                            RequiredLevel = 1,
+                            SellPrice = 30L,
+                            Slot = 9,
+                            StatType1 = 12,
+                            StatType2 = 2,
+                            StatValue1 = 15L,
+                            StatValue2 = 1L,
+                            SubClass = 102
+                        },
+                        new
+                        {
+                            Id = 35m,
+                            AllowedClasses = "Healer",
+                            BuyPrice = 120L,
+                            Class = 1,
+                            DamageMax1 = 2L,
+                            DamageMin1 = 1L,
+                            DamageType1 = 0,
+                            DisplayId = 35L,
+                            Flags = 0,
+                            ItemPower = 2,
+                            MaxStackSize = 1L,
+                            Name = "Oak Mace",
+                            Rarity = 1,
+                            RequiredLevel = 1,
+                            SellPrice = 30L,
+                            Slot = 9,
+                            StatType1 = 12,
+                            StatType2 = 3,
+                            StatValue1 = 15L,
+                            StatValue2 = 1L,
+                            SubClass = 100
+                        },
+                        new
+                        {
+                            Id = 36m,
+                            AllowedClasses = "Warrior",
+                            BuyPrice = 60L,
+                            Class = 2,
+                            DisplayId = 36L,
+                            Flags = 0,
+                            ItemPower = 2,
+                            MaxStackSize = 1L,
+                            Name = "Ironbound Helm",
+                            Rarity = 1,
+                            RequiredLevel = 1,
+                            SellPrice = 15L,
+                            Slot = 0,
+                            StatType1 = 1,
+                            StatType2 = 4,
+                            StatType3 = 0,
+                            StatValue1 = 1L,
+                            StatValue2 = 2L,
+                            StatValue3 = 1L,
+                            SubClass = 201
+                        },
+                        new
+                        {
+                            Id = 37m,
+                            AllowedClasses = "Warrior",
+                            BuyPrice = 100L,
+                            Class = 2,
+                            DisplayId = 37L,
+                            Flags = 0,
+                            ItemPower = 2,
+                            MaxStackSize = 1L,
+                            Name = "Ironbound Chestguard",
+                            Rarity = 1,
+                            RequiredLevel = 1,
+                            SellPrice = 25L,
+                            Slot = 3,
+                            StatType1 = 1,
+                            StatType2 = 4,
+                            StatType3 = 0,
+                            StatValue1 = 1L,
+                            StatValue2 = 5L,
+                            StatValue3 = 1L,
+                            SubClass = 202
+                        },
+                        new
+                        {
+                            Id = 38m,
+                            AllowedClasses = "Warrior",
+                            BuyPrice = 80L,
+                            Class = 2,
+                            DisplayId = 38L,
+                            Flags = 0,
+                            ItemPower = 2,
+                            MaxStackSize = 1L,
+                            Name = "Ironbound Legguards",
+                            Rarity = 1,
+                            RequiredLevel = 1,
+                            SellPrice = 20L,
+                            Slot = 5,
+                            StatType1 = 1,
+                            StatType2 = 4,
+                            StatType3 = 0,
+                            StatValue1 = 1L,
+                            StatValue2 = 4L,
+                            StatValue3 = 1L,
+                            SubClass = 203
+                        },
+                        new
+                        {
+                            Id = 39m,
+                            AllowedClasses = "Warrior",
+                            BuyPrice = 40L,
+                            Class = 2,
+                            DisplayId = 39L,
+                            Flags = 0,
+                            ItemPower = 2,
+                            MaxStackSize = 1L,
+                            Name = "Ironbound Gauntlets",
+                            Rarity = 1,
+                            RequiredLevel = 1,
+                            SellPrice = 10L,
+                            Slot = 4,
+                            StatType1 = 1,
+                            StatType2 = 4,
+                            StatType3 = 0,
+                            StatValue1 = 1L,
+                            StatValue2 = 2L,
+                            StatValue3 = 1L,
+                            SubClass = 205
+                        },
+                        new
+                        {
+                            Id = 40m,
+                            AllowedClasses = "Warrior",
+                            BuyPrice = 40L,
+                            Class = 2,
+                            DisplayId = 40L,
+                            Flags = 0,
+                            ItemPower = 2,
+                            MaxStackSize = 1L,
+                            Name = "Ironbound Boots",
+                            Rarity = 1,
+                            RequiredLevel = 1,
+                            SellPrice = 10L,
+                            Slot = 6,
+                            StatType1 = 1,
+                            StatType2 = 4,
+                            StatType3 = 0,
+                            StatValue1 = 1L,
+                            StatValue2 = 2L,
+                            StatValue3 = 1L,
+                            SubClass = 204
+                        },
+                        new
+                        {
+                            Id = 41m,
+                            AllowedClasses = "Wizard",
+                            BuyPrice = 60L,
+                            Class = 2,
+                            DisplayId = 41L,
+                            Flags = 0,
+                            ItemPower = 2,
+                            MaxStackSize = 1L,
+                            Name = "Linen Hood",
+                            Rarity = 1,
+                            RequiredLevel = 1,
+                            SellPrice = 15L,
+                            Slot = 0,
+                            StatType1 = 3,
+                            StatType2 = 4,
+                            StatValue1 = 1L,
+                            StatValue2 = 1L,
+                            SubClass = 201
+                        },
+                        new
+                        {
+                            Id = 42m,
+                            AllowedClasses = "Wizard",
+                            BuyPrice = 100L,
+                            Class = 2,
+                            DisplayId = 42L,
+                            Flags = 0,
+                            ItemPower = 2,
+                            MaxStackSize = 1L,
+                            Name = "Linen Robe",
+                            Rarity = 1,
+                            RequiredLevel = 1,
+                            SellPrice = 25L,
+                            Slot = 3,
+                            StatType1 = 3,
+                            StatType2 = 4,
+                            StatValue1 = 2L,
+                            StatValue2 = 2L,
+                            SubClass = 202
+                        },
+                        new
+                        {
+                            Id = 43m,
+                            AllowedClasses = "Wizard",
+                            BuyPrice = 80L,
+                            Class = 2,
+                            DisplayId = 43L,
+                            Flags = 0,
+                            ItemPower = 2,
+                            MaxStackSize = 1L,
+                            Name = "Linen Leggings",
+                            Rarity = 1,
+                            RequiredLevel = 1,
+                            SellPrice = 20L,
+                            Slot = 5,
+                            StatType1 = 3,
+                            StatType2 = 4,
+                            StatValue1 = 2L,
+                            StatValue2 = 1L,
+                            SubClass = 203
+                        },
+                        new
+                        {
+                            Id = 44m,
+                            AllowedClasses = "Wizard",
+                            BuyPrice = 40L,
+                            Class = 2,
+                            DisplayId = 44L,
+                            Flags = 0,
+                            ItemPower = 2,
+                            MaxStackSize = 1L,
+                            Name = "Linen Gloves",
+                            Rarity = 1,
+                            RequiredLevel = 1,
+                            SellPrice = 10L,
+                            Slot = 4,
+                            StatType1 = 3,
+                            StatType2 = 4,
+                            StatValue1 = 1L,
+                            StatValue2 = 1L,
+                            SubClass = 205
+                        },
+                        new
+                        {
+                            Id = 45m,
+                            AllowedClasses = "Wizard",
+                            BuyPrice = 40L,
+                            Class = 2,
+                            DisplayId = 45L,
+                            Flags = 0,
+                            ItemPower = 2,
+                            MaxStackSize = 1L,
+                            Name = "Linen Slippers",
+                            Rarity = 1,
+                            RequiredLevel = 1,
+                            SellPrice = 10L,
+                            Slot = 6,
+                            StatType1 = 3,
+                            StatType2 = 4,
+                            StatValue1 = 1L,
+                            StatValue2 = 1L,
+                            SubClass = 204
+                        },
+                        new
+                        {
+                            Id = 46m,
+                            AllowedClasses = "Hunter",
+                            BuyPrice = 60L,
+                            Class = 2,
+                            DisplayId = 46L,
+                            Flags = 0,
+                            ItemPower = 2,
+                            MaxStackSize = 1L,
+                            Name = "Hide Cap",
+                            Rarity = 1,
+                            RequiredLevel = 1,
+                            SellPrice = 15L,
+                            Slot = 0,
+                            StatType1 = 2,
+                            StatType2 = 4,
+                            StatValue1 = 1L,
+                            StatValue2 = 1L,
+                            SubClass = 201
+                        },
+                        new
+                        {
+                            Id = 47m,
+                            AllowedClasses = "Hunter",
+                            BuyPrice = 100L,
+                            Class = 2,
+                            DisplayId = 47L,
+                            Flags = 0,
+                            ItemPower = 2,
+                            MaxStackSize = 1L,
+                            Name = "Hide Jerkin",
+                            Rarity = 1,
+                            RequiredLevel = 1,
+                            SellPrice = 25L,
+                            Slot = 3,
+                            StatType1 = 2,
+                            StatType2 = 4,
+                            StatValue1 = 2L,
+                            StatValue2 = 3L,
+                            SubClass = 202
+                        },
+                        new
+                        {
+                            Id = 48m,
+                            AllowedClasses = "Hunter",
+                            BuyPrice = 80L,
+                            Class = 2,
+                            DisplayId = 48L,
+                            Flags = 0,
+                            ItemPower = 2,
+                            MaxStackSize = 1L,
+                            Name = "Hide Breeches",
+                            Rarity = 1,
+                            RequiredLevel = 1,
+                            SellPrice = 20L,
+                            Slot = 5,
+                            StatType1 = 2,
+                            StatType2 = 4,
+                            StatValue1 = 2L,
+                            StatValue2 = 2L,
+                            SubClass = 203
+                        },
+                        new
+                        {
+                            Id = 49m,
+                            AllowedClasses = "Hunter",
+                            BuyPrice = 40L,
+                            Class = 2,
+                            DisplayId = 49L,
+                            Flags = 0,
+                            ItemPower = 2,
+                            MaxStackSize = 1L,
+                            Name = "Hide Grips",
+                            Rarity = 1,
+                            RequiredLevel = 1,
+                            SellPrice = 10L,
+                            Slot = 4,
+                            StatType1 = 2,
+                            StatType2 = 4,
+                            StatValue1 = 1L,
+                            StatValue2 = 1L,
+                            SubClass = 205
+                        },
+                        new
+                        {
+                            Id = 50m,
+                            AllowedClasses = "Hunter",
+                            BuyPrice = 40L,
+                            Class = 2,
+                            DisplayId = 50L,
+                            Flags = 0,
+                            ItemPower = 2,
+                            MaxStackSize = 1L,
+                            Name = "Hide Boots",
+                            Rarity = 1,
+                            RequiredLevel = 1,
+                            SellPrice = 10L,
+                            Slot = 6,
+                            StatType1 = 2,
+                            StatType2 = 4,
+                            StatValue1 = 1L,
+                            StatValue2 = 1L,
+                            SubClass = 204
+                        },
+                        new
+                        {
+                            Id = 51m,
+                            AllowedClasses = "Healer",
+                            BuyPrice = 60L,
+                            Class = 2,
+                            DisplayId = 51L,
+                            Flags = 0,
+                            ItemPower = 2,
+                            MaxStackSize = 1L,
+                            Name = "Wool Circlet",
+                            Rarity = 1,
+                            RequiredLevel = 1,
+                            SellPrice = 15L,
+                            Slot = 0,
+                            StatType1 = 3,
+                            StatType2 = 0,
+                            StatType3 = 4,
+                            StatValue1 = 1L,
+                            StatValue2 = 1L,
+                            StatValue3 = 1L,
+                            SubClass = 201
+                        },
+                        new
+                        {
+                            Id = 52m,
+                            AllowedClasses = "Healer",
+                            BuyPrice = 100L,
+                            Class = 2,
+                            DisplayId = 52L,
+                            Flags = 0,
+                            ItemPower = 2,
+                            MaxStackSize = 1L,
+                            Name = "Wool Vestments",
+                            Rarity = 1,
+                            RequiredLevel = 1,
+                            SellPrice = 25L,
+                            Slot = 3,
+                            StatType1 = 3,
+                            StatType2 = 0,
+                            StatType3 = 4,
+                            StatValue1 = 1L,
+                            StatValue2 = 1L,
+                            StatValue3 = 2L,
+                            SubClass = 202
+                        },
+                        new
+                        {
+                            Id = 53m,
+                            AllowedClasses = "Healer",
+                            BuyPrice = 80L,
+                            Class = 2,
+                            DisplayId = 53L,
+                            Flags = 0,
+                            ItemPower = 2,
+                            MaxStackSize = 1L,
+                            Name = "Wool Leggings",
+                            Rarity = 1,
+                            RequiredLevel = 1,
+                            SellPrice = 20L,
+                            Slot = 5,
+                            StatType1 = 3,
+                            StatType2 = 0,
+                            StatType3 = 4,
+                            StatValue1 = 1L,
+                            StatValue2 = 1L,
+                            StatValue3 = 1L,
+                            SubClass = 203
+                        },
+                        new
+                        {
+                            Id = 54m,
+                            AllowedClasses = "Healer",
+                            BuyPrice = 40L,
+                            Class = 2,
+                            DisplayId = 54L,
+                            Flags = 0,
+                            ItemPower = 2,
+                            MaxStackSize = 1L,
+                            Name = "Wool Handwraps",
+                            Rarity = 1,
+                            RequiredLevel = 1,
+                            SellPrice = 10L,
+                            Slot = 4,
+                            StatType1 = 3,
+                            StatType2 = 0,
+                            StatType3 = 4,
+                            StatValue1 = 1L,
+                            StatValue2 = 1L,
+                            StatValue3 = 1L,
+                            SubClass = 205
+                        },
+                        new
+                        {
+                            Id = 55m,
+                            AllowedClasses = "Healer",
+                            BuyPrice = 40L,
+                            Class = 2,
+                            DisplayId = 55L,
+                            Flags = 0,
+                            ItemPower = 2,
+                            MaxStackSize = 1L,
+                            Name = "Wool Sandals",
+                            Rarity = 1,
+                            RequiredLevel = 1,
+                            SellPrice = 10L,
+                            Slot = 6,
+                            StatType1 = 3,
+                            StatType2 = 0,
+                            StatType3 = 4,
+                            StatValue1 = 1L,
+                            StatValue2 = 1L,
+                            StatValue3 = 1L,
+                            SubClass = 204
+                        },
+                        new
+                        {
+                            Id = 56m,
+                            AllowedClasses = "Warrior,Wizard,Hunter,Healer",
+                            BuyPrice = 25L,
+                            Class = 0,
+                            DisplayId = 56L,
+                            Flags = 256,
+                            MaxStackSize = 40L,
+                            Name = "Greater Health Potion",
+                            Rarity = 1,
+                            SellPrice = 12L,
+                            SubClass = 0
                         });
                 });
 
@@ -2960,6 +3777,46 @@ namespace Avalon.Database.World.Migrations
                         {
                             Id = 16,
                             Text = "Open my bank."
+                        },
+                        new
+                        {
+                            Id = 17,
+                            Text = "Steel, stave or string, traveller. What'll it be?"
+                        },
+                        new
+                        {
+                            Id = 18,
+                            Text = "Every blade here I hammered myself. Won't match what the forest spits out, but it'll keep you breathing till you find better."
+                        },
+                        new
+                        {
+                            Id = 19,
+                            Text = "Mind the rack. Looking to cover something?"
+                        },
+                        new
+                        {
+                            Id = 20,
+                            Text = "Plate, leather, cloth. I fit every trade. Buy it plain, earn it fancy."
+                        },
+                        new
+                        {
+                            Id = 21,
+                            Text = "Potions, scrolls, supplies. And I'll take what you've no use for."
+                        },
+                        new
+                        {
+                            Id = 22,
+                            Text = "I buy anything that isn't nailed to you. Fair prices, mostly."
+                        },
+                        new
+                        {
+                            Id = 23,
+                            Text = "What do you deal in?"
+                        },
+                        new
+                        {
+                            Id = 24,
+                            Text = "Show me your wares."
                         });
                 });
 
@@ -3075,6 +3932,54 @@ namespace Avalon.Database.World.Migrations
                             TextId = 16,
                             Locale = "ptPT",
                             Text = "Abre o meu cofre."
+                        },
+                        new
+                        {
+                            TextId = 17,
+                            Locale = "ptPT",
+                            Text = "Aço, cajado ou corda, viajante. O que vai ser?"
+                        },
+                        new
+                        {
+                            TextId = 18,
+                            Locale = "ptPT",
+                            Text = "Cada lâmina aqui fui eu que a forjei. Não se compara ao que a floresta cospe, mas há de te manter com vida até encontrares melhor."
+                        },
+                        new
+                        {
+                            TextId = 19,
+                            Locale = "ptPT",
+                            Text = "Cuidado com o expositor. Queres cobrir alguma coisa?"
+                        },
+                        new
+                        {
+                            TextId = 20,
+                            Locale = "ptPT",
+                            Text = "Placas, couro, tecido. Visto todos os ofícios. Compra-o simples, ganha-o vistoso."
+                        },
+                        new
+                        {
+                            TextId = 21,
+                            Locale = "ptPT",
+                            Text = "Poções, pergaminhos, mantimentos. E fico com o que não te faz falta."
+                        },
+                        new
+                        {
+                            TextId = 22,
+                            Locale = "ptPT",
+                            Text = "Compro tudo o que não estiver pregado a ti. Preços justos, quase sempre."
+                        },
+                        new
+                        {
+                            TextId = 23,
+                            Locale = "ptPT",
+                            Text = "O que é que vendes?"
+                        },
+                        new
+                        {
+                            TextId = 24,
+                            Locale = "ptPT",
+                            Text = "Mostra-me a tua mercadoria."
                         });
                 });
 
@@ -3964,6 +4869,36 @@ namespace Avalon.Database.World.Migrations
                             OffsetX = -6f,
                             OffsetY = 0f,
                             OffsetZ = 6f
+                        },
+                        new
+                        {
+                            Id = 5,
+                            CreatureTemplateId = 12m,
+                            Facing = 114f,
+                            MapTemplateId = 1,
+                            OffsetX = -9f,
+                            OffsetY = 0f,
+                            OffsetZ = 4f
+                        },
+                        new
+                        {
+                            Id = 6,
+                            CreatureTemplateId = 13m,
+                            Facing = 132f,
+                            MapTemplateId = 1,
+                            OffsetX = -9f,
+                            OffsetY = 0f,
+                            OffsetZ = 8f
+                        },
+                        new
+                        {
+                            Id = 7,
+                            CreatureTemplateId = 14m,
+                            Facing = 149f,
+                            MapTemplateId = 1,
+                            OffsetX = -6f,
+                            OffsetY = 0f,
+                            OffsetZ = 10f
                         });
                 });
 
@@ -4210,6 +5145,312 @@ namespace Avalon.Database.World.Migrations
                     b.ToTable("SpawnTables");
                 });
 
+            modelBuilder.Entity("Avalon.Domain.World.VendorStock", b =>
+                {
+                    b.Property<int>("Id")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal>("CreatureTemplateId")
+                        .HasColumnType("numeric(20,0)");
+
+                    b.Property<decimal>("ItemTemplateId")
+                        .HasColumnType("numeric(20,0)");
+
+                    b.Property<long?>("MaxStock")
+                        .HasColumnType("bigint");
+
+                    b.Property<long?>("PriceOverride")
+                        .HasColumnType("bigint");
+
+                    b.Property<long?>("RequiredQuestId")
+                        .HasColumnType("bigint");
+
+                    b.Property<int?>("RequiredQuestState")
+                        .HasColumnType("integer");
+
+                    b.Property<long?>("RestockSeconds")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("Sequence")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ItemTemplateId");
+
+                    b.HasIndex("CreatureTemplateId", "Sequence")
+                        .IsUnique();
+
+                    b.ToTable("VendorStocks", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_VendorStocks_MaxStockPositive", "\"MaxStock\" IS NULL OR \"MaxStock\" >= 1");
+
+                            t.HasCheckConstraint("CK_VendorStocks_QuestPairs", "(\"RequiredQuestId\" IS NULL) = (\"RequiredQuestState\" IS NULL)");
+
+                            t.HasCheckConstraint("CK_VendorStocks_RestockPairsWithMaxStock", "(\"MaxStock\" IS NULL) = (\"RestockSeconds\" IS NULL)");
+
+                            t.HasCheckConstraint("CK_VendorStocks_RestockPositive", "\"RestockSeconds\" IS NULL OR \"RestockSeconds\" >= 1");
+                        });
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            CreatureTemplateId = 12m,
+                            ItemTemplateId = 32m,
+                            Sequence = 1L
+                        },
+                        new
+                        {
+                            Id = 2,
+                            CreatureTemplateId = 12m,
+                            ItemTemplateId = 33m,
+                            Sequence = 2L
+                        },
+                        new
+                        {
+                            Id = 3,
+                            CreatureTemplateId = 12m,
+                            ItemTemplateId = 34m,
+                            Sequence = 3L
+                        },
+                        new
+                        {
+                            Id = 4,
+                            CreatureTemplateId = 12m,
+                            ItemTemplateId = 35m,
+                            Sequence = 4L
+                        },
+                        new
+                        {
+                            Id = 5,
+                            CreatureTemplateId = 13m,
+                            ItemTemplateId = 36m,
+                            Sequence = 1L
+                        },
+                        new
+                        {
+                            Id = 6,
+                            CreatureTemplateId = 13m,
+                            ItemTemplateId = 37m,
+                            MaxStock = 2L,
+                            RestockSeconds = 1800L,
+                            Sequence = 2L
+                        },
+                        new
+                        {
+                            Id = 7,
+                            CreatureTemplateId = 13m,
+                            ItemTemplateId = 38m,
+                            Sequence = 3L
+                        },
+                        new
+                        {
+                            Id = 8,
+                            CreatureTemplateId = 13m,
+                            ItemTemplateId = 39m,
+                            Sequence = 4L
+                        },
+                        new
+                        {
+                            Id = 9,
+                            CreatureTemplateId = 13m,
+                            ItemTemplateId = 40m,
+                            Sequence = 5L
+                        },
+                        new
+                        {
+                            Id = 10,
+                            CreatureTemplateId = 13m,
+                            ItemTemplateId = 41m,
+                            Sequence = 6L
+                        },
+                        new
+                        {
+                            Id = 11,
+                            CreatureTemplateId = 13m,
+                            ItemTemplateId = 42m,
+                            MaxStock = 2L,
+                            RestockSeconds = 1800L,
+                            Sequence = 7L
+                        },
+                        new
+                        {
+                            Id = 12,
+                            CreatureTemplateId = 13m,
+                            ItemTemplateId = 43m,
+                            Sequence = 8L
+                        },
+                        new
+                        {
+                            Id = 13,
+                            CreatureTemplateId = 13m,
+                            ItemTemplateId = 44m,
+                            Sequence = 9L
+                        },
+                        new
+                        {
+                            Id = 14,
+                            CreatureTemplateId = 13m,
+                            ItemTemplateId = 45m,
+                            Sequence = 10L
+                        },
+                        new
+                        {
+                            Id = 15,
+                            CreatureTemplateId = 13m,
+                            ItemTemplateId = 46m,
+                            Sequence = 11L
+                        },
+                        new
+                        {
+                            Id = 16,
+                            CreatureTemplateId = 13m,
+                            ItemTemplateId = 47m,
+                            MaxStock = 2L,
+                            RestockSeconds = 1800L,
+                            Sequence = 12L
+                        },
+                        new
+                        {
+                            Id = 17,
+                            CreatureTemplateId = 13m,
+                            ItemTemplateId = 48m,
+                            Sequence = 13L
+                        },
+                        new
+                        {
+                            Id = 18,
+                            CreatureTemplateId = 13m,
+                            ItemTemplateId = 49m,
+                            Sequence = 14L
+                        },
+                        new
+                        {
+                            Id = 19,
+                            CreatureTemplateId = 13m,
+                            ItemTemplateId = 50m,
+                            Sequence = 15L
+                        },
+                        new
+                        {
+                            Id = 20,
+                            CreatureTemplateId = 13m,
+                            ItemTemplateId = 51m,
+                            Sequence = 16L
+                        },
+                        new
+                        {
+                            Id = 21,
+                            CreatureTemplateId = 13m,
+                            ItemTemplateId = 52m,
+                            MaxStock = 2L,
+                            RestockSeconds = 1800L,
+                            Sequence = 17L
+                        },
+                        new
+                        {
+                            Id = 22,
+                            CreatureTemplateId = 13m,
+                            ItemTemplateId = 53m,
+                            Sequence = 18L
+                        },
+                        new
+                        {
+                            Id = 23,
+                            CreatureTemplateId = 13m,
+                            ItemTemplateId = 54m,
+                            Sequence = 19L
+                        },
+                        new
+                        {
+                            Id = 24,
+                            CreatureTemplateId = 13m,
+                            ItemTemplateId = 55m,
+                            Sequence = 20L
+                        },
+                        new
+                        {
+                            Id = 25,
+                            CreatureTemplateId = 14m,
+                            ItemTemplateId = 1m,
+                            Sequence = 1L
+                        },
+                        new
+                        {
+                            Id = 26,
+                            CreatureTemplateId = 14m,
+                            ItemTemplateId = 2m,
+                            Sequence = 2L
+                        },
+                        new
+                        {
+                            Id = 27,
+                            CreatureTemplateId = 14m,
+                            ItemTemplateId = 3m,
+                            Sequence = 3L
+                        },
+                        new
+                        {
+                            Id = 28,
+                            CreatureTemplateId = 14m,
+                            ItemTemplateId = 9m,
+                            Sequence = 4L
+                        },
+                        new
+                        {
+                            Id = 29,
+                            CreatureTemplateId = 14m,
+                            ItemTemplateId = 10m,
+                            Sequence = 5L
+                        },
+                        new
+                        {
+                            Id = 30,
+                            CreatureTemplateId = 14m,
+                            ItemTemplateId = 11m,
+                            Sequence = 6L
+                        },
+                        new
+                        {
+                            Id = 31,
+                            CreatureTemplateId = 14m,
+                            ItemTemplateId = 56m,
+                            MaxStock = 5L,
+                            RestockSeconds = 600L,
+                            Sequence = 7L
+                        });
+                });
+
+            modelBuilder.Entity("Avalon.Domain.World.VendorStockCost", b =>
+                {
+                    b.Property<int>("VendorStockId")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal>("ItemTemplateId")
+                        .HasColumnType("numeric(20,0)");
+
+                    b.Property<long>("Count")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("VendorStockId", "ItemTemplateId");
+
+                    b.HasIndex("ItemTemplateId");
+
+                    b.ToTable("VendorStockCosts", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_VendorStockCosts_CountPositive", "\"Count\" >= 1");
+                        });
+
+                    b.HasData(
+                        new
+                        {
+                            VendorStockId = 31,
+                            ItemTemplateId = 1m,
+                            Count = 2L
+                        });
+                });
+
             modelBuilder.Entity("Avalon.Domain.World.ChunkPoolMembership", b =>
                 {
                     b.HasOne("Avalon.Domain.World.ChunkPool", "Pool")
@@ -4410,6 +5651,36 @@ namespace Avalon.Database.World.Migrations
                     b.Navigation("Entries");
                 });
 
+            modelBuilder.Entity("Avalon.Domain.World.VendorStock", b =>
+                {
+                    b.HasOne("Avalon.Domain.World.CreatureTemplate", null)
+                        .WithMany()
+                        .HasForeignKey("CreatureTemplateId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Avalon.Domain.World.ItemTemplate", null)
+                        .WithMany()
+                        .HasForeignKey("ItemTemplateId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Avalon.Domain.World.VendorStockCost", b =>
+                {
+                    b.HasOne("Avalon.Domain.World.ItemTemplate", null)
+                        .WithMany()
+                        .HasForeignKey("ItemTemplateId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Avalon.Domain.World.VendorStock", null)
+                        .WithMany("Costs")
+                        .HasForeignKey("VendorStockId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Avalon.Domain.World.ChunkPool", b =>
                 {
                     b.Navigation("Memberships");
@@ -4428,6 +5699,11 @@ namespace Avalon.Database.World.Migrations
             modelBuilder.Entity("Avalon.Domain.World.QuestTemplate", b =>
                 {
                     b.Navigation("Rewards");
+                });
+
+            modelBuilder.Entity("Avalon.Domain.World.VendorStock", b =>
+                {
+                    b.Navigation("Costs");
                 });
 #pragma warning restore 612, 618
         }

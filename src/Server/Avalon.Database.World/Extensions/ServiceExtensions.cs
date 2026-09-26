@@ -42,7 +42,8 @@ public static class ServiceExtensions
             .AddSingleton<ISpawnTableRepository, SpawnTableRepository>()
             .AddSingleton<IProceduralMapConfigRepository, ProceduralMapConfigRepository>()
             .AddSingleton<IMapChunkPlacementRepository, MapChunkPlacementRepository>()
-            .AddSingleton<ILootTableRepository, LootTableRepository>();
+            .AddSingleton<ILootTableRepository, LootTableRepository>()
+            .AddSingleton<IVendorStockRepository, VendorStockRepository>();
 
         return services;
     }
