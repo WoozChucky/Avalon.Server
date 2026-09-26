@@ -36,6 +36,14 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- The chunk assets the map endpoints serve live with the World server. Deployments read
+         them from the output (Application:MapAssets:ChunkAssetRoot=/app/Maps); dotnet run keeps
+         the appsettings path into the World project. -->
+    <None Include="..\Avalon.Server.World\Maps\**" Link="Maps\%(RecursiveDir)%(Filename)%(Extension)"
+          CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest"/>
+  </ItemGroup>
+
+  <ItemGroup>
     <Content Include="..\.dockerignore">
       <Link>.dockerignore</Link>
     </Content>
