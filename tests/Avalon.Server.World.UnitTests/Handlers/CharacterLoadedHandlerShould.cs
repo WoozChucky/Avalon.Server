@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Avalon.Server.World.UnitTests.Characters;
 using Avalon.Network.Packets.Character;
 using Avalon.World;
@@ -29,6 +30,35 @@ public class CharacterLoadedHandlerShould
         IWorld world = Substitute.For<IWorld>();
         var handler = new CharacterLoadedHandler(NullLogger<CharacterLoadedHandler>.Instance, world);
         return (handler, connection, world, character, instance);
+    }
+
+    /// <summary>
+    /// The dispatcher's "packet CMSG_CHARACTER_LOADED" span is the server entry point; the handler's
+    /// own span nests under it and is Internal, or the service graph counts the packet twice.
+    /// </summary>
+    [Fact]
+    public void Trace_itself_as_an_internal_span_under_the_packet_span()
+    {
+        var (handler, connection, _, _, _) = Build(pending: true);
+        using ActivitySource dispatcher = new($"test-{Guid.NewGuid()}");
+        List<Activity> stopped = [];
+        using ActivityListener listener = new()
+        {
+            ShouldListenTo = s => s.Name == "world-server" || s == dispatcher,
+            Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllDataAndRecorded,
+            ActivityStopped = a => { lock (stopped) stopped.Add(a); },
+        };
+        ActivitySource.AddActivityListener(listener);
+
+        Activity packet = dispatcher.StartActivity("packet CMSG_CHARACTER_LOADED", ActivityKind.Server)!;
+        handler.Execute(connection, new CCharacterLoadedPacket());
+        packet.Dispose();
+
+        Activity inner;
+        lock (stopped)
+            inner = Assert.Single(stopped, a => a.ParentSpanId == packet.SpanId);
+        Assert.Equal(nameof(CharacterLoadedHandler), inner.DisplayName);
+        Assert.Equal(ActivityKind.Internal, inner.Kind);
     }
 
     [Fact]

@@ -68,7 +68,7 @@ public class CharacterSelectHandler(
     public override void Execute(IWorldConnection connection, CCharacterSelectedPacket packet)
     {
         using Activity? activity =
-            DiagnosticsConfig.World.Source.StartActivity(nameof(CharacterSelectHandler), ActivityKind.Server);
+            DiagnosticsConfig.World.Source.StartActivity(nameof(CharacterSelectHandler), ActivityKind.Internal);
         activity?.SetTag(nameof(connection.AccountId), connection.AccountId);
         activity?.SetTag(nameof(packet.CharacterId), packet.CharacterId);
 
