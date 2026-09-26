@@ -219,6 +219,20 @@ public sealed class PacketDispatchTelemetryShould : IDisposable
     }
 
     [Theory]
+    [InlineData("3")]
+    [InlineData("8192")]
+    [InlineData("0x2000")]
+    [InlineData("CMSG_AUTH,CMSG_PONG")]
+    [InlineData("cmsg_auth")]
+    public void Accept_only_exact_packet_type_names(string name)
+    {
+        var config = new TelemetryConfiguration { NoSpanPacketTypes = [name] };
+
+        ArgumentException error = Assert.Throws<ArgumentException>(() => PacketDispatchTelemetry.From(_source, _meter, config));
+        Assert.Contains(name, error.Message);
+    }
+
+    [Theory]
     [InlineData("203.0.113.7:5000", "203.0.113.7")]
     [InlineData("[2001:db8::1]:5000", "2001:db8::1")]
     [InlineData("Unknown", "Unknown")]

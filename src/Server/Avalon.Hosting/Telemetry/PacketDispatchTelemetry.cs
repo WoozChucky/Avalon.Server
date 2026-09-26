@@ -53,9 +53,11 @@ public sealed class PacketDispatchTelemetry
     public static PacketDispatchTelemetry From(ActivitySource source, Meter meter, TelemetryConfiguration config) =>
         new(source, meter, config.NoSpanPacketTypes?.Select(Parse).ToArray());
 
+    // Exact names only: Enum.TryParse also takes numbers and comma lists, and a list ORs its values
+    // into whatever other packet type the result happens to equal.
     private static NetworkPacketType Parse(string name) =>
-        Enum.TryParse(name, ignoreCase: false, out NetworkPacketType type) && Enum.IsDefined(type)
-            ? type
+        Enum.GetNames<NetworkPacketType>().Contains(name, StringComparer.Ordinal)
+            ? Enum.Parse<NetworkPacketType>(name)
             : throw new ArgumentException(
                 $"Hosting:Telemetry:NoSpanPacketTypes: '{name}' is not a NetworkPacketType", nameof(name));
 
