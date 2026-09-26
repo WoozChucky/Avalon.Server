@@ -177,12 +177,7 @@ public class AccountService : IAccountService
         // taken before any lookup. Past the budget the answer is 429 LOCKED, whatever the name.
         // A registration that creates the account gives its slot back; every other ending,
         // "already exists" included, keeps it, so a source can ask about only so many names.
-        var sourceKey = LoginSource.FromAddress(ipAddress).Key;
-        if (!await SourceBudget.TryTakeAsync(_cache, _authConfig, sourceKey))
-        {
-            _logger.LogWarning("Registration refused for source {SourceKey}: too many attempts", sourceKey);
-            throw new AccountLockedException();
-        }
+        var sourceKey = await TakeRegistrationSlotAsync(ipAddress);
 
         var username = model.Username.ToUpperInvariant().Trim();
         var existingAccount = await _accountRepository.FindByUserNameAsync(username, cancellationToken);
@@ -212,19 +207,7 @@ public class AccountService : IAccountService
             Os = OperatingSystem.Windows,
         };
 
-        try
-        {
-            account = await _accountRepository.CreateAsync(account, cancellationToken);
-        }
-        catch (DbUpdateException)
-        {
-            // The check above and this insert are not atomic: a registration of the same name can
-            // land in between, and the unique index on Username refuses ours (#487). Its caller
-            // gets the answer the check would have given. Any other failure is rethrown.
-            if (await _accountRepository.FindByUserNameAsync(username, cancellationToken) != null)
-                throw new BusinessException(UsernameTaken);
-            throw;
-        }
+        account = await InsertAccountAsync(account, cancellationToken);
 
         if (account == null)
             throw new Exception("Failed to insert account");
@@ -245,6 +228,37 @@ public class AccountService : IAccountService
             Token = _jwtUtils.GenerateJwtToken(account),
             ExpiresAt = DateTimeOffset.UtcNow.AddMinutes(_authConfig.AccessTokenLifetimeMinutes).ToUnixTimeSeconds(),
         }, account.Id);
+    }
+
+    /// <summary>Takes the registration's slot from its source's budget (#495); 429 LOCKED past it.</summary>
+    private async Task<string> TakeRegistrationSlotAsync(IPAddress ipAddress)
+    {
+        var sourceKey = LoginSource.FromAddress(ipAddress).Key;
+        if (await SourceBudget.TryTakeAsync(_cache, _authConfig, sourceKey))
+            return sourceKey;
+
+        _logger.LogWarning("Registration refused for source {SourceKey}: too many attempts", sourceKey);
+        throw new AccountLockedException();
+    }
+
+    /// <summary>
+    /// Inserts a new account. The "taken" check before it and this insert are not atomic: a
+    /// registration of the same name can land in between, and the unique index on Username
+    /// refuses this one (#487). Its caller gets the answer the check would have given; any other
+    /// failure is rethrown.
+    /// </summary>
+    private async Task<Account> InsertAccountAsync(Account account, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await _accountRepository.CreateAsync(account, cancellationToken);
+        }
+        catch (DbUpdateException ex)
+        {
+            if (await _accountRepository.FindByUserNameAsync(account.Username, cancellationToken) != null)
+                throw new BusinessException(UsernameTaken, ex);
+            throw;
+        }
     }
 
     public async Task<PagedResult<Account>> Paginate(AccountPaginateFilters filters, CancellationToken cancellationToken)
@@ -379,6 +393,12 @@ public class AccountService : IAccountService
             throw new BusinessException("Account not found");
     }
 
+    /// <inheritdoc />
+    /// <remarks>
+    /// The transaction starts with the credentials-changed stamp (#495). It is also the existence
+    /// check, and the row lock it takes orders this removal against a concurrent refresh rotation
+    /// or token mint, as for a password change.
+    /// </remarks>
     public async Task<bool> RemoveMfaAsync(AccountId accountId, AccountId actorId,
         CancellationToken cancellationToken = default)
     {
@@ -387,9 +407,6 @@ public class AccountService : IAccountService
         // no session opened before the reset outlives it.
         var removed = await _authTransaction.ExecuteAsync(async (context, token) =>
         {
-            // The credentials-changed stamp (#495) goes first: it is also the existence check, and
-            // the row lock it takes orders this removal against a concurrent refresh rotation or
-            // token mint, as for a password change.
             if (await AccountRepository.StampCredentialsChangedAsync(context, accountId, DateTime.UtcNow, token) == 0)
                 return (Found: false, Rows: 0);
 
