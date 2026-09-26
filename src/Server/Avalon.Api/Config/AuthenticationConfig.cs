@@ -37,4 +37,14 @@ public class AuthenticationConfig : ILoginLimits
 
     /// <inheritdoc/>
     public int MaxFailedMfaAttempts { get; set; } = 5;
+
+    /// <summary>
+    /// Accounts one source (an IPv4 address, or an IPv6 /64) may create per
+    /// <see cref="AccountCreationWindowMinutes"/> (#495 review). A created account is never given
+    /// back, unlike a login's slot, so the cap counts accounts, not attempts. API only.
+    /// </summary>
+    public int MaxAccountsCreatedPerSource { get; set; } = 5;
+
+    /// <summary>The window, fixed from a source's first creation, over which its creations are counted.</summary>
+    public int AccountCreationWindowMinutes { get; set; } = 60;
 }

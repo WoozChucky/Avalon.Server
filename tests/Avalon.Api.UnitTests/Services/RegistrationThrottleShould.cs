@@ -2,6 +2,7 @@ using System.Net;
 using Avalon.Api.Config;
 using Avalon.Api.Contract;
 using Avalon.Api.Exceptions;
+using Avalon.Api;
 using Avalon.Api.Services;
 using Avalon.Database;
 using Avalon.Database.Auth;
@@ -104,6 +105,58 @@ public sealed class RegistrationThrottleShould : IDisposable
 
         await Assert.ThrowsAsync<AccountLockedException>(() => Register("fresh", "fresh@avalon.monster"));
         Assert.Equal(0, await AccountsAsync());
+    }
+
+    // ---------------- The account-creation cap (#495 review) ----------------
+
+    private const string LoopbackCreationKey = "auth:source:127.0.0.1:accountsCreated";
+
+    [Fact]
+    public async Task Refuse_a_source_past_its_account_creation_cap_although_its_login_budget_has_room()
+    {
+        _config.MaxAccountsCreatedPerSource = 2;
+        await Register("one", "one@avalon.monster");
+        await Register("two", "two@avalon.monster");
+
+        await Assert.ThrowsAsync<AccountLockedException>(() => Register("three", "three@avalon.monster"));
+
+        Assert.Equal(2, await AccountsAsync());
+        // The two successes gave their login slots back; the refused third keeps its own.
+        Assert.Equal(1, _counters.CountOf(LoopbackSourceKey));
+        Assert.Equal(2, _counters.CountOf(LoopbackCreationKey)); // but not their creation slots
+    }
+
+    [Fact]
+    public async Task Not_spend_the_creation_cap_on_a_registration_answered_already_exists()
+    {
+        _config.MaxAccountsCreatedPerSource = 1;
+        await Register("taken", "taken@avalon.monster");
+        await Assert.ThrowsAsync<BusinessException>(() => Register("taken", "other@avalon.monster"));
+
+        Assert.Equal(1, _counters.CountOf(LoopbackCreationKey));
+    }
+
+    [Theory]
+    [InlineData(0, 60, "MaxAccountsCreatedPerSource")]
+    [InlineData(5, 0, "AccountCreationWindowMinutes")]
+    public void Stop_startup_on_a_creation_cap_below_one(int max, int window, string setting)
+    {
+        var config = new AuthenticationConfig { MaxAccountsCreatedPerSource = max, AccountCreationWindowMinutes = window };
+
+        var refused = Assert.Throws<InvalidOperationException>(() => ServiceRegistration.ValidateAccountCreationCap(config));
+
+        Assert.Contains(setting, refused.Message);
+    }
+
+    [Fact]
+    public async Task Cap_each_source_on_its_own()
+    {
+        _config.MaxAccountsCreatedPerSource = 1;
+        await Register("one", "one@avalon.monster");
+
+        await Register("two", "two@avalon.monster", IPAddress.Parse("10.0.0.9"));
+
+        Assert.Equal(2, await AccountsAsync());
     }
 
     [Fact]

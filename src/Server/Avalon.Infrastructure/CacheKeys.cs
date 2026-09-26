@@ -81,6 +81,13 @@ public static class CacheKeys
     public static string AuthSourceFailedLogins(string source) => $"auth:source:{source}:failedLogins";
 
     /// <summary>
+    /// Accounts created by one source (same source form as <see cref="AuthSourceFailedLogins"/>) in the
+    /// current window (#495 review). <c>INCR</c> before the insert, the expiry set by the first; given
+    /// back only when the registration does not create its account.
+    /// </summary>
+    public static string AuthSourceAccountsCreated(string source) => $"auth:source:{source}:accountsCreated";
+
+    /// <summary>
     /// Login and MFA-code attempts at one username, from every source and over both the TCP login and the
     /// REST API (#484, #478). It decides
     /// the account lock: an attempt past <c>Application:MaxFailedLoginAttempts</c> is refused as

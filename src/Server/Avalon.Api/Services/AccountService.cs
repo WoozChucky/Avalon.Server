@@ -211,7 +211,17 @@ public class AccountService : IAccountService
             Os = OperatingSystem.Windows,
         };
 
-        account = await InsertAccountAsync(account, cancellationToken);
+        var creationKey = await TakeCreationSlotAsync(ipAddress);
+        try
+        {
+            account = await InsertAccountAsync(account, cancellationToken);
+        }
+        catch
+        {
+            // No account came of it, so it does not count against the cap.
+            await AttemptBudget.GiveBackAsync(_cache, creationKey);
+            throw;
+        }
 
         if (account == null)
             throw new Exception("Failed to insert account");
@@ -242,6 +252,24 @@ public class AccountService : IAccountService
             return sourceKey;
 
         _logger.LogWarning("Registration refused for source {SourceKey}: too many attempts", sourceKey);
+        throw new AccountLockedException();
+    }
+
+    /// <summary>
+    /// Takes a slot of the source's account-creation cap (#495 review): at most
+    /// <c>MaxAccountsCreatedPerSource</c> accounts per <c>AccountCreationWindowMinutes</c>. Unlike the
+    /// login budget, a created account keeps its slot. Past the cap: 429 LOCKED.
+    /// </summary>
+    private async Task<string> TakeCreationSlotAsync(IPAddress ipAddress)
+    {
+        var key = CacheKeys.AuthSourceAccountsCreated(RemoteAddress.SourceOf(ipAddress));
+        long created = await AttemptBudget.TakeAsync(_cache, key,
+            TimeSpan.FromMinutes(_authConfig.AccountCreationWindowMinutes));
+        if (created <= _authConfig.MaxAccountsCreatedPerSource)
+            return key;
+
+        await AttemptBudget.GiveBackAsync(_cache, key);
+        _logger.LogWarning("Registration refused for source {SourceKey}: account creation cap reached", key);
         throw new AccountLockedException();
     }
 
