@@ -93,7 +93,11 @@ public sealed class RefreshTokenService : IRefreshTokenService
                 // token already; this refuses a rotation that read it just before.
                 throw new UnauthorizedAccessException("Refresh token predates a credentials change");
             default:
-                throw new UnauthorizedAccessException("Refresh token revoked");
+                // Revoked between the read above and the write: another rotation of this token won
+                // (#495), or it was revoked. A reuse, exactly as if it had arrived after that
+                // rotation finished, so the family goes as it does above.
+                await _repository.RevokeFamilyAsync(row.FamilyId, cancellationToken);
+                throw new RefreshTheftException(row.AccountId);
         }
     }
 

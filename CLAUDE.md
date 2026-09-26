@@ -168,6 +168,8 @@ For a JWT this runs in `JwtBearerEvents.OnTokenValidated` (`JwtAccountRevalidati
 
 The JWT's lifetime is enforced: `ValidateLifetime = true`, with `AccessTokenLifetimeMinutes` (default 15) plus `ClockSkewInMinutes`. An expired JWT gets a 401, and the client renews it with `POST /account/refresh`. That endpoint is `[AllowAnonymous]` and reads only the HttpOnly refresh cookie, so an expired access token does not stand in its way.
 
+**A refresh token rotates once (#495).** `RefreshTokenRepository.RotateAsync` revokes the parent with a conditional `UPDATE ... WHERE Id = @id AND NOT Revoked` and inserts the child, in one transaction, only when that write revoked the row: of two rotations of one token that both read it live, exactly one gets a child. The other (`RefreshRotation.ParentNotLive`) is treated as a reuse, as it would be a moment later: the family is revoked, `RefreshTheftException`, a world disconnect is published and the caller gets 401.
+
 **Nothing issues a credential to an account that is not Active** (`AccountAccessCheck.MayHoldSession`):
 - password login (`AccountService.Authenticate`) checks after the BCrypt verify, and MFA verify after the code is accepted. Both throw `AccountInactiveException`, which `ExceptionHandlerMiddleware` answers as 403 ProblemDetails with `Detail` BANNED or DEACTIVATED, as the game client is told. A wrong password or bad code still gets the generic 401, whatever the status, so nothing about the account leaks before the proof;
 - refresh revokes every refresh token the account holds, clears the cookie and returns 401.
