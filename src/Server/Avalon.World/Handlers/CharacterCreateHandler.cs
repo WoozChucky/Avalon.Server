@@ -1,6 +1,7 @@
 using Avalon.World.Public;
 using Avalon.Common;
 using Avalon.Database.Character.Repositories;
+using Avalon.World.Characters;
 using Avalon.World.Inventory;
 using Avalon.Domain.Characters;
 using Avalon.Domain.World;
@@ -122,8 +123,10 @@ public class CharacterCreateHandler(
             return;
         }
 
-        var @class = (CharacterClass)packet.Class;
         var gender = (CharacterGender)(byte)packet.Gender; // range-checked in Execute
+
+        // Every starting item goes to the Bag, so a new character wears nothing yet.
+        DerivedCharacterStats stats = CharacterStatsCalculator.Calculate(classLevelStats, []);
 
         var character = new Character
         {
@@ -138,38 +141,22 @@ public class CharacterCreateHandler(
             Rotation = createInfo.Rotation,
             Map = createInfo.Map,
             CreationDate = DateTime.UtcNow,
-            Health = (int)CharacterStats.GetBaseHp(@class, classLevelStats.Stamina, classLevelStats.Level),
-            Power1 = (int)CharacterStats.GetBasePower(@class, classLevelStats.Intellect, classLevelStats.Agility, classLevelStats.Level),
+            Health = (int)stats.MaxHealth,
+            Power1 = (int)stats.MaxPower,
             Power2 = 0,
             Experience = 0,
         };
 
         connection.EnqueueContinuation(characterRepository.CreateAsync(character, CancellationToken.None), createdCharacter =>
         {
-            OnCharacterCreated(connection, createdCharacter, classLevelStats, createInfo.Class, createInfo);
+            OnCharacterCreated(connection, createdCharacter, stats, createInfo);
         });
     }
 
-    private void OnCharacterCreated(IWorldConnection connection, Character character, ClassLevelStat classLevelStat,
-        CharacterClass @class, CharacterCreateInfo createInfo)
+    private void OnCharacterCreated(IWorldConnection connection, Character character, DerivedCharacterStats stats,
+        CharacterCreateInfo createInfo)
     {
-        var characterStats = new CharacterStats
-        {
-            CharacterId = character.Id,
-            MaxHealth = CharacterStats.GetBaseHp(@class, classLevelStat.Stamina, classLevelStat.Level),
-            MaxPower1 = CharacterStats.GetBasePower(@class, classLevelStat.Intellect, classLevelStat.Agility, classLevelStat.Level),
-            MaxPower2 = 0,
-            Stamina = classLevelStat.Stamina,
-            Strength = classLevelStat.Strength,
-            Agility = classLevelStat.Agility,
-            Intellect = classLevelStat.Intellect,
-            Armor = 0,
-            BlockPct = CharacterStats.GetBaseBlockPercent(@class),
-            DodgePct = CharacterStats.GetBaseDodgePercent(@class),
-            CritPct = CharacterStats.GetBaseCritPercent(@class),
-            AttackDamage = CharacterStats.GetBaseAttackDamage(@class, classLevelStat.Strength, classLevelStat.Agility),
-            AbilityDamage = CharacterStats.GetBaseAbilityDamage(@class, classLevelStat.Intellect),
-        };
+        CharacterStats characterStats = stats.ToRow(character.Id);
 
         connection.EnqueueContinuation(characterStatsRepository.CreateAsync(characterStats, CancellationToken.None), createdStats =>
         {

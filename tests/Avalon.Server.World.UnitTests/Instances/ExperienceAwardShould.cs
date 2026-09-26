@@ -1,19 +1,14 @@
 using Avalon.Common;
-using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Database.World.Repositories;
 using Avalon.Domain.World;
 using Avalon.Server.World.UnitTests.Loot;
 using Avalon.World;
-using Avalon.World.ChunkLayouts;
 using Avalon.World.Configuration;
 using Avalon.World.Entities;
 using Avalon.World.Instances;
 using Avalon.World.Public.Characters;
-using Avalon.World.Public.Combat;
 using Avalon.World.Public.Creatures;
-using Avalon.World.Public.Maps;
-using Avalon.World.Scripts;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Xunit;
@@ -44,7 +39,7 @@ public class ExperienceAwardShould
         StaticData data = LoadedStaticData();
         world.Data.Returns(data);
 
-        MapInstance instance = BuildInstance(world);
+        MapInstance instance = TestMapInstances.Build(world);
 
         var creature = new Creature
         {
@@ -101,34 +96,6 @@ public class ExperienceAwardShould
 
         Assert.True(scale >= 0.0, $"scale went negative at {scale}");
         Assert.True(scale < 0.001, "an absurd level difference should award essentially nothing");
-    }
-
-    private static MapInstance BuildInstance(Avalon.World.IWorld world)
-    {
-        var serviceProvider = Substitute.For<IServiceProvider>();
-        serviceProvider.GetService(typeof(IScriptManager)).Returns(Substitute.For<IScriptManager>());
-        serviceProvider.GetService(typeof(CombatConfig)).Returns(new CombatConfig());
-
-        var entryChunk = new PlacedChunk(new ChunkTemplateId(1), 0, 0, 0, Vector3.zero);
-        var layout = new ChunkLayout(
-            Seed: 0,
-            Chunks: [entryChunk],
-            EntryChunk: entryChunk,
-            BossChunk: null,
-            Portals: [],
-            EntrySpawnWorldPos: Vector3.zero,
-            CellSize: 30f,
-            Config: null);
-
-        return new MapInstance(
-            NullLoggerFactory.Instance,
-            serviceProvider,
-            world,
-            new MapTemplateId(1),
-            ownerCharacterId: null,
-            layout,
-            Substitute.For<IMapNavigator>(),
-            seed: 0);
     }
 
     /// <summary>

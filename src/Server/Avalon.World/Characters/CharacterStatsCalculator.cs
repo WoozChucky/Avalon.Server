@@ -28,7 +28,7 @@ public static class CharacterStatsCalculator
     private static readonly ClassFactors Wizard = new(5, 15, 0, null, 0f, 3.25f, 1.85f, 0.5, 0, 3);
 
     /// <summary>
-    /// 0.8 per agility and 2 per intellect: what GetBasePower's <c>(agility * 0.8) + (intellect * 0.2) * 10</c>
+    /// 0.8 per agility and 2 per intellect: what the old CharacterStats base-power helper's <c>(agility * 0.8) + (intellect * 0.2) * 10</c>
     /// computed. Kept as it was; the combat-balance issue asks whether it was meant as <c>(0.8a + 0.2i) * 10</c>.
     /// </summary>
     private static readonly ClassFactors Hunter = new(8, 2, 0.8, null, 0f, 4.35f, 5.0f, 0.5, 1.5, 0.5);
