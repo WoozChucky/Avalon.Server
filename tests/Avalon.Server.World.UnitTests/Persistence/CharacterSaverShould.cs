@@ -5,6 +5,7 @@ using Avalon.Database.Character.Repositories;
 using Avalon.Domain.Characters;
 using Avalon.Domain.World;
 using Avalon.Server.World.UnitTests.Handlers;
+using Avalon.Server.World.UnitTests.Inventory;
 using Avalon.World.Entities;
 using Avalon.World.Inventory;
 using Avalon.World.Persistence;
@@ -322,6 +323,56 @@ public sealed class CharacterSaverShould : IDisposable
         Assert.True(await Saver().Save(_connection, character).WaitAsync(Limit));
 
         Assert.Equal(3u, (await StoredItemAsync(wand.InstanceId))!.Charges);
+    }
+
+    [Fact]
+    public async Task Survive_a_move_to_an_empty_slot_through_a_save()
+    {
+        InventoryItem potion = Item(0, Potion, count: 5);
+        CharacterEntity character = await SeedAsync(7, stored: [potion]);
+
+        Assert.Equal(Avalon.Network.Packets.Character.ItemRequestResult.Ok,
+            EquipTemplates.InventoryFor(character).TryMove(EquipTemplates.Bag(0), EquipTemplates.Bag(6), null, false));
+        Assert.True(await Saver().Save(_connection, character).WaitAsync(Limit));
+
+        CharacterInventory slot = Assert.Single(await StoredSlotsAsync(7));
+        Assert.Equal((ushort)6, slot.Slot);
+        Assert.Equal(potion.InstanceId, slot.ItemId);
+        Assert.Equal(5u, (await StoredItemAsync(potion.InstanceId))!.Count);
+    }
+
+    [Fact]
+    public async Task Survive_a_split_through_a_save()
+    {
+        InventoryItem potion = Item(0, Potion, count: 10);
+        CharacterEntity character = await SeedAsync(7, stored: [potion]);
+
+        Assert.Equal(Avalon.Network.Packets.Character.ItemRequestResult.Ok,
+            EquipTemplates.InventoryFor(character).TryMove(EquipTemplates.Bag(0), EquipTemplates.Bag(4), 3, false));
+        InventoryItem split = At(character, InventoryType.Bag, 4);
+        Assert.True(await Saver().Save(_connection, character).WaitAsync(Limit));
+
+        Assert.Equal(7u, (await StoredItemAsync(potion.InstanceId))!.Count);
+        Assert.Equal(3u, (await StoredItemAsync(split.InstanceId))!.Count);
+        List<CharacterInventory> slots = await StoredSlotsAsync(7);
+        Assert.Equal(potion.InstanceId, slots.Single(s => s.Slot == 0).ItemId);
+        Assert.Equal(split.InstanceId, slots.Single(s => s.Slot == 4).ItemId);
+    }
+
+    [Fact]
+    public async Task Survive_a_swap_through_a_save()
+    {
+        InventoryItem potion = Item(0, Potion, count: 5), sword = Item(1, Sword);
+        CharacterEntity character = await SeedAsync(7, stored: [potion, sword]);
+
+        Assert.Equal(Avalon.Network.Packets.Character.ItemRequestResult.Ok,
+            EquipTemplates.InventoryFor(character).TryMove(EquipTemplates.Bag(0), EquipTemplates.Bag(1), null, false));
+        Assert.True(await Saver().Save(_connection, character).WaitAsync(Limit));
+
+        List<CharacterInventory> slots = await StoredSlotsAsync(7);
+        Assert.Equal(2, slots.Count);
+        Assert.Equal(sword.InstanceId, slots.Single(s => s.Slot == 0).ItemId);
+        Assert.Equal(potion.InstanceId, slots.Single(s => s.Slot == 1).ItemId);
     }
 
     private CharacterSaveRepository Repository() => new(new DbTransactionRunner<CharacterDbContext>(_db));

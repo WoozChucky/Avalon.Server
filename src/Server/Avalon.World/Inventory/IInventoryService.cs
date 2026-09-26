@@ -1,4 +1,5 @@
 using Avalon.Common.ValueObjects;
+using Avalon.Network.Packets.Character;
 
 namespace Avalon.World.Inventory;
 
@@ -27,4 +28,15 @@ public interface IInventoryService
 
     /// <summary>From the one instance, wherever it sits.</summary>
     InventoryRemoveResult TryRemove(ItemInstanceId itemInstanceId, uint count);
+
+    /// <summary>
+    /// A client move (spec #463): InventoryMove decides from the two slots and the count whether it
+    /// is a move, split, merge or swap, and this applies it. A split's new instance takes its id from
+    /// IItemIdAllocator. <paramref name="bankAccessible" /> is the caller's BankAccess check; a request
+    /// naming the Bank without it is refused as BankClosed.
+    /// </summary>
+    ItemRequestResult TryMove(SlotRef from, SlotRef to, uint? count, bool bankAccessible);
+
+    /// <summary>Destroys <paramref name="count" /> (null: all) of the stack in one slot, unless it is NoDestroy.</summary>
+    ItemRequestResult TryDestroy(SlotRef slot, uint? count, bool bankAccessible);
 }
