@@ -882,6 +882,15 @@
       "direction": "ServerToClient",
       "flags": 4,
       "flagNames": "Encrypted"
+    },
+    {
+      "name": "SMSG_ABILITY_FIRED",
+      "opcode": 12554,
+      "hex": "0x310A",
+      "message": "SAbilityFiredPacket",
+      "direction": "ServerToClient",
+      "flags": 4,
+      "flagNames": "Encrypted"
     }
   ]
 }

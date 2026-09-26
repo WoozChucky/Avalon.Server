@@ -1,8 +1,16 @@
 using System.IO;
 using Avalon.Common;
 using Avalon.Common.ValueObjects;
+using Avalon.Network.Packets.Abilities;
 using Avalon.Network.Packets.Abstractions;
 using Avalon.Network.Packets.Combat;
+using Avalon.Server.World.UnitTests.Abilities;
+using Avalon.World;
+using Avalon.World.Handlers;
+using Avalon.World.Public.Combat;
+using Avalon.World.Scripts;
+using Avalon.World.Scripts.Abilities;
+using Microsoft.Extensions.Logging.Abstractions;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
 using Avalon.World.Instances;
@@ -135,5 +143,30 @@ public class MapInstanceAbilityCastShould
         Assert.Equal(232u, decoded.AbilityId);
         Assert.Equal(42UL, decoded.Caster);
         Assert.Equal(1.25f, decoded.CastTime);
+    }
+
+    /// <summary>The handler builds the shape script by name and the instance tells every client where it fired (#164).</summary>
+    [Fact]
+    public void Fire_a_circle_through_the_handler_and_tell_everyone_where()
+    {
+        var scripts = Substitute.For<IScriptManager>();
+        scripts.GetAbilityScript(nameof(CircleAbilityScript)).Returns(typeof(CircleAbilityScript));
+        IWorld world = NewWorld();
+        using MapInstance instance = TestMapInstances.Build(world, scripts);
+        world.InstanceRegistry.GetInstanceById(instance.InstanceId).Returns(instance);
+        MapInstanceClient caster = Join(instance, 164_141);
+        MapInstanceClient watcher = Join(instance, 164_142);
+        caster.Character.Spells.Load([AbilityTestData.Game(AbilityTestData.Circle(201, radius: 3f))]);
+        var handler = new CastAbilityHandler(NullLogger<CastAbilityHandler>.Instance, world, new CombatConfig());
+
+        handler.Execute(caster.Connection, new CCastAbilityPacket { AbilityId = 201 });
+
+        Assert.Empty(caster.Read<SAbilityNotReadyPacket>(NetworkPacketType.SMSG_ABILITY_NOT_READY));
+        SAbilityFiredPacket fired = Assert.Single(watcher.Read<SAbilityFiredPacket>(NetworkPacketType.SMSG_ABILITY_FIRED));
+        Assert.Equal(caster.Character.Guid.RawValue, fired.CasterGuid);
+        Assert.Equal(201u, fired.AbilityId);
+        Assert.Null(fired.Direction);
+        Assert.NotNull(fired.Centre);
+        Assert.Single(caster.Read<SAbilityFiredPacket>(NetworkPacketType.SMSG_ABILITY_FIRED));
     }
 }

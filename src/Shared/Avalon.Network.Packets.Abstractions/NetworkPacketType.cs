@@ -138,6 +138,7 @@ public enum NetworkPacketType : short
     SMSG_UNIT_DEATH = 0x3107,
     SMSG_UNIT_REVIVE = 0x3108,
     SMSG_THREAT_LIST = 0x3109,
+    SMSG_ABILITY_FIRED = 0x310A,
 
 
     SMSG_PONG = 0x3006,

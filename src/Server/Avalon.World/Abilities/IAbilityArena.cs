@@ -1,7 +1,10 @@
 using Avalon.Common.Mathematics;
+using Avalon.World.Abilities.Targeting;
+using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Combat;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Maps;
+using Avalon.World.Public.Units;
 
 namespace Avalon.World.Abilities;
 
@@ -16,5 +19,14 @@ public interface IAbilityArena
 
     ICombatService CombatService { get; }
 
+    /// <summary>The instance's living units by shape.</summary>
+    IHitQuery Hits { get; }
+
     IMapNavigator GetNavigatorForPosition(Vector3 position);
+
+    /// <summary>
+    /// Tells every client in the instance that a circle or cone fired, so it can draw it. A circle sends
+    /// its centre, a cone its direction. Projectiles are world objects and use entity replication.
+    /// </summary>
+    void BroadcastAbilityFired(IUnit caster, IAbility ability, Vector3 origin, Vector3? direction, Vector3? centre);
 }

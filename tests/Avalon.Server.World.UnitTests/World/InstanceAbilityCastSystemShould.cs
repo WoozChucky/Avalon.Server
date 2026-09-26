@@ -1,6 +1,7 @@
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Network.Packets.State;
+using Avalon.Server.World.UnitTests.Abilities;
 using Avalon.Server.World.UnitTests.Scripts;
 using Avalon.World.Abilities;
 using Avalon.World.Public;
@@ -8,6 +9,7 @@ using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Units;
 using Avalon.World.Scripts;
+using Avalon.World.Scripts.Abilities;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using Xunit;
@@ -278,5 +280,30 @@ public class InstanceAbilityCastSystemShould
 
         Assert.NotNull(RecordingAbilityScript.LastBuilt);
         Assert.Null(_sut.GetAbility(RecordingAbilityScript.LastBuilt!.Guid));
+    }
+
+    /// <summary>A skill that affects nobody still spends its cost and starts its cooldown (#164).</summary>
+    [Theory]
+    [InlineData(0f)]
+    [InlineData(1f)]
+    public void Spend_the_cost_and_start_the_cooldown_of_a_cast_that_hits_nobody_on_both_paths(float castTime)
+    {
+        var arena = new TestArena();
+        _scripts.GetAbilityScript(nameof(CircleAbilityScript)).Returns(typeof(CircleAbilityScript));
+        var sut = new InstanceAbilityCastSystem(NullLoggerFactory.Instance, Substitute.For<IServiceProvider>(), _scripts, arena);
+        ICharacter caster = Caster();
+        GameAbility ability = Ability(cost: 30, castTime: castTime, script: nameof(CircleAbilityScript));
+
+        bool accepted = castTime > 0 ? sut.QueueAbility(caster, Aim, ability) : sut.RunInstant(caster, Aim, ability);
+        for (int i = 0; castTime > 0 && i < 61; i++)
+        {
+            sut.Update(Tick, []);
+        }
+
+        Assert.True(accepted);
+        Assert.Single(arena.Fired);
+        Assert.Empty(arena.Damaged());
+        caster.Received(1).CurrentPower = 70u;
+        Assert.Equal(2f, ability.CooldownTimer);
     }
 }

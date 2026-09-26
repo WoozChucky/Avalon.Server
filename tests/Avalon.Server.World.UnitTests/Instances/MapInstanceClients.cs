@@ -58,6 +58,7 @@ internal static class MapInstanceClients
     {
         CharacterEntity character = Inventory.TestCharacters.New(id);
         character.Spells.Load(Array.Empty<IAbility>());   // the tick updates abilities; an unloaded list throws
+        character.InstanceId = instance.InstanceId;         // a cast looks its instance up by this
 
         var sent = new List<NetworkPacket>();
         IWorldConnection connection = Substitute.For<IWorldConnection>();

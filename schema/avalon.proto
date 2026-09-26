@@ -501,6 +501,7 @@ enum NetworkPacketType {
    NetworkPacketType_SMSG_UNIT_DEATH = 12551;
    NetworkPacketType_SMSG_UNIT_REVIVE = 12552;
    NetworkPacketType_SMSG_THREAT_LIST = 12553;
+   NetworkPacketType_SMSG_ABILITY_FIRED = 12554;
    NetworkPacketType_ERROR = -1;
 }
 enum NetworkProtocol {
@@ -562,6 +563,13 @@ enum RegisterResult {
    RegisterResult_PasswordTooLong = 7;
    RegisterResult_InvalidEmail = 8;
    RegisterResult_Ok = 9;
+}
+message SAbilityFiredPacket {
+   uint64 CasterGuid = 1;
+   uint32 AbilityId = 2;
+   Vector3Dto Origin = 3;
+   Vector3Dto Direction = 4;
+   Vector3Dto Centre = 5;
 }
 message SAbilityNotReadyPacket {
    uint32 AbilityId = 1;

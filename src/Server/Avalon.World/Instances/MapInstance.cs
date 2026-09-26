@@ -26,6 +26,7 @@ using Avalon.World.Public.Units;
 using Avalon.World.Quests;
 using Avalon.World.Vendors;
 using Avalon.World.Abilities;
+using Avalon.World.Abilities.Targeting;
 using Avalon.World.Combat;
 using Avalon.World.Public.Combat;
 using Avalon.World.Scripts;
@@ -53,6 +54,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     private readonly IAbilityCastSystem _abilityCastSystem;
     private readonly EncounterRegistry _encounterRegistry;
     private readonly CombatService _combatService;
+    private readonly UnitHitQuery _hits;
     private readonly ThreatBroadcastService _threatBroadcast;
     private readonly IWorld _world;
     private float _lastBroadcastTime;
@@ -118,6 +120,9 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         _encounterRegistry = new EncounterRegistry(combatConfig);
         _combatService     = new CombatService(combatConfig, _encounterRegistry, this);
         _threatBroadcast   = new ThreatBroadcastService(combatConfig);
+
+        // Shape scripts ask this for the living units their shape overlaps (#164).
+        _hits = new UnitHitQuery(_characters, _creatures);
 
         // The cast system gets `this` as the IAbilityArena every ability script is built with
         // (#164): scripts route damage through CombatService.ApplyDamage. CombatService must be
@@ -201,6 +206,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     public IReadOnlyDictionary<ObjectGuid, ICharacter> Characters => _characters;
     public IReadOnlyDictionary<ObjectGuid, ICreature> Creatures => _creatures;
     public ICombatService CombatService => _combatService;
+    public IHitQuery Hits => _hits;
     public ICreatureLocomotion Locomotion => _locomotion;
     public IMeleeSlots MeleeSlots => _meleeSlots;
 
@@ -364,6 +370,15 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         {
             connection.Send(SUnitStartCastPacket.Create(caster.Guid, ability.Metadata.CastTime,
                 ability.AbilityId.Value, connection.CryptoSession.Encrypt));
+        }
+    }
+
+    public void BroadcastAbilityFired(IUnit caster, IAbility ability, Vector3 origin, Vector3? direction, Vector3? centre)
+    {
+        foreach ((ObjectGuid _, IWorldConnection connection) in _connections)
+        {
+            connection.Send(SAbilityFiredPacket.Create(caster.Guid.RawValue, ability.AbilityId.Value, origin,
+                direction, centre, connection.CryptoSession.Encrypt));
         }
     }
 

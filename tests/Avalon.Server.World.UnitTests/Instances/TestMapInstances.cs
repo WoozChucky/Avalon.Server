@@ -17,10 +17,11 @@ namespace Avalon.Server.World.UnitTests.Instances;
 /// </summary>
 internal static class TestMapInstances
 {
-    public static MapInstance Build(IWorld world)
+    /// <param name="scripts">The script manager the instance builds ability scripts from; a substitute that finds none when omitted.</param>
+    public static MapInstance Build(IWorld world, IScriptManager? scripts = null)
     {
         var serviceProvider = Substitute.For<IServiceProvider>();
-        serviceProvider.GetService(typeof(IScriptManager)).Returns(Substitute.For<IScriptManager>());
+        serviceProvider.GetService(typeof(IScriptManager)).Returns(scripts ?? Substitute.For<IScriptManager>());
         serviceProvider.GetService(typeof(CombatConfig)).Returns(new CombatConfig());
 
         var entryChunk = new PlacedChunk(new ChunkTemplateId(1), 0, 0, 0, Vector3.zero);
