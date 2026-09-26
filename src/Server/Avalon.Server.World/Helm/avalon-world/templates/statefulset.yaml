@@ -6,15 +6,19 @@ metadata:
     {{- include "avalon-server.labels" . | nindent 4 }}
 spec:
   replicas: {{ .Values.replicaCount }}
+  serviceName: {{ include "avalon-server.fullname" . }}
   selector:
     matchLabels:
       {{- include "avalon-server.selectorLabels" . | nindent 6 }}
   template:
     metadata:
-      {{- with .Values.podAnnotations }}
       annotations:
+        {{- if not .Values.existingSecret }}
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        {{- end }}
+        {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
-      {{- end }}
+        {{- end }}
       labels:
         {{- include "avalon-server.selectorLabels" . | nindent 8 }}
     spec:
@@ -29,45 +33,57 @@ spec:
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
-          imagePullPolicy: Always
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
           env:
-            # Hosting configuration
+            - name: DOTNET_ENVIRONMENT
+              value: {{ .Values.environment | quote }}
             - name: Hosting__Host
               value: {{ .Values.server.hosting.host | quote }}
             - name: Hosting__Port
               value: {{ .Values.service.port | quote }}
-            # Cache configuration
             - name: Cache__Host
               value: {{ .Values.server.cache.host | quote }}
             - name: Cache__Password
-              value: {{ .Values.server.cache.password | quote }}
-            # Database configuration
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "avalon-server.secretName" . }}
+                  key: cache-password
             - name: Database__Auth__ConnectionString
-              value: {{ .Values.server.database.auth.connectionString | quote }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "avalon-server.secretName" . }}
+                  key: database-auth-connection-string
             - name: Database__Characters__ConnectionString
-              value: {{ .Values.server.database.characters.connectionString | quote }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "avalon-server.secretName" . }}
+                  key: database-characters-connection-string
             - name: Database__World__ConnectionString
-              value: {{ .Values.server.database.world.connectionString | quote }}
-            # Game configuration
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "avalon-server.secretName" . }}
+                  key: database-world-connection-string
             - name: Game__WorldId
               value: {{ .Values.server.game.worldId | quote }}
             - name: Game__PlayerRadius
               value: {{ .Values.server.game.playerRadius | quote }}
-            - name: Game__MaxPlayersPerAccount
-              value: {{ .Values.server.game.maxPlayersPerAccount | quote }}
+            - name: Game__MaxCharactersPerAccount
+              value: {{ .Values.server.game.maxCharactersPerAccount | quote }}
             - name: DOTNET_HOSTBUILDER__RELOADCONFIGONCHANGE
               value: "false"
           ports:
             - name: server-tcp
               containerPort: {{ .Values.service.port }}
               protocol: TCP
-          #livenessProbe:
-          #  httpGet:
-          #    path: /
-          #    port: server-tcp
-          #readinessProbe:
-          #  httpGet:
-          #    path: /
-          #    port: server-tcp
+          livenessProbe:
+            tcpSocket:
+              port: server-tcp
+            initialDelaySeconds: 20
+            periodSeconds: 20
+          readinessProbe:
+            tcpSocket:
+              port: server-tcp
+            initialDelaySeconds: 10
+            periodSeconds: 10
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
