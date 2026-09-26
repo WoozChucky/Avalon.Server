@@ -325,6 +325,19 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
                 guid, InstanceId);
         }
 
+        // Its scripts still running here go too (#541): a projectile in flight would otherwise land
+        // for a caster who is gone, giving threat, kill credit and loot to someone no longer here. A
+        // dropped projectile leaves the next tick's world objects, so every watcher is sent one remove.
+        try
+        {
+            _abilityCastSystem.CancelScriptsOf(character);
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Dropping the scripts of {CharacterGuid} as it left instance {InstanceId} failed",
+                guid, InstanceId);
+        }
+
         // Membership next. These cannot throw, and once they are gone the tick no longer updates,
         // broadcasts or periodically saves the character, whatever the hooks below do. A disconnect
         // hook that threw ahead of them used to leave a despawned character live in the instance.

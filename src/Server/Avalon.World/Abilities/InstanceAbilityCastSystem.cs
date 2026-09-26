@@ -45,6 +45,14 @@ public interface IAbilityCastSystem
     /// </summary>
     void CancelCasts(IUnit caster);
 
+    /// <summary>
+    /// Drops every active script <paramref name="caster" /> cast, a projectile in flight included, so
+    /// none of them hits, threatens or credits anything again (#541). A dropped projectile is no longer
+    /// a world object, so every client still watching it is sent its removal on the next tick, as for
+    /// one that finished. For a caster leaving the instance, called with <see cref="CancelCasts" />.
+    /// </summary>
+    void CancelScriptsOf(IUnit caster);
+
     IWorldObject? GetAbility(ObjectGuid guid);
 }
 
@@ -55,7 +63,8 @@ public class InstanceAbilityCastSystem(
     IAbilityArena arena)
     : IAbilityCastSystem
 {
-    private readonly List<AbilityScript> _activeAbilities = [];
+    private readonly List<ActiveScript> _activeAbilities = [];
+    private readonly List<ActiveScript> _failed = [];
     private readonly ILogger<InstanceAbilityCastSystem> _logger = factory.CreateLogger<InstanceAbilityCastSystem>();
     private readonly HashSet<AbilityInstance> _abilityQueue = [];
     private readonly List<AbilityInstance> _dequeued = [];
@@ -118,8 +127,8 @@ public class InstanceAbilityCastSystem(
         // been taken for a broadcast, so every client sees it spawn, stop and despawn, even one that
         // ended on the tick it was first seen. Updates go out only on broadcast ticks, so that can be
         // a few ticks later.
-        _activeAbilities.RemoveAll(s => s.State is SpellState.Finished
-            && (s.Guid.Type != ObjectType.SpellProjectile || !s.HasUnsentChanges));
+        _activeAbilities.RemoveAll(static a => a.Script.State is SpellState.Finished
+            && (a.Script.Guid.Type != ObjectType.SpellProjectile || !a.Script.HasUnsentChanges));
 
         // #521 item 3: nothing is removed from the queue while it is enumerated.
         _dequeued.Clear();
@@ -147,11 +156,13 @@ public class InstanceAbilityCastSystem(
             _dequeued.Add(cast);
             ResetCast(ability);
 
-            // A caster who died during the cast casts nothing, and is left free to cast again.
+            // A caster who died during the cast casts nothing, and is left free to cast again. The drop
+            // is interrupted out loud (#530), as moving does, so every client's cast bar for it ends.
             if (cast.Caster is ICharacter { IsDead: true })
             {
                 _logger.LogDebug("Dropped the cast of a dead caster ability={AbilityId} caster={CharId}",
                     ability.AbilityId, cast.Caster.Guid);
+                cast.Caster.SendInterruptedCastAnimation(ability);
                 continue;
             }
 
@@ -163,18 +174,47 @@ public class InstanceAbilityCastSystem(
             _abilityQueue.Remove(cast);
         }
 
-        foreach (AbilityScript script in _activeAbilities)
+        TickScripts(deltaTime, objects);
+    }
+
+    /// <summary>
+    /// Ticks every unfinished script and hands each projectile to <paramref name="objects" />. Each Update
+    /// is contained (#530): a script that throws is dropped, and the others still tick.
+    /// </summary>
+    private void TickScripts(TimeSpan deltaTime, List<IWorldObject> objects)
+    {
+        _failed.Clear();
+
+        foreach (ActiveScript active in _activeAbilities)
         {
+            AbilityScript script = active.Script;
+
             // A finished script is never ticked again, so nothing it does is applied twice.
             if (script.State is not SpellState.Finished)
             {
-                script.Update(deltaTime);
+                try
+                {
+                    script.Update(deltaTime);
+                }
+                catch (Exception e)
+                {
+                    _failed.Add(active);
+                    Failed(active.Caster, active.Ability, e, "Update");
+                    continue;
+                }
             }
 
             if (script.Guid.Type == ObjectType.SpellProjectile)
             {
                 objects.Add(script);
             }
+        }
+
+        // Left out of this tick's world objects, a dropped projectile is removed from every client's
+        // view like one that finished.
+        foreach (ActiveScript failed in _failed)
+        {
+            _activeAbilities.Remove(failed);
         }
     }
 
@@ -205,9 +245,19 @@ public class InstanceAbilityCastSystem(
         }
     }
 
-    public void DropFinished() => _activeAbilities.RemoveAll(static s => s.State is SpellState.Finished);
+    public void CancelScriptsOf(IUnit caster)
+    {
+        int dropped = _activeAbilities.RemoveAll(a => ReferenceEquals(a.Caster, caster));
+        if (dropped > 0)
+        {
+            _logger.LogInformation("Dropped {Count} active scripts as their caster left caster={CharId}",
+                dropped, caster.Guid);
+        }
+    }
 
-    public IWorldObject? GetAbility(ObjectGuid guid) => _activeAbilities.Find(p => p.Guid == guid);
+    public void DropFinished() => _activeAbilities.RemoveAll(static a => a.Script.State is SpellState.Finished);
+
+    public IWorldObject? GetAbility(ObjectGuid guid) => _activeAbilities.Find(a => a.Script.Guid == guid)?.Script;
 
     private static void ResetCast(IAbility ability)
     {
@@ -241,13 +291,53 @@ public class InstanceAbilityCastSystem(
     {
         ability.CooldownTimer = ability.Metadata.Cooldown;
         caster.SendFinishCastAnimation(ability);
-        script.Prepare();
+
+        // Contained (#530): a throwing Prepare never enters the active list, so it is never a world
+        // object, and the cast is interrupted. What it spent stays spent.
+        try
+        {
+            script.Prepare();
+        }
+        catch (Exception e)
+        {
+            Failed(caster, ability, e, "Prepare");
+            return;
+        }
 
         if (script.State is not SpellState.Finished)
         {
-            _activeAbilities.Add(script);
+            _activeAbilities.Add(new ActiveScript(caster, ability, script));
         }
 
         _logger.LogDebug("Fired ability {AbilityId} by {CasterId}", ability.AbilityId, caster.Guid);
+    }
+
+    /// <summary>
+    /// A script that threw (#530): logged, and its caster sent the interrupt a failed cast gets, so no
+    /// cast bar is left running. The caller drops the script. The send is contained too, so a failing
+    /// send cannot take the rest of the tick with it.
+    /// </summary>
+    private void Failed(IUnit caster, IAbility ability, Exception e, string stage)
+    {
+        _logger.LogError(e, "Ability script {Stage} threw and was dropped ability={AbilityId} caster={CasterId}",
+            stage, ability.AbilityId, caster.Guid);
+
+        try
+        {
+            caster.SendInterruptedCastAnimation(ability);
+        }
+        catch (Exception sendError)
+        {
+            _logger.LogError(sendError, "Interrupting the failed cast failed ability={AbilityId} caster={CasterId}",
+                ability.AbilityId, caster.Guid);
+        }
+    }
+
+    /// <summary>A running script and who cast it, with the caster's own ability for the interrupt.</summary>
+    private sealed class ActiveScript(IUnit caster, IAbility ability, AbilityScript script)
+    {
+        public IUnit Caster { get; } = caster;
+        public IAbility Ability { get; } = ability;
+        public AbilityScript Script { get; } = script;
     }
 }

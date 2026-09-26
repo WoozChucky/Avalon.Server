@@ -2,6 +2,8 @@ using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.World;
 using Avalon.World.ChunkLayouts;
+using Avalon.World.Handlers;
+using Avalon.World.Scripts.Abilities;
 using Avalon.World.Instances;
 using Avalon.World.Public.Combat;
 using Avalon.World.Public.Enums;
@@ -19,6 +21,30 @@ namespace Avalon.Server.World.UnitTests.Instances;
 /// </summary>
 internal static class TestMapInstances
 {
+    /// <summary>
+    /// An instance the real cast handler can reach: the world's registry finds it, the script manager
+    /// finds the three shape scripts, and any <paramref name="extraScripts" />, by name, and the
+    /// navigator lets every ray through.
+    /// </summary>
+    public static MapInstance BuildCasting(out CastAbilityHandler handler, MapType mapType = MapType.Normal,
+        params Type[] extraScripts)
+    {
+        var scripts = Substitute.For<IScriptManager>();
+        foreach (Type script in new[] { typeof(CircleAbilityScript), typeof(ConeAbilityScript), typeof(ProjectileAbilityScript) }
+                     .Concat(extraScripts))
+        {
+            scripts.GetAbilityScript(script.Name).Returns(script);
+        }
+
+        var navigator = Substitute.For<IMapNavigator>();
+        navigator.RaycastWalkable(default, default).ReturnsForAnyArgs(ci => ci.ArgAt<Vector3>(1));
+        IWorld world = MapInstanceClients.NewWorld();
+        MapInstance instance = Build(world, scripts, navigator, mapType: mapType);
+        world.InstanceRegistry.GetInstanceById(instance.InstanceId).Returns(instance);
+        handler = new CastAbilityHandler(NullLogger<CastAbilityHandler>.Instance, world, new CombatConfig());
+        return instance;
+    }
+
     /// <param name="scripts">The script manager the instance builds ability scripts from; a substitute that finds none when omitted.</param>
     /// <param name="navigator">The instance's navigator; a bare substitute when omitted.</param>
     /// <param name="pvp">The PvP toggle the instance and its combat service use; the instance builds its own when omitted.</param>

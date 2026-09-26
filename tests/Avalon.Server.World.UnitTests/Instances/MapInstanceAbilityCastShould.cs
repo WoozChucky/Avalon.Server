@@ -48,26 +48,8 @@ public class MapInstanceAbilityCastShould
         }
     }
 
-    /// <summary>
-    /// An instance the real cast handler can reach: the world's registry finds it, the script manager
-    /// finds the three shape scripts by name, and the navigator lets every ray through.
-    /// </summary>
-    private static MapInstance BuildCasting(out CastAbilityHandler handler, MapType mapType = MapType.Normal)
-    {
-        var scripts = Substitute.For<IScriptManager>();
-        foreach (Type script in new[] { typeof(CircleAbilityScript), typeof(ConeAbilityScript), typeof(ProjectileAbilityScript) })
-        {
-            scripts.GetAbilityScript(script.Name).Returns(script);
-        }
-
-        var navigator = Substitute.For<IMapNavigator>();
-        navigator.RaycastWalkable(default, default).ReturnsForAnyArgs(ci => ci.ArgAt<Vector3>(1));
-        IWorld world = NewWorld();
-        MapInstance instance = TestMapInstances.Build(world, scripts, navigator, mapType: mapType);
-        world.InstanceRegistry.GetInstanceById(instance.InstanceId).Returns(instance);
-        handler = new CastAbilityHandler(NullLogger<CastAbilityHandler>.Instance, world, new CombatConfig());
-        return instance;
-    }
+    private static MapInstance BuildCasting(out CastAbilityHandler handler, MapType mapType = MapType.Normal) =>
+        TestMapInstances.BuildCasting(out handler, mapType);
 
     /// <summary>A real creature at <paramref name="position" /> whose script takes each hit off its health.</summary>
     private static Creature AddCreature(MapInstance instance, uint id, Vector3 position, uint health, uint currentHealth = 0)
