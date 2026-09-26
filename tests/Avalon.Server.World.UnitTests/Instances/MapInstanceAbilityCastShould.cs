@@ -9,6 +9,7 @@ using Avalon.Network.Packets.State;
 using Avalon.Network.Packets.World;
 using Avalon.Server.World.UnitTests.Abilities;
 using Avalon.World;
+using Avalon.World.Entities;
 using Avalon.World.Handlers;
 using Avalon.World.Public.Combat;
 using Avalon.World.Scripts;
@@ -18,7 +19,9 @@ using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
 using Avalon.World.Instances;
 using Avalon.World.Public.Abilities;
+using Avalon.World.Public.Instances;
 using Avalon.World.Public.Maps;
+using Avalon.World.Public.Scripts;
 using NSubstitute;
 using ProtoBuf;
 using Xunit;
@@ -208,5 +211,79 @@ public class MapInstanceAbilityCastShould
         Assert.Empty(caster.Read<SAbilityNotReadyPacket>(NetworkPacketType.SMSG_ABILITY_NOT_READY));
         ObjectState projectile = Assert.Single(watcher.Added(), s => new ObjectGuid(s.Guid).Type == ObjectType.SpellProjectile);
         Assert.Contains(projectile.Guid, watcher.Removed());
+    }
+
+    /// <summary>
+    /// A point-blank projectile ends on the tick after it spawns, between two state broadcasts. Clients
+    /// still see it (#164): one add, then its final state (zero velocity) on the next broadcast, then
+    /// one remove, in that order; and the creature is hit once.
+    /// </summary>
+    [Fact]
+    public void Show_a_point_blank_projectile_spawn_its_final_state_and_its_despawn_in_order()
+    {
+        var scripts = Substitute.For<IScriptManager>();
+        scripts.GetAbilityScript(nameof(ProjectileAbilityScript)).Returns(typeof(ProjectileAbilityScript));
+        var navigator = Substitute.For<IMapNavigator>();
+        navigator.RaycastWalkable(default, default).ReturnsForAnyArgs(ci => ci.ArgAt<Vector3>(1));
+        IWorld world = NewWorld();
+        using MapInstance instance = TestMapInstances.Build(world, scripts, navigator);
+        world.InstanceRegistry.GetInstanceById(instance.InstanceId).Returns(instance);
+        MapInstanceClient caster = Join(instance, 164_161);
+        MapInstanceClient watcher = Join(instance, 164_162);
+        var creature = new Creature
+        {
+            Guid = new ObjectGuid(ObjectType.Creature, 164_961u),
+            Metadata = Loot.LootTestData.BoarTemplate(null),
+            Position = new Vector3(0f, 0f, 1f),   // one metre in front of the caster
+            Health = 100,
+            CurrentHealth = 100,
+        };
+        var ai = Substitute.For<AiScript>(creature, Substitute.For<ISimulationContext>());
+        creature.Script = ai;   // a creature takes its damage through its script
+        instance.AddCreature(creature);
+        caster.Character.Spells.Load([AbilityTestData.Game(AbilityTestData.Projectile(210, reach: 5f, speed: 20f))]);
+        var handler = new CastAbilityHandler(NullLogger<CastAbilityHandler>.Instance, world, new CombatConfig());
+
+        handler.Execute(caster.Connection,
+            new CCastAbilityPacket { AbilityId = 210, GroundPos = new Vector3Dto { X = 0f, Y = 0f, Z = 5f } });
+        for (int i = 0; i < 30; i++)
+        {
+            instance.Update(Tick);
+        }
+
+        List<(string Kind, ObjectState? State)> seen = [];
+        foreach (NetworkPacket packet in watcher.Sent)
+        {
+            if (packet.Header.Type == NetworkPacketType.SMSG_WORLD_STATE_ADD)
+            {
+                seen.AddRange(Decode<SInstanceStateAddPacket>(packet).Adds
+                    .Where(s => new ObjectGuid(s.Guid).Type == ObjectType.SpellProjectile)
+                    .Select(s => ("add", (ObjectState?)s)));
+            }
+            else if (packet.Header.Type == NetworkPacketType.SMSG_WORLD_STATE_UPDATE)
+            {
+                seen.AddRange(Decode<SInstanceStateUpdatePacket>(packet).Updates
+                    .Where(s => new ObjectGuid(s.Guid).Type == ObjectType.SpellProjectile)
+                    .Select(s => ("update", (ObjectState?)s)));
+            }
+            else if (packet.Header.Type == NetworkPacketType.SMSG_WORLD_STATE_REMOVE)
+            {
+                seen.AddRange(Decode<SInstanceStateRemovePacket>(packet).Removes
+                    .Where(g => new ObjectGuid(g).Type == ObjectType.SpellProjectile)
+                    .Select(_ => ("remove", (ObjectState?)null)));
+            }
+        }
+
+        Assert.Equal(["add", "update", "remove"], seen.Select(s => s.Kind));
+        Assert.Equal(seen[0].State!.Guid, seen[1].State!.Guid);
+        Assert.Equal(0f, seen[1].State!.Velocity!.X);
+        Assert.Equal(0f, seen[1].State!.Velocity!.Z);
+        ai.Received(1).OnHit(caster.Character, 10u);   // hit once
+    }
+
+    private static T Decode<T>(NetworkPacket packet)
+    {
+        using var stream = new MemoryStream(packet.Payload);
+        return Serializer.Deserialize<T>(stream);
     }
 }

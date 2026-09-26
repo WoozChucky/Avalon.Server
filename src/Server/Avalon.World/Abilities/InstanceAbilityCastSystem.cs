@@ -41,7 +41,6 @@ public class InstanceAbilityCastSystem(
 {
     private readonly List<AbilityScript> _activeAbilities = [];
     private readonly ILogger<InstanceAbilityCastSystem> _logger = factory.CreateLogger<InstanceAbilityCastSystem>();
-    private readonly HashSet<ObjectGuid> _removeScheduled = [];
     private readonly HashSet<AbilityInstance> _abilityQueue = [];
     private readonly List<AbilityInstance> _dequeued = [];
 
@@ -98,6 +97,14 @@ public class InstanceAbilityCastSystem(
 
     public void Update(TimeSpan deltaTime, List<IWorldObject> objects)
     {
+        // A script that finished on an earlier tick leaves now, not on the tick it finished (#164): a
+        // projectile stays a world object until its final state (where it stopped, zero velocity) has
+        // been taken for a broadcast, so every client sees it spawn, stop and despawn, even one that
+        // ended on the tick it was first seen. Updates go out only on broadcast ticks, so that can be
+        // a few ticks later.
+        _activeAbilities.RemoveAll(s => s.State is SpellState.Finished
+            && (s.Guid.Type != ObjectType.SpellProjectile || !s.HasUnsentChanges));
+
         // #521 item 3: nothing is removed from the queue while it is enumerated.
         _dequeued.Clear();
 
@@ -142,11 +149,10 @@ public class InstanceAbilityCastSystem(
 
         foreach (AbilityScript script in _activeAbilities)
         {
-            script.Update(deltaTime);
-
-            if (script.State is SpellState.Finished)
+            // A finished script is never ticked again, so nothing it does is applied twice.
+            if (script.State is not SpellState.Finished)
             {
-                _removeScheduled.Add(script.Guid);
+                script.Update(deltaTime);
             }
 
             if (script.Guid.Type == ObjectType.SpellProjectile)
@@ -154,13 +160,6 @@ public class InstanceAbilityCastSystem(
                 objects.Add(script);
             }
         }
-
-        foreach (ObjectGuid id in _removeScheduled)
-        {
-            _activeAbilities.RemoveAll(p => p.Guid == id);
-        }
-
-        _removeScheduled.Clear();
     }
 
     public IWorldObject? GetAbility(ObjectGuid guid) => _activeAbilities.Find(p => p.Guid == guid);

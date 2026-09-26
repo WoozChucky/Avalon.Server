@@ -7,6 +7,8 @@ using Avalon.World.Abilities;
 using Avalon.World.Public;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Characters;
+using Avalon.World.Public.Enums;
+using Avalon.World.Public.Scripts;
 using Avalon.World.Public.Units;
 using Avalon.World.Scripts;
 using Avalon.World.Scripts.Abilities;
@@ -305,5 +307,44 @@ public class InstanceAbilityCastSystemShould
         Assert.Empty(arena.Damaged());
         caster.Received(1).CurrentPower = 70u;
         Assert.Equal(2f, ability.CooldownTimer);
+    }
+    /// <summary>
+    /// A projectile that ends stays a world object until its final state has been taken for the next
+    /// broadcast, so every client sees where it stopped; it is not ticked again, and the update after
+    /// that despawns it (#164).
+    /// </summary>
+    [Fact]
+    public void Keep_a_finished_projectile_until_its_final_state_is_taken_then_despawn_it()
+    {
+        var arena = new TestArena();
+        _scripts.GetAbilityScript(nameof(ProjectileAbilityScript)).Returns(typeof(ProjectileAbilityScript));
+        var sut = new InstanceAbilityCastSystem(NullLoggerFactory.Instance, Substitute.For<IServiceProvider>(), _scripts, arena);
+        arena.Creature(0f, 1f);
+        GameAbility ability = AbilityTestData.Game(AbilityTestData.Projectile(1, reach: 5f, speed: 20f));
+        Assert.True(sut.RunInstant(arena.Player(1, 0f, 0f), new AbilityAim(new Vector3(0f, 0f, 1f), new Vector3(0f, 0f, 5f)), ability));
+
+        List<IWorldObject> objects = [];
+        for (int i = 0; i < 3; i++)
+        {
+            objects.Clear();
+            sut.Update(Tick, objects);
+        }
+
+        AbilityScript projectile = Assert.IsAssignableFrom<AbilityScript>(Assert.Single(objects));
+        Assert.Equal(SpellState.Finished, projectile.State);
+        Assert.Single(arena.Damaged());
+
+        // Its final state is still owed to the clients: it stays.
+        objects.Clear();
+        sut.Update(Tick, objects);
+        Assert.Same(projectile, Assert.Single(objects));
+
+        Assert.NotEqual(GameEntityFields.None, projectile.ConsumeDirtyFields());
+        objects.Clear();
+        sut.Update(Tick, objects);
+
+        Assert.Empty(objects);
+        Assert.Null(sut.GetAbility(projectile.Guid));
+        Assert.Single(arena.Damaged());
     }
 }

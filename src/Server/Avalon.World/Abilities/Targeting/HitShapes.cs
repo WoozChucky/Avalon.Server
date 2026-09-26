@@ -55,16 +55,34 @@ public static class HitShapes
     /// </summary>
     public static bool SegmentOverlaps(Vector3 from, Vector3 to, Vector3 unit, float bodyRadius)
     {
+        double t = SegmentParameter(from, to, unit);
+        double px = from.x + ((double)to.x - from.x) * t - unit.x;
+        double pz = from.z + ((double)to.z - from.z) * t - unit.z;
+        return Math.Sqrt(px * px + pz * pz) <= bodyRadius;
+    }
+
+    /// <summary>
+    /// The point of the segment nearest <paramref name="point" /> on X/Z, clamped to the segment, with
+    /// its height interpolated along it. A zero-length segment gives <paramref name="from" />.
+    /// </summary>
+    public static Vector3 ClosestPointOnSegment(Vector3 from, Vector3 to, Vector3 point)
+    {
+        double t = SegmentParameter(from, to, point);
+        return new Vector3(
+            (float)(from.x + ((double)to.x - from.x) * t),
+            (float)(from.y + ((double)to.y - from.y) * t),
+            (float)(from.z + ((double)to.z - from.z) * t));
+    }
+
+    /// <summary>Where along the segment, from 0 to 1, the point nearest <paramref name="point" /> lies.</summary>
+    private static double SegmentParameter(Vector3 from, Vector3 to, Vector3 point)
+    {
         double sx = (double)to.x - from.x;
         double sz = (double)to.z - from.z;
         double lengthSquared = sx * sx + sz * sz;
 
-        double t = lengthSquared <= 0.0
+        return lengthSquared <= 0.0
             ? 0.0
-            : Math.Clamp((((double)unit.x - from.x) * sx + ((double)unit.z - from.z) * sz) / lengthSquared, 0.0, 1.0);
-
-        double px = from.x + sx * t - unit.x;
-        double pz = from.z + sz * t - unit.z;
-        return Math.Sqrt(px * px + pz * pz) <= bodyRadius;
+            : Math.Clamp((((double)point.x - from.x) * sx + ((double)point.z - from.z) * sz) / lengthSquared, 0.0, 1.0);
     }
 }

@@ -89,4 +89,21 @@ public class HitShapesShould
         Assert.True(HitShapes.SegmentOverlaps(At(1f, 1f), At(1f, 1f), At(1.4f, 1f), 0.5f));
         Assert.False(HitShapes.SegmentOverlaps(At(1f, 1f), At(1f, 1f), At(2f, 1f), 0.5f));
     }
+    [Theory]
+    [InlineData(0.3f, 4f, 0f, 4f)]     // beside the segment: projected onto it
+    [InlineData(0f, -2f, 0f, 0f)]      // behind its start: clamped to the start
+    [InlineData(0.2f, 12f, 0f, 10f)]   // past its end: clamped to the end
+    public void Find_the_closest_point_on_a_segment_clamped_to_it(float x, float z, float expectedX, float expectedZ)
+    {
+        Vector3 closest = HitShapes.ClosestPointOnSegment(Origin, At(0f, 10f), At(x, z));
+
+        Assert.Equal(expectedX, closest.x, 4);
+        Assert.Equal(expectedZ, closest.z, 4);
+    }
+
+    [Fact]
+    public void Give_the_start_of_a_zero_length_segment_as_its_closest_point()
+    {
+        Assert.Equal(At(1f, 1f), HitShapes.ClosestPointOnSegment(At(1f, 1f), At(1f, 1f), At(3f, 3f)));
+    }
 }

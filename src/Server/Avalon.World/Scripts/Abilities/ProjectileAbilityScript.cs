@@ -14,9 +14,10 @@ namespace Avalon.World.Scripts.Abilities;
 /// A projectile (#164): a world object spawned at the caster, flying flat toward the aim point at
 /// ProjectileSpeed (metres per second, the #424 velocity rule). Each tick it sweeps its step, capped at
 /// the Reach left and cut by the navmesh ray, against unit bodies, nearest first: without Pierce it
-/// ends on the first qualifying hit, with Pierce it hits each unit once and flies on. It ends at Reach,
-/// at a wall, or on a first hit, and the instance then despawns it. No target, no homing. The caster's
-/// position is read when it fires, never when the script is built.
+/// ends on the first qualifying hit, stopping at the point of its step nearest that unit's centre;
+/// with Pierce it hits each unit once and flies on. It ends at Reach, at a wall, or on a first hit,
+/// and the instance despawns it once its final state has gone out. No target, no homing. The
+/// caster's position is read when it fires, never when the script is built.
 /// </summary>
 public sealed class ProjectileAbilityScript(IAbility ability, IUnit caster, AbilityAim aim, IAbilityArena arena)
     : AbilityScript(ability, caster, aim)
@@ -77,7 +78,9 @@ public sealed class ProjectileAbilityScript(IAbility ability, IUnit caster, Abil
 
             if (!meta.Pierce)
             {
-                MoveTo(end, moved);
+                // It stops where it met the unit: the point of its step nearest the unit's centre.
+                Vector3 hitPoint = HitShapes.ClosestPointOnSegment(_ground, end, unit.Position);
+                MoveTo(hitPoint, HitShapes.Distance2D(_ground, hitPoint));
                 Finish();
                 return;
             }

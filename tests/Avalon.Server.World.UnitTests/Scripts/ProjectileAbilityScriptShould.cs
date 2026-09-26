@@ -122,6 +122,49 @@ public class ProjectileAbilityScriptShould
         Assert.Equal(SpellState.Finished, script.State);
     }
 
+    /// <summary>A first hit stops the projectile where it met the unit, not at the end of its step.</summary>
+    [Fact]
+    public void Stop_at_the_hit_point_not_at_the_end_of_its_step()
+    {
+        var arena = new TestArena();
+        arena.Creature(0.3f, 10f);
+        ProjectileAbilityScript script = Launch(arena, arena.Player(1, 0f, 0f), Projectile(210, reach: 20f, speed: 20f),
+            new Vector3(0f, 0f, 20f));
+
+        script.Update(TimeSpan.FromSeconds(1));
+
+        Assert.Equal(SpellState.Finished, script.State);
+        Assert.Equal(0f, script.Position.x, 3);
+        Assert.Equal(10f, script.Position.z, 3);   // the closest point of the step to the unit's centre
+    }
+
+    [Fact]
+    public void Stay_where_it_is_on_a_zero_length_tick()
+    {
+        var arena = new TestArena();
+        ProjectileAbilityScript script = Launch(arena, arena.Player(1, 0f, 0f), Projectile(210), new Vector3(0f, 0f, 20f));
+        Vector3 before = script.Position;
+
+        script.Update(TimeSpan.Zero);
+
+        Assert.Equal(SpellState.Executing, script.State);
+        Assert.Equal(before, script.Position);
+        Assert.Empty(arena.Damaged());
+    }
+
+    [Fact]
+    public void Pass_over_a_dead_creature_and_hit_the_live_one_behind_it()
+    {
+        var arena = new TestArena();
+        arena.Creature(0f, 5f, health: 0);
+        ICreature alive = arena.Creature(0f, 8f);
+        ProjectileAbilityScript script = Launch(arena, arena.Player(1, 0f, 0f), Projectile(210), new Vector3(0f, 0f, 20f));
+
+        Run(script, Tick);
+
+        Assert.Equal([alive], arena.Damaged());
+    }
+
     /// <summary>A long tick with nothing in the way still stops travel at Reach.</summary>
     [Fact]
     public void Stop_a_long_step_at_reach()
