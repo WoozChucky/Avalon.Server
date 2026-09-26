@@ -70,5 +70,5 @@ otel:
   # Defaults to the release's full name.
   serviceName: ""
   # Extra resource attributes, e.g. {deployment.environment: production}.
-  # avalon.world.id is always set, from server.game.worldId.
+  # avalon.world.id is always set, from server.game.worldId (a value set here is ignored).
   resourceAttributes: {}

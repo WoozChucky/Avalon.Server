@@ -48,6 +48,9 @@ public static class Extensions
             logging.IncludeScopes = true;
         });
 
+        // ReplicatedCache connects to Redis itself; the hosts hand the connection over with TraceRedis.
+        builder.Services.AddSingleton<RedisTracing>();
+
         builder.Services.AddOpenTelemetry()
             .WithMetrics(metrics =>
             {
@@ -79,7 +82,9 @@ public static class Extensions
                     .AddHttpClientInstrumentation()
                     .AddAspNetCoreInstrumentation(options => { options.RecordException = true; })
                     .AddEntityFrameworkCoreInstrumentation()
-                    .AddRedisInstrumentation(options => { options.EnrichActivityWithTimingEvents = true; });
+                    .AddRedisInstrumentation(options => { options.EnrichActivityWithTimingEvents = true; })
+                    .ConfigureRedisInstrumentation((services, instrumentation) =>
+                        services.GetRequiredService<RedisTracing>().Attach(instrumentation));
             });
 
         builder.AddOpenTelemetryExporters();

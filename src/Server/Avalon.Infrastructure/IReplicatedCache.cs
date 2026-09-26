@@ -8,6 +8,9 @@ namespace Avalon.Infrastructure;
 public interface IReplicatedCache
 {
     IDatabase Database { get; }
+
+    /// <summary>The connection, once <see cref="ConnectAsync" /> has made it; handed to tracing by the hosts.</summary>
+    IConnectionMultiplexer Connection { get; }
     Task ConnectAsync();
     Task DisconnectAsync();
     Task<bool> SetAsync(string key, string value, TimeSpan? expiry);
@@ -96,6 +99,8 @@ public class ReplicatedCache : IReplicatedCache
     }
 
     public IDatabase Database => _redis.GetDatabase();
+
+    public IConnectionMultiplexer Connection => _redis;
 
     public async Task ConnectAsync()
     {

@@ -48,7 +48,7 @@ public class WorldConnection : Connection, IWorldConnection, IAccessLevelAssigna
 
     /// <summary>Who this connection is, for its packets' spans and log scope.</summary>
     public PacketTags TelemetryTags() =>
-        new(Id, PacketTags.AddressOf(RemoteEndPoint), AccountId?.Value, _characterEntity?.Data?.Id.Value);
+        new(Id, ClientAddress, AccountId?.Value, _characterEntity?.Data?.Id.Value);
 
     public ICharacter? Character
     {

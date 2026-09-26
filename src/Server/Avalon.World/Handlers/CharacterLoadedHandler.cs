@@ -32,7 +32,7 @@ public class CharacterLoadedHandler(
         }
 
         using Activity? activity =
-            DiagnosticsConfig.World.Source.StartActivity(nameof(CharacterLoadedHandler), ActivityKind.Server);
+            DiagnosticsConfig.World.Source.StartActivity(nameof(CharacterLoadedHandler), ActivityKind.Internal);
         activity?.SetTag(nameof(connection.AccountId), connection.AccountId);
 
         string characterName = pending.Character.Name;

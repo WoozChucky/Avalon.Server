@@ -84,6 +84,8 @@ public class ConnectionProxyProtocolShould
             await connection.StreamRequested.Task.WaitAsync(Wait);
 
             Assert.Equal("203.0.113.7:51000", connection.RemoteEndPoint);
+            // Worked out once per connection, not per packet, for the telemetry.
+            Assert.Equal("203.0.113.7", connection.ClientAddress);
             listener.Stop();
         }
     }
@@ -99,6 +101,7 @@ public class ConnectionProxyProtocolShould
             await connection.StreamRequested.Task.WaitAsync(Wait);
 
             Assert.StartsWith("127.0.0.1:", connection.RemoteEndPoint);
+            Assert.Equal("127.0.0.1", connection.ClientAddress);
             listener.Stop();
         }
     }

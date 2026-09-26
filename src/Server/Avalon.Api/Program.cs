@@ -175,6 +175,7 @@ else
 
     IReplicatedCache cache = app.Services.GetRequiredService<IReplicatedCache>();
     await cache.ConnectAsync();
+    app.Services.TraceRedis(cache.Connection);
 }
 
 AppDomain.CurrentDomain.UnhandledException += (_, eventArgs) =>
