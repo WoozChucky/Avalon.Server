@@ -172,6 +172,18 @@ public class AccountService : IAccountService
     public async Task<(RegisterResponse Response, AccountId AccountId)> Register(RegisterRequest model, string userAgent, IPAddress ipAddress,
         CancellationToken cancellationToken)
     {
+        // Registration says whether a username or an email is taken, so it is budgeted like a
+        // login (#495): a slot from the source's budget, the one logins spend over TCP and REST,
+        // taken before any lookup. Past the budget the answer is 429 LOCKED, whatever the name.
+        // A registration that creates the account gives its slot back; every other ending,
+        // "already exists" included, keeps it, so a source can ask about only so many names.
+        var sourceKey = LoginSource.FromAddress(ipAddress).Key;
+        if (!await SourceBudget.TryTakeAsync(_cache, _authConfig, sourceKey))
+        {
+            _logger.LogWarning("Registration refused for source {SourceKey}: too many attempts", sourceKey);
+            throw new AccountLockedException();
+        }
+
         var username = model.Username.ToUpperInvariant().Trim();
         var existingAccount = await _accountRepository.FindByUserNameAsync(username, cancellationToken);
         if (existingAccount != null)
@@ -225,6 +237,8 @@ public class AccountService : IAccountService
             Trusted = false,
             TrustEnd = DateTime.UtcNow,
         }, cancellationToken);
+
+        await SourceBudget.GiveBackAsync(_cache, sourceKey);
 
         return (new RegisterResponse
         {

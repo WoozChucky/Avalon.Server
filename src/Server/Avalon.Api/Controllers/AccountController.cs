@@ -84,7 +84,9 @@ public class AccountController : BaseController
     {
         var userAgent = Request.Headers.UserAgent.ToString();
         var language = Request.Headers.AcceptLanguage.ToString();
-        var (response, accountId) = await _accountService.Register(model, userAgent, IpAddress, CancellationToken);
+        // The source budget needs the caller's address (#495): an address-less caller is refused
+        // with 400, as it is at login, rather than sharing one budget with every other such caller.
+        var (response, accountId) = await _accountService.Register(model, userAgent, SourceAddress, CancellationToken);
         var issue = await _refreshService.IssueAsync(accountId, CancellationToken);
         SetRefreshCookie(issue.RawToken, issue.ExpiresAt, _authConfig);
         return response;
