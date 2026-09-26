@@ -38,11 +38,11 @@ jobs:
         run: dotnet build -c Release --no-restore
       - name: Test
         run: dotnet test -c Release --no-build
-      # Not --no-build: PublishReadyToRun makes publish infer the runner's runtime identifier,
-      # so it wants obj/Release/net10.0/linux-x64/, which the solution build never writes.
-      # Its references are the Release build's own outputs, so only this project recompiles.
+      # ReadyToRun off: this check only proves publishing works, and native compilation
+      # costs most of the step. With it on, publish infers the runner's runtime identifier
+      # and needs a RID-specific build, so --no-build fails. The release workflow keeps it.
       - name: Publish World Server
-        run: dotnet publish src/Server/Avalon.Server.World/Avalon.Server.World.csproj -c Release --no-restore -o src/Server/Avalon.Server.World/out
+        run: dotnet publish src/Server/Avalon.Server.World/Avalon.Server.World.csproj -c Release --no-build -p:PublishReadyToRun=false -o src/Server/Avalon.Server.World/out
       - name: Publish Auth Server
         run: dotnet publish src/Server/Avalon.Server.Auth/Avalon.Server.Auth.csproj -c Release --no-build -o src/Server/Avalon.Server.Auth/out
       - name: Publish Api
