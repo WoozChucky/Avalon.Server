@@ -1,0 +1,97 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "avalon-server.fullname" . }}
+  labels:
+    {{- include "avalon-server.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  serviceName: {{ include "avalon-server.fullname" . }}
+  selector:
+    matchLabels:
+      {{- include "avalon-server.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        {{- if not .Values.existingSecret }}
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        {{- end }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "avalon-server.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ .Chart.Name }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            - name: DOTNET_ENVIRONMENT
+              value: {{ .Values.environment | quote }}
+            - name: Hosting__Host
+              value: {{ .Values.server.hosting.host | quote }}
+            - name: Hosting__Port
+              value: {{ .Values.service.port | quote }}
+            - name: Hosting__Security__CertificatePath
+              value: /app/certs/tls.pfx
+            - name: Hosting__Security__CertificatePassword
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "avalon-server.secretName" . }}
+                  key: tls-password
+            - name: Cache__Host
+              value: {{ required "server.cache.host is required: host:port of Redis" .Values.server.cache.host | quote }}
+            - name: Cache__Password
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "avalon-server.secretName" . }}
+                  key: cache-password
+            - name: Database__Auth__ConnectionString
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "avalon-server.secretName" . }}
+                  key: database-auth-connection-string
+            - name: DOTNET_HOSTBUILDER__RELOADCONFIGONCHANGE
+              value: "false"
+          ports:
+            - name: server-tcp
+              containerPort: {{ .Values.service.port }}
+              protocol: TCP
+          startupProbe:
+            # Migrations run before the port opens; allow them up to 5 minutes on first install.
+            tcpSocket:
+              port: server-tcp
+            periodSeconds: 10
+            failureThreshold: 30
+          livenessProbe:
+            tcpSocket:
+              port: server-tcp
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          readinessProbe:
+            tcpSocket:
+              port: server-tcp
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          volumeMounts:
+            - name: tls
+              mountPath: /app/certs
+              readOnly: true
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+      volumes:
+        - name: tls
+          secret:
+            secretName: {{ include "avalon-server.secretName" . }}
+            items:
+              - key: tls.pfx
+                path: tls.pfx

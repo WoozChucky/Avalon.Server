@@ -1,0 +1,55 @@
+# Name of a Secret you manage holding database-auth-connection-string,
+# database-characters-connection-string, database-world-connection-string and cache-password.
+# When empty, the chart renders one from server.* below.
+existingSecret: ""
+
+# ASP.NET Core / generic host environment.
+environment: Production
+
+server:
+  hosting:
+    host: "0.0.0.0"
+  cache:
+    # Required: host:port of Redis.
+    host: ""
+    # Secret: ignored (and refused) when existingSecret is set.
+    password: ""
+  database:
+    # Secrets: ignored (and refused) when existingSecret is set.
+    auth:
+      connectionString: ""
+    characters:
+      connectionString: ""
+    world:
+      connectionString: ""
+  game:
+    worldId: 1
+    playerRadius: 2000
+    maxCharactersPerAccount: 5
+
+replicaCount: 1
+
+image:
+  repository: ghcr.io/woozchucky/avalon-server/world
+  pullPolicy: IfNotPresent
+  # Empty means the chart's appVersion, which the release sets to the git tag.
+  tag: ""
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+podAnnotations: {}
+podSecurityContext: {}
+securityContext: {}
+
+service:
+  # LoadBalancer on k3s binds the port on the node (ServiceLB).
+  type: ClusterIP
+  port: 21001
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    memory: 1Gi

@@ -35,7 +35,7 @@ public interface IConnection
     Task StartAsync(CancellationToken token = default);
 }
 
-public abstract class Connection : BackgroundService, IConnection
+public abstract class Connection : BackgroundService, IConnection, IConnectionRates
 {
     protected readonly ILogger _logger;
     private readonly IPacketReader _packetReader;
@@ -72,6 +72,7 @@ public abstract class Connection : BackgroundService, IConnection
         ServerCrypto = new CryptoManager();
         CryptoSession = new AvalonCryptoSession(CryptoRole.Server, ServerCrypto.GetKeyPair());
         Id = Guid.NewGuid();
+        ConnectionRateRegistry.Shared.Track(this);
     }
 
     public bool IsConnected => _client?.Connected == true;
@@ -86,6 +87,11 @@ public abstract class Connection : BackgroundService, IConnection
     public string RemoteEndPoint { get; private set; } = "Unknown";
     public IAvalonCryptoSession CryptoSession { get; }
     public ICryptoManager ServerCrypto { get; }
+
+    double IConnectionRates.PacketSentRate => PacketSentRate;
+    double IConnectionRates.PacketReceivedRate => PacketReceivedRate;
+    double IConnectionRates.BytesSentRate => BytesSentRate;
+    double IConnectionRates.BytesReceivedRate => BytesReceivedRate;
 
     public void Close(bool expected = true) => _ = CloseAsync(expected);
 
@@ -122,6 +128,7 @@ public abstract class Connection : BackgroundService, IConnection
         }
         finally
         {
+            ConnectionRateRegistry.Shared.Untrack(Id);
             _closeCompleted.TrySetResult();
         }
     }
