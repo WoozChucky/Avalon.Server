@@ -94,4 +94,26 @@ public class ConeAbilityScriptShould
         Assert.Equal(new Vector3(0f, 0f, 1f), direction);
         Assert.Null(centre);
     }
+
+    /// <summary>
+    /// A queued cast's script is built when the cast starts, so a cone fires from where the caster
+    /// stands when it fires, not where it stood when the script was built (#164).
+    /// </summary>
+    [Fact]
+    public void Fire_from_where_the_caster_stands_when_it_fires_not_when_it_was_built()
+    {
+        var arena = new TestArena();
+        CharacterEntity caster = arena.Player(1, 0f, 0f);
+        ICreature nearOld = arena.Creature(0f, 1f);
+        ICreature nearNew = arena.Creature(20f, 1f);
+        var script = new ConeAbilityScript(Game(Cone(200, reach: 2.5f, arc: 100f)), caster,
+            new AbilityAim(new Vector3(0f, 0f, 1f), null), arena);
+
+        caster.Position = new Vector3(20f, 0f, 0f);
+        script.Prepare();
+
+        Assert.Equal([nearNew], arena.Damaged());
+        Assert.DoesNotContain(nearOld, arena.Damaged());
+        Assert.Equal(caster.Position, Assert.Single(arena.Fired).Origin);
+    }
 }

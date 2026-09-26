@@ -156,6 +156,10 @@ public class MapInstanceAbilityCastShould
         world.InstanceRegistry.GetInstanceById(instance.InstanceId).Returns(instance);
         MapInstanceClient caster = Join(instance, 164_141);
         MapInstanceClient watcher = Join(instance, 164_142);
+        watcher.Character.Health = 100;
+        watcher.Character.CurrentHealth = 100;
+        Assert.False(watcher.Character.IsDead);
+        Assert.Equal(caster.Character.Position, watcher.Character.Position);   // inside the circle
         caster.Character.Spells.Load([AbilityTestData.Game(AbilityTestData.Circle(201, radius: 3f))]);
         var handler = new CastAbilityHandler(NullLogger<CastAbilityHandler>.Instance, world, new CombatConfig());
 
@@ -168,5 +172,9 @@ public class MapInstanceAbilityCastShould
         Assert.Null(fired.Direction);
         Assert.NotNull(fired.Centre);
         Assert.Single(caster.Read<SAbilityFiredPacket>(NetworkPacketType.SMSG_ABILITY_FIRED));
+
+        // The watcher stands inside the circle, but an unflagged player is not hostile.
+        Assert.Empty(watcher.Read<SCharacterDamagePacket>(NetworkPacketType.SMSG_CHARACTER_DAMAGED));
+        Assert.Equal(watcher.Character.Health, watcher.Character.CurrentHealth);
     }
 }

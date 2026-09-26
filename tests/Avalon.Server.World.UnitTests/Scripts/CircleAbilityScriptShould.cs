@@ -123,4 +123,27 @@ public class CircleAbilityScriptShould
         Assert.Empty(arena.Damaged());
         Assert.Single(arena.Fired);
     }
+
+    /// <summary>
+    /// A queued cast's script is built when the cast starts, so a circle on the caster centres where
+    /// the caster stands when it fires, not where it stood when the script was built (#164).
+    /// </summary>
+    [Fact]
+    public void Centre_on_where_the_caster_stands_when_it_fires_not_when_it_was_built()
+    {
+        var arena = new TestArena();
+        CharacterEntity caster = arena.Player(1, 0f, 0f);
+        ICreature nearOld = arena.Creature(0f, 1f);
+        ICreature nearNew = arena.Creature(20f, 1f);
+        var script = new CircleAbilityScript(Game(Circle(201, radius: 3f)), caster, new AbilityAim(AlongZ, null), arena);
+
+        caster.Position = new Vector3(20f, 0f, 0f);
+        script.Prepare();
+
+        Assert.Equal([nearNew], arena.Damaged());
+        Assert.DoesNotContain(nearOld, arena.Damaged());
+        (Vector3 origin, Vector3? _, Vector3? centre) = Assert.Single(arena.Fired);
+        Assert.Equal(caster.Position, origin);
+        Assert.Equal(caster.Position, centre);
+    }
 }
