@@ -5,7 +5,7 @@ namespace Avalon.Api.Config;
 /// <c>Application:ForwardedHeaders</c>. The caller's address decides its login source budget, so
 /// a proxy that is not trusted makes every caller behind it one source, while trusting a header
 /// from anyone lets a caller pick its own source. Loopback is always trusted; nothing else is
-/// unless it is listed here. A network with prefix length 0 (<c>0.0.0.0/0</c>, <c>::/0</c>) is
+/// unless it is listed here. A network wider than /8 (IPv4) or /32 (IPv6), <c>0.0.0.0/0</c> and <c>::/0</c> included, is
 /// refused at startup.
 /// </summary>
 public class ForwardedHeadersConfig

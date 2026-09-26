@@ -207,9 +207,11 @@ believes `X-Forwarded-For` from loopback and from `Application:ForwardedHeaders:
 `KnownNetworks` only (see [Configuration Reference](configuration-reference.md#rest-api-forwarded-headers)).
 With the ingress missing from those, every REST caller behind it is one source, and ten failures in fifteen
 minutes refuse REST logins for everyone until the window ends. So outside Development the API warns at
-startup when neither is set, and it logs a header sent by an untrusted peer, at most once a minute, since
-that is either a proxy missing from the list or a caller trying to choose its own source. A network that
-trusts every address (`0.0.0.0/0`, `::/0`) is refused at startup.
+startup when neither is set, and it logs, at most once a minute, a header sent by an untrusted peer, since
+that is either a proxy missing from the list or a caller trying to choose its own source. A trusted network that
+is wider than /8 (IPv4) or /32 (IPv6), `0.0.0.0/0` and `::/0` included, is refused at startup. A request with no
+peer address has its `X-Forwarded-*` headers removed before they are read, so it cannot name an address
+and escape the 400 below.
 
 A caller with no peer address at all (a non-IP transport) is refused with 400 on every endpoint that spends
 a source budget. Before, it was given `IPAddress.None`, so all such callers shared one budget.

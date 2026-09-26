@@ -17,6 +17,16 @@ public static class ForwardedHeadersSetup
     public const string Section = "Application:ForwardedHeaders";
 
     /// <summary>
+    /// The widest trusted networks startup accepts (#478 re-review): /8 for IPv4 (a whole private
+    /// range such as <c>10.0.0.0/8</c>) and /32 for IPv6 (a whole site allocation). Anything wider
+    /// is not a proxy network, and would let the callers on it choose their own source.
+    /// </summary>
+    public const int ShortestIPv4Prefix = 8;
+
+    /// <inheritdoc cref="ShortestIPv4Prefix"/>
+    public const int ShortestIPv6Prefix = 32;
+
+    /// <summary>
     /// The options for <c>UseForwardedHeaders</c>: loopback plus the configured proxies and
     /// networks, and the configured hop limit. Throws, naming the setting, for an entry that does not
     /// parse, a network with prefix length 0, or a limit below 1.
@@ -45,9 +55,13 @@ public static class ForwardedHeadersSetup
             if (!entry.Contains('/', StringComparison.Ordinal) || !System.Net.IPNetwork.TryParse(entry, out System.Net.IPNetwork network))
                 throw new InvalidOperationException(
                     $"{Section}:KnownNetworks has \"{entry}\", which is not a network in CIDR form (address/prefix).");
-            if (network.PrefixLength == 0)
+            int shortest = network.BaseAddress.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6
+                ? ShortestIPv6Prefix
+                : ShortestIPv4Prefix;
+            if (network.PrefixLength < shortest)
                 throw new InvalidOperationException(
-                    $"{Section}:KnownNetworks has \"{entry}\", which trusts every address: any caller could choose its own source.");
+                    $"{Section}:KnownNetworks has \"{entry}\", wider than /{shortest}: a network that broad " +
+                    "would let callers on it choose their own source. List the proxies' own network.");
             options.KnownIPNetworks.Add(network);
         }
 
@@ -112,15 +126,39 @@ public sealed class UntrustedForwardedHeaderLog
         _options = options;
     }
 
+    /// <summary>
+    /// Runs before <c>UseForwardedHeaders</c>. A request with no peer address has its
+    /// <c>X-Forwarded-*</c> headers removed (#478 re-review): the forwarded-headers middleware would
+    /// otherwise take the address the caller named, letting it choose its own source and escape the
+    /// 400 an address-less caller gets. A header from a peer that is not trusted is left for that
+    /// middleware to ignore. Both are logged, rate-limited.
+    /// </summary>
     public void Observe(HttpContext context)
     {
-        if (!context.Request.Headers.ContainsKey(ForwardedHeadersDefaults.XForwardedForHeaderName))
+        IHeaderDictionary headers = context.Request.Headers;
+        if (!headers.ContainsKey(ForwardedHeadersDefaults.XForwardedForHeaderName))
             return;
 
         IPAddress? peer = context.Connection.RemoteIpAddress;
-        if (peer is not null && IsTrusted(peer))
+        if (peer is null)
+        {
+            headers.Remove(ForwardedHeadersDefaults.XForwardedForHeaderName);
+            headers.Remove(ForwardedHeadersDefaults.XForwardedProtoHeaderName);
+            headers.Remove(ForwardedHeadersDefaults.XForwardedHostHeaderName);
+            headers.Remove(ForwardedHeadersDefaults.XForwardedPrefixHeaderName);
+            Warn("Dropped X-Forwarded-* from a request with no peer address ({Section}); {Suppressed} more since the last warning");
+            return;
+        }
+
+        if (IsTrusted(peer))
             return;
 
+        Warn("Ignored X-Forwarded-For from a peer that is not a trusted proxy ({Section}); {Suppressed} more since the last warning",
+            peer);
+    }
+
+    private void Warn(string message, IPAddress? peer = null)
+    {
         long now = _time.GetUtcNow().UtcTicks;
         long next = Interlocked.Read(ref _nextLogTicks);
         if (now < next || Interlocked.CompareExchange(ref _nextLogTicks, now + Interval.Ticks, next) != next)
@@ -130,9 +168,10 @@ public sealed class UntrustedForwardedHeaderLog
         }
 
         long suppressed = Interlocked.Exchange(ref _suppressed, 0);
-        _logger.LogWarning(
-            "Ignored X-Forwarded-For from {Peer}, which is not a trusted proxy ({Section}); {Suppressed} more since the last warning",
-            peer?.ToString() ?? "an unknown peer", ForwardedHeadersSetup.Section, suppressed);
+        if (peer is null)
+            _logger.LogWarning(message, ForwardedHeadersSetup.Section, suppressed);
+        else
+            _logger.LogWarning(message + " Last peer: {Peer}", ForwardedHeadersSetup.Section, suppressed, peer.ToString());
     }
 
     private bool IsTrusted(IPAddress peer)

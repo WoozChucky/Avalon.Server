@@ -27,6 +27,7 @@ namespace Avalon.Api.UnitTests.Middlewares;
 public sealed class ForwardedHeadersShould
 {
     private const string PeerHeader = "X-Test-Peer";
+    private const string NoAddress = "no address";
 
     private static ForwardedHeadersConfig Bind(Dictionary<string, string?> settings)
     {
@@ -70,6 +71,9 @@ public sealed class ForwardedHeadersShould
     [InlineData("KnownNetworks:0", "10.0.0.0")]
     [InlineData("KnownNetworks:0", "0.0.0.0/0")]
     [InlineData("KnownNetworks:0", "::/0")]
+    [InlineData("KnownNetworks:0", "10.0.0.0/7")]
+    [InlineData("KnownNetworks:0", "0.0.0.0/1")]
+    [InlineData("KnownNetworks:0", "2001:db8::/31")]
     [InlineData("ForwardLimit", "0")]
     public void Refuse_to_start_with_a_setting_that_is_invalid_or_trusts_everyone(string key, string value)
     {
@@ -141,6 +145,53 @@ public sealed class ForwardedHeadersShould
     }
 
     [Fact]
+    public async Task Take_the_source_from_a_proxy_on_a_trusted_ipv6_network()
+    {
+        await using var host = await Host.StartAsync(new ForwardedHeadersConfig { KnownNetworks = ["fd00:1::/48"] });
+
+        string source = await host.SourceAsync(peer: "fd00:1::5", forwardedFor: "2001:db8:aa::7");
+
+        Assert.Equal(LoginSource.FromAddress(IPAddress.Parse("2001:db8:aa::7")).Key, source);
+        Assert.Empty(host.Logs.Warnings);
+    }
+
+    /// <summary>
+    /// Two trusted hops: with a limit of 2 the client behind both is the source; with the default
+    /// of 1 only the last hop is read, so the source is the inner proxy.
+    /// </summary>
+    [Theory]
+    [InlineData(2, "198.51.100.7")]
+    [InlineData(1, "10.0.0.3")]
+    public async Task Read_as_many_trusted_hops_as_the_forward_limit_allows(int limit, string expected)
+    {
+        await using var host = await Host.StartAsync(new ForwardedHeadersConfig
+        {
+            KnownProxies = ["10.0.0.2", "10.0.0.3"],
+            ForwardLimit = limit,
+        });
+
+        string source = await host.SourceAsync(peer: "10.0.0.2", forwardedFor: "198.51.100.7, 10.0.0.3");
+
+        Assert.Equal(LoginSource.FromAddress(IPAddress.Parse(expected)).Key, source);
+    }
+
+    /// <summary>
+    /// #478 re-review: a request with no peer address that carried X-Forwarded-For got the address
+    /// it named, so it chose its own source and escaped the 400 an address-less caller gets. The
+    /// header is dropped for it, and logged.
+    /// </summary>
+    [Fact]
+    public async Task Drop_forwarded_for_from_a_caller_with_no_peer_address()
+    {
+        await using var host = await Host.StartAsync(new ForwardedHeadersConfig { KnownProxies = ["10.0.0.2"] });
+
+        string source = await host.SourceAsync(peer: null, forwardedFor: "198.51.100.7");
+
+        Assert.Equal(NoAddress, source);
+        Assert.Contains(host.Logs.Warnings, m => m.Contains("no peer address", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task Not_warn_for_a_request_without_forwarded_for()
     {
         await using var host = await Host.StartAsync(new ForwardedHeadersConfig());
@@ -173,21 +224,22 @@ public sealed class ForwardedHeadersShould
             // The test server has no socket, so each request names its peer.
             host._app.Use((context, next) =>
             {
-                context.Connection.RemoteIpAddress = IPAddress.Parse(context.Request.Headers[PeerHeader].ToString());
+                string peer = context.Request.Headers[PeerHeader].ToString();
+                context.Connection.RemoteIpAddress = peer.Length == 0 ? null : IPAddress.Parse(peer);
                 return next(context);
             });
             host._app.UseAvalonForwardedHeaders();
             host._app.MapGet("/source", (HttpContext context) =>
-                LoginSource.FromAddress(context.Connection.RemoteIpAddress!).Key);
+                context.Connection.RemoteIpAddress is { } address ? LoginSource.FromAddress(address).Key : NoAddress);
             await host._app.StartAsync();
             host._client = host._app.GetTestClient();
             return host;
         }
 
-        public async Task<string> SourceAsync(string peer, string? forwardedFor)
+        public async Task<string> SourceAsync(string? peer, string? forwardedFor)
         {
             using var request = new HttpRequestMessage(HttpMethod.Get, "/source");
-            request.Headers.Add(PeerHeader, peer);
+            if (peer != null) request.Headers.Add(PeerHeader, peer);
             if (forwardedFor != null) request.Headers.Add("X-Forwarded-For", forwardedFor);
             using HttpResponseMessage response = await _client.SendAsync(request);
             return await response.Content.ReadAsStringAsync();

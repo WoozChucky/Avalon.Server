@@ -257,12 +257,17 @@ REST caller one source, and ten failures by anyone refuse REST logins for everyo
 wherever the API runs behind a proxy (docker, Kubernetes ingress, CDN), as narrowly as the deployment
 allows.
 
-- Startup refuses an entry that does not parse, a network without a prefix, a network with prefix length
-  0 (`0.0.0.0/0`, `::/0`, which would trust every caller), and a `ForwardLimit` below 1, naming the setting.
+- Startup refuses, naming the setting:
+  - an entry that does not parse, or a network without a prefix;
+  - a network wider than **/8 for IPv4** or **/32 for IPv6** (`0.0.0.0/0` and `::/0` included). A network
+    that broad is not a proxy network, and every caller on it could choose its own source;
+  - a `ForwardLimit` below 1.
 - Outside Development the API logs a warning at startup when `KnownProxies` and `KnownNetworks` are both
   empty.
 - A request that carries `X-Forwarded-For` from a peer that is not trusted is served with the peer's own
   address, and logged as a warning at most once a minute, with the number not logged since.
+- A request with no peer address has its `X-Forwarded-*` headers removed before they are read (and is
+  logged the same way), so it keeps no address and still gets the 400 below.
 
 ```bash
 Application__ForwardedHeaders__KnownNetworks__0=10.0.0.0/8
