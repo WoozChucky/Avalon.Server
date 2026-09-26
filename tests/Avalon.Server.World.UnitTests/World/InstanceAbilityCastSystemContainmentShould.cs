@@ -163,6 +163,43 @@ public class InstanceAbilityCastSystemContainmentShould
         failing.Received(1).SendInterruptedCastAnimation(Arg.Any<IAbility>());
     }
 
+    // ── #530: an interrupt send that throws cannot leave a cast queued ──
+
+    /// <summary>
+    /// The dead-caster interrupt is sent once the cast is already out of the queue, and contained: a
+    /// send that throws still dequeues the cast, the other cast and scripts still run, and the next
+    /// update does not throw again.
+    /// </summary>
+    [Fact]
+    public void Dequeue_a_dead_casters_cast_even_when_its_interrupt_send_throws()
+    {
+        ICharacter dead = Caster(541_008);
+        dead.When(c => c.SendInterruptedCastAnimation(Arg.Any<IAbility>()))
+            .Do(_ => throw new InvalidOperationException("The send failed."));
+        ICharacter other = Caster(541_009);
+        ICharacter flyer = _arena.Player(541_010, 0f, 0f);
+        GameAbility dropped = Ability(541_019, nameof(RecordingAbilityScript), castTime: 0.01f);
+        GameAbility fine = Ability(541_020, nameof(RecordingAbilityScript), castTime: 0.01f);
+        Assert.True(_sut.QueueAbility(dead, Aim, dropped));
+        Assert.True(_sut.QueueAbility(other, Aim, fine));
+        Assert.True(_sut.RunInstant(flyer, Aim, Projectile(541_021)));
+        dead.IsDead.Returns(true);
+
+        List<IWorldObject> objects = [];
+        _sut.Update(Tick, objects);
+
+        dead.Received(1).SendInterruptedCastAnimation(dropped);
+        Assert.False(dropped.Casting);
+        (IUnit who, _, _) = Assert.Single(RecordingAbilityScript.Prepared);
+        Assert.Same(other, who);
+        Assert.Single(objects);   // the projectile still ticked
+
+        _sut.Update(Tick, []);   // the cast is gone: nothing throws, nothing is sent again
+
+        dead.Received(1).SendInterruptedCastAnimation(Arg.Any<IAbility>());
+        Assert.Contains(_logs.Entries, e => e.Level == LogLevel.Error && e.Exception is InvalidOperationException);
+    }
+
     // ── #541: a leaving caster takes its scripts with it ──
 
     [Fact]

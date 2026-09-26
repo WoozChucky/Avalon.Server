@@ -121,6 +121,49 @@ public class MapInstanceScriptLifecycleShould
         stayingTarget.Received(1).OnHit(staying.Character, 10u);
     }
 
+    /// <summary>
+    /// A projectile that has finished but is still held for its final broadcast when its caster
+    /// leaves (#541) is dropped with it, and a watcher that saw it is told once that it is gone.
+    /// </summary>
+    [Fact]
+    public void Remove_a_finished_projectile_held_for_its_final_broadcast_once_when_its_caster_leaves()
+    {
+        using MapInstance instance = TestMapInstances.BuildCasting(out CastAbilityHandler handler);
+        MapInstanceClient caster = Join(instance, 541_151);
+        MapInstanceClient watcher = Join(instance, 541_152);
+        AddCreature(instance, 541_951, new Vector3(0f, 0f, 1f));   // point blank
+        caster.Character.Spells.Load([AbilityTestData.Game(AbilityTestData.Projectile(210, reach: 5f, speed: 20f))]);
+        Ticks(instance, 7);   // a broadcast has just gone out, so the next few ticks send no update
+
+        handler.Execute(caster.Connection, CastAt(210, 0f, 5f));
+        Ticks(instance, 3);   // it hits and finishes, its final state still owed
+        ulong projectile = Assert.Single(watcher.Added(), s => IsProjectile(s.Guid)).Guid;
+        Assert.DoesNotContain(projectile, watcher.Removed());
+
+        instance.RemoveCharacter(caster.Connection);
+        Ticks(instance, 30);
+
+        Assert.Single(watcher.Removed(), g => g == projectile);
+    }
+
+    /// <summary>A projectile whose caster leaves on the tick it was fired is never shown: no add, no remove (#541).</summary>
+    [Fact]
+    public void Never_show_a_projectile_dropped_on_the_tick_it_spawned()
+    {
+        using MapInstance instance = TestMapInstances.BuildCasting(out CastAbilityHandler handler);
+        MapInstanceClient caster = Join(instance, 541_161);
+        MapInstanceClient watcher = Join(instance, 541_162);
+        caster.Character.Spells.Load([AbilityTestData.Game(SlowProjectile(210))]);
+        Ticks(instance, 7);
+
+        handler.Execute(caster.Connection, CastAt(210, 0f, 10f));
+        instance.RemoveCharacter(caster.Connection);
+        Ticks(instance, 30);
+
+        Assert.DoesNotContain(watcher.Added(), s => IsProjectile(s.Guid));
+        Assert.DoesNotContain(watcher.Removed(), IsProjectile);
+    }
+
     // ── #530 part 1 ──
 
     /// <summary>

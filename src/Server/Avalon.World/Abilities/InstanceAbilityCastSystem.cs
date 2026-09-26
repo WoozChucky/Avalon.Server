@@ -65,6 +65,7 @@ public class InstanceAbilityCastSystem(
 {
     private readonly List<ActiveScript> _activeAbilities = [];
     private readonly List<ActiveScript> _failed = [];
+    private readonly List<(IUnit Caster, IAbility Ability)> _interrupts = [];
     private readonly ILogger<InstanceAbilityCastSystem> _logger = factory.CreateLogger<InstanceAbilityCastSystem>();
     private readonly HashSet<AbilityInstance> _abilityQueue = [];
     private readonly List<AbilityInstance> _dequeued = [];
@@ -132,6 +133,7 @@ public class InstanceAbilityCastSystem(
 
         // #521 item 3: nothing is removed from the queue while it is enumerated.
         _dequeued.Clear();
+        _interrupts.Clear();
 
         foreach (AbilityInstance cast in _abilityQueue)
         {
@@ -143,7 +145,7 @@ public class InstanceAbilityCastSystem(
                 _logger.LogInformation("Cast interrupted by movement ability={AbilityId} caster={CharId}",
                     ability.AbilityId, cast.Caster.Guid);
                 ResetCast(ability);
-                cast.Caster.SendInterruptedCastAnimation(ability);
+                _interrupts.Add((cast.Caster, ability));
                 _dequeued.Add(cast);
                 continue;
             }
@@ -162,7 +164,7 @@ public class InstanceAbilityCastSystem(
             {
                 _logger.LogDebug("Dropped the cast of a dead caster ability={AbilityId} caster={CharId}",
                     ability.AbilityId, cast.Caster.Guid);
-                cast.Caster.SendInterruptedCastAnimation(ability);
+                _interrupts.Add((cast.Caster, ability));
                 continue;
             }
 
@@ -172,6 +174,13 @@ public class InstanceAbilityCastSystem(
         foreach (AbilityInstance cast in _dequeued)
         {
             _abilityQueue.Remove(cast);
+        }
+
+        // Sent once every interrupted cast is already out of the queue, as CancelCasts does, and
+        // contained: a failing send can neither leave a cast queued nor stop the scripts ticking.
+        foreach ((IUnit caster, IAbility ability) in _interrupts)
+        {
+            TryInterrupt(caster, ability);
         }
 
         TickScripts(deltaTime, objects);
@@ -300,6 +309,8 @@ public class InstanceAbilityCastSystem(
         }
         catch (Exception e)
         {
+            // Interrupted after the finish on purpose: a circle or a cone deals its damage inside
+            // Prepare, so the finish has to go out before it, and a throw can only be told after.
             Failed(caster, ability, e, "Prepare");
             return;
         }
@@ -314,21 +325,25 @@ public class InstanceAbilityCastSystem(
 
     /// <summary>
     /// A script that threw (#530): logged, and its caster sent the interrupt a failed cast gets, so no
-    /// cast bar is left running. The caller drops the script. The send is contained too, so a failing
-    /// send cannot take the rest of the tick with it.
+    /// cast bar is left running. The caller drops the script.
     /// </summary>
     private void Failed(IUnit caster, IAbility ability, Exception e, string stage)
     {
         _logger.LogError(e, "Ability script {Stage} threw and was dropped ability={AbilityId} caster={CasterId}",
             stage, ability.AbilityId, caster.Guid);
+        TryInterrupt(caster, ability);
+    }
 
+    /// <summary>Sends the interrupt, contained, so a failing send cannot take the rest of the tick with it.</summary>
+    private void TryInterrupt(IUnit caster, IAbility ability)
+    {
         try
         {
             caster.SendInterruptedCastAnimation(ability);
         }
         catch (Exception sendError)
         {
-            _logger.LogError(sendError, "Interrupting the failed cast failed ability={AbilityId} caster={CasterId}",
+            _logger.LogError(sendError, "Sending the cast interrupt failed ability={AbilityId} caster={CasterId}",
                 ability.AbilityId, caster.Guid);
         }
     }
