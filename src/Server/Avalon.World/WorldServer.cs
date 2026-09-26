@@ -20,6 +20,7 @@ using Avalon.World.Persistence;
 using Avalon.World.Public;
 using Avalon.World.Scripts;
 using Avalon.World.Scripts.Abstractions;
+using Avalon.World.Telemetry;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -212,6 +213,8 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
             "Duration of the world update phase of the tick loop in microseconds");
         _sessionUpdateDuration = DiagnosticsConfig.World.Meter.CreateHistogram<double>("world.session_update.duration", "us",
             "Duration of the session update phase of the tick loop in microseconds");
+
+        WorldGauges.Register(DiagnosticsConfig.World.Meter, () => Connections, () => _world.InstanceRegistry);
     }
 
     public new ImmutableArray<IWorldConnection> Connections =>
