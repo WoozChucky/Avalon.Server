@@ -1,0 +1,18 @@
+{
+  "name": "town_house_01",
+  "assetKey": "chunks/town_house_01",
+  "cellFootprintX": 1,
+  "cellFootprintZ": 1,
+  "cellSize": 30,
+  "exits": {
+    "N": [],
+    "E": [],
+    "S": ["center"],
+    "W": []
+  },
+  "spawnSlots": [
+  ],
+  "portalSlots": [
+  ],
+  "tags": ["town", "decor"]
+}

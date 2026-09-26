@@ -1,0 +1,21 @@
+{
+  "name": "forest_junction_x",
+  "assetKey": "chunks/forest_junction_x",
+  "cellFootprintX": 1,
+  "cellFootprintZ": 1,
+  "cellSize": 30,
+  "exits": {
+    "N": ["center"],
+    "E": ["center"],
+    "S": ["center"],
+    "W": ["center"]
+  },
+  "spawnSlots": [
+    { "tag": "pack", "localX": 15, "localY": 1, "localZ": 15 },
+    { "tag": "rare", "localX": 8, "localY": 1, "localZ": 22 },
+    { "tag": "rare", "localX": 22, "localY": 1, "localZ": 8 }
+  ],
+  "portalSlots": [
+  ],
+  "tags": ["junction", "forest"]
+}
