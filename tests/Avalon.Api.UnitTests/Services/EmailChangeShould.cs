@@ -201,6 +201,19 @@ public sealed class EmailChangeShould : IDisposable
         Assert.Equal(second.CredentialsVersion, (await StoredAsync(second.Id)).CredentialsVersion);
     }
 
+    [Theory]
+    [InlineData("x")]
+    [InlineData("player@ex\u00E4mple.com")]
+    public async Task Refuse_to_start_a_change_to_an_email_that_is_not_an_ascii_address(string email)
+    {
+        Account account = await AccountAsync();
+
+        BusinessException refused = await Assert.ThrowsAsync<BusinessException>(() => StartAsync(account.Id, email));
+
+        Assert.Equal(AccountEmail.Requirement, refused.Message);
+        Assert.Empty(_store);
+    }
+
     [Fact]
     public async Task Find_an_account_by_its_email_in_any_case()
     {

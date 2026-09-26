@@ -52,6 +52,33 @@ public sealed class RegistrationValidationShould : IAsyncLifetime
     public Task Refuse_a_missing_username() =>
         AssertRefusedAsync(new { email = "new@avalon.monster", password = "a strong one" });
 
+    /// <summary>
+    /// #503 follow-up: registration took any string as an email, and an address outside ASCII
+    /// would be lower-cased differently by .NET and by Postgres, so the check constraint could
+    /// refuse what the code stored. Both are a 400 validation error.
+    /// </summary>
+    [Theory]
+    [InlineData("x")]
+    [InlineData("no-at-sign.avalon.monster")]
+    [InlineData("@avalon.monster")]
+    [InlineData("player@")]
+    [InlineData("two@at@avalon.monster")]
+    [InlineData("\u00FCser@avalon.monster")]    // not ASCII, local part
+    [InlineData("player@ex\u00E4mple.com")]     // not ASCII, domain
+    [InlineData("in side@avalon.monster")]
+    public Task Refuse_an_email_that_is_not_an_ascii_address(string email) =>
+        AssertRefusedAsync(new { username = "newplayer", email, password = TestPasswords.Valid });
+
+    [Theory]
+    [InlineData("player@avalon.monster")]
+    [InlineData("Mixed.Case+tag@Avalon.Monster")]
+    public async Task Register_an_ascii_email_address(string email)
+    {
+        using HttpResponseMessage response = await RegisterAsync(new { username = "newplayer", email, password = TestPasswords.Valid });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
     [Fact]
     public Task Refuse_a_missing_email() =>
         AssertRefusedAsync(new { username = "newplayer", password = "a strong one" });

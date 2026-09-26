@@ -9,5 +9,32 @@ namespace Avalon.Domain.Auth;
 /// </summary>
 public static class AccountEmail
 {
+    public const string Requirement = "Email must be a valid address made of ASCII characters only";
+
     public static string Normalise(string email) => email.Trim().ToLowerInvariant();
+
+    /// <summary>
+    /// Whether <paramref name="email"/>, once normalised, is an address an account may hold: printable
+    /// ASCII only (no spaces, no control characters), with exactly one <c>@</c> that is neither
+    /// first nor last. ASCII only because .NET and Postgres lower-case ASCII identically; outside
+    /// it they can disagree, and the check constraint would refuse what the code stored.
+    /// </summary>
+    public static bool IsValid(string? email)
+    {
+        if (email is null)
+            return false;
+
+        string normalised = Normalise(email);
+        int at = normalised.IndexOf('@', StringComparison.Ordinal);
+        if (at <= 0 || at == normalised.Length - 1 || normalised.IndexOf('@', at + 1) >= 0)
+            return false;
+
+        foreach (char c in normalised)
+        {
+            if (c < '!' || c > '~')
+                return false;
+        }
+
+        return true;
+    }
 }

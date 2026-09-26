@@ -178,6 +178,20 @@ public class AccountRegistrationShould : IDisposable
         service.Register(new RegisterRequest { Username = username, Password = TestPasswords.Valid, Email = email },
             "test-agent", IPAddress.Loopback, CancellationToken.None);
 
+    /// <summary>#503 follow-up: the service refuses what the request contract refuses, and does not rely on it.</summary>
+    [Theory]
+    [InlineData("x")]
+    [InlineData("\u00FCser@avalon.monster")]
+    [InlineData("   ")]
+    public async Task Refuse_to_register_an_email_that_is_not_an_ascii_address(string email)
+    {
+        BusinessException refused = await Assert.ThrowsAsync<BusinessException>(() => RegisterAsync(_service, "player", email));
+
+        Assert.Equal(AccountEmail.Requirement, refused.Message);
+        await using AuthDbContext context = _database.CreateDbContext();
+        Assert.Equal(0, await context.Accounts.CountAsync(a => a.Username == "PLAYER"));
+    }
+
     /// <summary>#503: the lookup was exact and the email stored as sent, so these were two accounts.</summary>
     [Fact]
     public async Task Refuse_a_second_registration_whose_email_differs_only_in_case()

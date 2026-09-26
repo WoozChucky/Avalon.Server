@@ -188,6 +188,8 @@ public class AccountService : IAccountService
         // The request contract checks this too; the service does not rely on it.
         if (!UsernameRule.IsValid(model.Username))
             throw new BusinessException(UsernameRule.Requirement);
+        if (!AccountEmail.IsValid(model.Email))
+            throw new BusinessException(AccountEmail.Requirement);
 
         var sourceKey = await TakeRegistrationSlotAsync(ipAddress);
 
@@ -403,6 +405,9 @@ public class AccountService : IAccountService
     public async Task<string> InitiateEmailChangeAsync(AccountId accountId, string newEmail, string currentPassword,
         IPAddress ipAddress, CancellationToken cancellationToken = default)
     {
+        if (!AccountEmail.IsValid(newEmail))
+            throw new BusinessException(AccountEmail.Requirement);
+
         var proof = await _reauthentication.RequireCurrentPasswordAsync(accountId, currentPassword, ipAddress,
             cancellationToken);
 

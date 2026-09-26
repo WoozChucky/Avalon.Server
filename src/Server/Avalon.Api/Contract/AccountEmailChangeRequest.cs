@@ -4,7 +4,7 @@ namespace Avalon.Api.Contract;
 
 public sealed class AccountEmailChangeRequest
 {
-    [Required, EmailAddress] public string NewEmail { get; set; } = "";
+    [Required, EmailAddress, AccountEmailRule] public string NewEmail { get; set; } = "";
 
     /// <summary>
     /// The account's current password (#503): a session alone cannot start an email change. Missing

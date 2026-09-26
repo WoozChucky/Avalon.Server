@@ -10,5 +10,6 @@ public class RegisterRequest
     // Measured trimmed, the form it is hashed in, as for a password change (#478 review).
     [Required, TrimmedMinLength(8)] public string Password { get; set; } = string.Empty;
 
-    [Required] public string Email { get; set; } = string.Empty;
+    // An ASCII address (#503 follow-up), stored trimmed and lower-cased.
+    [Required, EmailAddress, AccountEmailRule] public string Email { get; set; } = string.Empty;
 }

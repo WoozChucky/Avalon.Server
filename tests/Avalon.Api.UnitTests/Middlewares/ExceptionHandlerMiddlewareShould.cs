@@ -42,5 +42,36 @@ public class ExceptionHandlerMiddlewareShould
         Assert.DoesNotContain("5432", body, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// #503 follow-up: a row an Accounts check constraint refuses (a username or an email not in
+    /// its stored form) is the caller's value, not an outage: 400, whether it comes straight from a
+    /// bulk update or wrapped by SaveChanges.
+    /// </summary>
+    public static TheoryData<Exception> CheckViolations => new()
+    {
+        AccountsCheckViolation(),
+        new Microsoft.EntityFrameworkCore.DbUpdateException("save failed", AccountsCheckViolation()),
+    };
+
+    private static Npgsql.PostgresException AccountsCheckViolation() => new(
+        "new row violates check constraint", "ERROR", "ERROR", Npgsql.PostgresErrorCodes.CheckViolation,
+        tableName: "Accounts", constraintName: "CK_Accounts_Email_Normalised");
+
+    [Theory]
+    [MemberData(nameof(CheckViolations))]
+    public async Task Answer_a_check_constraint_violation_on_accounts_with_400(Exception violation)
+    {
+        var middleware = new ExceptionHandlerMiddleware(_ => throw violation, NullLoggerFactory.Instance);
+        var context = new DefaultHttpContext();
+        context.Response.Body = new MemoryStream();
+
+        await middleware.InvokeAsync(context);
+
+        Assert.Equal(StatusCodes.Status400BadRequest, context.Response.StatusCode);
+        context.Response.Body.Position = 0;
+        string body = await new StreamReader(context.Response.Body).ReadToEndAsync();
+        Assert.DoesNotContain("CK_Accounts", body, StringComparison.Ordinal);
+    }
+
     private sealed class FakeDbException(string message) : DbException(message);
 }

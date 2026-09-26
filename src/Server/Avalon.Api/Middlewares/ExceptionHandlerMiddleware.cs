@@ -3,7 +3,9 @@ using System.Net;
 using System.Security.Authentication;
 using Avalon.Api.Exceptions;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
+using Npgsql;
 using StackExchange.Redis;
 
 namespace Avalon.Api.Middlewares;
@@ -41,6 +43,18 @@ public class ExceptionHandlerMiddleware
             Detail = "The service is temporarily unavailable. Try again shortly.",
             Instance = $"{context.Request.Method} {context.Request.Path}"
         }, cancellationToken: context.RequestAborted);
+
+    public const string AccountValueRefused = "The value is not in a form an account can store.";
+
+    /// <summary>
+    /// A Postgres check violation (SQLSTATE 23514) on <c>Accounts</c>, raised directly by a bulk
+    /// update or wrapped in a <see cref="DbUpdateException"/> by SaveChanges.
+    /// </summary>
+    private static bool IsAccountsCheckViolation(Exception exception) =>
+        (exception as PostgresException ?? (exception as DbUpdateException)?.InnerException as PostgresException) is
+        {
+            SqlState: PostgresErrorCodes.CheckViolation, TableName: "Accounts",
+        };
 
     private async Task HandleExceptionAsync(HttpContext context, Exception exception)
     {
@@ -91,6 +105,21 @@ public class ExceptionHandlerMiddleware
                     Type = exception.GetType().Name,
                     Title = "Client error",
                     Detail = ex.Message,
+                    Instance = $"{context.Request.Method} {context.Request.Path}"
+                }, cancellationToken: context.RequestAborted);
+                return;
+            // An Accounts check constraint refused the row (#503 follow-up): a username or an email
+            // that is not in its stored form. The caller's value, not an outage. The constraint's
+            // name stays in the log.
+            case var _ when IsAccountsCheckViolation(exception):
+                context.Request.HttpContext.Response.StatusCode = (int)HttpStatusCode.BadRequest;
+                _logger.LogWarning(exception, "An account row was refused by a check constraint");
+                await context.Response.WriteAsJsonAsync(new ProblemDetails
+                {
+                    Status = (int)HttpStatusCode.BadRequest,
+                    Type = "BusinessException",
+                    Title = "Client error",
+                    Detail = AccountValueRefused,
                     Instance = $"{context.Request.Method} {context.Request.Path}"
                 }, cancellationToken: context.RequestAborted);
                 return;
