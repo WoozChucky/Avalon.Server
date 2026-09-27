@@ -558,6 +558,38 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         _corpseRemover.Update(deltaTime);
 
         // Step 2: Process character packets
+        UpdateCharacters(deltaTime);
+
+        // Step 2b: Vendors (#432). After the packets, so this tick's trades are in the lists. The
+        // pass refills due stock, adopts a /reload vendors, and sends each connection whose shop is
+        // open the one list it is owed. It is skipped until someone opens a shop here, so an
+        // instance with no vendor state never reads vendor data.
+        if (_vendors.Count > 0)
+            RunVendorPass();
+
+        List<IWorldObject> objectAbilities = [];
+
+        // Step 3: abilities, combat and threat.
+        UpdateCombat(deltaTime, objectAbilities);
+
+        // Step 4: creature scripts, then the locomotion that executes what they decided.
+        UpdateCreatures(deltaTime);
+
+        // Step 5a: Snapshot dirty fields — ONLY on broadcast ticks.
+        SnapshotDirtyFields(objectAbilities);
+
+        // Step 5b and 6: visibility, then the state broadcast, per character.
+        BroadcastState(objectAbilities);
+
+        if (_lastBroadcastTime >= BroadcastInterval)
+        {
+            _lastBroadcastTime = 0;
+        }
+    }
+
+    /// <summary>Step 2 of <see cref="Update" />: each character's packets, its own tick, its PvP timer and its periodic save.</summary>
+    private void UpdateCharacters(TimeSpan deltaTime)
+    {
         foreach ((ObjectGuid guid, ICharacter character) in _characters)
         {
             IWorldConnection connection = _connections[guid];
@@ -574,16 +606,11 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
             if (character is CharacterEntity entity)
                 _saveScheduler?.Tick(connection, entity, deltaTime);
         }
+    }
 
-        // Step 2b: Vendors (#432). After the packets, so this tick's trades are in the lists. The
-        // pass refills due stock, adopts a /reload vendors, and sends each connection whose shop is
-        // open the one list it is owed. It is skipped until someone opens a shop here, so an
-        // instance with no vendor state never reads vendor data.
-        if (_vendors.Count > 0)
-            RunVendorPass();
-
-        List<IWorldObject> objectAbilities = [];
-
+    /// <summary>Step 3 of <see cref="Update" />: the cast system, then the combat service, then the threat mirror.</summary>
+    private void UpdateCombat(TimeSpan deltaTime, List<IWorldObject> objectAbilities)
+    {
         // Step 3: Ability cast system update
         _abilityCastSystem.Update(deltaTime, objectAbilities);
 
@@ -595,7 +622,11 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         // here is safe because no inbound packet handler dequeued above mutates _connections
         // (target-unit just stores a ulong on the connection itself).
         _threatBroadcast.Tick(_connections.Values, _creatures, _combatService);
+    }
 
+    /// <summary>Step 4 of <see cref="Update" />: creature scripts, the player sync, then the locomotion.</summary>
+    private void UpdateCreatures(TimeSpan deltaTime)
+    {
         // Step 4: Update creature scripts
         foreach (ICreature creature in _creatures.Values)
         {
@@ -619,7 +650,11 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         // which is the only thing in the suite that fails if these two are swapped. Player positions are
         // already current: input was processed in connection.UpdateMap() earlier in this same tick.
         _locomotion.Update(deltaTime);
+    }
 
+    /// <summary>Step 5a of <see cref="Update" />.</summary>
+    private void SnapshotDirtyFields(List<IWorldObject> objectAbilities)
+    {
         // Step 5a: Snapshot dirty fields — ONLY on broadcast ticks. Entity _dirtyFields use
         // |= to accumulate, so OR-ing all changes between broadcasts is captured by a single
         // ConsumeDirtyFields() at broadcast time. Consuming every tick (with sends gated to
@@ -655,7 +690,11 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
                 }
             }
         }
+    }
 
+    /// <summary>Steps 5b and 6 of <see cref="Update" />: every character's visibility first, then every broadcast.</summary>
+    private void BroadcastState(List<IWorldObject> objectAbilities)
+    {
         // Step 5b: Update entity visibility state per character
         foreach (ICharacter character in _characters.Values)
         {
@@ -666,11 +705,6 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         foreach (ICharacter character in _characters.Values)
         {
             BroadcastStateTo(character);
-        }
-
-        if (_lastBroadcastTime >= BroadcastInterval)
-        {
-            _lastBroadcastTime = 0;
         }
     }
 
