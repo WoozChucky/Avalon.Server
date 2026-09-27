@@ -1,6 +1,7 @@
 using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Network.Packets.State;
+using Avalon.World.Maps.Navigation;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Maps;
 
@@ -23,7 +24,24 @@ public sealed class WaypointLocomotion : ICreatureLocomotion
     private sealed class Agent
     {
         public required ICreature Creature { get; init; }
-        public Queue<Vector3> Path { get; } = new();
+
+        /// <summary>
+        /// The route, refilled in place by every MoveTo rather than replaced (#638), so a re-path in
+        /// steady state allocates nothing once the list has grown to the longest route it has held.
+        /// </summary>
+        public List<Vector3> Path { get; } = [];
+
+        /// <summary>The index in <see cref="Path" /> of the waypoint being walked to.</summary>
+        public int Next { get; set; }
+
+        public bool HasRoute => Next < Path.Count;
+
+        public void ClearRoute()
+        {
+            Path.Clear();
+            Next = 0;
+            RouteEnd = null;
+        }
 
         /// <summary>The last point of the route the last MoveTo found, kept once walked (#606).</summary>
         public Vector3? RouteEnd { get; set; }
@@ -50,16 +68,20 @@ public sealed class WaypointLocomotion : ICreatureLocomotion
         if (!_agents.TryGetValue(creature.Guid, out Agent? agent))
             return;
 
-        agent.Path.Clear();
-        agent.RouteEnd = null;
-        foreach (Vector3 waypoint in _navigatorFor(creature.Position).FindPath(creature.Position, destination))
-        {
-            agent.Path.Enqueue(waypoint);
-            agent.RouteEnd = waypoint;
-        }
+        agent.ClearRoute();
+        IMapNavigator navigator = _navigatorFor(creature.Position);
+        if (navigator is IPathBufferNavigator buffered)
+            buffered.FindPath(creature.Position, destination, agent.Path);
+        else
+            agent.Path.AddRange(navigator.FindPath(creature.Position, destination));
 
         if (agent.Path.Count == 0)
+        {
             ComeToRest(creature);
+            return;
+        }
+
+        agent.RouteEnd = agent.Path[^1];
     }
 
     public void Stop(ICreature creature)
@@ -67,25 +89,21 @@ public sealed class WaypointLocomotion : ICreatureLocomotion
         if (!_agents.TryGetValue(creature.Guid, out Agent? agent))
             return;
 
-        agent.Path.Clear();
-        agent.RouteEnd = null;
+        agent.ClearRoute();
         ComeToRest(creature);
     }
 
     public void Teleport(ICreature creature, Vector3 position)
     {
         if (_agents.TryGetValue(creature.Guid, out Agent? agent))
-        {
-            agent.Path.Clear();
-            agent.RouteEnd = null;
-        }
+            agent.ClearRoute();
 
         creature.Position = position;
         ComeToRest(creature);
     }
 
     public bool HasArrived(ICreature creature) =>
-        !_agents.TryGetValue(creature.Guid, out Agent? agent) || agent.Path.Count == 0;
+        !_agents.TryGetValue(creature.Guid, out Agent? agent) || !agent.HasRoute;
 
     /// <summary>Same constant Advance uses to decide a waypoint has been reached, read from one place.</summary>
     public float ArrivalTolerance(ICreature creature) => WaypointReachedDistance;
@@ -117,22 +135,22 @@ public sealed class WaypointLocomotion : ICreatureLocomotion
 
     private void Advance(Agent agent, TimeSpan deltaTime)
     {
-        if (agent.Path.Count == 0)
+        if (!agent.HasRoute)
             return;
 
         ICreature creature = agent.Creature;
-        Vector3 next = agent.Path.Peek();
+        Vector3 next = agent.Path[agent.Next];
 
         if (Vector3.Distance(creature.Position, next) < WaypointReachedDistance)
         {
-            agent.Path.Dequeue();
-            if (agent.Path.Count == 0)
+            agent.Next++;
+            if (!agent.HasRoute)
             {
                 ComeToRest(creature);
                 return;
             }
 
-            next = agent.Path.Peek();
+            next = agent.Path[agent.Next];
         }
 
         Vector3 direction = Vector3.Normalize(next - creature.Position);

@@ -6,11 +6,11 @@ using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Maps.Navigation;
 
-public class MapNavigator : IMapNavigator
+public class MapNavigator : IMapNavigator, IPathBufferNavigator
 {
     private readonly ILogger<MapNavigator> _logger;
     private DtNavMesh? _navMesh;
-    private DtNavMeshQuery? _query;
+    private ReusingNavMeshQuery? _query;
     private IDtQueryFilter _queryFilter;
 
     private const float StepSize = 0.5f;
@@ -19,6 +19,14 @@ public class MapNavigator : IMapNavigator
     private const int MaxPolys = 256;
 
     private static readonly RcVec3f PolyPickExt = new(2, 4, 2);
+
+    /// <summary>
+    /// The polygon corridor FindPath works in, kept for the navigator's life rather than allocated per
+    /// call (#638). One per navigator, like <see cref="_query" />, whose node pool and open list are
+    /// just as much per-call state: a navigator serves one thread at a time (its instance's build,
+    /// then its tick), so the two are never used by two threads at once.
+    /// </summary>
+    private readonly long[] _corridor = new long[MaxPolys];
 
     public object? Mesh => _navMesh;
 
@@ -36,12 +44,20 @@ public class MapNavigator : IMapNavigator
     public void LoadFromNavMesh(DtNavMesh navMesh)
     {
         _navMesh = navMesh;
-        _query = new DtNavMeshQuery(_navMesh);
+        _query = new ReusingNavMeshQuery(_navMesh);
         _queryFilter = new DtQueryDefaultFilter();
     }
 
     public List<Vector3> FindPath(Vector3 start, Vector3 end)
     {
+        var path = new List<Vector3>();
+        FindPath(start, end, path);
+        return path;
+    }
+
+    public void FindPath(Vector3 start, Vector3 end, List<Vector3> smoothPath)
+    {
+        smoothPath.Clear();
         try
         {
             if (_navMesh == null)
@@ -59,17 +75,16 @@ public class MapNavigator : IMapNavigator
             var startPos = new RcVec3f(start.x, start.y, start.z);
             var endPos = new RcVec3f(end.x, end.y, end.z);
             // Post-DotRecast-update path returns Span<long> + out int count instead of mutating
-            // a List. Allocate once on the heap (MaxPolys-sized array) so the off-mesh-connection
+            // a List. The corridor is a heap array kept per navigator (#638), so the off-mesh-connection
             // branch below can slide entries in-place via Span.CopyTo without copying twice.
-            long[] pathArray = new long[MaxPolys];
-            Span<long> path = pathArray;
+            Span<long> path = _corridor;
 
             var status = query.FindNearestPoly(startPos, PolyPickExt, _queryFilter, out var startRef, out _, out _);
             CheckStatus(status);
             if (startRef == 0)
             {
                 _logger.LogWarning("Failed to find start polygon");
-                return [];
+                return;
             }
 
             status = query.FindNearestPoly(endPos, PolyPickExt, _queryFilter, out var endRef, out _, out _);
@@ -77,7 +92,7 @@ public class MapNavigator : IMapNavigator
             if (endRef == 0)
             {
                 _logger.LogWarning("Failed to find end polygon");
-                return [];
+                return;
             }
 
             status = query.FindPath(startRef, endRef, startPos, endPos, _queryFilter, path, out var pathCount, MaxPolys);
@@ -85,14 +100,13 @@ public class MapNavigator : IMapNavigator
             if (pathCount == 0)
             {
                 _logger.LogWarning("Failed to find path");
-                return [];
+                return;
             }
 
             query.ClosestPointOnPoly(startRef, startPos, out var iterPos, out _);
             query.ClosestPointOnPoly(path[pathCount - 1], endPos, out var targetPos, out _);
 
-            var smoothPath = new List<RcVec3f>();
-            smoothPath.Add(iterPos);
+            smoothPath.Add(ToVector3(iterPos));
 
             Span<long> visited = stackalloc long[16];
             var nvisited = 0;
@@ -145,7 +159,7 @@ public class MapNavigator : IMapNavigator
                     iterPos = targetPos;
                     if (smoothPath.Count < MaxSmooth)
                     {
-                        smoothPath.Add(iterPos);
+                        smoothPath.Add(ToVector3(iterPos));
                     }
 
                     break;
@@ -181,11 +195,11 @@ public class MapNavigator : IMapNavigator
                     {
                         if (smoothPath.Count < MaxSmooth)
                         {
-                            smoothPath.Add(startPos);
+                            smoothPath.Add(ToVector3(startPos));
                             // Hack to make the dotted path not visible during off-mesh connection.
                             if ((smoothPath.Count & 1) != 0)
                             {
-                                smoothPath.Add(startPos);
+                                smoothPath.Add(ToVector3(startPos));
                             }
                         }
 
@@ -199,18 +213,19 @@ public class MapNavigator : IMapNavigator
                 // Store results.
                 if (smoothPath.Count < MaxSmooth)
                 {
-                    smoothPath.Add(iterPos);
+                    smoothPath.Add(ToVector3(iterPos));
                 }
             }
-
-            return smoothPath.Select(v => new Vector3(v.X, v.Y, v.Z)).ToList();
         }
         catch (Exception e)
         {
+            // A failure mid-route answers no route at all, never the part walked so far.
+            smoothPath.Clear();
             _logger.LogError(e, "Failed to find path");
-            return [];
         }
     }
+
+    private static Vector3 ToVector3(RcVec3f v) => new(v.X, v.Y, v.Z);
 
     public bool HasVisibility(Vector3 start, Vector3 end)
     {
