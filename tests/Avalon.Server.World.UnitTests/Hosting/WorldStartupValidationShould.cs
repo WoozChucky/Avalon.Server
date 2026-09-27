@@ -72,6 +72,29 @@ public class WorldStartupValidationShould
         Assert.Contains(setting, refused.Message, StringComparison.Ordinal);
     }
 
+    /// <summary>#532: the effect broadcast radius must be finite and at least 1 m.</summary>
+    [Theory]
+    [InlineData("0")]
+    [InlineData("-5")]
+    [InlineData("0.5")]
+    [InlineData("NaN")]
+    [InlineData("Infinity")]
+    [InlineData("-Infinity")]
+    public async Task Refuse_to_start_with_an_effect_broadcast_radius_out_of_range(string value)
+    {
+        using IHost host = await BuildAsync(new Dictionary<string, string?>(StringComparer.Ordinal)
+        {
+            ["Database:Auth:ConnectionString"] = Unreachable,
+            ["Database:Characters:ConnectionString"] = Unreachable,
+            ["Database:World:ConnectionString"] = Unreachable,
+            ["Game:EffectBroadcastRadius"] = value,
+        });
+
+        var refused = await Assert.ThrowsAsync<OptionsValidationException>(() => WorldStartup.PrepareAsync(host));
+
+        Assert.Contains("EffectBroadcastRadius", refused.Message, StringComparison.Ordinal);
+    }
+
     private static async Task<IHost> BuildAsync(Dictionary<string, string?> overrides)
     {
         string workingDirectory = Directory.GetCurrentDirectory();

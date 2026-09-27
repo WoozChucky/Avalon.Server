@@ -123,4 +123,14 @@ public class GameConfiguration
     /// </summary>
     [Range(typeof(TimeSpan), "00:00:10", "01:00:00")]
     public TimeSpan CharacterSaveInterval { get; set; } = TimeSpan.FromMinutes(5);
+
+    /// <summary>
+    ///     Metres, on X/Z. A one-shot effect broadcast (a hit, a cast, an ability fired, a swing, a death,
+    ///     a revive) goes only to connections whose character is within this distance of the effect, or
+    ///     is involved in it (#532). World-state replication is not filtered by it (#593).
+    ///     At least 1 and finite: the range refuses NaN and both infinities too, since neither compares
+    ///     inside it.
+    /// </summary>
+    [Range(1.0, double.MaxValue)]
+    public float EffectBroadcastRadius { get; set; } = 60f;
 }
