@@ -143,7 +143,7 @@ it gets "not found" rather than a script that fails to construct.
 |---|---|---|
 | `AggroDefendScript` | Yes | Stands at its spawn. Chains a range detector and a `CreatureCombatScript`. The aggro range is the template's `DetectionRange`, or 10 m when that is 0. |
 | `CreatureCombatScript` | Yes | Chases, attacks and returns home (see Combat). |
-| `CreaturePatrolScript` | Yes | Walks `ICreature.PatrolPath` in a loop. Stands still when there is no path. Its `OnHit` only sets its state to `Idle` and never lowers health, so a creature running it cannot be damaged or killed. At top level a hit does not even stop the patrol, because the instance ticks a top-level script whatever its state. |
+| `CreaturePatrolScript` | Yes | Walks `ICreature.PatrolPath` in a loop. Stands still when there is no path. Chains a `CreatureCombatScript`: a hit starts a fight under the normal combat rules, the patrol does not advance while it lasts, and once the combat script is back to `None` the patrol resumes at the path point nearest the creature (#600). An invulnerable walker never fights, because the combat service refuses the hit. |
 | `TownNpcScript` | Yes | Does nothing. Town NPCs run it. |
 | `CreatureRangeDetectorScript` | No, `[ChainedScript]` | Checks once a second for a living character within range and in line of sight. |
 
