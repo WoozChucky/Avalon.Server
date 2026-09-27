@@ -416,7 +416,11 @@ public static class CrowdBudgetHarness
             ids.ToDictionary(id => id, GetById);
     }
 
-    private sealed class CountingNavigator(IMapNavigator inner) : IMapNavigator
+    /// <summary>
+    /// Counts FindPath calls on the way to a real navigator. It forwards the buffered overload too
+    /// (#638), since that is the one WaypointLocomotion calls on a MapNavigator.
+    /// </summary>
+    private sealed class CountingNavigator(MapNavigator inner) : IMapNavigator, IPathBufferNavigator
     {
         public long FindPathCalls;
 
@@ -424,6 +428,12 @@ public static class CrowdBudgetHarness
         {
             FindPathCalls++;
             return inner.FindPath(start, end);
+        }
+
+        public void FindPath(Vector3 start, Vector3 end, List<Vector3> path)
+        {
+            FindPathCalls++;
+            inner.FindPath(start, end, path);
         }
 
         public bool HasVisibility(Vector3 start, Vector3 end) => inner.HasVisibility(start, end);
