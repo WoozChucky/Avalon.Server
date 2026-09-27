@@ -231,7 +231,12 @@ public class ServerBaseShould
         public void Listen() => StartListening();
 
         protected override object GetContextPacket(IConnection connection, object? packet, Type packetType) => null!;
-        protected override Task OnStoppingAsync(CancellationToken stoppingToken) => Task.CompletedTask;
+        /// <summary>Runs inside OnStoppingAsync, where a shutdown notifies and closes its connections.</summary>
+        public Func<Task>? OnStopping { get; set; }
+
+        protected override Task OnStoppingAsync(CancellationToken stoppingToken) =>
+            OnStopping?.Invoke() ?? Task.CompletedTask;
+
         protected override Task ExecuteAsync(CancellationToken stoppingToken) => Task.Delay(Timeout.Infinite, stoppingToken);
     }
 
@@ -399,17 +404,23 @@ public class ServerBaseShould
         public ManualResetEventSlim? Gate { get; set; }
         public TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public ConcurrentQueue<bool> TokensCancelled { get; } = new();
+        private int _runs;
+        public int Runs => Volatile.Read(ref _runs);
+        public void OnRun() => Interlocked.Increment(ref _runs);
     }
 
     private sealed class TokenProbeHandler(PacketProbe probe) : IPacketHandlerNew
     {
         public Task ExecuteAsync(object context, CancellationToken token)
         {
+            probe.OnRun();
             probe.Entered.TrySetResult();
             probe.Gate?.Wait(TimeSpan.FromSeconds(10));
             // A handler registers on the token, as a cancellable await does.
             using CancellationTokenRegistration _ = token.Register(static () => { });
             probe.TokensCancelled.Enqueue(token.IsCancellationRequested);
+            // A cancellable await ends with this once the stop cancels its token.
+            token.ThrowIfCancellationRequested();
             return Task.CompletedTask;
         }
     }
@@ -441,18 +452,23 @@ public class ServerBaseShould
         var connection = Substitute.For<IConnection>();
         var header = new NetworkPacketHeader { Type = NetworkPacketType.CMSG_PONG };
 
+        // A packet that arrives while the shutdown is closing connections, as AuthServer's does.
+        server.OnStopping = () => server.CallListener(connection, header, null);
+
         await server.StartAsync(CancellationToken.None);
         // On its own thread: the handler blocks inside its dispatch until the stop has finished.
         Task during = Task.Run(() => server.CallListener(connection, header, null));
         await packetProbe.Entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
-        await server.StopAsync(CancellationToken.None);
+        await server.StopAsync(CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(5));
         gate.Set();
         await during.WaitAsync(TimeSpan.FromSeconds(5));
 
         packetProbe.Gate = null;
         await server.CallListener(connection, header, null).WaitAsync(TimeSpan.FromSeconds(5));
 
-        // The first ran and saw the stop; the second never reached its handler.
+        // The first ran, saw the stop and ended cancelled, which is not a handler failure; the one
+        // inside OnStoppingAsync and the one after never reached a handler.
+        Assert.Equal(1, packetProbe.Runs);
         Assert.Equal([true], packetProbe.TokensCancelled);
         Assert.Equal(0, logger.Count(Microsoft.Extensions.Logging.LogLevel.Error));
         connection.DidNotReceiveWithAnyArgs().Close();
@@ -517,8 +533,15 @@ public class ServerBaseShould
             using TcpClient third = await ConnectServedAsync(probe, port);
             Assert.Equal(100, (int)server.Delays.Last().TotalMilliseconds);
 
-            // Ten failures inside one rate-limit window are logged once.
-            Assert.Equal(1, logger.Count(Microsoft.Extensions.Logging.LogLevel.Warning));
+            // Inside one rate-limit window the first failure is warned about at once, and those after it
+            // are reported, as a count, when the next client is accepted, so a burst is never lost.
+            Assert.Equal(
+                ["1 failures since the last warning", "8 more failed accepts", "1 more failed accepts"],
+                logger.Entries.Where(e => e.Level == Microsoft.Extensions.Logging.LogLevel.Warning)
+                    .Select(e => e.Message.Contains("8 more failed accepts", StringComparison.Ordinal) ? "8 more failed accepts"
+                        : e.Message.Contains("1 more failed accepts", StringComparison.Ordinal) ? "1 more failed accepts"
+                        : e.Message.Contains("1 failures since the last warning", StringComparison.Ordinal) ? "1 failures since the last warning"
+                        : e.Message));
         }
         finally
         {

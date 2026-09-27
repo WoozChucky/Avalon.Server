@@ -200,6 +200,14 @@ public abstract class ServerBase<T> : BackgroundService, IServerBase where T : I
             }
 
             backoff = TimeSpan.Zero;
+            // The failures the rate limit held back are reported now, so a burst after a warning is
+            // not lost when accepting recovers before the next window.
+            if (unlogged > 0)
+            {
+                _logger.LogWarning("The listener accepted a client after {Failures} more failed accepts since the last warning",
+                    unlogged);
+                unlogged = 0;
+            }
 
             // A client accepted as the server stops is closed, not served.
             if (acceptToken.IsCancellationRequested)
@@ -276,11 +284,15 @@ public abstract class ServerBase<T> : BackgroundService, IServerBase where T : I
         _connectionListeners.Add(listener);
     }
 
+    /// <summary>The stop has begun: the accept loop is cancelled first, the connections' token last.</summary>
+    private bool IsStopping => _acceptStopping.IsCancellationRequested || _connectionsStopping.IsCancellationRequested;
+
     public async Task CallListener(IConnection connection, NetworkPacketHeader header, Packet? payload)
     {
-        // A packet that arrives once the stop has begun is dropped (#578): the shutdown closes its
-        // connection, and closing it here would race that close.
-        if (_connectionsStopping.IsCancellationRequested)
+        // A packet that arrives once the stop has begun is dropped (#578), OnStoppingAsync included:
+        // the shutdown closes its connection, and closing it here would race that close. Both sources
+        // answer IsCancellationRequested after StopAsync has disposed them.
+        if (IsStopping)
         {
             _logger.LogDebug("Dropped packet {PacketType}: the server is stopping", header.Type);
             return;
@@ -311,6 +323,11 @@ public abstract class ServerBase<T> : BackgroundService, IServerBase where T : I
 
             var packetHandler = handlerCache.HandlerFactory(scope.ServiceProvider);
             await ((IPacketHandlerNew)packetHandler).ExecuteAsync(context, _connectionsStopping).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (IsStopping)
+        {
+            // A handler cut short by the stop did not fail; the shutdown closes its connection.
+            _logger.LogDebug("Packet handler for {PacketType} was cancelled by the stop", header.Type);
         }
         catch (Exception e)
         {
