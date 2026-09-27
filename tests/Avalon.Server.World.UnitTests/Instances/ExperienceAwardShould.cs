@@ -99,6 +99,78 @@ public class ExperienceAwardShould
         instance.Dispose();
     }
 
+    /// <summary>
+    /// #590 characterisation: a kill reported for a creature this instance does not hold does
+    /// nothing. The creature keeps its script and the killer gains nothing.
+    /// </summary>
+    [Fact]
+    public void Ignore_A_Kill_Of_A_Creature_This_Instance_Does_Not_Hold()
+    {
+        var world = Substitute.For<Avalon.World.IWorld>();
+        world.Configuration.Returns(new GameConfiguration());
+        world.MapTemplates.Returns(new List<MapTemplate>());
+        StaticData data = LoadedStaticData();
+        world.Data.Returns(data);
+
+        MapInstance instance = TestMapInstances.Build(world);
+
+        var creature = new Creature
+        {
+            Guid = new ObjectGuid(ObjectType.Creature, 880_021),
+            Metadata = Substitute.For<ICreatureMetadata>(),
+            Experience = 100,
+        };
+        creature.Script = new Avalon.World.Scripts.Creatures.CreatureCombatScript(NullLoggerFactory.Instance, creature, instance);
+
+        ICharacter killer = Substitute.For<ICharacter>();
+        killer.Guid.Returns(new ObjectGuid(ObjectType.Character, 880_022));
+        killer.Level.Returns((ushort)9);
+        killer.Experience.Returns(0ul);
+
+        instance.ReportKill(creature, killer);
+
+        Assert.NotNull(creature.Script);
+        killer.DidNotReceive().Experience = Arg.Any<ulong>();
+        instance.Dispose();
+    }
+
+    /// <summary>
+    /// #590 characterisation: a killer whose level has no experience requirement gains nothing and
+    /// keeps its level, while the kill itself still takes effect (the script is gone).
+    /// </summary>
+    [Fact]
+    public void Award_Nothing_When_The_Killers_Level_Has_No_Experience_Requirement()
+    {
+        var world = Substitute.For<Avalon.World.IWorld>();
+        world.Configuration.Returns(new GameConfiguration());
+        world.MapTemplates.Returns(new List<MapTemplate>());
+        StaticData data = LoadedStaticData();
+        world.Data.Returns(data);
+
+        MapInstance instance = TestMapInstances.Build(world);
+
+        var creature = new Creature
+        {
+            Guid = new ObjectGuid(ObjectType.Creature, 880_031),
+            Metadata = Substitute.For<ICreatureMetadata>(),
+            Experience = 100,
+        };
+        instance.AddCreature(creature);
+        creature.Script = new Avalon.World.Scripts.Creatures.CreatureCombatScript(NullLoggerFactory.Instance, creature, instance);
+
+        ICharacter killer = Substitute.For<ICharacter>();
+        killer.Guid.Returns(new ObjectGuid(ObjectType.Character, 880_032));
+        killer.Level.Returns((ushort)3); // LoadedStaticData only has a requirement for level 9
+        killer.Experience.Returns(0ul);
+
+        instance.ReportKill(creature, killer);
+
+        Assert.Null(creature.Script);
+        killer.DidNotReceive().Experience = Arg.Any<ulong>();
+        killer.DidNotReceive().Level = Arg.Any<ushort>();
+        instance.Dispose();
+    }
+
     [Theory]
     [InlineData(3, 1, 5, 1.0)]      // inside the band
     [InlineData(1, 1, 5, 1.0)]      // on the lower edge

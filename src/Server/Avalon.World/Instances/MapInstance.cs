@@ -1007,7 +1007,23 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         }
 
         creature.Script = null;
+        TearDownCorpse(creature);
+        _corpseRemover.ScheduleRemoval(creature);
 
+        // Whatever killed it: loot does not depend on the killer being a character.
+        DropLoot(creature);
+
+        if (killer is ICharacter character)
+        {
+            AwardExperience(character, creature);
+        }
+    }
+
+    /// <summary>
+    /// Brings a creature that has just died to rest and gives back every melee slot it is part of.
+    /// </summary>
+    private void TearDownCorpse(ICreature creature)
+    {
         // The same teardown RemoveCreature does, repeated here because death has to take effect
         // immediately. RemoveCreature does eventually run for a corpse — ICorpseRemover schedules it
         // BodyRemoveTimer from now — but a creature that keeps walking, holds a melee slot and shoves
@@ -1033,17 +1049,14 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         // idempotent, so the overlap with the script is harmless.
         _meleeSlots.ReleaseClaimant(creature.Guid);
         _meleeSlots.ReleaseTarget(creature.Guid);
+    }
 
-        _corpseRemover.ScheduleRemoval(creature);
-
-        // Whatever killed it: loot does not depend on the killer being a character.
-        DropLoot(creature);
-
-        if (killer is not ICharacter character)
-        {
-            return;
-        }
-
+    /// <summary>
+    /// Gives a character the experience for a kill, scaled by this map's level band, and levels it up
+    /// when that reaches its level's requirement. A level with no requirement awards nothing.
+    /// </summary>
+    private void AwardExperience(ICharacter character, ICreature creature)
+    {
         CharacterLevelExperience? expRequirement =
             _world.Data.CharacterLevelExperiences.FirstOrDefault(exp => exp.Level == character.Level);
         if (expRequirement is null)
@@ -1052,6 +1065,20 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
             return;
         }
 
+        uint creatureExperience = ScaledExperience(character, creature);
+        if (character.Experience + creatureExperience >= expRequirement.Experience)
+        {
+            LevelUp(character, creatureExperience, expRequirement);
+        }
+        else
+        {
+            character.Experience += creatureExperience;
+        }
+    }
+
+    /// <summary>The kill's experience for this character, scaled by this map's level band.</summary>
+    private uint ScaledExperience(ICharacter character, ICreature creature)
+    {
         // creature.Experience is the value derived at spawn — base stats by level, scaled by the
         // template's modifiers and its rarity, or the template's authored override if it had one. Not
         // Metadata.Experience, which is only that optional override.
@@ -1063,31 +1090,31 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
             mapTemplate?.MaxLevel,
             _world.Configuration.ExperienceBandDecay);
 
-        uint creatureExperience =
-            (uint)Math.Round(creature.Experience * bandScale, MidpointRounding.AwayFromZero);
-        if (character.Experience + creatureExperience >= expRequirement.Experience)
-        {
-            ulong diff = character.Experience + creatureExperience - expRequirement.Experience;
-            character.Level++;
-            character.Experience = diff;
-            character.RequiredExperience = _world.Data.CharacterLevelExperiences
-                .FirstOrDefault(exp => exp.Level == character.Level)?.Experience ?? 0;
+        return (uint)Math.Round(creature.Experience * bandScale, MidpointRounding.AwayFromZero);
+    }
 
-            // #434: the new level's stats. A living killer has health and power refilled to the new
-            // maximums. A kill can land after its killer has died (a projectile in flight): a dead
-            // killer gets the new maximums but keeps its share of each pool instead, so its health
-            // stays at 0 and it is not revived.
-            if (character is CharacterEntity entity
-                && !CharacterStatsRefresh.Apply(entity, _world.Data,
-                    entity.IsDead ? CurrentValues.KeepShare : CurrentValues.Refill))
-            {
-                _logger.LogWarning("No class stats for {Class} level {Level}; {Name} keeps its old maximums",
-                    entity.Class, entity.Level, entity.Name);
-            }
-        }
-        else
+    /// <summary>
+    /// Raises the character one level, carrying over the experience past the requirement, and
+    /// recalculates its stats at the new level.
+    /// </summary>
+    private void LevelUp(ICharacter character, uint creatureExperience, CharacterLevelExperience expRequirement)
+    {
+        ulong diff = character.Experience + creatureExperience - expRequirement.Experience;
+        character.Level++;
+        character.Experience = diff;
+        character.RequiredExperience = _world.Data.CharacterLevelExperiences
+            .FirstOrDefault(exp => exp.Level == character.Level)?.Experience ?? 0;
+
+        // #434: the new level's stats. A living killer has health and power refilled to the new
+        // maximums. A kill can land after its killer has died (a projectile in flight): a dead
+        // killer gets the new maximums but keeps its share of each pool instead, so its health
+        // stays at 0 and it is not revived.
+        if (character is CharacterEntity entity
+            && !CharacterStatsRefresh.Apply(entity, _world.Data,
+                entity.IsDead ? CurrentValues.KeepShare : CurrentValues.Refill))
         {
-            character.Experience += creatureExperience;
+            _logger.LogWarning("No class stats for {Class} level {Level}; {Name} keeps its old maximums",
+                entity.Class, entity.Level, entity.Name);
         }
     }
 
