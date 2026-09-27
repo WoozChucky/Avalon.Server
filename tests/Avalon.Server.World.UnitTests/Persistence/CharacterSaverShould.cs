@@ -242,7 +242,7 @@ public sealed class CharacterSaverShould : IDisposable
         Task<bool> next = saver.Save(_connection, newSession);
 
         await recording.FirstStarted.WaitAsync(Limit);
-        // the first write is held on its gate, so a second start could only be a save not chained behind it (#599)
+        await Task.Delay(50);   // gives an unchained second save time to start; a correct chain keeps the count at 1 however long this waits (#599)
         Assert.Equal(1, recording.Started);
 
         recording.Release();
