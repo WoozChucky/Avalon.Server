@@ -45,7 +45,8 @@ public class AuthServer(
 
     private readonly ILogger<AuthServer> _logger = loggerFactory.CreateLogger<AuthServer>();
 
-    private readonly TimeSpan _onlineSweepInterval =
+    /// <summary>How often the liveness sweep runs, from <c>Application:OnlineSweepIntervalSeconds</c> (#555).</summary>
+    public TimeSpan OnlineSweepInterval { get; } =
         TimeSpan.FromSeconds((authOptions?.Value ?? new AuthConfiguration()).OnlineSweepIntervalSeconds);
 
     private readonly TimeProvider _time = time ?? TimeProvider.System;
@@ -70,10 +71,11 @@ public class AuthServer(
         //
         // Exactly one auth server is supported (#487), and this reset is where that is assumed, as
         // is the liveness sweep below (OnlineSweep, #555): it clears every account's Online flag,
-        // including any a second server's live connections set. The duplicate-login check (ALREADY_CONNECTED, then closing the other connection)
-        // looks only at this server's connections too, so a second server would break it with or
-        // without this reset; scoping the reset to this server's sessions would fix one half of a
-        // setup that does not work anyway. The Helm chart runs one replica.
+        // including any a second server's live connections set. The duplicate-login check
+        // (ALREADY_CONNECTED, then closing the other connection) looks only at this server's
+        // connections too, so a second server would break it with or without this reset; scoping
+        // the reset to this server's sessions would fix one half of a setup that does not work
+        // anyway. The Helm chart runs one replica.
         await accountRepository.MarkAllOfflineAsync(stoppingToken);
 
         await SubscribeToAccountDisconnectsAsync();
@@ -81,9 +83,9 @@ public class AuthServer(
         RegisterNewConnectionListener(NewConnection);
 
         // The liveness sweep (#555) runs for the server's life and ends with the stopping token.
-        var onlineSweep = new OnlineSweep(accountRepository, () => Connections.Select(c => c.Id), _onlineSweepInterval,
-            _time, loggerFactory.CreateLogger<OnlineSweep>());
-        await onlineSweep.RunAsync(OnlineSweepPollPeriod(_onlineSweepInterval), stoppingToken);
+        var onlineSweep = new OnlineSweep(accountRepository, () => Connections.Select(c => c.Id),
+            OnlineSweepInterval, _time, loggerFactory.CreateLogger<OnlineSweep>());
+        await onlineSweep.RunAsync(OnlineSweepPollPeriod(OnlineSweepInterval), stoppingToken);
     }
 
     /// <summary>

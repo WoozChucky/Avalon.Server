@@ -72,9 +72,26 @@ public sealed class OnlineSweep(IAccountRepository accounts, Func<IEnumerable<Gu
             // Clears only while the row's session is still the one read, so a login that landed
             // since keeps its flag. No session time is added: when this session really ended is
             // unknown, and its close, if it ran, already counted it.
-            await accounts.MarkOfflineAsync(session.AccountId, session.SessionId, 0, cancellationToken)
-                .ConfigureAwait(false);
-            logger.LogInformation("Cleared the online flag of account {AccountId}: its session is not live",
+            try
+            {
+                await accounts.MarkOfflineAsync(session.AccountId, session.SessionId, 0, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                // One row's failed write does not end the pass; the next pass retries it. The type
+                // only, as above.
+                logger.LogError("The online liveness sweep could not clear account {AccountId}: {ExceptionType}",
+                    session.AccountId.Value, ex.GetType().FullName);
+                continue;
+            }
+
+            logger.LogInformation(
+                "Cleared the online flag of account {AccountId}, unless a newer login holds it: its session is not live",
                 session.AccountId.Value);
         }
     }

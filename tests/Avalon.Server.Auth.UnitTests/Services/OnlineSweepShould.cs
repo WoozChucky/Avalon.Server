@@ -125,6 +125,65 @@ public sealed class OnlineSweepShould : IDisposable
     }
 
     [Fact]
+    public async Task Keep_a_login_by_a_connection_accepted_after_the_live_snapshot()
+    {
+        Account account = await AccountAsync();
+        // Another account with a dead session, so that the pass has a row to sweep and takes the snapshot.
+        Account stale = await _accounts.CreateAsync(new Account
+        {
+            Username = "STALEUSER",
+            Email = "stale@example.com",
+            Salt = new byte[16],
+            Verifier = Encoding.UTF8.GetBytes("unused"),
+            JoinDate = DateTime.UtcNow,
+            LastLogin = DateTime.UtcNow,
+        });
+        await _accounts.TryRecordLoginAsync(stale.Id, "10.0.0.4", DateTime.UtcNow, Guid.NewGuid());
+        Guid accepted = Guid.NewGuid();
+        // The snapshot is taken, then a connection is accepted and logs in: read after the
+        // snapshot, its row would be online with a session the snapshot does not hold.
+        IEnumerable<Guid> SnapshotThenLogin()
+        {
+            List<Guid> snapshot = [.. _live];
+            _live.Add(accepted);
+            Assert.True(_accounts.TryRecordLoginAsync(account.Id, "10.0.0.3", DateTime.UtcNow, accepted)
+                .GetAwaiter().GetResult());
+            return snapshot;
+        }
+
+        var sweep = new OnlineSweep(_accounts, SnapshotThenLogin, Interval, _clock, _logger);
+        _clock.Advance(Interval);
+        await sweep.RunIfDueAsync(CancellationToken.None);
+
+        Assert.False((await StoredAsync(stale.Id)).Online);
+        Account stored = await StoredAsync(account.Id);
+        Assert.True(stored.Online);
+        Assert.Equal(accepted, stored.OnlineSessionId);
+    }
+
+    [Fact]
+    public async Task Go_on_to_the_next_row_when_one_row_write_fails()
+    {
+        var accounts = Substitute.For<IAccountRepository>();
+        var failing = new AccountId(1);
+        var next = new AccountId(2);
+        accounts.ListOnlineSessionsAsync(Arg.Any<CancellationToken>())
+            .Returns([new OnlineSession(failing, Guid.NewGuid()), new OnlineSession(next, Guid.NewGuid())]);
+        accounts.MarkOfflineAsync(failing, Arg.Any<Guid?>(), Arg.Any<long>(), Arg.Any<CancellationToken>())
+            .ThrowsAsync(new InvalidOperationException("boom"));
+        OnlineSweep sweep = Sweep(accounts);
+
+        _clock.Advance(Interval);
+        await sweep.RunIfDueAsync(CancellationToken.None);
+
+        await accounts.Received(1).MarkOfflineAsync(next, Arg.Any<Guid?>(), 0, Arg.Any<CancellationToken>());
+        (LogLevel _, string message) = Assert.Single(_logger.Entries, e => e.Level == LogLevel.Error);
+        Assert.Contains(nameof(InvalidOperationException), message, StringComparison.Ordinal);
+        Assert.Contains("account 1:", message, StringComparison.Ordinal);
+        Assert.DoesNotContain("boom", message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task Pass_the_session_it_read_and_add_no_session_time()
     {
         var accounts = Substitute.For<IAccountRepository>();
@@ -172,7 +231,7 @@ public sealed class OnlineSweepShould : IDisposable
     {
         var accounts = Substitute.For<IAccountRepository>();
         accounts.ListOnlineSessionsAsync(Arg.Any<CancellationToken>())
-            .Throws(new InvalidOperationException("boom"));
+            .ThrowsAsync(new InvalidOperationException("boom"));
         OnlineSweep sweep = Sweep(accounts);
 
         _clock.Advance(Interval);
