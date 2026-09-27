@@ -133,6 +133,38 @@ Sent in four cases: as the reply to every toggle (`CPvpTogglePacket` or `/pvp`),
 
 **Other players' flags.** Every character state (`ObjectState`) carries `PvpEnabled` (field 21) only as `true`; absent on a character state means off. Towns never allow player hostility, whatever the flags.
 
+### `SUnitHealedPacket` (`SMSG_UNIT_HEALED = 0x310C`, encrypted, TCP)
+
+Server → the healer, the target, and every client within `Game:InterestRadius` of the target (#506, #532). A heal that restored more than 0 health; a heal on a target at full health sends nothing.
+
+| Field | Proto # | Type | Notes |
+|---|---|---|---|
+| `Healer` | 1 | `ulong` | Raw `ObjectGuid` of the healer. |
+| `Target` | 2 | `ulong` | Raw `ObjectGuid` of the unit healed. |
+| `Amount` | 3 | `uint` | Health actually restored, overheal left out. |
+| `CurrentHealth` | 4 | `uint` | The target's health after the heal. |
+| `AbilityId` | 5 | `uint?` | The ability that healed; absent when none did. |
+| `Result` | 6 | `HitResult` | `Crit` for a critical heal, otherwise `None`; a heal is never dodged or blocked. |
+
+### `SCharacterStatsPacket` (`SMSG_CHARACTER_STATS = 0x302A`, encrypted, TCP)
+
+Server → the player's own client only. The character sheet (#506), always whole: sent on the tick the character enters the world, and again, at most once per tick, whenever a value changes (a gear change, a level-up, or a `/reload combat` that moves a cap). Replace what is shown with each packet.
+
+| Field | Proto # | Type | Notes |
+|---|---|---|---|
+| `Stamina` | 1 | `uint` | |
+| `Strength` | 2 | `uint` | |
+| `Agility` | 3 | `uint` | |
+| `Intellect` | 4 | `uint` | |
+| `Armor` | 5 | `uint` | |
+| `AttackDamage` | 6 | `uint` | |
+| `AbilityDamage` | 7 | `uint` | |
+| `CritPct` | 8 | `float` | Percentage points, already clamped to the formula's `CritCap`. |
+| `DodgePct` | 9 | `float` | Percentage points, already clamped to `DodgeCap`. |
+| `BlockPct` | 10 | `float` | Percentage points, already clamped to `BlockCap`. |
+| `WeaponMin` | 11 | `uint` | The main-hand weapon's damage range; both 0 with no weapon. |
+| `WeaponMax` | 12 | `uint` | |
+
 ## 5. Cast Pipeline Expectations (Client Side)
 
 - Click → emit `CCastAbilityPacket {AbilityId, GroundPos?}` (`GroundPos` for a Cursor skill). The server validates everything and answers every refusal with a reason.
@@ -169,6 +201,8 @@ The client never emits a separate "interrupt" or "cancel" packet — moving canc
 - [ ] Cast a cursor skill with a ground point → it fires; hits on creatures arrive as `SUnitDamagePacket` (and `SCharacterDamagePacket` for player damage, with `AbilityId` set).
 - [ ] Cast a cursor skill without a ground point (or with a non-finite one) → `SAbilityNotReadyPacket` with `Reason = NoAimPoint`.
 - [ ] Cast a circle or cone skill → every client in the instance gets `SMSG_ABILITY_FIRED` (a circle's `Centre`, a cone's `Direction`) and can draw the effect, whether or not it hit anyone.
+- [ ] Heal a wounded ally → the healer, the ally and nearby clients get `SMSG_UNIT_HEALED` with the restored `Amount`; a crit heal has `Result = Crit`; healing someone at full health sends nothing.
+- [ ] Log in, then equip gear that changes a stat → `SMSG_CHARACTER_STATS` arrives once at login and once after the equip, to the player alone.
 - [ ] Cast a projectile skill → the projectile appears as a world object, flies, and is removed where it stopped (at `Reach`, at a wall, or at the first unit hit).
 - [ ] Cast while a cast-time cast is in progress → `SAbilityNotReadyPacket` with `Reason = AlreadyCasting`.
 - [ ] Spam click → server enforces GCD; sub-200 ms casts get `SAbilityNotReadyPacket` with non-zero `CooldownMs`.

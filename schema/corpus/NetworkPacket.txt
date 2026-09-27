@@ -32,24 +32,24 @@ variant empty
 
 variant populated
   field 1 Header : NetworkPacketHeader
-    field 1 Type : NetworkPacketType = CMSG_DIALOGUE_CHOOSE (8241)
+    field 1 Type : NetworkPacketType = CMSG_MFA_VERIFY (8203)
     field 2 Flags : NetworkPacketFlags = ClearText (1)
     field 3 Protocol : NetworkProtocol = Both (3)
     field 4 Version : int = 1000
   field 2 Payload : byte[] = 6 bytes 0a 0d 09 1b 22 5c
   bytes 20
-    0a 0a 08 b1 40 10 01 18 03 20 e8 07 12 06 0a 0d
+    0a 0a 08 8b 40 10 01 18 03 20 e8 07 12 06 0a 0d
     09 1b 22 5c
 
 variant maxima
   field 1 Header : NetworkPacketHeader
-    field 1 Type : NetworkPacketType = SMSG_PVP_STATE (12555)
+    field 1 Type : NetworkPacketType = SMSG_UNIT_HEALED (12556)
     field 2 Flags : NetworkPacketFlags = Encrypted (4)
     field 3 Protocol : NetworkProtocol = Both (3)
     field 4 Version : int = 2147483647
   field 2 Payload : byte[] = 140 bytes 5a 5d 54 4f 46 79 70 6b ...
   bytes 158
-    0a 0d 08 8b 62 10 04 18 03 20 ff ff ff ff 07 12
+    0a 0d 08 8c 62 10 04 18 03 20 ff ff ff ff 07 12
     8c 01 5a 5d 54 4f 46 79 70 6b 62 65 1c 17 0e 01
     38 33 2a 2d 24 df d6 c9 c0 fb f2 f5 ec e7 9e 91
     88 83 ba bd b4 af a6 59 50 4b 42 45 7c 77 6e 61
@@ -73,13 +73,13 @@ variant minima
 
 variant varint-edges
   field 1 Header : NetworkPacketHeader
-    field 1 Type : NetworkPacketType = <not a declared member> (12556)
+    field 1 Type : NetworkPacketType = <not a declared member> (12557)
     field 2 Flags : NetworkPacketFlags = ClearText, Encrypted (5)
     field 3 Protocol : NetworkProtocol = <not a declared member> (4)
     field 4 Version : int = 127
   field 2 Payload : byte[] = 127 bytes 5a 5d 54 4f 46 79 70 6b ...
   bytes 140
-    0a 09 08 8c 62 10 05 18 04 20 7f 12 7f 5a 5d 54
+    0a 09 08 8d 62 10 05 18 04 20 7f 12 7f 5a 5d 54
     4f 46 79 70 6b 62 65 1c 17 0e 01 38 33 2a 2d 24
     df d6 c9 c0 fb f2 f5 ec e7 9e 91 88 83 ba bd b4
     af a6 59 50 4b 42 45 7c 77 6e 61 18 13 0a 0d 04

@@ -309,7 +309,8 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
     /// term) is added; then the one crit roll (#506). A heal is never dodged, blocked or reduced by armour. A heal never
     /// lowers health: a unit already at or above its maximum keeps what it has, and the heal restores 0
     /// (#548). A dead unit is never healed. The health change reaches clients through entity replication, as regeneration's
-    /// does. Heal threat counts only the health actually restored (#531):
+    /// does; a heal that restored more than 0 is also reported to this service's instance, which sends it as
+    /// SMSG_UNIT_HEALED with the restored amount and its crit (#506). Heal threat counts only the health actually restored (#531):
     /// <c>restored × HealThreatPerHp × class modifier</c>, split across the hostiles in the target's
     /// encounter. Overheal adds none, so a heal that restores nothing leaves the encounter untouched and
     /// does not even add the healer to it.
@@ -325,7 +326,7 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
         AbilityMetadata metadata = ability.Metadata;
         float baseHeal = HitResolver.AbilityBase(healerCombat, amount, metadata.ScalingStat, metadata.ScalingCoefficient,
             metadata.WeaponCoefficient, _random);
-        (amount, _) = HitResolver.ResolveHeal(healerCombat, baseHeal, formula, _random);
+        (amount, HitResult result) = HitResolver.ResolveHeal(healerCombat, baseHeal, formula, _random);
 
         uint before = target.CurrentHealth;
         uint after = before >= target.Health
@@ -335,6 +336,10 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
 
         uint restored = after > before ? after - before : 0;
         if (restored == 0) return;
+
+        // #506: only a heal that restored something is reported, with what it restored, overheal left out.
+        _outcomes?.UnitHealed(healer, target, restored, ability.AbilityId, result);
+
         if (ability.Metadata.HealThreatPerHp <= 0) return;
 
         var enc = _registry.FindEncounterContaining(target) as Encounter;

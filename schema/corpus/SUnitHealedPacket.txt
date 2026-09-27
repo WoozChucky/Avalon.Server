@@ -1,0 +1,78 @@
+# SUnitHealedPacket - golden wire vectors.
+#
+# GENERATED FILE. The bytes below are what the server's serializer writes for the
+# values shown above them, so a client is conformant when it produces the same ones,
+# and a change in what the server emits arrives here as a diff.
+#
+#   Emitted by  tools/Avalon.Exporter
+#   Regenerate  dotnet run --project tools/Avalon.Exporter -- corpus
+#   Format      described in schema/README.md
+#   Schema      the message of this name in schema/avalon.proto
+#
+# A variant is one shape of the same message. "absent" sets nothing, "empty" sets
+# everything to a present-but-empty value, and the rest carry values chosen to make
+# a particular encoding decision observable.
+
+message SUnitHealedPacket
+
+variant absent
+  field 1 Healer : ulong = 0
+  field 2 Target : ulong = 0
+  field 3 Amount : uint = 0
+  field 4 CurrentHealth : uint = 0
+  field 5 AbilityId : uint? = null
+  field 6 Result : HitResult = None (0)
+  bytes 0
+
+variant empty
+  field 1 Healer : ulong = 0
+  field 2 Target : ulong = 0
+  field 3 Amount : uint = 0
+  field 4 CurrentHealth : uint = 0
+  field 5 AbilityId : uint? = 0
+  field 6 Result : HitResult = None (0)
+  bytes 2
+    28 00
+
+variant populated
+  field 1 Healer : ulong = 1000000
+  field 2 Target : ulong = 300
+  field 3 Amount : uint = 65535
+  field 4 CurrentHealth : uint = 1000000
+  field 5 AbilityId : uint? = 300
+  field 6 Result : HitResult = Blocked (4)
+  bytes 20
+    08 c0 84 3d 10 ac 02 18 ff ff 03 20 c0 84 3d 28
+    ac 02 30 04
+
+variant maxima
+  field 1 Healer : ulong = 18446744073709551615
+  field 2 Target : ulong = 18446744073709551615
+  field 3 Amount : uint = 4294967295
+  field 4 CurrentHealth : uint = 4294967295
+  field 5 AbilityId : uint? = 4294967295
+  field 6 Result : HitResult = Blocked (4)
+  bytes 42
+    08 ff ff ff ff ff ff ff ff ff 01 10 ff ff ff ff
+    ff ff ff ff ff 01 18 ff ff ff ff 0f 20 ff ff ff
+    ff 0f 28 ff ff ff ff 0f 30 04
+
+variant minima
+  field 1 Healer : ulong = 0
+  field 2 Target : ulong = 0
+  field 3 Amount : uint = 0
+  field 4 CurrentHealth : uint = 0
+  field 5 AbilityId : uint? = 0
+  field 6 Result : HitResult = None (0)
+  bytes 2
+    28 00
+
+variant varint-edges
+  field 1 Healer : ulong = 127
+  field 2 Target : ulong = 16383
+  field 3 Amount : uint = 128
+  field 4 CurrentHealth : uint = 16383
+  field 5 AbilityId : uint? = 16383
+  field 6 Result : HitResult = Crit, Blocked (5)
+  bytes 16
+    08 7f 10 ff 7f 18 80 01 20 ff 7f 28 ff 7f 30 05

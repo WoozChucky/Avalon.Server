@@ -160,6 +160,12 @@ public class CharacterEntity : ICharacter
         ? new AttackerCombat(Level, s.AttackDamage, s.AbilityDamage, s.CritPct, s.WeaponMin, s.WeaponMax)
         : new AttackerCombat(Level, 0, 0, 0f, 0, 0);
 
+    /// <summary>
+    /// The character sheet this character's client was last sent (#506), null before the first. World-side
+    /// and never saved: a new session starts with none, so it is sent the whole sheet again.
+    /// </summary>
+    public CharacterSheet? SheetSent { get; internal set; }
+
     /// <summary>What this character defends with (#506): armour, dodge and block, from the last stats refresh.</summary>
     internal DefenderCombat Defence => Stats is { } s
         ? new DefenderCombat(s.Armor, s.DodgePct, s.BlockPct)

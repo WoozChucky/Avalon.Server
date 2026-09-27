@@ -242,13 +242,13 @@ variant varint-edges
 variant float-specials
   field 1 Guid : ulong = 7
   field 2 Position : Vec3
-    field 1 X : float = 1.17549421E-38 (0x007fffff)
-    field 2 Y : float = 3.40282347E+38 (0x7f7fffff)
-    field 3 Z : float = NaN (0xffc00000)
+    field 1 X : float = NaN (0x7fc00001)
+    field 2 Y : float = Infinity (0x7f800000)
+    field 3 Z : float = -Infinity (0xff800000)
   field 3 Velocity : Vec3
-    field 1 X : float = 1.17549421E-38 (0x007fffff)
-    field 2 Y : float = 3.40282347E+38 (0x7f7fffff)
-    field 3 Z : float = NaN (0xffc00000)
+    field 1 X : float = NaN (0x7fc00001)
+    field 2 Y : float = Infinity (0x7f800000)
+    field 3 Z : float = -Infinity (0xff800000)
   field 4 Orientation : float? = 1.17549421E-38 (0x007fffff)
   field 5 MoveState : MoveState? = Running (2)
   field 6 Health : uint? = 7
@@ -268,9 +268,9 @@ variant float-specials
   field 20 CanInteract : bool? = true
   field 21 PvpEnabled : bool? = true
   bytes 100
-    08 07 12 0f 0d ff ff 7f 00 15 ff ff 7f 7f 1d 00
-    00 c0 ff 1a 0f 0d ff ff 7f 00 15 ff ff 7f 7f 1d
-    00 00 c0 ff 25 ff ff 7f 00 28 02 30 07 38 ac 02
+    08 07 12 0f 0d 01 00 c0 7f 15 00 00 80 7f 1d 00
+    00 80 ff 1a 0f 0d 01 00 c0 7f 15 00 00 80 7f 1d
+    00 00 80 ff 25 ff ff 7f 00 28 02 30 07 38 ac 02
     40 01 48 80 d0 ac f3 0e 50 c0 84 3d 58 ac 02 60
     01 68 c0 84 3d 70 07 78 ac 02 82 01 05 61 6c 70
     68 61 8d 01 ff ff 7f 7f 90 01 13 98 01 13 a0 01

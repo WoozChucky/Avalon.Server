@@ -490,6 +490,7 @@ enum NetworkPacketType {
    NetworkPacketType_SMSG_CHARACTER_ABILITIES = 12327;
    NetworkPacketType_SMSG_INVENTORY_SNAPSHOT = 12328;
    NetworkPacketType_SMSG_INVENTORY_UPDATE = 12329;
+   NetworkPacketType_SMSG_CHARACTER_STATS = 12330;
    NetworkPacketType_SMSG_MAP_TELEPORT = 12336;
    NetworkPacketType_SMSG_MAP_TRANSITION = 12337;
    NetworkPacketType_SMSG_CHUNK_LAYOUT = 12338;
@@ -518,6 +519,7 @@ enum NetworkPacketType {
    NetworkPacketType_SMSG_THREAT_LIST = 12553;
    NetworkPacketType_SMSG_ABILITY_FIRED = 12554;
    NetworkPacketType_SMSG_PVP_STATE = 12555;
+   NetworkPacketType_SMSG_UNIT_HEALED = 12556;
    NetworkPacketType_ERROR = -1;
 }
 enum NetworkProtocol {
@@ -646,6 +648,20 @@ message SCharacterListPacket {
 message SCharacterSelectedPacket {
    CharacterInfo Character = 1;
    MapInfo Map = 2;
+}
+message SCharacterStatsPacket {
+   uint32 Stamina = 1;
+   uint32 Strength = 2;
+   uint32 Agility = 3;
+   uint32 Intellect = 4;
+   uint32 Armor = 5;
+   uint32 AttackDamage = 6;
+   uint32 AbilityDamage = 7;
+   float CritPct = 8;
+   float DodgePct = 9;
+   float BlockPct = 10;
+   uint32 WeaponMin = 11;
+   uint32 WeaponMax = 12;
 }
 message SChatMessagePacket {
    uint64 AccountId = 1;
@@ -833,6 +849,14 @@ message SUnitDeathPacket {
 message SUnitFinishCastPacket {
    uint64 Caster = 1;
    uint32 AbilityId = 2;
+}
+message SUnitHealedPacket {
+   uint64 Healer = 1;
+   uint64 Target = 2;
+   uint32 Amount = 3;
+   uint32 CurrentHealth = 4;
+   optional uint32 AbilityId = 5;
+   HitResult Result = 6;
 }
 message SUnitRevivePacket {
    uint64 UnitGuid = 1;

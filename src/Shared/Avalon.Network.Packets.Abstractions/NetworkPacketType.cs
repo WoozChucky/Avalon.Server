@@ -116,6 +116,7 @@ public enum NetworkPacketType : short
     SMSG_CHARACTER_ABILITIES = 0x3027,
     SMSG_INVENTORY_SNAPSHOT = 0x3028,
     SMSG_INVENTORY_UPDATE = 0x3029,
+    SMSG_CHARACTER_STATS = 0x302A,
 
     // Map
     SMSG_MAP_TELEPORT    = 0x3030,
@@ -141,6 +142,7 @@ public enum NetworkPacketType : short
     SMSG_THREAT_LIST = 0x3109,
     SMSG_ABILITY_FIRED = 0x310A,
     SMSG_PVP_STATE = 0x310B,
+    SMSG_UNIT_HEALED = 0x310C,
 
 
     SMSG_PONG = 0x3006,
