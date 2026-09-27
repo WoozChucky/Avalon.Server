@@ -91,6 +91,65 @@ public sealed class ClientDistributionService(IDistributionStore store, IMemoryC
     }
 
     /// <summary>
+    /// Changelog entries the caller may read, newest first (homelab spec 2026-09-27-avalon-changelog-design §7):
+    /// server and launcher entries for everyone, client entries for the channels the caller may use. One
+    /// unreadable prefix is left out; when every prefix fails, the changelog is unavailable. Entries are
+    /// immutable, so each is read once; a listing is kept for a minute.
+    /// </summary>
+    public async Task<IReadOnlyList<ChangelogEntryDto>> ListChangelogAsync(AccountAccessLevel? caller, ChangelogQuery query, CancellationToken ct)
+    {
+        var prefixes = new List<string>();
+        if (query.Product is null or "server")
+            prefixes.Add("changelog/server/");
+        if (query.Product is null or "launcher")
+            prefixes.Add("changelog/launcher/");
+        if (query.Product is null or "client")
+            prefixes.AddRange(ChannelAccess.Visible(caller)
+                .Where(c => query.Channel is null || c == query.Channel)
+                .Select(c => $"changelog/client/{c.Wire()}/"));
+
+        var entries = new List<ChangelogEntryDto>();
+        int failed = 0;
+        foreach (string prefix in prefixes)
+        {
+            try
+            {
+                IReadOnlyList<StoredObject> listed =
+                    await Cached(("changelog-list", prefix), () => store.ListChangelogAsync(prefix, ct)) ?? [];
+                foreach (StoredObject obj in listed)
+                {
+                    if (await ChangelogEntryAsync(obj.Key, ct) is { } entry)
+                        entries.Add(entry);
+                }
+            }
+            catch (DistributionUnavailableException)
+            {
+                failed++;
+            }
+        }
+
+        if (prefixes.Count > 0 && failed == prefixes.Count)
+            throw new DistributionUnavailableException("The changelog is not available right now.");
+
+        return entries
+            .Where(e => query.Before is null || e.PublishedAt < query.Before)
+            .OrderByDescending(e => e.PublishedAt)
+            .Take(query.Limit)
+            .ToList();
+    }
+
+    /// <summary>An entry is immutable once published, so it is kept without expiry; a missing one is not kept.</summary>
+    private async Task<ChangelogEntryDto?> ChangelogEntryAsync(string key, CancellationToken ct)
+    {
+        if (cache.TryGetValue(("changelog-entry", key), out ChangelogEntryDto? hit))
+            return hit;
+        ChangelogEntryDto? entry = await store.GetChangelogEntryAsync(key, ct);
+        if (entry is not null)
+            cache.Set(("changelog-entry", key), entry);
+        return entry;
+    }
+
+    /// <summary>
     /// The current manifest of <paramref name="channel" />, or null when the caller may not use it
     /// or nothing is published there (both read as "not found", so a hidden channel is not revealed).
     /// </summary>
