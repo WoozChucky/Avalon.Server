@@ -62,6 +62,23 @@ public class AuthStartupValidationShould
         Assert.Contains("OnlineSweepIntervalSeconds", refused.Message, StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData("TcpKeepAliveTimeSeconds", "0")]
+    [InlineData("TcpKeepAliveIntervalSeconds", "-1")]
+    [InlineData("TcpKeepAliveRetryCount", "0")]
+    public async Task Refuse_to_start_with_a_tcp_keepalive_setting_below_one(string setting, string value)
+    {
+        using IHost host = await BuildAsync(new Dictionary<string, string?>(StringComparer.Ordinal)
+        {
+            ["Database:Auth:ConnectionString"] = Unreachable,
+            ["Hosting:" + setting] = value,
+        });
+
+        var refused = await Assert.ThrowsAsync<OptionsValidationException>(() => AuthStartup.PrepareAsync(host));
+
+        Assert.Contains(setting, refused.Message, StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task Give_the_auth_server_the_configured_online_sweep_interval()
     {
