@@ -87,10 +87,11 @@ public class CreatureCombatScript : AiScript
     private const float AttackCooldown = 2.25f; // Cooldown between attacks
 
     // How long a creature may go without any way to reach its target before it gives up and goes
-    // home, as it does past the leash (#606). "No way to reach" is the locomotion having nothing to
-    // walk while the creature is neither within attack range of the target nor at the spot it chose
-    // to stand (see Engage): HasArrived also means "no destination was reachable". Only an unbroken
-    // stretch counts; any tick in reach, at its spot or walking starts the count over.
+    // home, as it does past the leash (#606). "No way to reach" is decided from where the creature's
+    // route really ends (ICreatureLocomotion.ResolvedDestination), never from HasArrived: a partial
+    // route toward a target on a ledge or an island is walked like any other, so arrival flips on and
+    // off while the creature stands at its end. See RouteCanReach. Only an unbroken stretch counts;
+    // a tick in range or with a route that can reach starts the count over, as does a new target.
     private static readonly TimeSpan UnreachableGiveUpTime = TimeSpan.FromSeconds(5);
 
     private readonly ILogger<CreatureCombatScript> _logger;
@@ -352,14 +353,10 @@ public class CreatureCombatScript : AiScript
             AttackTarget(deltaTime);
         }
 
-        bool atDestination = Vector3.Distance(currentPosition, destination) <= DriftThreshold(hasSlot);
-
-        // No way to reach the target (#606): nothing left to walk, yet neither in reach nor at the spot
-        // it chose. A creature standing in its slot or at its stand-off point, or swinging and waiting
-        // out its cooldown, is never counted. Measured on this tick's arrival, before KeepStation asks
-        // for a new route: a route to the nearest reachable point can be walked in a tick and would
-        // otherwise start the count over every time.
-        _unreachableFor = hasArrived && !inRange && !atDestination
+        // No way to reach the target (#606). Read before KeepStation asks for a new route, so both
+        // locomotions answer for a route they have already planned: a crowd plans a new request only
+        // on its next Update.
+        _unreachableFor = !inRange && !RouteCanReach(targetPosition)
             ? _unreachableFor + deltaTime
             : TimeSpan.Zero;
 
@@ -367,12 +364,26 @@ public class CreatureCombatScript : AiScript
     }
 
     /// <summary>
-    /// How far a settled creature may stand from its destination and still count as on it: the
-    /// locomotion's arrival tolerance for a slot, <see cref="PathRecalculationThreshold" /> for a
-    /// stand-off point (see <see cref="KeepStation" />).
+    /// Whether the creature's current route can bring it within reach of <paramref name="targetPosition" />
+    /// (#606). It can when the route ends within attack range, plus the locomotion's arrival tolerance and
+    /// the margin, of the target, measured from the target rather than the slot: a slot against a wall
+    /// that the route cannot reach, but whose route ends within reach of the target, is reachable. It also
+    /// can when the route ends where it was asked to (within the arrival tolerance and the margin): the
+    /// plan is complete, only stale, and a stale plan is KeepStation's to redo once the target has moved
+    /// far enough, as for a surplus creature at its stand-off point after a small step of the target. No
+    /// route, or a partial one toward a ledge or an island, can reach neither.
     /// </summary>
-    private float DriftThreshold(bool hasSlot) =>
-        hasSlot ? Context.Locomotion.ArrivalTolerance(Creature) : PathRecalculationThreshold;
+    private bool RouteCanReach(Vector3 targetPosition)
+    {
+        if (Context.Locomotion.ResolvedDestination(Creature) is not { } routeEnd)
+        {
+            return false;
+        }
+
+        float tolerance = Context.Locomotion.ArrivalTolerance(Creature) + AttackRangeArrivalMargin;
+        return Vector3.Distance(routeEnd, targetPosition) <= AttackRange + tolerance
+               || Vector3.Distance(routeEnd, _lastRequestedDestination) <= tolerance;
+    }
 
     /// <summary>
     /// Where this creature should stand to fight <paramref name="target" />. Returns whether it holds a
@@ -443,7 +454,7 @@ public class CreatureCombatScript : AiScript
         // the destination and is reserved for actually disengaging (leash, target switch, target
         // lost), not for "close enough to hit right now."
         bool stillWalking = !hasArrived;
-        float driftThreshold = DriftThreshold(hasSlot);
+        float driftThreshold = hasSlot ? Context.Locomotion.ArrivalTolerance(Creature) : PathRecalculationThreshold;
         bool settledOffDestination = !stillWalking && Vector3.Distance(currentPosition, destination) > driftThreshold;
         bool destinationDrifted = stillWalking &&
             Vector3.Distance(_lastRequestedDestination, destination) > PathRecalculationThreshold;

@@ -1207,12 +1207,12 @@ public class CreatureCombatScriptShould
     // #606: a target the creature can never reach used to hold it in Combat for good.
 
     /// <summary>
-    /// #606: locomotion has nothing to walk (no route exists) while the target stays out of reach, so
+    /// #606: the locomotion finds no route at all while the target stays out of reach, so
     /// after the unreachable limit (5 s) the creature gives up as it does past the leash: slot released,
     /// target dropped, home at full health.
     /// </summary>
     [Fact]
-    public void Go_Home_When_Its_Target_Stays_Unreachable_Past_The_Limit()
+    public void Go_Home_When_No_Route_To_Its_Target_Exists_Past_The_Limit()
     {
         var locomotion = Substitute.For<ICreatureLocomotion>();
         var combat = Substitute.For<ICombatService>();
@@ -1268,8 +1268,9 @@ public class CreatureCombatScriptShould
     }
 
     /// <summary>
-    /// #606: a surplus creature (every slot taken) settled at its stand-off point is where it should be
-    /// too, and never sent home for that.
+    /// #606: a surplus creature (every slot taken) settled at its stand-off point, with a route that
+    /// ended where it asked, is not sent home when the target steps a little away: the plan is stale,
+    /// not unreachable, and re-planning it is KeepStation's job once the target has moved far enough.
     /// </summary>
     [Fact]
     public void Never_Give_Up_While_Standing_At_Its_Stand_Off_Point()
@@ -1278,35 +1279,87 @@ public class CreatureCombatScriptShould
         (CreatureCombatScript script, ICreature creature, ICharacter target) =
             BuildChasingScript(locomotion, targetAt: new Vector3(20f, 0f, 0f));
         ClaimEverySlot(target);
-        creature.Position.Returns(new Vector3(18.6f, 0f, 0f));
+        Vector3? routeEnd = null;
+        locomotion.When(l => l.MoveTo(creature, Arg.Any<Vector3>())).Do(ci => routeEnd = ci.ArgAt<Vector3>(1));
+        locomotion.ResolvedDestination(creature).Returns(_ => routeEnd);
+        script.Update(TimeSpan.FromSeconds(0.1)); // plans the walk to its stand-off point
+        Assert.NotNull(routeEnd);
+        creature.Position.Returns(routeEnd!.Value);
 
+        target.Position.Returns(new Vector3(21f, 0f, 0f)); // 2.4 m away: out of range, no re-plan yet
         for (int i = 0; i < 200; i++)
             script.Update(TimeSpan.FromSeconds(0.1));
 
         Assert.Equal((object)CreatureCombatScript.CombatState.Combat, script.State);
     }
 
+    // #606 over the real WaypointLocomotion, with only the navigator faked. The navigator returns a
+    // partial route for anything near the target, the way MapNavigator does for a target on a ledge
+    // or an island within its polygon search box: a path of two or more points that ends short.
+    // Walking to its end makes HasArrived flip every other tick, which is why the rule reads where the
+    // route ends instead.
+
+    /// <summary>A route whose end is fixed short of the target, however often it is asked for.</summary>
+    [Fact]
+    public void Go_Home_Within_The_Limit_When_Its_Route_Only_Ever_Ends_Short_Of_The_Target()
+    {
+        var fight = new WaypointFight(targetAt: new Vector3(10f, 0f, 0f), routeEndNearTarget: new Vector3(5f, 0f, 0f));
+        fight.Creature.CurrentHealth = 30;
+
+        int ticks = fight.TicksUntilReturning(limit: 70);
+
+        Assert.InRange(ticks, 49, 55);
+        Assert.Equal(100u, fight.Creature.CurrentHealth);
+        Assert.True(fight.Slots.TryClaim(fight.Target.Guid, new ObjectGuid(ObjectType.Creature, 99),
+            fight.Target.Position, fight.Target.Position, out _));
+        fight.Combat.DidNotReceiveWithAnyArgs().ApplyDamage(default!, default!, default);
+    }
+
     /// <summary>
-    /// #606: the limit counts only an unbroken stretch without a route. A tick with a route again (the
-    /// locomotion walking) starts the count over, so the creature keeps fighting.
+    /// A slot the route cannot reach (against a wall, say), whose route still ends within reach of the
+    /// target: the creature fights from there, and is never sent home.
     /// </summary>
+    [Fact]
+    public void Never_Give_Up_When_Its_Route_Ends_Within_Reach_Of_The_Target_Short_Of_Its_Slot()
+    {
+        var fight = new WaypointFight(targetAt: new Vector3(10f, 0f, 0f), routeEndNearTarget: new Vector3(10f, 0f, 1.6f));
+
+        int ticks = fight.TicksUntilReturning(limit: 200);
+
+        Assert.Equal(-1, ticks);
+        fight.Combat.ReceivedWithAnyArgs(Quantity.AtLeastOne()).ApplyDamage(default!, default!, default);
+    }
+
+    /// <summary>A route that can reach again before the limit starts the count over.</summary>
     [Fact]
     public void Keep_Fighting_When_Its_Target_Becomes_Reachable_Again_Before_The_Limit()
     {
-        var locomotion = Substitute.For<ICreatureLocomotion>();
-        (CreatureCombatScript script, ICreature creature, _) =
-            BuildChasingScript(locomotion, targetAt: new Vector3(20f, 0f, 0f));
-        creature.Position.Returns(new Vector3(3f, 0f, 0f));
+        var fight = new WaypointFight(targetAt: new Vector3(10f, 0f, 0f), routeEndNearTarget: new Vector3(5f, 0f, 0f));
 
-        for (int i = 0; i < 40; i++)
-            script.Update(TimeSpan.FromSeconds(0.1)); // 4 s with no route
-        locomotion.HasArrived(creature).Returns(false);
-        script.Update(TimeSpan.FromSeconds(0.1));      // a route again: walking
-        locomotion.HasArrived(creature).Returns(true);
-        for (int i = 0; i < 40; i++)
-            script.Update(TimeSpan.FromSeconds(0.1)); // another 4 s with no route
+        Assert.Equal(-1, fight.TicksUntilReturning(limit: 40));   // 4 s short of the target
+        fight.RouteEndNearTarget = null;                           // a way through: full routes
+        Assert.Equal(-1, fight.TicksUntilReturning(limit: 5));
+        fight.RouteEndNearTarget = new Vector3(5f, 0f, 0f);        // cut off again
+        Assert.Equal(-1, fight.TicksUntilReturning(limit: 40));   // another 4 s
 
-        Assert.Equal((object)CreatureCombatScript.CombatState.Combat, script.State);
+        Assert.Equal((object)CreatureCombatScript.CombatState.Combat, fight.Script.State);
+    }
+
+    /// <summary>A change of target starts the count over; the new target then gets the whole limit.</summary>
+    [Fact]
+    public void Start_The_Count_Over_On_A_Change_Of_Target()
+    {
+        var fight = new WaypointFight(targetAt: new Vector3(10f, 0f, 0f), routeEndNearTarget: new Vector3(5f, 0f, 0f));
+        ICharacter second = Substitute.For<ICharacter>();
+        second.Guid.Returns(new ObjectGuid(ObjectType.Character, 2));
+        second.Position.Returns(new Vector3(10f, 0f, 1f));
+        second.IsDead.Returns(false);
+
+        Assert.Equal(-1, fight.TicksUntilReturning(limit: 40));   // 4 s on the first target
+        fight.Script.OnHit(second, 1);                             // switches to the second
+        Assert.Equal(-1, fight.TicksUntilReturning(limit: 40));   // 4 s on the second: still fighting
+
+        Assert.InRange(fight.TicksUntilReturning(limit: 20), 1, 15);
     }
 
     /// <summary>
@@ -1350,6 +1403,82 @@ public class CreatureCombatScriptShould
         Assert.Equal(100u, creature.CurrentHealth);
         Assert.Equal((object)CreatureCombatScript.CombatState.Returning, script.State);
         locomotion.DidNotReceiveWithAnyArgs().MoveTo(default!, default);
+    }
+
+    /// <summary>
+    /// One creature fighting over the real <see cref="WaypointLocomotion" />, with only the navigator
+    /// faked (#606). A destination within 3 m of the target is answered with a route ending at
+    /// <see cref="RouteEndNearTarget" /> when that is set; every other destination, and every one when it
+    /// is null, with a full route. The creature starts at the origin, its home.
+    /// </summary>
+    private sealed class WaypointFight
+    {
+        public WaypointFight(Vector3 targetAt, Vector3? routeEndNearTarget)
+        {
+            RouteEndNearTarget = routeEndNearTarget;
+            var navigator = Substitute.For<IMapNavigator>();
+            navigator.FindPath(Arg.Any<Vector3>(), Arg.Any<Vector3>()).Returns(ci =>
+            {
+                Vector3 from = ci.ArgAt<Vector3>(0);
+                Vector3 to = ci.ArgAt<Vector3>(1);
+                Vector3 end = RouteEndNearTarget is { } shortEnd && Vector3.Distance(to, Target.Position) < 3f
+                    ? shortEnd
+                    : to;
+                return SmoothedPath(from, end);
+            });
+            Locomotion = new WaypointLocomotion(_ => navigator);
+
+            Creature.Guid.Returns(new ObjectGuid(ObjectType.Creature, 1));
+            Creature.Position = Vector3.zero;
+            Creature.TauntedBy = null;
+            Creature.TauntExpiresAt = DateTime.MinValue;
+            var metadata = Substitute.For<ICreatureMetadata>();
+            metadata.SpeedRun.Returns(4f);
+            Creature.Metadata.Returns(metadata);
+            Creature.Health.Returns(100u);
+            Creature.CurrentHealth = 100;
+            Creature.DamageMin.Returns(1u);
+            Creature.DamageMax.Returns(1u);
+
+            Target.Guid.Returns(new ObjectGuid(ObjectType.Character, 1));
+            Target.Position.Returns(targetAt);
+            Target.IsDead.Returns(false);
+
+            Combat.GetEncounterFor(Creature).Returns((IEncounter?)null);
+            var context = Substitute.For<ISimulationContext>();
+            context.CombatService.Returns(Combat);
+            context.Locomotion.Returns(Locomotion);
+            context.MeleeSlots.Returns(Slots);
+
+            Locomotion.Register(Creature, radius: 0.5f);
+            Script = new CreatureCombatScript(NullLoggerFactory.Instance, Creature, context);
+            Script.OnEnteredRange(Target);
+        }
+
+        public Vector3? RouteEndNearTarget { get; set; }
+        public WaypointLocomotion Locomotion { get; }
+        public ICreature Creature { get; } = Substitute.For<ICreature>();
+        public ICharacter Target { get; } = Substitute.For<ICharacter>();
+        public ICombatService Combat { get; } = Substitute.For<ICombatService>();
+        public MeleeSlots Slots { get; } = new(6, radius: 1.5f);
+        public CreatureCombatScript Script { get; }
+
+        /// <summary>
+        /// Runs up to <paramref name="limit" /> ticks of 0.1 s, script then locomotion as MapInstance does,
+        /// and returns the tick (from 1) after which the creature was Returning, or -1 if it never was.
+        /// </summary>
+        public int TicksUntilReturning(int limit)
+        {
+            for (int i = 1; i <= limit; i++)
+            {
+                Script.Update(TimeSpan.FromSeconds(0.1));
+                if (Script.State is CreatureCombatScript.CombatState.Returning)
+                    return i;
+                Locomotion.Update(TimeSpan.FromSeconds(0.1));
+            }
+
+            return -1;
+        }
     }
 
     private static List<Vector3> SmoothedPath(Vector3 from, Vector3 to)
