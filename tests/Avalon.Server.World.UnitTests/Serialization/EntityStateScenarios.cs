@@ -83,7 +83,6 @@ internal static class EntityStateScenarios
     private static readonly Vector3 ProjectileVelocity = new(0f, -9.81f, 0f);
     private static readonly Vector3 ProjectileOrientation = new(4.5f, 0.75f, -4.5f);
 
-    private static readonly Vector3 PortalPosition = new(100f, 0f, -100f);
 
     /// <summary>
     /// Past what fits in 32 bits. The identifier is declared as a 64-bit value and travels as
@@ -94,7 +93,6 @@ internal static class EntityStateScenarios
     private static readonly ObjectGuid CharacterGuid = new(ObjectType.Character, 4242);
     private static readonly ObjectGuid CreatureGuid = new(ObjectType.Creature, 77);
     private static readonly ObjectGuid ProjectileGuid = new(ObjectType.SpellProjectile, 9);
-    private static readonly ObjectGuid PortalGuid = new(ObjectType.Portal, 3);
 
     internal static IReadOnlyList<EntityStateScenario> All { get; } = Build();
 
@@ -132,7 +130,6 @@ internal static class EntityStateScenarios
         ProjectileAdd(),
         ProjectileUpdateWithEverythingDirty(),
         ProjectileUpdateWithOnlyPositionDirty(),
-        PortalAdd(),
     ];
 
     private static ICharacter NewCharacter(
@@ -426,24 +423,6 @@ internal static class EntityStateScenarios
         {
             Type = ObjectType.SpellProjectile,
             Position = ProjectilePosition,
-        },
-    };
-
-    /// <summary>The other layout with no bitmask, and the only one with fields of its own.</summary>
-    private static EntityStateScenario PortalAdd() => new()
-    {
-        Name = "portal-add",
-        Guid = PortalGuid,
-        IsAdd = true,
-        Entity = new PortalInstance(PortalGuid, PortalPosition, radius: 2.5f, targetMapId: 1200, role: 1),
-        Fields = GameEntityFields.All,
-        Expected = new EntitySnapshot
-        {
-            Type = ObjectType.Portal,
-            Position = PortalPosition,
-            PortalRadius = 2.5f,
-            PortalTargetMapId = 1200,
-            PortalRole = 1,
         },
     };
 

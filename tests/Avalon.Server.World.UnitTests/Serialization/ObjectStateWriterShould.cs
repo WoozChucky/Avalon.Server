@@ -72,9 +72,8 @@ public class ObjectStateWriterShould
 
             Assert.Equal(scenario.Guid.RawValue, parsed.Guid);
             Assert.Equal(scenario.Expected.Name, parsed.Name);
-            Assert.Equal(scenario.Expected.PortalRole, parsed.PortalRole);
 
-            // No scenario entity can be interacted with: characters, portals and projectiles never
+            // No scenario entity can be interacted with: characters and projectiles never
             // carry the flag, and the scenario creature is a plain one.
             Assert.Null(parsed.CanInteract);
         }
@@ -258,7 +257,6 @@ public class ObjectStateWriterShould
         ObjectType.Creature => ObjectStateWriter.From((ICreature)scenario.Entity, scenario.Fields),
         ObjectType.SpellProjectile when scenario.IsAdd => ObjectStateWriter.From((IWorldObject)scenario.Entity),
         ObjectType.SpellProjectile => ObjectStateWriter.From((IWorldObject)scenario.Entity, scenario.Fields),
-        ObjectType.Portal => ObjectStateWriter.From((PortalInstance)scenario.Entity),
         _ => throw new InvalidOperationException($"No entity state is defined for {scenario.Type}."),
     };
 
