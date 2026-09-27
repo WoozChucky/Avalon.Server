@@ -239,6 +239,32 @@ public class MapInstanceLootShould
             Assert.Equal(guids.Select(g => g.RawValue), Assert.Single(Despawned(client)).LootGuids);
     }
 
+    /// <summary>
+    /// #593 non-goal: loot is not filtered by the interest range. A character far beyond it still hears
+    /// a kill's drops, is sent the drops already there when it enters, and hears them leave.
+    /// </summary>
+    [Fact]
+    public async Task Still_Send_Far_Loot_To_Everyone_In_The_Instance()
+    {
+        using MapInstance instance = await Build();
+        MapInstanceClient far = Join(instance, 460_121);
+        far.Character.Position = new Vector3(500f, 0f, 500f);
+        instance.Update(Tick);
+
+        Kill(instance, 460_001);
+        MapInstanceClient farLate = Join(instance, 460_122);
+        farLate.Character.Position = new Vector3(-500f, 0f, 0f);
+        instance.Update(Tick);
+        ObjectGuid[] guids = instance.Drops.All.Select(d => d.Guid).ToArray();
+        instance.BroadcastLootDespawned(guids);
+
+        foreach (MapInstanceClient client in new[] { far, farLate })
+        {
+            Assert.Equal(2, Assert.Single(Spawned(client)).Drops.Count);
+            Assert.Equal(guids.Select(g => g.RawValue), Assert.Single(Despawned(client)).LootGuids);
+        }
+    }
+
     [Fact]
     public async Task Remove_Every_Drop_When_The_Instance_Is_Disposed()
     {
