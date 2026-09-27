@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using Avalon.Server.World.UnitTests.Loot;
 using Avalon.World.Combat;
 using Avalon.World.Entities;
 using Avalon.World.Public.Abilities;
@@ -936,6 +937,206 @@ public class CombatServiceShould
         enc.GetThreatList(returning).TryGetValue(healer, out float onReturning);
         Assert.Equal(0f, onReturning);
         Assert.Equal(50.0f, enc.GetThreatList(fighting)[healer], 3);
+    }
+
+    // ── #614: the combat clock, and nothing carried over the walk home ──
+
+    [Fact]
+    public void Time_a_taunt_by_the_services_clock()
+    {
+        var clock = new FixedTimeProvider(new DateTimeOffset(2001, 1, 1, 12, 0, 0, TimeSpan.Zero));
+        var cfg = new CombatConfig();
+        var reg = new EncounterRegistry(cfg, clock);
+        var svc = new CombatService(cfg, reg, Substitute.For<ISimulationContext>(), time: clock);
+        var tank = StubCharacter(CharacterClass.Warrior);
+        var creature = StubCreature();
+        svc.EnterCombat(creature, tank);
+
+        svc.ApplyTaunt(tank, creature, 3000);
+
+        Assert.Same(tank, creature.TauntedBy);
+        Assert.Equal(clock.Now.UtcDateTime.AddMilliseconds(3000), creature.TauntExpiresAt);
+    }
+
+    /// <summary>
+    /// Threat decays by the tick's delta; the time-based part of an encounter, its end once no hostile
+    /// is left and the grace has passed since the last damage, follows the registry's clock.
+    /// </summary>
+    [Fact]
+    public void End_an_encounter_by_its_clock_once_the_grace_has_passed()
+    {
+        var clock = new FixedTimeProvider(new DateTimeOffset(2001, 1, 1, 12, 0, 0, TimeSpan.Zero));
+        var cfg = new CombatConfig { EncounterEndGraceSeconds = 5f };
+        var reg = new EncounterRegistry(cfg, clock);
+        var svc = new CombatService(cfg, reg, Substitute.For<ISimulationContext>(), time: clock);
+        var creature = StubCreature();
+        var player = StubCharacter(CharacterClass.Warrior);
+        svc.ApplyDamage(player, creature, 10);
+        ((Encounter)reg.Active.Single()).OnParticipantDied(creature);
+
+        clock.Now = clock.Now.AddSeconds(4);
+        svc.Update(TimeSpan.Zero);
+        Assert.Single(reg.Active);
+
+        clock.Now = clock.Now.AddSeconds(1);
+        svc.Update(TimeSpan.Zero);
+        Assert.Empty(reg.Active);
+    }
+
+    [Fact]
+    public void Not_pull_a_creature_that_is_returning_home_into_combat()
+    {
+        var (svc, reg, ctx) = BuildServiceWithContext();
+        Creature creature = CreatureReturningHome(ctx, nameof(CreatureCombatScript), health: 30);
+
+        svc.EnterCombat(creature, StubCharacter(CharacterClass.Warrior));
+
+        Assert.Empty(reg.Active);
+    }
+
+    [Fact]
+    public void Not_taunt_a_creature_that_is_returning_home()
+    {
+        var (svc, reg, ctx) = BuildServiceWithContext();
+        var (creature, script) = CreatureWithCombatScript(ctx, health: 30);
+        var puller = StubCharacter(CharacterClass.Hunter);
+        script.OnEnteredRange(puller);
+        svc.EnterCombat(creature, puller);
+        script.OnCharacterLeft(puller); // Returning, still in the encounter it fought in
+
+        var tank = StubCharacter(CharacterClass.Warrior);
+        svc.ApplyTaunt(tank, creature, 3000);
+
+        Assert.Null(creature.TauntedBy);
+        var enc = (Encounter)reg.Active.Single();
+        Assert.DoesNotContain(tank, enc.Players);
+        Assert.False(enc.GetThreatList(creature).ContainsKey(tank));
+    }
+
+    /// <summary>
+    /// Home and reset, the creature leaves its encounter: nothing from before the leash, not even the
+    /// seeded threat of a player it swung at, steers its next fight. The player it fought and the other
+    /// creature they still fight stay in that encounter, their threat untouched.
+    /// </summary>
+    [Fact]
+    public void Leave_its_encounter_once_home_so_its_next_fight_starts_clean()
+    {
+        var cfg = new CombatConfig();
+        var reg = new EncounterRegistry(cfg);
+        var ctx = Substitute.For<ISimulationContext>();
+        var svc = new CombatService(cfg, reg, ctx);
+        ctx.CombatService.Returns(svc);
+        var slots = Substitute.For<IMeleeSlots>();
+        ctx.MeleeSlots.Returns(slots);
+        var home = new Avalon.Common.Mathematics.Vector3(5f, 0f, 5f);
+        var creature = new Creature
+        {
+            Guid          = new Avalon.Common.ObjectGuid(Avalon.Common.ObjectType.Creature, 614),
+            Metadata      = Substitute.For<ICreatureMetadata>(),
+            Name          = "Wolf",
+            Health        = 30,
+            CurrentHealth = 30,
+            Position      = home,
+        };
+        var script = new CreatureCombatScript(NullLoggerFactory.Instance, creature, ctx);
+        creature.Script = script;
+
+        ICharacter fought = StubCharacter(CharacterClass.Warrior);
+        fought.Guid.Returns(new Avalon.Common.ObjectGuid(Avalon.Common.ObjectType.Character, 1));
+        fought.Position.Returns(home);
+        script.OnEnteredRange(fought);
+        svc.ApplyDamage(creature, fought, 5);       // it swung at the player: seeded threat
+        var other = StubCreature();
+        svc.ApplyDamage(fought, other, 10);         // the player also fights another creature
+        var enc = (Encounter)reg.FindEncounterContaining(fought)!;
+        float threatOnOther = enc.GetThreatList(other)[fought];
+
+        creature.Position = home + new Avalon.Common.Mathematics.Vector3(50f, 0f, 0f);
+        script.Update(TimeSpan.FromSeconds(0.1));   // past the leash: Returning
+        creature.Position = home;
+        script.Update(TimeSpan.FromSeconds(0.1));   // home: reset to idle
+        Assert.Equal((object)CreatureCombatScript.CombatState.None, script.State);
+
+        Assert.Null(reg.FindEncounterContaining(creature));
+        Assert.DoesNotContain(creature, enc.Hostiles);
+        Assert.Contains(other, enc.Hostiles);
+        Assert.Contains(fought, enc.Players);
+        Assert.Equal(threatOnOther, enc.GetThreatList(other)[fought]);
+        Assert.Same(enc, reg.FindEncounterContaining(fought));
+
+        ICharacter puller = StubCharacter(CharacterClass.Hunter);
+        puller.Guid.Returns(new Avalon.Common.ObjectGuid(Avalon.Common.ObjectType.Character, 2));
+        puller.Position.Returns(home);
+        slots.ClearReceivedCalls();
+        script.OnEnteredRange(puller);
+        script.Update(TimeSpan.FromSeconds(0.1));
+
+        slots.ReceivedWithAnyArgs().TryClaim(default!, default!, default!, default!, out _);
+        foreach (var call in slots.ReceivedCalls().Where(c => c.GetMethodInfo().Name == nameof(IMeleeSlots.TryClaim)))
+            Assert.Equal(puller.Guid, call.GetArguments()[0]);
+    }
+
+    /// <summary>
+    /// ICombatService is the modding API, reachable by every AI script: a way to take a creature out of
+    /// its encounter there would let a mod keep any creature from ever holding threat (#614).
+    /// </summary>
+    [Fact]
+    public void Offer_no_way_to_drop_a_hostile_from_its_encounter_on_the_modding_api()
+    {
+        Assert.DoesNotContain(typeof(ICombatService).GetMembers(),
+            m => m.Name.Contains("Hostile", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// A creature that snaps home mid-taunt forgets the taunt at the reset, so the old taunter does not
+    /// hold its next fight (#614).
+    /// </summary>
+    [Fact]
+    public void Forget_a_taunt_once_home_so_its_next_fight_goes_to_whoever_pulls_it()
+    {
+        var clock = new FixedTimeProvider(new DateTimeOffset(2001, 1, 1, 12, 0, 0, TimeSpan.Zero));
+        var cfg = new CombatConfig();
+        var reg = new EncounterRegistry(cfg, clock);
+        var ctx = Substitute.For<ISimulationContext>();
+        var svc = new CombatService(cfg, reg, ctx, time: clock);
+        ctx.CombatService.Returns(svc);
+        var slots = Substitute.For<IMeleeSlots>();
+        ctx.MeleeSlots.Returns(slots);
+        var home = new Avalon.Common.Mathematics.Vector3(5f, 0f, 5f);
+        var creature = new Creature
+        {
+            Guid          = new Avalon.Common.ObjectGuid(Avalon.Common.ObjectType.Creature, 614),
+            Metadata      = Substitute.For<ICreatureMetadata>(),
+            Name          = "Wolf",
+            Health        = 30,
+            CurrentHealth = 30,
+            Position      = home,
+        };
+        var script = new CreatureCombatScript(NullLoggerFactory.Instance, creature, ctx, clock);
+        creature.Script = script;
+
+        ICharacter tank = StubCharacter(CharacterClass.Warrior);
+        tank.Guid.Returns(new Avalon.Common.ObjectGuid(Avalon.Common.ObjectType.Character, 1));
+        tank.Position.Returns(home);
+        script.OnEnteredRange(tank);
+        svc.EnterCombat(creature, tank);
+        svc.ApplyTaunt(tank, creature, 60_000);
+        script.OnCharacterLeft(tank);             // Returning, the taunt still running by the clock
+        script.Update(TimeSpan.FromSeconds(0.1)); // home: reset to idle
+
+        Assert.Null(creature.TauntedBy);
+        Assert.Equal(DateTime.MinValue, creature.TauntExpiresAt);
+
+        ICharacter puller = StubCharacter(CharacterClass.Hunter);
+        puller.Guid.Returns(new Avalon.Common.ObjectGuid(Avalon.Common.ObjectType.Character, 2));
+        puller.Position.Returns(home);
+        slots.ClearReceivedCalls();
+        script.OnEnteredRange(puller);
+        script.Update(TimeSpan.FromSeconds(0.1));
+
+        slots.ReceivedWithAnyArgs().TryClaim(default!, default!, default!, default!, out _);
+        foreach (var call in slots.ReceivedCalls().Where(c => c.GetMethodInfo().Name == nameof(IMeleeSlots.TryClaim)))
+            Assert.Equal(puller.Guid, call.GetArguments()[0]);
     }
 
     /// <summary>

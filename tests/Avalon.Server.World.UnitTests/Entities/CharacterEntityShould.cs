@@ -26,6 +26,24 @@ public class CharacterEntityShould
         return entity;
     }
 
+    /// <summary>
+    /// The combat tag lasts by the entity's clock, the instance's (#614), not the wall clock: the
+    /// clock sits years from now, and only it moves.
+    /// </summary>
+    [Fact]
+    public void Stay_in_combat_by_its_clock_until_the_leave_delay_has_passed()
+    {
+        var clock = new Avalon.Server.World.UnitTests.Loot.FixedTimeProvider(new DateTimeOffset(2001, 1, 1, 12, 0, 0, TimeSpan.Zero));
+        var config = new RegenConfiguration();
+        var entity = new CharacterEntity(NullLoggerFactory.Instance, new Character { Id = 1u, Health = 100 }, config, clock);
+
+        entity.MarkCombat();
+        Assert.True(entity.IsInCombat);
+
+        clock.Now = clock.Now.AddSeconds(config.CombatLeaveDelaySeconds);
+        Assert.False(entity.IsInCombat);
+    }
+
     [Fact]
     public void Mark_IsDead_dirty_when_setter_flips_true()
     {

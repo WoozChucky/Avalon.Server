@@ -38,6 +38,9 @@ public class CharacterEntity : ICharacter
     // Combat state
     private DateTime _lastCombatTime = DateTime.MinValue;
 
+    // The container's clock (#614): the combat tag and the cast-regen suppression time by it.
+    private readonly TimeProvider _time = TimeProvider.System;
+
     public CharacterEntity()
     {
         _logger = null!;
@@ -48,9 +51,11 @@ public class CharacterEntity : ICharacter
         _regenConfig = new RegenConfiguration();
     }
 
+    /// <param name="time">The container's clock, the one the instance and combat time by (#614).</param>
     public CharacterEntity(ILoggerFactory loggerFactory, Character character,
-        RegenConfiguration regenConfig)
+        RegenConfiguration regenConfig, TimeProvider? time = null)
     {
+        _time = time ?? TimeProvider.System;
         _logger = loggerFactory.CreateLogger<CharacterEntity>();
         Data = character;
         _equipment = new CharacterInventoryContainer(loggerFactory, InventoryType.Equipment);
@@ -116,7 +121,7 @@ public class CharacterEntity : ICharacter
 
     public bool IsInCombat =>
         _lastCombatTime != DateTime.MinValue &&
-        (DateTime.UtcNow - _lastCombatTime).TotalSeconds < _regenConfig.CombatLeaveDelaySeconds;
+        (_time.GetUtcNow().UtcDateTime - _lastCombatTime).TotalSeconds < _regenConfig.CombatLeaveDelaySeconds;
 
     public ICharacterGameState CharacterGameState { get; }
 
@@ -288,7 +293,7 @@ public class CharacterEntity : ICharacter
         return dirty;
     }
 
-    public void MarkCombat() => _lastCombatTime = DateTime.UtcNow;
+    public void MarkCombat() => _lastCombatTime = _time.GetUtcNow().UtcDateTime;
 
     public void OnHit(IUnit attacker, uint damage) => OnHit(attacker, damage, abilityId: null);
 
@@ -455,7 +460,7 @@ public class CharacterEntity : ICharacter
         // Track cast-suppression window: as long as a spell is casting, keep refreshing the timer.
         if (Spells.IsCasting)
         {
-            _lastCastTime = DateTime.UtcNow;
+            _lastCastTime = _time.GetUtcNow().UtcDateTime;
         }
 
         float dt = (float)deltaTime.TotalSeconds;
@@ -475,7 +480,7 @@ public class CharacterEntity : ICharacter
         {
             bool castSuppressed =
                 _lastCastTime != DateTime.MinValue &&
-                (DateTime.UtcNow - _lastCastTime).TotalSeconds < _regenConfig.PowerRegenCastSuppressSeconds;
+                (_time.GetUtcNow().UtcDateTime - _lastCastTime).TotalSeconds < _regenConfig.PowerRegenCastSuppressSeconds;
 
             if (!castSuppressed)
             {

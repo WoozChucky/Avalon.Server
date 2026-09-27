@@ -9,17 +9,22 @@ namespace Avalon.World.Combat;
 public sealed class Encounter : IEncounter
 {
     private readonly CombatConfig _config;
+    private readonly TimeProvider _time;
     private readonly HashSet<IUnit> _hostiles = new();
     private readonly HashSet<IUnit> _players  = new();
     private readonly Dictionary<IUnit, Dictionary<IUnit, float>> _threat = new();
 
-    public Encounter(CombatConfig config)
+    /// <param name="time">The instance's clock, the one the rest of the world times by (#614).</param>
+    public Encounter(CombatConfig config, TimeProvider? time = null)
     {
         _config        = config;
+        _time          = time ?? TimeProvider.System;
         Id             = Guid.NewGuid();
-        SpawnedAt      = DateTime.UtcNow;
-        LastDamageTime = DateTime.UtcNow;
+        SpawnedAt      = Now;
+        LastDamageTime = Now;
     }
+
+    private DateTime Now => _time.GetUtcNow().UtcDateTime;
 
     public Guid     Id             { get; }
     public DateTime SpawnedAt      { get; }
@@ -83,7 +88,18 @@ public sealed class Encounter : IEncounter
             return;
         list.TryGetValue(attacker, out var cur);
         list[attacker] = cur + amount;
-        LastDamageTime = DateTime.UtcNow;
+        LastDamageTime = Now;
+    }
+
+    /// <summary>
+    /// Takes <paramref name="hostile" /> out of the encounter with its threat list (#614). The players
+    /// stay, with their threat on every other hostile; an encounter left with no hostile ends after its
+    /// grace, as it does after a kill.
+    /// </summary>
+    public void RemoveHostile(IUnit hostile)
+    {
+        if (_hostiles.Remove(hostile))
+            _threat.Remove(hostile);
     }
 
     public void OnParticipantDied(IUnit unit)
@@ -112,7 +128,7 @@ public sealed class Encounter : IEncounter
         }
 
         bool noHostiles = _hostiles.Count == 0;
-        bool pastGrace  = (DateTime.UtcNow - LastDamageTime).TotalSeconds >= _config.EncounterEndGraceSeconds;
+        bool pastGrace  = (Now - LastDamageTime).TotalSeconds >= _config.EncounterEndGraceSeconds;
         ShouldEnd = noHostiles && pastGrace;
     }
 }
