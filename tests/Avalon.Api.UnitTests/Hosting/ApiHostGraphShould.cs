@@ -1,6 +1,7 @@
 using Avalon.Api;
 using Avalon.Api.Authentication.Jwt;
 using Avalon.Api.Config;
+using Avalon.Api.Worlds;
 using Avalon.Configuration;
 using Avalon.Hosting;
 using Avalon.Infrastructure.Configuration;
@@ -46,5 +47,42 @@ public class ApiHostGraphShould
         ServiceProvider provider = services.BuildServiceProvider(AvalonServiceProvider.Options);
 
         Assert.NotNull(provider);
+    }
+
+    /// <summary>
+    /// The api's context factories are the per-request world ones, not a single database's (#523):
+    /// a regression to AddWorldDatabase() would silently serve one world everywhere.
+    /// </summary>
+    [Fact]
+    public void Open_the_requests_world_for_every_repository()
+    {
+        ApplicationConfig config = new()
+        {
+            Environment = new EnvironmentConfig(),
+            Authentication = new AuthenticationConfig { IssuerSigningKey = new string('k', 64) },
+            Notification = new NotificationConfig(),
+            Cache = new CacheConfiguration(),
+        };
+        ServiceCollection services = new();
+        services.AddLogging();
+        // WorldDatabases is built from configuration when first resolved, as in the api.
+        services.AddSingleton<IConfiguration>(new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>(StringComparer.Ordinal)
+            {
+                ["Database:Worlds:1:World:ConnectionString"] = "Host=w",
+                ["Database:Worlds:1:Characters:ConnectionString"] = "Host=c",
+            })
+            .Build());
+        services.AddHttpContextAccessor();
+        services.AddSingleton(config);
+        services.AddSingleton(config.Authentication);
+        services.AddInfrastructure(config);
+
+        using ServiceProvider provider = services.BuildServiceProvider();
+
+        Assert.IsType<CurrentWorldDbContextFactory<Avalon.Database.World.WorldDbContext>>(
+            provider.GetRequiredService<Microsoft.EntityFrameworkCore.IDbContextFactory<Avalon.Database.World.WorldDbContext>>());
+        Assert.IsType<CurrentWorldDbContextFactory<Avalon.Database.Character.CharacterDbContext>>(
+            provider.GetRequiredService<Microsoft.EntityFrameworkCore.IDbContextFactory<Avalon.Database.Character.CharacterDbContext>>());
     }
 }

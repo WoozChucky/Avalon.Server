@@ -1,5 +1,6 @@
 using Avalon.Api.Contract;
 using Avalon.Api.Exceptions;
+using Avalon.Api.Worlds;
 using Avalon.Database;
 using Avalon.Database.Auth.Repositories;
 using Avalon.Database.Extensions;
@@ -32,10 +33,12 @@ public interface IWorldService
 public class WorldService : IWorldService
 {
     private readonly IWorldRepository _repository;
+    private readonly IWorldDatabases _databases;
 
-    public WorldService(IWorldRepository repository)
+    public WorldService(IWorldRepository repository, IWorldDatabases databases)
     {
         _repository = repository;
+        _databases = databases;
     }
 
     public async Task<PagedResult<WorldDto>> ListAsync(AccountAccessLevel caller, int page, int pageSize,
@@ -110,7 +113,7 @@ public class WorldService : IWorldService
         return ToDto(world);
     }
 
-    private static WorldDto ToDto(WorldEntity w) => new()
+    private WorldDto ToDto(WorldEntity w) => new()
     {
         Id = w.Id.Value,
         Name = w.Name,
@@ -124,5 +127,7 @@ public class WorldService : IWorldService
         CreatedAt = w.CreatedAt,
         UpdatedAt = w.UpdatedAt,
         OnlineCount = 0,
+        Configured = _databases.TryGet(w.Id, out _),
+        Available = _databases.IsAvailable(w.Id),
     };
 }

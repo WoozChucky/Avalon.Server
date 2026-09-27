@@ -5,7 +5,10 @@ using Avalon.Api.Authentication.Jwt;
 using Avalon.Api.Config;
 using Avalon.Api.Services;
 using Avalon.Api.Services.Email;
+using Avalon.Api.Worlds;
+using Avalon.Database;
 using Avalon.Database.Auth.Extensions;
+using Avalon.Database.Extensions;
 using Avalon.Infrastructure.Extensions;
 using Avalon.Database.Character.Extensions;
 using Avalon.Database.World.Extensions;
@@ -26,8 +29,13 @@ public static class ServiceRegistration
     public static void AddInfrastructure(this IServiceCollection services, ApplicationConfig config)
     {
         services.AddAuthDatabase();
-        services.AddCharacterDatabase();
-        services.AddWorldDatabase();
+        // Checked at startup (ApiStartup), naming the setting, like the auth and world servers do.
+        services.ValidateDatabasesOnStart(DatabaseConnections.Auth);
+        // The repositories only. Their contexts come from AddWorldDatabases: one world and characters
+        // database per world under Database:Worlds, chosen per request (#523).
+        services.AddCharacterRepositories();
+        services.AddWorldRepositories();
+        services.AddWorldDatabases();
 
         services.AddOptions<CacheConfiguration>()
             .BindConfiguration("Application:Cache")
@@ -49,6 +57,7 @@ public static class ServiceRegistration
 
         services.AddScoped<IAccountService, AccountService>();
         services.AddScoped<ICharacterService, CharacterService>();
+        services.AddScoped<IAccountCharactersService, AccountCharactersService>();
         services.AddScoped<IWorldService, WorldService>();
         services.AddScoped<IMapService, MapService>();
         services.AddScoped<IProceduralLayoutInputsResolver, ProceduralLayoutInputsResolver>();

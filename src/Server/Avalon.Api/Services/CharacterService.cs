@@ -11,7 +11,6 @@ namespace Avalon.Api.Services;
 
 public interface ICharacterService
 {
-    Task<List<Character>> GetAllCharactersAsync(AccountId id, CancellationToken cancellationToken = default);
     Task<Character?> GetCharacterByIdAsync(CharacterId id, CancellationToken cancellationToken = default);
     Task UpdateCosmeticAsync(Character character, string? newName, CancellationToken cancellationToken = default);
     Task UpdateAnyAsync(Character character, CharacterPatchDto dto, CancellationToken cancellationToken = default);
@@ -44,9 +43,6 @@ public class CharacterService : ICharacterService
         _abilityTemplateRepository = abilityTemplateRepository;
         _itemTemplateRepository = itemTemplateRepository;
     }
-
-    public Task<List<Character>> GetAllCharactersAsync(AccountId id, CancellationToken cancellationToken = default) =>
-        _characterRepository.FindByAccountAsync(id, cancellationToken);
 
     public Task<Character?> GetCharacterByIdAsync(CharacterId id, CancellationToken cancellationToken = default) =>
         _characterRepository.FindByIdAsync(id, track: false, cancellationToken);

@@ -1,6 +1,5 @@
+using Avalon.Api.Worlds;
 using Avalon.Database.Auth;
-using Avalon.Database.Character;
-using Avalon.Database.World;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
@@ -13,22 +12,27 @@ public static class ApiStartup
     /// Validates the options first (#543): <c>ValidateOnStart</c> alone runs only inside
     /// <c>StartAsync</c>, after the migrations below and the cache connection Program makes next,
     /// so a missing cache host would fail with their error instead of naming the setting.
+    /// Database:Worlds is checked right after them, here rather than as an options validation,
+    /// because OpenAPI generation starts the host with no world configured and skips this (#523).
+    /// Then the migrations, through ApiDatabaseMigrator (#523).
     /// </summary>
     public static async Task ValidateAndMigrateAsync(IServiceProvider services, ILogger logger)
     {
         services.GetRequiredService<IStartupValidator>().Validate();
+        // Builds WorldDatabases, which parses Database:Worlds and refuses it naming the setting,
+        // before any database call; the migrator below reuses that instance.
+        WorldDatabases worlds = services.GetRequiredService<WorldDatabases>();
 
         await using AsyncServiceScope scope = services.CreateAsyncScope();
-        await using AuthDbContext authDb = await scope.ServiceProvider
-            .GetRequiredService<IDbContextFactory<AuthDbContext>>().CreateDbContextAsync(CancellationToken.None);
-        await using CharacterDbContext characterDb = await scope.ServiceProvider
-            .GetRequiredService<IDbContextFactory<CharacterDbContext>>().CreateDbContextAsync(CancellationToken.None);
-        await using WorldDbContext worldDb = await scope.ServiceProvider
-            .GetRequiredService<IDbContextFactory<WorldDbContext>>().CreateDbContextAsync(CancellationToken.None);
         logger.LogInformation("Migrating database if necessary...");
         // Startup migration — host lifetime not active yet, so CancellationToken.None is intentional.
-        await authDb.Database.MigrateAsync(CancellationToken.None);
-        await characterDb.Database.MigrateAsync(CancellationToken.None);
-        await worldDb.Database.MigrateAsync(CancellationToken.None);
+        // Auth first: a failure stops the api. Then each world under Database:Worlds: one that fails
+        // is logged and answers 503 until the next restart, and the others serve (#523).
+        await services.GetRequiredService<ApiDatabaseMigrator>()
+            .MigrateAsync(
+                scope.ServiceProvider.GetRequiredService<IDbContextFactory<AuthDbContext>>(),
+                worlds,
+                services.GetRequiredService<IWorldDbContextFactory>(),
+                CancellationToken.None);
     }
 }

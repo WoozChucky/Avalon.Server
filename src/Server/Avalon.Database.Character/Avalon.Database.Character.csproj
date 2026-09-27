@@ -1,7 +1,14 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
+  <PropertyGroup>
+    <!-- dotnet ef's Characters connection string, for developers who keep it here rather than in the
+         environment (#523): dotnet user-secrets set "Database:Characters:ConnectionString" "..." -->
+    <UserSecretsId>c4aa5065-681c-49cc-a440-a433388b544d</UserSecretsId>
+  </PropertyGroup>
+
   <ItemGroup>
     <PackageReference Include="Microsoft.EntityFrameworkCore.Relational"/>
+    <PackageReference Include="Microsoft.Extensions.Configuration.UserSecrets"/>
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions"/>
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions"/>
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL"/>

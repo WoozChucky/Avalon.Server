@@ -1,5 +1,6 @@
 using Avalon.Api.Authentication;
 using Avalon.Api.Contract;
+using Avalon.Api.Worlds;
 using Avalon.Api.Services;
 using Avalon.Database;
 using Microsoft.AspNetCore.Authorization;
@@ -9,7 +10,8 @@ namespace Avalon.Api.Controllers;
 
 [ApiController]
 [Authorize(Policy = AvalonRoles.Player)]
-[Route("map-template")]
+[WorldScoped]
+[Route("world/{worldId:int}/map-template")]
 public class MapTemplateController : BaseController
 {
     private readonly IMapService _service;

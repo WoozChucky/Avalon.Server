@@ -142,6 +142,7 @@ Prerequisites: .NET 10 SDK, Docker (for infra services).
    ```bash
    dotnet run --project src/Server/Avalon.Api
    ```
+   The API reaches every world listed under `Database:Worlds` in its configuration; see [Configuration Reference](docs/configuration-reference.md#rest-api-worlds).
 4. Run Auth Server:
    ```bash
    dotnet run --project src/Server/Avalon.Server.Auth
@@ -164,6 +165,14 @@ dotnet ef migrations add <Name> \
   --context AuthDbContext
 ```
 Replace `Auth` / `AuthDbContext` with `Character` / `CharacterDbContext` or `World` / `WorldDbContext` as needed.
+
+The World and Character contexts read their design-time connection string only from the environment (`Database__World__ConnectionString`, `Database__Characters__ConnectionString`) or from that database project's user-secrets, and refuse without it. `migrations add` never connects, so a placeholder that points nowhere is enough:
+
+```bash
+Database__World__ConnectionString="Host=127.0.0.1;Port=1;Database=design_time_only" \
+  dotnet ef migrations add <Name> --project src/Server/Avalon.Database.World \
+  --startup-project src/Server/Avalon.Api --context WorldDbContext
+```
 
 ## Testing
 

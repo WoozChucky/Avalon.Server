@@ -23,9 +23,12 @@ public static class MappingExtensions
         AccessLevel = (Avalon.Api.Contract.AccountAccessLevel)account.AccessLevel,
     };
 
-    public static CharacterDto ToDto(this Character character) => new()
+    /// <summary>A character with the world it lives on (#523).</summary>
+    public static CharacterDto ToDto(this Character character, ushort worldId, string worldName) => new()
     {
         Id = character.Id,
+        WorldId = worldId,
+        WorldName = worldName,
         Name = character.Name,
         Class = character.Class,
         Gender = (CharacterGender) character.Gender,

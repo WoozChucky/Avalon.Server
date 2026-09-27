@@ -1,5 +1,6 @@
 using Avalon.Api.Authentication;
 using Avalon.Api.Contract;
+using Avalon.Api.Worlds;
 using Avalon.Common.ValueObjects;
 using Avalon.Database;
 using Avalon.Database.Extensions;
@@ -12,7 +13,8 @@ namespace Avalon.Api.Controllers;
 
 [ApiController]
 [Authorize(Policy = AvalonRoles.Player)]
-[Route("ability-template")]
+[WorldScoped]
+[Route("world/{worldId:int}/ability-template")]
 public class AbilityTemplateController : BaseController
 {
     private readonly IAbilityTemplateRepository _repository;

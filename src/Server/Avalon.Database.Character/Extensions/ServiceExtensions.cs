@@ -10,6 +10,7 @@ namespace Avalon.Database.Character.Extensions;
 
 public static class ServiceExtensions
 {
+    /// <summary>The world server's registration: one Characters database, from Database:Characters.</summary>
     public static IServiceCollection AddCharacterDatabase(this IServiceCollection services, string databaseSection = "Database")
     {
         services.AddAvalonDatabases(databaseSection);
@@ -22,6 +23,17 @@ public static class ServiceExtensions
             var options = provider.GetRequiredService<IOptions<DatabaseConfiguration>>();
             return new DelegateDbContextFactory<CharacterDbContext>(() => new CharacterDbContext(loggerFactory, options));
         });
+
+        return services.AddCharacterRepositories();
+    }
+
+    /// <summary>
+    /// The repositories and the transaction runner, over whatever
+    /// <see cref="IDbContextFactory{CharacterDbContext}"/> the host registers: the world server's single
+    /// database, or the api's per-request world (#523).
+    /// </summary>
+    public static IServiceCollection AddCharacterRepositories(this IServiceCollection services)
+    {
         services.AddSingleton<IDbTransactionRunner<CharacterDbContext>, DbTransactionRunner<CharacterDbContext>>();
 
         services

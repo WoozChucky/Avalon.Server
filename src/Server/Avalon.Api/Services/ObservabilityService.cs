@@ -2,25 +2,38 @@
 // Avalon MMORPG Game licenses this file to you under the MIT license.
 
 using Avalon.Api.Contract;
+using Avalon.Api.Worlds;
+using Avalon.Common.Accounts;
 using Avalon.Common.ValueObjects;
 using Avalon.Database;
 using Avalon.Database.Auth.Repositories;
-using Avalon.Database.World.Repositories;
+using Avalon.Domain.Auth;
 using Avalon.Domain.World;
 using Avalon.Infrastructure;
 using Avalon.Infrastructure.Presence;
 using Avalon.World.ChunkLayouts;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
+using AccountAccessLevel = Avalon.Common.Accounts.AccountAccessLevel;
 using AvalonWorld = Avalon.Domain.Auth.World;
 
 namespace Avalon.Api.Services;
 
 public interface IObservabilityService
 {
-    Task<PagedResult<OnlinePlayerDto>> GetOnlineAsync(PresencePaginateFilters filters, CancellationToken ct = default);
-    Task<PlayerPresenceDto?> GetPlayerPresenceAsync(uint characterId, CancellationToken ct = default);
-    Task<InstancePresenceDto?> GetInstancePresenceAsync(Guid instanceId, CancellationToken ct = default);
+    /// <summary>Everyone online, in the worlds <paramref name="caller"/> may enter (#523).</summary>
+    Task<PagedResult<OnlinePlayerDto>> GetOnlineAsync(PresencePaginateFilters filters, AccountAccessLevel caller,
+        CancellationToken ct = default);
+
+    /// <summary>
+    /// Null when not online, or online in a world <paramref name="caller"/> may not enter.
+    /// Known limit (#556): the presence index is keyed by character id alone, and character ids are
+    /// per world database, so two worlds' characters with one id share an index entry and this can
+    /// answer with the other world's character.
+    /// </summary>
+    Task<PlayerPresenceDto?> GetPlayerPresenceAsync(uint characterId, AccountAccessLevel caller, CancellationToken ct = default);
+
+    Task<InstancePresenceDto?> GetInstancePresenceAsync(Guid instanceId, AccountAccessLevel caller, CancellationToken ct = default);
 }
 
 /// <summary>
@@ -37,37 +50,40 @@ public interface IObservabilityService
 /// page) for admin-grid use, which would silently truncate the world set this service
 /// needs to scan in full. IReplicatedCache exposes no SCAN/KEYS, so the worlds table is
 /// the only way to discover which world ids to look up.
+///
+/// Presence is cross-world (Redis); every database lookup (template names, the layout-staleness
+/// check) reads the presence's own world through <see cref="IWorldRepositories"/>, and is skipped
+/// for a world this api does not serve or that is unavailable (#523). Only worlds the caller may
+/// enter are shown. A template-name lookup that fails in one world names the template by its id
+/// and never fails the whole list.
 /// </summary>
 public class ObservabilityService : IObservabilityService
 {
     private readonly IReplicatedCache _cache;
     private readonly IWorldRepository _worlds;
-    private readonly IMapTemplateRepository _maps;
-    private readonly IProceduralMapConfigRepository _configs;
-    private readonly IProceduralLayoutInputsResolver _inputsResolver;
+    private readonly IWorldDatabases _databases;
+    private readonly IWorldRepositories _perWorld;
     private readonly IMemoryCache _poolMemberCache;
     private readonly ILogger<ObservabilityService> _logger;
 
     public ObservabilityService(
         IReplicatedCache cache,
         IWorldRepository worlds,
-        IMapTemplateRepository maps,
-        IProceduralMapConfigRepository configs,
-        IProceduralLayoutInputsResolver inputsResolver,
+        IWorldDatabases databases,
+        IWorldRepositories perWorld,
         IMemoryCache poolMemberCache,
         ILogger<ObservabilityService> logger)
     {
         _cache = cache;
         _worlds = worlds;
-        _maps = maps;
-        _configs = configs;
-        _inputsResolver = inputsResolver;
+        _databases = databases;
+        _perWorld = perWorld;
         _poolMemberCache = poolMemberCache;
         _logger = logger;
     }
 
     public async Task<PagedResult<OnlinePlayerDto>> GetOnlineAsync(
-        PresencePaginateFilters filters, CancellationToken ct = default)
+        PresencePaginateFilters filters, AccountAccessLevel caller, CancellationToken ct = default)
     {
         int page = filters.Page < 1 ? 1 : filters.Page;
         int pageSize = filters.PageSize is < 1 or > 50 ? 50 : filters.PageSize;
@@ -75,11 +91,11 @@ public class ObservabilityService : IObservabilityService
         // Instances overwhelmingly repeat the same handful of template ids, and this loop
         // runs over every instance in every world before Skip/Take ever applies. Memoize
         // for the duration of the request so that cost is proportional to distinct
-        // templates seen, not to total instance count.
-        Dictionary<ushort, string> templateNames = [];
+        // templates seen, not to total instance count. Keyed by world: ids differ per world (#523).
+        Dictionary<(ushort World, ushort Template), string> templateNames = [];
 
         List<OnlinePlayerDto> rows = [];
-        foreach (AvalonWorld world in await _worlds.FindAllAsync(track: false, ct))
+        foreach (AvalonWorld world in await AccessibleWorldsAsync(caller, ct))
         {
             ushort worldId = world.Id.Value;
             if (filters.WorldId is { } wantWorld && worldId != wantWorld) continue;
@@ -91,7 +107,7 @@ public class ObservabilityService : IObservabilityService
             {
                 if (filters.TemplateId is { } wantTemplate && instance.TemplateId != wantTemplate) continue;
 
-                string templateName = await TemplateNameAsync(instance.TemplateId, ct, templateNames);
+                string templateName = await TemplateNameAsync(worldId, instance.TemplateId, ct, templateNames);
                 foreach (CharacterPresenceSnapshot c in instance.Characters ?? [])
                 {
                     rows.Add(new OnlinePlayerDto
@@ -130,13 +146,23 @@ public class ObservabilityService : IObservabilityService
         return new PagedResult<OnlinePlayerDto>(page, pageSize, rows.Count, pageItems);
     }
 
-    public async Task<PlayerPresenceDto?> GetPlayerPresenceAsync(uint characterId, CancellationToken ct = default)
+    /// <inheritdoc />
+    /// <remarks>
+    /// The index key, <c>presence:character:{id}</c>, names no world, and character ids are per world
+    /// database, so two world servers overwrite each other's entry for one id (#556). The key format
+    /// is left as it is; the world the entry names is the one whose access rule and databases apply.
+    /// </remarks>
+    public async Task<PlayerPresenceDto?> GetPlayerPresenceAsync(
+        uint characterId, AccountAccessLevel caller, CancellationToken ct = default)
     {
         string? rawIndex = await _cache.GetAsync(CacheKeys.CharacterPresenceIndex(characterId));
         if (rawIndex is null) return null;
 
         CharacterPresenceIndex? index = PresenceJson.Deserialize<CharacterPresenceIndex>(rawIndex);
         if (index is null) return null;
+
+        AvalonWorld? world = await _worlds.FindByIdAsync(new WorldId(index.WorldId), track: false, ct);
+        if (world is null || !MayEnter(world, caller)) return null;
 
         WorldPresenceSnapshot? snapshot = await ReadWorldAsync(index.WorldId);
         if (snapshot is null) return null;
@@ -151,14 +177,15 @@ public class ObservabilityService : IObservabilityService
         {
             Target = ToDto(target),
             Instance = await ToDtoAsync(instance, index.WorldId, ct),
-            LayoutStale = await IsLayoutStaleAsync(instance, ct),
+            LayoutStale = await IsLayoutStaleAsync(instance, index.WorldId, ct),
             CapturedAt = snapshot.CapturedAt,
         };
     }
 
-    public async Task<InstancePresenceDto?> GetInstancePresenceAsync(Guid instanceId, CancellationToken ct = default)
+    public async Task<InstancePresenceDto?> GetInstancePresenceAsync(
+        Guid instanceId, AccountAccessLevel caller, CancellationToken ct = default)
     {
-        foreach (AvalonWorld world in await _worlds.FindAllAsync(track: false, ct))
+        foreach (AvalonWorld world in await AccessibleWorldsAsync(caller, ct))
         {
             WorldPresenceSnapshot? snapshot = await ReadWorldAsync(world.Id.Value);
             InstancePresenceSnapshot? instance =
@@ -196,15 +223,43 @@ public class ObservabilityService : IObservabilityService
         return snapshot;
     }
 
-    private async Task<string> TemplateNameAsync(
-        ushort templateId, CancellationToken ct, Dictionary<ushort, string>? memo = null)
+    private async Task<List<AvalonWorld>> AccessibleWorldsAsync(AccountAccessLevel caller, CancellationToken ct) =>
+        (await _worlds.FindAllAsync(track: false, ct)).Where(world => MayEnter(world, caller)).ToList();
+
+    /// <summary>The world rule as a mask, never an ordinal comparison: PTR and Tournament are above Admin.</summary>
+    private static bool MayEnter(AvalonWorld world, AccountAccessLevel caller) =>
+        AccessLevels.ForWorld(world.AccessLevelRequired).Allows(caller);
+
+    /// <summary>
+    /// The template's name in its own world's database, or <c>#id</c> when that world is not
+    /// configured here, is unavailable, or its lookup fails. A failure is logged by exception type
+    /// only (a driver's message can carry hosts and ports) and never fails the caller's list.
+    /// Memoized per request by (world, template): the same template id is a different map in another world.
+    /// </summary>
+    private async Task<string> TemplateNameAsync(ushort worldId, ushort templateId, CancellationToken ct,
+        Dictionary<(ushort World, ushort Template), string>? memo = null)
     {
-        if (memo is not null && memo.TryGetValue(templateId, out string? cached)) return cached;
+        if (memo is not null && memo.TryGetValue((worldId, templateId), out string? cached)) return cached;
 
-        MapTemplate? template = await _maps.FindByIdAsync(new MapTemplateId(templateId), track: false, ct);
-        string name = template?.Name ?? $"#{templateId}";
+        string name = $"#{templateId}";
+        if (_databases.IsAvailable(new WorldId(worldId)))
+        {
+            try
+            {
+                MapTemplate? template = await _perWorld.MapTemplates(new WorldId(worldId))
+                    .FindByIdAsync(new MapTemplateId(templateId), track: false, ct);
+                name = template?.Name ?? name;
+            }
+            catch (Exception exception) when (exception is not OperationCanceledException
+                                              || !ct.IsCancellationRequested)
+            {
+                _logger.LogWarning(
+                    "Naming template {TemplateId} in world {WorldId} failed with {ExceptionType}; named by its id",
+                    templateId, worldId, exception.GetType().Name);
+            }
+        }
 
-        if (memo is not null) memo[templateId] = name;
+        if (memo is not null) memo[(worldId, templateId)] = name;
         return name;
     }
 
@@ -213,7 +268,7 @@ public class ObservabilityService : IObservabilityService
     {
         InstanceId = instance.InstanceId,
         TemplateId = instance.TemplateId,
-        TemplateName = await TemplateNameAsync(instance.TemplateId, ct),
+        TemplateName = await TemplateNameAsync(worldId, instance.TemplateId, ct),
         Seed = instance.Seed,
         MapType = ParseMapType(instance.MapType),
         WorldId = worldId,
@@ -260,19 +315,20 @@ public class ObservabilityService : IObservabilityService
     /// An empty recorded stamp means a predefined (town) layout, which is not generated
     /// from a seed at all — absence of a stamp is not evidence of drift. Any failure to
     /// recompute is treated as "not stale": a false warning banner on every request would
-    /// train admins to ignore it.
+    /// train admins to ignore it. The same holds for a world this api cannot read (#523).
     /// </summary>
-    private async Task<bool> IsLayoutStaleAsync(InstancePresenceSnapshot instance, CancellationToken ct)
+    private async Task<bool> IsLayoutStaleAsync(InstancePresenceSnapshot instance, ushort worldId, CancellationToken ct)
     {
         if (string.IsNullOrEmpty(instance.ConfigVersion)) return false;
+        if (!_databases.IsAvailable(new WorldId(worldId))) return false;
 
         try
         {
-            ProceduralMapConfig? config =
-                await _configs.FindByTemplateIdAsync(new MapTemplateId(instance.TemplateId), ct);
+            ProceduralMapConfig? config = await _perWorld.ProceduralMapConfigs(new WorldId(worldId))
+                .FindByTemplateIdAsync(new MapTemplateId(instance.TemplateId), ct);
             if (config is null) return false;
 
-            IReadOnlyList<ChunkPoolMember>? members = await GetPoolMembersCachedAsync(config.ChunkPoolId, ct);
+            IReadOnlyList<ChunkPoolMember>? members = await GetPoolMembersCachedAsync(worldId, config.ChunkPoolId, ct);
             if (members is null) return false;
 
             return !string.Equals(
@@ -280,10 +336,13 @@ public class ObservabilityService : IObservabilityService
                 instance.ConfigVersion,
                 StringComparison.Ordinal);
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
         {
-            _logger.LogWarning(ex,
-                "Could not recompute layout config version for template {TemplateId}", instance.TemplateId);
+            // The type only: this now reads a named world's database, and a driver's message can carry
+            // hosts and ports.
+            _logger.LogWarning(
+                "Could not recompute layout config version for template {TemplateId} in world {WorldId}: {ExceptionType}",
+                instance.TemplateId, worldId, ex.GetType().Name);
             return false;
         }
     }
@@ -309,16 +368,19 @@ public class ObservabilityService : IObservabilityService
     /// compares and hashes by <c>Value</c> alone, so a bare <c>ChunkPoolId(3)</c> would collide in this
     /// shared <see cref="IMemoryCache"/> with a <c>MapTemplateId(3)</c>, a <c>SpawnTableId(3)</c>, or any
     /// other <c>ValueObject&lt;ushort&gt;</c> another feature might one day cache here.
+    /// Keyed by world too: pool 3 of one world is not pool 3 of another (#523).
     /// </summary>
-    private async Task<IReadOnlyList<ChunkPoolMember>?> GetPoolMembersCachedAsync(ChunkPoolId poolId, CancellationToken ct)
+    private async Task<IReadOnlyList<ChunkPoolMember>?> GetPoolMembersCachedAsync(
+        ushort worldId, ChunkPoolId poolId, CancellationToken ct)
     {
-        string cacheKey = $"obs:poolMembers:{poolId.Value}";
+        string cacheKey = $"obs:poolMembers:{worldId}:{poolId.Value}";
         if (_poolMemberCache.TryGetValue(cacheKey, out IReadOnlyList<ChunkPoolMember>? cached)) return cached;
 
-        ChunkPool? pool = await _inputsResolver.FindPoolAsync(poolId, ct);
+        IProceduralLayoutInputsResolver inputs = _perWorld.LayoutInputs(new WorldId(worldId));
+        ChunkPool? pool = await inputs.FindPoolAsync(poolId, ct);
         if (pool is null) return null;
 
-        ProceduralPoolResolution resolution = await _inputsResolver.ResolveMembersAsync(pool, ct);
+        ProceduralPoolResolution resolution = await inputs.ResolveMembersAsync(pool, ct);
         _poolMemberCache.Set(cacheKey, resolution.Members, TimeSpan.FromSeconds(30));
         return resolution.Members;
     }

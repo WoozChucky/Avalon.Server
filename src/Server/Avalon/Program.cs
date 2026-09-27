@@ -16,6 +16,11 @@ IResourceBuilder<ContainerResource> postgresql = builder
 
 IResourceBuilder<ProjectResource> apiProject = builder
     .AddProject<Avalon_Api>("api")
+    // World 1 (#523), the same local databases the api's appsettings.Development.json names.
+    .WithEnvironment("Database__Worlds__1__World__ConnectionString",
+        "Server=localhost;Port=5432;Database=world;User Id=postgres;Password=123;")
+    .WithEnvironment("Database__Worlds__1__Characters__ConnectionString",
+        "Server=localhost;Port=5432;Database=characters;User Id=postgres;Password=123;")
     .WaitFor(redis)
     .WaitFor(postgresql);
 
