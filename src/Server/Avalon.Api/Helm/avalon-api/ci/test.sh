@@ -21,8 +21,8 @@ grep -A1 "ASPNETCORE_ENVIRONMENT" <<<"$out" | grep -q 'Production'    || { echo 
 ! grep -q "kind: Secret" <<<"$out"                                     || { echo "rendered a Secret despite existingSecret"; exit 1; }
 
 # Worlds (#523): one world, its keys as named, and no single World/Characters pair any more.
-grep -A4 "name: Database__Worlds__1__World__ConnectionString" <<<"$out" | grep -q "key: world-one"           || { echo "world 1's world string must come from its key"; exit 1; }
-grep -A4 "name: Database__Worlds__1__Characters__ConnectionString" <<<"$out" | grep -q "key: characters-one" || { echo "world 1's characters string must come from its key"; exit 1; }
+grep -A4 "name: Database__Worlds__1__World__ConnectionString" <<<"$out" | grep -q 'key: "world-one"'           || { echo "world 1's world string must come from its key"; exit 1; }
+grep -A4 "name: Database__Worlds__1__Characters__ConnectionString" <<<"$out" | grep -q 'key: "characters-one"' || { echo "world 1's characters string must come from its key"; exit 1; }
 ! grep -Eq "name: Database__(World|Characters)__ConnectionString" <<<"$out"                                  || { echo "the single world pair must be gone"; exit 1; }
 
 # Several worlds, chart-managed Secret, default keys.
@@ -30,8 +30,8 @@ many=$(helm template t . $CACHE --set authentication.issuerSigningKey="$KEY" \
   --set worlds.1.world.connectionString=w1 --set worlds.1.characters.connectionString=c1 \
   --set worlds.3.world.connectionString=w3 --set worlds.3.characters.connectionString=c3)
 for id in 1 3; do
-  grep -A4 "name: Database__Worlds__${id}__World__ConnectionString" <<<"$many" | grep -q "key: database-world-${id}-connection-string"           || { echo "world $id's world env missing"; exit 1; }
-  grep -A4 "name: Database__Worlds__${id}__Characters__ConnectionString" <<<"$many" | grep -q "key: database-characters-${id}-connection-string" || { echo "world $id's characters env missing"; exit 1; }
+  grep -A4 "name: Database__Worlds__${id}__World__ConnectionString" <<<"$many" | grep -q "key: \"database-world-${id}-connection-string\""           || { echo "world $id's world env missing"; exit 1; }
+  grep -A4 "name: Database__Worlds__${id}__Characters__ConnectionString" <<<"$many" | grep -q "key: \"database-characters-${id}-connection-string\"" || { echo "world $id's characters env missing"; exit 1; }
 done
 grep -q 'database-world-3-connection-string: "w3"' <<<"$many"          || { echo "world 3's string missing from the Secret"; exit 1; }
 grep -q 'database-characters-1-connection-string: "c1"' <<<"$many"     || { echo "world 1's characters string missing from the Secret"; exit 1; }
@@ -49,6 +49,33 @@ must_fail "existingSecret + inline world string must fail" --set existingSecret=
 must_fail "the old single pair must fail"             --set existingSecret=x "${W1[@]}" --set database.world.connectionString=old
 msg=$(helm template t . $CACHE --set existingSecret=x 2>&1 || true)
 grep -q "worlds lists no world" <<<"$msg"                              || { echo "the no-world refusal must say why"; exit 1; }
+
+# Secret key names (#523): the chart-managed Secret names its own keys, and no two settings may read one key.
+CS1=(--set worlds.1.world.connectionString=w1 --set worlds.1.characters.connectionString=c1)
+must_fail "worldKey without existingSecret must fail"      --set authentication.issuerSigningKey="$KEY" "${CS1[@]}" --set worlds.1.worldKey=custom
+must_fail "charactersKey without existingSecret must fail" --set authentication.issuerSigningKey="$KEY" "${CS1[@]}" --set worlds.1.charactersKey=custom
+for own in jwt-signing-key database-auth-connection-string cache-password notification-private-key; do
+  must_fail "a world key reusing $own must fail"          --set existingSecret=x --set worlds.1.worldKey="$own" --set worlds.1.charactersKey=characters-one
+done
+must_fail "worldKey == charactersKey must fail"            --set existingSecret=x --set worlds.1.worldKey=same --set worlds.1.charactersKey=same
+must_fail "two worlds sharing a key must fail"             --set existingSecret=x "${W1[@]}" --set worlds.2.worldKey=world-one --set worlds.2.charactersKey=characters-two
+must_fail "a key reusing another world's default must fail" --set existingSecret=x --set worlds.1.worldKey= --set worlds.2.worldKey=database-world-1-connection-string --set worlds.2.charactersKey=characters-two
+must_fail "a key with a slash must fail"                   --set existingSecret=x --set worlds.1.worldKey=bad/key --set worlds.1.charactersKey=characters-one
+must_fail "a key with a space must fail"                   --set existingSecret=x --set 'worlds.1.worldKey=bad key' --set worlds.1.charactersKey=characters-one
+msg=$(helm template t . $CACHE --set existingSecret=x --set worlds.1.worldKey=jwt-signing-key --set worlds.1.charactersKey=characters-one 2>&1 || true)
+grep -q "authentication.issuerSigningKey" <<<"$msg"                    || { echo "the key collision must name what already reads the key"; exit 1; }
+blank=$(helm template t . $CACHE --set existingSecret=x --set 'worlds.1.worldKey=  ' --set worlds.1.charactersKey=' characters-one ')
+grep -A4 "name: Database__Worlds__1__World__ConnectionString" <<<"$blank" | grep -q 'key: "database-world-1-connection-string"' || { echo "a blank worldKey must mean the default key"; exit 1; }
+grep -A4 "name: Database__Worlds__1__Characters__ConnectionString" <<<"$blank" | grep -q 'key: "characters-one"$'            || { echo "a key must be trimmed"; exit 1; }
+
+num=$(helm template t . $CACHE --set existingSecret=x --set worlds.1.worldKey=123 --set worlds.1.charactersKey=true)
+grep -A4 "name: Database__Worlds__1__World__ConnectionString" <<<"$num" | grep -q 'key: "123"'        || { echo "a numeric key must render as a string"; exit 1; }
+grep -A4 "name: Database__Worlds__1__Characters__ConnectionString" <<<"$num" | grep -q 'key: "true"' || { echo "a key that reads as a boolean must render as a string"; exit 1; }
+
+# A changed world string restarts the pods: the checksum annotation follows the chart-managed Secret.
+sum() { helm template t . $CACHE --set authentication.issuerSigningKey="$KEY" "$@" | grep "checksum/secret:"; }
+a=$(sum "${CS1[@]}"); b=$(sum --set worlds.1.world.connectionString=w1-rotated --set worlds.1.characters.connectionString=c1)
+[ -n "$a" ] && [ "$a" != "$b" ]                                        || { echo "a changed world string must change the checksum"; exit 1; }
 
 hpa=$(helm template t . $CACHE --set existingSecret=x "${W1[@]}" --set autoscaling.enabled=true)
 grep -A2 "scaleTargetRef" <<<"$hpa" | grep -q "kind: Deployment"       || { echo "HPA must target the Deployment"; exit 1; }

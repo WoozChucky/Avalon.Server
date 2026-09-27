@@ -51,12 +51,12 @@ spec:
               valueFrom:
                 secretKeyRef:
                   name: {{ include "avalon-api.secretName" $ }}
-                  key: {{ include "avalon-api.worldKey" (list $id $entry) }}
+                  key: {{ include "avalon-api.worldKey" (list $id $entry) | quote }}
             - name: Database__Worlds__{{ $id }}__Characters__ConnectionString
               valueFrom:
                 secretKeyRef:
                   name: {{ include "avalon-api.secretName" $ }}
-                  key: {{ include "avalon-api.charactersKey" (list $id $entry) }}
+                  key: {{ include "avalon-api.charactersKey" (list $id $entry) | quote }}
             {{- end }}
             - name: Application__Cache__Password
               valueFrom:

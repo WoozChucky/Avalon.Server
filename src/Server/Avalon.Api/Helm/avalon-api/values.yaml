@@ -3,10 +3,11 @@
 # plain values in the pod spec. Either:
 #  - name a Secret you manage in existingSecret (preferred: the values never pass through Helm). It
 #    needs the keys database-auth-connection-string and jwt-signing-key, one pair per world
-#    (worlds.<id>, below), plus cache-password and notification-private-key if used. Leave every secret value below empty: the chart refuses to
-#    render with existingSecret set and a value given, rather than ignore it. The chart cannot see
-#    a change to your Secret, so after rotating a key in it restart the pods yourself:
-#    kubectl rollout restart statefulset/<release>-avalon-api (the chart's fullname); or
+#    (worlds.<id>, below), plus cache-password and notification-private-key if used. Leave every
+#    secret value below empty: the chart refuses to render with existingSecret set and a value
+#    given, rather than ignore it. The chart cannot see a change to your Secret, so after rotating
+#    a key in it restart the pods yourself:
+#    kubectl rollout restart deployment/<release>-avalon-api (the chart's fullname); or
 #  - leave existingSecret empty and supply the values below; the chart then creates the Secret, and
 #    a checksum annotation restarts the pods whenever it changes.
 #    Pass them from files, not the command line, so they stay out of shell history:
@@ -27,7 +28,9 @@ database:
 #    The chart's Secret holds them under database-world-<id>-connection-string and
 #    database-characters-<id>-connection-string (a trailing newline is trimmed).
 #  - With existingSecret, give no strings here: name the keys of your Secret that hold them
-#    (worldKey, charactersKey), or leave them empty for the default names above.
+#    (worldKey, charactersKey), or leave them empty for the default names above. Each key must be
+#    a valid Secret key name, and no two settings may name one key (the chart's own keys above
+#    included). Without existingSecret, worldKey and charactersKey are refused.
 worlds: {}
 #  "1":
 #    world:
