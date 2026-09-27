@@ -93,6 +93,7 @@ Section in `appsettings.json`: `"Hosting"` (auth and world servers)
 | `Host`                  | string | `"0.0.0.0"` | Bind address                                         |
 | `Port`                  | int    | `21000`  | TCP listen port                                         |
 | `PacketReaderBufferSize`| int    | `4096`   | Internal read-buffer size in bytes for `PacketReader`   |
+| `SendBufferCapacity`    | int    | `100`    | Packets one connection's outbox holds while waiting to be sent; when it is full, the oldest queued packet is dropped to take the new one |
 | `TcpKeepAliveTimeSeconds` | int | `60` | TCP keepalive on every accepted socket (#571): idle seconds before the first probe |
 | `TcpKeepAliveIntervalSeconds` | int | `10` | Seconds between unanswered keepalive probes |
 | `TcpKeepAliveRetryCount` | int | `3` | Unanswered probes before the OS closes the connection. With the defaults a half-open connection (the peer gone without a FIN or RST) closes within about 90 s |
@@ -111,6 +112,7 @@ Section in `appsettings.json`: `"Hosting"` (auth and world servers)
 
 **Validation rules:**
 - `PacketReaderBufferSize`: minimum `512`, maximum `65535`.
+- `SendBufferCapacity`: minimum `10`, maximum `10000`.
 - `TcpKeepAliveTimeSeconds`, `TcpKeepAliveIntervalSeconds`: minimum `1`, maximum `32767`; `TcpKeepAliveRetryCount`: minimum `1`, maximum `127`. Checked at startup, which names the setting. An option the platform cannot set is skipped with one Warning, and the connection is still served.
 - Keepalive covers the TCP connection the server accepted. Behind a proxy that terminates TCP it covers only the proxy-to-server leg; the client-to-proxy leg needs the proxy's own keepalive or idle timeout.
 - `Security:CertificatePath` (auth server): required. `Security:CertificatePassword` is optional.

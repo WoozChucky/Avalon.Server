@@ -1,7 +1,7 @@
 namespace Avalon.Api.Distribution;
 
 /// <summary>
-/// The <c>Distribution</c> section: where game builds live (homelab Garage). Left empty, the
+/// The <c>Application:Distribution</c> section: where game builds live (homelab Garage). Left empty, the
 /// <c>/client</c> endpoints answer 503 and the rest of the API is unaffected.
 /// </summary>
 public sealed class DistributionConfiguration
