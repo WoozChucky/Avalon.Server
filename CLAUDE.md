@@ -52,11 +52,13 @@ dotnet ef migrations add <Name> \
 Database__World__ConnectionString="Host=127.0.0.1;Port=1;Database=design_time_only" \
   dotnet ef migrations add <Name> --project src/Server/Avalon.Database.World \
   --startup-project src/Server/Avalon.Api --context WorldDbContext
+# The Characters context is the same with Database__Characters__ConnectionString and
+# --project src/Server/Avalon.Database.Character --context CharacterDbContext.
 # Commands that connect (database update, migrations list) take the real string the same way. Verify
 # only against a throwaway Postgres, with --connection "$CONN" and the variable both set; nothing falls
 # back to a local file any more, so a missing variable is a refusal, not a connection to port 5432.
 # The Auth factory is unchanged: it still reads Database:Auth from the working directory's
-# appsettings.json or the environment.
+# appsettings.Design.json, then appsettings.json, then the environment.
 # A seed migration that points existing rows at rows it also inserts (a foreign key to a new
 # row) must be reordered by hand: EF emits the UpdateData calls before the InsertData ones.
 # Only Postgres catches this; the SQLite unit tests and CI never run the migration.
