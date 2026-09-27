@@ -37,7 +37,15 @@ jobs:
       - name: Build
         run: dotnet build -c Release --no-restore
       - name: Test
-        run: dotnet test -c Release --no-build
+        run: dotnet test -c Release --no-build --logger trx --results-directory TestResults
+      # Keeps each test's name, message and stack when the run fails, so a rare flaky failure is not lost (#572).
+      - name: Upload test results
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-results
+          path: TestResults/**/*.trx
+          retention-days: 14
       # ReadyToRun off: this check only proves publishing works, and native compilation
       # costs most of the step. With it on, publish infers the runner's runtime identifier
       # and needs a RID-specific build, so --no-build fails. The release workflow keeps it.
