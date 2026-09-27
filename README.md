@@ -142,6 +142,7 @@ Prerequisites: .NET 10 SDK, Docker (for infra services).
    ```bash
    dotnet run --project src/Server/Avalon.Api
    ```
+   The API reaches every world listed under `Database:Worlds` in its configuration; see [Configuration Reference](docs/configuration-reference.md#rest-api-worlds).
 4. Run Auth Server:
    ```bash
    dotnet run --project src/Server/Avalon.Server.Auth
