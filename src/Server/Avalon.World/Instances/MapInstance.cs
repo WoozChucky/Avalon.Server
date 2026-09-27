@@ -879,12 +879,6 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     }
 
     /// <summary>
-    /// Only the instance the wounded unit is actually in broadcasts the hit. <c>OnUnitDamaged</c> is a
-    /// static event, so without this guard every live instance forwarded every hit to its own
-    /// connections and players saw damage numbers from fights in other instances. The eight
-    /// neighbouring handlers have always filtered this way; this one did not.
-    /// </summary>
-    /// <summary>
     /// How much of a kill's experience a player at <paramref name="playerLevel" /> earns on a map banded
     /// <paramref name="bandMin" />-<paramref name="bandMax" />. 1.0 inside the band, decaying per level
     /// outside it, symmetrically and with no grace.
@@ -892,8 +886,6 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     /// <remarks>
     /// A map with either bound unset is unbanded and scales nothing. Both bounds are nullable on
     /// <c>MapTemplate</c>, and treating a missing one as 0 would wipe out every award on that map.
-    /// </remarks>
-    /// <remarks>
     /// Public rather than internal so the unit-test assembly can call it without an
     /// InternalsVisibleTo handshake — the same reasoning as ChunkLayoutSourceResolver's test ctor.
     /// </remarks>
@@ -911,6 +903,12 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         return levelsOut == 0 ? 1.0 : Math.Pow(decay, levelsOut);
     }
 
+    /// <summary>
+    /// Only the instance the wounded unit is actually in broadcasts the hit. <c>OnUnitDamaged</c> is a
+    /// static event, so without this guard every live instance forwarded every hit to its own
+    /// connections and players saw damage numbers from fights in other instances. The eight
+    /// neighbouring handlers have always filtered this way; this one did not.
+    /// </summary>
     private void OnCharacterHit(IUnit unit, IUnit attacker, uint damage)
     {
         if (!_characters.ContainsKey(unit.Guid) && !_creatures.ContainsKey(unit.Guid))
