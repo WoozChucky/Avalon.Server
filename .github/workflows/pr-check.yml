@@ -9,7 +9,7 @@ jobs:
     name: Title and player note
     runs-on: ubuntu-latest
     steps:
-      - uses: WoozChucky/avalon-release-notes/pr-check@v0.2.0
+      - uses: WoozChucky/avalon-release-notes/pr-check@v0.2.1
         with:
           title: ${{ github.event.pull_request.title }}
           body: ${{ github.event.pull_request.body }}
