@@ -286,7 +286,7 @@ The Helm chart passes `forwardedHeaders.knownProxies`, `forwardedHeaders.knownNe
 them in for whatever ingress fronts the service.
 
 A caller with no peer address at all is refused with 400 on the endpoints that spend a login source budget
-(login, MFA verify, password change, MFA setup, token minting).
+(login, registration, MFA verify, password change, starting an email change, MFA setup, token minting).
 
 ---
 
