@@ -1,3 +1,4 @@
+using Avalon.World.Combat;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Instances;
@@ -21,7 +22,7 @@ public sealed class AggroDefendScript : AiScript, IReturningHome
     private readonly AiScript _combat;
 
     public AggroDefendScript(ILoggerFactory loggerFactory, ICreature creature, ISimulationContext context,
-        TimeProvider? time = null)
+        TimeProvider? time = null, ICombatRandom? random = null)
         : base(creature, context)
     {
         var aggroRange = creature.Metadata.DetectionRange > 0f ? creature.Metadata.DetectionRange : DefaultAggroRange;
@@ -30,7 +31,7 @@ public sealed class AggroDefendScript : AiScript, IReturningHome
         detector.CharacterDetected += OnCharacterEnteredRange;
         _detector = detector;
 
-        _combat = new CreatureCombatScript(loggerFactory, creature, context, time);
+        _combat = new CreatureCombatScript(loggerFactory, creature, context, time, random);
 
         Chain(_detector);
         Chain(_combat);

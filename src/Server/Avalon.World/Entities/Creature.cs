@@ -2,6 +2,7 @@ using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Network.Packets.State;
+using Avalon.World.Combat;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Scripts;
@@ -72,6 +73,12 @@ public class Creature : ICreature
 
     /// <summary>Percentage points.</summary>
     public float BlockPct { get; init; }
+
+    /// <summary>What this creature attacks with (#506): its level and crit; no weapon and no damage stats.</summary>
+    internal AttackerCombat Combat => new(Level, 0, 0, CritPct, 0, 0);
+
+    /// <summary>What this creature defends with (#506).</summary>
+    internal DefenderCombat Defence => new(Armor, DodgePct, BlockPct);
 
     public AiScript? Script { get; set; }
 

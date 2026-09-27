@@ -1,5 +1,6 @@
 using Avalon.Common.Mathematics;
 using Avalon.Network.Packets.State;
+using Avalon.World.Combat;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Combat;
 using Avalon.World.Public.Creatures;
@@ -96,6 +97,7 @@ public class CreatureCombatScript : AiScript, IReturningHome
 
     private readonly ILogger<CreatureCombatScript> _logger;
     private readonly TimeProvider _time;
+    private readonly ICombatRandom _random;
     private float _attackCooldownTimer;
 
     private bool _dead;
@@ -118,11 +120,13 @@ public class CreatureCombatScript : AiScript, IReturningHome
     private IUnit? _target;
 
     /// <param name="time">The container's clock, the one the rest of the world times by (#610).</param>
+    /// <param name="random">Where the swing's damage roll comes from (#506); the container's, resolved by name.</param>
     public CreatureCombatScript(ILoggerFactory loggerFactory, ICreature creature, ISimulationContext context,
-        TimeProvider? time = null) : base(creature, context)
+        TimeProvider? time = null, ICombatRandom? random = null) : base(creature, context)
     {
         _logger = loggerFactory.CreateLogger<CreatureCombatScript>();
         _time = time ?? TimeProvider.System;
+        _random = random ?? new CombatRandom(Random.Shared);
     }
 
     /// <summary>Where the creature goes back to. Every path into Combat sets <see cref="_home" /> first.</summary>
@@ -545,7 +549,7 @@ public class CreatureCombatScript : AiScript, IReturningHome
         uint min = Creature.DamageMin;
         uint max = Math.Max(min, Creature.DamageMax);
 
-        return min == max ? min : (uint)Random.Shared.NextInt64(min, max + 1L);
+        return min == max ? min : (uint)_random.NextInt64(min, max);
     }
 
     private void ResetToIdleAtSpawn()

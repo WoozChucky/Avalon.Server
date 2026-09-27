@@ -13,6 +13,7 @@ using Avalon.World.Public.Enums;
 using Avalon.World.Public.Units;
 using Avalon.World.Abilities;
 using Avalon.World.Characters;
+using Avalon.World.Combat;
 using Avalon.World.Inventory;
 using Avalon.World.Persistence;
 using Avalon.World.Vendors;
@@ -149,6 +150,20 @@ public class CharacterEntity : ICharacter
         Stats = stats;
         SaveState.StatsChanged();
     }
+
+    /// <summary>
+    /// What this character attacks with (#506): its level, and the damage stats, crit and main-hand weapon
+    /// range the last stats refresh derived (select, gear change, level-up). World-side and read-only, not
+    /// on ICharacter: the modding API cannot change what a hit deals (#622).
+    /// </summary>
+    internal AttackerCombat Combat => Stats is { } s
+        ? new AttackerCombat(Level, s.AttackDamage, s.AbilityDamage, s.CritPct, s.WeaponMin, s.WeaponMax)
+        : new AttackerCombat(Level, 0, 0, 0f, 0, 0);
+
+    /// <summary>What this character defends with (#506): armour, dodge and block, from the last stats refresh.</summary>
+    internal DefenderCombat Defence => Stats is { } s
+        ? new DefenderCombat(s.Armor, s.DodgePct, s.BlockPct)
+        : default;
 
     public bool IsInCombat =>
         _lastCombatTime != DateTime.MinValue &&

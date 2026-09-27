@@ -5,8 +5,9 @@ namespace Avalon.World.Characters;
 
 /// <summary>
 /// What a character's class, level and worn gear add up to (spec #463). Written to the entity by
-/// CharacterEntity.ApplyStats and saved as the character's CharacterStats row. Combat reads none of
-/// the attributes, armour or damage values yet; they are stored for the combat work that will.
+/// CharacterEntity.ApplyStats and saved as the character's CharacterStats row. Combat reads the damage
+/// stats, armour, block, dodge and crit, and the main-hand weapon's damage range (#506), from the copy
+/// the entity holds, so a hit looks nothing up. The weapon range is not saved.
 /// </summary>
 public readonly record struct DerivedCharacterStats(
     uint MaxHealth,
@@ -20,7 +21,9 @@ public readonly record struct DerivedCharacterStats(
     float DodgePct,
     float CritPct,
     uint AttackDamage,
-    uint AbilityDamage)
+    uint AbilityDamage,
+    uint WeaponMin = 0,
+    uint WeaponMax = 0)
 {
     /// <summary>The Character-DB row, named by its key alone (no navigation), as every save writes it.</summary>
     public CharacterStats ToRow(CharacterId characterId) => new()

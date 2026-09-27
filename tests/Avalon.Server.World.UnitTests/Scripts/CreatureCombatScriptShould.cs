@@ -1265,6 +1265,24 @@ public class CreatureCombatScriptShould
         combat.ReceivedWithAnyArgs(2).ApplyDamage(default!, default!, default);
     }
 
+    /// <summary>#506: a swing's damage is drawn through the combat random, inclusive of both ends of the range.</summary>
+    [Fact]
+    public void Swing_for_a_roll_of_its_damage_range_drawn_through_the_combat_random()
+    {
+        var locomotion = Substitute.For<ICreatureLocomotion>();
+        var combat = Substitute.For<ICombatService>();
+        var rng = new Avalon.Server.World.UnitTests.Combat.ScriptedCombatRandom().Longs(7);
+        (CreatureCombatScript script, ICreature creature, ICharacter target) =
+            BuildChasingScript(locomotion, targetAt: new Vector3(1f, 0f, 0f), combat: combat, random: rng);
+        creature.DamageMin.Returns(3u);
+        creature.DamageMax.Returns(9u);
+
+        script.Update(TimeSpan.FromSeconds(0.1));
+
+        combat.Received(1).ApplyDamage(creature, target, 7u);
+        Assert.Equal([(3L, 9L)], rng.WeaponRolls);
+    }
+
     // #606: a target the creature can never reach used to hold it in Combat for good.
 
     /// <summary>
@@ -1626,7 +1644,8 @@ public class CreatureCombatScriptShould
     }
 
     private (CreatureCombatScript script, ICreature creature, ICharacter target) BuildChasingScript(
-        ICreatureLocomotion locomotion, Vector3 targetAt, int slotCount = 6, ICombatService? combat = null)
+        ICreatureLocomotion locomotion, Vector3 targetAt, int slotCount = 6, ICombatService? combat = null,
+        Avalon.World.Combat.ICombatRandom? random = null)
     {
         ICreature creature = Substitute.For<ICreature>();
         creature.Guid.Returns(new ObjectGuid(ObjectType.Creature, 1));
@@ -1663,7 +1682,7 @@ public class CreatureCombatScriptShould
         context.Locomotion.Returns(locomotion);
         context.MeleeSlots.Returns(_meleeSlots);
 
-        var script = new CreatureCombatScript(NullLoggerFactory.Instance, creature, context);
+        var script = new CreatureCombatScript(NullLoggerFactory.Instance, creature, context, random: random);
         // OnEnteredRange seeds State = Combat, target = character, and _initialPosition = the
         // creature's current position (Vector3.zero here) — the seam under test only cares that
         // the script is actively engaging something far enough away to need to move.

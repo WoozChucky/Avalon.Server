@@ -30,8 +30,9 @@ internal static class TestMapInstances
     /// navigator lets every ray through.
     /// </summary>
     /// <param name="world">The world the instance belongs to; <see cref="MapInstanceClients.NewWorld" /> when omitted.</param>
+    /// <param name="random">Every combat roll (#506); the instance's own no-proc fallback when omitted.</param>
     public static MapInstance BuildCasting(out CastAbilityHandler handler, MapType mapType = MapType.Normal,
-        IWorld? world = null, params Type[] extraScripts)
+        IWorld? world = null, ICombatRandom? random = null, params Type[] extraScripts)
     {
         var scripts = Substitute.For<IScriptManager>();
         foreach (Type script in new[] { typeof(CircleAbilityScript), typeof(ConeAbilityScript), typeof(ProjectileAbilityScript) }
@@ -43,7 +44,7 @@ internal static class TestMapInstances
         var navigator = Substitute.For<IMapNavigator>();
         navigator.RaycastWalkable(default, default).ReturnsForAnyArgs(ci => ci.ArgAt<Vector3>(1));
         world ??= MapInstanceClients.NewWorld();
-        MapInstance instance = Build(world, scripts, navigator, mapType: mapType);
+        MapInstance instance = Build(world, scripts, navigator, mapType: mapType, random: random);
         world.InstanceRegistry.GetInstanceById(instance.InstanceId).Returns(instance);
         handler = new CastAbilityHandler(NullLogger<CastAbilityHandler>.Instance, world, new CombatConfig());
         return instance;
@@ -61,11 +62,16 @@ internal static class TestMapInstances
     /// <param name="pvp">The PvP toggle the instance and its combat service use; the instance builds its own when omitted.</param>
     /// <param name="mapType">The instance's map type; Normal when omitted.</param>
     /// <param name="time">The container's clock; the system clock when omitted.</param>
+    /// <param name="random">Every combat roll (#506); the instance's own no-proc fallback when omitted.</param>
     public static MapInstance Build(
         IWorld world, IScriptManager? scripts = null, IMapNavigator? navigator = null, PvpToggle? pvp = null,
-        MapType mapType = MapType.Normal, TimeProvider? time = null)
+        MapType mapType = MapType.Normal, TimeProvider? time = null, ICombatRandom? random = null)
     {
         var serviceProvider = Substitute.For<IServiceProvider>();
+        if (random is not null)
+        {
+            serviceProvider.GetService(typeof(ICombatRandom)).Returns(random);
+        }
         if (time is not null)
         {
             serviceProvider.GetService(typeof(TimeProvider)).Returns(time);

@@ -16,8 +16,22 @@ public interface ICombatRandom
 /// <summary>Production randomness. Registered over <see cref="Random.Shared" />, which is thread-safe.</summary>
 public sealed class CombatRandom(Random random) : ICombatRandom
 {
+    /// <summary>
+    /// What a combat service built without a random uses (tests): no chance below 100 % ever procs, and
+    /// a weapon rolls its low end, so a hit deals its base. Production registers <see cref="CombatRandom" />
+    /// over <see cref="Random.Shared" />; WorldHostGraphShould pins it.
+    /// </summary>
+    public static readonly ICombatRandom Steady = new SteadyRandom();
+
     public double NextDouble() => random.NextDouble();
 
     public long NextInt64(long minInclusive, long maxInclusive) =>
         maxInclusive <= minInclusive ? minInclusive : random.NextInt64(minInclusive, maxInclusive + 1);
+
+    private sealed class SteadyRandom : ICombatRandom
+    {
+        public double NextDouble() => 1d - 1e-9;
+
+        public long NextInt64(long minInclusive, long maxInclusive) => minInclusive;
+    }
 }

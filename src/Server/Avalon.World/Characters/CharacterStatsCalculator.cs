@@ -34,6 +34,11 @@ public static class CharacterStatsCalculator
         long attack = (long)(strength * factors.AttackPerStrength + agility * factors.AttackPerAgility) + gear.AttackDamage;
         long ability = (long)(intellect * factors.AbilityPerIntellect) + gear.AbilityDamage;
 
+        // #506: the main-hand weapon's first damage range, what a skill's weapon term rolls; none is 0-0.
+        ItemTemplate? weapon = worn.FirstOrDefault(t => t.Slot == ItemSlotType.MainHand);
+        uint weaponMax = weapon?.DamageMax1 ?? 0;
+        uint weaponMin = Math.Min(weapon?.DamageMin1 ?? 0, weaponMax);
+
         return new DerivedCharacterStats(
             MaxHealth: Clamp(maxHealth),
             MaxPower: Clamp(maxPower),
@@ -46,7 +51,9 @@ public static class CharacterStatsCalculator
             DodgePct: factors.BaseDodge + gear.DodgePct,
             CritPct: factors.BaseCrit + gear.CritPct,
             AttackDamage: Clamp(attack),
-            AbilityDamage: Clamp(ability));
+            AbilityDamage: Clamp(ability),
+            WeaponMin: weaponMin,
+            WeaponMax: weaponMax);
     }
 
     /// <summary>

@@ -80,6 +80,9 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     private readonly VendorStocks _vendors = new();
 
     private readonly TimeProvider _time;
+
+    /// <summary>The seeded combat formula, for an instance whose world has no reference data loaded (tests).</summary>
+    private static readonly Avalon.Domain.World.CombatFormula SeededFormula = Avalon.Database.World.Seeding.CombatSeed.Formula();
     private readonly PvpToggle _pvp;
     private readonly IQuestProgress _quests;
 
@@ -139,8 +142,12 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         // between MapInstances.
         CombatConfig combatConfig = serviceProvider.GetRequiredService<CombatConfig>();
         _encounterRegistry = new EncounterRegistry(combatConfig, _time);
+        // #506: every roll goes through the container's combat random, and each hit reads the current
+        // combat formula once. Both fall back, so an instance built without them (tests) still fights.
         _combatService     = new CombatService(combatConfig, _encounterRegistry, this, _pvp, outcomes: this, time: _time,
-            furyFromDamageTaken: world.Configuration.FuryFromDamageTaken);
+            furyFromDamageTaken: world.Configuration.FuryFromDamageTaken,
+            random: serviceProvider.GetService<ICombatRandom>(),
+            formula: () => world.Data?.Combat?.Formula ?? SeededFormula);
         _threatBroadcast   = new ThreatBroadcastService(combatConfig, _time);
 
         // Shape scripts ask this for the living units their shape overlaps (#164).
