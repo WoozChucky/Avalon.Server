@@ -207,8 +207,10 @@ contracts.
 - A creature walking home after the leash or a lost target ignores hits entirely until it is home
   and reset (owner decision, #606): `CombatService` refuses them, step 2 below (#610). It cannot be
   taunted or pulled into combat (`ApplyTaunt`, `EnterCombat`) on the way either (#614).
-- Home and reset, it leaves its encounter (#614): `ResetToIdleAtSpawn` calls
-  `ICombatService.DropHostileFromEncounter`, which removes the creature and its threat list. The
+- Home and reset, it leaves its encounter and forgets any taunt (#614): `ResetToIdleAtSpawn` clears
+  `TauntedBy` and `TauntExpiresAt` and calls `IHostileEncounterExit.DropHostileFromEncounter`
+  (internal, on `CombatService`, never on the modding API's `ICombatService`), which removes the
+  creature and its threat list. The
   players stay in the encounter with their threat on every other creature in it; one left with no
   creature ends after its grace, as after a kill. No threat from before the leash, not even the seed
   of a player it swung at, reaches its next fight.
@@ -243,8 +245,9 @@ report a kill.
 
 Combat keeps the instance's clock (#614): `MapInstance` hands its `TimeProvider` to the encounter
 registry (each encounter's last damage and end grace), the combat service (when a taunt ends) and the
-threat broadcast throttle, and `CreatureCombatScript` reads the container's to check a taunt. Threat
-decay runs on the tick's delta.
+threat broadcast throttle, and uses it for its own empty-since time (expiry).
+`CreatureCombatScript` reads the container's to check a taunt, and `CharacterEntity` for the
+player's combat tag and cast-regen suppression. Threat decay runs on the tick's delta.
 
 ---
 

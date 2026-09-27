@@ -15,7 +15,7 @@ using Avalon.World.Scripts.Creatures;
 
 namespace Avalon.World.Combat;
 
-public sealed class CombatService : ICombatService
+public sealed class CombatService : ICombatService, IHostileEncounterExit
 {
     private readonly CombatConfig        _config;
     private readonly EncounterRegistry   _registry;
@@ -241,11 +241,7 @@ public sealed class CombatService : ICombatService
         ResolveOrSpawn(player, hostile);
     }
 
-    /// <summary>
-    /// Takes a creature out of its encounter with its threat list (#614). The players stay, with their
-    /// threat on every other hostile. Idempotent.
-    /// </summary>
-    public void DropHostileFromEncounter(IUnit hostile)
+    void IHostileEncounterExit.DropHostileFromEncounter(IUnit hostile)
     {
         var enc = _registry.FindEncounterContaining(hostile) as Encounter;
         enc?.RemoveHostile(hostile);

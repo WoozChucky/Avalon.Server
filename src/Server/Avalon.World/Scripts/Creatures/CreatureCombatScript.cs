@@ -563,8 +563,11 @@ public class CreatureCombatScript : AiScript, IReturningHome
         _unreachableFor = TimeSpan.Zero;
         Context.Locomotion.Stop(Creature);
 
-        // The one place a fight ends at home (#614): the creature leaves its encounter, so no threat
-        // from before the leash, seeded or earned, steers its next fight. The players stay in it.
-        Context.CombatService.DropHostileFromEncounter(Creature);
+        // The one place a fight ends at home (#614): the creature leaves its encounter and forgets any
+        // taunt, so no threat from before the leash, seeded or earned, and no old taunter steers its
+        // next fight. The players stay in the encounter.
+        Creature.TauntedBy = null;
+        Creature.TauntExpiresAt = DateTime.MinValue;
+        (Context.CombatService as Avalon.World.Combat.IHostileEncounterExit)?.DropHostileFromEncounter(Creature);
     }
 }

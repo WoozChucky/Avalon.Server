@@ -196,7 +196,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     public IMeleeSlots MeleeSlots => _meleeSlots;
 
     public bool IsExpired(TimeSpan expiry) =>
-        LastEmptyAt.HasValue && (DateTime.UtcNow - LastEmptyAt.Value) >= expiry;
+        LastEmptyAt.HasValue && (_time.GetUtcNow().UtcDateTime - LastEmptyAt.Value) >= expiry;
 
     public bool CanAcceptPlayer(ushort maxPlayers) => _characters.Count < maxPlayers;
 
@@ -319,7 +319,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
 
         if (_characters.Count == 0)
         {
-            LastEmptyAt = DateTime.UtcNow;
+            LastEmptyAt = _time.GetUtcNow().UtcDateTime;
             _logger.LogInformation("Instance {InstanceId} (map {TemplateId}) is now empty", InstanceId, TemplateId);
         }
 

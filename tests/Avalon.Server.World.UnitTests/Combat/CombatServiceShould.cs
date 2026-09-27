@@ -1077,6 +1077,69 @@ public class CombatServiceShould
     }
 
     /// <summary>
+    /// ICombatService is the modding API, reachable by every AI script: a way to take a creature out of
+    /// its encounter there would let a mod keep any creature from ever holding threat (#614).
+    /// </summary>
+    [Fact]
+    public void Offer_no_way_to_drop_a_hostile_from_its_encounter_on_the_modding_api()
+    {
+        Assert.DoesNotContain(typeof(ICombatService).GetMembers(),
+            m => m.Name.Contains("Hostile", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// A creature that snaps home mid-taunt forgets the taunt at the reset, so the old taunter does not
+    /// hold its next fight (#614).
+    /// </summary>
+    [Fact]
+    public void Forget_a_taunt_once_home_so_its_next_fight_goes_to_whoever_pulls_it()
+    {
+        var clock = new FixedTimeProvider(new DateTimeOffset(2001, 1, 1, 12, 0, 0, TimeSpan.Zero));
+        var cfg = new CombatConfig();
+        var reg = new EncounterRegistry(cfg, clock);
+        var ctx = Substitute.For<ISimulationContext>();
+        var svc = new CombatService(cfg, reg, ctx, time: clock);
+        ctx.CombatService.Returns(svc);
+        var slots = Substitute.For<IMeleeSlots>();
+        ctx.MeleeSlots.Returns(slots);
+        var home = new Avalon.Common.Mathematics.Vector3(5f, 0f, 5f);
+        var creature = new Creature
+        {
+            Guid          = new Avalon.Common.ObjectGuid(Avalon.Common.ObjectType.Creature, 614),
+            Metadata      = Substitute.For<ICreatureMetadata>(),
+            Name          = "Wolf",
+            Health        = 30,
+            CurrentHealth = 30,
+            Position      = home,
+        };
+        var script = new CreatureCombatScript(NullLoggerFactory.Instance, creature, ctx, clock);
+        creature.Script = script;
+
+        ICharacter tank = StubCharacter(CharacterClass.Warrior);
+        tank.Guid.Returns(new Avalon.Common.ObjectGuid(Avalon.Common.ObjectType.Character, 1));
+        tank.Position.Returns(home);
+        script.OnEnteredRange(tank);
+        svc.EnterCombat(creature, tank);
+        svc.ApplyTaunt(tank, creature, 60_000);
+        script.OnCharacterLeft(tank);             // Returning, the taunt still running by the clock
+        script.Update(TimeSpan.FromSeconds(0.1)); // home: reset to idle
+
+        Assert.Null(creature.TauntedBy);
+        Assert.Equal(DateTime.MinValue, creature.TauntExpiresAt);
+
+        ICharacter puller = StubCharacter(CharacterClass.Hunter);
+        puller.Guid.Returns(new Avalon.Common.ObjectGuid(Avalon.Common.ObjectType.Character, 2));
+        puller.Position.Returns(home);
+        slots.ClearReceivedCalls();
+        script.OnEnteredRange(puller);
+        script.Update(TimeSpan.FromSeconds(0.1));
+
+        slots.ReceivedWithAnyArgs().TryClaim(default!, default!, default!, default!, out _);
+        foreach (var call in slots.ReceivedCalls().Where(c => c.GetMethodInfo().Name == nameof(IMeleeSlots.TryClaim)))
+            Assert.Equal(puller.Guid, call.GetArguments()[0]);
+    }
+
+    /// <summary>
     /// Puts a creature's combat script into Returning through the scripts' own public calls, with the
     /// combat script either the creature's script or chained inside <paramref name="scriptName" />.
     /// </summary>

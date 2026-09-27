@@ -47,7 +47,8 @@ public class CharacterSelectHandler(
     IOptions<RegenConfiguration> regenConfig,
     IAccountRepository accountRepository,
     ICharacterSaver characterSaver,
-    IWorldServer worldServer) : WorldPacketHandler<CCharacterSelectedPacket>
+    IWorldServer worldServer,
+    TimeProvider? time = null) : WorldPacketHandler<CCharacterSelectedPacket>
 {
     private Activity? _parentActivity;
 
@@ -322,7 +323,7 @@ public class CharacterSelectHandler(
         ulong requiredExperience = world.Data.CharacterLevelExperiences.FirstOrDefault(c => c.Level == character.Level)
             ?.Experience ?? 0;
 
-        CharacterEntity entity = new(loggerFactory, character, regenConfig.Value)
+        CharacterEntity entity = new(loggerFactory, character, regenConfig.Value, time)
         {
             Data = character,
             Position = new Vector3(character.X, character.Y, character.Z),

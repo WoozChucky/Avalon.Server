@@ -59,11 +59,16 @@ internal static class TestMapInstances
     /// <param name="navigator">The instance's navigator; a bare substitute when omitted.</param>
     /// <param name="pvp">The PvP toggle the instance and its combat service use; the instance builds its own when omitted.</param>
     /// <param name="mapType">The instance's map type; Normal when omitted.</param>
+    /// <param name="time">The container's clock; the system clock when omitted.</param>
     public static MapInstance Build(
         IWorld world, IScriptManager? scripts = null, IMapNavigator? navigator = null, PvpToggle? pvp = null,
-        MapType mapType = MapType.Normal)
+        MapType mapType = MapType.Normal, TimeProvider? time = null)
     {
         var serviceProvider = Substitute.For<IServiceProvider>();
+        if (time is not null)
+        {
+            serviceProvider.GetService(typeof(TimeProvider)).Returns(time);
+        }
         serviceProvider.GetService(typeof(IScriptManager)).Returns(scripts ?? Substitute.For<IScriptManager>());
         serviceProvider.GetService(typeof(CombatConfig)).Returns(new CombatConfig());
         if (pvp is not null)

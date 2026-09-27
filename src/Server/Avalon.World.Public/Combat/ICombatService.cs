@@ -25,13 +25,6 @@ public interface ICombatService
     void ApplyTaunt (IUnit caster,   IUnit target, uint durationMs);
     void EnterCombat(IUnit hostile,  IUnit player);
     void DropPlayerFromEncounter(IUnit player);
-
-    /// <summary>
-    /// Takes <paramref name="hostile" /> out of its encounter with its threat list, leaving the players
-    /// and their threat on every other hostile (#614). A creature home again after the leash does this,
-    /// so nothing from before steers its next fight.
-    /// </summary>
-    void DropHostileFromEncounter(IUnit hostile);
     void RevivePlayer(IUnit player, Vector3 position);
     void Update(TimeSpan deltaTime);
 
