@@ -26,7 +26,7 @@ Size calculation uses fixed field lengths; header marshaled first enabling preal
 7. `CWorldListPacket` — client requests accessible world list.
 8. `SWorldListPacket` — worlds filtered by account access level.
 9. `CWorldSelectPacket(WorldId)` — client chooses target world.
-10. `SWorldSelectPacket(worldKey)` — server issues short-lived base64 `worldKey` stored in Redis (5 min TTL).
+10. `SWorldSelectPacket(worldKey, Result)` — on `Success` the server issues a short-lived base64 `worldKey` stored in Redis (5 min TTL). Otherwise `worldKey` is empty and `Result` says why: `DuplicateSession` (the account already holds the inWorld slot) or `WorldUnavailable` (#554: a world id the server does not know, or a world the account's access level may not enter; both get this one answer, so a restricted world cannot be told from a missing one). The connection stays open after either, so the client can pick another world. `WorldSelectResult` is append-only: 0 `Success`, 1 `DuplicateSession`, 2 `WorldUnavailable`.
 
 ## World Handoff
 

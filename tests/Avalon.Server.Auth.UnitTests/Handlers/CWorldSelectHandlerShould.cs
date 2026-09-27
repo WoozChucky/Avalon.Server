@@ -11,6 +11,7 @@ using Avalon.Server.Auth;
 using Avalon.Server.Auth.Handlers;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
+using ProtoBuf;
 using AvalonWorld = Avalon.Domain.Auth.World;
 
 namespace Avalon.Server.Auth.UnitTests.Handlers;
@@ -75,29 +76,36 @@ public class CWorldSelectHandlerShould
         _connection.Received(1).Close();
     }
 
+    /// <summary>
+    /// #554: an unknown world is answered with WorldUnavailable rather than silence, so the client
+    /// is told at once. No key, no mutex, and the connection stays open to pick another world.
+    /// </summary>
     [Fact]
-    public async Task DoNothing_WhenWorldNotFound()
+    public async Task Answer_WorldUnavailable_WhenWorldNotFound()
     {
         var account = MakeAccount();
         _connection.AccountId.Returns(account.Id);
         _accountRepository.FindByIdAsync(account.Id).Returns(account);
         _worldRepository.FindByIdAsync(Arg.Any<WorldId>()).Returns((AvalonWorld?)null);
 
-        var ctx = new AuthPacketContext<CWorldSelectPacket>
+        await _handler.ExecuteAsync(new AuthPacketContext<CWorldSelectPacket>
         {
             Packet = new CWorldSelectPacket { WorldId = new WorldId(99) },
             Connection = _connection
-        };
+        });
 
-        await _handler.ExecuteAsync(ctx);
-
-        _connection.DidNotReceive().Close();
-        await _cache.DidNotReceive().SetAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<TimeSpan?>());
-        await _cache.DidNotReceive().PublishAsync(Arg.Any<string>(), Arg.Any<string>());
+        SWorldSelectPacket sent = Assert.Single(SentPackets());
+        Assert.Equal(WorldSelectResult.WorldUnavailable, sent.Result);
+        Assert.Empty(sent.WorldKey);
+        await AssertRefusedWithoutSideEffectsAsync();
     }
 
+    /// <summary>
+    /// #554: a world the account may not enter gets the very same answer as one that does not
+    /// exist, so a tampered client cannot probe for restricted worlds.
+    /// </summary>
     [Fact]
-    public async Task DoNothing_WhenAccountLacksRequiredAccessLevel()
+    public async Task Answer_WorldUnavailable_WhenAccountLacksRequiredAccessLevel()
     {
         var account = MakeAccount(level: AccountAccessLevel.Player);
         _connection.AccountId.Returns(account.Id);
@@ -105,17 +113,88 @@ public class CWorldSelectHandlerShould
         var world = MakeWorld(req: AccountAccessLevel.Admin);
         _worldRepository.FindByIdAsync(Arg.Any<WorldId>()).Returns(world);
 
-        var ctx = new AuthPacketContext<CWorldSelectPacket>
+        await _handler.ExecuteAsync(new AuthPacketContext<CWorldSelectPacket>
         {
             Packet = new CWorldSelectPacket { WorldId = new WorldId(1) },
             Connection = _connection
-        };
+        });
 
-        await _handler.ExecuteAsync(ctx);
+        SWorldSelectPacket sent = Assert.Single(SentPackets());
+        Assert.Equal(WorldSelectResult.WorldUnavailable, sent.Result);
+        Assert.Empty(sent.WorldKey);
+        await AssertRefusedWithoutSideEffectsAsync();
+    }
 
-        await _cache.DidNotReceive().SetAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<TimeSpan?>());
-        await _cache.DidNotReceive().PublishAsync(Arg.Any<string>(), Arg.Any<string>());
+    /// <summary>
+    /// #554: the two refusals must be indistinguishable on the wire. The fake crypto session is a
+    /// pass-through, so the packets compare byte for byte, header and payload alike. PTR (32) and
+    /// Tournament (16) are numerically above Admin (4), so these cases fail under an ordinal check.
+    /// </summary>
+    [Theory]
+    [InlineData(AccountAccessLevel.Admin, AccountAccessLevel.Player)]
+    [InlineData(AccountAccessLevel.Admin, AccountAccessLevel.PTR)]
+    [InlineData(AccountAccessLevel.Admin, AccountAccessLevel.Tournament)]
+    public async Task Answer_An_Unknown_World_And_A_Forbidden_World_Identically(AccountAccessLevel required, AccountAccessLevel level)
+    {
+        var account = MakeAccount(level: level);
+        _connection.AccountId.Returns(account.Id);
+        _accountRepository.FindByIdAsync(account.Id).Returns(account);
+        var forbidden = MakeWorld(1, required);
+        _worldRepository.FindByIdAsync(forbidden.Id).Returns(forbidden);
+        _worldRepository.FindByIdAsync(new WorldId(99)).Returns((AvalonWorld?)null);
+
+        await _handler.ExecuteAsync(new AuthPacketContext<CWorldSelectPacket>
+        {
+            Packet = new CWorldSelectPacket { WorldId = new WorldId(99) },
+            Connection = _connection
+        });
+        await _handler.ExecuteAsync(new AuthPacketContext<CWorldSelectPacket>
+        {
+            Packet = new CWorldSelectPacket { WorldId = forbidden.Id },
+            Connection = _connection
+        });
+
+        List<NetworkPacket> sent = SentNetworkPackets();
+        Assert.Equal(2, sent.Count);
+        Assert.Equal(sent[0].Header.Type, sent[1].Header.Type);
+        Assert.Equal(sent[0].Header.Flags, sent[1].Header.Flags);
+        Assert.Equal(sent[0].Header.Protocol, sent[1].Header.Protocol);
+        Assert.Equal(sent[0].Header.Version, sent[1].Header.Version);
+        Assert.Equal(sent[0].Payload, sent[1].Payload);
+
+        SWorldSelectPacket unknown = Decode(sent[0]);
+        SWorldSelectPacket refused = Decode(sent[1]);
+        Assert.Equal(WorldSelectResult.WorldUnavailable, unknown.Result);
+        Assert.Equal(unknown.Result, refused.Result);
+        Assert.Equal(unknown.WorldKey, refused.WorldKey);
+        await AssertRefusedWithoutSideEffectsAsync();
+    }
+
+    private async Task AssertRefusedWithoutSideEffectsAsync()
+    {
+        _connection.DidNotReceive().Close();
+        _secureRandom.DidNotReceiveWithAnyArgs().GetBytes(default);
+        await _cache.DidNotReceiveWithAnyArgs().SetNxAsync(default!, default!, default);
+        await _cache.DidNotReceiveWithAnyArgs().SetAsync(default!, default!, default);
+        await _cache.DidNotReceiveWithAnyArgs().PublishAsync(default!, default!);
         await _accountRepository.DidNotReceiveWithAnyArgs().SetSessionKeyAsync(default!, default!, default);
+    }
+
+    private List<NetworkPacket> SentNetworkPackets()
+        => _connection.ReceivedCalls()
+            .Where(c => c.GetMethodInfo().Name == nameof(IAuthConnection.Send))
+            .Select(c => c.GetArguments()[0])
+            .OfType<NetworkPacket>()
+            .ToList();
+
+    private List<SWorldSelectPacket> SentPackets() => SentNetworkPackets().Select(Decode).ToList();
+
+    // FakeAvalonCryptoSession.Encrypt is a pass-through, so the payload is the plain protobuf.
+    private static SWorldSelectPacket Decode(NetworkPacket packet)
+    {
+        Assert.Equal(NetworkPacketType.SMSG_WORLD_SELECT, packet.Header.Type);
+        using var stream = new MemoryStream(packet.Payload);
+        return Serializer.Deserialize<SWorldSelectPacket>(stream);
     }
 
     /// <summary>
@@ -133,6 +212,8 @@ public class CWorldSelectHandlerShould
         await SelectAsync(required, level);
 
         await _cache.DidNotReceiveWithAnyArgs().SetNxAsync(default!, default!, default);
+        Assert.Equal(WorldSelectResult.WorldUnavailable, Assert.Single(SentPackets()).Result);
+        _connection.DidNotReceive().Close();
     }
 
     /// <summary>Staff reach a PTR world without holding the PTR flag; PTR testers reach it too.</summary>
@@ -264,6 +345,10 @@ public class CWorldSelectHandlerShould
 
         _secureRandom.Received(1).GetBytes(32);
         Assert.Equal(expectedKey, account.SessionKey);
+        SWorldSelectPacket sent = Assert.Single(SentPackets());
+        Assert.Equal(WorldSelectResult.Success, sent.Result);
+        Assert.Equal(expectedKey, sent.WorldKey);
+        _connection.DidNotReceive().Close();
     }
 
     [Fact]
@@ -286,6 +371,10 @@ public class CWorldSelectHandlerShould
         await _handler.ExecuteAsync(ctx);
 
         _connection.Received(1).Send(Arg.Any<NetworkPacket>());
+        SWorldSelectPacket sent = Assert.Single(SentPackets());
+        Assert.Equal(WorldSelectResult.DuplicateSession, sent.Result);
+        Assert.Empty(sent.WorldKey);
+        _connection.DidNotReceive().Close();
         await _accountRepository.DidNotReceiveWithAnyArgs().SetSessionKeyAsync(default!, default!, default);
         await _cache.DidNotReceive().SetAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<TimeSpan?>());
         await _cache.DidNotReceive().PublishAsync(Arg.Any<string>(), Arg.Any<string>());

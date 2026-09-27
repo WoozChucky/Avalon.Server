@@ -36,10 +36,15 @@ public class CWorldSelectHandler : IAuthPacketHandler<CWorldSelectPacket>
         if (account == null)
             return;
 
+        // #554: an unknown world and a world this account may not enter get the same answer,
+        // WorldUnavailable, after the same single lookup, so a client cannot probe for restricted
+        // worlds. Neither takes the inWorld slot or writes a key, and the connection stays open so
+        // the player can pick another world.
         var world = await _worldRepository.FindByIdAsync(ctx.Packet.WorldId, false, token);
         if (world == null)
         {
             _logger.LogWarning("World not found for id {WorldId}", ctx.Packet.WorldId);
+            SendWorldUnavailable(ctx.Connection);
             return;
         }
 
@@ -47,6 +52,7 @@ public class CWorldSelectHandler : IAuthPacketHandler<CWorldSelectPacket>
         if (!AccessLevels.ForWorld(world.AccessLevelRequired).Allows(account.AccessLevel))
         {
             _logger.LogWarning("Account {AccountId} tried to access world {WorldId} without the required access level", account.Id, world.Id);
+            SendWorldUnavailable(ctx.Connection);
             return;
         }
 
@@ -74,4 +80,7 @@ public class CWorldSelectHandler : IAuthPacketHandler<CWorldSelectPacket>
 
         ctx.Connection.Send(SWorldSelectPacket.Create(worldKey, ctx.Connection.CryptoSession.Encrypt));
     }
+
+    private static void SendWorldUnavailable(IAuthConnection connection)
+        => connection.Send(SWorldSelectPacket.CreateError(WorldSelectResult.WorldUnavailable, connection.CryptoSession.Encrypt));
 }
