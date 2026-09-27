@@ -91,7 +91,11 @@ public class CreatureTemplate : IDbEntity<CreatureTemplateId>, ICreatureMetadata
 
     public float DamageModifier { get; set; }
 
-    public int BaseAttackTime { get; set; }
+    /// <summary>
+    /// Seconds between the creature's swings (#627), 0.5 or more and finite (a database check and the
+    /// Creatures reload area both refuse anything else). Fixed on the creature at spawn.
+    /// </summary>
+    public float BaseAttackTime { get; set; } = 2.25f;
 
     public int RangeAttackTime { get; set; }
 

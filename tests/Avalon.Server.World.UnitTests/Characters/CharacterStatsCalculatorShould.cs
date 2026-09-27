@@ -118,17 +118,29 @@ public class CharacterStatsCalculatorShould
         Assert.Equal(1.85f + 2f, wizard.CritPct, precision: 4);
     }
 
+    /// <summary>
+    /// #627: AttackSpeed and MovementSpeed are summed over the worn gear as percentages, raw (the caps are
+    /// the combat formula's, applied by the entity), and change nothing else.
+    /// </summary>
     [Fact]
-    public void Ignore_attack_speed_and_movement_speed()
+    public void Sum_attack_speed_and_movement_speed_over_the_worn_gear_and_change_nothing_else()
     {
         var boots = new ItemTemplate
         {
             Id = new ItemTemplateId(700), Name = "Boots", Slot = ItemSlotType.Feet,
             StatType1 = StatType.MovementSpeed, StatValue1 = 50, StatType2 = StatType.AttackSpeed, StatValue2 = 9,
         };
+        var sword = new ItemTemplate
+        {
+            Id = new ItemTemplateId(702), Name = "Sword", Slot = ItemSlotType.MainHand,
+            StatType1 = StatType.AttackSpeed, StatValue1 = 3, StatType2 = StatType.MovementSpeed, StatValue2 = 10,
+        };
         ClassLevelStat row = SeededRow(CharacterClass.Warrior, 1);
 
-        Assert.Equal(Calc(row, []), Calc(row, [boots]));
+        DerivedCharacterStats worn = Calc(row, [boots, sword]);
+
+        Assert.Equal((12f, 60f), (worn.HastePct, worn.MovementSpeedPct));
+        Assert.Equal(Calc(row, []), worn with { HastePct = 0f, MovementSpeedPct = 0f });
     }
 
     [Fact]

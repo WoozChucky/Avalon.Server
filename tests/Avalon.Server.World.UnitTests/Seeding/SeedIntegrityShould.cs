@@ -781,4 +781,69 @@ public class SeedIntegrityShould
             (h.HpPerStamina, h.PowerPerIntellect, h.PowerPerAgility, h.FixedPower, h.AttackPerStrength, h.AttackPerAgility,
              h.AbilityPerIntellect, h.BaseBlock, h.BaseDodge, h.BaseCrit));
     }
+    /// <summary>#627: the haste cap and the movement speed bounds, in percentage points.</summary>
+    [Fact]
+    public void Seed_the_haste_cap_and_the_movement_speed_bounds()
+    {
+        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+
+        CombatFormula f = Assert.Single(context.CombatFormulas.AsNoTracking().ToList());
+        Assert.Equal((50f, 50f, -50f), (f.HasteCap, f.MoveSpeedCap, f.MoveSpeedFloor));
+    }
+
+    /// <summary>
+    /// #627: a weapon's AttackSpeed is a haste percentage, set by weapon type: swords and bows 3, maces 2,
+    /// staves 0. A staff keeps its AttackSpeed pair, at 0.
+    /// </summary>
+    [Theory]
+    [InlineData(4ul, 3u)]   // Rusted Sword
+    [InlineData(7ul, 3u)]   // Bramblesteel Sword
+    [InlineData(32ul, 3u)]  // Ironwood Sword
+    [InlineData(6ul, 3u)]   // Briarstring Bow
+    [InlineData(34ul, 3u)]  // Hunter's Shortbow
+    [InlineData(8ul, 2u)]   // Rootknot Mace
+    [InlineData(35ul, 2u)]  // Oak Mace
+    [InlineData(5ul, 0u)]   // Thornwood Staff
+    [InlineData(33ul, 0u)]  // Ash Staff
+    public void Seed_each_weapons_attack_speed_as_a_haste_percentage(ulong id, uint haste)
+    {
+        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+
+        ItemTemplate item = context.ItemTemplates.AsNoTracking().ToList().Single(i => i.Id.Value == id);
+        Assert.Equal((StatType?)StatType.AttackSpeed, item.StatType1);
+        Assert.Equal((uint?)haste, item.StatValue1);
+    }
+
+    /// <summary>#627: every seeded weapon is one of the nine above, and no seeded item carries MovementSpeed.</summary>
+    [Fact]
+    public void Seed_attack_speed_on_the_nine_weapons_only_and_movement_speed_on_nothing()
+    {
+        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+
+        List<ItemTemplate> items = context.ItemTemplates.AsNoTracking().ToList();
+        Assert.Equal([4ul, 5ul, 6ul, 7ul, 8ul, 32ul, 33ul, 34ul, 35ul],
+            items.Where(i => StatTypesOf(i).Contains(StatType.AttackSpeed)).Select(i => i.Id.Value).Order());
+        Assert.DoesNotContain(items, i => StatTypesOf(i).Contains(StatType.MovementSpeed));
+    }
+
+    private static StatType?[] StatTypesOf(ItemTemplate i) =>
+    [
+        i.StatType1, i.StatType2, i.StatType3, i.StatType4, i.StatType5,
+        i.StatType6, i.StatType7, i.StatType8, i.StatType9, i.StatType10,
+    ];
+
+    /// <summary>#627: every creature swings every 2.25 s, the interval the combat script used as a constant.</summary>
+    [Fact]
+    public void Seed_every_creature_template_to_swing_every_two_and_a_quarter_seconds()
+    {
+        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+
+        List<CreatureTemplate> templates = context.CreatureTemplates.AsNoTracking().ToList();
+        Assert.NotEmpty(templates);
+        Assert.All(templates, t => Assert.Equal(2.25f, t.BaseAttackTime));
+    }
 }

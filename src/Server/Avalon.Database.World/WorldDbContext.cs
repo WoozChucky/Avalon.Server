@@ -605,9 +605,17 @@ public class WorldDbContext : DbContext
         // Infinity and NaN too: Postgres sorts NaN above every number, so "> 0" alone lets it through.
         // The literal is left untyped so Postgres reads it as the column's real; a "::real" cast would
         // not parse in SQLite, where the tests build the schema and a number is always below text.
-        builder.ToTable("CreatureTemplates", t => t.HasCheckConstraint(
-            "CK_CreatureTemplates_BodyRadius_Positive",
-            "\"BodyRadius\" > 0 AND \"BodyRadius\" < 'Infinity'"));
+        builder.ToTable("CreatureTemplates", t =>
+        {
+            t.HasCheckConstraint(
+                "CK_CreatureTemplates_BodyRadius_Positive",
+                "\"BodyRadius\" > 0 AND \"BodyRadius\" < 'Infinity'");
+
+            // #627: the swing interval in seconds, at least half a second and finite, the same way.
+            t.HasCheckConstraint(
+                "CK_CreatureTemplates_BaseAttackTime",
+                "\"BaseAttackTime\" >= 0.5 AND \"BaseAttackTime\" < 'Infinity'");
+        });
         builder.Property(b => b.Id)
             .HasConversion(
                 v => v.Value,
@@ -662,7 +670,7 @@ public class WorldDbContext : DbContext
             RegenHealth = 1,
             DmgSchool = 0,
             DamageModifier = 1,
-            BaseAttackTime = 1,
+            BaseAttackTime = 2.25f,
             RangeAttackTime = 0
         }, new CreatureTemplate
         {
@@ -695,7 +703,7 @@ public class WorldDbContext : DbContext
             RegenHealth = 1,
             DmgSchool = 0,
             DamageModifier = 1,
-            BaseAttackTime = 1,
+            BaseAttackTime = 2.25f,
             RangeAttackTime = 0
         }, new CreatureTemplate
         {
@@ -728,7 +736,7 @@ public class WorldDbContext : DbContext
             RegenHealth = 1,
             DmgSchool = 0,
             DamageModifier = 1,
-            BaseAttackTime = 1,
+            BaseAttackTime = 2.25f,
             RangeAttackTime = 0
         }, new CreatureTemplate
         {
@@ -762,7 +770,7 @@ public class WorldDbContext : DbContext
             RegenHealth = 1,
             DmgSchool = 0,
             DamageModifier = 1.0f,
-            BaseAttackTime = 1,
+            BaseAttackTime = 2.25f,
             RangeAttackTime = 0
         }, new CreatureTemplate
         {
@@ -796,7 +804,7 @@ public class WorldDbContext : DbContext
             RegenHealth = 1,
             DmgSchool = 0,
             DamageModifier = 1.1f,
-            BaseAttackTime = 1,
+            BaseAttackTime = 2.25f,
             RangeAttackTime = 0
         }, new CreatureTemplate
         {
@@ -830,7 +838,7 @@ public class WorldDbContext : DbContext
             RegenHealth = 1,
             DmgSchool = 0,
             DamageModifier = 0.7f,
-            BaseAttackTime = 1,
+            BaseAttackTime = 2.25f,
             RangeAttackTime = 0
         }, new CreatureTemplate
         {
@@ -864,7 +872,7 @@ public class WorldDbContext : DbContext
             RegenHealth = 1,
             DmgSchool = 0,
             DamageModifier = 1.0f,
-            BaseAttackTime = 1,
+            BaseAttackTime = 2.25f,
             RangeAttackTime = 0
         }, new CreatureTemplate
         {
@@ -898,7 +906,7 @@ public class WorldDbContext : DbContext
             RegenHealth = 1,
             DmgSchool = 0,
             DamageModifier = 1.1f,
-            BaseAttackTime = 1,
+            BaseAttackTime = 2.25f,
             RangeAttackTime = 0
         }, new CreatureTemplate
         {
@@ -932,7 +940,7 @@ public class WorldDbContext : DbContext
             RegenHealth = 1,
             DmgSchool = 0,
             DamageModifier = 1.1f,
-            BaseAttackTime = 1,
+            BaseAttackTime = 2.25f,
             RangeAttackTime = 0
         }, new CreatureTemplate
         {
@@ -966,7 +974,7 @@ public class WorldDbContext : DbContext
             RegenHealth = 1,
             DmgSchool = 0,
             DamageModifier = 1.0f,
-            BaseAttackTime = 1,
+            BaseAttackTime = 2.25f,
             RangeAttackTime = 0
         });
 
@@ -1004,7 +1012,7 @@ public class WorldDbContext : DbContext
             RegenHealth = 1,
             DmgSchool = 0,
             DamageModifier = 1,
-            BaseAttackTime = 1,
+            BaseAttackTime = 2.25f,
             RangeAttackTime = 0
         });
 
@@ -1049,7 +1057,7 @@ public class WorldDbContext : DbContext
         RegenHealth = 1,
         DmgSchool = 0,
         DamageModifier = 1,
-        BaseAttackTime = 1,
+        BaseAttackTime = 2.25f,
         RangeAttackTime = 0
     };
 
@@ -1140,7 +1148,7 @@ public class WorldDbContext : DbContext
                 DamageMax1 = 3,
                 DamageType1 = DamageType.Physical,
                 StatType1 = StatType.AttackSpeed,
-                StatValue1 = 13 // 1.3 seconds
+                StatValue1 = 3 // haste %, a sword's (#627)
             },
             // The forest pools (issue #460). Items 5-31 can be sold (owner decision), so they carry no
             // NoSell. Items 5-8: one weapon per class, the group in loot table 9.
@@ -1165,7 +1173,7 @@ public class WorldDbContext : DbContext
                 DamageMax1 = 14,
                 DamageType1 = DamageType.Physical,
                 StatType1 = StatType.AttackSpeed,
-                StatValue1 = 18, // 1.8 seconds
+                StatValue1 = 0, // haste %, a staff's (#627)
                 StatType2 = StatType.Intellect,
                 StatValue2 = 1
             }, new ItemTemplate
@@ -1188,7 +1196,7 @@ public class WorldDbContext : DbContext
                 DamageMax1 = 11,
                 DamageType1 = DamageType.Physical,
                 StatType1 = StatType.AttackSpeed,
-                StatValue1 = 15, // 1.5 seconds
+                StatValue1 = 3, // haste %, a bow's (#627)
                 StatType2 = StatType.Agility,
                 StatValue2 = 1
             }, new ItemTemplate
@@ -1211,7 +1219,7 @@ public class WorldDbContext : DbContext
                 DamageMax1 = 11,
                 DamageType1 = DamageType.Physical,
                 StatType1 = StatType.AttackSpeed,
-                StatValue1 = 13, // 1.3 seconds
+                StatValue1 = 3, // haste %, a sword's (#627)
                 StatType2 = StatType.Strength,
                 StatValue2 = 1
             }, new ItemTemplate
@@ -1234,7 +1242,7 @@ public class WorldDbContext : DbContext
                 DamageMax1 = 11,
                 DamageType1 = DamageType.Physical,
                 StatType1 = StatType.AttackSpeed,
-                StatValue1 = 15, // 1.5 seconds
+                StatValue1 = 2, // haste %, a mace's (#627)
                 StatType2 = StatType.Intellect,
                 StatValue2 = 1
             },
@@ -1309,13 +1317,14 @@ public class WorldDbContext : DbContext
         // The Common starter tier (#432), what the town vendors sell: one weapon per class and a
         // five-slot set per class. Each stat is the matching forest piece's (items 5-8, 12-31) times
         // 0.6, rounded half away from zero, and at least 1 where the forest piece has it. Weapon
-        // damage is scaled the same way. AttackSpeed is a swing time, so it is copied, never scaled.
+        // damage is scaled the same way. AttackSpeed is a haste percentage set by weapon type (#627:
+        // swords and bows 3, maces 2, staves 0), so it is copied, never scaled.
         // Sold, never dropped: no loot table names these.
         builder.HasData(
-            StarterWeapon(32, "Ironwood Sword", CharacterClass.Warrior, ItemSubClass.OneHanded, attackSpeed: 13, (StatType.Strength, 1)),
-            StarterWeapon(33, "Ash Staff", CharacterClass.Wizard, ItemSubClass.TwoHanded, attackSpeed: 18, (StatType.Intellect, 1)),
-            StarterWeapon(34, "Hunter's Shortbow", CharacterClass.Hunter, ItemSubClass.Ranged, attackSpeed: 15, (StatType.Agility, 1)),
-            StarterWeapon(35, "Oak Mace", CharacterClass.Healer, ItemSubClass.OneHanded, attackSpeed: 15, (StatType.Intellect, 1)));
+            StarterWeapon(32, "Ironwood Sword", CharacterClass.Warrior, ItemSubClass.OneHanded, attackSpeed: 3, (StatType.Strength, 1)),
+            StarterWeapon(33, "Ash Staff", CharacterClass.Wizard, ItemSubClass.TwoHanded, attackSpeed: 0, (StatType.Intellect, 1)),
+            StarterWeapon(34, "Hunter's Shortbow", CharacterClass.Hunter, ItemSubClass.Ranged, attackSpeed: 3, (StatType.Agility, 1)),
+            StarterWeapon(35, "Oak Mace", CharacterClass.Healer, ItemSubClass.OneHanded, attackSpeed: 2, (StatType.Intellect, 1)));
 
         builder.HasData(
             StarterArmourPiece(36, "Ironbound Helm", CharacterClass.Warrior, ItemSubClass.Helmet, ItemSlotType.Head, 60, (StatType.Strength, 1), (StatType.Armor, 2), (StatType.Stamina, 1)),
@@ -2259,7 +2268,8 @@ public class WorldDbContext : DbContext
     /// <summary>
     /// The one combat formula row (#506). Every value finite, the multipliers and armour terms 0 or more,
     /// the armour cap a share (0 to 1), the chance caps percentage points (0 to 100), and the armour
-    /// terms together above 0, so no reduction divides by zero. The upper bound refuses Infinity and
+    /// terms together above 0, so no reduction divides by zero. The haste cap is 0 or more, and the
+    /// movement speed floor above -100 and at most the cap (#627). The upper bound refuses Infinity and
     /// NaN too, as the other float checks here do.
     /// </summary>
     private static void Configure(EntityTypeBuilder<CombatFormula> builder)
@@ -2276,6 +2286,14 @@ public class WorldDbContext : DbContext
             t.HasCheckConstraint("CK_CombatFormula_CritCap", Percentage("CritCap"));
             t.HasCheckConstraint("CK_CombatFormula_DodgeCap", Percentage("DodgeCap"));
             t.HasCheckConstraint("CK_CombatFormula_BlockCap", Percentage("BlockCap"));
+
+            // #627: haste caps at 0 or more; movement speed stays above -100 %, so it never reaches 0,
+            // with the floor at most the cap. The upper bound refuses Infinity and NaN, as above.
+            t.HasCheckConstraint("CK_CombatFormula_HasteCap", Finite("HasteCap"));
+            t.HasCheckConstraint("CK_CombatFormula_MoveSpeedCap",
+                "\"MoveSpeedCap\" > -100 AND \"MoveSpeedCap\" < 'Infinity'");
+            t.HasCheckConstraint("CK_CombatFormula_MoveSpeedFloor",
+                "\"MoveSpeedFloor\" > -100 AND \"MoveSpeedFloor\" <= \"MoveSpeedCap\"");
         });
         builder.HasKey(b => b.Id);
         builder.Property(b => b.Id).ValueGeneratedNever();

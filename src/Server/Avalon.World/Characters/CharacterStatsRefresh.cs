@@ -4,6 +4,7 @@ using Avalon.World.Entities;
 using Avalon.World.Inventory;
 using Avalon.World.Public.Characters;
 using Avalon.World.Public.Enums;
+using Avalon.World.Reload;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Characters;
@@ -34,14 +35,16 @@ public static class CharacterStatsRefresh
     /// <summary>
     /// False, changing nothing, when there is no ClassLevelStat row for the character's class and
     /// level, or no ClassStatFactors row for its class (#506). A worn item counts only when its template exists and the slot it is in accepts it, so
-    /// a row that put a gem in slot 8 or anything in 11-13 adds nothing.
+    /// a row that put a gem in slot 8 or anything in 11-13 adds nothing. <paramref name="formula" /> bounds
+    /// haste and movement speed (#627); the seeded formula when omitted.
     /// </summary>
     public static bool Apply(
         CharacterEntity character,
         IReadOnlyCollection<ClassLevelStat> classStats,
         IReadOnlyDictionary<CharacterClass, ClassStatFactors> classFactors,
         Func<ItemTemplateId, ItemTemplate?> findTemplate,
-        CurrentValues current)
+        CurrentValues current,
+        CombatFormula? formula = null)
     {
         ClassLevelStat? row = classStats.FirstOrDefault(s => s.Class == character.Class && s.Level == character.Level);
         if (row is null || !classFactors.TryGetValue(character.Class, out ClassStatFactors? factors))
@@ -54,7 +57,7 @@ public static class CharacterStatsRefresh
                 worn.Add(template);
         }
 
-        character.ApplyStats(CharacterStatsCalculator.Calculate(row, worn, factors), current);
+        character.ApplyStats(CharacterStatsCalculator.Calculate(row, worn, factors), current, formula);
         return true;
     }
 
@@ -62,8 +65,10 @@ public static class CharacterStatsRefresh
     public static bool Apply(CharacterEntity character, StaticData data, CurrentValues current)
     {
         IReadOnlyCollection<ItemTemplate> templates = data.ItemTemplates;
-        return Apply(character, data.ClassLevelStats, data.Combat.Factors, id => templates.FirstOrDefault(t => t.Id == id),
-            current);
+        // The combat area is read once, so the factors and the formula are one generation.
+        CombatPatch combat = data.Combat;
+        return Apply(character, data.ClassLevelStats, combat.Factors, id => templates.FirstOrDefault(t => t.Id == id),
+            current, combat.Formula);
     }
 
     /// <summary>

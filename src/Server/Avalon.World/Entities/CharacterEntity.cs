@@ -74,14 +74,22 @@ public class CharacterEntity : ICharacter
         Spells = new CharacterAbilityContainer(loggerFactory);
         Guid = new ObjectGuid(ObjectType.Character, character.Id);
         _regenConfig = regenConfig;
-        // Compute initial MovementSpeed from base + equipment + buff modifiers.
-        // Without this MovementSpeed stays at the float default (0) and pins the player.
-        CalculateMovementSpeed();
     }
 
     public Character? Data { get; init; }
 
-    private float MovementSpeed { get; set; }
+    /// <summary>
+    /// Metres per second (#627): the base until the first stats refresh, then what that refresh derived from
+    /// the gear and the combat formula's bounds. Never 0 at the default, which would pin the player.
+    /// </summary>
+    private float MovementSpeed { get; set; } = CharacterMovement.BaseSpeed;
+
+    /// <summary>
+    /// The haste this character casts with (#627), in percentage points: its gear's AttackSpeed total, from 0
+    /// up to the combat formula's HasteCap, fixed at the last stats refresh. The cast system reads it once
+    /// per cast. World-side and read-only, not on ICharacter: the modding API cannot change it (#622).
+    /// </summary>
+    public float EffectiveHastePct { get; private set; }
 
     public DateTime EnteredWorld { get; set; }
 
@@ -98,8 +106,10 @@ public class CharacterEntity : ICharacter
     /// KeepShare for a gear change, which keeps the same share of each pool. Fury is not a fill-up pool
     /// (#526): EnterWorld empties it, and Refill and KeepShare keep its value, capped at the new maximum.
     /// </summary>
-    public void ApplyStats(DerivedCharacterStats stats, CurrentValues current)
+    /// <param name="formula">Bounds haste and movement speed (#627); the seeded formula when omitted.</param>
+    public void ApplyStats(DerivedCharacterStats stats, CurrentValues current, Avalon.Domain.World.CombatFormula? formula = null)
     {
+        formula ??= SeededFormula;
         uint oldHealth = Health;
         uint oldPower = Power ?? 0;
 
@@ -147,9 +157,15 @@ public class CharacterEntity : ICharacter
             _ => 0,
         };
 
+        // #627: both bounded by the formula this refresh read, so a combat reload reaches them at the next refresh.
+        EffectiveHastePct = Math.Clamp(stats.HastePct, 0f, Math.Max(0f, formula.HasteCap));
+        MovementSpeed = CharacterMovement.SpeedFor(stats.MovementSpeedPct, formula);
+
         Stats = stats;
         SaveState.StatsChanged();
     }
+
+    private static readonly Avalon.Domain.World.CombatFormula SeededFormula = Avalon.Database.World.Seeding.CombatSeed.Formula();
 
     /// <summary>
     /// What this character attacks with (#506): its level, and the damage stats, crit and main-hand weapon
@@ -624,10 +640,4 @@ public class CharacterEntity : ICharacter
         }
     }
 
-    private void CalculateMovementSpeed()
-    {
-        const float baseSpeed = 4.0f;
-        // TODO: apply equipment + buff modifiers here once stat aggregation lands.
-        MovementSpeed = baseSpeed;
-    }
 }

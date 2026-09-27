@@ -106,6 +106,54 @@ public class StaticDataReloadShould
         Assert.Same(before, data.CreatureTemplates);
     }
 
+    /// <summary>
+    /// #627: a creature's BaseAttackTime is its swing interval in seconds. One below half a second, or not
+    /// finite, refuses the area with an error naming the template, and the previous templates stay.
+    /// </summary>
+    [Theory]
+    [InlineData(0.4f)]
+    [InlineData(float.NaN)]
+    [InlineData(float.PositiveInfinity)]
+    public async Task Refuse_a_template_whose_swing_interval_is_under_half_a_second_or_not_finite(float seconds)
+    {
+        (StaticData data, Repos repos) = await LoadedData(creatureCount: 1);
+        IReadOnlyCollection<CreatureTemplate> before = data.CreatureTemplates;
+        CreatureTemplate bad = Template(2);
+        bad.BaseAttackTime = seconds;
+        repos.Templates = [Template(1), bad];
+
+        var refused = await Assert.ThrowsAsync<InvalidDataException>(() => data.PrepareAsync(ReloadArea.Creatures));
+
+        Assert.StartsWith("CreatureTemplate 2", refused.Message, StringComparison.Ordinal);
+        Assert.Contains("BaseAttackTime", refused.Message, StringComparison.Ordinal);
+        Assert.Same(before, data.CreatureTemplates);
+    }
+
+    [Fact]
+    public async Task Accept_a_template_swinging_every_half_second()
+    {
+        (StaticData data, Repos repos) = await LoadedData(creatureCount: 1);
+        CreatureTemplate quick = Template(2);
+        quick.BaseAttackTime = 0.5f;
+        repos.Templates = [Template(1), quick];
+
+        data.Apply(await data.PrepareAsync(ReloadArea.Creatures));
+
+        Assert.Equal(2, data.CreatureTemplates.Count);
+    }
+
+    /// <summary>#627: the database refuses a BaseAttackTime below 0.5 itself, so the load's refusal is a second line.</summary>
+    [Fact]
+    public void Be_refused_by_the_database_below_half_a_second()
+    {
+        using Handlers.SqliteDatabase<Avalon.Database.World.WorldDbContext> database = Handlers.SqliteDatabase.World();
+        using Avalon.Database.World.WorldDbContext context = database.CreateDbContext();
+        context.CreatureTemplates.First().BaseAttackTime = 0.4f;
+
+        var refused = Assert.Throws<Microsoft.EntityFrameworkCore.DbUpdateException>(() => context.SaveChanges());
+        Assert.Contains("CHECK constraint failed", refused.InnerException!.Message, StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task Survive_An_Apply_That_Throws_And_Still_Apply_The_Next()
     {

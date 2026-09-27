@@ -21,6 +21,11 @@ public static class CombatSeed
         CritCap = 50f,
         DodgeCap = 30f,
         BlockCap = 50f,
+        // #627: haste counts up to 50 %, and gear moves a character between half and one and a half
+        // times the base 4 m/s.
+        HasteCap = 50f,
+        MoveSpeedCap = 50f,
+        MoveSpeedFloor = -50f,
     };
 
     public static ClassStatFactors[] ClassFactors() =>
