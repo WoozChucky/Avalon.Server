@@ -61,7 +61,18 @@ public abstract class ServerBase<T> : BackgroundService, IServerBase where T : I
     private readonly List<Func<IConnection, bool>> _connectionListeners = new();
     private readonly Stopwatch _serverTimer = new();
     private readonly CancellationTokenSource _stoppingToken = new();
+
+    // Read once, while the source is alive (#578): its Token getter throws once StopAsync has
+    // disposed the source, and a packet can still be dispatched then. The captured token stays
+    // usable, and cancelled, after the dispose.
+    private readonly CancellationToken _connectionsStopping;
     private readonly IServiceProvider _serviceProvider;
+
+    // The accept loop (#578): cancelled first thing in StopAsync, before the listener stops.
+    private readonly CancellationTokenSource _acceptStopping = new();
+    private readonly Lock _acceptGate = new();
+    private Task? _acceptLoop;
+    private Task? _stopping;
 
     protected ServerBase(IPacketManager packetManager, ILogger logger,
         IServiceProvider serviceProvider, IOptions<HostingConfiguration> hostingOptions,
@@ -69,6 +80,7 @@ public abstract class ServerBase<T> : BackgroundService, IServerBase where T : I
     {
         _logger = logger;
         _serviceProvider = serviceProvider;
+        _connectionsStopping = _stoppingToken.Token;
         PacketManager = packetManager;
         PacketTelemetry = packetTelemetry ?? PacketDispatchTelemetry.Disabled;
         Port = hostingOptions.Value.Port;
@@ -118,52 +130,145 @@ public abstract class ServerBase<T> : BackgroundService, IServerBase where T : I
         base.StartAsync(token);
         _logger.LogInformation("Start listening for connections...");
 
-        Listener.Start();
-        Listener.BeginAcceptTcpClient(OnClientAccepted, Listener);
+        StartListening();
 
         return Task.CompletedTask;
     }
 
-    private async void OnClientAccepted(IAsyncResult ar)
+    /// <summary>First wait after an accept failure that is not one peer's (#584); doubled each time.</summary>
+    public static readonly TimeSpan AcceptBackoffStart = TimeSpan.FromMilliseconds(100);
+
+    /// <summary>Longest wait between accepts that keep failing (#584).</summary>
+    public static readonly TimeSpan AcceptBackoffCap = TimeSpan.FromSeconds(5);
+
+    /// <summary>At most one accept-failure warning per window; the rest are counted into the next (#584).</summary>
+    public static readonly TimeSpan AcceptFailureLogWindow = TimeSpan.FromSeconds(10);
+
+    /// <summary>
+    /// Accepts clients until the stop begins (#578). An awaited task, never an async void: a stop that
+    /// lands mid-accept ends the loop quietly instead of throwing out of a callback, which ended the
+    /// process. <see cref="StopAsync" /> cancels it and awaits it before anything else shuts down.
+    /// Only a stop ends it (#584): a failed accept outside one is counted, logged at most once per
+    /// <see cref="AcceptFailureLogWindow" />, and retried, at once when only that peer failed, and
+    /// otherwise after a backoff from <see cref="AcceptBackoffStart" /> doubling to
+    /// <see cref="AcceptBackoffCap" />, which the next accepted client resets.
+    /// </summary>
+    private async Task AcceptLoopAsync(CancellationToken acceptToken, CancellationToken connectionToken)
     {
-        TcpClient client;
+        TimeSpan backoff = TimeSpan.Zero;
+        long nextLogAt = 0;
+        int unlogged = 0;
+
+        while (!acceptToken.IsCancellationRequested)
+        {
+            TcpClient client;
+            try
+            {
+                client = await AcceptClientAsync(acceptToken).ConfigureAwait(false);
+            }
+            catch (Exception) when (acceptToken.IsCancellationRequested)
+            {
+                return; // The listener was stopped: a cancelled, aborted or refused accept all mean that.
+            }
+            catch (Exception e)
+            {
+                PacketTelemetry.RecordAcceptFailure(e);
+                unlogged++;
+                long now = Environment.TickCount64;
+                if (now >= nextLogAt)
+                {
+                    _logger.LogWarning(e, "The listener failed to accept a client ({Failures} failures since the last warning); retrying",
+                        unlogged);
+                    unlogged = 0;
+                    nextLogAt = now + (long)AcceptFailureLogWindow.TotalMilliseconds;
+                }
+
+                if (IsOnePeersFailure(e))
+                    continue;
+
+                backoff = backoff == TimeSpan.Zero ? AcceptBackoffStart : TimeSpan.FromTicks(Math.Min(backoff.Ticks * 2, AcceptBackoffCap.Ticks));
+                try
+                {
+                    await DelayAcceptAsync(backoff, acceptToken).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) when (acceptToken.IsCancellationRequested)
+                {
+                    return;
+                }
+
+                continue;
+            }
+
+            backoff = TimeSpan.Zero;
+            // The failures the rate limit held back are reported now, so a burst after a warning is
+            // not lost when accepting recovers before the next window.
+            if (unlogged > 0)
+            {
+                _logger.LogWarning("The listener accepted a client after {Failures} more failed accepts since the last warning",
+                    unlogged);
+                unlogged = 0;
+            }
+
+            // A client accepted as the server stops is closed, not served.
+            if (acceptToken.IsCancellationRequested)
+            {
+                client.Close();
+                return;
+            }
+
+            // Runs synchronously up to the connection's first await, so the connection is registered
+            // and started before the next accept, as with the callback it replaces.
+            _ = ServeAsync(client, connectionToken);
+        }
+    }
+
+    /// <summary>
+    /// An accept that failed because its own peer reset or gave up (#584). Any other failure, running
+    /// out of sockets or buffers above all, would fail again at once, so it is retried after a backoff.
+    /// </summary>
+    private static bool IsOnePeersFailure(Exception e) =>
+        e is SocketException { SocketErrorCode: SocketError.ConnectionReset or SocketError.ConnectionAborted };
+
+    /// <summary>Accepts one client from the listener; a seam for tests that inject accept failures (#584).</summary>
+    protected virtual ValueTask<TcpClient> AcceptClientAsync(CancellationToken token) =>
+        Listener.AcceptTcpClientAsync(token);
+
+    /// <summary>Waits out one accept backoff; a seam for tests that record the delays (#584).</summary>
+    protected virtual Task DelayAcceptAsync(TimeSpan delay, CancellationToken token) =>
+        Task.Delay(delay, token);
+
+    private async Task ServeAsync(TcpClient client, CancellationToken connectionToken)
+    {
+        T? registered = default;
         try
         {
-            var listener = (TcpListener)ar.AsyncState!;
-            client = listener.EndAcceptTcpClient(ar);
+            // Here, not in the accept's try (#571, #584): its catches are about the listener, and a
+            // peer that already reset can make these throw. That ends this client, never accepting.
             client.NoDelay = true;
-        }
-        catch (ObjectDisposedException)
-        {
-            return; // Listener was stopped during shutdown
-        }
-        catch (SocketException)
-        {
-            return; // Listener was stopped during shutdown
-        }
+            // An option the platform lacks is skipped and logged once, never thrown.
+            KeepAlive.Apply(client.Client);
 
-        if (_stoppingToken.IsCancellationRequested)
+            // will dispose once connection finished executing (canceled or disconnect)
+            await using var scope = _serviceProvider.CreateAsyncScope();
+
+            // cannot inject tcp client here
+            var connection = ActivatorUtilities.CreateInstance<T>(scope.ServiceProvider, client, this);
+            // Registered before it starts: the auth server's liveness sweep (#555) reads Connections.
+            AddConnection(connection);
+            registered = connection;
+
+            await connection.StartAsync(connectionToken);
+            await connection.ExecuteTask!.ConfigureAwait(false);
+        }
+        catch (Exception e)
         {
+            // A connection that never ran would never remove itself.
+            if (registered is not null)
+                await RemoveConnection(registered).ConfigureAwait(false);
             client.Close();
-            return;
+            // Nothing awaits this task, so an exception left in it would go unobserved (#578).
+            _logger.LogError(e, "Failed to serve an accepted client");
         }
-
-        // Outside the accept's try: its catches mean "the listener stopped" and skip the re-arm.
-        // An option the platform lacks is skipped and logged once, never thrown.
-        KeepAlive.Apply(client.Client);
-
-        // will dispose once connection finished executing (canceled or disconnect)
-        await using var scope = _serviceProvider.CreateAsyncScope();
-
-        // cannot inject tcp client here
-        var connection = ActivatorUtilities.CreateInstance<T>(scope.ServiceProvider, client, this);
-        AddConnection(connection);
-
-        // accept new connections on another thread
-        Listener.BeginAcceptTcpClient(OnClientAccepted, Listener);
-
-        await connection.StartAsync(_stoppingToken.Token);
-        await connection.ExecuteTask!.ConfigureAwait(false);
     }
 
     public void ForAllConnections(Action<IConnection> callback)
@@ -179,8 +284,20 @@ public abstract class ServerBase<T> : BackgroundService, IServerBase where T : I
         _connectionListeners.Add(listener);
     }
 
+    /// <summary>The stop has begun: the accept loop is cancelled first, the connections' token last.</summary>
+    private bool IsStopping => _acceptStopping.IsCancellationRequested || _connectionsStopping.IsCancellationRequested;
+
     public async Task CallListener(IConnection connection, NetworkPacketHeader header, Packet? payload)
     {
+        // A packet that arrives once the stop has begun is dropped (#578), OnStoppingAsync included:
+        // the shutdown closes its connection, and closing it here would race that close. Both sources
+        // answer IsCancellationRequested after StopAsync has disposed them.
+        if (IsStopping)
+        {
+            _logger.LogDebug("Dropped packet {PacketType}: the server is stopping", header.Type);
+            return;
+        }
+
         if (!PacketManager.TryGetPacketInfo(header.Type, out var details) || details.PacketHandlerType is null)
         {
             _logger.LogWarning("Could not find a handler for packet {PacketType}", header.Type);
@@ -205,7 +322,12 @@ public abstract class ServerBase<T> : BackgroundService, IServerBase where T : I
             await using var scope = _serviceProvider.CreateAsyncScope();
 
             var packetHandler = handlerCache.HandlerFactory(scope.ServiceProvider);
-            await ((IPacketHandlerNew)packetHandler).ExecuteAsync(context, _stoppingToken.Token).ConfigureAwait(false);
+            await ((IPacketHandlerNew)packetHandler).ExecuteAsync(context, _connectionsStopping).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (IsStopping)
+        {
+            // A handler cut short by the stop did not fail; the shutdown closes its connection.
+            _logger.LogDebug("Packet handler for {PacketType} was cancelled by the stop", header.Type);
         }
         catch (Exception e)
         {
@@ -220,18 +342,50 @@ public abstract class ServerBase<T> : BackgroundService, IServerBase where T : I
         foreach (var listener in _connectionListeners) listener(connection);
     }
 
+    /// <summary>
+    /// Starts the listener and the one accept loop; <see cref="StartAsync" /> calls it. Idempotent, and
+    /// a no-op once a stop has begun, so a late caller cannot reopen the port (#578).
+    /// </summary>
     protected void StartListening()
     {
-        Listener.Start();
-        Listener.BeginAcceptTcpClient(OnClientAccepted, Listener);
+        lock (_acceptGate)
+        {
+            if (_acceptLoop is not null || _acceptStopping.IsCancellationRequested)
+                return;
+
+            Listener.Start();
+            _acceptLoop = AcceptLoopAsync(_acceptStopping.Token, _connectionsStopping);
+        }
     }
 
-    public override async Task StopAsync(CancellationToken cancellationToken)
+    /// <summary>
+    /// Stops accepting, then shuts the connections down. Idempotent (#578): a second call gets the
+    /// first call's task rather than reaching sources the first has disposed.
+    /// </summary>
+    public override Task StopAsync(CancellationToken cancellationToken)
     {
+        lock (_acceptGate)
+            return _stopping ??= StopCoreAsync(cancellationToken);
+    }
+
+    // Called under _acceptGate, and runs under it until its first await: a StartListening racing the
+    // stop either starts its loop before this reads it, or sees the cancel and does nothing.
+    private async Task StopCoreAsync(CancellationToken cancellationToken)
+    {
+        _acceptStopping.Cancel();
+        Task? acceptLoop = _acceptLoop;
+
         Listener.Stop();
+        // The loop never faults. Awaited so every client it accepted is registered before the
+        // shutdown closes Connections.
+        if (acceptLoop is not null)
+            await acceptLoop.ConfigureAwait(false);
+
         await OnStoppingAsync(cancellationToken);
         await _stoppingToken.CancelAsync();
         await base.StopAsync(cancellationToken);
         _stoppingToken.Dispose();
+        // StartListening still reads IsCancellationRequested after this, which a disposed source allows.
+        _acceptStopping.Dispose();
     }
 }

@@ -44,6 +44,7 @@ public sealed class PacketDispatchTelemetry
     private readonly HashSet<NetworkPacketType> _noSpan;
     private readonly Histogram<double> _duration;
     private readonly Counter<long> _errors;
+    private readonly Counter<long> _acceptErrors;
 
     public PacketDispatchTelemetry(ActivitySource source, Meter meter, IEnumerable<NetworkPacketType>? noSpanPacketTypes = null)
     {
@@ -54,7 +55,15 @@ public sealed class PacketDispatchTelemetry
             advice: new InstrumentAdvice<double> { HistogramBucketBoundaries = DurationBuckets });
         _errors = meter.CreateCounter<long>("avalon.packet.handler.errors", "{errors}",
             "Packet handlers that threw");
+        // On the host's meter too: this is the telemetry every ServerBase carries (#584).
+        _acceptErrors = meter.CreateCounter<long>("avalon.tcp.accept.errors", "{errors}",
+            "Accepts that failed outside a stop; the listener retries each one");
     }
+
+    /// <summary>Counts one accept failure outside a stop, tagged with its socket error when it has one.</summary>
+    public void RecordAcceptFailure(Exception error) =>
+        _acceptErrors.Add(1, new KeyValuePair<string, object?>("error.type",
+            error is System.Net.Sockets.SocketException socket ? socket.SocketErrorCode.ToString() : error.GetType().Name));
 
     /// <exception cref="ArgumentException">A configured name is not a NetworkPacketType.</exception>
     public static PacketDispatchTelemetry From(ActivitySource source, Meter meter, TelemetryConfiguration config) =>

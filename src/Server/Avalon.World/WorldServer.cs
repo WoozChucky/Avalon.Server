@@ -261,7 +261,8 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
 
         _serverTimer.Start();
 
-        StartListening();
+        // No StartListening here (#578): ServerBase.StartAsync already listens, and a second call
+        // did nothing.
 
         _gameTime.Start();
 
