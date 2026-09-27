@@ -20,7 +20,9 @@ public static class ApiStartup
     public static async Task ValidateAndMigrateAsync(IServiceProvider services, ILogger logger)
     {
         services.GetRequiredService<IStartupValidator>().Validate();
-        WorldDatabaseSettings.Parse(services.GetRequiredService<IConfiguration>());
+        // Builds WorldDatabases, which parses Database:Worlds and refuses it naming the setting,
+        // before any database call; the migration loop below reuses that instance.
+        _ = services.GetRequiredService<IWorldDatabases>();
 
         await using AsyncServiceScope scope = services.CreateAsyncScope();
         await using AuthDbContext authDb = await scope.ServiceProvider

@@ -96,7 +96,42 @@ public sealed class CurrentWorldContextsShould : IDisposable
         _http.HttpContext = null;
         ICharacterRepository characters = _provider.GetRequiredService<ICharacterRepository>();
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => characters.FindByAccountAsync(new AccountId(7)));
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => characters.FindByAccountAsync(new AccountId(7)));
+        Assert.StartsWith("No world selected", ex.Message);
+    }
+
+    /// <summary>
+    /// Concurrent requests for different worlds share the singleton repository and factory; each
+    /// must still read its own world, never the other's.
+    /// </summary>
+    [Fact]
+    public async Task Keep_concurrent_requests_in_their_own_worlds()
+    {
+        _http.HttpContext = null;
+        IItemTemplateRepository items = _provider.GetRequiredService<IItemTemplateRepository>();
+        string? original;
+        await using (Request(1)) original = (await items.FindByIdAsync(new ItemTemplateId(1)))?.Name;
+        _http.HttpContext = null;
+        Assert.NotNull(original);
+
+        async Task<string?[]> Reads(ushort world)
+        {
+            string?[] names = new string?[50];
+            for (int i = 0; i < names.Length; i++)
+            {
+                await using (Request(world))
+                {
+                    await Task.Yield();
+                    names[i] = (await items.FindByIdAsync(new ItemTemplateId(1)))?.Name;
+                }
+            }
+            return names;
+        }
+
+        string?[][] results = await Task.WhenAll(Task.Run(() => Reads(1)), Task.Run(() => Reads(2)));
+
+        Assert.All(results[0], name => Assert.Equal(original, name));
+        Assert.All(results[1], name => Assert.Equal(Renamed, name));
     }
 
     [Fact]
