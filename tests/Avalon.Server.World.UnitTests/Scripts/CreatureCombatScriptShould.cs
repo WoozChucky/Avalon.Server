@@ -1,6 +1,7 @@
 using System;
 using Avalon.Common;
 using Avalon.Common.Mathematics;
+using Avalon.Network.Packets.State;
 using Avalon.World.Creatures;
 using Avalon.World.Creatures.Locomotion;
 using Avalon.World.Public.Characters;
@@ -957,6 +958,228 @@ public class CreatureCombatScriptShould
         combat.DidNotReceive().ApplyDamage(creature, Arg.Any<IUnit>(), 10u);
     }
 
+    /// <summary>
+    /// #590 characterisation: once a hit has killed it, the script does nothing more on its tick. It
+    /// asks nothing of the locomotion and strikes nobody.
+    /// </summary>
+    [Fact]
+    public void Do_Nothing_On_Its_Tick_Once_It_Has_Died()
+    {
+        var locomotion = Substitute.For<ICreatureLocomotion>();
+        var combat = Substitute.For<ICombatService>();
+        (CreatureCombatScript script, ICreature creature, ICharacter target) =
+            BuildChasingScript(locomotion, targetAt: Vector3.zero, combat: combat);
+        creature.CurrentHealth = 10;
+        script.OnHit(target, 10);
+        locomotion.ClearReceivedCalls();
+        combat.ClearReceivedCalls();
+
+        script.Update(TimeSpan.FromSeconds(0.1));
+
+        Assert.Empty(locomotion.ReceivedCalls());
+        Assert.Empty(combat.ReceivedCalls());
+    }
+
+    /// <summary>
+    /// #590 characterisation: when the encounter's top threat is someone else, the script gives back
+    /// the slot it held on the old target, stops the journey it was on, and then chases the new one,
+    /// in that order, on the same tick.
+    /// </summary>
+    [Fact]
+    public void Release_Stop_And_Chase_The_New_Top_Threat_When_It_Changes()
+    {
+        var locomotion = Substitute.For<ICreatureLocomotion>();
+        var combat = Substitute.For<ICombatService>();
+        (CreatureCombatScript script, ICreature creature, ICharacter oldTarget) =
+            BuildChasingScript(locomotion, targetAt: new Vector3(20f, 0f, 0f), slotCount: 1, combat: combat);
+        script.Update(TimeSpan.FromSeconds(0.1)); // claims the only slot on the old target
+
+        ICharacter newTarget = Substitute.For<ICharacter>();
+        newTarget.Guid.Returns(new ObjectGuid(ObjectType.Character, 2));
+        newTarget.Position.Returns(new Vector3(-20f, 0f, 0f));
+        newTarget.IsDead.Returns(false);
+        var encounter = Substitute.For<IEncounter>();
+        encounter.GetTopThreat(creature).Returns(newTarget);
+        combat.GetEncounterFor(creature).Returns(encounter);
+        locomotion.ClearReceivedCalls();
+
+        script.Update(TimeSpan.FromSeconds(0.1));
+
+        Received.InOrder(() =>
+        {
+            locomotion.Stop(creature);
+            locomotion.MoveTo(creature, Arg.Is<Vector3>(d => d.x < -18f));
+        });
+        Assert.True(SlotsOf(script).TryClaim(oldTarget.Guid, new ObjectGuid(ObjectType.Creature, 99),
+            oldTarget.Position, oldTarget.Position, out _));
+    }
+
+    /// <summary>
+    /// #590 characterisation: a creature on its way home, still walking, asks for no new route and
+    /// keeps running.
+    /// </summary>
+    [Fact]
+    public void Keep_Running_Home_Without_A_New_Route_While_Still_Walking()
+    {
+        var locomotion = Substitute.For<ICreatureLocomotion>();
+        (CreatureCombatScript script, ICreature creature, _) =
+            BuildScriptReturningHome(locomotion, home: new Vector3(1f, 0f, 1f));
+        creature.Metadata.SpeedRun.Returns(4f);
+        locomotion.HasArrived(creature).Returns(false);
+
+        script.Update(TimeSpan.FromSeconds(0.1));
+
+        locomotion.DidNotReceiveWithAnyArgs().MoveTo(default!, default);
+        locomotion.DidNotReceiveWithAnyArgs().Teleport(default!, default);
+        Assert.Equal(MoveState.Running, creature.MoveState);
+        Assert.Equal(4f, creature.Speed);
+        Assert.Equal((object)CreatureCombatScript.CombatState.Returning, script.State);
+    }
+
+    /// <summary>
+    /// #590 characterisation: a creature on its way home whose journey ended short of home asks for a
+    /// new route, and when the new route exists it runs it rather than snapping home.
+    /// </summary>
+    [Fact]
+    public void Ask_For_A_New_Route_Home_When_The_Last_One_Ended_Short()
+    {
+        var locomotion = Substitute.For<ICreatureLocomotion>();
+        var home = new Vector3(1f, 0f, 1f);
+        (CreatureCombatScript script, ICreature creature, _) = BuildScriptReturningHome(locomotion, home);
+        creature.Metadata.SpeedRun.Returns(4f);
+        locomotion.HasArrived(creature).Returns(true, false);
+
+        script.Update(TimeSpan.FromSeconds(0.1));
+
+        locomotion.Received(1).MoveTo(creature, home);
+        locomotion.DidNotReceiveWithAnyArgs().Teleport(default!, default);
+        Assert.Equal(MoveState.Running, creature.MoveState);
+        Assert.Equal(4f, creature.Speed);
+    }
+
+    /// <summary>
+    /// #590 characterisation: a target that died sends the creature home at full health.
+    /// </summary>
+    [Fact]
+    public void Go_Home_At_Full_Health_When_Its_Target_Dies()
+    {
+        var locomotion = Substitute.For<ICreatureLocomotion>();
+        (CreatureCombatScript script, ICreature creature, ICharacter target) =
+            BuildChasingScript(locomotion, targetAt: new Vector3(20f, 0f, 0f));
+        creature.Health = 100;
+        creature.CurrentHealth = 30;
+        target.IsDead.Returns(true);
+
+        script.Update(TimeSpan.FromSeconds(0.1));
+
+        locomotion.Received(1).MoveTo(creature, Vector3.zero);
+        Assert.Equal(100u, creature.CurrentHealth);
+        Assert.Equal((object)CreatureCombatScript.CombatState.Returning, script.State);
+    }
+
+    /// <summary>
+    /// #590 characterisation: a creature more than the chase distance (40) from where the fight began
+    /// gives up: it goes home at full health, releases its slot and strikes nobody, even with the
+    /// target in reach.
+    /// </summary>
+    [Fact]
+    public void Leash_Home_At_Full_Health_Past_The_Chase_Distance()
+    {
+        var locomotion = Substitute.For<ICreatureLocomotion>();
+        var combat = Substitute.For<ICombatService>();
+        var targetPosition = new Vector3(41f, 0f, 0f);
+        (CreatureCombatScript script, ICreature creature, ICharacter target) =
+            BuildChasingScript(locomotion, targetAt: targetPosition, slotCount: 1, combat: combat);
+        creature.Position.Returns(new Vector3(30f, 0f, 0f));
+        script.Update(TimeSpan.FromSeconds(0.1)); // claims the only slot
+        creature.Health = 100;
+        creature.CurrentHealth = 30;
+        creature.Position.Returns(new Vector3(40.5f, 0f, 0f));
+        locomotion.ClearReceivedCalls();
+        combat.ClearReceivedCalls();
+
+        script.Update(TimeSpan.FromSeconds(0.1));
+
+        locomotion.Received(1).MoveTo(creature, Vector3.zero);
+        combat.DidNotReceiveWithAnyArgs().ApplyDamage(default!, default!, default);
+        Assert.Equal(100u, creature.CurrentHealth);
+        Assert.Equal((object)CreatureCombatScript.CombatState.Returning, script.State);
+        Assert.True(SlotsOf(script).TryClaim(target.Guid, new ObjectGuid(ObjectType.Creature, 99),
+            target.Position, target.Position, out _));
+    }
+
+    /// <summary>
+    /// #590 characterisation: a creature settled on its destination asks for no route and leaves its
+    /// move state alone, while it swings.
+    /// </summary>
+    [Fact]
+    public void Ask_For_Nothing_Once_Settled_On_Its_Destination()
+    {
+        var locomotion = Substitute.For<ICreatureLocomotion>();
+        var combat = Substitute.For<ICombatService>();
+        (CreatureCombatScript script, ICreature creature, _) =
+            BuildChasingScript(locomotion, targetAt: new Vector3(20f, 0f, 0f), combat: combat);
+        Vector3? destination = null;
+        locomotion.When(l => l.MoveTo(creature, Arg.Any<Vector3>())).Do(ci => destination = ci.ArgAt<Vector3>(1));
+        script.Update(TimeSpan.FromSeconds(0.1));
+        Assert.NotNull(destination);
+
+        creature.Position.Returns(destination!.Value);
+        creature.ClearReceivedCalls();
+        locomotion.ClearReceivedCalls();
+
+        script.Update(TimeSpan.FromSeconds(0.1));
+
+        locomotion.DidNotReceiveWithAnyArgs().MoveTo(default!, default);
+        creature.DidNotReceive().MoveState = Arg.Any<MoveState>();
+        combat.ReceivedWithAnyArgs(1).ApplyDamage(default!, default!, default);
+    }
+
+    /// <summary>
+    /// #590 characterisation: a creature still walking to a destination that has not moved asks for no
+    /// new route but keeps running.
+    /// </summary>
+    [Fact]
+    public void Keep_Running_Without_A_New_Route_While_Its_Destination_Holds()
+    {
+        var locomotion = Substitute.For<ICreatureLocomotion>();
+        (CreatureCombatScript script, ICreature creature, _) =
+            BuildChasingScript(locomotion, targetAt: new Vector3(20f, 0f, 0f));
+        creature.Metadata.SpeedRun.Returns(4f);
+        script.Update(TimeSpan.FromSeconds(0.1));
+        locomotion.HasArrived(creature).Returns(false);
+        locomotion.ClearReceivedCalls();
+        creature.ClearReceivedCalls();
+
+        script.Update(TimeSpan.FromSeconds(0.1));
+
+        locomotion.DidNotReceiveWithAnyArgs().MoveTo(default!, default);
+        creature.Received().MoveState = MoveState.Running;
+        Assert.Equal(4f, creature.Speed);
+    }
+
+    /// <summary>
+    /// #590 characterisation: the first swing lands on the first tick in range, and the next only once
+    /// the 2.25 s cooldown has been counted down to zero by later ticks.
+    /// </summary>
+    [Fact]
+    public void Swing_Once_Per_Attack_Cooldown()
+    {
+        var locomotion = Substitute.For<ICreatureLocomotion>();
+        var combat = Substitute.For<ICombatService>();
+        (CreatureCombatScript script, _, _) =
+            BuildChasingScript(locomotion, targetAt: new Vector3(1f, 0f, 0f), combat: combat);
+
+        script.Update(TimeSpan.FromSeconds(0.1));  // swings, cooldown 2.25
+        script.Update(TimeSpan.FromSeconds(1.0));  // 1.25
+        script.Update(TimeSpan.FromSeconds(1.0));  // 0.25
+        script.Update(TimeSpan.FromSeconds(0.25)); // 0
+        combat.ReceivedWithAnyArgs(1).ApplyDamage(default!, default!, default);
+
+        script.Update(TimeSpan.FromSeconds(0.1));  // swings again
+        combat.ReceivedWithAnyArgs(2).ApplyDamage(default!, default!, default);
+    }
+
     private static List<Vector3> SmoothedPath(Vector3 from, Vector3 to)
     {
         const float stepSize = 0.5f;
@@ -1015,7 +1238,7 @@ public class CreatureCombatScriptShould
     }
 
     private (CreatureCombatScript script, ICreature creature, ICharacter target) BuildChasingScript(
-        ICreatureLocomotion locomotion, Vector3 targetAt, int slotCount = 6)
+        ICreatureLocomotion locomotion, Vector3 targetAt, int slotCount = 6, ICombatService? combat = null)
     {
         ICreature creature = Substitute.For<ICreature>();
         creature.Guid.Returns(new ObjectGuid(ObjectType.Creature, 1));
@@ -1034,7 +1257,7 @@ public class CreatureCombatScriptShould
         // makes the very first engagement tick call MoveTo.
         locomotion.HasArrived(creature).Returns(true);
 
-        var combat = Substitute.For<ICombatService>();
+        combat ??= Substitute.For<ICombatService>();
         combat.GetEncounterFor(creature).Returns((IEncounter?)null);
 
         // Radius 1.5f matches AttackRange (GameConfiguration's default MeleeSlotRadius), so a

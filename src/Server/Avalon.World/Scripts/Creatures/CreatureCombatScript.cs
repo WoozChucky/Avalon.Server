@@ -41,8 +41,8 @@ public class CreatureCombatScript : AiScript
     //
     // 1. How far a settled surplus (no-slot) creature's target may wander before its destination
     //    (a stand-off point at AttackRange from the target, on this creature's own bearing — see
-    //    Update) counts as drifted enough to re-engage movement. A settled *slotted* creature uses
-    //    Context.Locomotion.ArrivalTolerance instead: see Update.
+    //    ChooseDestination) counts as drifted enough to re-engage movement. A settled *slotted* creature uses
+    //    Context.Locomotion.ArrivalTolerance instead: see KeepStation.
     // 2. How far the target may move away from where it was standing when the path currently being
     //    walked was planned (_lastRequestedDestination) before that path is re-planned mid-walk. This
     //    is the value that shipped before the locomotion seam existed, applied to exactly the same
@@ -58,7 +58,7 @@ public class CreatureCombatScript : AiScript
     // yet, so there is no attack window for a mid-walk threshold to fall outside of.
     private const float PathRecalculationThreshold = 1.5f;
 
-    // Gated on locomotion reporting arrival (see hasArrived in Update) — not unconditional, and
+    // Gated on locomotion reporting arrival (see hasArrived in Engage) — not unconditional, and
     // not also on hasSlot. An unconditional allowance changes the effective attack range for
     // every creature, including one still approaching from far away, and at CrowdLocomotion's
     // maximum configured agent radius (10) that is AttackRange + 10 + 0.05 = 11.55: a de facto
@@ -74,7 +74,7 @@ public class CreatureCombatScript : AiScript
     // slotted one settling at its ring position — both sit at (or, for the surplus case, just
     // inside) AttackRange by construction, so both are exposed to the identical boundary hazard.
     // Once a creature has settled, it never retries to close that residual gap on its own — see
-    // the movement half of Update, which only re-engages once the gap exceeds this SAME
+    // the movement half of the tick (KeepStation), which only re-engages once the gap exceeds this SAME
     // tolerance, not to shrink it further — so without the margin a creature that happened to
     // settle a hair past AttackRange would be stuck there, forever, attacking nothing. The margin
     // below is that same locomotion-sourced tolerance (see the note on
@@ -90,7 +90,7 @@ public class CreatureCombatScript : AiScript
     private Vector3 _initialPosition;
 
     // The destination the journey now in progress was planned for. This is what the mid-walk
-    // staleness check in Update measures against, and it answers a different question from the
+    // staleness check in KeepStation measures against, and it answers a different question from the
     // settled check next to it: "is where I am headed still where I should be headed" versus "have
     // I stopped somewhere that is no longer good enough". Written only by RequestMoveTo, which is
     // the single route this script has to the locomotion's MoveTo — so there is no way to start a
@@ -193,45 +193,12 @@ public class CreatureCombatScript : AiScript
         // handled by its own block below.
         if (State is CombatState.Combat or CombatState.Chase)
         {
-            IUnit? picked = PickTarget();
-            if (picked is not null && !ReferenceEquals(picked, _target))
-            {
-                if (_target is not null)
-                    Context.MeleeSlots.Release(_target.Guid, Creature.Guid);
-
-                _target = picked;
-                Context.Locomotion.Stop(Creature);
-            }
+            ReconcileTarget();
         }
 
         if (State is CombatState.Returning)
         {
-            if (Vector3.Distance(currentPosition, _initialPosition) < 0.1f)
-            {
-                ResetToIdleAtSpawn();
-                return;
-            }
-
-            // The journey may be over either because MoveTo at transition-time failed (DotRecast
-            // returned no route — happens when start/end land on disconnected nav polygons) or
-            // because locomotion consumed the last waypoint without us hitting the < 0.1f gate
-            // above (e.g. smoothed last point ≠ exact spawn). Without a regen the creature
-            // drifts: server keeps Position static but MoveState=Running + Velocity is stale,
-            // so the client extrapolates indefinitely.
-            if (Context.Locomotion.HasArrived(Creature))
-            {
-                RequestMoveTo(_initialPosition);
-                if (Context.Locomotion.HasArrived(Creature))
-                {
-                    // Planner can't reach spawn — snap home rather than drift forever.
-                    Context.Locomotion.Teleport(Creature, _initialPosition);
-                    ResetToIdleAtSpawn();
-                    return;
-                }
-            }
-
-            Creature.MoveState = MoveState.Running;
-            Creature.Speed = Creature.Metadata.SpeedRun;
+            UpdateReturning(currentPosition);
             return;
         }
 
@@ -246,11 +213,7 @@ public class CreatureCombatScript : AiScript
         // the death overlay shows up. Drop target + return to spawn.
         if (_target is ICharacter targetChar && targetChar.IsDead)
         {
-            Context.MeleeSlots.Release(_target.Guid, Creature.Guid);
-            _target = null;
-            State = CombatState.Returning;
-            RequestMoveTo(_initialPosition);
-            Creature.CurrentHealth = Creature.Health;
+            GiveUpAndGoHome(_target);
             return;
         }
 
@@ -258,14 +221,113 @@ public class CreatureCombatScript : AiScript
 
         if (Vector3.Distance(currentPosition, _initialPosition) > MaxChaseDistance)
         {
-            Context.MeleeSlots.Release(_target.Guid, Creature.Guid);
-            _target = null;
-            State = CombatState.Returning;
-            RequestMoveTo(_initialPosition);
-            Creature.CurrentHealth = Creature.Health;
+            GiveUpAndGoHome(_target);
             return;
         }
 
+        Engage(_target, currentPosition, targetPosition, deltaTime);
+    }
+
+    /// <summary>
+    /// Switches to the authoritative pick (see <see cref="PickTarget" />) when there is one and it is
+    /// not the current target: the slot held on the old target is given back and the journey toward
+    /// it is stopped.
+    /// </summary>
+    private void ReconcileTarget()
+    {
+        IUnit? picked = PickTarget();
+        if (picked is not null && !ReferenceEquals(picked, _target))
+        {
+            if (_target is not null)
+                Context.MeleeSlots.Release(_target.Guid, Creature.Guid);
+
+            _target = picked;
+            Context.Locomotion.Stop(Creature);
+        }
+    }
+
+    /// <summary>
+    /// The Returning state's tick: rest once home, otherwise keep running there, asking for a new route
+    /// when the last one ended short, and snapping home when there is none.
+    /// </summary>
+    private void UpdateReturning(Vector3 currentPosition)
+    {
+        if (Vector3.Distance(currentPosition, _initialPosition) < 0.1f)
+        {
+            ResetToIdleAtSpawn();
+            return;
+        }
+
+        // The journey may be over either because MoveTo at transition-time failed (DotRecast
+        // returned no route — happens when start/end land on disconnected nav polygons) or
+        // because locomotion consumed the last waypoint without us hitting the < 0.1f gate
+        // above (e.g. smoothed last point ≠ exact spawn). Without a regen the creature
+        // drifts: server keeps Position static but MoveState=Running + Velocity is stale,
+        // so the client extrapolates indefinitely.
+        if (Context.Locomotion.HasArrived(Creature))
+        {
+            RequestMoveTo(_initialPosition);
+            if (Context.Locomotion.HasArrived(Creature))
+            {
+                // Planner can't reach spawn — snap home rather than drift forever.
+                Context.Locomotion.Teleport(Creature, _initialPosition);
+                ResetToIdleAtSpawn();
+                return;
+            }
+        }
+
+        Creature.MoveState = MoveState.Running;
+        Creature.Speed = Creature.Metadata.SpeedRun;
+    }
+
+    /// <summary>
+    /// Drops <paramref name="target" /> and heads home at full health: the target died, or the creature
+    /// was drawn past <see cref="MaxChaseDistance" /> from where the fight began.
+    /// </summary>
+    private void GiveUpAndGoHome(IUnit target)
+    {
+        Context.MeleeSlots.Release(target.Guid, Creature.Guid);
+        _target = null;
+        State = CombatState.Returning;
+        RequestMoveTo(_initialPosition);
+        Creature.CurrentHealth = Creature.Health;
+    }
+
+    /// <summary>
+    /// One tick of fighting <paramref name="target" />: pick where to stand, swing when in range, and
+    /// keep walking to where it should stand, in that order.
+    /// </summary>
+    private void Engage(IUnit target, Vector3 currentPosition, Vector3 targetPosition, TimeSpan deltaTime)
+    {
+        bool hasSlot = ChooseDestination(target, currentPosition, targetPosition, out Vector3 destination);
+
+        bool hasArrived = Context.Locomotion.HasArrived(Creature);
+
+        // Attacking and keeping station are independent: a creature can swing at the target the
+        // instant it is within range, in the very same tick it is also stepping to keep pace with
+        // a target (and so a slot) that is on the move — Stop is never called merely for being in
+        // range (see KeepStation). But the allowance beyond plain AttackRange is gated on arrival
+        // alone (see AttackRangeArrivalMargin's comment for the full reasoning, including why
+        // hasSlot is deliberately NOT part of this gate).
+        float effectiveAttackRange = hasArrived
+            ? AttackRange + Context.Locomotion.ArrivalTolerance(Creature) + AttackRangeArrivalMargin
+            : AttackRange;
+
+        if (Vector3.Distance(currentPosition, targetPosition) <= effectiveAttackRange)
+        {
+            Creature.LookAt(targetPosition);
+            AttackTarget(deltaTime);
+        }
+
+        KeepStation(currentPosition, destination, hasSlot, hasArrived);
+    }
+
+    /// <summary>
+    /// Where this creature should stand to fight <paramref name="target" />. Returns whether it holds a
+    /// melee slot on the target.
+    /// </summary>
+    private bool ChooseDestination(IUnit target, Vector3 currentPosition, Vector3 targetPosition, out Vector3 destination)
+    {
         // Destination: the claimed slot's position when a slot is held, otherwise a stand-off
         // point just inside AttackRange from the target along this creature's own current
         // bearing — never the target's exact centre. A surplus creature (ring full) was always
@@ -277,31 +339,21 @@ public class CreatureCombatScript : AiScript
         // on the target's position degrades to standing on the target rather than throwing — a
         // pathological case, not one this needs to solve.
         //
-        // Computed once here so movement below only pays for one TryClaim per tick (idempotent —
+        // Computed once per tick so movement only pays for one TryClaim per tick (idempotent —
         // see MeleeSlots.TryClaim — but there is no reason to call it twice).
-        bool hasSlot = Context.MeleeSlots.TryClaim(_target.Guid, Creature.Guid, targetPosition, currentPosition, out int slot);
-        Vector3 destination = hasSlot
+        bool hasSlot = Context.MeleeSlots.TryClaim(target.Guid, Creature.Guid, targetPosition, currentPosition, out int slot);
+        destination = hasSlot
             ? Context.MeleeSlots.PositionFor(targetPosition, slot)
             : targetPosition + Vector3.Normalize(currentPosition - targetPosition) * (AttackRange - SurplusStandOffInset);
+        return hasSlot;
+    }
 
-        bool hasArrived = Context.Locomotion.HasArrived(Creature);
-
-        // Attacking and keeping station are independent: a creature can swing at the target the
-        // instant it is within range, in the very same tick it is also stepping to keep pace with
-        // a target (and so a slot) that is on the move — Stop is never called merely for being in
-        // range (see below). But the allowance beyond plain AttackRange is gated on arrival alone
-        // (see AttackRangeArrivalMargin's comment for the full reasoning, including why hasSlot is
-        // deliberately NOT part of this gate).
-        float effectiveAttackRange = hasArrived
-            ? AttackRange + Context.Locomotion.ArrivalTolerance(Creature) + AttackRangeArrivalMargin
-            : AttackRange;
-
-        if (Vector3.Distance(currentPosition, targetPosition) <= effectiveAttackRange)
-        {
-            Creature.LookAt(targetPosition);
-            AttackTarget(deltaTime);
-        }
-
+    /// <summary>
+    /// Hands the locomotion a fresh destination when the current one has gone stale, and keeps the
+    /// creature running whenever it should be moving at all.
+    /// </summary>
+    private void KeepStation(Vector3 currentPosition, Vector3 destination, bool hasSlot, bool hasArrived)
+    {
         // Two independent reasons to hand the locomotion a fresh destination, because a creature
         // that is walking and a creature that has settled go stale in different ways:
         //
@@ -335,7 +387,7 @@ public class CreatureCombatScript : AiScript
         // MoveState/Speed are refreshed whenever the creature should be moving at all, which is
         // either of the above OR simply still walking with a destination that is still good.
         //
-        // Do NOT call Stop merely because the creature is in attack range above — Stop discards
+        // Do NOT call Stop merely because the creature is in attack range — Stop discards
         // the destination and is reserved for actually disengaging (leash, target switch, target
         // lost), not for "close enough to hit right now."
         bool stillWalking = !hasArrived;
@@ -359,7 +411,7 @@ public class CreatureCombatScript : AiScript
     /// <summary>
     /// The only route this script has to the locomotion's <c>MoveTo</c>. Exists so
     /// <see cref="_lastRequestedDestination" /> cannot fall out of step with the journey actually in
-    /// progress: the mid-walk staleness check in <see cref="Update" /> is only as trustworthy as that
+    /// progress: the mid-walk staleness check in <see cref="KeepStation" /> is only as trustworthy as that
     /// record, and a record kept by hand at five call sites is one forgotten assignment away from a
     /// creature that either never re-paths or re-paths every tick.
     /// </summary>
