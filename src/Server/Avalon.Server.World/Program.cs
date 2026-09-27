@@ -1,6 +1,3 @@
-using Avalon.Database.Character;
-using Avalon.Database.World;
-using Avalon.Database.World.Seeding;
 using Avalon.Hosting;
 using Avalon.Infrastructure;
 using Avalon.Network.Packets.Abstractions.Attributes;
@@ -8,7 +5,6 @@ using Avalon.Server.World.Extensions;
 using Avalon.Server.World.Presence;
 using Avalon.World;
 using Avalon.World.Configuration;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -42,29 +38,7 @@ internal class Program
 
         IHost host = hostBuilder.Build();
 
-        await using (AsyncServiceScope scope = host.Services.CreateAsyncScope())
-        {
-            await using CharacterDbContext characterDb = await scope.ServiceProvider
-                .GetRequiredService<IDbContextFactory<CharacterDbContext>>().CreateDbContextAsync(CancellationToken.None);
-            await using WorldDbContext worldDb = await scope.ServiceProvider
-                .GetRequiredService<IDbContextFactory<WorldDbContext>>().CreateDbContextAsync(CancellationToken.None);
-            host.Services.GetRequiredService<ILogger<Program>>().LogInformation("Migrating database if necessary...");
-            // Startup migration — host lifetime not active yet, so CancellationToken.None is intentional.
-            await characterDb.Database.MigrateAsync(CancellationToken.None);
-            await worldDb.Database.MigrateAsync(CancellationToken.None);
-
-            // The chunk catalog lives in files under Maps/, not in migrations: bring the database in
-            // line with them on every start so a fresh install (or a release adding chunks) has them.
-            ChunkCatalogSeedResult seeded = await ChunkCatalogSeeder.SeedAsync(worldDb,
-                Path.Combine(AppContext.BaseDirectory, "Maps"), CancellationToken.None);
-            host.Services.GetRequiredService<ILogger<Program>>().LogInformation(
-                "Chunk catalog seeded: {Added} added, {Updated} updated, {Layouts} town layouts, {Pools} pools",
-                seeded.TemplatesAdded, seeded.TemplatesUpdated, seeded.LayoutsReplaced, seeded.PoolsSynced);
-
-            IReplicatedCache cache = scope.ServiceProvider.GetRequiredService<IReplicatedCache>();
-            await cache.ConnectAsync();
-            host.Services.TraceRedis(cache.Connection);
-        }
+        await WorldStartup.PrepareAsync(host);
 
         await AvalonHostBuilder.RunAsync<Program>(host, CancellationToken.None);
     }

@@ -3,16 +3,6 @@ using Microsoft.Extensions.Options;
 
 namespace Avalon.Database;
 
-/// <summary>The databases a host opens, each one a <see cref="DatabaseConfiguration"/> entry it needs.</summary>
-[Flags]
-public enum DatabaseConnections
-{
-    None = 0,
-    Auth = 1,
-    Characters = 2,
-    World = 4,
-}
-
 /// <summary>
 /// Refuses a <see cref="DatabaseConfiguration"/> in which a database the host opens has no
 /// connection string (#543). Which ones are needed depends on the host, so this is registered by

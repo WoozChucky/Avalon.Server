@@ -414,6 +414,11 @@ and `Database:World:ConnectionString`. The message names the missing setting.
 
 This causes the application to throw an `OptionsValidationException` at startup rather than at runtime when the missing/invalid value is first accessed.
 
+Each host runs these checks itself, right after building the host and before its migrations and
+its cache connection (`AuthStartup`, `WorldStartup`, `ApiStartup`), because `ValidateOnStart` alone
+would run them only when the host starts, after that work had already failed on the missing value.
+The API skips them, with the migrations, when `AVALON_OPENAPI_GENERATION_ONLY` is set.
+
 The REST API's `Application:*` classes (`ApplicationConfig` and the sections under it) do not use
 `ValidateOnStart`, except `Application:Cache`, which is also bound as `IOptions<CacheConfiguration>`
 and validated at startup like the servers' `Cache`. They are bound directly rather than through `IOptions<T>`, and `ServiceRegistration`

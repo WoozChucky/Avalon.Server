@@ -5,13 +5,9 @@ using Avalon.Api.Config;
 using Avalon.Api.Converters;
 using Avalon.Api.Middlewares;
 using Avalon.Api.Services;
-using Avalon.Database.Auth;
-using Avalon.Database.Character;
-using Avalon.Database.World;
 using Avalon.Hosting;
 using Avalon.Hosting.Extensions;
 using Avalon.Infrastructure;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi;
 using Scalar.AspNetCore;
 
@@ -151,20 +147,7 @@ if (openApiGenerationOnly)
 }
 else
 {
-    await using (AsyncServiceScope scope = app.Services.CreateAsyncScope())
-    {
-        await using AuthDbContext authDb = await scope.ServiceProvider
-            .GetRequiredService<IDbContextFactory<AuthDbContext>>().CreateDbContextAsync(CancellationToken.None);
-        await using CharacterDbContext characterDb = await scope.ServiceProvider
-            .GetRequiredService<IDbContextFactory<CharacterDbContext>>().CreateDbContextAsync(CancellationToken.None);
-        await using WorldDbContext worldDb = await scope.ServiceProvider
-            .GetRequiredService<IDbContextFactory<WorldDbContext>>().CreateDbContextAsync(CancellationToken.None);
-        logger.LogInformation("Migrating database if necessary...");
-        // Startup migration — host lifetime not active yet, so CancellationToken.None is intentional.
-        await authDb.Database.MigrateAsync(CancellationToken.None);
-        await characterDb.Database.MigrateAsync(CancellationToken.None);
-        await worldDb.Database.MigrateAsync(CancellationToken.None);
-    }
+    await ApiStartup.ValidateAndMigrateAsync(app.Services, logger);
 
     IEnumerable<IWorkerService> workerServices = app.Services.GetServices<IWorkerService>();
     foreach (IWorkerService workerService in workerServices)

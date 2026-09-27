@@ -11,11 +11,16 @@ namespace Avalon.Server.Auth.UnitTests.Hosting;
 
 /// <summary>
 /// #543: the auth host refuses to start, naming the setting, when the certificate, the auth
-/// database or the cache is not configured, rather than failing on first use. The host is composed
-/// as its entry point composes it, over the appsettings.json it ships with.
+/// database or the cache is not configured. The host is composed as its entry point composes it,
+/// over the appsettings.json it ships with, and the refusal comes from <see cref="AuthStartup"/>,
+/// the startup work Program runs between Build and Run, before its migration and its cache
+/// connection: every database here points at a port nothing listens on, so a check that came
+/// after them would fail with a connection error instead.
 /// </summary>
 public class AuthStartupValidationShould
 {
+    private const string Unreachable = "Host=127.0.0.1;Port=1;Timeout=1;Database=none;Username=none;Password=none";
+
     [Fact]
     public async Task Pass_startup_validation_with_the_shipped_settings()
     {
@@ -28,11 +33,15 @@ public class AuthStartupValidationShould
     [InlineData("Hosting:Security:CertificatePath", "'HostingSecurity' members: 'CertificatePath'")]
     [InlineData("Database:Auth:ConnectionString", "Database:Auth:ConnectionString is required.")]
     [InlineData("Cache:Host", "'CacheConfiguration' members: 'Host'")]
-    public async Task Refuse_to_start_without_a_required_setting(string setting, string named)
+    public async Task Refuse_to_start_without_a_required_setting_before_any_database_call(string setting, string named)
     {
-        using IHost host = await BuildAsync(new Dictionary<string, string?>(StringComparer.Ordinal) { [setting] = "" });
+        using IHost host = await BuildAsync(new Dictionary<string, string?>(StringComparer.Ordinal)
+        {
+            ["Database:Auth:ConnectionString"] = Unreachable,
+            [setting] = "",
+        });
 
-        var refused = await Assert.ThrowsAsync<OptionsValidationException>(() => host.StartAsync());
+        var refused = await Assert.ThrowsAsync<OptionsValidationException>(() => AuthStartup.PrepareAsync(host));
 
         Assert.Contains(named, refused.Message, StringComparison.Ordinal);
     }
@@ -44,6 +53,7 @@ public class AuthStartupValidationShould
         {
             HostApplicationBuilder builder = await AvalonHostBuilder.CreateHostAsync([], ComponentType.Auth);
             builder.Configuration.AddInMemoryCollection(overrides);
+            builder.Services.AddHostedService<AuthServer>();
             builder.Services.AddAuthServices();
             return builder.Build();
         }

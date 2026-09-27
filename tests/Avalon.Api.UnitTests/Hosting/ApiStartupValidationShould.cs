@@ -5,6 +5,7 @@ using Avalon.Hosting;
 using Avalon.Infrastructure.Configuration;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Xunit;
 
@@ -17,6 +18,8 @@ namespace Avalon.Api.UnitTests.Hosting;
 /// </summary>
 public class ApiStartupValidationShould
 {
+    private const string Unreachable = "Host=127.0.0.1;Port=1;Timeout=1;Database=none;Username=none;Password=none";
+
     [Fact]
     public void Pass_startup_validation_with_a_cache_host()
     {
@@ -39,6 +42,22 @@ public class ApiStartupValidationShould
         Assert.Contains("'CacheConfiguration' members: 'Host'", refused.Message, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// The check comes first in <see cref="ApiStartup"/>, the startup work Program runs before it
+    /// serves: every database here points at a port nothing listens on, so a check that came after
+    /// the migrations would fail with a connection error instead.
+    /// </summary>
+    [Fact]
+    public async Task Refuse_to_start_without_a_cache_host_before_any_database_call()
+    {
+        await using ServiceProvider provider = Build(null);
+
+        var refused = await Assert.ThrowsAsync<OptionsValidationException>(
+            () => ApiStartup.ValidateAndMigrateAsync(provider, NullLogger.Instance));
+
+        Assert.Contains("'CacheConfiguration' members: 'Host'", refused.Message, StringComparison.Ordinal);
+    }
+
     private static ServiceProvider Build(string? cacheHost)
     {
         ApplicationConfig config = new()
@@ -48,7 +67,12 @@ public class ApiStartupValidationShould
             Notification = new NotificationConfig(),
             Cache = new CacheConfiguration(),
         };
-        var settings = new Dictionary<string, string?>(StringComparer.Ordinal);
+        var settings = new Dictionary<string, string?>(StringComparer.Ordinal)
+        {
+            ["Database:Auth:ConnectionString"] = Unreachable,
+            ["Database:Characters:ConnectionString"] = Unreachable,
+            ["Database:World:ConnectionString"] = Unreachable,
+        };
         if (cacheHost is not null)
             settings["Application:Cache:Host"] = cacheHost;
 

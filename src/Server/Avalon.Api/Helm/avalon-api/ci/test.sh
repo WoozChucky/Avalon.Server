@@ -3,10 +3,11 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 KEY=$(printf 'k%.0s' $(seq 1 64))
+CACHE="--set cache.host=redis:6379"
 
-helm lint . --set authentication.issuerSigningKey="$KEY"
+helm lint . $CACHE --set authentication.issuerSigningKey="$KEY"
 
-out=$(helm template t . --set existingSecret=avalon-api)
+out=$(helm template t . $CACHE --set existingSecret=avalon-api)
 grep -q "kind: Deployment" <<<"$out"                                   || { echo "not a Deployment"; exit 1; }
 ! grep -q "kind: StatefulSet" <<<"$out"                                || { echo "still a StatefulSet"; exit 1; }
 ! grep -q "kind: HorizontalPodAutoscaler" <<<"$out"                    || { echo "HPA on by default"; exit 1; }
@@ -16,15 +17,19 @@ grep -A1 "Application__MapAssets__ChunkAssetRoot" <<<"$out" | grep -q '/app/Maps
 grep -A1 "ASPNETCORE_ENVIRONMENT" <<<"$out" | grep -q 'Production'    || { echo "environment missing"; exit 1; }
 ! grep -q "kind: Secret" <<<"$out"                                     || { echo "rendered a Secret despite existingSecret"; exit 1; }
 
-hpa=$(helm template t . --set existingSecret=x --set autoscaling.enabled=true)
+hpa=$(helm template t . $CACHE --set existingSecret=x --set autoscaling.enabled=true)
 grep -A2 "scaleTargetRef" <<<"$hpa" | grep -q "kind: Deployment"       || { echo "HPA must target the Deployment"; exit 1; }
 
-if helm template t . --set existingSecret=x --set cache.password=leak >/dev/null 2>&1; then
+if helm template t . $CACHE --set existingSecret=x --set cache.password=leak >/dev/null 2>&1; then
   echo "existingSecret + inline secret must fail"; exit 1
 fi
-ot=$(helm template t . --set existingSecret=x --set otel.endpoint=http://otel-collector:4317 --set 'otel.resourceAttributes.deployment\.environment=production')
+ot=$(helm template t . $CACHE --set existingSecret=x --set otel.endpoint=http://otel-collector:4317 --set 'otel.resourceAttributes.deployment\.environment=production')
 grep -A1 "name: OTEL_EXPORTER_OTLP_ENDPOINT" <<<"$ot" | grep -q "http://otel-collector:4317" || { echo "otel endpoint missing"; exit 1; }
 grep -A1 "name: OTEL_SERVICE_NAME" <<<"$ot" | grep -q '"t-avalon-api"'                                  || { echo "service name must default to the fullname"; exit 1; }
 grep -A1 "name: OTEL_RESOURCE_ATTRIBUTES" <<<"$ot" | grep -q '"deployment.environment=production"'          || { echo "resource attributes missing"; exit 1; }
 ! grep -q "OTEL_" <<<"$out"                                                                              || { echo "otel env rendered without an endpoint"; exit 1; }
+grep -A1 "name: Application__Cache__Host" <<<"$out" | grep -q '"redis:6379"'              || { echo "cache host missing"; exit 1; }
+if helm template t . --set existingSecret=x >/dev/null 2>&1; then
+  echo "rendering without cache.host must fail"; exit 1
+fi
 echo "avalon-api chart OK"
