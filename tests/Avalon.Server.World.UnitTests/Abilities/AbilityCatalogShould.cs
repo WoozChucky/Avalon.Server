@@ -30,6 +30,7 @@ public class AbilityCatalogShould
         { "NaN heal threat", "HealThreatPerHp NaN is not a finite value", With(AbilityTestData.HealCircle(1), t => t.HealThreatPerHp = float.NaN) },
         { "infinite heal threat", $"HealThreatPerHp {float.PositiveInfinity} is not a finite value", With(AbilityTestData.HealCircle(1), t => t.HealThreatPerHp = float.PositiveInfinity) },
         { "negative heal threat", "HealThreatPerHp -1 is not a finite value", With(AbilityTestData.HealCircle(1), t => t.HealThreatPerHp = -1f) },
+        { "negative power gain per hit", "PowerGainPerHit -1 is below 0", With(AbilityTestData.Cone(1), t => t.PowerGainPerHit = -1) },
         { "unknown aim mode", "unknown aim mode 9", With(AbilityTestData.Circle(1), t => t.AimMode = (AbilityAimMode)9) },
         { "unknown anchor", "unknown anchor 9", With(AbilityTestData.Circle(1), t => t.Anchor = (AbilityAnchor)9) },
         { "unknown affects", "unknown affects 9", With(AbilityTestData.Circle(1), t => t.Affects = (AbilityAffects)9) },

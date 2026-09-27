@@ -67,4 +67,10 @@ public class AbilityTemplate : IDbEntity<AbilityId>
     [Required] public bool Pierce { get; set; }
 
     [Required] public AbilityAffects Affects { get; set; } = AbilityAffects.Hostile;
+
+    /// <summary>
+    /// Power the caster gains, in its own pool and capped at its maximum, per unit this ability
+    /// damages (#526). 0 or more; 0 gains nothing.
+    /// </summary>
+    [Required] public int PowerGainPerHit { get; set; }
 }
