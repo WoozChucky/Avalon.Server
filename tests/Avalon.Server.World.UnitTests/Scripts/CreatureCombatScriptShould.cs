@@ -1221,6 +1221,7 @@ public class CreatureCombatScriptShould
         creature.Health = 100;
         creature.CurrentHealth = 30;
         creature.Position.Returns(new Vector3(3f, 0f, 0f));
+        locomotion.ResolvedDestination(creature).Returns((Vector3?)null); // no route exists
 
         for (int i = 0; i < 49; i++)
             script.Update(TimeSpan.FromSeconds(0.1)); // 4.9 s with no route: still fighting
@@ -1267,37 +1268,50 @@ public class CreatureCombatScriptShould
         combat.ReceivedWithAnyArgs(Quantity.AtLeastOne()).ApplyDamage(default!, default!, default);
     }
 
-    /// <summary>
-    /// #606: a surplus creature (every slot taken) settled at its stand-off point, with a route that
-    /// ended where it asked, is not sent home when the target steps a little away: the plan is stale,
-    /// not unreachable, and re-planning it is KeepStation's job once the target has moved far enough.
-    /// </summary>
-    [Fact]
-    public void Never_Give_Up_While_Standing_At_Its_Stand_Off_Point()
-    {
-        var locomotion = Substitute.For<ICreatureLocomotion>();
-        (CreatureCombatScript script, ICreature creature, ICharacter target) =
-            BuildChasingScript(locomotion, targetAt: new Vector3(20f, 0f, 0f));
-        ClaimEverySlot(target);
-        Vector3? routeEnd = null;
-        locomotion.When(l => l.MoveTo(creature, Arg.Any<Vector3>())).Do(ci => routeEnd = ci.ArgAt<Vector3>(1));
-        locomotion.ResolvedDestination(creature).Returns(_ => routeEnd);
-        script.Update(TimeSpan.FromSeconds(0.1)); // plans the walk to its stand-off point
-        Assert.NotNull(routeEnd);
-        creature.Position.Returns(routeEnd!.Value);
-
-        target.Position.Returns(new Vector3(21f, 0f, 0f)); // 2.4 m away: out of range, no re-plan yet
-        for (int i = 0; i < 200; i++)
-            script.Update(TimeSpan.FromSeconds(0.1));
-
-        Assert.Equal((object)CreatureCombatScript.CombatState.Combat, script.State);
-    }
-
     // #606 over the real WaypointLocomotion, with only the navigator faked. The navigator returns a
     // partial route for anything near the target, the way MapNavigator does for a target on a ledge
     // or an island within its polygon search box: a path of two or more points that ends short.
     // Walking to its end makes HasArrived flip every other tick, which is why the rule reads where the
     // route ends instead.
+
+    /// <summary>
+    /// A surplus creature (every slot taken) settled at its stand-off point whose target steps 1 m away,
+    /// less than its re-plan threshold: it re-plans because it is out of range, walks in and fights, and
+    /// is never sent home.
+    /// </summary>
+    [Fact]
+    public void Walk_In_From_Its_Stand_Off_Point_When_Its_Target_Steps_A_Little_Away()
+    {
+        var fight = new WaypointFight(targetAt: new Vector3(10f, 0f, 0f), routeEndNearTarget: null);
+        fight.ClaimEverySlot();
+        Assert.Equal(-1, fight.TicksUntilReturning(limit: 40)); // walks to its stand-off point
+        fight.Combat.ClearReceivedCalls();
+
+        fight.Target.Position.Returns(new Vector3(11f, 0f, 0f));
+        Assert.Equal(-1, fight.TicksUntilReturning(limit: 200));
+
+        fight.Combat.ReceivedWithAnyArgs(Quantity.AtLeastOne()).ApplyDamage(default!, default!, default);
+    }
+
+    /// <summary>
+    /// The same creature, but the target's 1.4 m step puts it on an island: the fresh route ends where
+    /// the creature stands, out of reach, so it goes home within the limit rather than standing there,
+    /// never swinging, for good.
+    /// </summary>
+    [Fact]
+    public void Go_Home_Within_The_Limit_When_Its_Target_Steps_Onto_An_Island_From_Its_Stand_Off_Point()
+    {
+        var fight = new WaypointFight(targetAt: new Vector3(10f, 0f, 0f), routeEndNearTarget: null);
+        fight.ClaimEverySlot();
+        Assert.Equal(-1, fight.TicksUntilReturning(limit: 40)); // walks to its stand-off point
+        fight.Combat.ClearReceivedCalls();
+
+        fight.Target.Position.Returns(new Vector3(11.4f, 0f, 0f));
+        fight.RouteEndNearTarget = fight.Creature.Position;      // no way on: every route ends here
+
+        Assert.InRange(fight.TicksUntilReturning(limit: 70), 49, 55);
+        fight.Combat.DidNotReceiveWithAnyArgs().ApplyDamage(default!, default!, default);
+    }
 
     /// <summary>A route whose end is fixed short of the target, however often it is asked for.</summary>
     [Fact]
@@ -1463,6 +1477,17 @@ public class CreatureCombatScriptShould
         public MeleeSlots Slots { get; } = new(6, radius: 1.5f);
         public CreatureCombatScript Script { get; }
 
+        /// <summary>Claims every slot on the target on behalf of other creatures.</summary>
+        public void ClaimEverySlot()
+        {
+            uint claimantId = 900;
+            while (Slots.TryClaim(Target.Guid, new ObjectGuid(ObjectType.Creature, claimantId), Target.Position,
+                       Target.Position, out _))
+            {
+                claimantId++;
+            }
+        }
+
         /// <summary>
         /// Runs up to <paramref name="limit" /> ticks of 0.1 s, script then locomotion as MapInstance does,
         /// and returns the tick (from 1) after which the creature was Returning, or -1 if it never was.
@@ -1552,6 +1577,12 @@ public class CreatureCombatScriptShould
         target.Guid.Returns(new ObjectGuid(ObjectType.Character, 1));
         target.Position.Returns(targetAt);
         target.IsDead.Returns(false);
+
+        // A route always ends where it was asked (#606), so a test that does not care about reach never
+        // counts toward giving up. A test about a missing route overrides it.
+        Vector3? requested = null;
+        locomotion.When(l => l.MoveTo(creature, Arg.Any<Vector3>())).Do(ci => requested = ci.ArgAt<Vector3>(1));
+        locomotion.ResolvedDestination(creature).Returns(_ => requested);
 
         // A creature that has never been given a destination has "arrived" trivially — the real
         // WaypointLocomotion returns true here too (unregistered / empty path), which is what

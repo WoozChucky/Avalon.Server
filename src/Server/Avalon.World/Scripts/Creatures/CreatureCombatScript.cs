@@ -360,18 +360,16 @@ public class CreatureCombatScript : AiScript
             ? _unreachableFor + deltaTime
             : TimeSpan.Zero;
 
-        KeepStation(currentPosition, destination, hasSlot, hasArrived);
+        KeepStation(currentPosition, destination, hasSlot, hasArrived, inRange);
     }
 
     /// <summary>
     /// Whether the creature's current route can bring it within reach of <paramref name="targetPosition" />
     /// (#606). It can when the route ends within attack range, plus the locomotion's arrival tolerance and
     /// the margin, of the target, measured from the target rather than the slot: a slot against a wall
-    /// that the route cannot reach, but whose route ends within reach of the target, is reachable. It also
-    /// can when the route ends where it was asked to (within the arrival tolerance and the margin): the
-    /// plan is complete, only stale, and a stale plan is KeepStation's to redo once the target has moved
-    /// far enough, as for a surplus creature at its stand-off point after a small step of the target. No
-    /// route, or a partial one toward a ledge or an island, can reach neither.
+    /// that the route cannot reach, but whose route ends within reach of the target, is reachable. No
+    /// route, or a partial one toward a ledge or an island, is not. A settled creature out of range
+    /// re-plans every tick (see KeepStation), so a stale route is never what this judges for long.
     /// </summary>
     private bool RouteCanReach(Vector3 targetPosition)
     {
@@ -381,8 +379,7 @@ public class CreatureCombatScript : AiScript
         }
 
         float tolerance = Context.Locomotion.ArrivalTolerance(Creature) + AttackRangeArrivalMargin;
-        return Vector3.Distance(routeEnd, targetPosition) <= AttackRange + tolerance
-               || Vector3.Distance(routeEnd, _lastRequestedDestination) <= tolerance;
+        return Vector3.Distance(routeEnd, targetPosition) <= AttackRange + tolerance;
     }
 
     /// <summary>
@@ -415,7 +412,7 @@ public class CreatureCombatScript : AiScript
     /// Hands the locomotion a fresh destination when the current one has gone stale, and keeps the
     /// creature running whenever it should be moving at all.
     /// </summary>
-    private void KeepStation(Vector3 currentPosition, Vector3 destination, bool hasSlot, bool hasArrived)
+    private void KeepStation(Vector3 currentPosition, Vector3 destination, bool hasSlot, bool hasArrived, bool inRange)
     {
         // Two independent reasons to hand the locomotion a fresh destination, because a creature
         // that is walking and a creature that has settled go stale in different ways:
@@ -455,7 +452,12 @@ public class CreatureCombatScript : AiScript
         // lost), not for "close enough to hit right now."
         bool stillWalking = !hasArrived;
         float driftThreshold = hasSlot ? Context.Locomotion.ArrivalTolerance(Creature) : PathRecalculationThreshold;
-        bool settledOffDestination = !stillWalking && Vector3.Distance(currentPosition, destination) > driftThreshold;
+        // A settled creature out of range re-plans too, however little its destination moved (#606):
+        // otherwise a target that stepped less than the drift threshold away (onto an island, say)
+        // would leave it standing out of reach on a stale route that ended where it asked. At most one
+        // FindPath a tick, only while it is stuck, and the unreachable limit ends that.
+        bool settledOffDestination = !stillWalking &&
+            (Vector3.Distance(currentPosition, destination) > driftThreshold || !inRange);
         bool destinationDrifted = stillWalking &&
             Vector3.Distance(_lastRequestedDestination, destination) > PathRecalculationThreshold;
 

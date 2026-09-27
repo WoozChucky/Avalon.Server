@@ -198,8 +198,9 @@ contracts.
   character targets only.
 - It also gives up when it has had no way to reach its target for more than 5 s in a row (#606).
   That is read from where its route really ends (`ICreatureLocomotion.ResolvedDestination`), not
-  from `HasArrived`: while out of attack range, there is no route, or the route ends neither within
-  attack range plus the arrival tolerance of the target nor where it was asked to go. A partial route
+  from `HasArrived`: while out of attack range, there is no route, or the route ends farther than
+  attack range plus the arrival tolerance from the target. A settled creature out of range re-plans
+  every tick, so the route judged is always fresh. A partial route
   toward a ledge or an island is unreachable; a slot against a wall whose route still ends within
   reach of the target is not. A tick that can reach, and a change of target, start the count over.
 - Where the fight started is its home, and any position is a valid home, the origin included.
