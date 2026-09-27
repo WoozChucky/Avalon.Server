@@ -135,9 +135,9 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         // EncounterRegistry + CombatService are instance-scoped so encounters cannot bleed
         // between MapInstances.
         CombatConfig combatConfig = serviceProvider.GetRequiredService<CombatConfig>();
-        _encounterRegistry = new EncounterRegistry(combatConfig);
-        _combatService     = new CombatService(combatConfig, _encounterRegistry, this, _pvp, outcomes: this);
-        _threatBroadcast   = new ThreatBroadcastService(combatConfig);
+        _encounterRegistry = new EncounterRegistry(combatConfig, _time);
+        _combatService     = new CombatService(combatConfig, _encounterRegistry, this, _pvp, outcomes: this, time: _time);
+        _threatBroadcast   = new ThreatBroadcastService(combatConfig, _time);
 
         // Shape scripts ask this for the living units their shape overlaps (#164).
         _hits = new UnitHitQuery(_characters, _creatures);

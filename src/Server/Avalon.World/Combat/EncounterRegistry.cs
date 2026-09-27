@@ -7,9 +7,15 @@ namespace Avalon.World.Combat;
 public sealed class EncounterRegistry : IEncounterRegistry
 {
     private readonly CombatConfig _config;
+    private readonly TimeProvider? _time;
     private readonly List<Encounter> _active = new();
 
-    public EncounterRegistry(CombatConfig config) => _config = config;
+    /// <param name="time">The instance's clock, handed to every encounter it creates (#614).</param>
+    public EncounterRegistry(CombatConfig config, TimeProvider? time = null)
+    {
+        _config = config;
+        _time   = time;
+    }
 
     public IReadOnlyCollection<IEncounter> Active => _active;
 
@@ -25,7 +31,7 @@ public sealed class EncounterRegistry : IEncounterRegistry
 
     public IEncounter CreateEncounter()
     {
-        var enc = new Encounter(_config);
+        var enc = new Encounter(_config, _time);
         _active.Add(enc);
         return enc;
     }

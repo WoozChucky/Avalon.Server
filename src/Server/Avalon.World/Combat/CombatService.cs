@@ -22,11 +22,14 @@ public sealed class CombatService : ICombatService
     private readonly ISimulationContext? _context;
     private readonly PvpToggle?          _pvp;
     private readonly ICombatOutcomes?    _outcomes;
+    private readonly TimeProvider        _time;
 
     /// <param name="outcomes">Where hits and kills are reported (#546): the instance this service belongs to.</param>
+    /// <param name="time">The instance's clock, the one taunts end by (#614).</param>
     public CombatService(CombatConfig config, EncounterRegistry registry, ISimulationContext? context = null,
-        PvpToggle? pvp = null, ICombatOutcomes? outcomes = null)
+        PvpToggle? pvp = null, ICombatOutcomes? outcomes = null, TimeProvider? time = null)
     {
+        _time     = time ?? TimeProvider.System;
         _config   = config;
         _registry = registry;
         _context  = context;
@@ -208,6 +211,9 @@ public sealed class CombatService : ICombatService
     {
         if (target is not ICreature creature) return;
 
+        // A creature walking home cannot be taunted (#614), as it cannot be hit (#610).
+        if (IsReturningHome(creature)) return;
+
         var enc = _registry.FindEncounterContaining(target) as Encounter;
         if (enc is null) return;
 
@@ -223,13 +229,26 @@ public sealed class CombatService : ICombatService
         enc.AddThreat(creature, caster, deltaToBecomeTop);
 
         creature.TauntedBy      = caster;
-        creature.TauntExpiresAt = DateTime.UtcNow.AddMilliseconds(durationMs);
+        creature.TauntExpiresAt = _time.GetUtcNow().UtcDateTime.AddMilliseconds(durationMs);
     }
 
     public void EnterCombat(IUnit hostile, IUnit player)
     {
+        // A creature walking home is pulled into no fight until it is home and reset (#614).
+        if (IsReturningHome(hostile)) return;
+
         // Resolve-or-spawn handles both directions; arg order matches the merge logic in ApplyDamage.
         ResolveOrSpawn(player, hostile);
+    }
+
+    /// <summary>
+    /// Takes a creature out of its encounter with its threat list (#614). The players stay, with their
+    /// threat on every other hostile. Idempotent.
+    /// </summary>
+    public void DropHostileFromEncounter(IUnit hostile)
+    {
+        var enc = _registry.FindEncounterContaining(hostile) as Encounter;
+        enc?.RemoveHostile(hostile);
     }
 
     public void DropPlayerFromEncounter(IUnit player)

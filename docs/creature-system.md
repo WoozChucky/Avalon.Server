@@ -205,7 +205,13 @@ contracts.
   reach of the target is not. A tick that can reach, and a change of target, start the count over.
 - Where the fight started is its home, and any position is a valid home, the origin included.
 - A creature walking home after the leash or a lost target ignores hits entirely until it is home
-  and reset (owner decision, #606): `CombatService` refuses them, step 2 below (#610).
+  and reset (owner decision, #606): `CombatService` refuses them, step 2 below (#610). It cannot be
+  taunted or pulled into combat (`ApplyTaunt`, `EnterCombat`) on the way either (#614).
+- Home and reset, it leaves its encounter (#614): `ResetToIdleAtSpawn` calls
+  `ICombatService.DropHostileFromEncounter`, which removes the creature and its threat list. The
+  players stay in the encounter with their threat on every other creature in it; one left with no
+  creature ends after its grace, as after a kill. No threat from before the leash, not even the seed
+  of a player it swung at, reaches its next fight.
 - If no path home is found, the creature is teleported home.
 
 Only `CreatureCombatScript.OnHit` lowers health. A creature takes damage only through its script's
@@ -234,6 +240,11 @@ Every hit, a creature's swing or a player's skill, goes through the instance's `
 
 `ICombatOutcomes` is World-side. `MapInstance` implements it, and nothing on the modding API can
 report a kill.
+
+Combat keeps the instance's clock (#614): `MapInstance` hands its `TimeProvider` to the encounter
+registry (each encounter's last damage and end grace), the combat service (when a taunt ends) and the
+threat broadcast throttle, and `CreatureCombatScript` reads the container's to check a taunt. Threat
+decay runs on the tick's delta.
 
 ---
 

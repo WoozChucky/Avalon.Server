@@ -27,9 +27,15 @@ namespace Avalon.World.Combat;
 public sealed class ThreatBroadcastService
 {
     private readonly CombatConfig _config;
+    private readonly TimeProvider _time;
     private readonly Dictionary<IWorldConnection, BroadcastState> _state = new();
 
-    public ThreatBroadcastService(CombatConfig config) => _config = config;
+    /// <param name="time">The instance's clock, the one the rest of the world times by (#614).</param>
+    public ThreatBroadcastService(CombatConfig config, TimeProvider? time = null)
+    {
+        _config = config;
+        _time   = time ?? TimeProvider.System;
+    }
 
     /// <summary>
     /// Drops cached state for <paramref name="connection"/>. Call from
@@ -44,7 +50,7 @@ public sealed class ThreatBroadcastService
         IReadOnlyDictionary<ObjectGuid, ICreature> creatures,
         ICombatService combatService)
     {
-        DateTime now = DateTime.UtcNow;
+        DateTime now = _time.GetUtcNow().UtcDateTime;
 
         foreach (IWorldConnection conn in connections)
         {
