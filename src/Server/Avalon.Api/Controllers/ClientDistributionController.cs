@@ -55,7 +55,8 @@ public class ClientDistributionController : BaseController
     /// <summary>
     /// The public changelog, newest first: server and launcher releases for everyone, game client builds
     /// for the channels the caller may use (homelab spec 2026-09-27-avalon-changelog-design §7). Page with
-    /// <paramref name="before" />, the oldest <c>publishedAt</c> of the previous page.
+    /// <paramref name="before" /> and <paramref name="beforeId" />: the last entry's <c>publishedAt</c> and
+    /// <c>id</c> on the previous page.
     /// </summary>
     [HttpGet("changelog", Name = "ListClientChangelog")]
     [AllowAnonymous]
@@ -63,7 +64,8 @@ public class ClientDistributionController : BaseController
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
     public async Task<IActionResult> Changelog([FromQuery] string? product = null, [FromQuery] string? channel = null,
-        [FromQuery] int limit = 20, [FromQuery] DateTimeOffset? before = null, CancellationToken ct = default)
+        [FromQuery] int limit = 20, [FromQuery] DateTimeOffset? before = null, [FromQuery] string? beforeId = null,
+        CancellationToken ct = default)
     {
         if (product is not (null or "server" or "client" or "launcher"))
             return BadRequest();
@@ -77,7 +79,7 @@ public class ClientDistributionController : BaseController
         }
 
         AccountAccessLevel? caller = User.Identity?.IsAuthenticated == true ? User.AccessLevel() : null;
-        var query = new ChangelogQuery(product, parsed, Math.Clamp(limit, 1, MaxReleases), before);
+        var query = new ChangelogQuery(product, parsed, Math.Clamp(limit, 1, MaxReleases), before, beforeId);
         return Ok(await _service.ListChangelogAsync(caller, query, ct));
     }
 

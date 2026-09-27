@@ -169,4 +169,22 @@ public class S3DistributionStoreShould
     {
         Assert.Null(S3DistributionStore.ParseChangelog(json));
     }
+
+    [Fact]
+    public void Keep_only_https_links_and_whole_items()
+    {
+        const string json = """
+            {"schema":1,"product":"server","version":"0.6.0","publishedAt":"2026-09-27T14:38:05Z",
+             "releaseUrl":"javascript:alert(1)",
+             "items":[null,{"kind":"fixed"},{"kind":"new","text":"Added a thing.","breaking":false,"prUrl":"/relative"},
+                      {"kind":"fixed","text":"Fixed a thing.","breaking":false,"pr":1,"prUrl":"https://github.com/o/r/pull/1"}]}
+            """;
+
+        ChangelogEntryDto? entry = S3DistributionStore.ParseChangelog(json);
+
+        Assert.Null(entry!.ReleaseUrl);
+        Assert.Equal(["Added a thing.", "Fixed a thing."], entry.Items.Select(i => i.Text));
+        Assert.Null(entry.Items[0].PrUrl);
+        Assert.Equal("https://github.com/o/r/pull/1", entry.Items[1].PrUrl!.ToString());
+    }
 }

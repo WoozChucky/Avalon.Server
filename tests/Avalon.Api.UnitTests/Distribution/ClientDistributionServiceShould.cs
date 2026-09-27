@@ -276,4 +276,86 @@ public class ClientDistributionServiceShould
 
         await _store.Received(1).GetChangelogEntryAsync("changelog/server/0.6.0.json", Arg.Any<CancellationToken>());
     }
+
+    // ---- Changelog review fixes ----
+
+    [Fact]
+    public async Task Read_an_unreadable_entry_once()
+    {
+        EmptyChangelog();
+        _store.ListChangelogAsync("changelog/server/", Arg.Any<CancellationToken>())
+            .Returns(new List<StoredObject> { new("changelog/server/bad.json", T0) });
+        _store.GetChangelogEntryAsync("changelog/server/bad.json", Arg.Any<CancellationToken>()).Returns((ChangelogEntryDto?)null);
+
+        await _service.ListChangelogAsync(null, new ChangelogQuery(null, null, 20, null), CancellationToken.None);
+        await _service.ListChangelogAsync(null, new ChangelogQuery(null, null, 20, null), CancellationToken.None);
+
+        await _store.Received(1).GetChangelogEntryAsync("changelog/server/bad.json", Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Give_each_entry_its_id()
+    {
+        EmptyChangelog();
+        Changelog("changelog/client/ptr/", Entry("client", "ptr", "0.1.0", T0));
+
+        var feed = await _service.ListChangelogAsync(AccountAccessLevel.PTR, new ChangelogQuery("client", Channel.Ptr, 20, null), CancellationToken.None);
+
+        Assert.Equal("client/ptr/0.1.0+1.abc", Assert.Single(feed).Id);
+    }
+
+    [Fact]
+    public async Task Page_through_entries_published_at_the_same_time()
+    {
+        EmptyChangelog();
+        Changelog("changelog/server/", Entry("server", null, "0.1.0", T0), Entry("server", null, "0.2.0", T0), Entry("server", null, "0.3.0", T0));
+
+        var first = await _service.ListChangelogAsync(null, new ChangelogQuery("server", null, 2, null), CancellationToken.None);
+        var second = await _service.ListChangelogAsync(null,
+            new ChangelogQuery("server", null, 2, first[^1].PublishedAt, first[^1].Id), CancellationToken.None);
+
+        Assert.Equal(3, first.Concat(second).Select(e => e.Id).Distinct().Count());
+        Assert.Single(second);
+    }
+
+    [Fact]
+    public async Task Leave_out_an_entry_filed_under_another_product_or_channel()
+    {
+        EmptyChangelog();
+        Changelog("changelog/server/", Entry("server", null, "0.6.0", T0), Entry("client", "dev", "0.1.0", T0.AddHours(1)));
+
+        var feed = await _service.ListChangelogAsync(null, new ChangelogQuery(null, null, 20, null), CancellationToken.None);
+
+        Assert.Equal(["server"], feed.Select(e => e.Product));
+    }
+
+    [Fact]
+    public async Task Read_entries_in_parallel()
+    {
+        EmptyChangelog();
+        var objects = Enumerable.Range(0, 16).Select(n => new StoredObject($"changelog/server/0.{n}.0.json", T0.AddMinutes(n))).ToList();
+        _store.ListChangelogAsync("changelog/server/", Arg.Any<CancellationToken>()).Returns(objects);
+        int inFlight = 0, peak = 0;
+        _store.GetChangelogEntryAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(async call =>
+        {
+            int now = Interlocked.Increment(ref inFlight);
+            InterlockedMax(ref peak, now);
+            await Task.Delay(20);
+            Interlocked.Decrement(ref inFlight);
+            string version = call.Arg<string>().Split('/')[^1].Replace(".json", "");
+            return (ChangelogEntryDto?)Entry("server", null, version, T0);
+        });
+
+        await _service.ListChangelogAsync(null, new ChangelogQuery("server", null, 20, null), CancellationToken.None);
+
+        Assert.InRange(peak, 2, 8);
+    }
+
+    private static void InterlockedMax(ref int target, int value)
+    {
+        int seen;
+        while ((seen = Volatile.Read(ref target)) < value && Interlocked.CompareExchange(ref target, value, seen) != seen)
+        {
+        }
+    }
 }

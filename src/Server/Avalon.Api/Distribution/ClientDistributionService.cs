@@ -98,29 +98,32 @@ public sealed class ClientDistributionService(IDistributionStore store, IMemoryC
     /// </summary>
     public async Task<IReadOnlyList<ChangelogEntryDto>> ListChangelogAsync(AccountAccessLevel? caller, ChangelogQuery query, CancellationToken ct)
     {
-        var prefixes = new List<string>();
+        var prefixes = new List<(string Prefix, string Product, string? Channel)>();
         if (query.Product is null or "server")
-            prefixes.Add("changelog/server/");
+            prefixes.Add(("changelog/server/", "server", null));
         if (query.Product is null or "launcher")
-            prefixes.Add("changelog/launcher/");
+            prefixes.Add(("changelog/launcher/", "launcher", null));
         if (query.Product is null or "client")
             prefixes.AddRange(ChannelAccess.Visible(caller)
                 .Where(c => query.Channel is null || c == query.Channel)
-                .Select(c => $"changelog/client/{c.Wire()}/"));
+                .Select(c => ($"changelog/client/{c.Wire()}/", "client", (string?)c.Wire())));
 
         var entries = new List<ChangelogEntryDto>();
         int failed = 0;
-        foreach (string prefix in prefixes)
+        foreach (var (prefix, product, channel) in prefixes)
         {
             try
             {
                 IReadOnlyList<StoredObject> listed =
                     await Cached(("changelog-list", prefix), () => store.ListChangelogAsync(prefix, ct)) ?? [];
-                foreach (StoredObject obj in listed)
-                {
-                    if (await ChangelogEntryAsync(obj.Key, ct) is { } entry)
-                        entries.Add(entry);
-                }
+                var read = new ChangelogEntryDto?[listed.Count];
+                // In parallel, a few at a time: the first request after a restart reads the whole history.
+                await Parallel.ForEachAsync(Enumerable.Range(0, listed.Count),
+                    new ParallelOptions { MaxDegreeOfParallelism = ChangelogReads, CancellationToken = ct },
+                    async (n, token) => read[n] = await ChangelogEntryAsync(listed[n].Key, token));
+                // All or nothing per prefix, and only entries filed where they belong (a dev entry under
+                // changelog/server/ would otherwise reach everyone).
+                entries.AddRange(read.OfType<ChangelogEntryDto>().Where(e => e.Product == product && e.Channel == channel));
             }
             catch (DistributionUnavailableException)
             {
@@ -132,20 +135,34 @@ public sealed class ClientDistributionService(IDistributionStore store, IMemoryC
             throw new DistributionUnavailableException("The changelog is not available right now.");
 
         return entries
-            .Where(e => query.Before is null || e.PublishedAt < query.Before)
+            .Where(e => query.Before is not { } before || e.PublishedAt < before
+                || (e.PublishedAt == before && query.BeforeId is { } id && string.CompareOrdinal(e.Id, id) < 0))
             .OrderByDescending(e => e.PublishedAt)
+            .ThenByDescending(e => e.Id, StringComparer.Ordinal)
             .Take(query.Limit)
             .ToList();
     }
 
-    /// <summary>An entry is immutable once published, so it is kept without expiry; a missing one is not kept.</summary>
+    private const int ChangelogReads = 8;
+
+    // An entry that cannot be read is remembered as such, for as long as a listing: re-reading it on every
+    // request would cost one storage read per request for as long as it sits in the bucket.
+    private static readonly ChangelogEntryDto Unreadable = new("", null, "", null, default, null, []);
+
+    /// <summary>An entry is immutable once published, so it is kept without expiry.</summary>
     private async Task<ChangelogEntryDto?> ChangelogEntryAsync(string key, CancellationToken ct)
     {
         if (cache.TryGetValue(("changelog-entry", key), out ChangelogEntryDto? hit))
-            return hit;
+            return ReferenceEquals(hit, Unreadable) ? null : hit;
         ChangelogEntryDto? entry = await store.GetChangelogEntryAsync(key, ct);
-        if (entry is not null)
-            cache.Set(("changelog-entry", key), entry);
+        if (entry is null)
+        {
+            cache.Set(("changelog-entry", key), Unreadable, CacheFor);
+            return null;
+        }
+
+        entry = entry with { Id = key["changelog/".Length..^".json".Length] };
+        cache.Set(("changelog-entry", key), entry);
         return entry;
     }
 

@@ -130,7 +130,7 @@ public class ClientDistributionControllerShould
     {
         ChangelogEntries("changelog/server/", 2, "server", null);
 
-        var result = Assert.IsType<OkObjectResult>(await Sut().Changelog(null, null, 20, null, CancellationToken.None));
+        var result = Assert.IsType<OkObjectResult>(await Sut().Changelog(null, null, 20, null, null, CancellationToken.None));
 
         Assert.Equal(["0.1.0", "0.0.0"], ((IReadOnlyList<ChangelogEntryDto>)result.Value!).Select(e => e.Version));
     }
@@ -142,7 +142,7 @@ public class ClientDistributionControllerShould
     [InlineData(null, "ptr")]       // a channel needs the client product
     public async Task Refuse_an_unknown_product_or_channel(string? product, string? channel)
     {
-        Assert.IsType<BadRequestResult>(await Sut().Changelog(product, channel, 20, null, CancellationToken.None));
+        Assert.IsType<BadRequestResult>(await Sut().Changelog(product, channel, 20, null, null, CancellationToken.None));
     }
 
     [Fact]
@@ -150,7 +150,7 @@ public class ClientDistributionControllerShould
     {
         ChangelogEntries("changelog/server/", 60, "server", null);
 
-        var result = Assert.IsType<OkObjectResult>(await Sut().Changelog("server", null, 500, null, CancellationToken.None));
+        var result = Assert.IsType<OkObjectResult>(await Sut().Changelog("server", null, 500, null, null, CancellationToken.None));
 
         Assert.Equal(50, ((IReadOnlyList<ChangelogEntryDto>)result.Value!).Count);
     }

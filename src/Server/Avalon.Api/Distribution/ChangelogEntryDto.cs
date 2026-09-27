@@ -18,4 +18,11 @@ public sealed record ChangelogEntryDto(
     string? Build,
     DateTimeOffset PublishedAt,
     Uri? ReleaseUrl,
-    IReadOnlyList<ChangelogItemDto> Items);
+    IReadOnlyList<ChangelogItemDto> Items)
+{
+    /// <summary>
+    /// The entry's key under <c>changelog/</c> without <c>.json</c> (e.g. <c>client/ptr/0.1.0+8.9078bc8</c>):
+    /// stable and unique, the tie-break when paging entries published at the same time.
+    /// </summary>
+    public string Id { get; init; } = "";
+}

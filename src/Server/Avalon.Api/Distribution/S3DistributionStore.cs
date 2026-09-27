@@ -160,8 +160,15 @@ public sealed class S3DistributionStore : IDistributionStore, IDisposable
 
         if (raw is not { Schema: 1, Product: { } product, Version: { } version, PublishedAt: { } publishedAt, Items: { } items })
             return null;
-        return new ChangelogEntryDto(product, raw.Channel, version, raw.Build, publishedAt, raw.ReleaseUrl, items);
+        // The website renders these: whole items only, and links only when they are absolute https.
+        var kept = items
+            .Where(i => i is { Kind: not null, Text: not null })
+            .Select(i => i with { PrUrl = Https(i.PrUrl) })
+            .ToList();
+        return new ChangelogEntryDto(product, raw.Channel, version, raw.Build, publishedAt, Https(raw.ReleaseUrl), kept);
     }
+
+    private static Uri? Https(Uri? url) => url is { IsAbsoluteUri: true, Scheme: "https" } ? url : null;
 
     // The stored shape (spec §4); its commit is only for the next release's range, not for the website.
     private sealed record RawChangelogEntry(int Schema, string? Product, string? Channel, string? Version, string? Build,
