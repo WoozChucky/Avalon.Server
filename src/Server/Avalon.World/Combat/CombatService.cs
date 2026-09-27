@@ -122,8 +122,9 @@ public sealed class CombatService : ICombatService
     }
 
     /// <summary>
-    /// Restores up to <paramref name="amount" />, capped at the target's maximum (#164). A dead unit is
-    /// never healed. The health change reaches clients through entity replication, as regeneration's
+    /// Restores up to <paramref name="amount" />, capped at the target's maximum (#164). A heal never
+    /// lowers health: a unit already at or above its maximum keeps what it has, and the heal restores 0
+    /// (#548). A dead unit is never healed. The health change reaches clients through entity replication, as regeneration's
     /// does. Heal threat counts only the health actually restored (#531):
     /// <c>restored × HealThreatPerHp × class modifier</c>, split across the hostiles in the target's
     /// encounter. Overheal adds none, so a heal that restores nothing leaves the encounter untouched and
@@ -135,7 +136,9 @@ public sealed class CombatService : ICombatService
         if (dead) return;
 
         uint before = target.CurrentHealth;
-        uint after = (uint)Math.Min((ulong)target.Health, (ulong)before + amount);
+        uint after = before >= target.Health
+            ? before // never lower health that sits above the maximum (#548)
+            : (uint)Math.Min((ulong)target.Health, (ulong)before + amount);
         target.CurrentHealth = after;
 
         uint restored = after > before ? after - before : 0;
