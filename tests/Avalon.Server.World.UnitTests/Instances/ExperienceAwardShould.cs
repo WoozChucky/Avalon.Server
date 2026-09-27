@@ -100,6 +100,49 @@ public class ExperienceAwardShould
     }
 
     /// <summary>
+    /// #600: a patrolling creature takes damage, and a hit that kills it awards the experience once.
+    /// Its script used to ignore the hit's damage, so it could never be killed.
+    /// </summary>
+    [Fact]
+    public void Award_A_Patrolling_Creatures_Kill_Experience_Once()
+    {
+        var world = Substitute.For<Avalon.World.IWorld>();
+        world.Configuration.Returns(new GameConfiguration());
+        world.MapTemplates.Returns(new List<MapTemplate>());
+        StaticData data = LoadedStaticData();
+        world.Data.Returns(data);
+
+        MapInstance instance = TestMapInstances.Build(world);
+
+        var creature = new Creature
+        {
+            Guid = new ObjectGuid(ObjectType.Creature, 880_031),
+            Metadata = Substitute.For<ICreatureMetadata>(),
+            Experience = 100,
+            Health = 10,
+            CurrentHealth = 10,
+        };
+        instance.AddCreature(creature);
+        creature.Script = new Avalon.World.Scripts.Creatures.CreaturePatrolScript(NullLoggerFactory.Instance, creature, instance);
+
+        ICharacter killer = Substitute.For<ICharacter>();
+        killer.Guid.Returns(new ObjectGuid(ObjectType.Character, 880_032));
+        killer.Level.Returns((ushort)9);
+        killer.Experience.Returns(0ul);
+
+        instance.CombatService.ApplyDamage(killer, creature, 4);
+        Assert.Equal(6u, creature.CurrentHealth);
+
+        instance.CombatService.ApplyDamage(killer, creature, 10);
+        instance.CombatService.ApplyDamage(killer, creature, 10);   // the corpse: no second award
+
+        Assert.Equal(0u, creature.CurrentHealth);
+        Assert.Null(creature.Script);
+        killer.Received(1).Experience = 100;
+        instance.Dispose();
+    }
+
+    /// <summary>
     /// #590 characterisation: a kill reported for a creature this instance does not hold does
     /// nothing. The creature keeps its script and the killer gains nothing.
     /// </summary>

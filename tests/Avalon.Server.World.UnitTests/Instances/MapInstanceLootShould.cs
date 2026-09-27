@@ -128,6 +128,39 @@ public class MapInstanceLootShould
         Assert.Null(creature.Script);
     }
 
+    /// <summary>
+    /// #600: a patrolling creature is killed by real hits, once: its loot is rolled and dropped once,
+    /// and one death is broadcast, however many hits land on the corpse.
+    /// </summary>
+    [Fact]
+    public async Task Drop_A_Patrolling_Creatures_Loot_Once_When_Real_Hits_Kill_It()
+    {
+        using MapInstance instance = await Build();
+        MapInstanceClient killer = Join(instance, 600_111);
+        var creature = new Creature
+        {
+            Guid = new ObjectGuid(ObjectType.Creature, 600_011),
+            Metadata = BoarTemplate(1, minGold: 5, maxGold: 5),
+            Position = new Vector3(10f, 2f, 10f),
+            Health = 10,
+            CurrentHealth = 10,
+        };
+        instance.AddCreature(creature);
+        creature.Script = new Avalon.World.Scripts.Creatures.CreaturePatrolScript(NullLoggerFactory.Instance, creature, instance);
+
+        instance.CombatService.ApplyDamage(killer.Character, creature, 4);
+        Assert.Equal(6u, creature.CurrentHealth);
+        Assert.Equal(0, instance.Drops.Count);
+
+        instance.CombatService.ApplyDamage(killer.Character, creature, 10);
+        instance.CombatService.ApplyDamage(killer.Character, creature, 10);   // the corpse
+
+        Assert.Equal(2, instance.Drops.Count);   // the sword and the pile, once
+        Assert.Single(Spawned(killer));
+        Assert.Single(killer.Read<Avalon.Network.Packets.Combat.SUnitDeathPacket>(NetworkPacketType.SMSG_UNIT_DEATH));
+        Assert.Null(creature.Script);
+    }
+
     [Fact]
     public async Task Drop_A_Kills_Loot_And_Tell_Everyone_In_One_Packet()
     {
