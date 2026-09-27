@@ -17,11 +17,9 @@ builder.Host.UseDefaultServiceProvider((_, options) => AvalonServiceProvider.Con
 
 IConfiguration configuration = ApiConfiguration.Sources(builder);
 
-builder.AddServiceDefaults();
+builder.AddLoggingAndServiceDefaults(configuration);
 
 IServiceCollection services = builder.Services;
-
-services.AddCustomLogging(configuration);
 
 // Add services to the container.
 {
