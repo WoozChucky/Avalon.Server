@@ -65,11 +65,13 @@ public class CharacterDbContext : DbContext
 {
     private readonly ILoggerFactory? _loggerFactory;
     private readonly string? _connectionString;
+    private readonly bool _sensitiveDataLogging;
 
     public CharacterDbContext(ILoggerFactory loggerFactory, IOptions<DatabaseConfiguration> opts)
     {
         _loggerFactory = loggerFactory;
         _connectionString = opts.Value.Characters!.ConnectionString;
+        _sensitiveDataLogging = opts.Value.EnableSensitiveDataLogging;
     }
 
     /// <summary>Configured by the caller. Lets a test point the same model at another provider.</summary>
@@ -90,9 +92,13 @@ public class CharacterDbContext : DbContext
             return;
         }
 
-        optionsBuilder
-            .UseLoggerFactory(_loggerFactory)
-            .EnableSensitiveDataLogging();
+        optionsBuilder.UseLoggerFactory(_loggerFactory);
+
+        // Parameter values in the logs, so Development only (#558): see AddAvalonDatabases.
+        if (_sensitiveDataLogging)
+        {
+            optionsBuilder.EnableSensitiveDataLogging();
+        }
 
         optionsBuilder.UseNpgsql(_connectionString!);
     }

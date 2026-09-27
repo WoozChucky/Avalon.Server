@@ -1,5 +1,6 @@
 using Avalon.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 
 namespace Avalon.Database.Extensions;
@@ -10,10 +11,19 @@ public static class ServiceCollectionExtensions
         string configurationSection = "Database")
     {
         services.AddOptions<DatabaseConfiguration>()
-            .BindConfiguration(configurationSection);
+            .BindConfiguration(configurationSection)
+            .PostConfigure<IServiceProvider>((options, provider) =>
+                options.EnableSensitiveDataLogging = SensitiveDataLoggingAllowed(provider.GetService<IHostEnvironment>()));
 
         return services;
     }
+
+    /// <summary>
+    /// Sensitive data logging is on only in Development (#558), for every context: it puts every
+    /// command's parameter values in the logs. A container with no host environment gets it off.
+    /// </summary>
+    public static bool SensitiveDataLoggingAllowed(IHostEnvironment? environment) =>
+        environment?.IsDevelopment() == true;
 
     /// <summary>
     /// Validates at startup that every database in <paramref name="required"/> has a connection
