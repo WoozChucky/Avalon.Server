@@ -3,6 +3,7 @@ using Avalon.Database.Auth.Extensions;
 using Avalon.Database.Extensions;
 using Avalon.Infrastructure.Extensions;
 using Avalon.Server.Auth.Configuration;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using Avalon.Infrastructure.Login;
 
@@ -21,6 +22,9 @@ public static class ServiceExtensions
             .BindConfiguration("Application")
             .ValidateDataAnnotations()
             .ValidateOnStart();
+
+        // The clock the online liveness sweep is due by (#555).
+        services.TryAddSingleton(TimeProvider.System);
 
         services.AddSingleton<ILoginLimits>(sp => sp.GetRequiredService<IOptions<AuthConfiguration>>().Value);
 

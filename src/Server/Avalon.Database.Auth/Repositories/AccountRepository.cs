@@ -53,12 +53,21 @@ public interface IAccountRepository : IRepository<Account, AccountId>
     /// </summary>
     Task MarkAllOfflineAsync(CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// The id and online session of every account marked online, and nothing else of the row (#555):
+    /// what the auth server's liveness sweep compares with its live connections.
+    /// </summary>
+    Task<IReadOnlyList<OnlineSession>> ListOnlineSessionsAsync(CancellationToken cancellationToken = default);
+
     /// <summary>Stores the account's world session key, and writes nothing else.</summary>
     Task SetSessionKeyAsync(AccountId id, byte[] sessionKey, CancellationToken cancellationToken = default);
 }
 
 /// <summary>The account's failed-login count and lock state after a failure was recorded.</summary>
 public readonly record struct FailedLoginResult(int FailedLogins, bool Locked);
+
+/// <summary>An account marked online, and the auth-server connection that set it (null if none was recorded).</summary>
+public readonly record struct OnlineSession(AccountId AccountId, Guid? SessionId);
 
 public class AccountRepository(IDbContextFactory<AuthDbContext> contextFactory)
     : EntityFrameworkRepository<Account, AccountId, AuthDbContext>(contextFactory), IAccountRepository
@@ -262,6 +271,17 @@ public class AccountRepository(IDbContextFactory<AuthDbContext> contextFactory)
             .ExecuteUpdateAsync(s => s
                 .SetProperty(a => a.Online, false)
                 .SetProperty(a => a.OnlineSessionId, (Guid?)null), cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<OnlineSession>> ListOnlineSessionsAsync(CancellationToken cancellationToken = default)
+    {
+        await using var context = await CreateContextAsync(cancellationToken);
+
+        return await context.Accounts
+            .AsNoTracking()
+            .Where(a => a.Online)
+            .Select(a => new OnlineSession(a.Id, a.OnlineSessionId))
+            .ToListAsync(cancellationToken);
     }
 
     public async Task SetSessionKeyAsync(AccountId id, byte[] sessionKey, CancellationToken cancellationToken = default)

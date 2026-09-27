@@ -24,7 +24,9 @@ public class AuthServer(
     IAccountRepository accountRepository,
     IReplicatedCache cache,
     IOptions<HostingConfiguration> hostingOptions,
-    IOptions<HostingSecurity> securityOptions)
+    IOptions<HostingSecurity> securityOptions,
+    IOptions<AuthConfiguration>? authOptions = null,
+    TimeProvider? time = null)
     : ServerBase<AuthConnection>(packetManager, loggerFactory.CreateLogger<AuthServer>(),
         serviceProvider, hostingOptions,
         PacketDispatchTelemetry.From(DiagnosticsConfig.Auth.Source, DiagnosticsConfig.Auth.Meter,
@@ -42,6 +44,12 @@ public class AuthServer(
     private readonly HostingSecurity _securityOptions = securityOptions.Value;
 
     private readonly ILogger<AuthServer> _logger = loggerFactory.CreateLogger<AuthServer>();
+
+    /// <summary>How often the liveness sweep runs, from <c>Application:OnlineSweepIntervalSeconds</c> (#555).</summary>
+    public TimeSpan OnlineSweepInterval { get; } =
+        TimeSpan.FromSeconds((authOptions?.Value ?? new AuthConfiguration()).OnlineSweepIntervalSeconds);
+
+    private readonly TimeProvider _time = time ?? TimeProvider.System;
 
     public new ImmutableArray<IAuthConnection> Connections =>
         TypedConnections.CastArray<IAuthConnection>();
@@ -61,18 +69,31 @@ public class AuthServer(
         // (#484, #487). Reading every row and writing each back whole would undo any ban or lock
         // written in between.
         //
-        // Exactly one auth server is supported (#487), and this reset is where that is assumed: it
-        // clears every account's Online flag, including any a second server's live connections
-        // set. The duplicate-login check (ALREADY_CONNECTED, then closing the other connection)
-        // looks only at this server's connections too, so a second server would break it with or
-        // without this reset; scoping the reset to this server's sessions would fix one half of a
-        // setup that does not work anyway. The Helm chart runs one replica.
+        // Exactly one auth server is supported (#487), and this reset is where that is assumed, as
+        // is the liveness sweep below (OnlineSweep, #555): it clears every account's Online flag,
+        // including any a second server's live connections set. The duplicate-login check
+        // (ALREADY_CONNECTED, then closing the other connection) looks only at this server's
+        // connections too, so a second server would break it with or without this reset; scoping
+        // the reset to this server's sessions would fix one half of a setup that does not work
+        // anyway. The Helm chart runs one replica.
         await accountRepository.MarkAllOfflineAsync(stoppingToken);
 
         await SubscribeToAccountDisconnectsAsync();
 
         RegisterNewConnectionListener(NewConnection);
+
+        // The liveness sweep (#555) runs for the server's life and ends with the stopping token.
+        var onlineSweep = new OnlineSweep(accountRepository, () => Connections.Select(c => c.Id),
+            OnlineSweepInterval, _time, loggerFactory.CreateLogger<OnlineSweep>());
+        await onlineSweep.RunAsync(OnlineSweepPollPeriod(OnlineSweepInterval), stoppingToken);
     }
+
+    /// <summary>
+    /// How often the sweep checks whether it is due: every second, or every interval when that is
+    /// shorter, so a pass is at most a second late.
+    /// </summary>
+    public static TimeSpan OnlineSweepPollPeriod(TimeSpan interval) =>
+        interval < TimeSpan.FromSeconds(1) ? interval : TimeSpan.FromSeconds(1);
 
     protected override async Task OnStoppingAsync(CancellationToken stoppingToken)
     {

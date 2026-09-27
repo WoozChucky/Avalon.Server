@@ -38,6 +38,13 @@ public class AuthConfiguration : ILoginLimits
     [Range(1, int.MaxValue, ErrorMessage = "MaxFailedMfaAttempts must be at least 1.")]
     public int MaxFailedMfaAttempts { get; set; } = 5;
 
+    /// <summary>
+    /// How often the auth server clears the online flag of accounts whose session is none of its
+    /// live connections (#555).
+    /// </summary>
+    [Range(1, int.MaxValue, ErrorMessage = "OnlineSweepIntervalSeconds must be at least 1.")]
+    public int OnlineSweepIntervalSeconds { get; set; } = 30;
+
     [Required]
     public string Issuer { get; set; } = "Avalon";
 }

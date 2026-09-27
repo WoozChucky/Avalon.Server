@@ -46,6 +46,35 @@ public class AuthStartupValidationShould
         Assert.Contains(named, refused.Message, StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData("0")]
+    [InlineData("-5")]
+    public async Task Refuse_to_start_with_an_online_sweep_interval_below_one_second(string seconds)
+    {
+        using IHost host = await BuildAsync(new Dictionary<string, string?>(StringComparer.Ordinal)
+        {
+            ["Database:Auth:ConnectionString"] = Unreachable,
+            ["Application:OnlineSweepIntervalSeconds"] = seconds,
+        });
+
+        var refused = await Assert.ThrowsAsync<OptionsValidationException>(() => AuthStartup.PrepareAsync(host));
+
+        Assert.Contains("OnlineSweepIntervalSeconds", refused.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Give_the_auth_server_the_configured_online_sweep_interval()
+    {
+        using IHost host = await BuildAsync(new Dictionary<string, string?>(StringComparer.Ordinal)
+        {
+            ["Application:OnlineSweepIntervalSeconds"] = "7",
+        });
+
+        AuthServer server = Assert.Single(host.Services.GetServices<IHostedService>().OfType<AuthServer>());
+
+        Assert.Equal(TimeSpan.FromSeconds(7), server.OnlineSweepInterval);
+    }
+
     private static async Task<IHost> BuildAsync(Dictionary<string, string?> overrides)
     {
         string workingDirectory = Directory.GetCurrentDirectory();
