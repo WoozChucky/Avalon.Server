@@ -16,4 +16,7 @@ public class AbilityInstance
     /// <summary>Built when the cast was queued, with the aim sent at cast start; fired as it is once the cast time runs out.</summary>
     public required AbilityScript Script { get; init; }
     public required Vector3 CastStartPosition { get; init; }
+
+    /// <summary>The caster's effective haste when the cast started (#627); the cooldown it sets is divided by it.</summary>
+    public float HastePct { get; init; }
 }

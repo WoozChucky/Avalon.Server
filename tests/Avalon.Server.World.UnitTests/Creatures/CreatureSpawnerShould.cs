@@ -97,6 +97,33 @@ public class CreatureSpawnerShould
     }
 
     /// <summary>
+    /// #627: the template's swing interval and the combat formula's haste cap are fixed on the creature at
+    /// spawn, and a creature starts with no haste.
+    /// </summary>
+    [Fact]
+    public void Fix_the_swing_interval_and_the_haste_cap_at_spawn()
+    {
+        var template = new CreatureTemplate
+        {
+            Id = new CreatureTemplateId(63),
+            Name = "Quick Swinger",
+            MinLevel = 1,
+            MaxLevel = 1,
+            Rarity = CreatureRarity.Normal,
+            HealthModifier = 1f,
+            DamageModifier = 1f,
+            ExperienceModifier = 1f,
+            BaseAttackTime = 1.5f,
+        };
+        (CreatureSpawner spawner, _, _) = ReloadableSpawnerOver(template);
+
+        var creature = (Creature)spawner.Spawn(template.Id);
+
+        Assert.Equal((1.5f, 50f, 0f), (creature.BaseAttackTime, creature.HasteCap, creature.HastePct));
+        Assert.Equal(1.5f, creature.SwingInterval);
+    }
+
+    /// <summary>
     /// The other half of the same trap: a reloaded template's own modifier has to reach the next
     /// spawn too, not just the base-stat table.
     /// </summary>

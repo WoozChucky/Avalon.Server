@@ -626,7 +626,7 @@ public class CreatureCombatScriptShould
         TimeSpan tickInterval = TimeSpan.FromSeconds(1.0 / 60.0);
 
         // Enough ticks to cross ~8.5 units at 4 units/sec (~129 ticks at 1/60s) plus headroom for
-        // at least one full AttackCooldown (2.25s) after arrival, so "dealt damage" is a
+        // at least one full swing interval (2.25 s, #627) after arrival, so "dealt damage" is a
         // meaningful assertion and not just "happened to get one swing in right as it arrived".
         for (int tick = 0; tick < 400; tick++)
         {
@@ -849,7 +849,7 @@ public class CreatureCombatScriptShould
         const float agentDiameter = 1.2f;
 
         // 10 simulated seconds: long enough to close the initial ~8.5-unit gap against a target
-        // that keeps receding at 1 u/s, then sustain formation for several AttackCooldown (2.25s)
+        // that keeps receding at 1 u/s, then sustain formation for several swing-interval (2.25 s)
         // cycles afterward — this is checking the whole journey, not just where it ends up.
         float elapsed = 0f;
         int ticks = (int)(10.0 / tickInterval.TotalSeconds);
@@ -887,7 +887,7 @@ public class CreatureCombatScriptShould
         // A bare Received() (>= 1 call in 600 ticks) can't tell "kept attacking while keeping
         // station" apart from "landed a single swing during the approach and then went quiet".
         // The gap closes in ~2.8s (8.5 units at a 3 u/s closing speed), leaving ~7s — three full
-        // AttackCooldown (2.25s) cycles — of sustained melee; 3 is a plausible minimum over that
+        // swing-interval (2.25 s) cycles — of sustained melee; 3 is a plausible minimum over that
         // window, not the theoretical maximum, so this has headroom without being toothless.
         for (int i = 0; i < creatures.Count; i++)
         {
@@ -1005,7 +1005,7 @@ public class CreatureCombatScriptShould
         target.IsDead.Returns(false);
         script.OnEnteredRange(target);
 
-        // AttackCooldown is 2.25s and the first blow lands on the tick the cooldown reaches zero, so a
+        // The swing interval is 2.25 s and the first blow lands on the tick the cooldown reaches zero, so a
         // handful of long ticks lands several.
         for (int i = 0; i < 12; i++)
             script.Update(TimeSpan.FromSeconds(2.5));
@@ -1244,8 +1244,8 @@ public class CreatureCombatScriptShould
     }
 
     /// <summary>
-    /// #590 characterisation: the first swing lands on the first tick in range, and the next only once
-    /// the 2.25 s cooldown has been counted down to zero by later ticks.
+    /// #590 characterisation: the first swing lands on the first tick in range, and the next once the
+    /// 2.25 s interval has been counted down to zero by later ticks; since #627, on the tick it reaches zero.
     /// </summary>
     [Fact]
     public void Swing_Once_Per_Attack_Cooldown()
@@ -1258,11 +1258,103 @@ public class CreatureCombatScriptShould
         script.Update(TimeSpan.FromSeconds(0.1));  // swings, cooldown 2.25
         script.Update(TimeSpan.FromSeconds(1.0));  // 1.25
         script.Update(TimeSpan.FromSeconds(1.0));  // 0.25
-        script.Update(TimeSpan.FromSeconds(0.25)); // 0
+        script.Update(TimeSpan.FromSeconds(0.2));  // 0.05
         combat.ReceivedWithAnyArgs(1).ApplyDamage(default!, default!, default);
 
-        script.Update(TimeSpan.FromSeconds(0.1));  // swings again
+        script.Update(TimeSpan.FromSeconds(0.05)); // 0: swings again
         combat.ReceivedWithAnyArgs(2).ApplyDamage(default!, default!, default);
+    }
+
+    /// <summary>Swings a World-side creature in range of its target for <paramref name="seconds" /> and returns when each swing landed.</summary>
+    private List<double> SwingTimes(Avalon.World.Entities.Creature real, double seconds, Action<double>? at = null)
+    {
+        var locomotion = Substitute.For<ICreatureLocomotion>();
+        var combat = Substitute.For<ICombatService>();
+        (CreatureCombatScript script, _, _) =
+            BuildChasingScript(locomotion, targetAt: new Vector3(1f, 0f, 0f), combat: combat, real: real);
+        var swings = new List<double>();
+        combat.WhenForAnyArgs(c => c.ApplyDamage(default!, default!, default)).Do(_ => swings.Add(_now));
+
+        for (_now = 0; _now < seconds; _now += SwingTick)
+        {
+            at?.Invoke(_now);
+            script.Update(TimeSpan.FromSeconds(SwingTick));
+        }
+
+        return swings;
+    }
+
+    private double _now;
+
+    /// <summary>1/32 s, exact in binary, so a countdown reaches exactly 0 on a tick, the tick it swings.</summary>
+    private const double SwingTick = 0.03125;
+
+    private static void AssertEvery(double interval, List<double> swings)
+    {
+        Assert.True(swings.Count >= 3, $"only {swings.Count} swings");
+        Assert.Equal(0d, swings[0]);   // the first swing lands at once
+        for (int i = 1; i < swings.Count; i++)
+            Assert.Equal(interval, swings[i] - swings[i - 1], precision: 9);
+    }
+
+    /// <summary>#627: a creature swings every BaseAttackTime seconds, 2.25 as seeded, the first swing at once.</summary>
+    [Fact]
+    public void Swing_every_base_attack_time_seconds()
+    {
+        AssertEvery(2.25, SwingTimes(new Avalon.World.Entities.Creature { BaseAttackTime = 2.25f }, 10));
+        AssertEvery(1.5, SwingTimes(new Avalon.World.Entities.Creature { BaseAttackTime = 1.5f }, 10));
+    }
+
+    /// <summary>#627: creature haste divides the interval, up to the cap fixed at spawn.</summary>
+    [Fact]
+    public void Swing_faster_with_haste_up_to_the_cap()
+    {
+        AssertEvery(1.5, SwingTimes(new Avalon.World.Entities.Creature { BaseAttackTime = 2.25f, HasteCap = 50f, HastePct = 50f }, 10));
+        AssertEvery(1.5, SwingTimes(new Avalon.World.Entities.Creature { BaseAttackTime = 2.25f, HasteCap = 50f, HastePct = 200f }, 10));
+        AssertEvery(2.25, SwingTimes(new Avalon.World.Entities.Creature { BaseAttackTime = 2.25f, HasteCap = 50f, HastePct = -20f }, 10));
+    }
+
+    /// <summary>
+    /// Review focus 3: haste gained right after a swing leaves the countdown in progress alone, neither reset
+    /// nor doubled, and shortens every interval from the next swing on.
+    /// </summary>
+    [Fact]
+    public void Apply_a_haste_change_right_after_a_swing_from_the_next_interval()
+    {
+        var real = new Avalon.World.Entities.Creature { BaseAttackTime = 2.25f, HasteCap = 50f };
+
+        List<double> swings = SwingTimes(real, 7, at: t =>
+        {
+            if (t == SwingTick)
+                real.HastePct = 50f;
+        });
+
+        Assert.Equal(0d, swings[0]);
+        Assert.Equal(2.25, swings[1], precision: 9);                // the countdown that was running
+        Assert.Equal(1.5, swings[2] - swings[1], precision: 9);     // the new interval
+        Assert.Equal(1.5, swings[3] - swings[2], precision: 9);
+    }
+
+    /// <summary>#627: the countdown runs only while the target is in range, as before.</summary>
+    [Fact]
+    public void Count_down_only_while_in_range()
+    {
+        var locomotion = Substitute.For<ICreatureLocomotion>();
+        var combat = Substitute.For<ICombatService>();
+        var real = new Avalon.World.Entities.Creature { BaseAttackTime = 1.5f };
+        (CreatureCombatScript script, _, ICharacter target) =
+            BuildChasingScript(locomotion, targetAt: new Vector3(1f, 0f, 0f), combat: combat, real: real);
+
+        script.Update(TimeSpan.FromSeconds(0.1));   // swings at once, 1.5 s to the next
+        target.Position.Returns(new Vector3(10f, 0f, 0f));
+        locomotion.HasArrived(real).Returns(false);
+        for (int i = 0; i < 30; i++)
+            script.Update(TimeSpan.FromSeconds(0.1));   // three seconds out of range
+        target.Position.Returns(new Vector3(1f, 0f, 0f));
+        locomotion.HasArrived(real).Returns(true);
+        script.Update(TimeSpan.FromSeconds(0.1));
+
+        combat.ReceivedWithAnyArgs(1).ApplyDamage(default!, default!, default);
     }
 
     /// <summary>#506: a swing's damage is drawn through the combat random, inclusive of both ends of the range.</summary>
@@ -1681,16 +1773,27 @@ public class CreatureCombatScriptShould
         return (script, encounter, combat);
     }
 
+    /// <param name="real">A World-side creature to use instead of a substitute (#627), at the origin.</param>
     private (CreatureCombatScript script, ICreature creature, ICharacter target) BuildChasingScript(
         ICreatureLocomotion locomotion, Vector3 targetAt, int slotCount = 6, ICombatService? combat = null,
-        Avalon.World.Combat.ICombatRandom? random = null)
+        Avalon.World.Combat.ICombatRandom? random = null, Avalon.World.Entities.Creature? real = null)
     {
-        ICreature creature = Substitute.For<ICreature>();
-        creature.Guid.Returns(new ObjectGuid(ObjectType.Creature, 1));
-        creature.Position.Returns(Vector3.zero);
-        creature.TauntedBy      = null;
-        creature.TauntExpiresAt = DateTime.MinValue;
-        creature.Metadata.Returns(Substitute.For<ICreatureMetadata>());
+        ICreature creature;
+        if (real is null)
+        {
+            creature = Substitute.For<ICreature>();
+            creature.Guid.Returns(new ObjectGuid(ObjectType.Creature, 1));
+            creature.Position.Returns(Vector3.zero);
+            creature.TauntedBy      = null;
+            creature.TauntExpiresAt = DateTime.MinValue;
+            creature.Metadata.Returns(Substitute.For<ICreatureMetadata>());
+        }
+        else
+        {
+            real.Guid = new ObjectGuid(ObjectType.Creature, 1);
+            real.Metadata = Substitute.For<ICreatureMetadata>();
+            creature = real;
+        }
 
         ICharacter target = Substitute.For<ICharacter>();
         target.Guid.Returns(new ObjectGuid(ObjectType.Character, 1));

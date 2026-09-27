@@ -74,6 +74,28 @@ public class Creature : ICreature
     /// <summary>Percentage points.</summary>
     public float BlockPct { get; init; }
 
+    /// <summary>
+    /// Seconds between swings with no haste (#627): the template's BaseAttackTime, fixed at spawn by
+    /// <see cref="CreatureSpawner" />. The seeded 2.25 for a creature built without one.
+    /// </summary>
+    public float BaseAttackTime { get; init; } = DefaultBaseAttackTime;
+
+    /// <summary>The seeded swing interval, and what a creature that is not this World-side type swings at.</summary>
+    public const float DefaultBaseAttackTime = 2.25f;
+
+    /// <summary>The combat formula's HasteCap when this creature spawned (#627): the most of <see cref="HastePct" /> that counts.</summary>
+    public float HasteCap { get; init; } = 50f;
+
+    /// <summary>
+    /// Haste in percentage points (#627), 0 until an effect sets it; nothing does yet. World-side, deliberately
+    /// not on ICreature: the modding API cannot change how fast a creature swings (#622). A change applies from
+    /// the next swing; the countdown in progress keeps running.
+    /// </summary>
+    public float HastePct { get; set; }
+
+    /// <summary>Seconds between swings: BaseAttackTime divided by 1 + haste / 100, haste at most the cap.</summary>
+    public float SwingInterval => Haste.Scale(BaseAttackTime, MathF.Min(HastePct, HasteCap));
+
     /// <summary>What this creature attacks with (#506): its level and crit; no weapon and no damage stats.</summary>
     internal AttackerCombat Combat => new(Level, 0, 0, CritPct, 0, 0);
 

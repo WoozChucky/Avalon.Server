@@ -77,6 +77,9 @@ public class CreatureSpawner(ILoggerFactory loggerFactory, IWorld world) : ICrea
         // town NPC's flag stays as it was until the server restarts.
         IDialogueCatalog dialogue = world.Data.Dialogue;
 
+        // The combat area too (#627): the haste cap is fixed on the creature at spawn, like its stats.
+        float hasteCap = world.Data.Combat.Formula.HasteCap;
+
         CreatureTemplate? template = creatures.Templates.FirstOrDefault(t => t.Id == templateId);
         if (template == null)
         {
@@ -111,6 +114,8 @@ public class CreatureSpawner(ILoggerFactory loggerFactory, IWorld world) : ICrea
             CritPct = stats.CritPct,
             DodgePct = stats.DodgePct,
             BlockPct = stats.BlockPct,
+            BaseAttackTime = template.BaseAttackTime,
+            HasteCap = hasteCap,
 
             // Creatures cannot cast, so mana stays out of the derivation entirely.
             Power = 0,
