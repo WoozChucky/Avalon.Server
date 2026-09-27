@@ -72,7 +72,7 @@ Server → all clients in the instance. Triggers death animation + state transit
 | `UnitGuid` | 1 | `ulong` | Raw `ObjectGuid` of the unit that died. |
 | `KillerGuid` | 2 | `ulong?` | Raw `ObjectGuid` of the killer, or `null` for environmental / unattributed kills. |
 
-`SUnitDamagePacket` already carries the final hit (HP reaching 0). `SUnitDeathPacket` is the explicit death signal — use it to trigger the death animation, ragdoll, and (for the local player) the Release UI.
+A creature's killing blow is sent like any other hit, before the death: `SUnitDamagePacket` with `CurrentHealth` 0, `Damage` the health the blow took, and `Result`, the hit's `HitResult` (a killing crit is marked `Crit`) (#506). A character's killing blow arrives the same way, as `SCharacterDamagePacket` to the character (with `AbilityId` and `Result`) and `SUnitDamagePacket` to its watchers. A dodged hit is sent as a hit of 0 marked `Dodged`. `SUnitDeathPacket` is the explicit death signal — use it to trigger the death animation, ragdoll, and (for the local player) the Release UI.
 
 ### `SUnitRevivePacket` (`SMSG_UNIT_REVIVE = 0x3108`, encrypted, TCP)
 

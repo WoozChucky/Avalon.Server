@@ -245,8 +245,9 @@ Every hit, a creature's swing or a player's skill, goes through the instance's `
    caster's scaled stat and weapon roll), then the target's dodge, the attacker's crit, the
    target's block, and the target's armour against the attacker's level, floored with a minimum of
    1. A dodged hit deals 0: the encounter still forms, the creature gets threat for the base, and
-   both sides are tagged in combat, but its script is not hit, and the dodge is sent to watchers as
-   a hit of 0 marked `Dodged`. A player's armour reduces a creature's swing exactly as a creature's
+   both sides are tagged in combat, and its script is told through `AiScript.OnAttacked`, so it
+   engages the attacker as a hit would; but the script is not hit, and the dodge is sent to watchers
+   as a hit of 0 marked `Dodged`. A killing blow is sent as a hit, at 0 health, before the death. A player's armour reduces a creature's swing exactly as a creature's
    armour reduces a player's hit.
 4. The attacker and the target join an encounter. Threat is added, from the resolved damage, when
    the target is a creature.

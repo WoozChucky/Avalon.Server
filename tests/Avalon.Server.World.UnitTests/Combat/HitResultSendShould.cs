@@ -184,6 +184,63 @@ public class HitResultSendShould
         Assert.Equal(HitResult.None, Assert.Single(UnitHits(attacker)).Result);
     }
 
+    /// <summary>#506 review: a killing crit is sent as a hit, marked Crit, and then the death.</summary>
+    [Fact]
+    public async Task Send_a_killing_crit_as_a_crit_hit_before_the_death()
+    {
+        using MapInstance instance = TestMapInstances.Build(NewWorld(await TestStaticData.LoadAsync()), random: new ScriptedCombatRandom(0.99, 0.0, 0.99));
+        MapInstanceClient attacker = At(instance, 506_371, Vector3.zero);
+        GiveDefences(attacker.Character);
+
+        var boar = new Creature
+        {
+            Guid = new ObjectGuid(ObjectType.Creature, 506_871),
+            Metadata = Loot.LootTestData.BoarTemplate(null),
+            Position = new Vector3(1f, 0f, 0f),
+            Health = 100,
+            CurrentHealth = 10,
+            Level = 1,
+        };
+        boar.Script = new Avalon.World.Scripts.Creatures.CreatureCombatScript(
+            Microsoft.Extensions.Logging.Abstractions.NullLoggerFactory.Instance, boar, instance);
+        instance.AddCreature(boar);
+
+        instance.CombatService.ApplyDamage(attacker.Character, boar, 10);
+
+        SUnitDamagePacket hit = Assert.Single(UnitHits(attacker));
+        Assert.Equal((10u, 0u, HitResult.Crit), (hit.Damage, hit.CurrentHealth, hit.Result));
+        Assert.Equal([NetworkPacketType.SMSG_CREATURE_DAMAGED, NetworkPacketType.SMSG_UNIT_DEATH],
+            attacker.Sent.Select(p => p.Header.Type)
+                .Where(t => t is NetworkPacketType.SMSG_CREATURE_DAMAGED or NetworkPacketType.SMSG_UNIT_DEATH));
+    }
+
+    /// <summary>#506 review: a script whose OnHit throws leaves no result behind for the next hit's broadcast.</summary>
+    [Fact]
+    public void Leave_no_stale_result_after_an_on_hit_that_throws()
+    {
+        using MapInstance instance = TestMapInstances.Build(NewWorld(), random: new ScriptedCombatRandom(0.99, 0.0, 0.99, 0.99, 0.99, 0.99));
+        MapInstanceClient attacker = At(instance, 506_381, Vector3.zero);
+        GiveDefences(attacker.Character);
+        Creature boar = AddCreature(instance, 506_881, new Vector3(1f, 0f, 0f));
+        AiScript wound = boar.Script!;
+        boar.Script = new ThrowingScript(boar, instance);
+
+        Assert.Throws<InvalidOperationException>(() => instance.CombatService.ApplyDamage(attacker.Character, boar, 10));   // a crit
+        boar.Script = wound;
+        instance.CombatService.ApplyDamage(attacker.Character, boar, 10);   // plain
+
+        Assert.Equal(HitResult.None, Assert.Single(UnitHits(attacker)).Result);
+    }
+
+    private sealed class ThrowingScript(Creature creature, ISimulationContext context) : AiScript(creature, context)
+    {
+        public override object State { get; set; } = 0;
+
+        protected override bool ShouldRun() => false;
+
+        public override void OnHit(IUnit attacker, uint damage) => throw new InvalidOperationException("script bug");
+    }
+
     /// <summary>Review focus 2: one cleave on three units, the middle one dodging.</summary>
     [Fact]
     public void Send_two_hits_and_one_dodge_for_a_cleave_on_three_units_one_of_which_dodges()

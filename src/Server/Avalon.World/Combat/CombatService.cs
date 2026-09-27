@@ -216,8 +216,9 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
 
     /// <summary>
     /// A dodged hit (#506) is still combat: the encounter forms, the creature is given threat as if the hit
-    /// had landed for its base, and both sides are tagged in combat. It deals nothing, so the target's
-    /// script is not hit, nobody gains power, and nobody dies.
+    /// had landed for its base, both sides are tagged in combat, and a creature's script is told it was
+    /// attacked (<c>AiScript.OnAttacked</c>) so it engages. It deals nothing, so the script is not hit,
+    /// nobody gains power, and nobody dies.
     /// </summary>
     private void Dodged(IUnit attacker, IUnit target, float baseThreat, AbilityId? abilityId)
     {
@@ -228,10 +229,13 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
         if (target is not ICharacter { IsDead: true })
             _outcomes?.HitDodged(attacker, target, abilityId);
 
-        if (target is ICreature)
+        if (target is ICreature creature)
         {
             CharacterClass attackerClass = (attacker as ICharacter)?.Class ?? CharacterClass.Hunter;
             enc.AddThreat(target, attacker, baseThreat * ClassThreatModifier.Get(attackerClass));
+
+            // The creature fights back as if hit, though it took nothing (#506 review).
+            creature.Script?.OnAttacked(attacker);
         }
 
         if (attacker is ICharacter attackerCharacter) attackerCharacter.MarkCombat();

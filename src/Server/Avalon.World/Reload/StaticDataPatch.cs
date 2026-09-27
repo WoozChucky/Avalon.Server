@@ -126,6 +126,9 @@ public sealed record CombatPatch(CombatFormula Formula, IReadOnlyDictionary<Char
             if (!byClass.TryAdd(row.Class, row))
                 throw new InvalidDataException($"{name}: the class has two rows");
 
+            RequireUInt(name, nameof(row.HpPerStamina), row.HpPerStamina);
+            if (row.FixedPower is { } fixedPower)
+                RequireUInt(name, nameof(row.FixedPower), fixedPower);
             RequireNonNegative(name, nameof(row.PowerPerIntellect), row.PowerPerIntellect);
             RequireNonNegative(name, nameof(row.PowerPerAgility), row.PowerPerAgility);
             RequireNonNegative(name, nameof(row.AttackPerStrength), row.AttackPerStrength);
@@ -149,6 +152,12 @@ public sealed record CombatPatch(CombatFormula Formula, IReadOnlyDictionary<Char
     {
         if (!double.IsFinite(value) || value < 0)
             throw new InvalidDataException($"{row}: {column} must be finite and 0 or more, not {value}");
+    }
+
+    private static void RequireUInt(string row, string column, long value)
+    {
+        if (value is < 0 or > uint.MaxValue)
+            throw new InvalidDataException($"{row}: {column} must be between 0 and {uint.MaxValue}, not {value}");
     }
 
     private static void RequireRange(string row, string column, float value, float max)

@@ -94,6 +94,10 @@ public class CombatReloadShould
         { "ClassStatFactors Warrior", r => r.Factors.Single(f => f.Class == CharacterClass.Warrior).AttackPerStrength = -1 },
         { "ClassStatFactors Hunter", r => r.Factors.Single(f => f.Class == CharacterClass.Hunter).BaseCrit = float.NaN },
         { "ClassStatFactors Healer", r => r.Factors.RemoveAll(f => f.Class == CharacterClass.Healer) },
+        { "ClassStatFactors Warrior", r => r.Factors.Single(f => f.Class == CharacterClass.Warrior).HpPerStamina = -1 },
+        { "ClassStatFactors Wizard", r => r.Factors.Single(f => f.Class == CharacterClass.Wizard).HpPerStamina = uint.MaxValue + 1L },
+        { "ClassStatFactors Warrior", r => r.Factors.Single(f => f.Class == CharacterClass.Warrior).FixedPower = -5 },
+        { "ClassStatFactors Hunter", r => r.Factors.Single(f => f.Class == CharacterClass.Hunter).FixedPower = 5_000_000_000 },
         { "CombatFormula 1", r => r.Formulas[0].ArmorCap = 2f },
         { "CombatFormula 1", r => r.Formulas[0].DodgeCap = 101f },
         { "CombatFormula 1", r => r.Formulas[0].CritMultiplier = float.PositiveInfinity },
@@ -115,6 +119,27 @@ public class CombatReloadShould
         var refused = await Assert.ThrowsAsync<InvalidDataException>(() => data.PrepareAsync(ReloadArea.Combat));
         Assert.StartsWith(named, refused.Message, StringComparison.Ordinal);
         Assert.Same(before, data.Combat);
+    }
+
+    /// <summary>
+    /// #506 review: the database refuses a negative or oversized HpPerStamina or FixedPower itself, so the
+    /// load's refusal is a second line, never EF's cast.
+    /// </summary>
+    [Theory]
+    [InlineData(-1L, null)]
+    [InlineData(4_294_967_296L, null)]
+    [InlineData(10L, -1L)]
+    [InlineData(10L, 4_294_967_296L)]
+    public void Be_refused_by_the_database_out_of_the_uint_range(long hpPerStamina, long? fixedPower)
+    {
+        using Handlers.SqliteDatabase<Avalon.Database.World.WorldDbContext> database = Handlers.SqliteDatabase.World();
+        using Avalon.Database.World.WorldDbContext context = database.CreateDbContext();
+        ClassStatFactors warrior = context.ClassStatFactors.Single(f => f.Class == CharacterClass.Warrior);
+        warrior.HpPerStamina = hpPerStamina;
+        warrior.FixedPower = fixedPower;
+
+        var refused = Assert.Throws<Microsoft.EntityFrameworkCore.DbUpdateException>(() => context.SaveChanges());
+        Assert.Contains("CHECK constraint failed", refused.InnerException!.Message, StringComparison.Ordinal);
     }
 
     [Fact]

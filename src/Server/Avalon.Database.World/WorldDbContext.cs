@@ -2297,6 +2297,11 @@ public class WorldDbContext : DbContext
                          "AbilityPerIntellect", "BaseBlock", "BaseDodge", "BaseCrit",
                      })
                 t.HasCheckConstraint($"CK_ClassStatFactors_{column}", Finite(column));
+
+            // The whole-number factors are bigint; the calculator takes them as uint (#506 review).
+            t.HasCheckConstraint("CK_ClassStatFactors_HpPerStamina", $"\"HpPerStamina\" >= 0 AND \"HpPerStamina\" <= {uint.MaxValue}");
+            t.HasCheckConstraint("CK_ClassStatFactors_FixedPower",
+                $"\"FixedPower\" IS NULL OR (\"FixedPower\" >= 0 AND \"FixedPower\" <= {uint.MaxValue})");
         });
         builder.HasKey(b => b.Class);
 

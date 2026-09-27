@@ -120,13 +120,16 @@ public class CreatureCombatScript : AiScript, IReturningHome
     private IUnit? _target;
 
     /// <param name="time">The container's clock, the one the rest of the world times by (#610).</param>
-    /// <param name="random">Where the swing's damage roll comes from (#506); the container's, resolved by name.</param>
+    /// <param name="random">
+    /// Where the swing's damage roll comes from (#506): the container's, which AttachScript's
+    /// ActivatorUtilities resolves; <see cref="CombatRandom.Steady" /> when none is given, as for CombatService.
+    /// </param>
     public CreatureCombatScript(ILoggerFactory loggerFactory, ICreature creature, ISimulationContext context,
         TimeProvider? time = null, ICombatRandom? random = null) : base(creature, context)
     {
         _logger = loggerFactory.CreateLogger<CreatureCombatScript>();
         _time = time ?? TimeProvider.System;
-        _random = random ?? new CombatRandom(Random.Shared);
+        _random = random ?? CombatRandom.Steady;
     }
 
     /// <summary>Where the creature goes back to. Every path into Combat sets <see cref="_home" /> first.</summary>
@@ -177,8 +180,13 @@ public class CreatureCombatScript : AiScript, IReturningHome
             if (damage >= Creature.CurrentHealth)
             {
                 _logger.LogInformation("{Name} has died", Creature.Name);
+                uint taken = Creature.CurrentHealth;
                 Creature.CurrentHealth = 0;
                 _dead = true;
+
+                // The killing blow is sent like any other hit (#506 review), for the health it took, so
+                // its crit or block is seen; the death broadcast follows once this hit returns.
+                Context.BroadcastUnitHit(attacker, Creature, 0, taken);
 
                 // _dead short-circuits Update from here on, so this is the script's only chance
                 // to give back whatever slot it held.
@@ -191,23 +199,43 @@ public class CreatureCombatScript : AiScript, IReturningHome
             }
 
             Creature.CurrentHealth -= damage;
-
-            // A hit from a different unit switches target immediately, same as the top-threat
-            // reconciliation in Update — release whatever slot was held on the old one first.
-            if (!ReferenceEquals(_target, attacker))
-            {
-                if (_target is not null)
-                    Context.MeleeSlots.Release(_target.Guid, Creature.Guid);
-
-                _unreachableFor = TimeSpan.Zero;
-            }
-
-            _target = attacker;
-            _home ??= Creature.Position;
-
-            State = CombatState.Combat;
+            Engage(attacker);
             Context.BroadcastUnitHit(attacker, Creature, Creature.CurrentHealth, damage);
         }
+    }
+
+    /// <summary>
+    /// A dodged hit (#506 review) engages the creature against its attacker exactly as a landed one does,
+    /// with no damage and no broadcast (the combat service sends the dodge). Without it, an opening hit
+    /// that is dodged from beyond detection range would leave the creature idle while the encounter held
+    /// its threat. Ignored on the walk home and by a corpse, as a hit is.
+    /// </summary>
+    public override void OnAttacked(IUnit attacker)
+    {
+        base.OnAttacked(attacker);
+
+        if (State is not CombatState.Returning && !_dead)
+            Engage(attacker);
+    }
+
+    /// <summary>
+    /// Fight <paramref name="attacker" />: a different unit switches target immediately, same as the
+    /// top-threat reconciliation in Update, releasing whatever slot was held on the old one first.
+    /// </summary>
+    private void Engage(IUnit attacker)
+    {
+        if (!ReferenceEquals(_target, attacker))
+        {
+            if (_target is not null)
+                Context.MeleeSlots.Release(_target.Guid, Creature.Guid);
+
+            _unreachableFor = TimeSpan.Zero;
+        }
+
+        _target = attacker;
+        _home ??= Creature.Position;
+
+        State = CombatState.Combat;
     }
 
     public override void Update(TimeSpan deltaTime)

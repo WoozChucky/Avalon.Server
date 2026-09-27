@@ -773,11 +773,11 @@ public class SeedIntegrityShould
         var factors = context.ClassStatFactors.AsNoTracking().ToList().ToDictionary(r => r.Class);
         Assert.Equal(Enum.GetValues<CharacterClass>().Order(), factors.Keys.Order());
         ClassStatFactors w = factors[CharacterClass.Warrior];
-        Assert.Equal((10u, 0d, 0d, (uint?)100u, 2d, 0d, 0.2d, 5.0f, 3.664f, 5.0f),
+        Assert.Equal((10L, 0d, 0d, (long?)100L, 2d, 0d, 0.2d, 5.0f, 3.664f, 5.0f),
             (w.HpPerStamina, w.PowerPerIntellect, w.PowerPerAgility, w.FixedPower, w.AttackPerStrength, w.AttackPerAgility,
              w.AbilityPerIntellect, w.BaseBlock, w.BaseDodge, w.BaseCrit));
         ClassStatFactors h = factors[CharacterClass.Hunter];
-        Assert.Equal((8u, 2d, 0.8d, (uint?)null, 0.5d, 1.5d, 0.5d, 0f, 4.35f, 5.0f),
+        Assert.Equal((8L, 2d, 0.8d, (long?)null, 0.5d, 1.5d, 0.5d, 0f, 4.35f, 5.0f),
             (h.HpPerStamina, h.PowerPerIntellect, h.PowerPerAgility, h.FixedPower, h.AttackPerStrength, h.AttackPerAgility,
              h.AbilityPerIntellect, h.BaseBlock, h.BaseDodge, h.BaseCrit));
     }

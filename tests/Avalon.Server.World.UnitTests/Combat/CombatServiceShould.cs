@@ -823,17 +823,38 @@ public class CombatServiceShould
         Assert.Empty(reg.Active);
     }
 
-    /// <summary>The script clamps on its own too, for a hit that does not come through the service.</summary>
+    /// <summary>
+    /// The script clamps on its own too, for a hit that does not come through the service, and the killing
+    /// blow is sent like any other hit (#506 review), for the health it took, at 0 left.
+    /// </summary>
     [Fact]
     public void Kill_a_creature_whose_script_is_hit_directly_for_more_than_its_health()
     {
         var ctx = Substitute.For<ISimulationContext>();
         var (creature, script) = CreatureWithCombatScript(ctx, health: 30);
+        var killer = StubCharacter(CharacterClass.Warrior);
 
-        script.OnHit(StubCharacter(CharacterClass.Warrior), 100);
+        script.OnHit(killer, 100);
 
         Assert.Equal(0u, creature.CurrentHealth);
-        ctx.DidNotReceiveWithAnyArgs().BroadcastUnitHit(default!, default!, default, default);
+        ctx.Received(1).BroadcastUnitHit(killer, creature, 0u, 30u);
+    }
+
+    /// <summary>#506 review: the killing hit is broadcast before the death, as a hit that leaves health is.</summary>
+    [Fact]
+    public void Broadcast_the_killing_hit_before_the_death()
+    {
+        var (svc, _, ctx, _) = BuildServiceWithOutcomes();
+        var (creature, _) = CreatureWithCombatScript(ctx, health: 30);
+        var killer = StubCharacter(CharacterClass.Warrior);
+
+        svc.ApplyDamage(killer, creature, 100);
+
+        Received.InOrder(() =>
+        {
+            ctx.BroadcastUnitHit(killer, creature, 0u, 30u);
+            ctx.BroadcastUnitDeath(creature, killer);
+        });
     }
 
     // ── #610: a creature walking home ignores hits entirely ──

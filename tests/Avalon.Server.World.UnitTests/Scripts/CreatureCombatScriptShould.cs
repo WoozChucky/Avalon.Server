@@ -1283,6 +1283,44 @@ public class CreatureCombatScriptShould
         Assert.Equal([(3L, 9L)], rng.WeaponRolls);
     }
 
+    /// <summary>
+    /// #506 review: a script built the way AttachScript builds it (ActivatorUtilities, the creature and the
+    /// instance only) takes the container's combat random, so the one fallback, the steady random, is only
+    /// ever what a test that passes none gets.
+    /// </summary>
+    [Theory]
+    [InlineData(typeof(CreatureCombatScript))]
+    [InlineData(typeof(AggroDefendScript))]
+    [InlineData(typeof(CreaturePatrolScript))]
+    public void Swing_with_the_containers_combat_random_when_built_by_name(Type scriptType)
+    {
+        var locomotion = Substitute.For<ICreatureLocomotion>();
+        var combat = Substitute.For<ICombatService>();
+        var rng = new Avalon.Server.World.UnitTests.Combat.ScriptedCombatRandom().Longs(8);
+        (_, ICreature creature, ICharacter target) =
+            BuildChasingScript(locomotion, targetAt: new Vector3(1f, 0f, 0f), combat: combat);
+        creature.DamageMin.Returns(3u);
+        creature.DamageMax.Returns(9u);
+        creature.CurrentHealth.Returns(50u);
+        ISimulationContext context = Substitute.For<ISimulationContext>();
+        context.CombatService.Returns(combat);
+        context.Locomotion.Returns(locomotion);
+        context.MeleeSlots.Returns(new MeleeSlots(6, radius: 1.5f));
+        context.Characters.Returns(new Dictionary<ObjectGuid, ICharacter>());
+        IServiceProvider services = new Microsoft.Extensions.DependencyInjection.ServiceCollection()
+            .AddSingleton<Microsoft.Extensions.Logging.ILoggerFactory>(NullLoggerFactory.Instance)
+            .AddSingleton<Avalon.World.Combat.ICombatRandom>(rng)
+            .BuildServiceProvider();
+
+        var script = (Avalon.World.Public.Scripts.AiScript)Microsoft.Extensions.DependencyInjection.ActivatorUtilities.CreateInstance(
+            services, scriptType, creature, context);
+        script.OnHit(target, 1);   // engages the script against the target, whatever chains it
+        script.Update(TimeSpan.FromSeconds(0.1));
+
+        combat.Received(1).ApplyDamage(creature, target, 8u);
+        Assert.Equal([(3L, 9L)], rng.WeaponRolls);
+    }
+
     // #606: a target the creature can never reach used to hold it in Combat for good.
 
     /// <summary>
