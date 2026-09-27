@@ -136,24 +136,28 @@ public static class CrowdBudgetHarness
         services.AddSingleton(Substitute.For<IScriptManager>());
         ServiceProvider sp = services.BuildServiceProvider();
 
+        // Harness-side instrumentation: through MapInstance's locomotion hook (#638), wrap the very
+        // implementation production would build in a timing and counting decorator. Waypoint is rebuilt
+        // over a counting navigator (production passes GetNavigatorForPosition, which is this
+        // navigator). The decorator does the crowd's player sync itself, because MapInstance's
+        // `is CrowdLocomotion` test no longer matches: same place in the tick (after the scripts,
+        // before the locomotion), same calls.
+        ICreatureLocomotion inner = null!;
+        MeasuredLocomotion measured = null!;
         ChunkLayout layout = TownLayout();
         var instance = new MapInstance(NullLoggerFactory.Instance, sp, world, new MapTemplateId(1), null, layout,
-            navigator, seed: 0, mapType: MapType.Town);
+            navigator, seed: 0, mapType: MapType.Town, locomotion: configured =>
+            {
+                inner = configured;
+                if (mode == Mode.Waypoint)
+                    inner = new WaypointLocomotion(_ => counting);
+                else if (inner is not CrowdLocomotion)
+                    throw new InvalidOperationException("Crowd was configured but the instance fell back to waypoint");
 
-        // Harness-side instrumentation: swap the instance's locomotion for a timing and counting decorator
-        // around the very implementation production would build. Waypoint is rebuilt over a counting
-        // navigator (production passes GetNavigatorForPosition, which is this navigator). The decorator
-        // does the crowd's player sync itself, because MapInstance's `is CrowdLocomotion` test no longer
-        // matches: same place in the tick (after the scripts, before the locomotion), same calls.
-        FieldInfo field = typeof(MapInstance).GetField("_locomotion", BindingFlags.NonPublic | BindingFlags.Instance)!;
-        var inner = (ICreatureLocomotion)field.GetValue(instance)!;
-        if (mode == Mode.Waypoint)
-            inner = new WaypointLocomotion(_ => counting);
-        else if (inner is not CrowdLocomotion)
-            throw new InvalidOperationException("Crowd was configured but the instance fell back to waypoint");
-
-        var measured = new MeasuredLocomotion(inner, instance, mode == Mode.CrowdPlayers);
-        field.SetValue(instance, measured);
+                measured = new MeasuredLocomotion(inner, mode == Mode.CrowdPlayers);
+                return measured;
+            });
+        measured.Instance = instance;
 
         var rng = new Random(425);
         Vector3 centre = new(15f, 0f, 15f); // the entry room (SW chunk) of the town, 28 m square
@@ -428,9 +432,12 @@ public static class CrowdBudgetHarness
         public object? Mesh => inner.Mesh;
     }
 
-    private sealed class MeasuredLocomotion(ICreatureLocomotion inner, MapInstance instance, bool syncPlayers) : ICreatureLocomotion
+    private sealed class MeasuredLocomotion(ICreatureLocomotion inner, bool syncPlayers) : ICreatureLocomotion
     {
         private readonly Stopwatch _sw = new();
+
+        /// <summary>The instance this decorates, set once the constructor that built it returns.</summary>
+        public MapInstance Instance { get; set; } = null!;
         public long MoveToCalls;
         public double LastUpdateMs;
         public long LastAlloc;
@@ -458,7 +465,7 @@ public static class CrowdBudgetHarness
             _sw.Restart();
             if (syncPlayers && inner is CrowdLocomotion crowd)
             {
-                foreach ((ObjectGuid guid, ICharacter character) in instance.Characters)
+                foreach ((ObjectGuid guid, ICharacter character) in Instance.Characters)
                     crowd.SyncPlayer(guid, character.Position);
             }
 

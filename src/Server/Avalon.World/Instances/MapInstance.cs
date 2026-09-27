@@ -106,7 +106,8 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         ChunkLayout layout,
         IMapNavigator navigator,
         int seed,
-        MapType mapType = MapType.Normal)
+        MapType mapType = MapType.Normal,
+        Func<ICreatureLocomotion, ICreatureLocomotion>? locomotion = null)
     {
         _logger = loggerFactory.CreateLogger<MapInstance>();
         _world = world;
@@ -122,7 +123,11 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         _creatureAgentRadius = world.Configuration.CreatureAgentRadius;
         _crowdIncludesPlayers = world.Configuration.CrowdIncludesPlayers;
         _interest = new InterestRange(world.Configuration.InterestRadius, world.Configuration.InterestRemoveMargin);
-        _locomotion = CreateLocomotion(world.Configuration);
+        // The optional locomotion hook (#638) is for a harness or test that must measure or replace the
+        // locomotion this instance would build; it is handed that one and returns the one to use.
+        // Production passes none. Deliberately not on IMapInstance, the modding API.
+        ICreatureLocomotion configured = CreateLocomotion(world.Configuration);
+        _locomotion = locomotion is null ? configured : locomotion(configured);
         _meleeSlots = new MeleeSlots(world.Configuration.MeleeSlotCount, world.Configuration.MeleeSlotRadius);
         WarnIfMeleeSlotRadiusUnreachable(world.Configuration.MeleeSlotRadius);
 

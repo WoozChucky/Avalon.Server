@@ -173,6 +173,31 @@ public class MapInstanceLocomotionShould
     }
 
     /// <summary>
+    /// The locomotion hook (#638) the #425 benchmark measures through: it is handed the locomotion
+    /// the configuration chose, and the instance uses whatever it returns. Production change that
+    /// breaks this: the hook called before CreateLocomotion, or its result ignored.
+    /// </summary>
+    [Fact]
+    public void Use_The_Locomotion_Its_Hook_Returns()
+    {
+        ICreatureLocomotion? handed = null;
+        var replacement = Substitute.For<ICreatureLocomotion>();
+
+        MapInstance instance = BuildInstance(new GameConfiguration
+        {
+            WorldId = new WorldId(1),
+            CreatureLocomotion = CreatureLocomotionMode.Crowd,
+        }, withBakedNavMesh: true, locomotion: configured =>
+        {
+            handed = configured;
+            return replacement;
+        });
+
+        Assert.IsType<CrowdLocomotion>(handed);
+        Assert.Same(replacement, instance.Locomotion);
+    }
+
+    /// <summary>
     /// A silent downgrade to Waypoint would look exactly like "the flag does nothing" from the
     /// operator's side — this pins that the fallback actually says which map it affected and why.
     /// Uses a hand-written <see cref="ILogger" /> rather than an NSubstitute one: the interesting
@@ -607,11 +632,13 @@ public class MapInstanceLocomotionShould
     /// Overrides the logger factory so <see cref="Log_A_Warning_When_Crowd_Locomotion_Falls_Back" />
     /// can inspect what MapInstance logged.
     /// </param>
+    /// <param name="locomotion">The instance's locomotion hook (#638), passed through.</param>
     private static MapInstance BuildInstance(
         GameConfiguration config,
         bool withBakedNavMesh = false,
         IMapNavigator? navigator = null,
-        ILoggerFactory? loggerFactory = null)
+        ILoggerFactory? loggerFactory = null,
+        Func<ICreatureLocomotion, ICreatureLocomotion>? locomotion = null)
     {
         var serviceProvider = Substitute.For<IServiceProvider>();
         serviceProvider.GetService(typeof(IScriptManager)).Returns(Substitute.For<IScriptManager>());
@@ -647,7 +674,8 @@ public class MapInstanceLocomotionShould
             ownerCharacterId: null,
             layout,
             navigator,
-            seed: 0);
+            seed: 0,
+            locomotion: locomotion);
 
         // Same leak, same fix as BuildInstanceWithCreature, needed here even though this instance
         // never gets a populated _connections/_creatures.
