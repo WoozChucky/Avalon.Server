@@ -241,8 +241,9 @@ public sealed class CharacterSaverShould : IDisposable
         CharacterEntity newSession = New(7);
         Task<bool> next = saver.Save(_connection, newSession);
 
-        await Task.Delay(50);
-        Assert.Equal(1, recording.Started);   // the new session's save has not started yet
+        await recording.FirstStarted.WaitAsync(Limit);
+        // the first write is held on its gate, so a second start could only be a save not chained behind it (#599)
+        Assert.Equal(1, recording.Started);
 
         recording.Release();
         Assert.True(await despawn.WaitAsync(Limit));
@@ -498,20 +499,30 @@ public sealed class CharacterSaverShould : IDisposable
         }
     }
 
-    /// <summary>Counts the writes that have started, and holds the first one until <see cref="Release" />.</summary>
+    /// <summary>
+    /// Counts the writes that have started, signals <see cref="FirstStarted" /> when the first one
+    /// does, and holds it until <see cref="Release" />.
+    /// </summary>
     private sealed class RecordingRepository : ICharacterSaveRepository
     {
         private readonly TaskCompletionSource _gate = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource _firstStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private int _started;
 
         public int Started => Volatile.Read(ref _started);
+
+        /// <summary>Completes once the first write has started, so a test waits for it instead of sleeping (#599).</summary>
+        public Task FirstStarted => _firstStarted.Task;
 
         public void Release() => _gate.TrySetResult();
 
         public async Task WriteAsync(IReadOnlyList<CharacterSaveBatch> batches, CancellationToken cancellationToken = default)
         {
             if (Interlocked.Increment(ref _started) == 1)
+            {
+                _firstStarted.TrySetResult();
                 await _gate.Task.WaitAsync(Limit, cancellationToken);
+            }
         }
     }
 }
