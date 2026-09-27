@@ -115,7 +115,7 @@ Shared libraries under `src/Shared/`:
 
 Infrastructure: `Avalon.Infrastructure` — `IReplicatedCache` (Redis wrapper), `IMFAHashService`, `CacheKeys` (all Redis key strings centralized here), `ISecureRandom`, and `Login/` (the login policy both the Auth server and the REST API run: `PasswordLoginPolicy`, `MfaLoginPolicy`, the budgets, `RemoteAddress`, `ILoginLimits`; #478).
 
-Three separate Postgres DbContexts (via Npgsql EF Core): `AuthDbContext`, `CharacterDbContext`, `WorldDbContext`. Auth (and Redis) is shared; every world has its own world and characters database. A world server holds one pair (`Database:World`, `Database:Characters`); the REST API holds one pair per world under `Database:Worlds` (see "REST API Worlds"). Design-time factories in each `Avalon.Database.*` project enable `dotnet ef` without a running host; the World and Character ones read their string only from the environment or user-secrets (see Commands).
+Three separate Postgres DbContexts (via Npgsql EF Core): `AuthDbContext`, `CharacterDbContext`, `WorldDbContext`. Auth (and Redis) is shared; every world has its own world and characters database. A world server holds one pair (`Database:World`, `Database:Characters`); the REST API holds one pair per world under `Database:Worlds` (see "REST API Worlds"). Design-time factories in each `Avalon.Database.*` project enable `dotnet ef` without a running host; the World and Character ones read their string only from their project's user-secrets and then the environment, which wins (see Commands).
 
 ## Packet Protocol
 
