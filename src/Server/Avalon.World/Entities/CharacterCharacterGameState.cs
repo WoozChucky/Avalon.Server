@@ -9,7 +9,12 @@ using Avalon.World.Public.Instances;
 
 namespace Avalon.World.Entities;
 
-public class CharacterCharacterGameState : ICharacterGameState
+/// <summary>
+/// What one character's client has been told exists: its replication state, which its instance diffs
+/// every tick. World-side only (#612): World.Public is the modding API, and a mod able to drive this
+/// could change what a player's client is told it can see.
+/// </summary>
+public class CharacterCharacterGameState
 {
     private const int Capacity = 100;
 
@@ -20,6 +25,9 @@ public class CharacterCharacterGameState : ICharacterGameState
     private readonly List<ObjectGuid> _newObjects = new(Capacity);
     private readonly List<(ObjectGuid Guid, GameEntityFields Fields)> _updatedObjects = new(Capacity);
     private readonly List<ObjectGuid> _removedObjects = new(Capacity);
+
+    // What the last Reset forgot (#611), kept apart from _removedObjects so a reset reports nothing gone.
+    private readonly List<ObjectGuid> _forgotten = new(Capacity);
 
     // What this tick's view holds (#593), reused every tick so a steady tick allocates nothing.
     private readonly List<IWorldObject> _visibleCreatures = new(Capacity);
@@ -48,6 +56,11 @@ public class CharacterCharacterGameState : ICharacterGameState
         _worldObjectTrackingSystem.EntityRemoved += OnEntityRemoved;
     }
 
+    /// <summary>
+    /// Diffs this tick's objects against what the client already sees. Only the objects in its view
+    /// count (#593): the watcher's own character always, every other one by <paramref name="range" />
+    /// from <paramref name="watcherPosition" />, on X/Z.
+    /// </summary>
     public void Update(
         ObjectGuid watcher,
         Vector3 watcherPosition,
@@ -85,6 +98,27 @@ public class CharacterCharacterGameState : ICharacterGameState
         _creatureTrackingSystem.Update(_visibleCreatures, frameDirtyFields);
         _characterTrackingSystem.Update(_visibleCharacters, frameDirtyFields);
         _worldObjectTrackingSystem.Update(_visibleWorldObjects, frameDirtyFields);
+    }
+
+    /// <summary>
+    /// Starts over (#611), for a character entering an instance: everything the client was told about is
+    /// forgotten, with no removal raised, so the next <see cref="Update" /> adds, in full, whatever is in
+    /// view there, the character itself included. Returns what was forgotten, which the client still
+    /// holds until it is told to drop it. <see cref="RemovedObjects" /> is left empty, so nothing is
+    /// reported gone twice. The list is reused: it is valid until the next call to this.
+    /// </summary>
+    public IReadOnlyList<ObjectGuid> Reset()
+    {
+        _newObjects.Clear();
+        _updatedObjects.Clear();
+        _removedObjects.Clear();
+
+        _forgotten.Clear();
+
+        _creatureTrackingSystem.Forget(_forgotten);
+        _characterTrackingSystem.Forget(_forgotten);
+        _worldObjectTrackingSystem.Forget(_forgotten);
+        return _forgotten;
     }
 
     // "Already tracked" is the object's own tracking system's set, so a tracked object keeps its margin.

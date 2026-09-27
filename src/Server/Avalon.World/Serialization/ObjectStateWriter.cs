@@ -99,19 +99,6 @@ public static class ObjectStateWriter
         return state;
     }
 
-    /// <summary>
-    /// A portal, which shares only its position with the other kinds and has three members
-    /// nothing else sets.
-    /// </summary>
-    public static ObjectState From(PortalInstance portal) => new()
-    {
-        Guid = portal.Guid.RawValue,
-        Position = Of(portal.Position),
-        PortalRadius = portal.Radius,
-        PortalTargetMapId = portal.TargetMapId,
-        PortalRole = portal.Role,
-    };
-
     private static ObjectState FromUnit(IUnit unit, GameEntityFields fields)
     {
         var state = new ObjectState { Guid = unit.Guid.RawValue };

@@ -65,6 +65,9 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     private readonly Dictionary<ObjectGuid, GameEntityFields> _frameDirtyFields = new(256);
     private readonly Dictionary<ObjectGuid, PerPlayerBroadcastState> _broadcastStates = [];
     private readonly List<PortalInstance> _portals = new();
+
+    /// <summary>This tick's ability objects (projectiles), which the cast system fills and the broadcast reads.</summary>
+    private readonly List<IWorldObject> _objectAbilities = new(64);
     private readonly ICharacterSaveScheduler? _saveScheduler;
     private readonly GroundLootStore _groundLoot = new();
     private readonly ILootRoller? _lootRoller;
@@ -267,6 +270,19 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         // LastInputSeq monotonic for the connection's lifetime; stale inputs from the
         // previous instance arrive with a seq < current LastInputSeq and get correctly
         // rejected, while new post-transition inputs arrive with a higher seq and pass.
+
+        // #611: a character arriving from another instance (entering a map, respawning at a town, or
+        // re-entering this one) starts over. The client keeps every object it was told about until it
+        // is told the object is gone, so it is told now, once, to drop everything it knew there, its
+        // own character included; this goes out ahead of the map transition the caller sends next.
+        // Its first tick here then adds, in full, itself and everything it can see. A character new to
+        // the world has been told about nothing, and is sent nothing here.
+        if (connection.Character is CharacterEntity arriving)
+        {
+            IReadOnlyList<ObjectGuid> forgotten = arriving.CharacterGameState.Reset();
+            if (forgotten.Count > 0)
+                connection.Send(SInstanceStateRemovePacket.Create(forgotten, connection.CryptoSession.Encrypt));
+        }
 
         _characters[connection.Character!.Guid] = connection.Character;
         _connections[connection.Character.Guid] = connection;
@@ -607,19 +623,20 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         if (_vendors.Count > 0)
             RunVendorPass();
 
-        List<IWorldObject> objectAbilities = [];
+        // #612: one list for the life of the instance, refilled each tick, so a tick allocates none.
+        _objectAbilities.Clear();
 
         // Step 3: abilities, combat and threat.
-        UpdateCombat(deltaTime, objectAbilities);
+        UpdateCombat(deltaTime, _objectAbilities);
 
         // Step 4: creature scripts, then the locomotion that executes what they decided.
         UpdateCreatures(deltaTime);
 
         // Step 5a: Snapshot dirty fields — ONLY on broadcast ticks.
-        SnapshotDirtyFields(objectAbilities);
+        SnapshotDirtyFields(_objectAbilities);
 
         // Step 5b and 6: visibility, then the state broadcast, per character.
-        BroadcastState(objectAbilities);
+        BroadcastState(_objectAbilities);
 
         if (_lastBroadcastTime >= BroadcastInterval)
         {
@@ -736,16 +753,20 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     private void BroadcastState(List<IWorldObject> objectAbilities)
     {
         // Step 5b: Update entity visibility state per character, each by its own interest range (#593)
+        // The replication state is World-side (#612), so a character that is not a CharacterEntity is
+        // seen by the others but is sent nothing itself.
         foreach (ICharacter character in _characters.Values)
         {
-            character.CharacterGameState.Update(character.Guid, character.Position, _interest, _creatures,
-                _characters, objectAbilities, _frameDirtyFields);
+            if (character is CharacterEntity entity)
+                entity.CharacterGameState.Update(entity.Guid, entity.Position, _interest, _creatures,
+                    _characters, objectAbilities, _frameDirtyFields);
         }
 
         // Step 6: Broadcast instance state to each character
         foreach (ICharacter character in _characters.Values)
         {
-            BroadcastStateTo(character);
+            if (character is CharacterEntity entity)
+                BroadcastStateTo(entity);
         }
     }
 
@@ -771,7 +792,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         _vendors.ClearChanged();
     }
 
-    private void BroadcastStateTo(ICharacter character)
+    private void BroadcastStateTo(CharacterEntity character)
     {
         IWorldConnection connection = _connections[character.Guid];
         PerPlayerBroadcastState state = _broadcastStates[character.Guid];
@@ -810,8 +831,6 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
 
         if (character.CharacterGameState.RemovedObjects.Count > 0)
         {
-            _logger.LogInformation("Found {Count} removed objects",
-                character.CharacterGameState.RemovedObjects.Count);
             connection.Send(SInstanceStateRemovePacket.Create(
                 character.CharacterGameState.RemovedObjects, connection.CryptoSession.Encrypt));
         }
@@ -819,7 +838,8 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
 
     /// <summary>
     /// An entity the recipient has not seen before, described in full. Null when the entity
-    /// has left the instance between being noticed and being described.
+    /// has left the instance between being noticed and being described. Portals are never tracked, so
+    /// never described here: a client gets them with the map, in SChunkLayoutPacket.Portals (#612).
     /// </summary>
     private ObjectState? DescribeNewObject(ObjectGuid guid, ObjectGuid recipientGuid)
     {
@@ -841,10 +861,6 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
                 IWorldObject? addedAbility = _abilityCastSystem.GetAbility(guid);
                 return addedAbility is null ? null : ObjectStateWriter.From(addedAbility);
 
-            case ObjectType.Portal:
-                PortalInstance? addedPortal = _portals.Find(p => p.Guid == guid);
-                return addedPortal is null ? null : ObjectStateWriter.From(addedPortal);
-
             default:
                 _logger.LogWarning("Unknown object type {ObjectType} on NewObjects serialization", guid.Type);
                 return null;
@@ -853,7 +869,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
 
     /// <summary>
     /// A change to an entity the recipient already has. Null when the entity has left the
-    /// instance, and for portals, which never change.
+    /// instance.
     /// </summary>
     private ObjectState? DescribeUpdatedObject(
         (ObjectGuid Guid, GameEntityFields Fields) updatedObject,
@@ -878,9 +894,6 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
                 return updatedAbility is null
                     ? null
                     : ObjectStateWriter.From(updatedAbility, updatedObject.Fields);
-
-            case ObjectType.Portal:
-                return null; // portals are immutable in PoC — no delta updates
 
             default:
                 _logger.LogWarning("Unknown object type {ObjectType} on UpdatedObjects serialization",
