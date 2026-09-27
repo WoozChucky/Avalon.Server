@@ -36,6 +36,7 @@ Section in `appsettings.json`: `"Application"`
 | `MaxFailedLoginsPerSource`  | int    | `10`      | Password and MFA-code attempts one source address may make, across every account, per window (#471) |
 | `FailedLoginSourceWindowMinutes` | int | `15`   | The window, fixed from a source's first attempt, those are counted over |
 | `MaxFailedMfaAttempts`      | int    | `5`       | Codes one MFA hash allows; the last wrong one deletes the hash |
+| `OnlineSweepIntervalSeconds` | int  | `30`      | How often the auth server clears `Online` on accounts whose session is none of its live connections (#555) |
 | `Issuer`                    | string | `"Avalon"` | Issuer name embedded in MFA OTP URIs           |
 
 The five login limits are shared with the REST API (#478): both servers spend the same Redis budgets, so
@@ -51,6 +52,7 @@ the API's `Application:Authentication` values of the same names must match these
   "MaxFailedLoginsPerSource": 10,
   "FailedLoginSourceWindowMinutes": 15,
   "MaxFailedMfaAttempts": 5,
+  "OnlineSweepIntervalSeconds": 30,
   "Issuer": "Avalon"
 }
 ```
@@ -58,6 +60,7 @@ the API's `Application:Authentication` values of the same names must match these
 **Validation rules:**
 - `MinClientVersion`, `ServerVersion`: required, must match `^\d+\.\d+\.\d+$` (SemVer).
 - The five login limits: minimum `1`.
+- `OnlineSweepIntervalSeconds`: minimum `1`.
 - `Issuer`: required, non-empty.
 
 ---

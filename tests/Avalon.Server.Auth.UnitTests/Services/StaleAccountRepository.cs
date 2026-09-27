@@ -57,6 +57,16 @@ internal sealed class StaleAccountRepository(IAccountRepository inner) : IAccoun
         CancellationToken cancellationToken = default) =>
         inner.MarkOfflineAsync(id, sessionId, sessionSeconds, cancellationToken);
 
+    /// <summary>Runs right after the online sessions are read: a login landing before the sweep writes.</summary>
+    public Func<Task>? AfterOnlineRead { get; init; }
+
+    public async Task<IReadOnlyList<OnlineSession>> ListOnlineSessionsAsync(CancellationToken cancellationToken = default)
+    {
+        IReadOnlyList<OnlineSession> sessions = await inner.ListOnlineSessionsAsync(cancellationToken);
+        if (AfterOnlineRead != null) await AfterOnlineRead();
+        return sessions;
+    }
+
     public Task MarkAllOfflineAsync(CancellationToken cancellationToken = default) =>
         inner.MarkAllOfflineAsync(cancellationToken);
 
