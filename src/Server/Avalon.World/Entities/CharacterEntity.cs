@@ -41,6 +41,12 @@ public class CharacterEntity : ICharacter
     // The container's clock (#614): the combat tag and the cast-regen suppression time by it.
     private readonly TimeProvider _time = TimeProvider.System;
 
+    // Fury decay (#526): points lost per second out of combat, and the fraction of a point owed but
+    // not yet taken, carried between ticks. World-side and never saved.
+    private readonly float _furyDecayPerSecond = GameConfiguration.DefaultFuryDecayPerSecond;
+    private double _furyDecayRemainder;
+    private const double FuryDecayTolerance = 1e-3;
+
     public CharacterEntity()
     {
         _logger = null!;
@@ -52,10 +58,13 @@ public class CharacterEntity : ICharacter
     }
 
     /// <param name="time">The container's clock, the one the instance and combat time by (#614).</param>
+    /// <param name="furyDecayPerSecond">Game:FuryDecayPerSecond (#526); the setting's default when omitted.</param>
     public CharacterEntity(ILoggerFactory loggerFactory, Character character,
-        RegenConfiguration regenConfig, TimeProvider? time = null)
+        RegenConfiguration regenConfig, TimeProvider? time = null,
+        float furyDecayPerSecond = GameConfiguration.DefaultFuryDecayPerSecond)
     {
         _time = time ?? TimeProvider.System;
+        _furyDecayPerSecond = furyDecayPerSecond;
         _logger = loggerFactory.CreateLogger<CharacterEntity>();
         Data = character;
         _equipment = new CharacterInventoryContainer(loggerFactory, InventoryType.Equipment);
@@ -84,8 +93,9 @@ public class CharacterEntity : ICharacter
     /// <summary>
     /// Tick thread. Writes derived stats: the maximums (which the row stores and replication sends),
     /// the current pools per <paramref name="current" />, the regen attributes, and a mark so the
-    /// next save writes the CharacterStats row. Refill is for select and level-up; KeepShare is for a
-    /// gear change, and keeps the same share of each pool.
+    /// next save writes the CharacterStats row. EnterWorld is for select, Refill for a level-up, and
+    /// KeepShare for a gear change, which keeps the same share of each pool. Fury is not a fill-up pool
+    /// (#526): EnterWorld empties it, and Refill and KeepShare keep its value, capped at the new maximum.
     /// </summary>
     public void ApplyStats(DerivedCharacterStats stats, CurrentValues current)
     {
@@ -95,15 +105,33 @@ public class CharacterEntity : ICharacter
         Health = stats.MaxHealth;
         Power = stats.MaxPower;
 
-        if (current == CurrentValues.Refill)
+        if (current == CurrentValues.KeepShare)
         {
-            CurrentHealth = stats.MaxHealth;
-            CurrentPower = stats.MaxPower;
+            CurrentHealth = CharacterStatsCalculator.KeepShare(CurrentHealth, oldHealth, stats.MaxHealth);
         }
         else
         {
-            CurrentHealth = CharacterStatsCalculator.KeepShare(CurrentHealth, oldHealth, stats.MaxHealth);
+            CurrentHealth = stats.MaxHealth;
+        }
+
+        if (PowerType == PowerType.Fury)
+        {
+            // The fraction of decay owed is forgotten only when Fury is set: entering the world, or a cap
+            // that lowers it. A gear change that leaves it alone must not, or swapping gear quickly
+            // enough would stop the decay.
+            uint fury = CurrentPower ?? 0;
+            uint kept = current == CurrentValues.EnterWorld ? 0u : Math.Min(fury, stats.MaxPower);
+            if (current == CurrentValues.EnterWorld || kept != fury)
+                _furyDecayRemainder = 0d;
+            CurrentPower = kept;
+        }
+        else if (current == CurrentValues.KeepShare)
+        {
             CurrentPower = CharacterStatsCalculator.KeepShare(CurrentPower ?? 0, oldPower, stats.MaxPower);
+        }
+        else
+        {
+            CurrentPower = stats.MaxPower;
         }
 
         Stamina = stats.Stamina;
@@ -298,6 +326,34 @@ public class CharacterEntity : ICharacter
 
     public void MarkCombat() => _lastCombatTime = _time.GetUtcNow().UtcDateTime;
 
+    /// <summary>
+    /// Adds <paramref name="amount" /> to the current power, capped at the maximum (#526). Only a pool a
+    /// cast spends (Mana, Energy or Fury) gains, and a dead character gains nothing. World-side only, not
+    /// on ICharacter or IUnit: the modding API cannot grant power.
+    /// </summary>
+    internal void GainPower(uint amount)
+    {
+        if (amount == 0 || IsDead) return;
+        if (PowerType is not (PowerType.Mana or PowerType.Energy or PowerType.Fury)) return;
+
+        uint max = Power ?? 0;
+        uint current = CurrentPower ?? 0;
+        if (current >= max) return;
+
+        CurrentPower = (uint)Math.Min(max, (ulong)current + amount);
+    }
+
+    /// <summary>
+    /// Empties a Fury pool and forgets any fraction of decay owed (#526): the one place death and every
+    /// instance transfer set Fury. A Mana or Energy pool is left alone. World-side only.
+    /// </summary>
+    internal void ResetFury()
+    {
+        _furyDecayRemainder = 0d;
+        if (PowerType == PowerType.Fury && CurrentPower != 0)
+            CurrentPower = 0;
+    }
+
     public void OnHit(IUnit attacker, uint damage) => OnHit(attacker, damage, abilityId: null);
 
     /// <summary>
@@ -430,7 +486,12 @@ public class CharacterEntity : ICharacter
             // Velocity, so without this the velocity it died with would be broadcast until respawn
             // and other clients would extrapolate the corpse onwards.
             if (value)
+            {
                 Velocity = Vector3.zero;
+
+                // Death empties Fury (#526), whatever set the flag.
+                ResetFury();
+            }
         }
     }
 
@@ -475,7 +536,34 @@ public class CharacterEntity : ICharacter
             CurrentHealth = Math.Min(Health, CurrentHealth + regen);
         }
 
-        // Power regeneration (Mana / Energy only; Fury is deferred)
+        // Fury (#526) never regenerates. Out of combat it drains, carrying the fraction of a point owed
+        // between ticks so that a per-second rate is lost exactly at any tick rate; in combat it holds,
+        // and the fraction starts over when the fight ends.
+        if (PowerType == PowerType.Fury)
+        {
+            if (IsInCombat || IsDead || _furyDecayPerSecond <= 0f || (CurrentPower ?? 0) == 0)
+            {
+                _furyDecayRemainder = 0d;
+            }
+            else
+            {
+                _furyDecayRemainder += _furyDecayPerSecond * deltaTime.TotalSeconds;
+
+                // A 1/60 s TimeSpan is truncated to whole ticks, so sixty of them fall a few millionths of
+                // a second short of one; the tolerance keeps that from costing a whole point. What is
+                // left may dip that far below 0 and is repaid by the next tick.
+                double owed = Math.Floor(_furyDecayRemainder + FuryDecayTolerance);
+                uint whole = owed >= uint.MaxValue ? uint.MaxValue : (uint)owed;
+                if (whole > 0)
+                {
+                    _furyDecayRemainder -= whole;
+                    uint current = CurrentPower ?? 0;
+                    CurrentPower = whole >= current ? 0u : current - whole;
+                }
+            }
+        }
+
+        // Power regeneration (Mana / Energy only)
         if (!IsDead && CurrentPower.HasValue && Power.HasValue &&
             CurrentPower.Value < Power.Value &&
             RegenStat > 0 &&

@@ -665,6 +665,17 @@ public class SeedIntegrityShould
         }, a.SpellScript));
     }
 
+    /// <summary>#526: Cleave is the one builder, at 8 per unit damaged; every other ability gains nothing.</summary>
+    [Fact]
+    public void Seed_a_power_gain_per_hit_on_cleave_only()
+    {
+        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+
+        Assert.All(context.AbilityTemplates.AsNoTracking().ToList(),
+            a => Assert.Equal(a.Id.Value == 200 ? 8 : 0, a.PowerGainPerHit));
+    }
+
     [Fact]
     public void Seed_only_the_healers_mending_circle_as_an_ally_heal()
     {

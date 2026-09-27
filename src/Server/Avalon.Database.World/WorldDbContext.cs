@@ -2182,6 +2182,8 @@ public class WorldDbContext : DbContext
                 "\"ThreatMultiplier\" >= 0 AND \"ThreatMultiplier\" < 'Infinity'");
             t.HasCheckConstraint("CK_AbilityTemplates_HealThreatPerHp_NonNegative",
                 "\"HealThreatPerHp\" >= 0 AND \"HealThreatPerHp\" < 'Infinity'");
+            // #526: a negative gain would drain the caster's pool on every hit.
+            t.HasCheckConstraint("CK_AbilityTemplates_PowerGainPerHit_NonNegative", "\"PowerGainPerHit\" >= 0");
         });
         builder.Property(b => b.Id)
             .HasConversion(
@@ -2193,7 +2195,7 @@ public class WorldDbContext : DbContext
         // so no client that cached the retired abilities (1, 2, 100-103) confuses them. Numbers are
         // placeholders to tune. Cooldowns and cast times in milliseconds, distances in metres.
         builder.HasData(
-            Kit(200, CharacterClass.Warrior, "Cleave", AbilityShape.Cone, AbilityAimMode.Movement, reach: 2.5f, arc: 100f, cooldown: 800, cost: 0, value: 12, range: SpellRange.Melee),
+            Kit(200, CharacterClass.Warrior, "Cleave", AbilityShape.Cone, AbilityAimMode.Movement, reach: 2.5f, arc: 100f, cooldown: 800, cost: 0, value: 12, range: SpellRange.Melee, powerGainPerHit: 8),
             Kit(201, CharacterClass.Warrior, "Ground Slam", AbilityShape.Circle, AbilityAimMode.Movement, radius: 3f, cooldown: 5000, cost: 20, value: 25, range: SpellRange.Short),
             Kit(202, CharacterClass.Warrior, "Hurled Axe", AbilityShape.Projectile, AbilityAimMode.Cursor, reach: 15f, speed: 18f, cooldown: 3000, cost: 10, value: 20, range: SpellRange.Medium),
             Kit(210, CharacterClass.Wizard, "Arcane Bolt", AbilityShape.Projectile, AbilityAimMode.Cursor, reach: 20f, speed: 22f, cooldown: 800, cost: 0, value: 12, range: SpellRange.Long),
@@ -2210,7 +2212,7 @@ public class WorldDbContext : DbContext
     private static AbilityTemplate Kit(uint id, CharacterClass cls, string name, AbilityShape shape, AbilityAimMode aim,
         SpellRange range, uint cooldown, uint cost, uint value, AbilityAnchor anchor = AbilityAnchor.Caster,
         float reach = 0f, float radius = 0f, float arc = 0f, float speed = 0f, bool pierce = false, uint castTime = 0,
-        AbilityAffects affects = AbilityAffects.Hostile) => new()
+        AbilityAffects affects = AbilityAffects.Hostile, int powerGainPerHit = 0) => new()
     {
         Id = id,
         Name = name,
@@ -2238,5 +2240,6 @@ public class WorldDbContext : DbContext
         ProjectileSpeed = speed,
         Pierce = pierce,
         Affects = affects,
+        PowerGainPerHit = powerGainPerHit,
     };
 }

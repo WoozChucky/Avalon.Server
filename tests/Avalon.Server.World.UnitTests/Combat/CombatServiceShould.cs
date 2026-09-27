@@ -1143,7 +1143,7 @@ public class CombatServiceShould
     /// Puts a creature's combat script into Returning through the scripts' own public calls, with the
     /// combat script either the creature's script or chained inside <paramref name="scriptName" />.
     /// </summary>
-    private static Creature CreatureReturningHome(ISimulationContext ctx, string scriptName, uint health)
+    internal static Creature CreatureReturningHome(ISimulationContext ctx, string scriptName, uint health)
     {
         ctx.MeleeSlots.Returns(Substitute.For<IMeleeSlots>());
         var creature = new Creature

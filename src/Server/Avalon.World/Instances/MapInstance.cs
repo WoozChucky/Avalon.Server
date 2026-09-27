@@ -139,7 +139,8 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         // between MapInstances.
         CombatConfig combatConfig = serviceProvider.GetRequiredService<CombatConfig>();
         _encounterRegistry = new EncounterRegistry(combatConfig, _time);
-        _combatService     = new CombatService(combatConfig, _encounterRegistry, this, _pvp, outcomes: this, time: _time);
+        _combatService     = new CombatService(combatConfig, _encounterRegistry, this, _pvp, outcomes: this, time: _time,
+            furyFromDamageTaken: world.Configuration.FuryFromDamageTaken);
         _threatBroadcast   = new ThreatBroadcastService(combatConfig, _time);
 
         // Shape scripts ask this for the living units their shape overlaps (#164).
@@ -282,6 +283,10 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
             IReadOnlyList<ObjectGuid> forgotten = arriving.CharacterGameState.Reset();
             if (forgotten.Count > 0)
                 connection.Send(SInstanceStateRemovePacket.Create(forgotten, connection.CryptoSession.Encrypt));
+
+            // #526: every instance move comes through here (map entry, respawn at a town, a portal), and
+            // each one starts with no Fury. Mana and Energy are kept.
+            arriving.ResetFury();
         }
 
         _characters[connection.Character!.Guid] = connection.Character;

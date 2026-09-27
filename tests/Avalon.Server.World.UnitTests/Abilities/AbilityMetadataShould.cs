@@ -41,12 +41,23 @@ public class AbilityMetadataShould
         {
             Name = "x", ScriptName = "x", AimMode = AbilityAimMode.Cursor, Shape = AbilityShape.Projectile,
             Anchor = AbilityAnchor.AimPoint, Reach = 1f, Radius = 2f, ArcDegrees = 3f, ProjectileSpeed = 4f,
-            Pierce = true, Affects = AbilityAffects.Ally,
+            Pierce = true, Affects = AbilityAffects.Ally, PowerGainPerHit = 5,
         };
 
         AbilityMetadata clone = original.Clone();
 
         Assert.Equivalent(original, clone, strict: true);
+    }
+
+    /// <summary>#526: the per-hit power gain is copied from the template, and defaults to 0.</summary>
+    [Fact]
+    public void Map_the_power_gain_per_hit_from_the_template()
+    {
+        Avalon.Domain.World.AbilityTemplate template = AbilityTestData.Cone(1);
+        template.PowerGainPerHit = 8;
+
+        Assert.Equal(8, Avalon.World.Abilities.AbilityMetadataMapper.From(template).PowerGainPerHit);
+        Assert.Equal(0, BuildMetadata().PowerGainPerHit);
     }
 
     private static AbilityMetadata BuildMetadata() =>

@@ -1,6 +1,11 @@
 using Avalon.Common;
+using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Database.World;
+using Avalon.Network.Packets.Abilities;
+using Avalon.Network.Packets.State;
+using Avalon.Server.World.UnitTests.Abilities;
+using Avalon.World.Handlers;
 using Avalon.Domain.World;
 using Avalon.Server.World.UnitTests.Handlers;
 using Avalon.Server.World.UnitTests.Inventory;
@@ -118,6 +123,57 @@ public class LevelUpStatsShould
         Assert.Equal(healthAfter, killer.Health);
         Assert.Equal(healthAfter, killer.CurrentHealth);
         instance.Dispose();
+    }
+
+    /// <summary>
+    /// #526 end to end: a Warrior's Cleave kills a creature and the kill levels it up through the real
+    /// CreatureKilled. The refill keeps Fury, capped at the new maximum (100 here), and the kill's own
+    /// Cleave gain (8) is counted: 60 becomes 68, and 150 of a former 200 ends at 100.
+    /// </summary>
+    [Theory]
+    [InlineData(100u, 60u, 68u)]
+    [InlineData(200u, 150u, 100u)]
+    public async Task Keep_a_warriors_fury_capped_through_a_level_up_its_cleave_caused(uint maxBefore, uint furyBefore, uint furyAfter)
+    {
+        StaticData data = await TestStaticData.LoadAsync(
+            classStats: WarriorRows,
+            levels:
+            [
+                new CharacterLevelExperience { Level = 1, Experience = 100 },
+                new CharacterLevelExperience { Level = 2, Experience = 500 },
+            ]);
+        IWorld world = MapInstanceClients.NewWorld(data);
+        using MapInstance instance = TestMapInstances.BuildCasting(out CastAbilityHandler handler, world: world);
+
+        MapInstanceClient warrior = MapInstanceClients.Join(instance, 526_401);
+        warrior.Character.PowerType = PowerType.Fury;
+        Assert.True(CharacterStatsRefresh.Apply(warrior.Character, data, CurrentValues.EnterWorld));
+        warrior.Character.Power = maxBefore;
+        warrior.Character.CurrentPower = furyBefore;
+        warrior.Character.Orientation = new Vector3(0f, 0f, 0f);   // facing +Z
+        AbilityTemplate cleave = AbilityTestData.Cone(200, reach: 2.5f, arc: 100f);
+        cleave.PowerGainPerHit = 8;
+        warrior.Character.Spells.Load([AbilityTestData.Game(cleave)]);
+
+        var creature = new Creature
+        {
+            Guid = new ObjectGuid(ObjectType.Creature, 526_901u + furyBefore),
+            Metadata = Loot.LootTestData.BoarTemplate(null),
+            Position = new Vector3(0f, 0f, 2f),
+            Health = 5,
+            CurrentHealth = 5,
+            Experience = 150,
+        };
+        creature.Script = new MapInstanceAbilityCastShould.WoundScript(creature);
+        instance.AddCreature(creature);
+
+        handler.Execute(warrior.Connection, new CCastAbilityPacket { AbilityId = 200 });
+
+        Assert.Equal(0u, creature.CurrentHealth);
+        Assert.Equal((ushort)2, warrior.Character.Level);
+        Assert.Equal(100u, warrior.Character.Power);
+        Assert.Equal(warrior.Character.Health, warrior.Character.CurrentHealth);
+        Assert.Equal(furyAfter, warrior.Character.CurrentPower);
     }
 
     /// <summary>

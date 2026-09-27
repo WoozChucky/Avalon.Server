@@ -57,6 +57,9 @@ public class AbilityMetadata
     /// <summary>Hostile units are damaged, allies are healed.</summary>
     public AbilityAffects Affects         { get; init; } = AbilityAffects.Hostile;
 
+    /// <summary>Power the caster gains per unit this ability damages (#526); 0 gains nothing.</summary>
+    public int            PowerGainPerHit { get; init; }
+
     public AbilityMetadata Clone() =>
         new()
         {
@@ -82,5 +85,6 @@ public class AbilityMetadata
             ProjectileSpeed = ProjectileSpeed,
             Pierce = Pierce,
             Affects = Affects,
+            PowerGainPerHit = PowerGainPerHit,
         };
 }

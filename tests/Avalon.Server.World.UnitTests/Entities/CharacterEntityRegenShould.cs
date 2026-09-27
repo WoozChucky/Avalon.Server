@@ -24,13 +24,15 @@ public class CharacterEntityRegenShould
         uint stamina = 10u,
         uint regenStat = 10u,
         PowerType powerType = PowerType.Mana,
-        RegenConfiguration? config = null)
+        RegenConfiguration? config = null,
+        float furyDecayPerSecond = GameConfiguration.DefaultFuryDecayPerSecond)
     {
         var character = new Character { Id = 1u, Health = (int)health, Power1 = (int)power };
         var entity = new CharacterEntity(
             NullLoggerFactory.Instance,
             character,
-            config ?? new RegenConfiguration());
+            config ?? new RegenConfiguration(),
+            furyDecayPerSecond: furyDecayPerSecond);
 
         entity.CurrentHealth = currentHealth;
         entity.CurrentPower = currentPower;
@@ -160,8 +162,9 @@ public class CharacterEntityRegenShould
     public void Update_SkipsPowerRegen_ForFuryType()
     {
         var config = new RegenConfiguration { PowerRegenOutOfCombatPerStat = 1.0f };
+        // Decay off: this pins that Fury never regenerates; its decay (#526) is FuryLifecycleShould's.
         var entity = MakeCharacter(power: 100, currentPower: 50, regenStat: 10,
-            powerType: PowerType.Fury, config: config);
+            powerType: PowerType.Fury, config: config, furyDecayPerSecond: 0f);
 
         entity.Update(TimeSpan.FromSeconds(1));
 

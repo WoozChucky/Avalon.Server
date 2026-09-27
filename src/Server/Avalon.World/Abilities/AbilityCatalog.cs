@@ -77,6 +77,9 @@ public sealed class AbilityCatalog
                 return $"{name} {value} is not a finite value of 0 or more";
         }
 
+        // #526. A negative gain would drain the caster's pool on every hit; the database refuses it too.
+        if (t.PowerGainPerHit < 0) return $"PowerGainPerHit {t.PowerGainPerHit} is below 0";
+
         if (!Enum.IsDefined(t.AimMode)) return $"unknown aim mode {(byte)t.AimMode}";
         if (!Enum.IsDefined(t.Shape)) return $"unknown shape {(byte)t.Shape}";
         if (!Enum.IsDefined(t.Anchor)) return $"unknown anchor {(byte)t.Anchor}";

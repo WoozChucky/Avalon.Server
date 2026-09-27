@@ -139,6 +139,56 @@ public class WorldStartupValidationShould
         Assert.Equal(10f, configuration.InterestRemoveMargin);
     }
 
+    /// <summary>#526: both Fury rates must be finite and 0 or more.</summary>
+    [Theory]
+    [InlineData("FuryFromDamageTaken", "-1")]
+    [InlineData("FuryFromDamageTaken", "NaN")]
+    [InlineData("FuryFromDamageTaken", "Infinity")]
+    [InlineData("FuryFromDamageTaken", "-Infinity")]
+    [InlineData("FuryDecayPerSecond", "-1")]
+    [InlineData("FuryDecayPerSecond", "NaN")]
+    [InlineData("FuryDecayPerSecond", "Infinity")]
+    [InlineData("FuryDecayPerSecond", "-Infinity")]
+    public async Task Refuse_to_start_with_a_fury_rate_out_of_range(string setting, string value)
+    {
+        using IHost host = await BuildAsync(new Dictionary<string, string?>(StringComparer.Ordinal)
+        {
+            ["Database:Auth:ConnectionString"] = Unreachable,
+            ["Database:Characters:ConnectionString"] = Unreachable,
+            ["Database:World:ConnectionString"] = Unreachable,
+            ["Game:" + setting] = value,
+        });
+
+        var refused = await Assert.ThrowsAsync<OptionsValidationException>(() => WorldStartup.PrepareAsync(host));
+
+        Assert.Contains(setting, refused.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>#526: 0 turns either Fury rate off and is allowed.</summary>
+    [Fact]
+    public async Task Accept_fury_rates_of_zero()
+    {
+        using IHost host = await BuildAsync(new Dictionary<string, string?>(StringComparer.Ordinal)
+        {
+            ["Game:FuryFromDamageTaken"] = "0",
+            ["Game:FuryDecayPerSecond"] = "0",
+        });
+
+        host.Services.GetRequiredService<IStartupValidator>().Validate();
+
+        GameConfiguration configuration = host.Services.GetRequiredService<IOptions<GameConfiguration>>().Value;
+        Assert.Equal(0f, configuration.FuryFromDamageTaken);
+        Assert.Equal(0f, configuration.FuryDecayPerSecond);
+    }
+
+    [Fact]
+    public void Default_the_fury_rates_to_50_and_5()
+    {
+        var configuration = new GameConfiguration();
+        Assert.Equal(50f, configuration.FuryFromDamageTaken);
+        Assert.Equal(5f, configuration.FuryDecayPerSecond);
+    }
+
     /// <summary>#593: Game:InterestRadius replaces Game:EffectBroadcastRadius outright, with no alias.</summary>
     [Fact]
     public async Task Bind_the_interest_radius_and_ignore_the_old_key()

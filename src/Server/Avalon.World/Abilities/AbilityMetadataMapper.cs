@@ -30,5 +30,6 @@ public static class AbilityMetadataMapper
         ProjectileSpeed = template.ProjectileSpeed,
         Pierce = template.Pierce,
         Affects = template.Affects,
+        PowerGainPerHit = template.PowerGainPerHit,
     };
 }

@@ -63,7 +63,9 @@ public class CharacterSelectHandlerShould
         IReadOnlyCollection<ClassLevelStat>? classStats = null,
         IReadOnlyCollection<ItemTemplate>? itemTemplates = null,
         int storedHealth = 0,
-        IReadOnlyCollection<AbilityTemplate>? abilityTemplates = null)
+        IReadOnlyCollection<AbilityTemplate>? abilityTemplates = null,
+        int storedPower = 0,
+        GameConfiguration? game = null)
     {
         var row = new Character
         {
@@ -76,6 +78,7 @@ public class CharacterSelectHandlerShould
             X = 1, Y = 2, Z = 3,
             Money = money,
             Health = storedHealth,
+            Power1 = storedPower,
         };
 
         var characterRepository = Substitute.For<ICharacterRepository>();
@@ -111,6 +114,7 @@ public class CharacterSelectHandlerShould
         StaticData staticData = await EmptyStaticDataAsync(classStats, itemTemplates, abilityTemplates);
 
         IWorld world = Substitute.For<IWorld>();
+        world.Configuration.Returns(game ?? new GameConfiguration());   // the select reads Game:FuryDecayPerSecond (#526)
         world.InstanceRegistry.Returns(registry);
         world.MapTemplates.Returns(new List<MapTemplate>
         {
@@ -400,7 +404,7 @@ public class CharacterSelectHandlerShould
     /// <summary>
     /// #434: select derives stats from the character's level and what it wears, replacing the old
     /// half-levelled patch of Stamina and the regen stat. Nothing stores the current pools, so the
-    /// character enters full at the new maximum.
+    /// character enters full at the new maximum, apart from a Fury pool, which enters empty (#526).
     /// </summary>
     [Fact]
     public async Task Derive_the_stats_from_the_level_and_what_is_worn_and_enter_full()
@@ -421,7 +425,7 @@ public class CharacterSelectHandlerShould
         Assert.Equal(260u, entity.Health);
         Assert.Equal(260u, entity.CurrentHealth);
         Assert.Equal(100u, entity.Power);
-        Assert.Equal(100u, entity.CurrentPower);
+        Assert.Equal(0u, entity.CurrentPower);   // a warrior's Fury pool enters empty (#526)
         Assert.Equal(24u, entity.Stamina);
         Assert.Equal(8u, entity.Stats!.Value.Armor);
         Assert.True(entity.SaveState.StatsDirty);
@@ -444,6 +448,35 @@ public class CharacterSelectHandlerShould
         Assert.Equal(150u, entity.CurrentHealth);
         Assert.Null(entity.Stats);
         Assert.Equal(0u, entity.Stamina);
+    }
+
+    /// <summary>#526: a warrior enters with no Fury even when there is no stats row to refresh from.</summary>
+    [Fact]
+    public async Task Enter_with_no_fury_when_the_class_and_level_have_no_row()
+    {
+        Fixture f = await BuildAsync(storedHealth: 150, storedPower: 100);
+
+        f.Handler.Execute(f.Connection, new CCharacterSelectedPacket { CharacterId = TheCharacter });
+
+        var entity = (CharacterEntity)f.Connection.PendingSpawn!.Character;
+        Assert.Equal(100u, entity.Power);
+        Assert.Equal(0u, entity.CurrentPower);
+        Assert.Equal(150u, entity.CurrentHealth);
+    }
+
+    /// <summary>#526: Game:FuryDecayPerSecond reaches the character select builds: at 30, a second out of combat loses 30.</summary>
+    [Fact]
+    public async Task Build_the_character_with_the_configured_fury_decay()
+    {
+        Fixture f = await BuildAsync(storedHealth: 150, storedPower: 100,
+            game: new GameConfiguration { FuryDecayPerSecond = 30f });
+
+        f.Handler.Execute(f.Connection, new CCharacterSelectedPacket { CharacterId = TheCharacter });
+
+        var entity = (CharacterEntity)f.Connection.PendingSpawn!.Character;
+        entity.CurrentPower = 50;
+        entity.Update(TimeSpan.FromSeconds(1));
+        Assert.Equal(20u, entity.CurrentPower);
     }
 
     /// <summary>
