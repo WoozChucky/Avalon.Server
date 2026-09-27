@@ -11,6 +11,7 @@ using Avalon.World.Public.Enums;
 using Avalon.World.Public.Instances;
 using Avalon.World.Public.Units;
 using Avalon.World.Pvp;
+using Avalon.World.Scripts.Creatures;
 
 namespace Avalon.World.Combat;
 
@@ -50,6 +51,11 @@ public sealed class CombatService : ICombatService
         // A corpse takes no hits (#588), as a dead character's OnHit ignores them: no threat, no
         // encounter, no script call, no second death, and its attacker is not tagged in combat.
         if (target is ICreature { CurrentHealth: 0 }) return;
+
+        // A creature walking home, after the leash or a lost target, ignores hits entirely (#610): no
+        // encounter, no threat, no script call, no broadcast, and its attacker is not tagged in
+        // combat, so nothing from the walk home outlives the reset there.
+        if (IsReturningHome(target)) return;
 
         // #164: a player-on-player hit that deals damage to a living player restarts both players'
         // running PvP off timers. Towns are covered because AbilityEffect checks Hostility before it
@@ -111,6 +117,10 @@ public sealed class CombatService : ICombatService
         if (target is ICreature creature && healthBefore > 0 && creature.CurrentHealth == 0)
             _outcomes?.CreatureKilled(creature, attacker);
     }
+
+    /// <summary>A creature whose combat script is walking it home (#610); see <see cref="IReturningHome" />.</summary>
+    private static bool IsReturningHome(IUnit unit) =>
+        unit is ICreature { Script: IReturningHome { IsReturningHome: true } };
 
     private void NotifyDeathIfApplicable(Encounter enc, IUnit target, IUnit attacker)
     {
@@ -178,14 +188,19 @@ public sealed class CombatService : ICombatService
         if (ability.Metadata.HealThreatPerHp <= 0) return;
 
         var enc = _registry.FindEncounterContaining(target) as Encounter;
-        if (enc is null || enc.Hostiles.Count == 0) return;
+        if (enc is null) return;
+
+        // A creature walking home takes no heal threat either (#610), or it would carry it past its
+        // reset; the creatures still fighting share the whole of it.
+        List<IUnit> fighting = enc.Hostiles.Where(h => !IsReturningHome(h)).ToList();
+        if (fighting.Count == 0) return;
 
         var healerClass = (healer as ICharacter)?.Class ?? CharacterClass.Healer;
         float threatTotal = restored * ability.Metadata.HealThreatPerHp * ClassThreatModifier.Get(healerClass);
-        float perHostile  = threatTotal / enc.Hostiles.Count;
+        float perHostile  = threatTotal / fighting.Count;
 
         if (!enc.Players.Contains(healer)) enc.AddPlayer(healer);
-        foreach (var h in enc.Hostiles)
+        foreach (var h in fighting)
             enc.AddThreat(h, healer, perHostile);
     }
 

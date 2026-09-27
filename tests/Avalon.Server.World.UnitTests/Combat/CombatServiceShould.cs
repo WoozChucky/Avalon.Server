@@ -8,6 +8,7 @@ using Avalon.World.Public.Combat;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Instances;
+using Avalon.World.Public.Scripts;
 using Avalon.World.Public.Units;
 using Avalon.World.Scripts.Creatures;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -831,6 +832,140 @@ public class CombatServiceShould
 
         Assert.Equal(0u, creature.CurrentHealth);
         ctx.DidNotReceiveWithAnyArgs().BroadcastUnitHit(default!, default!, default, default);
+    }
+
+    // ── #610: a creature walking home ignores hits entirely ──
+
+    public static TheoryData<string> ReturningScripts() =>
+        new() { nameof(CreatureCombatScript), nameof(AggroDefendScript), nameof(CreaturePatrolScript) };
+
+    /// <summary>
+    /// A hit on a creature that is returning home is refused beside the invulnerable and corpse checks,
+    /// whether the combat script is the creature's own or chained inside another: no encounter, no
+    /// threat, no script call, no broadcast, no combat tag and no lost health.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(ReturningScripts))]
+    public void Refuse_a_hit_on_a_creature_that_is_returning_home(string scriptName)
+    {
+        var (svc, reg, ctx, outcomes) = BuildServiceWithOutcomes();
+        Creature creature = CreatureReturningHome(ctx, scriptName, health: 30);
+        var attacker = StubCharacter(CharacterClass.Warrior);
+
+        svc.ApplyDamage(attacker, creature, 10, StubAbility(1.0f));
+
+        Assert.Equal(30u, creature.CurrentHealth);
+        Assert.Empty(reg.Active);
+        Assert.Null(reg.FindEncounterContaining(attacker));
+        attacker.DidNotReceive().MarkCombat();
+        ctx.DidNotReceiveWithAnyArgs().BroadcastUnitHit(default!, default!, default, default);
+        outcomes.DidNotReceiveWithAnyArgs().CreatureKilled(default!, default!);
+    }
+
+    /// <summary>
+    /// A hit taken on the way home leaves nothing behind: once the creature is home and reset, the next
+    /// fight is against whoever pulls it, not the unit that hit it while it walked back.
+    /// </summary>
+    [Fact]
+    public void Leave_no_threat_from_a_hit_on_the_way_home_for_the_next_fight()
+    {
+        var cfg = new CombatConfig();
+        var reg = new EncounterRegistry(cfg);
+        var ctx = Substitute.For<ISimulationContext>();
+        var svc = new CombatService(cfg, reg, ctx);
+        ctx.CombatService.Returns(svc);
+        var slots = Substitute.For<IMeleeSlots>();
+        ctx.MeleeSlots.Returns(slots);
+        var home = new Avalon.Common.Mathematics.Vector3(5f, 0f, 5f);
+        var creature = new Creature
+        {
+            Guid          = new Avalon.Common.ObjectGuid(Avalon.Common.ObjectType.Creature, 610),
+            Metadata      = Substitute.For<ICreatureMetadata>(),
+            Name          = "Wolf",
+            Health        = 30,
+            CurrentHealth = 30,
+            Position      = home,
+        };
+        var script = new CreatureCombatScript(NullLoggerFactory.Instance, creature, ctx);
+        creature.Script = script;
+
+        ICharacter first = StubCharacter(CharacterClass.Hunter);
+        script.OnEnteredRange(first);
+        script.OnCharacterLeft(first); // Returning; home is where it was pulled
+
+        ICharacter hitOnTheWayHome = StubCharacter(CharacterClass.Warrior);
+        hitOnTheWayHome.Guid.Returns(new Avalon.Common.ObjectGuid(Avalon.Common.ObjectType.Character, 1));
+        hitOnTheWayHome.Position.Returns(home);
+        svc.ApplyDamage(hitOnTheWayHome, creature, 20);
+
+        script.Update(TimeSpan.FromSeconds(0.1)); // home: reset to idle
+        Assert.Equal((object)CreatureCombatScript.CombatState.None, script.State);
+
+        ICharacter puller = StubCharacter(CharacterClass.Hunter);
+        puller.Guid.Returns(new Avalon.Common.ObjectGuid(Avalon.Common.ObjectType.Character, 2));
+        puller.Position.Returns(home);
+        script.OnEnteredRange(puller);
+        script.Update(TimeSpan.FromSeconds(0.1));
+
+        slots.ReceivedWithAnyArgs().TryClaim(default!, default!, default!, default!, out _);
+        foreach (var call in slots.ReceivedCalls().Where(c => c.GetMethodInfo().Name == nameof(IMeleeSlots.TryClaim)))
+            Assert.Equal(puller.Guid, call.GetArguments()[0]);
+    }
+
+    /// <summary>
+    /// Heal threat skips a creature walking home (#610), which would otherwise carry it past its reset
+    /// and could turn the next pull on the healer. The creatures still fighting share the whole of it.
+    /// </summary>
+    [Fact]
+    public void Add_no_heal_threat_to_a_creature_that_is_returning_home()
+    {
+        var (svc, reg) = BuildService(initialThreatSeed: 0);
+        var healer = StubCharacter(CharacterClass.Healer);
+        var ally   = StubCharacter(CharacterClass.Warrior);
+        ally.Health.Returns(300u);
+        Creature returning = CreatureReturningHome(Substitute.For<ISimulationContext>(), nameof(CreatureCombatScript), health: 30);
+        var fighting = StubCreature();
+        var heal = Substitute.For<IAbility>();
+        heal.Metadata.Returns(new AbilityMetadata { Name = "H", ScriptName = "h", HealThreatPerHp = 0.5f });
+        svc.EnterCombat(returning, ally);
+        svc.EnterCombat(fighting, ally);
+
+        svc.ApplyHeal(healer, ally, 100, heal); // 100 * 0.5 * 1.0 = 50
+
+        var enc = (Encounter)reg.FindEncounterContaining(ally)!;
+        enc.GetThreatList(returning).TryGetValue(healer, out float onReturning);
+        Assert.Equal(0f, onReturning);
+        Assert.Equal(50.0f, enc.GetThreatList(fighting)[healer], 3);
+    }
+
+    /// <summary>
+    /// Puts a creature's combat script into Returning through the scripts' own public calls, with the
+    /// combat script either the creature's script or chained inside <paramref name="scriptName" />.
+    /// </summary>
+    private static Creature CreatureReturningHome(ISimulationContext ctx, string scriptName, uint health)
+    {
+        ctx.MeleeSlots.Returns(Substitute.For<IMeleeSlots>());
+        var creature = new Creature
+        {
+            Guid          = new Avalon.Common.ObjectGuid(Avalon.Common.ObjectType.Creature, 610),
+            Metadata      = Substitute.For<ICreatureMetadata>(),
+            Name          = "Wolf",
+            Health        = health,
+            CurrentHealth = health,
+        };
+        AiScript script = scriptName switch
+        {
+            nameof(CreatureCombatScript) => new CreatureCombatScript(NullLoggerFactory.Instance, creature, ctx),
+            nameof(AggroDefendScript)    => new AggroDefendScript(NullLoggerFactory.Instance, creature, ctx),
+            nameof(CreaturePatrolScript) => new CreaturePatrolScript(NullLoggerFactory.Instance, creature, ctx),
+            _ => throw new ArgumentOutOfRangeException(nameof(scriptName)),
+        };
+        creature.Script = script;
+
+        ICharacter puller = StubCharacter(CharacterClass.Hunter);
+        script.OnEnteredRange(puller);
+        script.OnCharacterLeft(puller);
+        return creature;
     }
 
     private static (Creature, CreatureCombatScript) CreatureWithCombatScript(ISimulationContext ctx, uint health)
