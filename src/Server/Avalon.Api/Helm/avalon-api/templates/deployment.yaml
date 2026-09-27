@@ -1,3 +1,4 @@
+{{- include "avalon-api.validateWorlds" . }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -44,16 +45,19 @@ spec:
                 secretKeyRef:
                   name: {{ include "avalon-api.secretName" . }}
                   key: database-auth-connection-string
-            - name: Database__Characters__ConnectionString
+            {{- range $id, $entry := .Values.worlds }}
+            # World {{ $id }} (Database:Worlds, #523).
+            - name: Database__Worlds__{{ $id }}__World__ConnectionString
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "avalon-api.secretName" . }}
-                  key: database-characters-connection-string
-            - name: Database__World__ConnectionString
+                  name: {{ include "avalon-api.secretName" $ }}
+                  key: {{ include "avalon-api.worldKey" (list $id $entry) }}
+            - name: Database__Worlds__{{ $id }}__Characters__ConnectionString
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "avalon-api.secretName" . }}
-                  key: database-world-connection-string
+                  name: {{ include "avalon-api.secretName" $ }}
+                  key: {{ include "avalon-api.charactersKey" (list $id $entry) }}
+            {{- end }}
             - name: Application__Cache__Password
               valueFrom:
                 secretKeyRef:

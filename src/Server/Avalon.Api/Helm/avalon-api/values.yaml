@@ -2,9 +2,8 @@
 # authentication.issuerSigningKey reach the pod through a Kubernetes Secret (secretKeyRef), never as
 # plain values in the pod spec. Either:
 #  - name a Secret you manage in existingSecret (preferred: the values never pass through Helm). It
-#    needs the keys database-auth-connection-string, database-characters-connection-string,
-#    database-world-connection-string and jwt-signing-key, plus cache-password and
-#    notification-private-key if used. Leave every secret value below empty: the chart refuses to
+#    needs the keys database-auth-connection-string and jwt-signing-key, one pair per world
+#    (worlds.<id>, below), plus cache-password and notification-private-key if used. Leave every secret value below empty: the chart refuses to
 #    render with existingSecret set and a value given, rather than ignore it. The chart cannot see
 #    a change to your Secret, so after rotating a key in it restart the pods yourself:
 #    kubectl rollout restart statefulset/<release>-avalon-api (the chart's fullname); or
@@ -17,11 +16,27 @@ existingSecret: ""
 database:
   auth:
     connectionString:
-  characters:
-    connectionString:
-  world:
-    connectionString:
-      
+
+# The worlds this API serves (Database:Worlds, #523), keyed by each world's id in the auth Worlds
+# table: a positive integer, as a string key. Each world has its own world (content) and characters
+# database. At least one is required; the chart refuses to render without one. Adding a world is a
+# values change only.
+#  - Without existingSecret, give both strings, from files so they stay out of shell history:
+#      --set-file worlds.2.world.connectionString=./world-2.cs
+#      --set-file worlds.2.characters.connectionString=./characters-2.cs
+#    The chart's Secret holds them under database-world-<id>-connection-string and
+#    database-characters-<id>-connection-string (a trailing newline is trimmed).
+#  - With existingSecret, give no strings here: name the keys of your Secret that hold them
+#    (worldKey, charactersKey), or leave them empty for the default names above.
+worlds: {}
+#  "1":
+#    world:
+#      connectionString:
+#    characters:
+#      connectionString:
+#    worldKey: ""
+#    charactersKey: ""
+
 # cache.host is required (host:port of Redis); the chart refuses to render without it.
 cache:
   host:
