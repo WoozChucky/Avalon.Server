@@ -13,13 +13,19 @@ public sealed class CreatureTemplateOpenApiShould(OpenApiDocumentFixture fixture
     [Fact]
     public void Describe_respawnTimerSecs_as_unused()
     {
-        JsonElement property = fixture.Document.RootElement
-            .GetProperty("components").GetProperty("schemas")
-            .GetProperty("Avalon.Api.Contract.CreatureTemplateDto")
+        JsonElement schemas = fixture.Document.RootElement.GetProperty("components").GetProperty("schemas");
+        JsonElement property = schemas.GetProperty("Avalon.Api.Contract.CreatureTemplateDto")
             .GetProperty("properties").GetProperty("respawnTimerSecs");
 
         Assert.True(property.TryGetProperty("description", out JsonElement description),
             "respawnTimerSecs has no description in the OpenAPI document");
         Assert.Contains("not used", description.GetString(), StringComparison.Ordinal);
+
+        // Still an int32, so the Dashboard's generated client keeps its type: every int in the document
+        // is a $ref to the shared System.Int32 schema, which also accepts a numeric string.
+        Assert.Equal("#/components/schemas/System.Int32", property.GetProperty("$ref").GetString());
+        JsonElement int32 = schemas.GetProperty("System.Int32");
+        Assert.Contains("integer", int32.GetProperty("type").EnumerateArray().Select(t => t.GetString()));
+        Assert.Equal("int32", int32.GetProperty("format").GetString());
     }
 }

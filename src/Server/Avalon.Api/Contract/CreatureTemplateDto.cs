@@ -39,7 +39,6 @@ public sealed class CreatureTemplateDto
 
     /// <summary>
     /// Stored but not used: creatures do not respawn (#598). Kept so generated clients keep compiling.
-    /// [Description] rather than only this comment, because XML comments do not reach the OpenAPI schema.
     /// </summary>
     [Description("Stored but not used: creatures do not respawn, so the server never reads this value.")]
     public int RespawnTimerSecs { get; set; }
