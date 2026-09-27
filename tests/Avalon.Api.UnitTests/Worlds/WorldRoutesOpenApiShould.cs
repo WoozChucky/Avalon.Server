@@ -56,6 +56,7 @@ public sealed class WorldRoutesOpenApiShould(OpenApiDocumentFixture fixture) : I
         { "/world/{worldId}/item-template/{id}", "get" },
         { "/world/{worldId}/creature-template", "get" },
         { "/world/{worldId}/creature-template/{id}", "get" },
+        { "/world/{worldId}/observability/character/{id}", "get" },
     };
 
     private JsonElement Paths => fixture.Document.RootElement.GetProperty("paths");
@@ -76,7 +77,8 @@ public sealed class WorldRoutesOpenApiShould(OpenApiDocumentFixture fixture) : I
     [Fact]
     public void Leave_no_world_content_route_outside_a_world()
     {
-        string[] unscoped = ["/character/", "/map-template", "/item-template", "/ability-template", "/creature-template"];
+        string[] unscoped = ["/character/", "/map-template", "/item-template", "/ability-template", "/creature-template",
+            "/observability/character"];
 
         Assert.DoesNotContain(Paths.EnumerateObject(), p => unscoped.Any(prefix => p.Name.StartsWith(prefix, StringComparison.Ordinal)));
     }
@@ -85,6 +87,8 @@ public sealed class WorldRoutesOpenApiShould(OpenApiDocumentFixture fixture) : I
     [InlineData("/character")]
     [InlineData("/world")]
     [InlineData("/world/{id}")]
+    [InlineData("/observability/online")]
+    [InlineData("/observability/instance/{instanceId}")]
     public void Keep_the_cross_world_routes_unscoped(string path)
     {
         JsonElement get = Paths.GetProperty(path).GetProperty("get");

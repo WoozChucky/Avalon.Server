@@ -199,7 +199,8 @@ public sealed class PresenceSnapshotService : BackgroundService
 
     /// <summary>
     /// Writes the character -> (world, instance) reverse index used by the Api to find a
-    /// player without scanning every world snapshot. Fired off in parallel rather than
+    /// player without scanning the world's snapshot. Each key names this server's world, since
+    /// character ids are unique only per world (#556). Fired off in parallel rather than
     /// awaited one at a time — at hundreds of concurrent players, serial round trips could
     /// eat a meaningful fraction of the 1-second capture budget and risk missing the
     /// <see cref="CacheKeys.PresenceTtl"/> window on a latency spike.
@@ -212,7 +213,7 @@ public sealed class PresenceSnapshotService : BackgroundService
             foreach (CharacterPresenceSnapshot c in instance.Characters)
             {
                 writes.Add(_cache.SetAsync(
-                    CacheKeys.CharacterPresenceIndex(c.CharacterId),
+                    CacheKeys.CharacterPresenceIndex(_worldId, c.CharacterId),
                     PresenceJson.Serialize(new CharacterPresenceIndex(_worldId, instance.InstanceId)),
                     CacheKeys.PresenceTtl));
             }

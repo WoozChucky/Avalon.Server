@@ -3,6 +3,8 @@ using Avalon.Api.Authentication;
 using Avalon.Api.Contract;
 using Avalon.Api.Controllers;
 using Avalon.Api.Services;
+using Avalon.Api.Worlds;
+using Avalon.Domain.Auth;
 using Avalon.Database;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -46,32 +48,6 @@ public class ObservabilityControllerShould
     }
 
     [Fact]
-    public async Task GetPlayerPresence_Returns404_WhenNotPresent()
-    {
-        _service
-            .GetPlayerPresenceAsync(42, Arg.Any<AccountAccessLevel>(), Arg.Any<CancellationToken>())
-            .Returns((PlayerPresenceDto?)null);
-
-        var sut = MakeSut(User(7, AvalonRoles.GameMaster));
-        var result = await sut.GetPlayerPresence(42, CancellationToken.None);
-
-        Assert.IsType<NotFoundResult>(result);
-    }
-
-    [Fact]
-    public async Task GetPlayerPresence_Returns200_WhenPresent()
-    {
-        _service
-            .GetPlayerPresenceAsync(42, Arg.Any<AccountAccessLevel>(), Arg.Any<CancellationToken>())
-            .Returns(new PlayerPresenceDto());
-
-        var sut = MakeSut(User(7, AvalonRoles.GameMaster));
-        var result = await sut.GetPlayerPresence(42, CancellationToken.None);
-
-        Assert.IsType<OkObjectResult>(result);
-    }
-
-    [Fact]
     public async Task GetInstancePresence_Returns404_WhenInstanceMissing()
     {
         var instanceId = Guid.NewGuid();
@@ -110,11 +86,52 @@ public class ObservabilityControllerShould
         var sut = MakeSut(user);
 
         await sut.GetOnline(new PresencePaginateFilters(), CancellationToken.None);
-        await sut.GetPlayerPresence(42, CancellationToken.None);
         await sut.GetInstancePresence(instanceId, CancellationToken.None);
 
         await _service.Received(1).GetOnlineAsync(Arg.Any<PresencePaginateFilters>(), expected, Arg.Any<CancellationToken>());
-        await _service.Received(1).GetPlayerPresenceAsync(42, expected, Arg.Any<CancellationToken>());
         await _service.Received(1).GetInstancePresenceAsync(instanceId, expected, Arg.Any<CancellationToken>());
+    }
+}
+
+/// <summary>Per-character presence names its world (#556): the world the route selected, never another.</summary>
+public class WorldObservabilityControllerShould
+{
+    private readonly IObservabilityService _service = Substitute.For<IObservabilityService>();
+    private readonly CurrentWorld _world = new();
+
+    private WorldObservabilityController MakeSut(AccountAccessLevel level)
+    {
+        var identity = new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, "7")], "test");
+        identity.AddClaim(new Claim(ClaimTypes.GroupSid, level.ToString()));
+        _world.Select(new WorldId(2), "Boreal");
+        return new WorldObservabilityController(_service, _world)
+        {
+            ControllerContext = new ControllerContext
+            {
+                HttpContext = new DefaultHttpContext { User = new ClaimsPrincipal(identity) }
+            }
+        };
+    }
+
+    [Fact]
+    public async Task Answer_404_when_the_character_is_not_online_in_the_world()
+    {
+        _service.GetPlayerPresenceAsync(Arg.Any<WorldId>(), 42, Arg.Any<AccountAccessLevel>(), Arg.Any<CancellationToken>())
+            .Returns((PlayerPresenceDto?)null);
+
+        Assert.IsType<NotFoundResult>(await MakeSut(AccountAccessLevel.GameMaster).GetPlayerPresence(42, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task Read_the_selected_worlds_presence_with_the_callers_access_level()
+    {
+        _service.GetPlayerPresenceAsync(Arg.Any<WorldId>(), 42, Arg.Any<AccountAccessLevel>(), Arg.Any<CancellationToken>())
+            .Returns(new PlayerPresenceDto());
+
+        IActionResult result = await MakeSut(AccountAccessLevel.GameMaster).GetPlayerPresence(42, CancellationToken.None);
+
+        Assert.IsType<OkObjectResult>(result);
+        await _service.Received(1).GetPlayerPresenceAsync(
+            Arg.Is<WorldId>(w => w.Value == 2), 42, AccountAccessLevel.GameMaster, Arg.Any<CancellationToken>());
     }
 }

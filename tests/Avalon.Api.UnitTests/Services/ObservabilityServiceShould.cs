@@ -139,7 +139,7 @@ public class ObservabilityServiceShould
 
     private void GivenCharacterIndex(uint characterId, ushort worldId = 1)
     {
-        _cache.GetAsync(CacheKeys.CharacterPresenceIndex(characterId))
+        _cache.GetAsync(CacheKeys.CharacterPresenceIndex(worldId, characterId))
               .Returns(PresenceJson.Serialize(new CharacterPresenceIndex(worldId, InstanceId)));
     }
 
@@ -311,7 +311,7 @@ public class ObservabilityServiceShould
     {
         _cache.GetAsync(Arg.Any<string>()).Returns((string?)null);
 
-        Assert.Null(await CreateSut().GetPlayerPresenceAsync(4417, Gm, CancellationToken.None));
+        Assert.Null(await CreateSut().GetPlayerPresenceAsync(new WorldId(1), 4417, Gm, CancellationToken.None));
     }
 
     [Fact]
@@ -320,7 +320,7 @@ public class ObservabilityServiceShould
         GivenCharacterIndex(4417);
         _cache.GetAsync(CacheKeys.WorldPresence(1)).Returns((string?)null);
 
-        Assert.Null(await CreateSut().GetPlayerPresenceAsync(4417, Gm, CancellationToken.None));
+        Assert.Null(await CreateSut().GetPlayerPresenceAsync(new WorldId(1), 4417, Gm, CancellationToken.None));
     }
 
     [Fact]
@@ -329,7 +329,7 @@ public class ObservabilityServiceShould
         GivenCharacterIndex(4417);
         GivenWorldSnapshot(Snapshot("a91f3c7e", Char(4417, "Nym"), Char(9002, "Kel")));
 
-        PlayerPresenceDto? presence = await CreateSut().GetPlayerPresenceAsync(4417, Gm, CancellationToken.None);
+        PlayerPresenceDto? presence = await CreateSut().GetPlayerPresenceAsync(new WorldId(1), 4417, Gm, CancellationToken.None);
 
         Assert.NotNull(presence);
         Assert.Equal("Nym", presence!.Target.Name);
@@ -353,7 +353,7 @@ public class ObservabilityServiceShould
         GivenCharacterIndex(4417);
         GivenWorldSnapshot(Snapshot(current, Char(4417, "Nym")));
 
-        PlayerPresenceDto? presence = await CreateSut().GetPlayerPresenceAsync(4417, Gm, CancellationToken.None);
+        PlayerPresenceDto? presence = await CreateSut().GetPlayerPresenceAsync(new WorldId(1), 4417, Gm, CancellationToken.None);
 
         Assert.False(presence!.LayoutStale);
     }
@@ -365,7 +365,7 @@ public class ObservabilityServiceShould
         GivenCharacterIndex(4417);
         GivenWorldSnapshot(Snapshot("ffffffff", Char(4417, "Nym")));
 
-        PlayerPresenceDto? presence = await CreateSut().GetPlayerPresenceAsync(4417, Gm, CancellationToken.None);
+        PlayerPresenceDto? presence = await CreateSut().GetPlayerPresenceAsync(new WorldId(1), 4417, Gm, CancellationToken.None);
 
         Assert.True(presence!.LayoutStale);
     }
@@ -379,7 +379,7 @@ public class ObservabilityServiceShould
         GivenCharacterIndex(4417);
         GivenWorldSnapshot(Snapshot("", Char(4417, "Nym")));
 
-        PlayerPresenceDto? presence = await CreateSut().GetPlayerPresenceAsync(4417, Gm, CancellationToken.None);
+        PlayerPresenceDto? presence = await CreateSut().GetPlayerPresenceAsync(new WorldId(1), 4417, Gm, CancellationToken.None);
 
         Assert.False(presence!.LayoutStale);
     }
@@ -499,8 +499,8 @@ public class ObservabilityServiceShould
         GivenWorldSnapshot(Snapshot(current, Char(4417, "Nym")));
 
         ObservabilityService sut = CreateSut();
-        await sut.GetPlayerPresenceAsync(4417, Gm, CancellationToken.None);
-        await sut.GetPlayerPresenceAsync(4417, Gm, CancellationToken.None);
+        await sut.GetPlayerPresenceAsync(new WorldId(1), 4417, Gm, CancellationToken.None);
+        await sut.GetPlayerPresenceAsync(new WorldId(1), 4417, Gm, CancellationToken.None);
 
         await _inputsResolver.Received(1).FindPoolAsync(Arg.Any<ChunkPoolId>(), Arg.Any<CancellationToken>());
         await _inputsResolver.Received(1).ResolveMembersAsync(Arg.Any<ChunkPool>(), Arg.Any<CancellationToken>());
@@ -523,6 +523,56 @@ public class ObservabilityServiceShould
             new AvalonWorld { Id = new WorldId(1), Name = "Aurora", AccessLevelRequired = AccountAccessLevel.Player },
             new AvalonWorld { Id = new WorldId(2), Name = "Boreal", AccessLevelRequired = secondRequires },
         ]);
+
+    private static readonly Guid WorldTwoInstanceId = Guid.Parse("8f3c1d2e-0000-0000-0000-000000000002");
+
+    /// <summary>World 1 and world 2 each have a character 7 online (#556: ids are unique only per world).</summary>
+    private void GivenCharacterSevenInBothWorlds()
+    {
+        GivenTwoWorlds(AccountAccessLevel.Player);
+        GivenWorldSnapshot(Snapshot("a", Char(7, "Nym")));
+        GivenWorldTwoSnapshot(Char(7, "Zed"));
+        GivenCharacterIndex(7, worldId: 1);
+        _cache.GetAsync(CacheKeys.CharacterPresenceIndex(2, 7))
+            .Returns(PresenceJson.Serialize(new CharacterPresenceIndex(2, WorldTwoInstanceId)));
+    }
+
+    [Fact]
+    public async Task Answer_with_the_named_worlds_character_when_another_world_has_the_same_id()
+    {
+        ObservabilityService sut = CreateSut();
+        GivenCharacterSevenInBothWorlds();
+
+        PlayerPresenceDto? two = await sut.GetPlayerPresenceAsync(new WorldId(2), 7, Gm, CancellationToken.None);
+        PlayerPresenceDto? one = await sut.GetPlayerPresenceAsync(new WorldId(1), 7, Gm, CancellationToken.None);
+
+        Assert.Equal(("Zed", (ushort)2, WorldTwoInstanceId), (two!.Target.Name, two.Instance.WorldId, two.Instance.InstanceId));
+        Assert.Equal(("Nym", (ushort)1, InstanceId), (one!.Target.Name, one.Instance.WorldId, one.Instance.InstanceId));
+    }
+
+    [Fact]
+    public async Task Answer_nothing_for_a_character_online_only_in_another_world()
+    {
+        ObservabilityService sut = CreateSut();
+        GivenTwoWorlds(AccountAccessLevel.Player);
+        GivenWorldSnapshot(Snapshot("a", Char(7, "Nym")));
+        GivenWorldTwoSnapshot(Char(9, "Zed"));
+        GivenCharacterIndex(7, worldId: 1);
+
+        Assert.Null(await sut.GetPlayerPresenceAsync(new WorldId(2), 7, Gm, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task List_both_worlds_characters_with_the_same_id_each_with_its_world()
+    {
+        ObservabilityService sut = CreateSut();
+        GivenCharacterSevenInBothWorlds();
+
+        PagedResult<OnlinePlayerDto> page = await sut.GetOnlineAsync(new PresencePaginateFilters(), Gm, CancellationToken.None);
+
+        Assert.Equal([("Nym", 7u, (ushort)1), ("Zed", 7u, (ushort)2)],
+            page.Items.Select(r => (r.Name, r.CharacterId, r.WorldId)));
+    }
 
     [Fact]
     public async Task Hide_presence_in_worlds_the_caller_may_not_enter()
@@ -572,7 +622,7 @@ public class ObservabilityServiceShould
                 Id = new WorldId(1), Name = "Aurora", AccessLevelRequired = AccountAccessLevel.Admin,
             }));
 
-        Assert.Null(await sut.GetPlayerPresenceAsync(4417, caller, CancellationToken.None));
+        Assert.Null(await sut.GetPlayerPresenceAsync(new WorldId(1), 4417, caller, CancellationToken.None));
     }
 
     [Theory]
@@ -617,7 +667,7 @@ public class ObservabilityServiceShould
                 Id = new WorldId(1), Name = "Aurora", AccessLevelRequired = AccountAccessLevel.Admin,
             }));
 
-        Assert.Null(await sut.GetPlayerPresenceAsync(4417, Gm, CancellationToken.None));
+        Assert.Null(await sut.GetPlayerPresenceAsync(new WorldId(1), 4417, Gm, CancellationToken.None));
     }
 
     [Fact]
@@ -629,7 +679,7 @@ public class ObservabilityServiceShould
         _worlds.FindByIdAsync(Arg.Any<WorldId>(), Arg.Any<bool>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<AvalonWorld?>(null));
 
-        Assert.Null(await sut.GetPlayerPresenceAsync(4417, Gm, CancellationToken.None));
+        Assert.Null(await sut.GetPlayerPresenceAsync(new WorldId(1), 4417, Gm, CancellationToken.None));
     }
 
     [Fact]
@@ -686,7 +736,7 @@ public class ObservabilityServiceShould
         ObservabilityService sut = CreateSut();
         _databases.MarkUnavailable(new WorldId(1));
 
-        PlayerPresenceDto? presence = await sut.GetPlayerPresenceAsync(4417, Gm, CancellationToken.None);
+        PlayerPresenceDto? presence = await sut.GetPlayerPresenceAsync(new WorldId(1), 4417, Gm, CancellationToken.None);
 
         Assert.NotNull(presence);
         Assert.Equal("#12", presence.Instance.TemplateName);
@@ -727,7 +777,7 @@ public class ObservabilityServiceShould
         _configs.FindByTemplateIdAsync(Arg.Any<MapTemplateId>(), Arg.Any<CancellationToken>())
             .ThrowsAsync(new InvalidOperationException("Failed to connect to Host=secret;Port=5433"));
 
-        PlayerPresenceDto? presence = await sut.GetPlayerPresenceAsync(4417, Gm, CancellationToken.None);
+        PlayerPresenceDto? presence = await sut.GetPlayerPresenceAsync(new WorldId(1), 4417, Gm, CancellationToken.None);
 
         Assert.NotNull(presence);
         Assert.False(presence.LayoutStale);
@@ -749,7 +799,7 @@ public class ObservabilityServiceShould
             .ThrowsAsync(new OperationCanceledException());
 
         await Assert.ThrowsAsync<OperationCanceledException>(() =>
-            sut.GetPlayerPresenceAsync(4417, Gm, cancelled.Token));
+            sut.GetPlayerPresenceAsync(new WorldId(1), 4417, Gm, cancelled.Token));
         Assert.Empty(_logger.Entries);
     }
 
@@ -805,8 +855,8 @@ public class ObservabilityServiceShould
         ObservabilityService sut = CreateSut();
         _perWorld.LayoutInputs(Arg.Is<WorldId>(w => w.Value == 2)).Returns(worldTwoInputs);
 
-        await sut.GetPlayerPresenceAsync(4417, Gm, CancellationToken.None);
-        await sut.GetPlayerPresenceAsync(5001, Gm, CancellationToken.None);
+        await sut.GetPlayerPresenceAsync(new WorldId(1), 4417, Gm, CancellationToken.None);
+        await sut.GetPlayerPresenceAsync(new WorldId(2), 5001, Gm, CancellationToken.None);
 
         // World 2 resolves its own pool 3; world 1's cached pool 3 is not served to it.
         await worldTwoInputs.Received(1).FindPoolAsync(Arg.Any<ChunkPoolId>(), Arg.Any<CancellationToken>());
