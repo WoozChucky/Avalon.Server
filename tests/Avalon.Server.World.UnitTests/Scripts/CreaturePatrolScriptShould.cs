@@ -312,6 +312,24 @@ public class CreaturePatrolScriptShould
     }
 
     /// <summary>
+    /// A hot reload builds a fresh script for every creature in the instance, corpses included, so a
+    /// script that only learned of death from a hit would walk the corpse until it is removed.
+    /// </summary>
+    [Fact]
+    public void Not_Walk_A_Corpse_It_Was_Built_For()
+    {
+        var fight = new PatrolFight(Point(0f), Point(10f));
+        fight.Creature.CurrentHealth = 0;
+        var script = new CreaturePatrolScript(NullLoggerFactory.Instance, fight.Creature, fight.Context);
+
+        script.Update(TimeSpan.FromSeconds(0.1));
+        script.Update(TimeSpan.FromSeconds(0.1));
+
+        fight.Locomotion.DidNotReceiveWithAnyArgs().MoveTo(default!, default);
+        fight.Creature.DidNotReceiveWithAnyArgs().MoveState = default;
+    }
+
+    /// <summary>
     /// A creature driven by a patrol script, with a combat service, a character attacker and a position
     /// the test moves by hand, the way the locomotion would.
     /// </summary>
@@ -377,6 +395,7 @@ public class CreaturePatrolScriptShould
         creature.Position.Returns(Vector3.zero);
         creature.Metadata.Returns(Substitute.For<ICreatureMetadata>());
         creature.PatrolPath.Returns(path);
+        creature.CurrentHealth = 100;   // alive: a patrol never walks a corpse
 
         var context = Substitute.For<ISimulationContext>();
         context.Locomotion.Returns(locomotion);

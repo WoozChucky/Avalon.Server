@@ -3,7 +3,6 @@ using Avalon.Network.Packets.State;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Instances;
 using Avalon.World.Public.Scripts;
-using Avalon.World.Public.Units;
 using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Scripts.Creatures;
@@ -42,7 +41,6 @@ public sealed class CreaturePatrolScript : AiScript
 
     private readonly AiScript _combat;
     private int _currentWaypointIndex;
-    private bool _dead;
     private bool _hasRequestedCurrentWaypoint;
     private bool _pausing;
     private TimeSpan _pauseRemaining;
@@ -60,24 +58,11 @@ public sealed class CreaturePatrolScript : AiScript
 
     private bool InCombat => _combat.State is not CreatureCombatScript.CombatState.None;
 
-    /// <summary>
-    /// Forwards the hit to the chained combat script, which applies the damage and starts the fight.
-    /// A hit that leaves no health ends the patrol for good (#600): the instance also drops the
-    /// script on the kill, but a corpse must not walk on in the meantime.
-    /// </summary>
-    public override void OnHit(IUnit attacker, uint damage)
-    {
-        base.OnHit(attacker, damage);
-
-        if (Creature.CurrentHealth == 0)
-        {
-            _dead = true;
-        }
-    }
-
     public override void Update(TimeSpan deltaTime)
     {
-        if (_dead)
+        // A corpse neither patrols nor fights (#600). Read from the creature, not remembered from
+        // the killing hit: a hot reload builds a fresh script for every creature, corpses included.
+        if (Creature.CurrentHealth == 0)
         {
             return;
         }
