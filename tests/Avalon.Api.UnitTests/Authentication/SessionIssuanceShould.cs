@@ -78,6 +78,28 @@ public sealed class SessionIssuanceShould : IAsyncLifetime
     }
 
     /// <summary>
+    /// #543: the body the endpoint answers a refresh that lost a race with. The exception
+    /// middleware answers the exception with the same one should it ever escape the endpoint
+    /// (<c>ExceptionHandlerMiddlewareMappingShould</c>).
+    /// </summary>
+    [Fact]
+    public async Task Answer_a_refresh_that_lost_a_race_with_the_client_error_problem_details()
+    {
+        _host.Refresh.RotateAsync(RefreshCookie, Arg.Any<RefreshCaller>(), Arg.Any<CancellationToken>())
+            .Returns<RefreshRotateResult>(_ => throw new RefreshAlreadyRotatedException());
+
+        using HttpResponseMessage response = await PostRefreshAsync();
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        Assert.Equal(Middlewares.RefreshRaceBody.ContentType, response.Content.Headers.ContentType?.ToString());
+        string body = await response.Content.ReadAsStringAsync();
+        using var json = System.Text.Json.JsonDocument.Parse(body);
+        string traceId = json.RootElement.GetProperty("traceId").GetString()!;
+        Assert.False(string.IsNullOrEmpty(traceId));
+        Assert.Equal(Middlewares.RefreshRaceBody.For(traceId), body);
+    }
+
+    /// <summary>
     /// #495 review: the second of two tabs refreshing at once, inside the grace window. It is told
     /// 401, but the refresh cookie the tabs share (now the winner's) is not cleared, and nothing
     /// ends the account's sessions.

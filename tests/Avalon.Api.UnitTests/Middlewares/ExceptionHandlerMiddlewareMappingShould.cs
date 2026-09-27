@@ -7,6 +7,7 @@ using Avalon.Domain.Auth;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using StackExchange.Redis;
 using Xunit;
@@ -93,6 +94,34 @@ public class ExceptionHandlerMiddlewareMappingShould
             Assert.Equal(loggedError, message);
             Assert.Same(exception, logged);
         }
+    }
+
+    /// <summary>
+    /// #543: a refresh that lost a race, should it ever reach the middleware, is answered with the
+    /// 401 the refresh endpoint gives it (<c>SessionIssuanceShould</c> pins that body), not a 500:
+    /// MVC's client-error ProblemDetails, and nothing logged.
+    /// </summary>
+    [Fact]
+    public async Task Map_a_refresh_that_lost_a_race_as_the_refresh_endpoint_answers_it()
+    {
+        var logs = new CapturingLoggerFactory();
+        var middleware = new ExceptionHandlerMiddleware(_ => throw new RefreshAlreadyRotatedException(), logs);
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddControllers();
+        await using ServiceProvider provider = services.BuildServiceProvider();
+        var context = new DefaultHttpContext { RequestServices = provider, TraceIdentifier = "trace-1" };
+        context.Request.Method = "POST";
+        context.Request.Path = "/account/refresh";
+        context.Response.Body = new MemoryStream();
+
+        await middleware.InvokeAsync(context);
+
+        Assert.Equal(401, context.Response.StatusCode);
+        Assert.Equal(RefreshRaceBody.ContentType, context.Response.ContentType);
+        context.Response.Body.Position = 0;
+        Assert.Equal(RefreshRaceBody.For("trace-1"), await new StreamReader(context.Response.Body).ReadToEndAsync());
+        Assert.Empty(logs.Entries);
     }
 
     private static Npgsql.PostgresException AccountsCheckViolation() => new(

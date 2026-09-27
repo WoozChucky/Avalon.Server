@@ -3,7 +3,10 @@ using System.Net;
 using System.Security.Authentication;
 using Avalon.Api.Exceptions;
 using Avalon.Database.Auth;
+using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Infrastructure;
+using Microsoft.Extensions.Options;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using Npgsql;
@@ -67,6 +70,9 @@ public class ExceptionHandlerMiddleware
 
         await (exception switch
         {
+            // A refresh that lost a race (#543). The refresh endpoint answers it itself; should it
+            // ever get this far it is still that endpoint's 401, not a 500.
+            RefreshAlreadyRotatedException => WriteRefreshAlreadyRotatedAsync(context),
             AuthenticationException => WriteProblemAsync(context, (int)HttpStatusCode.Unauthorized,
                 exception.GetType().Name, "Whoops!", exception.Message),
             // Only thrown once the caller has proved they hold the account (password or MFA code).
@@ -110,6 +116,23 @@ public class ExceptionHandlerMiddleware
             Detail = detail,
             Instance = $"{context.Request.Method} {context.Request.Path}"
         }, cancellationToken: context.RequestAborted);
+    }
+
+    /// <summary>
+    /// The body the refresh endpoint's own <c>Unauthorized()</c> gets from MVC: the client-error
+    /// ProblemDetails for 401 from the registered factory, written with MVC's JSON options and
+    /// content type, so the two cannot differ. Not logged, as the endpoint does not log it.
+    /// </summary>
+    private static Task WriteRefreshAlreadyRotatedAsync(HttpContext context)
+    {
+        const int status = (int)HttpStatusCode.Unauthorized;
+        ProblemDetails problem = context.RequestServices.GetRequiredService<ProblemDetailsFactory>()
+            .CreateProblemDetails(context, status);
+        JsonSerializerOptions json = context.RequestServices.GetRequiredService<IOptions<JsonOptions>>().Value
+            .JsonSerializerOptions;
+        context.Response.StatusCode = status;
+        return context.Response.WriteAsJsonAsync(problem, json, "application/problem+json; charset=utf-8",
+            context.RequestAborted);
     }
 
     private Task WriteAccountValueRefusedAsync(HttpContext context, Exception exception)
