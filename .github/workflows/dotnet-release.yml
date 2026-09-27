@@ -15,6 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write   # create the GitHub release
+      pull-requests: read   # the changelog entry reads the merged pull requests' player notes
       packages: write   # push images and charts to ghcr
 
     steps:
@@ -142,3 +143,22 @@ jobs:
         uses: softprops/action-gh-release@v3
         with:
           generate_release_notes: true
+
+      # The public changelog's entry for this release: the player notes of the pull requests merged since the
+      # previous entry (WoozChucky/avalon-release-notes), written to avalon-dist after the release is out.
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Changelog entry
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          DIST_S3_ENDPOINT: https://dist.avalon.nunolevezinho.xyz
+          DIST_S3_ACCESS_KEY: ${{ secrets.DIST_S3_ACCESS_KEY }}
+          DIST_S3_SECRET_KEY: ${{ secrets.DIST_S3_SECRET_KEY }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          python -m pip install -q "avalon-release-notes[s3] @ git+https://github.com/WoozChucky/avalon-release-notes@v0.2.0"
+          python -m avalon_release_notes publish --repo "$GITHUB_REPOSITORY" --product server --version "${TAG#v}" \
+            --commit "$GITHUB_SHA" --published-at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --release-url "https://github.com/$GITHUB_REPOSITORY/releases/tag/$TAG" --public
