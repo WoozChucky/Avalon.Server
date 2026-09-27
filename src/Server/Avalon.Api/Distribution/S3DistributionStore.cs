@@ -1,0 +1,133 @@
+using System.Net;
+using System.Text.Json;
+using Amazon.Runtime;
+using Amazon.S3;
+using Amazon.S3.Model;
+
+namespace Avalon.Api.Distribution;
+
+/// <summary>
+/// The distribution bucket over S3 (Garage). Two clients: one reads over the in-cluster endpoint;
+/// the other only presigns, for the public host, because an S3 signature covers the host the
+/// request carries. Presigning is local and makes no network call.
+/// </summary>
+public sealed class S3DistributionStore : IDistributionStore, IDisposable
+{
+    private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
+    private readonly AmazonS3Client _reader;
+    private readonly AmazonS3Client _presigner;
+    private readonly string _bucket;
+
+    public S3DistributionStore(DistributionConfiguration config)
+    {
+        var credentials = new BasicAWSCredentials(config.AccessKeyId, config.SecretAccessKey);
+        _reader = new AmazonS3Client(credentials, Settings(config.Endpoint, config.Region));
+        _presigner = new AmazonS3Client(credentials, Settings(config.PublicUrl, config.Region));
+        _bucket = config.Bucket;
+    }
+
+    private static AmazonS3Config Settings(string serviceUrl, string region) => new()
+    {
+        ServiceURL = serviceUrl,
+        ForcePathStyle = true,
+        AuthenticationRegion = region,
+    };
+
+    public async Task<ChannelPointer?> GetPointerAsync(Channel channel, CancellationToken ct)
+    {
+        string? json = await ReadAsync($"channels/{channel.Wire()}.json", ct);
+        return json is null ? null : JsonSerializer.Deserialize<ChannelPointer>(json, Json);
+    }
+
+    public async Task<StoredManifest?> GetManifestAsync(string manifestKey, CancellationToken ct)
+    {
+        string? json = await ReadAsync(manifestKey, ct);
+        if (json is null)
+            return null;
+        string? signature = await ReadAsync(manifestKey + ".sig", ct);
+        return new StoredManifest(ParseManifest(json), json, signature?.Trim() ?? "");
+    }
+
+    public async Task<IReadOnlyList<StoredObject>> ListManifestsAsync(Channel channel, CancellationToken ct)
+    {
+        var found = new List<StoredObject>();
+        var request = new ListObjectsV2Request { BucketName = _bucket, Prefix = $"manifests/{channel.Wire()}/" };
+        ListObjectsV2Response response;
+        do
+        {
+            response = await _reader.ListObjectsV2Async(request, ct);
+            foreach (S3Object obj in response.S3Objects ?? [])
+            {
+                if (obj.Key.EndsWith(".json", StringComparison.Ordinal))
+                    found.Add(new StoredObject(obj.Key, new DateTimeOffset(obj.LastModified ?? DateTime.UnixEpoch, TimeSpan.Zero)));
+            }
+
+            request.ContinuationToken = response.NextContinuationToken;
+        } while (response.IsTruncated == true);
+
+        return found;
+    }
+
+    public async Task<LauncherRelease?> GetLauncherAsync(CancellationToken ct)
+    {
+        string? json = await ReadAsync("launcher/latest.json", ct);
+        return json is null ? null : ParseLauncher(json);
+    }
+
+    public Uri Presign(string objectKey, TimeSpan ttl) =>
+        new(_presigner.GetPreSignedURL(new GetPreSignedUrlRequest
+        {
+            BucketName = _bucket,
+            Key = objectKey,
+            Verb = HttpVerb.GET,
+            Protocol = Protocol.HTTPS,
+            Expires = DateTime.UtcNow.Add(ttl),
+        }));
+
+    /// <exception cref="DistributionUnavailableException">The schema is not one this API understands.</exception>
+    public static ManifestDocument ParseManifest(string json)
+    {
+        ManifestDocument? doc = JsonSerializer.Deserialize<ManifestDocument>(json, Json);
+        if (doc is null || doc.Schema != 1)
+            throw new DistributionUnavailableException("A published manifest has a schema this server does not understand.");
+        return doc;
+    }
+
+    /// <summary><c>launcher/latest.json</c>: Tauri's static updater format plus an <c>installer</c> block.</summary>
+    public static LauncherRelease ParseLauncher(string json)
+    {
+        using JsonDocument doc = JsonDocument.Parse(json);
+        JsonElement root = doc.RootElement;
+        JsonElement windows = root.GetProperty("platforms").GetProperty("windows-x86_64");
+        JsonElement installer = root.GetProperty("installer");
+        return new LauncherRelease(
+            root.GetProperty("version").GetString()!,
+            root.TryGetProperty("notes", out JsonElement notes) ? notes.GetString() ?? "" : "",
+            root.GetProperty("pub_date").GetDateTimeOffset(),
+            windows.GetProperty("signature").GetString()!,
+            windows.GetProperty("url").GetString()!,
+            installer.GetProperty("key").GetString()!,
+            installer.GetProperty("size").GetInt64(),
+            installer.GetProperty("sha256").GetString()!);
+    }
+
+    private async Task<string?> ReadAsync(string key, CancellationToken ct)
+    {
+        try
+        {
+            using GetObjectResponse response = await _reader.GetObjectAsync(_bucket, key, ct);
+            using var reader = new StreamReader(response.ResponseStream);
+            return await reader.ReadToEndAsync(ct);
+        }
+        catch (AmazonS3Exception e) when (e.StatusCode == HttpStatusCode.NotFound)
+        {
+            return null;
+        }
+    }
+
+    public void Dispose()
+    {
+        _reader.Dispose();
+        _presigner.Dispose();
+    }
+}
