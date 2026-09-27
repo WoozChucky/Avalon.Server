@@ -336,7 +336,7 @@ public class ObservabilityService : IObservabilityService
                 instance.ConfigVersion,
                 StringComparison.Ordinal);
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
         {
             // The type only: this now reads a named world's database, and a driver's message can carry
             // hosts and ports.

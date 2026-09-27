@@ -738,6 +738,41 @@ public class ObservabilityServiceShould
     }
 
     [Fact]
+    public async Task Let_a_cancelled_layout_check_cancel_the_read_and_log_nothing()
+    {
+        using var cancelled = new CancellationTokenSource();
+        await cancelled.CancelAsync();
+        GivenCharacterIndex(4417);
+        GivenWorldSnapshot(Snapshot("drifted", Char(4417, "Nym")));
+        ObservabilityService sut = CreateSut();
+        _configs.FindByTemplateIdAsync(Arg.Any<MapTemplateId>(), Arg.Any<CancellationToken>())
+            .ThrowsAsync(new OperationCanceledException());
+
+        await Assert.ThrowsAsync<OperationCanceledException>(() =>
+            sut.GetPlayerPresenceAsync(4417, Gm, cancelled.Token));
+        Assert.Empty(_logger.Entries);
+    }
+
+    [Fact]
+    public async Task Name_a_template_by_its_id_in_a_world_this_api_is_not_configured_for()
+    {
+        ObservabilityService sut = CreateSut();
+        _worlds.FindAllAsync(Arg.Any<bool>(), Arg.Any<CancellationToken>()).Returns(
+        [
+            new AvalonWorld { Id = new WorldId(3), Name = "Cinder", AccessLevelRequired = AccountAccessLevel.Player },
+        ]);
+        _cache.GetAsync(CacheKeys.WorldPresence(3)).Returns(PresenceJson.Serialize(new WorldPresenceSnapshot(
+            WorldId: 3, CapturedAt: DateTime.UtcNow,
+            Instances: [new InstancePresenceSnapshot(InstanceId, TemplateId: 12, Seed: 3, MapType: "Normal",
+                ConfigVersion: "", OwnerCharacterId: null, Characters: [Char(7, "Ash")])])));
+
+        PagedResult<OnlinePlayerDto> page = await sut.GetOnlineAsync(new PresencePaginateFilters(), Gm, CancellationToken.None);
+
+        Assert.Equal("#12", Assert.Single(page.Items).TemplateName);
+        _perWorld.DidNotReceive().MapTemplates(Arg.Is<WorldId>(w => w.Value == 3));
+    }
+
+    [Fact]
     public async Task Let_a_cancelled_template_lookup_cancel_the_list()
     {
         using var cancelled = new CancellationTokenSource();
