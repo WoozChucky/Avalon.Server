@@ -8,6 +8,7 @@ using System.Runtime.Versioning;
 using Avalon.Common.Telemetry;
 using Avalon.Common.ValueObjects;
 using Avalon.Configuration;
+using Avalon.Domain.World;
 using Avalon.Hosting.Networking;
 using Avalon.Hosting.Telemetry;
 using Avalon.Infrastructure;
@@ -480,6 +481,13 @@ public class WorldServer : ServerBase<WorldConnection>, IWorldServer
         // which has to be the last thing enqueued ahead of the flush.
         for (int i = 0; i < conns.Length; i++)
             InventoryUpdateFlusher.Flush(conns[i]);
+
+        // The character sheet (#506), to its owner only, when a value it shows changed this tick: a gear
+        // change, a level-up, or a combat reload applied at the top of the world update that moved a cap.
+        // The formula is read once, so every connection is measured against the same caps.
+        CombatFormula formula = _world.Data.Combat.Formula;
+        for (int i = 0; i < conns.Length; i++)
+            CharacterSheetFlusher.Flush(conns[i], formula);
 
         // Time-sync ping: stagger across the 600-tick window using each connection's
         // list index, so 600 connections still produce only ~1 ping/tick worst case.

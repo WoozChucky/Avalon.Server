@@ -109,8 +109,13 @@ public static class HitResolver
     }
 
     /// <summary>A chance in [0, 1): the points clamped to the cap, a bad value counting as 0.</summary>
-    private static double Chance(float pct, float cap) =>
-        Math.Min(NonNegative(pct), NonNegative(cap)) / 100d;
+    private static double Chance(float pct, float cap) => EffectivePct(pct, cap) / 100d;
+
+    /// <summary>
+    /// The chance a roll is made against, in percentage points: <paramref name="pct" /> clamped to
+    /// <paramref name="cap" />, a bad value counting as 0. The character sheet shows this (#506).
+    /// </summary>
+    public static float EffectivePct(float pct, float cap) => (float)Math.Min(NonNegative(pct), NonNegative(cap));
 
     private static double NonNegative(double value) => double.IsFinite(value) && value > 0 ? value : 0d;
 

@@ -5,7 +5,9 @@ using Avalon.Configuration;
 using Avalon.Hosting.Networking;
 using Avalon.Infrastructure;
 using Avalon.Network.Packets.Abstractions;
+using Avalon.Database.World.Seeding;
 using Avalon.World;
+using Avalon.World.Characters;
 using Avalon.World.Configuration;
 using Avalon.World.Public;
 using Avalon.World.Public.Characters;
@@ -89,10 +91,33 @@ public class WorldServerBarrierTickShould : IDisposable
         Assert.False(character.ClientChanges.HasChanges);
     }
 
+    /// <summary>The character sheet (#506) reaches a client only because the tick flushes it, once.</summary>
+    [Fact]
+    public void Send_a_characters_sheet_on_the_tick_it_is_in_the_world()
+    {
+        (TestWorldServer server, _, Avalon.World.WorldConnection connection) = Build();
+        connection.CryptoSession.Initialize(new CryptoManager().GetPublicKey());
+
+        CharacterEntity character = New();
+        character.ApplyStats(new DerivedCharacterStats(MaxHealth: 240, MaxPower: 100, Stamina: 22, Strength: 23,
+            Agility: 20, Intellect: 20, Armor: 0, BlockPct: 0f, DodgePct: 0f, CritPct: 80f, AttackDamage: 46,
+            AbilityDamage: 0), CurrentValues.EnterWorld);
+        connection.Character = character;
+
+        server.Tick();
+
+        Assert.Equal(CombatSeed.Formula().CritCap, character.SheetSent?.CritPct);
+    }
+
+    /// <summary>Reference data with the seeded combat formula, which the tick's sheet flush reads (#506).</summary>
+    private static readonly Lazy<StaticData> SeededData = new(() => TestStaticData.LoadAsync().GetAwaiter().GetResult());
+
     private (TestWorldServer server, IWorld world, Avalon.World.WorldConnection connection) Build()
     {
+        StaticData data = SeededData.Value;   // loaded outside Returns, which it would otherwise interrupt
         IWorld world = Substitute.For<IWorld>();
         world.Configuration.Returns(new GameConfiguration { CharacterLoadTimeoutSeconds = 15 });
+        world.Data.Returns(data);
 
         var server = new TestWorldServer(world);
         var connection = new Avalon.World.WorldConnection(
