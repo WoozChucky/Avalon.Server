@@ -53,6 +53,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     private readonly ICreatureLocomotion _locomotion;
     private readonly float _creatureAgentRadius;
     private readonly bool _crowdIncludesPlayers;
+    private readonly float _effectBroadcastRadius;
     private readonly MeleeSlots _meleeSlots;
     private readonly IAbilityCastSystem _abilityCastSystem;
     private readonly EncounterRegistry _encounterRegistry;
@@ -114,6 +115,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         _navigator = navigator;
         _creatureAgentRadius = world.Configuration.CreatureAgentRadius;
         _crowdIncludesPlayers = world.Configuration.CrowdIncludesPlayers;
+        _effectBroadcastRadius = world.Configuration.EffectBroadcastRadius;
         _locomotion = CreateLocomotion(world.Configuration);
         _meleeSlots = new MeleeSlots(world.Configuration.MeleeSlotCount, world.Configuration.MeleeSlotRadius);
         WarnIfMeleeSlotRadiusUnreachable(world.Configuration.MeleeSlotRadius);
@@ -392,6 +394,11 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     {
         foreach ((ObjectGuid guid, IWorldConnection connection) in _connections)
         {
+            if (!Hears(guid, connection, attacker.Guid, target.Guid, attacker.Position, target.Position))
+            {
+                continue;
+            }
+
             connection.Send(SUnitDamagePacket.Create(attacker.Guid, target.Guid.RawValue,
                 currentHealth, damage, connection.CryptoSession.Encrypt));
         }
@@ -399,8 +406,13 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
 
     public void BroadcastUnitStartCast(IUnit caster, IAbility ability)
     {
-        foreach ((ObjectGuid _, IWorldConnection connection) in _connections)
+        foreach ((ObjectGuid guid, IWorldConnection connection) in _connections)
         {
+            if (!Hears(guid, connection, caster.Guid, null, caster.Position, null))
+            {
+                continue;
+            }
+
             connection.Send(SUnitStartCastPacket.Create(caster.Guid, ability.Metadata.CastTime,
                 ability.AbilityId.Value, connection.CryptoSession.Encrypt));
         }
@@ -408,8 +420,13 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
 
     public void BroadcastAbilityFired(IUnit caster, IAbility ability, Vector3 origin, Vector3? direction, Vector3? centre)
     {
-        foreach ((ObjectGuid _, IWorldConnection connection) in _connections)
+        foreach ((ObjectGuid guid, IWorldConnection connection) in _connections)
         {
+            if (!Hears(guid, connection, caster.Guid, null, origin, centre))
+            {
+                continue;
+            }
+
             connection.Send(SAbilityFiredPacket.Create(caster.Guid.RawValue, ability.AbilityId.Value, origin,
                 direction, centre, connection.CryptoSession.Encrypt));
         }
@@ -419,6 +436,11 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     {
         foreach ((ObjectGuid guid, IWorldConnection connection) in _connections)
         {
+            if (!Hears(guid, connection, unit.Guid, killer?.Guid, unit.Position, null))
+            {
+                continue;
+            }
+
             connection.Send(SUnitDeathPacket.Create(unit.Guid, killer?.Guid,
                 connection.CryptoSession.Encrypt));
         }
@@ -428,10 +450,28 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     {
         foreach ((ObjectGuid guid, IWorldConnection connection) in _connections)
         {
+            if (!Hears(guid, connection, unit.Guid, null, position, null))
+            {
+                continue;
+            }
+
             connection.Send(SUnitRevivePacket.Create(unit.Guid, position, health,
                 connection.CryptoSession.Encrypt));
         }
     }
+
+    /// <summary>
+    /// Whether the connection of character <paramref name="guid" /> receives a one-shot effect broadcast
+    /// (#532): involved in it, or within Game:EffectBroadcastRadius of one of its points. A connection
+    /// with no character is near nothing.
+    /// </summary>
+    private bool Hears(ObjectGuid guid, IWorldConnection connection, ObjectGuid involved, ObjectGuid? alsoInvolved,
+        Vector3 point, Vector3? alsoPoint) =>
+        EffectAudience.Receives(guid, connection.Character?.Position ?? Unplaced, _effectBroadcastRadius,
+            involved, alsoInvolved, point, alsoPoint);
+
+    /// <summary>The position of a connection with no character: not finite, so never near an effect.</summary>
+    private static readonly Vector3 Unplaced = new(float.NaN, float.NaN, float.NaN);
 
     public GroundLootStore Drops => _groundLoot;
 
@@ -858,6 +898,11 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         ushort animationId = ResolveBroadcastAnimationId(spell);
         foreach ((ObjectGuid guid, IWorldConnection connection) in _connections)
         {
+            if (!Hears(guid, connection, attacker.Guid, null, attacker.Position, null))
+            {
+                continue;
+            }
+
             connection.Send(SUnitAttackAnimationPacket.Create(attacker.Guid, animationId,
                 connection.CryptoSession.Encrypt));
         }
@@ -882,6 +927,11 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
 
         foreach ((ObjectGuid guid, IWorldConnection connection) in _connections)
         {
+            if (!Hears(guid, connection, attacker.Guid, null, attacker.Position, null))
+            {
+                continue;
+            }
+
             connection.Send(SUnitFinishCastPacket.Create(attacker.Guid, spell.AbilityId,
                 connection.CryptoSession.Encrypt));
         }
@@ -896,6 +946,11 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
 
         foreach ((ObjectGuid guid, IWorldConnection connection) in _connections)
         {
+            if (!Hears(guid, connection, attacker.Guid, null, attacker.Position, null))
+            {
+                continue;
+            }
+
             connection.Send(SCharacterInterruptedCastPacket.Create(attacker.Guid, spell.AbilityId,
                 connection.CryptoSession.Encrypt));
         }
