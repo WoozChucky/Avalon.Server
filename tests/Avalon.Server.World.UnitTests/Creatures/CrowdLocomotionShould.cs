@@ -60,14 +60,11 @@ public class CrowdLocomotionShould
     }
 
     /// <summary>
-    /// The crowd is an implementation detail with no accessor, but "did an agent actually reach
-    /// DtCrowd" is the only honest way to test registration — a count of the class's own dictionary
+    /// The crowd is an implementation detail with only a read-only accessor, but "did an agent
+    /// actually reach DtCrowd" is the only honest way to test registration — a count of the class's own dictionary
     /// would pass even if AddAgent were never called.
     /// </summary>
-    private static DtCrowd CrowdOf(CrowdLocomotion locomotion) =>
-        (DtCrowd)typeof(CrowdLocomotion)
-            .GetField("_crowd", BindingFlags.Instance | BindingFlags.NonPublic)!
-            .GetValue(locomotion)!;
+    private static DtCrowd CrowdOf(CrowdLocomotion locomotion) => locomotion.Crowd;
 
     /// <summary>
     /// The dictionary <see cref="CrowdLocomotion.Update" />'s position/velocity copy-back actually

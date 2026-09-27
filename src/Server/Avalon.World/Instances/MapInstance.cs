@@ -106,7 +106,8 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         ChunkLayout layout,
         IMapNavigator navigator,
         int seed,
-        MapType mapType = MapType.Normal)
+        MapType mapType = MapType.Normal,
+        Func<ICreatureLocomotion, ICreatureLocomotion>? locomotion = null)
     {
         _logger = loggerFactory.CreateLogger<MapInstance>();
         _world = world;
@@ -122,7 +123,11 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         _creatureAgentRadius = world.Configuration.CreatureAgentRadius;
         _crowdIncludesPlayers = world.Configuration.CrowdIncludesPlayers;
         _interest = new InterestRange(world.Configuration.InterestRadius, world.Configuration.InterestRemoveMargin);
-        _locomotion = CreateLocomotion(world.Configuration);
+        // The optional locomotion hook (#638) is for a harness or test that must measure or replace the
+        // locomotion this instance would build; it is handed that one and returns the one to use.
+        // Production passes none. Deliberately not on IMapInstance, the modding API.
+        ICreatureLocomotion configured = CreateLocomotion(world.Configuration);
+        _locomotion = locomotion is null ? configured : locomotion(configured);
         _meleeSlots = new MeleeSlots(world.Configuration.MeleeSlotCount, world.Configuration.MeleeSlotRadius);
         WarnIfMeleeSlotRadiusUnreachable(world.Configuration.MeleeSlotRadius);
 
@@ -718,10 +723,11 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
 
         // Players are told to the crowd, never asked: PlayerInputHandler already decided where they
         // are earlier in this tick. Off unless configured, because it makes body-blocking real. The
-        // `is CrowdLocomotion` check (rather than dispatching through the interface for every
-        // character) means this costs nothing beyond the flag check and one type test when the flag
-        // is off or the instance is running WaypointLocomotion — no allocation, no iteration.
-        if (_crowdIncludesPlayers && _locomotion is CrowdLocomotion crowd)
+        // `is IPlayerAwareLocomotion` check (rather than dispatching for every character whatever the
+        // locomotion) means this costs nothing beyond the flag check and one type test when the flag
+        // is off or the instance is running WaypointLocomotion — no allocation, no iteration. The
+        // interface, not CrowdLocomotion itself, so a decorator around the crowd gets this very sync.
+        if (_crowdIncludesPlayers && _locomotion is IPlayerAwareLocomotion crowd)
         {
             foreach ((ObjectGuid guid, ICharacter character) in _characters)
                 crowd.SyncPlayer(guid, character.Position);
