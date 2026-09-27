@@ -24,6 +24,9 @@ public sealed class WaypointLocomotion : ICreatureLocomotion
     {
         public required ICreature Creature { get; init; }
         public Queue<Vector3> Path { get; } = new();
+
+        /// <summary>The last point of the route the last MoveTo found, kept once walked (#606).</summary>
+        public Vector3? RouteEnd { get; set; }
     }
 
     /// <summary>
@@ -48,8 +51,12 @@ public sealed class WaypointLocomotion : ICreatureLocomotion
             return;
 
         agent.Path.Clear();
+        agent.RouteEnd = null;
         foreach (Vector3 waypoint in _navigatorFor(creature.Position).FindPath(creature.Position, destination))
+        {
             agent.Path.Enqueue(waypoint);
+            agent.RouteEnd = waypoint;
+        }
 
         if (agent.Path.Count == 0)
             ComeToRest(creature);
@@ -61,13 +68,17 @@ public sealed class WaypointLocomotion : ICreatureLocomotion
             return;
 
         agent.Path.Clear();
+        agent.RouteEnd = null;
         ComeToRest(creature);
     }
 
     public void Teleport(ICreature creature, Vector3 position)
     {
         if (_agents.TryGetValue(creature.Guid, out Agent? agent))
+        {
             agent.Path.Clear();
+            agent.RouteEnd = null;
+        }
 
         creature.Position = position;
         ComeToRest(creature);
@@ -78,6 +89,9 @@ public sealed class WaypointLocomotion : ICreatureLocomotion
 
     /// <summary>Same constant Advance uses to decide a waypoint has been reached, read from one place.</summary>
     public float ArrivalTolerance(ICreature creature) => WaypointReachedDistance;
+
+    public Vector3? ResolvedDestination(ICreature creature) =>
+        _agents.TryGetValue(creature.Guid, out Agent? agent) ? agent.RouteEnd : null;
 
     public void Update(TimeSpan deltaTime)
     {
