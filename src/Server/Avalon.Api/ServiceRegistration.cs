@@ -77,6 +77,7 @@ public static class ServiceRegistration
         services.AddScoped<IObservabilityService, ObservabilityService>();
         services.AddScoped<IPersonalAccessTokenService, PersonalAccessTokenService>();
         services.AddScoped<IRefreshTokenService, RefreshTokenService>();
+        services.AddSingleton<ILauncherAuthCodes, LauncherAuthCodes>();
         services.AddSingleton(TimeProvider.System);
         services.AddMfaService();
         // The login policy the Auth server shares (#478), with the limits under

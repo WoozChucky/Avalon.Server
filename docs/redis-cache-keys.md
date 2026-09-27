@@ -174,6 +174,23 @@ The message embeds both the account identity and the key so a receiving shard co
 Currently published but not consumed; designed for future multi-instance world coordination where a load balancer or
 shard registry needs to know which shard should expect the arriving client.
 
+### `auth:launcherCode:{codeHash}`
+
+| Field | Value |
+|---|---|
+| **`CacheKeys` member** | `CacheKeys.LauncherAuthCode(string codeHash)` |
+| **Type** | String (one-time token) |
+| **Owner (writer)** | API: `LauncherAuthCodes.IssueAsync` (`POST client/auth/code`) |
+| **Consumer (deleter)** | API: `LauncherAuthCodes.RedeemAsync` (`POST client/auth/token`) |
+| **Value** | `accountId|credentialsVersion|challenge|redirectPort` |
+| **TTL** | 60 seconds |
+
+**Purpose:** Launcher sign-in (#591, RFC 8252 with PKCE).
+- The signed-in website asks for a code bound to the launcher's PKCE challenge and loopback port, and hands it to the launcher.
+- The key is the SHA-256 (hex) of the code, so reading the cache yields no usable code.
+- Redeeming is `GET` then `DEL`, and only the call whose `DEL` removed the key goes on. Two racing exchanges get one grant, and a wrong verifier spends the code too.
+- The exchange is refused if the account's credentials version has moved since the code was issued.
+
 ---
 
 ## Key Inventory Summary
@@ -183,6 +200,7 @@ shard registry needs to know which shard should expect the arriving client.
 | `world:{id}:keys:{base64}` | String | 5 min | Auth / `CWorldSelectHandler` | World / `ExchangeWorldKeyHandler` |
 | `account:{id}:inWorld` | String | 5 min | Auth / `CWorldSelectHandler` | World / `ExchangeWorldKeyHandler` |
 | `auth:account:{id}:mfa` | Hash | 2 min | Auth / `MFAHashService` | Auth / `MFAHashService` |
+| `auth:launcherCode:{hash}` | String | 60 s | API / `LauncherAuthCodes` | API / `LauncherAuthCodes` |
 | `world:accounts:disconnect` | Pub/Sub channel | — | Auth / `CAuthHandler` | World / `WorldServer` |
 | `auth:accounts:online` | Pub/Sub channel | — | Auth / `CAuthHandler` | *(reserved)* |
 | `world:{id}:select` | Pub/Sub channel | — | Auth / `CWorldSelectHandler` | *(reserved)* |
