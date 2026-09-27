@@ -12,7 +12,7 @@ namespace Avalon.Server.Auth.Handlers;
 
 public class CWorldSelectHandler : IAuthPacketHandler<CWorldSelectPacket>
 {
-    private readonly ILogger<CHandshakeHandler> _logger;
+    private readonly ILogger<CWorldSelectHandler> _logger;
     private readonly IReplicatedCache _cache;
     private readonly IAccountRepository _accountRepository;
     private readonly IWorldRepository _worldRepository;
@@ -23,7 +23,7 @@ public class CWorldSelectHandler : IAuthPacketHandler<CWorldSelectPacket>
     public CWorldSelectHandler(ILoggerFactory loggerFactory, IReplicatedCache cache, IAccountRepository accountRepository,
         IWorldRepository worldRepository, ISecureRandom secureRandom, IOptions<AuthConfiguration> options, TimeProvider time)
     {
-        _logger = loggerFactory.CreateLogger<CHandshakeHandler>();
+        _logger = loggerFactory.CreateLogger<CWorldSelectHandler>();
         _cache = cache;
         _accountRepository = accountRepository;
         _worldRepository = worldRepository;
