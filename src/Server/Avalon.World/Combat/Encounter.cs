@@ -14,6 +14,9 @@ public sealed class Encounter : IEncounter
     private readonly HashSet<IUnit> _players  = new();
     private readonly Dictionary<IUnit, Dictionary<IUnit, float>> _threat = new();
 
+    // Reused every tick by Update: the attackers whose threat decayed to nothing. The tick allocates nothing.
+    private readonly List<IUnit> _decayed = new();
+
     /// <param name="time">The instance's clock, the one the rest of the world times by (#614).</param>
     public Encounter(CombatConfig config, TimeProvider? time = null)
     {
@@ -114,18 +117,19 @@ public sealed class Encounter : IEncounter
         float dt = (float)deltaTime.TotalSeconds;
         foreach (var (hostile, threatList) in _threat)
         {
-            var toRemove = new List<IUnit>();
+            _decayed.Clear();
             foreach (var (attacker, threat) in threatList)
             {
                 float rate = _config.DefaultDecayRatePerSecond;
                 if (Vector3.Distance(attacker.Position, hostile.Position) > _config.EngagementRadius)
                     rate *= _config.OutOfRangeDecayMultiplier;
                 float next = threat - rate * dt;
-                if (next <= 0) toRemove.Add(attacker);
+                if (next <= 0) _decayed.Add(attacker);
                 else           threatList[attacker] = next;
             }
-            foreach (var u in toRemove) threatList.Remove(u);
+            foreach (var u in _decayed) threatList.Remove(u);
         }
+        _decayed.Clear();
 
         bool noHostiles = _hostiles.Count == 0;
         bool pastGrace  = (Now - LastDamageTime).TotalSeconds >= _config.EncounterEndGraceSeconds;
