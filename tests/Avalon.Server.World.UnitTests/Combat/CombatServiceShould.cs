@@ -696,13 +696,14 @@ public class CombatServiceShould
 
         svc.ApplyDamage(attacker, target, 30, ability);
 
-        outcomes.Received(1).CharacterDamaged(target, attacker, 30, new Avalon.Common.ValueObjects.AbilityId(7));
+        outcomes.Received(1).CharacterDamaged(target, attacker, 30, new Avalon.Common.ValueObjects.AbilityId(7),
+            Avalon.Network.Packets.Combat.HitResult.None);
 
         target.IsDead = true;
         outcomes.ClearReceivedCalls();
         svc.ApplyDamage(attacker, target, 30);
 
-        outcomes.DidNotReceiveWithAnyArgs().CharacterDamaged(default!, default!, default, default);
+        outcomes.DidNotReceiveWithAnyArgs().CharacterDamaged(default!, default!, default, default, default);
     }
 
     // ── #588: a hit larger than a creature's remaining health kills it; health never wraps ──

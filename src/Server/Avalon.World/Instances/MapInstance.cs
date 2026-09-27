@@ -418,7 +418,14 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     public bool RunInstantAbility(IUnit caster, AbilityAim aim, IAbility ability) =>
         _abilityCastSystem.RunInstant(caster, aim, ability);
 
-     public void BroadcastUnitHit(IUnit attacker, IUnit target, uint currentHealth, uint damage)
+    /// <summary>
+    /// Sends a hit to everyone who hears it (#532). A creature script's broadcast, made during the hit's
+    /// OnHit, is marked with how the hit went (#506); any other is None.
+    /// </summary>
+    public void BroadcastUnitHit(IUnit attacker, IUnit target, uint currentHealth, uint damage) =>
+        BroadcastUnitHit(attacker, target, currentHealth, damage, _hitInFlight);
+
+    private void BroadcastUnitHit(IUnit attacker, IUnit target, uint currentHealth, uint damage, HitResult result)
     {
         foreach ((ObjectGuid guid, IWorldConnection connection) in _connections)
         {
@@ -428,9 +435,15 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
             }
 
             connection.Send(SUnitDamagePacket.Create(attacker.Guid, target.Guid.RawValue,
-                currentHealth, damage, connection.CryptoSession.Encrypt));
+                currentHealth, damage, connection.CryptoSession.Encrypt, result));
         }
     }
+
+    // How the hit whose creature script is running now went (#506); see ICombatOutcomes.HitInFlight.
+    // Tick thread only, like every hit.
+    private HitResult _hitInFlight;
+
+    HitResult ICombatOutcomes.HitInFlight { set => _hitInFlight = value; }
 
     public void BroadcastUnitStartCast(IUnit caster, IAbility ability)
     {
@@ -1011,17 +1024,37 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
     /// The wounded character is told its own damage first, then everyone here is sent the hit. Only for
     /// a character in this instance, so nobody sees damage numbers from a fight elsewhere.
     /// </summary>
-    void ICombatOutcomes.CharacterDamaged(CharacterEntity character, IUnit attacker, uint damage, AbilityId? abilityId)
+    void ICombatOutcomes.CharacterDamaged(CharacterEntity character, IUnit attacker, uint damage, AbilityId? abilityId,
+        HitResult result)
     {
         if (_connections.TryGetValue(character.Guid, out IWorldConnection? connection))
         {
             connection.Send(SCharacterDamagePacket.Create(attacker.Guid.RawValue, character.Guid.RawValue,
-                character.CurrentHealth, damage, abilityId?.Value, connection.CryptoSession.Encrypt));
+                character.CurrentHealth, damage, abilityId?.Value, connection.CryptoSession.Encrypt, result));
         }
 
         if (_characters.ContainsKey(character.Guid))
         {
-            BroadcastUnitHit(attacker, character, character.CurrentHealth, damage);
+            BroadcastUnitHit(attacker, character, character.CurrentHealth, damage, result);
+        }
+    }
+
+    /// <summary>
+    /// A dodge (#506) is sent as a hit of 0 marked Dodged: to the character dodging, as its own damage
+    /// packet, and to everyone who hears it, by the same radius as a hit (#532). Only for a unit in this
+    /// instance, as a hit is.
+    /// </summary>
+    void ICombatOutcomes.HitDodged(IUnit attacker, IUnit target, AbilityId? abilityId)
+    {
+        if (target is CharacterEntity character)
+        {
+            ((ICombatOutcomes)this).CharacterDamaged(character, attacker, 0, abilityId, HitResult.Dodged);
+            return;
+        }
+
+        if (target is ICreature && _creatures.ContainsKey(target.Guid))
+        {
+            BroadcastUnitHit(attacker, target, target.CurrentHealth, 0, HitResult.Dodged);
         }
     }
 

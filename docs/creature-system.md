@@ -29,6 +29,12 @@ then asks `CreatureStatDeriver.Derive` for the stats that level gives:
    (`HealthMultiplier`, `DamageMultiplier`, `ExperienceMultiplier`). A rarity with no row logs a
    warning and is not scaled.
 4. Floor health and minimum damage at 1, and keep the maximum damage at or above the minimum.
+5. Armour (#506) is the level's `Armor` scaled by the template's `ArmorModifier`, rounded. There is
+   no rarity armour multiplier yet. The creature's crit, dodge and block chances, in percentage
+   points, are its rarity row's `CritPct`, `DodgePct` and `BlockPct` (Normal 0/0/0, Elite 5/3/0,
+   Rare 8/5/5, Boss 10/5/10). `CreatureSpawner` copies all four onto the World-side `Creature`,
+   init-only and not on `ICreature`, so a `/reload creatures` reaches only creatures spawned after it.
+   Seeded armour rises from 0 at level 1 to 30 at level 10, `round(30 x (L - 1) / 9)`.
 
 A modifier or multiplier of 0 or less counts as 1, so a zero in seed data does not zero a stat.
 
@@ -190,8 +196,9 @@ contracts.
 | `Combat` | Follows the encounter's top threat, or the taunter while a taunt lasts. Moves to its melee slot and attacks when within 1.5 m. Once the creature has arrived, the range is 1.5 m plus the locomotion's arrival tolerance plus 0.05 m. |
 | `Returning` | Runs home. It ignores hits entirely: `CombatService` refuses them, so they do no damage, add no threat, join no encounter and tag no attacker in combat (#610). |
 
-- An attack rolls damage between the creature's `DamageMin` and `DamageMax`, and goes through
-  `ICombatService.ApplyDamage`. The first swing lands as soon as the target is in range. The 2.25 s
+- An attack rolls damage between the creature's `DamageMin` and `DamageMax`, inclusive, through
+  `ICombatRandom` (#506), and goes through `ICombatService.ApplyDamage`, where the target's dodge,
+  block and armour and the creature's own crit are rolled; see `CombatService` below. The first swing lands as soon as the target is in range. The 2.25 s
   cooldown after it counts down only while the target is in range.
 - It gives up and returns home at full health when a character target dies, the target leaves the
   instance, or the creature is more than 40 m from where the fight started. The death check covers
@@ -234,11 +241,19 @@ Every hit, a creature's swing or a player's skill, goes through the instance's `
    walk home is left in an encounter once the creature is home and reset. Heal threat skips it too:
    `ApplyHeal` splits a heal's threat only across the encounter's creatures that are not walking
    home.
-3. The attacker and the target join an encounter. Threat is added when the target is a creature.
-4. The hit is applied. When a creature goes from above 0 health to 0, the service reports it, once,
+3. The hit is resolved (#506): its base (a swing's roll, or an ability's effect value plus the
+   caster's scaled stat and weapon roll), then the target's dodge, the attacker's crit, the
+   target's block, and the target's armour against the attacker's level, floored with a minimum of
+   1. A dodged hit deals 0: the encounter still forms, the creature gets threat for the base, and
+   both sides are tagged in combat, but its script is not hit, and the dodge is sent to watchers as
+   a hit of 0 marked `Dodged`. A player's armour reduces a creature's swing exactly as a creature's
+   armour reduces a player's hit.
+4. The attacker and the target join an encounter. Threat is added, from the resolved damage, when
+   the target is a creature.
+5. The hit is applied. When a creature goes from above 0 health to 0, the service reports it, once,
    to its instance through `ICombatOutcomes.CreatureKilled`.
-5. Characters in the hit are marked in combat.
-6. On a death, the encounter hears of it and the death is broadcast.
+6. Characters in the hit are marked in combat.
+7. On a death, the encounter hears of it and the death is broadcast.
 
 `ICombatOutcomes` is World-side. `MapInstance` implements it, and nothing on the modding API can
 report a kill.
@@ -314,7 +329,6 @@ These `CreatureTemplate` fields are deliberately unread. Do not assume any of th
 | Field | Why |
 |---|---|
 | `RespawnTimerSecs` | Creatures do not respawn. Kept for a future revival mechanic. |
-| `ArmorModifier` | `CombatService` has no mitigation step. |
 | `ManaModifier` | Creatures cannot cast. |
 | `RegenHealth` | Creatures do not regenerate health. |
 | `BaseAttackTime` | The attack cadence is `CreatureCombatScript`'s fixed 2.25 s. |

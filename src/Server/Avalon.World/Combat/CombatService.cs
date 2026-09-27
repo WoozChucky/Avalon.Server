@@ -110,7 +110,7 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
 
         if ((result & HitResult.Dodged) != 0)
         {
-            Dodged(attacker, target, baseDamage * threatMultiplier);
+            Dodged(attacker, target, baseDamage * threatMultiplier, abilityId);
             return;
         }
 
@@ -142,7 +142,7 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
 
         // Damage application — IUnit.OnHit mutates HP / sets death flags. A character is also told
         // which ability hit it, or none for a swing (#521 item 8).
-        Hit(attacker, target, damage, abilityId);
+        Hit(attacker, target, damage, abilityId, result);
 
         // #526: an ability that damaged a living unit gives its caster the ability's gain, once per unit
         // damaged, capped at the caster's maximum; after the hit, before the death detection. Only a
@@ -167,7 +167,7 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
     /// its script brought from above 0 to 0 health is killed: once, here, before the caller's encounter
     /// death and death broadcast.
     /// </summary>
-    private void Hit(IUnit attacker, IUnit target, uint damage, AbilityId? abilityId)
+    private void Hit(IUnit attacker, IUnit target, uint damage, AbilityId? abilityId, HitResult result)
     {
         if (target is CharacterEntity character)
         {
@@ -188,7 +188,7 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
                     character.GainPower(Fury.FromDamageTaken(lost, characterHealthBefore, character.Health, _furyFromDamageTaken));
                 }
 
-                _outcomes?.CharacterDamaged(character, attacker, damage, abilityId);
+                _outcomes?.CharacterDamaged(character, attacker, damage, abilityId, result);
             }
             return;
         }
@@ -197,7 +197,19 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
         // the damage it is given cannot wrap its uint health past 0 (#588). Threat above still counts
         // the whole hit.
         uint healthBefore = target.CurrentHealth;
-        target.OnHit(attacker, target is ICreature ? Math.Min(damage, healthBefore) : damage);
+
+        // The creature script broadcasts the hit itself; for exactly the length of its OnHit the instance
+        // marks that broadcast with how the hit went (#506).
+        if (_outcomes is not null) _outcomes.HitInFlight = result;
+        try
+        {
+            target.OnHit(attacker, target is ICreature ? Math.Min(damage, healthBefore) : damage);
+        }
+        finally
+        {
+            if (_outcomes is not null) _outcomes.HitInFlight = HitResult.None;
+        }
+
         if (target is ICreature creature && healthBefore > 0 && creature.CurrentHealth == 0)
             _outcomes?.CreatureKilled(creature, attacker);
     }
@@ -207,9 +219,14 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
     /// had landed for its base, and both sides are tagged in combat. It deals nothing, so the target's
     /// script is not hit, nobody gains power, and nobody dies.
     /// </summary>
-    private void Dodged(IUnit attacker, IUnit target, float baseThreat)
+    private void Dodged(IUnit attacker, IUnit target, float baseThreat, AbilityId? abilityId)
     {
         Encounter enc = ResolveOrSpawn(attacker, target);
+
+        // Sent like a hit, with 0, to whoever would have seen it land; a dead character is sent nothing,
+        // as a hit on it would not be.
+        if (target is not ICharacter { IsDead: true })
+            _outcomes?.HitDodged(attacker, target, abilityId);
 
         if (target is ICreature)
         {

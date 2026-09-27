@@ -308,6 +308,13 @@ enum DisconnectReason {
    DisconnectReason_Kicked = 3;
    DisconnectReason_SelectTimeout = 4;
 }
+enum HitResult {
+   // this is a composite/flags enumeration
+   HitResult_None = 0;
+   HitResult_Crit = 1;
+   HitResult_Dodged = 2;
+   HitResult_Blocked = 4;
+}
 message InventorySlotUpdateDto {
    uint32 Container = 1;
    uint32 Slot = 2;
@@ -615,6 +622,7 @@ message SCharacterDamagePacket {
    uint32 CurrentHealth = 3;
    uint32 Damage = 4;
    optional uint32 AbilityId = 5;
+   HitResult Result = 6;
 }
 message SCharacterDeletedPacket {
    SCharacterDeletedResult Result = 1;
@@ -816,6 +824,7 @@ message SUnitDamagePacket {
    uint64 Target = 2;
    uint32 CurrentHealth = 3;
    uint32 Damage = 4;
+   HitResult Result = 5;
 }
 message SUnitDeathPacket {
    uint64 UnitGuid = 1;

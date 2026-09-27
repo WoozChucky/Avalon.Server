@@ -21,6 +21,7 @@ variant absent
   field 3 CurrentHealth : uint = 0
   field 4 Damage : uint = 0
   field 5 AbilityId : uint? = null
+  field 6 Result : HitResult = None (0)
   bytes 0
 
 variant empty
@@ -29,6 +30,7 @@ variant empty
   field 3 CurrentHealth : uint = 0
   field 4 Damage : uint = 0
   field 5 AbilityId : uint? = 0
+  field 6 Result : HitResult = None (0)
   bytes 2
     28 00
 
@@ -38,9 +40,10 @@ variant populated
   field 3 CurrentHealth : uint = 7
   field 4 Damage : uint = 4000000000
   field 5 AbilityId : uint? = 4000000000
-  bytes 21
+  field 6 Result : HitResult = Crit (1)
+  bytes 23
     08 ac 02 10 ff ff 03 18 07 20 80 d0 ac f3 0e 28
-    80 d0 ac f3 0e
+    80 d0 ac f3 0e 30 01
 
 variant maxima
   field 1 Attacker : ulong = 18446744073709551615
@@ -48,10 +51,11 @@ variant maxima
   field 3 CurrentHealth : uint = 4294967295
   field 4 Damage : uint = 4294967295
   field 5 AbilityId : uint? = 4294967295
-  bytes 40
+  field 6 Result : HitResult = Blocked (4)
+  bytes 42
     08 ff ff ff ff ff ff ff ff ff 01 10 ff ff ff ff
     ff ff ff ff ff 01 18 ff ff ff ff 0f 20 ff ff ff
-    ff 0f 28 ff ff ff ff 0f
+    ff 0f 28 ff ff ff ff 0f 30 04
 
 variant minima
   field 1 Attacker : ulong = 0
@@ -59,6 +63,7 @@ variant minima
   field 3 CurrentHealth : uint = 0
   field 4 Damage : uint = 0
   field 5 AbilityId : uint? = 0
+  field 6 Result : HitResult = None (0)
   bytes 2
     28 00
 
@@ -68,6 +73,7 @@ variant varint-edges
   field 3 CurrentHealth : uint = 268435456
   field 4 Damage : uint = 2097152
   field 5 AbilityId : uint? = 268435456
-  bytes 26
+  field 6 Result : HitResult = Crit, Blocked (5)
+  bytes 28
     08 80 01 10 80 80 80 80 01 18 80 80 80 80 01 20
-    80 80 80 01 28 80 80 80 80 01
+    80 80 80 01 28 80 80 80 80 01 30 05

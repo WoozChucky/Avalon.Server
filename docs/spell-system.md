@@ -35,7 +35,7 @@ are sent to its client in `SMSG_CHARACTER_ABILITIES` (`AbilityInfo`).
 | `Cost` | uint | power points | Paid from the caster's power pool (see the power rule below). |
 | `SpellScript` | string | | The script class that runs the skill: `CircleAbilityScript`, `ConeAbilityScript` or `ProjectileAbilityScript`. |
 | `Effects` | `SpellEffect` | | `Damage` for a hostile skill, `Heal` for an ally skill. |
-| `EffectValue` | uint | health points | Damage dealt or health restored per unit affected. |
+| `EffectValue` | uint | health points | The base of the damage dealt or health restored per unit affected; the scaling terms below are added to it (#506). |
 | `AllowedClasses` | list of `CharacterClass` | | The classes that may hold it. |
 | `ThreatMultiplier`, `HealThreatPerHp`, `TauntDurationMs` | float, float, uint | | Threat rules, unchanged by #164. The two floats must be finite and 0 or more (#529). |
 | `Flags` | `AbilityFlags` | | `RequiresInCombat`, `RequiresOutOfCombat`. |
@@ -49,6 +49,9 @@ are sent to its client in `SMSG_CHARACTER_ABILITIES` (`AbilityInfo`).
 | `ProjectileSpeed` | float | m/s | Projectile only; 0 otherwise. |
 | `Pierce` | bool | | Projectile only: false ends on the first unit hit; true hits each unit once and flies on. |
 | `Affects` | `AbilityAffects` | | `Hostile` (0) damages hostile units; `Ally` (1) heals allies. |
+| `ScalingStat` | `ScalingStat` | | `Attack` (0) scales with the caster's AttackDamage, `Ability` (1) with its AbilityDamage (#506). |
+| `ScalingCoefficient` | float | | Multiplies the scaling stat into the base; finite and 0 or more (#506, also a database check). |
+| `WeaponCoefficient` | float | | Multiplies a roll of the caster's main-hand weapon (`DamageMin1..DamageMax1`, inclusive; none with no weapon) into the base; finite and 0 or more (#506). |
 
 **Legacy `Range`.** The `Range` column (`SpellRange`) stays for schema compatibility and is still sent
 in `AbilityInfo.Range`, but no server code reads it: `Reach` replaced it. `AbilityInfo.FacingAngle` is
@@ -136,8 +139,12 @@ refused: its cost and cooldown are spent all the same.
 - **Allies** are the caster itself and every player not hostile to it. A creature is never an ally.
 - **Damage**: a `Hostile` skill calls `CombatService.ApplyDamage(caster, unit, EffectValue, ability)`
   on each hostile unit, with the usual threat, encounter, combat tag, death and invulnerable rules.
+  Each unit's hit resolves on its own (#506): `EffectValue + ScalingCoefficient x stat +
+  WeaponCoefficient x weapon roll`, then the unit's dodge, the caster's crit, the unit's block and
+  its armour, floored with a minimum of 1 (0 on a dodge). See CLAUDE.md's combat-formula bullet.
 - **Heal**: an `Ally` skill calls `CombatService.ApplyHeal` on each ally, which restores
-  `min(Health, CurrentHealth + EffectValue)`, never lowers health (a unit at or above its maximum
+  `min(Health, CurrentHealth + heal)`, the heal being the same base as damage and then a crit roll,
+  never dodged, blocked or reduced by armour (#506). It never lowers health (a unit at or above its maximum
   keeps what it has, #548), never heals a dead unit, and adds heal threat from
   `HealThreatPerHp` when the healed unit is in an encounter. Heal threat counts the health actually
   restored, so overheal adds none (#531).
@@ -187,7 +194,8 @@ It never homes and has no target.
 - **Circles and cones** broadcast `SMSG_ABILITY_FIRED` (`SAbilityFiredPacket { CasterGuid, AbilityId,
   Origin, Direction?, Centre? }`) to the instance: a circle carries its centre, a cone its direction.
 - **Damage** arrives as the usual damage packets; `SCharacterDamagePacket.AbilityId` is filled (#521
-  item 8).
+  item 8), and both carry `Result`, a `HitResult` saying whether the hit crit, was blocked, or was
+  dodged (sent with 0 damage) (#506).
 - **Heals** have no packet of their own: the healed unit's new current health reaches clients through
   ordinary state replication.
 

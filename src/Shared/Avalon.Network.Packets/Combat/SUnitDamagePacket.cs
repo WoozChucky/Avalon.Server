@@ -19,8 +19,15 @@ public class SUnitDamagePacket : Packet
     [ProtoMember(3)] public uint CurrentHealth { get; set; }
     [ProtoMember(4)] public uint Damage { get; set; }
 
-    public static NetworkPacket Create(ObjectGuid attacker, ulong target, uint currentHealth, uint damage, EncryptFunc encryptFunc)
+    /// <summary>How the hit went (#506): a crit, a block, both, or a dodge, which deals 0. Absent is None.</summary>
+    [ProtoMember(5)] public HitResult Result { get; set; }
+
+    public static NetworkPacket Create(ObjectGuid attacker, ulong target, uint currentHealth, uint damage, EncryptFunc encryptFunc,
+        HitResult result = HitResult.None)
         => PacketSerializationHelper.Serialize(
-            new SUnitDamagePacket { Attacker = attacker.RawValue, Target = target, CurrentHealth = currentHealth, Damage = damage },
+            new SUnitDamagePacket
+            {
+                Attacker = attacker.RawValue, Target = target, CurrentHealth = currentHealth, Damage = damage, Result = result,
+            },
             PacketType, Flags, Protocol, encryptFunc);
 }
