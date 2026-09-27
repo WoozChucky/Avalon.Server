@@ -119,10 +119,12 @@ fi
 # false and 0 included (the API refuses a limit below 1 itself, naming the setting).
 ! grep -q "Application__RateLimiting__" <<<"$out"                                          || { echo "rate limiting env rendered without a value"; exit 1; }
 rl=$(helm template t . $CACHE --set existingSecret=x "${W1[@]}" --set rateLimiting.enabled=false \
-  --set rateLimiting.anonymousPermitsPerMinute=0 --set rateLimiting.authenticatedPermitsPerMinute=600)
+  --set rateLimiting.anonymousPermitsPerMinute=0 --set rateLimiting.authenticatedPermitsPerMinute=600 \
+  --set rateLimiting.clientAuthPermitsPerMinute=7)
 grep -A1 "name: Application__RateLimiting__Enabled" <<<"$rl" | grep -q '"false"'                       || { echo "rateLimiting.enabled=false missing"; exit 1; }
 grep -A1 "name: Application__RateLimiting__AnonymousPermitsPerMinute" <<<"$rl" | grep -q '"0"'         || { echo "rateLimiting.anonymousPermitsPerMinute missing"; exit 1; }
 grep -A1 "name: Application__RateLimiting__AuthenticatedPermitsPerMinute" <<<"$rl" | grep -q '"600"'   || { echo "rateLimiting.authenticatedPermitsPerMinute missing"; exit 1; }
+grep -A1 "name: Application__RateLimiting__ClientAuthPermitsPerMinute" <<<"$rl" | grep -q '"7"'        || { echo "rateLimiting.clientAuthPermitsPerMinute missing"; exit 1; }
 on=$(helm template t . $CACHE --set existingSecret=x "${W1[@]}" --set rateLimiting.enabled=true)
 grep -A1 "name: Application__RateLimiting__Enabled" <<<"$on" | grep -q '"true"'                        || { echo "rateLimiting.enabled=true missing"; exit 1; }
 ! grep -q "Application__RateLimiting__AnonymousPermitsPerMinute" <<<"$on"                             || { echo "an unset limit must not render"; exit 1; }

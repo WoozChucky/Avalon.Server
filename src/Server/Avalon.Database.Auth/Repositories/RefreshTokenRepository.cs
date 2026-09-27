@@ -49,7 +49,23 @@ public interface IRefreshTokenRepository
     Task UpdateAsync(RefreshToken token, CancellationToken cancellationToken = default);
     Task<int> RevokeFamilyAsync(Guid familyId, CancellationToken cancellationToken = default);
     Task<int> RevokeAllForAccountAsync(AccountId accountId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// The account's live sessions of <paramref name="client"/> (#591): one per family whose newest token
+    /// is unrevoked and unexpired at <paramref name="now"/>, most recently used first.
+    /// </summary>
+    Task<IReadOnlyList<LiveFamily>> ListLiveFamiliesAsync(AccountId accountId, SessionClient client, DateTime now,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Whether <paramref name="familyId"/> is one of <paramref name="accountId"/>'s launcher families (#591):
+    /// false for another account's, the website's, or an unknown one. Served by the (AccountId, FamilyId) index.
+    /// </summary>
+    Task<bool> IsLauncherFamilyOfAsync(AccountId accountId, Guid familyId, CancellationToken cancellationToken = default);
 }
+
+/// <summary>A live session: when it signed in (its first token) and was last used (its newest).</summary>
+public sealed record LiveFamily(Guid FamilyId, string? DeviceName, DateTime SignedInAt, DateTime LastUsedAt, DateTime ExpiresAt);
 
 public sealed class RefreshTokenRepository(IDbContextFactory<AuthDbContext> contextFactory) : IRefreshTokenRepository
 {
@@ -140,6 +156,35 @@ public sealed class RefreshTokenRepository(IDbContextFactory<AuthDbContext> cont
         return await context.RefreshTokens
             .Where(t => t.FamilyId == familyId && !t.Revoked)
             .ExecuteUpdateAsync(s => s.SetProperty(t => t.Revoked, true), cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<LiveFamily>> ListLiveFamiliesAsync(AccountId accountId, SessionClient client,
+        DateTime now, CancellationToken cancellationToken = default)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+
+        // An account has a handful of sessions: read its tokens of this client and group them here.
+        List<RefreshToken> tokens = await context.RefreshTokens
+            .AsNoTracking()
+            .Where(t => t.AccountId == accountId && t.Client == client)
+            .ToListAsync(cancellationToken);
+
+        return tokens
+            .GroupBy(t => t.FamilyId)
+            .Select(family => (Newest: family.MaxBy(t => t.Index)!, First: family.MinBy(t => t.Index)!))
+            .Where(f => !f.Newest.Revoked && f.Newest.ExpiresAt > now)
+            .Select(f => new LiveFamily(f.Newest.FamilyId, f.Newest.DeviceName, f.First.CreatedAt, f.Newest.CreatedAt,
+                f.Newest.ExpiresAt))
+            .OrderByDescending(f => f.LastUsedAt)
+            .ToList();
+    }
+
+    public async Task<bool> IsLauncherFamilyOfAsync(AccountId accountId, Guid familyId, CancellationToken cancellationToken = default)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+
+        return await context.RefreshTokens.AnyAsync(
+            t => t.AccountId == accountId && t.FamilyId == familyId && t.Client == SessionClient.Launcher, cancellationToken);
     }
 
     public async Task<int> RevokeAllForAccountAsync(AccountId accountId, CancellationToken cancellationToken = default)

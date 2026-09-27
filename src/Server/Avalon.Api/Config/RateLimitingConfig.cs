@@ -18,4 +18,10 @@ public class RateLimitingConfig
 
     /// <summary>Requests a minute per account for a caller with a valid access token or personal access token. At least 1.</summary>
     public int AuthenticatedPermitsPerMinute { get; set; } = 300;
+
+    /// <summary>
+    /// Launcher sign-in requests (<c>client/auth</c>: code, token, refresh, revoke) a minute per source,
+    /// on top of the limits above (#591). At least 1.
+    /// </summary>
+    public int ClientAuthPermitsPerMinute { get; set; } = 20;
 }

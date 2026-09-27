@@ -34,12 +34,14 @@ public sealed class RateLimitingShould
     private const long OtherAccountId = 8;
     private const string PatToken = "avp_0123456789abcdef0123456789abcdef0123456789a";
 
-    private static Task<ApiAuthHost> StartAsync(int anonymous = 3, int authenticated = 5, bool enabled = true) =>
+    private static Task<ApiAuthHost> StartAsync(int anonymous = 3, int authenticated = 5, bool enabled = true,
+        int clientAuth = 20) =>
         ApiAuthHost.StartAsync(configure: services => services.Configure<RateLimitingConfig>(c =>
         {
             c.Enabled = enabled;
             c.AnonymousPermitsPerMinute = anonymous;
             c.AuthenticatedPermitsPerMinute = authenticated;
+            c.ClientAuthPermitsPerMinute = clientAuth;
         }));
 
     private static async Task<HttpStatusCode> SendAsync(ApiAuthHost host, string path = "/anonymous",
@@ -521,6 +523,20 @@ public sealed class RateLimitingShould
             Assert.Equal(2, measured.Count(t => t == "authenticated"));
             Assert.Equal(3, measured.Count);
         }
+    }
+
+    [Fact]
+    public async Task Limit_client_auth_per_source_below_the_global_budget()
+    {
+        // Launcher sign-in (#591): its own, smaller budget per source, counted on top of the global one.
+        await using ApiAuthHost host = await StartAsync(anonymous: 10, clientAuth: 3);
+
+        for (int i = 0; i < 3; i++)
+            Assert.Equal(HttpStatusCode.OK, await SendAsync(host, ApiAuthHost.ClientAuthLimitedPath));
+        Assert.Equal(HttpStatusCode.TooManyRequests, await SendAsync(host, ApiAuthHost.ClientAuthLimitedPath));
+
+        Assert.Equal(HttpStatusCode.OK, await SendAsync(host, ApiAuthHost.ClientAuthLimitedPath, peer: OtherPeer));
+        Assert.Equal(HttpStatusCode.OK, await SendAsync(host)); // the global budget is not spent
     }
 }
 

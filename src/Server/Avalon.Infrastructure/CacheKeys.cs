@@ -97,6 +97,13 @@ public static class CacheKeys
     public static string EmailChange(string tokenHash) => $"auth:emailChange:{tokenHash}";
 
     /// <summary>
+    /// A launcher sign-in code (#591), by the SHA-256 (hex) of the code. Value:
+    /// <c>accountId|credentialsVersion|challenge|redirectPort</c>, for 60 seconds. Spent by the first
+    /// redemption: only the call whose DEL removes it goes on.
+    /// </summary>
+    public static string LauncherAuthCode(string codeHash) => $"auth:launcherCode:{codeHash}";
+
+    /// <summary>
     /// The account's one pending email change (#510 review). Value: the token hash of
     /// <see cref="EmailChange"/>; a new start deletes the entry it names, so only the latest token works.
     /// </summary>
