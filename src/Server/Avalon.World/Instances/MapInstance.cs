@@ -283,6 +283,10 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
             IReadOnlyList<ObjectGuid> forgotten = arriving.CharacterGameState.Reset();
             if (forgotten.Count > 0)
                 connection.Send(SInstanceStateRemovePacket.Create(forgotten, connection.CryptoSession.Encrypt));
+
+            // #526: every instance move comes through here (map entry, respawn at a town, a portal), and
+            // each one starts with no Fury. Mana and Energy are kept.
+            arriving.ResetFury();
         }
 
         _characters[connection.Character!.Guid] = connection.Character;

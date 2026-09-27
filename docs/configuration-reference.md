@@ -162,6 +162,8 @@ Section in `appsettings.json`: `"Game"` (World server only)
 | `PvpOffDelay`                    | TimeSpan | `00:05:00` | How long a PvP flag stays on after its owner asks to turn it off (#164). Any player-on-player hit restarts a running timer at this length, for both players. Range `00:00:01`–`01:00:00` |
 | `InterestRadius`                 | float  | `60`       | Metres, on X/Z. A one-shot effect broadcast (hit, start/finish/interrupted cast, ability fired, attack swing, death, revive) goes only to connections whose character is within this distance of the effect or involved in it (#532), and a character, creature or projectile enters a client's view within it (#593). At least `1` and finite; startup refuses anything else |
 | `InterestRemoveMargin`           | float  | `10`       | Metres added to `InterestRadius` before an object already in a client's view is removed from it (#593), so one standing near the edge does not flicker in and out. `0` or more and finite (`0` turns the margin off); startup refuses anything else |
+| `FuryFromDamageTaken`            | float  | `50`       | Fury a character whose pool is Fury gains when hit (#526): `floor(health lost / max health × this)`, the health lost capped at what it had before the hit. `0` or more and finite (`0` turns it off); startup refuses anything else |
+| `FuryDecayPerSecond`             | float  | `5`        | Fury lost per second out of combat, down to 0 (#526); never in combat. `0` or more and finite (`0` turns it off); startup refuses anything else |
 
 ```json
 "Game": {
@@ -180,7 +182,9 @@ Section in `appsettings.json`: `"Game"` (World server only)
   "CharacterSaveInterval": "00:05:00",
   "PvpOffDelay": "00:05:00",
   "InterestRadius": 60,
-  "InterestRemoveMargin": 10
+  "InterestRemoveMargin": 10,
+  "FuryFromDamageTaken": 50,
+  "FuryDecayPerSecond": 5
 }
 ```
 

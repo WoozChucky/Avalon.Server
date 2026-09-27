@@ -3,6 +3,7 @@ using System.Linq;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Network.Packets.State;
+using Avalon.World.Configuration;
 using Avalon.World.Entities;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Characters;
@@ -31,7 +32,7 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
     /// <param name="furyFromDamageTaken">Game:FuryFromDamageTaken (#526); the setting's default when omitted.</param>
     public CombatService(CombatConfig config, EncounterRegistry registry, ISimulationContext? context = null,
         PvpToggle? pvp = null, ICombatOutcomes? outcomes = null, TimeProvider? time = null,
-        float furyFromDamageTaken = 50f)
+        float furyFromDamageTaken = GameConfiguration.DefaultFuryFromDamageTaken)
     {
         _time     = time ?? TimeProvider.System;
         _furyFromDamageTaken = furyFromDamageTaken;

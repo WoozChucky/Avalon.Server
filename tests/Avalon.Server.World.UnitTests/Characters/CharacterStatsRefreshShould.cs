@@ -115,6 +115,75 @@ public class CharacterStatsRefreshShould
         Assert.Equal(regen, character.RegenStat);
     }
 
+    /// <summary>A warrior of <see cref="WarriorLevel1" /> on a Fury pool holding <paramref name="fury" /> of <paramref name="max" />.</summary>
+    private static CharacterEntity FuryWarrior(uint fury, uint max = 100)
+    {
+        CharacterEntity warrior = New();
+        warrior.PowerType = Avalon.Network.Packets.State.PowerType.Fury;
+        warrior.Power = max;
+        warrior.CurrentPower = fury;
+        warrior.CurrentHealth = 1;
+        return warrior;
+    }
+
+    /// <summary>#526: select fills health and the fill-up pools, and a warrior enters with no Fury.</summary>
+    [Fact]
+    public void Enter_The_World_With_No_Fury_And_Full_Mana()
+    {
+        CharacterEntity warrior = FuryWarrior(fury: 30);
+        CharacterEntity wizard = New();
+        wizard.Data!.Class = CharacterClass.Wizard;
+        wizard.PowerType = Avalon.Network.Packets.State.PowerType.Mana;
+        wizard.CurrentPower = 0;
+
+        Assert.True(CharacterStatsRefresh.Apply(warrior, Rows, EquipTemplates.Find, CurrentValues.EnterWorld));
+        Assert.True(CharacterStatsRefresh.Apply(wizard, Rows, EquipTemplates.Find, CurrentValues.EnterWorld));
+
+        Assert.Equal(0u, warrior.CurrentPower);
+        Assert.Equal(warrior.Health, warrior.CurrentHealth);
+        Assert.True(wizard.Power > 0);
+        Assert.Equal(wizard.Power, wizard.CurrentPower);
+        Assert.Equal(wizard.Health, wizard.CurrentHealth);
+    }
+
+    /// <summary>#526 review focus: a level-up refills health but leaves a warrior's Fury where it was.</summary>
+    [Fact]
+    public void Keep_Fury_On_A_Level_Up_Refill()
+    {
+        CharacterEntity warrior = FuryWarrior(fury: 60);
+
+        Assert.True(CharacterStatsRefresh.Apply(warrior, Rows, EquipTemplates.Find, CurrentValues.Refill));
+
+        Assert.Equal(100u, warrior.Power);
+        Assert.Equal(60u, warrior.CurrentPower);
+        Assert.Equal(240u, warrior.CurrentHealth);
+    }
+
+    [Theory]
+    [InlineData(CurrentValues.Refill)]
+    [InlineData(CurrentValues.KeepShare)]
+    public void Cap_Fury_When_The_Maximum_Shrinks(CurrentValues current)
+    {
+        CharacterEntity warrior = FuryWarrior(fury: 150, max: 200);
+
+        Assert.True(CharacterStatsRefresh.Apply(warrior, Rows, EquipTemplates.Find, current));
+
+        Assert.Equal(100u, warrior.Power);
+        Assert.Equal(100u, warrior.CurrentPower);
+    }
+
+    /// <summary>#526: Fury is not a fill-up pool, so a gear change keeps its value, not its share.</summary>
+    [Fact]
+    public void Keep_Fury_On_A_Gear_Change()
+    {
+        CharacterEntity warrior = FuryWarrior(fury: 60, max: 200);
+
+        Assert.True(CharacterStatsRefresh.Apply(warrior, Rows, EquipTemplates.Find, CurrentValues.KeepShare));
+
+        Assert.Equal(100u, warrior.Power);
+        Assert.Equal(60u, warrior.CurrentPower);   // a share would have been 30
+    }
+
     [Fact]
     public void Regenerate_a_hunter_from_agility()
     {

@@ -148,12 +148,18 @@ public class GameConfiguration
     ///     most what it had before the hit. 0 or more and finite; 0 turns it off.
     /// </summary>
     [Range(0.0, double.MaxValue)]
-    public float FuryFromDamageTaken { get; set; } = 50f;
+    public float FuryFromDamageTaken { get; set; } = DefaultFuryFromDamageTaken;
 
     /// <summary>
     ///     Fury lost per second out of combat, down to 0 (#526). Never in combat. 0 or more and finite;
     ///     0 turns it off.
     /// </summary>
     [Range(0.0, double.MaxValue)]
-    public float FuryDecayPerSecond { get; set; } = 5f;
+    public float FuryDecayPerSecond { get; set; } = DefaultFuryDecayPerSecond;
+
+    /// <summary>The default of <see cref="FuryFromDamageTaken" />, for whatever is built without the options.</summary>
+    public const float DefaultFuryFromDamageTaken = 50f;
+
+    /// <summary>The default of <see cref="FuryDecayPerSecond" />, for whatever is built without the options.</summary>
+    public const float DefaultFuryDecayPerSecond = 5f;
 }
