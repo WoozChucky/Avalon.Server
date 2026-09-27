@@ -12,7 +12,7 @@
 
 ## Player note
 
-Player note: <!-- Required: one plain sentence a player would understand. What will they notice? For internal work, say what it means, e.g. "Faster builds; nothing changes in the game." It is shown on the public changelog. -->
+Player note: <!-- Required. Written like a patch note: third person, starting with what changed. E.g. "Fixed an issue where heals could raise health above the maximum." / "Added browser sign-in to the launcher." / "Increased the world server's connection limit." For internal work: "No gameplay changes: faster builds." Shown on the public changelog. -->
 
 ## Checklist
 
