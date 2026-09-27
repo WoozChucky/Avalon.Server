@@ -11,7 +11,7 @@ cases=$(cat <<'TABLE'
 pass	feat(api): /client distribution endpoints (game builds and launcher)
 pass	fix(security): keep secrets out of Redis key names and exception messages (#535)
 pass	fix(api): storage down answers 503 when listing builds, not 500
-fail	fix(telemetry): Redis spans, per-packet cost, robustness (#540)
+pass	fix(telemetry): Redis spans, per-packet cost, robustness (#540)
 pass	chore(deps): update dependency xunit.runner.visualstudio to v11
 pass	chore(deps): update actions/checkout action to v7
 pass	feat: world select budget
@@ -22,6 +22,12 @@ pass	docs: `ICommand` now declares its access level
 pass	revert: 2 flaky tests
 pass	ci: enforce conventional pr titles
 pass	test(auth): budgets survive a restart (#12)
+pass	fix(world): EF logs at Warning for every provider (#558)
+pass	docs: CLAUDE.md names the rule
+pass	feat(auth)!: TOTP codes are single-use (#471, #478)
+fail	fix(world): EF logs at Warning.
+fail	fix(world): . (#1)
+fail	fix(world): .
 fail	TCP server: an awaited accept loop that survives errors and stops cleanly (#578, #584)
 fail	API: remove the unread ApplicationConfig.Database binding (#582)
 fail	Docs: rewrite the configuration reference's class table from the code (#551)
@@ -43,7 +49,7 @@ fail	A heal never lowers health that sits above the maximum (#548)
 fail	Heal threat counts only the health restored; threat columns refuse NaN and Infinity (#531, #529)
 fail	Drop a leaving caster's scripts, contain a throwing script, interrupt a dead caster's cast out loud (#541, #530)
 fail	API: split the exception mapping and AddAuth below MA0051, correct the ValidateOnStart claim (#534)
-fail	feat(api): Distribution endpoints
+pass	feat(api): Distribution endpoints
 fail	feat(api): distribution endpoints.
 fail	feat(api): distribution endpoints. (#12)
 fail	feat(api): distribution endpoints\x20

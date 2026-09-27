@@ -6,9 +6,9 @@
 #   type(scope)!: summary (#123)
 #
 # type is one of the list below; the scope is optional, lowercase letters, digits and hyphens, with
-# commas between several; "!" marks a breaking change; the summary starts with a lowercase letter,
-# a digit, a route such as /client, or a `backtick-quoted` identifier, and does not end with a
-# period or a space (a proper noun such as Redis is not the first word); one trailing issue reference, " (#123)" or " (#123, #456)", may follow it.
+# commas between several; "!" marks a breaking change; the summary starts with any character but a
+# space and does not end with a period or a space; one trailing issue reference, " (#123)" or
+# " (#123, #456)", may follow it.
 #
 # Exit status: 0 when the title follows the rule, 1 when it does not.
 set -euo pipefail
@@ -17,7 +17,7 @@ export LC_ALL=C # [a-z] means ASCII lowercase only, whatever the runner's locale
 # The rule lives in these three patterns and nowhere else.
 readonly PR_TITLE_REFERENCE=' \(#[0-9]+(, #[0-9]+)*\)$'
 readonly PR_TITLE_BAD_REFERENCE='\(#[^)]*\)$'
-readonly PR_TITLE_PATTERN='^(feat|fix|docs|chore|refactor|test|ci|perf|build|style|revert)(\([a-z0-9-]+(,[a-z0-9-]+)*\))?!?: ([a-z0-9]|/[a-z0-9]|`[^`]+`)(.*[^. ])?$'
+readonly PR_TITLE_PATTERN='^(feat|fix|docs|chore|refactor|test|ci|perf|build|style|revert)(\([a-z0-9-]+(,[a-z0-9-]+)*\))?!?: ([^ ].*)?[^. ]$'
 
 title="${PR_TITLE-}"
 # The issue reference is taken off first, so a period before it is refused like one at the end.
@@ -38,8 +38,7 @@ fi
   echo "  type     feat, fix, docs, chore, refactor, test, ci, perf, build, style or revert"
   echo "  scope    optional; lowercase letters, digits and hyphens, commas between several: (api,world)"
   echo "  !        optional; marks a breaking change"
-  echo "  summary  starts with a lowercase letter, a digit, a /route or a \`backtick-quoted\` identifier;"
-  echo "           no period at the end"
+  echo "  summary  starts with any character but a space; no period or space at the end"
   echo "  (#123)   optional; the issues it closes, (#123) or (#123, #456)"
   echo "Examples:"
   echo "  fix(security): keep secrets out of Redis key names and exception messages (#535)"

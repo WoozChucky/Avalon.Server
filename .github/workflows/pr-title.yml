@@ -20,6 +20,8 @@ jobs:
         with:
           sparse-checkout: tools/ci
           persist-credentials: false
+      - name: Check the rule against its table
+        run: bash tools/ci/pr-title-check.test.sh
       - name: Check the title
         # The title reaches the script only through the environment: interpolating it into the
         # script would run whatever a title author wrote.

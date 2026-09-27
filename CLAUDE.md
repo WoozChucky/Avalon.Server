@@ -66,7 +66,7 @@ Database__World__ConnectionString="Host=127.0.0.1;Port=1;Database=design_time_on
 
 Target framework: **.NET 10**. Docker compose credentials default to password `123`.
 
-**PR titles follow Conventional Commits** (`.github/workflows/pr-title.yml`): `type(scope)!: summary (#123)`, with type one of `feat`, `fix`, `docs`, `chore`, `refactor`, `test`, `ci`, `perf`, `build`, `style`, `revert`; the scope optional, lowercase `[a-z0-9-]+`, commas between several (`(api,world)`); `!` optional, for a breaking change; the summary starting with a lowercase letter, a digit, a `/route` or a backtick-quoted identifier, and not ending with a period; an optional trailing ` (#123)` or ` (#123, #456)`. Example: `fix(security): keep secrets out of Redis key names and exception messages (#535)`. The rule lives only in `tools/ci/pr-title-check.sh`; change it there and run `bash tools/ci/pr-title-check.test.sh`.
+**PR titles follow Conventional Commits** (`.github/workflows/pr-title.yml`): `type(scope)!: summary (#123)`, with type one of `feat`, `fix`, `docs`, `chore`, `refactor`, `test`, `ci`, `perf`, `build`, `style`, `revert`; the scope optional, lowercase `[a-z0-9-]+`, commas between several (`(api,world)`); `!` optional, for a breaking change; the summary starting with any character but a space (a proper noun, a `/route` and an identifier are all fine) and not ending with a period; an optional trailing ` (#123)` or ` (#123, #456)`. Example: `fix(security): keep secrets out of Redis key names and exception messages (#535)`. The rule lives only in `tools/ci/pr-title-check.sh`; change it there and update the table in `tools/ci/pr-title-check.test.sh`, which the workflow runs first (`bash tools/ci/pr-title-check.test.sh`).
 
 ### REST API signing key
 

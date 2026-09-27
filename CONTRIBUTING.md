@@ -210,7 +210,7 @@ dotnet test tests/Avalon.Server.Auth.UnitTests --filter "FullyQualifiedName~CAut
    `fix(security): keep secrets out of Redis key names and exception messages (#535)`. The type is one of
    `feat`, `fix`, `docs`, `chore`, `refactor`, `test`, `ci`, `perf`, `build`, `style` or `revert`; the
    scope (lowercase, commas between several), the `!` for a breaking change and the issue reference are
-   optional; the summary starts in lowercase and has no closing period. The full rule is in
+   optional; the summary has no closing period. The full rule is in
    `tools/ci/pr-title-check.sh`.
 
 5. In the PR description, explain:
