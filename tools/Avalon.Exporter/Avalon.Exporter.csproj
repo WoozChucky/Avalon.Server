@@ -28,11 +28,4 @@
     <ProjectReference Include="..\..\src\Shared\Avalon.Configuration\Avalon.Configuration.csproj"/>
   </ItemGroup>
 
-  <ItemGroup>
-    <!-- Needed by ItemCatalog.ConnectionString(), which binds configuration the same way the
-         server's own design-time DbContext factories do. -->
-    <PackageReference Include="Microsoft.Extensions.Configuration.Json"/>
-    <PackageReference Include="Microsoft.Extensions.Configuration.EnvironmentVariables"/>
-  </ItemGroup>
-
 </Project>
