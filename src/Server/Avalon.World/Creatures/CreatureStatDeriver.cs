@@ -5,13 +5,20 @@ using Microsoft.Extensions.Logging;
 
 namespace Avalon.World.Creatures;
 
-/// <summary>Stats a creature spawns with, after level, template modifiers and rarity are applied.</summary>
+/// <summary>
+/// Stats a creature spawns with, after level, template modifiers and rarity are applied. Armour and the
+/// crit, dodge and block chances (percentage points) are what combat resolves its hits with (#506).
+/// </summary>
 public readonly record struct DerivedCreatureStats(
     ushort Level,
     uint Health,
     uint DamageMin,
     uint DamageMax,
-    uint Experience);
+    uint Experience,
+    uint Armor = 0,
+    float CritPct = 0f,
+    float DodgePct = 0f,
+    float BlockPct = 0f);
 
 /// <summary>
 /// Turns a creature template plus a level into the stats it spawns with. Pure, and separate from
@@ -52,6 +59,9 @@ public class CreatureStatDeriver
         uint damageMin = Scale(baseStat.DamageMin, template.DamageModifier, rarity.DamageMultiplier);
         uint damageMax = Scale(baseStat.DamageMax, template.DamageModifier, rarity.DamageMultiplier);
 
+        // #506: there is no rarity armour multiplier yet, so the tier scales armour by 1.
+        uint armor = Scale(baseStat.Armor, template.ArmorModifier, 1f);
+
         // An authored value replaces the entire derivation, modifiers and rarity included: a written
         // number means that number. Null, not 0, is what means "derive" — see CreatureTemplate.
         uint experience = template.Experience
@@ -68,7 +78,11 @@ public class CreatureStatDeriver
             Math.Max(1u, health),
             flooredMin,
             Math.Max(flooredMin, damageMax),
-            experience);
+            experience,
+            armor,
+            Chance(rarity.CritPct),
+            Chance(rarity.DodgePct),
+            Chance(rarity.BlockPct));
     }
 
     private CreatureBaseStat ResolveBaseStat(ICreatureMetadata template, ushort level)
@@ -106,6 +120,9 @@ public class CreatureStatDeriver
             ExperienceMultiplier = 1f
         };
     }
+
+    /// <summary>A rarity's chance as authored, or 0 when it is not a finite value of 0 or more.</summary>
+    private static float Chance(float pct) => float.IsFinite(pct) && pct > 0f ? pct : 0f;
 
     private static uint Scale(uint value, float templateModifier, float rarityMultiplier)
     {

@@ -24,6 +24,9 @@ public interface ICreatureMetadata
     /// <summary>Scales the level-derived base damage range. 1.0 leaves it alone.</summary>
     float DamageModifier { get; }
 
+    /// <summary>Scales the level-derived base armour (#506). 1.0 leaves it alone; 0 or less counts as 1.</summary>
+    float ArmorModifier { get; }
+
     /// <summary>Scales the level-derived base experience. 1.0 leaves it alone.</summary>
     float ExperienceModifier { get; }
 

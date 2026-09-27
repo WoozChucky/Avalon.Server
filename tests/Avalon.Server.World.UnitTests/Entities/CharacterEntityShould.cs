@@ -1,4 +1,5 @@
 using Avalon.Domain.Characters;
+using Avalon.Network.Packets.State;
 using Avalon.World.Configuration;
 using Avalon.World.Entities;
 using Avalon.World.Public.Abilities;
@@ -24,6 +25,29 @@ public class CharacterEntityShould
         // Initialize spells with an empty collection to avoid NullReferenceException in Update
         entity.Spells.Load(new List<IAbility>());
         return entity;
+    }
+
+    /// <summary>
+    /// #506: the row stores the maximums as int, so a gear total past int.MaxValue is clamped there, not
+    /// cast to a negative, and a pool filled to the new maximum is filled to what was stored.
+    /// </summary>
+    [Fact]
+    public void Store_a_maximum_past_int_max_as_int_max_and_fill_to_it()
+    {
+        CharacterEntity entity = NewEntity();
+        entity.PowerType = PowerType.Mana;
+
+        entity.ApplyStats(new Avalon.World.Characters.DerivedCharacterStats(
+            MaxHealth: uint.MaxValue, MaxPower: (uint)int.MaxValue + 1, Stamina: 1, Strength: 1, Agility: 1,
+            Intellect: 1, Armor: 0, BlockPct: 0, DodgePct: 0, CritPct: 0, AttackDamage: 0, AbilityDamage: 0),
+            Avalon.World.Characters.CurrentValues.Refill);
+
+        Assert.Equal(int.MaxValue, entity.Data!.Health);
+        Assert.Equal(int.MaxValue, entity.Data.Power1);
+        Assert.Equal((uint)int.MaxValue, entity.Health);
+        Assert.Equal((uint)int.MaxValue, entity.Power);
+        Assert.Equal((uint)int.MaxValue, entity.CurrentHealth);
+        Assert.Equal((uint)int.MaxValue, entity.CurrentPower);
     }
 
     /// <summary>

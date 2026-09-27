@@ -2,6 +2,7 @@ using Avalon.Common;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
 using Avalon.Network.Packets.State;
+using Avalon.World.Combat;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Scripts;
@@ -56,6 +57,29 @@ public class Creature : ICreature
     public uint DamageMin { get; set; }
     public uint DamageMax { get; set; }
     public uint Experience { get; set; }
+
+    // What combat resolves this creature's hits with (#506), fixed at spawn by CreatureSpawner from
+    // CreatureStatDeriver. World-side and init-only, deliberately not on ICreature: the modding API
+    // cannot change a creature's defences. A /reload creatures reaches only creatures spawned after it.
+
+    /// <summary>Reduces the hits it takes.</summary>
+    public uint Armor { get; init; }
+
+    /// <summary>Percentage points.</summary>
+    public float CritPct { get; init; }
+
+    /// <summary>Percentage points.</summary>
+    public float DodgePct { get; init; }
+
+    /// <summary>Percentage points.</summary>
+    public float BlockPct { get; init; }
+
+    /// <summary>What this creature attacks with (#506): its level and crit; no weapon and no damage stats.</summary>
+    internal AttackerCombat Combat => new(Level, 0, 0, CritPct, 0, 0);
+
+    /// <summary>What this creature defends with (#506).</summary>
+    internal DefenderCombat Defence => new(Armor, DodgePct, BlockPct);
+
     public AiScript? Script { get; set; }
 
     public IReadOnlyList<PatrolPoint> PatrolPath { get; set; } = [];

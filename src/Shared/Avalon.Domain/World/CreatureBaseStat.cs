@@ -5,9 +5,8 @@ namespace Avalon.Domain.World;
 /// Deliberately shaped like <see cref="ClassLevelStat" />: tuning lives in the database, not in code.
 /// </summary>
 /// <remarks>
-/// Armour and mana are absent on purpose. <c>CombatService.ApplyDamage</c> applies raw damage with no
-/// mitigation step anywhere, and creatures spawn with no power and cannot cast, so both would be
-/// authored data that nothing reads.
+/// Mana is absent on purpose: creatures spawn with no power and cannot cast, so it would be authored
+/// data that nothing reads.
 /// </remarks>
 public class CreatureBaseStat
 {
@@ -16,4 +15,10 @@ public class CreatureBaseStat
     public uint DamageMin { get; set; }
     public uint DamageMax { get; set; }
     public uint Experience { get; set; }
+
+    /// <summary>
+    /// Armour at this level (#506), before the template's ArmorModifier; it reduces the hits the creature
+    /// takes. Reloaded with the creatures area.
+    /// </summary>
+    public uint Armor { get; set; }
 }

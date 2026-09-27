@@ -33,17 +33,18 @@ public static class CharacterStatsRefresh
 {
     /// <summary>
     /// False, changing nothing, when there is no ClassLevelStat row for the character's class and
-    /// level. A worn item counts only when its template exists and the slot it is in accepts it, so
+    /// level, or no ClassStatFactors row for its class (#506). A worn item counts only when its template exists and the slot it is in accepts it, so
     /// a row that put a gem in slot 8 or anything in 11-13 adds nothing.
     /// </summary>
     public static bool Apply(
         CharacterEntity character,
         IReadOnlyCollection<ClassLevelStat> classStats,
+        IReadOnlyDictionary<CharacterClass, ClassStatFactors> classFactors,
         Func<ItemTemplateId, ItemTemplate?> findTemplate,
         CurrentValues current)
     {
         ClassLevelStat? row = classStats.FirstOrDefault(s => s.Class == character.Class && s.Level == character.Level);
-        if (row is null)
+        if (row is null || !classFactors.TryGetValue(character.Class, out ClassStatFactors? factors))
             return false;
 
         List<ItemTemplate> worn = [];
@@ -53,7 +54,7 @@ public static class CharacterStatsRefresh
                 worn.Add(template);
         }
 
-        character.ApplyStats(CharacterStatsCalculator.Calculate(row, worn), current);
+        character.ApplyStats(CharacterStatsCalculator.Calculate(row, worn, factors), current);
         return true;
     }
 
@@ -61,7 +62,8 @@ public static class CharacterStatsRefresh
     public static bool Apply(CharacterEntity character, StaticData data, CurrentValues current)
     {
         IReadOnlyCollection<ItemTemplate> templates = data.ItemTemplates;
-        return Apply(character, data.ClassLevelStats, id => templates.FirstOrDefault(t => t.Id == id), current);
+        return Apply(character, data.ClassLevelStats, data.Combat.Factors, id => templates.FirstOrDefault(t => t.Id == id),
+            current);
     }
 
     /// <summary>

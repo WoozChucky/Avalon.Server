@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using Avalon.Database.World.Repositories;
+using Avalon.Database.World.Seeding;
 using Avalon.Domain.World;
 using Avalon.World.Abilities;
 using Avalon.World.Creatures;
@@ -27,7 +28,8 @@ public class StaticData(
     IDialogueRepository dialogueRepository,
     ILootTableRepository lootTableRepository,
     ILoggerFactory loggerFactory,
-    IVendorStockRepository? vendorStockRepository = null)
+    IVendorStockRepository? vendorStockRepository = null,
+    ICombatDataRepository? combatDataRepository = null)
 {
     private readonly ConcurrentQueue<(StaticDataPatch Patch, TaskCompletionSource Done)> _pending = new();
 
@@ -46,6 +48,7 @@ public class StaticData(
     private volatile ProgressionPatch? _progression;
     private volatile LootPatch? _loot;
     private volatile VendorsPatch? _vendors;
+    private volatile CombatPatch? _combat;
 
     /// <summary>
     /// Reads the database and builds a whole patch for one area. Runs on the thread pool and
@@ -111,6 +114,18 @@ public class StaticData(
                 return new VendorsPatch(new VendorCatalog(rows, items, loggerFactory));
             }
 
+            case ReloadArea.Combat:
+            {
+                // #506. No repository (tests that build StaticData without one) is the seeded rows.
+                IReadOnlyCollection<CombatFormula> formulas = combatDataRepository is null
+                    ? [CombatSeed.Formula()]
+                    : await combatDataRepository.GetFormulasAsync(ct);
+                IReadOnlyCollection<ClassStatFactors> factors = combatDataRepository is null
+                    ? CombatSeed.ClassFactors()
+                    : await combatDataRepository.GetClassStatFactorsAsync(ct);
+                return CombatPatch.Build(formulas, factors);
+            }
+
             default:
                 throw new ArgumentOutOfRangeException(nameof(area), area, null);
         }
@@ -145,6 +160,9 @@ public class StaticData(
                 break;
             case VendorsPatch p:
                 _vendors = p;
+                break;
+            case CombatPatch p:
+                _combat = p;
                 break;
             default:
                 throw new NotSupportedException($"No apply for {patch.GetType().Name}");
@@ -244,4 +262,10 @@ public class StaticData(
     /// in between, pairing a new template with an old deriver or the reverse.
     /// </summary>
     public CreaturesPatch Creatures => _creatures!;
+
+    /// <summary>
+    /// The combat formula and the class stat factors (#506), one generation. A hit reads this once, at
+    /// its own resolve; a stats refresh reads it once for the factors it derives with.
+    /// </summary>
+    public CombatPatch Combat => _combat!;
 }

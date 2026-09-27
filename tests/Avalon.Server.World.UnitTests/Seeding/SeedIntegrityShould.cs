@@ -6,6 +6,7 @@ using Avalon.Network.Packets.Abilities;
 using Avalon.World.Abilities;
 using Avalon.World.Characters;
 using Avalon.World.Loot;
+using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Enums;
 using Avalon.World.Public.Units;
 using Microsoft.EntityFrameworkCore;
@@ -630,11 +631,12 @@ public class SeedIntegrityShould
 
         List<AbilityTemplate> abilities = context.AbilityTemplates.AsNoTracking().ToList();
         List<ClassLevelStat> levelStats = context.ClassLevelStats.AsNoTracking().ToList();
+        List<ClassStatFactors> factors = context.ClassStatFactors.AsNoTracking().ToList();
 
         foreach ((CharacterClass cls, uint[] ids) in Kit)
         {
             ClassLevelStat levelOne = levelStats.Single(s => s.Class == cls && s.Level == 1);
-            uint maxPower = CharacterStatsCalculator.Calculate(levelOne, []).MaxPower;
+            uint maxPower = CharacterStatsCalculator.Calculate(levelOne, [], factors.Single(f => f.Class == cls)).MaxPower;
 
             foreach (uint id in ids)
             {
@@ -686,5 +688,97 @@ public class SeedIntegrityShould
         Assert.Equal(232u, heal.Id.Value);
         Assert.Equal(0.5f, heal.HealThreatPerHp);
         Assert.Equal(SpellEffect.Heal, heal.Effects);
+    }
+
+    /// <summary>#506: each kit ability's damage stat and coefficients, as the balance seed set them.</summary>
+    [Theory]
+    [InlineData(200u, ScalingStat.Attack, 0.3f, 1.0f)]
+    [InlineData(201u, ScalingStat.Attack, 0.6f, 1.5f)]
+    [InlineData(202u, ScalingStat.Attack, 0.5f, 1.0f)]
+    [InlineData(210u, ScalingStat.Ability, 0.25f, 0f)]
+    [InlineData(211u, ScalingStat.Ability, 0.8f, 0f)]
+    [InlineData(212u, ScalingStat.Ability, 0.5f, 0f)]
+    [InlineData(220u, ScalingStat.Attack, 0.3f, 1.0f)]
+    [InlineData(221u, ScalingStat.Attack, 0.6f, 1.2f)]
+    [InlineData(222u, ScalingStat.Attack, 0.4f, 0.8f)]
+    [InlineData(230u, ScalingStat.Ability, 0.3f, 0f)]
+    [InlineData(231u, ScalingStat.Ability, 0.5f, 0f)]
+    [InlineData(232u, ScalingStat.Ability, 0.6f, 0f)]
+    public void Seed_each_kit_abilitys_scaling(uint id, ScalingStat stat, float scaling, float weapon)
+    {
+        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+
+        AbilityTemplate ability = context.AbilityTemplates.AsNoTracking().ToList().Single(a => a.Id.Value == id);
+        Assert.Equal((stat, scaling, weapon), (ability.ScalingStat, ability.ScalingCoefficient, ability.WeaponCoefficient));
+    }
+
+    /// <summary>#506: the starter weapons roll 4-7, the forest weapons 7-11, and the two-handed Thornwood Staff 9-14.</summary>
+    [Theory]
+    [InlineData(32ul, 4u, 7u)]
+    [InlineData(33ul, 4u, 7u)]
+    [InlineData(34ul, 4u, 7u)]
+    [InlineData(35ul, 4u, 7u)]
+    [InlineData(5ul, 9u, 14u)]
+    [InlineData(6ul, 7u, 11u)]
+    [InlineData(7ul, 7u, 11u)]
+    [InlineData(8ul, 7u, 11u)]
+    public void Seed_the_weapon_damage_ranges(ulong id, uint min, uint max)
+    {
+        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+
+        ItemTemplate item = context.ItemTemplates.AsNoTracking().ToList().Single(i => i.Id.Value == id);
+        Assert.Equal(((uint?)min, (uint?)max), (item.DamageMin1, item.DamageMax1));
+    }
+
+    /// <summary>#506: creature armour rises linearly from 0 at level 1 to 30 at level 10, round(30 x (L - 1) / 9).</summary>
+    [Fact]
+    public void Seed_creature_armour_rising_linearly_to_thirty_at_level_ten()
+    {
+        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+
+        List<CreatureBaseStat> rows = context.CreatureBaseStats.AsNoTracking().ToList().OrderBy(r => r.Level).ToList();
+        Assert.Equal(Enumerable.Range(1, 10).Select(l => (ushort)l), rows.Select(r => r.Level));
+        Assert.Equal([0u, 3u, 7u, 10u, 13u, 17u, 20u, 23u, 27u, 30u], rows.Select(r => r.Armor));
+    }
+
+    /// <summary>#506: the rarity crit, dodge and block chances, in percentage points.</summary>
+    [Theory]
+    [InlineData(CreatureRarity.Normal, 0f, 0f, 0f)]
+    [InlineData(CreatureRarity.Elite, 5f, 3f, 0f)]
+    [InlineData(CreatureRarity.Rare, 8f, 5f, 5f)]
+    [InlineData(CreatureRarity.Boss, 10f, 5f, 10f)]
+    public void Seed_the_rarity_rolls(CreatureRarity rarity, float crit, float dodge, float block)
+    {
+        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+
+        CreatureRarityModifier row = context.CreatureRarityModifiers.AsNoTracking().ToList().Single(r => r.Rarity == rarity);
+        Assert.Equal((crit, dodge, block), (row.CritPct, row.DodgePct, row.BlockPct));
+    }
+
+    /// <summary>#506: the one formula row and the class factors, as the balance seed set them.</summary>
+    [Fact]
+    public void Seed_the_combat_formula_and_one_factors_row_per_class()
+    {
+        using SqliteDatabase<WorldDbContext> database = SqliteDatabase.World();
+        using WorldDbContext context = database.CreateDbContext();
+
+        CombatFormula f = Assert.Single(context.CombatFormulas.AsNoTracking().ToList());
+        Assert.Equal((1, 50f, 10f, 0.75f, 1.5f, 0.5f, 50f, 30f, 50f),
+            (f.Id, f.ArmorBase, f.ArmorPerLevel, f.ArmorCap, f.CritMultiplier, f.BlockMultiplier, f.CritCap, f.DodgeCap, f.BlockCap));
+
+        var factors = context.ClassStatFactors.AsNoTracking().ToList().ToDictionary(r => r.Class);
+        Assert.Equal(Enum.GetValues<CharacterClass>().Order(), factors.Keys.Order());
+        ClassStatFactors w = factors[CharacterClass.Warrior];
+        Assert.Equal((10L, 0d, 0d, (long?)100L, 2d, 0d, 0.2d, 5.0f, 3.664f, 5.0f),
+            (w.HpPerStamina, w.PowerPerIntellect, w.PowerPerAgility, w.FixedPower, w.AttackPerStrength, w.AttackPerAgility,
+             w.AbilityPerIntellect, w.BaseBlock, w.BaseDodge, w.BaseCrit));
+        ClassStatFactors h = factors[CharacterClass.Hunter];
+        Assert.Equal((8L, 2d, 0.8d, (long?)null, 0.5d, 1.5d, 0.5d, 0f, 4.35f, 5.0f),
+            (h.HpPerStamina, h.PowerPerIntellect, h.PowerPerAgility, h.FixedPower, h.AttackPerStrength, h.AttackPerAgility,
+             h.AbilityPerIntellect, h.BaseBlock, h.BaseDodge, h.BaseCrit));
     }
 }

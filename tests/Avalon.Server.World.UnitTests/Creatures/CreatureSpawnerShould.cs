@@ -63,6 +63,40 @@ public class CreatureSpawnerShould
     }
 
     /// <summary>
+    /// #506: a creature's armour and rolls are fixed at spawn from base x modifier x rarity. A
+    /// /reload creatures reaches the next spawn only; one already standing keeps its defences.
+    /// </summary>
+    [Fact]
+    public async Task Fix_armour_and_rolls_at_spawn_and_keep_them_through_a_reload_of_creatures()
+    {
+        var template = new CreatureTemplate
+        {
+            Id = new CreatureTemplateId(62),
+            Name = "Armour Reload Target",
+            MinLevel = 1,
+            MaxLevel = 1,
+            Rarity = CreatureRarity.Normal,
+            HealthModifier = 1f,
+            DamageModifier = 1f,
+            ExperienceModifier = 1f,
+            ArmorModifier = 2f,
+        };
+        (CreatureSpawner spawner, StaticData data, MutableRepos repos) = ReloadableSpawnerOver(template);
+        repos.BaseStats[0] = new CreatureBaseStat { Level = 1, Health = 50, DamageMin = 4, DamageMax = 7, Experience = 25, Armor = 10 };
+        data.Apply(await data.PrepareAsync(ReloadArea.Creatures));
+
+        var before = (Creature)spawner.Spawn(template.Id);
+
+        repos.BaseStats[0] = new CreatureBaseStat { Level = 1, Health = 50, DamageMin = 4, DamageMax = 7, Experience = 25, Armor = 40 };
+        data.Apply(await data.PrepareAsync(ReloadArea.Creatures));
+        var after = (Creature)spawner.Spawn(template.Id);
+
+        Assert.Equal(20u, before.Armor);
+        Assert.Equal(80u, after.Armor);
+        Assert.Equal((0f, 0f, 0f), (before.CritPct, before.DodgePct, before.BlockPct));
+    }
+
+    /// <summary>
     /// The other half of the same trap: a reloaded template's own modifier has to reach the next
     /// spawn too, not just the base-stat table.
     /// </summary>

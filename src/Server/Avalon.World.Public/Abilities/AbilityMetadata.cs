@@ -60,6 +60,15 @@ public class AbilityMetadata
     /// <summary>Power the caster gains per unit this ability damages (#526); 0 gains nothing.</summary>
     public int            PowerGainPerHit { get; init; }
 
+    /// <summary>The derived damage stat the ability scales with (#506).</summary>
+    public ScalingStat    ScalingStat        { get; init; } = ScalingStat.Attack;
+
+    /// <summary>Multiplies the caster's <see cref="ScalingStat" /> into the damage or heal (#506).</summary>
+    public float          ScalingCoefficient { get; init; }
+
+    /// <summary>Multiplies a roll of the caster's main-hand weapon into the damage or heal (#506).</summary>
+    public float          WeaponCoefficient  { get; init; }
+
     public AbilityMetadata Clone() =>
         new()
         {
@@ -86,5 +95,8 @@ public class AbilityMetadata
             Pierce = Pierce,
             Affects = Affects,
             PowerGainPerHit = PowerGainPerHit,
+            ScalingStat = ScalingStat,
+            ScalingCoefficient = ScalingCoefficient,
+            WeaponCoefficient = WeaponCoefficient,
         };
 }

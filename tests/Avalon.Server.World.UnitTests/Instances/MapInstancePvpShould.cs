@@ -39,8 +39,8 @@ public class MapInstancePvpShould
         _toggle = new PvpToggle(Options.Create(new GameConfiguration { PvpOffDelay = TimeSpan.FromMinutes(5) }), _clock);
 
     /// <summary>The instance, its combat service and the test share one toggle and one clock.</summary>
-    private MapInstance Build(MapType mapType = MapType.Normal) =>
-        TestMapInstances.Build(NewWorld(), pvp: _toggle, mapType: mapType);
+    private MapInstance Build(MapType mapType = MapType.Normal, Avalon.World.Combat.ICombatRandom? random = null) =>
+        TestMapInstances.Build(NewWorld(), pvp: _toggle, mapType: mapType, random: random);
 
     /// <summary>Both characters flagged with a running off timer, at full health.</summary>
     private void FlagWithTimer(params MapInstanceClient[] clients)
@@ -150,18 +150,26 @@ public class MapInstancePvpShould
         Assert.Equal((false, 0u), PvpStates(player).Select(s => (s.Enabled, s.OffInMs)).Single());
     }
 
+    /// <summary>
+    /// Since #506 every hit that lands deals at least 1, so the hit that deals no damage is a dodge: it
+    /// restarts neither timer.
+    /// </summary>
     [Fact]
     public void Leave_the_timers_alone_on_a_hit_of_no_damage()
     {
-        using MapInstance instance = Build();
+        using MapInstance instance = Build(random: new Combat.ScriptedCombatRandom(0.0));
         MapInstanceClient a = Join(instance, 164_871);
         MapInstanceClient b = Join(instance, 164_872);
+        b.Character.ApplyStats(new Avalon.World.Characters.DerivedCharacterStats(MaxHealth: 100, MaxPower: 0, Stamina: 0,
+            Strength: 0, Agility: 0, Intellect: 0, Armor: 0, BlockPct: 0f, DodgePct: 30f, CritPct: 0f, AttackDamage: 0,
+            AbilityDamage: 0), Avalon.World.Characters.CurrentValues.Refill);
         FlagWithTimer(a, b);
         DateTime? before = a.Character.PvpOffAt;
         _clock.Now = _clock.Now.AddMinutes(1);
 
-        instance.CombatService.ApplyDamage(a.Character, b.Character, 0);
+        instance.CombatService.ApplyDamage(a.Character, b.Character, 10);
 
+        Assert.Equal(100u, b.Character.CurrentHealth);
         Assert.Equal(before, a.Character.PvpOffAt);
         Assert.Equal(before, b.Character.PvpOffAt);
     }

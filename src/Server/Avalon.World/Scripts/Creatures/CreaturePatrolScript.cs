@@ -1,5 +1,6 @@
 using Avalon.Common.Mathematics;
 using Avalon.Network.Packets.State;
+using Avalon.World.Combat;
 using Avalon.World.Public.Creatures;
 using Avalon.World.Public.Instances;
 using Avalon.World.Public.Scripts;
@@ -46,10 +47,10 @@ public sealed class CreaturePatrolScript : AiScript, IReturningHome
     private TimeSpan _pauseRemaining;
 
     public CreaturePatrolScript(ILoggerFactory loggerFactory, ICreature creature, ISimulationContext context,
-        TimeProvider? time = null)
+        TimeProvider? time = null, ICombatRandom? random = null)
         : base(creature, context)
     {
-        _combat = new CreatureCombatScript(loggerFactory, creature, context, time);
+        _combat = new CreatureCombatScript(loggerFactory, creature, context, time, random);
         Chain(_combat);
     }
 

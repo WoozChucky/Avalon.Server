@@ -17,8 +17,16 @@ public class SCharacterDamagePacket : Packet
     [ProtoMember(4)] public uint Damage { get; set; }
     [ProtoMember(5)] public uint? AbilityId { get; set; }
 
-    public static NetworkPacket Create(ulong attacker, ulong target, uint currentHealth, uint damage, uint? abilityId, EncryptFunc encryptFunc)
+    /// <summary>How the hit went (#506): a crit, a block, both, or a dodge, which deals 0. Absent is None.</summary>
+    [ProtoMember(6)] public HitResult Result { get; set; }
+
+    public static NetworkPacket Create(ulong attacker, ulong target, uint currentHealth, uint damage, uint? abilityId,
+        EncryptFunc encryptFunc, HitResult result = HitResult.None)
         => PacketSerializationHelper.Serialize(
-            new SCharacterDamagePacket { Attacker = attacker, Target = target, CurrentHealth = currentHealth, Damage = damage, AbilityId = abilityId },
+            new SCharacterDamagePacket
+            {
+                Attacker = attacker, Target = target, CurrentHealth = currentHealth, Damage = damage, AbilityId = abilityId,
+                Result = result,
+            },
             PacketType, Flags, Protocol, encryptFunc);
 }

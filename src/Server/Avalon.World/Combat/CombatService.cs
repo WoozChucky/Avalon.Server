@@ -2,6 +2,9 @@ using System;
 using System.Linq;
 using Avalon.Common.Mathematics;
 using Avalon.Common.ValueObjects;
+using Avalon.Database.World.Seeding;
+using Avalon.Domain.World;
+using Avalon.Network.Packets.Combat;
 using Avalon.Network.Packets.State;
 using Avalon.World.Configuration;
 using Avalon.World.Entities;
@@ -26,14 +29,27 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
     private readonly ICombatOutcomes?    _outcomes;
     private readonly TimeProvider        _time;
     private readonly float               _furyFromDamageTaken;
+    private readonly ICombatRandom       _random;
+    private readonly Func<CombatFormula> _formula;
+
+    /// <summary>The seeded formula, for a service built without an accessor (tests).</summary>
+    private static readonly CombatFormula SeededFormula = CombatSeed.Formula();
 
     /// <param name="outcomes">Where hits and kills are reported (#546): the instance this service belongs to.</param>
     /// <param name="time">The instance's clock, the one taunts end by (#614).</param>
     /// <param name="furyFromDamageTaken">Game:FuryFromDamageTaken (#526); the setting's default when omitted.</param>
+    /// <param name="random">Every combat roll (#506); <see cref="CombatRandom.Steady" /> when omitted.</param>
+    /// <param name="formula">
+    /// The current combat formula (#506), read once per hit at its own resolve, so a reload that lands between
+    /// two hits of one cast changes the second and never half of one; the seeded formula when omitted.
+    /// </param>
     public CombatService(CombatConfig config, EncounterRegistry registry, ISimulationContext? context = null,
         PvpToggle? pvp = null, ICombatOutcomes? outcomes = null, TimeProvider? time = null,
-        float furyFromDamageTaken = GameConfiguration.DefaultFuryFromDamageTaken)
+        float furyFromDamageTaken = GameConfiguration.DefaultFuryFromDamageTaken, ICombatRandom? random = null,
+        Func<CombatFormula>? formula = null)
     {
+        _random   = random ?? CombatRandom.Steady;
+        _formula  = formula ?? (() => SeededFormula);
         _time     = time ?? TimeProvider.System;
         _furyFromDamageTaken = furyFromDamageTaken;
         _config   = config;
@@ -43,18 +59,23 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
         _outcomes = outcomes;
     }
 
+    /// <summary>
+    /// An ability's hit (#506): <paramref name="damage" /> is its effect value, to which the caster's scaled
+    /// stat and weapon roll are added, then the target's defences are rolled.
+    /// </summary>
     public void ApplyDamage(IUnit attacker, IUnit target, uint damage, IAbility ability)
-        => ApplyDamageCore(attacker, target, damage, ability.Metadata.ThreatMultiplier, ability.AbilityId,
-            (uint)Math.Max(0, ability.Metadata.PowerGainPerHit));
+        => ApplyDamageCore(attacker, target, damage, ability);
 
+    /// <summary>A raw hit, such as a creature's swing (#506): <paramref name="damage" /> is the base the defences reduce.</summary>
     public void ApplyDamage(IUnit attacker, IUnit target, uint damage)
-        => ApplyDamageCore(attacker, target, damage, 1.0f, abilityId: null, powerGainPerHit: 0);
+        => ApplyDamageCore(attacker, target, damage, ability: null);
 
-    /// <param name="powerGainPerHit">
-    /// What the attacker gains, in its own pool, when this hit damages the target (#526); 0 for a swing.
+    /// <param name="damage">The ability's effect value, or a raw hit's whole base.</param>
+    /// <param name="ability">
+    /// The ability that hit, or null for a swing: it scales the base, multiplies the threat, names the hit to
+    /// the character hit, and gives its PowerGainPerHit to the caster per unit damaged (#526).
     /// </param>
-    private void ApplyDamageCore(IUnit attacker, IUnit target, uint damage, float threatMultiplier, AbilityId? abilityId,
-        uint powerGainPerHit)
+    private void ApplyDamageCore(IUnit attacker, IUnit target, uint damage, IAbility? ability)
     {
         // Invulnerable creatures (town NPCs) absorb nothing and provoke nothing. This sits ahead of
         // ResolveOrSpawn deliberately: attacking one must not create an encounter, add threat, or
@@ -70,6 +91,31 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
         // encounter, no threat, no script call, no broadcast, and its attacker is not tagged in
         // combat, so nothing from the walk home outlives the reset there.
         if (IsReturningHome(target)) return;
+
+        // #506: the hit resolves here, past every early return above, so nothing refused draws a roll.
+        // The formula is read once for the whole hit.
+        CombatFormula formula = _formula();
+        AttackerCombat attackerCombat = AttackerOf(attacker);
+        AbilityMetadata? metadata = ability?.Metadata;
+        float baseDamage = metadata is null
+            ? damage
+            : HitResolver.AbilityBase(attackerCombat, damage, metadata.ScalingStat, metadata.ScalingCoefficient,
+                metadata.WeaponCoefficient, _random);
+        (uint dealt, HitResult result) =
+            HitResolver.ResolveDamage(attackerCombat, DefenderOf(target), baseDamage, formula, _random);
+
+        float threatMultiplier = metadata?.ThreatMultiplier ?? 1.0f;
+        AbilityId? abilityId = ability?.AbilityId;
+        uint powerGainPerHit = metadata is null ? 0u : (uint)Math.Max(0, metadata.PowerGainPerHit);
+
+        if ((result & HitResult.Dodged) != 0)
+        {
+            Dodged(attacker, target, baseDamage * threatMultiplier, abilityId);
+            return;
+        }
+
+        // Everything below reads the resolved damage (#506): threat, the hit, the gain and the PvP reset.
+        damage = dealt;
 
         // #164: a player-on-player hit that deals damage to a living player restarts both players'
         // running PvP off timers. Towns are covered because AbilityEffect checks Hostility before it
@@ -96,7 +142,7 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
 
         // Damage application — IUnit.OnHit mutates HP / sets death flags. A character is also told
         // which ability hit it, or none for a swing (#521 item 8).
-        Hit(attacker, target, damage, abilityId);
+        Hit(attacker, target, damage, abilityId, result);
 
         // #526: an ability that damaged a living unit gives its caster the ability's gain, once per unit
         // damaged, capped at the caster's maximum; after the hit, before the death detection. Only a
@@ -121,7 +167,7 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
     /// its script brought from above 0 to 0 health is killed: once, here, before the caller's encounter
     /// death and death broadcast.
     /// </summary>
-    private void Hit(IUnit attacker, IUnit target, uint damage, AbilityId? abilityId)
+    private void Hit(IUnit attacker, IUnit target, uint damage, AbilityId? abilityId, HitResult result)
     {
         if (target is CharacterEntity character)
         {
@@ -142,7 +188,7 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
                     character.GainPower(Fury.FromDamageTaken(lost, characterHealthBefore, character.Health, _furyFromDamageTaken));
                 }
 
-                _outcomes?.CharacterDamaged(character, attacker, damage, abilityId);
+                _outcomes?.CharacterDamaged(character, attacker, damage, abilityId, result);
             }
             return;
         }
@@ -151,10 +197,66 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
         // the damage it is given cannot wrap its uint health past 0 (#588). Threat above still counts
         // the whole hit.
         uint healthBefore = target.CurrentHealth;
-        target.OnHit(attacker, target is ICreature ? Math.Min(damage, healthBefore) : damage);
+
+        // The creature script broadcasts the hit itself; for exactly the length of its OnHit the instance
+        // marks that broadcast with how the hit went (#506).
+        if (_outcomes is not null) _outcomes.HitInFlight = result;
+        try
+        {
+            target.OnHit(attacker, target is ICreature ? Math.Min(damage, healthBefore) : damage);
+        }
+        finally
+        {
+            if (_outcomes is not null) _outcomes.HitInFlight = HitResult.None;
+        }
+
         if (target is ICreature creature && healthBefore > 0 && creature.CurrentHealth == 0)
             _outcomes?.CreatureKilled(creature, attacker);
     }
+
+    /// <summary>
+    /// A dodged hit (#506) is still combat: the encounter forms, the creature is given threat as if the hit
+    /// had landed for its base, both sides are tagged in combat, and a creature's script is told it was
+    /// attacked (<c>AiScript.OnAttacked</c>) so it engages. It deals nothing, so the script is not hit,
+    /// nobody gains power, and nobody dies.
+    /// </summary>
+    private void Dodged(IUnit attacker, IUnit target, float baseThreat, AbilityId? abilityId)
+    {
+        Encounter enc = ResolveOrSpawn(attacker, target);
+
+        // Sent like a hit, with 0, to whoever would have seen it land; a dead character is sent nothing,
+        // as a hit on it would not be.
+        if (target is not ICharacter { IsDead: true })
+            _outcomes?.HitDodged(attacker, target, abilityId);
+
+        if (target is ICreature creature)
+        {
+            CharacterClass attackerClass = (attacker as ICharacter)?.Class ?? CharacterClass.Hunter;
+            enc.AddThreat(target, attacker, baseThreat * ClassThreatModifier.Get(attackerClass));
+
+            // The creature fights back as if hit, though it took nothing (#506 review).
+            creature.Script?.OnAttacked(attacker);
+        }
+
+        if (attacker is ICharacter attackerCharacter) attackerCharacter.MarkCombat();
+        if (target   is ICharacter targetCharacter)   targetCharacter.MarkCombat();
+    }
+
+    /// <summary>What a unit attacks with (#506); a unit that is neither a character nor a creature brings its level alone.</summary>
+    private static AttackerCombat AttackerOf(IUnit unit) => unit switch
+    {
+        CharacterEntity character => character.Combat,
+        Creature creature => creature.Combat,
+        _ => new AttackerCombat(unit.Level, 0, 0, 0f, 0, 0),
+    };
+
+    /// <summary>What a unit defends with (#506); a unit that is neither a character nor a creature has no defences.</summary>
+    private static DefenderCombat DefenderOf(IUnit unit) => unit switch
+    {
+        CharacterEntity character => character.Defence,
+        Creature creature => creature.Defence,
+        _ => default,
+    };
 
     /// <summary>A creature whose combat script is walking it home (#610); see <see cref="IReturningHome" />.</summary>
     private static bool IsReturningHome(IUnit unit) =>
@@ -202,7 +304,9 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
     }
 
     /// <summary>
-    /// Restores up to <paramref name="amount" />, capped at the target's maximum (#164). A heal never
+    /// Restores the resolved heal, capped at the target's maximum (#164). <paramref name="amount" /> is the
+    /// ability's effect value, to which the healer's scaled stat (and weapon roll, if the ability has a weapon
+    /// term) is added; then the one crit roll (#506). A heal is never dodged, blocked or reduced by armour. A heal never
     /// lowers health: a unit already at or above its maximum keeps what it has, and the heal restores 0
     /// (#548). A dead unit is never healed. The health change reaches clients through entity replication, as regeneration's
     /// does. Heal threat counts only the health actually restored (#531):
@@ -214,6 +318,14 @@ public sealed class CombatService : ICombatService, IHostileEncounterExit
     {
         bool dead = target is ICharacter { IsDead: true } || target.CurrentHealth == 0;
         if (dead) return;
+
+        // #506: resolved past the early return, so a dead target draws no roll; the formula is read once.
+        CombatFormula formula = _formula();
+        AttackerCombat healerCombat = AttackerOf(healer);
+        AbilityMetadata metadata = ability.Metadata;
+        float baseHeal = HitResolver.AbilityBase(healerCombat, amount, metadata.ScalingStat, metadata.ScalingCoefficient,
+            metadata.WeaponCoefficient, _random);
+        (amount, _) = HitResolver.ResolveHeal(healerCombat, baseHeal, formula, _random);
 
         uint before = target.CurrentHealth;
         uint after = before >= target.Health

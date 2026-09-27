@@ -41,6 +41,19 @@ public abstract class AiScript(ICreature creature, ISimulationContext context)
         }
     }
 
+    /// <summary>
+    /// <paramref name="attacker" /> attacked this creature and the hit dealt nothing: it was dodged (#506).
+    /// The creature should fight back as if hit, but has taken no damage. A notification only: it grants
+    /// nothing. Forwarded to chained scripts, as <see cref="OnHit" /> is.
+    /// </summary>
+    public virtual void OnAttacked(IUnit attacker)
+    {
+        foreach (AiScript script in ChainedScripts)
+        {
+            script.OnAttacked(attacker);
+        }
+    }
+
     public virtual void OnEnteredRange(ICharacter character)
     {
         foreach (AiScript script in ChainedScripts)

@@ -24,6 +24,9 @@ public class CharacterStatsCalculatorShould
         return context.ClassLevelStats.AsNoTracking().ToList().Single(s => s.Class == @class && s.Level == level);
     }
 
+    private static DerivedCharacterStats Calc(ClassLevelStat row, IEnumerable<ItemTemplate> worn)
+        => CharacterStatsCalculator.Calculate(row, worn, TestCombat.FactorsOf(row.Class));
+
     [Theory]
     [InlineData(CharacterClass.Warrior, 1, 240u, 100u, 46u, 4u)]
     [InlineData(CharacterClass.Warrior, 5, 400u, 100u, 62u, 4u)]
@@ -40,7 +43,7 @@ public class CharacterStatsCalculatorShould
     {
         ClassLevelStat row = SeededRow(@class, level);
 
-        DerivedCharacterStats stats = CharacterStatsCalculator.Calculate(row, []);
+        DerivedCharacterStats stats = Calc(row, []);
 
         Assert.Equal(health, stats.MaxHealth);
         Assert.Equal(power, stats.MaxPower);
@@ -72,7 +75,7 @@ public class CharacterStatsCalculatorShould
     [InlineData(CharacterClass.Healer, 0f, 3.25f, 1.85f)]
     public void Start_each_class_at_its_base_block_dodge_and_crit(CharacterClass @class, float block, float dodge, float crit)
     {
-        DerivedCharacterStats stats = CharacterStatsCalculator.Calculate(SeededRow(@class, 1), []);
+        DerivedCharacterStats stats = Calc(SeededRow(@class, 1), []);
 
         Assert.Equal((block, dodge, crit), (stats.BlockPct, stats.DodgePct, stats.CritPct));
     }
@@ -82,7 +85,7 @@ public class CharacterStatsCalculatorShould
     {
         // Warrior 1: BaseHp 20, Stamina 22, Strength 23. The chestguard adds Str 2, Armor 8, Sta 2.
         DerivedCharacterStats stats =
-            CharacterStatsCalculator.Calculate(SeededRow(CharacterClass.Warrior, 1), [EquipTemplates.Chestguard]);
+            Calc(SeededRow(CharacterClass.Warrior, 1), [EquipTemplates.Chestguard]);
 
         Assert.Equal(24u, stats.Stamina);
         Assert.Equal(25u, stats.Strength);
@@ -94,7 +97,7 @@ public class CharacterStatsCalculatorShould
     [Fact]
     public void Add_flat_health_damage_and_crit_but_never_change_a_warriors_power()
     {
-        DerivedCharacterStats warrior = CharacterStatsCalculator.Calculate(
+        DerivedCharacterStats warrior = Calc(
             SeededRow(CharacterClass.Warrior, 1), [EquipTemplates.Chestguard, EquipTemplates.VigorAmulet]);
 
         Assert.Equal(20u + 24u * 10u + 15u, warrior.MaxHealth);
@@ -107,7 +110,7 @@ public class CharacterStatsCalculatorShould
     public void Add_flat_power_for_a_class_whose_pool_grows()
     {
         DerivedCharacterStats wizard =
-            CharacterStatsCalculator.Calculate(SeededRow(CharacterClass.Wizard, 1), [EquipTemplates.VigorAmulet]);
+            Calc(SeededRow(CharacterClass.Wizard, 1), [EquipTemplates.VigorAmulet]);
 
         Assert.Equal(121u + 15u, wizard.MaxHealth);
         Assert.Equal(365u + 20u, wizard.MaxPower);
@@ -125,7 +128,7 @@ public class CharacterStatsCalculatorShould
         };
         ClassLevelStat row = SeededRow(CharacterClass.Warrior, 1);
 
-        Assert.Equal(CharacterStatsCalculator.Calculate(row, []), CharacterStatsCalculator.Calculate(row, [boots]));
+        Assert.Equal(Calc(row, []), Calc(row, [boots]));
     }
 
     [Fact]
@@ -138,7 +141,7 @@ public class CharacterStatsCalculatorShould
             StatType5 = StatType.Armor, StatValue5 = null,
         };
 
-        Assert.Equal(3u, CharacterStatsCalculator.Calculate(SeededRow(CharacterClass.Hunter, 1), [trinket]).Armor);
+        Assert.Equal(3u, Calc(SeededRow(CharacterClass.Hunter, 1), [trinket]).Armor);
     }
 
     [Fact]

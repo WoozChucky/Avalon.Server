@@ -13,6 +13,7 @@ using Avalon.World.Public.Enums;
 using Avalon.World.Public.Units;
 using Avalon.World.Abilities;
 using Avalon.World.Characters;
+using Avalon.World.Combat;
 using Avalon.World.Inventory;
 using Avalon.World.Persistence;
 using Avalon.World.Vendors;
@@ -105,13 +106,17 @@ public class CharacterEntity : ICharacter
         Health = stats.MaxHealth;
         Power = stats.MaxPower;
 
+        // The maximums as stored, clamped to the row's int (#506): the pools fill to these, never past them.
+        uint maxHealth = Health;
+        uint maxPower = Power ?? 0;
+
         if (current == CurrentValues.KeepShare)
         {
-            CurrentHealth = CharacterStatsCalculator.KeepShare(CurrentHealth, oldHealth, stats.MaxHealth);
+            CurrentHealth = CharacterStatsCalculator.KeepShare(CurrentHealth, oldHealth, maxHealth);
         }
         else
         {
-            CurrentHealth = stats.MaxHealth;
+            CurrentHealth = maxHealth;
         }
 
         if (PowerType == PowerType.Fury)
@@ -120,18 +125,18 @@ public class CharacterEntity : ICharacter
             // that lowers it. A gear change that leaves it alone must not, or swapping gear quickly
             // enough would stop the decay.
             uint fury = CurrentPower ?? 0;
-            uint kept = current == CurrentValues.EnterWorld ? 0u : Math.Min(fury, stats.MaxPower);
+            uint kept = current == CurrentValues.EnterWorld ? 0u : Math.Min(fury, maxPower);
             if (current == CurrentValues.EnterWorld || kept != fury)
                 _furyDecayRemainder = 0d;
             CurrentPower = kept;
         }
         else if (current == CurrentValues.KeepShare)
         {
-            CurrentPower = CharacterStatsCalculator.KeepShare(CurrentPower ?? 0, oldPower, stats.MaxPower);
+            CurrentPower = CharacterStatsCalculator.KeepShare(CurrentPower ?? 0, oldPower, maxPower);
         }
         else
         {
-            CurrentPower = stats.MaxPower;
+            CurrentPower = maxPower;
         }
 
         Stamina = stats.Stamina;
@@ -145,6 +150,20 @@ public class CharacterEntity : ICharacter
         Stats = stats;
         SaveState.StatsChanged();
     }
+
+    /// <summary>
+    /// What this character attacks with (#506): its level, and the damage stats, crit and main-hand weapon
+    /// range the last stats refresh derived (select, gear change, level-up). World-side and read-only, not
+    /// on ICharacter: the modding API cannot change what a hit deals (#622).
+    /// </summary>
+    internal AttackerCombat Combat => Stats is { } s
+        ? new AttackerCombat(Level, s.AttackDamage, s.AbilityDamage, s.CritPct, s.WeaponMin, s.WeaponMax)
+        : new AttackerCombat(Level, 0, 0, 0f, 0, 0);
+
+    /// <summary>What this character defends with (#506): armour, dodge and block, from the last stats refresh.</summary>
+    internal DefenderCombat Defence => Stats is { } s
+        ? new DefenderCombat(s.Armor, s.DodgePct, s.BlockPct)
+        : default;
 
     public bool IsInCombat =>
         _lastCombatTime != DateTime.MinValue &&
@@ -254,7 +273,8 @@ public class CharacterEntity : ICharacter
         {
             if (Data != null)
             {
-                Data.Health = (int)value;
+                // #506: the row stores an int, so a gear total past int.MaxValue is clamped, never wrapped negative.
+                Data.Health = (int)Math.Min(value, (uint)int.MaxValue);
                 _dirtyFields |= GameEntityFields.Health;
             }
         }
@@ -287,7 +307,8 @@ public class CharacterEntity : ICharacter
         {
             if (Data != null)
             {
-                Data.Power1 = (int)value!;
+                // #506: clamped to the int the row stores, as Health is.
+                Data.Power1 = (int)Math.Min(value ?? 0u, (uint)int.MaxValue);
                 _dirtyFields |= GameEntityFields.Power;
             }
         }

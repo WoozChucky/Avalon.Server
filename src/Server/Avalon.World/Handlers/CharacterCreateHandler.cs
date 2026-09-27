@@ -126,7 +126,8 @@ public class CharacterCreateHandler(
         var gender = (CharacterGender)(byte)packet.Gender; // range-checked in Execute
 
         // Every starting item goes to the Bag, so a new character wears nothing yet.
-        DerivedCharacterStats stats = CharacterStatsCalculator.Calculate(classLevelStats, []);
+        DerivedCharacterStats stats = CharacterStatsCalculator.Calculate(classLevelStats, [],
+            world.Data.Combat.Factors[createInfo.Class]);
 
         var character = new Character
         {
@@ -141,8 +142,8 @@ public class CharacterCreateHandler(
             Rotation = createInfo.Rotation,
             Map = createInfo.Map,
             CreationDate = DateTime.UtcNow,
-            Health = (int)stats.MaxHealth,
-            Power1 = (int)stats.MaxPower,
+            Health = (int)Math.Min(stats.MaxHealth, (uint)int.MaxValue), // #506: the row is an int; clamp, never wrap
+            Power1 = (int)Math.Min(stats.MaxPower, (uint)int.MaxValue),
             Power2 = 0,
             Experience = 0,
         };

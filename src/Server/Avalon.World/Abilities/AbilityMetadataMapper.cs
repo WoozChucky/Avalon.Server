@@ -31,5 +31,8 @@ public static class AbilityMetadataMapper
         Pierce = template.Pierce,
         Affects = template.Affects,
         PowerGainPerHit = template.PowerGainPerHit,
+        ScalingStat = template.ScalingStat,
+        ScalingCoefficient = template.ScalingCoefficient,
+        WeaponCoefficient = template.WeaponCoefficient,
     };
 }

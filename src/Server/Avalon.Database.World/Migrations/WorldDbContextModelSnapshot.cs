@@ -88,6 +88,12 @@ namespace Avalon.Database.World.Migrations
                     b.Property<float>("Reach")
                         .HasColumnType("real");
 
+                    b.Property<float>("ScalingCoefficient")
+                        .HasColumnType("real");
+
+                    b.Property<byte>("ScalingStat")
+                        .HasColumnType("smallint");
+
                     b.Property<byte>("Shape")
                         .HasColumnType("smallint");
 
@@ -101,6 +107,9 @@ namespace Avalon.Database.World.Migrations
                     b.Property<float>("ThreatMultiplier")
                         .HasColumnType("real");
 
+                    b.Property<float>("WeaponCoefficient")
+                        .HasColumnType("real");
+
                     b.HasKey("Id");
 
                     b.ToTable("AbilityTemplates", null, t =>
@@ -109,7 +118,11 @@ namespace Avalon.Database.World.Migrations
 
                             t.HasCheckConstraint("CK_AbilityTemplates_PowerGainPerHit_NonNegative", "\"PowerGainPerHit\" >= 0");
 
+                            t.HasCheckConstraint("CK_AbilityTemplates_ScalingCoefficient_NonNegative", "\"ScalingCoefficient\" >= 0 AND \"ScalingCoefficient\" < 'Infinity'");
+
                             t.HasCheckConstraint("CK_AbilityTemplates_ThreatMultiplier_NonNegative", "\"ThreatMultiplier\" >= 0 AND \"ThreatMultiplier\" < 'Infinity'");
+
+                            t.HasCheckConstraint("CK_AbilityTemplates_WeaponCoefficient_NonNegative", "\"WeaponCoefficient\" >= 0 AND \"WeaponCoefficient\" < 'Infinity'");
                         });
 
                     b.HasData(
@@ -136,10 +149,13 @@ namespace Avalon.Database.World.Migrations
                             Radius = 0f,
                             Range = 2,
                             Reach = 2.5f,
+                            ScalingCoefficient = 0.3f,
+                            ScalingStat = (byte)0,
                             Shape = (byte)1,
                             SpellScript = "ConeAbilityScript",
                             TauntDurationMs = 0L,
-                            ThreatMultiplier = 1f
+                            ThreatMultiplier = 1f,
+                            WeaponCoefficient = 1f
                         },
                         new
                         {
@@ -164,10 +180,13 @@ namespace Avalon.Database.World.Migrations
                             Radius = 3f,
                             Range = 5,
                             Reach = 0f,
+                            ScalingCoefficient = 0.6f,
+                            ScalingStat = (byte)0,
                             Shape = (byte)0,
                             SpellScript = "CircleAbilityScript",
                             TauntDurationMs = 0L,
-                            ThreatMultiplier = 1f
+                            ThreatMultiplier = 1f,
+                            WeaponCoefficient = 1.5f
                         },
                         new
                         {
@@ -192,10 +211,13 @@ namespace Avalon.Database.World.Migrations
                             Radius = 0f,
                             Range = 10,
                             Reach = 15f,
+                            ScalingCoefficient = 0.5f,
+                            ScalingStat = (byte)0,
                             Shape = (byte)2,
                             SpellScript = "ProjectileAbilityScript",
                             TauntDurationMs = 0L,
-                            ThreatMultiplier = 1f
+                            ThreatMultiplier = 1f,
+                            WeaponCoefficient = 1f
                         },
                         new
                         {
@@ -220,10 +242,13 @@ namespace Avalon.Database.World.Migrations
                             Radius = 0f,
                             Range = 20,
                             Reach = 20f,
+                            ScalingCoefficient = 0.25f,
+                            ScalingStat = (byte)1,
                             Shape = (byte)2,
                             SpellScript = "ProjectileAbilityScript",
                             TauntDurationMs = 0L,
-                            ThreatMultiplier = 1f
+                            ThreatMultiplier = 1f,
+                            WeaponCoefficient = 0f
                         },
                         new
                         {
@@ -248,10 +273,13 @@ namespace Avalon.Database.World.Migrations
                             Radius = 3f,
                             Range = 20,
                             Reach = 18f,
+                            ScalingCoefficient = 0.8f,
+                            ScalingStat = (byte)1,
                             Shape = (byte)0,
                             SpellScript = "CircleAbilityScript",
                             TauntDurationMs = 0L,
-                            ThreatMultiplier = 1f
+                            ThreatMultiplier = 1f,
+                            WeaponCoefficient = 0f
                         },
                         new
                         {
@@ -276,10 +304,13 @@ namespace Avalon.Database.World.Migrations
                             Radius = 0f,
                             Range = 5,
                             Reach = 6f,
+                            ScalingCoefficient = 0.5f,
+                            ScalingStat = (byte)1,
                             Shape = (byte)1,
                             SpellScript = "ConeAbilityScript",
                             TauntDurationMs = 0L,
-                            ThreatMultiplier = 1f
+                            ThreatMultiplier = 1f,
+                            WeaponCoefficient = 0f
                         },
                         new
                         {
@@ -304,10 +335,13 @@ namespace Avalon.Database.World.Migrations
                             Radius = 0f,
                             Range = 20,
                             Reach = 25f,
+                            ScalingCoefficient = 0.3f,
+                            ScalingStat = (byte)0,
                             Shape = (byte)2,
                             SpellScript = "ProjectileAbilityScript",
                             TauntDurationMs = 0L,
-                            ThreatMultiplier = 1f
+                            ThreatMultiplier = 1f,
+                            WeaponCoefficient = 1f
                         },
                         new
                         {
@@ -332,10 +366,13 @@ namespace Avalon.Database.World.Migrations
                             Radius = 0f,
                             Range = 20,
                             Reach = 30f,
+                            ScalingCoefficient = 0.6f,
+                            ScalingStat = (byte)0,
                             Shape = (byte)2,
                             SpellScript = "ProjectileAbilityScript",
                             TauntDurationMs = 0L,
-                            ThreatMultiplier = 1f
+                            ThreatMultiplier = 1f,
+                            WeaponCoefficient = 1.2f
                         },
                         new
                         {
@@ -360,10 +397,13 @@ namespace Avalon.Database.World.Migrations
                             Radius = 0f,
                             Range = 10,
                             Reach = 8f,
+                            ScalingCoefficient = 0.4f,
+                            ScalingStat = (byte)0,
                             Shape = (byte)1,
                             SpellScript = "ConeAbilityScript",
                             TauntDurationMs = 0L,
-                            ThreatMultiplier = 1f
+                            ThreatMultiplier = 1f,
+                            WeaponCoefficient = 0.8f
                         },
                         new
                         {
@@ -388,10 +428,13 @@ namespace Avalon.Database.World.Migrations
                             Radius = 0f,
                             Range = 20,
                             Reach = 18f,
+                            ScalingCoefficient = 0.3f,
+                            ScalingStat = (byte)1,
                             Shape = (byte)2,
                             SpellScript = "ProjectileAbilityScript",
                             TauntDurationMs = 0L,
-                            ThreatMultiplier = 1f
+                            ThreatMultiplier = 1f,
+                            WeaponCoefficient = 0f
                         },
                         new
                         {
@@ -416,10 +459,13 @@ namespace Avalon.Database.World.Migrations
                             Radius = 4f,
                             Range = 5,
                             Reach = 0f,
+                            ScalingCoefficient = 0.5f,
+                            ScalingStat = (byte)1,
                             Shape = (byte)0,
                             SpellScript = "CircleAbilityScript",
                             TauntDurationMs = 0L,
-                            ThreatMultiplier = 1f
+                            ThreatMultiplier = 1f,
+                            WeaponCoefficient = 0f
                         },
                         new
                         {
@@ -444,10 +490,13 @@ namespace Avalon.Database.World.Migrations
                             Radius = 4f,
                             Range = 10,
                             Reach = 15f,
+                            ScalingCoefficient = 0.6f,
+                            ScalingStat = (byte)1,
                             Shape = (byte)0,
                             SpellScript = "CircleAbilityScript",
                             TauntDurationMs = 0L,
-                            ThreatMultiplier = 1f
+                            ThreatMultiplier = 1f,
+                            WeaponCoefficient = 0f
                         });
                 });
 
@@ -1465,6 +1514,191 @@ namespace Avalon.Database.World.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Avalon.Domain.World.ClassStatFactors", b =>
+                {
+                    b.Property<int>("Class")
+                        .HasColumnType("integer");
+
+                    b.Property<double>("AbilityPerIntellect")
+                        .HasColumnType("double precision");
+
+                    b.Property<double>("AttackPerAgility")
+                        .HasColumnType("double precision");
+
+                    b.Property<double>("AttackPerStrength")
+                        .HasColumnType("double precision");
+
+                    b.Property<float>("BaseBlock")
+                        .HasColumnType("real");
+
+                    b.Property<float>("BaseCrit")
+                        .HasColumnType("real");
+
+                    b.Property<float>("BaseDodge")
+                        .HasColumnType("real");
+
+                    b.Property<long?>("FixedPower")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("HpPerStamina")
+                        .HasColumnType("bigint");
+
+                    b.Property<double>("PowerPerAgility")
+                        .HasColumnType("double precision");
+
+                    b.Property<double>("PowerPerIntellect")
+                        .HasColumnType("double precision");
+
+                    b.HasKey("Class");
+
+                    b.ToTable("ClassStatFactors", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ClassStatFactors_AbilityPerIntellect", "\"AbilityPerIntellect\" >= 0 AND \"AbilityPerIntellect\" < 'Infinity'");
+
+                            t.HasCheckConstraint("CK_ClassStatFactors_AttackPerAgility", "\"AttackPerAgility\" >= 0 AND \"AttackPerAgility\" < 'Infinity'");
+
+                            t.HasCheckConstraint("CK_ClassStatFactors_AttackPerStrength", "\"AttackPerStrength\" >= 0 AND \"AttackPerStrength\" < 'Infinity'");
+
+                            t.HasCheckConstraint("CK_ClassStatFactors_BaseBlock", "\"BaseBlock\" >= 0 AND \"BaseBlock\" < 'Infinity'");
+
+                            t.HasCheckConstraint("CK_ClassStatFactors_BaseCrit", "\"BaseCrit\" >= 0 AND \"BaseCrit\" < 'Infinity'");
+
+                            t.HasCheckConstraint("CK_ClassStatFactors_BaseDodge", "\"BaseDodge\" >= 0 AND \"BaseDodge\" < 'Infinity'");
+
+                            t.HasCheckConstraint("CK_ClassStatFactors_FixedPower", "\"FixedPower\" IS NULL OR (\"FixedPower\" >= 0 AND \"FixedPower\" <= 4294967295)");
+
+                            t.HasCheckConstraint("CK_ClassStatFactors_HpPerStamina", "\"HpPerStamina\" >= 0 AND \"HpPerStamina\" <= 4294967295");
+
+                            t.HasCheckConstraint("CK_ClassStatFactors_PowerPerAgility", "\"PowerPerAgility\" >= 0 AND \"PowerPerAgility\" < 'Infinity'");
+
+                            t.HasCheckConstraint("CK_ClassStatFactors_PowerPerIntellect", "\"PowerPerIntellect\" >= 0 AND \"PowerPerIntellect\" < 'Infinity'");
+                        });
+
+                    b.HasData(
+                        new
+                        {
+                            Class = 1,
+                            AbilityPerIntellect = 0.20000000000000001,
+                            AttackPerAgility = 0.0,
+                            AttackPerStrength = 2.0,
+                            BaseBlock = 5f,
+                            BaseCrit = 5f,
+                            BaseDodge = 3.664f,
+                            FixedPower = 100L,
+                            HpPerStamina = 10L,
+                            PowerPerAgility = 0.0,
+                            PowerPerIntellect = 0.0
+                        },
+                        new
+                        {
+                            Class = 2,
+                            AbilityPerIntellect = 3.0,
+                            AttackPerAgility = 0.0,
+                            AttackPerStrength = 0.5,
+                            BaseBlock = 0f,
+                            BaseCrit = 1.85f,
+                            BaseDodge = 3.25f,
+                            HpPerStamina = 5L,
+                            PowerPerAgility = 0.0,
+                            PowerPerIntellect = 15.0
+                        },
+                        new
+                        {
+                            Class = 3,
+                            AbilityPerIntellect = 0.5,
+                            AttackPerAgility = 1.5,
+                            AttackPerStrength = 0.5,
+                            BaseBlock = 0f,
+                            BaseCrit = 5f,
+                            BaseDodge = 4.35f,
+                            HpPerStamina = 8L,
+                            PowerPerAgility = 0.80000000000000004,
+                            PowerPerIntellect = 2.0
+                        },
+                        new
+                        {
+                            Class = 4,
+                            AbilityPerIntellect = 2.0,
+                            AttackPerAgility = 0.0,
+                            AttackPerStrength = 0.5,
+                            BaseBlock = 0f,
+                            BaseCrit = 1.85f,
+                            BaseDodge = 3.25f,
+                            HpPerStamina = 7L,
+                            PowerPerAgility = 0.0,
+                            PowerPerIntellect = 12.0
+                        });
+                });
+
+            modelBuilder.Entity("Avalon.Domain.World.CombatFormula", b =>
+                {
+                    b.Property<int>("Id")
+                        .HasColumnType("integer");
+
+                    b.Property<float>("ArmorBase")
+                        .HasColumnType("real");
+
+                    b.Property<float>("ArmorCap")
+                        .HasColumnType("real");
+
+                    b.Property<float>("ArmorPerLevel")
+                        .HasColumnType("real");
+
+                    b.Property<float>("BlockCap")
+                        .HasColumnType("real");
+
+                    b.Property<float>("BlockMultiplier")
+                        .HasColumnType("real");
+
+                    b.Property<float>("CritCap")
+                        .HasColumnType("real");
+
+                    b.Property<float>("CritMultiplier")
+                        .HasColumnType("real");
+
+                    b.Property<float>("DodgeCap")
+                        .HasColumnType("real");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("CombatFormula", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_CombatFormula_ArmorBase", "\"ArmorBase\" >= 0 AND \"ArmorBase\" < 'Infinity'");
+
+                            t.HasCheckConstraint("CK_CombatFormula_ArmorCap", "\"ArmorCap\" >= 0 AND \"ArmorCap\" <= 1");
+
+                            t.HasCheckConstraint("CK_CombatFormula_ArmorPerLevel", "\"ArmorPerLevel\" >= 0 AND \"ArmorPerLevel\" < 'Infinity'");
+
+                            t.HasCheckConstraint("CK_CombatFormula_ArmorTermsPositive", "\"ArmorBase\" + \"ArmorPerLevel\" > 0");
+
+                            t.HasCheckConstraint("CK_CombatFormula_BlockCap", "\"BlockCap\" >= 0 AND \"BlockCap\" <= 100");
+
+                            t.HasCheckConstraint("CK_CombatFormula_BlockMultiplier", "\"BlockMultiplier\" >= 0 AND \"BlockMultiplier\" < 'Infinity'");
+
+                            t.HasCheckConstraint("CK_CombatFormula_CritCap", "\"CritCap\" >= 0 AND \"CritCap\" <= 100");
+
+                            t.HasCheckConstraint("CK_CombatFormula_CritMultiplier", "\"CritMultiplier\" >= 0 AND \"CritMultiplier\" < 'Infinity'");
+
+                            t.HasCheckConstraint("CK_CombatFormula_DodgeCap", "\"DodgeCap\" >= 0 AND \"DodgeCap\" <= 100");
+
+                            t.HasCheckConstraint("CK_CombatFormula_SingleRow", "\"Id\" = 1");
+                        });
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            ArmorBase = 50f,
+                            ArmorCap = 0.75f,
+                            ArmorPerLevel = 10f,
+                            BlockCap = 50f,
+                            BlockMultiplier = 0.5f,
+                            CritCap = 50f,
+                            CritMultiplier = 1.5f,
+                            DodgeCap = 30f
+                        });
+                });
+
             modelBuilder.Entity("Avalon.Domain.World.CreatureBaseStat", b =>
                 {
                     b.Property<int>("Level")
@@ -1472,6 +1706,9 @@ namespace Avalon.Database.World.Migrations
                         .HasColumnType("integer");
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Level"));
+
+                    b.Property<long>("Armor")
+                        .HasColumnType("bigint");
 
                     b.Property<long>("DamageMax")
                         .HasColumnType("bigint");
@@ -1493,6 +1730,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Level = 1,
+                            Armor = 0L,
                             DamageMax = 5L,
                             DamageMin = 3L,
                             Experience = 15L,
@@ -1501,6 +1739,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Level = 2,
+                            Armor = 3L,
                             DamageMax = 7L,
                             DamageMin = 4L,
                             Experience = 25L,
@@ -1509,6 +1748,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Level = 3,
+                            Armor = 7L,
                             DamageMax = 9L,
                             DamageMin = 5L,
                             Experience = 40L,
@@ -1517,6 +1757,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Level = 4,
+                            Armor = 10L,
                             DamageMax = 11L,
                             DamageMin = 7L,
                             Experience = 60L,
@@ -1525,6 +1766,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Level = 5,
+                            Armor = 13L,
                             DamageMax = 14L,
                             DamageMin = 9L,
                             Experience = 85L,
@@ -1533,6 +1775,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Level = 6,
+                            Armor = 17L,
                             DamageMax = 17L,
                             DamageMin = 11L,
                             Experience = 115L,
@@ -1541,6 +1784,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Level = 7,
+                            Armor = 20L,
                             DamageMax = 21L,
                             DamageMin = 14L,
                             Experience = 150L,
@@ -1549,6 +1793,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Level = 8,
+                            Armor = 23L,
                             DamageMax = 26L,
                             DamageMin = 17L,
                             Experience = 195L,
@@ -1557,6 +1802,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Level = 9,
+                            Armor = 27L,
                             DamageMax = 32L,
                             DamageMin = 21L,
                             Experience = 250L,
@@ -1565,6 +1811,7 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Level = 10,
+                            Armor = 30L,
                             DamageMax = 39L,
                             DamageMin = 26L,
                             Experience = 320L,
@@ -1622,7 +1869,16 @@ namespace Avalon.Database.World.Migrations
                     b.Property<int>("Rarity")
                         .HasColumnType("integer");
 
+                    b.Property<float>("BlockPct")
+                        .HasColumnType("real");
+
+                    b.Property<float>("CritPct")
+                        .HasColumnType("real");
+
                     b.Property<float>("DamageMultiplier")
+                        .HasColumnType("real");
+
+                    b.Property<float>("DodgePct")
                         .HasColumnType("real");
 
                     b.Property<float>("ExperienceMultiplier")
@@ -1639,28 +1895,40 @@ namespace Avalon.Database.World.Migrations
                         new
                         {
                             Rarity = 0,
+                            BlockPct = 0f,
+                            CritPct = 0f,
                             DamageMultiplier = 1f,
+                            DodgePct = 0f,
                             ExperienceMultiplier = 1f,
                             HealthMultiplier = 1f
                         },
                         new
                         {
                             Rarity = 1,
+                            BlockPct = 0f,
+                            CritPct = 5f,
                             DamageMultiplier = 1.4f,
+                            DodgePct = 3f,
                             ExperienceMultiplier = 3f,
                             HealthMultiplier = 2.5f
                         },
                         new
                         {
                             Rarity = 2,
+                            BlockPct = 5f,
+                            CritPct = 8f,
                             DamageMultiplier = 1.7f,
+                            DodgePct = 5f,
                             ExperienceMultiplier = 6f,
                             HealthMultiplier = 4f
                         },
                         new
                         {
                             Rarity = 3,
+                            BlockPct = 10f,
+                            CritPct = 10f,
                             DamageMultiplier = 2.2f,
+                            DodgePct = 5f,
                             ExperienceMultiplier = 15f,
                             HealthMultiplier = 8f
                         });
@@ -2842,8 +3110,8 @@ namespace Avalon.Database.World.Migrations
                             AllowedClasses = "Wizard",
                             BuyPrice = 200L,
                             Class = 1,
-                            DamageMax1 = 5L,
-                            DamageMin1 = 2L,
+                            DamageMax1 = 14L,
+                            DamageMin1 = 9L,
                             DamageType1 = 0,
                             DisplayId = 5L,
                             Flags = 0,
@@ -2866,8 +3134,8 @@ namespace Avalon.Database.World.Migrations
                             AllowedClasses = "Hunter",
                             BuyPrice = 200L,
                             Class = 1,
-                            DamageMax1 = 4L,
-                            DamageMin1 = 2L,
+                            DamageMax1 = 11L,
+                            DamageMin1 = 7L,
                             DamageType1 = 0,
                             DisplayId = 6L,
                             Flags = 0,
@@ -2890,8 +3158,8 @@ namespace Avalon.Database.World.Migrations
                             AllowedClasses = "Warrior",
                             BuyPrice = 200L,
                             Class = 1,
-                            DamageMax1 = 4L,
-                            DamageMin1 = 2L,
+                            DamageMax1 = 11L,
+                            DamageMin1 = 7L,
                             DamageType1 = 0,
                             DisplayId = 7L,
                             Flags = 0,
@@ -2914,8 +3182,8 @@ namespace Avalon.Database.World.Migrations
                             AllowedClasses = "Healer",
                             BuyPrice = 200L,
                             Class = 1,
-                            DamageMax1 = 4L,
-                            DamageMin1 = 2L,
+                            DamageMax1 = 11L,
+                            DamageMin1 = 7L,
                             DamageType1 = 0,
                             DisplayId = 8L,
                             Flags = 0,
@@ -3420,8 +3688,8 @@ namespace Avalon.Database.World.Migrations
                             AllowedClasses = "Warrior",
                             BuyPrice = 120L,
                             Class = 1,
-                            DamageMax1 = 2L,
-                            DamageMin1 = 1L,
+                            DamageMax1 = 7L,
+                            DamageMin1 = 4L,
                             DamageType1 = 0,
                             DisplayId = 32L,
                             Flags = 0,
@@ -3444,8 +3712,8 @@ namespace Avalon.Database.World.Migrations
                             AllowedClasses = "Wizard",
                             BuyPrice = 120L,
                             Class = 1,
-                            DamageMax1 = 3L,
-                            DamageMin1 = 1L,
+                            DamageMax1 = 7L,
+                            DamageMin1 = 4L,
                             DamageType1 = 0,
                             DisplayId = 33L,
                             Flags = 0,
@@ -3468,8 +3736,8 @@ namespace Avalon.Database.World.Migrations
                             AllowedClasses = "Hunter",
                             BuyPrice = 120L,
                             Class = 1,
-                            DamageMax1 = 2L,
-                            DamageMin1 = 1L,
+                            DamageMax1 = 7L,
+                            DamageMin1 = 4L,
                             DamageType1 = 0,
                             DisplayId = 34L,
                             Flags = 0,
@@ -3492,8 +3760,8 @@ namespace Avalon.Database.World.Migrations
                             AllowedClasses = "Healer",
                             BuyPrice = 120L,
                             Class = 1,
-                            DamageMax1 = 2L,
-                            DamageMin1 = 1L,
+                            DamageMax1 = 7L,
+                            DamageMin1 = 4L,
                             DamageType1 = 0,
                             DisplayId = 35L,
                             Flags = 0,
