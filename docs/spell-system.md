@@ -137,7 +137,8 @@ refused: its cost and cooldown are spent all the same.
 - **Damage**: a `Hostile` skill calls `CombatService.ApplyDamage(caster, unit, EffectValue, ability)`
   on each hostile unit, with the usual threat, encounter, combat tag, death and invulnerable rules.
 - **Heal**: an `Ally` skill calls `CombatService.ApplyHeal` on each ally, which restores
-  `min(Health, CurrentHealth + EffectValue)`, never heals a dead unit, and adds heal threat from
+  `min(Health, CurrentHealth + EffectValue)`, never lowers health (a unit at or above its maximum
+  keeps what it has, #548), never heals a dead unit, and adds heal threat from
   `HealThreatPerHp` when the healed unit is in an encounter. Heal threat counts the health actually
   restored, so overheal adds none (#531).
 

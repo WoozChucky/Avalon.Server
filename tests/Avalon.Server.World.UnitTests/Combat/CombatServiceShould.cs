@@ -277,6 +277,61 @@ public class CombatServiceShould
     }
 
     [Fact]
+    public void Should_not_lower_health_when_healing_a_unit_above_its_maximum()
+    {
+        // A unit can sit above its maximum (equipment removed, a buff that raised it dropped).
+        // A heal must never take health away: 120 of 100 stays 120, restores 0 and adds no threat (#548).
+        var (svc, reg) = BuildService(initialThreatSeed: 0);
+        var healer = StubCharacter(CharacterClass.Healer);
+        var ally   = StubCharacter(CharacterClass.Warrior);
+        ally.Health.Returns(100u);
+        ally.CurrentHealth.Returns(120u);
+        var hostile = StubCreature();
+        var healAbility = Substitute.For<IAbility>();
+        healAbility.Metadata.Returns(new AbilityMetadata { Name = "H", ScriptName = "h", HealThreatPerHp = 0.5f });
+
+        svc.EnterCombat(hostile, ally);
+        svc.ApplyHeal(healer, ally, 50, healAbility);
+
+        ally.DidNotReceive().CurrentHealth = Arg.Is<uint>(v => v < 120u);
+        var enc = (Encounter)System.Linq.Enumerable.First(reg.Active);
+        Assert.False(enc.GetThreatList(hostile).ContainsKey(healer));
+    }
+
+    [Fact]
+    public void Should_cap_a_heal_at_maximum_health()
+    {
+        var (svc, _) = BuildService();
+        var healer = StubCharacter(CharacterClass.Healer);
+        var ally   = StubCharacter(CharacterClass.Warrior);
+        ally.Health.Returns(100u);
+        ally.CurrentHealth.Returns(90u);
+        var healAbility = Substitute.For<IAbility>();
+        healAbility.Metadata.Returns(new AbilityMetadata { Name = "H", ScriptName = "h", HealThreatPerHp = 0.5f });
+
+        svc.ApplyHeal(healer, ally, 50, healAbility);
+
+        ally.Received().CurrentHealth = 100u;
+        ally.DidNotReceive().CurrentHealth = Arg.Is<uint>(v => v != 100u);
+    }
+
+    [Fact]
+    public void Should_leave_a_unit_at_exactly_maximum_health_where_it_is()
+    {
+        var (svc, _) = BuildService();
+        var healer = StubCharacter(CharacterClass.Healer);
+        var ally   = StubCharacter(CharacterClass.Warrior);
+        ally.Health.Returns(100u);
+        ally.CurrentHealth.Returns(100u);
+        var healAbility = Substitute.For<IAbility>();
+        healAbility.Metadata.Returns(new AbilityMetadata { Name = "H", ScriptName = "h", HealThreatPerHp = 0.5f });
+
+        svc.ApplyHeal(healer, ally, 50, healAbility);
+
+        ally.DidNotReceive().CurrentHealth = Arg.Is<uint>(v => v != 100u);
+    }
+
+    [Fact]
     public void Should_set_taunt_caster_above_top_threat()
     {
         var (svc, reg) = BuildService(initialThreatSeed: 0);
