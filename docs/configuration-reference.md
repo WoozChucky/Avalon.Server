@@ -395,6 +395,31 @@ Application__Authentication__IssuerSigningKey=<from-vault>
 
 ---
 
+## Database Logging
+
+Two rules hold in the API, the auth server and the world server (#558):
+
+- **Sensitive data logging is on only in Development.** It puts every command's parameter values
+  (password verifiers, token hashes, MFA secrets on the auth database) in the logs. It is not a
+  setting: `AddAvalonDatabases` sets `DatabaseConfiguration.EnableSensitiveDataLogging` from the
+  host environment and overwrites whatever configuration says, so no configuration or Helm value
+  can turn it on outside Development. A container with no `IHostEnvironment`, and the design-time
+  factories used by `dotnet ef`, get it off.
+- **Every `Microsoft.EntityFrameworkCore` category logs at Warning and above**, for every logging
+  provider: Serilog (a minimum-level override in `AddCustomLogging`) and any other, such as the
+  OpenTelemetry log exporter (a `Microsoft.Extensions.Logging` filter rule). To see the command
+  log again in Development, raise the category in both places, for example in an
+  `appsettings.Development.json` next to the host:
+
+```json
+{
+    "Logging": { "LogLevel": { "Microsoft.EntityFrameworkCore.Database.Command": "Information" } },
+    "Serilog": { "MinimumLevel": { "Override": { "Microsoft.EntityFrameworkCore.Database.Command": "Information" } } }
+}
+```
+
+---
+
 ## Startup Validation
 
 These configuration classes (`GameConfiguration`, `RegenConfiguration`,

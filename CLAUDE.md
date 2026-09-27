@@ -98,7 +98,7 @@ Shared libraries under `src/Shared/`:
 
 Infrastructure: `Avalon.Infrastructure` — `IReplicatedCache` (Redis wrapper), `IMFAHashService`, `CacheKeys` (all Redis key strings centralized here), `ISecureRandom`, and `Login/` (the login policy both the Auth server and the REST API run: `PasswordLoginPolicy`, `MfaLoginPolicy`, the budgets, `RemoteAddress`, `ILoginLimits`; #478).
 
-Three separate Postgres DbContexts (via Npgsql EF Core): `AuthDbContext`, `CharacterDbContext`, `WorldDbContext`. Design-time factories in each `Avalon.Database.*` project enable `dotnet ef` without a running host.
+Three separate Postgres DbContexts (via Npgsql EF Core): `AuthDbContext`, `CharacterDbContext`, `WorldDbContext`. Design-time factories in each `Avalon.Database.*` project enable `dotnet ef` without a running host. Sensitive data logging (parameter values in EF's logs) is on only when the host environment is Development, whatever the configuration says (`AddAvalonDatabases`, #558); every `Microsoft.EntityFrameworkCore` category logs at Warning and above for every logging provider, OpenTelemetry's included (`AddCustomLogging`), and `docs/configuration-reference.md` says how to raise the command log in Development.
 
 ## Packet Protocol
 
