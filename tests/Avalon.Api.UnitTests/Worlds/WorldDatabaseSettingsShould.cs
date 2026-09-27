@@ -1,8 +1,7 @@
+using System.Text;
 using Avalon.Api.Worlds;
-using Avalon.Configuration;
 using Avalon.Domain.Auth;
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Options;
 using Xunit;
 
 namespace Avalon.Api.UnitTests.Worlds;
@@ -177,23 +176,63 @@ public class WorldDatabaseSettingsShould
             .IsAvailable(new WorldId(5)));
 
     [Fact]
-    public void Pass_the_startup_check_for_a_well_formed_world()
+    public void Refuse_to_mark_a_world_it_was_not_given()
     {
-        ValidateOptionsResult result = new WorldDatabasesValidation(Config(Pair("1", WorldOne, CharactersOne)))
-            .Validate(null, new DatabaseConfiguration());
+        WorldDatabases databases = new([new ConfiguredWorld(new WorldId(4), WorldOne, CharactersOne)]);
 
-        Assert.True(result.Succeeded);
+        var ex = Assert.Throws<InvalidOperationException>(() => databases.MarkUnavailable(new WorldId(5)));
+
+        Assert.Contains("World 5", ex.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("secret", ex.Message, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void Fail_the_startup_check_with_the_parsers_refusal()
+    public void Parse_the_json_shape()
     {
-        ValidateOptionsResult result = new WorldDatabasesValidation(
-                Config(("Database:Worlds:2:World:ConnectionString", WorldOne)))
-            .Validate(null, new DatabaseConfiguration());
+        const string json = """
+            {
+              "Database": {
+                "Auth": { "ConnectionString": "Host=auth" },
+                "Worlds": {
+                  "1": { "World": { "ConnectionString": "Host=w1" }, "Characters": { "ConnectionString": "Host=c1" } },
+                  "2": { "World": { "ConnectionString": "Host=w2" }, "Characters": { "ConnectionString": "Host=c2" } }
+                }
+              }
+            }
+            """;
+        using MemoryStream stream = new(Encoding.UTF8.GetBytes(json));
+        IConfiguration configuration = new ConfigurationBuilder().AddJsonStream(stream).Build();
 
-        Assert.True(result.Failed);
-        Assert.StartsWith("Database:Worlds:2:Characters:ConnectionString is missing", result.FailureMessage);
-        Assert.DoesNotContain("secret", result.FailureMessage, StringComparison.Ordinal);
+        IReadOnlyList<ConfiguredWorld> worlds = WorldDatabaseSettings.Parse(configuration);
+
+        Assert.Equal(new ushort[] { 1, 2 }, worlds.Select(w => w.Id.Value));
+        Assert.Equal("Host=w2", worlds[1].WorldConnectionString);
+        Assert.Equal("Host=c2", worlds[1].CharactersConnectionString);
+    }
+
+    [Fact]
+    public void Parse_the_environment_variable_form()
+    {
+        // A prefix no other test or host variable uses, so this can run beside the other tests.
+        const string prefix = "AV523T_";
+        const string world = prefix + "Database__Worlds__2__World__ConnectionString";
+        const string characters = prefix + "Database__Worlds__2__Characters__ConnectionString";
+        try
+        {
+            Environment.SetEnvironmentVariable(world, "Host=w2");
+            Environment.SetEnvironmentVariable(characters, "Host=c2");
+            IConfiguration configuration = new ConfigurationBuilder().AddEnvironmentVariables(prefix).Build();
+
+            ConfiguredWorld parsed = Assert.Single(WorldDatabaseSettings.Parse(configuration));
+
+            Assert.Equal((ushort)2, parsed.Id.Value);
+            Assert.Equal("Host=w2", parsed.WorldConnectionString);
+            Assert.Equal("Host=c2", parsed.CharactersConnectionString);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(world, null);
+            Environment.SetEnvironmentVariable(characters, null);
+        }
     }
 }
