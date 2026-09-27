@@ -71,6 +71,8 @@ public sealed class AbilityCatalog
                      // #529. A NaN or infinite threat value would spread into every threat total it
                      // touches, and a hostile's threat list would stop ordering anything.
                      ("ThreatMultiplier", t.ThreatMultiplier), ("HealThreatPerHp", t.HealThreatPerHp),
+                     // #506. A negative or NaN coefficient would turn a hit into a heal or a NaN damage.
+                     ("ScalingCoefficient", t.ScalingCoefficient), ("WeaponCoefficient", t.WeaponCoefficient),
                  })
         {
             if (!float.IsFinite(value) || value < 0f)
@@ -80,6 +82,7 @@ public sealed class AbilityCatalog
         // #526. A negative gain would drain the caster's pool on every hit; the database refuses it too.
         if (t.PowerGainPerHit < 0) return $"PowerGainPerHit {t.PowerGainPerHit} is below 0";
 
+        if (!Enum.IsDefined(t.ScalingStat)) return $"unknown scaling stat {(byte)t.ScalingStat}";
         if (!Enum.IsDefined(t.AimMode)) return $"unknown aim mode {(byte)t.AimMode}";
         if (!Enum.IsDefined(t.Shape)) return $"unknown shape {(byte)t.Shape}";
         if (!Enum.IsDefined(t.Anchor)) return $"unknown anchor {(byte)t.Anchor}";

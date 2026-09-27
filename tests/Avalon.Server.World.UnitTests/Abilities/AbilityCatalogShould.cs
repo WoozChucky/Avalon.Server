@@ -2,6 +2,7 @@ using Avalon.Common.ValueObjects;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abilities;
 using Avalon.World.Abilities;
+using Avalon.World.Public.Abilities;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
@@ -30,6 +31,11 @@ public class AbilityCatalogShould
         { "NaN heal threat", "HealThreatPerHp NaN is not a finite value", With(AbilityTestData.HealCircle(1), t => t.HealThreatPerHp = float.NaN) },
         { "infinite heal threat", $"HealThreatPerHp {float.PositiveInfinity} is not a finite value", With(AbilityTestData.HealCircle(1), t => t.HealThreatPerHp = float.PositiveInfinity) },
         { "negative heal threat", "HealThreatPerHp -1 is not a finite value", With(AbilityTestData.HealCircle(1), t => t.HealThreatPerHp = -1f) },
+        { "negative scaling coefficient", "ScalingCoefficient -1 is not a finite value", With(AbilityTestData.Cone(1), t => t.ScalingCoefficient = -1f) },
+        { "NaN scaling coefficient", "ScalingCoefficient NaN is not a finite value", With(AbilityTestData.Cone(1), t => t.ScalingCoefficient = float.NaN) },
+        { "negative weapon coefficient", "WeaponCoefficient -0.5 is not a finite value", With(AbilityTestData.Cone(1), t => t.WeaponCoefficient = -0.5f) },
+        { "infinite weapon coefficient", $"WeaponCoefficient {float.PositiveInfinity} is not a finite value", With(AbilityTestData.Cone(1), t => t.WeaponCoefficient = float.PositiveInfinity) },
+        { "unknown scaling stat", "unknown scaling stat 9", With(AbilityTestData.Cone(1), t => t.ScalingStat = (ScalingStat)9) },
         { "negative power gain per hit", "PowerGainPerHit -1 is below 0", With(AbilityTestData.Cone(1), t => t.PowerGainPerHit = -1) },
         { "unknown aim mode", "unknown aim mode 9", With(AbilityTestData.Circle(1), t => t.AimMode = (AbilityAimMode)9) },
         { "unknown anchor", "unknown anchor 9", With(AbilityTestData.Circle(1), t => t.Anchor = (AbilityAnchor)9) },

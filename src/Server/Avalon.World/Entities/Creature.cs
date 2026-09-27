@@ -56,6 +56,23 @@ public class Creature : ICreature
     public uint DamageMin { get; set; }
     public uint DamageMax { get; set; }
     public uint Experience { get; set; }
+
+    // What combat resolves this creature's hits with (#506), fixed at spawn by CreatureSpawner from
+    // CreatureStatDeriver. World-side and init-only, deliberately not on ICreature: the modding API
+    // cannot change a creature's defences. A /reload creatures reaches only creatures spawned after it.
+
+    /// <summary>Reduces the hits it takes.</summary>
+    public uint Armor { get; init; }
+
+    /// <summary>Percentage points.</summary>
+    public float CritPct { get; init; }
+
+    /// <summary>Percentage points.</summary>
+    public float DodgePct { get; init; }
+
+    /// <summary>Percentage points.</summary>
+    public float BlockPct { get; init; }
+
     public AiScript? Script { get; set; }
 
     public IReadOnlyList<PatrolPoint> PatrolPath { get; set; } = [];

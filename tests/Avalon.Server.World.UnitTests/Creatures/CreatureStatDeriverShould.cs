@@ -20,20 +20,28 @@ public class CreatureStatDeriverShould
     private static readonly CreatureRarityModifier[] Rarities =
     [
         new() { Rarity = CreatureRarity.Normal, HealthMultiplier = 1.0f, DamageMultiplier = 1.0f, ExperienceMultiplier = 1.0f },
-        new() { Rarity = CreatureRarity.Boss,   HealthMultiplier = 8.0f, DamageMultiplier = 2.0f, ExperienceMultiplier = 15.0f },
+        new() { Rarity = CreatureRarity.Boss,   HealthMultiplier = 8.0f, DamageMultiplier = 2.0f, ExperienceMultiplier = 15.0f,
+            CritPct = 10f, DodgePct = 5f, BlockPct = 10f },
     ];
 
     private static CreatureStatDeriver NewDeriver() =>
         new(BaseStats, Rarities, NullLoggerFactory.Instance);
+
+    /// <summary>The seeded level-10 row, armour 30 (#506).</summary>
+    private static CreatureStatDeriver ArmouredDeriver() =>
+        new([new CreatureBaseStat { Level = 10, Health = 312, DamageMin = 26, DamageMax = 39, Experience = 320, Armor = 30 }],
+            Rarities, NullLoggerFactory.Instance);
 
     private static ICreatureMetadata Template(
         CreatureRarity rarity = CreatureRarity.Normal,
         float health = 1f,
         float damage = 1f,
         float experience = 1f,
-        uint? exp = null)
+        uint? exp = null,
+        float armor = 1f)
     {
         var template = Substitute.For<ICreatureMetadata>();
+        template.ArmorModifier.Returns(armor);
         template.Rarity.Returns(rarity);
         template.HealthModifier.Returns(health);
         template.DamageModifier.Returns(damage);
@@ -52,6 +60,36 @@ public class CreatureStatDeriverShould
         Assert.Equal(3u, stats.DamageMin);
         Assert.Equal(5u, stats.DamageMax);
         Assert.Equal(15u, stats.Experience);
+    }
+
+    /// <summary>#506: armour is the level's base times the template's ArmorModifier (times a rarity multiplier of 1).</summary>
+    [Fact]
+    public void Derive_armour_from_the_levels_base_and_the_armour_modifier()
+    {
+        DerivedCreatureStats stats = ArmouredDeriver().Derive(Template(armor: 2f), level: 10);
+
+        Assert.Equal(60u, stats.Armor);
+    }
+
+    [Theory]
+    [InlineData(0f)]
+    [InlineData(-3f)]
+    public void Count_an_armour_modifier_of_zero_or_less_as_one(float modifier)
+    {
+        DerivedCreatureStats stats = ArmouredDeriver().Derive(Template(armor: modifier), level: 10);
+
+        Assert.Equal(30u, stats.Armor);
+    }
+
+    [Fact]
+    public void Take_crit_dodge_and_block_from_the_rarity()
+    {
+        DerivedCreatureStats boss = NewDeriver().Derive(Template(rarity: CreatureRarity.Boss), level: 1);
+        DerivedCreatureStats normal = NewDeriver().Derive(Template(), level: 1);
+
+        Assert.Equal((10f, 5f, 10f), (boss.CritPct, boss.DodgePct, boss.BlockPct));
+        Assert.Equal((0f, 0f, 0f), (normal.CritPct, normal.DodgePct, normal.BlockPct));
+        Assert.Equal(0u, normal.Armor);
     }
 
     [Fact]

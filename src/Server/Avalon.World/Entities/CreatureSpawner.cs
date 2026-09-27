@@ -107,6 +107,10 @@ public class CreatureSpawner(ILoggerFactory loggerFactory, IWorld world) : ICrea
             DamageMin = stats.DamageMin,
             DamageMax = stats.DamageMax,
             Experience = stats.Experience,
+            Armor = stats.Armor,
+            CritPct = stats.CritPct,
+            DodgePct = stats.DodgePct,
+            BlockPct = stats.BlockPct,
 
             // Creatures cannot cast, so mana stays out of the derivation entirely.
             Power = 0,

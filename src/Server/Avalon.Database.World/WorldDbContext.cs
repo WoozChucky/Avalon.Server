@@ -4,6 +4,7 @@ using Avalon.Configuration;
 using Avalon.Database.World.Seeding;
 using Avalon.Domain.World;
 using Avalon.Network.Packets.Abilities;
+using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Enums;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
@@ -167,27 +168,27 @@ public class WorldDbContext : DbContext
     /// Normal kills per level across 1-10, rather than being chosen arbitrarily.
     /// </summary>
     /// <remarks>
+    /// Armour (#506) rises linearly from 0 at level 1 to 30 at level 10, round(30 x (L - 1) / 9).
     /// Seeded to level 10 while the only banded map reaches 5, so the next zone needs no migration.
     /// These numbers are provisional: they were calibrated against a player who had 100 health and
     /// never grew. Players now derive health and power from <see cref="ClassLevelStat" /> by level plus
-    /// worn gear (#434, #463), but combat does not yet read the derived damage or armour, so creature
-    /// and character numbers get revisited together in the combat-balance pass (#506).
+    /// worn gear (#434, #463), and combat reads the derived damage and armour on both sides (#506).
     /// </remarks>
     private static void Configure(EntityTypeBuilder<CreatureBaseStat> builder)
     {
         builder.HasKey(b => b.Level);
 
         builder.HasData(
-            new CreatureBaseStat { Level = 1,  Health = 40,  DamageMin = 3,  DamageMax = 5,  Experience = 15 },
-            new CreatureBaseStat { Level = 2,  Health = 52,  DamageMin = 4,  DamageMax = 7,  Experience = 25 },
-            new CreatureBaseStat { Level = 3,  Health = 66,  DamageMin = 5,  DamageMax = 9,  Experience = 40 },
-            new CreatureBaseStat { Level = 4,  Health = 84,  DamageMin = 7,  DamageMax = 11, Experience = 60 },
-            new CreatureBaseStat { Level = 5,  Health = 106, DamageMin = 9,  DamageMax = 14, Experience = 85 },
-            new CreatureBaseStat { Level = 6,  Health = 133, DamageMin = 11, DamageMax = 17, Experience = 115 },
-            new CreatureBaseStat { Level = 7,  Health = 166, DamageMin = 14, DamageMax = 21, Experience = 150 },
-            new CreatureBaseStat { Level = 8,  Health = 206, DamageMin = 17, DamageMax = 26, Experience = 195 },
-            new CreatureBaseStat { Level = 9,  Health = 254, DamageMin = 21, DamageMax = 32, Experience = 250 },
-            new CreatureBaseStat { Level = 10, Health = 312, DamageMin = 26, DamageMax = 39, Experience = 320 });
+            new CreatureBaseStat { Level = 1,  Health = 40,  DamageMin = 3,  DamageMax = 5,  Experience = 15, Armor = 0 },
+            new CreatureBaseStat { Level = 2,  Health = 52,  DamageMin = 4,  DamageMax = 7,  Experience = 25, Armor = 3 },
+            new CreatureBaseStat { Level = 3,  Health = 66,  DamageMin = 5,  DamageMax = 9,  Experience = 40, Armor = 7 },
+            new CreatureBaseStat { Level = 4,  Health = 84,  DamageMin = 7,  DamageMax = 11, Experience = 60, Armor = 10 },
+            new CreatureBaseStat { Level = 5,  Health = 106, DamageMin = 9,  DamageMax = 14, Experience = 85, Armor = 13 },
+            new CreatureBaseStat { Level = 6,  Health = 133, DamageMin = 11, DamageMax = 17, Experience = 115, Armor = 17 },
+            new CreatureBaseStat { Level = 7,  Health = 166, DamageMin = 14, DamageMax = 21, Experience = 150, Armor = 20 },
+            new CreatureBaseStat { Level = 8,  Health = 206, DamageMin = 17, DamageMax = 26, Experience = 195, Armor = 23 },
+            new CreatureBaseStat { Level = 9,  Health = 254, DamageMin = 21, DamageMax = 32, Experience = 250, Armor = 27 },
+            new CreatureBaseStat { Level = 10, Health = 312, DamageMin = 26, DamageMax = 39, Experience = 320, Armor = 30 });
     }
 
     /// <summary>
@@ -199,10 +200,10 @@ public class WorldDbContext : DbContext
         builder.HasKey(b => b.Rarity);
 
         builder.HasData(
-            new CreatureRarityModifier { Rarity = CreatureRarity.Normal, HealthMultiplier = 1.0f, DamageMultiplier = 1.0f, ExperienceMultiplier = 1.0f },
-            new CreatureRarityModifier { Rarity = CreatureRarity.Elite,  HealthMultiplier = 2.5f, DamageMultiplier = 1.4f, ExperienceMultiplier = 3.0f },
-            new CreatureRarityModifier { Rarity = CreatureRarity.Rare,   HealthMultiplier = 4.0f, DamageMultiplier = 1.7f, ExperienceMultiplier = 6.0f },
-            new CreatureRarityModifier { Rarity = CreatureRarity.Boss,   HealthMultiplier = 8.0f, DamageMultiplier = 2.2f, ExperienceMultiplier = 15.0f });
+            new CreatureRarityModifier { Rarity = CreatureRarity.Normal, HealthMultiplier = 1.0f, DamageMultiplier = 1.0f, ExperienceMultiplier = 1.0f, CritPct = 0f, DodgePct = 0f, BlockPct = 0f },
+            new CreatureRarityModifier { Rarity = CreatureRarity.Elite,  HealthMultiplier = 2.5f, DamageMultiplier = 1.4f, ExperienceMultiplier = 3.0f, CritPct = 5f, DodgePct = 3f, BlockPct = 0f },
+            new CreatureRarityModifier { Rarity = CreatureRarity.Rare,   HealthMultiplier = 4.0f, DamageMultiplier = 1.7f, ExperienceMultiplier = 6.0f, CritPct = 8f, DodgePct = 5f, BlockPct = 5f },
+            new CreatureRarityModifier { Rarity = CreatureRarity.Boss,   HealthMultiplier = 8.0f, DamageMultiplier = 2.2f, ExperienceMultiplier = 15.0f, CritPct = 10f, DodgePct = 5f, BlockPct = 10f });
     }
 
     private static void Configure(EntityTypeBuilder<CharacterLevelExperience> builder)
@@ -1160,8 +1161,8 @@ public class WorldDbContext : DbContext
                 AllowedClasses = [CharacterClass.Wizard],
                 ItemPower = 3,
                 RequiredLevel = 1,
-                DamageMin1 = 2,
-                DamageMax1 = 5,
+                DamageMin1 = 9,
+                DamageMax1 = 14,
                 DamageType1 = DamageType.Physical,
                 StatType1 = StatType.AttackSpeed,
                 StatValue1 = 18, // 1.8 seconds
@@ -1183,8 +1184,8 @@ public class WorldDbContext : DbContext
                 AllowedClasses = [CharacterClass.Hunter],
                 ItemPower = 3,
                 RequiredLevel = 1,
-                DamageMin1 = 2,
-                DamageMax1 = 4,
+                DamageMin1 = 7,
+                DamageMax1 = 11,
                 DamageType1 = DamageType.Physical,
                 StatType1 = StatType.AttackSpeed,
                 StatValue1 = 15, // 1.5 seconds
@@ -1206,8 +1207,8 @@ public class WorldDbContext : DbContext
                 AllowedClasses = [CharacterClass.Warrior],
                 ItemPower = 3,
                 RequiredLevel = 1,
-                DamageMin1 = 2,
-                DamageMax1 = 4,
+                DamageMin1 = 7,
+                DamageMax1 = 11,
                 DamageType1 = DamageType.Physical,
                 StatType1 = StatType.AttackSpeed,
                 StatValue1 = 13, // 1.3 seconds
@@ -1229,8 +1230,8 @@ public class WorldDbContext : DbContext
                 AllowedClasses = [CharacterClass.Healer],
                 ItemPower = 3,
                 RequiredLevel = 1,
-                DamageMin1 = 2,
-                DamageMax1 = 4,
+                DamageMin1 = 7,
+                DamageMax1 = 11,
                 DamageType1 = DamageType.Physical,
                 StatType1 = StatType.AttackSpeed,
                 StatValue1 = 15, // 1.5 seconds
@@ -1311,10 +1312,10 @@ public class WorldDbContext : DbContext
         // damage is scaled the same way. AttackSpeed is a swing time, so it is copied, never scaled.
         // Sold, never dropped: no loot table names these.
         builder.HasData(
-            StarterWeapon(32, "Ironwood Sword", CharacterClass.Warrior, ItemSubClass.OneHanded, damageMax: 2, attackSpeed: 13, (StatType.Strength, 1)),
-            StarterWeapon(33, "Ash Staff", CharacterClass.Wizard, ItemSubClass.TwoHanded, damageMax: 3, attackSpeed: 18, (StatType.Intellect, 1)),
-            StarterWeapon(34, "Hunter's Shortbow", CharacterClass.Hunter, ItemSubClass.Ranged, damageMax: 2, attackSpeed: 15, (StatType.Agility, 1)),
-            StarterWeapon(35, "Oak Mace", CharacterClass.Healer, ItemSubClass.OneHanded, damageMax: 2, attackSpeed: 15, (StatType.Intellect, 1)));
+            StarterWeapon(32, "Ironwood Sword", CharacterClass.Warrior, ItemSubClass.OneHanded, attackSpeed: 13, (StatType.Strength, 1)),
+            StarterWeapon(33, "Ash Staff", CharacterClass.Wizard, ItemSubClass.TwoHanded, attackSpeed: 18, (StatType.Intellect, 1)),
+            StarterWeapon(34, "Hunter's Shortbow", CharacterClass.Hunter, ItemSubClass.Ranged, attackSpeed: 15, (StatType.Agility, 1)),
+            StarterWeapon(35, "Oak Mace", CharacterClass.Healer, ItemSubClass.OneHanded, attackSpeed: 15, (StatType.Intellect, 1)));
 
         builder.HasData(
             StarterArmourPiece(36, "Ironbound Helm", CharacterClass.Warrior, ItemSubClass.Helmet, ItemSlotType.Head, 60, (StatType.Strength, 1), (StatType.Armor, 2), (StatType.Stamina, 1)),
@@ -1388,12 +1389,12 @@ public class WorldDbContext : DbContext
     };
 
     /// <summary>
-    /// A Common starter weapon (#432): level 1, for one class, main hand. Minimum damage is always
-    /// 1, and the stats are AttackSpeed then one attribute, the forest weapons' shape. Sells for a
+    /// A Common starter weapon (#432): level 1, for one class, main hand. Every one rolls 4-7 (#506),
+    /// and the stats are AttackSpeed then one attribute, the forest weapons' shape. Sells for a
     /// quarter of its 120.
     /// </summary>
     private static ItemTemplate StarterWeapon(
-        ulong id, string name, CharacterClass characterClass, ItemSubClass subClass, uint damageMax, uint attackSpeed,
+        ulong id, string name, CharacterClass characterClass, ItemSubClass subClass, uint attackSpeed,
         (StatType Type, uint Value) stat) => new()
     {
         Id = id,
@@ -1410,8 +1411,8 @@ public class WorldDbContext : DbContext
         AllowedClasses = [characterClass],
         ItemPower = 2,
         RequiredLevel = 1,
-        DamageMin1 = 1,
-        DamageMax1 = damageMax,
+        DamageMin1 = 4,
+        DamageMax1 = 7,
         DamageType1 = DamageType.Physical,
         StatType1 = StatType.AttackSpeed,
         StatValue1 = attackSpeed,
@@ -2189,6 +2190,9 @@ public class WorldDbContext : DbContext
                 "\"HealThreatPerHp\" >= 0 AND \"HealThreatPerHp\" < 'Infinity'");
             // #526: a negative gain would drain the caster's pool on every hit.
             t.HasCheckConstraint("CK_AbilityTemplates_PowerGainPerHit_NonNegative", "\"PowerGainPerHit\" >= 0");
+            // #506: a negative coefficient would turn a hit into a heal, a NaN one would make it NaN.
+            t.HasCheckConstraint("CK_AbilityTemplates_ScalingCoefficient_NonNegative", Finite("ScalingCoefficient"));
+            t.HasCheckConstraint("CK_AbilityTemplates_WeaponCoefficient_NonNegative", Finite("WeaponCoefficient"));
         });
         builder.Property(b => b.Id)
             .HasConversion(
@@ -2200,24 +2204,25 @@ public class WorldDbContext : DbContext
         // so no client that cached the retired abilities (1, 2, 100-103) confuses them. Numbers are
         // placeholders to tune. Cooldowns and cast times in milliseconds, distances in metres.
         builder.HasData(
-            Kit(200, CharacterClass.Warrior, "Cleave", AbilityShape.Cone, AbilityAimMode.Movement, reach: 2.5f, arc: 100f, cooldown: 800, cost: 0, value: 12, range: SpellRange.Melee, powerGainPerHit: 8),
-            Kit(201, CharacterClass.Warrior, "Ground Slam", AbilityShape.Circle, AbilityAimMode.Movement, radius: 3f, cooldown: 5000, cost: 20, value: 25, range: SpellRange.Short),
-            Kit(202, CharacterClass.Warrior, "Hurled Axe", AbilityShape.Projectile, AbilityAimMode.Cursor, reach: 15f, speed: 18f, cooldown: 3000, cost: 10, value: 20, range: SpellRange.Medium),
-            Kit(210, CharacterClass.Wizard, "Arcane Bolt", AbilityShape.Projectile, AbilityAimMode.Cursor, reach: 20f, speed: 22f, cooldown: 800, cost: 0, value: 12, range: SpellRange.Long),
-            Kit(211, CharacterClass.Wizard, "Flame Burst", AbilityShape.Circle, AbilityAimMode.Cursor, anchor: AbilityAnchor.AimPoint, reach: 18f, radius: 3f, castTime: 600, cooldown: 5000, cost: 25, value: 35, range: SpellRange.Long),
-            Kit(212, CharacterClass.Wizard, "Frost Fan", AbilityShape.Cone, AbilityAimMode.Cursor, reach: 6f, arc: 60f, cooldown: 4000, cost: 15, value: 22, range: SpellRange.Short),
-            Kit(220, CharacterClass.Hunter, "Quick Shot", AbilityShape.Projectile, AbilityAimMode.Cursor, reach: 25f, speed: 28f, cooldown: 800, cost: 0, value: 12, range: SpellRange.Long),
-            Kit(221, CharacterClass.Hunter, "Piercing Arrow", AbilityShape.Projectile, AbilityAimMode.Cursor, reach: 30f, speed: 24f, pierce: true, cooldown: 4000, cost: 15, value: 25, range: SpellRange.Long),
-            Kit(222, CharacterClass.Hunter, "Scatter Shot", AbilityShape.Cone, AbilityAimMode.Cursor, reach: 8f, arc: 45f, cooldown: 4000, cost: 20, value: 22, range: SpellRange.Medium),
-            Kit(230, CharacterClass.Healer, "Smite", AbilityShape.Projectile, AbilityAimMode.Cursor, reach: 18f, speed: 20f, cooldown: 800, cost: 0, value: 12, range: SpellRange.Long),
-            Kit(231, CharacterClass.Healer, "Radiant Pulse", AbilityShape.Circle, AbilityAimMode.Movement, radius: 4f, cooldown: 5000, cost: 20, value: 22, range: SpellRange.Short),
-            Kit(232, CharacterClass.Healer, "Mending Circle", AbilityShape.Circle, AbilityAimMode.Cursor, anchor: AbilityAnchor.AimPoint, reach: 15f, radius: 4f, cooldown: 8000, cost: 25, value: 40, range: SpellRange.Medium, affects: AbilityAffects.Ally));
+            Kit(200, CharacterClass.Warrior, "Cleave", AbilityShape.Cone, AbilityAimMode.Movement, reach: 2.5f, arc: 100f, cooldown: 800, cost: 0, value: 12, range: SpellRange.Melee, powerGainPerHit: 8, scaling: ScalingStat.Attack, coefficient: 0.3f, weapon: 1.0f),
+            Kit(201, CharacterClass.Warrior, "Ground Slam", AbilityShape.Circle, AbilityAimMode.Movement, radius: 3f, cooldown: 5000, cost: 20, value: 25, range: SpellRange.Short, scaling: ScalingStat.Attack, coefficient: 0.6f, weapon: 1.5f),
+            Kit(202, CharacterClass.Warrior, "Hurled Axe", AbilityShape.Projectile, AbilityAimMode.Cursor, reach: 15f, speed: 18f, cooldown: 3000, cost: 10, value: 20, range: SpellRange.Medium, scaling: ScalingStat.Attack, coefficient: 0.5f, weapon: 1.0f),
+            Kit(210, CharacterClass.Wizard, "Arcane Bolt", AbilityShape.Projectile, AbilityAimMode.Cursor, reach: 20f, speed: 22f, cooldown: 800, cost: 0, value: 12, range: SpellRange.Long, scaling: ScalingStat.Ability, coefficient: 0.25f),
+            Kit(211, CharacterClass.Wizard, "Flame Burst", AbilityShape.Circle, AbilityAimMode.Cursor, anchor: AbilityAnchor.AimPoint, reach: 18f, radius: 3f, castTime: 600, cooldown: 5000, cost: 25, value: 35, range: SpellRange.Long, scaling: ScalingStat.Ability, coefficient: 0.8f),
+            Kit(212, CharacterClass.Wizard, "Frost Fan", AbilityShape.Cone, AbilityAimMode.Cursor, reach: 6f, arc: 60f, cooldown: 4000, cost: 15, value: 22, range: SpellRange.Short, scaling: ScalingStat.Ability, coefficient: 0.5f),
+            Kit(220, CharacterClass.Hunter, "Quick Shot", AbilityShape.Projectile, AbilityAimMode.Cursor, reach: 25f, speed: 28f, cooldown: 800, cost: 0, value: 12, range: SpellRange.Long, scaling: ScalingStat.Attack, coefficient: 0.3f, weapon: 1.0f),
+            Kit(221, CharacterClass.Hunter, "Piercing Arrow", AbilityShape.Projectile, AbilityAimMode.Cursor, reach: 30f, speed: 24f, pierce: true, cooldown: 4000, cost: 15, value: 25, range: SpellRange.Long, scaling: ScalingStat.Attack, coefficient: 0.6f, weapon: 1.2f),
+            Kit(222, CharacterClass.Hunter, "Scatter Shot", AbilityShape.Cone, AbilityAimMode.Cursor, reach: 8f, arc: 45f, cooldown: 4000, cost: 20, value: 22, range: SpellRange.Medium, scaling: ScalingStat.Attack, coefficient: 0.4f, weapon: 0.8f),
+            Kit(230, CharacterClass.Healer, "Smite", AbilityShape.Projectile, AbilityAimMode.Cursor, reach: 18f, speed: 20f, cooldown: 800, cost: 0, value: 12, range: SpellRange.Long, scaling: ScalingStat.Ability, coefficient: 0.3f),
+            Kit(231, CharacterClass.Healer, "Radiant Pulse", AbilityShape.Circle, AbilityAimMode.Movement, radius: 4f, cooldown: 5000, cost: 20, value: 22, range: SpellRange.Short, scaling: ScalingStat.Ability, coefficient: 0.5f),
+            Kit(232, CharacterClass.Healer, "Mending Circle", AbilityShape.Circle, AbilityAimMode.Cursor, anchor: AbilityAnchor.AimPoint, reach: 15f, radius: 4f, cooldown: 8000, cost: 25, value: 40, range: SpellRange.Medium, affects: AbilityAffects.Ally, scaling: ScalingStat.Ability, coefficient: 0.6f));
     }
 
     private static AbilityTemplate Kit(uint id, CharacterClass cls, string name, AbilityShape shape, AbilityAimMode aim,
         SpellRange range, uint cooldown, uint cost, uint value, AbilityAnchor anchor = AbilityAnchor.Caster,
         float reach = 0f, float radius = 0f, float arc = 0f, float speed = 0f, bool pierce = false, uint castTime = 0,
-        AbilityAffects affects = AbilityAffects.Hostile, int powerGainPerHit = 0) => new()
+        AbilityAffects affects = AbilityAffects.Hostile, int powerGainPerHit = 0,
+        ScalingStat scaling = ScalingStat.Attack, float coefficient = 0f, float weapon = 0f) => new()
     {
         Id = id,
         Name = name,
@@ -2246,6 +2251,9 @@ public class WorldDbContext : DbContext
         Pierce = pierce,
         Affects = affects,
         PowerGainPerHit = powerGainPerHit,
+        ScalingStat = scaling,
+        ScalingCoefficient = coefficient,
+        WeaponCoefficient = weapon,
     };
 
     /// <summary>

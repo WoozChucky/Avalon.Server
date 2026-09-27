@@ -73,4 +73,16 @@ public class AbilityTemplate : IDbEntity<AbilityId>
     /// damages (#526). 0 or more; 0 gains nothing.
     /// </summary>
     [Required] public int PowerGainPerHit { get; set; }
+
+    // Damage scaling (#506): EffectValue + ScalingCoefficient x the ScalingStat + WeaponCoefficient x a
+    // main-hand weapon roll. A heal scales the same way.
+
+    /// <summary>Which derived damage stat the coefficient multiplies: AttackDamage or AbilityDamage.</summary>
+    [Required] public ScalingStat ScalingStat { get; set; } = ScalingStat.Attack;
+
+    /// <summary>Finite and 0 or more; 0 adds nothing.</summary>
+    [Required] public float ScalingCoefficient { get; set; }
+
+    /// <summary>Finite and 0 or more; 0 rolls no weapon.</summary>
+    [Required] public float WeaponCoefficient { get; set; }
 }
