@@ -57,11 +57,14 @@ public sealed class AuthServerOnlineSweepShould : IDisposable
         using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         await server.StopAsync(stop.Token);
 
-        Received.InOrder(() =>
-        {
-            accounts.MarkAllOfflineAsync(Arg.Any<CancellationToken>());
-            accounts.ListOnlineSessionsAsync(Arg.Any<CancellationToken>());
-        });
+        // #596: the rule is the start-up reset once, before any sweep, and at least one sweep; how
+        // many sweeps run before the stop takes effect depends on the runner, so any number is fine.
+        List<string> calls = accounts.ReceivedCalls().Select(c => c.GetMethodInfo().Name).ToList();
+        Assert.Single(calls, name => name == nameof(IAccountRepository.MarkAllOfflineAsync));
+        int firstSweep = calls.IndexOf(nameof(IAccountRepository.ListOnlineSessionsAsync));
+        Assert.True(firstSweep >= 0, "no sweep ran before the stop");
+        Assert.True(calls.IndexOf(nameof(IAccountRepository.MarkAllOfflineAsync)) < firstSweep,
+            "a sweep ran before the start-up reset");
         Assert.NotNull(server.ExecuteTask);
         Assert.True(server.ExecuteTask!.IsCompletedSuccessfully);
     }
