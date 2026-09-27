@@ -139,7 +139,7 @@ public class MapNavigator : IMapNavigator, IPathBufferNavigator
                 var moveTgt = RcVec.Mad(iterPos, delta, len);
 
                 // Move
-                query.MoveAlongSurface(path[0], iterPos, moveTgt, _queryFilter, out var result, visited, out nvisited, 16);
+                query.MoveAlongSurfaceReusing(path[0], iterPos, moveTgt, _queryFilter, out var result, visited, out nvisited, 16);
 
                 iterPos = result;
 

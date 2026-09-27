@@ -6,15 +6,20 @@ using static DotRecast.Detour.DtDetour;
 namespace Avalon.World.Maps.Navigation;
 
 /// <summary>
-/// A <see cref="DtNavMeshQuery" /> whose surface move reuses its search queue (#638).
+/// A <see cref="DtNavMeshQuery" /> with a surface move that reuses its search queue (#638).
 /// <see cref="DtNavMeshQuery.MoveAlongSurface" /> builds a new <c>LinkedList</c> and a node per
 /// polygon it visits on every call, and <see cref="MapNavigator.FindPath" /> calls it once per half
 /// metre of route, which made it most of what a re-path allocated once the path lists were reused.
 /// </summary>
 /// <remarks>
-/// <see cref="MoveAlongSurface" /> is DotRecast's <c>DtNavMeshQuery.MoveAlongSurface</c> (zlib licence,
-/// copyright Mikko Mononen, Piotr Piastucki and Choi Ikpil), altered only in its queue: the same
-/// first-in, first-out order over a list kept by this query, so its results are the original's.
+/// <see cref="MoveAlongSurfaceReusing" /> is DotRecast's <c>DtNavMeshQuery.MoveAlongSurface</c> (zlib
+/// licence, copyright Mikko Mononen, Piotr Piastucki and Choi Ikpil), mirroring
+/// <c>vendor/DotRecast/src/DotRecast.Detour/DtNavMeshQuery.cs</c> lines 1925-2110 at submodule commit
+/// 5841f99e. It is altered only in its queue: the same first-in, first-out order over a list kept by
+/// this query, so its results are the original's. <c>ReusingNavMeshQueryShould</c> compares the two
+/// over the town navmesh, so a DotRecast update that changes the original fails the tests.
+/// It has its own name rather than hiding the base method, so a caller that holds only a
+/// <see cref="DtNavMeshQuery" /> cannot silently get the allocating original.
 /// Like the query's own node pools, the queue is per-call state, so one query serves one thread at a
 /// time.
 /// </remarks>
@@ -26,7 +31,7 @@ public sealed class ReusingNavMeshQuery : DtNavMeshQuery
     {
     }
 
-    public new DtStatus MoveAlongSurface(long startRef, RcVec3f startPos, RcVec3f endPos,
+    public DtStatus MoveAlongSurfaceReusing(long startRef, RcVec3f startPos, RcVec3f endPos,
         IDtQueryFilter filter,
         out RcVec3f resultPos, Span<long> visited, out int visitedCount, int maxVisitedSize)
     {

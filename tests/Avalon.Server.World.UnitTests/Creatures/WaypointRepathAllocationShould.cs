@@ -56,15 +56,24 @@ public class WaypointRepathAllocationShould
 
         Assert.False(locomotion.HasArrived(creature));
 
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        for (int repath = 0; repath < 100; repath++)
+        // The fewest bytes over three windows of 100 re-paths. A re-path that allocates shows in every
+        // window; a one-off the runtime does on this thread (seen once in a full-solution run, never
+        // reproduced) lands in one window only and cannot fail the test by itself.
+        long fewest = long.MaxValue;
+        for (int window = 0; window < 3; window++)
         {
-            creature.Position = Start;
-            locomotion.MoveTo(creature, Destinations[repath % Destinations.Length]);
-            locomotion.Update(TimeSpan.FromSeconds(1d / 60d));
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            for (int repath = 0; repath < 100; repath++)
+            {
+                creature.Position = Start;
+                locomotion.MoveTo(creature, Destinations[repath % Destinations.Length]);
+                locomotion.Update(TimeSpan.FromSeconds(1d / 60d));
+            }
+
+            fewest = Math.Min(fewest, GC.GetAllocatedBytesForCurrentThread() - before);
         }
 
-        Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+        Assert.Equal(0, fewest);
         Assert.False(locomotion.HasArrived(creature));
     }
 }
