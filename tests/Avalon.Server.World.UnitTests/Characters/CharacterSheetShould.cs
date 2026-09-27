@@ -59,7 +59,7 @@ public class CharacterSheetShould
     public void Send_one_sheet_with_the_characters_values_once_the_selected_character_is_in_the_world()
     {
         CharacterEntity character = New();
-        character.ApplyStats(Stats(), CurrentValues.EnterWorld);
+        character.ApplyStats(Stats(), CurrentValues.EnterWorld, TestCombat.Formula);
         var sent = new List<NetworkPacket>();
         IWorldConnection connection = PendingSpawnConnection.Create(
             new PendingSpawn(character, Substitute.For<IMapInstance>(), DateTime.UtcNow.Ticks));
@@ -77,6 +77,43 @@ public class CharacterSheetShould
         Assert.Equal((22u, 23u, 20u, 21u, 8u, 46u, 12u),
             (sheet.Stamina, sheet.Strength, sheet.Agility, sheet.Intellect, sheet.Armor, sheet.AttackDamage, sheet.AbilityDamage));
         Assert.Equal((5f, 4f, 3f, 3u, 7u), (sheet.CritPct, sheet.DodgePct, sheet.BlockPct, sheet.WeaponMin, sheet.WeaponMax));
+    }
+
+    /// <summary>#627: the sheet shows the haste a cast actually uses, capped, and the speed the input step moves at.</summary>
+    [Fact]
+    public void Carry_the_effective_haste_and_the_movement_speed()
+    {
+        CharacterEntity character = New();
+        character.ApplyStats(Stats() with { HastePct = 80f, MovementSpeedPct = 10f }, CurrentValues.EnterWorld, Seeded);
+        var sent = new List<NetworkPacket>();
+
+        CharacterSheetFlusher.Flush(Recording(character, sent), Seeded);
+
+        SCharacterStatsPacket sheet = Assert.Single(Sheets(sent));
+        Assert.Equal(50f, sheet.HastePct);
+        Assert.Equal(4.4f, sheet.MovementSpeed, precision: 5);
+    }
+
+    /// <summary>#627: a refresh that moves only the haste, or only the movement speed, is a change the owner is sent.</summary>
+    [Theory]
+    [InlineData(3f, 0f)]
+    [InlineData(0f, 10f)]
+    public void Send_a_sheet_when_only_the_haste_or_only_the_movement_speed_changes(float haste, float movement)
+    {
+        CharacterEntity character = New();
+        character.ApplyStats(Stats(), CurrentValues.EnterWorld, Seeded);
+        var sent = new List<NetworkPacket>();
+        IWorldConnection connection = Recording(character, sent);
+        CharacterSheetFlusher.Flush(connection, Seeded);
+
+        character.ApplyStats(Stats() with { HastePct = haste, MovementSpeedPct = movement }, CurrentValues.KeepShare, Seeded);
+        CharacterSheetFlusher.Flush(connection, Seeded);
+
+        List<SCharacterStatsPacket> sheets = Sheets(sent);
+        Assert.Equal(2, sheets.Count);
+        Assert.Equal((0f, 4f), (sheets[0].HastePct, sheets[0].MovementSpeed));
+        Assert.Equal(haste, sheets[1].HastePct);
+        Assert.Equal(4f * (1f + movement / 100f), sheets[1].MovementSpeed, precision: 5);
     }
 
     [Fact]
@@ -160,7 +197,7 @@ public class CharacterSheetShould
     public void Send_each_chance_clamped_to_its_cap()
     {
         CharacterEntity character = New();
-        character.ApplyStats(Stats(crit: 80f, dodge: 45f, block: 70f), CurrentValues.EnterWorld);
+        character.ApplyStats(Stats(crit: 80f, dodge: 45f, block: 70f), CurrentValues.EnterWorld, TestCombat.Formula);
         var sent = new List<NetworkPacket>();
 
         CharacterSheetFlusher.Flush(Recording(character, sent), Seeded);
@@ -177,9 +214,9 @@ public class CharacterSheetShould
         StaticData data = await TestStaticData.LoadAsync(
             TestStaticData.Repositories(classStats: () => WarriorRows, combat: rows.Repository()));
         CharacterEntity keen = New(1);
-        keen.ApplyStats(Stats(crit: 30f), CurrentValues.EnterWorld);
+        keen.ApplyStats(Stats(crit: 30f), CurrentValues.EnterWorld, TestCombat.Formula);
         CharacterEntity dull = New(2);
-        dull.ApplyStats(Stats(crit: 5f), CurrentValues.EnterWorld);
+        dull.ApplyStats(Stats(crit: 5f), CurrentValues.EnterWorld, TestCombat.Formula);
         var keenSent = new List<NetworkPacket>();
         var dullSent = new List<NetworkPacket>();
         IWorldConnection keenConnection = Recording(keen, keenSent);
@@ -204,9 +241,9 @@ public class CharacterSheetShould
     public void Never_send_a_characters_sheet_to_another_player()
     {
         CharacterEntity owner = New(1);
-        owner.ApplyStats(Stats(), CurrentValues.EnterWorld);
+        owner.ApplyStats(Stats(), CurrentValues.EnterWorld, TestCombat.Formula);
         CharacterEntity other = New(2);
-        other.ApplyStats(Stats(), CurrentValues.EnterWorld);
+        other.ApplyStats(Stats(), CurrentValues.EnterWorld, TestCombat.Formula);
         var ownerSent = new List<NetworkPacket>();
         var otherSent = new List<NetworkPacket>();
         IWorldConnection ownerConnection = Recording(owner, ownerSent);
@@ -216,7 +253,7 @@ public class CharacterSheetShould
         ownerSent.Clear();
         otherSent.Clear();
 
-        owner.ApplyStats(Stats(strength: 40), CurrentValues.KeepShare);
+        owner.ApplyStats(Stats(strength: 40), CurrentValues.KeepShare, TestCombat.Formula);
         CharacterSheetFlusher.Flush(ownerConnection, Seeded);
         CharacterSheetFlusher.Flush(otherConnection, Seeded);
 
@@ -228,15 +265,15 @@ public class CharacterSheetShould
     public void Send_at_most_one_sheet_per_tick_with_the_last_values()
     {
         CharacterEntity character = New();
-        character.ApplyStats(Stats(), CurrentValues.EnterWorld);
+        character.ApplyStats(Stats(), CurrentValues.EnterWorld, TestCombat.Formula);
         var sent = new List<NetworkPacket>();
         IWorldConnection connection = Recording(character, sent);
         CharacterSheetFlusher.Flush(connection, Seeded);
         sent.Clear();
 
         // A gear change and a level-up in one tick: the flush at its end sends one sheet.
-        character.ApplyStats(Stats(strength: 30), CurrentValues.KeepShare);
-        character.ApplyStats(Stats(strength: 35), CurrentValues.Refill);
+        character.ApplyStats(Stats(strength: 30), CurrentValues.KeepShare, TestCombat.Formula);
+        character.ApplyStats(Stats(strength: 35), CurrentValues.Refill, TestCombat.Formula);
         CharacterSheetFlusher.Flush(connection, Seeded);
 
         Assert.Equal(35u, Assert.Single(Sheets(sent)).Strength);

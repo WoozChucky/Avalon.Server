@@ -1,4 +1,6 @@
 using Avalon.Common;
+using Avalon.World.Combat;
+using Avalon.World.Entities;
 using Avalon.World.Public;
 using Avalon.World.Public.Abilities;
 using Avalon.World.Public.Characters;
@@ -87,13 +89,18 @@ public class InstanceAbilityCastSystem(
             return false;
         }
 
+        // #627: haste is read once, here: the cast time is fixed now, and the cooldown it sets when it fires
+        // uses the same value, so a gear change mid-cast changes neither.
+        float haste = HasteOf(character);
         _abilityQueue.Add(new AbilityInstance
         {
             Caster = character, Ability = ability, Script = script, CastStartPosition = character.Position,
+            HastePct = haste,
         });
 
         // #521 item 1: Casting is set, and the cost paid, only once the queue has taken the cast.
         ability.Casting = true;
+        ability.CastTimeTimer = Haste.Scale(ability.Metadata.CastTime, haste);
         AbilityCost.Pay(character, ability.Metadata);
 
         _logger.LogDebug("QueueAbility queued ability={AbilityId} caster={CharId} castTime={CastTime}s queueSize={Size}",
@@ -117,7 +124,7 @@ public class InstanceAbilityCastSystem(
         }
 
         AbilityCost.Pay(caster, ability.Metadata);
-        Fire(caster, ability, script);
+        Fire(caster, ability, script, HasteOf(caster));
         return true;
     }
 
@@ -180,7 +187,7 @@ public class InstanceAbilityCastSystem(
                 continue;
             }
 
-            Fire(cast.Caster, ability, cast.Script);
+            Fire(cast.Caster, ability, cast.Script, cast.HastePct);
         }
 
         foreach (AbilityInstance cast in _dequeued)
@@ -308,10 +315,19 @@ public class InstanceAbilityCastSystem(
         }
     }
 
-    /// <summary>The cooldown, the finish-cast broadcast, the effect; a script still running keeps ticking.</summary>
-    private void Fire(IUnit caster, IAbility ability, AbilityScript script)
+    /// <summary>
+    /// A caster's effective haste (#627), cached on the character at its last stats refresh. Only a character
+    /// has haste; any other caster casts with none.
+    /// </summary>
+    private static float HasteOf(IUnit caster) => caster is CharacterEntity character ? character.EffectiveHastePct : 0f;
+
+    /// <summary>
+    /// The cooldown, divided by the haste the cast was read with (#627) and set once, so a later gear change
+    /// never rescales a running one; the finish-cast broadcast; the effect. A script still running keeps ticking.
+    /// </summary>
+    private void Fire(IUnit caster, IAbility ability, AbilityScript script, float hastePct)
     {
-        ability.CooldownTimer = ability.Metadata.Cooldown;
+        ability.CooldownTimer = Haste.Scale(ability.Metadata.Cooldown, hastePct);
         arena.BroadcastFinishCast(caster, ability);
 
         // Contained (#530): a throwing Prepare never enters the active list, so it is never a world

@@ -454,7 +454,8 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
                 continue;
             }
 
-            connection.Send(SUnitStartCastPacket.Create(caster.Guid, ability.Metadata.CastTime,
+            // #627: the time the cast system just set, haste included, so every cast bar ends when the cast does.
+            connection.Send(SUnitStartCastPacket.Create(caster.Guid, ability.CastTimeTimer,
                 ability.AbilityId.Value, connection.CryptoSession.Encrypt));
         }
     }

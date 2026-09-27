@@ -40,7 +40,7 @@ public class CharacterEntityShould
         entity.ApplyStats(new Avalon.World.Characters.DerivedCharacterStats(
             MaxHealth: uint.MaxValue, MaxPower: (uint)int.MaxValue + 1, Stamina: 1, Strength: 1, Agility: 1,
             Intellect: 1, Armor: 0, BlockPct: 0, DodgePct: 0, CritPct: 0, AttackDamage: 0, AbilityDamage: 0),
-            Avalon.World.Characters.CurrentValues.Refill);
+            Avalon.World.Characters.CurrentValues.Refill, TestCombat.Formula);
 
         Assert.Equal(int.MaxValue, entity.Data!.Health);
         Assert.Equal(int.MaxValue, entity.Data.Power1);

@@ -10,9 +10,9 @@ public class AbilityMetadata
 {
     public string Name { get; init; }
 
-    public float CastTime { get; init; } // in milliseconds
+    public float CastTime { get; init; } // in seconds (the template stores milliseconds; the mapper divides by 1000)
 
-    public float Cooldown { get; init; } // in milliseconds
+    public float Cooldown { get; init; } // in seconds (the template stores milliseconds; the mapper divides by 1000)
 
     public uint Cost { get; init; } // in power points
     public string ScriptName { get; init; }

@@ -110,7 +110,7 @@ public class FuryLifecycleShould
 
         for (int i = 0; i < 60; i++)
         {
-            warrior.ApplyStats(stats, CurrentValues.KeepShare);
+            warrior.ApplyStats(stats, CurrentValues.KeepShare, TestCombat.Formula);
             warrior.Update(Tick);
         }
 

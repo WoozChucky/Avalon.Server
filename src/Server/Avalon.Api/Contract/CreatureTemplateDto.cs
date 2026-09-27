@@ -32,7 +32,8 @@ public sealed class CreatureTemplateDto
     public short RegenHealth { get; set; }
     public short DmgSchool { get; set; }
     public float DamageModifier { get; set; }
-    public int BaseAttackTime { get; set; }
+    /// <summary>Seconds between the creature's swings, 0.5 or more (#627).</summary>
+    public float BaseAttackTime { get; set; }
     public int RangeAttackTime { get; set; }
     /// <summary>Null means the server derives it from the creature's level.</summary>
     public uint? Experience { get; set; }

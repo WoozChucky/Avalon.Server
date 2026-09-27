@@ -39,8 +39,26 @@ public sealed record CreaturesPatch(
     CreatureStatDeriver Stats)
     : StaticDataPatch(ReloadArea.Creatures)
 {
+    /// <summary>The shortest swing interval a template may have, in seconds (#627); a database check says the same.</summary>
+    public const float MinBaseAttackTime = 0.5f;
+
     public override string Describe()
         => $"{Templates.Count} templates, {BaseStats.Count} base stats, {Rarities.Count} rarities";
+
+    /// <summary>
+    /// #627: refuses the whole area, naming the template, when one swings more often than every half second
+    /// or at an interval that is not finite, so a bad row leaves the previous generation live.
+    /// </summary>
+    /// <exception cref="InvalidDataException">A template is out of range; the message names it.</exception>
+    public static void Validate(IEnumerable<CreatureTemplate> templates)
+    {
+        foreach (CreatureTemplate t in templates)
+        {
+            if (!float.IsFinite(t.BaseAttackTime) || t.BaseAttackTime < MinBaseAttackTime)
+                throw new InvalidDataException(
+                    $"CreatureTemplate {t.Id.Value}: BaseAttackTime must be finite and {MinBaseAttackTime} s or more, not {t.BaseAttackTime}");
+        }
+    }
 }
 
 /// <summary>
@@ -116,6 +134,13 @@ public sealed record CombatPatch(CombatFormula Formula, IReadOnlyDictionary<Char
         RequireRange("CombatFormula 1", nameof(f.BlockCap), f.BlockCap, 100f);
         if (!(f.ArmorBase + f.ArmorPerLevel > 0f))
             throw new InvalidDataException("CombatFormula 1: ArmorBase + ArmorPerLevel must be above 0");
+
+        // #627: a speed at or below -100 % would stop a character dead, or reverse it.
+        RequireNonNegative("CombatFormula 1", nameof(f.HasteCap), f.HasteCap);
+        if (!float.IsFinite(f.MoveSpeedCap) || !float.IsFinite(f.MoveSpeedFloor)
+            || !(f.MoveSpeedFloor > -100f) || !(f.MoveSpeedFloor <= f.MoveSpeedCap))
+            throw new InvalidDataException(
+                $"CombatFormula 1: MoveSpeedFloor and MoveSpeedCap must be finite, with -100 < floor <= cap, not {f.MoveSpeedFloor} and {f.MoveSpeedCap}");
 
         var byClass = new Dictionary<CharacterClass, ClassStatFactors>();
         foreach (ClassStatFactors row in factors)

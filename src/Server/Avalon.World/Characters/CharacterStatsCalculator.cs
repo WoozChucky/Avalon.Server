@@ -53,7 +53,9 @@ public static class CharacterStatsCalculator
             AttackDamage: Clamp(attack),
             AbilityDamage: Clamp(ability),
             WeaponMin: weaponMin,
-            WeaponMax: weaponMax);
+            WeaponMax: weaponMax,
+            HastePct: gear.HastePct,
+            MovementSpeedPct: gear.MovementSpeedPct);
     }
 
     /// <summary>
@@ -82,7 +84,7 @@ public static class CharacterStatsCalculator
     private struct GearTotals
     {
         public long Stamina, Strength, Agility, Intellect, Armor, AttackDamage, AbilityDamage, Health, Power;
-        public float BlockPct, DodgePct, CritPct;
+        public float BlockPct, DodgePct, CritPct, HastePct, MovementSpeedPct;
 
         public static GearTotals Of(IEnumerable<ItemTemplate> worn)
         {
@@ -112,7 +114,9 @@ public static class CharacterStatsCalculator
                 case StatType.AbilityDamage: AbilityDamage += value; break;
                 case StatType.Health: Health += value; break;
                 case StatType.Power: Power += value; break;
-                // AttackSpeed and MovementSpeed feed nothing yet.
+                // #627: both percentages, summed raw; the entity applies the combat formula's bounds.
+                case StatType.AttackSpeed: HastePct += value; break;
+                case StatType.MovementSpeed: MovementSpeedPct += value; break;
                 default: break;
             }
         }

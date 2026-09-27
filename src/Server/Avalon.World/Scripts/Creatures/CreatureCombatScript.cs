@@ -85,7 +85,6 @@ public class CreatureCombatScript : AiScript, IReturningHome
     // constant here) plus a small fixed buffer against float noise in the distance comparison
     // itself.
     private const float AttackRangeArrivalMargin = 0.05f;
-    private const float AttackCooldown = 2.25f; // Cooldown between attacks
 
     // How long a creature may go without any way to reach its target before it gives up and goes
     // home, as it does past the leash (#606). "No way to reach" is decided from where the creature's
@@ -546,9 +545,14 @@ public class CreatureCombatScript : AiScript, IReturningHome
         return encounter?.GetTopThreat(Creature);
     }
 
+    /// <summary>
+    /// #627: counts down only while in range, and swings on the tick the countdown reaches 0, so the first
+    /// swing lands at once and each next one a whole interval later. The interval is read at each swing, so a
+    /// haste change applies from the next swing and never touches the countdown already running.
+    /// </summary>
     private void AttackTarget(TimeSpan deltaTime)
     {
-        // Logic to attack the target
+        _attackCooldownTimer -= (float)deltaTime.TotalSeconds;
         if (_attackCooldownTimer <= 0.0f)
         {
             Context.BroadcastAttackAnimation(Creature, null); // TODO: spells for creatures
@@ -559,13 +563,17 @@ public class CreatureCombatScript : AiScript, IReturningHome
             {
                 Context.CombatService.ApplyDamage(Creature, _target, RollDamage());
             }
-            _attackCooldownTimer = AttackCooldown;
-        }
-        else
-        {
-            _attackCooldownTimer -= (float)deltaTime.TotalSeconds;
+            _attackCooldownTimer = SwingInterval;
         }
     }
+
+    /// <summary>
+    /// The World-side creature's own interval (#627). Any other ICreature (a test substitute; the modding
+    /// API cannot make creatures) swings at the seeded default.
+    /// </summary>
+    private float SwingInterval => Creature is Avalon.World.Entities.Creature c
+        ? c.SwingInterval
+        : Avalon.World.Entities.Creature.DefaultBaseAttackTime;
 
     /// <summary>
     /// Damage comes from the creature's derived range rather than a constant. Inclusive of both bounds,
@@ -593,6 +601,9 @@ public class CreatureCombatScript : AiScript, IReturningHome
         _target = null;
         _home = null;
         _unreachableFor = TimeSpan.Zero;
+
+        // #627: no countdown carries into the next fight, whose first swing lands at once.
+        _attackCooldownTimer = 0f;
         Context.Locomotion.Stop(Creature);
 
         // The one place a fight ends at home (#614): the creature leaves its encounter and forgets any

@@ -130,18 +130,19 @@ variant float-specials
   field 1 CasterGuid : ulong = 7
   field 2 AbilityId : uint = 65535
   field 3 Origin : Vector3Dto
-    field 1 X : float = -0 (0x80000000)
-    field 2 Y : float = 1.40129846E-45 (0x00000001)
-    field 3 Z : float = 1.17549421E-38 (0x007fffff)
+    field 1 X : float = 1.17549421E-38 (0x007fffff)
+    field 2 Y : float = 3.40282347E+38 (0x7f7fffff)
+    field 3 Z : float = NaN (0xffc00000)
   field 4 Direction : Vector3Dto
-    field 1 X : float = -0 (0x80000000)
-    field 2 Y : float = 1.40129846E-45 (0x00000001)
-    field 3 Z : float = 1.17549421E-38 (0x007fffff)
+    field 1 X : float = 1.17549421E-38 (0x007fffff)
+    field 2 Y : float = 3.40282347E+38 (0x7f7fffff)
+    field 3 Z : float = NaN (0xffc00000)
   field 5 Centre : Vector3Dto
-    field 1 X : float = -0 (0x80000000)
-    field 2 Y : float = 1.40129846E-45 (0x00000001)
-    field 3 Z : float = 1.17549421E-38 (0x007fffff)
-  bytes 42
-    08 07 10 ff ff 03 1a 0a 15 01 00 00 00 1d ff ff
-    7f 00 22 0a 15 01 00 00 00 1d ff ff 7f 00 2a 0a
-    15 01 00 00 00 1d ff ff 7f 00
+    field 1 X : float = 1.17549421E-38 (0x007fffff)
+    field 2 Y : float = 3.40282347E+38 (0x7f7fffff)
+    field 3 Z : float = NaN (0xffc00000)
+  bytes 57
+    08 07 10 ff ff 03 1a 0f 0d ff ff 7f 00 15 ff ff
+    7f 7f 1d 00 00 c0 ff 22 0f 0d ff ff 7f 00 15 ff
+    ff 7f 7f 1d 00 00 c0 ff 2a 0f 0d ff ff 7f 00 15
+    ff ff 7f 7f 1d 00 00 c0 ff

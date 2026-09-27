@@ -47,6 +47,37 @@ public class CharacterSheetAndHealPacketsShould
         Assert.Equal((5.5f, 30f, 2.25f, 4u, 9u), (read.CritPct, read.DodgePct, read.BlockPct, read.WeaponMin, read.WeaponMax));
     }
 
+    /// <summary>#627: haste and movement speed on the next free field numbers, 13 and 14.</summary>
+    [Fact]
+    public void Round_trip_the_haste_and_the_movement_speed()
+    {
+        var sheet = new SCharacterStatsPacket { Strength = 23, HastePct = 3f, MovementSpeed = 4.4f };
+
+        SCharacterStatsPacket read = Read<SCharacterStatsPacket>(SCharacterStatsPacket.Create(sheet, Plain));
+
+        Assert.Equal((23u, 3f, 4.4f), (read.Strength, read.HastePct, read.MovementSpeed));
+    }
+
+    /// <summary>The sheet as it was before #627, fields 1 to 12 only.</summary>
+    [ProtoContract]
+    public sealed class SheetBeforeSpeeds
+    {
+        [ProtoMember(2)] public uint Strength { get; set; }
+        [ProtoMember(12)] public uint WeaponMax { get; set; }
+    }
+
+    [Fact]
+    public void Read_a_sheet_from_before_the_speeds_as_no_haste_and_no_speed()
+    {
+        using var stream = new MemoryStream();
+        Serializer.Serialize(stream, new SheetBeforeSpeeds { Strength = 23, WeaponMax = 9 });
+        stream.Position = 0;
+
+        SCharacterStatsPacket read = Serializer.Deserialize<SCharacterStatsPacket>(stream);
+
+        Assert.Equal((23u, 9u, 0f, 0f), (read.Strength, read.WeaponMax, read.HastePct, read.MovementSpeed));
+    }
+
     [Theory]
     [InlineData(HitResult.None, null)]
     [InlineData(HitResult.Crit, 232u)]

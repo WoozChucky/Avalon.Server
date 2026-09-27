@@ -198,8 +198,14 @@ contracts.
 
 - An attack rolls damage between the creature's `DamageMin` and `DamageMax`, inclusive, through
   `ICombatRandom` (#506), and goes through `ICombatService.ApplyDamage`, where the target's dodge,
-  block and armour and the creature's own crit are rolled; see `CombatService` below. The first swing lands as soon as the target is in range. The 2.25 s
-  cooldown after it counts down only while the target is in range.
+  block and armour and the creature's own crit are rolled; see `CombatService` below. The first swing lands as soon as the target is in range.
+- The cadence (#627): each next swing lands one `Creature.SwingInterval` later, on the tick the countdown
+  reaches 0. The interval is the template's `BaseAttackTime` in seconds (2.25 for every seeded
+  template; a check constraint and the Creatures reload area refuse anything below 0.5 or not finite),
+  divided by `1 + min(HastePct, HasteCap) / 100`. `BaseAttackTime` and the combat formula's `HasteCap`
+  are fixed on the creature at spawn; `HastePct` is World-side, 0, and set by nothing yet (a future buff
+  or debuff). The interval is read at each swing, so a haste change applies from the next swing and
+  never resets the countdown already running. The countdown runs only while the target is in range.
 - It gives up and returns home at full health when a character target dies, the target leaves the
   instance, or the creature is more than 40 m from where the fight started. The death check covers
   character targets only.
@@ -332,7 +338,6 @@ These `CreatureTemplate` fields are deliberately unread. Do not assume any of th
 | `RespawnTimerSecs` | Creatures do not respawn. Kept for a future revival mechanic. |
 | `ManaModifier` | Creatures cannot cast. |
 | `RegenHealth` | Creatures do not regenerate health. |
-| `BaseAttackTime` | The attack cadence is `CreatureCombatScript`'s fixed 2.25 s. |
 
 `RangeAttackTime`, `DmgSchool`, `AIName`, `MovementType`, `MovementId` and `Family` are not read by
 the world server either.

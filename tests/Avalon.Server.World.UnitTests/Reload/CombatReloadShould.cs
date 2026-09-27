@@ -104,6 +104,14 @@ public class CombatReloadShould
         { "CombatFormula 1", r => { r.Formulas[0].ArmorBase = 0f; r.Formulas[0].ArmorPerLevel = 0f; } },
         { "CombatFormula 1", r => r.Formulas[0].ArmorPerLevel = -10f },
         { "CombatFormula", r => r.Formulas.Clear() },
+        // #627: a floor at -100 % would stop a character dead, and one above the cap has no range.
+        { "CombatFormula 1", r => r.Formulas[0].MoveSpeedFloor = -100f },
+        { "CombatFormula 1", r => r.Formulas[0].MoveSpeedFloor = float.NegativeInfinity },
+        { "CombatFormula 1", r => { r.Formulas[0].MoveSpeedFloor = 20f; r.Formulas[0].MoveSpeedCap = 10f; } },
+        { "CombatFormula 1", r => r.Formulas[0].MoveSpeedCap = float.NaN },
+        { "CombatFormula 1", r => r.Formulas[0].MoveSpeedCap = float.PositiveInfinity },
+        { "CombatFormula 1", r => r.Formulas[0].HasteCap = -1f },
+        { "CombatFormula 1", r => r.Formulas[0].HasteCap = float.NaN },
     };
 
     [Theory]
@@ -137,6 +145,24 @@ public class CombatReloadShould
         ClassStatFactors warrior = context.ClassStatFactors.Single(f => f.Class == CharacterClass.Warrior);
         warrior.HpPerStamina = hpPerStamina;
         warrior.FixedPower = fixedPower;
+
+        var refused = Assert.Throws<Microsoft.EntityFrameworkCore.DbUpdateException>(() => context.SaveChanges());
+        Assert.Contains("CHECK constraint failed", refused.InnerException!.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>#627: the database refuses a negative haste cap, a floor at -100 % or below, and a floor above the cap.</summary>
+    [Theory]
+    [InlineData(-1f, 50f, -50f)]
+    [InlineData(50f, 50f, -100f)]
+    [InlineData(50f, 10f, 20f)]
+    public void Be_refused_by_the_database_outside_the_speed_bounds(float hasteCap, float moveCap, float moveFloor)
+    {
+        using Handlers.SqliteDatabase<Avalon.Database.World.WorldDbContext> database = Handlers.SqliteDatabase.World();
+        using Avalon.Database.World.WorldDbContext context = database.CreateDbContext();
+        CombatFormula formula = context.CombatFormulas.Single();
+        formula.HasteCap = hasteCap;
+        formula.MoveSpeedCap = moveCap;
+        formula.MoveSpeedFloor = moveFloor;
 
         var refused = Assert.Throws<Microsoft.EntityFrameworkCore.DbUpdateException>(() => context.SaveChanges());
         Assert.Contains("CHECK constraint failed", refused.InnerException!.Message, StringComparison.Ordinal);

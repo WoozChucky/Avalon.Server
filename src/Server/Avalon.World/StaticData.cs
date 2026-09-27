@@ -77,6 +77,7 @@ public class StaticData(
             {
                 IReadOnlyCollection<CreatureTemplate> templates =
                     (await creatureTemplateRepository.FindAllAsync(false, ct)).AsReadOnly();
+                CreaturesPatch.Validate(templates);
                 var baseStats = await creatureBaseStatRepository.GetAllAsync(ct);
                 var rarities = await creatureRarityModifierRepository.GetAllAsync(ct);
 
