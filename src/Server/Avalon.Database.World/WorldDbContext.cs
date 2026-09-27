@@ -48,11 +48,13 @@ public class WorldDbContext : DbContext
 {
     private readonly ILoggerFactory? _loggerFactory;
     private readonly string? _connectionString;
+    private readonly bool _sensitiveDataLogging;
 
     public WorldDbContext(ILoggerFactory loggerFactory, IOptions<DatabaseConfiguration> opts)
     {
         _loggerFactory = loggerFactory;
         _connectionString = opts.Value.World!.ConnectionString;
+        _sensitiveDataLogging = opts.Value.EnableSensitiveDataLogging;
     }
 
     /// <summary>Configured by the caller. Lets a test point the same model at another provider.</summary>
@@ -97,9 +99,13 @@ public class WorldDbContext : DbContext
             return;
         }
 
-        optionsBuilder
-            .UseLoggerFactory(_loggerFactory)
-            .EnableSensitiveDataLogging();
+        optionsBuilder.UseLoggerFactory(_loggerFactory);
+
+        // Parameter values in the logs, so Development only (#558): see AddAvalonDatabases.
+        if (_sensitiveDataLogging)
+        {
+            optionsBuilder.EnableSensitiveDataLogging();
+        }
 
         optionsBuilder.UseNpgsql(_connectionString!);
     }

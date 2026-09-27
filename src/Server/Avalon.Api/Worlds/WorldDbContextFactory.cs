@@ -4,6 +4,8 @@ using Avalon.Database.Character;
 using Avalon.Database.World;
 using Avalon.Domain.Auth;
 using Microsoft.EntityFrameworkCore;
+using DatabaseRegistration = Avalon.Database.Extensions.ServiceCollectionExtensions;
+using Microsoft.Extensions.Options;
 
 namespace Avalon.Api.Worlds;
 
@@ -18,20 +20,30 @@ public interface IWorldDbContextFactory
     CharacterDbContext CreateCharacters(WorldId world);
 }
 
-/// <summary>Npgsql contexts over the strings under Database:Worlds.</summary>
-public sealed class ConfiguredWorldDbContextFactory(IWorldDatabases worlds, ILoggerFactory loggerFactory)
-    : IWorldDbContextFactory
+/// <summary>
+/// Npgsql contexts over the strings under Database:Worlds. Sensitive data logging (#558) follows
+/// the rule every other context follows, <see cref="DatabaseRegistration.SensitiveDataLoggingAllowed"/>:
+/// on only when the host environment is Development, off with no environment, never a setting.
+/// </summary>
+public sealed class ConfiguredWorldDbContextFactory(
+    IWorldDatabases worlds,
+    ILoggerFactory loggerFactory,
+    IHostEnvironment? environment = null) : IWorldDbContextFactory
 {
+    private readonly bool _sensitiveDataLogging = DatabaseRegistration.SensitiveDataLoggingAllowed(environment);
+
     public WorldDbContext CreateWorld(WorldId world) =>
-        new(loggerFactory, Microsoft.Extensions.Options.Options.Create(new DatabaseConfiguration
+        new(loggerFactory, Options.Create(new DatabaseConfiguration
         {
             World = new DatabaseConnection { ConnectionString = Require(world).WorldConnectionString },
+            EnableSensitiveDataLogging = _sensitiveDataLogging,
         }));
 
     public CharacterDbContext CreateCharacters(WorldId world) =>
-        new(loggerFactory, Microsoft.Extensions.Options.Options.Create(new DatabaseConfiguration
+        new(loggerFactory, Options.Create(new DatabaseConfiguration
         {
             Characters = new DatabaseConnection { ConnectionString = Require(world).CharactersConnectionString },
+            EnableSensitiveDataLogging = _sensitiveDataLogging,
         }));
 
     private ConfiguredWorld Require(WorldId world) =>
