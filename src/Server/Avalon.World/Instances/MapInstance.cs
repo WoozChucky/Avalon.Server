@@ -594,7 +594,7 @@ public class MapInstance : IMapInstance, IPortalSink, IGroundLootHost, IVendorHo
         SendOwedLootSnapshots();
         SendOwedPvpStates();
 
-        // Step 1: Update creature respawns
+        // Step 1: remove the corpses whose BodyRemoveTimer has run out. Creatures do not respawn.
         _corpseRemover.Update(deltaTime);
 
         // Step 2: Process character packets

@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using Avalon.World.Public.Enums;
 namespace Avalon.Api.Contract;
 
@@ -36,7 +37,10 @@ public sealed class CreatureTemplateDto
     /// <summary>Null means the server derives it from the creature's level.</summary>
     public uint? Experience { get; set; }
 
-    /// <summary>Seconds before the creature re-spawns after death.</summary>
+    /// <summary>
+    /// Stored but not used: creatures do not respawn (#598). Kept so generated clients keep compiling.
+    /// </summary>
+    [Description("Stored but not used: creatures do not respawn, so the server never reads this value.")]
     public int RespawnTimerSecs { get; set; }
 
     /// <summary>Seconds before the creature's corpse is removed.</summary>

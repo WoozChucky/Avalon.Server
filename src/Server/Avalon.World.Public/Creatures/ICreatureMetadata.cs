@@ -32,9 +32,6 @@ public interface ICreatureMetadata
     /// </summary>
     uint? Experience { get; }
 
-    /// <summary>How long before this creature re-spawns after death.</summary>
-    TimeSpan RespawnTimer { get; }
-
     /// <summary>How long before this creature's corpse is removed from the world.</summary>
     TimeSpan BodyRemoveTimer { get; }
 

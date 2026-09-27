@@ -49,6 +49,30 @@ public class CreatureCombatScriptShould
         new(new CreatureCombatScript(NullLoggerFactory.Instance, Substitute.For<ICreature>(),
             Substitute.For<ISimulationContext>()));
 
+    /// <summary>
+    /// #598: every <see cref="CreatureCombatScript.CombatState" /> is one the script actually enters.
+    /// A <c>Chase</c> value used to sit in the enum and in <c>ShouldRun</c> although nothing set it:
+    /// chasing is part of <c>Combat</c>.
+    /// </summary>
+    [Fact]
+    public void Declare_Only_The_States_It_Enters()
+    {
+        var entered = new HashSet<object>();
+        var fresh = new CreatureCombatScript(NullLoggerFactory.Instance, Substitute.For<ICreature>(),
+            Substitute.For<ISimulationContext>());
+        entered.Add(fresh.State);
+
+        (CreatureCombatScript script, _, ICharacter target) =
+            BuildChasingScript(Substitute.For<ICreatureLocomotion>(), targetAt: new Vector3(20f, 0f, 0f));
+        entered.Add(script.State);
+        script.OnCharacterLeft(target);
+        entered.Add(script.State);
+
+        Assert.Equal(
+            Enum.GetValues<CreatureCombatScript.CombatState>().Cast<object>().ToHashSet(),
+            entered);
+    }
+
     [Fact]
     public void Chase_By_Setting_A_Destination_Rather_Than_Moving_Itself()
     {

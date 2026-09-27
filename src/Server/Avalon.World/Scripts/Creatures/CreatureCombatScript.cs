@@ -12,11 +12,13 @@ namespace Avalon.World.Scripts.Creatures;
 
 public class CreatureCombatScript : AiScript
 {
+    /// <summary>
+    /// Chasing the target is part of <see cref="Combat" />; there is no separate chase state (#598).
+    /// </summary>
     public enum CombatState
     {
         None,
         Combat,
-        Chase,
         Returning
     }
 
@@ -126,7 +128,7 @@ public class CreatureCombatScript : AiScript
         }
     }
 
-    protected override bool ShouldRun() => State is CombatState.Combat or CombatState.Chase or CombatState.Returning;
+    protected override bool ShouldRun() => State is CombatState.Combat or CombatState.Returning;
 
     public override void OnEnteredRange(ICharacter character)
     {
@@ -193,7 +195,7 @@ public class CreatureCombatScript : AiScript
         // top-threat attacker (or the taunter, while the taunt is active) becomes the
         // authoritative pick. Only switch targets while actively engaging — Returning is
         // handled by its own block below.
-        if (State is CombatState.Combat or CombatState.Chase)
+        if (State is CombatState.Combat)
         {
             ReconcileTarget();
         }
