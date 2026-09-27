@@ -47,6 +47,10 @@ public sealed class CombatService : ICombatService
         // Every damage source in the game funnels through here, so this one guard covers them all.
         if (target is ICreature { Invulnerable: true }) return;
 
+        // A corpse takes no hits (#588), as a dead character's OnHit ignores them: no threat, no
+        // encounter, no script call, no second death, and its attacker is not tagged in combat.
+        if (target is ICreature { CurrentHealth: 0 }) return;
+
         // #164: a player-on-player hit that deals damage to a living player restarts both players'
         // running PvP off timers. Towns are covered because AbilityEffect checks Hostility before it
         // damages anyone, and Hostility refuses players in a town. ICombatService is on the modding

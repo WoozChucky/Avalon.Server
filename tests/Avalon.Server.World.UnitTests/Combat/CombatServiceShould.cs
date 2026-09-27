@@ -421,7 +421,8 @@ public class CombatServiceShould
         var attacker = StubCharacter(CharacterClass.Warrior);
         var target   = StubCreature();
         // Substitute creature: simulate the script's lethal-hit behaviour by returning 0 HP after OnHit.
-        target.CurrentHealth.Returns(0u);
+        // It is alive before the hit, since a corpse takes no hits (#588).
+        target.WhenForAnyArgs(t => t.OnHit(default!, default)).Do(_ => target.CurrentHealth.Returns(0u));
         var ab = StubAbility(1.0f);
 
         svc.ApplyDamage(attacker, target, 9999u, ab);
@@ -777,6 +778,46 @@ public class CombatServiceShould
         svc.ApplyDamage(attacker, target, 100);
 
         target.Received(1).OnHit(attacker, 30u);
+    }
+
+    /// <summary>
+    /// A corpse takes no hits: the second hit on a creature it killed sends no second death, puts the
+    /// corpse back in no encounter (so the encounter hears of no second death) and tags nobody.
+    /// </summary>
+    [Fact]
+    public void Refuse_a_hit_on_a_creature_that_is_already_dead()
+    {
+        var (svc, reg, ctx, outcomes) = BuildServiceWithOutcomes();
+        var (creature, _) = CreatureWithCombatScript(ctx, health: 30);
+        var killer = StubCharacter(CharacterClass.Warrior);
+        svc.ApplyDamage(killer, creature, 100);
+        ctx.ClearReceivedCalls();
+        outcomes.ClearReceivedCalls();
+
+        var other = StubCharacter(CharacterClass.Hunter);
+        svc.ApplyDamage(other, creature, 50, StubAbility(1.0f));
+
+        Assert.Equal(0u, creature.CurrentHealth);
+        ctx.DidNotReceiveWithAnyArgs().BroadcastUnitDeath(default!, default!);
+        ctx.DidNotReceiveWithAnyArgs().BroadcastUnitHit(default!, default!, default, default);
+        outcomes.DidNotReceiveWithAnyArgs().CreatureKilled(default!, default!);
+        Assert.Null(reg.FindEncounterContaining(creature));
+        Assert.Null(reg.FindEncounterContaining(other));
+        other.DidNotReceive().MarkCombat();
+    }
+
+    [Fact]
+    public void Not_pass_a_hit_on_a_dead_creature_to_its_script()
+    {
+        var (svc, reg, ctx) = BuildServiceWithContext();
+        var target = StubCreature();
+        target.CurrentHealth.Returns(0u);
+
+        svc.ApplyDamage(StubCharacter(CharacterClass.Warrior), target, 10);
+
+        target.DidNotReceiveWithAnyArgs().OnHit(default!, default);
+        ctx.DidNotReceiveWithAnyArgs().BroadcastUnitDeath(default!, default!);
+        Assert.Empty(reg.Active);
     }
 
     /// <summary>The script clamps on its own too, for a hit that does not come through the service.</summary>
