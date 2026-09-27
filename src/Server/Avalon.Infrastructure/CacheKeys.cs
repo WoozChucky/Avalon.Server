@@ -164,11 +164,14 @@ public static class CacheKeys
     public static string WorldPresence(ushort worldId) => $"world:{worldId}:presence";
 
     /// <summary>
-    /// Reverse index: which world (and instance) currently holds a character.
+    /// Reverse index: which instance of <paramref name="worldId"/> currently holds a character.
     /// Value: JSON <c>CharacterPresenceIndex</c>. Lets the Api find a player without
-    /// scanning every world snapshot. Same TTL as the snapshot it points at.
+    /// scanning the world's snapshot. Same TTL as the snapshot it points at.
+    /// The key names the world because character ids are unique only within one world (#556):
+    /// two worlds' character 7 are two keys, never one entry the world servers overwrite.
     /// </summary>
-    public static string CharacterPresenceIndex(uint characterId) => $"presence:character:{characterId}";
+    public static string CharacterPresenceIndex(ushort worldId, uint characterId) =>
+        $"presence:world:{worldId}:character:{characterId}";
 
     /// <summary>
     /// Lifetime of every presence key. Must stay comfortably above the snapshot write

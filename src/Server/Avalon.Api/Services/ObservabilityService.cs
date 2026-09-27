@@ -26,12 +26,11 @@ public interface IObservabilityService
         CancellationToken ct = default);
 
     /// <summary>
-    /// Null when not online, or online in a world <paramref name="caller"/> may not enter.
-    /// Known limit (#556): the presence index is keyed by character id alone, and character ids are
-    /// per world database, so two worlds' characters with one id share an index entry and this can
-    /// answer with the other world's character.
+    /// Character <paramref name="characterId"/> of world <paramref name="worldId"/>. Null when not
+    /// online in that world, or when <paramref name="caller"/> may not enter it. Character ids are
+    /// unique only per world (#556), so only that world's presence keys are read.
     /// </summary>
-    Task<PlayerPresenceDto?> GetPlayerPresenceAsync(uint characterId, AccountAccessLevel caller, CancellationToken ct = default);
+    Task<PlayerPresenceDto?> GetPlayerPresenceAsync(WorldId worldId, uint characterId, AccountAccessLevel caller, CancellationToken ct = default);
 
     Task<InstancePresenceDto?> GetInstancePresenceAsync(Guid instanceId, AccountAccessLevel caller, CancellationToken ct = default);
 }
@@ -148,20 +147,20 @@ public class ObservabilityService : IObservabilityService
 
     /// <inheritdoc />
     /// <remarks>
-    /// The index key, <c>presence:character:{id}</c>, names no world, and character ids are per world
-    /// database, so two world servers overwrite each other's entry for one id (#556). The key format
-    /// is left as it is; the world the entry names is the one whose access rule and databases apply.
+    /// Reads only <paramref name="worldId"/>'s index key and snapshot (#556); an entry that names
+    /// another world is treated as absent. The route's world check (#523) has already refused a world
+    /// the caller may not enter; the rule is asked again here, so the service never answers for one.
     /// </remarks>
     public async Task<PlayerPresenceDto?> GetPlayerPresenceAsync(
-        uint characterId, AccountAccessLevel caller, CancellationToken ct = default)
+        WorldId worldId, uint characterId, AccountAccessLevel caller, CancellationToken ct = default)
     {
-        string? rawIndex = await _cache.GetAsync(CacheKeys.CharacterPresenceIndex(characterId));
+        string? rawIndex = await _cache.GetAsync(CacheKeys.CharacterPresenceIndex(worldId.Value, characterId));
         if (rawIndex is null) return null;
 
         CharacterPresenceIndex? index = PresenceJson.Deserialize<CharacterPresenceIndex>(rawIndex);
-        if (index is null) return null;
+        if (index is null || index.WorldId != worldId.Value) return null;
 
-        AvalonWorld? world = await _worlds.FindByIdAsync(new WorldId(index.WorldId), track: false, ct);
+        AvalonWorld? world = await _worlds.FindByIdAsync(worldId, track: false, ct);
         if (world is null || !MayEnter(world, caller)) return null;
 
         WorldPresenceSnapshot? snapshot = await ReadWorldAsync(index.WorldId);
@@ -217,6 +216,15 @@ public class ObservabilityService : IObservabilityService
             _logger.LogDebug(
                 "Ignoring presence snapshot for world {WorldId}: unrecognized schema version {Version}",
                 worldId, snapshot.Version);
+            return null;
+        }
+
+        // A snapshot stamped with another world than its key is not this world's presence (#556).
+        if (snapshot.WorldId != worldId)
+        {
+            _logger.LogDebug(
+                "Ignoring presence snapshot under world {WorldId}'s key: it names world {SnapshotWorldId}",
+                worldId, snapshot.WorldId);
             return null;
         }
 

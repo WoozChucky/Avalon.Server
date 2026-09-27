@@ -75,11 +75,18 @@ public class PresenceSnapshotShould
         Assert.Null(PresenceJson.Deserialize<WorldPresenceSnapshot>("{not json"));
     }
 
+    /// <summary>Character ids are unique only per world (#556): one id in two worlds is two keys.</summary>
+    [Fact]
+    public void Should_key_a_character_by_its_world()
+    {
+        Assert.NotEqual(CacheKeys.CharacterPresenceIndex(1, 7), CacheKeys.CharacterPresenceIndex(2, 7));
+    }
+
     [Fact]
     public void Should_build_namespaced_cache_keys()
     {
         Assert.Equal("world:3:presence", CacheKeys.WorldPresence(3));
-        Assert.Equal("presence:character:4417", CacheKeys.CharacterPresenceIndex(4417));
+        Assert.Equal("presence:world:3:character:4417", CacheKeys.CharacterPresenceIndex(3, 4417));
         Assert.Equal(TimeSpan.FromSeconds(5), CacheKeys.PresenceTtl);
     }
 }

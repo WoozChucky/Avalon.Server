@@ -131,9 +131,41 @@ public class PresenceSnapshotServiceShould
         await CreateSut(worldId: 3).CaptureOnceAsync(CancellationToken.None);
 
         await _cache.Received(1).SetAsync(
-            "presence:character:4417", Arg.Any<string>(), CacheKeys.PresenceTtl);
+            "presence:world:3:character:4417", Arg.Any<string>(), CacheKeys.PresenceTtl);
         await _cache.Received(1).SetAsync(
-            "presence:character:9002", Arg.Any<string>(), CacheKeys.PresenceTtl);
+            "presence:world:3:character:9002", Arg.Any<string>(), CacheKeys.PresenceTtl);
+    }
+
+    /// <summary>
+    /// Character ids are unique only per world (#556), and every world server writes to one Redis:
+    /// two worlds' character 7 must land under two keys, each naming its own world and instance.
+    /// </summary>
+    [Fact]
+    public async Task Keep_both_worlds_entries_for_the_same_character_id()
+    {
+        Dictionary<string, string> written = [];
+        _cache.SetAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<TimeSpan?>())
+            .Returns(call =>
+            {
+                written[call.ArgAt<string>(0)] = call.ArgAt<string>(1);
+                return Task.FromResult(true);
+            });
+        Guid instanceOne = Guid.NewGuid();
+        Guid instanceTwo = Guid.NewGuid();
+
+        // Built before Returns(...): see the note in Instance about NSubstitute's last-call slot.
+        IMapInstance worldOne = Instance(instanceOne, Character(7, "Nym", Vector3.zero));
+        IMapInstance worldTwo = Instance(instanceTwo, Character(7, "Zed", Vector3.zero));
+
+        _registry.ActiveInstances.Returns([worldOne]);
+        await CreateSut(worldId: 1).CaptureOnceAsync(CancellationToken.None);
+        _registry.ActiveInstances.Returns([worldTwo]);
+        await CreateSut(worldId: 2).CaptureOnceAsync(CancellationToken.None);
+
+        CharacterPresenceIndex? one = PresenceJson.Deserialize<CharacterPresenceIndex>(written[CacheKeys.CharacterPresenceIndex(1, 7)]);
+        CharacterPresenceIndex? two = PresenceJson.Deserialize<CharacterPresenceIndex>(written[CacheKeys.CharacterPresenceIndex(2, 7)]);
+        Assert.Equal(((ushort)1, instanceOne), (one!.WorldId, one.InstanceId));
+        Assert.Equal(((ushort)2, instanceTwo), (two!.WorldId, two.InstanceId));
     }
 
     [Fact]
