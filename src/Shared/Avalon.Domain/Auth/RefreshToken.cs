@@ -6,6 +6,9 @@ namespace Avalon.Domain.Auth;
 
 public class RefreshToken : IDbEntity<Guid>
 {
+    /// <summary>The longest <see cref="DeviceName"/> kept; a longer one is cut.</summary>
+    public const int DeviceNameMaxLength = 64;
+
     [Key]
     [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
     public Guid Id { get; set; }
@@ -39,4 +42,13 @@ public class RefreshToken : IDbEntity<Guid>
 
     /// <summary>SHA-256 of the User-Agent of the caller whose rotation inserted this token (#495 review).</summary>
     public byte[]? RotatedByAgentHash { get; set; }
+
+    /// <summary>The client whose session this family is (#591); every token of a family has the same one.</summary>
+    public SessionClient Client { get; set; } = SessionClient.Web;
+
+    /// <summary>
+    /// What the launcher called the computer it signed in on, shown in the account's list of launcher
+    /// sessions (#591). Null for the website.
+    /// </summary>
+    public string? DeviceName { get; set; }
 }

@@ -19,12 +19,24 @@ public interface IRefreshTokenService
     Task<RefreshIssueResult> IssueAsync(AccountId accountId, int credentialsVersion,
         CancellationToken cancellationToken = default);
     /// <summary>
+    /// Opens a launcher's session (#591): a family of <see cref="SessionClient.Launcher"/> tokens, which
+    /// only <see cref="RotateLauncherAsync"/> rotates, named after <paramref name="deviceName"/>.
+    /// </summary>
+    Task<RefreshIssueResult> IssueLauncherAsync(AccountId accountId, int credentialsVersion, string? deviceName,
+        CancellationToken cancellationToken = default);
+    /// <summary>
     /// Rotates the token for <paramref name="caller"/>, who is recorded on the child, so a replay of
     /// the parent inside the grace window is forgiven only for that same caller (#495 review).
     /// </summary>
+    /// <remarks>The website's tokens only: a launcher's is refused as unknown, before anything else (#591).</remarks>
     Task<RefreshRotateResult> RotateAsync(string rawToken, RefreshCaller caller,
         CancellationToken cancellationToken = default);
+    /// <summary>As <see cref="RotateAsync"/>, for a launcher's tokens only (#591).</summary>
+    Task<RefreshRotateResult> RotateLauncherAsync(string rawToken, RefreshCaller caller,
+        CancellationToken cancellationToken = default);
     Task RevokeAsync(string rawToken, CancellationToken cancellationToken = default);
+    /// <summary>Revokes the whole family <paramref name="rawToken"/> belongs to: signing a launcher out (#591).</summary>
+    Task RevokeFamilyAsync(string rawToken, CancellationToken cancellationToken = default);
     Task<int> RevokeAllForAccountAsync(AccountId accountId, CancellationToken cancellationToken = default);
 }
 
@@ -74,8 +86,16 @@ public sealed class RefreshTokenService : IRefreshTokenService
         _time = time;
     }
 
-    public async Task<RefreshIssueResult> IssueAsync(AccountId accountId, int credentialsVersion,
-        CancellationToken cancellationToken = default)
+    public Task<RefreshIssueResult> IssueAsync(AccountId accountId, int credentialsVersion,
+        CancellationToken cancellationToken = default) =>
+        IssueAsync(accountId, credentialsVersion, SessionClient.Web, null, cancellationToken);
+
+    public Task<RefreshIssueResult> IssueLauncherAsync(AccountId accountId, int credentialsVersion, string? deviceName,
+        CancellationToken cancellationToken = default) =>
+        IssueAsync(accountId, credentialsVersion, SessionClient.Launcher, deviceName, cancellationToken);
+
+    private async Task<RefreshIssueResult> IssueAsync(AccountId accountId, int credentialsVersion,
+        SessionClient client, string? deviceName, CancellationToken cancellationToken)
     {
         var now = _time.GetUtcNow().UtcDateTime;
         var (raw, hash) = Generate();
@@ -93,6 +113,8 @@ public sealed class RefreshTokenService : IRefreshTokenService
             CreatedAt = now,
             ExpiresAt = now + DefaultLifetime,
             CredentialsVersion = credentialsVersion,
+            Client = client,
+            DeviceName = CleanDeviceName(deviceName),
         }, cancellationToken);
         if (!issued)
             throw new AuthenticationException(CredentialsChanged);
@@ -100,12 +122,24 @@ public sealed class RefreshTokenService : IRefreshTokenService
         return new RefreshIssueResult(raw, now + DefaultLifetime, familyId);
     }
 
-    public async Task<RefreshRotateResult> RotateAsync(string rawToken, RefreshCaller caller,
-        CancellationToken cancellationToken = default)
+    public Task<RefreshRotateResult> RotateAsync(string rawToken, RefreshCaller caller,
+        CancellationToken cancellationToken = default) =>
+        RotateAsync(rawToken, caller, SessionClient.Web, cancellationToken);
+
+    public Task<RefreshRotateResult> RotateLauncherAsync(string rawToken, RefreshCaller caller,
+        CancellationToken cancellationToken = default) =>
+        RotateAsync(rawToken, caller, SessionClient.Launcher, cancellationToken);
+
+    private async Task<RefreshRotateResult> RotateAsync(string rawToken, RefreshCaller caller, SessionClient expected,
+        CancellationToken cancellationToken)
     {
         var hash = SHA256.HashData(Encoding.UTF8.GetBytes(rawToken));
         var row = await _repository.FindByHashAsync(hash, cancellationToken)
             ?? throw new UnauthorizedAccessException("Unknown refresh token");
+        // Another client's token is unknown here (#591): refused before the revoked check, so the
+        // website's session is never taken for stolen, and ended, by a launcher presenting it.
+        if (row.Client != expected)
+            throw new UnauthorizedAccessException("Unknown refresh token");
 
         var now = _time.GetUtcNow().UtcDateTime;
         if (row.ExpiresAt <= now) throw new UnauthorizedAccessException("Refresh token expired");
@@ -127,6 +161,8 @@ public sealed class RefreshTokenService : IRefreshTokenService
             CredentialsVersion = row.CredentialsVersion,
             RotatedBySource = caller.Source,
             RotatedByAgentHash = caller.UserAgentHash,
+            Client = row.Client,
+            DeviceName = row.DeviceName,
         };
 
         switch (await _repository.RotateAsync(row, child, now, cancellationToken))
@@ -174,8 +210,24 @@ public sealed class RefreshTokenService : IRefreshTokenService
         await _repository.UpdateAsync(row, cancellationToken);
     }
 
+    public async Task RevokeFamilyAsync(string rawToken, CancellationToken cancellationToken = default)
+    {
+        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(rawToken));
+        var row = await _repository.FindByHashAsync(hash, cancellationToken);
+        if (row is null) return;
+
+        await _repository.RevokeFamilyAsync(row.FamilyId, cancellationToken);
+    }
+
     public Task<int> RevokeAllForAccountAsync(AccountId accountId, CancellationToken cancellationToken = default) =>
         _repository.RevokeAllForAccountAsync(accountId, cancellationToken);
+
+    private static string? CleanDeviceName(string? name)
+    {
+        string trimmed = (name ?? string.Empty).Trim();
+        if (trimmed.Length == 0) return null;
+        return trimmed.Length <= RefreshToken.DeviceNameMaxLength ? trimmed : trimmed[..RefreshToken.DeviceNameMaxLength];
+    }
 
     private (string RawToken, byte[] Hash) Generate()
     {

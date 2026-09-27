@@ -245,6 +245,11 @@ public class AuthDbContext : DbContext
 
         builder.HasIndex(r => new { r.AccountId, r.FamilyId });
         builder.HasIndex(r => r.Hash).IsUnique();
+
+        // Launcher sessions (#591): existing rows are the website's.
+        builder.Property(r => r.Client).HasConversion<byte>().HasDefaultValue(SessionClient.Web);
+        builder.Property(r => r.DeviceName).HasMaxLength(RefreshToken.DeviceNameMaxLength);
+        builder.HasIndex(r => new { r.AccountId, r.Client, r.Revoked });
     }
 
     private static void Configure(EntityTypeBuilder<AvalonToken> builder)
