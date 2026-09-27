@@ -24,12 +24,17 @@ public static class DesignTimeConnectionString
     /// Database:<paramref name="database"/>:ConnectionString, or the refusal naming the variable.
     /// A blank value is refused too.
     /// </summary>
-    public static string Require(IConfiguration configuration, string database)
+    public static string Require(IConfiguration configuration, string database) =>
+        Find(configuration, database) ?? throw new InvalidOperationException(
+            $"set Database__{database}__ConnectionString (or user-secrets) to run dotnet ef against a database");
+
+    /// <summary>
+    /// Database:<paramref name="database"/>:ConnectionString, or null when it is missing or blank:
+    /// for a caller that skips its work rather than refuse (the exporter's item catalog, #557).
+    /// </summary>
+    public static string? Find(IConfiguration configuration, string database)
     {
         string? value = configuration[$"Database:{database}:ConnectionString"];
-        if (string.IsNullOrWhiteSpace(value))
-            throw new InvalidOperationException(
-                $"set Database__{database}__ConnectionString (or user-secrets) to run dotnet ef against a database");
-        return value;
+        return string.IsNullOrWhiteSpace(value) ? null : value;
     }
 }
