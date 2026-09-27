@@ -907,9 +907,35 @@ public class CombatServiceShould
         script.OnEnteredRange(puller);
         script.Update(TimeSpan.FromSeconds(0.1));
 
-        slots.ReceivedWithAnyArgs().TryClaim(default, default, default, default, out _);
+        slots.ReceivedWithAnyArgs().TryClaim(default!, default!, default!, default!, out _);
         foreach (var call in slots.ReceivedCalls().Where(c => c.GetMethodInfo().Name == nameof(IMeleeSlots.TryClaim)))
             Assert.Equal(puller.Guid, call.GetArguments()[0]);
+    }
+
+    /// <summary>
+    /// Heal threat skips a creature walking home (#610), which would otherwise carry it past its reset
+    /// and could turn the next pull on the healer. The creatures still fighting share the whole of it.
+    /// </summary>
+    [Fact]
+    public void Add_no_heal_threat_to_a_creature_that_is_returning_home()
+    {
+        var (svc, reg) = BuildService(initialThreatSeed: 0);
+        var healer = StubCharacter(CharacterClass.Healer);
+        var ally   = StubCharacter(CharacterClass.Warrior);
+        ally.Health.Returns(300u);
+        Creature returning = CreatureReturningHome(Substitute.For<ISimulationContext>(), nameof(CreatureCombatScript), health: 30);
+        var fighting = StubCreature();
+        var heal = Substitute.For<IAbility>();
+        heal.Metadata.Returns(new AbilityMetadata { Name = "H", ScriptName = "h", HealThreatPerHp = 0.5f });
+        svc.EnterCombat(returning, ally);
+        svc.EnterCombat(fighting, ally);
+
+        svc.ApplyHeal(healer, ally, 100, heal); // 100 * 0.5 * 1.0 = 50
+
+        var enc = (Encounter)reg.FindEncounterContaining(ally)!;
+        enc.GetThreatList(returning).TryGetValue(healer, out float onReturning);
+        Assert.Equal(0f, onReturning);
+        Assert.Equal(50.0f, enc.GetThreatList(fighting)[healer], 3);
     }
 
     /// <summary>

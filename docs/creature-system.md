@@ -211,8 +211,11 @@ Every hit, a creature's swing or a player's skill, goes through the instance's `
 2. A creature walking home returns the same way (#610): its script, or the `CreatureCombatScript`
    chained inside it, is `Returning`. The service asks through `IReturningHome`, a World-side,
    internal, read-only interface that `CreatureCombatScript` answers and `AggroDefendScript` and
-   `CreaturePatrolScript` forward, so no script on the modding API can claim it. Nothing from the
-   walk home is left in an encounter once the creature is home and reset.
+   `CreaturePatrolScript` forward. Being internal, no mod or script can declare it directly; a
+   subclass of `CreatureCombatScript` inherits it, with its behaviour. Nothing from the
+   walk home is left in an encounter once the creature is home and reset. Heal threat skips it too:
+   `ApplyHeal` splits a heal's threat only across the encounter's creatures that are not walking
+   home.
 3. The attacker and the target join an encounter. Threat is added when the target is a creature.
 4. The hit is applied. When a creature goes from above 0 health to 0, the service reports it, once,
    to its instance through `ICombatOutcomes.CreatureKilled`.

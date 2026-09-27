@@ -7,9 +7,9 @@ namespace Avalon.World.Scripts.Creatures;
 /// one forwards it.
 /// </summary>
 /// <remarks>
-/// Internal and read-only on purpose: a script on the modding API (World.Public, or a hot-reloaded
-/// assembly) cannot implement it, so no mod can make a creature unhittable by claiming it is walking
-/// home.
+/// Internal and read-only on purpose: no mod or script can declare it directly, so none can make a
+/// creature unhittable by claiming it is walking home. A subclass of <see cref="CreatureCombatScript" />
+/// inherits it, with its behaviour.
 /// </remarks>
 internal interface IReturningHome
 {
