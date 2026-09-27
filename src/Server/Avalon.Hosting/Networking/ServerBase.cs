@@ -45,6 +45,9 @@ public abstract class ServerBase<T> : BackgroundService, IServerBase where T : I
 
     public PacketDispatchTelemetry PacketTelemetry { get; }
 
+    /// <summary>TCP keepalive set on every accepted socket (#571).</summary>
+    public TcpKeepAlive KeepAlive { get; }
+
     protected TcpListener Listener { get; }
     public IPacketManager PacketManager { get; }
     public readonly Dictionary<Type, PacketHandlerCache> HandlerCache = new();
@@ -71,6 +74,7 @@ public abstract class ServerBase<T> : BackgroundService, IServerBase where T : I
         Port = hostingOptions.Value.Port;
         SendBufferCapacity = hostingOptions.Value.SendBufferCapacity;
         ProxyProtocol = ProxyProtocolPolicy.From(hostingOptions.Value.ProxyProtocol);
+        KeepAlive = new TcpKeepAlive(hostingOptions.Value, logger);
 
         // Start server timer
         _serverTimer.Start();
@@ -143,6 +147,10 @@ public abstract class ServerBase<T> : BackgroundService, IServerBase where T : I
             client.Close();
             return;
         }
+
+        // Outside the accept's try: its catches mean "the listener stopped" and skip the re-arm.
+        // An option the platform lacks is skipped and logged once, never thrown.
+        KeepAlive.Apply(client.Client);
 
         // will dispose once connection finished executing (canceled or disconnect)
         await using var scope = _serviceProvider.CreateAsyncScope();

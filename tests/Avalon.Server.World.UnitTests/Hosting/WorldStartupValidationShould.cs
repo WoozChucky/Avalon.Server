@@ -50,6 +50,28 @@ public class WorldStartupValidationShould
         Assert.Contains(named, refused.Message, StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData("TcpKeepAliveTimeSeconds", "0")]
+    [InlineData("TcpKeepAliveIntervalSeconds", "-1")]
+    [InlineData("TcpKeepAliveRetryCount", "0")]
+    [InlineData("TcpKeepAliveTimeSeconds", "32768")]
+    [InlineData("TcpKeepAliveIntervalSeconds", "32768")]
+    [InlineData("TcpKeepAliveRetryCount", "128")]
+    public async Task Refuse_to_start_with_a_tcp_keepalive_setting_out_of_range(string setting, string value)
+    {
+        using IHost host = await BuildAsync(new Dictionary<string, string?>(StringComparer.Ordinal)
+        {
+            ["Database:Auth:ConnectionString"] = Unreachable,
+            ["Database:Characters:ConnectionString"] = Unreachable,
+            ["Database:World:ConnectionString"] = Unreachable,
+            ["Hosting:" + setting] = value,
+        });
+
+        var refused = await Assert.ThrowsAsync<OptionsValidationException>(() => WorldStartup.PrepareAsync(host));
+
+        Assert.Contains(setting, refused.Message, StringComparison.Ordinal);
+    }
+
     private static async Task<IHost> BuildAsync(Dictionary<string, string?> overrides)
     {
         string workingDirectory = Directory.GetCurrentDirectory();

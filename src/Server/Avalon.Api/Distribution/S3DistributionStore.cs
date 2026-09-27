@@ -69,7 +69,7 @@ public sealed class S3DistributionStore : IDistributionStore, IDisposable
         ListObjectsV2Response response;
         do
         {
-            response = await _reader.ListObjectsV2Async(request, ct);
+            response = await Guarded(() => _reader.ListObjectsV2Async(request, ct));
             foreach (S3Object obj in response.S3Objects ?? [])
             {
                 if (obj.Key.EndsWith(".json", StringComparison.Ordinal))
@@ -148,20 +148,34 @@ public sealed class S3DistributionStore : IDistributionStore, IDisposable
 
     private async Task<string?> ReadAsync(string key, CancellationToken ct)
     {
+        return await Guarded(async () =>
+        {
+            try
+            {
+                using GetObjectResponse response = await _reader.GetObjectAsync(_bucket, key, ct);
+                using var reader = new StreamReader(response.ResponseStream);
+                return await reader.ReadToEndAsync(ct);
+            }
+            catch (AmazonS3Exception e) when (e.StatusCode == HttpStatusCode.NotFound)
+            {
+                return (string?)null;
+            }
+        });
+    }
+
+    /// <summary>
+    /// Storage down or refusing, for a read or a listing: an outage (503), as for the database and
+    /// Redis, not a 500. The cause is kept as the inner exception.
+    /// </summary>
+    private static async Task<T> Guarded<T>(Func<Task<T>> call)
+    {
         try
         {
-            using GetObjectResponse response = await _reader.GetObjectAsync(_bucket, key, ct);
-            using var reader = new StreamReader(response.ResponseStream);
-            return await reader.ReadToEndAsync(ct);
-        }
-        catch (AmazonS3Exception e) when (e.StatusCode == HttpStatusCode.NotFound)
-        {
-            return null;
+            return await call();
         }
         catch (Exception e) when (e is AmazonServiceException or AmazonClientException or HttpRequestException)
         {
-            // Storage down or refusing: an outage (503), as for the database and Redis, not a 500.
-            throw new DistributionUnavailableException("Downloads are not available right now.");
+            throw new DistributionUnavailableException("Downloads are not available right now.", e);
         }
     }
 
