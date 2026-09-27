@@ -420,6 +420,55 @@ public class DuplicateCharacterSelectShould : IDisposable
     }
 
     /// <summary>
+    /// Each instance step of the despawn is contained on its own in <c>World.DeSpawnPlayerAsync</c>: a
+    /// registry lookup, an encounter drop or a removal that throws past the instance still queues the
+    /// logout save and still leaves the connection holding nothing. A creature script's throw is
+    /// already contained inside <c>RemoveCharacter</c> (#546), so this reaches the world's own catches
+    /// through an instance that throws itself.
+    /// </summary>
+    [Theory]
+    [InlineData("lookup")]
+    [InlineData("encounter")]
+    [InlineData("remove")]
+    public async Task Queue_the_logout_save_and_release_the_character_when_an_instance_step_throws(string step)
+    {
+        Avalon.World.World world = await LoadedWorldAsync(_saver, town: null);
+        var server = new TestWorldServer(world, _saver);
+        Avalon.World.WorldConnection connection = Connect(server);
+        CharacterEntity live = New(TheCharacter.Value);
+        live.InstanceId = Guid.NewGuid();
+        connection.Character = live;
+
+        var boom = new InvalidOperationException($"simulated {step} failure");
+        var combat = Substitute.For<ICombatService>();
+        var instance = Substitute.For<IMapInstance>();
+        instance.CombatService.Returns(combat);
+        if (step == "encounter")
+            combat.When(c => c.DropPlayerFromEncounter(Arg.Any<Avalon.World.Public.Units.IUnit>())).Do(_ => throw boom);
+        if (step == "remove")
+            instance.When(i => i.RemoveCharacter(Arg.Any<Avalon.World.Public.IWorldConnection>())).Do(_ => throw boom);
+
+        var registry = Substitute.For<IInstanceRegistry>();
+        if (step == "lookup")
+            registry.GetInstanceById(Arg.Any<Guid>()).Returns(_ => throw boom);
+        else
+            registry.GetInstanceById(live.InstanceId).Returns(instance);
+        typeof(Avalon.World.World).GetProperty(nameof(Avalon.World.World.InstanceRegistry))!
+            .SetValue(world, registry);
+
+        Task despawn = world.DeSpawnPlayerAsync(connection);
+
+        Assert.Null(connection.Character);
+        _commit.SetResult();
+        await despawn.WaitAsync(Limit);
+        CharacterSaveBatch logout = Assert.Single(_written);
+        Assert.Equal(TheCharacter, logout.Row.Id);
+        Assert.False(logout.Row.Online);
+        if (step != "lookup")
+            instance.Received(1).RemoveCharacter(connection);   // a failed encounter drop still removes it
+    }
+
+    /// <summary>
     /// The same, for the save step itself. Nothing can be written when taking the snapshot throws,
     /// but the connection must still end holding nothing, or its close despawns the discarded entity
     /// again behind the new session.
