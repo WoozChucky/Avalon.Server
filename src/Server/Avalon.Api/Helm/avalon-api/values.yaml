@@ -3,7 +3,7 @@
 # plain values in the pod spec. Either:
 #  - name a Secret you manage in existingSecret (preferred: the values never pass through Helm). It
 #    needs the keys database-auth-connection-string and jwt-signing-key, one pair per world
-#    (worlds.<id>, below), plus cache-password and notification-private-key if used. Leave every
+#    (worlds.<id>, below), plus cache-password, notification-private-key and distribution-secret-key if used. Leave every
 #    secret value below empty: the chart refuses to render with existingSecret set and a value
 #    given, rather than ignore it. The chart cannot see a change to your Secret, so after rotating
 #    a key in it restart the pods yourself:

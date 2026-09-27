@@ -93,7 +93,7 @@ one key would silently read one value.
 {{- if not .Values.worlds }}
 {{- fail "worlds lists no world: the API needs at least one, keyed by its id in the auth Worlds table. Give worlds.<id>.world.connectionString and worlds.<id>.characters.connectionString (--set-file), or with existingSecret the keys worlds.<id>.worldKey and worlds.<id>.charactersKey." }}
 {{- end }}
-{{- $used := dict "jwt-signing-key" "authentication.issuerSigningKey" "database-auth-connection-string" "database.auth.connectionString" "cache-password" "cache.password" "notification-private-key" "notification.privateKey" }}
+{{- $used := dict "jwt-signing-key" "authentication.issuerSigningKey" "database-auth-connection-string" "database.auth.connectionString" "cache-password" "cache.password" "notification-private-key" "notification.privateKey" "distribution-secret-key" "distribution.secretAccessKey" }}
 {{- range $id, $entry := .Values.worlds }}
 {{- if not (and (regexMatch "^[1-9][0-9]{0,4}$" $id) (le (atoi $id) 65535)) }}
 {{- fail (printf "worlds.%s: a world id is a positive integer up to 65535 with no leading zeros, the id of the world's row in the auth Worlds table." $id) }}

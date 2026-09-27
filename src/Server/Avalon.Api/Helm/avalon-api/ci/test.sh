@@ -54,7 +54,7 @@ grep -q "worlds lists no world" <<<"$msg"                              || { echo
 CS1=(--set worlds.1.world.connectionString=w1 --set worlds.1.characters.connectionString=c1)
 must_fail "worldKey without existingSecret must fail"      --set authentication.issuerSigningKey="$KEY" "${CS1[@]}" --set worlds.1.worldKey=custom
 must_fail "charactersKey without existingSecret must fail" --set authentication.issuerSigningKey="$KEY" "${CS1[@]}" --set worlds.1.charactersKey=custom
-for own in jwt-signing-key database-auth-connection-string cache-password notification-private-key; do
+for own in jwt-signing-key database-auth-connection-string cache-password notification-private-key distribution-secret-key; do
   must_fail "a world key reusing $own must fail"          --set existingSecret=x --set worlds.1.worldKey="$own" --set worlds.1.charactersKey=characters-one
 done
 must_fail "worldKey == charactersKey must fail"            --set existingSecret=x --set worlds.1.worldKey=same --set worlds.1.charactersKey=same
