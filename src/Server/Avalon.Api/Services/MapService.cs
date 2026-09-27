@@ -101,7 +101,8 @@ public class MapService : IMapService
     /// Loads a single chunk geometry .obj by filename. The filename MUST match a
     /// <see cref="Avalon.Domain.World.ChunkTemplate.GeometryFile"/> row to block path
     /// traversal — we never trust the route segment directly. Returns null when the
-    /// file is unknown, missing on disk, or escapes the asset root after canonicalisation.
+    /// file is unknown, missing on disk, or not confined to the asset root (#559); all three
+    /// answer alike.
     /// </summary>
     public async Task<ChunkAssetResult?> GetChunkAssetAsync(string filename, CancellationToken ct = default)
     {
@@ -116,14 +117,35 @@ public class MapService : IMapService
         var root = _assetConfig.Value.ChunkAssetRoot;
         if (string.IsNullOrWhiteSpace(root)) return null;
 
-        var rootFull = System.IO.Path.GetFullPath(root);
-        var fullPath = System.IO.Path.GetFullPath(System.IO.Path.Combine(rootFull, match.GeometryFile));
-
-        // Defensive: ensure resolved path stays inside the configured root.
-        if (!fullPath.StartsWith(rootFull, StringComparison.OrdinalIgnoreCase)) return null;
+        var fullPath = ResolveInsideRoot(root, match.GeometryFile);
+        if (fullPath is null) return null;
         if (!System.IO.File.Exists(fullPath)) return null;
 
         var bytes = await System.IO.File.ReadAllBytesAsync(fullPath, ct);
         return new ChunkAssetResult(bytes, "model/obj");
+    }
+
+    /// <summary>
+    /// The full path of <paramref name="geometryFile"/> under <paramref name="root"/>, or null when
+    /// it is not confined to the root (#559). A GeometryFile must be relative and never contain a
+    /// ".." segment, and the resolved path must lie under the root followed by a separator, so a
+    /// sibling folder such as "assets-x" never counts as inside "assets". Every refusal is the
+    /// caller's plain "not found", and nothing about the path is logged or returned.
+    /// </summary>
+    private static string? ResolveInsideRoot(string root, string geometryFile)
+    {
+        if (System.IO.Path.IsPathRooted(geometryFile)) return null;
+        if (geometryFile.Split('/', '\\').Any(segment => string.Equals(segment, "..", StringComparison.Ordinal))) return null;
+
+        var rootFull = System.IO.Path.GetFullPath(root);
+        if (!System.IO.Path.EndsInDirectorySeparator(rootFull))
+            rootFull += System.IO.Path.DirectorySeparatorChar;
+
+        var fullPath = System.IO.Path.GetFullPath(System.IO.Path.Combine(rootFull, geometryFile));
+
+        // Compare as the file system does: case-sensitive on Linux, case-insensitive on
+        // Windows and macOS (their default volumes).
+        var comparison = System.OperatingSystem.IsLinux() ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase;
+        return fullPath.StartsWith(rootFull, comparison) ? fullPath : null;
     }
 }
