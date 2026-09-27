@@ -43,6 +43,24 @@ public class ExceptionHandlerMiddlewareShould
         Assert.DoesNotContain("5432", body, StringComparison.Ordinal);
     }
 
+    /// <summary>Game distribution: no store configured, or a build that is not there, is a 503 that says so.</summary>
+    [Fact]
+    public async Task Answer_downloads_that_are_not_available_with_503()
+    {
+        var middleware = new ExceptionHandlerMiddleware(
+            _ => throw new Avalon.Api.Distribution.DistributionUnavailableException("Downloads are not available right now."),
+            NullLoggerFactory.Instance);
+        var context = new DefaultHttpContext();
+        context.Response.Body = new MemoryStream();
+
+        await middleware.InvokeAsync(context);
+
+        Assert.Equal(StatusCodes.Status503ServiceUnavailable, context.Response.StatusCode);
+        context.Response.Body.Position = 0;
+        using JsonDocument json = JsonDocument.Parse(await new StreamReader(context.Response.Body).ReadToEndAsync());
+        Assert.Equal("Downloads are not available right now.", json.RootElement.GetProperty("detail").GetString());
+    }
+
     /// <summary>#510: an email-change confirmation the sender could not send is a 503 that says so.</summary>
     [Fact]
     public async Task Answer_an_email_that_could_not_be_sent_with_503()
