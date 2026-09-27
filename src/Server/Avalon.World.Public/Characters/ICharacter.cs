@@ -6,7 +6,6 @@ namespace Avalon.World.Public.Characters;
 
 public interface ICharacter : IUnit
 {
-    ICharacterGameState CharacterGameState { get; }
     ICharacterInventory this[InventoryType type] { get; }
 
     ICharacterAbilities Spells { get; }

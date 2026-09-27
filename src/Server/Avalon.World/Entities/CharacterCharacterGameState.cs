@@ -9,7 +9,12 @@ using Avalon.World.Public.Instances;
 
 namespace Avalon.World.Entities;
 
-public class CharacterCharacterGameState : ICharacterGameState
+/// <summary>
+/// What one character's client has been told exists: its replication state, which its instance diffs
+/// every tick. World-side only (#612): World.Public is the modding API, and a mod able to drive this
+/// could change what a player's client is told it can see.
+/// </summary>
+public class CharacterCharacterGameState
 {
     private const int Capacity = 100;
 
@@ -48,6 +53,11 @@ public class CharacterCharacterGameState : ICharacterGameState
         _worldObjectTrackingSystem.EntityRemoved += OnEntityRemoved;
     }
 
+    /// <summary>
+    /// Diffs this tick's objects against what the client already sees. Only the objects in its view
+    /// count (#593): the watcher's own character always, every other one by <paramref name="range" />
+    /// from <paramref name="watcherPosition" />, on X/Z.
+    /// </summary>
     public void Update(
         ObjectGuid watcher,
         Vector3 watcherPosition,

@@ -57,7 +57,6 @@ public class CharacterEntity : ICharacter
         _bag = new CharacterInventoryContainer(loggerFactory, InventoryType.Bag);
         _bank = new CharacterInventoryContainer(loggerFactory, InventoryType.Bank);
         Spells = new CharacterAbilityContainer(loggerFactory);
-        CharacterGameState = new CharacterCharacterGameState();
         Guid = new ObjectGuid(ObjectType.Character, character.Id);
         _regenConfig = regenConfig;
         // Compute initial MovementSpeed from base + equipment + buff modifiers.
@@ -118,7 +117,11 @@ public class CharacterEntity : ICharacter
         _lastCombatTime != DateTime.MinValue &&
         (DateTime.UtcNow - _lastCombatTime).TotalSeconds < _regenConfig.CombatLeaveDelaySeconds;
 
-    public ICharacterGameState CharacterGameState { get; }
+    /// <summary>
+    /// What this character's client has been told exists. World-side, not on ICharacter (#612); its
+    /// instance diffs it every tick.
+    /// </summary>
+    public CharacterCharacterGameState CharacterGameState { get; } = new();
 
     public ICharacterInventory this[InventoryType type] => Container(type);
 
