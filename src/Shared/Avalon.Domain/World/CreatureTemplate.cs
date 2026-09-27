@@ -123,13 +123,6 @@ public class CreatureTemplate : IDbEntity<CreatureTemplateId>, ICreatureMetadata
     public int BodyRemoveTimerSecs { get; set; } = 10;
 
     [NotMapped]
-    public TimeSpan RespawnTimer
-    {
-        get => TimeSpan.FromSeconds(RespawnTimerSecs);
-        set => RespawnTimerSecs = (int)value.TotalSeconds;
-    }
-
-    [NotMapped]
     public TimeSpan BodyRemoveTimer
     {
         get => TimeSpan.FromSeconds(BodyRemoveTimerSecs);

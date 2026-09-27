@@ -26,4 +26,14 @@ public class CreatureMetadataShould
 
         Assert.Empty(settable);
     }
+
+    /// <summary>
+    /// Issue #598. Creatures do not respawn: the timer that read this value was removed on purpose, so
+    /// a <c>RespawnTimer</c> on the modding API would promise mods a setting nothing honours.
+    /// </summary>
+    [Fact]
+    public void Expose_No_Respawn_Timer()
+    {
+        Assert.Null(typeof(ICreatureMetadata).GetProperty("RespawnTimer"));
+    }
 }
