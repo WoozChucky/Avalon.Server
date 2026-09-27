@@ -202,7 +202,8 @@ public class ExchangeWorldKeyHandlerShould
         new Random().NextBytes(worldKey);
         new Random().NextBytes(publicKey);
 
-        var expectedCacheKey = $"world:{_world.Id}:keys:{Convert.ToBase64String(worldKey)}";
+        // Named by the key's SHA-256, never the key itself (#535).
+        var expectedCacheKey = $"world:{_world.Id}:keys:{Sha256Hex(Convert.ToBase64String(worldKey))}";
         _cache.GetAsync(expectedCacheKey).Returns("42:0");
         _accountRepository.FindByIdAsync(Arg.Any<AccountId>()).Returns(MakeAccount(42));
 
@@ -218,7 +219,7 @@ public class ExchangeWorldKeyHandlerShould
     {
         var worldKey = new byte[32];
         new Random().NextBytes(worldKey);
-        var expectedKey = $"world:{_world.Id}:keys:{Convert.ToBase64String(worldKey)}";
+        var expectedKey = $"world:{_world.Id}:keys:{Sha256Hex(Convert.ToBase64String(worldKey))}";
 
         _cache.GetAsync(expectedKey).Returns((string?)null);
 
@@ -394,4 +395,7 @@ public class ExchangeWorldKeyHandlerShould
 
         await _cache.DidNotReceive().RemoveAsync("account:42:inWorld");
     }
+
+    private static string Sha256Hex(string value) =>
+        Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(value)));
 }
