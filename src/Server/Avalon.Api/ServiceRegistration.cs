@@ -13,6 +13,7 @@ using Avalon.Database.Extensions;
 using Avalon.Infrastructure.Extensions;
 using Avalon.Database.Character.Extensions;
 using Avalon.Database.World.Extensions;
+using Avalon.Hosting.Extensions;
 using Avalon.Infrastructure;
 using Avalon.Infrastructure.Configuration;
 using Avalon.Infrastructure.Login;
@@ -27,6 +28,17 @@ namespace Avalon.Api;
 
 public static class ServiceRegistration
 {
+    /// <summary>
+    /// Serilog first, then the service defaults (#562): AddCustomLogging clears every logging
+    /// provider registered before it, so the OpenTelemetry one AddServiceDefaults adds must come
+    /// after it, as it does on the auth and world servers. The #558 EF rules reach both.
+    /// </summary>
+    public static void AddLoggingAndServiceDefaults(this WebApplicationBuilder builder, IConfiguration configuration)
+    {
+        builder.Services.AddCustomLogging(configuration);
+        builder.AddServiceDefaults();
+    }
+
     public static void AddInfrastructure(this IServiceCollection services, ApplicationConfig config)
     {
         services.AddAuthDatabase();

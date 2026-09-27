@@ -14,6 +14,10 @@
 #    --set-file authentication.issuerSigningKey=./jwt.key (a trailing newline is trimmed).
 existingSecret: ""
 
+# The shared auth database. Unless existingSecret is set, the chart refuses to render without it
+# (#564); pass it from a file: --set-file database.auth.connectionString=./auth.cs (a trailing
+# newline is trimmed). With existingSecret, leave it empty: your Secret holds it under
+# database-auth-connection-string.
 database:
   auth:
     connectionString:

@@ -83,6 +83,18 @@ public class DesignTimeFactoriesShould
         Assert.Equal(Probe, context.Database.GetConnectionString());
     }
 
+    /// <summary>Find is Require without the refusal, for a caller that skips instead (#557).</summary>
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void Find_nothing_for_a_missing_or_blank_connection_string(string? value) =>
+        Assert.Null(DesignTimeConnectionString.Find(With("Database:World:ConnectionString", value), "World"));
+
+    [Fact]
+    public void Find_the_connection_string_it_is_given() =>
+        Assert.Equal(Probe, DesignTimeConnectionString.Find(With("Database:World:ConnectionString", Probe), "World"));
+
     [Theory]
     [MemberData(nameof(DesignTimeAssemblies))]
     public void Read_no_appsettings_file(string database)
