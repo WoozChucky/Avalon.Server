@@ -127,6 +127,7 @@ public sealed class ApiAuthHost : IAsyncDisposable
         _app.UseMiddleware<ExceptionHandlerMiddleware>();
         _app.UseRouting();
         _app.UseAuthentication();
+        _app.UseMiddleware<Avalon.Api.Worlds.WorldRouteMiddleware>();
         _app.UseAuthorization();
         _app.MapGet("/player", () => "ok").RequireAuthorization(AvalonRoles.Player);
         _app.MapGet("/admin", () => "ok").RequireAuthorization(AvalonRoles.Admin);

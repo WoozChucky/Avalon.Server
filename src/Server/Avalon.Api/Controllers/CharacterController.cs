@@ -3,28 +3,33 @@ using Avalon.Api.Authorization;
 using Avalon.Api.Contract;
 using Avalon.Api.Contract.Mappers;
 using Avalon.Api.Services;
+using Avalon.Api.Worlds;
 using Avalon.Common.ValueObjects;
 using Avalon.Database;
 using Avalon.Database.Extensions;
+using Avalon.Domain.Auth;
+using Avalon.Domain.Characters;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Avalon.Api.Controllers;
 
+/// <summary>One world's characters (#523). The caller's characters on every world: GET /character.</summary>
 [Authorize(Policy = AvalonRoles.Player)]
 [ApiController]
-[Route("character")]
+[WorldScoped]
+[Route("world/{worldId:int}/character")]
 public class CharacterController : BaseController
 {
-    private readonly IAuthContext _authContext;
     private readonly ICharacterService _service;
     private readonly IAuthorizationService _authz;
+    private readonly ICurrentWorld _world;
 
-    public CharacterController(IAuthContext authContext, ICharacterService service, IAuthorizationService authz)
+    public CharacterController(ICharacterService service, IAuthorizationService authz, ICurrentWorld world)
     {
-        _authContext = authContext;
         _service = service;
         _authz = authz;
+        _world = world;
     }
 
     [Authorize(Policy = AvalonRoles.GameMaster)]
@@ -33,7 +38,7 @@ public class CharacterController : BaseController
     public async Task<PagedResult<CharacterDto>> Paginate([FromQuery] CharacterPaginateFilters filters, CancellationToken ct)
     {
         var page = await _service.PaginateAsync(filters, ct);
-        return page.MapTo(c => c.ToDto());
+        return page.MapTo(ToDto);
     }
 
     [HttpGet("{id}", Name = "GetCharacterById")]
@@ -48,7 +53,7 @@ public class CharacterController : BaseController
         var authz = await _authz.AuthorizeAsync(User, character, new ReadRequirement());
         if (!authz.Succeeded) return NotFoundOrForbid();
 
-        return Ok(character.ToDto());
+        return Ok(ToDto(character));
     }
 
     [HttpGet("{id}/inventory", Name = "GetCharacterInventory")]
@@ -101,5 +106,11 @@ public class CharacterController : BaseController
             await _service.UpdateCosmeticAsync(character, dto.Name, ct);
 
         return NoContent();
+    }
+
+    private CharacterDto ToDto(Character character)
+    {
+        WorldId world = _world.Id ?? throw new InvalidOperationException("No world selected for this request.");
+        return character.ToDto(world.Value, _world.Name);
     }
 }

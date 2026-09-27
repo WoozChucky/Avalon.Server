@@ -23,9 +23,12 @@ public static class MappingExtensions
         AccessLevel = (Avalon.Api.Contract.AccountAccessLevel)account.AccessLevel,
     };
 
-    public static CharacterDto ToDto(this Character character) => new()
+    /// <summary>A character with the world it lives on (#523).</summary>
+    public static CharacterDto ToDto(this Character character, ushort worldId, string worldName) => new()
     {
         Id = character.Id,
+        WorldId = worldId,
+        WorldName = worldName,
         Name = character.Name,
         Class = character.Class,
         Gender = (CharacterGender) character.Gender,
@@ -41,13 +44,4 @@ public static class MappingExtensions
         CreationDate = character.CreationDate,
         DeleteDate = character.DeleteDate,
     };
-
-    /// <summary>A character with the world it lives on (#523).</summary>
-    public static CharacterDto ToDto(this Character character, ushort worldId, string worldName)
-    {
-        CharacterDto dto = character.ToDto();
-        dto.WorldId = worldId;
-        dto.WorldName = worldName;
-        return dto;
-    }
 }

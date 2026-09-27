@@ -21,7 +21,7 @@ public sealed class ChunkPreviewDto
 
     /// <summary>
     /// Geometry path relative to the chunk asset root (e.g. <c>Chunks/forest_path_01.obj</c>).
-    /// SPA fetches the bytes from <c>/map-template/chunk-asset/{filename}</c>.
+    /// SPA fetches the bytes from <c>/world/{worldId}/map-template/chunk-asset/{filename}</c>, in the world it previews.
     /// </summary>
     public string GeometryFile { get; set; } = "";
     public short GridX { get; set; }

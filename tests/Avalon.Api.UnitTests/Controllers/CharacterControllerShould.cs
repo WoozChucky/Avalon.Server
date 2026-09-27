@@ -4,6 +4,7 @@ using Avalon.Api.Authorization;
 using Avalon.Api.Contract;
 using Avalon.Api.Controllers;
 using Avalon.Api.Services;
+using Avalon.Api.Worlds;
 using Avalon.Common.ValueObjects;
 using Avalon.Database;
 using Avalon.Domain.Characters;
@@ -19,10 +20,17 @@ public class CharacterControllerShould
 {
     private readonly ICharacterService _service = Substitute.For<ICharacterService>();
     private readonly IAuthorizationService _authz = Substitute.For<IAuthorizationService>();
-    private readonly IAuthContext _authContext = Substitute.For<IAuthContext>();
+    private readonly CurrentWorld _world = SelectedWorld();
+
+    private static CurrentWorld SelectedWorld()
+    {
+        CurrentWorld world = new();
+        world.Select(new Avalon.Domain.Auth.WorldId(1), "Development");
+        return world;
+    }
 
     private CharacterController MakeSut(ClaimsPrincipal user) =>
-        new(_authContext, _service, _authz)
+        new(_service, _authz, _world)
         {
             ControllerContext = new ControllerContext
             {
@@ -58,6 +66,22 @@ public class CharacterControllerShould
         var result = await sut.GetById(42, CancellationToken.None);
 
         Assert.IsType<OkObjectResult>(result);
+    }
+
+    [Fact]
+    public async Task GetById_Carries_the_requests_world()
+    {
+        var user = User(7, AvalonRoles.Player);
+        var ch = MakeChar(7);
+        _service.GetCharacterByIdAsync(new CharacterId(42), Arg.Any<CancellationToken>()).Returns(ch);
+        _authz.AuthorizeAsync(user, ch, Arg.Any<IEnumerable<IAuthorizationRequirement>>())
+              .Returns(AuthorizationResult.Success());
+
+        var result = Assert.IsType<OkObjectResult>(await MakeSut(user).GetById(42, CancellationToken.None));
+
+        var dto = Assert.IsType<CharacterDto>(result.Value);
+        Assert.Equal((ushort)1, dto.WorldId);
+        Assert.Equal("Development", dto.WorldName);
     }
 
     [Fact]
