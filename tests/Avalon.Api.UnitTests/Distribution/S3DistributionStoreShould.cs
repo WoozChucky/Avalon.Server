@@ -106,4 +106,21 @@ public class S3DistributionStoreShould
     {
         Assert.Throws<DistributionUnavailableException>(() => S3DistributionStore.ParseManifest("{ not json"));
     }
+
+    /// <summary>
+    /// Storage down is an outage (503), for a listing as for a read: the release feed lists a
+    /// channel's manifests, and a refused connection there answered 500 (found live, Garage at 0).
+    /// </summary>
+    [Fact]
+    public async Task Treat_storage_that_refuses_connections_as_unavailable_when_listing_or_reading()
+    {
+        DistributionConfiguration config = Config();
+        config.Endpoint = "http://127.0.0.1:1";
+        using var store = new S3DistributionStore(config);
+
+        await Assert.ThrowsAsync<DistributionUnavailableException>(() =>
+            store.ListManifestsAsync(Channel.Live, CancellationToken.None));
+        await Assert.ThrowsAsync<DistributionUnavailableException>(() =>
+            store.GetPointerAsync(Channel.Live, CancellationToken.None));
+    }
 }
