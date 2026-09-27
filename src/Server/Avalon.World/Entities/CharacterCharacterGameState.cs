@@ -26,6 +26,9 @@ public class CharacterCharacterGameState
     private readonly List<(ObjectGuid Guid, GameEntityFields Fields)> _updatedObjects = new(Capacity);
     private readonly List<ObjectGuid> _removedObjects = new(Capacity);
 
+    // What the last Reset forgot (#611), kept apart from _removedObjects so a reset reports nothing gone.
+    private readonly List<ObjectGuid> _forgotten = new(Capacity);
+
     // What this tick's view holds (#593), reused every tick so a steady tick allocates nothing.
     private readonly List<IWorldObject> _visibleCreatures = new(Capacity);
     private readonly List<IWorldObject> _visibleCharacters = new(Capacity);
@@ -101,8 +104,8 @@ public class CharacterCharacterGameState
     /// Starts over (#611), for a character entering an instance: everything the client was told about is
     /// forgotten, with no removal raised, so the next <see cref="Update" /> adds, in full, whatever is in
     /// view there, the character itself included. Returns what was forgotten, which the client still
-    /// holds until it is told to drop it. The list is reused: it is valid until the next call to this or
-    /// to <see cref="Update" />.
+    /// holds until it is told to drop it. <see cref="RemovedObjects" /> is left empty, so nothing is
+    /// reported gone twice. The list is reused: it is valid until the next call to this.
     /// </summary>
     public IReadOnlyList<ObjectGuid> Reset()
     {
@@ -110,10 +113,12 @@ public class CharacterCharacterGameState
         _updatedObjects.Clear();
         _removedObjects.Clear();
 
-        _creatureTrackingSystem.Forget(_removedObjects);
-        _characterTrackingSystem.Forget(_removedObjects);
-        _worldObjectTrackingSystem.Forget(_removedObjects);
-        return _removedObjects;
+        _forgotten.Clear();
+
+        _creatureTrackingSystem.Forget(_forgotten);
+        _characterTrackingSystem.Forget(_forgotten);
+        _worldObjectTrackingSystem.Forget(_forgotten);
+        return _forgotten;
     }
 
     // "Already tracked" is the object's own tracking system's set, so a tracked object keeps its margin.

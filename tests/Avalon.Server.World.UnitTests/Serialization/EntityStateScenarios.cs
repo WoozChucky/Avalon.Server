@@ -83,7 +83,6 @@ internal static class EntityStateScenarios
     private static readonly Vector3 ProjectileVelocity = new(0f, -9.81f, 0f);
     private static readonly Vector3 ProjectileOrientation = new(4.5f, 0.75f, -4.5f);
 
-
     /// <summary>
     /// Past what fits in 32 bits. The identifier is declared as a 64-bit value and travels as
     /// one, so a narrower reader loses the top half of it rather than failing.

@@ -541,4 +541,20 @@ public class CharacterCharacterGameStateShould
         Assert.Empty(state.RemovedObjects);
         Assert.Empty(state.Reset());
     }
+
+    [Fact]
+    public void Reset_LeavesRemovedObjectsEmpty_SoNothingIsReportedGoneTwice()
+    {
+        var state = new CharacterCharacterGameState();
+        var creature = MakeRealCreature(1u, new Vector3(10f, 0, 0));
+        Watch(state, AsCreatureDict(creature), [], [], EmptyDirty());
+        Watch(state, [], [], [], EmptyDirty());
+        Assert.Equal([creature.Guid], state.RemovedObjects);
+        Watch(state, AsCreatureDict(creature), [], [], EmptyDirty());
+
+        IReadOnlyList<ObjectGuid> forgotten = state.Reset();
+
+        Assert.Equal([creature.Guid], forgotten);
+        Assert.Empty(state.RemovedObjects);
+    }
 }
