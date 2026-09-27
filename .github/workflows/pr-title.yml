@@ -1,0 +1,30 @@
+name: PR title
+
+# Pull request titles follow Conventional Commits; the rule is in tools/ci/pr-title-check.sh and its
+# table test in tools/ci/pr-title-check.test.sh.
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened, ready_for_review]
+
+permissions: {}
+
+jobs:
+  conventional-title:
+    name: Conventional Commits title
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read # checkout of tools/ci only
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: tools/ci
+          persist-credentials: false
+      - name: Check the rule against its table
+        run: bash tools/ci/pr-title-check.test.sh
+      - name: Check the title
+        # The title reaches the script only through the environment: interpolating it into the
+        # script would run whatever a title author wrote.
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: bash tools/ci/pr-title-check.sh
