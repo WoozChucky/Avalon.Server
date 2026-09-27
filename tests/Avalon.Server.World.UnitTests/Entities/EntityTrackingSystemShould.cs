@@ -266,7 +266,7 @@ public class EntityTrackingSystemShould
         var sut = MakeSut();
         var objects = Enumerable.Range(1, 50)
             .Select(i => MakeObject(new ObjectGuid(ObjectType.Creature, (uint)i)))
-            .ToArray();
+            .ToList();
 
         var ex = Record.Exception(() => sut.Update(objects, EmptyDirty()));
         Assert.Null(ex);
@@ -285,5 +285,20 @@ public class EntityTrackingSystemShould
         sut.Update([obj], EmptyDirty()); // re-enters
 
         Assert.Equal(1, addCount);
+    }
+
+    /// <summary>#593: the interest rule asks whether an object is already in view.</summary>
+    [Fact]
+    public void Report_what_it_tracks_as_of_its_last_update()
+    {
+        var sut = MakeSut();
+        var obj = MakeObject(new ObjectGuid(ObjectType.Creature, 8u));
+        Assert.False(sut.IsTracked(obj.Guid));
+
+        sut.Update([obj], EmptyDirty());
+        Assert.True(sut.IsTracked(obj.Guid));
+
+        sut.Update([], EmptyDirty());
+        Assert.False(sut.IsTracked(obj.Guid));
     }
 }

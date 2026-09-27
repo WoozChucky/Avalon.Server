@@ -163,4 +163,87 @@ public class CreatureCombatScriptCrowdLocomotionShould
         foreach (ICreature creature in creatures)
             combat.Received().ApplyDamage(creature, target, Arg.Any<uint>());
     }
+
+    /// <summary>
+    /// The 40x40 ground plus a separate 6x6 island east of it (x 24 to 30), not connected to it: a
+    /// target on the island is within the polygon search box of its own mesh, so the crowd plans a
+    /// partial route that ends at the ground's east edge (#606).
+    /// </summary>
+    private static readonly Lazy<DtNavMesh> GroundAndIsland = new(BakeGroundAndIsland, isThreadSafe: true);
+
+    private static DtNavMesh BakeGroundAndIsland()
+    {
+        float[] vertices =
+        [
+            -20f, 0f, -20f,
+            -20f, 0f, 20f,
+            20f, 0f, 20f,
+            20f, 0f, -20f,
+            24f, 0f, -3f,
+            24f, 0f, 3f,
+            30f, 0f, 3f,
+            30f, 0f, -3f,
+        ];
+        int[] faces = [0, 1, 2, 0, 2, 3, 4, 5, 6, 4, 6, 7];
+
+        var geom = new RcSampleInputGeomProvider(vertices, faces);
+        var result = new TileNavMeshBuilder().Build(geom, NavmeshBuildSettings.Create());
+        Assert.NotNull(result?.NavMesh);
+        return result!.NavMesh;
+    }
+
+    /// <summary>
+    /// #606 under the crowd: a partial route never "arrives" (the crowd measures arrival against the
+    /// point asked for, on the island), so HasArrived stays false while the creature stands at the
+    /// ground's edge. The route's resolved end is what shows it cannot reach, and the creature goes home
+    /// within the limit.
+    /// </summary>
+    [Fact]
+    public void Go_Home_Within_The_Limit_When_Its_Target_Is_On_An_Island_Under_CrowdLocomotion()
+    {
+        var locomotion = new CrowdLocomotion(GroundAndIsland.Value, NavmeshBuildSettings.AgentRadius,
+            NullLogger.Instance);
+
+        ICharacter target = Substitute.For<ICharacter>();
+        target.Guid.Returns(new ObjectGuid(ObjectType.Character, 100));
+        target.Position.Returns(new Vector3(27f, 0f, 0f));
+        target.IsDead.Returns(false);
+
+        var combat = Substitute.For<ICombatService>();
+        combat.GetEncounterFor(Arg.Any<IUnit>()).Returns((IEncounter?)null);
+
+        var context = Substitute.For<ISimulationContext>();
+        context.CombatService.Returns(combat);
+        context.Locomotion.Returns(locomotion);
+        context.MeleeSlots.Returns(new MeleeSlots(slotCount: 6, radius: 1.5f));
+
+        ICreature creature = Substitute.For<ICreature>();
+        creature.Guid.Returns(new ObjectGuid(ObjectType.Creature, 1));
+        creature.TauntedBy = null;
+        creature.TauntExpiresAt = DateTime.MinValue;
+        var metadata = Substitute.For<ICreatureMetadata>();
+        metadata.SpeedRun.Returns(4f);
+        creature.Metadata.Returns(metadata);
+        creature.Speed.Returns(4f);
+        creature.Position.Returns(new Vector3(10f, 0f, 0f));
+        creature.Health.Returns(100u);
+        creature.CurrentHealth = 100;
+        locomotion.Register(creature, radius: NavmeshBuildSettings.AgentRadius);
+
+        var script = new CreatureCombatScript(NullLoggerFactory.Instance, creature, context);
+        script.OnEnteredRange(target);
+
+        TimeSpan dt = TimeSpan.FromSeconds(0.05);
+        int returningAt = -1;
+        for (int tick = 1; tick <= 140 && returningAt < 0; tick++)
+        {
+            script.Update(dt);
+            if (script.State is CreatureCombatScript.CombatState.Returning)
+                returningAt = tick;
+            locomotion.Update(dt);
+        }
+
+        Assert.InRange(returningAt, 99, 110); // 5 s of 0.05 s ticks, give or take the first plan
+        combat.DidNotReceiveWithAnyArgs().ApplyDamage(default!, default!, default);
+    }
 }

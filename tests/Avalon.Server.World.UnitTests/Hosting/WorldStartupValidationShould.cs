@@ -2,6 +2,7 @@ using Avalon.Hosting;
 using Avalon.Network.Packets.Abstractions.Attributes;
 using Avalon.Server.World.Extensions;
 using Avalon.World;
+using Avalon.World.Configuration;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -72,7 +73,7 @@ public class WorldStartupValidationShould
         Assert.Contains(setting, refused.Message, StringComparison.Ordinal);
     }
 
-    /// <summary>#532: the effect broadcast radius must be finite and at least 1 m.</summary>
+    /// <summary>#532, #593: the interest radius must be finite and at least 1 m.</summary>
     [Theory]
     [InlineData("0")]
     [InlineData("-5")]
@@ -80,19 +81,79 @@ public class WorldStartupValidationShould
     [InlineData("NaN")]
     [InlineData("Infinity")]
     [InlineData("-Infinity")]
-    public async Task Refuse_to_start_with_an_effect_broadcast_radius_out_of_range(string value)
+    public async Task Refuse_to_start_with_an_interest_radius_out_of_range(string value)
     {
         using IHost host = await BuildAsync(new Dictionary<string, string?>(StringComparer.Ordinal)
         {
             ["Database:Auth:ConnectionString"] = Unreachable,
             ["Database:Characters:ConnectionString"] = Unreachable,
             ["Database:World:ConnectionString"] = Unreachable,
-            ["Game:EffectBroadcastRadius"] = value,
+            ["Game:InterestRadius"] = value,
         });
 
         var refused = await Assert.ThrowsAsync<OptionsValidationException>(() => WorldStartup.PrepareAsync(host));
 
-        Assert.Contains("EffectBroadcastRadius", refused.Message, StringComparison.Ordinal);
+        Assert.Contains("InterestRadius", refused.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>#593: the interest remove margin must be finite and 0 or more.</summary>
+    [Theory]
+    [InlineData("-0.5")]
+    [InlineData("NaN")]
+    [InlineData("Infinity")]
+    [InlineData("-Infinity")]
+    public async Task Refuse_to_start_with_an_interest_remove_margin_out_of_range(string value)
+    {
+        using IHost host = await BuildAsync(new Dictionary<string, string?>(StringComparer.Ordinal)
+        {
+            ["Database:Auth:ConnectionString"] = Unreachable,
+            ["Database:Characters:ConnectionString"] = Unreachable,
+            ["Database:World:ConnectionString"] = Unreachable,
+            ["Game:InterestRemoveMargin"] = value,
+        });
+
+        var refused = await Assert.ThrowsAsync<OptionsValidationException>(() => WorldStartup.PrepareAsync(host));
+
+        Assert.Contains("InterestRemoveMargin", refused.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>#593: a margin of 0 turns the margin off and is allowed.</summary>
+    [Fact]
+    public async Task Accept_an_interest_remove_margin_of_zero()
+    {
+        using IHost host = await BuildAsync(new Dictionary<string, string?>(StringComparer.Ordinal)
+        {
+            ["Game:InterestRemoveMargin"] = "0",
+        });
+
+        host.Services.GetRequiredService<IStartupValidator>().Validate();
+
+        Assert.Equal(0f, host.Services.GetRequiredService<IOptions<GameConfiguration>>().Value.InterestRemoveMargin);
+    }
+
+    [Fact]
+    public void Default_the_interest_range_to_60_and_10()
+    {
+        var configuration = new GameConfiguration();
+        Assert.Equal(60f, configuration.InterestRadius);
+        Assert.Equal(10f, configuration.InterestRemoveMargin);
+    }
+
+    /// <summary>#593: Game:InterestRadius replaces Game:EffectBroadcastRadius outright, with no alias.</summary>
+    [Fact]
+    public async Task Bind_the_interest_radius_and_ignore_the_old_key()
+    {
+        using IHost renamed = await BuildAsync(new Dictionary<string, string?>(StringComparer.Ordinal)
+        {
+            ["Game:InterestRadius"] = "42",
+        });
+        using IHost old = await BuildAsync(new Dictionary<string, string?>(StringComparer.Ordinal)
+        {
+            ["Game:EffectBroadcastRadius"] = "42",
+        });
+
+        Assert.Equal(42f, renamed.Services.GetRequiredService<IOptions<GameConfiguration>>().Value.InterestRadius);
+        Assert.Equal(60f, old.Services.GetRequiredService<IOptions<GameConfiguration>>().Value.InterestRadius);
     }
 
     private static async Task<IHost> BuildAsync(Dictionary<string, string?> overrides)

@@ -65,6 +65,18 @@ public interface ICreatureLocomotion
     /// </summary>
     float ArrivalTolerance(ICreature creature);
 
+    /// <summary>
+    /// Where the route from the last <see cref="MoveTo" /> really ends (#606), which can fall short of
+    /// the destination asked for: a partial route toward a point the navmesh does not connect to (a
+    /// ledge, an island) ends at the nearest point it does reach, and a destination just off the mesh
+    /// resolves to the nearest point on it. Kept once the creature has walked the route to its end.
+    /// Null when the creature is not registered, when the last <see cref="MoveTo" /> found no route,
+    /// and after <see cref="Stop" /> or <see cref="Teleport" />; a crowd also answers null for a route
+    /// it has not planned yet, until its next <see cref="Update" />. Read-only: it reports a route,
+    /// it changes nothing.
+    /// </summary>
+    Vector3? ResolvedDestination(ICreature creature);
+
     /// <summary>Advances every registered creature. Called once per MapInstance tick.</summary>
     void Update(TimeSpan deltaTime);
 

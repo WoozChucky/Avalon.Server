@@ -54,6 +54,13 @@ public sealed class CrowdLocomotion : ICreatureLocomotion
 
     private readonly Dictionary<ObjectGuid, ICreature> _creatures = [];
 
+    /// <summary>
+    /// The end of each creature's last planned route, recorded on every Update while the crowd holds
+    /// a route for it, so it outlives the reset that follows arrival (#606). Cleared by MoveTo (a new
+    /// route is not planned until the next Update), Stop, Teleport, Unregister and a failed request.
+    /// </summary>
+    private readonly Dictionary<ObjectGuid, Vector3> _routeEnds = [];
+
     public CrowdLocomotion(DtNavMesh navMesh, float agentRadius, ILogger logger)
     {
         _logger = logger;
@@ -82,6 +89,7 @@ public sealed class CrowdLocomotion : ICreatureLocomotion
 
         _crowd.RemoveAgent(agent);
         _creatures.Remove(creature.Guid);
+        _routeEnds.Remove(creature.Guid);
     }
 
     /// <summary>
@@ -93,6 +101,7 @@ public sealed class CrowdLocomotion : ICreatureLocomotion
         if (!_creatureAgents.TryGetValue(creature.Guid, out DtCrowdAgent? agent))
             return;
 
+        _routeEnds.Remove(creature.Guid);
         DtNavMeshQuery query = _crowd.GetNavMeshQuery();
         DtStatus status = query.FindNearestPoly(ToRc(destination), PolyPickExt, _crowd.GetFilter(0),
             out long refs, out RcVec3f nearest, out _);
@@ -116,6 +125,7 @@ public sealed class CrowdLocomotion : ICreatureLocomotion
 
         _crowd.ResetMoveTarget(agent);
         agent.vel = RcVec3f.Zero;
+        _routeEnds.Remove(creature.Guid);
         ComeToRest(creature);
     }
 
@@ -135,6 +145,8 @@ public sealed class CrowdLocomotion : ICreatureLocomotion
             _crowd.RemoveAgent(agent);
             _creatureAgents[creature.Guid] = _crowd.AddAgent(ToRc(position), option);
         }
+
+        _routeEnds.Remove(creature.Guid);
 
         creature.Position = position;
         ComeToRest(creature);
@@ -158,6 +170,9 @@ public sealed class CrowdLocomotion : ICreatureLocomotion
         ArrivalToleranceFor(_creatureAgents.TryGetValue(creature.Guid, out DtCrowdAgent? agent)
             ? agent.option.radius
             : 0f);
+
+    public Vector3? ResolvedDestination(ICreature creature) =>
+        _routeEnds.TryGetValue(creature.Guid, out Vector3 end) ? end : null;
 
     public void Update(TimeSpan deltaTime)
     {
@@ -188,6 +203,13 @@ public sealed class CrowdLocomotion : ICreatureLocomotion
 
             if (agent.targetState == DtMoveRequestState.DT_CROWDAGENT_TARGET_NONE)
                 continue;
+
+            // The corridor's target is where the planned route really ends: DtCrowd constrains it to
+            // the last polygon reached when the path is partial (#606).
+            if (agent.targetState == DtMoveRequestState.DT_CROWDAGENT_TARGET_FAILED)
+                _routeEnds.Remove(guid);
+            else if (agent.targetState != DtMoveRequestState.DT_CROWDAGENT_TARGET_REQUESTING)
+                _routeEnds[guid] = FromRc(agent.corridor.GetTarget());
 
             if (Arrived(agent))
             {

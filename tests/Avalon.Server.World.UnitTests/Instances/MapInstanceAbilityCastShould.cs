@@ -68,7 +68,7 @@ public class MapInstanceAbilityCastShould
     }
 
     /// <summary>A creature takes its damage through its script; this one only loses the health it is hit for.</summary>
-    private sealed class WoundScript(ICreature creature) : AiScript(creature, Substitute.For<ISimulationContext>())
+    internal sealed class WoundScript(ICreature creature) : AiScript(creature, Substitute.For<ISimulationContext>())
     {
         public override object State { get; set; } = 0;
 
