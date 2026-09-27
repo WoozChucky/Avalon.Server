@@ -85,6 +85,9 @@ public class ExceptionHandlerMiddleware
             // and domain only; this exception carries nothing more.
             EmailDeliveryException => WriteProblemAsync(context, (int)HttpStatusCode.ServiceUnavailable,
                 "ServiceUnavailable", "Service unavailable", exception.Message),
+            // Game distribution: no store configured, or a published build that is not there.
+            Distribution.DistributionUnavailableException => WriteProblemAsync(context, (int)HttpStatusCode.ServiceUnavailable,
+                "ServiceUnavailable", "Service unavailable", exception.Message),
             BusinessException => WriteProblemAsync(context, (int)HttpStatusCode.BadRequest,
                 exception.GetType().Name, "Client error", exception.Message),
             // An Accounts check constraint refused the row (#503 follow-up): a username or an email

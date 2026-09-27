@@ -13,4 +13,5 @@ public class ApplicationConfig
     public CacheConfiguration? Cache { get; set; }
     public ForwardedHeadersConfig? ForwardedHeaders { get; set; }
     public EmailConfig? Email { get; set; }
+    public Distribution.DistributionConfiguration? Distribution { get; set; }
 }

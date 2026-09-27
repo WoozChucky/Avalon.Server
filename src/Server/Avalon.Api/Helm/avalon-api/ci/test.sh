@@ -32,4 +32,15 @@ grep -A1 "name: Application__Cache__Host" <<<"$out" | grep -q '"redis:6379"'    
 if helm template t . --set existingSecret=x >/dev/null 2>&1; then
   echo "rendering without cache.host must fail"; exit 1
 fi
+! grep -q "Application__Distribution__" <<<"$out"                                              || { echo "distribution env rendered without an endpoint"; exit 1; }
+dist=$(helm template t . $CACHE --set existingSecret=x --set distribution.endpoint=http://garage.distribution.svc:3900 --set distribution.publicUrl=https://dist.example --set distribution.accessKeyId=GKabc)
+grep -A1 "name: Application__Distribution__Endpoint" <<<"$dist" | grep -q "http://garage.distribution.svc:3900" || { echo "distribution endpoint missing"; exit 1; }
+grep -A1 "name: Application__Distribution__PublicUrl" <<<"$dist" | grep -q "https://dist.example"                || { echo "distribution public url missing"; exit 1; }
+grep -A1 "name: Application__Distribution__Bucket" <<<"$dist" | grep -q '"avalon-dist"'                            || { echo "distribution bucket missing"; exit 1; }
+grep -A1 "name: Application__Distribution__Region" <<<"$dist" | grep -q '"garage"'                                 || { echo "distribution region missing"; exit 1; }
+grep -A1 "name: Application__Distribution__AccessKeyId" <<<"$dist" | grep -q '"GKabc"'                             || { echo "distribution key id missing"; exit 1; }
+grep -A4 "name: Application__Distribution__SecretAccessKey" <<<"$dist" | grep -q "key: distribution-secret-key"    || { echo "distribution secret must come from the Secret"; exit 1; }
+if helm template t . $CACHE --set existingSecret=x --set distribution.secretAccessKey=leak >/dev/null 2>&1; then
+  echo "existingSecret + inline distribution.secretAccessKey must fail"; exit 1
+fi
 echo "avalon-api chart OK"
