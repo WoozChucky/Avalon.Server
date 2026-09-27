@@ -196,8 +196,12 @@ It never homes and has no target.
 - **Damage** arrives as the usual damage packets; `SCharacterDamagePacket.AbilityId` is filled (#521
   item 8), and both carry `Result`, a `HitResult` saying whether the hit crit, was blocked, or was
   dodged (sent with 0 damage) (#506).
-- **Heals** have no packet of their own: the healed unit's new current health reaches clients through
-  ordinary state replication.
+- **Heals** that restored more than 0 health broadcast `SMSG_UNIT_HEALED` (`SUnitHealedPacket { Healer,
+  Target, Amount, CurrentHealth, AbilityId?, Result }`) to the healer, the target and every client within
+  the interest radius of the target (#506, #532): `Amount` is the health restored, overheal left out, and
+  `Result` is `Crit` for a critical heal. The new health also reaches clients through state replication.
+- **The character sheet** is `SMSG_CHARACTER_STATS` (`SCharacterStatsPacket`), sent to its owner only
+  (#506): the attributes, armour, damage stats, chances clamped to the formula's caps, and weapon range.
 
 ---
 
